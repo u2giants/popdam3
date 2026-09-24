@@ -3,18 +3,20 @@
   "source": "scripts/orchestrator-flow/outcome-lifecycle.mjs",
   "sites": [
     {
-      "site": "scripts/orchestrator-flow/outcome-lifecycle.mjs:241",
-      "semantic_key": "scripts/orchestrator-flow/outcome-lifecycle.mjs:866d38a6ecd2df3cf81a8b3ce887f22a433904af7da5d4ec7c92be4054413e23:1",
+      "site": "scripts/orchestrator-flow/outcome-lifecycle.mjs:282",
+      "semantic_key": "scripts/orchestrator-flow/outcome-lifecycle.mjs:866d38a6ecd2df3cf81a8b3ce887f22a433904af7da5d4ec7c92be4054413e23:context-fe0a3488eaee0ad5d4c86207ba8d651294d4ea87f880afbec5c000381e2633f3",
       "line_sha256": "866d38a6ecd2df3cf81a8b3ce887f22a433904af7da5d4ec7c92be4054413e23",
       "disposition": "excluded",
-      "reason": "This refusal message names a missing coordination lifecycle event in the outcome ledger, not a missing or unapplied database object, so it is outside the migration throughput truth audit it is discovered by."
+      "reason": "This refusal message names a missing coordination lifecycle event in the outcome ledger, not a missing or unapplied database object, so it is outside the migration throughput truth audit it is discovered by.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/outcome-lifecycle.mjs:866d38a6ecd2df3cf81a8b3ce887f22a433904af7da5d4ec7c92be4054413e23:1"
     },
     {
-      "site": "scripts/orchestrator-flow/outcome-lifecycle.mjs:276",
-      "semantic_key": "scripts/orchestrator-flow/outcome-lifecycle.mjs:9de2dd292b4305e031e31fafb886b8427cd829cb11c2f4efebc385a08e26075a:1",
+      "site": "scripts/orchestrator-flow/outcome-lifecycle.mjs:324",
+      "semantic_key": "scripts/orchestrator-flow/outcome-lifecycle.mjs:9de2dd292b4305e031e31fafb886b8427cd829cb11c2f4efebc385a08e26075a:context-62df8f9166be9885d4e9552f752298ae38b8f65dd0888d738644dfb0df6b2a5a",
       "line_sha256": "9de2dd292b4305e031e31fafb886b8427cd829cb11c2f4efebc385a08e26075a",
       "disposition": "enriched",
-      "reason": "Outcome completion directly reads the current issue and refuses an unreadable state before considering merge, production, or live evidence."
+      "reason": "Outcome completion directly reads the current issue and refuses an unreadable state before considering merge, production, or live evidence.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/outcome-lifecycle.mjs:9de2dd292b4305e031e31fafb886b8427cd829cb11c2f4efebc385a08e26075a:1"
     }
   ]
 }

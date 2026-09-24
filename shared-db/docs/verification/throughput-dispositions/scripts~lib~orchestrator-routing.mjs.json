@@ -3,18 +3,20 @@
   "source": "scripts/lib/orchestrator-routing.mjs",
   "sites": [
     {
-      "site": "scripts/lib/orchestrator-routing.mjs:301",
-      "semantic_key": "scripts/lib/orchestrator-routing.mjs:441e8f95de0650ecb13605ede2729b0ba709feb8f6f72e693fb0a70c400efc09:1",
+      "site": "scripts/lib/orchestrator-routing.mjs:322",
+      "semantic_key": "scripts/lib/orchestrator-routing.mjs:441e8f95de0650ecb13605ede2729b0ba709feb8f6f72e693fb0a70c400efc09:context-2ffb233951007f65fd247f8799c844f5ecb972e89e26f5d9ed95ece3edc97f9d",
       "line_sha256": "441e8f95de0650ecb13605ede2729b0ba709feb8f6f72e693fb0a70c400efc09",
       "disposition": "excluded",
-      "reason": "Issue #2318. A source comment explaining why the renderer emits the authorization field blank rather than silently missing; it is prose about marker authoring and states nothing about migration or object state."
+      "reason": "Issue #2318. A source comment explaining why the renderer emits the authorization field blank rather than silently missing; it is prose about marker authoring and states nothing about migration or object state.",
+      "legacy_semantic_key": "scripts/lib/orchestrator-routing.mjs:441e8f95de0650ecb13605ede2729b0ba709feb8f6f72e693fb0a70c400efc09:1"
     },
     {
-      "site": "scripts/lib/orchestrator-routing.mjs:187",
-      "semantic_key": "scripts/lib/orchestrator-routing.mjs:7319eba8ac13186491dbe421fd89ac14f2c50eaf078c7428f3fac6479e2d0434:1",
+      "site": "scripts/lib/orchestrator-routing.mjs:206",
+      "semantic_key": "scripts/lib/orchestrator-routing.mjs:7319eba8ac13186491dbe421fd89ac14f2c50eaf078c7428f3fac6479e2d0434:context-48d0eda5f42e53714faf2171b63958d31b7d44c31a7f4c8f849eec4aec6d0c0f",
       "line_sha256": "7319eba8ac13186491dbe421fd89ac14f2c50eaf078c7428f3fac6479e2d0434",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/lib/orchestrator-routing.mjs:7319eba8ac13186491dbe421fd89ac14f2c50eaf078c7428f3fac6479e2d0434:1"
     }
   ]
 }

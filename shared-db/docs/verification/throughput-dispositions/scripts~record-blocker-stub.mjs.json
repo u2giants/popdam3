@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": "scripts/record-blocker-stub.mjs:3",
-      "semantic_key": "scripts/record-blocker-stub.mjs:a486b0255e74e3773eed0ee950e3936633162d291ba4073586e23d15021fe9d7:1",
+      "semantic_key": "scripts/record-blocker-stub.mjs:a486b0255e74e3773eed0ee950e3936633162d291ba4073586e23d15021fe9d7:context-27c465fc4eb0793a58c2489c1c0eb1b35cabe50eb1481d9bb970c42d2736e438",
       "line_sha256": "a486b0255e74e3773eed0ee950e3936633162d291ba4073586e23d15021fe9d7",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/record-blocker-stub.mjs:a486b0255e74e3773eed0ee950e3936633162d291ba4073586e23d15021fe9d7:1"
     }
   ]
 }

@@ -4,17 +4,19 @@
   "sites": [
     {
       "site": "scripts/orchestrator-flow/baseline-schema.mjs:8",
-      "semantic_key": "scripts/orchestrator-flow/baseline-schema.mjs:53788602953037e4bb623980cb4757d79be764f90dceec7ac90565483a5f9a02:1",
+      "semantic_key": "scripts/orchestrator-flow/baseline-schema.mjs:53788602953037e4bb623980cb4757d79be764f90dceec7ac90565483a5f9a02:context-5f47aabb3f1acaf51807f9cae03eb41fc30ceed5300c5618b3f828281752f9e3",
       "line_sha256": "53788602953037e4bb623980cb4757d79be764f90dceec7ac90565483a5f9a02",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/baseline-schema.mjs:53788602953037e4bb623980cb4757d79be764f90dceec7ac90565483a5f9a02:1"
     },
     {
       "site": "scripts/orchestrator-flow/baseline-schema.mjs:28",
-      "semantic_key": "scripts/orchestrator-flow/baseline-schema.mjs:ab4ccb5fcaaafd5dbb35560b81c05b7fcff85ca3a759ecc3bc054c114cc8c0cc:1",
+      "semantic_key": "scripts/orchestrator-flow/baseline-schema.mjs:ab4ccb5fcaaafd5dbb35560b81c05b7fcff85ca3a759ecc3bc054c114cc8c0cc:context-6399b9d158463fb5916a864346e3b18c79be52cd99a74f82aba5b46d0bc6a818",
       "line_sha256": "ab4ccb5fcaaafd5dbb35560b81c05b7fcff85ca3a759ecc3bc054c114cc8c0cc",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/baseline-schema.mjs:ab4ccb5fcaaafd5dbb35560b81c05b7fcff85ca3a759ecc3bc054c114cc8c0cc:1"
     }
   ]
 }

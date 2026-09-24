@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": "scripts/experiment_611_db_push_atomicity.sh:140",
-      "semantic_key": "scripts/experiment_611_db_push_atomicity.sh:03d91ac66d438482ddacf7ed63810b052889ef9fd2027e0574afd2cf824bc75d:1",
+      "semantic_key": "scripts/experiment_611_db_push_atomicity.sh:03d91ac66d438482ddacf7ed63810b052889ef9fd2027e0574afd2cf824bc75d:context-8e52a0a3b0920b53881014d1b11eeb73e716b704ecc611404f68192cab35761d",
       "line_sha256": "03d91ac66d438482ddacf7ed63810b052889ef9fd2027e0574afd2cf824bc75d",
       "disposition": "excluded",
-      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/experiment_611_db_push_atomicity.sh:03d91ac66d438482ddacf7ed63810b052889ef9fd2027e0574afd2cf824bc75d:1"
     }
   ]
 }

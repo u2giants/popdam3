@@ -4,17 +4,19 @@
   "sites": [
     {
       "site": "scripts/check-intake-pointer.mjs:27",
-      "semantic_key": "scripts/check-intake-pointer.mjs:e0430a2af2d2a805642a31eeeb01a5fd220012465aee90f7e1bf0596431bbae4:1",
+      "semantic_key": "scripts/check-intake-pointer.mjs:e0430a2af2d2a805642a31eeeb01a5fd220012465aee90f7e1bf0596431bbae4:context-359f59b8711e17066515cb40a84637081ef9468a734a818c25e17deb16ac7a46",
       "line_sha256": "e0430a2af2d2a805642a31eeeb01a5fd220012465aee90f7e1bf0596431bbae4",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-intake-pointer.mjs:e0430a2af2d2a805642a31eeeb01a5fd220012465aee90f7e1bf0596431bbae4:1"
     },
     {
       "site": "scripts/check-intake-pointer.mjs:82",
-      "semantic_key": "scripts/check-intake-pointer.mjs:eeb8dded1d42c210577e0f9d9bf7948a7691878c83cf7213f3c370007a4ddca8:1",
+      "semantic_key": "scripts/check-intake-pointer.mjs:eeb8dded1d42c210577e0f9d9bf7948a7691878c83cf7213f3c370007a4ddca8:context-d599bf343ffca3fb0458bab798f2074562b50e9973676f6df6fb4446cb59396f",
       "line_sha256": "eeb8dded1d42c210577e0f9d9bf7948a7691878c83cf7213f3c370007a4ddca8",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-intake-pointer.mjs:eeb8dded1d42c210577e0f9d9bf7948a7691878c83cf7213f3c370007a4ddca8:1"
     }
   ]
 }

@@ -4,17 +4,19 @@
   "sites": [
     {
       "site": "scripts/check_production_verification_sidecars.py:61",
-      "semantic_key": "scripts/check_production_verification_sidecars.py:6e494c651ced298d5cee9dbaae0bbdf9c4b0fbf8e72e5f9669e9bd6e7626b876:1",
+      "semantic_key": "scripts/check_production_verification_sidecars.py:6e494c651ced298d5cee9dbaae0bbdf9c4b0fbf8e72e5f9669e9bd6e7626b876:context-95415502445732eb2ff854588e615ce11a69dd94214b7ad191d2a6798ee7b69b",
       "line_sha256": "6e494c651ced298d5cee9dbaae0bbdf9c4b0fbf8e72e5f9669e9bd6e7626b876",
       "disposition": "enriched",
-      "reason": "This call site reports independent evidence and preserves the existing refusal exit."
+      "reason": "This call site reports independent evidence and preserves the existing refusal exit.",
+      "legacy_semantic_key": "scripts/check_production_verification_sidecars.py:6e494c651ced298d5cee9dbaae0bbdf9c4b0fbf8e72e5f9669e9bd6e7626b876:1"
     },
     {
       "site": "scripts/check_production_verification_sidecars.py:53",
-      "semantic_key": "scripts/check_production_verification_sidecars.py:e47fc51b7d39934fc8bf83e0788a61943d78d1174ad1dd72357cc9f5e75b2b97:1",
+      "semantic_key": "scripts/check_production_verification_sidecars.py:e47fc51b7d39934fc8bf83e0788a61943d78d1174ad1dd72357cc9f5e75b2b97:context-116e71e11e3962eb463d9cd5d32b0f6a18cb31cdbb6ec765f9b991c0ff4ed01c",
       "line_sha256": "e47fc51b7d39934fc8bf83e0788a61943d78d1174ad1dd72357cc9f5e75b2b97",
       "disposition": "enriched",
-      "reason": "This call site reports independent evidence and preserves the existing refusal exit."
+      "reason": "This call site reports independent evidence and preserves the existing refusal exit.",
+      "legacy_semantic_key": "scripts/check_production_verification_sidecars.py:e47fc51b7d39934fc8bf83e0788a61943d78d1174ad1dd72357cc9f5e75b2b97:1"
     }
   ]
 }

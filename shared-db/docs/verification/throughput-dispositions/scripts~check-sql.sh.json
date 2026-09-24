@@ -3,32 +3,36 @@
   "source": "scripts/check-sql.sh",
   "sites": [
     {
-      "site": "scripts/check-sql.sh:92",
-      "semantic_key": "scripts/check-sql.sh:8c1934ea03670d80cfb615f77d78354d3eba6393c1819e6cd1723091b6a14973:1",
+      "site": "scripts/check-sql.sh:104",
+      "semantic_key": "scripts/check-sql.sh:8c1934ea03670d80cfb615f77d78354d3eba6393c1819e6cd1723091b6a14973:context-d96162bd5a4eaf9ca43ee61f4efeb1d20eadab0e5d60ab2fdf56799847e1b088",
       "line_sha256": "8c1934ea03670d80cfb615f77d78354d3eba6393c1819e6cd1723091b6a14973",
       "disposition": "excluded",
-      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-sql.sh:8c1934ea03670d80cfb615f77d78354d3eba6393c1819e6cd1723091b6a14973:1"
     },
     {
-      "site": "scripts/check-sql.sh:376",
-      "semantic_key": "scripts/check-sql.sh:96ea7f5365173267d1d944413fdabdd4f02fb1970bd2728f23ec3c6a2e065923:1",
+      "site": "scripts/check-sql.sh:388",
+      "semantic_key": "scripts/check-sql.sh:96ea7f5365173267d1d944413fdabdd4f02fb1970bd2728f23ec3c6a2e065923:context-a9576451a2bf39c587f0321fdd9ad93effe483d69d31321904e88dbe8dd2854d",
       "line_sha256": "96ea7f5365173267d1d944413fdabdd4f02fb1970bd2728f23ec3c6a2e065923",
       "disposition": "excluded",
-      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-sql.sh:96ea7f5365173267d1d944413fdabdd4f02fb1970bd2728f23ec3c6a2e065923:1"
     },
     {
-      "site": "scripts/check-sql.sh:437",
-      "semantic_key": "scripts/check-sql.sh:9c7ef0c6cd127aec5b71494c4e652c21ca13b1051fca9edf52b9c254231839b9:1",
+      "site": "scripts/check-sql.sh:449",
+      "semantic_key": "scripts/check-sql.sh:9c7ef0c6cd127aec5b71494c4e652c21ca13b1051fca9edf52b9c254231839b9:context-6b8aaf9dce10728188b0ed14e4b7db5337758104315bce6f380da7804aa76181",
       "line_sha256": "9c7ef0c6cd127aec5b71494c4e652c21ca13b1051fca9edf52b9c254231839b9",
       "disposition": "excluded",
-      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-sql.sh:9c7ef0c6cd127aec5b71494c4e652c21ca13b1051fca9edf52b9c254231839b9:1"
     },
     {
-      "site": "scripts/check-sql.sh:436",
-      "semantic_key": "scripts/check-sql.sh:e6d2f1426b07a7fd66c574b060ce06cc95b439cfa6b3f3824ef011aa23f8477d:1",
+      "site": "scripts/check-sql.sh:448",
+      "semantic_key": "scripts/check-sql.sh:e6d2f1426b07a7fd66c574b060ce06cc95b439cfa6b3f3824ef011aa23f8477d:context-bee7919bb0aa31b4170e82eb051b88d0a15571363b3b36b0a478b8714525c3c8",
       "line_sha256": "e6d2f1426b07a7fd66c574b060ce06cc95b439cfa6b3f3824ef011aa23f8477d",
       "disposition": "excluded",
-      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-sql.sh:e6d2f1426b07a7fd66c574b060ce06cc95b439cfa6b3f3824ef011aa23f8477d:1"
     }
   ]
 }

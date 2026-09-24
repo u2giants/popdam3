@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": "scripts/check_pass2_routine_supersession.py:23",
-      "semantic_key": "scripts/check_pass2_routine_supersession.py:655746e0ec9435b21a9fabc5c13612aec794fdeb6a242417787ccffd8a9e3198:1",
+      "semantic_key": "scripts/check_pass2_routine_supersession.py:655746e0ec9435b21a9fabc5c13612aec794fdeb6a242417787ccffd8a9e3198:context-a0e9c4a0ef25341156765c6a4ef37b30b77910ba494dc03a7e41507a92c04556",
       "line_sha256": "655746e0ec9435b21a9fabc5c13612aec794fdeb6a242417787ccffd8a9e3198",
       "disposition": "excluded",
-      "reason": "Explanatory docstring prose describing why a contract test reports a function missing its intended grants; it is narrative documentation, not a code path that diagnoses or reports a missing object."
+      "reason": "Explanatory docstring prose describing why a contract test reports a function missing its intended grants; it is narrative documentation, not a code path that diagnoses or reports a missing object.",
+      "legacy_semantic_key": "scripts/check_pass2_routine_supersession.py:655746e0ec9435b21a9fabc5c13612aec794fdeb6a242417787ccffd8a9e3198:1"
     }
   ]
 }

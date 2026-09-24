@@ -3,46 +3,52 @@
   "source": "scripts/run-governed-review.mjs",
   "sites": [
     {
-      "site": "scripts/run-governed-review.mjs:690",
-      "semantic_key": "scripts/run-governed-review.mjs:a94750588b1ca95c97d6ba47f5de511d5321380b02fdf8d2f5f15f15ac95a428:1",
+      "site": "scripts/run-governed-review.mjs:696",
+      "semantic_key": "scripts/run-governed-review.mjs:a94750588b1ca95c97d6ba47f5de511d5321380b02fdf8d2f5f15f15ac95a428:context-64502d95841009d7d6eb4d631a9bf4261c8e89d0ca95594ed505f5806760a55b",
       "line_sha256": "a94750588b1ca95c97d6ba47f5de511d5321380b02fdf8d2f5f15f15ac95a428",
       "disposition": "excluded",
-      "reason": "Prose in an explanatory comment in scripts/run-governed-review.mjs. The word 'missing' appears in the phrase 'the missing-prompt case', describing why equals-form prompt arguments are handled in the injection loop (governed review of PR #3338). It asserts nothing about a migration being missing, never created, or not applied, and changes no behavior."
+      "reason": "Prose in an explanatory comment in scripts/run-governed-review.mjs. The word 'missing' appears in the phrase 'the missing-prompt case', describing why equals-form prompt arguments are handled in the injection loop (governed review of PR #3338). It asserts nothing about a migration being missing, never created, or not applied, and changes no behavior.",
+      "legacy_semantic_key": "scripts/run-governed-review.mjs:a94750588b1ca95c97d6ba47f5de511d5321380b02fdf8d2f5f15f15ac95a428:1"
     },
     {
-      "site": "scripts/run-governed-review.mjs:151",
-      "semantic_key": "scripts/run-governed-review.mjs:adc27317ab55f760c19af233e4abe0dcc73f007cc7e3057b83464ff32c845932:1",
+      "site": "scripts/run-governed-review.mjs:152",
+      "semantic_key": "scripts/run-governed-review.mjs:adc27317ab55f760c19af233e4abe0dcc73f007cc7e3057b83464ff32c845932:context-cc7310caa9364a559d5ce051d3a484b5ded2871aae1ec9a8c2f67ea09953e30a",
       "line_sha256": "adc27317ab55f760c19af233e4abe0dcc73f007cc7e3057b83464ff32c845932",
       "disposition": "excluded",
-      "reason": "This line rejects incomplete reviewer source or receipt evidence; it does not assert that a database object or migration is missing."
+      "reason": "This line rejects incomplete reviewer source or receipt evidence; it does not assert that a database object or migration is missing.",
+      "legacy_semantic_key": "scripts/run-governed-review.mjs:adc27317ab55f760c19af233e4abe0dcc73f007cc7e3057b83464ff32c845932:1"
     },
     {
-      "site": "scripts/run-governed-review.mjs:223",
-      "semantic_key": "scripts/run-governed-review.mjs:b99ce9a8e05f62b9e00b14d176f8e4459f3d377b83d491d6a0054b9457bcc786:1",
+      "site": "scripts/run-governed-review.mjs:224",
+      "semantic_key": "scripts/run-governed-review.mjs:b99ce9a8e05f62b9e00b14d176f8e4459f3d377b83d491d6a0054b9457bcc786:context-26f63c2b81cfdc30b2210e853ef1ba1ba5c138dcf3ed58e6436d0bea02fe325b",
       "line_sha256": "b99ce9a8e05f62b9e00b14d176f8e4459f3d377b83d491d6a0054b9457bcc786",
       "disposition": "excluded",
-      "reason": "This line rejects incomplete reviewer source or receipt evidence; it does not assert that a database object or migration is missing."
+      "reason": "This line rejects incomplete reviewer source or receipt evidence; it does not assert that a database object or migration is missing.",
+      "legacy_semantic_key": "scripts/run-governed-review.mjs:b99ce9a8e05f62b9e00b14d176f8e4459f3d377b83d491d6a0054b9457bcc786:1"
     },
     {
-      "site": "scripts/run-governed-review.mjs:168",
-      "semantic_key": "scripts/run-governed-review.mjs:bb92bc5b9fd22cdbfc81691e20913f382e6aed481a89d5eca417950694375d0a:1",
+      "site": "scripts/run-governed-review.mjs:169",
+      "semantic_key": "scripts/run-governed-review.mjs:bb92bc5b9fd22cdbfc81691e20913f382e6aed481a89d5eca417950694375d0a:context-735fbf33dadc2b77964ce385090cc76fa7943068a60cd3a07018e8d2778ac285",
       "line_sha256": "bb92bc5b9fd22cdbfc81691e20913f382e6aed481a89d5eca417950694375d0a",
       "disposition": "excluded",
-      "reason": "This line rejects incomplete reviewer source or receipt evidence; it does not assert that a database object or migration is missing."
+      "reason": "This line rejects incomplete reviewer source or receipt evidence; it does not assert that a database object or migration is missing.",
+      "legacy_semantic_key": "scripts/run-governed-review.mjs:bb92bc5b9fd22cdbfc81691e20913f382e6aed481a89d5eca417950694375d0a:1"
     },
     {
-      "site": "scripts/run-governed-review.mjs:369",
-      "semantic_key": "scripts/run-governed-review.mjs:cdfdffef2201e7c3b5985ec28b75de846cf7c3d911aef01c34dd8c03169a8260:1",
+      "site": "scripts/run-governed-review.mjs:370",
+      "semantic_key": "scripts/run-governed-review.mjs:cdfdffef2201e7c3b5985ec28b75de846cf7c3d911aef01c34dd8c03169a8260:context-b44667b3e4229d708815762d03bce949f959439f198d73116bce8eb6d13a5dd8",
       "line_sha256": "cdfdffef2201e7c3b5985ec28b75de846cf7c3d911aef01c34dd8c03169a8260",
       "disposition": "excluded",
-      "reason": "This wording classifies a private reviewer startup diagnostic; it does not assert that a database object or migration is missing."
+      "reason": "This wording classifies a private reviewer startup diagnostic; it does not assert that a database object or migration is missing.",
+      "legacy_semantic_key": "scripts/run-governed-review.mjs:cdfdffef2201e7c3b5985ec28b75de846cf7c3d911aef01c34dd8c03169a8260:1"
     },
     {
-      "site": "scripts/run-governed-review.mjs:133",
-      "semantic_key": "scripts/run-governed-review.mjs:f32e4ef8d1861700b407607d9427f4267523fe2200eb79f1a71168b5f3c06505:1",
+      "site": "scripts/run-governed-review.mjs:134",
+      "semantic_key": "scripts/run-governed-review.mjs:f32e4ef8d1861700b407607d9427f4267523fe2200eb79f1a71168b5f3c06505:context-cbc618a1e663bd2cda784dbeece123b47b8044d2638927fd9470fe054da1b750",
       "line_sha256": "f32e4ef8d1861700b407607d9427f4267523fe2200eb79f1a71168b5f3c06505",
       "disposition": "excluded",
-      "reason": "This line rejects incomplete reviewer source or receipt evidence; it does not assert that a database object or migration is missing."
+      "reason": "This line rejects incomplete reviewer source or receipt evidence; it does not assert that a database object or migration is missing.",
+      "legacy_semantic_key": "scripts/run-governed-review.mjs:f32e4ef8d1861700b407607d9427f4267523fe2200eb79f1a71168b5f3c06505:1"
     }
   ]
 }

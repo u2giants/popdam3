@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": "scripts/benchmark_popsg_search_v2.py:13",
-      "semantic_key": "scripts/benchmark_popsg_search_v2.py:692d1cb0b25417625966fe67514c6f9b6cc2bfc81de7d878a6fe0cca7fdb1ddc:1",
+      "semantic_key": "scripts/benchmark_popsg_search_v2.py:692d1cb0b25417625966fe67514c6f9b6cc2bfc81de7d878a6fe0cca7fdb1ddc:context-5144e8597f36772575d5af00ba66cf5a15792972c371319847123d778b820752",
       "line_sha256": "692d1cb0b25417625966fe67514c6f9b6cc2bfc81de7d878a6fe0cca7fdb1ddc",
       "disposition": "excluded",
-      "reason": "Synthetic search filter value missing denotes an unavailable thumbnail, not a claim about missing catalog objects or migration evidence."
+      "reason": "Synthetic search filter value missing denotes an unavailable thumbnail, not a claim about missing catalog objects or migration evidence.",
+      "legacy_semantic_key": "scripts/benchmark_popsg_search_v2.py:692d1cb0b25417625966fe67514c6f9b6cc2bfc81de7d878a6fe0cca7fdb1ddc:1"
     }
   ]
 }

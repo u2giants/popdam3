@@ -4,66 +4,75 @@
   "sites": [
     {
       "site": "scripts/migration_derivation.py:232",
-      "semantic_key": "scripts/migration_derivation.py:13e755d6a1129cd3add09846c60ce788d0ff8d72386e995c222739c0c177d35f:1",
+      "semantic_key": "scripts/migration_derivation.py:13e755d6a1129cd3add09846c60ce788d0ff8d72386e995c222739c0c177d35f:context-2e2e71ac116a3705b0cbc459536fad0f64cbbaba6f78e97c35acecc6aefd189e",
       "line_sha256": "13e755d6a1129cd3add09846c60ce788d0ff8d72386e995c222739c0c177d35f",
       "disposition": "excluded",
-      "reason": "Fail-closed immutable metadata validation; the word missing describes a changed migration file, not database or migration-ledger state."
+      "reason": "Fail-closed immutable metadata validation; the word missing describes a changed migration file, not database or migration-ledger state.",
+      "legacy_semantic_key": "scripts/migration_derivation.py:13e755d6a1129cd3add09846c60ce788d0ff8d72386e995c222739c0c177d35f:1"
     },
     {
       "site": "scripts/migration_derivation.py:297",
-      "semantic_key": "scripts/migration_derivation.py:26f60dc532233c80066c58bf27667d6a94643ae283b3496d805c1476366947d1:1",
+      "semantic_key": "scripts/migration_derivation.py:26f60dc532233c80066c58bf27667d6a94643ae283b3496d805c1476366947d1:context-a63c5ca06b3776bdc41b38a07a31c0490651dd2454dc26d8b4dcac00f5b4178a",
       "line_sha256": "26f60dc532233c80066c58bf27667d6a94643ae283b3496d805c1476366947d1",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/migration_derivation.py:26f60dc532233c80066c58bf27667d6a94643ae283b3496d805c1476366947d1:1"
     },
     {
       "site": "scripts/migration_derivation.py:163",
-      "semantic_key": "scripts/migration_derivation.py:38b890a9ffc6e492c499253137008226163f9bc9d6fe98d25254a2c8334f2ff5:1",
+      "semantic_key": "scripts/migration_derivation.py:38b890a9ffc6e492c499253137008226163f9bc9d6fe98d25254a2c8334f2ff5:context-ea4302fdf0c49f5333bca9de071ca4a511193f73aed5ea868a6af1d50d85a91e",
       "line_sha256": "38b890a9ffc6e492c499253137008226163f9bc9d6fe98d25254a2c8334f2ff5",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/migration_derivation.py:38b890a9ffc6e492c499253137008226163f9bc9d6fe98d25254a2c8334f2ff5:1"
     },
     {
       "site": "scripts/migration_derivation.py:301",
-      "semantic_key": "scripts/migration_derivation.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:1",
+      "semantic_key": "scripts/migration_derivation.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:context-76dd6cd237cc0301d3c2ddd6eb179a8304215d80fc1ea4b5fe8981f5277eabf7",
       "line_sha256": "3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/migration_derivation.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:1"
     },
     {
       "site": "scripts/migration_derivation.py:399",
-      "semantic_key": "scripts/migration_derivation.py:718e34a8dbbf401d60bea27f966f9189fd6bc84e4f543bc869d61812595897c4:1",
+      "semantic_key": "scripts/migration_derivation.py:718e34a8dbbf401d60bea27f966f9189fd6bc84e4f543bc869d61812595897c4:context-52735508cf0c4d840d052d5d4db95cf1f5d268d2cba1b9b07734b1d23fe4b2b4",
       "line_sha256": "718e34a8dbbf401d60bea27f966f9189fd6bc84e4f543bc869d61812595897c4",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/migration_derivation.py:718e34a8dbbf401d60bea27f966f9189fd6bc84e4f543bc869d61812595897c4:1"
     },
     {
       "site": "scripts/migration_derivation.py:305",
-      "semantic_key": "scripts/migration_derivation.py:b4a214bc212b110abbd9c3f4f284b8b754fe3a3657a39b9d51872d907e090b68:1",
+      "semantic_key": "scripts/migration_derivation.py:b4a214bc212b110abbd9c3f4f284b8b754fe3a3657a39b9d51872d907e090b68:context-d44a849cbcba513acc886e377a2b33e30f143187eb65617b89b778b2fa105336",
       "line_sha256": "b4a214bc212b110abbd9c3f4f284b8b754fe3a3657a39b9d51872d907e090b68",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/migration_derivation.py:b4a214bc212b110abbd9c3f4f284b8b754fe3a3657a39b9d51872d907e090b68:1"
     },
     {
       "site": "scripts/migration_derivation.py:121",
-      "semantic_key": "scripts/migration_derivation.py:b78696969399f6eafee5c119a8969ec38eccc971411af3ef7b8050158c0f6458:1",
+      "semantic_key": "scripts/migration_derivation.py:b78696969399f6eafee5c119a8969ec38eccc971411af3ef7b8050158c0f6458:context-9b6639b77f376083e2d7b7bebf1bc8ac0e36d88409d904f046e3856628ef9bf4",
       "line_sha256": "b78696969399f6eafee5c119a8969ec38eccc971411af3ef7b8050158c0f6458",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/migration_derivation.py:b78696969399f6eafee5c119a8969ec38eccc971411af3ef7b8050158c0f6458:1"
     },
     {
       "site": "scripts/migration_derivation.py:292",
-      "semantic_key": "scripts/migration_derivation.py:e0110e5d483e0f96314b0ec8666e2daec45d394372134e6083c218cd4572b69b:1",
+      "semantic_key": "scripts/migration_derivation.py:e0110e5d483e0f96314b0ec8666e2daec45d394372134e6083c218cd4572b69b:context-979721bd5015731c42162668747a380c0fadf5ccabb92393820c98a39002caf2",
       "line_sha256": "e0110e5d483e0f96314b0ec8666e2daec45d394372134e6083c218cd4572b69b",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/migration_derivation.py:e0110e5d483e0f96314b0ec8666e2daec45d394372134e6083c218cd4572b69b:1"
     },
     {
       "site": "scripts/migration_derivation.py:403",
-      "semantic_key": "scripts/migration_derivation.py:e385a556ba4428b0013a66d177e0b5c1d4c62ff8c23756cc32912d8af5cb82d5:1",
+      "semantic_key": "scripts/migration_derivation.py:e385a556ba4428b0013a66d177e0b5c1d4c62ff8c23756cc32912d8af5cb82d5:context-f297794d60a558a089183b5db7a411141b3779e684389f42c7eeccbb2b52734b",
       "line_sha256": "e385a556ba4428b0013a66d177e0b5c1d4c62ff8c23756cc32912d8af5cb82d5",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/migration_derivation.py:e385a556ba4428b0013a66d177e0b5c1d4c62ff8c23756cc32912d8af5cb82d5:1"
     }
   ]
 }

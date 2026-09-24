@@ -4,17 +4,19 @@
   "sites": [
     {
       "site": "scripts/historical-item-mg-reclassification/lib/private-path.mjs:41",
-      "semantic_key": "scripts/historical-item-mg-reclassification/lib/private-path.mjs:082fdaffe5a5641fabb0a73e0df56fced4ffbc2c34e745e9d82e77cec66ca98e:1",
+      "semantic_key": "scripts/historical-item-mg-reclassification/lib/private-path.mjs:082fdaffe5a5641fabb0a73e0df56fced4ffbc2c34e745e9d82e77cec66ca98e:context-ff4efd41577d6e4a43b1ff92fa2cbdb8154bc2698b1fb23a3e2afd00e6c7965c",
       "line_sha256": "082fdaffe5a5641fabb0a73e0df56fced4ffbc2c34e745e9d82e77cec66ca98e",
       "disposition": "excluded",
-      "reason": "Documentation comment distinguishing a missing git binary from a non-repository answer; it emits nothing at run time."
+      "reason": "Documentation comment distinguishing a missing git binary from a non-repository answer; it emits nothing at run time.",
+      "legacy_semantic_key": "scripts/historical-item-mg-reclassification/lib/private-path.mjs:082fdaffe5a5641fabb0a73e0df56fced4ffbc2c34e745e9d82e77cec66ca98e:1"
     },
     {
       "site": "scripts/historical-item-mg-reclassification/lib/private-path.mjs:20",
-      "semantic_key": "scripts/historical-item-mg-reclassification/lib/private-path.mjs:d4cc6726bf4b21dabbffbe9a211c359b032e506f237b089c390cc1e9396c5806:1",
+      "semantic_key": "scripts/historical-item-mg-reclassification/lib/private-path.mjs:d4cc6726bf4b21dabbffbe9a211c359b032e506f237b089c390cc1e9396c5806:context-729c868728101723745ed52f5ed1dfe09b68ec415509e7df4208095f66126d82",
       "line_sha256": "d4cc6726bf4b21dabbffbe9a211c359b032e506f237b089c390cc1e9396c5806",
       "disposition": "excluded",
-      "reason": "Comment describing this guard file own missing-directory probing behavior; not a throughput/lease guard call site."
+      "reason": "Comment describing this guard file own missing-directory probing behavior; not a throughput/lease guard call site.",
+      "legacy_semantic_key": "scripts/historical-item-mg-reclassification/lib/private-path.mjs:d4cc6726bf4b21dabbffbe9a211c359b032e506f237b089c390cc1e9396c5806:1"
     }
   ]
 }

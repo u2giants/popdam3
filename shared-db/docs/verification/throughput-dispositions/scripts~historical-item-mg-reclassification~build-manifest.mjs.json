@@ -4,24 +4,27 @@
   "sites": [
     {
       "site": "scripts/historical-item-mg-reclassification/build-manifest.mjs:47",
-      "semantic_key": "scripts/historical-item-mg-reclassification/build-manifest.mjs:32f88a3b3183e197eaa5ac7707cbaef8d6b3f10525cf802e98d3b397f3b5c3a3:1",
+      "semantic_key": "scripts/historical-item-mg-reclassification/build-manifest.mjs:32f88a3b3183e197eaa5ac7707cbaef8d6b3f10525cf802e98d3b397f3b5c3a3:context-14e112754750b87e3474faa141a857da6d75cda166cccca18996d0c4114efa31",
       "line_sha256": "32f88a3b3183e197eaa5ac7707cbaef8d6b3f10525cf802e98d3b397f3b5c3a3",
       "disposition": "excluded",
-      "reason": "Guard branch of the new source-header proof; it refuses a mismatched export rather than emitting throughput."
+      "reason": "Guard branch of the new source-header proof; it refuses a mismatched export rather than emitting throughput.",
+      "legacy_semantic_key": "scripts/historical-item-mg-reclassification/build-manifest.mjs:32f88a3b3183e197eaa5ac7707cbaef8d6b3f10525cf802e98d3b397f3b5c3a3:1"
     },
     {
       "site": "scripts/historical-item-mg-reclassification/build-manifest.mjs:45",
-      "semantic_key": "scripts/historical-item-mg-reclassification/build-manifest.mjs:6d403170ce1b398dac734927e8e96312a1b7fb05c19ea031f9d9b7ac9bb9a4bd:1",
+      "semantic_key": "scripts/historical-item-mg-reclassification/build-manifest.mjs:6d403170ce1b398dac734927e8e96312a1b7fb05c19ea031f9d9b7ac9bb9a4bd:context-4f2089301a1cc74f1edf6e1ea9468a40391e3423cb5efb00fcce7f0c2e5a1871",
       "line_sha256": "6d403170ce1b398dac734927e8e96312a1b7fb05c19ea031f9d9b7ac9bb9a4bd",
       "disposition": "excluded",
-      "reason": "Computes the list of missing source columns for the new header proof; it is the input to a refusal, not a throughput message of its own."
+      "reason": "Computes the list of missing source columns for the new header proof; it is the input to a refusal, not a throughput message of its own.",
+      "legacy_semantic_key": "scripts/historical-item-mg-reclassification/build-manifest.mjs:6d403170ce1b398dac734927e8e96312a1b7fb05c19ea031f9d9b7ac9bb9a4bd:1"
     },
     {
       "site": "scripts/historical-item-mg-reclassification/build-manifest.mjs:49",
-      "semantic_key": "scripts/historical-item-mg-reclassification/build-manifest.mjs:e741a15e3f6317fa60bd735d0a0b99440b8deb73b261293ea7bbd893098bd440:1",
+      "semantic_key": "scripts/historical-item-mg-reclassification/build-manifest.mjs:e741a15e3f6317fa60bd735d0a0b99440b8deb73b261293ea7bbd893098bd440:context-3c45264c26b9c6746049b73221d0625540fbf671b0b5a044ea5768e67ebde283",
       "line_sha256": "e741a15e3f6317fa60bd735d0a0b99440b8deb73b261293ea7bbd893098bd440",
       "disposition": "enriched",
-      "reason": "Refusal text naming the missing source columns; enriched by construction because it names the exact columns that failed."
+      "reason": "Refusal text naming the missing source columns; enriched by construction because it names the exact columns that failed.",
+      "legacy_semantic_key": "scripts/historical-item-mg-reclassification/build-manifest.mjs:e741a15e3f6317fa60bd735d0a0b99440b8deb73b261293ea7bbd893098bd440:1"
     }
   ]
 }

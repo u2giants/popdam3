@@ -47,7 +47,8 @@ test('nested guard files are discovered with semantic identity', () => {
   const [site] = discover(root);
   assert.equal(site.site, 'scripts/nested/x.py:1');
   assert.equal(site.source, 'scripts/nested/x.py');
-  assert.match(site.semantic_key, /^scripts\/nested\/x\.py:[a-f0-9]{64}:1$/);
+  assert.match(site.semantic_key, /^scripts\/nested\/x\.py:[a-f0-9]{64}:context-[a-f0-9]{64}$/);
+  assert.match(site.legacy_semantic_key, /^scripts\/nested\/x\.py:[a-f0-9]{64}:1$/);
 });
 
 test('a blanket default cannot dispose an unlisted site', () => { assert.equal(disposition('scripts/x.py:hash:1', { default_disposition: { disposition: 'excluded' } }), undefined); });

@@ -4,52 +4,59 @@
   "sites": [
     {
       "site": "scripts/atomic_migration_apply.py:298",
-      "semantic_key": "scripts/atomic_migration_apply.py:2ba87a9b05e1e0924d922211afeb4d726b794c993b40878f9d23c6bfdec73f9a:1",
+      "semantic_key": "scripts/atomic_migration_apply.py:2ba87a9b05e1e0924d922211afeb4d726b794c993b40878f9d23c6bfdec73f9a:context-a72e39ca8178bf05305ed93f78337f04b572a4193176e1dec53f3c463ab0e307",
       "line_sha256": "2ba87a9b05e1e0924d922211afeb4d726b794c993b40878f9d23c6bfdec73f9a",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:2ba87a9b05e1e0924d922211afeb4d726b794c993b40878f9d23c6bfdec73f9a:1"
     },
     {
       "site": "scripts/atomic_migration_apply.py:181",
-      "semantic_key": "scripts/atomic_migration_apply.py:34dfc6f33d70ec8beab84494f627de88c62b8c827b22b8a14100a21690250493:1",
+      "semantic_key": "scripts/atomic_migration_apply.py:34dfc6f33d70ec8beab84494f627de88c62b8c827b22b8a14100a21690250493:context-4cf5609d921f11a688f30b1136e9cb562bd64a932b146015ce9025bb69d0523b",
       "line_sha256": "34dfc6f33d70ec8beab84494f627de88c62b8c827b22b8a14100a21690250493",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:34dfc6f33d70ec8beab84494f627de88c62b8c827b22b8a14100a21690250493:1"
     },
     {
       "site": "scripts/atomic_migration_apply.py:58",
-      "semantic_key": "scripts/atomic_migration_apply.py:3583c3fadef46cd1d21464475c439d10d512790cf406ec80c1eae7749f2aa350:1",
+      "semantic_key": "scripts/atomic_migration_apply.py:3583c3fadef46cd1d21464475c439d10d512790cf406ec80c1eae7749f2aa350:context-59387ec4b26c081ec0bc5f1b14794b6b406bfe9eaa65bad335e82407763bf125",
       "line_sha256": "3583c3fadef46cd1d21464475c439d10d512790cf406ec80c1eae7749f2aa350",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:3583c3fadef46cd1d21464475c439d10d512790cf406ec80c1eae7749f2aa350:1"
     },
     {
       "site": "scripts/atomic_migration_apply.py:184",
-      "semantic_key": "scripts/atomic_migration_apply.py:3d8f322c103af6e89880e056281ba8d4f43e1ec686f8e9a5a2dba5f0413b66c0:1",
+      "semantic_key": "scripts/atomic_migration_apply.py:3d8f322c103af6e89880e056281ba8d4f43e1ec686f8e9a5a2dba5f0413b66c0:context-f2b86b730909fd7b98d2cd5dfc90f98682655490a18e59cf9172325b3aec9cd8",
       "line_sha256": "3d8f322c103af6e89880e056281ba8d4f43e1ec686f8e9a5a2dba5f0413b66c0",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:3d8f322c103af6e89880e056281ba8d4f43e1ec686f8e9a5a2dba5f0413b66c0:1"
     },
     {
       "site": "scripts/atomic_migration_apply.py:248",
-      "semantic_key": "scripts/atomic_migration_apply.py:4779c860a274616bea234332eb1cf2568dc4f856c5c34af5c263996b01e93458:1",
+      "semantic_key": "scripts/atomic_migration_apply.py:4779c860a274616bea234332eb1cf2568dc4f856c5c34af5c263996b01e93458:context-3c8ab2e4af06662bbda8fec4c8566d58ceb13d46679ab0d492269ee152a9c872",
       "line_sha256": "4779c860a274616bea234332eb1cf2568dc4f856c5c34af5c263996b01e93458",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:4779c860a274616bea234332eb1cf2568dc4f856c5c34af5c263996b01e93458:1"
     },
     {
       "site": "scripts/atomic_migration_apply.py:297",
-      "semantic_key": "scripts/atomic_migration_apply.py:5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d:1",
+      "semantic_key": "scripts/atomic_migration_apply.py:5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d:context-d2e982b50066a27dac319cb481678155ce60867a3a6ad45f0d17a6170a524a48",
       "line_sha256": "5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d:1"
     },
     {
       "site": "scripts/atomic_migration_apply.py:286",
-      "semantic_key": "scripts/atomic_migration_apply.py:c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead:1",
+      "semantic_key": "scripts/atomic_migration_apply.py:c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead:context-30b1db32c5cf57a972c9be56d17d5d8126d9e17dfa536c5934a3f73c036360db",
       "line_sha256": "c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead:1"
     }
   ]
 }

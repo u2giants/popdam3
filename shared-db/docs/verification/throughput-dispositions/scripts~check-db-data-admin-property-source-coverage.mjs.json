@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": "scripts/check-db-data-admin-property-source-coverage.mjs:221",
-      "semantic_key": "scripts/check-db-data-admin-property-source-coverage.mjs:ffbf35823d149fb0f048c966ffd7771a9a53c5383c8cf46a8bf3d5a8e48a5b1b:1",
+      "semantic_key": "scripts/check-db-data-admin-property-source-coverage.mjs:ffbf35823d149fb0f048c966ffd7771a9a53c5383c8cf46a8bf3d5a8e48a5b1b:context-e541154aa944c89cddd1d2e6a37ddad17e4d563cded2992004f3df120d58889a",
       "line_sha256": "ffbf35823d149fb0f048c966ffd7771a9a53c5383c8cf46a8bf3d5a8e48a5b1b",
       "disposition": "excluded",
-      "reason": "Reviewed 2026-09-10 for #2579: this line reports the reserved migration file as missing only after a direct fs.existsSync test on that exact path, so the absence is measured rather than inferred; there is nothing to enrich and no not-derivable case can reach it."
+      "reason": "Reviewed 2026-09-10 for #2579: this line reports the reserved migration file as missing only after a direct fs.existsSync test on that exact path, so the absence is measured rather than inferred; there is nothing to enrich and no not-derivable case can reach it.",
+      "legacy_semantic_key": "scripts/check-db-data-admin-property-source-coverage.mjs:ffbf35823d149fb0f048c966ffd7771a9a53c5383c8cf46a8bf3d5a8e48a5b1b:1"
     }
   ]
 }

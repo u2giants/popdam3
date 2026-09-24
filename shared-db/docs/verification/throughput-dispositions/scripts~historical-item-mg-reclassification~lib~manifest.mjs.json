@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": "scripts/historical-item-mg-reclassification/lib/manifest.mjs:115",
-      "semantic_key": "scripts/historical-item-mg-reclassification/lib/manifest.mjs:383930d550f6ebb301f15bc25209f14376bb43fd21a3046f3cbfbbf31e2b2fdc:1",
+      "semantic_key": "scripts/historical-item-mg-reclassification/lib/manifest.mjs:383930d550f6ebb301f15bc25209f14376bb43fd21a3046f3cbfbbf31e2b2fdc:context-a670dfe0087e1c0b94dfeeffcbff9cd8ecc22d58ac8b65fde3ca08d42c0952dc",
       "line_sha256": "383930d550f6ebb301f15bc25209f14376bb43fd21a3046f3cbfbbf31e2b2fdc",
       "disposition": "excluded",
-      "reason": "Documentation comment on the new manifest-to-target binder; it explains a refusal and emits no throughput message of its own."
+      "reason": "Documentation comment on the new manifest-to-target binder; it explains a refusal and emits no throughput message of its own.",
+      "legacy_semantic_key": "scripts/historical-item-mg-reclassification/lib/manifest.mjs:383930d550f6ebb301f15bc25209f14376bb43fd21a3046f3cbfbbf31e2b2fdc:1"
     }
   ]
 }

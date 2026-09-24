@@ -4,17 +4,19 @@
   "sites": [
     {
       "site": "scripts/reap-merged-worktrees.mjs:236",
-      "semantic_key": "scripts/reap-merged-worktrees.mjs:0c5486b47c120906e77ea4bbd5b9279bae7aa6062e0bff1e7994003ea89855c1:1",
+      "semantic_key": "scripts/reap-merged-worktrees.mjs:0c5486b47c120906e77ea4bbd5b9279bae7aa6062e0bff1e7994003ea89855c1:context-96a2923f3fdeace97ab8120d10e0e9a80f067c14128bdddd89c27ad1077ff0f8",
       "line_sha256": "0c5486b47c120906e77ea4bbd5b9279bae7aa6062e0bff1e7994003ea89855c1",
       "disposition": "excluded",
-      "reason": "Issue #1868. Excluded: the word appears in a prose comment about an optional git administrative file whose mtime could not be read while measuring worktree activity. It makes no claim about a migration, a DDL object, or anything created or applied in the database, so it is outside the throughput-truth surface this audit guards."
+      "reason": "Issue #1868. Excluded: the word appears in a prose comment about an optional git administrative file whose mtime could not be read while measuring worktree activity. It makes no claim about a migration, a DDL object, or anything created or applied in the database, so it is outside the throughput-truth surface this audit guards.",
+      "legacy_semantic_key": "scripts/reap-merged-worktrees.mjs:0c5486b47c120906e77ea4bbd5b9279bae7aa6062e0bff1e7994003ea89855c1:1"
     },
     {
       "site": "scripts/reap-merged-worktrees.mjs:139",
-      "semantic_key": "scripts/reap-merged-worktrees.mjs:e2ccad293e4e07e4e25f9500b4285ceef1f5a34975fea14d5b5709efc9441a40:1",
+      "semantic_key": "scripts/reap-merged-worktrees.mjs:e2ccad293e4e07e4e25f9500b4285ceef1f5a34975fea14d5b5709efc9441a40:context-9efbf0c01a00ce51674c9db6a14057d91770dc9d28ebddd274d08ffee401d5f9",
       "line_sha256": "e2ccad293e4e07e4e25f9500b4285ceef1f5a34975fea14d5b5709efc9441a40",
       "disposition": "excluded",
-      "reason": "Issue #1868. Excluded: the word appears in a prose comment describing the worktree reaper's own whole-run refusal when the open database claims cannot be read. It makes no claim about a migration, a DDL object, or anything created or applied in the database, so it is outside the throughput-truth surface this audit guards."
+      "reason": "Issue #1868. Excluded: the word appears in a prose comment describing the worktree reaper's own whole-run refusal when the open database claims cannot be read. It makes no claim about a migration, a DDL object, or anything created or applied in the database, so it is outside the throughput-truth surface this audit guards.",
+      "legacy_semantic_key": "scripts/reap-merged-worktrees.mjs:e2ccad293e4e07e4e25f9500b4285ceef1f5a34975fea14d5b5709efc9441a40:1"
     }
   ]
 }

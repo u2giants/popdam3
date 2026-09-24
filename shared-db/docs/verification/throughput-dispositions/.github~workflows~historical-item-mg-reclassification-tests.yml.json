@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": ".github/workflows/historical-item-mg-reclassification-tests.yml:76",
-      "semantic_key": ".github/workflows/historical-item-mg-reclassification-tests.yml:f59e1294c8137b9ddd86ef3b198be6c3b0645e321ee827ce3d00b50ca8c4597a:1",
+      "semantic_key": ".github/workflows/historical-item-mg-reclassification-tests.yml:f59e1294c8137b9ddd86ef3b198be6c3b0645e321ee827ce3d00b50ca8c4597a:context-79a4c8419d231acdea454bd0146933f05ab5f5630b48b2f656d1906e7fc4190d",
       "line_sha256": "f59e1294c8137b9ddd86ef3b198be6c3b0645e321ee827ce3d00b50ca8c4597a",
       "disposition": "excluded",
-      "reason": "This line is the offline CI assertion that the locked May 14, 2025 historical cutoff is still present in constants.mjs; it reports a missing constant and makes no throughput derivability claim."
+      "reason": "This line is the offline CI assertion that the locked May 14, 2025 historical cutoff is still present in constants.mjs; it reports a missing constant and makes no throughput derivability claim.",
+      "legacy_semantic_key": ".github/workflows/historical-item-mg-reclassification-tests.yml:f59e1294c8137b9ddd86ef3b198be6c3b0645e321ee827ce3d00b50ca8c4597a:1"
     }
   ]
 }

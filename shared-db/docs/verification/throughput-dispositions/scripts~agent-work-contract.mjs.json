@@ -4,17 +4,19 @@
   "sites": [
     {
       "site": "scripts/agent-work-contract.mjs:83",
-      "semantic_key": "scripts/agent-work-contract.mjs:8bdd87b3d93bc127035d83148bbb7e0c26104614f1c54ad1582e94a6caae13fe:1",
+      "semantic_key": "scripts/agent-work-contract.mjs:8bdd87b3d93bc127035d83148bbb7e0c26104614f1c54ad1582e94a6caae13fe:context-85f5e084e4b1e8a46c8bf50b8cfa2e9ea80ce8326c691949f25fdd904a45154f",
       "line_sha256": "8bdd87b3d93bc127035d83148bbb7e0c26104614f1c54ad1582e94a6caae13fe",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/agent-work-contract.mjs:8bdd87b3d93bc127035d83148bbb7e0c26104614f1c54ad1582e94a6caae13fe:1"
     },
     {
       "site": "scripts/agent-work-contract.mjs:174",
-      "semantic_key": "scripts/agent-work-contract.mjs:fe9430e2905ab8e283fc7f4b08e4116f8b6c792be4ba6d2924dfbd184148b1c8:1",
+      "semantic_key": "scripts/agent-work-contract.mjs:fe9430e2905ab8e283fc7f4b08e4116f8b6c792be4ba6d2924dfbd184148b1c8:context-2b5254420ed2d487cc993a3dc5603400ebb82687be968c596981034e0b39835f",
       "line_sha256": "fe9430e2905ab8e283fc7f4b08e4116f8b6c792be4ba6d2924dfbd184148b1c8",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/agent-work-contract.mjs:fe9430e2905ab8e283fc7f4b08e4116f8b6c792be4ba6d2924dfbd184148b1c8:1"
     }
   ]
 }

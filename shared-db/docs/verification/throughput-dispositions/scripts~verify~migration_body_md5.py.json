@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": "scripts/verify/migration_body_md5.py:19",
-      "semantic_key": "scripts/verify/migration_body_md5.py:c306e35745386b717b583be41a182e378d17ce899e352842a4d0cfbae51ccc3c:1",
+      "semantic_key": "scripts/verify/migration_body_md5.py:c306e35745386b717b583be41a182e378d17ce899e352842a4d0cfbae51ccc3c:context-f7ba8cc5f5fddad92cbc1fe58ba64b79f88d37faffd330020c9ba31d0537f449",
       "line_sha256": "c306e35745386b717b583be41a182e378d17ce899e352842a4d0cfbae51ccc3c",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/verify/migration_body_md5.py:c306e35745386b717b583be41a182e378d17ce899e352842a4d0cfbae51ccc3c:1"
     }
   ]
 }

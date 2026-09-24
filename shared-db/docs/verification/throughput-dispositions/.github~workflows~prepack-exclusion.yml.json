@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": ".github/workflows/prepack-exclusion.yml:5",
-      "semantic_key": ".github/workflows/prepack-exclusion.yml:3143ad42101bf92541fc582aaa9166c6ffba80a76070a1d100bbc6d674b58053:1",
+      "semantic_key": ".github/workflows/prepack-exclusion.yml:3143ad42101bf92541fc582aaa9166c6ffba80a76070a1d100bbc6d674b58053:context-f036ce44e30b689b70983d39c60122d22013931fb8aabed8c04b7e9f2201856f",
       "line_sha256": "3143ad42101bf92541fc582aaa9166c6ffba80a76070a1d100bbc6d674b58053",
       "disposition": "excluded",
-      "reason": "Header comment naming the regression this workflow prevents: a known assortment head reappearing in a missing-attribution population. It describes the guarded business rule and asserts nothing about absent schema or unapplied migrations."
+      "reason": "Header comment naming the regression this workflow prevents: a known assortment head reappearing in a missing-attribution population. It describes the guarded business rule and asserts nothing about absent schema or unapplied migrations.",
+      "legacy_semantic_key": ".github/workflows/prepack-exclusion.yml:3143ad42101bf92541fc582aaa9166c6ffba80a76070a1d100bbc6d674b58053:1"
     }
   ]
 }

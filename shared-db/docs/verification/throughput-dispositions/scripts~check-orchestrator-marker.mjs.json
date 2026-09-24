@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": "scripts/check-orchestrator-marker.mjs:70",
-      "semantic_key": "scripts/check-orchestrator-marker.mjs:91ab559bc6cf5e51cc5999a63bead7ae42f0701ca76d20ea516f59187538c0a0:1",
+      "semantic_key": "scripts/check-orchestrator-marker.mjs:91ab559bc6cf5e51cc5999a63bead7ae42f0701ca76d20ea516f59187538c0a0:context-dc22065048a25e11db8d58b36d270fb9210b5c70a3ff51f6d7f4bcd4289d7c99",
       "line_sha256": "91ab559bc6cf5e51cc5999a63bead7ae42f0701ca76d20ea516f59187538c0a0",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-orchestrator-marker.mjs:91ab559bc6cf5e51cc5999a63bead7ae42f0701ca76d20ea516f59187538c0a0:1"
     }
   ]
 }

@@ -17,6 +17,30 @@ export const HISTORICAL_AUDIT = 'docs/verification/throughput-guard-truth-audit-
 
 function sha256(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 
+/** Bind the reviewed line to normalized surrounding source, not its ordinal among
+ * identical lines. Blank lines remain diagnostics. Include the nearest declaration
+ * when recognizable, and a bounded snippet for every supported source language. */
+function contextualKeys(lines, sourcePath) {
+  const significant = lines.map((line, index) => ({ text: line.trim().replace(/\s+/g, ' '), index })).filter(({ text }) => text);
+  const contexts = new Map();
+  let declaration = '';
+  const yamlParents = [];
+  for (let i = 0; i < significant.length; i += 1) {
+    const current = significant[i];
+    if (/\.ya?ml$/.test(sourcePath)) {
+      const key = /^(\s*)(?:-\s+)?([A-Za-z_][\w-]*):(?:\s|$)/.exec(lines[current.index]);
+      if (key) {
+        const indent = key[1].length;
+        while (yamlParents.length && yamlParents.at(-1).indent >= indent) yamlParents.pop();
+        yamlParents.push({ indent, text: current.text });
+      }
+    }
+    if (/^(?:(?:export|default|async|public|private|static)\s+)*(?:def|function|class)\b|^(?:export\s+)?(?:const|let|var)\s+[\w$]+\s*=.*(?:=>|function\b)|^[\w-]+\s*\(\)\s*\{/.test(current.text)) declaration = current.text;
+    contexts.set(current.index, sha256(JSON.stringify({ source: sourcePath, declaration, yamlParents: yamlParents.map(({ text }) => text), before: significant.slice(Math.max(0, i - 2), i).map(({ text }) => text), line: current.text, after: significant.slice(i + 1, i + 3).map(({ text }) => text) })));
+  }
+  return contexts;
+}
+
 /** Injective source-path -> catalogue filename mapping. `~` is rejected in source paths,
  *  so it is a safe separator and no two sources can claim one catalogue file. */
 export function dispositionFileName(sourcePath) {
@@ -36,14 +60,19 @@ export function discover(root) {
       else if (EXTENSIONS.has(path.extname(item.name)) && !/\.test\./.test(item.name) && !item.name.startsWith('test_')) {
         const sourcePath = child.replaceAll('\\', '/');
         const occurrences = new Map();
+        const identities = new Set();
         const lines = fs.readFileSync(path.join(root, child), 'utf8').split(/\r?\n/);
+        const contexts = contextualKeys(lines, sourcePath);
         lines.forEach((line, index) => {
           if (!PATTERN.test(line)) return;
           PATTERN.lastIndex = 0;
           const lineSha256 = sha256(line);
           const occurrence = (occurrences.get(lineSha256) ?? 0) + 1;
           occurrences.set(lineSha256, occurrence);
-          rows.push({ source: sourcePath, site: `${sourcePath}:${index + 1}`, semantic_key: `${sourcePath}:${lineSha256}:${occurrence}`, line_sha256: lineSha256 });
+          const semanticKey = `${sourcePath}:${lineSha256}:context-${contexts.get(index)}`;
+          if (identities.has(semanticKey)) throw new Error(`truth-audit ambiguous source identities require distinct reviewed context: ${sourcePath}:${index + 1}`);
+          identities.add(semanticKey);
+          rows.push({ source: sourcePath, site: `${sourcePath}:${index + 1}`, semantic_key: semanticKey, legacy_semantic_key: `${sourcePath}:${lineSha256}:${occurrence}`, line_sha256: lineSha256 });
         });
       }
     }
@@ -100,7 +129,7 @@ export function run(root = path.resolve(path.dirname(fileURLToPath(import.meta.u
     if (!catalogue) throw new Error(`truth-audit has no reviewed disposition catalogue for ${source}: expected ${DISPOSITION_DIR}/${dispositionFileName(source)}`);
     for (const row of rows) {
       const reviewed = disposition(row.semantic_key, catalogue);
-      if (!reviewed || reviewed.line_sha256 !== row.line_sha256 || !['enriched', 'excluded'].includes(reviewed.disposition) || typeof reviewed.reason !== 'string' || reviewed.reason.length < 20) throw new Error(`truth-audit call site has no substantive semantically bound disposition: ${row.site}`);
+      if (!reviewed || reviewed.line_sha256 !== row.line_sha256 || !['enriched', 'excluded'].includes(reviewed.disposition) || typeof reviewed.reason !== 'string' || reviewed.reason.trim().length < 20) throw new Error(`truth-audit call site has no substantive semantically bound disposition: ${row.site}`);
     }
   }
 

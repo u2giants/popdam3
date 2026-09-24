@@ -4,87 +4,99 @@
   "sites": [
     {
       "site": "scripts/post_batch_app_verification.py:2112",
-      "semantic_key": "scripts/post_batch_app_verification.py:16503991eaee3fa208e9acc27cba9ef24525cb7b93183cf8e9b5ce8bf0a0b6de:1",
+      "semantic_key": "scripts/post_batch_app_verification.py:16503991eaee3fa208e9acc27cba9ef24525cb7b93183cf8e9b5ce8bf0a0b6de:context-4f8ff3c4e3d3b50185165c8fbb09c12cd86f69b2c2d981516f628f4343aca48b",
       "line_sha256": "16503991eaee3fa208e9acc27cba9ef24525cb7b93183cf8e9b5ce8bf0a0b6de",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/post_batch_app_verification.py:16503991eaee3fa208e9acc27cba9ef24525cb7b93183cf8e9b5ce8bf0a0b6de:1"
     },
     {
       "site": "scripts/post_batch_app_verification.py:1368",
-      "semantic_key": "scripts/post_batch_app_verification.py:1ab8db25fe85db74903845ddeff006200000afd57c04b01ab0a3b3bff6a79e1e:1",
+      "semantic_key": "scripts/post_batch_app_verification.py:1ab8db25fe85db74903845ddeff006200000afd57c04b01ab0a3b3bff6a79e1e:context-15efc1b5abb495edd85928c255308540c1a8eb85bb8383b288fddabf678c7cde",
       "line_sha256": "1ab8db25fe85db74903845ddeff006200000afd57c04b01ab0a3b3bff6a79e1e",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/post_batch_app_verification.py:1ab8db25fe85db74903845ddeff006200000afd57c04b01ab0a3b3bff6a79e1e:1"
     },
     {
       "site": "scripts/post_batch_app_verification.py:2127",
-      "semantic_key": "scripts/post_batch_app_verification.py:50cffa14e3a84652dc7f928d5cd085387965cb36f6a2c8270c5101259298e595:1",
+      "semantic_key": "scripts/post_batch_app_verification.py:50cffa14e3a84652dc7f928d5cd085387965cb36f6a2c8270c5101259298e595:context-9014f63cb3f19ec94ffb23748aef1a13f882b2b4dcdd195ca89b5bcf463bf540",
       "line_sha256": "50cffa14e3a84652dc7f928d5cd085387965cb36f6a2c8270c5101259298e595",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/post_batch_app_verification.py:50cffa14e3a84652dc7f928d5cd085387965cb36f6a2c8270c5101259298e595:1"
     },
     {
       "site": "scripts/post_batch_app_verification.py:1576",
-      "semantic_key": "scripts/post_batch_app_verification.py:5fce3fe4c1b9ada55d1b24b0707844bf97205da3b80ff1b0d0f72b68e9410ffe:1",
+      "semantic_key": "scripts/post_batch_app_verification.py:5fce3fe4c1b9ada55d1b24b0707844bf97205da3b80ff1b0d0f72b68e9410ffe:context-640ba337f33d9428224ead2a6099e0f4856b76ce1e97c439b666a84ef3a5e24e",
       "line_sha256": "5fce3fe4c1b9ada55d1b24b0707844bf97205da3b80ff1b0d0f72b68e9410ffe",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/post_batch_app_verification.py:5fce3fe4c1b9ada55d1b24b0707844bf97205da3b80ff1b0d0f72b68e9410ffe:1"
     },
     {
       "site": "scripts/post_batch_app_verification.py:2173",
-      "semantic_key": "scripts/post_batch_app_verification.py:8616e4324800aaf3f3055a85667ade6413880f0653c954648954795a1d5b8fcd:1",
+      "semantic_key": "scripts/post_batch_app_verification.py:8616e4324800aaf3f3055a85667ade6413880f0653c954648954795a1d5b8fcd:context-82cb219e5d2b79b6310340ceb72bcb9ccfd73ad7a7431eebd484271946f1e74e",
       "line_sha256": "8616e4324800aaf3f3055a85667ade6413880f0653c954648954795a1d5b8fcd",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/post_batch_app_verification.py:8616e4324800aaf3f3055a85667ade6413880f0653c954648954795a1d5b8fcd:1"
     },
     {
       "site": "scripts/post_batch_app_verification.py:1791",
-      "semantic_key": "scripts/post_batch_app_verification.py:9b10e9d0f9f4b5fc3eb1609d66167e4548c86f4b0847a3febb5e68a6d64c4602:1",
+      "semantic_key": "scripts/post_batch_app_verification.py:9b10e9d0f9f4b5fc3eb1609d66167e4548c86f4b0847a3febb5e68a6d64c4602:context-a929b28e07923df54f63b792ffc393023f22821caed8720369e2085129be0fff",
       "line_sha256": "9b10e9d0f9f4b5fc3eb1609d66167e4548c86f4b0847a3febb5e68a6d64c4602",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/post_batch_app_verification.py:9b10e9d0f9f4b5fc3eb1609d66167e4548c86f4b0847a3febb5e68a6d64c4602:1"
     },
     {
       "site": "scripts/post_batch_app_verification.py:1575",
-      "semantic_key": "scripts/post_batch_app_verification.py:c127ec1926f12937a95d277d2f521c4943286fe8482a0cca0c834055866e390f:1",
+      "semantic_key": "scripts/post_batch_app_verification.py:c127ec1926f12937a95d277d2f521c4943286fe8482a0cca0c834055866e390f:context-b415327babacfaa3f1b46dfc79f0b4ed000bb2816f7ec4660381e476b7390750",
       "line_sha256": "c127ec1926f12937a95d277d2f521c4943286fe8482a0cca0c834055866e390f",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/post_batch_app_verification.py:c127ec1926f12937a95d277d2f521c4943286fe8482a0cca0c834055866e390f:1"
     },
     {
       "site": "scripts/post_batch_app_verification.py:1256",
-      "semantic_key": "scripts/post_batch_app_verification.py:c7bc3890e8f0528868bd51343b400cfac8e8ab4c74f37eeeac3a62fabdba7621:1",
+      "semantic_key": "scripts/post_batch_app_verification.py:c7bc3890e8f0528868bd51343b400cfac8e8ab4c74f37eeeac3a62fabdba7621:context-7dc4afb975d0ba1ade1b80d0f376cb46a2ae3104c24b044820a508efd574f338",
       "line_sha256": "c7bc3890e8f0528868bd51343b400cfac8e8ab4c74f37eeeac3a62fabdba7621",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/post_batch_app_verification.py:c7bc3890e8f0528868bd51343b400cfac8e8ab4c74f37eeeac3a62fabdba7621:1"
     },
     {
       "site": "scripts/post_batch_app_verification.py:1294",
-      "semantic_key": "scripts/post_batch_app_verification.py:d7eae46ac98bba460ce6134f0465d056674427529926a3c7eaf6390ff52f69e9:1",
+      "semantic_key": "scripts/post_batch_app_verification.py:d7eae46ac98bba460ce6134f0465d056674427529926a3c7eaf6390ff52f69e9:context-06fdb0641bfd7cd830835ff2ec9ef3d0569dc09a297310f39a2333f169e5aed5",
       "line_sha256": "d7eae46ac98bba460ce6134f0465d056674427529926a3c7eaf6390ff52f69e9",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/post_batch_app_verification.py:d7eae46ac98bba460ce6134f0465d056674427529926a3c7eaf6390ff52f69e9:1"
     },
     {
       "site": "scripts/post_batch_app_verification.py:80",
-      "semantic_key": "scripts/post_batch_app_verification.py:e54f753634e8cf629592dbff255a9d6cf59418ec425c5584b7c8b5e5597a9c18:1",
+      "semantic_key": "scripts/post_batch_app_verification.py:e54f753634e8cf629592dbff255a9d6cf59418ec425c5584b7c8b5e5597a9c18:context-6656d1f4e3ebbcf2c135f847bd009cbd1bb1df065f34dfee56e5a9e2cbb8b594",
       "line_sha256": "e54f753634e8cf629592dbff255a9d6cf59418ec425c5584b7c8b5e5597a9c18",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/post_batch_app_verification.py:e54f753634e8cf629592dbff255a9d6cf59418ec425c5584b7c8b5e5597a9c18:1"
     },
     {
       "site": "scripts/post_batch_app_verification.py:112",
-      "semantic_key": "scripts/post_batch_app_verification.py:ee5747ed45bf7f786d41c84684172bc12dbfb353bd974aa0f130ae2c1b76debd:1",
+      "semantic_key": "scripts/post_batch_app_verification.py:ee5747ed45bf7f786d41c84684172bc12dbfb353bd974aa0f130ae2c1b76debd:context-973f86760cee556d3b30911bc4ebe9bb8d3de21a465a27106d6733f1f9a99f51",
       "line_sha256": "ee5747ed45bf7f786d41c84684172bc12dbfb353bd974aa0f130ae2c1b76debd",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/post_batch_app_verification.py:ee5747ed45bf7f786d41c84684172bc12dbfb353bd974aa0f130ae2c1b76debd:1"
     },
     {
       "site": "scripts/post_batch_app_verification.py:246",
-      "semantic_key": "scripts/post_batch_app_verification.py:fe11d1d30471eb0d3f910b02442532d9732e300eb4d9c09b6441da6fcdbcf614:1",
+      "semantic_key": "scripts/post_batch_app_verification.py:fe11d1d30471eb0d3f910b02442532d9732e300eb4d9c09b6441da6fcdbcf614:context-94ae81d0bdcf72a96db7fdc444c6c153cdfc0081d09e6295b1dc8a2506131be4",
       "line_sha256": "fe11d1d30471eb0d3f910b02442532d9732e300eb4d9c09b6441da6fcdbcf614",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/post_batch_app_verification.py:fe11d1d30471eb0d3f910b02442532d9732e300eb4d9c09b6441da6fcdbcf614:1"
     }
   ]
 }

@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": ".github/workflows/reviewer-start-watch.yml:147",
-      "semantic_key": ".github/workflows/reviewer-start-watch.yml:5b1a8f45ec173737602ee8a2c2491cf721d2a3dd9a69240a43f9db7822471a8d:1",
+      "semantic_key": ".github/workflows/reviewer-start-watch.yml:5b1a8f45ec173737602ee8a2c2491cf721d2a3dd9a69240a43f9db7822471a8d:context-32d0051feb3e4ce8dd616e48fae84d1399a60f698ae6a9e34df7434d3fc5d779",
       "line_sha256": "5b1a8f45ec173737602ee8a2c2491cf721d2a3dd9a69240a43f9db7822471a8d",
       "disposition": "excluded",
-      "reason": "Workflow-local guard (#3271): when the watcher pass wrote no pass.json, the step writes an error object so the summary and relay still report a failed pass. It is a statement about a CI scratch file, not about any database object, so no truth enrichment applies."
+      "reason": "Workflow-local guard (#3271): when the watcher pass wrote no pass.json, the step writes an error object so the summary and relay still report a failed pass. It is a statement about a CI scratch file, not about any database object, so no truth enrichment applies.",
+      "legacy_semantic_key": ".github/workflows/reviewer-start-watch.yml:5b1a8f45ec173737602ee8a2c2491cf721d2a3dd9a69240a43f9db7822471a8d:1"
     }
   ]
 }

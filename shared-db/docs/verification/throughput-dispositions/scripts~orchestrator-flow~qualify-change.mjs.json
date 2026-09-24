@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": "scripts/orchestrator-flow/qualify-change.mjs:22",
-      "semantic_key": "scripts/orchestrator-flow/qualify-change.mjs:f28bd8c617280b35e660256c176e6d197b069b05b5702017650364eab2352f2d:1",
+      "semantic_key": "scripts/orchestrator-flow/qualify-change.mjs:f28bd8c617280b35e660256c176e6d197b069b05b5702017650364eab2352f2d:context-b93ca5cae7b585e2fc1819fac2eca4d5a979eb777c019d32a3287f17333d3b96",
       "line_sha256": "f28bd8c617280b35e660256c176e6d197b069b05b5702017650364eab2352f2d",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/qualify-change.mjs:f28bd8c617280b35e660256c176e6d197b069b05b5702017650364eab2352f2d:1"
     }
   ]
 }

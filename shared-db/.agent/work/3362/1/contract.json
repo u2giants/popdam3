@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3362,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Complete workflow-refactor Step2 context-bound semantic identities and nonblank substantive reasons; preserve every original disposition, reason, line hash and legacy key. Sequentially adapt historical-equivalence comparison after PR3354 lands.",
+  "base_sha": "20641bc6bbcd4e6e8fe1e2211126837456c045ab",
+  "dispatcher": "Albert current chat: Implement the shared-db workflow-refactor plan completely. Root assigned Step2 residual subtask.",
+  "worker": "Codex workflow-refactor Step2 subagent",
+  "branch": "codex/workflow-step2-audit-1938",
+  "worktree": "D:\\repos\\shared-db-workflow-step2-audit-1938",
+  "allowed_paths": [
+    "scripts/check-throughput-truth-audit.mjs",
+    "scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+    "scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "docs/verification/throughput-dispositions/**",
+    ".agent/work/3362/1/contract.json",
+    ".agent/work/3362/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/check-throughput-truth-audit.mjs",
+    "scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+    "scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "docs/verification/throughput-dispositions/**",
+    ".agent/work/3362/1/contract.json",
+    ".agent/work/3362/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database change, migration, production action, concurrency cap or workflow/manager edit.",
+    "No edit to frozen historical aggregate.",
+    "No PR or merge until3354 lands and root accepts Step1.",
+    "Never regenerate disposition decisions or reasons."
+  ],
+  "required_checks": [
+    "node --test scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Legacy semantic identities are preserved in explicit legacy_semantic_key while contextual keys bind normalized source snippets.",
+    "Historical equivalence successor edit is sequential after3354; migrate all live sites including its additions."
+  ],
+  "stop_conditions": [
+    "Refuse any loss of reviewed verdict/reason/line hash/legacy identity.",
+    "Refuse out-of-scope edits or bypassing independent review."
+  ]
+}

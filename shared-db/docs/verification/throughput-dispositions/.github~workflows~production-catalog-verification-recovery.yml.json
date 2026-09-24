@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": ".github/workflows/production-catalog-verification-recovery.yml:80",
-      "semantic_key": ".github/workflows/production-catalog-verification-recovery.yml:ea3ae23e1cd72b5848624f5711271a52c1b27c84e178729777a4ea24ef79d7c7:1",
+      "semantic_key": ".github/workflows/production-catalog-verification-recovery.yml:ea3ae23e1cd72b5848624f5711271a52c1b27c84e178729777a4ea24ef79d7c7:context-e88ff9dc353b90d78dde5e8d4380f1d22e4af2f90d3febbb4a4124e708943a49",
       "line_sha256": "ea3ae23e1cd72b5848624f5711271a52c1b27c84e178729777a4ea24ef79d7c7",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/production-catalog-verification-recovery.yml:ea3ae23e1cd72b5848624f5711271a52c1b27c84e178729777a4ea24ef79d7c7:1"
     }
   ]
 }

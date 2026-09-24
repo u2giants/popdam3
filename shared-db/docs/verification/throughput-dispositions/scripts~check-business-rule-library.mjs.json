@@ -4,17 +4,19 @@
   "sites": [
     {
       "site": "scripts/check-business-rule-library.mjs:44",
-      "semantic_key": "scripts/check-business-rule-library.mjs:0832def5bd571339fd83b3ddac83b66125ef29045101ca67c58ce6e11cda55a6:1",
+      "semantic_key": "scripts/check-business-rule-library.mjs:0832def5bd571339fd83b3ddac83b66125ef29045101ca67c58ce6e11cda55a6:context-73d598c76a1927fa9ada20db8efcde14eace9c9e80798f7f63ec407669beca4c",
       "line_sha256": "0832def5bd571339fd83b3ddac83b66125ef29045101ca67c58ce6e11cda55a6",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-business-rule-library.mjs:0832def5bd571339fd83b3ddac83b66125ef29045101ca67c58ce6e11cda55a6:1"
     },
     {
       "site": "scripts/check-business-rule-library.mjs:60",
-      "semantic_key": "scripts/check-business-rule-library.mjs:ad3382829a1922889c2a9a5f3262bcc8cfdf34dbb775fb4b58f74654fc5ff808:1",
+      "semantic_key": "scripts/check-business-rule-library.mjs:ad3382829a1922889c2a9a5f3262bcc8cfdf34dbb775fb4b58f74654fc5ff808:context-fc99f73e393749011e6be22e2e50c2e2fc489ae1b3650969f7b646ff79cb444d",
       "line_sha256": "ad3382829a1922889c2a9a5f3262bcc8cfdf34dbb775fb4b58f74654fc5ff808",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-business-rule-library.mjs:ad3382829a1922889c2a9a5f3262bcc8cfdf34dbb775fb4b58f74654fc5ff808:1"
     }
   ]
 }

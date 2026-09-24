@@ -4,31 +4,35 @@
   "sites": [
     {
       "site": "scripts/orchestrator-flow/evidence-bundle.mjs:27",
-      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:3d2e85dff6709c3a56bb95aef800cce8d440a61fd354f5bd79c98aa8c81bdbba:1",
+      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:3d2e85dff6709c3a56bb95aef800cce8d440a61fd354f5bd79c98aa8c81bdbba:context-1702e4283ea058c2b1109568050e5c77f031607663db4afa9350f07a758cdb2f",
       "line_sha256": "3d2e85dff6709c3a56bb95aef800cce8d440a61fd354f5bd79c98aa8c81bdbba",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:3d2e85dff6709c3a56bb95aef800cce8d440a61fd354f5bd79c98aa8c81bdbba:1"
     },
     {
       "site": "scripts/orchestrator-flow/evidence-bundle.mjs:37",
-      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:4e1fa52fcafbcc7d69c8cacd0f55e19584856c6304d5a3d6270a00fc7b030323:1",
+      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:4e1fa52fcafbcc7d69c8cacd0f55e19584856c6304d5a3d6270a00fc7b030323:context-73605610e1445631f7efe942d46891c215c46c1d4388b2f2ef9970693c2b3e06",
       "line_sha256": "4e1fa52fcafbcc7d69c8cacd0f55e19584856c6304d5a3d6270a00fc7b030323",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:4e1fa52fcafbcc7d69c8cacd0f55e19584856c6304d5a3d6270a00fc7b030323:1"
     },
     {
       "site": "scripts/orchestrator-flow/evidence-bundle.mjs:86",
-      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:5c41f8e406c64f05a7e52701b06f03d7e1f1ff2d5701efa0c7e041a6eac38b56:1",
+      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:5c41f8e406c64f05a7e52701b06f03d7e1f1ff2d5701efa0c7e041a6eac38b56:context-af7d159c72f3d85b80d91c45e79668b7ec2ced6edd2ce255e18ad65a9cdbb5d9",
       "line_sha256": "5c41f8e406c64f05a7e52701b06f03d7e1f1ff2d5701efa0c7e041a6eac38b56",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:5c41f8e406c64f05a7e52701b06f03d7e1f1ff2d5701efa0c7e041a6eac38b56:1"
     },
     {
       "site": "scripts/orchestrator-flow/evidence-bundle.mjs:47",
-      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:a4d9f0d6075ce9b08a596f917d0e0836491cf991bf5d22003c0dabb84ed1050a:1",
+      "semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:a4d9f0d6075ce9b08a596f917d0e0836491cf991bf5d22003c0dabb84ed1050a:context-dfc0df2b3dc40d6cf36a1ab2405422e89eba42d2478c9463b741df2d628e6e3a",
       "line_sha256": "a4d9f0d6075ce9b08a596f917d0e0836491cf991bf5d22003c0dabb84ed1050a",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent."
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:a4d9f0d6075ce9b08a596f917d0e0836491cf991bf5d22003c0dabb84ed1050a:1"
     }
   ]
 }

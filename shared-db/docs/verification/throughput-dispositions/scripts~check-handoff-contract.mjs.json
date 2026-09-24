@@ -3,25 +3,28 @@
   "source": "scripts/check-handoff-contract.mjs",
   "sites": [
     {
-      "site": "scripts/check-handoff-contract.mjs:302",
-      "semantic_key": "scripts/check-handoff-contract.mjs:1e0cb5682394075f96baa50ff758aab4f7dbd9fa8e7dc084cfdef0033e0e780a:1",
+      "site": "scripts/check-handoff-contract.mjs:308",
+      "semantic_key": "scripts/check-handoff-contract.mjs:1e0cb5682394075f96baa50ff758aab4f7dbd9fa8e7dc084cfdef0033e0e780a:context-7a735e07e0d57eee4e637f0b99c5fb1ae52ec74278a66410191cb30ca85447e1",
       "line_sha256": "1e0cb5682394075f96baa50ff758aab4f7dbd9fa8e7dc084cfdef0033e0e780a",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-handoff-contract.mjs:1e0cb5682394075f96baa50ff758aab4f7dbd9fa8e7dc084cfdef0033e0e780a:1"
     },
     {
-      "site": "scripts/check-handoff-contract.mjs:174",
-      "semantic_key": "scripts/check-handoff-contract.mjs:60977caa9f39cfb886e3f4d2de2a4ce7527c0f10753601d1a16f27b94991f37e:1",
+      "site": "scripts/check-handoff-contract.mjs:175",
+      "semantic_key": "scripts/check-handoff-contract.mjs:60977caa9f39cfb886e3f4d2de2a4ce7527c0f10753601d1a16f27b94991f37e:context-0a8bd7cbde6f7d666f425e01556c9d3b973e0ea4feb1fea1dff5c0b5325dd713",
       "line_sha256": "60977caa9f39cfb886e3f4d2de2a4ce7527c0f10753601d1a16f27b94991f37e",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-handoff-contract.mjs:60977caa9f39cfb886e3f4d2de2a4ce7527c0f10753601d1a16f27b94991f37e:1"
     },
     {
       "site": "scripts/check-handoff-contract.mjs:50",
-      "semantic_key": "scripts/check-handoff-contract.mjs:b8d7e94a468fc8e053e08123de2f07d7715a8bd322b8a0257b13aa5c5c27e8d4:1",
+      "semantic_key": "scripts/check-handoff-contract.mjs:b8d7e94a468fc8e053e08123de2f07d7715a8bd322b8a0257b13aa5c5c27e8d4:context-79bd4c3649420815c605fc3fb28eb5794bfc7cb1700f887cd2982f717b94a858",
       "line_sha256": "b8d7e94a468fc8e053e08123de2f07d7715a8bd322b8a0257b13aa5c5c27e8d4",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-handoff-contract.mjs:b8d7e94a468fc8e053e08123de2f07d7715a8bd322b8a0257b13aa5c5c27e8d4:1"
     }
   ]
 }

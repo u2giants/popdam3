@@ -4,38 +4,43 @@
   "sites": [
     {
       "site": "scripts/update-required-checks.mjs:131",
-      "semantic_key": "scripts/update-required-checks.mjs:07ce619d9fd15d212be9d3650f9049c9c3593dba921aec602ace3fb3f694a721:1",
+      "semantic_key": "scripts/update-required-checks.mjs:07ce619d9fd15d212be9d3650f9049c9c3593dba921aec602ace3fb3f694a721:context-d16c35dff10ebb151824383945e58e398923997f25bc8104cc8c5679f09f4546",
       "line_sha256": "07ce619d9fd15d212be9d3650f9049c9c3593dba921aec602ace3fb3f694a721",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/update-required-checks.mjs:07ce619d9fd15d212be9d3650f9049c9c3593dba921aec602ace3fb3f694a721:1"
     },
     {
       "site": "scripts/update-required-checks.mjs:253",
-      "semantic_key": "scripts/update-required-checks.mjs:12bb9848a53fcb3a545281f4682133ac26c22ac407fca43c1c2ae87e098e17ec:1",
+      "semantic_key": "scripts/update-required-checks.mjs:12bb9848a53fcb3a545281f4682133ac26c22ac407fca43c1c2ae87e098e17ec:context-5b2298d0dc04811d5b2fbd4235af7456b91e5edb43f93590ce6db037cba8114f",
       "line_sha256": "12bb9848a53fcb3a545281f4682133ac26c22ac407fca43c1c2ae87e098e17ec",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/update-required-checks.mjs:12bb9848a53fcb3a545281f4682133ac26c22ac407fca43c1c2ae87e098e17ec:1"
     },
     {
       "site": "scripts/update-required-checks.mjs:252",
-      "semantic_key": "scripts/update-required-checks.mjs:4530d9aa221447981d71f0984d60d749e12938c6551ae490094d2a45fa7083d1:1",
+      "semantic_key": "scripts/update-required-checks.mjs:4530d9aa221447981d71f0984d60d749e12938c6551ae490094d2a45fa7083d1:context-604cee209ddf2fe2ff6b78dee138c021def0d03939895ca82f478b87344ae86d",
       "line_sha256": "4530d9aa221447981d71f0984d60d749e12938c6551ae490094d2a45fa7083d1",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/update-required-checks.mjs:4530d9aa221447981d71f0984d60d749e12938c6551ae490094d2a45fa7083d1:1"
     },
     {
       "site": "scripts/update-required-checks.mjs:247",
-      "semantic_key": "scripts/update-required-checks.mjs:78df622de3292aeb479d3777b5f466da0e465769ccf7d6750273076757ac08e6:1",
+      "semantic_key": "scripts/update-required-checks.mjs:78df622de3292aeb479d3777b5f466da0e465769ccf7d6750273076757ac08e6:context-a89b824c10d26fea114849e99172170bd41c4e414cd336ed0b79c39da3fe8d6d",
       "line_sha256": "78df622de3292aeb479d3777b5f466da0e465769ccf7d6750273076757ac08e6",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/update-required-checks.mjs:78df622de3292aeb479d3777b5f466da0e465769ccf7d6750273076757ac08e6:1"
     },
     {
       "site": "scripts/update-required-checks.mjs:137",
-      "semantic_key": "scripts/update-required-checks.mjs:b6f99fc0332de329fe7ce3cf6845b632a2c65fbf5670a8f9266cb3b38006f0b0:1",
+      "semantic_key": "scripts/update-required-checks.mjs:b6f99fc0332de329fe7ce3cf6845b632a2c65fbf5670a8f9266cb3b38006f0b0:context-d39a9b785087f78f01b9ff6db321f99e41ec2b6672990128ba7df3f4a45edb6c",
       "line_sha256": "b6f99fc0332de329fe7ce3cf6845b632a2c65fbf5670a8f9266cb3b38006f0b0",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/update-required-checks.mjs:b6f99fc0332de329fe7ce3cf6845b632a2c65fbf5670a8f9266cb3b38006f0b0:1"
     }
   ]
 }

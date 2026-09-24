@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": "scripts/check-throughput-truth-audit.mjs:9",
-      "semantic_key": "scripts/check-throughput-truth-audit.mjs:18d9cfec88695095d91b29464232d1a2a90d9d39f17d7826be420a41bd13309c:1",
+      "semantic_key": "scripts/check-throughput-truth-audit.mjs:18d9cfec88695095d91b29464232d1a2a90d9d39f17d7826be420a41bd13309c:context-c5b051b72fc945f822b1a139bc23c87b6ef9e7871cf9c794e9ad6841cfa497ec",
       "line_sha256": "18d9cfec88695095d91b29464232d1a2a90d9d39f17d7826be420a41bd13309c",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-throughput-truth-audit.mjs:18d9cfec88695095d91b29464232d1a2a90d9d39f17d7826be420a41bd13309c:1"
     }
   ]
 }

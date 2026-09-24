@@ -4,17 +4,19 @@
   "sites": [
     {
       "site": "scripts/orchestrator-flow/migration-train.mjs:13",
-      "semantic_key": "scripts/orchestrator-flow/migration-train.mjs:541b28cdb1c7dd1613b65347ca55750369dbd25bc1e77b5b54c27b934e8b7282:1",
+      "semantic_key": "scripts/orchestrator-flow/migration-train.mjs:541b28cdb1c7dd1613b65347ca55750369dbd25bc1e77b5b54c27b934e8b7282:context-c18bb5955ad921731b2f94dd34d25c3b166b70cf223aa3c1ec5ef6dc163bf2e4",
       "line_sha256": "541b28cdb1c7dd1613b65347ca55750369dbd25bc1e77b5b54c27b934e8b7282",
       "disposition": "excluded",
-      "reason": "Validates required migration manifest fields; missing refers to input metadata, not absent database objects."
+      "reason": "Validates required migration manifest fields; missing refers to input metadata, not absent database objects.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/migration-train.mjs:541b28cdb1c7dd1613b65347ca55750369dbd25bc1e77b5b54c27b934e8b7282:1"
     },
     {
       "site": "scripts/orchestrator-flow/migration-train.mjs:43",
-      "semantic_key": "scripts/orchestrator-flow/migration-train.mjs:9a8d81ef3443aadebdc6cf2cf35ad546f6928849a281bbe19ce9e1b4c1468111:1",
+      "semantic_key": "scripts/orchestrator-flow/migration-train.mjs:9a8d81ef3443aadebdc6cf2cf35ad546f6928849a281bbe19ce9e1b4c1468111:context-61d5da40311b36c80c111b15d72118d6f8c9c402d2fd7668d64ef868cf944dcb",
       "line_sha256": "9a8d81ef3443aadebdc6cf2cf35ad546f6928849a281bbe19ce9e1b4c1468111",
       "disposition": "excluded",
-      "reason": "Checks declared dependency versions against supplied ledger and ordered train entries; this is manifest compatibility, not a catalog existence inference."
+      "reason": "Checks declared dependency versions against supplied ledger and ordered train entries; this is manifest compatibility, not a catalog existence inference.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/migration-train.mjs:9a8d81ef3443aadebdc6cf2cf35ad546f6928849a281bbe19ce9e1b4c1468111:1"
     }
   ]
 }

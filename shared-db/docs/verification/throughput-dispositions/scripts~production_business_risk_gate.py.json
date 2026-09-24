@@ -3,109 +3,124 @@
   "source": "scripts/production_business_risk_gate.py",
   "sites": [
     {
-      "site": "scripts/production_business_risk_gate.py:900",
-      "semantic_key": "scripts/production_business_risk_gate.py:11d6d11f4529aff953ddf36d9d3b561e0449482be7dc41627c9684f46fd9ea66:1",
+      "site": "scripts/production_business_risk_gate.py:903",
+      "semantic_key": "scripts/production_business_risk_gate.py:11d6d11f4529aff953ddf36d9d3b561e0449482be7dc41627c9684f46fd9ea66:context-3c826f942420107ee888213b4e573dcec9e85c6c2fc445a9c79f921efb796417",
       "line_sha256": "11d6d11f4529aff953ddf36d9d3b561e0449482be7dc41627c9684f46fd9ea66",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:11d6d11f4529aff953ddf36d9d3b561e0449482be7dc41627c9684f46fd9ea66:1"
     },
     {
       "site": "scripts/production_business_risk_gate.py:576",
-      "semantic_key": "scripts/production_business_risk_gate.py:1ce605ffcacbd03b81a3f96e7e3bdc81d5814073cb125c6bb3f22cefd4222417:1",
+      "semantic_key": "scripts/production_business_risk_gate.py:1ce605ffcacbd03b81a3f96e7e3bdc81d5814073cb125c6bb3f22cefd4222417:context-fcce04f8f909e15d639c429c502622b5ae50ad275783c88959ebea03174fb86f",
       "line_sha256": "1ce605ffcacbd03b81a3f96e7e3bdc81d5814073cb125c6bb3f22cefd4222417",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:1ce605ffcacbd03b81a3f96e7e3bdc81d5814073cb125c6bb3f22cefd4222417:1"
     },
     {
-      "site": "scripts/production_business_risk_gate.py:2087",
-      "semantic_key": "scripts/production_business_risk_gate.py:28b95d22fe7cde0a3c9398625c92c820fa45356e75d284f5f4eae073104cc76a:1",
+      "site": "scripts/production_business_risk_gate.py:2136",
+      "semantic_key": "scripts/production_business_risk_gate.py:28b95d22fe7cde0a3c9398625c92c820fa45356e75d284f5f4eae073104cc76a:context-a8372e59db2619fbd94cd51c76daa6a902b523de5e47362637045c5708e4b874",
       "line_sha256": "28b95d22fe7cde0a3c9398625c92c820fa45356e75d284f5f4eae073104cc76a",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:28b95d22fe7cde0a3c9398625c92c820fa45356e75d284f5f4eae073104cc76a:1"
     },
     {
-      "site": "scripts/production_business_risk_gate.py:1835",
-      "semantic_key": "scripts/production_business_risk_gate.py:34bf1f8d9d1c16dba74fcffb37f4cf7481d431db6996a99cd1eb10dc5fa2664a:1",
+      "site": "scripts/production_business_risk_gate.py:1839",
+      "semantic_key": "scripts/production_business_risk_gate.py:34bf1f8d9d1c16dba74fcffb37f4cf7481d431db6996a99cd1eb10dc5fa2664a:context-297fcbdc425d546a2222bc1390b7088649750374075e0e3a250a4000eef820ac",
       "line_sha256": "34bf1f8d9d1c16dba74fcffb37f4cf7481d431db6996a99cd1eb10dc5fa2664a",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:34bf1f8d9d1c16dba74fcffb37f4cf7481d431db6996a99cd1eb10dc5fa2664a:1"
     },
     {
       "site": "scripts/production_business_risk_gate.py:530",
-      "semantic_key": "scripts/production_business_risk_gate.py:3a3f1979a97e47696c391a59243a32b62fc434d412677d74e188cb99c088f162:1",
+      "semantic_key": "scripts/production_business_risk_gate.py:3a3f1979a97e47696c391a59243a32b62fc434d412677d74e188cb99c088f162:context-96019c41426cafe85bbb7f8051ad277a5a02e8586293ac69d7f4c11c2b22788b",
       "line_sha256": "3a3f1979a97e47696c391a59243a32b62fc434d412677d74e188cb99c088f162",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:3a3f1979a97e47696c391a59243a32b62fc434d412677d74e188cb99c088f162:1"
     },
     {
-      "site": "scripts/production_business_risk_gate.py:2096",
-      "semantic_key": "scripts/production_business_risk_gate.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:1",
+      "site": "scripts/production_business_risk_gate.py:2145",
+      "semantic_key": "scripts/production_business_risk_gate.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:context-4dab86493c4d3984b70deb9532bdf736157564923c9bd1aeb1ac2690ffb22b6d",
       "line_sha256": "3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:1"
     },
     {
-      "site": "scripts/production_business_risk_gate.py:2095",
-      "semantic_key": "scripts/production_business_risk_gate.py:5d4b23eb3d2d4bf4b5b08b9141fb149e71e0c7923baa6065463164d7c7cf0c9b:1",
+      "site": "scripts/production_business_risk_gate.py:2144",
+      "semantic_key": "scripts/production_business_risk_gate.py:5d4b23eb3d2d4bf4b5b08b9141fb149e71e0c7923baa6065463164d7c7cf0c9b:context-f164c23e647bee98586bc28a4acf04d00241a5ae3787d707364791d5203a141f",
       "line_sha256": "5d4b23eb3d2d4bf4b5b08b9141fb149e71e0c7923baa6065463164d7c7cf0c9b",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:5d4b23eb3d2d4bf4b5b08b9141fb149e71e0c7923baa6065463164d7c7cf0c9b:1"
     },
     {
-      "site": "scripts/production_business_risk_gate.py:842",
-      "semantic_key": "scripts/production_business_risk_gate.py:670a44eb0afd4c0a0ff47b583c426b71a88ddfce627c5d571935a2f4e3bc018d:1",
+      "site": "scripts/production_business_risk_gate.py:845",
+      "semantic_key": "scripts/production_business_risk_gate.py:670a44eb0afd4c0a0ff47b583c426b71a88ddfce627c5d571935a2f4e3bc018d:context-51aa518471274d39ded7898a49b5ace871d33fcb7139f8386630c35508e5956f",
       "line_sha256": "670a44eb0afd4c0a0ff47b583c426b71a88ddfce627c5d571935a2f4e3bc018d",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:670a44eb0afd4c0a0ff47b583c426b71a88ddfce627c5d571935a2f4e3bc018d:1"
     },
     {
-      "site": "scripts/production_business_risk_gate.py:2833",
-      "semantic_key": "scripts/production_business_risk_gate.py:88cc7fb6fc03430c4fdd2485a7faef97f446d5732613153940ea5afd75c105c1:1",
+      "site": "scripts/production_business_risk_gate.py:3029",
+      "semantic_key": "scripts/production_business_risk_gate.py:88cc7fb6fc03430c4fdd2485a7faef97f446d5732613153940ea5afd75c105c1:context-aa6284db30e9c247967f00aa10cfb88a52463457238f35b4ac5514359cb99e57",
       "line_sha256": "88cc7fb6fc03430c4fdd2485a7faef97f446d5732613153940ea5afd75c105c1",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:88cc7fb6fc03430c4fdd2485a7faef97f446d5732613153940ea5afd75c105c1:1"
     },
     {
       "site": "scripts/production_business_risk_gate.py:479",
-      "semantic_key": "scripts/production_business_risk_gate.py:9928b4d03294947634962bce055e2072938c0082131f5cf02484ccaaa844effc:1",
+      "semantic_key": "scripts/production_business_risk_gate.py:9928b4d03294947634962bce055e2072938c0082131f5cf02484ccaaa844effc:context-a621b09c6f2c0231398723275dff102504cbab1626856d65781d45fc8ee41cb0",
       "line_sha256": "9928b4d03294947634962bce055e2072938c0082131f5cf02484ccaaa844effc",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:9928b4d03294947634962bce055e2072938c0082131f5cf02484ccaaa844effc:1"
     },
     {
-      "site": "scripts/production_business_risk_gate.py:2166",
-      "semantic_key": "scripts/production_business_risk_gate.py:b50d5c58206e9910a7846a21aff5a78fa63782859874b13311a43d17c39bacd3:1",
+      "site": "scripts/production_business_risk_gate.py:2215",
+      "semantic_key": "scripts/production_business_risk_gate.py:b50d5c58206e9910a7846a21aff5a78fa63782859874b13311a43d17c39bacd3:context-e4b201083c1705cd2ff93c2a989de866710870f9f7f41399bf854067d33fe4a3",
       "line_sha256": "b50d5c58206e9910a7846a21aff5a78fa63782859874b13311a43d17c39bacd3",
       "disposition": "excluded",
-      "reason": "Refusal message for a malformed migration train record entry; it names absent record fields, not an object that was not applied or never created."
+      "reason": "Refusal message for a malformed migration train record entry; it names absent record fields, not an object that was not applied or never created.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:b50d5c58206e9910a7846a21aff5a78fa63782859874b13311a43d17c39bacd3:1"
     },
     {
       "site": "scripts/production_business_risk_gate.py:179",
-      "semantic_key": "scripts/production_business_risk_gate.py:b94519be06f87f0be576f961e620698406a20c87ed145700434dd2c81a085bf1:1",
+      "semantic_key": "scripts/production_business_risk_gate.py:b94519be06f87f0be576f961e620698406a20c87ed145700434dd2c81a085bf1:context-31760d0f740bcb0eb5ae094921e1765d1bcc9021329f572e884595258b9b2a2e",
       "line_sha256": "b94519be06f87f0be576f961e620698406a20c87ed145700434dd2c81a085bf1",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:b94519be06f87f0be576f961e620698406a20c87ed145700434dd2c81a085bf1:1"
     },
     {
-      "site": "scripts/production_business_risk_gate.py:2922",
-      "semantic_key": "scripts/production_business_risk_gate.py:b99d695b1fca431f95ebb9600eb241916948a8538042af2e84faf9903fce5f98:1",
+      "site": "scripts/production_business_risk_gate.py:3118",
+      "semantic_key": "scripts/production_business_risk_gate.py:b99d695b1fca431f95ebb9600eb241916948a8538042af2e84faf9903fce5f98:context-20ff3e4a3f8bc5768157ee039db0a907244f3171c7df7ef886e8a9e2af5ba502",
       "line_sha256": "b99d695b1fca431f95ebb9600eb241916948a8538042af2e84faf9903fce5f98",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:b99d695b1fca431f95ebb9600eb241916948a8538042af2e84faf9903fce5f98:1"
     },
     {
-      "site": "scripts/production_business_risk_gate.py:2097",
-      "semantic_key": "scripts/production_business_risk_gate.py:fabdb1c33b277da40125b14521d3411518d67a5a462ad2386fab74207c009017:1",
+      "site": "scripts/production_business_risk_gate.py:2146",
+      "semantic_key": "scripts/production_business_risk_gate.py:fabdb1c33b277da40125b14521d3411518d67a5a462ad2386fab74207c009017:context-639a19ad8f1383f8edd89f69e7bc604c7b6f793ba855f62bad7838a63e5e7cb6",
       "line_sha256": "fabdb1c33b277da40125b14521d3411518d67a5a462ad2386fab74207c009017",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:fabdb1c33b277da40125b14521d3411518d67a5a462ad2386fab74207c009017:1"
     },
     {
       "site": "scripts/production_business_risk_gate.py:274",
-      "semantic_key": "scripts/production_business_risk_gate.py:fdd68f53cf3fe51491a4cb46c9365de4a244a37ad8d7786de5abdffa253374df:1",
+      "semantic_key": "scripts/production_business_risk_gate.py:fdd68f53cf3fe51491a4cb46c9365de4a244a37ad8d7786de5abdffa253374df:context-deec03d845884651161a47ab777e0ab95cc0f693f8f3bef7ed2a599d3bb1b333",
       "line_sha256": "fdd68f53cf3fe51491a4cb46c9365de4a244a37ad8d7786de5abdffa253374df",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/production_business_risk_gate.py:fdd68f53cf3fe51491a4cb46c9365de4a244a37ad8d7786de5abdffa253374df:1"
     }
   ]
 }

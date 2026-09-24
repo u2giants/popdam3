@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": "scripts/catalog-truth.mjs:14",
-      "semantic_key": "scripts/catalog-truth.mjs:dc299927710ce668393c11ef50b43a3ef9cf60d8b0e73d1eca1e4db32dc0f3aa:1",
+      "semantic_key": "scripts/catalog-truth.mjs:dc299927710ce668393c11ef50b43a3ef9cf60d8b0e73d1eca1e4db32dc0f3aa:context-90ae3ed831685dcf4e043a751d7bfe784ce8e8a6cfdb70a1c1c58491979ebbd5",
       "line_sha256": "dc299927710ce668393c11ef50b43a3ef9cf60d8b0e73d1eca1e4db32dc0f3aa",
       "disposition": "enriched",
-      "reason": "This call site reports independent evidence and preserves the existing refusal exit."
+      "reason": "This call site reports independent evidence and preserves the existing refusal exit.",
+      "legacy_semantic_key": "scripts/catalog-truth.mjs:dc299927710ce668393c11ef50b43a3ef9cf60d8b0e73d1eca1e4db32dc0f3aa:1"
     }
   ]
 }

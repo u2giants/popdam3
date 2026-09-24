@@ -4,17 +4,19 @@
   "sites": [
     {
       "site": ".github/workflows/coldlion-licensor-property-alert-monitor.yml:110",
-      "semantic_key": ".github/workflows/coldlion-licensor-property-alert-monitor.yml:528f064e8edc78c38ed8e8272f2a55bd9a2a13614c80841153c409b245417380:1",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-alert-monitor.yml:528f064e8edc78c38ed8e8272f2a55bd9a2a13614c80841153c409b245417380:context-05c7d94f056d351dc68f604b394c8cb8f4cd7745c40537bb1da75f331dc62693",
       "line_sha256": "528f064e8edc78c38ed8e8272f2a55bd9a2a13614c80841153c409b245417380",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/coldlion-licensor-property-alert-monitor.yml:528f064e8edc78c38ed8e8272f2a55bd9a2a13614c80841153c409b245417380:1"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-alert-monitor.yml:111",
-      "semantic_key": ".github/workflows/coldlion-licensor-property-alert-monitor.yml:567bee4be9bf7c5d6c638a8d889e89691419841bf08a8717c24543d7cccebe88:1",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-alert-monitor.yml:567bee4be9bf7c5d6c638a8d889e89691419841bf08a8717c24543d7cccebe88:context-5c02e7b2a95a8d80fa9105671a5f5dc3a956ce10b1073552f068aa6478e3aeb2",
       "line_sha256": "567bee4be9bf7c5d6c638a8d889e89691419841bf08a8717c24543d7cccebe88",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/coldlion-licensor-property-alert-monitor.yml:567bee4be9bf7c5d6c638a8d889e89691419841bf08a8717c24543d7cccebe88:1"
     }
   ]
 }

@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": "scripts/check-migration-verify-cost.mjs:76",
-      "semantic_key": "scripts/check-migration-verify-cost.mjs:316698f328ab07fad23616809dd9f7b261b728c219764da79dea6debb3c97f42:1",
+      "semantic_key": "scripts/check-migration-verify-cost.mjs:316698f328ab07fad23616809dd9f7b261b728c219764da79dea6debb3c97f42:context-a8c318c7612f706fe439aedaa923307257a47509c1cc43779409558df6dcd391",
       "line_sha256": "316698f328ab07fad23616809dd9f7b261b728c219764da79dea6debb3c97f42",
       "disposition": "excluded",
-      "reason": "Illustrative prose inside a source comment explaining what the verify-cost scanner masks; it emits no diagnostic and reports nothing about an object being absent, so there is no throughput claim to enrich."
+      "reason": "Illustrative prose inside a source comment explaining what the verify-cost scanner masks; it emits no diagnostic and reports nothing about an object being absent, so there is no throughput claim to enrich.",
+      "legacy_semantic_key": "scripts/check-migration-verify-cost.mjs:316698f328ab07fad23616809dd9f7b261b728c219764da79dea6debb3c97f42:1"
     }
   ]
 }

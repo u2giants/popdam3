@@ -4,10 +4,10 @@
   "sites": [
     {
       "site": "scripts/proofs/shared-db-2870-observation.mjs:94",
-      "semantic_key": "scripts/proofs/shared-db-2870-observation.mjs:eed9acd8d1e13c9984ba1429a123aadfd7dfe251d144c99233ee04d22445145b:1",
+      "semantic_key": "scripts/proofs/shared-db-2870-observation.mjs:eed9acd8d1e13c9984ba1429a123aadfd7dfe251d144c99233ee04d22445145b:context-baa835b03f350d9f1bb933bf265b8be8ee33e2c90aa97e6ace4ceb097b84cc0a",
       "line_sha256": "eed9acd8d1e13c9984ba1429a123aadfd7dfe251d144c99233ee04d22445145b",
       "disposition": "excluded",
-      "reason": "Comment describing exact JSON key-set validation: absent or extra fields fail whole-object equality. It reports no database object as absent and makes no migration-history claim; catalog observation still requires the two exact live column definitions."
+      "reason": "Excluded: wording matched the discovery pattern but makes no database presence, absence, or applied-migration claim. Re-reviewed after merge from origin/main."
     }
   ]
 }

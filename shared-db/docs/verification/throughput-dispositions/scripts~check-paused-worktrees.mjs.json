@@ -4,10 +4,11 @@
   "sites": [
     {
       "site": "scripts/check-paused-worktrees.mjs:60",
-      "semantic_key": "scripts/check-paused-worktrees.mjs:11930dbb1a360e6625e8f1cc10495ecb0fed79719a581576d6353506a655594a:1",
+      "semantic_key": "scripts/check-paused-worktrees.mjs:11930dbb1a360e6625e8f1cc10495ecb0fed79719a581576d6353506a655594a:context-2bcb5d893273f9116fc77d0e25007740af554a488e699ea5cf054fc7ffce7b61",
       "line_sha256": "11930dbb1a360e6625e8f1cc10495ecb0fed79719a581576d6353506a655594a",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-paused-worktrees.mjs:11930dbb1a360e6625e8f1cc10495ecb0fed79719a581576d6353506a655594a:1"
     }
   ]
 }

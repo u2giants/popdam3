@@ -4,80 +4,91 @@
   "sites": [
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:261",
-      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:3bedc3eb62cb925138f2e8fab4587ff2940ff00ca52406c74218c17b66c53e68:1",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:3bedc3eb62cb925138f2e8fab4587ff2940ff00ca52406c74218c17b66c53e68:context-0617485a2055f7f13e18c7d72e39aaa29917bcd32ba1e4d65659de84d97779a4",
       "line_sha256": "3bedc3eb62cb925138f2e8fab4587ff2940ff00ca52406c74218c17b66c53e68",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:3bedc3eb62cb925138f2e8fab4587ff2940ff00ca52406c74218c17b66c53e68:1"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:543",
-      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:3bedc3eb62cb925138f2e8fab4587ff2940ff00ca52406c74218c17b66c53e68:2",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:3bedc3eb62cb925138f2e8fab4587ff2940ff00ca52406c74218c17b66c53e68:context-770b187c4c9d44bdc3c6c4d7d6a9cb495e594253d48c6ee128dff8186f5c97bf",
       "line_sha256": "3bedc3eb62cb925138f2e8fab4587ff2940ff00ca52406c74218c17b66c53e68",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:3bedc3eb62cb925138f2e8fab4587ff2940ff00ca52406c74218c17b66c53e68:2"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:547",
-      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:5fe7e0fb0a449f94515a5d852e4a7e465d9fed12db77dec6732176b16b77665e:1",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:5fe7e0fb0a449f94515a5d852e4a7e465d9fed12db77dec6732176b16b77665e:context-f6ec0c1d34e49d0111f47ad86927e623bb1a7359dbd8be3cffdcea5e587ed36f",
       "line_sha256": "5fe7e0fb0a449f94515a5d852e4a7e465d9fed12db77dec6732176b16b77665e",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:5fe7e0fb0a449f94515a5d852e4a7e465d9fed12db77dec6732176b16b77665e:1"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:259",
-      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:9daa53e1cc5e22f781719514ae55e2823146eccf5c7d5a736f9677664f67fdeb:1",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:9daa53e1cc5e22f781719514ae55e2823146eccf5c7d5a736f9677664f67fdeb:context-2217159a66ef8693957ee9a1234e43f5ebbad1e8fd5c1402d8104e4641502199",
       "line_sha256": "9daa53e1cc5e22f781719514ae55e2823146eccf5c7d5a736f9677664f67fdeb",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:9daa53e1cc5e22f781719514ae55e2823146eccf5c7d5a736f9677664f67fdeb:1"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:542",
-      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:9daa53e1cc5e22f781719514ae55e2823146eccf5c7d5a736f9677664f67fdeb:2",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:9daa53e1cc5e22f781719514ae55e2823146eccf5c7d5a736f9677664f67fdeb:context-8129392654456f336bce0a757963d1c9e82ad39c2fccbf6d71feda1511d5a8fa",
       "line_sha256": "9daa53e1cc5e22f781719514ae55e2823146eccf5c7d5a736f9677664f67fdeb",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:9daa53e1cc5e22f781719514ae55e2823146eccf5c7d5a736f9677664f67fdeb:2"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:260",
-      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:b85c118283997183cd212ae4e24218e046a7bf084b2f785df70b3e2bba593760:1",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:b85c118283997183cd212ae4e24218e046a7bf084b2f785df70b3e2bba593760:context-d57e1a475f8470068b0b5207325ae8acb41ff0c280195baa0a5f02b3dc0d655d",
       "line_sha256": "b85c118283997183cd212ae4e24218e046a7bf084b2f785df70b3e2bba593760",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:b85c118283997183cd212ae4e24218e046a7bf084b2f785df70b3e2bba593760:1"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:263",
-      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:d81c245bb411c79b68b03a34e62237edbfa84308fdbfc634efc418a010185c72:1",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:d81c245bb411c79b68b03a34e62237edbfa84308fdbfc634efc418a010185c72:context-edc957e635eda47ffc6f2ee630afdf95f3b6918f6e0582f9b2e3c5ad8584181b",
       "line_sha256": "d81c245bb411c79b68b03a34e62237edbfa84308fdbfc634efc418a010185c72",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:d81c245bb411c79b68b03a34e62237edbfa84308fdbfc634efc418a010185c72:1"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:258",
-      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:d93f01a6367e10a5063978968848cb72548f46eed66fe3156b360992248e3c35:1",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:d93f01a6367e10a5063978968848cb72548f46eed66fe3156b360992248e3c35:context-19c80269e0ef4c53f8597f9932ecfa0fdbdc86c5473ad5ebcf5eeb0876ac18a5",
       "line_sha256": "d93f01a6367e10a5063978968848cb72548f46eed66fe3156b360992248e3c35",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:d93f01a6367e10a5063978968848cb72548f46eed66fe3156b360992248e3c35:1"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:541",
-      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:d93f01a6367e10a5063978968848cb72548f46eed66fe3156b360992248e3c35:2",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:d93f01a6367e10a5063978968848cb72548f46eed66fe3156b360992248e3c35:context-4adaeb8c9ce67808fb0243deadcd4e7f424f4bd49c2c61d3c711d138536c7984",
       "line_sha256": "d93f01a6367e10a5063978968848cb72548f46eed66fe3156b360992248e3c35",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:d93f01a6367e10a5063978968848cb72548f46eed66fe3156b360992248e3c35:2"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:262",
-      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:ddb4e7e56caabe90015113c813c057ae6ac1168efe736a7c1ca91cf443333560:1",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:ddb4e7e56caabe90015113c813c057ae6ac1168efe736a7c1ca91cf443333560:context-3ff908464b5a20286b60a1068c02af3c75c885b7c5e8f6474815b0132258056c",
       "line_sha256": "ddb4e7e56caabe90015113c813c057ae6ac1168efe736a7c1ca91cf443333560",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:ddb4e7e56caabe90015113c813c057ae6ac1168efe736a7c1ca91cf443333560:1"
     },
     {
       "site": ".github/workflows/coldlion-licensor-property-production.yml:546",
-      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:ddb4e7e56caabe90015113c813c057ae6ac1168efe736a7c1ca91cf443333560:2",
+      "semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:ddb4e7e56caabe90015113c813c057ae6ac1168efe736a7c1ca91cf443333560:context-b7c9192d4866ea8758cf76322ef9318be358c81886b0bbcb4440fab5cf95d537",
       "line_sha256": "ddb4e7e56caabe90015113c813c057ae6ac1168efe736a7c1ca91cf443333560",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": ".github/workflows/coldlion-licensor-property-production.yml:ddb4e7e56caabe90015113c813c057ae6ac1168efe736a7c1ca91cf443333560:2"
     }
   ]
 }

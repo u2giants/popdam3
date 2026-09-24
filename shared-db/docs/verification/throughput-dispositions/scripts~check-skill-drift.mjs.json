@@ -4,17 +4,19 @@
   "sites": [
     {
       "site": "scripts/check-skill-drift.mjs:176",
-      "semantic_key": "scripts/check-skill-drift.mjs:ac8f5b57123f148e64245ef362d33feb6bdabf3e824b83c4715e9f90689375da:1",
+      "semantic_key": "scripts/check-skill-drift.mjs:ac8f5b57123f148e64245ef362d33feb6bdabf3e824b83c4715e9f90689375da:context-596cb1020a7ba20e8e9334cfa9f7263cbeeb07589dd52a94df21b598b8553ad4",
       "line_sha256": "ac8f5b57123f148e64245ef362d33feb6bdabf3e824b83c4715e9f90689375da",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-skill-drift.mjs:ac8f5b57123f148e64245ef362d33feb6bdabf3e824b83c4715e9f90689375da:1"
     },
     {
       "site": "scripts/check-skill-drift.mjs:192",
-      "semantic_key": "scripts/check-skill-drift.mjs:f121eb3ac56ec6c232e199395d606f7f588b1af0d7a6f2a2f16c574de9499759:1",
+      "semantic_key": "scripts/check-skill-drift.mjs:f121eb3ac56ec6c232e199395d606f7f588b1af0d7a6f2a2f16c574de9499759:context-502bb000738532de8ecc8b8f628583d62eeb7bb590daf3185704ce34957cc9c1",
       "line_sha256": "f121eb3ac56ec6c232e199395d606f7f588b1af0d7a6f2a2f16c574de9499759",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-skill-drift.mjs:f121eb3ac56ec6c232e199395d606f7f588b1af0d7a6f2a2f16c574de9499759:1"
     }
   ]
 }

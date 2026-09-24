@@ -25,7 +25,8 @@ Each catalogue is:
   "sites": [
     {
       "site": "scripts/example.mjs:42",
-      "semantic_key": "scripts/example.mjs:<sha256 of the line>:<occurrence>",
+      "semantic_key": "scripts/example.mjs:<sha256 of the line>:context-<sha256 of normalized context>",
+      "legacy_semantic_key": "scripts/example.mjs:<sha256 of the line>:<original occurrence>",
       "line_sha256": "<sha256 of the line>",
       "disposition": "enriched | excluded",
       "reason": "At least 20 characters saying why this call site is safe as written."
@@ -34,9 +35,16 @@ Each catalogue is:
 }
 ```
 
-`site` is a diagnostic line number. Identity is `semantic_key` + `line_sha256`, so moving an
-unchanged reviewed line needs no edit, while changing what the line *says* invalidates its
-review.
+`site` is a diagnostic line number. Identity is `semantic_key` + `line_sha256`.
+The context hash binds the nearest recognizable declaration, YAML ancestry when applicable,
+and the two nonblank source lines on either side. Blank-line insertion needs no edit;
+changing a call's surrounding context requires reviewing that source's catalogue. Identical
+lines in indistinguishable contexts refuse instead of inheriting reviews by occurrence order.
+
+`legacy_semantic_key` preserves the exact identity recorded at migration for historical
+equivalence; it never authorizes a current call site. The migration retains every original
+line hash, verdict and reason. New sites need their own substantive reviewed reason, with at
+least 20 characters after trimming surrounding whitespace.
 
 ## Why it is partitioned (issue #2832)
 

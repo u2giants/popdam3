@@ -4,17 +4,19 @@
   "sites": [
     {
       "site": "scripts/historical-item-mg-reclassification/lib/verify.mjs:44",
-      "semantic_key": "scripts/historical-item-mg-reclassification/lib/verify.mjs:4787774716fd11191fd6505f52ae80fc2de230b0978a6f78bb8333896faeecc9:1",
+      "semantic_key": "scripts/historical-item-mg-reclassification/lib/verify.mjs:4787774716fd11191fd6505f52ae80fc2de230b0978a6f78bb8333896faeecc9:context-4173d97f7e69bce6606e05c60d149f8e4522b27a23ef1f09dae36702a6b3a487",
       "line_sha256": "4787774716fd11191fd6505f52ae80fc2de230b0978a6f78bb8333896faeecc9",
       "disposition": "excluded",
-      "reason": "This line reports a read-only post-apply verification failure for the reclassification executor; it describes a live database row or function that is absent and makes no throughput derivability claim."
+      "reason": "This line reports a read-only post-apply verification failure for the reclassification executor; it describes a live database row or function that is absent and makes no throughput derivability claim.",
+      "legacy_semantic_key": "scripts/historical-item-mg-reclassification/lib/verify.mjs:4787774716fd11191fd6505f52ae80fc2de230b0978a6f78bb8333896faeecc9:1"
     },
     {
       "site": "scripts/historical-item-mg-reclassification/lib/verify.mjs:84",
-      "semantic_key": "scripts/historical-item-mg-reclassification/lib/verify.mjs:e8b31e35869f65ef1cb3e8da8b78f22a118d7640948fd1b3ecadea22555031e9:1",
+      "semantic_key": "scripts/historical-item-mg-reclassification/lib/verify.mjs:e8b31e35869f65ef1cb3e8da8b78f22a118d7640948fd1b3ecadea22555031e9:context-5cfa7d4963e97c562bc21ecf803208edc00a3dcc5b349aad417850e8cba5936b",
       "line_sha256": "e8b31e35869f65ef1cb3e8da8b78f22a118d7640948fd1b3ecadea22555031e9",
       "disposition": "excluded",
-      "reason": "This line reports a read-only post-apply verification failure for the reclassification executor; it describes a live database row or function that is absent and makes no throughput derivability claim."
+      "reason": "This line reports a read-only post-apply verification failure for the reclassification executor; it describes a live database row or function that is absent and makes no throughput derivability claim.",
+      "legacy_semantic_key": "scripts/historical-item-mg-reclassification/lib/verify.mjs:e8b31e35869f65ef1cb3e8da8b78f22a118d7640948fd1b3ecadea22555031e9:1"
     }
   ]
 }
