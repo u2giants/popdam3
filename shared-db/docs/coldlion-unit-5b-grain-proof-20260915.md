@@ -155,6 +155,18 @@ sentence is falsified — see the note below.)*
 > separate lines, and if either should have been summed the landed cost for that order
 > is wrong.
 
+> **VENDOR ANSWER, PARTIAL, 2026-09-24 (register entry 2.36 in
+> [`coldlion-open-questions.md`](coldlion-open-questions.md); ticket #3351):** ColdLion's
+> business contact settled two of the five shapes. Rows identical in every business field are
+> **the customer's PO entered as written**, and a quantity split across two rows of one line is
+> **valid as written**. **Nothing may be summed, merged or de-duplicated on `(prodOrderNo,
+> prodLineSeq)`** — the collapse this page warned about would destroy real vendor data, not tidy
+> it. The seven-costs-on-one-line shape was called an outlier on one order, hedged, and is **not**
+> a rule. **The identity question itself is still unanswered:** what uniquely identifies a row,
+> what `prodLineSeq` means here, and whether a status / cancellation / revision flag exists that
+> `/proddetails` does not return are with ColdLion's technical team, who have not replied. `pkey`
+> remains the only proven identity and the constraint decision on #3234 stays held.
+
 ### Disposition — all 21 fields land, plus the request-stamped `company_code`
 
 Same owner-authority note as §1: the field-decisions CSV does not cover this feed.
