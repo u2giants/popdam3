@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 3440,
+  "outcome": "ready-for-merge",
+  "pr": 3441,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3440/1",
+  "contract_sha256": "d61dbfc6d40cb00ec703b5043f2ef177fcb560028abb1e5aa484645b0cb72d48",
+  "head_sha": "a77922c1da189550055fd3d60532b1104bba1726",
+  "base_sha": "a5e29f232cffa93c316e791615379c8a5f52abce",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "pass 690, fail 0 at implementation a77922c1"
+    }
+  ],
+  "assumptions_resolved": [
+    "the #3441 diff applied cleanly to main a5e29f23 with no rework"
+  ],
+  "stop_conditions_hit": []
+}

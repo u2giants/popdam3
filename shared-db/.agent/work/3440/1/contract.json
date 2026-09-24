@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "work_issue": 3440,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Carry PR #3441 (taken over from an idle session): slot-2 reviewer refusal stops reporting live leases as busy and stops listing paused reviewers; each exclusion names its real reason",
+  "base_sha": "a5e29f232cffa93c316e791615379c8a5f52abce",
+  "dispatcher": "coordinator takeover of PR #3441 for issue #3440",
+  "worker": "claude",
+  "branch": "fix/allocator-no-busy-state",
+  "worktree": ".claude/worktrees/take-3441-1790224721",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not change reviewer draw behaviour, only the refusal wording and its exclusion reasons"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "assumptions": [
+    "the original #3441 diff still applies to current main without behavioural rework"
+  ],
+  "stop_conditions": [
+    "stop if the #3441 diff conflicts with current main in a way that changes behaviour"
+  ]
+}

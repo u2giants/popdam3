@@ -9799,3 +9799,19 @@ test('#3411 real Git: production refresh carries only unchanged approval after a
     assert.throws(() => mergedReviewComparisonBase({mergeCommitSha:squash,head,main:squash,gitRunner:git}),/second parent/,'a squash has no reviewed second parent')
   } finally { rmSync(repo, { recursive: true, force: true }) }
 })
+
+test('#3130 slot-2 refusal never reports live leases as busy under per-review leases and names the real exclusion reason',()=>{
+  const io=withAtomicRefs(reviewIo()),request={issue:3131,pr:3132,headSha:'c'.repeat(40)}
+  io.requiresExactReviewHeadSha=true
+  io.getPr=()=>({number:request.pr,state:'open',head:{sha:request.headSha,ref:'claude/x'}})
+  const first=assignNextReviewer(request,io)
+  let current=assignNextReviewer({...request,slot:2},io),refusal=null
+  for(let i=0;i<ACTIVE_REVIEWERS.length+1&&!refusal;i++){
+    try{current=replaceFailedReviewer({...request,slot:2,failedSequence:current.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},io)}
+    catch(error){refusal=error}
+  }
+  assert.ok(refusal,'slot 2 must eventually run out of independent reviewers')
+  assert.match(refusal.message,/0 of \d+ hold other live leases \(none\)/)
+  assert.ok(refusal.message.includes(`${first.reviewer} (holds another slot on this pull request)`),refusal.message)
+  assert.doesNotMatch(refusal.message,/glm-5\.3/)
+})
