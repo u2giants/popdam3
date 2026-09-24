@@ -1867,3 +1867,5 @@ have already happened in this repo, more than once.
     rulebook file or a mixed change.
 
 ---
+
+19. **CI RUNS ON BLACKSMITH (owner ruling, Albert Hazan, 2026-09-23).** "anything that's queued and not actually running, send to blacksmith. the merge rules are hereby changed: a Blacksmith run produces a main check" — Albert Hazan, chat, 2026-09-23. GitHub hosted runners were starved (62 runs queued). Workflows use `blacksmith-2vcpu-ubuntu-2404`; a check produced on a Blacksmith runner satisfies the same required status as a hosted-runner check. **Credential-holding jobs run there too:** "the outside runner is not run by an outlaw. we can send production-credential jobs there." — Albert Hazan, chat, 2026-09-24 (issue #3473). Staying on `ubuntu-latest`: the two registered queue-sensitive lanes, their `Queue-sensitive aggregate` (it must not share a pool it exists to watch), and `database-contract-tests.yml`'s `classify` job. `scripts/orchestrator-flow/runner-lanes.*` governs only those registered lanes, which remain GitHub-hosted, so it is unchanged.
