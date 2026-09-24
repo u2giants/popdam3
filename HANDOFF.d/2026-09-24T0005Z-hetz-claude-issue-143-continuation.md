@@ -6,6 +6,8 @@ owner: claude/handoff-issue-143
 
 # PopDAM umbrella #143 — continuation (pilot, Muse Contributor, #92, shared-db queue)
 
+> **UPDATE 2026-09-24 00:20Z — read first.** The paused profiling op auto-resumed and finished: **28/28 SKUs are group-profiled.** File tagging (§6 step 3) **cannot start**. `update_bulk_operation` refuses to write `ai-tag-groups` ("legacy write … refused -- it would drop a protected external_job (phase=pending, provider_batch_id=batch-1787870422-7WbTdynaky0EnPVlcqI9)"). That key, and `ai-tag-all` plus two `ai-tag-single-*` keys, still hold 2026-08-27 OpenRouter batch jobs with `phase: pending` and `provider_status: failed`. Current main code can't finalize a failed provider batch. That is exactly #92 finding (2), fixed on branch `4db3c4bd`. So the pilot's file tagging now **depends on #92 shipping**, which depends on shared-db #3464 and #3418 reaching production, which needs an orchestrator (§0.1). Do not force-clear these jobs by hand.
+
 Supersedes and retires `HANDOFF.d/2026-09-22T2124Z-hetz-codex-open-issues-closeout.md`
 (every open obligation, decision and dead end from it is carried below; its commits
 are on `main`). Sessions reading this: put the whole of §0 to Albert in ONE message
