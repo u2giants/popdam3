@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3481,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Cut AGENTS.md from 148,828 bytes to under ~20 KB by moving section text verbatim into docs/agents/*.md and leaving AGENTS.md as a router with a section-location map. No rule changes meaning.",
+  "base_sha": "6288c639735c4fe2bc431ace69e4596327d10611",
+  "dispatcher": "Claude repo-maintenance session for issue #3481",
+  "worker": "Claude chat 77033b36-3143-4710-b20d-8b43757241ad on edge-dev",
+  "branch": "claude/agents-md-router-3481",
+  "worktree": "C:/repos/shared-db-wt-3481",
+  "allowed_paths": [
+    "AGENTS.md",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/agents/owner-rulings.md",
+    "docs/agents/orchestrator.md",
+    "docs/agents/worktrees-and-handoffs.md",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/merge-protocol.md",
+    "docs/agents/in-flight-check.md",
+    "docs/agents/references-and-runbooks.md",
+    "docs/agents/standing-facts.md",
+    "scripts/check-lane-route-sync.test.mjs",
+    "scripts/test_production_migration_guard.py",
+    ".agent/work/3481/1/contract.json",
+    ".agent/work/3481/1/completion.json"
+  ],
+  "file_writes": [
+    "AGENTS.md",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/agents/owner-rulings.md",
+    "docs/agents/orchestrator.md",
+    "docs/agents/worktrees-and-handoffs.md",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/merge-protocol.md",
+    "docs/agents/in-flight-check.md",
+    "docs/agents/references-and-runbooks.md",
+    "docs/agents/standing-facts.md",
+    "scripts/check-lane-route-sync.test.mjs",
+    "scripts/test_production_migration_guard.py",
+    ".agent/work/3481/1/contract.json",
+    ".agent/work/3481/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change the meaning of any rule; moved section text stays verbatim apart from repo-relative link targets.",
+    "Do not touch any migration, workflow, database object, or live row.",
+    "Do not weaken any test assertion; only redirect which file a documentation assertion reads."
+  ],
+  "required_checks": [
+    "node --test scripts/check-lane-route-sync.test.mjs",
+    "python -m unittest scripts.test_production_migration_guard.AbandonmentDocumentationAgreementTests",
+    "node scripts/check-business-rule-library.mjs",
+    "node scripts/check-skill-drift.mjs"
+  ],
+  "assumptions": [
+    "Documents citing 'AGENTS.md §X' remain resolvable through the section-location map in AGENTS.md."
+  ],
+  "stop_conditions": [
+    "Stop if a check enforces AGENTS.md content that cannot be satisfied without duplicating moved text.",
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths."
+  ]
+}

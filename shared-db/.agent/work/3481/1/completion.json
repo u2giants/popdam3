@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "work_issue": 3481,
+  "outcome": "ready-for-merge",
+  "pr": 3485,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3481/1",
+  "contract_sha256": "78b879665501b36942194fb8a9ea4f1608bc52e2bb125ec62177d3133c23f985",
+  "base_sha": "6288c639735c4fe2bc431ace69e4596327d10611",
+  "head_sha": "a213f5a5f8f758c7412e00546e348229cb0da535",
+  "files_changed": ["AGENTS.md", "docs/agents/active-contracts-and-plans.md", "docs/agents/anti-collision-summary.md", "docs/agents/in-flight-check.md", "docs/agents/merge-protocol.md", "docs/agents/orchestrator.md", "docs/agents/owner-rulings.md", "docs/agents/references-and-runbooks.md", "docs/agents/standing-facts.md", "docs/agents/worktrees-and-handoffs.md", "scripts/check-lane-route-sync.test.mjs", "scripts/test_production_migration_guard.py"],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"command": "node --test scripts/check-lane-route-sync.test.mjs", "exit_code": 0, "evidence": "4 passed, 0 failed"},
+    {"command": "python -m unittest scripts.test_production_migration_guard.AbandonmentDocumentationAgreementTests", "exit_code": 0, "evidence": "full scripts.test_production_migration_guard module: OK"},
+    {"command": "node scripts/check-business-rule-library.mjs", "exit_code": 0, "evidence": "Business-rule library check passed."},
+    {"command": "node scripts/check-skill-drift.mjs", "exit_code": 0, "evidence": "no contradictions"}
+  ],
+  "assumptions_resolved": [
+    "AGENTS.md 148,828 -> 9,224 bytes; every non-blank original line is either kept or moved verbatim (coverage script: missing [] dup []).",
+    "Broader node --test scripts/*.test.mjs scripts/lib/*.test.mjs: 2326 pass, 1 fail in check-issue-505-licensor-code-forward-repair.test.mjs, which reads production_business_risk_gate.py and is untouched by this change."
+  ],
+  "stop_conditions_hit": []
+}

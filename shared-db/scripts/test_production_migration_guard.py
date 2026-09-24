@@ -3999,7 +3999,18 @@ ABANDONMENT_RECORD_HEADINGS = (
 class AbandonmentDocumentationAgreementTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.agents = (REPO / "AGENTS.md").read_text(encoding="utf-8")
+        # AGENTS.md is a router since #3481; its section text moved verbatim
+        # into docs/agents/. The "AGENTS.md" venue is the router plus the files
+        # it routes to, excluding the separate long-form section 4 venue below.
+        cls.agents = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in [REPO / "AGENTS.md"]
+            + sorted(
+                p
+                for p in (REPO / "docs" / "agents").glob("*.md")
+                if p.name != "section-4-anti-collision-rules.md"
+            )
+        )
         cls.rules = (
             REPO / "docs" / "agents" / "section-4-anti-collision-rules.md"
         ).read_text(encoding="utf-8")
