@@ -468,6 +468,8 @@ Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read
 - Style-group SKU extraction must skip category folders but accept digit-leading SKUs
 - `supabase-popsg/` directory is dead code
 - `.ai` "no PDF compatibility" ≠ empty — these files STILL contain real artwork (corrected 2026-07-03)
+- Style Group IDs change every night (`rebuild-style-groups`) — pin cohorts by SKU (2026-09-23)
+- Muse Spark 1.3 Contributor reports its capacity limit as 404 `model_not_found` — cap and retry, never switch models (2026-09-23)
 - Compat-thumbnail audit = the real fix for `.ai` thumbnails (perceptual-hash, not OCR)
 - Windows agent self-update was silently frozen (WINDOWS_LATEST_BUILD, fixed 2026-07-03)
 - ERP `product_category` cutoff date (2025-05-10)
