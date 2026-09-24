@@ -43,8 +43,30 @@ def gh(endpoint, runner=subprocess.run, sleep=time.sleep, attempts=4):
             raise ValueError(f"GitHub API request failed: {error}")
         sleep(2**attempt)
 
-def parse_comment(comment):
-    if comment.get("user",{}).get("login")!="u2giants" or comment.get("author_association")!="OWNER":
+OWNER_IDENTITY_PATH=Path(__file__).resolve().parent.parent/"config"/"production-owner-identity.json"
+
+def load_owner_identity(path=OWNER_IDENTITY_PATH):
+    """The owner is bound to an exact login AND immutable numeric user id (#3443).
+
+    Since the 2026-09-18 transfer to the popcre organization the owner's comments carry
+    author_association MEMBER, so the association label alone can no longer identify him,
+    and MEMBER alone would admit every organization member. The numeric id is what binds.
+    """
+    try: data=json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError,json.JSONDecodeError) as exc: raise ValueError("owner identity config is unreadable") from exc
+    login=data.get("login"); uid=data.get("user_id"); assoc=data.get("accepted_author_associations")
+    if (data.get("schema")!="shared-db-production-owner-identity/v1" or not isinstance(login,str) or not login
+        or type(uid) is not int or uid<=0 or not isinstance(assoc,list) or not assoc
+        or any(a not in {"OWNER","MEMBER"} for a in assoc)):
+        raise ValueError("owner identity config is invalid")
+    return {"login":login,"user_id":uid,"associations":set(assoc)}
+
+def parse_comment(comment, identity=None):
+    identity=identity or load_owner_identity()
+    user=comment.get("user") or {}
+    if (user.get("login")!=identity["login"] or type(user.get("id")) is not int
+        or user.get("id")!=identity["user_id"]
+        or comment.get("author_association") not in identity["associations"]):
         raise ValueError("decision is not authenticated to repository owner Albert")
     if comment.get("created_at") != comment.get("updated_at"):
         raise ValueError("owner decision comment was edited")

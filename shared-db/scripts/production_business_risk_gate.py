@@ -810,6 +810,15 @@ PREVIEW_RUNTIME_DATA_EXEMPTIONS = {
         "HEAD == origin/main before executing; prove_activation additionally "
         "re-reads it against main. Pinning it here would assert nothing new."
     ),
+    "config/production-owner-identity.json": (
+        "Never read by the preview job. Its only reader is "
+        "scripts/production_owner_decision_evidence.py, run by the production "
+        "owner-decision evidence workflow and the production-apply risk gate, "
+        "both of which check out exact main. It binds the owner's decision "
+        "comment to an exact login and numeric user id (#3443); no migration, "
+        "apply helper or catalog verifier reads it, so it cannot shape preview "
+        "evidence."
+    ),
     "config/db-data-admin-property-source-coverage.json": (
         "Never read by the preview job. Its only reader is "
         "scripts/check-db-data-admin-property-source-coverage.mjs, run by the "

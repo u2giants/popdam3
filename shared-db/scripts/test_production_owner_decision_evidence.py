@@ -7,7 +7,7 @@ ONLY_BATCH=["20260813210000","20260813220000"]
 
 def comment(data, **changes):
     body=f"```production-owner-decision\n{json.dumps(data,separators=(',',':'))}\n```"
-    base={"user":{"login":"u2giants"},"author_association":"OWNER","created_at":"2026-08-15T01:00:00Z","updated_at":"2026-08-15T01:00:00Z","node_id":"x","body":body}
+    base={"user":{"login":"u2giants","id":55610577},"author_association":"OWNER","created_at":"2026-08-15T01:00:00Z","updated_at":"2026-08-15T01:00:00Z","node_id":"x","body":body}
     return {**base,**changes}
 
 class Tests(unittest.TestCase):
@@ -15,6 +15,27 @@ class Tests(unittest.TestCase):
         self.data={"schema":SCHEMA,"approved":True,"main_sha":"a"*40,"ordered_allowlist":ONLY_BATCH,
           "accepted_risks":["expected_downtime"],"source_pr":924,"source_merge_sha":"b"*40,"target_workflow":TARGET}
     def test_exact_owner_ruling_is_accepted(self): self.assertEqual(parse_comment(comment(self.data)),self.data)
+    def test_owner_accepted_as_organization_member(self):
+        self.assertEqual(parse_comment(comment(self.data,author_association="MEMBER")),self.data)
+    def test_different_member_refused(self):
+        for c in [comment(self.data,user={"login":"someone","id":1234},author_association="MEMBER"),
+                  comment(self.data,user={"login":"someone","id":1234},author_association="OWNER")]:
+            with self.assertRaises(ValueError): parse_comment(c)
+    def test_impostor_login_refused(self):
+        # right login with the wrong or missing id (a renamed/reclaimed login), and right id under another login
+        for user in [{"login":"u2giants","id":999},{"login":"u2giants"},{"login":"u2giants","id":"55610577"},
+                     {"login":"U2giants","id":55610577},{"login":"impostor","id":55610577}]:
+            with self.assertRaises(ValueError): parse_comment(comment(self.data,user=user,author_association="MEMBER"))
+    def test_collaborator_or_none_association_refused_even_for_owner(self):
+        for a in ["COLLABORATOR","CONTRIBUTOR","NONE",None]:
+            with self.assertRaises(ValueError): parse_comment(comment(self.data,author_association=a))
+    def test_invalid_owner_identity_config_fails_closed(self):
+        import tempfile, os
+        from production_owner_decision_evidence import load_owner_identity
+        with tempfile.TemporaryDirectory() as d:
+            for bad in ['{}','not json','{"schema":"shared-db-production-owner-identity/v1","login":"u2giants","user_id":55610577,"accepted_author_associations":["COLLABORATOR"]}']:
+                p=os.path.join(d,"c.json"); open(p,"w").write(bad)
+                with self.assertRaises(ValueError): load_owner_identity(p)
     def test_non_owner_edited_and_malformed_batch_fail(self):
         for c in [comment(self.data,user={"login":"someone"}),comment(self.data,updated_at="later"),
                   comment({**self.data,"ordered_allowlist":[]}),

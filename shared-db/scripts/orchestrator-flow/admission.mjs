@@ -191,6 +191,18 @@ export function structuralWritesMatch(inspection, declared) {
   return actual.length===compared.length&&actual.every((value,index)=>value===compared[index])
 }
 
+// Preview preparation (issue #3418): a claim may OVER-declare. Its object locks were
+// broader than the migration needed, which only ever excluded other writers, so a
+// migration writing a non-empty SUBSET of the claim is safe to rehearse. Every object
+// the SQL writes must still be claimed: an unclaimed write fails closed exactly as before.
+export function structuralWritesCovered(inspection, declared) {
+  if(!Array.isArray(inspection?.objects)||!Array.isArray(declared)||!inspection.objects.length)return false
+  const actual=[...inspection.objects], held=new Set(declared)
+  if(new Set(actual).size!==actual.length||held.size!==declared.length)return false
+  if(structuralWritesMatch(inspection,declared))return true
+  return actual.every((key)=>held.has(key))
+}
+
 // A do-block may rewrite an existing function from its own catalog definition:
 // `select pg_get_functiondef('schema.name(args)'::regprocedure) into v; ... execute v;`.
 // It carries no statement-leading DDL, yet its durable effect is CREATE OR REPLACE

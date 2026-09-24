@@ -1994,6 +1994,8 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         "config/production-risk-policy-activation.json",
         # #2870 / run 35176603519: read only by the validate job's coverage check.
         "config/db-data-admin-property-source-coverage.json",
+        # #3443: read only by production_owner_decision_evidence.py on exact main.
+        "config/production-owner-identity.json",
         # Issue #1366 Step 4. All three are static text: two document a field
         # contract that hand-rolled code in scripts/agent-work-contract.mjs
         # actually enforces, and the third is a pull-request-workflow flag whose

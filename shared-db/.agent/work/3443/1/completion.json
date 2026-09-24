@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "work_issue": 3443,
+  "outcome": "ready-for-merge",
+  "pr": 3444,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3443/1",
+  "contract_sha256": "56e4490d2a4c48bcff9c165aae1769b4bd37647041a26cb4fff905fde398724f",
+  "head_sha": "f348068f0156a306d8c9b1fc4b69b0061fa7837a",
+  "base_sha": "c9204bef4dcba214e9a3cd716f765e8f9ede466e",
+  "files_changed": [
+    "config/production-owner-identity.json",
+    "scripts/production_business_risk_gate.py",
+    "scripts/production_owner_decision_evidence.py",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/test_production_owner_decision_evidence.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -m pytest scripts/test_production_owner_decision_evidence.py scripts/test_production_business_risk_gate.py -q",
+      "exit_code": 0,
+      "evidence": "202 passed, 271 subtests passed at implementation head f348068f0156a306d8c9b1fc4b69b0061fa7837a."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors against merge base c9204bef4dcba214e9a3cd716f765e8f9ede466e."
+    }
+  ],
+  "assumptions_resolved": [
+    "The owner is accepted under OWNER or MEMBER only when login and integer id both match config; a different member, wrong id, missing id, string id, or case-changed login is refused.",
+    "The contract was published after the implementation commit 6373a4d86efbb7d9c245f5c1690352bea99f99b4."
+  ],
+  "stop_conditions_hit": []
+}

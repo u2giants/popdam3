@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "work_issue": 3437,
+  "outcome": "ready-for-merge",
+  "pr": 3436,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3437/1",
+  "contract_sha256": "315685ab142963ed4b56f7f78e0721e85f8b881763fead5eee8d8671ee1b7c98",
+  "head_sha": "9b8d507f73837f0acb1bae948037f9b27cc83634",
+  "base_sha": "5d68eeb530ccb52721779525db7de4cc125b2cc2",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/admission.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"evidence": "699 tests passed; 0 failed, cancelled, skipped, todo", "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/orchestrator-flow/legacy-relation-alias.test.mjs", "exit_code": 0},
+    {"evidence": "truth audit OK: call_sites=317 sources=72 derived_digest=7e3f5cbfdef8", "command": "node scripts/check-throughput-truth-audit.mjs", "exit_code": 0},
+    {"evidence": "No whitespace errors", "command": "git diff --check", "exit_code": 0}
+  ],
+  "assumptions_resolved": [
+    "Admission and merge-outcome matching against the issue scope still use the exact structuralWritesMatch and are unchanged"
+  ],
+  "stop_conditions_hit": []
+}

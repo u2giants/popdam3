@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "work_issue": 3443,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Bind the production owner-decision gate to the owner's exact login and numeric GitHub id from config so the owner is accepted as an organization MEMBER while any other member or impostor is refused",
+  "base_sha": "3a46121f865137ccef79ac3bc0463e993ebad495",
+  "dispatcher": "Claude orchestrator chat aa4791e3-535d-47ad-ac32-a4d0b9323273",
+  "worker": "Claude repo-maintenance subagent chat aa4791e3-535d-47ad-ac32-a4d0b9323273",
+  "branch": "claude/owner-decision-login-bind-aa47",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/owner-decision-login-bind-aa47",
+  "allowed_paths": [
+    "config/production-owner-identity.json",
+    "scripts/production_owner_decision_evidence.py",
+    "scripts/test_production_owner_decision_evidence.py",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/3443/1/contract.json",
+    ".agent/work/3443/1/completion.json"
+  ],
+  "file_writes": [
+    "config/production-owner-identity.json",
+    "scripts/production_owner_decision_evidence.py",
+    "scripts/test_production_owner_decision_evidence.py",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/3443/1/contract.json",
+    ".agent/work/3443/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database write, migration edit, production apply, or manual production command",
+    "Do not accept an arbitrary organization MEMBER as the owner",
+    "Do not post synthetic verdicts or hand-edit claim blocks"
+  ],
+  "required_checks": [
+    "python -m pytest scripts/test_production_owner_decision_evidence.py scripts/test_production_business_risk_gate.py -q",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The owner's GitHub numeric id 55610577 for login u2giants is immutable and suitable as the binding key",
+    "This contract is published after the implementation commit 6373a4d86efbb7d9c245f5c1690352bea99f99b4 already exists on the branch"
+  ],
+  "stop_conditions": [
+    "Refuse a comment whose login, numeric id, or association does not match configuration",
+    "Refuse to load an owner identity configuration that is missing or malformed"
+  ]
+}

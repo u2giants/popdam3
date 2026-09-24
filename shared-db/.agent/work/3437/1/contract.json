@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3437,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Let merged-main preview preparation accept a claim whose writes are a superset of the migration's structural writes, while any unclaimed write still refuses",
+  "base_sha": "0a086c318390565059f4b77613bc2d897ad30228",
+  "dispatcher": "Claude orchestrator chat aa4791e3-535d-47ad-ac32-a4d0b9323273",
+  "worker": "Claude subagent chat aa4791e3-535d-47ad-ac32-a4d0b9323273",
+  "branch": "claude/claim-superset-preview-3418",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/claim-superset-preview-3418",
+  "allowed_paths": [
+    "scripts/orchestrator-flow/admission.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3437/1/contract.json",
+    ".agent/work/3437/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/orchestrator-flow/admission.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3437/1/contract.json",
+    ".agent/work/3437/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database write, migration edit, manual production command, or hand-edit of any claim fence",
+    "Do not relax admission or merge-outcome matching against the issue scope"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs scripts/orchestrator-flow/legacy-relation-alias.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Claim object locks broader than the SQL's writes only excluded other writers and are safe to keep",
+    "The issue-scope checks at admission and merge remain exact and unchanged"
+  ],
+  "stop_conditions": [
+    "Refuse preparation when the SQL writes any object the claim does not hold",
+    "Refuse empty or duplicate object sets"
+  ]
+}
