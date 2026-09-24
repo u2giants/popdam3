@@ -1,0 +1,51 @@
+{
+  "allowed_paths": [
+    ".agent/work/2876/11/contract.json",
+    ".agent/work/2876/11/completion.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json"
+  ],
+  "assumptions": [
+    "The derived-table alias x is a PostgreSQL composite record, so deterministic ordering must use x.name rather than x->>'name' (the JSON operator on a record raised SQLSTATE 42883 in production run 34807646359).",
+    "Generation 11 only refreshes the approved generation-10 work onto moved main after branch protection required an up-to-date branch; the implementation bytes are unchanged from the reviewed head 1d970c669624c4e3448b699e87b90a0c207ff0b3.",
+    "The generation-10 contract recorded two prose-only check descriptions the refresh helper cannot re-run; this generation records the same proofs as executable commands so future refreshes stay automatable."
+  ],
+  "base_sha": "c5a4c7d07845890237d66a1597b6ce0ca7b3ea0e",
+  "branch": "claude/issue-2876-row-order-2e3c24d5",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Albert Hazan chat request to run ai-devops issue #713 (six dirty Codex work folders); this generation lands the recovered #2876 fix",
+  "file_writes": [
+    ".agent/work/2876/11/contract.json",
+    ".agent/work/2876/11/completion.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json"
+  ],
+  "generation": 11,
+  "goal": "Repair the post-apply catalog verifier row-count query so PostgreSQL orders composite rows by their name field instead of applying a JSON operator to a record, while preserving full catalog verification.",
+  "prohibited_actions": [
+    "No database read or write.",
+    "No migration, preview, production dispatch outside the sanctioned lanes.",
+    "No weakening, skipping, or replacing any catalog verification or enforcement path.",
+    "No write outside the five allowed paths."
+  ],
+  "required_checks": [
+    "python -m pytest scripts/test_production_catalog_verification.py -q",
+    "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+    "node --test scripts/throughput-guard/check-production-verification-sidecars.test.mjs",
+    "ai-task-gates check --before review",
+    "git diff --check origin/main...HEAD"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 1,
+  "stop_conditions": [
+    "Stop if the repair requires any database access or workflow replay.",
+    "Stop if full catalog verification cannot be preserved."
+  ],
+  "work_issue": 2876,
+  "work_type": "repo-maintenance",
+  "worker": "ZCode chat sess_d22c4c83-beb4-424b-af5c-15331f6c80f1 on EDGE-DEV (landing session)",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/refresh-3311"
+}

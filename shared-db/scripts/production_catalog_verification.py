@@ -2966,7 +2966,7 @@ def build_row_count_sql(seeded: list[str]) -> str:
         f"select '{name}'::text as name, (select count(*) from {name})::bigint as rows"
         for name in seeded
     )
-    return f"select jsonb_agg(x order by x->>'name') as report from ({branches}) x"
+    return f"select jsonb_agg(x order by x.name) as report from ({branches}) x"
 
 
 def run_query(project_ref: str, token: str, sql: str, api: str = MANAGEMENT_API):

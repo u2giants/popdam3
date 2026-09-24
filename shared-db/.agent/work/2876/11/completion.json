@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "work_issue": 2876,
+  "outcome": "ready-for-merge",
+  "pr": 3311,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2876/11",
+  "contract_sha256": "ad3757e77ae17f680febd5afdb0e43c337d38a9b9065cc85bb86413114f78ba2",
+  "head_sha": "2c4b00582e78134c748e5f9d0664e3b2ba8ef912",
+  "files_changed": [
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -m pytest scripts/test_production_catalog_verification.py -q",
+      "exit_code": 0,
+      "evidence": "Ran exactly as recorded on the generation-11 implementation head: 228 passed, 73 subtests passed, including test_row_count_sql_orders_composite_rows_by_their_name_field"
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "Ran exactly as recorded: {\"status\":\"OK\",\"sidecars\":60,...} with the regenerated detector_source_sha256 matching the changed detector"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-production-verification-sidecars.test.mjs",
+      "exit_code": 0,
+      "evidence": "Ran exactly as recorded: 6 pass, 0 fail"
+    },
+    {
+      "command": "ai-task-gates check --before review",
+      "exit_code": 0,
+      "evidence": "Ran exactly as recorded: review may start for effective class code in popcre/shared-db"
+    },
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "Ran exactly as recorded: no whitespace errors"
+    }
+  ],
+  "notes": [
+    "Evidence rebound after refreshing from main: the implementation head is the refresh merge 2c4b00582, which carries the reviewed bytes of 1d970c669 unchanged; only the .agent evidence pair changed after the approval. The APPROVE at 1d970c669 carries per the #2758 refresh rule because the pull request's own diff is byte-identical and all changed evidence lives under .agent/."
+  ],
+  "assumptions_resolved": [
+    "The generation-10 prose check descriptions are re-proven here as executable commands; the SQLSTATE 42883 regression is covered by test_row_count_sql_orders_composite_rows_by_their_name_field in the pytest run."
+  ],
+  "stop_conditions_hit": []
+}
