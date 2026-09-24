@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 3467,
+  "outcome": "ready-for-merge",
+  "pr": 3470,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3467/1",
+  "contract_sha256": "e637c20eee3304f54ca69a0aa17b018fbad62702f91d9b1cce4c26466213b8e2",
+  "head_sha": "32abe3271bc159522e641bf5443bae996ff932e8",
+  "files_changed": [
+    "AGENTS.md",
+    "docs/agents/section-4-anti-collision-rules.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "no whitespace errors between base a5e29f23 and 32abe327"
+    }
+  ],
+  "assumptions_resolved": [
+    "Gemini 3.8 Flash High governed review verified every claim against scripts/check-exact-head-approval.mjs and returned APPROVE at 32abe327"
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "a5e29f232cffa93c316e791615379c8a5f52abce"
+}

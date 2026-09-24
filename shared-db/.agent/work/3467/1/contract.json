@@ -1,0 +1,40 @@
+{
+ "allowed_paths": [
+  "AGENTS.md",
+  "docs/agents/section-4-anti-collision-rules.md",
+  ".agent/work/3467/1/contract.json",
+  ".agent/work/3467/1/completion.json"
+ ],
+ "assumptions": [
+  "PR 3375 merged the APPROVAL_AUDIT=merged mode into scripts/check-exact-head-approval.mjs and the prose must match that code"
+ ],
+ "base_sha": "a5e29f232cffa93c316e791615379c8a5f52abce",
+ "branch": "claude/docs-3467-merged-audit",
+ "db_reads": [],
+ "db_writes": [],
+ "dispatcher": "Albert Hazan authorized resolving non-orchestrator issues; issue 3467 dispatched to this session",
+ "file_writes": [
+  "AGENTS.md",
+  "docs/agents/section-4-anti-collision-rules.md",
+  ".agent/work/3467/1/contract.json",
+  ".agent/work/3467/1/completion.json"
+ ],
+ "generation": 1,
+ "goal": "Document the merged-PR audit mode of the exact-head approval gate and its known limits in AGENTS.md section 4 rule 2 and the section 4 long form",
+ "prohibited_actions": [
+  "No database, migration, schema, data, production or infrastructure mutation",
+  "No code, workflow or test change"
+ ],
+ "required_checks": [
+  "git diff --check"
+ ],
+ "route": "repo-maintenance",
+ "schema_version": 1,
+ "stop_conditions": [
+  "Stop if describing the mode accurately requires changing any file outside the allowed paths"
+ ],
+ "work_issue": 3467,
+ "work_type": "repo-maintenance",
+ "worker": "Claude chat 7545365a-8132-4fd6-b0a1-f737035df839 on edge-dev",
+ "worktree": "C:/repos/shared-db/.claude/worktrees/docs-3467-merged-audit"
+}
