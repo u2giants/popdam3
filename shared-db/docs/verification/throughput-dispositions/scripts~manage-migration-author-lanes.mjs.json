@@ -3,7 +3,7 @@
   "source": "scripts/manage-migration-author-lanes.mjs",
   "sites": [
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1894",
+      "site": "scripts/manage-migration-author-lanes.mjs:1942",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:05273e5eb60dddc0c2ee25ac82b3006b17f7580a27d12233ef85b71a56789b8c:context-1095276b78453d9430b35537eccd8bba09c946f0931091686ff2c30fa48f57e5",
       "line_sha256": "05273e5eb60dddc0c2ee25ac82b3006b17f7580a27d12233ef85b71a56789b8c",
       "disposition": "excluded",
@@ -11,7 +11,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:05273e5eb60dddc0c2ee25ac82b3006b17f7580a27d12233ef85b71a56789b8c:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:947",
+      "site": "scripts/manage-migration-author-lanes.mjs:994",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:0e07ee8b2dc087b08a5cd35719cdeb898914870a912d78c14cfbe935033973de:context-e241086d86fb18738bcf1163c2b5d42e0a7740b5a4d4d0d740360a3af4a6762a",
       "line_sha256": "0e07ee8b2dc087b08a5cd35719cdeb898914870a912d78c14cfbe935033973de",
       "disposition": "excluded",
@@ -19,7 +19,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:0e07ee8b2dc087b08a5cd35719cdeb898914870a912d78c14cfbe935033973de:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:659",
+      "site": "scripts/manage-migration-author-lanes.mjs:682",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:10203ad02cbf2b582359cb072ce142147e2970c7b9c0aee6318b80c1daf3c1f0:context-3731d41f0239cdc7269360bc4cafad17c6439504e1aa4a344ee0c9310d2f148a",
       "line_sha256": "10203ad02cbf2b582359cb072ce142147e2970c7b9c0aee6318b80c1daf3c1f0",
       "disposition": "excluded",
@@ -27,14 +27,14 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:10203ad02cbf2b582359cb072ce142147e2970c7b9c0aee6318b80c1daf3c1f0:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:5625",
+      "site": "scripts/manage-migration-author-lanes.mjs:5711",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:14e03f439297e93956633573e69f4ec650cbbde1ab02de3677ccbe41412000a5:context-7428faf261f7d5be527defd5514d8a97834ca03ca1c51fabe111f0e1bf0e2a21",
       "line_sha256": "14e03f439297e93956633573e69f4ec650cbbde1ab02de3677ccbe41412000a5",
       "disposition": "excluded",
       "reason": "Excluded: local tooling or CI wording matched the discovery pattern and makes no database presence, absence, or applied-migration claim."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:7005",
+      "site": "scripts/manage-migration-author-lanes.mjs:7100",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7:context-339bdfbb6f15a84e7908a538253ad9fe7340bc445971020d3ee696abb9de29e3",
       "line_sha256": "1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7",
       "disposition": "excluded",
@@ -42,7 +42,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:8006",
+      "site": "scripts/manage-migration-author-lanes.mjs:8113",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816:context-3e40e794d9a179cfdf986694602a659828fb7945b64843afa299c1358177c7bd",
       "line_sha256": "1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816",
       "disposition": "excluded",
@@ -50,7 +50,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:6655",
+      "site": "scripts/manage-migration-author-lanes.mjs:6745",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299:context-877f52c870097ec52d1135bc38fb02024fb4da38e3b304b6dad3d33829911185",
       "line_sha256": "24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299",
       "disposition": "excluded",
@@ -58,7 +58,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:4848",
+      "site": "scripts/manage-migration-author-lanes.mjs:4891",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:2ddf8009d73172c32ef99c59ae68148190ba7a7791968f42cf31637301bea671:context-70b09cc6eb30a62fd92b7b804c5582bbcc67356d9ab412ccbe503051d2d16b30",
       "line_sha256": "2ddf8009d73172c32ef99c59ae68148190ba7a7791968f42cf31637301bea671",
       "disposition": "excluded",
@@ -66,7 +66,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:2ddf8009d73172c32ef99c59ae68148190ba7a7791968f42cf31637301bea671:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:8684",
+      "site": "scripts/manage-migration-author-lanes.mjs:8791",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:353e05215c33d52eeb934fee9fba3ee00cc84e87c32baf606fc691a7ffa50759:context-f3441d81b17137924476f7d7cfcef9a018545b00ec13bee197825c9df7fade78",
       "line_sha256": "353e05215c33d52eeb934fee9fba3ee00cc84e87c32baf606fc691a7ffa50759",
       "disposition": "excluded",
@@ -74,7 +74,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:353e05215c33d52eeb934fee9fba3ee00cc84e87c32baf606fc691a7ffa50759:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1262",
+      "site": "scripts/manage-migration-author-lanes.mjs:1309",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:40e08fbb26123da8f7cb72c4a6870299c6aa90338c2e3af2ad5b9494876e63c2:context-c0882396dae9b87cbe7eb5f282f0052b193d8b692d273c6591a67ac227a05e36",
       "line_sha256": "40e08fbb26123da8f7cb72c4a6870299c6aa90338c2e3af2ad5b9494876e63c2",
       "disposition": "excluded",
@@ -82,7 +82,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:40e08fbb26123da8f7cb72c4a6870299c6aa90338c2e3af2ad5b9494876e63c2:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:527",
+      "site": "scripts/manage-migration-author-lanes.mjs:540",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:435a6abb51443c34755210b1f1927ce87702403e85b83c894a9d0ee9a1b367f8:context-bd1bad92438b9d5985e45cfce6bbb8c3546410c5f8ecd5169f60a85fd5e002e1",
       "line_sha256": "435a6abb51443c34755210b1f1927ce87702403e85b83c894a9d0ee9a1b367f8",
       "disposition": "excluded",
@@ -90,7 +90,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:435a6abb51443c34755210b1f1927ce87702403e85b83c894a9d0ee9a1b367f8:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:6113",
+      "site": "scripts/manage-migration-author-lanes.mjs:6203",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:503def9aef2f0e8e8abf283a5af3c9a92ad163f596e106465de933c9736e0284:context-b70dab2dbb4b2c17c46965019d049eb610acb652b25f77ea8043f9858b6f3044",
       "line_sha256": "503def9aef2f0e8e8abf283a5af3c9a92ad163f596e106465de933c9736e0284",
       "disposition": "excluded",
@@ -98,7 +98,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:503def9aef2f0e8e8abf283a5af3c9a92ad163f596e106465de933c9736e0284:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:8295",
+      "site": "scripts/manage-migration-author-lanes.mjs:8402",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:5817bcb0434eb2808241d5759a53f923c66e6974e409e08cc51cab006e033b8c:context-fc04746adb6e5aa9d404e901c516f4369d18e596a11506f05ef4a89aaad5ebff",
       "line_sha256": "5817bcb0434eb2808241d5759a53f923c66e6974e409e08cc51cab006e033b8c",
       "disposition": "excluded",
@@ -106,7 +106,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:5817bcb0434eb2808241d5759a53f923c66e6974e409e08cc51cab006e033b8c:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:310",
+      "site": "scripts/manage-migration-author-lanes.mjs:318",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:5e9dde58d52bd6377401f124646bbbce9f22481f574b3352dabbd71f754e2d73:context-27dfdbca574bedcdb6ed05657b92bbab940b14bfc3fbb297aba786229f1eefc6",
       "line_sha256": "5e9dde58d52bd6377401f124646bbbce9f22481f574b3352dabbd71f754e2d73",
       "disposition": "excluded",
@@ -114,7 +114,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:5e9dde58d52bd6377401f124646bbbce9f22481f574b3352dabbd71f754e2d73:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1244",
+      "site": "scripts/manage-migration-author-lanes.mjs:1291",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:6276ee13ad22403bec37597da04e4e6b9b2b3c4fb62b00bbb08b4ebaee525bf2:context-b7825daf5be49f166edf9a5d03197a841a5b49eeebb138b088e99df8ba95d49f",
       "line_sha256": "6276ee13ad22403bec37597da04e4e6b9b2b3c4fb62b00bbb08b4ebaee525bf2",
       "disposition": "excluded",
@@ -122,7 +122,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:6276ee13ad22403bec37597da04e4e6b9b2b3c4fb62b00bbb08b4ebaee525bf2:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:5615",
+      "site": "scripts/manage-migration-author-lanes.mjs:5701",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:725ad6a26a99dd10f4914ee276f361b53002358769a10700fe337cf72971536d:context-a26d2e11e4a6a2720a1f8b6e98e0b572160f5a317bd1a867ee0df2f3a9601730",
       "line_sha256": "725ad6a26a99dd10f4914ee276f361b53002358769a10700fe337cf72971536d",
       "disposition": "excluded",
@@ -130,15 +130,15 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:725ad6a26a99dd10f4914ee276f361b53002358769a10700fe337cf72971536d:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2367",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019:context-da6f6c864ac85604e0e5c01d58f9ffcd3751026853cf1d5f08b71f1e865668a2",
+      "site": "scripts/manage-migration-author-lanes.mjs:2415",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019:context-c2f512c23ffd4d20bb63f0f30599f6d46d525c6444ffcfc12d42fe0103540da4",
       "line_sha256": "7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2074",
+      "site": "scripts/manage-migration-author-lanes.mjs:2122",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:8adc9b054f8c6e4ce85fb3cb69e4cb7d6288bbb63b76ab3d0f1f0f0cd7e783af:context-5257add6d0d04076ac5781a2008bd34a276f3d32fb635e51137d727ea04904a4",
       "line_sha256": "8adc9b054f8c6e4ce85fb3cb69e4cb7d6288bbb63b76ab3d0f1f0f0cd7e783af",
       "disposition": "excluded",
@@ -146,7 +146,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:8adc9b054f8c6e4ce85fb3cb69e4cb7d6288bbb63b76ab3d0f1f0f0cd7e783af:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:6146",
+      "site": "scripts/manage-migration-author-lanes.mjs:6236",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415:context-c0184e02790e05bbde8ba99e181fa9befb7d0d7abb60379bad7d9a503ea5aa38",
       "line_sha256": "8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415",
       "disposition": "excluded",
@@ -154,7 +154,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:5571",
+      "site": "scripts/manage-migration-author-lanes.mjs:5657",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:9dac7631419297007ceea584de88ab851db2d59762e538577f7aaa37ef039446:context-70e9a5c96df3098bca4e62b7c01761f55035ac5ec51770896fdfff1d1f33249e",
       "line_sha256": "9dac7631419297007ceea584de88ab851db2d59762e538577f7aaa37ef039446",
       "disposition": "excluded",
@@ -162,7 +162,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:9dac7631419297007ceea584de88ab851db2d59762e538577f7aaa37ef039446:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:8683",
+      "site": "scripts/manage-migration-author-lanes.mjs:8790",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:a3035e88f0dd1717b214c9b0742c1efb752dda15ff0a8d6aed632ed9c44eb66b:context-8c23722446d9cfc50dca7a20aa36df966bc7b9ef480c356a259b5a1023428621",
       "line_sha256": "a3035e88f0dd1717b214c9b0742c1efb752dda15ff0a8d6aed632ed9c44eb66b",
       "disposition": "excluded",
@@ -170,7 +170,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:a3035e88f0dd1717b214c9b0742c1efb752dda15ff0a8d6aed632ed9c44eb66b:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1563",
+      "site": "scripts/manage-migration-author-lanes.mjs:1610",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:a4160001fb75e95c53d5c85febd70b521db233cd2b3aeb35c9e57c17f6dda06c:context-051268a9ef197baf5823c129d61e9766d029b82561ee1024b318585ad388f640",
       "line_sha256": "a4160001fb75e95c53d5c85febd70b521db233cd2b3aeb35c9e57c17f6dda06c",
       "disposition": "excluded",
@@ -178,7 +178,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:a4160001fb75e95c53d5c85febd70b521db233cd2b3aeb35c9e57c17f6dda06c:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2766",
+      "site": "scripts/manage-migration-author-lanes.mjs:2812",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:a506dd54ce0a675ce62b60933700254ff523561f16a7abdd7e91a1615f095238:context-ad414d011e93f61d65e4ffdac7fb4b2b8e80efb751f681c377110e571b357a4f",
       "line_sha256": "a506dd54ce0a675ce62b60933700254ff523561f16a7abdd7e91a1615f095238",
       "disposition": "enriched",
@@ -186,7 +186,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:a506dd54ce0a675ce62b60933700254ff523561f16a7abdd7e91a1615f095238:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:4668",
+      "site": "scripts/manage-migration-author-lanes.mjs:4711",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:b03846824daaafeb0f0c7f536b249b0207a114a30eb80de2001ea5b575c7d5c6:context-189f7004b93c9bcf9aa29d7e15785deb1d40a27ac1ae5516231d35c6b0778228",
       "line_sha256": "b03846824daaafeb0f0c7f536b249b0207a114a30eb80de2001ea5b575c7d5c6",
       "disposition": "excluded",
@@ -194,7 +194,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:b03846824daaafeb0f0c7f536b249b0207a114a30eb80de2001ea5b575c7d5c6:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:4129",
+      "site": "scripts/manage-migration-author-lanes.mjs:4172",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:b3b03b389e25b1e34d3bf7a7e4aa2337b618cb6f9852fea602b4b370aeae090f:context-8e7615fc6a599852056c60ceb13f9e800b63b4855b66d467e8d3f8e3d2bc6ce9",
       "line_sha256": "b3b03b389e25b1e34d3bf7a7e4aa2337b618cb6f9852fea602b4b370aeae090f",
       "disposition": "excluded",
@@ -202,7 +202,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:b3b03b389e25b1e34d3bf7a7e4aa2337b618cb6f9852fea602b4b370aeae090f:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1649",
+      "site": "scripts/manage-migration-author-lanes.mjs:1696",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:bd6893288739c13faca686313ddfeb5815322cf43df464f561e8f6e2e223c478:context-9e930ba9040c40475974c81b2a53faab82b78938d054dc5e07cf8aa91228ab15",
       "line_sha256": "bd6893288739c13faca686313ddfeb5815322cf43df464f561e8f6e2e223c478",
       "disposition": "excluded",
@@ -210,7 +210,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:bd6893288739c13faca686313ddfeb5815322cf43df464f561e8f6e2e223c478:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:8136",
+      "site": "scripts/manage-migration-author-lanes.mjs:8243",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:c2daf6668b46ae5bed2e1f77960c1bdd9d479d087d2b02cf384da4602a5b0420:context-73db2415d5f2832d756a475b0a2b59078a321e2e1dcfa1dbc97f9121563dbd7f",
       "line_sha256": "c2daf6668b46ae5bed2e1f77960c1bdd9d479d087d2b02cf384da4602a5b0420",
       "disposition": "excluded",
@@ -218,7 +218,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:c2daf6668b46ae5bed2e1f77960c1bdd9d479d087d2b02cf384da4602a5b0420:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:8294",
+      "site": "scripts/manage-migration-author-lanes.mjs:8401",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:ca1264e6065617ade3865ccfe5fcd58d55b6eb058e3ea0e281d2c6d29dd80eba:context-88474a39cafb04011e26e6541ca41402540d31d5ab85400531ae73607851fab3",
       "line_sha256": "ca1264e6065617ade3865ccfe5fcd58d55b6eb058e3ea0e281d2c6d29dd80eba",
       "disposition": "excluded",
@@ -226,7 +226,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:ca1264e6065617ade3865ccfe5fcd58d55b6eb058e3ea0e281d2c6d29dd80eba:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:5528",
+      "site": "scripts/manage-migration-author-lanes.mjs:5614",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:ce0ab3a91a6f988f7aa5002646c036fdcabab77a37713a33a87f8a8668d9e835:context-a09de158ee7ba27dd0ca2b33f30b41a2be117f758cc48b001b6a80670d984407",
       "line_sha256": "ce0ab3a91a6f988f7aa5002646c036fdcabab77a37713a33a87f8a8668d9e835",
       "disposition": "excluded",
@@ -234,7 +234,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:ce0ab3a91a6f988f7aa5002646c036fdcabab77a37713a33a87f8a8668d9e835:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:5604",
+      "site": "scripts/manage-migration-author-lanes.mjs:5690",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:d168f4919a6088f9a4f3293afd73123c1847251f17c9d5f491b64b2dcde71e4a:context-a2c4f9c4551bb0547f0a6d7c0f2eb7aa3db853df71cea77170d9847a89a742ff",
       "line_sha256": "d168f4919a6088f9a4f3293afd73123c1847251f17c9d5f491b64b2dcde71e4a",
       "disposition": "excluded",
@@ -242,7 +242,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:d168f4919a6088f9a4f3293afd73123c1847251f17c9d5f491b64b2dcde71e4a:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:8636",
+      "site": "scripts/manage-migration-author-lanes.mjs:8743",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:edd9522c827b9793833f73e03172024d7b1bf2c0354e269ec0131cd4dc6a2c92:context-cfc38fb315faaf8a0ab3d03dcf39197702379711f31d007453aeac4f7ba7ea0f",
       "line_sha256": "edd9522c827b9793833f73e03172024d7b1bf2c0354e269ec0131cd4dc6a2c92",
       "disposition": "excluded",
@@ -250,7 +250,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:edd9522c827b9793833f73e03172024d7b1bf2c0354e269ec0131cd4dc6a2c92:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:6300",
+      "site": "scripts/manage-migration-author-lanes.mjs:6390",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:f2b70e881056d343bb62e9487b82900f635636b8136d2773566a2308bb505e5d:context-9725fa43e7a419968d674ca500a43f26713d01d1c058cfd129ac9b047e0d5f9f",
       "line_sha256": "f2b70e881056d343bb62e9487b82900f635636b8136d2773566a2308bb505e5d",
       "disposition": "excluded",
@@ -258,7 +258,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:f2b70e881056d343bb62e9487b82900f635636b8136d2773566a2308bb505e5d:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:6351",
+      "site": "scripts/manage-migration-author-lanes.mjs:6441",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:f30023772b56725e26d2ee56709548ccdbe3ba11879aad96d6fe6f357c85079a:context-f5b6c65b1491bf8b012dbad2ab31d62fbbb766e2015836ef4cb28720b5f7280d",
       "line_sha256": "f30023772b56725e26d2ee56709548ccdbe3ba11879aad96d6fe6f357c85079a",
       "disposition": "excluded",
@@ -266,7 +266,7 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:f30023772b56725e26d2ee56709548ccdbe3ba11879aad96d6fe6f357c85079a:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1121",
+      "site": "scripts/manage-migration-author-lanes.mjs:1168",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:fc5dbd3411165633fff781b72e2e50b072c8134f5ea05a3a39f2ae78125cbc07:context-b8bf3d861cb206622e91f9efde1f56ab6070563d9b993d1efeea724a1d063d22",
       "line_sha256": "fc5dbd3411165633fff781b72e2e50b072c8134f5ea05a3a39f2ae78125cbc07",
       "disposition": "enriched",

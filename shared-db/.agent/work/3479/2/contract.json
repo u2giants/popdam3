@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "generation": 2,
+  "work_issue": 3479,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Let the governed review runner carry the brief and head-bound VERDICT instruction to ai-deepseek-agent as its positional message, instead of refusing it or forwarding an unsupported --prompt-file flag. Also re-point two truth-audit disposition entries whose call sites only moved (same line hash, same disposition), which left main's Tools offline tests red.",
+  "base_sha": "a5f7e89f1a295bad0940d12507b44acd4b573739",
+  "dispatcher": "Claude repo-maintenance session for issue #3479",
+  "worker": "Claude chat 43dbc077-5edc-41f8-b56d-aa871c86ef96 on edge-dev",
+  "branch": "fix/3479-deepseek-governed-prompt",
+  "worktree": "C:/repos/sdb-3479",
+  "allowed_paths": [
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~production_owner_decision_evidence.py.json",
+    ".agent/work/3479/2/contract.json",
+    ".agent/work/3479/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~production_owner_decision_evidence.py.json",
+    ".agent/work/3479/2/contract.json",
+    ".agent/work/3479/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not weaken the stale-head check or the missing-brief refusal.",
+    "Do not change behavior for any wrapper other than ai-deepseek-agent.",
+    "Do not touch any migration, workflow, database object, or live row.",
+    "Do not change any disposition or reason in the truth-audit catalogues."
+  ],
+  "required_checks": [
+    "node --test scripts/run-governed-review.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs"
+  ],
+  "assumptions": [
+    "Disclosed: generation 1 was published after implementation commit 246c050; generation 2 widens scope to two disposition catalogues after main's truth audit was found red and the re-point was prepared locally. No disposition or reason text changes; only site and semantic_key move to the rediscovered site with the identical line_sha256."
+  ],
+  "stop_conditions": [
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths."
+  ]
+}

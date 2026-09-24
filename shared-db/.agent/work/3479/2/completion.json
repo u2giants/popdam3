@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3479,
+  "outcome": "ready-for-merge",
+  "pr": 3491,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3479/2",
+  "contract_sha256": "6553914b09edd0c3f56677de1e3811c9eb406b309f65c1b457eb5c29dbb04daa",
+  "base_sha": "a5f7e89f1a295bad0940d12507b44acd4b573739",
+  "head_sha": "8d5b8860e81725f84fe9595804d0bfa2e4302f50",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~production_owner_decision_evidence.py.json",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/run-governed-review.test.mjs",
+      "exit_code": 0,
+      "evidence": "86 pass, 0 fail (after review round 1 fixes)"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=317 sources=72"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/*.test.mjs",
+      "exit_code": 0,
+      "evidence": "70 pass, 0 fail"
+    }
+  ],
+  "assumptions_resolved": [
+    "Governed review round 1 (Qwen, non-recordable REVISE, preserved comment 5822783480) findings H1, H2, M1-M3, L2-L5 addressed in fd15bf7.",
+    "Every disposition and reason is unchanged (the historical-reason test pins them); rows only had diagnostic site numbers corrected, and two rows were re-pointed to rediscovered sites with identical line_sha256 and legacy key.",
+    "Generation 1 was superseded by generation 2 before any evidence pair was committed."
+  ],
+  "stop_conditions_hit": []
+}
