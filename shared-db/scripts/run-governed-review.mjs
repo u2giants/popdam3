@@ -12,6 +12,7 @@ import { runGitHubCommand, spawnGitHub } from './lib/github-transport.mjs'
 // Issue #2729 Step 7: one lifecycle source of truth decides retry versus reroute.
 import { reviewerStartDecision, NON_VERDICT_TERMINAL_REASONS } from './orchestrator-flow/start-reroute.mjs'
 import { REVIEW_CALLER_VARIABLES, reviewCallerEnvironment } from './lib/reviewer-caller-env.mjs'
+import { GOVERNED_VERDICT_WRAPPERS, VERDICT_CONTRACT_FLAG_WRAPPERS, forbiddenGovernedSubcommand, wrapperBaseName } from './lib/reviewer-capabilities.mjs'
 
 export const GOVERNED_REVIEW_OPTIONS=Object.freeze(['issue','pr','headSha','reviewer','wrapper','worktree','reviewSlot','replacementSequence','assignmentId','skipDoctor'])
 export function parseArgs(argv){
@@ -102,9 +103,7 @@ export function neutraliseVerdictLine(body,reason){
 // standard output. The caller must not have to remember that, and a caller that
 // passes the wrong head must not be silently accepted, so the flag is injected
 // here from the head this review is actually recording against.
-export function wrapperBaseName(wrapper){
-  return String(wrapper??'').split(/[\\/]/).pop().replace(/\.(cmd|bat|exe)$/i,'').toLowerCase()
-}
+export { wrapperBaseName }
 
 // Source authority is the live PR, never a caller's remembered branch name.
 // No fetch, ref update, lease change, or provider invocation happens here.
@@ -177,7 +176,7 @@ export function resolveReviewSource(options,{git=spawnSync,github=readGitHub,dig
   return {repository:REPO,pr:Number(options.pr),baseRef,targetSha:target,headSha:head,mergeBase,files,fileSetSha256:createHash('sha256').update(encoded).digest('hex'),sourceDigest}
 }
 
-const SOURCE_WRAPPERS=new Set(['ai-claude-review','ai-codex-review','ai-deepseek-agent','ai-gemini','ai-glm','ai-grok-review','ai-kimi','ai-muse','ai-qwen'])
+const SOURCE_WRAPPERS=new Set(GOVERNED_VERDICT_WRAPPERS)
 const OPAQUE_VALUE_OPTIONS=new Set(['--prompt','--prompt-file','--decision','--tests','--system','--file','--model','--timeout','--review-kind','--governed-verdict'])
 function canonicalSourcePath(value,platform=process.platform){
   let path=String(value)
@@ -323,7 +322,10 @@ export function codexGovernedBody(report,headSha,reportName='the codex report'){
 
 export function wrapperVerdictContractArgs(wrapper,args,headSha){
   const name=wrapperBaseName(wrapper)
-  if(!['ai-gemini','ai-qwen','ai-deepseek-agent'].includes(name))return args
+  // #2831: a subcommand that forces a non-governed verdict grammar can never be recorded.
+  const forbidden=forbiddenGovernedSubcommand(wrapper,args,OPAQUE_VALUE_OPTIONS)
+  if(forbidden)throw new Error(`the ${name} ${forbidden} subcommand is not one that takes the governed prompt as written, so it cannot end with a recordable VERDICT line. Rerun through an allowed subcommand, or draw another reviewer with --replace-failed-reviewer --failure-code reviewer_cannot_emit_governed_verdict --confirm-no-verdict --confirm-no-artifact`)
+  if(!VERDICT_CONTRACT_FLAG_WRAPPERS.includes(name))return args
   const list=[...args],head=String(headSha??'').toLowerCase()
   // EVERY spelling of the flag is checked, not the first one found: `--x value`,
   // `--x=value`, and a repeat later in the argument list. A single unchecked

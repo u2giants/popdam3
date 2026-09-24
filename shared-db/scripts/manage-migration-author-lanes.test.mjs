@@ -2826,7 +2826,7 @@ test('the six-hour #2237 shape probes and reclaims after an unchanged confirmati
   const released=reclaimSilentReviewer(options,new Date('2026-09-04T14:00:00Z'),io)
   assert.ok(released.releaseSha);assert.equal(io.refs.get(leaseRef)??null,null)
   assert.ok([...io.refs.keys()].some((ref)=>ref.startsWith(REVIEW_SILENCE_RELEASE_REF_PREFIX)))
-  assert.equal(TERMINAL_FAILURE_CODES.length,7)
+  assert.equal(TERMINAL_FAILURE_CODES.length,8)
   assert.equal(TERMINAL_FAILURE_CODES.includes('silent_worker_observed'),false)
   assert.throws(()=>assignNextReviewer(request,io),/silent lease was reclaimed/)
   const replacement=replaceFailedReviewer({...options,failureCode:'silent_worker_observed'},io)
@@ -9595,6 +9595,17 @@ test('#3338 review: readiness does not refuse a merged pull request (#2915 stays
   assert.deepEqual(assertReviewerDrawReadiness(1,{getPr:()=>({draft:false,mergeable:null,state:'closed'})}),{draft:false,mergeable:null})
 })
 
+// Issue #3348 — a closed-and-UNMERGED pull request refuses before the draw; merged,
+// open, and payloads carrying no merge fields are unchanged.
+test('#3348: readiness refuses a closed unmerged pull request and nothing else',()=>{
+  const r=(live)=>assertReviewerDrawReadiness(7,{getPr:()=>live})
+  assert.throws(()=>r({draft:false,mergeable:true,state:'closed',merged:false,merged_at:null}),/CLOSED without being merged/)
+  assert.throws(()=>r({draft:false,mergeable:null,state:'closed',merged_at:null}),/CLOSED without being merged/)
+  assert.deepEqual(r({draft:false,mergeable:true,state:'closed',merged:true,merged_at:'2026-09-14T00:00:00Z'}),{draft:false,mergeable:true})
+  assert.deepEqual(r({draft:false,mergeable:true,state:'open',merged:false,merged_at:null}),{draft:false,mergeable:true})
+  assert.deepEqual(r({draft:false,mergeable:null,state:'closed'}),{draft:false,mergeable:null})
+})
+
 // GOVERNED REVIEW ROUND 3 OF PR #3338 — the replacement draw also honours the
 // documents-only pool guard (#2102). A replacement draw spends reviewer-pool capacity
 // exactly like a first draw, so BOTH pre-draw guards belong on both paths.
@@ -10022,4 +10033,90 @@ test('same-reviewer cutover: legacy ref retires, v2 lease stays and keeps the re
   assert.equal(applied.reaped.length,1);assert.equal(io.refs.has(old),false);assert.ok(io.refs.has(live))
   for(const v of verdicts)assert.ok(io.refs.has(v))
   assert.ok(findBusyReviewers(io).has(ACTIVE_REVIEWERS[0].name))
+})
+
+// Issue #2831 -- a reviewer whose wrapper cannot emit the governed verdict line is never drawn.
+import { reviewerEmitsGovernedVerdict as emits2831, nonVerdictReviewerReplacementCommand as nonVerdictCmd2831 } from './manage-migration-author-lanes.mjs'
+test('#2831: only reviewers whose wrapper emits a governed verdict are drawable',()=>{
+  for(const row of ACTIVE_REVIEWERS)assert.equal(emits2831(row.name),true,`${row.name} (${row.wrapper}) must emit a governed verdict to stay drawable`)
+  const roster=[{name:'x-ok',wrapper:'ai-grok-review'},{name:'x-bad',wrapper:'ai-something-else'}]
+  assert.equal(emits2831('x-ok',roster),true)
+  assert.equal(emits2831('x-bad',roster),false)
+  assert.equal(emits2831('not-on-roster'),false,'an unknown reviewer fails closed')
+  assert.ok(TERMINAL_FAILURE_CODES.includes('reviewer_cannot_emit_governed_verdict'))
+  const cmd=nonVerdictCmd2831({issue:5,pr:6,headSha:'a'.repeat(40),slot:2},3)
+  assert.match(cmd,/--replace-failed-reviewer --issue 5 --pr 6 --head-sha a{40} --review-slot 2 --failed-sequence 3 --failure-code reviewer_cannot_emit_governed_verdict/)
+})
+
+// Issue #2787 -- the queue audit lists open issues ONCE, reads each pull request's files
+// at most once, and prints exactly the queue the old repeated-listing path printed.
+import { memoizePrFiles as memo2787 } from './manage-migration-author-lanes.mjs'
+test('#2787: queue audit lists open issues once and prints the identical queue',()=>{
+  const now=new Date('2026-09-24T12:00:00Z')
+  const scope=(extra)=>'```db-work-scope\n'+extra+'\n```'
+  const claim=claimBody({version:'20260924010101',objects:['table crm.x'],owner:'agent/a',branch:'a/branch',worktree:'C:/repos/a',expiresAt:new Date('2026-09-25T00:00:00Z')})
+  const rows=[
+    {number:1,title:'CLAIM: #2 crm.x',body:claim,created_at:'2026-09-20T00:00:00Z',labels:[{name:'db-claim'}],html_url:'u1'},
+    {number:2,title:'add crm.x',body:scope('status: ready\nwork_type: structural\nroute: shared-db-orchestrator\npriority: 10\nwrites:\n  - table crm.x'),created_at:'2026-09-20T00:00:00Z',labels:[{name:'db-work'}]},
+    {number:3,title:'docs thing',body:scope('status: ready\nwork_type: documentation\nroute: repo-maintenance\npriority: 40'),created_at:'2026-09-21T00:00:00Z',labels:[{name:'db-work'}]},
+    {number:4,title:'unlabelled',body:'no scope',created_at:'2026-09-22T00:00:00Z',labels:[]},
+    {number:5,title:'a pull request',body:'',created_at:'2026-09-22T00:00:00Z',labels:[],pull_request:{url:'x'}},
+  ]
+  const run=(withRows)=>{
+    let listings=0
+    const pager=(endpoint)=>{assert.match(endpoint,/issues\?state=open/);listings++;return rows}
+    const io={...githubIo,
+      openClaims:(p)=>githubIo.openClaims(p??pager,()=>({total_count:0,items:[]})),
+      openWorkIssues:()=>githubIo.openWorkIssues(pager),
+      openIssueNumbers:()=>githubIo.openIssueNumbers(pager),
+      issueComments:()=>[],dependencyStates:()=>({}),openPulls:()=>[],branchPulls:()=>[],commentIssue:()=>{}}
+    if(withRows)io.openIssueRows=()=>{listings++;return rows}
+    else delete io.openIssueRows
+    const out=[],log=console.log;console.log=(...a)=>out.push(a.join(' '))
+    let code;try{code=main(['--queue-audit'],now,io)}catch(error){code='threw: '+error.message}finally{console.log=log}
+    return {code,out:out.join('\n'),listings}
+  }
+  const oldRun=run(false),newRun=run(true)
+  assert.ok(oldRun.listings>=3,'the old path listed open issues repeatedly')
+  assert.equal(newRun.listings,1,'the new path lists open issues exactly once')
+  assert.equal(newRun.code,oldRun.code)
+  assert.equal(newRun.out,oldRun.out,'queue output must be identical')
+  assert.ok(newRun.out.length>0,"the audit printed a queue")
+})
+test('#2787: pull request files are read at most once per audit run',()=>{
+  let reads=0
+  const io=memo2787({branchPulls:()=>[],mergeCommitInMain:()=>true,getPrFiles:(n)=>{reads++;return [{filename:`supabase/migrations/2026092401010${n}_x.sql`,status:'added'}]}})
+  assert.deepEqual(io.getPrFiles(7),io.getPrFiles('7'))
+  io.getPrFiles(8)
+  assert.equal(reads,2)
+})
+
+test('#2787: queue audit reads a shared merged pull request once and removes both authored issues',()=>{
+  const now=new Date('2026-09-24T12:00:00Z')
+  const rows=[
+    {number:2,title:'add crm.x',body:scope('ready','structural','shared-db-orchestrator',10,['table crm.x']),created_at:'2026-09-20T00:00:00Z',labels:[{name:'db-work'}]},
+    {number:3,title:'add crm.y',body:scope('ready','structural','shared-db-orchestrator',10,['table crm.y']),created_at:'2026-09-21T00:00:00Z',labels:[{name:'db-work'}]},
+  ]
+  const versions={2:'20260924010102',3:'20260924010103'}
+  const run=(authored)=>{
+    let reads=0
+    const io={...githubIo,
+      openIssueRows:()=>rows,
+      openClaims:(p)=>githubIo.openClaims(p,()=>({total_count:0,items:[]})),
+      issueComments:()=>[],dependencyStates:()=>({}),openPulls:()=>[],commentIssue:()=>{},
+      closedClaimsForWork:(issue)=>authored?[{number:100+issue,title:'CLAIM: #'+issue,body:claimBody({version:versions[issue],objects:['table crm.'+(issue===2?'x':'y')],owner:'agent/a',branch:'shared/branch',worktree:'C:/repos/a',expiresAt:new Date('2026-09-25T00:00:00Z')})}]:[],
+      branchPulls:()=>[{number:50,merged_at:'2026-09-23T00:00:00Z',merge_commit_sha:'c'.repeat(40)}],
+      mergeCommitInMain:()=>true,mainSha:()=>'d'.repeat(40),
+      treeFiles:()=>Object.values(versions).map((v)=>'supabase/migrations/'+v+'_x.sql'),
+      getPrFiles:()=>{reads++;return Object.values(versions).map((v)=>({filename:'supabase/migrations/'+v+'_x.sql',status:'added'}))}}
+    const out=[],log=console.log;console.log=(...a)=>out.push(a.join(' '))
+    try{main(['--queue-audit'],now,io)}finally{console.log=log}
+    return {reads,out:out.join('\n')}
+  }
+  const before=run(false),after=run(true)
+  const dispatch=(out)=>JSON.parse(out.slice(out.indexOf('{'),out.lastIndexOf('}')+1)).dispatchable
+  assert.equal(before.reads,0)
+  assert.deepEqual(new Set(dispatch(before.out)),new Set([2,3]))
+  assert.equal(after.reads,1,'the shared pull request is read once')
+  assert.deepEqual(dispatch(after.out),[])
 })

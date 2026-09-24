@@ -50,7 +50,7 @@ const KNOWN_READ_HOOKS = new Set([
   'databasePreviewClassification', 'pullRequestFiles', 'readReviewerOperationRoute', 'countLogicalReviewRequests',
   'readPrWithReviewContext', 'observedReviewQuota', 'getRateLimit', 'previewApplyRun', 'verifyPreviewApplyArtifact',
   'readActiveReviewLeases', 'readActiveReviewLeasesOverGit', 'readActiveReviewLeasesOverGraphql', 'readReviewStates',
-  'readReviewRefs', 'readReviewRecords', 'openClaims', 'closedClaimsForWork', 'openWorkIssues', 'openIssueNumbers',
+  'readReviewRefs', 'readReviewRecords', 'openClaims', 'closedClaimsForWork', 'openWorkIssues', 'openIssueNumbers', 'openIssueRows',
   'dependencyStates', 'mergeCommitInMain', 'prSources', 'openPulls', 'readPullStates', 'mergeTouchesMigrations',
   'branchPulls', 'getPr', 'getPrFiles', 'databasePreviewFileSnapshot', 'comparePullRequestFiles', 'getCommitStatus',
   'closingIssuesForPr', 'prStructuralObjects', 'prStructuralInspection', 'getFileAt', 'treeFiles', 'previewGateProof', 'getIssue',
