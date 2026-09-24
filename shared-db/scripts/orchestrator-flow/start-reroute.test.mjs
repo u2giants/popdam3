@@ -28,7 +28,7 @@ test('failing and duplicate assertion results refuse',()=>{const s=store(),decis
 import { NON_VERDICT_TERMINAL_REASONS, PREFLIGHT_TIMEOUT_RETRIES, reviewerLifecycleEvents } from './start-reroute.mjs'
 const early='2026-09-11T10:01:00Z'
 test('turn_limit_cancelled is a terminal non-verdict that reroutes at the same head even after the provider launched',()=>{
-  assert.deepEqual(NON_VERDICT_TERMINAL_REASONS,['turn_limit_cancelled'])
+  assert.deepEqual(NON_VERDICT_TERMINAL_REASONS,['turn_limit_cancelled','insufficient_quota'])
   const lifecycle=[{assignment_id:'r1',type:'provider_launched',at},{assignment_id:'r1',type:'terminal_non_verdict',reason:'turn_limit_cancelled',head_sha:h,at:early}]
   assert.deepEqual(reviewerStartDecision(assignment,{now:early,provider_state:'usable',lifecycle}),{action:'governed-return-and-reroute',reason:'turn_limit_cancelled',head_sha:h,same_head:true,source:'durable-lifecycle'})
 })
@@ -36,6 +36,11 @@ test('another slot verdict at the head does not block replacing a non-verdict te
   const lifecycle=[{assignment_id:'r0-slot1',type:'verdict_recorded',head_sha:h,at},{assignment_id:'r1',type:'terminal_non_verdict',reason:'turn_limit_cancelled',head_sha:h,at:early}]
   assert.equal(reviewerStartDecision(assignment,{now:early,provider_state:'usable',lifecycle}).action,'governed-return-and-reroute')
   assert.throws(()=>reviewerStartDecision(assignment,{now:early,provider_state:'usable',lifecycle:[...lifecycle,{assignment_id:'r1',type:'verdict_recorded',head_sha:h,at:early}]}),/already recorded a verdict/)
+})
+test('an out-of-credit terminal (insufficient_quota) reroutes at the same head, and only at that head',()=>{
+  const lifecycle=[{assignment_id:'r1',type:'review_started',at},{assignment_id:'r1',type:'terminal_non_verdict',reason:'insufficient_quota',head_sha:h,at:early}]
+  assert.deepEqual(reviewerStartDecision(assignment,{now:early,provider_state:'usable',lifecycle}),{action:'governed-return-and-reroute',reason:'insufficient_quota',head_sha:h,same_head:true,source:'durable-lifecycle'})
+  assert.throws(()=>reviewerStartDecision(assignment,{now:early,provider_state:'usable',lifecycle:[{assignment_id:'r1',type:'terminal_non_verdict',reason:'insufficient_quota',head_sha:'b'.repeat(40),at}]}),/does not bind the assigned head/)
 })
 test('unrecognised terminals and a foreign head never free the slot',()=>{
   for(const reason of ['unknown_terminal_reason','provider_cancelled',undefined])assert.throws(()=>reviewerStartDecision(assignment,{now:early,provider_state:'usable',lifecycle:[{assignment_id:'r1',type:'terminal_non_verdict',reason,head_sha:h,at}]}),/not a recognised non-verdict/)

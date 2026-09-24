@@ -61,7 +61,9 @@ export function dispatchQueuedReroute(ref,durable){
 // Issue #2729 Step 7. A provider that ends a turn WITHOUT a verdict is finished,
 // not running: it may be replaced at the SAME head. Only reasons named here count;
 // an unknown terminal state stays uncertain and never frees the slot on its own.
-export const NON_VERDICT_TERMINAL_REASONS=Object.freeze(['turn_limit_cancelled'])
+// insufficient_quota (2026-09-24): the provider account is out of credit, so no
+// verdict can come from it; replace with --failure-code insufficient_quota.
+export const NON_VERDICT_TERMINAL_REASONS=Object.freeze(['turn_limit_cancelled','insufficient_quota'])
 // A local doctor/preflight timeout is retried on the same reviewer exactly once.
 export const PREFLIGHT_TIMEOUT_RETRIES=1
 // Liveness comes ONLY from the durable lifecycle stream. Session metadata is

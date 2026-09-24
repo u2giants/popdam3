@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 3477,
+  "outcome": "ready-for-merge",
+  "pr": 3478,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3477/1",
+  "contract_sha256": "4c0b77084bcf41763bab8756bd3e2507db666b3950d8f8c6b5cee8461138a9d5",
+  "head_sha": "f711a3627b6c350dd5a89b8d9a243c3abec8927b",
+  "base_sha": "3e4f8b5b1bd8a606289798482f4b8d9ca238e757",
+  "files_changed": [
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/orchestrator-flow/start-reroute.mjs",
+    "scripts/orchestrator-flow/start-reroute.test.mjs",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/run-governed-review.test.mjs",
+      "exit_code": 0,
+      "evidence": "pass 85 fail 0 at implementation f711a362"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/start-reroute.test.mjs",
+      "exit_code": 0,
+      "evidence": "pass 24 fail 0 at implementation f711a362"
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "pass 712 fail 0 at implementation f711a362"
+    }
+  ],
+  "assumptions_resolved": [
+    "ordering disclosure: the contract refs/db-contracts/3477/1 was published after the implementation commit f711a362 was drafted, not before; nothing was back-dated and the contract scope equals the diff",
+    "the lanes manager already lists insufficient_quota in TERMINAL_FAILURE_CODES, so no lanes change was needed"
+  ],
+  "stop_conditions_hit": []
+}

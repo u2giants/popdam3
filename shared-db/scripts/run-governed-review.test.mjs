@@ -921,3 +921,83 @@ test('#2831: the runner refuses ai-muse review and passes ai-muse new through',(
   assert.throws(()=>wrapperVerdictContractArgs('ai-muse',['review','look at this'],head),/ai-muse review subcommand is not one that takes the governed prompt as written[\s\S]*--failure-code reviewer_cannot_emit_governed_verdict/)
   assert.deepEqual(wrapperVerdictContractArgs('ai-muse',['new','look at this'],head),['new','look at this'])
 })
+
+// Owner requirement 2026-09-24: an out-of-credit reviewer failure is named, and the
+// wrapper's plain-English OUT OF CREDIT line reaches the REFUSED text verbatim.
+import { TERMINAL_FAILURE_CODES } from './manage-migration-author-lanes.mjs'
+const OUT_OF_CREDIT_FIXTURES=[
+  ['grok','OUT OF CREDIT: the xAI (Grok) account has run out of credits or hit its monthly spending limit - add credits at https://console.x.ai'],
+  ['muse','OUT OF CREDIT: the Meta (Muse) account has run out of credits or hit its spending limit - add credits in the Meta developer console'],
+  ['qwen','OUT OF CREDIT: the Alibaba Model Studio (Qwen) account has run out of credits or is in arrears - top up at https://modelstudio.console.alibabacloud.com'],
+  ['gemini','OUT OF CREDIT: the Google Gemini account has run out of prepaid credits - add credits at https://aistudio.google.com'],
+  ['deepseek','OUT OF CREDIT: the DeepSeek account has an insufficient balance - top up at https://platform.deepseek.com'],
+]
+const outOfCreditRun=(stderr)=>{
+  const events=[]
+  let caught
+  assert.throws(()=>runGovernedReview(options,{preflight:()=>{},appendLifecycle:(e)=>events.push(e),resolve:(x)=>x,spawn:()=>({status:92,stderr,stdout:''}),record:()=>assert.fail('must not record')}),(error)=>{caught=error;return true})
+  return {error:caught,events}
+}
+test('out of credit: every rotation provider carries its OUT OF CREDIT line verbatim into REFUSED and reroutes as insufficient_quota',()=>{
+  for(const [provider,human] of OUT_OF_CREDIT_FIXTURES){
+    const stderr=`raw provider body token=private-value\nAI_REVIEWER_OUT_OF_CREDIT provider=${provider} code=insufficient_quota\n${human}\n`
+    const {error,events}=outOfCreditRun(stderr)
+    assert.ok(error instanceof GovernedReviewRerouteError,provider)
+    const refused=`REFUSED: ${error.message}`
+    assert.ok(refused.includes(`insufficient_quota: ${human}`),provider)
+    assert.match(refused,/^REFUSED: review wrapper did not produce a recordable terminal verdict \(exit 92\): insufficient_quota: OUT OF CREDIT: /)
+    assert.ok(!refused.includes('private-value'),provider)
+    assert.ok(!refused.includes('usage limit'),'the precise reason replaces the generic usage-limit text')
+    const d=error.startDecision
+    assert.deepEqual([d.action,d.reason,d.head_sha,d.same_head],['governed-return-and-reroute','insufficient_quota',options.headSha,true])
+    assert.ok(TERMINAL_FAILURE_CODES.includes(d.reason),'the lane accepts --failure-code insufficient_quota')
+    const last=events.at(-1)
+    assert.deepEqual([last.type,last.reason,last.head_sha],['terminal_non_verdict','insufficient_quota',options.headSha])
+  }
+})
+test('out of credit: a machine line without a valid human line gets fixed text naming the provider',()=>{
+  for(const [provider,name] of [['grok','xAI (Grok)'],['muse','Meta (Muse)'],['qwen','Alibaba Model Studio (Qwen)'],['gemini','Google Gemini'],['deepseek','DeepSeek']]){
+    const reason=wrapperFailureReason({stderr:`AI_REVIEWER_OUT_OF_CREDIT provider=${provider} code=insufficient_quota\n`})
+    assert.equal(reason,`insufficient_quota: OUT OF CREDIT: the ${name} reviewer account has run out of credits or hit its spending limit`)
+  }
+})
+test('out of credit: spoofed, overlong, embedded or non-ASCII lines are never echoed',()=>{
+  const machine='AI_REVIEWER_OUT_OF_CREDIT provider=grok code=insufficient_quota'
+  const fixed='insufficient_quota: OUT OF CREDIT: the xAI (Grok) reviewer account has run out of credits or hit its spending limit'
+  for(const bad of [
+    `OUT OF CREDIT: ${'x'.repeat(301)}`,
+    'OUT OF CREDIT: short',
+    'OUT OF CREDIT: add credits at https://console.x.ai — private-value',
+    'OUT OF CREDIT: token\tprivate-value leaked here',
+    ' OUT OF CREDIT: leading space private-value line',
+    'prefix OUT OF CREDIT: private-value embedded in a provider body',
+    'out of credit: lower-case private-value line text',
+  ])assert.equal(wrapperFailureReason({stderr:`${machine}\n${bad}\n`}),fixed,JSON.stringify(bad))
+  // Without an exact, anchored machine line from the allowlist, no OUT OF CREDIT text is echoed at all.
+  for(const spoof of [
+    'AI_REVIEWER_OUT_OF_CREDIT provider=evil code=insufficient_quota',
+    'AI_REVIEWER_OUT_OF_CREDIT provider=grok code=insufficient_quota private-value',
+    'x AI_REVIEWER_OUT_OF_CREDIT provider=grok code=insufficient_quota',
+    'AI_REVIEWER_OUT_OF_CREDIT provider=grok code=rate_limited',
+  ]){
+    const reason=wrapperFailureReason({stderr:`${spoof}\nOUT OF CREDIT: private-value pretending to be the provider\n`})
+    assert.ok(!reason.includes('private-value'),spoof)
+    assert.ok(!reason.startsWith('insufficient_quota:'),spoof)
+  }
+})
+test('out of credit: raw provider billing text alone is recognized without echoing it',()=>{
+  const fixed='insufficient_quota: the provider reported that its account is out of credit or over its spending limit'
+  for(const raw of [
+    'ai-grok-review: 403 {"code":"The caller does not have permission","error":"Your team private-value has either used all available credits or reached its monthly spending limit."}',
+    'Error: monthly spending limit reached for private-value',
+    'DeepSeek 402 Insufficient Balance private-value',
+    'InvalidParameter.Arrearage: Access denied, private-value account overdue',
+    'Your prepayment credits are depleted. private-value',
+  ]){
+    assert.equal(wrapperFailureReason({stderr:raw}),fixed,raw)
+    const {error}=outOfCreditRun(raw)
+    assert.ok(error instanceof GovernedReviewRerouteError)
+    assert.ok(!error.message.includes('private-value'))
+    assert.equal(error.startDecision.reason,'insufficient_quota')
+  }
+})

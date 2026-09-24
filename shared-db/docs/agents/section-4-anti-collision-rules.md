@@ -709,6 +709,15 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    write its own state. A real `REVISE` verdict is not a transport failure and
    must never be replaced.
 
+   **Out of credit: tell Albert in the same reply (owner requirement,
+   2026-09-24).** When `REFUSED:` contains `insufficient_quota: OUT OF CREDIT:`,
+   the reviewer's provider account has run out of credit. In that same reply,
+   tell Albert in plain words which provider needs credits and where, quoting
+   the `OUT OF CREDIT:` text as printed. Never make him open another session to
+   learn it. Then replace the reviewer with `--replace-failed-reviewer
+   --failure-code insufficient_quota --confirm-no-verdict --confirm-no-artifact`
+   and continue with the replacement.
+
    **`--replace-failed-reviewer` is slot-aware, and the slot must be named.** It
    defaults to `--review-slot 1`. Pass `--review-slot 2` to replace a failed
    second reviewer; the request is then resolved only against slot 2's own

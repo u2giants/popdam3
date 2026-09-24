@@ -355,11 +355,39 @@ export function wrapperSpawnPlan(resolved,args,platform=process.platform){
   if(platform==='win32'&&/\.(cmd|bat)$/i.test(resolved))return{file:process.env.ComSpec||'cmd.exe',args:['/d','/s','/c',resolved,...args]}
   return{file:resolved,args}
 }
+// OUT OF CREDIT (owner requirement, 2026-09-24): a session whose reviewer failed
+// because the provider account ran out of credit must know that, and tell Albert in
+// the same reply. The ai-devops rotation wrappers exit 92 and print two stderr lines:
+//   AI_REVIEWER_OUT_OF_CREDIT provider=<grok|muse|qwen|gemini|deepseek> code=insufficient_quota
+//   OUT OF CREDIT: <plain-English sentence naming the provider and where to add credit>
+export const OUT_OF_CREDIT_MACHINE_LINE=/^AI_REVIEWER_OUT_OF_CREDIT provider=(grok|muse|qwen|gemini|deepseek) code=insufficient_quota$/
+export const OUT_OF_CREDIT_HUMAN_LINE=/^OUT OF CREDIT: [ -~]{10,300}$/
+const OUT_OF_CREDIT_PROVIDER_NAMES=Object.freeze({grok:'xAI (Grok)',muse:'Meta (Muse)',qwen:'Alibaba Model Studio (Qwen)',gemini:'Google Gemini',deepseek:'DeepSeek'})
+// Raw provider billing text, from a wrapper that predates the contract above. It is
+// recognized but NEVER echoed: only the fixed sentence below crosses into the refusal.
+const RAW_BILLING_EXHAUSTION=/used all available credits|monthly spending limit|insufficient balance|arrearage|prepayment credits are depleted/i
+export function outOfCreditReason(stderr){
+  const lines=String(stderr??'').split(/\r?\n/)
+  const machine=lines.map((line)=>OUT_OF_CREDIT_MACHINE_LINE.exec(line)).find(Boolean)
+  if(machine){
+    const human=lines.find((line)=>OUT_OF_CREDIT_HUMAN_LINE.test(line))
+    return `insufficient_quota: ${human??`OUT OF CREDIT: the ${OUT_OF_CREDIT_PROVIDER_NAMES[machine[1]]} reviewer account has run out of credits or hit its spending limit`}`
+  }
+  if(RAW_BILLING_EXHAUSTION.test(String(stderr??'')))return 'insufficient_quota: the provider reported that its account is out of credit or over its spending limit'
+  return null
+}
 // Provider diagnostics may contain credentials or private repository text. Only
-// fixed, recognized reasons cross into the refusal; never echo raw stderr.
+// fixed, recognized reasons cross into the refusal; never echo raw stderr. The ONE
+// deliberate exception is the wrapper's `OUT OF CREDIT:` sentence, and only when the
+// anchored machine line is also present: it is copied verbatim so the session can tell
+// Albert which account needs credit. It must match OUT_OF_CREDIT_HUMAN_LINE exactly --
+// one whole line, printable ASCII only, 10-300 characters -- so no control character,
+// multi-line payload, or unbounded provider text can ride along with it.
 export function wrapperFailureReason(run){
   const stderr=String(run.stderr??'')
   const reasons=[]
+  const outOfCredit=outOfCreditReason(stderr)
+  if(outOfCredit)reasons.push(outOfCredit)
   const hasReason=(reason)=>new RegExp(`(?:^|[^A-Za-z0-9_-])${reason}(?=$|[^A-Za-z0-9_-])`,'i').test(stderr)
   if(run.error)reasons.push('the wrapper process could not complete')
   if(run.signal)reasons.push('the wrapper process was terminated by a signal')
@@ -377,7 +405,7 @@ export function wrapperFailureReason(run){
   if(/execution-context-denied/i.test(stderr))reasons.push('the wrapper reported execution-context-denied')
   if(hasReason('content-filter')||hasReason('DataInspectionFailed'))reasons.push('provider_unavailable: content-filter rejected the request')
   else if(hasReason('provider-unavailable'))reasons.push('provider_unavailable: the provider refused the request')
-  if(/usage-limit|insufficient.quota|quota exceeded|usage limit/i.test(stderr))reasons.push('the wrapper reported a usage limit')
+  if(!outOfCredit&&/usage-limit|insufficient.quota|quota exceeded|usage limit/i.test(stderr))reasons.push('the wrapper reported a usage limit')
   if(/already active|already in progress|held for reconciliation|retained/i.test(stderr))reasons.push('the wrapper reported retained or active work; inspect that exact session')
   return reasons.join('; ')||(stderr?'wrapper stderr was present but its reason was not recognized; inspect the exact wrapper session':'the wrapper supplied no recognized diagnostic')
 }
