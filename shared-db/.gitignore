@@ -124,3 +124,8 @@ PAUSED
 # The ai-devops checkout the skill-drift check uses in CI (#654).
 .ai-devops-checkout/
 backups/
+
+# Product-type reader data is private; never commit its catalog CSV or JSON
+# inputs.  Scoped to this one tool so other tools may commit fixtures.
+tools/product_type_reader/**/*.csv
+tools/product_type_reader/**/*.json

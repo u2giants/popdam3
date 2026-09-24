@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "work_issue": 3290,
+  "outcome": "ready-for-merge",
+  "pr": 3446,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3290/17",
+  "contract_sha256": "0de15b04bfc8eee702ac78e60fe052f3a8e9e4179b9c130f78374a61ed0f0209",
+  "head_sha": "212662c9e7c1866e050b38fafce6407a04fa22af",
+  "files_changed": [
+    ".gitignore",
+    "docs/verification/product-type-reader/baseline-2026-09-23.md",
+    "docs/verification/product-type-reader/final-2026-09-23.md",
+    "docs/verification/product-type-reader/live-recheck-2026-09-24.json",
+    "plan_product_type_reader.md",
+    "tools/product_type_reader/README.md",
+    "tools/product_type_reader/__init__.py",
+    "tools/product_type_reader/baseline.py",
+    "tools/product_type_reader/construction_rules.py",
+    "tools/product_type_reader/evaluate.py",
+    "tools/product_type_reader/gold/coverage.py",
+    "tools/product_type_reader/legacy.py",
+    "tools/product_type_reader/material_rules.py",
+    "tools/product_type_reader/reader.py",
+    "tools/product_type_reader/storage_rules.py",
+    "tools/product_type_reader/test_caption_invariant.py",
+    "tools/product_type_reader/test_catalog_fixture.py",
+    "tools/product_type_reader/test_construction_rules.py",
+    "tools/product_type_reader/test_evaluate.py",
+    "tools/product_type_reader/test_material_rules.py",
+    "tools/product_type_reader/test_reader.py",
+    "tools/product_type_reader/test_storage_rules.py",
+    "tools/product_type_reader/test_treatment_rules.py",
+    "tools/product_type_reader/treatment_rules.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -m pytest -q docs/verification/item-mg-reclassification-20260814 tools/product_type_reader",
+      "exit_code": 0,
+      "evidence": "1329 passed, 1 skipped (private fixture); private fixture 37 passed"
+    },
+    {
+      "command": "python tools/product_type_reader/evaluate.py --corpus PRIVATE/catalog.json --manifest PRIVATE/manifest.json --labels PRIVATE/labels.csv --assignments PRIVATE/assignments.csv --live-recheck docs/verification/product-type-reader/live-recheck-2026-09-24.json --strict",
+      "exit_code": 0,
+      "evidence": "correct 18985, wrong 0, errors 0, uncovered 0, passed true"
+    }
+  ],
+  "assumptions_resolved": [
+    "Strict evaluation passed at b1d0810e: 18985 correct, 0 wrong, 0 errors.",
+    "Generation 16 is the single evidence pair on this branch; its implementation head differs from the PR head only by this pair."
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "3a46121f865137ccef79ac3bc0463e993ebad495"
+}

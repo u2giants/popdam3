@@ -8,17 +8,23 @@ Handoff for this plan: [`HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type
 |---|------|-------|----------|
 | 0 | Plan written, issue opened | ✅ done 2026-09-16 | this file; issue popcre/shared-db#3024 |
 | 0a | Orchestrator ticket #3036 opened for columns | ✅ done 2026-09-16 | issue popcre/shared-db#3036 |
-| 1 | Move reader into a permanent module | ⬜ open | — |
-| 2 | Build the full-catalog gold set | ⬜ open | — |
-| 3 | Measure baseline accuracy | ⬜ open | — |
-| 4 | Fix rules until the gold set is 100% | ⬜ open | — |
+| 1 | Move reader into a permanent module | ✅ done 2026-09-23 (PR #3446) | `tools/product_type_reader/` |
+| 2 | Build the full-catalog gold set | ✅ done 2026-09-23 (private package, SHA-bound) | aggregate only: `docs/verification/product-type-reader/final-2026-09-23.md` |
+| 3 | Measure baseline accuracy | ✅ done 2026-09-23 | `docs/verification/product-type-reader/baseline-2026-09-23.md` |
+| 4 | Fix rules until the gold set is 100% | ✅ done 2026-09-23 (`--strict`: 0 wrong, 0 uncovered, 0 errors) | `docs/verification/product-type-reader/final-2026-09-23.md` |
 | 5 | Owner acceptance of the gold set results | ⬜ open | — |
 | 6 | Discover the `plm.item` writer | ⬜ open | — |
 | 7 | Columns land via #3036 (orchestrator) | ✅ done 2026-09-17 | #3036 closed COMPLETED; PR #3108 merged 2026-09-16 (migration `20260916231639`); run the live column-count gate below when step 8 starts |
 | 8 | Populate + keep populated | ⬜ open (depends on #3036 merged + applied on production, and step 5 acceptance) | — |
 | 9 | Live acceptance and doc updates | ⬜ open | — |
 
-**Fresh session starts at step 1.** Re-read Phases 2 and 3 before starting each phase (drift check).
+**Live recheck (F2):** 2026-09-24 00:28:29 UTC, read-only against production `qsllyeztdwjgirsysgai`: corpus sha256 `2dc8fd0eea94a0243e051d27b90a94d2a6e0a1d5bc41e085ed509dce175314f6`, 17,627 distinct descriptions, 18,985 rows — identical to the captured manifest. Recorded in `docs/verification/product-type-reader/live-recheck-2026-09-24.json`; `evaluate.py --strict` refuses without a matching recheck.
+
+**Snapshot-bound result (F12):** the 100% figure is true of that exact snapshot only. Any new description changes the corpus sha, so the gate refuses until the new rows are labelled and a fresh recheck is recorded — it never silently extends the claim.
+
+**Licensed wording (F11):** owner ruling, quoted: "no need to remove the licensed wording from public view".
+
+**Fresh session starts at step 5** (owner acceptance), then step 6. Re-read Phases 2 and 3 before starting each phase (drift check).
 
 ---
 
@@ -102,7 +108,10 @@ All in `docs/verification/item-mg-reclassification-20260814/` (analysis area, me
   (#1871). Do not copy them back. Use live `coldlion.item_header` / `plm.item` instead.
 - Method doc: `docs/item-description-mg-classification-process.md` (Step 1 defines the five fields).
 
-Nothing is committed for this plan yet except this file and its handoff.
+Superseded as a statement of current code (2026-09-23): the hardened reader now lives in
+`tools/product_type_reader/` (PR #3446) and replaces the analysis-area reader above for this plan.
+Its release gate is `python -m pytest -q docs/verification/item-mg-reclassification-20260814 tools/product_type_reader`
+plus the strict private evaluation (`evaluate.py --strict`, zero wrong rows); all gold data stays private.
 
 ### 6. Key findings
 
@@ -177,21 +186,25 @@ Open (implementer decides, with criteria):
 
 2. **Gold set from the full catalog.** Read-only: export every distinct `item_desc` from
    `coldlion.item_header` (join to `plm.item` on item number) to the scratchpad — **not** into this public
-   repo (descriptions may be committed only as the approved small fixture below). Group by the reader's
-   matched wording; for every distinct product wording, record the correct product type in
-   `tools/product_type_reader/gold/labels.csv` (wording → expected product, material, treatment, status),
-   plus ≥3 real example descriptions per label and every item in categories found wrong in §6. An LLM
+   repo (descriptions may be committed only as the approved small fixture below). Group by a
+   source-neutral projection of the reader's matched wording, retaining the exact source-to-group
+   links privately. For every distinct product wording, record the correct product type in
+   the private-package `labels.csv` (never in this public repo; the venue guard forbids it) (wording → expected product, material, treatment, status),
+   plus up to three real example descriptions per label in the private evidence package (all available
+   examples where a wording occurs fewer than three times) and every item in categories found wrong in §6. An LLM
    may propose labels; each label must be confirmed by the implementer against the description, and
    ambiguous ones listed for owner review (step 5). Gate: every distinct matched wording and every
    `needs_review` cluster has a label row; script `gold/coverage.py` prints `uncovered: 0`.
 
 3. **Baseline.** `tools/product_type_reader/evaluate.py` runs the reader over all live descriptions and
-   the gold labels, writes `docs/verification/product-type-reader/baseline-<date>.md` (counts only +
-   up to 50 example misses). Gate: report exists, shows correct / wrong / unreadable counts.
+   the gold labels, writes `docs/verification/product-type-reader/baseline-<date>.md` (aggregate counts
+   only; source-bearing example misses stay in the private evidence package). Gate: report exists,
+   shows correct / wrong / unreadable counts.
 
 4. **Fix rules.** For each miss cluster add or correct patterns, ordering, abbreviations; remove
-   fallbacks that invent product or material. Each fix gets a unit test with the real description
-   (fixture `tests/fixtures/descriptions.csv`, owner approved publishing descriptions 2026-08-15).
+   fallbacks that invent product or material. Each fix gets a synthetic unit test preserving the
+   relevant wording and a source-pinned private catalog check; the 2026-08-15 approval for small
+   description fixtures does not require publishing licensed source wording.
    Iterate until evaluate shows **wrong = 0** and every unreadable row is genuinely unreadable (listed
    in the report for review). Gate: `evaluate.py --strict` exits 0; report committed.
 
