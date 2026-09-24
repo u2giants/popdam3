@@ -1,0 +1,51 @@
+{
+ "allowed_paths": [
+  "scripts/check-exact-head-approval.mjs",
+  "scripts/check-exact-head-approval.test.mjs",
+  ".agent/work/2839/1/contract.json",
+  ".agent/work/2839/1/completion.json"
+ ],
+ "assumptions": [
+  "The guarded merge workflow writes a success status named Migration guarded merge authorization only after re-proving exact-head approval while holding the exclusive merge lock",
+  "GitHub status created_at is server-generated and can safely bound authorization evidence to merged_at",
+  "PR 2746 remains the positive-control merge whose later reviewer activity previously changed a rerun from pass to refusal"
+ ],
+ "base_sha": "905ec8e29d1175ce8e312d9fb1c90dbff02e17ca",
+ "branch": "codex/2839-merged-pr-audit-ship-g1",
+ "db_reads": [],
+ "db_writes": [],
+ "dispatcher": "Albert Hazan authorized resolving all non-orchestrator issues not touched by Claude, with maximum safe parallelism",
+ "file_writes": [
+  "scripts/check-exact-head-approval.mjs",
+  "scripts/check-exact-head-approval.test.mjs",
+  ".agent/work/2839/1/contract.json",
+  ".agent/work/2839/1/completion.json"
+ ],
+ "generation": 1,
+ "goal": "Make rerunning the exact-head approval gate on a merged pull request report the time-bounded guarded-merge authorization that actually governed the merge, while closed-unmerged pull requests refuse and open pull requests keep the live gate",
+ "prohibited_actions": [
+  "No database, migration, schema, data, production or infrastructure mutation",
+  "Do not weaken the live exact-head gate for open pull requests",
+  "Do not accept a closed-unmerged pull request or a status written after the merge",
+  "Do not accept a lookalike status from any identity other than github-actions[bot]",
+  "Do not merge or close issue 2839; the parent session coordinates the guarded merge"
+ ],
+ "required_checks": [
+  "node --test scripts/check-exact-head-approval.test.mjs",
+  "node --check scripts/check-exact-head-approval.mjs",
+  "PR_NUMBER=2746 node scripts/check-exact-head-approval.mjs",
+  "git diff --check"
+ ],
+ "route": "repo-maintenance",
+ "schema_version": 1,
+ "stop_conditions": [
+  "Stop if the repair requires changing the guarded merge workflow or any file outside the four allowed paths",
+  "Stop if an open pull request no longer follows the existing live reviewer-record evaluation",
+  "Stop if the live PR 2746 audit cannot prove its pre-merge guarded authorization status",
+  "Stop immediately before guarded merge so the parent session can coordinate the structural merge window"
+ ],
+ "work_issue": 2839,
+ "work_type": "repo-maintenance",
+ "worker": "Codex chat 01a0c034-aa5f-7fd3-a94a-be70221deb5f on 916-ALIEN",
+ "worktree": "D:\\repos\\worktrees\\shared-db-2839-ship-01a0c02e-g1"
+}

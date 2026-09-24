@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 2839,
+  "outcome": "ready-for-merge",
+  "pr": 3375,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2839/1",
+  "contract_sha256": "c823a546cd4880394e1310330d37ee16687b9abdbec56b7edcf0e768b0cfa7d2",
+  "head_sha": "dddfeae989c169e24693f18ab0ca5f3558db8dee",
+  "files_changed": [
+    ".agent/work/2839/1/completion.json",
+    ".agent/work/2839/1/contract.json",
+    "scripts/check-exact-head-approval.mjs",
+    "scripts/check-exact-head-approval.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-exact-head-approval.test.mjs",
+      "exit_code": 0,
+      "evidence": "91 of 91 tests passed, 0 failed, 0 skipped at dddfeae9"
+    },
+    {
+      "command": "node --check scripts/check-exact-head-approval.mjs",
+      "exit_code": 0,
+      "evidence": "syntax ok at dddfeae9"
+    },
+    {
+      "command": "PR_NUMBER=2746 node scripts/check-exact-head-approval.mjs",
+      "exit_code": 0,
+      "evidence": "PR #2746 carried guarded-merge authorization status 54025196895 at 2026-09-11T22:32:13Z, before merge 2026-09-11T22:32:17Z (APPROVAL_AUDIT=merged re-run at dddfeae9)"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "no whitespace errors between base 5d68eeb5 and dddfeae9"
+    }
+  ],
+  "assumptions_resolved": [
+    "PR 2746 positive control still verifies from its pre-merge guarded authorization status"
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "5d68eeb530ccb52721779525db7de4cc125b2cc2"
+}
