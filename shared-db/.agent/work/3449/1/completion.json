@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 3449,
+  "outcome": "ready-for-merge",
+  "pr": 3471,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3449/1",
+  "contract_sha256": "a584e83f353d6d8fc339b5e89ff7b6c8e1e2c0bfc461c018368e70bca1f08f9b",
+  "head_sha": "973da6f1d7a535d9660cac2b814ac84e6481c8f5",
+  "base_sha": "86c6423b3f5c01932c5cd7f331f3e4d9ed66e1c2",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "pass 707 fail 0 at implementation 973da6f1"
+    }
+  ],
+  "assumptions_resolved": [
+    "kept #3441 refusal wording unchanged; dropped the redundant #3449 wording test it superseded"
+  ],
+  "stop_conditions_hit": []
+}

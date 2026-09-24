@@ -5310,10 +5310,12 @@ export function reclaimSilentReviewer(options,now=new Date(),io=githubIo){return
 // A v2 lease names its (issue, PR, head, slot) tuple, so once that PR closes or
 // its head moves no later draw ever computes the name again and nothing frees
 // it. This command retires exactly the v2 leases `findBusyReviewers` already
-// classifies as stale (PR not open, head moved, or verdict recorded), re-proves
+// classifies as stale (PR not open, head moved, or verdict recorded), plus, since
+// issue #3449, a legacy one-slot ref only in the stricter terminal state that
+// `legacyLeaseTerminalReason` proves (PR merged with a durable verdict). It re-proves
 // each one under the review mutex, and deletes them with a compare-and-swap on
-// both the mutex and every lease SHA. It never draws a replacement, never posts
-// a verdict, and never touches a lease that is still live or unreadable.
+// both the mutex and every lease SHA. It never draws a replacement and never
+// posts a verdict; a legacy lease that is live or unreadable is kept or refused.
 // Without --apply-recovery it is a read-only preview.
 export const REVIEW_REAP_REQUEST_LIMIT = 64, REVIEW_REAP_BATCH = 40
 function abandonedLeaseReason(row,states){
@@ -5322,10 +5324,51 @@ function abandonedLeaseReason(row,states){
   if(pr&&pr.head?.sha!==row.assignment.headSha)return 'head-moved'
   return 'verdict-recorded'
 }
+// Issue #3449. A legacy one-slot ref (refs/db-review-active/<reviewer>) is never
+// recomputed by a later draw under concurrent leases, so a finished one is never
+// implicitly overwritten; the explicit release paths still accept it, but only
+// when an operator names its exact assignment tuple. It is reaped only in a terminal state: pull request
+// MERGED and a durable verdict recorded either for the exact leased head, or, when
+// the lease head was superseded before merge, for the merged head itself.
+// Anything else is kept; an unreadable PR or verdict listing is refused.
+// The merged-head proof is by verdict ref NAME only and is not attributed to the
+// lease holder, hence its distinct reason. A cursor-form lease with no slot
+// token reads as slot 1 (parseReviewLease) and matches a slot-1 verdict ref; only
+// a replacement-form lease with no slot matches none and is kept. A lease whose
+// head is not 40-hex never reaches here: findBusyReviewers refuses the snapshot.
+// Retiring the ref only removes the stale lease record; the verdict refs stay.
+// Performs verdict reads and may throw; returns the retirement reason or null.
+export function legacyLeaseTerminalReason(row,states,io){
+  if(row.ref!==reviewActiveRef(row.assignment.reviewer))return null
+  const key=`${row.assignment.issue}:${row.assignment.pr}`
+  let pr=states?.get(key)?.pr
+  const unreadable=()=>new LaneError(`legacy reviewer lease ${row.ref} pull request is unreadable; nothing was reaped`)
+  if(!pr){try{pr=io.getPr(row.assignment.pr)}catch{throw unreadable()}
+    if(!pr||Number(pr.number)!==Number(row.assignment.pr))throw unreadable()}
+  if(pr.state==='open'||!(pr.merged===true||Boolean(pr.merged_at)))return null
+  const hex40=/^[0-9a-f]{40}$/,leased=String(row.assignment.headSha??'').toLowerCase(),mergedHead=String(pr.head?.sha??'').toLowerCase()
+  const heads=[]
+  if(hex40.test(leased))heads.push([leased,'legacy-merged-verdict-recorded'])
+  if(hex40.test(mergedHead)&&mergedHead!==leased)heads.push([mergedHead,'legacy-merged-superseded-head-verdict-recorded'])
+  for(const [head,reason] of heads){
+    let verdict
+    try{verdict=hasVerdictForHead(row.assignment.issue,row.assignment.pr,head,io,leaseVerdictOptions(row.assignment,{fresh:true}))}catch(error){
+      if(isReviewRefListingRefusal(error))throw new LaneError(`durable reviewer verdict namespace cannot be listed: ${error.message}. Preview with --archive-old-review-verdicts, then archive with --archive-old-review-verdicts --apply-recovery (#2987)`)
+      throw new LaneError(`legacy reviewer lease ${row.ref} verdict is unreadable; nothing was reaped`)
+    }
+    if(verdict)return reason
+  }
+  return null
+}
 function abandonedLeases(io){
   const busy=findBusyReviewers(io)
   if(!busy)throw new LaneError('active reviewer leases are unreadable; nothing was reaped')
-  return busy.stale.filter((row)=>row.ref.startsWith(`${REVIEW_ACTIVE_PARALLEL_REF_PREFIX}/`)).map((row)=>({ref:row.ref,sha:row.sha,reviewer:row.assignment.reviewer,issue:row.assignment.issue,pr:row.assignment.pr,headSha:row.assignment.headSha,reason:abandonedLeaseReason(row,busy.states)}))
+  const rows=[]
+  for(const row of busy.stale){
+    const reason=row.ref.startsWith(`${REVIEW_ACTIVE_PARALLEL_REF_PREFIX}/`)?abandonedLeaseReason(row,busy.states):legacyLeaseTerminalReason(row,busy.states,io)
+    if(reason)rows.push({ref:row.ref,sha:row.sha,reviewer:row.assignment.reviewer,issue:row.assignment.issue,pr:row.assignment.pr,headSha:row.assignment.headSha,reason})
+  }
+  return rows
 }
 function reapAbandonedReviewLeasesOperation(options,now,io){
   io=reviewOperationIo(io)

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "work_issue": 3449,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Let the sanctioned reaper retire a stale legacy v1 reviewer lease ref (refs/db-review-active/<reviewer>) once its review is terminal, failing closed on unreadable state and never showing a reviewer as busy under concurrent leases; supersedes PR #3459",
+  "base_sha": "e76a796acbae9d8181175539b544f123e317bdc4",
+  "dispatcher": "coordinator instruction to re-carry PR #3459 under a fresh contract",
+  "worker": "claude",
+  "branch": "claude/3449-legacy-lease-reaper-v2",
+  "worktree": ".claude/worktrees/grok-3449-v2-1790225786",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "never hand-delete a refs/db-review-active ref"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "assumptions": [
+    "the #3459 diff applies to main after #3441 without behavioural rework"
+  ],
+  "stop_conditions": [
+    "stop if retiring a legacy lease would require releasing one whose review is not provably terminal"
+  ]
+}
