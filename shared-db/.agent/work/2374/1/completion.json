@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_issue": 2374,
+  "outcome": "ready-for-merge",
+  "pr": 3438,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2374/1",
+  "contract_sha256": "3fabc22801e38b918ebc2ee2016e954fcaded53cfe9921e63dadb962463bda0b",
+  "head_sha": "81716c4e858fbdfa2da2b8d2b739fbff00f00fa5",
+  "files_changed": [
+    "scripts/test_production_catalog_verification.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -m unittest -q scripts/test_production_catalog_verification.py",
+      "exit_code": 0,
+      "evidence": "Ran 227 tests, OK, 0 skipped (re-run at refreshed implementation head 81716c4e)"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "no whitespace errors between base c0bbed55 and implementation head 81716c4e"
+    }
+  ],
+  "assumptions_resolved": [],
+  "stop_conditions_hit": [],
+  "base_sha": "c0bbed551d1b747bcf12f0b6ba4c8027a1781bf4"
+}

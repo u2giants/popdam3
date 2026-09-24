@@ -1,0 +1,44 @@
+{
+  "allowed_paths": [
+    ".agent/work/2371/4/contract.json",
+    ".agent/work/2371/4/completion.json",
+    "scripts/test_production_owner_decision_evidence.py"
+  ],
+  "assumptions": [
+    "Issue #2371 remains limited to guards 8-11 and 14-16 (the same seven refusals numbered 7-10 and 13-15 before main's #3443 inserted the owner-identity guard ahead of them): comment author identity, comment edited, workflow run identity, artifact selection, and artifact bytes in production_owner_decision_evidence.py",
+    "Refreshed by merging current main and reissued as generation 2 at the keyed evidence path (#2708); implementation unchanged.",
+    "Refreshed by merging current main (owner identity change #3443) for landing; reissued as generation 3.",
+    "Generation 4 answers the generation-3 review: the mutation command is recorded exactly as run, including --out, and the assigned guards are re-identified after the upstream ordinal shift."
+  ],
+  "base_sha": "62487c20c9f1997e3dd4adc9c0b23037fc02e173",
+  "branch": "codex/issue-2371-owner-decision-evidence",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Albert Hazan chat request to complete the oldest non-orchestrator shared-db issues",
+  "file_writes": [
+    ".agent/work/2371/4/contract.json",
+    ".agent/work/2371/4/completion.json",
+    "scripts/test_production_owner_decision_evidence.py"
+  ],
+  "generation": 4,
+  "goal": "Add focused falsification coverage for the seven assigned owner-decision comment, workflow-run, artifact-selection, and artifact-byte refusal guards without changing production behavior.",
+  "prohibited_actions": [
+    "Do not change production owner-decision behavior",
+    "Do not touch production apply-review or migration-guard implementation or tests",
+    "Do not read or write any database"
+  ],
+  "required_checks": [
+    "python -m unittest scripts/test_production_owner_decision_evidence.py",
+    "GITHUB_REPOSITORY=popcre/shared-db python scripts/mutation_sweep_guards.py --file scripts/production_owner_decision_evidence.py --command \"python -m unittest scripts/test_production_owner_decision_evidence.py\" --out .ai/mutation-sweep-2371.json",
+    "python -m unittest scripts/test_atomic_migration_apply.py scripts/test_check_pass2_routine_supersession.py scripts/test_production_business_risk_gate.py scripts/test_production_apply_review_evidence.py scripts/test_production_migration_guard.py scripts/test_production_owner_decision_evidence.py scripts/test_preview_instance_binding.py scripts/test_historical_preview_recovery.py scripts/test_production_catalog_verification.py scripts/test_post_batch_app_verification.py"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 1,
+  "stop_conditions": [
+    "Stop if coverage requires changing production behavior or another worker's assigned files"
+  ],
+  "work_issue": 2371,
+  "work_type": "repo-maintenance",
+  "worker": "Claude chat 7545365a-8132-4fd6-b0a1-f737035df839 on edge-dev (landing session)",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/land-3188-a7c1"
+}

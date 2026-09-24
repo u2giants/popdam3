@@ -48,6 +48,7 @@ from production_catalog_verification import (  # noqa: E402
     render_report,
     split_statements,
     verify,
+    _validate_marker_reviews,
 )
 from production_migration_guard import GuardError, strip_sql  # noqa: E402
 
@@ -3077,6 +3078,365 @@ class AbsenceNamesAreRevalidatedAtSqlBuildTime(unittest.TestCase):
     def test_an_unqualified_name_is_refused_at_build_time(self):
         with self.assertRaises(GuardError):
             build_behavior_sql([self.check("widget")])
+
+
+class CatalogMarkerReviewMutationCoverageTests(unittest.TestCase):
+    """Focused falsification for every marker-review guard from issue #2374."""
+
+    VERSION = "20260101000000"
+    REASON = (
+        "This marker is tied to the named durable verification contract and "
+        "cannot be accepted as unreviewed dynamic SQL."
+    )
+
+    def fixture(self, mutate=None, sql="execute dynamic_catalog_change;\n"):
+        import hashlib
+
+        temp = tempfile.TemporaryDirectory()
+        root = Path(temp.name)
+        migrations = root / "supabase" / "migrations"
+        sidecars = root / "scripts" / "production-verification-sidecars"
+        migrations.mkdir(parents=True)
+        sidecars.mkdir(parents=True)
+        migration = migrations / f"{self.VERSION}_marker.sql"
+        migration.write_text(sql, encoding="utf-8")
+        sidecar = {
+            "schema_version": 1,
+            "migration_version": self.VERSION,
+            "migration_sha256": hashlib.sha256(
+                migration.read_bytes().replace(b"\r\n", b"\n")
+            ).hexdigest(),
+            "checks": [{
+                "id": "dynamic_contract",
+                "kind": "catalog_contract",
+                "contract": "popdam_1427_active_marker_v1",
+                "expected_count": 1,
+            }],
+            "marker_schema_version": 1,
+            "marker_reviews": [{
+                "line_start": 1,
+                "line_end": 1,
+                "disposition": "checks",
+                "check_ids": ["dynamic_contract"],
+                "reason": self.REASON,
+            }],
+        }
+        if mutate:
+            mutate(sidecar)
+        (sidecars / f"{self.VERSION}.json").write_text(
+            json.dumps(sidecar), encoding="utf-8"
+        )
+        return temp, root, migration
+
+    def assert_rejected(self, mutate, message, sql="execute dynamic_catalog_change;\n"):
+        temp, root, migration = self.fixture(mutate, sql)
+        with temp, self.assertRaisesRegex(GuardError, message):
+            load_behavior_sidecars(root, {self.VERSION: migration}, [self.VERSION])
+
+    def test_marker_schema_version_must_be_exact(self):
+        self.assert_rejected(
+            lambda sidecar: sidecar.update(marker_schema_version=2),
+            "marker_schema_version must be exactly 1",
+        )
+
+    def test_marker_reviews_must_be_a_non_empty_array(self):
+        self.assert_rejected(
+            lambda sidecar: sidecar.update(marker_reviews=[]),
+            "marker_reviews must be a non-empty array",
+        )
+
+    def test_each_marker_review_must_be_an_object(self):
+        self.assert_rejected(
+            lambda sidecar: sidecar.update(marker_reviews=["not-an-object"]),
+            "marker review 0 must be an object",
+        )
+
+    def test_marker_disposition_is_closed_to_the_two_supported_values(self):
+        def mutate(sidecar):
+            sidecar["marker_reviews"][0]["disposition"] = "ignore"
+
+        self.assert_rejected(mutate, "invalid marker disposition")
+
+    def test_marker_review_range_must_be_positive_and_ordered(self):
+        def mutate(sidecar):
+            sidecar["marker_reviews"][0].update(line_start=2, line_end=1)
+
+        self.assert_rejected(mutate, "invalid marker review range")
+
+    def test_marker_review_ranges_cannot_overlap(self):
+        def mutate(sidecar):
+            first = sidecar["marker_reviews"][0]
+            first.update(line_start=1, line_end=1)
+            second = dict(first, line_start=1, line_end=2)
+            sidecar["marker_reviews"] = [first, second]
+
+        self.assert_rejected(
+            mutate,
+            "marker review ranges overlap or are not strictly ordered",
+            "execute first_dynamic_change;\nexecute second_dynamic_change;\n",
+        )
+
+    def test_checks_disposition_must_name_a_present_check(self):
+        def mutate(sidecar):
+            sidecar["marker_reviews"][0]["check_ids"] = ["absent_check"]
+
+        self.assert_rejected(mutate, "marker review cites an absent check")
+
+    def test_checks_disposition_requires_substantive_reason(self):
+        def mutate(sidecar):
+            sidecar["marker_reviews"][0]["reason"] = "too short"
+
+        self.assert_rejected(
+            mutate, "checks disposition requires a substantive marker-to-contract rationale"
+        )
+
+    def test_no_target_disposition_requires_substantive_reason(self):
+        def mutate(sidecar):
+            sidecar["marker_reviews"][0] = {
+                "line_start": 1,
+                "line_end": 1,
+                "disposition": "no_durable_target",
+                "reason": "too short",
+            }
+
+        self.assert_rejected(
+            mutate, "no_durable_target reason must contain 40 non-whitespace characters"
+        )
+
+    def test_marker_reviews_must_cover_every_marker_exactly_once(self):
+        self.assert_rejected(
+            None,
+            "marker reviews must cover every marker line exactly once",
+            "execute first_dynamic_change;\nexecute second_dynamic_change;\n",
+        )
+
+    def test_empty_checks_cannot_claim_a_checks_disposition(self):
+        # The loader normally derives check_ids from item["checks"]. Drive the
+        # validator directly so its final consistency boundary is independently
+        # load-bearing instead of being masked by the earlier absent-id refusal.
+        item = {
+            "checks": [],
+            "marker_schema_version": 1,
+            "marker_reviews": [{
+                "line_start": 1,
+                "line_end": 1,
+                "disposition": "checks",
+                "check_ids": ["externally_supplied_check"],
+                "reason": self.REASON,
+            }],
+        }
+        with self.assertRaisesRegex(
+            GuardError, "empty checks require only no_durable_target reviews"
+        ):
+            _validate_marker_reviews(
+                item,
+                Path("marker.json"),
+                "execute dynamic_catalog_change;\n",
+                {"externally_supplied_check"},
+            )
+
+
+class CatalogSidecarLoadingMutationCoverageTests(unittest.TestCase):
+    """Focused falsification for every surviving loader guard from issue #2375."""
+
+    VERSION = "20260101000000"
+
+    def base_check(self):
+        return {
+            "id": "typed_row_check",
+            "kind": "exact_row_count",
+            "relation": "core.property",
+            "filters": [{"column": "name", "type": "text", "equals": "Alice"}],
+            "expected_count": 1,
+        }
+
+    def fixture(self, mutate=None, raw=None):
+        import hashlib
+
+        temp = tempfile.TemporaryDirectory()
+        root = Path(temp.name)
+        migrations = root / "supabase" / "migrations"
+        sidecars = root / "scripts" / "production-verification-sidecars"
+        migrations.mkdir(parents=True)
+        sidecars.mkdir(parents=True)
+        migration = migrations / f"{self.VERSION}_data.sql"
+        migration.write_text("update core.property set name = name;\n", encoding="utf-8")
+        sidecar = raw if raw is not None else {
+            "schema_version": 1,
+            "migration_version": self.VERSION,
+            "migration_sha256": hashlib.sha256(
+                migration.read_bytes().replace(b"\r\n", b"\n")
+            ).hexdigest(),
+            "checks": [self.base_check()],
+        }
+        if mutate:
+            mutate(sidecar)
+        (sidecars / f"{self.VERSION}.json").write_text(
+            json.dumps(sidecar), encoding="utf-8"
+        )
+        return temp, root, migration
+
+    def assert_rejected(self, mutate, message, raw=None, migrations=True):
+        temp, root, migration = self.fixture(mutate, raw)
+        index = {self.VERSION: migration} if migrations else {}
+        with temp, self.assertRaisesRegex(GuardError, message):
+            load_behavior_sidecars(root, index, [self.VERSION])
+
+    def test_sidecar_top_level_must_be_an_object(self):
+        self.assert_rejected(None, "sidecar must be an object", raw=[])
+
+    def test_sidecar_schema_version_is_exact(self):
+        self.assert_rejected(
+            lambda sidecar: sidecar.update(schema_version=2),
+            "schema_version must be exactly 1",
+        )
+
+    def test_sidecar_migration_version_matches_filename(self):
+        self.assert_rejected(
+            lambda sidecar: sidecar.update(migration_version="20260101000001"),
+            f"migration_version must equal {self.VERSION}",
+        )
+
+    def test_sidecar_requires_the_migration_in_repository_index(self):
+        self.assert_rejected(
+            None, f"migration {self.VERSION} is missing from the repository", migrations=False
+        )
+
+    def test_sidecar_hash_must_be_lowercase_sha256(self):
+        self.assert_rejected(
+            lambda sidecar: sidecar.update(migration_sha256="NOT-A-SHA"),
+            "migration_sha256 must be lowercase SHA-256",
+        )
+
+    def test_checks_must_be_an_array(self):
+        self.assert_rejected(
+            lambda sidecar: sidecar.update(checks={}), "checks must be an array"
+        )
+
+    def test_each_check_must_be_an_object(self):
+        self.assert_rejected(
+            lambda sidecar: sidecar.update(checks=["not-an-object"]),
+            "check 0 must be an object",
+        )
+
+    def test_check_id_has_closed_lowercase_shape(self):
+        def mutate(sidecar):
+            sidecar["checks"][0]["id"] = "Bad-ID"
+
+        self.assert_rejected(mutate, "invalid check id")
+
+    def test_check_ids_are_unique_across_sidecars(self):
+        def mutate(sidecar):
+            sidecar["checks"].append(dict(sidecar["checks"][0]))
+
+        self.assert_rejected(mutate, "duplicate behavioral check id")
+
+    def test_expected_count_is_a_non_negative_integer_not_boolean(self):
+        def mutate(sidecar):
+            sidecar["checks"][0]["expected_count"] = True
+
+        self.assert_rejected(mutate, "expected_count must be a non-negative integer")
+
+    def test_catalog_contract_count_is_exactly_one(self):
+        def mutate(sidecar):
+            sidecar["checks"] = [{
+                "id": "catalog_contract_check",
+                "kind": "catalog_contract",
+                "contract": "popdam_1427_active_marker_v1",
+                "expected_count": 0,
+            }]
+
+        self.assert_rejected(mutate, "catalog contract expected_count must be 1")
+
+    def test_row_count_filters_are_a_non_empty_array(self):
+        def mutate(sidecar):
+            sidecar["checks"][0]["filters"] = []
+
+        self.assert_rejected(mutate, "filters must be a non-empty array")
+
+    def test_row_count_filter_columns_are_unique(self):
+        def mutate(sidecar):
+            filt = sidecar["checks"][0]["filters"][0]
+            sidecar["checks"][0]["filters"].append(dict(filt))
+
+        self.assert_rejected(mutate, "duplicate filter column")
+
+    def test_filter_scalar_type_is_allowlisted(self):
+        def mutate(sidecar):
+            sidecar["checks"][0]["filters"][0]["type"] = "decimal"
+
+        self.assert_rejected(mutate, "unsupported scalar type")
+
+    def test_text_filter_value_must_be_a_string(self):
+        def mutate(sidecar):
+            sidecar["checks"][0]["filters"][0]["equals"] = 7
+
+        self.assert_rejected(mutate, "text value must be a string")
+
+    def test_integer_filter_rejects_booleans(self):
+        def mutate(sidecar):
+            sidecar["checks"][0]["filters"][0].update(type="integer", equals=True)
+
+        self.assert_rejected(mutate, "integer value must be an integer")
+
+    def test_boolean_filter_requires_a_boolean(self):
+        def mutate(sidecar):
+            sidecar["checks"][0]["filters"][0].update(type="boolean", equals="true")
+
+        self.assert_rejected(mutate, "boolean value must be true or false")
+
+    def test_empty_checks_require_reviewed_marker_declaration(self):
+        self.assert_rejected(
+            lambda sidecar: sidecar.update(checks=[]),
+            "empty checks require a reviewed marker declaration",
+        )
+
+
+class CatalogBehaviorSqlMutationCoverageTests(unittest.TestCase):
+    """Focused falsification for every SQL-builder guard from issue #2376."""
+
+    def row_check(self):
+        return {
+            "id": "row_check",
+            "kind": "exact_row_count",
+            "relation": "core.property",
+            "filters": [{"column": "name", "type": "text", "equals": "Alice"}],
+            "expected_count": 1,
+            "migration_version": "20260101000000",
+        }
+
+    def test_builder_refuses_an_empty_check_list(self):
+        with self.assertRaisesRegex(GuardError, "without checks"):
+            build_behavior_sql([])
+
+    def test_builder_refuses_an_unknown_catalog_contract(self):
+        check = {
+            "id": "unknown_contract",
+            "kind": "catalog_contract",
+            "contract": "not_registered",
+            "expected_count": 1,
+            "migration_version": "20260101000000",
+        }
+        with self.assertRaisesRegex(GuardError, "unknown catalog contract"):
+            build_behavior_sql([check])
+
+    def test_builder_revalidates_row_relation(self):
+        check = self.row_check()
+        check["relation"] = "core.property; drop table core.property"
+        with self.assertRaisesRegex(GuardError, "unsafe behavioral relation"):
+            build_behavior_sql([check])
+
+    def test_builder_revalidates_row_filter_column(self):
+        check = self.row_check()
+        check["filters"][0]["column"] = "name) or true --"
+        with self.assertRaisesRegex(GuardError, "unsafe behavioral column"):
+            build_behavior_sql([check])
+
+    def test_builder_refuses_when_every_check_is_superseded(self):
+        check = self.row_check()
+        check["superseded_by"] = "20260102000000"
+        with self.assertRaisesRegex(GuardError, "every check is superseded"):
+            build_behavior_sql([check])
 
 
 if __name__ == "__main__":

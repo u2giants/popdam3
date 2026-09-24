@@ -1,7 +1,7 @@
-import json, re, subprocess, sys, unittest
+import hashlib, json, re, subprocess, sys, unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).parent))
-from production_owner_decision_evidence import SCHEMA, TARGET, gh, parse_comment, prove
+from production_owner_decision_evidence import SCHEMA, TARGET, artifact_for, gh, parse_comment, prove
 
 ONLY_BATCH=["20260813210000","20260813220000"]
 
@@ -46,6 +46,29 @@ class Tests(unittest.TestCase):
     def test_any_exact_ordered_batch_is_accepted(self):
         single={**self.data,"ordered_allowlist":["20260816045120"],"accepted_risks":["material_access_change"],"source_pr":1059}
         self.assertEqual(parse_comment(comment(single)),single)
+    def test_comment_requires_exact_machine_readable_fence(self):
+        malformed=comment(self.data,body=json.dumps(self.data))
+        with self.assertRaisesRegex(ValueError,"exact machine-readable form"):
+            parse_comment(malformed)
+    def test_comment_requires_exact_approved_schema(self):
+        invalid=[
+            {**self.data,"schema":"shared-db-production-owner-decision/v0"},
+            {**self.data,"approved":False},
+            {key:value for key,value in self.data.items() if key!="source_pr"},
+            {**self.data,"unexpected":True},
+        ]
+        for data in invalid:
+            with self.subTest(data=data):
+                with self.assertRaisesRegex(ValueError,"schema is incomplete or not approved"):
+                    parse_comment(comment(data))
+    def test_comment_requires_known_nonempty_risks(self):
+        for risks in ([],["unknown-risk"]):
+            with self.subTest(risks=risks):
+                with self.assertRaisesRegex(ValueError,"risks are missing or unknown"):
+                    parse_comment(comment({**self.data,"accepted_risks":risks}))
+    def test_comment_requires_production_target_workflow(self):
+        with self.assertRaisesRegex(ValueError,"targets another workflow"):
+            parse_comment(comment({**self.data,"target_workflow":".github/workflows/other.yml"}))
     def test_proof_rejects_comment_batch_that_differs_from_workflow_input(self):
         c=comment(self.data)
         def api(path): return c if "comments" in path else {"merged":True,"merge_commit_sha":"b"*40}
@@ -57,6 +80,38 @@ class Tests(unittest.TestCase):
         result=prove(7,"a"*40,ONLY_BATCH,924,api)
         self.assertEqual(result["commentId"],7)
         self.assertEqual(result["source_merge_sha"],"b"*40)
+
+    def test_artifact_requires_exact_successful_workflow_run(self):
+        expected={"status":"completed","conclusion":"success","event":"workflow_dispatch",
+                  "path":".github/workflows/production-owner-decision-evidence.yml"}
+        for key,bad in (("status","in_progress"),("conclusion","failure"),("event","push"),("path","other.yml")):
+            def api(path, key=key, bad=bad): return {**expected,key:bad}
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(ValueError,"exact successful workflow"):
+                    artifact_for(7,"sha256:any",lambda *_: None,api)
+
+    def test_artifact_requires_one_unexpired_digest_match(self):
+        digest="sha256:"+"a"*64
+        expected={"name":"production-owner-decision-7","digest":digest,"expired":False,"id":1}
+        variants=([],[expected,expected],[{**expected,"digest":"sha256:"+"b"*64}],[{**expected,"expired":True}])
+        run={"status":"completed","conclusion":"success","event":"workflow_dispatch",
+             "path":".github/workflows/production-owner-decision-evidence.yml"}
+        for artifacts in variants:
+            def api(path, artifacts=artifacts): return {"artifacts":artifacts} if "artifacts" in path else run
+            with self.subTest(artifacts=artifacts):
+                with self.assertRaisesRegex(ValueError,"missing, expired, or has the wrong digest"):
+                    artifact_for(7,digest,lambda *_: None,api)
+
+    def test_artifact_download_bytes_must_match_digest(self):
+        expected_bytes=b"expected archive bytes"
+        digest="sha256:"+hashlib.sha256(expected_bytes).hexdigest()
+        artifact={"name":"production-owner-decision-7","digest":digest,"expired":False,"id":1}
+        run={"status":"completed","conclusion":"success","event":"workflow_dispatch",
+             "path":".github/workflows/production-owner-decision-evidence.yml"}
+        def api(path): return {"artifacts":[artifact]} if "artifacts" in path else run
+        def download(_artifact_id,path): path.write_bytes(b"changed archive bytes")
+        with self.assertRaisesRegex(ValueError,"artifact bytes changed"):
+            artifact_for(7,digest,download,api)
 
     def test_github_read_retries_only_transient_transport_failures(self):
         responses=iter([

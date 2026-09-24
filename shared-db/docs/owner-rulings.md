@@ -39,6 +39,7 @@
 | [6.18](#618-owner-ruling-albert-does-not-sign-off-on-technical-risk-never-gate-on-a-judgement-he-cannot-make-albert-hazan-2026-08-18) | OWNER RULING — Albert does not sign off on technical risk; never gate on a judgement he cannot make (Albert Hazan, 2026-08-18) |
 | [6.19](#619-owner-ruling-contact-information-does-not-belong-in-this-system-at-all-except-popcrm-routing-email-albert-hazan-2026-09-06) | OWNER RULING — contact information does not belong in this system at all, except PopCRM routing email (Albert Hazan, 2026-09-06) |
 | [6.20](#620-owner-ruling-the-peanuts-property-is-the-art-program-not-the-retailer-initiative-and-wildbrains-era-and-creative-group-are-two-axes-not-a-choice-albert-hazan-2026-09-07) | OWNER RULING — the Peanuts property is the ART PROGRAM, not the retailer initiative; and WildBrain's era and creative group are two axes, not a choice (Albert Hazan, 2026-09-07) |
+| [6.21](#621-owner-ruling-no-new-direct-database-logins-albert-hazan-2026-09-23) | OWNER RULING — no new direct database logins (Albert Hazan, 2026-09-23) |
 
 ---
 
@@ -2013,3 +2014,13 @@ first real Sesame load. Do not put it to the owner before then.
 The remaining #1275 decisions — snapshot-row identity, join-row lifecycle meaning, DCP
 metadata-run baselines, Warner chunk-addressed baselines, and the bulk-withdrawal coverage
 contract — are engineering decisions and are **not** owner decisions (§6.18).
+
+### 6.21 OWNER RULING — no new direct database logins (Albert Hazan, 2026-09-23)
+
+No new database LOGIN roles, except for trusted in-house server services. Everything else reaches
+the database through the Data API with row-level security, or through edge functions. The full
+rule, Supabase's refusal to change the managed `net` schema, and the reviewed exception for the
+four DesignFlow services (issue #2873) are in
+[`docs/security/pg-net-direct-login-rule.md`](security/pg-net-direct-login-rule.md).
+Per §6.18, the technical risk judgement behind the exception is an engineering review
+(Qwen 3.8 Max, APPROVE, 2026-09-23), not an owner sign-off.

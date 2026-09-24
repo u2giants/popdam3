@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "generation": 5,
+  "work_issue": 3205,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add the fourth flavour of a check that never ran (a conflict-dirty PR starts no pull_request workflows) to AGENTS.md 5.2-A for issue 3205. Prose only: no rule is relaxed and no safeguard is removed.",
+  "base_sha": "c0bbed551d1b747bcf12f0b6ba4c8027a1781bf4",
+  "dispatcher": "Owner Albert Hazan authorized resolving open non-orchestrator issues in this repository",
+  "worker": "Claude chat 7545365a-8132-4fd6-b0a1-f737035df839 on edge-dev (landing session)",
+  "branch": "claude/3205-3306-checks-flavour-and-refactor-plan",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/land-3320-b4e2",
+  "allowed_paths": [
+    ".agent/work/3205/5/contract.json",
+    ".agent/work/3205/5/completion.json",
+    "AGENTS.md"
+  ],
+  "file_writes": [
+    ".agent/work/3205/5/contract.json",
+    ".agent/work/3205/5/completion.json",
+    "AGENTS.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database read, write, migration, or production command.",
+    "Do not relax, weaken, or remove any existing AGENTS.md rule; issue 3205 adds a missing case only.",
+    "Do not actually remove any administrative blocker or safeguard while publishing the issue 3306 plan; the plan proposes, it does not act."
+  ],
+  "required_checks": [
+    "node --test scripts/lib/documents-only-change.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "AGENTS.md and plan_*.md are rulebook files under scripts/lib/documents-only-change.mjs, so this pull request is not documents-only and takes the full reviewer draw and guarded merge.",
+    "Issue 3306 asks for a plan document to be published; it does not ask for any workflow or code change in this pull request.",
+    "Issue 3306 is no longer part of this pull request: its plan document was published by the tracker owner in PR #3318, merged to main on 2026-09-20, so this session dropped its own draft rather than overwrite another session work.",
+    "Refreshed by MERGING current main (never rebased), reissued as generation 4 at the keyed evidence path added by issue #2708.",
+    "Refreshed again by merging current main for landing; reissued as generation 5."
+  ],
+  "stop_conditions": [
+    "Stop if resolving either issue would require a code, workflow, or configuration change.",
+    "Stop if another open pull request is concurrently editing the same AGENTS.md section."
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "allowed_paths": [
+    "scripts/test_production_catalog_verification.py",
+    ".agent/work/2374/1/contract.json",
+    ".agent/work/2374/1/completion.json"
+  ],
+  "assumptions": [
+    "Issues #2374, #2375, and #2376 remain open non-orchestrator repository-maintenance work",
+    "Commit 50f303e4dbb3d4324a14ed60ce3cd7b6681f8e57 contains only the requested focused test coverage",
+    "Representative guard mutations are temporary local falsification probes and are fully restored before implementation is committed"
+  ],
+  "base_sha": "905ec8e29d1175ce8e312d9fb1c90dbff02e17ca",
+  "branch": "codex/2374-2376-keyed-evidence",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex chat 01a0c034-eefd-7253-8ce1-032a296ca926 on 916-alien",
+  "file_writes": [
+    "scripts/test_production_catalog_verification.py",
+    ".agent/work/2374/1/contract.json",
+    ".agent/work/2374/1/completion.json"
+  ],
+  "generation": 1,
+  "goal": "Add focused mutation coverage for catalog marker-review validation, behavior-sidecar loading, and behavioral SQL construction, resolving issues #2374, #2375, and #2376 without changing production behavior",
+  "prohibited_actions": [
+    "Do not change production verifier behavior, migrations, workflows, or database objects",
+    "Do not touch production or shared cloud infrastructure",
+    "Do not merge or close issues before merge-window coordination",
+    "Do not edit another session's branch, worktree, evidence pair, or handoff"
+  ],
+  "required_checks": [
+    "python -m unittest -q scripts/test_production_catalog_verification.py",
+    "git diff --check"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 1,
+  "stop_conditions": [
+    "Stop if implementation requires a file outside allowed_paths",
+    "Stop if a focused test fails after every temporary mutation is restored",
+    "Stop if the published contract generation already exists or does not read back identically",
+    "Stop immediately before guarded merge for merge-window coordination"
+  ],
+  "work_issue": 2374,
+  "work_type": "repo-maintenance",
+  "worker": "Codex subagent /root/triage_3100",
+  "worktree": "D:/repos/shared-db-2374-keyed-01a0c02e"
+}

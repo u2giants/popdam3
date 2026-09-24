@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "work_issue": 3205,
+  "outcome": "ready-for-merge",
+  "pr": 3320,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3205/5",
+  "contract_sha256": "634a2bea8519f8e0dc2f5ba90359011f0b5b3b18435b71178fd8601c8a6e0916",
+  "head_sha": "e7b97c2fd2b5aad17c2abad58d3bea249275e538",
+  "files_changed": [
+    "AGENTS.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/documents-only-change.test.mjs",
+      "exit_code": 0,
+      "evidence": "all tests pass, fail 0 cancelled 0, rerun after merging main at c0bbed55"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean against current main"
+    }
+  ],
+  "assumptions_resolved": [
+    "Confirmed against scripts/lib/documents-only-change.mjs that AGENTS.md and plan_*.md are rulebook paths, so this pull request is not documents-only and carries the full evidence pair and reviewer draw.",
+    "Ownership check: the only other open pull requests touching AGENTS.md are #3248 (2026-09-18) and #2607 (2026-09-08), neither updated within six hours and neither touching section 5.2-A.",
+    "Branch refreshed against current main on 2026-09-20; the conflict was the .agent evidence pair itself, exactly the treadmill this pull request documents in AGENTS.md 5.2-A.",
+    "Confirmed on main at 8cf89c5e that plan_shared_db_workflow_refactor.md is already published for issue 3306 by PR #3318; this pull request now changes AGENTS.md only.",
+    "Refreshed by merging main for landing (generation 5); approval carry-forward relies on the unchanged AGENTS.md diff."
+  ],
+  "stop_conditions_hit": []
+}

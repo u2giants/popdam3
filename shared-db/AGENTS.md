@@ -1159,6 +1159,31 @@ gh api repos/popcre/shared-db/actions/runs/<run-id>/jobs --jq '.jobs[] | {name, 
 A job whose steps are all `null`/empty never ran. Re-run it; do not go looking for a code defect,
 and above all do not "fix" a guard that never executed.
 
+**A FOURTH flavour: NO `pull_request` runs at all after a push — the PR is conflict-dirty
+(observed 2026-09-17, PR #3200).** When a push leaves a pull request with unresolvable
+conflicts, GitHub cannot build `refs/pull/<n>/merge`, so **no `pull_request` workflow starts at
+all**; only the `pull_request_target` ones run, because they check out the base. The symptom is
+not a red X — it is `gh pr checks` looking oddly **green**, with one or two contexts present and
+every guard that judges the merge tree silently absent. **That is indistinguishable from "checks
+passed" unless you count the contexts.** On 2026-09-17 three consecutive pushes to PR #3200
+(`6b32d131`, `987a446f`, `721cbd38`) produced only `Documents-only merge authorization`, and an
+empty-commit re-push did nothing at all; after merging current `main` into the branch and
+resolving the conflict, the very next push (`1819ad5d`) created all 19 check runs at once.
+**Know the discriminator:** a PR that merely LAGS `main` but still auto-merges cleanly runs
+everything normally — only the unresolvable-conflict state suppresses runs. This bit routinely
+here while every merged PR wrote its own `.agent/` evidence into the same two shared paths, so
+each such merge conflicted every open PR that also carried a pair; issue #2708 moved that evidence
+to `.agent/work/<issue>/<generation>/` on 2026-09-20, which removes that particular cause but not
+this failure mode, which any conflict produces. Before concluding that checks were lost, run:
+
+```bash
+gh pr view <n> --json mergeable,mergeStateStatus
+```
+
+`mergeable: CONFLICTING` / `mergeStateStatus: DIRTY` is this flavour. The cure is refreshing the
+branch against current `main` and resolving the conflict — never another re-push, and never a
+retry of a guard that never started.
+
 ## 6. How to tell if a change is already in flight
 
 Before starting database work, run these and read the result:

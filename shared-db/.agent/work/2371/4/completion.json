@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_issue": 2371,
+  "outcome": "ready-for-merge",
+  "pr": 3188,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2371/4",
+  "contract_sha256": "9bfe86b3b72724187ef4f180c4c4561eb4fdeaf73ed386d4597bed2458a221d7",
+  "head_sha": "28100c85e04edfb9706112d403544710ab6f43c2",
+  "files_changed": [
+    "scripts/test_production_owner_decision_evidence.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -m unittest scripts/test_production_owner_decision_evidence.py",
+      "exit_code": 0,
+      "evidence": "Ran exactly as recorded on the generation-4 head: all tests OK"
+    },
+    {
+      "command": "GITHUB_REPOSITORY=popcre/shared-db python scripts/mutation_sweep_guards.py --file scripts/production_owner_decision_evidence.py --command \"python -m unittest scripts/test_production_owner_decision_evidence.py\" --out .ai/mutation-sweep-2371.json",
+      "exit_code": 0,
+      "evidence": "Ran exactly as recorded; report written to the --out path. 15 of 17 guards caught. Assigned guards 8-11 and 14-16 (lines 74, 78, 81, 83, 99, 103, 107) all caught. Survivors: 13 (line 92, merged PR / merge commit check) and 17 (line 112, stored-vs-live ruling equality), which were 12 and 16 before the upstream insert and are outside issue 2371's assignment"
+    },
+    {
+      "command": "python -m unittest scripts/test_atomic_migration_apply.py scripts/test_check_pass2_routine_supersession.py scripts/test_production_business_risk_gate.py scripts/test_production_apply_review_evidence.py scripts/test_production_migration_guard.py scripts/test_production_owner_decision_evidence.py scripts/test_preview_instance_binding.py scripts/test_historical_preview_recovery.py scripts/test_production_catalog_verification.py scripts/test_post_batch_app_verification.py",
+      "exit_code": 0,
+      "evidence": "Ran exactly as recorded: all OK"
+    }
+  ],
+  "assumptions_resolved": [
+    "Implementation unchanged from the generation 1 head 89581bf1; this generation only merges current main and moves evidence to the keyed path (#2708)."
+  ],
+  "stop_conditions_hit": []
+}
