@@ -1,0 +1,42 @@
+{
+  "allowed_paths": [
+    ".agent/work/2372/2/contract.json",
+    ".agent/work/2372/2/completion.json",
+    "scripts/test_production_owner_decision_evidence.py"
+  ],
+  "assumptions": [
+    "Issue #2372 remains open, ready, unassigned, and has no open pull request or dependency",
+    "Refreshed for landing by merging current main (including #3188 for issue 2371 and #3443); evidence moved from the legacy .agent/contract.json to the keyed path .agent/work/2372/2/ as generation 2 (#2708). Assigned guards 12 and 16 are now numbered 13 (line 92) and 17 (line 112) after the upstream owner-identity guard insert."
+  ],
+  "base_sha": "25b7172fd5b5a2f07f427a9bbccbadd2fbfc6888",
+  "branch": "codex/issue-2372-artifact-proof",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex root session acting on Albert's request to resolve six unblocked non-orchestrator issues",
+  "file_writes": [
+    ".agent/work/2372/2/contract.json",
+    ".agent/work/2372/2/completion.json",
+    "scripts/test_production_owner_decision_evidence.py"
+  ],
+  "generation": 2,
+  "goal": "Add focused falsification coverage proving owner-decision evidence rejects an unmerged or mismatched source commit and rejects an immutable artifact that differs from the fresh authenticated owner ruling.",
+  "prohibited_actions": [
+    "No database read, write, or structure change",
+    "No production workflow dispatch",
+    "No weakening or removal of owner-decision refusal guards"
+  ],
+  "required_checks": [
+    "python -m unittest scripts/test_production_owner_decision_evidence.py",
+    "GITHUB_REPOSITORY=popcre/shared-db python scripts/mutation_sweep_guards.py --file scripts/production_owner_decision_evidence.py --command \"python -m unittest scripts/test_production_owner_decision_evidence.py\" --out .ai/mutation-sweep-2372.json"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 1,
+  "stop_conditions": [
+    "Stop if either assigned mutation survives",
+    "Stop if live ownership or a dependency appears"
+  ],
+  "work_issue": 2372,
+  "work_type": "repo-maintenance",
+  "worker": "Claude chat 7545365a-8132-4fd6-b0a1-f737035df839 on edge-dev (landing session)",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/land-3214-c9d2"
+}

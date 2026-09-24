@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "work_issue": 2372,
+  "outcome": "ready-for-merge",
+  "pr": 3214,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2372/2",
+  "contract_sha256": "8b6d125ac6bd25e92d53362ff98f55bb05198e060bf84f36c6bac35d88685639",
+  "head_sha": "0c473b67f03706bbdd0bcda5bd1828a249c1c43d",
+  "files_changed": [
+    "scripts/test_production_owner_decision_evidence.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -m unittest scripts/test_production_owner_decision_evidence.py",
+      "exit_code": 0,
+      "evidence": "Ran exactly as recorded on the refreshed head: 24 tests OK"
+    },
+    {
+      "command": "GITHUB_REPOSITORY=popcre/shared-db python scripts/mutation_sweep_guards.py --file scripts/production_owner_decision_evidence.py --command \"python -m unittest scripts/test_production_owner_decision_evidence.py\" --out .ai/mutation-sweep-2372.json",
+      "exit_code": 0,
+      "evidence": "Ran exactly as recorded; report written to the --out path. 0 of 17 guards survived. Assigned guards 13 (line 92, merged PR / merge commit check) and 17 (line 112, stored-vs-live ruling equality), numbered 12 and 16 before the upstream insert, are caught."
+    }
+  ],
+  "assumptions_resolved": [
+    "Live issue and pull-request searches showed #2372 open, ready, unassigned, with no dependency or existing pull request.",
+    "Generation 2 only merges current main and moves evidence to the keyed path (#2708); the tests themselves are unchanged from generation 1."
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,7 +1,8 @@
 import hashlib, json, re, subprocess, sys, unittest
+from unittest import mock
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).parent))
-from production_owner_decision_evidence import SCHEMA, TARGET, artifact_for, gh, parse_comment, prove
+from production_owner_decision_evidence import SCHEMA, TARGET, artifact_for, gh, parse_comment, prove, verify_artifact
 
 ONLY_BATCH=["20260813210000","20260813220000"]
 
@@ -80,6 +81,25 @@ class Tests(unittest.TestCase):
         result=prove(7,"a"*40,ONLY_BATCH,924,api)
         self.assertEqual(result["commentId"],7)
         self.assertEqual(result["source_merge_sha"],"b"*40)
+
+    def test_proof_rejects_unmerged_or_different_source_commit(self):
+        c=comment(self.data)
+        for pull_request in [
+            {"merged":False,"merge_commit_sha":"b"*40},
+            {"merged":True,"merge_commit_sha":"c"*40},
+        ]:
+            with self.subTest(pull_request=pull_request):
+                def api(path): return c if "comments" in path else pull_request
+                with self.assertRaisesRegex(ValueError,"source merge is not proved"):
+                    prove(7,"a"*40,ONLY_BATCH,924,api)
+
+    def test_artifact_must_equal_fresh_authenticated_owner_ruling(self):
+        stored={"commentId":7,"commentBodySha256":"stored"}
+        live={"commentId":7,"commentBodySha256":"changed"}
+        with mock.patch("production_owner_decision_evidence.artifact_for",return_value=stored), \
+             mock.patch("production_owner_decision_evidence.prove",return_value=live):
+            with self.assertRaisesRegex(ValueError,"no longer matches immutable evidence"):
+                verify_artifact(99,"sha256:"+"d"*64,"a"*40,ONLY_BATCH,924,lambda *_: None)
 
     def test_artifact_requires_exact_successful_workflow_run(self):
         expected={"status":"completed","conclusion":"success","event":"workflow_dispatch",
