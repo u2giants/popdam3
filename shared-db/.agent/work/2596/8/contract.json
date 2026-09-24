@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "work_issue": 2596,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Make a prose-only handoff avoid the inapplicable disposable database contract test while preserving every other merge safeguard.",
+  "base_sha": "296486dd7f76b54ed127e79ca23f0dabefd8167e",
+  "dispatcher": "Albert Hazan direct request",
+  "worker": "Codex",
+  "branch": "codex/issue-2596-bounded-handover",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/land-2607-e3f8",
+  "allowed_paths": [
+    ".agent/work/2596/8/contract.json",
+    ".agent/work/2596/8/completion.json",
+    ".github/workflows/agent-work-contract.yml",
+    ".github/workflows/database-contract-tests.yml",
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/migration-author-lease.yml",
+    "AGENTS.md",
+    "HANDOFF.d/2026-09-08T1924Z-edge-dev-codex-handover-latency-plan.md",
+    "plan_bounded_session_handover.md",
+    "scripts/check-closeout-readiness.mjs",
+    "scripts/check-closeout-readiness.test.mjs"
+  ],
+  "file_writes": [
+    ".agent/work/2596/8/contract.json",
+    ".agent/work/2596/8/completion.json",
+    ".github/workflows/agent-work-contract.yml",
+    ".github/workflows/database-contract-tests.yml",
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/migration-author-lease.yml",
+    "AGENTS.md",
+    "HANDOFF.d/2026-09-08T1924Z-edge-dev-codex-handover-latency-plan.md",
+    "plan_bounded_session_handover.md",
+    "scripts/check-closeout-readiness.mjs",
+    "scripts/check-closeout-readiness.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database, preview, production, repository-setting, or orchestrator-marker mutation.",
+    "No reviewer bypass, required-context removal, or merge-path replacement.",
+    "Do not change paths outside this contract."
+  ],
+  "required_checks": [
+    "node --test scripts/check-closeout-readiness.test.mjs scripts/check-documents-only-pull-request.test.mjs scripts/lib/documents-only-change.test.mjs scripts/database-contract-authorization.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "PR #2592 remains the source of the documents-only contract exemption and is not rebuilt.",
+    "The protected base revision is the only executable policy allowed to make the inapplicability decision.",
+    "Automatic guarded dispatch and ownership fencing remain later milestones.",
+    "Refreshed for landing by merging current main; evidence moved from legacy .agent/contract.json to keyed path .agent/work/2596/8/ (#2708). The closeout test's plan-file row was replaced by AGENTS.md and a skill file because main's classifier now treats plan files as documents. The paired handoff is retired because this PR closes #2596."
+  ],
+  "stop_conditions": [
+    "A required check fails or the trusted classifier cannot read the complete pull-request file list.",
+    "Main movement invalidates the branch evidence.",
+    "The change would require a database, production, security-setting, or live-orchestrator action."
+  ],
+  "generation": 8
+}

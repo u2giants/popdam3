@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 2596,
+  "outcome": "ready-for-merge",
+  "pr": 2607,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2596/8",
+  "contract_sha256": "27eec12a0e88586e5e193c4e51f3bbbf62bc219d99a5a6e2023383a3c5f5479f",
+  "base_sha": "bcf7d32fd130ca43859876e9c6c70c88207b549d",
+  "head_sha": "089ea4e4d37673428e6ef7e992f874ba986cf3f5",
+  "files_changed": [
+    ".github/workflows/agent-work-contract.yml",
+    ".github/workflows/database-contract-tests.yml",
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/migration-author-lease.yml",
+    "AGENTS.md",
+    "plan_bounded_session_handover.md",
+    "scripts/check-closeout-readiness.mjs",
+    "scripts/check-closeout-readiness.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-closeout-readiness.test.mjs scripts/check-documents-only-pull-request.test.mjs scripts/lib/documents-only-change.test.mjs scripts/database-contract-authorization.test.mjs",
+      "exit_code": 0,
+      "evidence": "Ran exactly as recorded on the revised implementation head: 41 tests, 41 pass, 0 fail"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "git diff --check origin/main HEAD reported nothing"
+    }
+  ],
+  "assumptions_resolved": [
+    "Refreshed from current main; merge conflicts in four files resolved by keeping both sides; evidence moved to keyed gen 8 path; paired handoff retired because this PR closes #2596.",
+    "Addressed Grok REVISE at 2ed612a3: lock-held approval re-check runs trusted-policy; documents-only exemption decided on merge_group after queue resolution; any classifier outcome other than a positive inapplicable answer selects the full database run; pull-requests: read granted; classify checks out base.sha."
+  ],
+  "stop_conditions_hit": []
+}
