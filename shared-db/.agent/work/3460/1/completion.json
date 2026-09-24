@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 3460,
+  "outcome": "ready-for-merge",
+  "pr": 3456,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3460/1",
+  "contract_sha256": "d7348f3add6b5c09ad5277abeffddf45f8985c17f8fa6e45b8a3bc8d9f580660",
+  "head_sha": "318347b1de96857860082375fea1d8eabbbb7fd1",
+  "base_sha": "e76a796acbae9d8181175539b544f123e317bdc4",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "pass 692, fail 0 at implementation 318347b1"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=317"
+    }
+  ],
+  "assumptions_resolved": [
+    "the #3456 diff applied cleanly to main e76a796a with no rework"
+  ],
+  "stop_conditions_hit": []
+}

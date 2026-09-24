@@ -5,6 +5,7 @@ const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAs
 import test from 'node:test'
 import { namedHold, urgentHoldDetail, urgentHoldReason } from './manage-migration-author-lanes.mjs'
 import { rebindClaimWorktree, claimWorktreeRebindRef } from './manage-migration-author-lanes.mjs'
+import { allocatableReviewers, reconcilePreflightRows } from './manage-migration-author-lanes.mjs'
 import { validateHoldReasonRecord } from './lib/hold-reason.mjs'
 import { ENGINES } from './lib/orchestrator-routing.mjs'
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
@@ -792,6 +793,33 @@ test('#2705 reviewer assignment refuses when reconciled preflight state is unrea
   io.reviewerUsability=()=>{throw new LaneError('ai-review-preflight returned no reconciled state for gemini')}
   assert.throws(()=>assignNextReviewer({issue:2705,pr:2706,headSha:'b'.repeat(40)},io),/no reconciled state/)
   assert.equal(io.refs.has(REVIEW_CURSOR_REF),false,'an unreadable preflight must not consume a sequence')
+})
+
+test('a provider with no reconciled row is skipped, never blocks the other reviewers',()=>{
+  const io=reviewIo(), missing=ACTIVE_REVIEWERS[0]
+  const output=ACTIVE_REVIEWERS.filter((row)=>row.provider!==missing.provider).map((row)=>JSON.stringify(usableAdmission(row))).join('\n')
+  io.reviewerUsability=(reviewers)=>reconcilePreflightRows(output,reviewers)
+  const stub=reconcilePreflightRows(output,ACTIVE_REVIEWERS).get(missing.provider)
+  assert.equal(stub.usable,false);assert.equal(stub.status,'no-reconciled-state');assert.equal(stub.failure_class,'preflight-no-row')
+  const assigned=assignNextReviewer({issue:2705,pr:2706,headSha:'d'.repeat(40)},io)
+  assert.notEqual(assigned.reviewer,missing.name)
+  assert.equal(assigned.sequence,1,'skipping a provider with no row must not burn a durable sequence')
+  const {unusable}=allocatableReviewers(io)
+  assert.equal(unusable.get(missing.name)?.status,'no-reconciled-state')
+})
+
+test('an empty or unparseable preflight fails closed before any sequence is consumed',()=>{
+  for(const output of ['','not json\nstill not json']){
+    assert.throws(()=>reconcilePreflightRows(output,ACTIVE_REVIEWERS),/no reconciled state for any provider/)
+    const io=reviewIo()
+    io.reviewerUsability=(reviewers)=>reconcilePreflightRows(output,reviewers)
+    assert.throws(()=>assignNextReviewer({issue:2705,pr:2706,headSha:'e'.repeat(40)},io),/no reconciled state for any provider/)
+    assert.equal(io.refs.has(REVIEW_CURSOR_REF),false)
+  }
+  const stray=JSON.stringify({provider:'not-requested',usable:true})
+  assert.throws(()=>reconcilePreflightRows(stray,ACTIVE_REVIEWERS),/no reconciled state for any provider/)
+  const partial=JSON.stringify(usableAdmission(ACTIVE_REVIEWERS[1]))
+  assert.throws(()=>reconcilePreflightRows(partial,ACTIVE_REVIEWERS,{complete:false}),/cut off before reporting/)
 })
 
 test('#2705 reviewer assignment refuses malformed reconciled state before durable mutation',()=>{

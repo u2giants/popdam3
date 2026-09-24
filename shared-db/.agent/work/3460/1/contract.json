@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "work_issue": 3460,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Carry PR #3456 (taken over from an idle session): one provider missing from the reviewer preflight becomes unusable for that draw only instead of refusing every reviewer draw; an empty preflight still refuses",
+  "base_sha": "e76a796acbae9d8181175539b544f123e317bdc4",
+  "dispatcher": "coordinator takeover of PR #3456 for issue #3460",
+  "worker": "claude",
+  "branch": "fix/preflight-missing-row-per-provider-0923",
+  "worktree": ".claude/worktrees/take-3456-1790227390",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not weaken the fail-closed refusal when the preflight returns no rows at all"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "assumptions": [
+    "the original #3456 diff still applies to current main without behavioural rework"
+  ],
+  "stop_conditions": [
+    "stop if the #3456 diff conflicts with current main in a way that changes behaviour"
+  ]
+}

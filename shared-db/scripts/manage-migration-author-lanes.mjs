@@ -674,6 +674,24 @@ export function reviewerAdmissionAllowed(row,overrides={},now=Date.now()){
   return admission.policy_expires_epoch<=Math.floor(now/1000)
 }
 
+export function reconcilePreflightRows(output,reviewers,{complete=true}={}){
+  const rows=[]
+  for(const line of output.split(/\r?\n/).filter(Boolean)){
+    try{const row=JSON.parse(line);if(typeof row?.provider==='string'&&typeof row?.usable==='boolean')rows.push(row)}catch{/* explanatory output is not provider state */}
+  }
+  const requested=new Set(reviewers.map((reviewer)=>reviewer?.provider))
+  if(!rows.some((row)=>requested.has(row.provider)))throw new LaneError('ai-review-preflight returned no reconciled state for any provider; reviewer assignment refused')
+  const byProvider=new Map(rows.map((row)=>[row.provider,row]))
+  for(const reviewer of reviewers){
+    if(!reviewer?.provider)throw new LaneError(`reviewer ${reviewer?.name??'unknown'} has no ai-review-preflight provider identity`)
+    // A provider with no reconciled row is UNUSABLE for this draw, never a
+    // reason to refuse every other reviewer (one Qwen fault blocked all draws).
+    if(!byProvider.has(reviewer.provider)&&!complete)throw new LaneError(`ai-review-preflight was cut off before reporting ${reviewer.provider}; reviewer assignment refused`)
+    if(!byProvider.has(reviewer.provider))byProvider.set(reviewer.provider,{provider:reviewer.provider,status:'no-reconciled-state',failure_class:'preflight-no-row',usable:false,admission:{state:'unknown',reason:'no-reconciled-state'}})
+  }
+  return byProvider
+}
+
 export function allocatableReviewers(io){
   const independent=reviewersForOrchestrator(io.resolveOrchestratorEngine?.())
   if(!independent.length)throw new LaneError('no reviewer is independent from the live orchestrator engine')
@@ -684,8 +702,10 @@ export function allocatableReviewers(io){
   for(const row of independent){
     const state=usability.get(row.provider)
     if(state?.provider!==row.provider)throw new LaneError('reviewer admission provider identity does not match the requested provider; no sequence or lease was consumed')
-    const allowed=reviewerAdmissionAllowed(state,io.reviewerAdmissionOverrides?.(row)??{})
-    reconciled.set(row.provider,{...state,usable:state.usable===true&&allowed,...(!allowed?{status:'admission-backoff',failure_class:'observed-usage-limit'}:{})})
+    // An already-unusable provider is skipped without judging its admission
+    // record, so one provider's bad or absent entry cannot block the others.
+    const allowed=state?.usable===true&&reviewerAdmissionAllowed(state,io.reviewerAdmissionOverrides?.(row)??{})
+    reconciled.set(row.provider,{...state,usable:state.usable===true&&allowed,...(state.usable===true&&!allowed?{status:'admission-backoff',failure_class:'observed-usage-limit'}:{})})
   }
   const usable=(row)=>reconciled.get(row.provider)?.usable===true
   return {
@@ -2883,17 +2903,8 @@ export const githubIo = {
       :{file:resolved,args}
     let output=''
     try{output=execFileSync(spawn.file,spawn.args,{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:REVIEWER_DOCTOR_TIMEOUT_MS})}
-    catch(error){output=String(error?.stdout??'')}
-    const rows=[]
-    for(const line of output.split(/\r?\n/).filter(Boolean)){
-      try{const row=JSON.parse(line);if(typeof row?.provider==='string'&&typeof row?.usable==='boolean')rows.push(row)}catch{/* explanatory output is not provider state */}
-    }
-    const byProvider=new Map(rows.map((row)=>[row.provider,row]))
-    for(const reviewer of reviewers){
-      if(!reviewer?.provider)throw new LaneError(`reviewer ${reviewer?.name??'unknown'} has no ai-review-preflight provider identity`)
-      if(!byProvider.has(reviewer.provider))throw new LaneError(`ai-review-preflight returned no reconciled state for ${reviewer.provider}; reviewer assignment refused`)
-    }
-    return byProvider
+    catch(error){output=String(error?.stdout??'');if(error?.code==='ETIMEDOUT'||error?.signal)return reconcilePreflightRows(output,reviewers,{complete:false})}
+    return reconcilePreflightRows(output,reviewers)
   },
   resolveOrchestratorEngine(){
     return orchestratorEngineFromResolution(readOrchestratorResolution(()=>runOrchestratorResolver()))
@@ -6494,7 +6505,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
   let requestedAllowlist=canonicalReviewerAllowlist(reviewerAllowlist)
   let effectiveAllowlist=requestedAllowlist
   const concurrentLeases=Boolean(io.requiresExactReviewHeadSha)
-  const {eligible}=allocatableReviewers(io)
+  const {eligible,unusable}=allocatableReviewers(io)
   let eligibleNames=new Set(eligible.filter((row)=>reviewerAllowed(row.name,effectiveAllowlist)).map((row)=>row.name))
   // A LOCAL fault is not the reviewer's fault. Replacing on one spends a
   // rotation slot and records permanent evidence against a provider that was
@@ -6750,7 +6761,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
       // reviewers, and only when busy is the sole reason. A provider excluded
       // for independence or eligibility is named under that real reason.
       const busyList=(concurrentLeases?[]:[...preflightBusy]).filter((name)=>!failedNames.has(name)&&ACTIVE_REVIEWERS.some((row)=>row.name===name)&&eligibleNames.has(name)&&!excludedProviders.has(name)&&!preflightExclusions.has(name)).map((name)=>{const rows=preflightBusy.byReviewer?.get(name)??(preflightBusy.leases.get(name)?[preflightBusy.leases.get(name)]:[]);return `${name}${rows.map((row)=>` #${row.lease.issue}/PR #${row.lease.pr}`).join('')}`})
-      const unavailable=ACTIVE_REVIEWERS.map((row)=>row.name).filter((name)=>!failedNames.has(name)&&(!eligibleNames.has(name)||excludedProviders.has(name)||preflightExclusions.has(name))).map((name)=>`${name} (${!eligibleNames.has(name)?'ineligible':excludedProviders.has(name)?'holds another slot on this pull request':'excluded for this issue'})`)
+      const unavailable=ACTIVE_REVIEWERS.map((row)=>row.name).filter((name)=>!failedNames.has(name)&&(!eligibleNames.has(name)||excludedProviders.has(name)||preflightExclusions.has(name))).map((name)=>`${name} (${!eligibleNames.has(name)?(unusable.has(name)?`unusable by ai-review-preflight (${unusable.get(name)?.status})`:'ineligible'):excludedProviders.has(name)?'holds another slot on this pull request':'excluded for this issue'})`)
       const releaseCommand=failedReviewerReleaseCommand(request,{failureCode,failingCheck})
       const compatiblePrefix=request.slot===1?'no other reviewer is available':'no other independent reviewer is available for slot '+request.slot
       throw new LaneError(`${compatiblePrefix}; no replacement reviewer is available: ${failedList.length} of ${ACTIVE_REVIEWERS.length} already failed on this exact head (${failedList.join(', ')||'none'}); ${busyList.length} of ${ACTIVE_REVIEWERS.length} hold other live leases (${busyList.join(', ')||'none'}); ${unavailable.length} are otherwise ineligible or excluded (${unavailable.join(', ')||'none'}). If this failed holder must be freed before another terminal holder can be reclaimed, run ${releaseCommand}.`)
