@@ -23,6 +23,16 @@ design history, never cherry-picked). This is repository maintenance; it changes
 - After a migration-bearing merge, the next merge group waits until that exact `main` commit carries
   `Post-merge preview rehearsal: success`, posted only by a successful post-merge rehearsal run of
   `.github/workflows/shared-supabase-migrations.yml` (never on failure, never manually).
+- **Queue interlock through the mutation** (issue #3421). The preview hold can wait 25 minutes after
+  the gate first reads authorization, and a production freeze in that window revokes the PR-head
+  status and takes the production lane. A stale pre-wait read must never authorize the merge. The
+  `authorize` job (`Queue interlock`) therefore owns the asynchronous mutation, not merely the status
+  posting: it acquires the exclusive merge lane, re-reads PR-head authorization and the production
+  interlock under that lock (`merge-queue-contract.mjs --recheck-interlock`), posts group-SHA success
+  only when both are live and clear, and **holds the lane until GitHub lands the actual merge**.
+  Failure after posting revokes the group-SHA status (fail-closed). The `authorize` job is
+  intentionally not a required check-run — a required check still running would deadlock the group.
+  This does not activate the merge queue.
 - Every required context reports on `merge_group`. Checks whose PR-only payload is absent either
   re-resolve the one queued PR through the queue ref (agent work contract, handoff contract) or defer
   their event-specific operation to `Merge queue gate` (cross-PR object collision, migration author
@@ -76,6 +86,9 @@ checks from `main`, where the workflows did not exist yet, and the queue would c
   re-queued after the hold clears; nothing is merged partially.
 - A failed rehearsal means the next group stays blocked. Recover preview through the existing
   governed procedures; never post the status manually and never bypass with `--admin`.
+- If the queue mutation does not land within the `authorize` job's hold budget, the job revokes the
+  group-SHA `Migration guarded merge authorization` status and releases the merge lane. Re-run the
+  guarded lane after the cause clears; never post the group status manually.
 
 ## Queue-only rollback
 
