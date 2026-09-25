@@ -72,8 +72,9 @@ export interface OpenRouterBatchJobState {
   last_checked_at?: string;
   /** Consecutive temporary provider GET failures; drives poll backoff only. */
   transient_poll_failures?: number;
-  /** Written only by reset_bulk_operation_submission_lease (shared-db #3418). */
+  /** Written only by reset_bulk_operation_submission_lease (shared-db #3418, widened #3464). */
   last_definitive_rejection_status?: number;
+  last_definitive_rejection_reason?: string;
   last_definitive_rejection_at?: string;
   submission_owner?: string;
   lease_expires_at?: string;
