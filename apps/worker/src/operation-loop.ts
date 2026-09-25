@@ -813,6 +813,40 @@ export async function persistOpState(
   return allOps[opKey]?.status === "running";
 }
 
+/**
+ * Second half of finishing a provider job: the receipt-proven terminal clear of
+ * the exact stored "completed" job, issued immediately after it was saved.
+ * Returns true when the job was cleared.
+ */
+export async function clearCompletedJobNow(
+  opKey: string,
+  saved: { ok: boolean; state_revision: number; operation?: unknown },
+  leaseToken: string,
+  persist: typeof guardedPersistOpState = guardedPersistOpState,
+): Promise<boolean> {
+  const stored = saved.operation as OpState | undefined;
+  const storedJob = stored?.external_job;
+  if (!stored || storedJob?.phase !== "completed" || !storedJob.provider_batch_id) return false;
+  const clearState: OpState = {
+    ...stored,
+    status: storedJob.operation_done_after_clear === true ? "completed" : "running",
+    external_job: { ...storedJob, lease_token: leaseToken, clear_after_reconciliation: true },
+    updated_at: new Date().toISOString(),
+  };
+  try {
+    const cleared = await persist(opKey, clearState, { expectedRevision: saved.state_revision });
+    if (!cleared.ok) {
+      logger.warn("tick: immediate clear of a completed provider job was refused; the next tick retries it", { opKey, reason: cleared.reason });
+      return false;
+    }
+  } catch (error) {
+    logger.warn("tick: immediate clear of a completed provider job failed; the next tick retries it", { opKey, error: normalizeBatchError(error, "clear failed").slice(0, 200) });
+    return false;
+  }
+  submissionLeaseTokens.delete(opKey);
+  return true;
+}
+
 /** True when a waiting running operation needs a heartbeat to stay clear of the stale guard. */
 export function needsWaitHeartbeat(op: OpState, nowMs = Date.now()): boolean {
   if (op.status !== "running" || !op.updated_at) return false;
@@ -1301,7 +1335,17 @@ export async function tick(): Promise<void> {
         expectedRevision: currentState.state_revision ?? 0,
       });
       if (!saved.ok) throw new Error(`Protected provider state save refused: ${saved.reason}`);
-      if (result.done || resultJob.clear_after_reconciliation) submissionLeaseTokens.delete(opKey);
+      if (result.done || resultJob.clear_after_reconciliation) {
+        submissionLeaseTokens.delete(opKey);
+        return;
+      }
+      if (resultJob.phase === "completed") {
+        // Clear right away while this worker still holds the receipt. The
+        // database only clears a stored "completed" job with a live receipt and
+        // never re-issues one for it, so waiting for the next tick would leave a
+        // restart in between with a job that can never be cleared.
+        await clearCompletedJobNow(opKey, saved, resultJob.lease_token);
+      }
       return;
     }
 
