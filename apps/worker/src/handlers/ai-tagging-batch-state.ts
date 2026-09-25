@@ -87,10 +87,17 @@ export function isTransientProviderPollError(error: unknown): boolean {
   return error.name === "TypeError" && /fetch failed|terminated|network|socket|ECONN|ETIMEDOUT|EAI_AGAIN/i.test(error.message);
 }
 
-/** 30 s doubling to a 10 min ceiling; the job stays resumable indefinitely. */
+/**
+ * Ceiling for a provider retry/poll backoff. Kept strictly below the operation
+ * loop's 10-minute stale guard (STALE_RUN_MINUTES) so a backoff can never look
+ * like a dead run; the loop also heartbeats while an operation waits.
+ */
+export const MAX_PROVIDER_RETRY_DELAY_MS = 5 * 60 * 1000;
+
+/** 30 s doubling to a 5 min ceiling; the job stays resumable indefinitely. */
 export function transientPollDelayMs(consecutiveFailures: number): number {
   const exponent = Math.max(0, Math.min(consecutiveFailures, 10));
-  return Math.min(30_000 * 2 ** exponent, 600_000);
+  return Math.min(30_000 * 2 ** exponent, MAX_PROVIDER_RETRY_DELAY_MS);
 }
 
 /**
