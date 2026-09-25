@@ -28,6 +28,7 @@ import {
   submitPreparedProviderBatch,
   batchJobIdentity,
   getBatchProviderApiKey,
+  submittedAccountMismatch,
   submittedIdentity,
   type DurableBatchProvider,
   type PreparedProviderBatch,
@@ -60,6 +61,8 @@ const AI_TIMEOUT_MS = 60_000;
 // Kept in sync with the live production primary (see getVisionModels()).
 const DEFAULT_VISION_MODEL = "qwen/qwen3-vl-32b-instruct";
 const SAME_MODEL_STRUCTURED_RETRY_COUNT = 1;
+/** Items applied per dispatch before their outcomes are checkpointed on the job. */
+export const APPLY_CHECKPOINT_ITEMS = 5;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidUuid(v: unknown): v is string {
@@ -596,7 +599,7 @@ async function handleDurableBatchTag(
         ...job,
         // Stamp the identity the batch was actually sent with, so polling and
         // applying never re-read it from Settings (legacy jobs lacked it).
-        ...submittedIdentity(identity),
+        ...submittedIdentity(identity, apiKey),
         phase: "pending",
         provider_batch_id: created.id,
         submitted_at: new Date().toISOString(),
@@ -607,6 +610,13 @@ async function handleDurableBatchTag(
       ...(preparedSubmission.accounting ?? NO_ACCOUNTING),
       last_stage: "model_inference",
     };
+  }
+
+  // A batch lives in the account that submitted it; never poll or apply it
+  // with a different account's key. Stop visibly (resumable once restored).
+  const accountMismatch = submittedAccountMismatch(job, apiKey);
+  if (accountMismatch) {
+    return { ok: false, done: false, error: accountMismatch, error_code: "credential_changed", external_job: { ...job, lease_token: job.lease_token } };
   }
 
   let record;
@@ -687,9 +697,26 @@ async function handleDurableBatchTag(
     expectedResultIds,
     batchProvider === "google-gemini" ? correlateOrderedResults(expectedResultIds, providerResults) : providerResults,
   );
-  let tagged = 0, failed = 0;
-  const failureSamples = [];
-  for (const item of job.items ?? []) {
+  // Per-item checkpoints: each item's outcome is saved on the job, so a crash or
+  // a paused repair resumes after the last saved item instead of re-applying
+  // (and re-repairing) the whole batch. Counts are reported once per item.
+  const items = (job.items ?? []).map((item) => ({ ...item }));
+  let tagged = 0, failed = 0, processed = 0;
+  const failureSamples: Array<Record<string, unknown>> = [];
+  const checkpoint = (extra: Record<string, unknown> = {}) => ({
+    ...job, items, phase: "applying" as const, lease_token: job.lease_token, last_checked_at: new Date().toISOString(), ...extra,
+  });
+  for (const item of items) {
+    if (item.status === "applied" || item.status === "failed_terminal") continue;
+    if (processed >= APPLY_CHECKPOINT_ITEMS) {
+      return {
+        ok: true, done: false, tagged, failed, skipped: 0, failure_samples: failureSamples,
+        nextOffset: job.page_cursor ?? opState.cursor ?? 0,
+        external_job: checkpoint(),
+        last_stage: "tag_write",
+      };
+    }
+    processed++;
     const raw = results.get(item.custom_id) as ProviderBatchResultItem | undefined;
     try {
       if (!raw) throw new Error("Provider batch result missing");
@@ -707,47 +734,49 @@ async function handleDurableBatchTag(
         provider: provider,
       });
       await applyBatchTagResult(item.asset_id, tagData, model);
+      item.status = "applied";
       tagged++;
     } catch (error) {
       if (error instanceof RepairNotAuthorizedError) {
-        // Stop immediately; the saved results stay applicable after resume.
+        // Stop immediately; items already applied stay recorded, the rest stay
+        // applicable after resume.
         return {
           ok: false,
           done: false,
           error: error.message,
           error_code: "repair_not_authorized",
-          external_job: { ...job, phase: "applying", lease_token: job.lease_token, last_checked_at: new Date().toISOString() },
+          tagged, failed, failure_samples: failureSamples,
+          external_job: checkpoint(),
         };
       }
       if (error instanceof RepairUnavailableError) {
-        // Pause the whole apply pass and retry the same saved results later.
-        // Every write is a replacement, so re-applying earlier items is safe;
-        // nothing is counted until a pass completes.
+        // Pause and retry the remaining saved results later; items already
+        // applied in this pass are checkpointed and counted now.
         const failures = (job.transient_poll_failures ?? 0) + 1;
         return {
           ok: true,
           done: false,
+          tagged, failed, skipped: 0, failure_samples: failureSamples,
           nextOffset: job.page_cursor ?? opState.cursor ?? 0,
-          external_job: {
-            ...job,
-            phase: "applying",
-            lease_token: job.lease_token,
+          external_job: checkpoint({
             transient_poll_failures: failures,
-            last_checked_at: new Date().toISOString(),
             next_poll_at: new Date(Date.now() + transientPollDelayMs(failures - 1)).toISOString(),
-          },
+          }),
           last_stage: "tag_write",
         };
       }
+      const reason = safeRepairReason(error);
+      item.status = "failed_terminal";
+      item.error = reason;
       failed++;
-      failureSamples.push({ at: new Date().toISOString(), asset_id: item.asset_id, filename: item.filename ?? "", relative_path: item.relative_path ?? "", error: safeRepairReason(error) });
+      failureSamples.push({ at: new Date().toISOString(), asset_id: item.asset_id, filename: item.filename ?? "", relative_path: item.relative_path ?? "", error: reason });
     }
   }
   return {
     ok: true, done: false, tagged, failed, skipped: 0,
     failure_samples: failureSamples,
     nextOffset: job.next_cursor ?? job.page_cursor ?? opState.cursor ?? 0,
-    external_job: { ...job, phase: "completed", lease_token: job.lease_token, transient_poll_failures: undefined, next_poll_at: undefined, last_checked_at: new Date().toISOString() },
+    external_job: { ...job, items, phase: "completed", lease_token: job.lease_token, transient_poll_failures: undefined, next_poll_at: undefined, last_checked_at: new Date().toISOString() },
     last_stage: "tag_write",
   };
 }

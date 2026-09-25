@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { PreSubmissionError } from "./batch-submission-error.js";
 import { getGoogleAiApiKey } from "./google-ai-key.js";
 import { getOpenRouterApiKey } from "./openrouter-key.js";
@@ -62,9 +63,38 @@ export function batchJobIdentity(
   return { batchProvider: job.provider ?? "openrouter", model, providerPin };
 }
 
+/**
+ * Non-reversible fingerprint of the provider credential (first 16 hex chars of
+ * its SHA-256). Saved with a submitted batch so a key rotated to a different
+ * account mid-run is detected instead of polling someone else's batch space.
+ */
+export function accountFingerprint(apiKey: string): string {
+  return createHash("sha256").update(apiKey).digest("hex").slice(0, 16);
+}
+
 /** Fields stamped onto the job at submission: the identity the POST used. */
-export function submittedIdentity(identity: BatchJobIdentity): Pick<OpenRouterBatchJobState, "provider" | "model"> & { provider_pin: string | null } {
-  return { provider: identity.batchProvider, model: identity.model, provider_pin: identity.providerPin };
+export function submittedIdentity(
+  identity: BatchJobIdentity,
+  apiKey?: string,
+): Pick<OpenRouterBatchJobState, "provider" | "model"> & { provider_pin: string | null; account_fingerprint?: string } {
+  return {
+    provider: identity.batchProvider,
+    model: identity.model,
+    provider_pin: identity.providerPin,
+    ...(apiKey ? { account_fingerprint: accountFingerprint(apiKey) } : {}),
+  };
+}
+
+/**
+ * For a submitted batch, a message when the current credential is not the one
+ * the batch was submitted with (the batch lives in that account); else null.
+ * Jobs submitted before fingerprints existed are not checked.
+ */
+export function submittedAccountMismatch(job: OpenRouterBatchJobState | undefined, apiKey: string): string | null {
+  if (!job?.provider_batch_id || typeof job.account_fingerprint !== "string" || !job.account_fingerprint) return null;
+  if (accountFingerprint(apiKey) === job.account_fingerprint) return null;
+  const name = (job.provider ?? "openrouter") === "google-gemini" ? "Google AI" : "OpenRouter";
+  return `The ${name} API key changed since batch ${job.provider_batch_id} was submitted; restore the original key in Settings to resume it`;
 }
 
 /** The API key belongs to the job's saved provider, never to a model-name guess. */

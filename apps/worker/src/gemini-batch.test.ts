@@ -410,3 +410,11 @@ test("an explicit temperature (JSON repair uses 0) reaches Gemini's generationCo
   const withoutTemperature = await buildGeminiBatchPayload([{ customId: "asset-1", request: request() }]);
   assert.doesNotMatch(JSON.stringify(withoutTemperature), /"temperature"/);
 });
+
+test("the submission stamps a non-reversible account fingerprint of the key it used", async () => {
+  const { submittedIdentity, accountFingerprint } = await import("./batch-provider.js");
+  const stamped = submittedIdentity({ batchProvider: "google-gemini", model, providerPin: null }, "secret-key-value");
+  assert.equal(stamped.account_fingerprint, accountFingerprint("secret-key-value"));
+  assert.match(stamped.account_fingerprint!, /^[0-9a-f]{16}$/);
+  assert.doesNotMatch(JSON.stringify(stamped), /secret-key-value/);
+});
