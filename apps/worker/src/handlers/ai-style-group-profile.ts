@@ -35,6 +35,8 @@ import {
   submitPreparedProviderBatch,
   batchJobIdentity,
   getBatchProviderApiKey,
+  accountFingerprint,
+  isAccountRejection,
   submittedAccountMismatch,
   submittedIdentity,
   type DurableBatchProvider,
@@ -65,7 +67,7 @@ import {
   type StyleGroupRepresentativeCandidate,
 } from "../style-group-representatives.js";
 import { fetchImageData, getAiTaggingApiKey, parseJsonObject, type ImageData } from "./ai-tagging-shared.js";
-import { indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
+import { ApplyWriteError, MAX_APPLY_WRITE_ATTEMPTS, indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 import { getVisionModels } from "./ai-tagging.js";
 
 const AI_TIMEOUT_MS = 90_000;
@@ -810,17 +812,20 @@ async function handleDurableGroupProfiles(
     };
   }
 
-  // A batch lives in the account that submitted it; never poll or apply it
-  // with a different account's key. Stop visibly (resumable once restored).
+  // A batch lives in the account that submitted it. When the key differs from
+  // the one it was submitted with, the poll itself decides: the provider still
+  // serving the batch means a same-account rotation (adopt the new
+  // fingerprint); refusing it means another account, so stop visibly
+  // (resumable once the right key is restored).
   const accountMismatch = submittedAccountMismatch(job, apiKey);
-  if (accountMismatch) {
-    return { ok: false, done: false, error: accountMismatch, error_code: "credential_changed", external_job: { ...job, lease_token: job.lease_token } };
-  }
 
   let record;
   try {
     record = await getProviderBatch(batchProvider, apiKey, action.batchId);
   } catch (error) {
+    if (accountMismatch && isAccountRejection(error)) {
+      return { ok: false, done: false, error: accountMismatch, error_code: "credential_changed", external_job: { ...job, lease_token: job.lease_token } };
+    }
     if (isNewBatchVisibilityDelay((error as { status?: unknown }).status, job.submitted_at)) {
       return {
         ok: true,
@@ -849,6 +854,7 @@ async function handleDurableGroupProfiles(
     }
     throw error;
   }
+  if (accountMismatch) job.account_fingerprint = accountFingerprint(apiKey);
   if (!["completed", "failed", "cancelled", "canceled", "expired"].includes(record.status ?? "")) {
     return {
       ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0,
@@ -903,8 +909,9 @@ async function handleDurableGroupProfiles(
   const items = groupItems(job).map((item) => ({ ...item }));
   let profiled = 0, failed = 0, processed = 0;
   const failureSamples: Array<Record<string, unknown>> = [];
+  let writeFailures = typeof job.apply_write_failures === "number" ? job.apply_write_failures : 0;
   const checkpoint = (extra: Record<string, unknown> = {}) => ({
-    ...job, group_items: items, phase: "applying" as const, lease_token: job.lease_token, last_checked_at: new Date().toISOString(), ...extra,
+    ...job, group_items: items, phase: "applying" as const, lease_token: job.lease_token, apply_write_failures: writeFailures, last_checked_at: new Date().toISOString(), ...extra,
   });
   for (const item of items) {
     if (item.status === "applied" || item.status === "failed_terminal") continue;
@@ -932,22 +939,48 @@ async function handleDurableGroupProfiles(
         validate: (value) => validateStyleGroupProfileData(value, "batch"),
         provider: providerPin,
       });
-      const groups = await fetchGroups({ cursor: null, limit: 1, force: true, groupIds: [item.style_group_id] });
-      const group = groups[0];
+      let group: StyleGroupProfileRow | undefined;
+      try {
+        group = (await fetchGroups({ cursor: null, limit: 1, force: true, groupIds: [item.style_group_id] }))[0];
+        if (group) {
+          const members = await fetchMembers(group.id);
+          const writes = buildGroupProfileWrites({ group, memberAssetIds: members.map((member) => member.id), profile });
+          // Both governed writes carry the same final description, so a retry
+          // after a failure between them rewrites both consistently.
+          await writeStyleGroupProfile(client, {
+            groupId: group.id,
+            model,
+            description: writes.description,
+            authoritativeTags: writes.authoritativeTags,
+            aiTags: writes.aiTags,
+            evidenceAssetIds: writes.evidenceAssetIds,
+          });
+        }
+      } catch (writeError) {
+        throw new ApplyWriteError(writeError);
+      }
       if (!group) throw new Error(`Style group not found: ${item.style_group_id}`);
-      const members = await fetchMembers(group.id);
-      const writes = buildGroupProfileWrites({ group, memberAssetIds: members.map((member) => member.id), profile });
-      await writeStyleGroupProfile(client, {
-        groupId: group.id,
-        model,
-        description: writes.description,
-        authoritativeTags: writes.authoritativeTags,
-        aiTags: writes.aiTags,
-        evidenceAssetIds: writes.evidenceAssetIds,
-      });
       item.status = "applied";
+      writeFailures = 0;
       profiled++;
     } catch (error) {
+      if (error instanceof ApplyWriteError) {
+        // Our own lookup/write failed, not the model's answer. Retry the group
+        // later (a bounded number of times) instead of consuming its result.
+        writeFailures++;
+        if (writeFailures < MAX_APPLY_WRITE_ATTEMPTS) {
+          return {
+            ok: true, done: false, profiled, failed, skipped: 0, failure_samples: failureSamples,
+            nextOffset: job.page_cursor ?? opState.cursor ?? 0,
+            external_job: checkpoint({
+              apply_write_failures: writeFailures,
+              next_poll_at: new Date(Date.now() + transientPollDelayMs(writeFailures - 1)).toISOString(),
+            }),
+            last_stage: "tag_write",
+          };
+        }
+        writeFailures = 0;
+      }
       if (error instanceof RepairNotAuthorizedError) {
         // Stop immediately; applied groups stay recorded, the rest stay
         // applicable after resume.

@@ -28,6 +28,8 @@ import {
   submitPreparedProviderBatch,
   batchJobIdentity,
   getBatchProviderApiKey,
+  accountFingerprint,
+  isAccountRejection,
   submittedAccountMismatch,
   submittedIdentity,
   type DurableBatchProvider,
@@ -36,6 +38,7 @@ import {
 } from "../batch-provider.js";
 import { PreSubmissionError } from "../batch-submission-error.js";
 import { RepairNotAuthorizedError, RepairUnavailableError, safeRepairReason, structuredBatchResult } from "../batch-result-repair.js";
+import { ApplyWriteError, MAX_APPLY_WRITE_ATTEMPTS } from "./ai-tagging-batch-state.js";
 import type { BatchResult, OpState } from "../types.js";
 import { AiTagCursorError, decodeAiTagCursor, encodeAiTagCursor } from "../ai-tag-cursor.js";
 import { getAiRetryPageSize } from "../operation-retry.js";
@@ -231,12 +234,9 @@ export async function applyBatchTagResult(
   const client = injectedClient ?? db();
   const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku").eq("id", assetId).single();
   if (assetError || !asset) throw new Error(`Asset reload failed: ${assetError?.message ?? assetId}`);
-  const updates: Record<string, unknown> = { status: "tagged", ai_tagged_at: new Date().toISOString(), ai_model: model };
-  for (const key of ["ai_description", "cover_description", "scene_description", "asset_type", "content_type", "art_source", "design_style", "design_ref", "designer_name", "technical_designer_name", "freelancer_name"]) {
-    if (tagData[key]) updates[key] = tagData[key];
-  }
-  const { error } = await client.from("assets").update(updates).eq("id", assetId);
-  if (error) throw new Error(`DB write failed: ${error.message}`);
+  // Tags, character links and style-guide sources are written first; the
+  // asset is marked "tagged" LAST, so a failure part-way never leaves an asset
+  // that claims to be tagged with incomplete metadata.
   await writeAssetAiTags(client, assetId, model, tagData);
   if (Array.isArray(tagData.character_ids)) {
     const rows = tagData.character_ids.filter(isValidUuid).map((character_id) => ({ asset_id: assetId, character_id }));
@@ -254,6 +254,12 @@ export async function applyBatchTagResult(
       if (savedFiles.error) throw new Error(`Style-guide source write failed: ${savedFiles.error.message}`);
     }
   }
+  const updates: Record<string, unknown> = { status: "tagged", ai_tagged_at: new Date().toISOString(), ai_model: model };
+  for (const key of ["ai_description", "cover_description", "scene_description", "asset_type", "content_type", "art_source", "design_style", "design_ref", "designer_name", "technical_designer_name", "freelancer_name"]) {
+    if (tagData[key]) updates[key] = tagData[key];
+  }
+  const { error } = await client.from("assets").update(updates).eq("id", assetId);
+  if (error) throw new Error(`DB write failed: ${error.message}`);
 }
 
 export function assetTagsForRpc(tagData: Record<string, unknown>) {
@@ -612,17 +618,20 @@ async function handleDurableBatchTag(
     };
   }
 
-  // A batch lives in the account that submitted it; never poll or apply it
-  // with a different account's key. Stop visibly (resumable once restored).
+  // A batch lives in the account that submitted it. When the key differs from
+  // the one it was submitted with, the poll itself decides: the provider still
+  // serving the batch means a same-account rotation (adopt the new
+  // fingerprint); refusing it means another account, so stop visibly
+  // (resumable once the right key is restored).
   const accountMismatch = submittedAccountMismatch(job, apiKey);
-  if (accountMismatch) {
-    return { ok: false, done: false, error: accountMismatch, error_code: "credential_changed", external_job: { ...job, lease_token: job.lease_token } };
-  }
 
   let record;
   try {
     record = await getProviderBatch(batchProvider, apiKey, action.batchId);
   } catch (error) {
+    if (accountMismatch && isAccountRejection(error)) {
+      return { ok: false, done: false, error: accountMismatch, error_code: "credential_changed", external_job: { ...job, lease_token: job.lease_token } };
+    }
     if (isNewBatchVisibilityDelay((error as { status?: unknown }).status, job.submitted_at)) {
       return {
         ok: true,
@@ -655,6 +664,7 @@ async function handleDurableBatchTag(
     }
     throw error;
   }
+  if (accountMismatch) job.account_fingerprint = accountFingerprint(apiKey);
   if (!["completed", "failed", "cancelled", "canceled", "expired"].includes(record.status ?? "")) {
     return {
       ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0,
@@ -716,8 +726,9 @@ async function handleDurableBatchTag(
   const items = (job.items ?? []).map((item) => ({ ...item }));
   let tagged = 0, failed = 0, processed = 0;
   const failureSamples: Array<Record<string, unknown>> = [];
+  let writeFailures = typeof job.apply_write_failures === "number" ? job.apply_write_failures : 0;
   const checkpoint = (extra: Record<string, unknown> = {}) => ({
-    ...job, items, phase: "applying" as const, lease_token: job.lease_token, last_checked_at: new Date().toISOString(), ...extra,
+    ...job, items, phase: "applying" as const, lease_token: job.lease_token, apply_write_failures: writeFailures, last_checked_at: new Date().toISOString(), ...extra,
   });
   for (const item of items) {
     if (item.status === "applied" || item.status === "failed_terminal") continue;
@@ -746,10 +757,32 @@ async function handleDurableBatchTag(
         maxTokens: 4000,
         provider: provider,
       });
-      await applyBatchTagResult(item.asset_id, tagData, model);
+      try {
+        await applyBatchTagResult(item.asset_id, tagData, model);
+      } catch (writeError) {
+        throw new ApplyWriteError(writeError);
+      }
       item.status = "applied";
+      writeFailures = 0;
       tagged++;
     } catch (error) {
+      if (error instanceof ApplyWriteError) {
+        // Our own database write failed, not the model's answer. Retry the item
+        // later (a bounded number of times) instead of consuming its result.
+        writeFailures++;
+        if (writeFailures < MAX_APPLY_WRITE_ATTEMPTS) {
+          return {
+            ok: true, done: false, tagged, failed, skipped: 0, failure_samples: failureSamples,
+            nextOffset: job.page_cursor ?? opState.cursor ?? 0,
+            external_job: checkpoint({
+              apply_write_failures: writeFailures,
+              next_poll_at: new Date(Date.now() + transientPollDelayMs(writeFailures - 1)).toISOString(),
+            }),
+            last_stage: "tag_write",
+          };
+        }
+        writeFailures = 0;
+      }
       if (error instanceof RepairNotAuthorizedError) {
         // Stop immediately; items already applied stay recorded, the rest stay
         // applicable after resume.

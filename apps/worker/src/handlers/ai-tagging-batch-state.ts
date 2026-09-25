@@ -99,3 +99,17 @@ export function transientPollDelayMs(consecutiveFailures: number): number {
   const exponent = Math.max(0, Math.min(consecutiveFailures, 10));
   return Math.min(30_000 * 2 ** exponent, MAX_PROVIDER_RETRY_DELAY_MS);
 }
+
+/**
+ * Attempts at a result's own database write before the item is recorded as a
+ * terminal failure. Below this the apply pass pauses and retries the item.
+ */
+export const MAX_APPLY_WRITE_ATTEMPTS = 5;
+
+/** Our database write for an applied result failed (not the model's answer). */
+export class ApplyWriteError extends Error {
+  constructor(public readonly cause: unknown) {
+    super(`Database write failed while applying the result: ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.name = "ApplyWriteError";
+  }
+}
