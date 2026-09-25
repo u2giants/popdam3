@@ -111,4 +111,19 @@ describe("saveAiModelConfig", () => {
       savedKeys: { anthropicKey: "old-anthropic" },
     })).rejects.toThrow("was not cleared");
   });
+  it("accepts the stored selection when the database returns keys in a different order", async () => {
+    const taskModels = { vision_tagging: "a/model", vision_tagging_fallback: "b/model", pdf_extraction: "c/model" };
+    const call = vi.fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, config: { AI_TASK_MODELS: { value: { pdf_extraction: "c/model", vision_tagging_fallback: "b/model", vision_tagging: "a/model" } } } });
+    await expect(saveAiModelConfig(call, { ...draft, taskModels })).resolves.toBeTruthy();
+  });
+
+  it("still rejects a stored selection with a different value or an extra key", async () => {
+    const { sameTaskModels } = await import("@/lib/ai-model-config-save");
+    expect(sameTaskModels({ a: "x", b: "y" }, { b: "y", a: "x" })).toBe(true);
+    expect(sameTaskModels({ a: "x", b: "z" }, { a: "x", b: "y" })).toBe(false);
+    expect(sameTaskModels({ a: "x", b: "y", c: "" }, { a: "x", b: "y" })).toBe(false);
+    expect(sameTaskModels(null, {})).toBe(false);
+  });
 });

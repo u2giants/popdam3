@@ -37,6 +37,15 @@ const KEY_ROWS: ReadonlyArray<[KeyField, string]> = [
   ["openaiKey", "OPENAI_API_KEY"],
 ];
 
+/** Key-order-independent equality: jsonb does not preserve object key order. */
+export function sameTaskModels(stored: unknown, expected: Record<string, string>): boolean {
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) return false;
+  const storedEntries = Object.entries(stored as Record<string, unknown>);
+  const expectedKeys = Object.keys(expected);
+  return storedEntries.length === expectedKeys.length
+    && storedEntries.every(([key, value]) => Object.prototype.hasOwnProperty.call(expected, key) && expected[key] === value);
+}
+
 function unwrapConfigValue(value: unknown): unknown {
   if (value && typeof value === "object" && "value" in value) {
     return (value as { value: unknown }).value;
@@ -91,7 +100,7 @@ export async function saveAiModelConfig(
   // and every changed (including cleared) key are what production stored.
   const confirmed = await call("get-config", { keys: ["AI_TASK_MODELS", ...Object.keys(expectedKeys)] });
   const storedTaskModels = unwrapConfigValue(confirmed?.config?.AI_TASK_MODELS) ?? {};
-  if (JSON.stringify(storedTaskModels) !== JSON.stringify(expectedTaskModels)) {
+  if (!sameTaskModels(storedTaskModels, expectedTaskModels)) {
     throw new Error("AI model selection was not persisted. Please retry.");
   }
   for (const [row, value] of Object.entries(expectedKeys)) {
