@@ -462,9 +462,6 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
   const client = db();
   const runId = typeof opState.params?.run_id === "string" ? opState.params.run_id : null;
   if (!runId) return { ok: false, done: false, error: "run_id param is required" };
-  const apiKey = await getOpenRouterApiKey();
-  if (!apiKey) return { ok: false, done: false, error: "No AI API key configured (set the OpenRouter key in PopDAM Settings \u2192 APIs)" };
-  await markStaleRunningResults(runId);
 
   const { data: run, error: runErr } = await client
     .from("ai_tag_bakeoff_runs")
@@ -484,9 +481,13 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
   const requestedModels = [typedRun.model_a, typedRun.model_b, typedRun.model_c, typedRun.model_d, typedRun.model_e];
   if (requestedModels.some((modelId) => typeof modelId === "string" && modelId.trim().endsWith(":batch"))) {
     const message = "Batch-only models are only supported for production Image Tagging, not bake-offs";
-    await client.from("ai_tag_bakeoff_runs").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", runId);
-    return { ok: false, done: false, error: message };
+    const marked = await client.from("ai_tag_bakeoff_runs").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", runId);
+    return { ok: false, done: false, error: marked.error ? `${message}; the run could not be marked failed: ${marked.error.message}` : message };
   }
+
+  const apiKey = await getOpenRouterApiKey();
+  if (!apiKey) return { ok: false, done: false, error: "No AI API key configured (set the OpenRouter key in PopDAM Settings \u2192 APIs)" };
+  await markStaleRunningResults(runId);
 
   if (cursor === 0) {
     await client.from("ai_tag_bakeoff_runs").update({ status: "running", updated_at: new Date().toISOString() }).eq("id", runId);

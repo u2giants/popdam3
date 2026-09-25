@@ -11,7 +11,7 @@ test("a bake-off with a batch-only model is marked failed, never left running", 
     const method = (init?.method ?? "GET").toUpperCase();
     const accept = new Headers(init?.headers).get("accept") ?? "";
     const reply = (row: unknown) => new Response(JSON.stringify(accept.includes("pgrst.object") ? row : (row ? [row] : [])), { status: 200, headers: { "content-type": "application/json" } });
-    if (url.includes("/rest/v1/admin_config")) return reply(url.includes("OPENROUTER_API_KEY") ? { value: "test-key" } : null);
+    if (url.includes("/rest/v1/admin_config")) return reply(null); // no OpenRouter key: the batch-only refusal must not depend on it
     if (url.includes("/rest/v1/ai_tag_bakeoff_runs")) {
       if (method === "PATCH") {
         patches.push(JSON.parse(String(init?.body)));
