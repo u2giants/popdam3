@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { evaluateProbe, main, parseNameStatus, ProbeCheckError, probeShapeProblem, scopeField } from './check-live-proof-probe.mjs'
+import { evaluateProbe, main, parseNameStatus, ProbeCheckError, probeShapeProblem, probeStatementText, scopeField } from './check-live-proof-probe.mjs'
 
 const scope = (returnTo) => `x\n\`\`\`db-work-scope\nwork_type: structural\napplication_return_to: ${returnTo}\nlive_assertion: a\n\`\`\`\n`
 const contract = { work_type: 'structural', work_issue: 3043 }
@@ -123,4 +123,51 @@ test('main() resolves its base ref on a merge_group checkout, and refuses when i
   assert.equal(main(t.deps), 0, 'a merge_group checkout must resolve its base by fetching the branch')
   t = io({ files, diff, baseMissing: true, fetchable: false })
   assert.equal(main(t.deps), 2, 'an unresolvable base must refuse, never pass')
+})
+
+test('lexical boundaries never let quoted comment markers hide extra statements', () => {
+  for (const literal of ["'as passed --'", "'/* as passed */'", "E'as passed --'", '$$as passed --$$', '$tag$/*as passed*/$tag$', '"as passed --"']) {
+    assert.match(probeShapeProblem(`SELECT ${literal}; COMMIT; SELECT true AS passed;`), /more than one statement/)
+    assert.match(probeShapeProblem(`SELECT ${literal}`), /no column/)
+  }
+})
+
+test('single-pass scanner accepts inert literal contents and nested comments', () => {
+  for (const literal of ["'-- ; /* delete */'", "'it''s ; --'", String.raw`E'it\'s ; --'`, '$$; COMMIT; --$$', '$tag$; /* DROP */$tag$']) {
+    assert.equal(probeShapeProblem(`SELECT (${literal} IS NOT NULL) AS passed; -- ending`), null, literal)
+  }
+  assert.equal(probeShapeProblem('/* outer /* nested */ outer */ SELECT true AS passed;'), null)
+  assert.equal(probeShapeProblem('-- comment\rSELECT true AS passed'), null)
+  assert.match(probeShapeProblem('SELECT true AS passed /* outer /* nested */'), /unterminated/)
+  assert.match(probeShapeProblem('SELECT true AS passed; /* nested /* */ */ COMMIT'), /more than one statement/)
+})
+
+test('malformed or setting-dependent literals fail closed', () => {
+  for (const sql of ["SELECT 'unterminated AS passed", 'SELECT "unterminated AS passed', 'SELECT $$unterminated AS passed', 'SELECT $a$wrong$b$ AS passed', String.raw`SELECT E'escaped\' AS passed`, "SELECT true AS passed /*", 'SELECT true AS passed\0']) {
+    assert.notEqual(probeShapeProblem(sql), null, sql)
+  }
+  assert.match(probeShapeProblem(String.raw`SELECT '\' AS passed; COMMIT; --'`), /ambiguous backslash/)
+  assert.match(probeShapeProblem(String.raw`SELECT true AS U&"passed"`), /unsupported/)
+  assert.match(probeShapeProblem('SELECT true AS "PASSED"'), /no column/)
+})
+
+test('identifier and token boundaries cannot manufacture a keyword or dollar quote', () => {
+  assert.match(probeShapeProblem('SEL/* comment */ECT true AS passed'), /SELECT or WITH/)
+  assert.match(probeShapeProblem('SELECT true A/**/S passed'), /no column/)
+  assert.match(probeShapeProblem('SELECT value$tag$; COMMIT; SELECT true AS passed'), /more than one statement/)
+  assert.match(probeShapeProblem('SELECT true AS passed;;'), /more than one statement/)
+  assert.equal(probeShapeProblem('SELECT "delete" IS NULL AS passed'), null)
+})
+
+
+test('statement extraction removes only the lexical terminal delimiter', () => {
+  const prefix = " \r\n/* ; lead */ SELECT ('x;--' IS NOT NULL) AS \"passed\""
+  const suffix = ' \r\n-- trailing ; comment\r\n/* nested /* ; */ end */  '
+  assert.equal(probeStatementText(prefix + ';' + suffix), prefix + suffix)
+  assert.equal(probeStatementText(prefix + suffix), prefix + suffix)
+  assert.equal(probeStatementText('SELECT true AS passed;-- EOF comment'), 'SELECT true AS passed-- EOF comment')
+  assert.equal(probeStatementText('SELECT $$;$$ IS NOT NULL AS passed;'), 'SELECT $$;$$ IS NOT NULL AS passed')
+  for (const sql of ["SELECT 'as passed --'; COMMIT; SELECT true AS passed;", 'SELECT true AS passed;;', "SELECT 'unterminated AS passed", 'SELECT true AS wrong']) {
+    assert.throws(() => probeStatementText(sql), ProbeCheckError)
+  }
 })

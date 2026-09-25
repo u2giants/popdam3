@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 3393,
+  "outcome": "ready-for-merge",
+  "pr": 3395,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3393/1",
+  "contract_sha256": "251e4904c158d3d922c70eb3cacb9be8db46f6c4b803ca0dc01b1f703c266af0",
+  "head_sha": "9fb984c8f0fa6a9c1f55f2287dd39e3d3e79681b",
+  "base_sha": "70e83c842a765375d043339f4e363883155eb008",
+  "files_changed": [
+    "scripts/check-live-proof-probe.mjs",
+    "scripts/check-live-proof-probe.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "exit_code": 0,
+      "evidence": "16 tests passed, 0 failures, cancelled, skipped or todo at 9fb984c8 after refreshing onto origin/main",
+      "command": "node --test scripts/check-live-proof-probe.test.mjs"
+    },
+    {
+      "exit_code": 0,
+      "evidence": "Exit 0 with no output at 9fb984c8",
+      "command": "git diff --check"
+    }
+  ],
+  "assumptions_resolved": [
+    "Lexical malformed input fails closed; runtime read-only enforcement remains mandatory"
+  ],
+  "stop_conditions_hit": []
+}

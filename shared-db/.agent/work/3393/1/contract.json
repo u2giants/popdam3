@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "work_issue": 3393,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Repair live-proof SQL lexical statement boundaries",
+  "base_sha": "8cf89c5ea6684d68b5cb433b12dd0542fe71cf0b",
+  "dispatcher": "Codex workflow refactor",
+  "worker": "codex",
+  "branch": "codex/probe-lexer-repair-0920",
+  "worktree": "D:\\repos\\.worktrees\\probe-lexer-repair-0920",
+  "allowed_paths": [
+    "scripts/check-live-proof-probe.mjs",
+    "scripts/check-live-proof-probe.test.mjs",
+    ".agent/work/3393/1/contract.json",
+    ".agent/work/3393/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/check-live-proof-probe.mjs",
+    "scripts/check-live-proof-probe.test.mjs",
+    ".agent/work/3393/1/contract.json",
+    ".agent/work/3393/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database changes",
+    "No production actions",
+    "No edits outside owned paths"
+  ],
+  "required_checks": [
+    "node --test scripts/check-live-proof-probe.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "SQL shape validation remains offline, runtime role enforces read-only"
+  ],
+  "stop_conditions": [
+    "Stop on required scope expansion"
+  ]
+}

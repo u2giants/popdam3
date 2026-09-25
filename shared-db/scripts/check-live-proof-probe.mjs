@@ -44,21 +44,111 @@ export function probePath(workIssue) { return `.github/live-proofs/${workIssue}.
 // sole-column shape and value are proven only at live-proof time, on production.
 // Returns null when usable, otherwise the reason it is not.
 const WRITE_WORD = /\b(insert|update|delete|merge|drop|alter|create|truncate|grant|revoke|copy|vacuum)\b/i
-export function stripSqlNoise(sql) {
-  return String(sql ?? '')
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/--[^\n]*/g, ' ')
-    .replace(/'(?:[^']|'')*'/g, "''")
-    .replace(/"(?:[^"]|"")*"/g, (m) => (/^"passed"$/i.test(m) ? 'passed' : '""'))
+export const PROBE_SQL_LEXER_VERSION = 2
+
+// Scan once: comment markers inside literals are data, never SQL comments.
+// This is a conservative lexical shape check, not a substitute for the runtime
+// read-only transaction, role and result checks.
+function scanProbeSql(sql) {
+  const source = String(sql ?? '')
+  const tokens = []
+  const semicolons = []
+  let i = 0
+  const fail = (kind) => { throw new ProbeCheckError(`has ${kind}`) }
+  if (source.includes('\0')) fail('a NUL byte')
+  while (i < source.length) {
+    const c = source[i]
+    if (/\s/.test(c)) { i++; continue }
+    if (source.startsWith('--', i)) {
+      i += 2
+      while (i < source.length && !/[\r\n]/.test(source[i])) i++
+      continue
+    }
+    if (source.startsWith('/*', i)) {
+      let depth = 1
+      i += 2
+      while (i < source.length && depth) {
+        if (source.startsWith('/*', i)) { depth++; i += 2 }
+        else if (source.startsWith('*/', i)) { depth--; i += 2 }
+        else i++
+      }
+      if (depth) fail('an unterminated block comment')
+      continue
+    }
+    const escaped = /[eE]/.test(c) && source[i + 1] === "'"
+    if (c === "'" || escaped || c === '"') {
+      if (escaped) i++
+      const quote = source[i++]
+      let value = '', closed = false
+      while (i < source.length) {
+        const ch = source[i++]
+        if (ch === quote) {
+          if (source[i] === quote) { value += quote; i++; continue }
+          closed = true
+          break
+        }
+        if (ch === '\\' && quote === "'") {
+          if (!escaped) fail('an ambiguous backslash in a standard string; use an E string')
+          if (i >= source.length) fail('an unterminated escape string')
+          i++
+        } else value += ch
+      }
+      if (!closed) fail('an unterminated quoted token')
+      tokens.push(quote === '"' ? (value === 'passed' ? 'passed' : '""') : "''")
+      continue
+    }
+    if (c === '$') {
+      const delimiter = source.slice(i).match(/^\$(?:[A-Za-z_\u0080-\uffff][A-Za-z_0-9\u0080-\uffff]*)?\$/)?.[0]
+      if (delimiter) {
+        const end = source.indexOf(delimiter, i + delimiter.length)
+        if (end < 0) fail('an unterminated dollar-quoted string')
+        i = end + delimiter.length
+        tokens.push("''")
+        continue
+      }
+    }
+    if (/[A-Za-z_\u0080-\uffff]/.test(c)) {
+      const start = i++
+      while (i < source.length && /[A-Za-z_0-9$\u0080-\uffff]/.test(source[i])) i++
+      const word = source.slice(start, i)
+      // Unicode escape quoting needs decoding to prove the result alias. Refuse
+      // it explicitly rather than accidentally treating its prefix as a word.
+      if (/^u$/i.test(word) && source[i] === '&' && /['"]/.test(source[i + 1] ?? '')) fail('unsupported Unicode escape quoting')
+      tokens.push(word)
+      continue
+    }
+    if (c === ';') semicolons.push(i)
+    tokens.push(c)
+    i++
+  }
+  return { text: tokens.join(' '), semicolons }
 }
-export function probeShapeProblem(sql) {
-  const text = stripSqlNoise(sql).trim().replace(/;\s*$/, '').trim()
+export function stripSqlNoise(sql) { return scanProbeSql(sql).text }
+function scannedShapeProblem(scan) {
+  const text = scan.text.trim().replace(/;\s*$/, '').trim()
   if (!text) return 'is empty'
   if (text.includes(';')) return 'holds more than one statement'
   if (!/^(select|with)\b/i.test(text)) return 'does not start with SELECT or WITH'
   if (WRITE_WORD.test(text)) return 'contains a write keyword'
   if (!/\bas\s+passed\b/i.test(text) && !/^select\s+passed\s+from\b/i.test(text)) return 'returns no column named "passed"'
   return null
+}
+export function probeShapeProblem(sql) {
+  try { return scannedShapeProblem(scanProbeSql(sql)) }
+  catch (error) { if (error instanceof ProbeCheckError) return error.message; throw error }
+}
+
+// Preserve original bytes for embedding in a runtime result-shape wrapper.
+// The scanner, not string trimming, identifies the optional statement delimiter;
+// semicolons in literals/comments and every other original character survive.
+export function probeStatementText(sql) {
+  const source = String(sql ?? '')
+  const scan = scanProbeSql(source)
+  const problem = scannedShapeProblem(scan)
+  if (problem) throw new ProbeCheckError(problem)
+  if (!scan.semicolons.length) return source
+  const offset = scan.semicolons[0]
+  return source.slice(0, offset) + source.slice(offset + 1)
 }
 export function probeLooksUsable(sql) { return probeShapeProblem(sql) === null }
 
