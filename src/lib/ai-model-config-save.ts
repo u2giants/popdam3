@@ -19,7 +19,23 @@ export interface AiModelConfigDraft {
   googleKey: string;
   anthropicKey: string;
   openaiKey: string;
+  /**
+   * The key values the form was loaded with. When present, a key whose field
+   * now differs (including a field cleared to blank) is written and then read
+   * back; unchanged keys are not rewritten. Without it, only non-blank keys are
+   * written (legacy behavior).
+   */
+  savedKeys?: Partial<Record<KeyField, string>>;
 }
+
+type KeyField = "openRouterKey" | "googleKey" | "anthropicKey" | "openaiKey";
+
+const KEY_ROWS: ReadonlyArray<[KeyField, string]> = [
+  ["openRouterKey", "OPENROUTER_API_KEY"],
+  ["googleKey", "GOOGLE_AI_API_KEY"],
+  ["anthropicKey", "ANTHROPIC_API_KEY"],
+  ["openaiKey", "OPENAI_API_KEY"],
+];
 
 function unwrapConfigValue(value: unknown): unknown {
   if (value && typeof value === "object" && "value" in value) {
@@ -56,20 +72,33 @@ export async function saveAiModelConfig(
     AI_TASK_MODELS: expectedTaskModels,
     AI_MODEL_DISPLAY_NAMES: { ...draft.displayNames },
   };
-  if (draft.openRouterKey.trim()) entries.OPENROUTER_API_KEY = draft.openRouterKey.trim();
-  if (draft.googleKey.trim()) entries.GOOGLE_AI_API_KEY = draft.googleKey.trim();
-  if (draft.anthropicKey.trim()) entries.ANTHROPIC_API_KEY = draft.anthropicKey.trim();
-  if (draft.openaiKey.trim()) entries.OPENAI_API_KEY = draft.openaiKey.trim();
+  const expectedKeys: Record<string, string> = {};
+  for (const [field, row] of KEY_ROWS) {
+    const value = draft[field].trim();
+    const changed = draft.savedKeys
+      ? value !== (draft.savedKeys[field] ?? "").trim()
+      : value.length > 0;
+    if (changed) {
+      entries[row] = value;
+      expectedKeys[row] = value;
+    }
+  }
 
   await call("set-config", { entries });
 
   // Do not report success from the write response alone. Read the authoritative
-  // value back through the same admin contract and prove the selected models
-  // are what production stored.
-  const confirmed = await call("get-config", { keys: ["AI_TASK_MODELS"] });
+  // values back through the same admin contract and prove the selected models
+  // and every changed (including cleared) key are what production stored.
+  const confirmed = await call("get-config", { keys: ["AI_TASK_MODELS", ...Object.keys(expectedKeys)] });
   const storedTaskModels = unwrapConfigValue(confirmed?.config?.AI_TASK_MODELS) ?? {};
   if (JSON.stringify(storedTaskModels) !== JSON.stringify(expectedTaskModels)) {
     throw new Error("AI model selection was not persisted. Please retry.");
+  }
+  for (const [row, value] of Object.entries(expectedKeys)) {
+    const stored = unwrapConfigValue(confirmed?.config?.[row]);
+    if ((typeof stored === "string" ? stored : "") !== value) {
+      throw new Error(value ? "An API key change was not persisted. Please retry." : "An API key was not cleared. Please retry.");
+    }
   }
 
   return confirmed;

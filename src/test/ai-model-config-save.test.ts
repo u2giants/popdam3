@@ -86,4 +86,29 @@ describe("saveAiModelConfig", () => {
     })).rejects.toThrow("only be selected as the primary Image Tagging model");
     expect(call).not.toHaveBeenCalled();
   });
+  it("writes a cleared key as blank and verifies it was actually cleared", async () => {
+    const call = vi.fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, config: { AI_TASK_MODELS: { value: draft.taskModels }, OPENAI_API_KEY: { value: "" } } });
+    await expect(saveAiModelConfig(call, {
+      ...draft,
+      openRouterKey: "or-saved",
+      openaiKey: "",
+      savedKeys: { openRouterKey: "or-saved", googleKey: "", anthropicKey: "", openaiKey: "old-openai" },
+    })).resolves.toBeTruthy();
+    const entries = call.mock.calls[0][1].entries as Record<string, unknown>;
+    expect(entries.OPENAI_API_KEY).toBe("");
+    expect(entries).not.toHaveProperty("OPENROUTER_API_KEY");
+    expect(call).toHaveBeenNthCalledWith(2, "get-config", { keys: ["AI_TASK_MODELS", "OPENAI_API_KEY"] });
+  });
+
+  it("does not report success when a cleared key is still stored", async () => {
+    const call = vi.fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, config: { AI_TASK_MODELS: { value: draft.taskModels }, ANTHROPIC_API_KEY: { value: "old-anthropic" } } });
+    await expect(saveAiModelConfig(call, {
+      ...draft,
+      savedKeys: { anthropicKey: "old-anthropic" },
+    })).rejects.toThrow("was not cleared");
+  });
 });

@@ -185,8 +185,9 @@ async function buildBatchAssetRequest(
   const client = db();
   const { data: asset, error } = await client.from("assets")
     .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, division_code, style_group_id")
-    .eq("id", assetId).single();
-  if (error || !asset) throw new Error(`Asset not found: ${assetId}`);
+    .eq("id", assetId).maybeSingle();
+  if (error) throw new Error(`Asset reload failed before submission: ${error.message}`);
+  if (!asset) throw new AssetMissingError(assetId);
   const typed = asset as BatchAsset;
   if (!force && typed.status === "tagged" && typed.ai_tagged_at) return null;
   if (!typed.thumbnail_url) throw new Error(`Asset has no thumbnail: ${assetId}`);
@@ -293,37 +294,75 @@ interface AiTagHandlerDependencies {
   concurrency?: number;
 }
 
+/** The asset row no longer exists (deleted between paging and preparation). */
+class AssetMissingError extends Error {
+  constructor(assetId: string) {
+    super(`Asset no longer exists: ${assetId}`);
+    this.name = "AssetMissingError";
+  }
+}
+
+/** Per-page counts for items that are dropped before submission. */
+interface PageAccounting {
+  skipped: number;
+  failed: number;
+  image_unusable: number;
+  failure_samples: Array<Record<string, unknown>>;
+  skip_samples: Array<Record<string, unknown>>;
+}
+
+const NO_ACCOUNTING: PageAccounting = { skipped: 0, failed: 0, image_unusable: 0, failure_samples: [], skip_samples: [] };
+
 interface PreparedAssetBatchSubmission {
   batch: PreparedProviderBatch;
   submittedIds: string[];
-  visualAnalysisUnavailable: number;
+  /** Items dropped while building this payload; recorded when it is submitted. */
+  accounting: PageAccounting;
+  /** prepared_at of the job this payload was built for (reuse guard). */
+  preparedAt?: string;
 }
 
 /** Failure-sample category for items whose image cannot be analyzed. */
 export const IMAGE_UNUSABLE_CATEGORY = "image_unusable";
 
+type AssetPageItem = { asset_id: string; custom_id: string; filename?: string | null; relative_path?: string | null };
+
+interface AssetPreparation {
+  preparedBatch?: PreparedProviderBatch;
+  included: string[];
+  unusable: Array<{ custom_id: string; reason: string }>;
+  alreadyTagged: string[];
+  missing: string[];
+}
+
 /**
  * Build the provider requests for a page and filter out items whose image is
- * unusable. Runs before any external_job is created (and again, in memory,
- * right before the submission claim). Transient errors propagate.
+ * unusable, that are already tagged, or that no longer exist. Runs before any
+ * external_job is created (and again, in memory, only when a claimed job lost
+ * its in-process payload). Transient errors propagate.
  */
 async function prepareAssetSubmissions(
-  items: ReadonlyArray<{ asset_id: string; custom_id: string }>,
+  items: ReadonlyArray<AssetPageItem>,
   tagAll: boolean,
   model: string,
   provider: ChatCompletionRequest["provider"],
   outputMethod: Exclude<StructuredOutputMethod, "json_repair">,
   batchProvider: DurableBatchProvider,
-): Promise<{ preparedBatch?: PreparedProviderBatch; included: string[]; unusable: Array<{ custom_id: string; reason: string }>; alreadyTagged: string[] }> {
+): Promise<AssetPreparation> {
   const submissions = [];
   const unusable: Array<{ custom_id: string; reason: string }> = [];
   const alreadyTagged: string[] = [];
+  const missing: string[] = [];
   for (const item of items) {
     try {
       const prepared = await buildBatchAssetRequest(item.asset_id, tagAll, model, item.custom_id, provider, outputMethod);
       if (prepared) submissions.push(prepared);
       else alreadyTagged.push(item.custom_id);
     } catch (error) {
+      if (error instanceof AssetMissingError) {
+        missing.push(item.custom_id);
+        continue;
+      }
       if (!isVisualAnalysisUnavailableError(error)) throw error;
       unusable.push({
         custom_id: item.custom_id,
@@ -336,7 +375,31 @@ async function prepareAssetSubmissions(
   const excluded = new Set(preparedBatch && "excludedCustomIds" in preparedBatch ? preparedBatch.excludedCustomIds : []);
   for (const customId of excluded) unusable.push({ custom_id: customId, reason: "image rejected during provider preparation" });
   const included = submissions.map((submission) => submission.customId).filter((customId) => !excluded.has(customId));
-  return { preparedBatch: included.length ? preparedBatch : undefined, included, unusable, alreadyTagged };
+  return { preparedBatch: included.length ? preparedBatch : undefined, included, unusable, alreadyTagged, missing };
+}
+
+/** Counts and samples for every item a preparation dropped. */
+function assetPageAccounting(items: ReadonlyArray<AssetPageItem>, preparation: AssetPreparation): PageAccounting {
+  const byCustomId = new Map(items.map((item) => [item.custom_id, item]));
+  const at = new Date().toISOString();
+  const sample = (customId: string) => {
+    const item = byCustomId.get(customId);
+    return { at, asset_id: item?.asset_id ?? "(unknown)", filename: item?.filename ?? "", relative_path: item?.relative_path ?? "" };
+  };
+  return {
+    skipped: preparation.alreadyTagged.length + preparation.missing.length,
+    failed: preparation.unusable.length,
+    image_unusable: preparation.unusable.length,
+    failure_samples: preparation.unusable.map((entry) => ({
+      ...sample(entry.custom_id),
+      error: `Image unusable for visual analysis: ${entry.reason}`,
+      reason_category: IMAGE_UNUSABLE_CATEGORY,
+    })),
+    skip_samples: [
+      ...preparation.alreadyTagged.map((customId) => ({ ...sample(customId), reason: "Already tagged" })),
+      ...preparation.missing.map((customId) => ({ ...sample(customId), reason: "Asset no longer exists" })),
+    ],
+  };
 }
 
 async function handleDurableBatchTag(
@@ -399,25 +462,7 @@ async function handleDurableBatchTag(
     // exists: a prepared job is protected by the shared-db guarded writer and
     // can never be dropped, so a page with no usable image must never create one.
     const preparation = await prepareAssetSubmissions(draftItems, tagAll, model, provider, outputMethod, batchProvider);
-    const byCustomId = new Map(draftItems.map((item) => [item.custom_id, item]));
-    const failureSamples = preparation.unusable.map((entry) => {
-      const item = byCustomId.get(entry.custom_id);
-      return {
-        at: new Date().toISOString(),
-        asset_id: item?.asset_id ?? "(unknown)",
-        filename: item?.filename ?? "",
-        relative_path: item?.relative_path ?? "",
-        error: `Image unusable for visual analysis: ${entry.reason}`,
-        reason_category: IMAGE_UNUSABLE_CATEGORY,
-      };
-    });
-    const pageCounts = {
-      tagged: 0,
-      skipped: preparation.alreadyTagged.length,
-      failed: preparation.unusable.length,
-      image_unusable: preparation.unusable.length,
-      failure_samples: failureSamples,
-    };
+    const pageCounts = { tagged: 0, ...assetPageAccounting(draftItems, preparation) };
     if (!preparation.included.length) {
       // Record the page as per-item failures and advance; no provider job.
       return {
@@ -429,11 +474,22 @@ async function handleDurableBatchTag(
       };
     }
     const included = new Set(preparation.included);
+    const preparedAt = new Date().toISOString();
+    // The payload just built is handed to the submission claim in memory, so
+    // the normal path never rebuilds (and never re-checks images) between
+    // creating the protected job and submitting it.
+    const payload: PreparedAssetBatchSubmission = {
+      batch: preparation.preparedBatch!,
+      submittedIds: preparation.included,
+      accounting: NO_ACCOUNTING,
+      preparedAt,
+    };
     return {
       ok: true,
       done: false,
       nextOffset: opState.cursor ?? 0,
       ...pageCounts,
+      transient_prepared_batch: payload,
       external_job: {
         version: 1,
         provider: batchProvider,
@@ -441,7 +497,7 @@ async function handleDurableBatchTag(
         model,
         provider_pin: providerPin,
         output_method: outputMethod,
-        prepared_at: new Date().toISOString(),
+        prepared_at: preparedAt,
         page_cursor: opState.cursor ?? 0,
         next_cursor: nextCursor,
         operation_done_after_clear: operationDoneAfterPage,
@@ -460,6 +516,10 @@ async function handleDurableBatchTag(
   if (action.type === "claim" || reprepareHeldReceipt) {
     if (action.type === "claim" && job.phase !== "prepared") {
       return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "claim_submission" };
+    }
+    const cached = opState.transient_prepared_batch as PreparedAssetBatchSubmission | undefined;
+    if (action.type === "claim" && cached && cached.preparedAt === job.prepared_at && cached.batch.provider === batchProvider) {
+      return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "claim_submission", transient_prepared_batch: cached };
     }
     const outputMethod = job.output_method ?? "json_schema";
     const preparation = await prepareAssetSubmissions(job.items ?? [], tagAll, model, provider, outputMethod, batchProvider);
@@ -487,7 +547,9 @@ async function handleDurableBatchTag(
     const transientPreparedBatch: PreparedAssetBatchSubmission = {
       batch: preparedBatch,
       submittedIds: includedSubmissions,
-      visualAnalysisUnavailable,
+      // Items dropped by this rebuild are recorded when the payload is submitted.
+      accounting: assetPageAccounting(job.items ?? [], preparation),
+      preparedAt: job.prepared_at,
     };
     return {
       ok: true,
@@ -495,7 +557,6 @@ async function handleDurableBatchTag(
       nextOffset: job.page_cursor ?? opState.cursor ?? 0,
       state_transition: "claim_submission",
       transient_prepared_batch: transientPreparedBatch,
-      visual_analysis_unavailable: visualAnalysisUnavailable,
     };
   }
   if (action.type === "wait") return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "yield_without_save", last_stage: "model_inference" };
@@ -538,7 +599,7 @@ async function handleDurableBatchTag(
         next_poll_at: new Date(Date.now() + 10_000).toISOString(),
         items: job.items?.filter((item) => submittedIds.has(item.custom_id)).map((item) => ({ ...item, status: "submitted" })),
       },
-      visual_analysis_unavailable: preparedSubmission.visualAnalysisUnavailable,
+      ...(preparedSubmission.accounting ?? NO_ACCOUNTING),
       last_stage: "model_inference",
     };
   }

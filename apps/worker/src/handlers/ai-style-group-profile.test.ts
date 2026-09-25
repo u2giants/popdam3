@@ -856,3 +856,73 @@ test("polling a saved batch uses its stored provider identity, not changed Setti
     restore();
   }
 });
+
+test("a new prepared job hands its payload to the claim so the normal path never rebuilds it", async () => {
+  const restore = stubCapabilitiesFetch([]);
+  try {
+    const created = await handleStyleGroupProfiles(
+      { status: "running", cursor: 0, run_id: "run1" } as OpState,
+      deps({ client: recordingClient(), apiKey: "test-key", models: { primary: "test/vision-model:batch", fallback: null, providerPin: null } }),
+    );
+    const job = created.external_job as Record<string, unknown>;
+    const payload = created.transient_prepared_batch as { preparedAt: string };
+    assert.equal(payload.preparedAt, job.prepared_at);
+    const claimed = await handleStyleGroupProfiles(
+      { status: "running", cursor: 0, run_id: "run1", external_job: job, transient_prepared_batch: payload } as unknown as OpState,
+      deps({
+        client: recordingClient(), apiKey: "test-key",
+        models: { primary: "test/vision-model:batch", fallback: null, providerPin: null },
+        fetchGroups: async () => { throw new Error("must not rebuild"); },
+        fetchImages: async () => { throw new Error("must not re-check images"); },
+      }),
+    );
+    assert.equal(claimed.state_transition, "claim_submission");
+    assert.equal(claimed.transient_prepared_batch, payload);
+  } finally {
+    restore();
+  }
+});
+
+test("groups dropped while rebuilding a claimed payload are recorded when it is submitted", async () => {
+  const other: StyleGroupProfileRow = { ...GROUP, id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", sku: "OTHER" };
+  const calls: string[] = [];
+  const restore = stubCapabilitiesFetch(calls);
+  try {
+    const job = {
+      version: 1, phase: "prepared", provider: "openrouter", model: "test/vision-model:batch", provider_pin: "anthropic",
+      output_method: "json_schema", prepared_at: "2026-09-25T00:00:00.000Z", page_cursor: 0, next_cursor: other.id, scope: "style_group",
+      group_items: [
+        { style_group_id: GROUP_ID, custom_id: "c-good", status: "prepared", sku: GROUP.sku },
+        { style_group_id: other.id, custom_id: "c-bad", status: "prepared", sku: "OTHER" },
+      ],
+      items: [],
+    };
+    const common = {
+      client: recordingClient(), apiKey: "test-key",
+      models: { primary: "test/vision-model:batch", fallback: null, providerPin: null },
+      fetchGroups: async ({ groupIds }: { groupIds: string[] | null }) => groupIds?.[0] === other.id ? [other] : [GROUP],
+      fetchMembers: async (groupId: string) => groupId === other.id ? [] : MEMBERS,
+    };
+    const claimed = await handleStyleGroupProfiles({ status: "running", cursor: 0, run_id: "run1", external_job: job } as unknown as OpState, deps(common));
+    assert.equal(claimed.state_transition, "claim_submission");
+    const payload = claimed.transient_prepared_batch as { submittedIds: string[]; accounting: { failed: number } };
+    assert.deepEqual(payload.submittedIds, ["c-good"]);
+    assert.equal(payload.accounting.failed, 1);
+    const submitted = await handleStyleGroupProfiles({
+      status: "running", cursor: 0, run_id: "run1",
+      external_job: { ...job, phase: "submitting", lease_token: "lease-1", lease_expires_at: new Date(Date.now() + 110_000).toISOString() },
+      transient_prepared_batch: payload,
+    } as unknown as OpState, deps(common));
+    assert.equal(submitted.failed, 1);
+    assert.equal(submitted.image_unusable, 1);
+    assert.equal((submitted.failure_samples as Array<{ style_group_id: string }>)[0].style_group_id, other.id);
+    const pending = submitted.external_job as { phase: string; group_items: Array<{ custom_id: string }>; provider: string; model: string; provider_pin: string };
+    assert.equal(pending.phase, "pending");
+    assert.deepEqual(pending.group_items.map((item) => item.custom_id), ["c-good"]);
+    assert.equal(pending.provider, "openrouter");
+    assert.equal(pending.model, "test/vision-model:batch");
+    assert.equal(pending.provider_pin, "anthropic", "the submission stamps the identity it used, not Settings");
+  } finally {
+    restore();
+  }
+});

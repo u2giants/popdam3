@@ -506,10 +506,39 @@ type GroupJobItem = {
   error?: string;
 };
 
+/** Per-page counts for groups dropped before submission. */
+interface GroupPageAccounting {
+  skipped: number;
+  failed: number;
+  image_unusable: number;
+  failure_samples: Array<Record<string, unknown>>;
+}
+
+const NO_GROUP_ACCOUNTING: GroupPageAccounting = { skipped: 0, failed: 0, image_unusable: 0, failure_samples: [] };
+
 interface PreparedGroupBatchSubmission {
   batch: PreparedProviderBatch;
   submittedIds: string[];
-  visualAnalysisUnavailable: number;
+  /** Groups dropped while building this payload; recorded when it is submitted. */
+  accounting: GroupPageAccounting;
+  /** prepared_at of the job this payload was built for (reuse guard). */
+  preparedAt?: string;
+}
+
+function groupPageAccounting(unusable: ReadonlyArray<{ item: GroupJobItem; reason: string }>, missing: number): GroupPageAccounting {
+  const at = new Date().toISOString();
+  return {
+    skipped: missing,
+    failed: unusable.length,
+    image_unusable: unusable.length,
+    failure_samples: unusable.map((entry) => ({
+      at,
+      style_group_id: entry.item.style_group_id,
+      sku: entry.item.sku ?? "",
+      error: `No usable representative image: ${entry.reason}`,
+      reason_category: IMAGE_UNUSABLE_CATEGORY,
+    })),
+  };
 }
 
 /** Failure-sample category for groups with no analyzable representative image. */
@@ -627,29 +656,27 @@ async function handleDurableGroupProfiles(
       draftItems.map((item, index) => ({ item, group: groups[index] })),
       { model, batchProvider, providerPin, outputMethod, fetchMembers, fetchImages },
     );
-    const failureSamples = preparation.unusable.map((entry) => ({
-      at: new Date().toISOString(),
-      style_group_id: entry.item.style_group_id,
-      sku: entry.item.sku ?? "",
-      error: `No usable representative image: ${entry.reason}`,
-      reason_category: IMAGE_UNUSABLE_CATEGORY,
-    }));
-    const pageCounts = {
-      profiled: 0,
-      skipped: Math.max(0, requestedCount - groups.length),
-      failed: preparation.unusable.length,
-      image_unusable: preparation.unusable.length,
-      failure_samples: failureSamples,
-    };
+    const pageCounts = { profiled: 0, ...groupPageAccounting(preparation.unusable, Math.max(0, requestedCount - groups.length)) };
     if (!preparation.included.length) {
       // Record the page as per-item failures and advance; no provider job.
       return { ok: true, done: operationDoneAfterPage, nextOffset: nextCursor, ...pageCounts, last_stage: "state_persist" };
     }
     const included = new Set(preparation.included);
+    const preparedAt = new Date().toISOString();
+    // The payload just built is handed to the submission claim in memory, so
+    // the normal path never rebuilds (and never re-checks images) between
+    // creating the protected job and submitting it.
+    const payload: PreparedGroupBatchSubmission = {
+      batch: preparation.preparedBatch!,
+      submittedIds: preparation.included,
+      accounting: NO_GROUP_ACCOUNTING,
+      preparedAt,
+    };
     return {
       ok: true,
       done: false,
       nextOffset: opState.cursor ?? 0,
+      transient_prepared_batch: payload,
       external_job: {
         version: 1,
         phase: "prepared",
@@ -657,7 +684,7 @@ async function handleDurableGroupProfiles(
         model,
         provider_pin: identity.providerPin,
         output_method: outputMethod,
-        prepared_at: new Date().toISOString(),
+        prepared_at: preparedAt,
         page_cursor: opState.cursor ?? 0,
         next_cursor: nextCursor,
         operation_done_after_clear: operationDoneAfterPage,
@@ -680,11 +707,17 @@ async function handleDurableGroupProfiles(
     if (action.type === "claim" && job.phase !== "prepared") {
       return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "claim_submission" };
     }
+    const cached = opState.transient_prepared_batch as PreparedGroupBatchSubmission | undefined;
+    if (action.type === "claim" && cached && cached.preparedAt === job.prepared_at && cached.batch.provider === batchProvider) {
+      return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "claim_submission", transient_prepared_batch: cached };
+    }
     const outputMethod = job.output_method ?? "json_schema";
     const targets: Array<{ item: GroupJobItem; group: StyleGroupProfileRow }> = [];
+    let missingGroups = 0;
     for (const item of groupItems(job)) {
       const groups = await fetchGroups({ cursor: null, limit: 1, force: true, groupIds: [item.style_group_id] });
       if (groups[0]) targets.push({ item, group: groups[0] });
+      else missingGroups++;
     }
     const preparation = await prepareGroupSubmissions(targets, { model, batchProvider, providerPin, outputMethod, fetchMembers, fetchImages });
     const visualAnalysisUnavailable = preparation.unusable.length;
@@ -711,7 +744,9 @@ async function handleDurableGroupProfiles(
     const transientPreparedBatch: PreparedGroupBatchSubmission = {
       batch: preparedBatch,
       submittedIds: includedSubmissions,
-      visualAnalysisUnavailable,
+      // Groups dropped by this rebuild are recorded when the payload is submitted.
+      accounting: groupPageAccounting(preparation.unusable, missingGroups),
+      preparedAt: job.prepared_at,
     };
     return {
       ok: true,
@@ -719,7 +754,6 @@ async function handleDurableGroupProfiles(
       nextOffset: job.page_cursor ?? opState.cursor ?? 0,
       state_transition: "claim_submission",
       transient_prepared_batch: transientPreparedBatch,
-      visual_analysis_unavailable: visualAnalysisUnavailable,
     };
   }
   if (action.type === "wait") return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "yield_without_save", last_stage: "model_inference" };
@@ -760,7 +794,7 @@ async function handleDurableGroupProfiles(
           .filter((item) => submittedIds.has(item.custom_id))
           .map((item) => ({ ...item, status: "submitted" as const })),
       },
-      visual_analysis_unavailable: preparedSubmission.visualAnalysisUnavailable,
+      ...(preparedSubmission.accounting ?? NO_GROUP_ACCOUNTING),
       last_stage: "model_inference",
     };
   }
