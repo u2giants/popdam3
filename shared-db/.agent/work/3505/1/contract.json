@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3505,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Fix the merge-gate enforcement hole: a code PR could merge when only the #2838 advisory Documents-only status was present, with no Migration guarded merge authorization and no exact-head verdicts. Separate the advisory onto its own context name and add Migration guarded merge authorization to live required checks.",
+  "base_sha": "b32deb1ce57d2158193100c72e40ab1ea720d72d",
+  "dispatcher": "MiMo chat parent dispatch for issue #3505",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "mimo/3505-merge-gate-advisory",
+  "worktree": "C:/repos/shared-db-wt-3505",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/check-required-checks-preflight.mjs",
+    "scripts/check-required-checks-preflight.test.mjs",
+    "scripts/repository-maintenance-authorization.test.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    ".agent/work/3505/1/contract.json",
+    ".agent/work/3505/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/check-required-checks-preflight.mjs",
+    "scripts/check-required-checks-preflight.test.mjs",
+    "scripts/repository-maintenance-authorization.test.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    ".agent/work/3505/1/contract.json",
+    ".agent/work/3505/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not merge the PR.",
+    "Do not touch any migration or database object.",
+    "Do not weaken exact-head approval.",
+    "Do not weaken or delete any existing test assertion."
+  ],
+  "required_checks": [
+    "node --test scripts/check-exact-head-approval.test.mjs scripts/repository-maintenance-authorization.test.mjs scripts/check-required-checks-preflight.test.mjs scripts/documents-only-merge-authorization.test.mjs scripts/check-documents-only-merge-authorization.test.mjs"
+  ],
+  "assumptions": [
+    "The advisory context name change is the preferred fix per issue guidance (distinguish by separate context name).",
+    "Adding Migration guarded merge authorization to live required checks enforces the gate at GitHub merge time regardless of merge path.",
+    "CI Agent work contract requires an evidence pair because code files are changed."
+  ],
+  "stop_conditions": [
+    "Stop if any existing test assertion must be weakened to make the new tests pass.",
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths."
+  ]
+}

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { MERGE_SELF_CONTEXT } from './lib/merge-self-context.mjs'
+import { MERGE_ADVISORY_CONTEXT } from './manage-migration-author-lanes.mjs'
 import { evaluateExactHeadApproval as evaluateRaw, evaluateApprovalWithRefresh, gatherApprovalInput, main as approvalMain, selectMergeAuthorizationAtMerge, MERGE_AUTHORIZED_DESCRIPTION, DOCUMENTS_ONLY_AUTHORIZED_DESCRIPTION, parseAssignmentRef, requireDurableVerdictInput, resolveApprovalMainRef, ApprovalCheckError } from './check-exact-head-approval.mjs'
 import { isValidatedVerdictArtifact } from './lib/review-verdict-artifact.mjs'
 
@@ -993,4 +994,60 @@ test('#2839 round 3 L4: a throwing documents-only classification refuses rather 
 })
 test('#2839 round 3 M2: the audit admits what the documents-only producer admits (plan file)', () => {
   assert.equal(gatherApprovalInput({ PR_NUMBER: '1931', APPROVAL_AUDIT: 'merged' }, docsOnlyMerged(['plan_example.md'])).mergeAudit.statusId, 40)
+})
+
+// ISSUE #3505 (regression). PR #3311 merged as a code change carrying only the #2838
+// advisory status ("Not applicable: code change; guarded code checks required") and no
+// `Migration guarded merge authorization` at all. A code PR with only the advisory must
+// never be treated as merge-authorized. The advisory lives on its own context name
+// (MERGE_ADVISORY_CONTEXT) and must never satisfy the guarded-merge context.
+test('#3505: a code PR with only the advisory status is refused at merge-authorization audit', () => {
+  const advisoryOnly = [
+    {
+      id: 60,
+      context: MERGE_ADVISORY_CONTEXT,
+      state: 'success',
+      description: 'Not applicable: code change; guarded code checks required',
+      creator: { login: 'github-actions[bot]' },
+      created_at: BEFORE_MERGE,
+    },
+  ]
+  assert.throws(
+    () => selectMergeAuthorizationAtMerge(advisoryOnly, Date.parse(MERGED_AT), 1931, MERGED_AT, { isDocumentsOnly: () => false }),
+    /no guarded-merge authorization status/,
+  )
+})
+
+test('#3505: the advisory context is distinct from the real grant context', () => {
+  const advisoryOnly = [
+    {
+      id: 61,
+      context: MERGE_ADVISORY_CONTEXT,
+      state: 'success',
+      description: 'Not applicable: code change; guarded code checks required',
+      creator: { login: 'github-actions[bot]' },
+      created_at: BEFORE_MERGE,
+    },
+  ]
+  // A status posted under the advisory name must never be selected as a grant.
+  assert.throws(
+    () => selectMergeAuthorizationAtMerge(advisoryOnly, Date.parse(MERGED_AT), 1931, MERGED_AT),
+    /no guarded-merge authorization status/,
+  )
+  // Even if the advisory description were somehow posted under the grant context,
+  // it must not pass as a lawful authorization.
+  const disguised = [
+    {
+      id: 62,
+      context: MERGE_SELF_CONTEXT,
+      state: 'success',
+      description: 'Not applicable: code change; guarded code checks required',
+      creator: { login: 'github-actions[bot]' },
+      created_at: BEFORE_MERGE,
+    },
+  ]
+  assert.throws(
+    () => selectMergeAuthorizationAtMerge(disguised, Date.parse(MERGED_AT), 1931, MERGED_AT, { isDocumentsOnly: () => false }),
+    /is not a lawful authorization/,
+  )
 })

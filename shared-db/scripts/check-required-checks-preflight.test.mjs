@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { collectPages, evaluatePreflight, evaluateWithoutRequiredList, gatherPreflightInput, isPermissionRefusal, observedStates, readRequiredChecksMirror, requireWholePage, sanitize, PreflightError, REQUIRED_CHECKS_MIRROR, SELF_CONTEXT, SELF_CHECK_RUN, PINNED_REQUIRED_CONTEXTS, MIRROR_BOOTSTRAP_MAIN_SHA, PREFLIGHT_SOURCE_PATH, parsePinnedFloor, readPinnedFloor } from './check-required-checks-preflight.mjs'
+import { collectPages, evaluatePreflight, evaluateWithoutRequiredList, gatherPreflightInput, isPermissionRefusal, observedStates, readRequiredChecksMirror, requireWholePage, sanitize, PreflightError, REQUIRED_CHECKS_MIRROR, SELF_CONTEXT, SELF_CHECK_RUN, PINNED_REQUIRED_CONTEXTS, MIRROR_BOOTSTRAP_MAIN_SHA, PREFLIGHT_SOURCE_PATH, parsePinnedFloor, readPinnedFloor, ADVISORY_CONTEXTS } from './check-required-checks-preflight.mjs'
+import { MERGE_ADVISORY_CONTEXT } from './manage-migration-author-lanes.mjs'
 
 const ok = (name) => ({ name, status: 'completed', conclusion: 'success', completed_at: '2026-09-03T00:00:00Z' })
 
@@ -286,7 +287,7 @@ test('optional skipped jobs and the running merge job cannot deadlock the prefli
 test('the documents-only routing diagnostic failing on a code PR does not block the guarded merge (#2759)', () => {
   const result = evaluateWithoutRequiredList({
     reason: REASON, mirrorContexts: MIRROR,
-    statuses: [{ context: 'Documents-only merge authorization', state: 'failure' }],
+    statuses: [{ context: MERGE_ADVISORY_CONTEXT, state: 'failure' }],
     checkRuns: [ok('SQL migration guards'), ok('Tools offline tests'),
       { name: 'Documents-only merge authorization', status: 'completed', conclusion: 'failure' }],
   })
@@ -296,6 +297,44 @@ test('the documents-only routing diagnostic failing on a code PR does not block 
     checkRuns: [ok('SQL migration guards'), ok('Tools offline tests'),
       { name: 'Some other guard', status: 'completed', conclusion: 'failure' }],
   }), /Some other guard/)
+})
+
+// PRODUCER-CONSUMER PIN (#3505 review M1). The advisory context string was
+// duplicated: a local const in the lane manager (the producer that posts the
+// status) and an array literal here (the consumer that treats it as
+// non-required). Drift between the two names breaks the #2759 fallback path:
+// a renamed producer would leave every code PR unmergeable when branch
+// protection is unreadable. One exported constant, plus a test that both sides
+// agree, removes that failure mode.
+test('#3505 M1: the advisory context is single-sourced and both sides agree', () => {
+  // The consumer's advisory list must contain exactly the producer's name
+  // (plus the legacy workflow check-run name, which is a different thing).
+  assert.ok(ADVISORY_CONTEXTS.includes(MERGE_ADVISORY_CONTEXT), 'ADVISORY_CONTEXTS must include the producer\'s MERGE_ADVISORY_CONTEXT')
+  assert.equal(ADVISORY_CONTEXTS.filter((c) => c === MERGE_ADVISORY_CONTEXT).length, 1)
+  assert.ok(ADVISORY_CONTEXTS.includes('Documents-only merge authorization'), 'the legacy workflow check-run name stays in the advisory list')
+
+  // The producer module must define the constant once and use it — no second
+  // hardcoded copy may reappear in the posting path.
+  const producerSource = readFileSync(new URL('./manage-migration-author-lanes.mjs', import.meta.url), 'utf8')
+  const occurrences = producerSource.split(MERGE_ADVISORY_CONTEXT).length - 1
+  assert.equal(occurrences, 1, `MERGE_ADVISORY_CONTEXT literal must appear exactly once in the producer (the export); found ${occurrences}`)
+  assert.match(producerSource, /export const MERGE_ADVISORY_CONTEXT = 'Documents-only merge advisory'/)
+  assert.match(producerSource, /const ADVISORY_CONTEXT=MERGE_ADVISORY_CONTEXT/)
+
+  // The consumer must not hardcode the literal either.
+  const consumerSource = readFileSync(new URL('./check-required-checks-preflight.mjs', import.meta.url), 'utf8')
+  assert.ok(!consumerSource.includes(`'${MERGE_ADVISORY_CONTEXT}'`), 'the pre-flight must import MERGE_ADVISORY_CONTEXT, not hardcode the literal')
+  assert.match(consumerSource, /ADVISORY_CONTEXTS = \[MERGE_ADVISORY_CONTEXT,/)
+})
+
+test('the legacy documents-only advisory status name still routes correctly (#2759 old-name coverage)', () => {
+  const result = evaluateWithoutRequiredList({
+    reason: REASON, mirrorContexts: MIRROR,
+    statuses: [{ context: 'Documents-only merge authorization', state: 'failure' }],
+    checkRuns: [ok('SQL migration guards'), ok('Tools offline tests'),
+      { name: 'Documents-only merge authorization', status: 'completed', conclusion: 'failure' }],
+  })
+  assert.equal(result.mode, 'committed-mirror')
 })
 
 test('the head cannot inject a context into the trusted list', () => {

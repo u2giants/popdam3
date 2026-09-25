@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_issue": 3505,
+  "outcome": "ready-for-merge",
+  "pr": 3520,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3505/1",
+  "contract_sha256": "9ddb4feefdff1473a5d72533986c589a1bb230aaf246a787e550d40846ef0a42",
+  "base_sha": "9429b4e65d513781bc06e18f59a327f8bf50fe34",
+  "head_sha": "1df55842734b0ddd8da04938b7df625368ae5a64",
+  "files_changed": [
+    "scripts/check-exact-head-approval.test.mjs",
+    "scripts/check-required-checks-preflight.mjs",
+    "scripts/check-required-checks-preflight.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/repository-maintenance-authorization.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-exact-head-approval.test.mjs scripts/repository-maintenance-authorization.test.mjs scripts/check-required-checks-preflight.test.mjs scripts/documents-only-merge-authorization.test.mjs scripts/check-documents-only-merge-authorization.test.mjs",
+      "exit_code": 0,
+      "evidence": "164 pass, 0 fail at 1df55842 (implementation head 2fe8d6ce8 carries the M1 fix; 1df558427 clears the evidence pair off the head). Prior bind recorded 163 pass at f880582a; the +1 is the new #3505 M1 producer-consumer pin test. The 226 figure in the review notes is not from this contract's required_checks set."
+    }
+  ],
+  "assumptions_resolved": [
+    "The advisory now posts under MERGE_ADVISORY_CONTEXT ('Documents-only merge advisory'), single-sourced from the producer (manage-migration-author-lanes.mjs) and imported by the pre-flight consumer (ADVISORY_CONTEXTS). A pin test asserts both sides agree and that no second hardcoded copy reappears.",
+    "Migration guarded merge authorization is present on live branch-protection required checks (verified live). The in-repo mirror docs/verification/main-required-status-checks.json still carries capturedIso 2026-09-08T21:28:48.825Z and is intentionally NOT recaptured by this change: the live list has since drifted to 5 contexts while PINNED_REQUIRED_CONTEXTS still names 12, so a recapture would make the mirror a stale subset and trip the pre-flight pin floor. The live addition is therefore true but is not bound to this head by an in-repo readback; no claim of recapture is made.",
+    "Regression tests confirm a code PR with only the advisory is refused at merge-authorization audit.",
+    "A disguised advisory description under the grant context is also refused.",
+    "No existing test assertion was weakened or deleted.",
+    "contract.base_sha is the immutable published base; completion.base_sha is the current merge-base with main (9429b4e6)."
+  ],
+  "stop_conditions_hit": []
+}

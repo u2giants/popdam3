@@ -3,7 +3,8 @@ import { currentRepository, expectedOperatorAssociation } from './lib/repository
 // Fixtures follow the resolved repository identity and its operator association (#3255).
 const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAssociation()
 import assert from 'node:assert/strict'
-import { authorizeRepositoryMaintenanceStatus, EXCLUSIVE_REFS, MUTEX_REF, selectNewestCommitStatus } from './manage-migration-author-lanes.mjs'
+import { authorizeRepositoryMaintenanceStatus, EXCLUSIVE_REFS, MUTEX_REF, selectNewestCommitStatus, MERGE_ADVISORY_CONTEXT } from './manage-migration-author-lanes.mjs'
+import { MERGE_SELF_CONTEXT } from './lib/merge-self-context.mjs'
 
 const head='a'.repeat(40),owner='b'.repeat(40),base='c'.repeat(40)
 const options={pr:2715,headSha:head,description:'prose verified',targetUrl:'https://github.com/u2giants/shared-db/actions/runs/7'}
@@ -51,10 +52,12 @@ test('an ordinary code change reports not applicable, never red, and routes to g
   const result=authorizeRepositoryMaintenanceStatus(options,io)
   assert.equal(result.documentsOnly,false)
   assert.equal(result.notApplicable,true)
-  assert.deepEqual(io.statuses.map((row)=>[row.context,row.state]),[['Documents-only merge authorization','success']])
+  assert.deepEqual(io.statuses.map((row)=>[row.context,row.state]),[[MERGE_ADVISORY_CONTEXT,'success']])
   assert.match(io.statuses[0].description,/^Not applicable/)
   assert.match(io.statuses[0].description,/guarded code checks required/)
   assert.equal(io.readRef(MUTEX_REF),null)
+  // #3505: the advisory must never share a context with the real grant.
+  assert.notEqual(io.statuses[0].context, MERGE_SELF_CONTEXT)
 })
 
 test('production or a moved head fails closed and routes to guarded checks',()=>{
@@ -65,7 +68,7 @@ test('production or a moved head fails closed and routes to guarded checks',()=>
     assert.throws(()=>authorizeRepositoryMaintenanceStatus(options,io))
     assert.deepEqual(io.statuses.map((row)=>row.state),['failure'])
     assert.match(io.statuses[0].description,/guarded code checks required/)
-    assert.equal(io.statuses[0].context,'Documents-only merge authorization')
+    assert.equal(io.statuses[0].context,MERGE_ADVISORY_CONTEXT)
     assert.equal(io.readRef(MUTEX_REF),null)
   }
 })
@@ -82,7 +85,7 @@ test('a reused commit revokes only an earlier lightweight success',()=>{
   const executable=[{filename:'scripts/change.mjs',status:'modified',patch:'@@ -1 +1 @@\n-a\n+b'}]
   const guarded=fakeIo({files:executable,existingStatus:{state:'success',description:'Guarded merge authorized'}})
   assert.equal(authorizeRepositoryMaintenanceStatus(options,guarded).notApplicable,true)
-  assert.deepEqual(guarded.statuses.map((row)=>[row.context,row.state]),[['Documents-only merge authorization','success']])
+  assert.deepEqual(guarded.statuses.map((row)=>[row.context,row.state]),[[MERGE_ADVISORY_CONTEXT,'success']])
   const lightweight=fakeIo({files:executable,existingStatus:{state:'success',description:options.description}})
   assert.throws(()=>authorizeRepositoryMaintenanceStatus(options,lightweight))
   assert.equal(lightweight.statuses[0].context,'Migration guarded merge authorization')
@@ -115,7 +118,7 @@ test('an ABA push cannot lend prose files to an executable status SHA',()=>{
   const result=authorizeRepositoryMaintenanceStatus(options,io)
   assert.equal(result.documentsOnly,false)
   assert.match(result.reason,/non-lightweight file/)
-  assert.deepEqual(io.statuses.map((row)=>[row.context,row.state]),[['Documents-only merge authorization','success']])
+  assert.deepEqual(io.statuses.map((row)=>[row.context,row.state]),[[MERGE_ADVISORY_CONTEXT,'success']])
   assert.match(io.statuses[0].description,/^Not applicable/)
 })
 

@@ -26,6 +26,12 @@ import { currentRepository, isThisRepositoryOrHistorical, isTrustedOperatorComme
 // preview could never be prepared, because the only thing that sets that context
 // is the merge that preview is a precondition of. Exported so the exclusion is
 // covered by a test rather than only by the live gate.
+// #3505: the advisory commit status uses its own context name, distinct from
+// MERGE_SELF_CONTEXT and from the workflow check run name, so a green advisory
+// can never satisfy or stand in for a real grant. This module is the producer
+// (it posts the status) and owns the constant; the pre-flight consumer imports
+// it, and a pin test asserts the two sides agree.
+export const MERGE_ADVISORY_CONTEXT = 'Documents-only merge advisory'
 export function pendingRequiredContexts(protectedContexts=[],observed=new Map()){
   const byName=observed instanceof Map?observed:new Map(Object.entries(observed))
   return protectedContexts.filter((name)=>name!==MERGE_SELF_CONTEXT&&byName.get(name)!=='SUCCESS')
@@ -8923,7 +8929,12 @@ export function authorizeRepositoryMaintenanceStatus(options, io = githubIo) {
           replacesLightweightSuccess=existing?.state==='success'&&existing?.description===description
         }catch{statusHistoryUnreadable=true}
       }
-      const refusalContext=options.revokeRequiredStatus||replacesLightweightSuccess||statusHistoryUnreadable?context:'Documents-only merge authorization'
+      // #3505: the advisory MUST use a context name distinct from any real grant
+      // context so a green advisory can never satisfy or stand in for one. The
+      // real grant posts to MERGE_SELF_CONTEXT; the workflow check run is named
+      // "Documents-only merge authorization". This advisory is a third thing.
+      const ADVISORY_CONTEXT=MERGE_ADVISORY_CONTEXT
+      const refusalContext=options.revokeRequiredStatus||replacesLightweightSuccess||statusHistoryUnreadable?context:ADVISORY_CONTEXT
       // #2838: an ordinary code PR is not a failure of this advisory check. Report it as
       // not applicable (green) so red here always means a genuine refusal. Revocations of
       // the required context above still post failure and still fail the job.
