@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "generation": 3,
+  "work_issue": 3002,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Stop sessions serialising CI and the governed review and re-pushing once per finding, by briefing them in AGENTS.md 5.0-C to start the governed review as soon as a head is pushed and to batch fixes into a single new head, and by holding that brief in place with a guard that refuses any edit turning it into a licence to review less.",
+  "base_sha": "18c2610526e9b34a9d5af3818853cf1fb63e8979",
+  "dispatcher": "Owner Albert Hazan authorized resolving open non-orchestrator issues through to production",
+  "worker": "Claude chat 2e3c24d5-f6b8-44f8-b49f-3c67c1647d13 on 916-alien",
+  "branch": "claude/3002-review-parallelism",
+  "worktree": "D:/repos/shared-db-worktrees/throughput-2832-3002-a7f1",
+  "allowed_paths": [
+    ".agent/work/3002/3/contract.json",
+    ".agent/work/3002/3/completion.json",
+    "AGENTS.md",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/check-review-parallelism-brief.mjs",
+    "scripts/check-review-parallelism-brief.test.mjs",
+    "scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "docs/verification/throughput-dispositions/**"
+  ],
+  "file_writes": [
+    ".agent/work/3002/3/contract.json",
+    ".agent/work/3002/3/completion.json",
+    "AGENTS.md",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/check-review-parallelism-brief.mjs",
+    "scripts/check-review-parallelism-brief.test.mjs",
+    "scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "docs/verification/throughput-dispositions/**"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database write, migration, function, view, role, grant, index, or timeout change.",
+    "Do not remove, weaken, skip or make optional any safety gate, approval requirement or required check in the name of throughput.",
+    "Do not widen the exact-head approval equivalence rule past the existing narrow .agent/ evidence exception.",
+    "Do not accept the third proposal in issue 3002; refuse it in writing instead."
+  ],
+  "required_checks": [
+    "node scripts/check-review-parallelism-brief.mjs",
+    "node --test scripts/check-review-parallelism-brief.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Issue 3002 states its own proposal is not yet implemented and needs a decision; the decision taken here is to parallelise and batch, and to refuse the review-equivalence widening.",
+    "The new guard script adds exactly one throughput call site, which carries its own hand-written disposition.",
+    "Generation 3 rebinds the evidence to merge base 18c26105 after refreshing from main by MERGE (never rebase), so the exact-head APPROVE at 768e0dbe keeps its ancestry."
+  ],
+  "stop_conditions": [
+    "Stop and report if the only way to hit the speed goal is to drop a safeguard."
+  ]
+}

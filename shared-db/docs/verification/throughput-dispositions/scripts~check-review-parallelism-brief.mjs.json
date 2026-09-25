@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-review-parallelism-brief.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-review-parallelism-brief.mjs:43",
+      "semantic_key": "scripts/check-review-parallelism-brief.mjs:fb3cfc1133bfa506f31ac041614783b3b744ef029302f95ef4b629a7de27ed79:context-ddd486bee2815cd4468d95a2f2d1b56fc79e82b7f6133833994b36edfe0a1047",
+      "line_sha256": "fb3cfc1133bfa506f31ac041614783b3b744ef029302f95ef4b629a7de27ed79",
+      "disposition": "excluded",
+      "reason": "This is the guard's own fail-closed refusal when AGENTS.md no longer carries the review-parallelism brief: it names the exact missing heading and throws rather than reporting a state it could not read. It is a hard refusal on absent input, not an enrichable derivation, so there is no truthful value to enrich it with."
+    }
+  ]
+}
