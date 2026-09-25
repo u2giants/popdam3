@@ -1155,6 +1155,12 @@ export async function tick(): Promise<void> {
     // that asks to clear such a job would make the save a permanent no-op and
     // leave the operation running forever on the same page, so fail it visibly
     // instead of silently stalling.
+    //
+    // Before this check, persistOpState's refused save read as an external stop,
+    // the loop returned, and the next tick re-ran the identical page: a silent
+    // infinite loop. Advancing past the page is impossible without dropping the
+    // pointer, which shared-db forbids (external_job_protected), so a visible
+    // failure is the only safe outcome available to the worker.
     if (result.clear_external_job && isProtectedExternalJob(currentState.external_job)) {
       logger.error("tick: refused to clear a protected external_job; failing the operation", {
         opKey,
