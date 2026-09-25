@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "work_issue": 3562,
+  "outcome": "ready-for-merge",
+  "pr": 3560,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3562/3",
+  "contract_sha256": "200235591821db3d68d2f884aaa42b7e96d8a88d1b924fc07ac657622ecb4610",
+  "base_sha": "999e567441a65d57c84f1a4a426fb6c0fb45d3ea",
+  "head_sha": "7f15e949caa4a2d5c6e0c88a5036f275519b7caa",
+  "files_changed": [
+    ".github/workflows/destructive-analysis-guard.yml",
+    "docs/verification/main-required-status-checks-readback-20260925.json",
+    "docs/verification/main-required-status-checks.json",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/check-required-checks-preflight.mjs",
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-merge-queue-workflows.test.mjs scripts/check-required-checks-preflight.test.mjs",
+      "exit_code": 0,
+      "evidence": "re-run after merging origin/main 999e5674: pass (with configure-merge-queue and truth-audit suites: 100 pass, 0 fail)"
+    }
+  ],
+  "assumptions_resolved": [
+    "Live readback 16 contexts, strict false, committed as docs/verification/main-required-status-checks-readback-20260925.json and equal to the mirror.",
+    "Removing the merge_group scan step makes the new pin test fail (falsified locally).",
+    "Generation 2 was published but never committed; generation 3 supersedes it to add configure-merge-queue.mjs."
+  ],
+  "stop_conditions_hit": []
+}

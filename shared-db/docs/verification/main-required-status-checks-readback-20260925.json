@@ -1,0 +1,27 @@
+{
+  "_why": "Dated verification artifact (#2530 Step 8, work issue #3562, PR #3560): the live GET repos/popcre/shared-db/branches/main/protection/required_status_checks readback, redacted to strict and contexts, after 'Queue-sensitive checks (aggregate)' was restored additively with scripts/update-required-checks.mjs --apply under the #2530 Step 8 authorization. The mirror main-required-status-checks.json must carry exactly these contexts; scripts/check-merge-queue-workflows.test.mjs enforces that.",
+  "repo": "popcre/shared-db",
+  "branch": "main",
+  "capturedIso": "2026-09-25T22:26:18Z",
+  "endpoint": "repos/popcre/shared-db/branches/main/protection/required_status_checks",
+  "strict": false,
+  "contexts": [
+    "Agent work contract",
+    "Cancelled work guard",
+    "Cross-PR object collision",
+    "Destructive SQL outside migrations",
+    "Domain ownership",
+    "Handoff contract",
+    "Intake pointer guard",
+    "Merge queue gate",
+    "Migration author lease",
+    "Migration guarded merge authorization",
+    "Orchestrator marker guard",
+    "Promotion contract tests (offline)",
+    "Queue-sensitive checks (aggregate)",
+    "SQL migration guards",
+    "supabase/tests against an ephemeral database",
+    "Tools offline tests"
+  ],
+  "contextCount": 16
+}

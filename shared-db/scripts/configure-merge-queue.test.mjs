@@ -6,6 +6,7 @@ import {
   QUEUE_GATE_CONTEXT,
   MERGE_QUEUE_WORKFLOW,
   assertContextsAndWorkflow,
+  assertLiveContextsCovered,
   assertMainTipPreview,
   assertNoMutationLane,
   assertRepositoryIdentity,
@@ -99,6 +100,12 @@ test('readMainTip refuses a truncated commit file list', () => {
   assert.throws(() => readMainTip('acme/widgets', { read }), /truncated/)
 })
 
+test('live contexts must all be merge-group covered (plan Step 8)', () => {
+  assert.equal(assertLiveContextsCovered({ contexts: ['A', 'B'], coveredContexts: ['A', 'B', 'C'] }), true)
+  assert.throws(() => assertLiveContextsCovered({ contexts: ['A', 'D'], coveredContexts: ['A'] }), /coverage: D/)
+  assert.throws(() => assertLiveContextsCovered({ contexts: ['A'], coveredContexts: [] }), /unreadable/)
+})
+
 test('activation plan: all gates pass, same-name ruleset is reused, duplicates refuse', () => {
   const base = {
     repo: 'acme/widgets',
@@ -108,8 +115,11 @@ test('activation plan: all gates pass, same-name ruleset is reused, duplicates r
     workflows: [MERGE_QUEUE_WORKFLOW],
     heldLanes: [],
     mainTip: { tipSha: SHA_A, tipPaths: ['docs/x.md'], statuses: [] },
+    coveredContexts: [QUEUE_GATE_CONTEXT],
   }
   assert.equal(planActivation({ ...base, rulesets: [] }).existing, null)
+  assert.throws(() => planActivation({ ...base, rulesets: [], contexts: [QUEUE_GATE_CONTEXT, 'Unmirrored check'] }), /without proven merge-group coverage: Unmirrored check/)
+  assert.throws(() => planActivation({ ...base, rulesets: [], coveredContexts: undefined }), /unreadable/)
   assert.equal(planActivation({ ...base, rulesets: [{ id: 9, name: RULESET_NAME }] }).existing.id, 9)
   assert.throws(() => planActivation({ ...base, rulesets: [{ id: 9, name: RULESET_NAME }, { id: 10, name: RULESET_NAME }] }), /multiple rulesets/)
 })

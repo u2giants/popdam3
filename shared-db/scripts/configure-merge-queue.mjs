@@ -89,6 +89,18 @@ export function assertContextsAndWorkflow({ contexts, workflows }) {
   return true
 }
 
+// Plan Step 8: refuse unless every LIVE required context has merge-group coverage.
+// Coverage is proven per context by scripts/check-merge-queue-workflows.test.mjs
+// against the committed mirror, so a live context absent from that mirror is
+// unproven and would hold every queued group forever.
+export const COVERED_CONTEXTS_PATH = 'docs/verification/main-required-status-checks.json'
+export function assertLiveContextsCovered({ contexts, coveredContexts }) {
+  if (!Array.isArray(coveredContexts) || coveredContexts.length === 0) throw new ConfigureQueueError('the merge-group-covered context list is unreadable; refusing')
+  const uncovered = (contexts ?? []).filter((c) => !coveredContexts.includes(c))
+  if (uncovered.length) throw new ConfigureQueueError(`live required context(s) without proven merge-group coverage: ${uncovered.join(', ')}; mirror and map them first (scripts/update-required-checks.mjs, scripts/check-merge-queue-workflows.test.mjs)`)
+  return true
+}
+
 export function assertNoMutationLane(heldLanes) {
   if (!Array.isArray(heldLanes)) throw new ConfigureQueueError('mutation lane state is unreadable; refusing')
   if (heldLanes.length) throw new ConfigureQueueError(`mutation lane(s) held: ${heldLanes.join(', ')}; activate the queue only in a quiescent window`)
@@ -160,9 +172,10 @@ export function readMainTip(repo, { read = ghJson } = {}) {
 // Plan / apply / rollback
 // ---------------------------------------------------------------------------
 
-export function planActivation({ repo, live, baselineId, rulesets, contexts, workflows, heldLanes, mainTip }) {
+export function planActivation({ repo, live, baselineId, rulesets, contexts, workflows, heldLanes, mainTip, coveredContexts }) {
   assertRepositoryIdentity({ live, baselineId })
   assertContextsAndWorkflow({ contexts, workflows })
+  assertLiveContextsCovered({ contexts, coveredContexts })
   assertNoMutationLane(heldLanes)
   const tip = assertMainTipPreview(mainTip)
   if (!Array.isArray(rulesets)) throw new ConfigureQueueError('ruleset list is unreadable; refusing')
@@ -270,7 +283,11 @@ export function main(argv, env = process.env, deps = {}) {
   const heldLanes = readHeldLanes(repo, { read })
   const mainTip = readMainTip(repo, { read })
 
-  const plan = planActivation({ repo, live, baselineId, rulesets, contexts, workflows, heldLanes, mainTip })
+  let coveredContexts = deps.coveredContexts
+  if (coveredContexts === undefined) {
+    try { coveredContexts = JSON.parse((deps.readFile ?? readFileSync)(COVERED_CONTEXTS_PATH, 'utf8'))?.contexts } catch { coveredContexts = null }
+  }
+  const plan = planActivation({ repo, live, baselineId, rulesets, contexts, workflows, heldLanes, mainTip, coveredContexts })
   log(JSON.stringify({ mode: apply ? 'APPLY' : 'DRY RUN', repository: { id: live.id, ownerType: live.owner.type, visibility: live.visibility }, existingRulesetId: plan.existing?.id ?? null, mainTipHold: plan.mainTip, desired: plan.desired }, null, 2))
   if (!apply) {
     log('Dry run only. Nothing was written. Re-run with --apply to create the ruleset.')

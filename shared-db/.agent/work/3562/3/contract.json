@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "generation": 3,
+  "work_issue": 3562,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Give every live required status context on main a merge_group emitter before the merge queue ruleset is activated: merge_group coverage for destructive-analysis-guard.yml, both contexts mapped in check-merge-queue-workflows.test.mjs, PINNED_REQUIRED_CONTEXTS grown, and the required-checks mirror refreshed from the live readback. Generation 2: mirror and pin the restored Queue-sensitive checks (aggregate) context (16 live contexts, strict false), commit a dated readback verification artifact, pin the merge_group scan step, and resolve the round-2 review's medium findings. Generation 3 supersedes 2 (unused) only to add configure-merge-queue.mjs and its test, so activation refuses unless the live required list equals the merge-group-covered mirror.",
+  "base_sha": "4f395967e1a5bd42db1e28dce85faa10e3c8537b",
+  "dispatcher": "Claude chat f059b471-9513-4c04-a25e-3ffaf099a129 on edge-dev3 (Step 8 session for tracking issue #2530)",
+  "worker": "Claude chat f059b471-9513-4c04-a25e-3ffaf099a129 on edge-dev3",
+  "branch": "claude/2530-step8-required-checks-mirror",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/shared-db-merge-queue-386821",
+  "allowed_paths": [
+    ".github/workflows/destructive-analysis-guard.yml",
+    "docs/verification/main-required-status-checks.json",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/check-required-checks-preflight.mjs",
+    ".agent/work/3562/3/contract.json",
+    ".agent/work/3562/3/completion.json",
+    "docs/verification/main-required-status-checks-readback-20260925.json",
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs"
+  ],
+  "file_writes": [
+    ".github/workflows/destructive-analysis-guard.yml",
+    "docs/verification/main-required-status-checks.json",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/check-required-checks-preflight.mjs",
+    ".agent/work/3562/3/contract.json",
+    ".agent/work/3562/3/completion.json",
+    "docs/verification/main-required-status-checks-readback-20260925.json",
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not touch any migration or database object.",
+    "Do not activate the merge queue ruleset.",
+    "Do not remove, weaken, or skip any required status check."
+  ],
+  "required_checks": [
+    "node --test scripts/check-merge-queue-workflows.test.mjs scripts/check-required-checks-preflight.test.mjs"
+  ],
+  "assumptions": [
+    "Disclosed: the implementation commits (e7ad9917, 96b1b44c) were authored before this contract was published, because the Agent work contract gate was encountered at CI rather than at session start. The allowed_paths and goal match the net implementation exactly; nothing outside those paths was changed.",
+    "Generation 2 is published before its implementation commit. The coordinator restored Queue-sensitive checks (aggregate) to main live under the #2530 Step 8 authorization; readback is 16 contexts, strict false."
+  ],
+  "stop_conditions": [
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths."
+  ]
+}
