@@ -321,7 +321,7 @@ test("temporary Gemini polling failures stay resumable on the same saved batch I
   }
   assert.equal(transientPollDelayMs(0), 30_000);
   assert.equal(transientPollDelayMs(1), 60_000);
-  assert.equal(transientPollDelayMs(50), 600_000);
+  assert.equal(transientPollDelayMs(50), 300_000);
   // The saved ID is still the one polled after the delay.
   const action = nextBatchAction({ phase: "pending", provider_batch_id: "batches/saved-123", lease_token: "r", transient_poll_failures: 3, next_poll_at: "2000-01-01T00:00:00Z" });
   assert.deepEqual(action, { type: "poll", batchId: "batches/saved-123" });
@@ -387,4 +387,18 @@ test("three maximum-size images fit under the inline payload ceiling", async () 
   const payload = await buildGeminiBatchPayload([1, 2, 3].map((id) => ({ customId: `a${id}`, request: request(`data:image/jpeg;base64,${image}`) })));
   assert.equal(payload.excludedCustomIds.length, 0);
   assert.ok(Buffer.byteLength(JSON.stringify(payload.batch)) < 19 * 1024 * 1024);
+});
+
+test("a saved batch keeps its provider/model/pin identity regardless of current Settings", async () => {
+  const { batchJobIdentity, submittedIdentity } = await import("./batch-provider.js");
+  const settings = { primary: "google-direct/gemini-3.8-flash:batch", providerPin: "other" };
+  // New job: identity comes from Settings.
+  assert.deepEqual(batchJobIdentity(undefined, settings), { batchProvider: "google-gemini", model: settings.primary, providerPin: "other" });
+  // Existing job: the stored identity wins, even a null pin.
+  const saved = { phase: "pending", provider: "openrouter", model: "test/vision-model:batch", provider_pin: null } as const;
+  const identity = batchJobIdentity({ ...saved }, settings);
+  assert.deepEqual(identity, { batchProvider: "openrouter", model: "test/vision-model:batch", providerPin: null });
+  assert.deepEqual(submittedIdentity(identity), { provider: "openrouter", model: "test/vision-model:batch", provider_pin: null });
+  // Legacy job without `provider` is OpenRouter; without `provider_pin` keeps the Settings pin.
+  assert.deepEqual(batchJobIdentity({ phase: "pending", model: "x/y:batch" }, settings), { batchProvider: "openrouter", model: "x/y:batch", providerPin: "other" });
 });

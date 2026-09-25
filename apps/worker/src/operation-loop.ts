@@ -40,7 +40,14 @@ import {
 } from "./operation-retry.js";
 
 const CONFIG_KEY = "BULK_OPERATIONS";
-const STALE_RUN_MINUTES = 10;
+export const STALE_RUN_MINUTES = 10;
+export const STALE_RUN_MS = STALE_RUN_MINUTES * 60 * 1000;
+/**
+ * While an operation only waits (a provider batch that is not yet due, or a
+ * paused apply), refresh its updated_at at least this often so the stale guard
+ * never mistakes a healthy wait for a dead run. Well under STALE_RUN_MS.
+ */
+export const WAIT_HEARTBEAT_MS = 2 * 60 * 1000;
 const INTERRUPT_CHECK_EVERY = 10;
 const AUTO_RESUME_MAX_ATTEMPTS = 10;
 const submissionLeaseTokens = new Map<string, string>();
@@ -92,7 +99,26 @@ export function isProtectedExternalJob(job: OpState["external_job"] | undefined)
  * Keep the receipt after a failure that provably happened before any provider
  * request. Returns true while retries remain.
  */
-export const MAX_PRE_SUBMISSION_RETRIES = 20;
+export const MAX_PRE_SUBMISSION_RETRIES = 3;
+/**
+ * A pre-POST retry rebuilds the payload under the CURRENT lease and then renews
+ * it. Retry only while this much lease remains (a bounded rebuild plus the
+ * renewal fit well inside it); otherwise take the governed not_submitted reset
+ * while the receipt is still live, never let the lease lapse into a false
+ * ambiguous_submission.
+ */
+export const PRE_SUBMISSION_RETRY_MIN_LEASE_MS = 75_000;
+
+/** Remaining submission lease, or 0 when unknown/expired. */
+export function remainingLeaseMs(leaseExpiresAt: string | undefined, nowMs = Date.now()): number {
+  const deadline = leaseExpiresAt ? new Date(leaseExpiresAt).getTime() : Number.NaN;
+  return Number.isFinite(deadline) ? Math.max(0, deadline - nowMs) : 0;
+}
+
+/** True when the held lease can still cover one more bounded pre-POST attempt. */
+export function leaseCoversAnotherAttempt(leaseExpiresAt: string | undefined, nowMs = Date.now()): boolean {
+  return remainingLeaseMs(leaseExpiresAt, nowMs) >= PRE_SUBMISSION_RETRY_MIN_LEASE_MS;
+}
 
 /**
  * Decide what a proven pre-POST failure does. true: keep the receipt and retry
@@ -103,12 +129,13 @@ export const MAX_PRE_SUBMISSION_RETRIES = 20;
 export function holdReceiptAfterPreSubmissionFailure(
   opKey: string,
   error: unknown,
-  _leaseExpiresAt: string | undefined,
+  leaseExpiresAt: string | undefined,
+  nowMs = Date.now(),
 ): boolean {
   const attempts = (preSubmissionRetries.get(opKey) ?? 0) + 1;
   const message = normalizeBatchError(error, "Pre-submission failure without an error message").slice(0, 300);
   const permanent = error instanceof PreSubmissionError && error.permanent;
-  if (!permanent && attempts <= MAX_PRE_SUBMISSION_RETRIES) {
+  if (!permanent && attempts <= MAX_PRE_SUBMISSION_RETRIES && leaseCoversAnotherAttempt(leaseExpiresAt, nowMs)) {
     preSubmissionRetries.set(opKey, attempts);
     logger.warn("tick: provider batch not sent; keeping the receipt and retrying after a same-owner lease renewal", { opKey, attempts, error: message });
     return true;
@@ -238,7 +265,7 @@ function detectStaleRun(op: OpState): boolean {
   if (op.status !== "running") return false;
   if (!op.updated_at) return false;
   const ageMs = Date.now() - new Date(op.updated_at).getTime();
-  return ageMs > STALE_RUN_MINUTES * 60 * 1000;
+  return ageMs > STALE_RUN_MS;
 }
 
 // ── Progress accumulator — mirrors buildProgress() in bulk-job-runner ────────
@@ -259,6 +286,7 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         skipped: ((prev.skipped as number) || 0) + ((batch.skipped as number) || 0),
         failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
         visual_analysis_unavailable: ((prev.visual_analysis_unavailable as number) || 0) + ((batch.visual_analysis_unavailable as number) || 0),
+        image_unusable: ((prev.image_unusable as number) || 0) + ((batch.image_unusable as number) || 0),
         // Prefer previously-set total; fall back to batch-supplied count (set by handler when total is unknown)
         total: (prev.total as number) || (batch.total_count as number) || 0,
         failure_samples: [...prevFail, ...batchFail].slice(-200),
@@ -273,6 +301,7 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         skipped: ((prev.skipped as number) || 0) + ((batch.skipped as number) || 0),
         failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
         visual_analysis_unavailable: ((prev.visual_analysis_unavailable as number) || 0) + ((batch.visual_analysis_unavailable as number) || 0),
+        image_unusable: ((prev.image_unusable as number) || 0) + ((batch.image_unusable as number) || 0),
         total: (prev.total as number) || (batch.total_count as number) || 0,
         failure_samples: [...prevFail, ...batchFail].slice(-200),
       };
@@ -462,14 +491,16 @@ const KILL_RATE_MIN_SAMPLE = 50;    // need at least this many processed first
  * otherwise null. Two independent tiers — either can trigger.
  * Only considers failures that occurred on or after startedAt (current run).
  */
-function detectFailureKillSwitch(progress: Record<string, unknown>, startedAt?: string): string | null {
-  const allSamples = progress.failure_samples as Array<{ at?: string; error?: string }> | undefined;
+export function detectFailureKillSwitch(progress: Record<string, unknown>, startedAt?: string): string | null {
+  const allSamples = progress.failure_samples as Array<{ at?: string; error?: string; reason_category?: string }> | undefined;
   const startMs = startedAt ? new Date(startedAt).getTime() : 0;
 
-  // Only consider failures from the current run (filter by started_at)
-  const samples = allSamples?.filter((s) => !s.at || new Date(s.at).getTime() >= startMs);
+  // Only consider failures from the current run (filter by started_at). Items
+  // whose image is unusable are per-item data problems, not systematic
+  // breakage: they are recorded and skipped past, never a reason to stop.
+  const samples = allSamples?.filter((s) => (!s.at || new Date(s.at).getTime() >= startMs) && s.reason_category !== "image_unusable");
 
-  const failed  = (progress.failed  as number) || 0;
+  const failed  = Math.max(0, ((progress.failed as number) || 0) - ((progress.image_unusable as number) || 0));
   const tagged  = (progress.tagged  as number) || 0;
   const skipped = (progress.skipped as number) || 0;
   const total   = tagged + skipped + failed;
@@ -665,6 +696,35 @@ export async function persistOpState(
   // Check if our write was applied: the returned state should have status="running"
   const allOps = data as Record<string, OpState>;
   return allOps[opKey]?.status === "running";
+}
+
+/** True when a waiting running operation needs a heartbeat to stay clear of the stale guard. */
+export function needsWaitHeartbeat(op: OpState, nowMs = Date.now()): boolean {
+  if (op.status !== "running" || !op.updated_at) return false;
+  const updated = new Date(op.updated_at).getTime();
+  return !Number.isFinite(updated) || nowMs - updated >= WAIT_HEARTBEAT_MS;
+}
+
+/**
+ * Keep a waiting operation alive. A revision-guarded, non-claiming save that
+ * carries the stored state (and its external_job) forward unchanged except for
+ * updated_at; the database refuses it if anything moved underneath us.
+ */
+async function heartbeatWhileWaiting(opKey: string, state: OpState): Promise<void> {
+  if (!needsWaitHeartbeat(state)) return;
+  try {
+    const { lease_token: _leaseToken, ...storedJob } = state.external_job ?? ({} as NonNullable<OpState["external_job"]>);
+    const heartbeat: OpState = {
+      ...state,
+      external_job: state.external_job ? storedJob as OpState["external_job"] : undefined,
+      updated_at: new Date().toISOString(),
+    };
+    delete (heartbeat as { transient_prepared_batch?: unknown }).transient_prepared_batch;
+    const saved = await guardedPersistOpState(opKey, heartbeat, { expectedRevision: state.state_revision ?? 0 });
+    if (!saved.ok) logger.info("tick: wait heartbeat not applied", { opKey, reason: saved.reason });
+  } catch (error) {
+    logger.warn("tick: wait heartbeat failed", { opKey, error: normalizeBatchError(error, "heartbeat failed").slice(0, 200) });
+  }
 }
 
 // ── Main tick — called every POLL_INTERVAL_MS ─────────────────────────────────
@@ -868,10 +928,35 @@ export async function tick(): Promise<void> {
       return;
     }
 
+    const heldRetryToken = submissionLeaseTokens.get(opKey);
+    const heldSubmittingJob = currentState.external_job;
+    if (heldRetryToken && heldSubmittingJob?.phase === "submitting" && !heldSubmittingJob.provider_batch_id
+      && !leaseCoversAnotherAttempt(heldSubmittingJob.lease_expires_at)) {
+      preSubmissionRetries.delete(opKey);
+      submissionLeaseTokens.delete(opKey);
+      if (remainingLeaseMs(heldSubmittingJob.lease_expires_at) === 0) {
+        // Already lapsed: the governed reset requires a live receipt, so only
+        // the database's lease reconciliation can resolve it now.
+        logger.error("tick: held submission lease lapsed before a pre-POST retry; leaving it to lease reconciliation", { opKey });
+        return;
+      }
+      // A pre-POST retry is pending but the held lease can no longer cover a
+      // rebuild plus renewal. Reset it as never-submitted while it is live.
+      await failNeverSentSubmission(
+        opKey, currentState, currentState.state_revision ?? 0,
+        `railway:${currentState.run_id ?? "unknown"}`, heldRetryToken,
+        new PreSubmissionError("Submission lease cannot cover another preparation attempt"),
+      );
+      return;
+    }
+
     let result: BatchResult;
     try {
       const retryAfter = submissionLeaseRetryAfter.get(opKey) ?? 0;
-      if (currentState.external_job && !submissionLeaseTokens.has(opKey) && retryAfter > Date.now()) return;
+      if (currentState.external_job && !submissionLeaseTokens.has(opKey) && retryAfter > Date.now()) {
+        await heartbeatWhileWaiting(opKey, currentState);
+        return;
+      }
       const rememberedLeaseToken = submissionLeaseTokens.get(opKey);
       result = await dispatch(opKey, {
         ...currentState,
@@ -1063,7 +1148,10 @@ export async function tick(): Promise<void> {
       });
       return;
     }
-    if (result.state_transition === "yield_without_save") return;
+    if (result.state_transition === "yield_without_save") {
+      await heartbeatWhileWaiting(opKey, currentState);
+      return;
+    }
 
     const resultJob = result.external_job as OpState["external_job"] | undefined;
     if (!result.ok && currentState.external_job) {

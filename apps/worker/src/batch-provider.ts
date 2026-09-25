@@ -1,4 +1,7 @@
 import { PreSubmissionError } from "./batch-submission-error.js";
+import { getGoogleAiApiKey } from "./google-ai-key.js";
+import { getOpenRouterApiKey } from "./openrouter-key.js";
+import type { OpenRouterBatchJobState } from "./types.js";
 import {
   getOpenRouterBatch,
   prepareOpenRouterBatch,
@@ -28,6 +31,45 @@ export type PreparedProviderBatch = PreparedOpenRouterBatch | PreparedGeminiBatc
 
 export function batchProviderForModel(model: string): DurableBatchProvider {
   return isDirectGeminiBatchModel(model) ? "google-gemini" : "openrouter";
+}
+
+export interface BatchJobIdentity {
+  batchProvider: DurableBatchProvider;
+  model: string;
+  /** OpenRouter provider-routing pin the batch was prepared with (null = none). */
+  providerPin: string | null;
+}
+
+/**
+ * The provider/model/routing identity for a durable batch step. A NEW job takes
+ * it from current Settings; an existing job always uses what it saved, so a
+ * Settings change mid-batch can never re-route polling, repair or apply to a
+ * different provider, model or key. Legacy jobs saved before `provider` existed
+ * are OpenRouter; before `provider_pin` existed the pin was not recorded, so
+ * those keep the current Settings pin (their previous behavior).
+ */
+export function batchJobIdentity(
+  job: OpenRouterBatchJobState | undefined,
+  settings: { primary: string; providerPin: string | null },
+): BatchJobIdentity {
+  if (!job) {
+    return { batchProvider: batchProviderForModel(settings.primary), model: settings.primary, providerPin: settings.providerPin };
+  }
+  const model = typeof job.model === "string" && job.model ? job.model : settings.primary;
+  const providerPin = "provider_pin" in job
+    ? (typeof job.provider_pin === "string" && job.provider_pin ? job.provider_pin : null)
+    : settings.providerPin;
+  return { batchProvider: job.provider ?? "openrouter", model, providerPin };
+}
+
+/** Fields stamped onto the job at submission: the identity the POST used. */
+export function submittedIdentity(identity: BatchJobIdentity): Pick<OpenRouterBatchJobState, "provider" | "model"> & { provider_pin: string | null } {
+  return { provider: identity.batchProvider, model: identity.model, provider_pin: identity.providerPin };
+}
+
+/** The API key belongs to the job's saved provider, never to a model-name guess. */
+export function getBatchProviderApiKey(provider: DurableBatchProvider): Promise<string> {
+  return provider === "google-gemini" ? getGoogleAiApiKey() : getOpenRouterApiKey();
 }
 
 export function providerBatchPageLimit(provider: DurableBatchProvider, scope: "asset" | "style_group"): number {

@@ -27,13 +27,16 @@ import {
   type ChatMessage,
 } from "../openrouter.js";
 import {
-  batchProviderForModel,
   assertProviderSubmissionLeaseBudget,
   getProviderBatch,
   parseProviderBatchResult,
   prepareProviderBatch,
   providerBatchPageLimit,
   submitPreparedProviderBatch,
+  batchJobIdentity,
+  getBatchProviderApiKey,
+  submittedIdentity,
+  type DurableBatchProvider,
   type PreparedProviderBatch,
   type ProviderBatchResultItem,
 } from "../batch-provider.js";
@@ -509,6 +512,61 @@ interface PreparedGroupBatchSubmission {
   visualAnalysisUnavailable: number;
 }
 
+/** Failure-sample category for groups with no analyzable representative image. */
+export const IMAGE_UNUSABLE_CATEGORY = "image_unusable";
+
+/**
+ * Build provider requests for a page of groups and filter out groups with no
+ * usable representative image. Runs before any external_job is created (and
+ * again, in memory, right before the submission claim). Transient image
+ * failures propagate as resumable errors.
+ */
+async function prepareGroupSubmissions(
+  targets: ReadonlyArray<{ item: GroupJobItem; group: StyleGroupProfileRow }>,
+  options: {
+    model: string;
+    batchProvider: DurableBatchProvider;
+    providerPin: ChatCompletionRequest["provider"];
+    outputMethod: Exclude<StructuredOutputMethod, "json_repair">;
+    fetchMembers: (groupId: string) => Promise<StyleGroupRepresentativeCandidate[]>;
+    fetchImages: (representatives: StyleGroupRepresentativeCandidate[]) => Promise<PreparedGroupImages>;
+  },
+): Promise<{ preparedBatch?: PreparedProviderBatch; included: string[]; unusable: Array<{ item: GroupJobItem; reason: string }> }> {
+  const submissions = [];
+  const unusable: Array<{ item: GroupJobItem; reason: string }> = [];
+  for (const { item, group } of targets) {
+    const members = await options.fetchMembers(group.id);
+    const representatives = selectStyleGroupRepresentatives(
+      members.map((member) => ({ ...member, is_primary: member.id === group.primary_asset_id })),
+    );
+    if (!representatives.length) {
+      unusable.push({ item, reason: "no representative files" });
+      continue;
+    }
+    const prepared = await options.fetchImages(representatives);
+    if (!prepared.images.length) {
+      unusable.push({ item, reason: "no representative thumbnail could be used" });
+      continue;
+    }
+    const request: ChatCompletionRequest = {
+      model: options.model,
+      messages: buildGroupProfileMessages(group, prepared.representatives, prepared.images, options.batchProvider === "openrouter"),
+      max_tokens: 3000,
+      provider: options.providerPin,
+    };
+    applyStructuredOutputMethod(request, options.outputMethod);
+    submissions.push({ customId: item.custom_id, request });
+  }
+  // Direct Gemini drops items whose image it cannot use (download, type, size).
+  const preparedBatch = submissions.length ? await prepareProviderBatch(options.batchProvider, submissions) : undefined;
+  const excluded = new Set(preparedBatch && "excludedCustomIds" in preparedBatch ? preparedBatch.excludedCustomIds : []);
+  for (const target of targets) {
+    if (excluded.has(target.item.custom_id)) unusable.push({ item: target.item, reason: "image rejected during provider preparation" });
+  }
+  const included = submissions.map((submission) => submission.customId).filter((customId) => !excluded.has(customId));
+  return { preparedBatch: included.length ? preparedBatch : undefined, included, unusable };
+}
+
 function groupItems(job: OpenRouterBatchJobState): GroupJobItem[] {
   return Array.isArray(job.group_items) ? job.group_items as GroupJobItem[] : [];
 }
@@ -520,12 +578,13 @@ async function handleDurableGroupProfiles(
   batchSize: number,
 ): Promise<BatchResult> {
   const models = dependencies.models ?? await getVisionModels();
-  const model = opState.external_job?.model ?? models.primary;
-  // A persisted job without `provider` predates direct Gemini and is OpenRouter.
-  const batchProvider = opState.external_job ? (opState.external_job.provider ?? "openrouter") : batchProviderForModel(model);
-  const apiKey = dependencies.apiKey ?? await getAiTaggingApiKey(model);
+  // Once a job exists, its saved provider/model/routing identity is
+  // authoritative; current Settings only choose the identity of a NEW job.
+  const identity = batchJobIdentity(opState.external_job, models);
+  const { model, batchProvider } = identity;
+  const apiKey = dependencies.apiKey ?? await getBatchProviderApiKey(batchProvider);
   if (!apiKey) return { ok: false, done: false, error: "No batch provider API key configured" };
-  const providerPin = batchProvider === "openrouter" ? buildProviderPin(models.providerPin) : undefined;
+  const providerPin = batchProvider === "openrouter" ? buildProviderPin(identity.providerPin) : undefined;
   const fetchGroups = dependencies.fetchGroups ?? defaultFetchGroups;
   const fetchMembers = dependencies.fetchMembers ?? defaultFetchMembers;
   const fetchImages = dependencies.fetchImages ??
@@ -553,6 +612,40 @@ async function handleDurableGroupProfiles(
         : { ok: true, done: true, profiled: 0, skipped: 0, failed: 0, nextOffset: opState.cursor ?? 0 };
     }
     const runId = opState.run_id ?? "unassigned";
+    const draftItems: GroupJobItem[] = groups.map((group) => ({
+      style_group_id: group.id,
+      custom_id: `popdam-group:${runId}:${group.id}:${outputMethod}:0`,
+      status: "prepared",
+      sku: group.sku,
+    }));
+    const nextCursor = groupIds ? nextExplicitOffset : groups[groups.length - 1].id;
+    const operationDoneAfterPage = Boolean(groupIds?.length && nextExplicitOffset >= groupIds.length);
+    // Image preparation and usability filtering run BEFORE any external_job
+    // exists: a prepared job is protected by the shared-db guarded writer and
+    // can never be dropped, so a page with no usable image must never create one.
+    const preparation = await prepareGroupSubmissions(
+      draftItems.map((item, index) => ({ item, group: groups[index] })),
+      { model, batchProvider, providerPin, outputMethod, fetchMembers, fetchImages },
+    );
+    const failureSamples = preparation.unusable.map((entry) => ({
+      at: new Date().toISOString(),
+      style_group_id: entry.item.style_group_id,
+      sku: entry.item.sku ?? "",
+      error: `No usable representative image: ${entry.reason}`,
+      reason_category: IMAGE_UNUSABLE_CATEGORY,
+    }));
+    const pageCounts = {
+      profiled: 0,
+      skipped: Math.max(0, requestedCount - groups.length),
+      failed: preparation.unusable.length,
+      image_unusable: preparation.unusable.length,
+      failure_samples: failureSamples,
+    };
+    if (!preparation.included.length) {
+      // Record the page as per-item failures and advance; no provider job.
+      return { ok: true, done: operationDoneAfterPage, nextOffset: nextCursor, ...pageCounts, last_stage: "state_persist" };
+    }
+    const included = new Set(preparation.included);
     return {
       ok: true,
       done: false,
@@ -562,21 +655,17 @@ async function handleDurableGroupProfiles(
         phase: "prepared",
         provider: batchProvider,
         model,
+        provider_pin: identity.providerPin,
         output_method: outputMethod,
         prepared_at: new Date().toISOString(),
         page_cursor: opState.cursor ?? 0,
-        next_cursor: groupIds ? nextExplicitOffset : groups[groups.length - 1].id,
-        operation_done_after_clear: Boolean(groupIds?.length && nextExplicitOffset >= groupIds.length),
+        next_cursor: nextCursor,
+        operation_done_after_clear: operationDoneAfterPage,
         scope: "style_group",
-        group_items: groups.map((group) => ({
-          style_group_id: group.id,
-          custom_id: `popdam-group:${runId}:${group.id}:${outputMethod}:0`,
-          status: "prepared",
-          sku: group.sku,
-        })),
+        group_items: draftItems.filter((item) => included.has(item.custom_id)),
         items: [],
       },
-      skipped: Math.max(0, requestedCount - groups.length),
+      ...pageCounts,
       last_stage: "state_persist",
     };
   }
@@ -592,50 +681,24 @@ async function handleDurableGroupProfiles(
       return { ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0, state_transition: "claim_submission" };
     }
     const outputMethod = job.output_method ?? "json_schema";
-    const submissions = [];
-    let visualAnalysisUnavailable = 0;
+    const targets: Array<{ item: GroupJobItem; group: StyleGroupProfileRow }> = [];
     for (const item of groupItems(job)) {
       const groups = await fetchGroups({ cursor: null, limit: 1, force: true, groupIds: [item.style_group_id] });
-      const group = groups[0];
-      if (!group) continue;
-      const members = await fetchMembers(group.id);
-      const representatives = selectStyleGroupRepresentatives(
-        members.map((member) => ({ ...member, is_primary: member.id === group.primary_asset_id })),
-      );
-      if (!representatives.length) {
-        visualAnalysisUnavailable++;
-        continue;
-      }
-      const prepared = await fetchImages(representatives);
-      if (!prepared.images.length) {
-        visualAnalysisUnavailable++;
-        continue;
-      }
-      const request: ChatCompletionRequest = {
-        model,
-        messages: buildGroupProfileMessages(group, prepared.representatives, prepared.images, batchProvider === "openrouter"),
-        max_tokens: 3000,
-        provider: providerPin,
-      };
-      applyStructuredOutputMethod(request, outputMethod);
-      submissions.push({ customId: item.custom_id, request });
+      if (groups[0]) targets.push({ item, group: groups[0] });
     }
-    // Direct Gemini drops items whose image is unusable; they count as
-    // visual-analysis-unavailable exactly like items skipped above.
-    const preparedBatch = submissions.length ? await prepareProviderBatch(batchProvider, submissions) : undefined;
-    const excluded = new Set(preparedBatch && "excludedCustomIds" in preparedBatch ? preparedBatch.excludedCustomIds : []);
-    visualAnalysisUnavailable += excluded.size;
-    const includedSubmissions = submissions.filter((submission) => !excluded.has(submission.customId));
+    const preparation = await prepareGroupSubmissions(targets, { model, batchProvider, providerPin, outputMethod, fetchMembers, fetchImages });
+    const visualAnalysisUnavailable = preparation.unusable.length;
+    const preparedBatch = preparation.preparedBatch;
+    const includedSubmissions = preparation.included;
     if (!preparedBatch || !includedSubmissions.length) {
       if (reprepareHeldReceipt) throw new PreSubmissionError("Provider batch re-preparation produced no usable requests", true);
-      // NOTE: the stored job is phase "prepared", which the shared-db guarded
-      // writer never lets any caller drop (external_job_protected rule in
-      // shared-db migration 20260824004025; the only permitted clear is a
-      // receipt-proven "completed" job with a provider_batch_id). This clear can
-      // therefore never persist and cannot advance the page: the operation loop
-      // fails the operation visibly (protected_external_job_clear_refused)
-      // instead of re-running this page forever. Skipping such a page needs a
-      // shared-db contract change first.
+      // Usability is filtered before a job is created, so this is reached only
+      // when every image of an ALREADY-protected prepared job became unusable
+      // afterwards. The shared-db guarded writer never lets any caller drop a
+      // "prepared" job (external_job_protected, shared-db migration
+      // 20260824004025), so this clear cannot persist: the operation loop fails
+      // the operation visibly (protected_external_job_clear_refused) instead of
+      // re-running this page forever.
       return {
         ok: true,
         done: job.operation_done_after_clear === true,
@@ -647,7 +710,7 @@ async function handleDurableGroupProfiles(
     }
     const transientPreparedBatch: PreparedGroupBatchSubmission = {
       batch: preparedBatch,
-      submittedIds: includedSubmissions.map((submission) => submission.customId),
+      submittedIds: includedSubmissions,
       visualAnalysisUnavailable,
     };
     return {
@@ -685,6 +748,9 @@ async function handleDurableGroupProfiles(
       nextOffset: job.page_cursor ?? opState.cursor ?? 0,
       external_job: {
         ...job,
+        // Stamp the identity the batch was actually sent with, so polling and
+        // applying never re-read it from Settings (legacy jobs lacked it).
+        ...submittedIdentity(identity),
         phase: "pending",
         provider_batch_id: created.id,
         submitted_at: new Date().toISOString(),
