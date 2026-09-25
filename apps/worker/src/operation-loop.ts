@@ -75,6 +75,18 @@ export function releaseReceiptAfterPost(opKey: string, leaseExpiresAt: string | 
 /** Record the one-time receipt this worker was issued (never persisted). */
 export function rememberSubmissionReceipt(opKey: string, leaseToken: string): void {
   submissionLeaseTokens.set(opKey, leaseToken);
+  // A newly minted receipt starts clean: no earlier reset or retry state applies.
+  pendingNotSubmittedResets.delete(opKey);
+  preSubmissionRetries.delete(opKey);
+}
+
+/** Drop every in-memory submission artifact for an operation that has ended. */
+export function forgetSubmissionState(opKey: string): void {
+  submissionLeaseTokens.delete(opKey);
+  submissionLeaseRetryAfter.delete(opKey);
+  pendingNotSubmittedResets.delete(opKey);
+  preSubmissionRetries.delete(opKey);
+  preparedPayloads.delete(opKey);
 }
 
 /** True while this worker holds an in-memory receipt for the operation. */
@@ -971,6 +983,8 @@ export async function tick(): Promise<void> {
         { ...currentState, cursor, progress },
         currentState.state_revision ?? 0,
       )!;
+      // The receipt was consumed by the reset; nothing in memory may carry over.
+      forgetSubmissionState(opKey);
       await recordStyleGroupTerminalOutcome(opKey, outcome.state, "failed");
       logger.error("tick: completed the durable failure for a reset batch submission", { opKey });
       return;
