@@ -744,3 +744,115 @@ test("a held receipt whose payload was lost is rebuilt and sent back through the
     globalThis.fetch = originalFetch;
   }
 });
+
+// ── #92 review fixes: pre-job usability filtering and saved provider identity ─
+
+function stubCapabilitiesFetch(calls: string[]) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push(`${(init?.method ?? "GET").toUpperCase()} ${String(input)}`);
+    if (String(input).includes("/batches")) {
+      return new Response(JSON.stringify({ id: "batch_saved", status: "in_progress" }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response(JSON.stringify({
+      data: [{
+        id: "test/vision-model",
+        architecture: { input_modalities: ["text", "image"] },
+        supported_parameters: ["tools", "tool_choice", "structured_outputs", "response_format"],
+      }],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+  return () => { globalThis.fetch = originalFetch; };
+}
+
+test("a group page with no usable image records per-item failures and advances without creating any job", async () => {
+  const calls: string[] = [];
+  const restore = stubCapabilitiesFetch(calls);
+  try {
+    const result = await handleStyleGroupProfiles(
+      { status: "running", cursor: 0, run_id: "run1" } as OpState,
+      deps({
+        client: recordingClient(), apiKey: "test-key",
+        models: { primary: "test/vision-model:batch", fallback: null, providerPin: null },
+        fetchImages: async () => ({ representatives: [], images: [], droppedForBudget: 0, unavailable: 3 }),
+      }),
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.external_job, undefined, "no prepared/protected job for an unusable page");
+    assert.equal(result.state_transition, undefined, "no submission lease is claimed");
+    assert.equal(result.clear_external_job, undefined);
+    assert.equal(result.failed, 1);
+    assert.equal(result.image_unusable, 1);
+    assert.equal(result.nextOffset, GROUP_ID, "the cursor advances past the page");
+    assert.equal(result.done, false);
+    const sample = (result.failure_samples as Array<{ style_group_id: string; reason_category: string }>)[0];
+    assert.equal(sample.style_group_id, GROUP_ID);
+    assert.equal(sample.reason_category, "image_unusable");
+    assert.ok(!calls.some((call) => call.startsWith("POST")), "nothing is sent to a provider");
+  } finally {
+    restore();
+  }
+});
+
+test("explicit group IDs whose final page is unusable finish the operation", async () => {
+  const restore = stubCapabilitiesFetch([]);
+  try {
+    const result = await handleStyleGroupProfiles(
+      { status: "running", cursor: 0, run_id: "run1", params: { group_ids: [GROUP_ID] } } as unknown as OpState,
+      deps({
+        client: recordingClient(), apiKey: "test-key",
+        models: { primary: "test/vision-model:batch", fallback: null, providerPin: null },
+        fetchMembers: async () => [],
+      }),
+    );
+    assert.equal(result.external_job, undefined);
+    assert.equal(result.done, true);
+    assert.equal(result.nextOffset, 1);
+    assert.equal(result.failed, 1);
+  } finally {
+    restore();
+  }
+});
+
+test("a prepared group job saves the provider, model and routing pin it was built with", async () => {
+  const restore = stubCapabilitiesFetch([]);
+  try {
+    const result = await handleStyleGroupProfiles(
+      { status: "running", cursor: 0, run_id: "run1" } as OpState,
+      deps({ client: recordingClient(), apiKey: "test-key", models: { primary: "test/vision-model:batch", fallback: null, providerPin: "anthropic" } }),
+    );
+    const job = result.external_job as { provider: string; model: string; provider_pin: string | null };
+    assert.equal(job.provider, "openrouter");
+    assert.equal(job.model, "test/vision-model:batch");
+    assert.equal(job.provider_pin, "anthropic");
+  } finally {
+    restore();
+  }
+});
+
+test("polling a saved batch uses its stored provider identity, not changed Settings", async () => {
+  const calls: string[] = [];
+  const restore = stubCapabilitiesFetch(calls);
+  try {
+    const pending = {
+      status: "running", cursor: 0, run_id: "run1", state_revision: 3,
+      external_job: {
+        version: 1, phase: "pending", provider: "openrouter", model: "test/vision-model:batch", provider_pin: "anthropic",
+        output_method: "json_schema", provider_batch_id: "batch_saved",
+        submitted_at: new Date(Date.now() - 60_000).toISOString(), lease_token: "lease-1",
+        page_cursor: 0, next_cursor: GROUP_ID, scope: "style_group",
+        group_items: [{ style_group_id: GROUP_ID, custom_id: "popdam-group:run1:g:json_schema:0", status: "submitted" }], items: [],
+      },
+    } as unknown as OpState;
+    // Settings now point at direct Gemini with a different pin.
+    const result = await handleStyleGroupProfiles(pending, deps({
+      client: recordingClient(), apiKey: "test-key",
+      models: { primary: "google-direct/gemini-3.8-flash:batch", fallback: null, providerPin: "other" },
+    }));
+    assert.equal(result.ok, true);
+    assert.ok(calls.some((call) => call.startsWith("GET") && call.includes("openrouter.ai") && call.includes("batch_saved")), `expected an OpenRouter poll, saw ${calls.join(", ")}`);
+    assert.ok(!calls.some((call) => call.includes("generativelanguage")), "Settings must not re-route a saved batch");
+  } finally {
+    restore();
+  }
+});
