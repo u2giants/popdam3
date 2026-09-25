@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/review-packet.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/review-packet.mjs:16",
+      "semantic_key": "scripts/lib/review-packet.mjs:64272558998265078540b4196523bbacfeb39e704cf235a2e27ce0719fdc26a8:context-ddd4b915bd4360c15e66f74b81d6f69da8ab9c9f019a05da720401e3da8b3b57",
+      "legacy_semantic_key": "scripts/lib/review-packet.mjs:64272558998265078540b4196523bbacfeb39e704cf235a2e27ce0719fdc26a8:1",
+      "line_sha256": "64272558998265078540b4196523bbacfeb39e704cf235a2e27ce0719fdc26a8",
+      "disposition": "excluded",
+      "reason": "Rejects absent or stale review issue and PR evidence before provider execution; it makes no assertion about a database object or migration being absent."
+    },
+    {
+      "site": "scripts/lib/review-packet.mjs:32",
+      "semantic_key": "scripts/lib/review-packet.mjs:6831c4089b937ed43fdd2b681f60ac67f54cd9730b5d3ac142e6ddfb38bc3a67:context-280cd3cf284e42c83c96ef8ed20cbc61f11644af8b9f76a02e94568cec7623ee",
+      "legacy_semantic_key": "scripts/lib/review-packet.mjs:6831c4089b937ed43fdd2b681f60ac67f54cd9730b5d3ac142e6ddfb38bc3a67:1",
+      "line_sha256": "6831c4089b937ed43fdd2b681f60ac67f54cd9730b5d3ac142e6ddfb38bc3a67",
+      "disposition": "excluded",
+      "reason": "Reviewer instruction explicitly treats absent tests and rollback or dependency facts as unverified. It does not infer database absence from incomplete evidence."
+    }
+  ]
+}

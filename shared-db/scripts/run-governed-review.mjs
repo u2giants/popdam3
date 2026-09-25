@@ -12,6 +12,7 @@ import { runGitHubCommand, spawnGitHub } from './lib/github-transport.mjs'
 // Issue #2729 Step 7: one lifecycle source of truth decides retry versus reroute.
 import { reviewerStartDecision, NON_VERDICT_TERMINAL_REASONS } from './orchestrator-flow/start-reroute.mjs'
 import { REVIEW_CALLER_VARIABLES, reviewCallerEnvironment } from './lib/reviewer-caller-env.mjs'
+import { loadReviewBrief, storeReviewBrief } from './lib/review-packet.mjs'
 import { GOVERNED_VERDICT_WRAPPERS, VERDICT_CONTRACT_FLAG_WRAPPERS, forbiddenGovernedSubcommand, wrapperBaseName } from './lib/reviewer-capabilities.mjs'
 
 export const GOVERNED_REVIEW_OPTIONS=Object.freeze(['issue','pr','headSha','reviewer','wrapper','worktree','reviewSlot','replacementSequence','assignmentId','skipDoctor'])
@@ -452,7 +453,8 @@ export function preflightWithTimeoutRetry(args,assignment,deps,lifecycle=[]){
 export function runGovernedReview(options,deps={spawn:spawnSync,preflight:reviewerExecutionPreflight,record:recordReviewVerdict,resolve:resolveCommandPath,readReport:(path)=>readFileSync(path,'utf8')}){
   const resolveSource=deps.sourceResolver??resolveReviewSource
   const sourceIdentity=resolveSource(options)
-  const wrapperArgs=wrapperSourceContractArgs(options.wrapper,wrapperVerdictContractArgs(options.wrapper,options.wrapperArgs,options.headSha),sourceIdentity)
+  const brief=(deps.briefPreparer??prepareCompleteReviewBrief)(options,sourceIdentity)
+  const wrapperArgs=wrapperSourceContractArgs(options.wrapper,wrapperVerdictContractArgs(options.wrapper,brief.wrapperArgs,options.headSha),sourceIdentity)
   const skipDoctor=options.skipDoctor===true||options.skipDoctor==='true'
   const assignment=reviewAssignmentIdentity(options),lifecycle=[]
   preflightWithTimeoutRetry({reviewer:options.reviewer,wrapper:options.wrapper,worktree:options.worktree,headSha:options.headSha,skipDoctor},assignment,deps,lifecycle)
@@ -474,7 +476,7 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
   // committed -- would turn an environment question into a started-but-failed
   // review, so this only carries the caller through when there is one to carry.
   const callerEnv=reviewCallerEnvironment(options.wrapper,process.env,{required:false})
-  const run=deps.spawn(plan.file,plan.args,{cwd:options.worktree,env:{...process.env,...callerEnv,AI_REVIEW_SOURCE_RECEIPT_FILE:receipt.path},encoding:'utf8',maxBuffer:64*1024*1024,stdio:['ignore','pipe','pipe']})
+  const run=deps.spawn(plan.file,plan.args,{cwd:options.worktree,env:{...process.env,...callerEnv,...brief.env,AI_REVIEW_SOURCE_RECEIPT_FILE:receipt.path},encoding:'utf8',maxBuffer:64*1024*1024,stdio:['ignore','pipe','pipe']})
   let rawBody=String(run.stdout??'').trim()
   // Issue #2244: the codex wrapper's verdict lives in its published report, not on
   // standard output. Transcribe it into this runner's grammar BEFORE parsing, and
@@ -707,10 +709,11 @@ These three are mandatory and additional to your normal review. Report everythin
 you would normally raise as well; this list is a floor, never a ceiling.
 `
 export const DEEPSEEK_GOVERNED_MESSAGE='Review the attached governed brief completely and follow its final VERDICT instruction.'
-export function promptHeadContract(wrapperArgs,head,{readFile=(path)=>readFileSync(path,'utf8'),writeFile=writeFileSync,tempDir=()=>mkdtempSync(join(tmpdir(),'governed-review-'))}={},wrapper=null){
+export function promptHeadContract(wrapperArgs,head,{readFile=(path)=>readFileSync(path,'utf8'),writeFile=writeFileSync,tempDir=()=>mkdtempSync(join(tmpdir(),'governed-review-'))}={},wrapper=null,brief=''){
   const list=[...wrapperArgs]
   let carried=false
   const instruction=`
+${brief}
 ${PROBE_REVIEW_CHECKLIST}
 Authoritative pull request head (injected by the governed review runner): ${head}
 Your final line must be exactly one of: VERDICT: APPROVE ${head} | VERDICT: REVISE ${head} | VERDICT: REJECT ${head}
@@ -797,6 +800,22 @@ Your final line must be exactly one of: VERDICT: APPROVE ${head} | VERDICT: REVI
   // still carry the contract.
   if(!carried&&wrapperBaseName(wrapper)!==CODEX_WRAPPER)throw new Error('the outbound reviewer prompt carries no terminal VERDICT instruction, because the wrapper arguments contain neither --prompt nor --prompt-file. No reviewer was started and no reviewer capacity was spent. A reviewer sent a prompt without the terminal "VERDICT: <DECISION> <head>" line can approve the work and still leave nothing recordable. Pass the brief with --prompt or --prompt-file so the runner can bind it to the live head.')
   return list
+}
+export function prepareCompleteReviewBrief(options,source,{github=readGitHub,files,store=storeReviewBrief}={}){
+  const text=loadReviewBrief(options,source,{github})
+  if(wrapperBaseName(options.wrapper)===CODEX_WRAPPER){
+    // The canonical Codex adapter consumes this existing interface into its sealed
+    // packet. It does not accept --prompt and keeps its qualified report parser.
+    return {wrapperArgs:options.wrapperArgs,env:{AI_REVIEW_BRIEF_FILE:store(`${text}\n${PROBE_REVIEW_CHECKLIST}`)}}
+  }
+  const args=promptHeadContract(options.wrapperArgs,source.headSha,files,options.wrapper,text)
+  // Complete context can exceed Windows' argument limit. Reuse the supported
+  // prompt-file flag; do not truncate evidence or send it through shell text.
+  for(let i=0;i<args.length;i++){
+    if(args[i]==='--prompt'){args[i]='--prompt-file';args[i+1]=store(args[i+1]);i++}
+    else if(args[i].startsWith('--prompt='))args[i]=`--prompt-file=${store(args[i].slice('--prompt='.length))}`
+  }
+  return {wrapperArgs:args,env:{}}
 }
 export function prepareGovernedReview(options,{env=process.env,github=readGitHub,files}={}){
   const live=readLivePullRequestHead(options.pr,github)

@@ -16,7 +16,7 @@ const fixtureFiles=[{filename:'source.txt',status:'modified'}]
 const fixtureSource=(input)=>({repository:THIS_REPO,pr:input.pr,baseRef:'develop',targetSha:'b'.repeat(40),headSha:input.headSha,mergeBase:'c'.repeat(40),files:fixtureFiles,fileSetSha256:createHash('sha256').update(JSON.stringify(fixtureFiles)).digest('hex'),sourceDigest:'d'.repeat(64)})
 const fixtureReceipt=(input)=>({schema_version:1,identity:{repository:input.worktree,base:'c'.repeat(40),head:input.headSha,source_digest:'d'.repeat(64)},packet_sha256:'e'.repeat(64)})
 const fixturePaths={platform:'win32',realpath:(path)=>path,lstat:()=>({isSymbolicLink:()=>false,isDirectory:()=>true})}
-function runGovernedReview(input,deps){return executeGovernedReview(input,{recordStart:()=>'refs/db-review-started/fixture',sourceResolver:fixtureSource,sourcePathOptions:fixturePaths,receiptFactory:()=>({path:'C:/review/.ai/reviews/source.json',read:()=>fixtureReceipt(input),bind:()=> 'C:/review/.ai/reviews/source.json.binding.json'}),...deps})}
+function runGovernedReview(input,deps){return executeGovernedReview(input,{recordStart:()=>'refs/db-review-started/fixture',sourceResolver:fixtureSource,briefPreparer:(input)=>({wrapperArgs:input.wrapperArgs,env:{}}),sourcePathOptions:fixturePaths,receiptFactory:()=>({path:'C:/review/.ai/reviews/source.json',read:()=>fixtureReceipt(input),bind:()=> 'C:/review/.ai/reviews/source.json.binding.json'}),...deps})}
 
 test('all qualified wrappers receive immutable source arguments without rewriting prompt values',()=>{
   const source=fixtureSource(options)
