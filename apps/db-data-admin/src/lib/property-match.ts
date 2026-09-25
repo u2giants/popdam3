@@ -97,6 +97,25 @@ function isMissingFunction(error: unknown) {
   return code === 'PGRST202' || code === '42883' || /could not find the function/i.test(message)
 }
 
+function errorCode(error: unknown) {
+  if (!error || typeof error !== 'object' || !('code' in error)) return 'unknown'
+  return String(error.code).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24) || 'unknown'
+}
+
+/**
+ * PostgREST failures are plain objects, so `instanceof Error` message extraction
+ * would replace them with a generic sentence. Wrap them as real Errors carrying
+ * only a sanitized code and a fixed phrase — never row values.
+ */
+function toSafeStageError(error: unknown, stage: string) {
+  const code = errorCode(error)
+  const raw = error && typeof error === 'object' && 'message' in error ? String(error.message) : ''
+  if (code === '42501' || /permission|licensing|access/i.test(raw)) {
+    return new Error(`${stage} refused (${code}). Licensing Manager access is required.`)
+  }
+  return new Error(`${stage} could not be loaded (${code}).`)
+}
+
 export function normaliseRow(row: PropertyMatchRow): PropertyMatchRow {
   const candidates = [...(row.candidates ?? [])]
     .map(candidate => ({ ...candidate, property_name: candidate.property_name ?? null }))
@@ -194,11 +213,6 @@ async function loadOpaPropertyOptionsFromReviewSurface(client: ApiClient, direct
     .sort((a, b) => a.property_name.localeCompare(b.property_name) || a.licensed_property_id - b.licensed_property_id)
 }
 
-function errorCode(error: unknown) {
-  if (!error || typeof error !== 'object' || !('code' in error)) return 'unknown'
-  return String(error.code).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24) || 'unknown'
-}
-
 /** Why this row needs a human: no candidate, exactly one, or a choice between several. */
 export function matchState(row: PropertyMatchRow): MatchState {
   if (row.candidates.length === 0) return 'none'
@@ -235,7 +249,7 @@ export async function loadPropertyMatchQueue(client: ApiClient, search: string |
     })
     if (error) {
       if (isMissingFunction(error)) throw new ReviewQueueUnavailableError()
-      throw error
+      throw toSafeStageError(error, 'Review queue')
     }
     const payload = (data ?? {}) as Partial<MatchQueuePage>
     rows.push(...(payload.rows ?? []).map(normaliseRow))
@@ -273,7 +287,7 @@ export async function decidePropertyMatch(
   })
   if (error) {
     if (isMissingFunction(error)) throw new ReviewQueueUnavailableError()
-    throw error
+    throw toSafeStageError(error, 'Decision')
   }
   return (data ?? {}) as DecisionResult
 }

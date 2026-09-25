@@ -62,6 +62,20 @@ const clientWithDeniedOpaView = (rpc: ReturnType<typeof vi.fn>) => ({
   }) }),
 }) as unknown as ApiClient
 
+/** Queue RPC succeeds; every OPA vocabulary read is refused. */
+const clientWithQueueButNoOptions = (rows: PropertyMatchRow[]) => {
+  const rpc = vi.fn().mockImplementation(async (fn: string) => fn === 'db_data_admin_property_match_queue'
+    ? { data: { rows, next_cursor: null, page_size: 200 }, error: null }
+    : { data: null, error: { code: '42501' } })
+  return {
+    rpc,
+    from: () => ({ select: () => ({
+      in: async () => ({ data: null, error: { code: '42501' } }),
+      order: () => ({ range: async () => ({ data: null, error: { code: '42501' } }) }),
+    }) }),
+  } as unknown as ApiClient
+}
+
 const queueOnce = (rows: PropertyMatchRow[]) =>
   vi.fn().mockResolvedValueOnce({ data: { rows, next_cursor: null, page_size: 200 }, error: null })
 
@@ -127,6 +141,18 @@ describe('property match queue data', () => {
   it('reports a missing RPC as an unavailable queue, not a raw error', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'Could not find the function' } })
     await expect(loadPropertyMatchQueue(clientOf(rpc))).rejects.toBeInstanceOf(ReviewQueueUnavailableError)
+  })
+
+  it('wraps a plain PostgREST queue failure as an Error with a safe code', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } })
+    await expect(loadPropertyMatchQueue(clientOf(rpc)))
+      .rejects.toThrow(/Review queue could not be loaded \(57014\)/)
+  })
+
+  it('reports a queue refusal as a Licensing Manager denial', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { code: '42501', message: 'permission denied for table' } })
+    await expect(loadPropertyMatchQueue(clientOf(rpc)))
+      .rejects.toThrow(/Licensing Manager access is required/)
   })
 
   it('preselects every recorded candidate as a removable suggestion', () => {
@@ -230,5 +256,21 @@ describe('PropertyMatchReview', () => {
     const rpc = vi.fn().mockResolvedValue({ data: null, error: new Error('licensing manager access required') })
     render(<PropertyMatchReview client={clientOf(rpc)} />)
     expect(await screen.findByRole('alert')).toHaveTextContent('Licensing Manager')
+  })
+
+  it('shows the database refusal instead of a generic sentence for plain PostgREST errors', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { code: '42501', message: 'permission denied for table' } })
+    render(<PropertyMatchReview client={clientOf(rpc)} />)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Licensing Manager')
+    expect(alert).not.toHaveTextContent('The review queue could not be loaded.')
+  })
+
+  it('keeps the review queue on screen when the OPA picker is refused', async () => {
+    render(<PropertyMatchReview client={clientWithQueueButNoOptions([row()])} />)
+    expect(await screen.findByRole('heading', { name: 'Muppets' })).toBeInTheDocument()
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/42501/)
+    expect(alert).toHaveTextContent(/still reject rows/)
   })
 })

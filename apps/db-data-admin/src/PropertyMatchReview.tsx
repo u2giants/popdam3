@@ -35,19 +35,26 @@ export function PropertyMatchReview({ client }: Props) {
   const [busy, setBusy] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [optionsError, setOptionsError] = useState<string | null>(null)
   const [denied, setDenied] = useState(false)
   const [unavailable, setUnavailable] = useState(false)
   const [search, setSearch] = useState('')
   const [saved, setSaved] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    setLoading(true); setError(null); setDenied(false); setUnavailable(false)
+    setLoading(true); setError(null); setOptionsError(null); setDenied(false); setUnavailable(false)
     try {
-      const [loaded, options] = await Promise.all([loadPropertyMatchQueue(client), loadOpaPropertyOptions(client)])
+      // The queue is the screen; the full OPA picker is supporting vocabulary.
+      // Load them separately so a picker failure can never erase a valid queue.
+      const loaded = await loadPropertyMatchQueue(client)
       setRows(loaded)
-      setPropertyOptions(options)
       setChosen(Object.fromEntries(loaded.map(row => [row.resolution_id, defaultSelection(row)])))
       setRequestIds(Object.fromEntries(loaded.map(row => [row.resolution_id, crypto.randomUUID()])))
+      try {
+        setPropertyOptions(await loadOpaPropertyOptions(client))
+      } catch (cause) {
+        setOptionsError(cause instanceof Error ? cause.message : 'Property options could not be loaded (unknown).')
+      }
     } catch (cause) {
       if (cause instanceof ReviewQueueUnavailableError) setUnavailable(true)
       else {
@@ -145,6 +152,9 @@ export function PropertyMatchReview({ client }: Props) {
       Nothing here is placed automatically.
     </p>
     {error && <div className="inline-error" role="alert">{error}</div>}
+    {optionsError && <div className="inline-error" role="alert">
+      {optionsError} The review queue below is ready — you can still reject rows, and decisions stay append-only.
+    </div>}
     {saved && <p className="muted" role="status">{saved}</p>}
     <datalist id="opa-property-options">
       {propertyOptions.map(option => <option key={option.licensed_property_id} value={optionValue(option)} />)}
