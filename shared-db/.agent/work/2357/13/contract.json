@@ -1,0 +1,76 @@
+{
+  "allowed_paths": [
+    "supabase/migrations/20260925193145_licensing_candidate_and_review_apis.sql",
+    "supabase/tests/licensing_candidate_and_review_apis.sql",
+    "supabase/tests/opa_property_character_landing_contracts.sql",
+    ".github/live-proofs/2357.sql",
+    ".agent/work/2357/13/contract.json",
+    ".agent/work/2357/13/completion.json",
+    "types/database.types.ts"
+  ],
+  "assumptions": [
+    "Both reserved and predecessor versions absent from target-verified preview and production ledgers on 2026-09-20",
+    "Parent renewed and rebound protected claim2834 before authoring",
+    "Parent guarded supersession reserved20260920151046; old version permanently retained and unapplied; immutable supersession24f4e51119ca3329a7f8e0bef4f71edb4fc2a0a0.",
+    "Parent dispatch authorizes both governed review slots; generated types follow genuine merged-main preview evidence and are required for final completion.",
+    "Independent review refinements preserve object scope: signed IDs, behavioral evidence gating and queue/RLS controls, exact helper shape/grants and forbidden columns.",
+    "Entity queue fixtures use permitted warner: namespace and passed with canonical source vocabulary CHECK installed locally.",
+    "Guarded supersession via --reversion-active-claim re-reserved 20260920151046 as 20260923175907 on claim #2834 (supersession c367cb078e34092b1d63a6e89eb28b551883a8bf); SQL bytes unchanged apart from the version.",
+    "REVISE head 25ed5091 fixes H1 (is_open unified across views), H2/H3 (partial indexes for queue predicates), M2 (idempotent DDL), M3 (exact column set+types), M4 (schema USAGE), M5 (drop parallel safe), L1-L5.",
+    "Guarded supersession via --reversion-active-claim re-reserved 20260923175907 as 20260925193145 on claim #2834 (supersession df986bad0f92b19878a42306a37615b50e47a453); SQL bytes unchanged apart from the version. Evidence pair rebound to generation 13 at head e31c0ef4.",
+    "Evidence pair rebound to generation 13 after merging origin/main (collision-guard fix 566a885aa) into the PR branch; implementation head e31c0ef4 carries no evidence."
+  ],
+  "base_sha": "4f395967e1a5bd42db1e28dce85faa10e3c8537b",
+  "branch": "claude/issue-2357-licensing-candidate-apis",
+  "db_reads": [
+    "table plm.source_resolution",
+    "table plm.licensing_relationship_resolution",
+    "table plm.licensing_source_scope",
+    "table plm.opa_capture",
+    "table plm.opa_property_character_capture"
+  ],
+  "db_writes": [
+    "view api.licensing_entity_candidates",
+    "view api.licensing_relationship_candidates",
+    "view api.licensing_resolution_queue",
+    "table api.licensing_entity_candidates",
+    "table api.licensing_relationship_candidates",
+    "function plm.licensing_opa_observation_count",
+    "index plm.source_resolution_open_status_idx",
+    "index plm.licensing_relationship_resolution_open_status_idx",
+    "index plm.opa_capture_status_captured_idx"
+  ],
+  "dispatcher": "Claude orchestrator chat aa4791e3-535d-47ad-ac32-a4d0b9323273 on edge-dev (marker #3434)",
+  "file_writes": [
+    "supabase/migrations/20260925193145_licensing_candidate_and_review_apis.sql",
+    "supabase/tests/licensing_candidate_and_review_apis.sql",
+    "supabase/tests/opa_property_character_landing_contracts.sql",
+    ".github/live-proofs/2357.sql",
+    ".agent/work/2357/13/contract.json",
+    ".agent/work/2357/13/completion.json",
+    "types/database.types.ts"
+  ],
+  "generation": 13,
+  "goal": "Recover candidate APIs: real caller reads, latest-complete OPA evidence, licensor-qualified scope metadata, private-text exclusion, and role-based regression proof",
+  "prohibited_actions": [
+    "No shared database writes without parent stage authorization",
+    "No preview, merge or production action",
+    "No curated data or real licensed content in fixtures"
+  ],
+  "required_checks": [
+    "supabase/tests against an ephemeral database",
+    "bash scripts/check-sql.sh",
+    "node scripts/check-live-proof-probe.mjs",
+    "node scripts/agent-work-contract-git-evidence.mjs"
+  ],
+  "route": "shared-db-orchestrator",
+  "schema_version": 1,
+  "stop_conditions": [
+    "Any additional claimed object needed requires parent scope expansion",
+    "If invoker helper cannot preserve caller permissions and RLS redesign before release"
+  ],
+  "work_issue": 2357,
+  "work_type": "structural",
+  "worker": "Claude resume worker for #2357 in orchestrator chat aa4791e3-535d-47ad-ac32-a4d0b9323273 on edge-dev",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/issue-2357-resume-aa4791"
+}

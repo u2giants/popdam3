@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "work_issue": 2357,
+  "outcome": "ready-for-merge",
+  "pr": 2835,
+  "migration_versions": [
+    "20260925193145"
+  ],
+  "contract_ref": "refs/db-contracts/2357/13",
+  "contract_sha256": "49a5c3a5054810b9f54e3e30bf1c2311e7b80bd65ef7469a4a74225d685abcf1",
+  "head_sha": "e31c0ef4273d761ce502cdec34655f04ee5c3151",
+  "files_changed": [
+    ".github/live-proofs/2357.sql",
+    "supabase/migrations/20260925193145_licensing_candidate_and_review_apis.sql",
+    "supabase/tests/licensing_candidate_and_review_apis.sql"
+  ],
+  "db_reads": [
+    "table plm.source_resolution",
+    "table plm.licensing_relationship_resolution",
+    "table plm.licensing_source_scope",
+    "table plm.opa_capture",
+    "table plm.opa_property_character_capture"
+  ],
+  "db_writes": [
+    "view api.licensing_entity_candidates",
+    "view api.licensing_relationship_candidates",
+    "view api.licensing_resolution_queue",
+    "table api.licensing_entity_candidates",
+    "table api.licensing_relationship_candidates",
+    "function plm.licensing_opa_observation_count",
+    "index plm.source_resolution_open_status_idx",
+    "index plm.licensing_relationship_resolution_open_status_idx",
+    "index plm.opa_capture_status_captured_idx"
+  ],
+  "checks": [
+    {
+      "command": "supabase/tests against an ephemeral database",
+      "exit_code": 0,
+      "evidence": "CI replays against this head; focused local PostgreSQL tests cover is_open consistency (H1), 19-digit bigint boundary (L2), open/closed queue statuses, RLS preservation, and all behavioral assertions."
+    },
+    {
+      "command": "Focused SQL contracts in isolated local PostgreSQL",
+      "exit_code": 0,
+      "evidence": "PostgreSQL 18 localhost passed: real browser/anon/service reads; latest-complete; all three views behavioral RLS; direct vs inferred eligibility; open/closed entity queue statuses and licensor grain; signed numeric IDs, 19-digit boundary, positive/negative overflow; exact helper shape/grants and full forbidden-column catalog proof; is_open/needs_decision consistency for deferred (H1)."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Full static SQL guard passed. Guard B resolves base at PR merge-base; our version 20260925193145 sorts after all base migrations. Expected-count, verify-cost, EOL guards passed. Reversion renamed 20260923175907 to 20260925193145 via lane tool; SQL bytes unchanged apart from the version."
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Live-proof probe present .github/live-proofs/2357.sql; asserts exact column counts (21/26/9), types on gating columns, schema USAGE, and non-parallel-safe helper."
+    },
+    {
+      "command": "node scripts/agent-work-contract-git-evidence.mjs",
+      "exit_code": 0,
+      "evidence": "Evidence pair rebound to generation 13 at implementation head e31c0ef4 after merging origin/main; contract hash computed via contractHash() and published at refs/db-contracts/2357/13."
+    }
+  ],
+  "assumptions_resolved": [
+    "Preview and production target-verified ledgers lack both old versions; production lacks all 3 views/helper/3 indexes.",
+    "REVISE findings H1-H3 M1-M5 L1-L5 all fixed in this revision.",
+    "H1: is_open column unified across both candidate views and queue; needs_decision documented as actionable subset.",
+    "H2/H3: partial indexes added for entity and relationship queue status predicates.",
+    "M1: evidence pair now attests the correct head.",
+    "M2: DDL is idempotent (create-or-replace function, drop-view-if-exists); predecessor 20260920151046 never applied (ledger-verified).",
+    "M3: exact column count and types asserted per view.",
+    "M4: has_schema_privilege authenticated api USAGE asserted.",
+    "M5: parallel safe dropped; verify asserts proparallel not s.",
+    "Guarded supersession re-reserved 20260923175907 as 20260925193145 (supersession df986bad); claim 2834 expanded to cover all 14 migration objects.",
+    "No shared database write or credential disclosure occurred.",
+    "Origin/main merged into PR branch to pick up collision-guard fix (566a885aa); merge base refreshed to 4f395967."
+  ],
+  "stop_conditions_hit": [],
+  "reason": "Implementation fixes all durable REVISE findings. Migration version re-reserved past main tip. Claim expanded to cover all objects. Origin/main merged to pick up collision-guard fix. Evidence pair rebound to generation 13. Ready for exact-head governed reviews and Guarded Merge.",
+  "base_sha": "4f395967e1a5bd42db1e28dce85faa10e3c8537b"
+}
