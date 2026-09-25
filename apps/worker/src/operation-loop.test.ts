@@ -1,9 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { buildResultMessage, classifyError, interruptionReason, mergeProgress, nextAutoResumeAt, normalizeBatchError, scopeSingleAssetTag } from "./operation-loop.js";
+import { buildResultMessage, classifyError, interruptionReason, isProtectedExternalJob, mergeProgress, nextAutoResumeAt, normalizeBatchError, scopeSingleAssetTag } from "./operation-loop.js";
 
 const ASSET_ID = "123e4567-e89b-42d3-a456-426614174000";
+
+test("a live provider job is protected from being cleared; an idle one is not", () => {
+  // Live phases the guarded writer refuses to drop (shared-db migration
+  // 20260824004025 c_live_phases), a bound provider ID, and an ambiguity verdict.
+  for (const phase of ["prepared", "submitting", "pending", "applying"]) {
+    assert.equal(isProtectedExternalJob({ phase } as never), true, phase);
+  }
+  assert.equal(isProtectedExternalJob({ phase: "done", provider_batch_id: "batches/x" } as never), true);
+  assert.equal(isProtectedExternalJob({ phase: "done", ambiguous_since: "2026-09-25T00:00:00Z" } as never), true);
+  // Nothing to protect: no job, or an idle/terminal phase with no bound ID.
+  assert.equal(isProtectedExternalJob(undefined), false);
+  assert.equal(isProtectedExternalJob({} as never), false);
+  assert.equal(isProtectedExternalJob({ phase: "done" } as never), false);
+  assert.equal(isProtectedExternalJob({ phase: "prepared", provider_batch_id: "" } as never), true);
+});
 
 test("single-asset operation derives its scope from the operation key", () => {
   const scoped = scopeSingleAssetTag(`ai-tag-single-${ASSET_ID}`, { status: "running" });
