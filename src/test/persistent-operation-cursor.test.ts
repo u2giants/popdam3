@@ -16,4 +16,9 @@ describe("persistent operation cursor validation", () => {
   it("retains numeric cursor support for existing operations", () => {
     expect(isResumableOperationCursor("erp-enrichment", 60)).toBe(true);
   });
+  it("allows resuming an AI run stopped during its first page (cursor 0), so its saved provider job is kept", () => {
+    expect(isResumableOperationCursor("ai-tag-untagged", 0)).toBe(true);
+    expect(isResumableOperationCursor("ai-tag-group-profiles", 0)).toBe(true);
+    expect(isResumableOperationCursor("ai-tag-group-profiles", 3)).toBe(false);
+  });
 });

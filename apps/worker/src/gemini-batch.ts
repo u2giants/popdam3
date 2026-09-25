@@ -335,12 +335,15 @@ export async function getGeminiBatch(apiKey: string, batchId: string): Promise<G
   const output = responseBody.output && typeof responseBody.output === "object"
     ? responseBody.output as Record<string, unknown> : {};
   const dest = parsed.dest && typeof parsed.dest === "object" ? parsed.dest as Record<string, unknown> : {};
+  // Long-running operation shape: `metadata.output.inlinedResponses`.
+  const metadataOutput = metadata.output && typeof metadata.output === "object" ? metadata.output as Record<string, unknown> : {};
   // GenerateContentBatch resource shape: top-level `output.inlinedResponses`.
   const topOutput = parsed.output && typeof parsed.output === "object" ? parsed.output as Record<string, unknown> : {};
   return {
     id: typeof parsed.name === "string" ? parsed.name : batchId,
     status: normalizeState(metadata.state ?? responseBody.state ?? parsed.state, parsed.done),
-    results: inlineResults(output.inlinedResponses ?? topOutput.inlinedResponses ?? responseBody.inlinedResponses ?? dest.inlinedResponses),
+    results: inlineResults(output.inlinedResponses ?? topOutput.inlinedResponses ?? metadataOutput.inlinedResponses
+      ?? responseBody.inlinedResponses ?? dest.inlinedResponses),
     error: parsed.error,
   };
 }
