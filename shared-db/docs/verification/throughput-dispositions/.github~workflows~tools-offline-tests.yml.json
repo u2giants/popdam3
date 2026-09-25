@@ -3,7 +3,7 @@
   "source": ".github/workflows/tools-offline-tests.yml",
   "sites": [
     {
-      "site": ".github/workflows/tools-offline-tests.yml:97",
+      "site": ".github/workflows/tools-offline-tests.yml:138",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:05038aba7e82d577a56809ced412204f8b321ee4bbc74a08577e0c061e0fecfe:context-788b6a87f423c9bdb8aa7fb399fd6d385133479912a6f6a14e1245818fca1cf0",
       "line_sha256": "05038aba7e82d577a56809ced412204f8b321ee4bbc74a08577e0c061e0fecfe",
       "disposition": "excluded",
@@ -11,7 +11,7 @@
       "legacy_semantic_key": ".github/workflows/tools-offline-tests.yml:05038aba7e82d577a56809ced412204f8b321ee4bbc74a08577e0c061e0fecfe:1"
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:208",
+      "site": ".github/workflows/tools-offline-tests.yml:256",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:3bc83bdc06166fb9ca6d5ec69ff26f6b4c861ddc3fc0d2bbb51902426f2aea4f:context-6b799a91e458e9ffcee04d96d059111b89d24b1262e66833917f50525cb2d03c",
       "line_sha256": "3bc83bdc06166fb9ca6d5ec69ff26f6b4c861ddc3fc0d2bbb51902426f2aea4f",
       "disposition": "excluded",
@@ -19,7 +19,7 @@
       "legacy_semantic_key": ".github/workflows/tools-offline-tests.yml:3bc83bdc06166fb9ca6d5ec69ff26f6b4c861ddc3fc0d2bbb51902426f2aea4f:1"
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:109",
+      "site": ".github/workflows/tools-offline-tests.yml:151",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:b03949444e5c9aaa3ab0ea139d05bbd3e2fc6791bfaccc98ad19478c1412e0a8:context-50fba75a6fd29ccaf2d2376c5a0b79bf655e5d1f02803b864545dfdbae971b73",
       "line_sha256": "b03949444e5c9aaa3ab0ea139d05bbd3e2fc6791bfaccc98ad19478c1412e0a8",
       "disposition": "excluded",
@@ -27,15 +27,15 @@
       "legacy_semantic_key": ".github/workflows/tools-offline-tests.yml:b03949444e5c9aaa3ab0ea139d05bbd3e2fc6791bfaccc98ad19478c1412e0a8:1"
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:240",
-      "semantic_key": ".github/workflows/tools-offline-tests.yml:bc688bd6897c816e39f7bf3c3300674c423676608c77655f08d64a1ab71dbee5:context-5024eeb8c465303093f5ee6f7b901d06ee1e018ac851f52569e58e2fb9af5b06",
+      "site": ".github/workflows/tools-offline-tests.yml:290",
+      "semantic_key": ".github/workflows/tools-offline-tests.yml:bc688bd6897c816e39f7bf3c3300674c423676608c77655f08d64a1ab71dbee5:context-f6d98d35863a4fcd73003abff33eb25b0626468c764c15bccda0646500372ab2",
       "line_sha256": "bc688bd6897c816e39f7bf3c3300674c423676608c77655f08d64a1ab71dbee5",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "legacy_semantic_key": ".github/workflows/tools-offline-tests.yml:bc688bd6897c816e39f7bf3c3300674c423676608c77655f08d64a1ab71dbee5:1"
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:121",
+      "site": ".github/workflows/tools-offline-tests.yml:164",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:c22603525ed4d2630a06407de00fca17ad8fb56e69673a6a493bcad40d89ac56:context-78ad6bf33999816dcef988daff7514b5474c2b5a26b3073db322192dd17619b3",
       "line_sha256": "c22603525ed4d2630a06407de00fca17ad8fb56e69673a6a493bcad40d89ac56",
       "disposition": "excluded",
@@ -43,7 +43,7 @@
       "legacy_semantic_key": ".github/workflows/tools-offline-tests.yml:c22603525ed4d2630a06407de00fca17ad8fb56e69673a6a493bcad40d89ac56:1"
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:137",
+      "site": ".github/workflows/tools-offline-tests.yml:181",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8:context-151c599d12840cc1dd8564c5663c13925a9099f45f3bc21d10eba29c54312737",
       "line_sha256": "d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8",
       "disposition": "excluded",
@@ -51,7 +51,7 @@
       "legacy_semantic_key": ".github/workflows/tools-offline-tests.yml:d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8:1"
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:151",
+      "site": ".github/workflows/tools-offline-tests.yml:196",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8:context-223a9bd49c2f442a393b8fb208ebe316a77913657d94e6155d2bd99f7f62076b",
       "line_sha256": "d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8",
       "disposition": "excluded",
@@ -59,7 +59,7 @@
       "legacy_semantic_key": ".github/workflows/tools-offline-tests.yml:d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8:2"
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:171",
+      "site": ".github/workflows/tools-offline-tests.yml:217",
       "semantic_key": ".github/workflows/tools-offline-tests.yml:d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8:context-7fb9aab51f0821819d223ee852a2caaeccde9cd84bcc0a6e6bbe2aa0dc7ba7f3",
       "line_sha256": "d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8",
       "disposition": "excluded",

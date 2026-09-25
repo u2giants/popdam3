@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "work_issue": 3383,
+  "outcome": "ready-for-merge",
+  "pr": 3523,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3383/3",
+  "contract_sha256": "31a88a3ea49d5a41c560024d723a9f936ce4e52a0e46d8d8d5baf86f85c11d4a",
+  "base_sha": "d73912fc38e7b6502baedb2a8c18bce343d09e84",
+  "head_sha": "2a480fc14143ae858cb51938905f33a0481dc670",
+  "files_changed": [
+    ".agent/work/3383/3/completion.json",
+    ".agent/work/3383/3/contract.json",
+    ".github/workflows/coldlion-promotion-contract-tests.yml",
+    ".github/workflows/documents-fast-ci.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "docs/verification/throughput-dispositions/.github~workflows~tools-offline-tests.yml.json",
+    "docs/verification/throughput-dispositions/scripts~check-documents-ci-route.mjs.json",
+    "scripts/check-documents-ci-route.mjs",
+    "scripts/check-documents-ci-route.test.mjs",
+    "scripts/documents-fast-ci-workflow.test.mjs",
+    "scripts/lib/documents-only-change.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-documents-ci-route.test.mjs scripts/documents-fast-ci-workflow.test.mjs",
+      "exit_code": 0,
+      "evidence": "57 pass, 0 fail, 1 skipped (symlink unavailable on this Windows machine; the 120000 mode case is covered)"
+    },
+    {
+      "command": "node --test scripts/lib/documents-only-change.test.mjs scripts/check-documents-only-pull-request.test.mjs scripts/check-documents-only-merge-authorization.test.mjs scripts/documents-only-merge-authorization.test.mjs",
+      "exit_code": 0,
+      "evidence": "53 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/check-merge-queue-workflows.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 pass, 0 fail"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=318 sources=73 derived_digest=8f3c70a80cb6"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 pass, 0 fail"
+    }
+  ],
+  "assumptions_resolved": [
+    "Pure-prose route is strictly narrower than the documents-only lane: same non-rulebook prose definition plus a 100644 mode check on both sides of every inventory record.",
+    "Fail closed holds for empty/unreadable inventory, unknown status, unknown mode, rename out of code or migration, deletion of code or instruction, and instruction-bearing paths.",
+    "Base-trusted workflow integration proven: the route workflow checks out only the protected base and fetches the head as an object behind a fail-closed guard.",
+    "No existing documents-only rule, required context, or branch protection was weakened.",
+    "Review H1/M1 fixed: the route-safety suites (classifier negative tests and workflow-shape tests) are executed by the required Tools offline tests context and by the trusted base prove step, so they gate a required check.",
+    "Review M2 fixed: required-context assertions pin the exact context strings against the branch-protection mirror and assert the real classifier invocation.",
+    "Review L1 fixed: the route workflow's head fetch is guarded and falls back to route=full.",
+    "Review L3 fixed: a skipped suite emits a ::notice:: annotation on the check itself."
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-documents-ci-route.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-documents-ci-route.mjs:11",
+      "semantic_key": "scripts/check-documents-ci-route.mjs:ceb00b28a7db4ea701aa837e779b8d6e7c91f428e9eed501adc155099a62d07f:context-63f20b5aa992371c51d6951526c94a24a6bb83d117e381e548f5f26fc78f9566",
+      "legacy_semantic_key": "scripts/check-documents-ci-route.mjs:ceb00b28a7db4ea701aa837e779b8d6e7c91f428e9eed501adc155099a62d07f:1",
+      "line_sha256": "ceb00b28a7db4ea701aa837e779b8d6e7c91f428e9eed501adc155099a62d07f",
+      "disposition": "excluded",
+      "reason": "Prose comment enumerating the fail-closed cases of the pure-prose route classifier. The word \"missing\" here describes an absent git object in a diff, not an absent database object, so it carries no truth claim about catalog state and must never be enriched."
+    }
+  ]
+}

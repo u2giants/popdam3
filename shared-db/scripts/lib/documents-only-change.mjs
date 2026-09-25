@@ -214,3 +214,136 @@ export function changedPathsFromPullRequestFiles(rows) {
     return typeof previous === 'string' && previous.trim() ? [filename, previous] : [filename]
   })
 }
+
+// PURE-PROSE FAST CI ROUTE (issue #3383).
+//
+// A prose-only pull request may use a trusted fast CI path that skips the
+// engineering suites. The proof is an EXACT base/head Git inventory including
+// file modes: every changed path must be a non-rulebook prose document, and
+// every mode on both sides of the change must be the regular non-executable
+// blob mode. Code, migrations, executable agent instructions, symlinks and
+// executable modes all retain the full engineering path.
+//
+// Fail closed, always. An empty inventory, an unreadable record, an unknown
+// status, an unknown mode, a truncated parse -- none of these are "probably
+// fine". They all refuse the fast route and force the full path. The safe
+// default for anything this classifier does not positively recognise as pure
+// prose is "run the engineering suites".
+
+// The ONLY mode a pure-prose change may carry. 100644 is a regular
+// non-executable blob. 100755 (executable), 120000 (symlink) and 160000
+// (submodule) all force the full path; so does anything unrecognised.
+const PROSE_FILE_MODE = '100644'
+
+// Git raw-diff status letters this classifier understands. A rename or copy
+// reports as R100 / C75 etc; the score is ignored and only the letter matters.
+const KNOWN_STATUS_LETTERS = new Set(['M', 'A', 'D', 'R', 'C', 'T'])
+
+function proseInventoryFailure (reason) {
+  return { pureProse: false, reason, documents: [], other: [] }
+}
+
+// One inventory record: the shape `parseGitRawInventory` produces and
+// `classifyProseGitInventory` judges. `srcPath` is null on an add, `dstPath`
+// is null on a delete; on a rename both are set and must both be prose.
+function inventoryRecordProblem (entry) {
+  if (!entry || typeof entry !== 'object') return 'the inventory contains an unreadable record'
+  const { status, srcMode, dstMode, srcPath, dstPath } = entry
+  if (typeof status !== 'string' || !/^[MARCDT]/.test(status)) return `the inventory record has an unknown status: ${String(status)}`
+  if (!KNOWN_STATUS_LETTERS.has(status[0])) return `the inventory record has an unknown status: ${status}`
+  for (const [label, mode] of [['source', srcMode], ['destination', dstMode]]) {
+    if (mode === null || mode === undefined) continue
+    if (typeof mode !== 'string' || !/^[0-7]{6}$/.test(mode)) return `the inventory record has an unreadable ${label} mode: ${String(mode)}`
+    if (mode !== PROSE_FILE_MODE) return `the ${label} mode ${mode} is not the regular non-executable prose mode ${PROSE_FILE_MODE}`
+  }
+  for (const [label, path] of [['source', srcPath], ['destination', dstPath]]) {
+    if (path === null || path === undefined) continue
+    if (typeof path !== 'string' || !normalize(path)) return `the inventory record has an unreadable ${label} path`
+    if (path.endsWith('/')) return `the inventory record has a directory ${label} path: ${path}`
+    if (isRulebookPath(path)) return `instruction-bearing file(s) always retain the full path: ${path}`
+    if (!isDocumentPath(path)) return `non-prose file(s) always retain the full path: ${path}`
+  }
+  if ((srcPath ?? dstPath) === null) return 'the inventory record has neither a source nor a destination path'
+  return null
+}
+
+// Judge a complete base/head inventory. `entries` must be the FULL change list.
+// Anything that is not positively pure prose refuses the fast route.
+export function classifyProseGitInventory (entries) {
+  if (!Array.isArray(entries)) return proseInventoryFailure('the change inventory could not be read')
+  if (!entries.length) return proseInventoryFailure('the change inventory was empty; an unknown change is never pure prose')
+  const documents = []
+  const other = []
+  for (const entry of entries) {
+    const problem = inventoryRecordProblem(entry)
+    if (problem) {
+      for (const path of [entry?.srcPath, entry?.dstPath]) {
+        if (typeof path === 'string' && path) documents.push(path)
+        else other.push(String(path ?? entry?.status ?? 'unreadable'))
+      }
+      return proseInventoryFailure(problem)
+    }
+    for (const path of [entry.srcPath, entry.dstPath]) {
+      if (typeof path === 'string' && path && !documents.includes(path)) documents.push(path)
+    }
+  }
+  return {
+    pureProse: true,
+    reason: `all ${documents.length} inventory path(s) are non-rulebook prose documents at mode ${PROSE_FILE_MODE}`,
+    documents,
+    other,
+  }
+}
+
+// Parse `git diff --raw -z` output into inventory records. The NUL form is
+// required: a path containing a space or a quote would otherwise be ambiguous.
+// Any record that does not parse cleanly makes the WHOLE inventory null, and a
+// null inventory is never pure prose.
+//
+// Record shape (NUL-separated):
+//   :<srcMode> <dstMode> <srcSha> <dstSha> <status>\0<path>\0
+//   :<srcMode> <dstMode> <srcSha> <dstSha> R100\0<srcPath>\0<dstPath>\0
+export function parseGitRawInventory (raw) {
+  if (typeof raw !== 'string' || !raw.length) return null
+  const parts = raw.split('\0')
+  // `git diff --raw -z` ends with a trailing NUL, so the final part is empty.
+  if (parts[parts.length - 1] !== '') return null
+  parts.pop()
+  const entries = []
+  let index = 0
+  while (index < parts.length) {
+    const header = parts[index]
+    const match = /^:([0-7]{6}) ([0-7]{6}) ([0-9a-f]+) ([0-9a-f]+) ([MARCDT][0-9]*)$/.exec(header ?? '')
+    if (!match) return null
+    const [, srcMode, dstMode, , , status] = match
+    const letter = status[0]
+    const needsTwoPaths = letter === 'R' || letter === 'C'
+    if (needsTwoPaths) {
+      if (index + 2 >= parts.length) return null
+      const srcPath = parts[index + 1]
+      const dstPath = parts[index + 2]
+      if (typeof srcPath !== 'string' || !srcPath || typeof dstPath !== 'string' || !dstPath) return null
+      entries.push({ status, srcMode, dstMode, srcPath, dstPath })
+      index += 3
+    } else if (letter === 'A') {
+      if (index + 1 >= parts.length) return null
+      const path = parts[index + 1]
+      if (typeof path !== 'string' || !path) return null
+      entries.push({ status, srcMode: null, dstMode, srcPath: null, dstPath: path })
+      index += 2
+    } else if (letter === 'D') {
+      if (index + 1 >= parts.length) return null
+      const path = parts[index + 1]
+      if (typeof path !== 'string' || !path) return null
+      entries.push({ status, srcMode, dstMode: null, srcPath: path, dstPath: null })
+      index += 2
+    } else {
+      if (index + 1 >= parts.length) return null
+      const path = parts[index + 1]
+      if (typeof path !== 'string' || !path) return null
+      entries.push({ status, srcMode, dstMode, srcPath: path, dstPath: path })
+      index += 2
+    }
+  }
+  return entries
+}

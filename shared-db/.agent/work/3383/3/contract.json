@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "generation": 3,
+  "work_issue": 3383,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Implement the trusted pure-prose fast CI route: an exact base/head git inventory including file modes proves pure prose before existing required jobs skip engineering suites. Code, migrations, executable agent instructions, symlinks and executable modes retain full checks. Fail closed on misclassification. No database, production, or branch-protection change.",
+  "base_sha": "d73912fc38e7b6502baedb2a8c18bce343d09e84",
+  "worker": "MiMo chat unknown on edge-dev",
+  "dispatcher": "MiMo chat parent dispatch for issue #3383",
+  "branch": "3383-prose-fast-ci",
+  "worktree": "C:/repos/shared-db-3383-prose-fast-ci",
+  "allowed_paths": [
+    "scripts/check-documents-ci-route.mjs",
+    "scripts/check-documents-ci-route.test.mjs",
+    "scripts/documents-fast-ci-workflow.test.mjs",
+    "scripts/lib/documents-only-change.mjs",
+    ".github/workflows/documents-fast-ci.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    ".github/workflows/coldlion-promotion-contract-tests.yml",
+    "docs/verification/throughput-dispositions/.github~workflows~tools-offline-tests.yml.json",
+    "docs/verification/throughput-dispositions/scripts~check-documents-ci-route.mjs.json",
+    ".agent/work/3383/3/contract.json",
+    ".agent/work/3383/3/completion.json"
+  ],
+  "file_writes": [
+    "scripts/check-documents-ci-route.mjs",
+    "scripts/check-documents-ci-route.test.mjs",
+    "scripts/documents-fast-ci-workflow.test.mjs",
+    "scripts/lib/documents-only-change.mjs",
+    ".github/workflows/documents-fast-ci.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    ".github/workflows/coldlion-promotion-contract-tests.yml",
+    "docs/verification/throughput-dispositions/.github~workflows~tools-offline-tests.yml.json",
+    "docs/verification/throughput-dispositions/scripts~check-documents-ci-route.mjs.json",
+    ".agent/work/3383/3/contract.json",
+    ".agent/work/3383/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database reads or writes",
+    "No production action",
+    "No branch-protection weakening or fabricated checks",
+    "Do not weaken or delete any existing documents-only classification rule or test assertion",
+    "Do not rename, disable, path-filter or soften any required status context"
+  ],
+  "required_checks": [
+    "node --test scripts/check-documents-ci-route.test.mjs scripts/documents-fast-ci-workflow.test.mjs",
+    "node --test scripts/lib/documents-only-change.test.mjs scripts/check-documents-only-pull-request.test.mjs scripts/check-documents-only-merge-authorization.test.mjs scripts/documents-only-merge-authorization.test.mjs",
+    "node --test scripts/check-merge-queue-workflows.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs"
+  ],
+  "assumptions": [
+    "Strict existing document classifier remains authoritative; the pure-prose route is additive and strictly narrower",
+    "Pure prose may skip engineering suites by current owner instruction",
+    "Fail closed to the full engineering path on unknown input"
+  ],
+  "stop_conditions": [
+    "Fail closed to engineering on unknown input",
+    "Stop if any existing documents-only rule or required context would need weakening",
+    "Stop before any database, production or branch-protection change",
+    "Stop if the change needs a file outside allowed_paths"
+  ]
+}
