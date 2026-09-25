@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3492,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Accept silent_worker_observed as a terminal failure code so --release-failed-reviewer can free a silence-reclaimed slot, and let --replace-failed-reviewer proceed from the failure-release evidence when the silence-release ref is already gone (#3492).",
+  "base_sha": "ca3f8663110e6eaebef9f4d3331f6d9bf4250f87",
+  "dispatcher": "MiMo repo-maintenance session for issue #3492",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "fix/3492-silent-worker-release",
+  "worktree": "C:/repos/shared-db-wt-3492",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3492/1/contract.json",
+    ".agent/work/3492/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3492/1/contract.json",
+    ".agent/work/3492/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not invent verdicts or weaken the two-reviewer exact-head approval rule.",
+    "Do not accept any terminal failure code other than silent_worker_observed in this change.",
+    "Do not touch any migration, workflow, database object, or live row."
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "Disclosed: generation 1 is published after implementation commit 5a14335c; no prior refs/db-contracts/3492/1 exists."
+  ],
+  "stop_conditions": [
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths."
+  ]
+}

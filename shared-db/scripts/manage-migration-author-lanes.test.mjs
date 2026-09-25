@@ -2826,11 +2826,32 @@ test('the six-hour #2237 shape probes and reclaims after an unchanged confirmati
   const released=reclaimSilentReviewer(options,new Date('2026-09-04T14:00:00Z'),io)
   assert.ok(released.releaseSha);assert.equal(io.refs.get(leaseRef)??null,null)
   assert.ok([...io.refs.keys()].some((ref)=>ref.startsWith(REVIEW_SILENCE_RELEASE_REF_PREFIX)))
-  assert.equal(TERMINAL_FAILURE_CODES.length,8)
-  assert.equal(TERMINAL_FAILURE_CODES.includes('silent_worker_observed'),false)
+  assert.equal(TERMINAL_FAILURE_CODES.length,9)
+  assert.equal(TERMINAL_FAILURE_CODES.includes('silent_worker_observed'),true)
   assert.throws(()=>assignNextReviewer(request,io),/silent lease was reclaimed/)
   const replacement=replaceFailedReviewer({...options,failureCode:'silent_worker_observed'},io)
   assert.notEqual(replacement.reviewer,assigned.reviewer)
+})
+
+// #3492: after a silence reclaim removes the lease, --release-failed-reviewer
+// with --failure-code silent_worker_observed must accept the sequence (the
+// silence-release ref is the proof the lease was properly handled), and
+// --replace-failed-reviewer must then proceed from the failure-release evidence
+// even without a silence-release ref.
+test('silence release is accepted after reclaim and replace follows from failure-release evidence (#3492)',()=>{
+  const {io,request,assigned,leaseRef}=silentLeaseIo(),options={...request,failedSequence:assigned.sequence,confirmNoVerdict:true,confirmNoArtifact:true}
+  probeSilentReviewer(options,new Date('2026-09-04T12:00:00Z'),io)
+  reclaimSilentReviewer(options,new Date('2026-09-04T14:00:00Z'),io)
+  assert.equal(io.refs.get(leaseRef)??null,null,'reclaim clears the lease')
+  // Release the silence-reclaimed sequence: lease is absent, silence-release ref is the proof.
+  const released=releaseFailedReviewer({...options,failureCode:'silent_worker_observed'},io)
+  assert.equal(released.reviewer,assigned.reviewer)
+  assert.ok(released.failureSha)
+  // Remove the silence-release ref so replace must rely on the failure-release evidence.
+  for(const ref of [...io.refs.keys()])if(ref.startsWith(REVIEW_SILENCE_RELEASE_REF_PREFIX))io.refs.delete(ref)
+  const replacement=replaceFailedReviewer({...options,failureCode:'silent_worker_observed'},io)
+  assert.notEqual(replacement.reviewer,assigned.reviewer)
+  assert.ok(replacement.failureSha)
 })
 
 // Issue #3027 Step 7: the reviewer START watcher's unstarted mode.
