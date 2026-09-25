@@ -628,6 +628,14 @@ async function handleDurableGroupProfiles(
     const includedSubmissions = submissions.filter((submission) => !excluded.has(submission.customId));
     if (!preparedBatch || !includedSubmissions.length) {
       if (reprepareHeldReceipt) throw new PreSubmissionError("Provider batch re-preparation produced no usable requests", true);
+      // NOTE: the stored job is phase "prepared", which the shared-db guarded
+      // writer never lets any caller drop (external_job_protected rule in
+      // shared-db migration 20260824004025; the only permitted clear is a
+      // receipt-proven "completed" job with a provider_batch_id). This clear can
+      // therefore never persist and cannot advance the page: the operation loop
+      // fails the operation visibly (protected_external_job_clear_refused)
+      // instead of re-running this page forever. Skipping such a page needs a
+      // shared-db contract change first.
       return {
         ok: true,
         done: job.operation_done_after_clear === true,
