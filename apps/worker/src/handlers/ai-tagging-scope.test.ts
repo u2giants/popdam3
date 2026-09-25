@@ -259,3 +259,26 @@ test("a model-specific failure falls back to the second model; an infrastructure
     assert.equal(isModelSpecificError(infraFault), false, infraFault);
   }
 });
+
+test("the batch writer marks the asset tagged only after its tags are written", async () => {
+  const order: string[] = [];
+  const failingTags = {
+    rpc: async (name: string) => { order.push(`rpc:${name}`); return { error: { message: "temporary" } }; },
+    from(table: string) {
+      const chain: Record<string, unknown> = {
+        select: () => chain,
+        single: async () => ({ data: { id: "a", filename: "photo.jpg", file_type: "jpg", sku: null }, error: null }),
+        update: () => { order.push(`update:${table}`); return chain; },
+        upsert: async () => ({ error: null }),
+      };
+      chain.eq = () => ({ ...chain, then: (resolve: (v: unknown) => void) => resolve({ error: null }) });
+      return chain;
+    },
+  };
+  await assert.rejects(applyBatchTagResult(groups[0].assets[1].id, typedResult(["blue", "3/4 view", "studio scene", "visible zipper"]), "fixture-model", failingTags as never), /Atomic AI tag write failed/);
+  assert.deepEqual(order, ["rpc:replace_asset_ai_tag_result"], "a failed tag write never leaves the asset marked tagged");
+  const { client, rpcCalls, tableCalls } = recordingSupabase();
+  await applyBatchTagResult(groups[0].assets[1].id, typedResult(["blue", "3/4 view", "studio scene", "visible zipper"]), "fixture-model", client as never);
+  assert.equal(rpcCalls.length, 1);
+  assert.equal(tableCalls.at(-1)?.op, "update", "the status update is the last write");
+});

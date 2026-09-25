@@ -1001,26 +1001,60 @@ test("the apply pass checkpoints each group's outcome and resumes after the last
   }
 });
 
-test("a submitted batch is never polled with a different account's key", async () => {
+test("a key for another account stops visibly; a same-account rotation adopts the new fingerprint", async () => {
   const { accountFingerprint } = await import("../batch-provider.js");
-  const seen: string[] = [];
-  const restore = stubGeminiSucceeded(["g1"], seen);
+  const originalFetch = globalThis.fetch;
+  const job = applyingGroupJob(["g1"], { phase: "pending", account_fingerprint: accountFingerprint("original-key") });
+  const options = (apiKey: string) => deps({
+    client: recordingClient(), apiKey,
+    models: { primary: "google-direct/gemini-3.8-flash:batch", fallback: null, providerPin: null },
+  });
   try {
-    const job = applyingGroupJob(["g1"], { phase: "pending", account_fingerprint: accountFingerprint("original-key") });
-    const result = await handleStyleGroupProfiles(job, deps({
-      client: recordingClient(), apiKey: "rotated-key",
-      models: { primary: "google-direct/gemini-3.8-flash:batch", fallback: null, providerPin: null },
-    }));
-    assert.equal(result.ok, false);
-    assert.equal(result.error_code, "credential_changed");
-    assert.match(String(result.error), /key changed since batch batches\/paid-batch was submitted/);
-    assert.doesNotMatch(String(result.error), /original-key|rotated-key/);
-    assert.deepEqual(seen, [], "no poll is sent with the wrong account");
-    const same = await handleStyleGroupProfiles(job, deps({
-      client: recordingClient(), apiKey: "original-key",
-      models: { primary: "google-direct/gemini-3.8-flash:batch", fallback: null, providerPin: null },
-    }));
-    assert.equal(same.ok, true);
+    globalThis.fetch = (async () => new Response(JSON.stringify({ error: { code: 404, message: "not found" } }), { status: 404 })) as typeof fetch;
+    const other = await handleStyleGroupProfiles(job, options("other-account-key"));
+    assert.equal(other.ok, false);
+    assert.equal(other.error_code, "credential_changed");
+    assert.match(String(other.error), /key changed since batch batches\/paid-batch was submitted/);
+    assert.doesNotMatch(String(other.error), /original-key|other-account-key/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  const restore = stubGeminiSucceeded(["g1"], []);
+  try {
+    const rotated = await handleStyleGroupProfiles(applyingGroupJob(["g1"], { phase: "pending", account_fingerprint: accountFingerprint("original-key") }), options("rotated-same-account-key"));
+    assert.equal(rotated.ok, true);
+    assert.equal((rotated.external_job as { account_fingerprint: string }).account_fingerprint, accountFingerprint("rotated-same-account-key"));
+  } finally {
+    restore();
+  }
+});
+
+test("a failed profile write pauses and retries the group instead of consuming its paid result", async () => {
+  const { MAX_APPLY_WRITE_ATTEMPTS } = await import("./ai-tagging-batch-state.js");
+  const restore = stubGeminiSucceeded(["g1"], []);
+  let failWrites = true;
+  const client = { rpc(_name: string, params: Record<string, unknown>) {
+    if (failWrites && params.p_source === "group_ai") return Promise.resolve({ data: null, error: { message: "connection reset" } });
+    return Promise.resolve({ data: null, error: null });
+  } };
+  const common = { client, apiKey: "test-key", models: { primary: "google-direct/gemini-3.8-flash:batch", fallback: null, providerPin: null } };
+  try {
+    const paused = await handleStyleGroupProfiles(applyingGroupJob(["g1"]), deps(common));
+    const pausedJob = paused.external_job as { phase: string; apply_write_failures: number; next_poll_at: string; group_items: Array<{ status: string }> };
+    assert.equal(paused.ok, true);
+    assert.equal(paused.failed, 0);
+    assert.equal(pausedJob.phase, "applying");
+    assert.equal(pausedJob.apply_write_failures, 1);
+    assert.ok(pausedJob.next_poll_at, "the retry is scheduled");
+    assert.deepEqual(pausedJob.group_items.map((item) => item.status), ["submitted"]);
+    failWrites = false;
+    const retried = await handleStyleGroupProfiles(applyingGroupJob(["g1"], { apply_write_failures: 1 }), deps(common));
+    assert.equal(retried.profiled, 1);
+    assert.equal((retried.external_job as { phase: string }).phase, "completed");
+    failWrites = true;
+    const exhausted = await handleStyleGroupProfiles(applyingGroupJob(["g1"], { apply_write_failures: MAX_APPLY_WRITE_ATTEMPTS - 1 }), deps(common));
+    assert.equal(exhausted.failed, 1, "a write that keeps failing is eventually recorded, never retried forever");
+    assert.deepEqual((exhausted.external_job as { group_items: Array<{ status: string }> }).group_items.map((item) => item.status), ["failed_terminal"]);
   } finally {
     restore();
   }

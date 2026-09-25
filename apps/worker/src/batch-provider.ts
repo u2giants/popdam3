@@ -97,6 +97,12 @@ export function submittedAccountMismatch(job: OpenRouterBatchJobState | undefine
   return `The ${name} API key changed since batch ${job.provider_batch_id} was submitted; restore the original key in Settings to resume it`;
 }
 
+/** A provider poll refused for authorization or because the batch is not in this account. */
+export function isAccountRejection(error: unknown): boolean {
+  const status = (error as { status?: unknown } | null)?.status;
+  return status === 401 || status === 403 || status === 404;
+}
+
 /** The API key belongs to the job's saved provider, never to a model-name guess. */
 export function getBatchProviderApiKey(provider: DurableBatchProvider): Promise<string> {
   return provider === "google-gemini" ? getGoogleAiApiKey() : getOpenRouterApiKey();
