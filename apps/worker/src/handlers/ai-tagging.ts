@@ -629,9 +629,6 @@ async function handleDurableBatchTag(
   try {
     record = await getProviderBatch(batchProvider, apiKey, action.batchId);
   } catch (error) {
-    if (accountMismatch && isAccountRejection(error)) {
-      return { ok: false, done: false, error: accountMismatch, error_code: "credential_changed", external_job: { ...job, lease_token: job.lease_token } };
-    }
     if (isNewBatchVisibilityDelay((error as { status?: unknown }).status, job.submitted_at)) {
       return {
         ok: true,
@@ -644,6 +641,11 @@ async function handleDurableBatchTag(
         },
         last_stage: "model_inference",
       };
+    }
+    // Checked after the new-batch visibility grace: a just-submitted batch may
+    // 404 briefly on either key.
+    if (accountMismatch && isAccountRejection(error)) {
+      return { ok: false, done: false, error: accountMismatch, error_code: "credential_changed", external_job: { ...job, lease_token: job.lease_token } };
     }
     if (isTransientProviderPollError(error)) {
       // Keep the same saved provider job ID and poll it again later; a

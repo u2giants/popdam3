@@ -1059,3 +1059,21 @@ test("a failed profile write pauses and retries the group instead of consuming i
     restore();
   }
 });
+
+test("a rotated key polling a just-submitted batch waits out the visibility grace instead of stopping", async () => {
+  const { accountFingerprint } = await import("../batch-provider.js");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({ error: { code: 404, message: "not found" } }), { status: 404 })) as typeof fetch;
+  try {
+    const fresh = applyingGroupJob(["g1"], { phase: "pending", account_fingerprint: accountFingerprint("original-key"), submitted_at: new Date(Date.now() - 5_000).toISOString() });
+    const result = await handleStyleGroupProfiles(fresh, deps({
+      client: recordingClient(), apiKey: "rotated-key",
+      models: { primary: "google-direct/gemini-3.8-flash:batch", fallback: null, providerPin: null },
+    }));
+    assert.equal(result.ok, true);
+    assert.notEqual(result.error_code, "credential_changed");
+    assert.ok((result.external_job as { next_poll_at: string }).next_poll_at);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
