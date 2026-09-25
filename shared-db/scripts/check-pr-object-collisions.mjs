@@ -1131,14 +1131,39 @@ function ghJson(args) {
   }
 }
 
+// GitHub's Compare REST API silently truncates `files` (observed cap: 300)
+// and `commits` (observed cap: 250) with no truncation flag, and pagination
+// does not recover the rest (`?page=2` returns zero files). Confirmed live
+// 2026-09-25 on popcre/shared-db: `<stale-pr-head>...main` returned exactly
+// 300 files while `git diff --name-only <merge-base> main` listed 384.
+//
+// Requiring exact agreement with a list GitHub has silently cut off makes this
+// guard fail closed on every pull request whose base has moved by more than the
+// cap -- which is every stale pull request -- and then it performs NO collision
+// checking at all. That is the opposite of the capability we need. When Compare
+// is a strict subset of the proven-complete commit-graph fallback, Compare is
+// incomplete and the fallback is the complete list; anything else is a real
+// disagreement and still fails closed.
+export const COMPARE_FILES_CAP = 300
+
 export function validateBaseFileAgreement(compareFiles, fallbackFiles) {
   const names = (files) => [...new Set(files.map((file) => file.filename ?? file.path))].sort()
   const primary = names(compareFiles)
   const fallback = names(fallbackFiles)
-  if (JSON.stringify(primary) !== JSON.stringify(fallback)) {
-    throw new Skip(`Compare and commit-graph fallback disagree (${primary.join(', ')} != ${fallback.join(', ')})`)
-  }
-  return fallback
+  if (JSON.stringify(primary) === JSON.stringify(fallback)) return fallbackFiles
+  const fallbackSet = new Set(fallback)
+  const primarySet = new Set(primary)
+  const compareOnly = primary.filter((name) => !fallbackSet.has(name))
+  const fallbackOnly = fallback.filter((name) => !primarySet.has(name))
+  // Compare silently truncated at its file cap: it is at the cap, it only ever
+  // names files the complete fallback also names, and the fallback names more.
+  // Anything else is a real disagreement and must fail closed.
+  const compareTruncated =
+    primary.length >= COMPARE_FILES_CAP && compareOnly.length === 0 && fallbackOnly.length > 0
+  if (compareTruncated) return fallbackFiles
+  throw new Skip(
+    `Compare and commit-graph fallback disagree (Compare-only: ${compareOnly.join(', ') || 'none'}; commit-graph-only: ${fallbackOnly.join(', ') || 'none'})`,
+  )
 }
 
 export function validateFallbackIdentity(pr, liveBase, number, baseRef, headSha) {
@@ -1265,8 +1290,10 @@ function baseBranchSource(repo, number, baseRef, headSha) {
     compareFailed = true
   }
   const fallback = baseFilesFromCommitGraph(repo, number, baseRef, headSha)
-  if (!compareFailed) validateBaseFileAgreement(compare.files, fallback.files)
-  const files = (compareFailed ? fallback.files : compare.files).filter(isMigration)
+  // validateBaseFileAgreement returns the COMPLETE file list: Compare's when the
+  // two agree, the proven-complete commit-graph fallback when Compare is
+  // silently truncated at its file cap. It throws on real disagreement.
+  const files = (compareFailed ? fallback.files : validateBaseFileAgreement(compare.files, fallback.files)).filter(isMigration)
   if (files.length === 0) return null
   return {
     label: `${baseRef} (merged since this PR branched)`,

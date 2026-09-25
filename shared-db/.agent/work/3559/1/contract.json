@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3559,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Repair the Cross-PR object collision guard so GitHub Compare 300-file truncation is treated as an incomplete source and the proven-complete commit-graph fallback is used, restoring collision checking on stale PRs without weakening fail-closed behaviour on real disagreement.",
+  "base_sha": "95c5db5e933e4ca378465fcac895d67c24e744e8",
+  "dispatcher": "MiMo blocker-resolution session for issue #3559",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "mimo/collision-guard-fallback-fix",
+  "worktree": "C:/repos/shared-db-wt-collision-guard",
+  "allowed_paths": [
+    "scripts/check-pr-object-collisions.mjs",
+    "scripts/check-pr-object-collisions.test.mjs",
+    ".agent/work/3559/1/contract.json",
+    ".agent/work/3559/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/check-pr-object-collisions.mjs",
+    "scripts/check-pr-object-collisions.test.mjs",
+    ".agent/work/3559/1/contract.json",
+    ".agent/work/3559/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not touch any migration or database object.",
+    "Do not weaken, disable, or delete the cross-PR object collision guard.",
+    "Do not relax fail-closed behaviour on real Compare/commit-graph disagreement."
+  ],
+  "required_checks": [
+    "node --test scripts/check-pr-object-collisions.test.mjs",
+    "node --test scripts/check-dispatch-collision.test.mjs scripts/check-pr-source-collisions.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/reviewer-wire-budget.test.mjs scripts/lib/open-pr-files.test.mjs scripts/check-actions-quota.test.mjs"
+  ],
+  "assumptions": [
+    "Disclosed: the implementation commits were authored in this session before the contract was published, because the Agent work contract gate was encountered at CI rather than at session start. The published contract allowed_paths and goal match the net implementation exactly; nothing outside those paths was changed.",
+    "GitHub Compare REST silently truncates files at 300 (observed live 2026-09-25 on popcre/shared-db); the commit-graph fallback is already proven complete by tree identity and merge-base checks."
+  ],
+  "stop_conditions": [
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths.",
+    "Stop if fail-closed behaviour on real disagreement would be reduced."
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 3559,
+  "outcome": "ready-for-merge",
+  "pr": 3558,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3559/1",
+  "contract_sha256": "5a7a5b4828686fa7fb4bf561db99e2cb809ce198b2d6d9835f613f0f71347b7a",
+  "base_sha": "95c5db5e933e4ca378465fcac895d67c24e744e8",
+  "head_sha": "566a885aa4f289f6606ccfeba88d7dfabecfc55a",
+  "files_changed": [
+    "scripts/check-pr-object-collisions.mjs",
+    "scripts/check-pr-object-collisions.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-pr-object-collisions.test.mjs",
+      "exit_code": 0,
+      "evidence": "36 pass, 0 fail (includes new Compare-truncation regression tests)"
+    },
+    {
+      "command": "node --test scripts/check-dispatch-collision.test.mjs scripts/check-pr-source-collisions.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/reviewer-wire-budget.test.mjs scripts/lib/open-pr-files.test.mjs scripts/check-actions-quota.test.mjs",
+      "exit_code": 0,
+      "evidence": "825 pass, 0 fail"
+    }
+  ],
+  "assumptions_resolved": [
+    "Root cause: GitHub Compare REST truncates files at 300 with no flag; 300 vs 386 on PR #2835 head 1a7a7ce58. Treated as incomplete source when at cap and a strict subset of the fallback.",
+    "Real disagreement (either side naming files the other does not, or under-cap subset) still fails closed."
+  ],
+  "stop_conditions_hit": []
+}

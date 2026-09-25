@@ -152,12 +152,13 @@ test('the base-branch compare uses the MERGE BASE, not pull_request.base.sha', (
 })
 
 test('compare and fallback must name the exact same complete file set', () => {
+  const fallback = [{ filename: 'docs/x.md' }, { filename: 'supabase/migrations/a.sql' }]
   assert.deepEqual(
     validateBaseFileAgreement(
       [{ filename: 'supabase/migrations/a.sql' }, { filename: 'docs/x.md' }],
-      [{ filename: 'docs/x.md' }, { filename: 'supabase/migrations/a.sql' }],
+      fallback,
     ),
-    ['docs/x.md', 'supabase/migrations/a.sql'],
+    fallback,
   )
 })
 
@@ -166,6 +167,29 @@ test('fails closed when fallback is incomplete or mismatched', () => {
     [{ filename: 'supabase/migrations/a.sql' }, { filename: 'supabase/migrations/b.sql' }],
     [{ filename: 'supabase/migrations/a.sql' }],
   ), /disagree/)
+})
+
+// GitHub Compare silently truncates `files` at 300. A stale pull request whose
+// base has moved past that cap used to fail closed with "disagree" and then
+// perform NO collision checking at all (PR #2835). The proven-complete
+// commit-graph fallback must win in that case.
+test('a Compare list truncated at the file cap defers to the complete fallback', () => {
+  const fallback = Array.from({ length: 301 }, (_, i) => ({ filename: `f${i}.md` }))
+  const truncatedCompare = fallback.slice(0, 300) // GitHub's silent cap
+  assert.deepEqual(validateBaseFileAgreement(truncatedCompare, fallback), fallback)
+})
+
+test('under-cap subset is still a real disagreement, not truncation', () => {
+  assert.throws(() => validateBaseFileAgreement(
+    [{ filename: 'a.md' }],
+    [{ filename: 'a.md' }, { filename: 'b.md' }],
+  ), /disagree/)
+})
+
+test('at-cap non-subset is still a real disagreement', () => {
+  const compare = Array.from({ length: 300 }, (_, i) => ({ filename: `c${i}.md` }))
+  const fallback = [...Array.from({ length: 299 }, (_, i) => ({ filename: `c${i}.md` })), { filename: 'other.md' }]
+  assert.throws(() => validateBaseFileAgreement(compare, fallback), /disagree/)
 })
 
 test('fallback binds the exact pull request, base, and head identities', () => {
