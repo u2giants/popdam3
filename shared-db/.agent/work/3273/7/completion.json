@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_issue": 3273,
+  "outcome": "ready-for-merge",
+  "pr": 3274,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3273/7",
+  "contract_sha256": "18947d156ce41a33a716d685505ddd78a01e0ac7483de794f2a01af3c8f99fd9",
+  "head_sha": "8cb0e5eca933dff234381afd0c0da1f5b01104fc",
+  "files_changed": [
+    "HANDOFF.d/2026-09-18T1806Z-edge-dev-kimi-3273-stale-place-mid-cycle.md",
+    "scripts/check-pr-source-collisions.mjs",
+    "scripts/check-pr-source-collisions.test.mjs",
+    "scripts/lib/open-pr-files.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-pr-source-collisions.test.mjs",
+      "exit_code": 0,
+      "evidence": "tests 16, pass 16, fail 0 - nudge-gated skip, nudge gating (absent/wrong-number/undated), reclaim-after-refresh, green-recent-never-skipped, conflict-only condition (b), fail-closed on unreadable signals, nudge-never-refreshes, marker parse/refuse, latestChecksFailing, conflictsWithMain, gather wiring - re-run 2026-09-25 at head 8cb0e5eca after merging origin/main d73912fc3."
+    },
+    {
+      "command": "node --test scripts/*.test.mjs",
+      "exit_code": 0,
+      "evidence": "all 130 test files run in 7 chunks on 2026-09-25 at head 8cb0e5eca: 2873 pass, 1 fail - only check-issue-505-licensor-code-forward-repair (stranded original is blocked and the producer gate pins the successor sidecar), which reproduces identically on a clean origin/main worktree at 33d5ec0d0 (2 pass, 1 fail), a pre-existing local line-ending/fixture issue (cf. #3255); CI Tools Offline Tests is green on Linux."
+    },
+    {
+      "command": "node scripts/check-cancelled-work.mjs",
+      "exit_code": 0,
+      "evidence": "OK - no cancelled instruction reintroduced (2 row(s) checked), re-run 2026-09-25 at head 8cb0e5eca."
+    },
+    {
+      "command": "node --test scripts/lib/open-pr-files.test.mjs",
+      "exit_code": 0,
+      "evidence": "6 pass, 0 fail on 2026-09-25 at head 8cb0e5eca after merging origin/main d73912fc3; this file is what the Cross-PR object collision check runs."
+    },
+    {
+      "command": "node scripts/check-handoff-contract.mjs",
+      "exit_code": 0,
+      "evidence": "Handoff contract satisfied for 1 changed file(s), re-run 2026-09-25 at head 8cb0e5eca."
+    }
+  ],
+  "assumptions_resolved": [
+    "the rule relaxes queue order only inside scripts/check-pr-source-collisions.mjs; no other gate was touched",
+    "a dated nudge is an issue comment on the stale PR carrying the machine-readable stale-place-nudge marker naming the newer PR number; the gate cannot bind a comment to a session, so the marker is the enforceable proxy (documented in the rule header)",
+    "GitHub pull detail, pull commits, issue comments, timeline and check runs proved sufficient for the activity, health and nudge signals; all are gathered only for overlapping predecessors and any unreadable read throws, which main() turns into a refusal",
+    "Verified 2026-09-20: merging origin/main (b1d4be2e) conflicted only on the .agent pair; this pull requests own pair was kept and republished as generation 3. The stale-place rule releases only the protected-source QUEUE SLOT and changes no review or check requirement; 16 unit tests pass.",
+    "2026-09-25: branch refreshed onto origin/main d73912fc3 (implementation head 8cb0e5eca) because main had moved 399 files past the old branch point and GitHub Compare caps at 300 files, so the fail-closed Cross-PR object collision guard refused; the stale-place implementation and its tests are unchanged by the merge."
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "d73912fc38e7b6502baedb2a8c18bce343d09e84"
+}

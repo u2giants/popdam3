@@ -75,9 +75,19 @@ test('source collisions are unchanged, and timelines are read only for overlappi
   const gh = fakeGitHub()
   const timelinesRead = []
   const env = { GITHUB_REPOSITORY: REPO, PR_NUMBER: '10' }
+  // The stale-place rule (#3273) added four more per-overlapping-PR reads to
+  // `gather`. They are stubbed here so this test still exercises ONLY the
+  // snapshot/timeline economy it is about, and so it never reaches the network.
+  // Stubbing them inert (no detail, no commits, no comments, no check runs)
+  // also asserts the fail-closed contract: with no signals, nothing is skipped
+  // and the collision list must match the legacy algorithm exactly.
   const input = gatherSourceInputs(env, {
     load: (repo, number) => loadOpenPullFiles(repo, number, { env: {}, read: gh.read }),
     timeline: (_repo, number) => (timelinesRead.push(number), TIMELINES[number]),
+    detail: () => ({}),
+    commits: () => [],
+    comments: () => [],
+    checkRuns: () => [],
   })
   assert.deepEqual(openProtectedCollisions(input.current, input.others), legacy)
   assert.deepEqual(timelinesRead.sort((a, b) => a - b), [7, 10], 'only the overlapping PR and the current PR')
@@ -89,6 +99,10 @@ test('no overlap reads no timeline at all and still reports no collision', () =>
   const input = gatherSourceInputs({ GITHUB_REPOSITORY: REPO, PR_NUMBER: '10' }, {
     load: (repo, number) => loadOpenPullFiles(repo, number, { env: {}, read: gh.read }),
     timeline: () => assert.fail('a timeline was read with nothing overlapping'),
+    detail: () => assert.fail('a pull detail was read with nothing overlapping'),
+    commits: () => assert.fail('commits were read with nothing overlapping'),
+    comments: () => assert.fail('comments were read with nothing overlapping'),
+    checkRuns: () => assert.fail('check runs were read with nothing overlapping'),
   })
   assert.deepEqual(openProtectedCollisions(input.current, input.others), [])
 })

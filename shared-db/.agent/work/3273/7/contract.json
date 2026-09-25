@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_issue": 3273,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Implement the stale-place rule in scripts/check-pr-source-collisions.mjs: a non-draft open PR editing scripts/manage-migration-author-lanes.mjs no longer precedes a newer PR when it has had no activity for 24+ hours, its latest checks are failing or it conflicts with main, and the newer PR's session has posted a dated nudge comment on it naming the stale state; it reclaims its place once refreshed and green.",
+  "base_sha": "843bc60de498edadbb3276b2fffa30a5898aab05",
+  "dispatcher": "repo-maintenance session for issue #3273",
+  "worker": "kimi",
+  "branch": "kimi/issue-3273-stale-place-rule",
+  "worktree": "C:/repos/shared-db-wt-3273",
+  "allowed_paths": [
+    "scripts/check-pr-source-collisions.mjs",
+    "scripts/check-pr-source-collisions.test.mjs",
+    "scripts/lib/open-pr-files.test.mjs",
+    "HANDOFF.d/2026-09-18T1806Z-edge-dev-kimi-3273-stale-place-mid-cycle.md",
+    ".agent/work/3273/7/contract.json",
+    ".agent/work/3273/7/completion.json"
+  ],
+  "file_writes": [
+    "scripts/check-pr-source-collisions.mjs",
+    "scripts/check-pr-source-collisions.test.mjs",
+    "scripts/lib/open-pr-files.test.mjs",
+    "HANDOFF.d/2026-09-18T1806Z-edge-dev-kimi-3273-stale-place-mid-cycle.md",
+    ".agent/work/3273/7/contract.json",
+    ".agent/work/3273/7/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not weaken the collision check: a skip requires all three stale-place conditions and any unreadable signal means no skip",
+    "do not edit another session's handoff, worktree, branch, or claim",
+    "do not change the protected source path set or the activation-order priority rule"
+  ],
+  "required_checks": [
+    "node --test scripts/check-pr-source-collisions.test.mjs",
+    "node --test scripts/*.test.mjs",
+    "node scripts/check-cancelled-work.mjs"
+  ],
+  "assumptions": [
+    "the stale-place rule relaxes queue order only within scripts/check-pr-source-collisions.mjs; no other gate changes",
+    "a dated nudge comment is an issue comment on the stale PR carrying the machine-readable stale-place nudge marker that names the newer PR number",
+    "GitHub pull detail (updated_at, mergeable), check runs, and issue comments are the activity, health, and nudge signals",
+    "Generation 2 republishes the same change set after origin/main was merged in on 2026-09-20 to clear a conflict limited to the .agent evidence pair; the stale-place implementation and its tests are unchanged between generations.",
+    "Generation 7 moves this pull requests evidence to the generation-keyed layout introduced by #2708, so an unrelated merge to main no longer conflicts on the shared legacy pair and no longer voids the exact-head verdict."
+  ],
+  "stop_conditions": [
+    "stop if the rule cannot be implemented without editing files outside allowed_paths",
+    "stop if a test fails for a reason unrelated to these two files",
+    "stop if implementing the rule would require weakening fail-closed behaviour on unreadable signals"
+  ],
+  "generation": 7
+}
