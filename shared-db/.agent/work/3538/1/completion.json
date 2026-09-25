@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "work_issue": 3538,
+  "outcome": "ready-for-merge",
+  "pr": 3537,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3538/1",
+  "contract_sha256": "b8aa76de34a934fe2628293a6523935945b26c7a5e9cbe7e4ea5e566b716b6a4",
+  "base_sha": "3aa7ebc05272eb4344bb7747ecb3eccf093b55c4",
+  "head_sha": "c2b4675cce1288988890b36defaa55a9ccb08c20",
+  "files_changed": [
+    ".github/workflows/author-lane-abandonment-audit.yml",
+    ".github/workflows/shared-db-2870-observation.yml",
+    ".github/workflows/verify-production-ledger-recovery-1750.yml",
+    "docs/verification/throughput-dispositions/scripts~proofs~shared-db-2870-observation.mjs.json",
+    "scripts/proofs/2870-catalog.sql",
+    "scripts/proofs/2870-contract.json",
+    "scripts/proofs/shared-db-2870-observation.mjs",
+    "scripts/proofs/shared-db-2870-observation.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/historical-item-mg-reclassification/guards.test.mjs",
+      "exit_code": 0,
+      "evidence": "45 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/runner-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "13 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/check-closeout-readiness.test.mjs",
+      "exit_code": 0,
+      "evidence": "8 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/check-merge-queue-workflows.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
+      "exit_code": 0,
+      "evidence": "23 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+      "exit_code": 0,
+      "evidence": "7 pass, 0 fail"
+    },
+    {
+      "command": "node --test tools/phase6-schedule-map.test.mjs",
+      "exit_code": 0,
+      "evidence": "5 pass, 0 fail"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=319 sources=73"
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 1 was published (refs/db-contracts/3538/1, sha256 b8aa76de…) before the final scope was known; the contract goal names two items the guards then showed to be coupled beyond this generation's allowed_paths (historical-MG retirement couples to the truth-audit registry; Phase 6 cron removal couples to tools/phase6-schedule-map). Those two are deferred to #3536 and the PR lands the three uncoupled items only.",
+    "The start-reroute canary was restored in an earlier draft after the guards caught its live import by reviewer-start-watch.mjs; retiring it stays deferred in #3536."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Consulted: Muse Spark 1.3 and Grok 4.6 (2026-09-25) endorsed the audit cut list. This PR lands the three uncoupled items; the coupled ones (historical-MG tests, Phase 6 crons) and the contested ones (merge-queue pair, agent-work-contract gate, documents-only lane) are deferred in #3536 behind in-flight work."
+}

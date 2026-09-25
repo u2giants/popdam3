@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3538,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Retire dead CI weight per the 60-day audit (umbrella tracker #3536): delete the three one-off workflows (ledger-recovery-1750, 2870-observation, historical MG tests) with their scripts/tests and stale throughput-disposition entries, remove the three idle Phase 6 cron triggers, and fix the author-lane abandonment audit's HTTP 403 by adding the missing actions: read permission. The start-reroute canary was restored after the guards caught that reviewer-start-watch.mjs imports start-reroute-canary.mjs; retiring it needs its own refactor (#3536).",
+  "base_sha": "3aa7ebc05272eb4344bb7747ecb3eccf093b55c4",
+  "dispatcher": "ZCode repo-maintenance session for issue #3538",
+  "worker": "ZCode chat 636fe0d9-be00-46d6-9f25-59e9e3f33916 on edge-dev",
+  "branch": "ci-audit-cuts-3536",
+  "worktree": "C:/Users/ahazan/AppData/Local/Temp/sdb-ci-audit/edit-repo",
+  "allowed_paths": [
+    ".github/workflows/verify-production-ledger-recovery-1750.yml",
+    ".github/workflows/shared-db-2870-observation.yml",
+    ".github/workflows/historical-item-mg-reclassification-tests.yml",
+    ".github/workflows/coldlion-licensor-property-phase6-parallel.yml",
+    ".github/workflows/author-lane-abandonment-audit.yml",
+    "scripts/proofs/shared-db-2870-observation.mjs",
+    "scripts/proofs/shared-db-2870-observation.test.mjs",
+    "scripts/proofs/2870-catalog.sql",
+    "scripts/proofs/2870-contract.json",
+    "scripts/historical-item-mg-reclassification/README.md",
+    ".agent/work/3538/1/contract.json",
+    ".agent/work/3538/1/completion.json",
+    "docs/verification/throughput-dispositions/.github~workflows~historical-item-mg-reclassification-tests.yml.json",
+    "docs/verification/throughput-dispositions/scripts~proofs~shared-db-2870-observation.mjs.json"
+  ],
+  "file_writes": [
+    ".github/workflows/coldlion-licensor-property-phase6-parallel.yml",
+    ".github/workflows/author-lane-abandonment-audit.yml",
+    "scripts/historical-item-mg-reclassification/README.md",
+    ".agent/work/3538/1/contract.json",
+    ".agent/work/3538/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not touch any migration, database object, live row, or branch-protection setting.",
+    "Do not delete or edit the merge-queue gate, queue-sensitive aggregate, agent-work-contract gate, or documents-only authorization — those cuts are deferred in #3536 behind in-flight work.",
+    "Do not weaken any remaining guard: the abandonment-audit change only adds a read permission."
+  ],
+  "required_checks": [
+    "node --test scripts/historical-item-mg-reclassification/guards.test.mjs",
+    "node --test scripts/orchestrator-flow/runner-lanes.test.mjs",
+    "node --test scripts/check-closeout-readiness.test.mjs",
+    "node --test scripts/check-merge-queue-workflows.test.mjs"
+  ],
+  "assumptions": [
+    "Disclosed: this generation-1 contract was rewritten before any verdict was recorded at it: the first draft deleted the start-reroute canary, which the Tools offline tests and the Migration author lease suite caught as a live import of reviewer-start-watch.mjs; the canary files were restored and the disposition entries for the deleted sources retired. No prior refs/db-contracts/3538/1 exists.",
+    "The deleted test files are named in no surviving workflow's test list (verified by grep over .github/workflows)."
+  ],
+  "stop_conditions": [
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths."
+  ]
+}
