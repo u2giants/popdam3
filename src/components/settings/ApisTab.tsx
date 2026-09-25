@@ -472,7 +472,7 @@ MODEL BEHAVIORS THAT HELP OR HURT (lessons, not endorsements)
 - Prose-only vision models that describe the picture but won't commit to the schema are disqualified regardless of how good the caption is.
 
 HOW TO EVALUATE CANDIDATES
-Use the Vision Bake-Off tool in this same Settings > Processing area: it runs candidate models against real assets, captures per-call cost and latency, and lets a human compare outputs field-by-field before committing a choice — better than picking on reputation alone.`,
+Use the Vision Bake-Off tool in this same Settings > Processing area: it runs candidate models against real assets, captures per-call cost and latency, and lets a human compare outputs field-by-field before committing a choice — better than picking on reputation alone. Batch-only (":batch") models cannot run in the Bake-Off; compare the same model without ":batch" there, then select its batch variant here.`,
 
   text_classification: `ERP CLASSIFICATION — model selection brief
 

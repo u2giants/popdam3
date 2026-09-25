@@ -20,7 +20,6 @@ import {
   type ChatCompletionRequest,
 } from "../openrouter.js";
 import {
-  batchProviderForModel,
   assertProviderSubmissionLeaseBudget,
   getProviderBatch,
   parseProviderBatchResult,
@@ -416,7 +415,13 @@ async function handleDurableBatchTag(
   const identity = batchJobIdentity(job, models);
   const { model, batchProvider, providerPin } = identity;
   const apiKey = await getBatchProviderApiKey(batchProvider);
-  if (!apiKey) return { ok: false, done: false, error: batchProvider === "google-gemini" ? "No Google AI API key configured" : "No OpenRouter API key configured" };
+  if (!apiKey) {
+    const missing = batchProvider === "google-gemini" ? "No Google AI API key configured" : "No OpenRouter API key configured";
+    // With a held receipt nothing was sent yet: fail through the governed
+    // never-submitted reset instead of an ordinary error that would strand it.
+    if (job?.lease_token && job.phase === "submitting" && !job.provider_batch_id) throw new PreSubmissionError(missing, true);
+    return { ok: false, done: false, error: missing };
+  }
   const provider = batchProvider === "openrouter" ? buildProviderPin(providerPin) : undefined;
 
   if (!job) {
@@ -896,7 +901,8 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
 
   // If the primary model failed with a model-specific error and a fallback is configured, retry once
   const rawMsg = primaryResult._rawMsg ?? primaryResult.error ?? "";
-  if (fallbackModel && batchProviderForModel(fallbackModel) !== "google-gemini" && isModelSpecificError(rawMsg)) {
+  // No batch-only model (legacy OpenRouter `:batch` or direct Gemini) can answer synchronously.
+  if (fallbackModel && !fallbackModel.trim().endsWith(":batch") && isModelSpecificError(rawMsg)) {
     logger.info("ai-tag: primary model failed with model-specific error — trying fallback", { assetId, primaryModel, fallbackModel, error: rawMsg.slice(0, 200) });
     const fallbackResult = await attemptTag(fallbackModel);
     if (fallbackResult.outcome === "tagged") return fallbackResult;

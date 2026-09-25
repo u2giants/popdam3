@@ -644,9 +644,9 @@ export function buildResultMessage(opKey: string, progress: Record<string, unkno
     case "ai-tag-untagged":
     case "ai-tag-all":
     case "ai-tag-groups":
-      return `Tagged ${progress.tagged}. ${progress.visual_analysis_unavailable || 0} visual analyses unavailable. ${progress.skipped || 0} skipped. ${progress.failed || 0} failed.`;
+      return `Tagged ${progress.tagged}. ${(Number(progress.visual_analysis_unavailable) || 0) + (Number(progress.image_unusable) || 0)} visual analyses unavailable. ${progress.skipped || 0} skipped. ${progress.failed || 0} failed${progress.image_unusable ? ` (${progress.image_unusable} with unusable images)` : ""}.`;
     case "ai-tag-group-profiles":
-      return `Profiled ${progress.profiled || 0} style groups. ${progress.visual_analysis_unavailable || 0} without usable representative images. ${progress.failed || 0} failed.`;
+      return `Profiled ${progress.profiled || 0} style groups. ${(Number(progress.visual_analysis_unavailable) || 0) + (Number(progress.image_unusable) || 0)} without usable representative images. ${progress.failed || 0} failed${progress.image_unusable ? ` (${progress.image_unusable} with unusable images)` : ""}.`;
     case "ai-tag-bakeoff":
       return `Evaluated ${progress.evaluated || 0} model responses. ${progress.failed || 0} failed.`;
     case "rebuild-style-groups":
