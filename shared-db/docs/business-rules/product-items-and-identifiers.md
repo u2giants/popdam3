@@ -132,6 +132,31 @@ The flag is only as good as its maintenance. Until the source data is corrected,
 excluding on the flag alone removes far fewer entries than it should - see the
 evidence note at the end of this topic.
 
+Flag census, 2026-09-25: `coldlion.item_header.non_inventory_item` is `Y` on
+36 of 18,990 current items and `N` on the rest — still heavily under-used (only
+one of the two HANG TAB items is flagged, for example). **Settled — Albert
+Hazan, 2026-09-25 (issue #3024 review):** items flagged non-inventory are also
+ignored for product-type reading; no product type is stored for them.
+
+## Prepack parents: how to identify them, and how they get their MG codes
+
+**Settled — Albert Hazan, 2026-09-25 (issue #3024 review).** An item that is a
+prepack parent (a set sold as one item) does **not** get its `mgCategory` or
+MG01–MG04 codes derived from its own description. It inherits them from its
+child items. Parent descriptions typically name several products at once
+("Mixed Pack …", "… Asst") and must never drive code derivation.
+
+The live `/items` feed carries no prepack marker on the item row, but the
+stored data identifies both sides — do not confuse them:
+
+- **Parents:** `archive.erp_items_current.prepack_code IS NOT NULL`
+  (1,454 known sets; 1,437 still present in `coldlion.item_header`, matched on
+  `external_id = item_no`, measured 2026-09-25).
+- **Children:** `coldlion.prepack_detail.item_no` lists the **component**
+  items inside prepack recipes (6,515 distinct, 2026-09-25) — real single
+  products, NOT the parents. Excluding `prepack_detail` item numbers from a
+  catalogue would remove real products, not sets.
+
 ## What is left after the exclusions is still not a catalogue
 
 **Unknown, measured 2026-09-07.** It is tempting to define the product

@@ -143,6 +143,13 @@ through a later governed migration carrying that complete-reclassification
 evidence. Partial analysis, proposed workbook values, or elapsed time do not prove
 completion. Categories are resolved at read time and are not written onto item rows.
 
+**Settled — owner ruling by Albert Hazan, 2026-09-25 (issue #3024 review).**
+Prepack parent items (sets) never get `mgCategory` or MG01–MG04 derived from
+their own description; they inherit both from their child items. How to
+identify parents (and the children-vs-parents trap) is documented in
+[`product-items-and-identifiers.md`](product-items-and-identifiers.md)
+§ *Prepack parents*.
+
 | Category | MG01 Product Types |
 |---|---|
 | Wall | A Stretched/Box; B Framed; C Plaque; D Functional; E Other Wall |
