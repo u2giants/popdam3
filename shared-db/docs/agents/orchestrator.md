@@ -23,14 +23,14 @@ objects listed, dispatched to a sub-agent in an isolated worktree as usual.
 
 **Structural work has a second ROUTE, never a second work type (issue #3199 Phase B):**
 `route: self-service-additive` admits the same structural work WITHOUT orchestrator triage when it
-is additive and every named object lives in the app-owned `{crm, pim, dam}` schemas. The boundary
+is additive and every named object lives in the app-owned `{crm, pim, dam, plm}` schemas. The boundary
 is enforced AT MERGE TIME by `scripts/check-self-service-additive-lane.mjs` inside the guarded
 merge, pre-lock — a declared route whose pull request fails the classifier never merges. The
 author session claims the lane (`--claim --admit-issue`), draws both reviewers itself
 (`--assign-reviewer`), and dispatches the guarded merge itself; every existing gate (collision
 locks, version reservation, exact-head review, serial preview/merge/promotion) is unchanged. The
 orchestrator never dispatches, refills or reviews this route; `--queue-audit` prints it in its own
-section. Out of the lane: `plm`/`api`/`core`/`public`/`ingest`/`storage`/`dflow`/`app`, any
+section. Out of the lane: `api`/`core`/`public`/`ingest`/`storage`/`dflow`/`app`, any
 brand-new schema, any data statement, `CREATE OR REPLACE`, `SECURITY DEFINER`, and grants to
 browser roles on `crm`/`pim` objects without RLS.
 

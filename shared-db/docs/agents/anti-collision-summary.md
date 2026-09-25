@@ -42,7 +42,7 @@ rules below are the operative summary.
      rehearsed-but-unmerged blocks everyone, so **open its PR the same session.**
    - Every open `db-work` issue carries one authoritative `db-work-scope` block. Only
      `ready + structural + shared-db-orchestrator` (or `route: self-service-additive` for additive
-     work confined to `{crm,pim,dam}` — merge-time-classifier-enforced, no orchestrator triage) can enter an author lane, and it must name
+     work confined to `{crm,pim,dam,plm}` — merge-time-classifier-enforced, no orchestrator triage) can enter an author lane, and it must name
      every exact object. Outside-sourced writes into curated `core.*` Master Data use
      `curated-master-data` / `curated-master-data-governance` — §6.4 governance. It normally stays
      outside author lanes, but a fork that ships `supabase/migrations/*` must claim a lane before

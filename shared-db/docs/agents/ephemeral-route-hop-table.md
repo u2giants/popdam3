@@ -52,7 +52,7 @@ re-derive rather than trusting any number in this document.*
 `ALTER TABLE … ADD COLUMN` is the only object-mutating lane shape with no
 created-here precondition, and it takes an ACCESS EXCLUSIVE lock on the target —
 heavier than the non-concurrent `CREATE INDEX` the lane refuses. That is
-deliberate: `{crm,pim,dam}` are app-owned schemas (the §4.1 per-app extension
+deliberate: `{crm,pim,dam,plm}` are app-owned schemas (the §4.1 per-app extension
 table pattern), so the lock's blast radius is the app that authored the change,
 never a shared-schema consumer. A nullable additive column on an existing
 app-owned table is the lane's core use case. A shared-schema `ADD COLUMN` never

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 3550,
+  "outcome": "ready-for-merge",
+  "pr": 3549,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3550/1",
+  "contract_sha256": "af0c580f6b9d590c43e230121c5d06ded27568d8d88fc498394478ada7b9462b",
+  "base_sha": "84efcba2db06bd8e530b81fb2f4fd08c9118d07b",
+  "head_sha": "8c3cbdafa81efe7650a6809d6b8a2d97bb17a7f3",
+  "files_changed": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/ephemeral-route-hop-table.md",
+    "docs/agents/orchestrator.md",
+    "plan_orchestrator_required_load_reduction.md",
+    "scripts/check-lane-route-sync.test.mjs",
+    "scripts/check-self-service-additive-lane.mjs",
+    "scripts/check-self-service-additive-lane.test.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "scripts/orchestrator-flow/admission.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"command": "node --test scripts/check-self-service-additive-lane.test.mjs scripts/check-lane-route-sync.test.mjs scripts/orchestrator-flow/admission-outcome.test.mjs", "exit_code": 0, "evidence": "108 pass, 0 fail"}
+  ],
+  "assumptions_resolved": [
+    "Boundary is exactly {crm, pim, dam, plm}; shared schemas and brand-new schemas remain refused.",
+    "scripts/manage-migration-author-lanes.mjs comment-only edits were dropped to avoid protected-source collision with open PRs #3520/#3521/#3522/#3525/#3526/#3528."
+  ],
+  "stop_conditions_hit": []
+}

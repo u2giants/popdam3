@@ -75,6 +75,7 @@ The deepest relief — GitHub's native merge queue — already has a full plan (
 - **No change to the curated Master Data gate (§6.4)** or its matched-row abstention rule.
 - **No database schema or data changes, no credential or secret work, no consumer-repo changes** (skill-file copies under user directories are documentation, not consumer-repo sync targets).
 - **No self-service boundary beyond `{crm, pim, dam}`** — not `plm`, `api`, `core`, `public`, `ingest`, `storage`, `dflow`, or `app`, and **not brand-new schemas** (creating a schema is how a second shared schema gets born without an owner decision). Extending the boundary, including to `dflow`/`app` for DesignFlow work, requires a new owner decision.
+  - **SUPERSEDED 2026-09-25 (owner ruling, Albert Hazan).** Albert ordered the self-service lane opened to all four app-owned schemas. The live boundary is now `{crm, pim, dam, plm}` (PLM = DesignFlow). Shared schemas (`api`/`core`/`public`/`ingest`/`storage`/`dflow`/`app`) and brand-new schemas remain out. This plan's original three-schema limit is history, not current instruction.
 
 ## 5. Current state of the code
 

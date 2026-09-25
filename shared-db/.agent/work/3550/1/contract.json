@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3550,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Owner ruling 2026-09-25: open the self-service additive lane to all four app-owned schemas. Expand BOUNDARY_SCHEMAS and the merge-time classifier from {crm,pim,dam} to {crm,pim,dam,plm}, keep shared schemas out, and update admission, tests, rulebook prose, and the guarded-merge workflow comment so code and documentation cannot drift.",
+  "base_sha": "84efcba2db06bd8e530b81fb2f4fd08c9118d07b",
+  "dispatcher": "MiMo repo-maintenance session for issue #3550",
+  "worker": "MiMo chat unknown on EDGE-DEV",
+  "branch": "lane-self-service-plm",
+  "worktree": "C:/repos/shared-db/.ai/worktrees/lane-plm-mimo",
+  "allowed_paths": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/ephemeral-route-hop-table.md",
+    "docs/agents/orchestrator.md",
+    "plan_orchestrator_required_load_reduction.md",
+    "scripts/check-lane-route-sync.test.mjs",
+    "scripts/check-self-service-additive-lane.mjs",
+    "scripts/check-self-service-additive-lane.test.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "scripts/orchestrator-flow/admission.mjs",
+    ".agent/work/3550/1/contract.json",
+    ".agent/work/3550/1/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/ephemeral-route-hop-table.md",
+    "docs/agents/orchestrator.md",
+    "plan_orchestrator_required_load_reduction.md",
+    "scripts/check-lane-route-sync.test.mjs",
+    "scripts/check-self-service-additive-lane.mjs",
+    "scripts/check-self-service-additive-lane.test.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "scripts/orchestrator-flow/admission.mjs",
+    ".agent/work/3550/1/contract.json",
+    ".agent/work/3550/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not touch any migration or database object.",
+    "Do not open the lane to shared schemas (api/core/public/ingest/storage/dflow/app) or brand-new schemas.",
+    "Do not loosen additive-only, CREATE OR REPLACE, SECURITY DEFINER, data-statement, or browser-grant-without-RLS refusals.",
+    "Do not edit scripts/manage-migration-author-lanes.mjs — protected coordination source with open PRs."
+  ],
+  "required_checks": [
+    "node --test scripts/check-self-service-additive-lane.test.mjs scripts/check-lane-route-sync.test.mjs scripts/orchestrator-flow/admission-outcome.test.mjs"
+  ],
+  "assumptions": [
+    "Disclosed: the implementation commits for this change were authored in this session before the contract was published, because the Agent work contract gate was encountered at CI rather than at session start. The published contract's allowed_paths and goal match the net implementation exactly; nothing outside those paths was changed. No prior refs/db-contracts/3550/1 exists.",
+    "Owner ruling 2026-09-25 (Albert Hazan, chat) authorizes opening the lane to all four app schemas including plm."
+  ],
+  "stop_conditions": [
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths.",
+    "Stop if a shared schema would become eligible for self-service."
+  ]
+}

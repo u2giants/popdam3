@@ -20,7 +20,7 @@ const classify = (sql, { extraFiles = [], mainVersions = [], content = sql } = {
 test('a created table with a foreign key into a shared schema REFUSES (the §6.5 hole)', () => {
   const result = classify('create table crm.foo (id uuid, customer uuid references core.customer(id))')
   assert.equal(result.verdict, 'refuse')
-  assert.match(result.reasons.join('; '), /references object\(s\) outside \{crm,pim,dam\}: core\.customer/)
+  assert.match(result.reasons.join('; '), /references object\(s\) outside \{crm,pim,dam,plm\}: core\.customer/)
 })
 
 test('SECURITY DEFINER functions REFUSE, with or without boundary names', () => {
@@ -35,9 +35,9 @@ test('SECURITY DEFINER functions REFUSE, with or without boundary names', () => 
 })
 
 test('a function body referencing a shared schema REFUSES even when the created name is in-boundary', () => {
-  const result = classify('create function crm.f() returns void language sql security invoker as $$ select 1 from plm.item $$')
+  const result = classify('create function crm.f() returns void language sql security invoker as $$ select 1 from core.item $$')
   assert.equal(result.verdict, 'refuse')
-  assert.match(result.reasons.join('; '), /plm\.item/)
+  assert.match(result.reasons.join('; '), /core\.item/)
   const viaApi = classify('create function dam.g() returns void language sql security invoker as $$ select api.plm_item_list() $$')
   assert.equal(viaApi.verdict, 'refuse')
   assert.match(viaApi.reasons.join('; '), /api\.plm_item_list/)
@@ -88,11 +88,18 @@ test('CREATE OR REPLACE of anything REFUSES', () => {
 })
 
 test('every out-of-boundary schema REFUSES on sight', () => {
-  for (const schema of ['dflow', 'app', 'plm', 'api', 'core', 'public', 'ingest', 'storage']) {
+  for (const schema of ['dflow', 'app', 'api', 'core', 'public', 'ingest', 'storage']) {
     const result = classify(`create table ${schema}.foo (id uuid)`)
     assert.equal(result.verdict, 'refuse', schema)
-    assert.match(result.reasons.join('; '), /outside \{crm,pim,dam\}|not a whitelisted/, schema)
+    assert.match(result.reasons.join('; '), /outside \{crm,pim,dam,plm\}|not a whitelisted/, schema)
   }
+})
+
+test('plm is in-boundary for additive shapes (owner ruling 2026-09-25)', () => {
+  const result = classify('create table plm.foo (id uuid)')
+  assert.equal(result.verdict, 'pass')
+  const column = classify('alter table plm.foo add column note text')
+  assert.equal(column.verdict, 'pass')
 })
 
 test('CREATE SCHEMA REFUSES — brand-new schemas are an owner decision', () => {
@@ -199,8 +206,8 @@ test('reference scanning distinguishes table aliases from schema names', () => {
   assert.ok(bad.includes('sales.other'), JSON.stringify(bad))
 })
 
-test('the boundary stays exactly {crm, pim, dam}', () => {
-  assert.deepEqual([...BOUNDARY_SCHEMAS], ['crm', 'pim', 'dam'])
+test('the boundary stays exactly {crm, pim, dam, plm} (owner ruling 2026-09-25)', () => {
+  assert.deepEqual([...BOUNDARY_SCHEMAS], ['crm', 'pim', 'dam', 'plm'])
 })
 
 // ---------------------------------------------------------------------------

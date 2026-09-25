@@ -14,7 +14,7 @@ export const SERVICE_CLASSES = Object.freeze(['urgent-application', 'standard-ap
 // B2). `shared-db-orchestrator` is the full triage path; `self-service-additive`
 // admits the same structural work WITHOUT orchestrator triage when the merge-time
 // boundary classifier (scripts/check-self-service-additive-lane.mjs) holds —
-// additive objects confined to the app-owned {crm,pim,dam} schemas. Every other
+// additive objects confined to the app-owned {crm,pim,dam,plm} schemas. Every other
 // gate (claim, object locks, version reservation, reviewers, serial lanes,
 // guarded merge) is unchanged for both routes.
 export const STRUCTURAL_ROUTES = Object.freeze(['shared-db-orchestrator', 'self-service-additive'])
@@ -98,9 +98,9 @@ export function evaluateAdmission(issue, scope, impact = null) {
     throw new AdmissionError(result.reason, result)
   }
   // #3199 round-2 review (Medium): the self-service lane exists ONLY for the
-  // app-owned schemas its boundary classifier enforces {crm, pim, dam}. Without
+  // app-owned schemas its boundary classifier enforces {crm, pim, dam, plm}. Without
   // this check a self-routed issue could take exclusive collision locks and a
-  // version reservation on core/plm/... without orchestrator triage; merge-time
+  // version reservation on core/api/... without orchestrator triage; merge-time
   // classification would later refuse the SQL, but the locks would stand until
   // released. The write grammar is `kind schema.name`; a claim with no dotted
   // schema (e.g. `schema core`) is outside by construction — the lane never
@@ -108,10 +108,10 @@ export function evaluateAdmission(issue, scope, impact = null) {
   if (scope.route === 'self-service-additive') {
     const outside = [...(scope.writes ?? [])].filter((value) => {
       const schema = /^(?:[a-z]+ )?(?:"([^"]+)"|([a-z_][a-z0-9_$]*))\./i.exec(String(value).trim())
-      return !['crm', 'pim', 'dam'].includes((schema?.[1] ?? schema?.[2] ?? '').toLowerCase())
+      return !['crm', 'pim', 'dam', 'plm'].includes((schema?.[1] ?? schema?.[2] ?? '').toLowerCase())
     })
     if (outside.length) {
-      throw new AdmissionError(`issue #${issue.number} routes self-service-additive but writes outside the {crm,pim,dam} app-owned schemas: ${outside.join(', ')} — shared-schema objects need the orchestrator route`)
+      throw new AdmissionError(`issue #${issue.number} routes self-service-additive but writes outside the {crm,pim,dam,plm} app-owned schemas: ${outside.join(', ')} — shared-schema objects need the orchestrator route`)
     }
   }
   if (scope.status !== 'ready') throw new AdmissionError(`issue #${issue.number} is ${scope.status}, not ready`)

@@ -5,7 +5,7 @@
 // -----------------
 // A pull request whose linked work issue declares `route: self-service-additive`
 // may merge WITHOUT orchestrator triage only when EVERY named object of EVERY
-// statement lives in one of the app-owned schemas {crm, pim, dam} and every
+// statement lives in one of the app-owned schemas {crm, pim, dam, plm} and every
 // statement is an additive, low-lock shape. The boundary is the whole safety of
 // the lane: a `CREATE TABLE crm.foo (… REFERENCES core.customer(id))` creates an
 // in-boundary object yet locks a shared table, a SECURITY DEFINER function can
@@ -41,7 +41,10 @@ import { isDocumentPath } from './lib/documents-only-change.mjs'
 import { REPO, parseQueueScope, derivePrOperationRoute } from './manage-migration-author-lanes.mjs'
 
 export const SELF_SERVICE_ROUTE = 'self-service-additive'
-export const BOUNDARY_SCHEMAS = Object.freeze(['crm', 'pim', 'dam'])
+// Owner ruling 2026-09-25 (Albert Hazan): open the self-service lane to all four
+// app-owned schemas — CRM, DAM, PM, and PLM. `plm` joins the boundary; shared
+// schemas (core/api/public/ingest/storage/dflow/app) stay out.
+export const BOUNDARY_SCHEMAS = Object.freeze(['crm', 'pim', 'dam', 'plm'])
 // crm and pim are browser-exposed through PostgREST (AGENTS.md §8.1); a grant
 // to a browser role on either without RLS is a material access change.
 export const BROWSER_EXPOSED_SCHEMAS = Object.freeze(['crm', 'pim'])
@@ -57,7 +60,7 @@ export class LaneBoundaryError extends Error {}
 // are derived from ALLOWLIST in scripts/production_business_risk_gate.py; the
 // BOUNDARY prefix pins the schema to the lane's three app-owned schemas.
 const IDENT = '(?:"[^"]+"|[a-z_][a-z0-9_]*)'
-const BOUNDARY_SCHEMA = '(?:"?(?:crm|pim|dam)"?)'
+const BOUNDARY_SCHEMA = '(?:"?(?:crm|pim|dam|plm)"?)'
 const BOUNDARY_QUALIFIED = `${BOUNDARY_SCHEMA}\\.${IDENT}`
 const BUILTIN_COLUMN_TYPE = (
   '(?:text|citext|uuid|jsonb?|bytea|boolean|bool|date|interval|inet|cidr|macaddr|money|xml|tsvector'
@@ -96,7 +99,7 @@ const SHAPES = {
   // Round-2 review (Medium), DOCUMENTED DELIBERATELY: this is the only
   // object-mutating shape with no created-here precondition, and it takes an
   // ACCESS EXCLUSIVE lock on the target -- heavier than the CREATE INDEX the
-  // lane refuses. That is correct for THIS lane: {crm,pim,dam} are app-owned
+  // lane refuses. That is correct for THIS lane: {crm,pim,dam,plm} are app-owned
   // schemas (AGENTS.md 4.1 per-app extension tables), so the lock's blast
   // radius is the app that authored the change, not a shared-schema consumer.
   // A nullable ADD COLUMN is the lane's core use case; a shared-schema ADD
@@ -238,7 +241,7 @@ export function classifySelfServiceLane({ changedFiles = [], migrations = [], ma
       // Reference scan FIRST on the keep-dollar view: catches bodies and policy
       // expressions no matter which shape matches below.
       const violations = boundaryReferenceViolations(references[index])
-      if (violations.length) return refuse(`${where}: references object(s) outside {crm,pim,dam}: ${violations.join(', ')} (${excerpt})`)
+      if (violations.length) return refuse(`${where}: references object(s) outside {crm,pim,dam,plm}: ${violations.join(', ')} (${excerpt})`)
 
       let matched = null
       let bound = null

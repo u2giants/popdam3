@@ -60,8 +60,8 @@ AI sessions from breaking each other through the one database they all depend on
 > test is REJECTED (it belongs to another session) or FORKED to a fresh sub-agent — never worked
 > in the orchestrator's own context window.
 > **Any other session with a STRUCTURE change opens a GitHub issue and stops — with ONE
-> exception (issue #3199 Phase B):** an additive change whose every named object lives in
-> `{crm, pim, dam}` may instead take the **self-service additive lane** — declare
+> exception (issue #3199 Phase B, boundary opened to all four app schemas 2026-09-25):** an additive change whose every named object lives in
+> `{crm, pim, dam, plm}` may instead take the **self-service additive lane** — declare
 > `route: self-service-additive` in the issue's `db-work-scope`, claim the lane yourself
 > (`--claim --admit-issue`), draw both reviewers yourself (`--assign-reviewer`), and dispatch the
 > guarded merge yourself; the merge-time boundary classifier enforces the scope. Everything else
