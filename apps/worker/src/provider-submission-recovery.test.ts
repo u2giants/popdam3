@@ -2,21 +2,32 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { classifySubmissionHttpFailure, DefinitiveBatchRejectionError } from "./batch-submission-error.js";
-import { awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, persistDefinitiveRejectionFailure, type RpcCall } from "./provider-submission-recovery.js";
+import { classifySubmissionHttpFailure, DefinitiveBatchRejectionError, DEFINITIVE_REJECTION_STATUSES } from "./batch-submission-error.js";
+import {
+  awaitsDefinitiveRejectionFailure,
+  failOperationAfterDefinitiveRejection,
+  failOperationAfterNotSubmitted,
+  finishInterruptedReset,
+  persistDefinitiveRejectionFailure,
+  NOT_SUBMITTED_PROVIDER_ERROR,
+  NOT_SUBMITTED_REASON,
+  type RpcCall,
+} from "./provider-submission-recovery.js";
 import { providerJobErrorState } from "./operation-loop.js";
 
 const MIGRATION = new URL(
-  "../../../shared-db/supabase/migrations/20260923040630_popdam_definitive_rejection_lease_reset.sql",
+  "../../../shared-db/supabase/migrations/20260924183947_popdam_submission_lease_reset_widen.sql",
   import.meta.url,
 );
 const md5 = (value: string) => createHash("md5").update(value).digest("hex");
 const AMBIGUITY_MARKERS = ["ambiguous_since", "ambiguous_reason", "ambiguous_prior_phase", "ambiguous_prior_owner"];
+const ACCEPTED_REJECTION_STATUSES = [400, 401, 402, 403, 422, 429];
 
 /**
  * In-memory BULK_OPERATIONS row that mirrors the governed SQL contracts:
- * reset_bulk_operation_submission_lease exactly as written in shared-db #3418,
- * and the revision/status guard of update_bulk_operation's guarded path.
+ * reset_bulk_operation_submission_lease exactly as written in shared-db #3464
+ * (widened from #3418), and the revision/status guard of update_bulk_operation's
+ * guarded path.
  */
 function fakeDatabase(initial: Record<string, Record<string, unknown>>, nowMs = Date.parse("2026-09-23T12:00:00Z")) {
   const operations: Record<string, Record<string, unknown>> = structuredClone(initial);
@@ -29,10 +40,19 @@ function fakeDatabase(initial: Record<string, Record<string, unknown>>, nowMs = 
         return { data: null, error: { message: "22023 key, current revision, owner and receipt are required" } };
       }
       const providerError = p.p_provider_error;
-      if (p.p_reason !== "provider_definitive_rejection" || ![400, 422].includes(p.p_http_status as number)
-        || !providerError || typeof providerError !== "object" || Array.isArray(providerError)
-        || Object.keys(providerError).length === 0) {
-        return { data: null, error: { message: "22023 parsed definitive 4xx rejection evidence is required" } };
+      const isObject = !!providerError && typeof providerError === "object" && !Array.isArray(providerError);
+      if (p.p_reason === "not_submitted") {
+        if (p.p_http_status !== null || !isObject
+          || (providerError as Record<string, unknown>).category !== "not_submitted") {
+          return { data: null, error: { message: "22023 not_submitted requires NULL http status and fixed provider_error category" } };
+        }
+      } else if (p.p_reason === "provider_definitive_rejection") {
+        if (!ACCEPTED_REJECTION_STATUSES.includes(p.p_http_status as number)
+          || !isObject || Object.keys(providerError as object).length === 0) {
+          return { data: null, error: { message: "22023 parsed definitive 4xx rejection evidence is required" } };
+        }
+      } else {
+        return { data: null, error: { message: "22023 reason must be not_submitted or provider_definitive_rejection" } };
       }
       const op = operations[p.p_op_key as string];
       const job = op?.external_job as Record<string, unknown> | undefined;
@@ -53,12 +73,13 @@ function fakeDatabase(initial: Record<string, Record<string, unknown>>, nowMs = 
       Object.assign(resetJob, {
         phase: "prepared",
         last_definitive_rejection_status: p.p_http_status,
+        last_definitive_rejection_reason: p.p_reason,
         last_definitive_rejection_at: new Date(nowMs).toISOString(),
       });
       const resetOperation = { ...op, external_job: resetJob, state_revision: revision + 1 };
       operations[p.p_op_key as string] = resetOperation;
       return {
-        data: { ok: true, reason: "provider_definitive_rejection", op_key: p.p_op_key, state_revision: revision + 1, lease_receipt_issued: false, lease_token: null, operation: structuredClone(resetOperation) },
+        data: { ok: true, reason: p.p_reason, op_key: p.p_op_key, state_revision: revision + 1, lease_receipt_issued: false, lease_token: null, operation: structuredClone(resetOperation) },
         error: null,
       };
     }
@@ -105,11 +126,13 @@ const rejection = () => classifySubmissionHttpFailure(
   "google-gemini", 400, JSON.stringify({ error: { code: 400, status: "INVALID_ARGUMENT", message: "secret prompt" } }),
 ) as DefinitiveBatchRejectionError;
 
-test("vendored shared-db migration still carries the reset contract this worker calls", () => {
+test("vendored shared-db migration still carries the widened reset contract this worker calls", () => {
   const sql = readFileSync(MIGRATION, "utf8");
   assert.match(sql, /reset_bulk_operation_submission_lease\(\s*p_op_key text,\s*p_expected_revision bigint,\s*p_submission_owner text,\s*p_lease_token text,\s*p_reason text,\s*p_http_status integer,\s*p_provider_error jsonb/);
-  assert.match(sql, /p_reason is distinct from 'provider_definitive_rejection'/);
-  assert.match(sql, /p_http_status <> all\(array\[400, 422\]\)/);
+  assert.match(sql, /p_reason = 'not_submitted'/);
+  assert.match(sql, /p_provider_error ->> 'category' is distinct from 'not_submitted'/);
+  assert.match(sql, /p_reason = 'provider_definitive_rejection'/);
+  assert.match(sql, /p_http_status <> all\(array\[400, 401, 402, 403, 422, 429\]\)/);
   assert.match(sql, /lease_proof', ''\) is distinct from md5\(p_lease_token\)/);
   assert.match(sql, /'phase', 'prepared'/);
   assert.match(sql, /'lease_receipt_issued', false/);
@@ -237,16 +260,95 @@ test("a missing reset RPC (PGRST202) fails the operation visibly under a named e
   assert.equal("lease_token" in (database.operations.ai_tag.external_job as object), false);
 });
 
-test("an auth/billing/rate-limit refusal fails the claimed operation visibly, not ambiguously", async () => {
-  const { failClaimedOperation } = await import("./provider-submission-recovery.js");
-  const { ProviderRefusedSubmissionError } = await import("./batch-submission-error.js");
-  const refusal = classifySubmissionHttpFailure("openrouter", 402, JSON.stringify({ error: { code: 402, message: "Insufficient credits" } }));
-  assert.ok(refusal instanceof ProviderRefusedSubmissionError);
+test("every widened definitive status (400/401/402/403/422/429) resets the receipt and fails once", async () => {
+  assert.deepEqual([...DEFINITIVE_REJECTION_STATUSES], ACCEPTED_REJECTION_STATUSES);
+  for (const status of DEFINITIVE_REJECTION_STATUSES) {
+    const database = fakeDatabase(claimedOperation());
+    const rejection = classifySubmissionHttpFailure(
+      "openrouter", status, JSON.stringify({ error: { code: status, status: "PERMISSION_DENIED", message: "secret credits" } }),
+    ) as DefinitiveBatchRejectionError;
+    assert.ok(rejection instanceof DefinitiveBatchRejectionError, `status ${status}`);
+    const outcome = await failOperationAfterDefinitiveRejection(database.rpc, receipt, rejection, () => "2026-09-23T12:00:01Z");
+    assert.deepEqual(database.calls, ["reset_bulk_operation_submission_lease", "update_bulk_operation"], `status ${status}`);
+    const stored = database.operations.ai_tag;
+    assert.equal(stored.status, "failed", `status ${status}`);
+    assert.equal(stored.interruption_reason_code, "provider_definitive_rejection", `status ${status}`);
+    assert.equal(outcome.stateRevision, 9, `status ${status}`);
+    assert.match(String(outcome.state.error), new RegExp(`HTTP ${status}`), `status ${status}`);
+    assert.doesNotMatch(JSON.stringify(stored), /secret credits/, `status ${status}`);
+    const job = stored.external_job as Record<string, unknown>;
+    assert.equal(job.last_definitive_rejection_reason, "provider_definitive_rejection", `status ${status}`);
+  }
+});
+
+test("a never-submitted failure resets the receipt under not_submitted and fails once", async () => {
   const database = fakeDatabase(claimedOperation());
-  const claimed = { ...(structuredClone(database.operations.ai_tag) as object), external_job: { ...(database.operations.ai_tag.external_job as object), lease_token: "receipt-1" } };
-  await failClaimedOperation(database.rpc, "ai_tag", claimed as never, 7, "provider_refused_submission", refusal.message);
+  const outcome = await failOperationAfterNotSubmitted(
+    database.rpc, receipt, "Nothing usable left to submit", () => "2026-09-23T12:00:01Z",
+  );
+  assert.deepEqual(database.calls, ["reset_bulk_operation_submission_lease", "update_bulk_operation"]);
+  const stored = database.operations.ai_tag;
+  assert.equal(stored.status, "failed");
+  assert.equal(stored.state_revision, 9);
+  assert.equal(outcome.stateRevision, 9);
+  assert.equal(stored.interruption_reason_code, "provider_not_submitted");
+  assert.equal(stored.next_auto_resume_at, undefined);
+  const job = stored.external_job as Record<string, unknown>;
+  assert.equal(job.phase, "prepared");
+  assert.equal(job.last_definitive_rejection_reason, NOT_SUBMITTED_REASON);
+  assert.equal(job.last_definitive_rejection_status, null);
+  for (const key of ["lease_proof", "submission_owner", "lease_expires_at", "lease_token"]) assert.equal(key in job, false);
+
+  // Replaying the consumed receipt is refused by the DB.
+  await assert.rejects(
+    failOperationAfterNotSubmitted(database.rpc, receipt, "Nothing usable left to submit"),
+    /receipt was not proven/,
+  );
+  assert.equal(database.operations.ai_tag.state_revision, 9);
+});
+
+test("not_submitted reset is refused for a wrong receipt, expired lease or bound provider ID", async () => {
+  const variants: Array<[string, (op: Record<string, unknown>) => void, Partial<typeof receipt>]> = [
+    ["wrong receipt", () => {}, { leaseToken: "someone-else" }],
+    ["wrong owner", () => {}, { submissionOwner: "railway:run-2" }],
+    ["stale revision", () => {}, { expectedRevision: 6 }],
+    ["expired lease", (op) => { (op.external_job as Record<string, unknown>).lease_expires_at = "2026-09-23T11:59:59Z"; }, {}],
+    ["bound provider ID", (op) => { (op.external_job as Record<string, unknown>).provider_batch_id = "batches/x"; }, {}],
+  ];
+  for (const [label, mutate, override] of variants) {
+    const initial = claimedOperation();
+    mutate(initial.ai_tag as Record<string, unknown>);
+    const database = fakeDatabase(initial);
+    await assert.rejects(
+      failOperationAfterNotSubmitted(database.rpc, { ...receipt, ...override }, "gave up", () => "2026-09-23T12:00:01Z"),
+      /receipt was not proven/,
+      label,
+    );
+    assert.equal(database.operations.ai_tag.status, "running", label);
+    assert.deepEqual(database.calls, ["reset_bulk_operation_submission_lease"], label);
+  }
+});
+
+test("the not_submitted provider_error category is exactly the fixed contract value", () => {
+  assert.deepEqual(NOT_SUBMITTED_PROVIDER_ERROR, { category: "not_submitted" });
+});
+
+test("a crash between a not_submitted reset and its failure write is finished under the recorded reason", async () => {
+  const database = fakeDatabase(claimedOperation());
+  let failSecondWrite = true;
+  const flaky: RpcCall = async (fn, params) => {
+    if (fn === "update_bulk_operation" && failSecondWrite) {
+      failSecondWrite = false;
+      return { data: null, error: { message: "connection reset" } };
+    }
+    return database.rpc(fn, params);
+  };
+  await assert.rejects(failOperationAfterNotSubmitted(flaky, receipt, "gave up"), /connection reset/);
+  const interim = database.operations.ai_tag as Record<string, unknown>;
+  assert.equal(awaitsDefinitiveRejectionFailure(interim as never), true);
+  const outcome = finishInterruptedReset(flaky, "ai_tag", interim as never, interim.state_revision as number);
+  assert.ok(outcome, "interrupted not_submitted reset must be finishable");
+  await outcome;
   assert.equal(database.operations.ai_tag.status, "failed");
-  assert.equal(database.operations.ai_tag.interruption_reason_code, "provider_refused_submission");
-  assert.match(String(database.operations.ai_tag.error), /HTTP 402, billing/);
-  assert.deepEqual(database.calls, ["update_bulk_operation"]);
+  assert.equal(database.operations.ai_tag.interruption_reason_code, "provider_not_submitted");
 });
