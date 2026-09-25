@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "work_issue": 2491,
+  "outcome": "ready-for-merge",
+  "pr": 3512,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2491/1",
+  "contract_sha256": "bdfd81e51922b16ba14e2f46f9dd114a4b25144cad777beaa2ba4b84f0983074",
+  "base_sha": "f3e3689e553b96ac18ed2ba73d335383f7eab2fc",
+  "head_sha": "e3ba3578788bcdacb548f4e72dd14e1241916b70",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "714 pass, 0 fail at e3ba3578 after refreshing onto origin/main."
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/select-preview-route.test.mjs",
+      "exit_code": 0,
+      "evidence": "12 pass, 0 fail at e3ba3578 after refreshing onto origin/main."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=322 sources=75 derived_digest=661e3117e252 at e3ba3578"
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 1 published after implementation commit b74ea1043; no prior refs/db-contracts/2491/1 existed.",
+    "files_changed lists the implementation pair only; the evidence pair is the tail after report.head_sha."
+  ],
+  "stop_conditions_hit": []
+}

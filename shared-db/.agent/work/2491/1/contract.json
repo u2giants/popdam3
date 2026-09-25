@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 2491,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Isolate the #2491 rehearsalMode gate in the negative-path test and name the exact refusal reason in the claim-head evidence rejection message, so the Muse review gap on PR #3322 is closed without weakening evidence matching.",
+  "base_sha": "b32deb1ce57d2158193100c72e40ab1ea720d72d",
+  "dispatcher": "MiMo repo-maintenance session for issue #2491",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "2491-preview-evidence",
+  "worktree": "C:/repos/shared-db-2491-preview-evidence",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/2491/1/contract.json",
+    ".agent/work/2491/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/2491/1/contract.json",
+    ".agent/work/2491/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not weaken evidence matching or disable any safety gate.",
+    "Do not change acceptance behaviour; only tests and rejection messages may change.",
+    "Do not touch any migration, workflow, database object, or live row."
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/orchestrator-flow/select-preview-route.test.mjs"
+  ],
+  "assumptions": [
+    "Disclosed: generation 1 is published after implementation commit b74ea1043; no prior refs/db-contracts/2491/1 exists."
+  ],
+  "stop_conditions": [
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths."
+  ]
+}

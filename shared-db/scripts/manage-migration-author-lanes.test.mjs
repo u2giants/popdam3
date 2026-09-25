@@ -9537,8 +9537,27 @@ test('#2491 an already-applied version matches its original claim-head apply whe
   // on this path.
   assert.throws(()=>validateOriginalPreviewApplyEvidence(input,io),/found 0|no acceptable/)
   assert.throws(()=>validateOriginalPreviewApplyEvidence({...input,claimHeadSha:'c'.repeat(40)},io),/found 0|no acceptable/)
-  const merged=immutablePreviewApplyIo()
-  assert.throws(()=>validateOriginalPreviewApplyEvidence({...input,claimHeadSha:appliedCommit},merged),/found 0|no acceptable/)
+  // Muse review of #3322: the old negative-path assertion refused on allowlist
+  // mismatch rather than isolating the rehearsalMode gate. Pin that gate
+  // directly: a binding with the CORRECT allowlist, the CORRECT applied commit
+  // and the proven claim head still refuses when it is not claim-mode.
+  const nonClaim={...pinnedHistoricalClaimApplyIo(),previewApplyRun:()=>{
+    const evidence=pinnedHistoricalClaimApplyIo().previewApplyRun()
+    const binding=JSON.parse(String(evidence.logs).match(/\{"allowlist".*?\}/)[0])
+    evidence.logs=evidence.logs.replace(JSON.stringify(binding),JSON.stringify({...binding,rehearsalMode:'merged-main-rehearsal'}))
+    return evidence
+  }}
+  assert.throws(
+    ()=>validateOriginalPreviewApplyEvidence({...input,claimHeadSha:appliedCommit},nonClaim),
+    /is not claim/,
+    'a non-claim binding must refuse on the claim-head path even when every other identity matches')
+  // And a claim-mode binding whose applied commit is NOT the proven head still
+  // refuses -- the head gate is real, not decorative.
+  const wrongHead=pinnedHistoricalClaimApplyIo({appliedCommit:'a'.repeat(40)})
+  assert.throws(
+    ()=>validateOriginalPreviewApplyEvidence({...input,claimHeadSha:appliedCommit},wrongHead),
+    /does not equal the proven claim head/,
+    'a claim-mode binding at a different head must refuse and name the head condition')
 })
 
 // ISSUE #2998 item 3 — READINESS IS ASSERTED BEFORE THE DRAW, NOT AFTER IT.

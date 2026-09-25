@@ -9714,7 +9714,14 @@ export function validateOriginalPreviewApplyEvidence({issue,pr,versions,mergeCom
     // not the dispatch run head. Accept it only against the exact claim head the
     // caller proved, and only for a claim-mode binding.
     const provenClaimApply=Boolean(!mergeCommitSha&&provenClaimHead&&binding.rehearsalMode==='claim'&&String(binding.appliedCommit).toLowerCase()===provenClaimHead)
-    if(!mergeCommitSha&&!provenClaimApply&&binding.appliedCommit!==run.head_sha){reject(runId,lane,`binding applied commit ${binding.appliedCommit} is neither the run head ${run.head_sha} nor the proven claim head ${provenClaimHead??'(none supplied)'}`);continue}
+    if(!mergeCommitSha&&!provenClaimApply&&binding.appliedCommit!==run.head_sha){
+      // Name the SPECIFIC reason the claim-head path did not accept this binding,
+      // so a refusal never reads as "the head was wrong" when the real gate is
+      // the binding mode. Acceptance is unchanged.
+      const claimNote=!provenClaimHead?'no claim head was proven':binding.rehearsalMode!=='claim'?`binding rehearsal mode ${binding.rehearsalMode} is not claim`:`applied commit does not equal the proven claim head ${provenClaimHead}`
+      reject(runId,lane,`binding applied commit ${binding.appliedCommit} is neither the run head ${run.head_sha} nor an accepted claim-head apply: ${claimNote}`)
+      continue
+    }
     // The ARTIFACT is named for the applied checkout, never for the dispatch head.
     const appliedCommit=(pinnedClaimApply||hashBoundClaimApply||mergedMainRehearsal||provenClaimApply)?binding.appliedCommit:run.head_sha
 
