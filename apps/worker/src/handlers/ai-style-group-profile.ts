@@ -35,6 +35,7 @@ import {
   submitPreparedProviderBatch,
   batchJobIdentity,
   getBatchProviderApiKey,
+  submittedAccountMismatch,
   submittedIdentity,
   type DurableBatchProvider,
   type PreparedProviderBatch,
@@ -77,6 +78,8 @@ export const MAX_SINGLE_IMAGE_SHARE = 0.25;
 const MEMBER_CANDIDATE_LIMIT = 200;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SCHEMA_NAME = "tag_style_group";
+/** Groups applied per dispatch before their outcomes are checkpointed on the job. */
+export const GROUP_APPLY_CHECKPOINT_ITEMS = 2;
 
 export const GROUP_PROFILE_SOURCE = "group_ai";
 export { AUTHORITATIVE_TAG_SOURCE as AUTHORITATIVE_SOURCE, AUTHORITATIVE_TAG_MODEL as AUTHORITATIVE_MODEL };
@@ -792,7 +795,7 @@ async function handleDurableGroupProfiles(
         ...job,
         // Stamp the identity the batch was actually sent with, so polling and
         // applying never re-read it from Settings (legacy jobs lacked it).
-        ...submittedIdentity(identity),
+        ...submittedIdentity(identity, apiKey),
         phase: "pending",
         provider_batch_id: created.id,
         submitted_at: new Date().toISOString(),
@@ -805,6 +808,13 @@ async function handleDurableGroupProfiles(
       ...(preparedSubmission.accounting ?? NO_GROUP_ACCOUNTING),
       last_stage: "model_inference",
     };
+  }
+
+  // A batch lives in the account that submitted it; never poll or apply it
+  // with a different account's key. Stop visibly (resumable once restored).
+  const accountMismatch = submittedAccountMismatch(job, apiKey);
+  if (accountMismatch) {
+    return { ok: false, done: false, error: accountMismatch, error_code: "credential_changed", external_job: { ...job, lease_token: job.lease_token } };
   }
 
   let record;
@@ -871,9 +881,26 @@ async function handleDurableGroupProfiles(
     expectedResultIds,
     batchProvider === "google-gemini" ? correlateOrderedResults(expectedResultIds, providerResults) : providerResults,
   );
-  let profiled = 0, failed = 0;
-  const failureSamples = [];
-  for (const item of groupItems(job)) {
+  // Per-item checkpoints: each group's outcome is saved on the job, so a crash
+  // or a paused repair resumes after the last saved group instead of
+  // re-applying (and re-repairing) the whole batch.
+  const items = groupItems(job).map((item) => ({ ...item }));
+  let profiled = 0, failed = 0, processed = 0;
+  const failureSamples: Array<Record<string, unknown>> = [];
+  const checkpoint = (extra: Record<string, unknown> = {}) => ({
+    ...job, group_items: items, phase: "applying" as const, lease_token: job.lease_token, last_checked_at: new Date().toISOString(), ...extra,
+  });
+  for (const item of items) {
+    if (item.status === "applied" || item.status === "failed_terminal") continue;
+    if (processed >= GROUP_APPLY_CHECKPOINT_ITEMS) {
+      return {
+        ok: true, done: false, profiled, failed, skipped: 0, failure_samples: failureSamples,
+        nextOffset: job.page_cursor ?? opState.cursor ?? 0,
+        external_job: checkpoint(),
+        last_stage: "tag_write",
+      };
+    }
+    processed++;
     const raw = results.get(item.custom_id) as ProviderBatchResultItem | undefined;
     try {
       if (!raw) throw new Error("Provider batch result missing");
@@ -902,52 +929,49 @@ async function handleDurableGroupProfiles(
         aiTags: writes.aiTags,
         evidenceAssetIds: writes.evidenceAssetIds,
       });
+      item.status = "applied";
       profiled++;
     } catch (error) {
       if (error instanceof RepairNotAuthorizedError) {
-        // Stop immediately; the saved results stay applicable after resume.
+        // Stop immediately; applied groups stay recorded, the rest stay
+        // applicable after resume.
         return {
           ok: false,
           done: false,
           error: error.message,
           error_code: "repair_not_authorized",
-          external_job: { ...job, phase: "applying", lease_token: job.lease_token, last_checked_at: new Date().toISOString() },
+          profiled, failed, failure_samples: failureSamples,
+          external_job: checkpoint(),
         };
       }
       if (error instanceof RepairUnavailableError) {
-        // Pause the whole apply pass and retry the same saved results later.
-        // Every write is a replacement, so re-applying earlier items is safe;
-        // nothing is counted until a pass completes.
+        // Pause and retry the remaining saved results later; groups already
+        // applied in this pass are checkpointed and counted now.
         const failures = (job.transient_poll_failures ?? 0) + 1;
         return {
           ok: true,
           done: false,
+          profiled, failed, skipped: 0, failure_samples: failureSamples,
           nextOffset: job.page_cursor ?? opState.cursor ?? 0,
-          external_job: {
-            ...job,
-            phase: "applying",
-            lease_token: job.lease_token,
+          external_job: checkpoint({
             transient_poll_failures: failures,
-            last_checked_at: new Date().toISOString(),
             next_poll_at: new Date(Date.now() + transientPollDelayMs(failures - 1)).toISOString(),
-          },
+          }),
           last_stage: "tag_write",
         };
       }
+      const reason = safeRepairReason(error);
+      item.status = "failed_terminal";
+      item.error = reason;
       failed++;
-      failureSamples.push({
-        at: new Date().toISOString(),
-        style_group_id: item.style_group_id,
-        sku: item.sku ?? "",
-        error: safeRepairReason(error),
-      });
+      failureSamples.push({ at: new Date().toISOString(), style_group_id: item.style_group_id, sku: item.sku ?? "", error: reason });
     }
   }
   return {
     ok: true, done: false, profiled, failed, skipped: 0,
     failure_samples: failureSamples,
     nextOffset: job.next_cursor ?? job.page_cursor ?? opState.cursor ?? 0,
-    external_job: { ...job, phase: "completed", lease_token: job.lease_token, transient_poll_failures: undefined, next_poll_at: undefined, last_checked_at: new Date().toISOString() },
+    external_job: { ...job, group_items: items, phase: "completed", lease_token: job.lease_token, transient_poll_failures: undefined, next_poll_at: undefined, last_checked_at: new Date().toISOString() },
     last_stage: "tag_write",
   };
 }

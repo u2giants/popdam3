@@ -944,3 +944,78 @@ test("a missing provider key while a submission receipt is held fails through th
     deps({ client: recordingClient(), apiKey: "", models: { primary: "test/vision-model:batch", fallback: null, providerPin: null } }));
   assert.equal(unheld.ok, false);
 });
+
+function stubGeminiSucceeded(keys: string[], seen: string[]) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    seen.push(`${(init?.method ?? "GET").toUpperCase()} ${String(input)}`);
+    return new Response(JSON.stringify({
+      name: "batches/paid-batch",
+      metadata: { state: "BATCH_STATE_SUCCEEDED" },
+      output: { inlinedResponses: { inlinedResponses: keys.map((key) => ({
+        metadata: { key },
+        response: { candidates: [{ content: { parts: [{ text: JSON.stringify(PROFILE) }] } }] },
+      })) } },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+  return () => { globalThis.fetch = originalFetch; };
+}
+
+function applyingGroupJob(keys: string[], extra: Record<string, unknown> = {}) {
+  return {
+    status: "running", cursor: 0, run_id: "run1",
+    external_job: {
+      version: 1, phase: "applying", provider: "google-gemini", model: "google-direct/gemini-3.8-flash:batch",
+      output_method: "json_schema", provider_batch_id: "batches/paid-batch", lease_token: "lease-1",
+      page_cursor: 0, next_cursor: GROUP_ID, scope: "style_group", items: [],
+      group_items: keys.map((key) => ({ style_group_id: GROUP_ID, custom_id: key, status: "submitted", sku: "SKU-1" })),
+      ...extra,
+    },
+  } as unknown as OpState;
+}
+
+test("the apply pass checkpoints each group's outcome and resumes after the last saved one", async () => {
+  const keys = ["g1", "g2", "g3"];
+  const restore = stubGeminiSucceeded(keys, []);
+  const writes: string[] = [];
+  const client = { rpc(name: string, params: Record<string, unknown>) { if (params.p_source === "group_ai") writes.push(String(params.p_style_group_id)); return Promise.resolve({ data: null, error: null }); } };
+  try {
+    const common = { client, apiKey: "test-key", models: { primary: "google-direct/gemini-3.8-flash:batch", fallback: null, providerPin: null } };
+    const first = await handleStyleGroupProfiles(applyingGroupJob(keys), deps(common));
+    const firstJob = first.external_job as { phase: string; group_items: Array<{ status: string }> };
+    assert.equal(first.profiled, 2);
+    assert.equal(firstJob.phase, "applying");
+    assert.deepEqual(firstJob.group_items.map((item) => item.status), ["applied", "applied", "submitted"]);
+    const resumed = await handleStyleGroupProfiles({ ...applyingGroupJob(keys), external_job: { ...firstJob, lease_token: "lease-1" } } as unknown as OpState, deps(common));
+    assert.equal(resumed.profiled, 1, "only the remaining group is applied after the checkpoint");
+    assert.equal((resumed.external_job as { phase: string }).phase, "completed");
+    assert.equal(writes.length, 3, "no group is written twice");
+  } finally {
+    restore();
+  }
+});
+
+test("a submitted batch is never polled with a different account's key", async () => {
+  const { accountFingerprint } = await import("../batch-provider.js");
+  const seen: string[] = [];
+  const restore = stubGeminiSucceeded(["g1"], seen);
+  try {
+    const job = applyingGroupJob(["g1"], { phase: "pending", account_fingerprint: accountFingerprint("original-key") });
+    const result = await handleStyleGroupProfiles(job, deps({
+      client: recordingClient(), apiKey: "rotated-key",
+      models: { primary: "google-direct/gemini-3.8-flash:batch", fallback: null, providerPin: null },
+    }));
+    assert.equal(result.ok, false);
+    assert.equal(result.error_code, "credential_changed");
+    assert.match(String(result.error), /key changed since batch batches\/paid-batch was submitted/);
+    assert.doesNotMatch(String(result.error), /original-key|rotated-key/);
+    assert.deepEqual(seen, [], "no poll is sent with the wrong account");
+    const same = await handleStyleGroupProfiles(job, deps({
+      client: recordingClient(), apiKey: "original-key",
+      models: { primary: "google-direct/gemini-3.8-flash:batch", fallback: null, providerPin: null },
+    }));
+    assert.equal(same.ok, true);
+  } finally {
+    restore();
+  }
+});
