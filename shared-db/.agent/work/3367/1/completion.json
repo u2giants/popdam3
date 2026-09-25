@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "work_issue": 3367,
+  "outcome": "ready-for-merge",
+  "pr": 3371,
+  "migration_versions": [],
+  "reason": "Bounded direct psycopg and existing Management API read-only qualification adapters implemented with fixture tests; workflow producer/consumer wiring, genuine live qualification, and production proof remain explicitly required outside this pull request",
+  "contract_ref": "refs/db-contracts/3367/1",
+  "contract_sha256": "bda945375340f2ae373ff2856b33572e1ad1f70eb8f7e669ef6338ed8e4499e9",
+  "head_sha": "a09ae9cc7ca04391f925e02b0cd9fcb0d61e3350",
+  "base_sha": "d73912fc38e7b6502baedb2a8c18bce343d09e84",
+  "files_changed": [
+    "scripts/shared_db_live_proof.py",
+    "scripts/test_shared_db_live_proof.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "evidence": "28 tests passed; 0 skipped; exit 0. Offline fixtures only; no live qualification or production proof claimed.",
+      "command": "python -m unittest scripts/test_shared_db_live_proof.py",
+      "exit_code": 0
+    },
+    {
+      "evidence": "truth audit OK: call_sites=317 sources=72 derived_digest=623c3a6c3f85; throughput-guard truth-audit suite 16 pass, 0 fail.",
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0
+    }
+  ],
+  "assumptions_resolved": [
+    "Existing production Management API identity observed as supabase_read_only_user with rolsuper false and rolbypassrls true; bounded API adapter asserts this exact named policy in the same transaction",
+    "Qualified shared SQL lexer v2 with probeStatementText is required before API adapter executes; PR3395 provides it",
+    "Final production assertion is retained; optional bounded flag does not activate workflow or promotion policy",
+    "Server standard_conforming_strings must already be on and is asserted before probe; no SET can alter parse-time semantics"
+  ],
+  "stop_conditions_hit": []
+}

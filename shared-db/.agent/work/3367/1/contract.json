@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "work_issue": 3367,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Qualify exact acceptance probe runtime without claiming live qualification",
+  "base_sha": "20641bc6bbcd4e6e8fe1e2211126837456c045ab",
+  "dispatcher": "Codex workflow refactor session",
+  "worker": "Codex",
+  "branch": "codex/probe-qualification-20260920",
+  "worktree": "D:/repos/shared-db-probe-qualification-20260920",
+  "allowed_paths": [
+    "scripts/shared_db_live_proof.py",
+    "scripts/test_shared_db_live_proof.py"
+  ],
+  "file_writes": [
+    "scripts/shared_db_live_proof.py",
+    "scripts/test_shared_db_live_proof.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database writes or production dispatch",
+    "No workflow edits"
+  ],
+  "required_checks": [
+    "python -m unittest scripts/test_shared_db_live_proof.py"
+  ],
+  "assumptions": [
+    "Existing Management API read_only remains enforced; runtime qualification requires observed limits and role"
+  ],
+  "stop_conditions": [
+    "Unverifiable execution role or server limits refuse qualification"
+  ]
+}
