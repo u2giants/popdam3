@@ -2934,7 +2934,7 @@ export const githubIo = {
       ?{file:process.env.ComSpec||'cmd.exe',args:['/d','/s','/c',resolved,...args]}
       :{file:resolved,args}
     let output=''
-    try{output=execFileSync(spawn.file,spawn.args,{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:REVIEWER_DOCTOR_TIMEOUT_MS})}
+    try{output=execFileSync(spawn.file,spawn.args,{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:REVIEWER_PREFLIGHT_TIMEOUT_MS})}
     catch(error){output=String(error?.stdout??'');if(error?.code==='ETIMEDOUT'||error?.signal)return reconcilePreflightRows(output,reviewers,{complete:false})}
     return reconcilePreflightRows(output,reviewers)
   },
@@ -3218,6 +3218,23 @@ export const REVIEWER_DOCTOR_TIMEOUT_MS = (()=>{
   if(raw===undefined||String(raw).trim()==='')return 60000
   const value=Number(raw)
   if(!Number.isFinite(value)||value<=0)throw new LaneError(`REVIEWER_DOCTOR_TIMEOUT_MS must be a positive number of milliseconds; got "${raw}". Left unchecked this disables the timeout and a hung doctor hangs a governed lane.`)
+  return value
+})()
+
+// `ai-review-preflight usable` reconciles EVERY provider in one process (nine on
+// edge-dev). Spawned through the cmd.exe -> Git bash shim chain one pass measures
+// ~39 s and has taken ~80 s under load, so sharing the single-doctor budget here
+// cut the run off before the later providers reported and refused the whole draw
+// with "cut off before reporting qwen". The single-doctor budget above stays
+// tight -- a hung wrapper doctor must still fail fast -- while the aggregate gets
+// room for every provider to answer. REVIEWER_DOCTOR_TIMEOUT_MS, when the
+// operator raises it, still widens both; it never shrinks the aggregate below the
+// floor that a real pass needs.
+export const REVIEWER_PREFLIGHT_TIMEOUT_MS = (()=>{
+  const raw=process.env.REVIEWER_PREFLIGHT_TIMEOUT_MS
+  if(raw===undefined||String(raw).trim()==='')return Math.max(REVIEWER_DOCTOR_TIMEOUT_MS,240000)
+  const value=Number(raw)
+  if(!Number.isFinite(value)||value<=0)throw new LaneError(`REVIEWER_PREFLIGHT_TIMEOUT_MS must be a positive number of milliseconds; got "${raw}". Left unchecked this disables the timeout and a hung preflight hangs a governed lane.`)
   return value
 })()
 

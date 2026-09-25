@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "work_issue": 3507,
+  "outcome": "ready-for-merge",
+  "pr": 3506,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3507/1",
+  "contract_sha256": "8dd3c986fb9afbe9fac81c9ec027eb866af3bb0be9b45fd5cf620c476c1cd17c",
+  "base_sha": "c4250cd753e8b8780e0af05de9b0ceceb08c070b",
+  "head_sha": "e8bfa397d6bea6139ac81b9daff36d0104cd1b05",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "714 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/run-governed-review.test.mjs",
+      "exit_code": 0,
+      "evidence": "86 pass, 0 fail (doctor did not answer within matcher untouched)"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=317 sources=72 derived_digest=623c3a6c3f85"
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 1 published at refs/db-contracts/3507/1 (sha256 8dd3c986fb9afbe9fac81c9ec027eb866af3bb0be9b45fd5cf620c476c1cd17c) after implementation commit e8bfa397d6bea6139ac81b9daff36d0104cd1b05; no prior refs/db-contracts/3507/1 existed.",
+    "files_changed lists the implementation pair only; the evidence pair is the tail after report.head_sha, matching how #3500 and #3481 record tooling work."
+  ],
+  "stop_conditions_hit": []
+}

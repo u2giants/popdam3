@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3507,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Give the aggregate ai-review-preflight usable run its own timeout budget (REVIEWER_PREFLIGHT_TIMEOUT_MS, default floor 240s) separate from the single-wrapper REVIEWER_DOCTOR_TIMEOUT_MS (stays 60s), without relaxing the complete:false cut-off refusal (#3507, PR #3506).",
+  "base_sha": "c4250cd753e8b8780e0af05de9b0ceceb08c070b",
+  "dispatcher": "MiMo repo-maintenance session for issue #3507",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "mimo/reviewer-preflight-timeout",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/preflight-doctor-timeout",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3507/1/contract.json",
+    ".agent/work/3507/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3507/1/contract.json",
+    ".agent/work/3507/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not relax the complete:false cut-off refusal path.",
+    "Do not weaken claim, lock, verdict, or exact-head logic.",
+    "Do not touch any migration, workflow, database object, or live row."
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/run-governed-review.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "Disclosed: generation 1 is published after implementation commit e8bfa397d6bea6139ac81b9daff36d0104cd1b05; no prior refs/db-contracts/3507/1 exists."
+  ],
+  "stop_conditions": [
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths."
+  ]
+}
