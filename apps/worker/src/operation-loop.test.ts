@@ -240,3 +240,45 @@ test("the tick clears in-memory submission state when it finishes an interrupted
   const source = readFileSync(new URL("./operation-loop.ts", import.meta.url), "utf8");
   assert.match(source, /finishInterruptedReset\([\s\S]{0,400}forgetSubmissionState\(opKey\)/);
 });
+
+test("a temporarily failing definitive-rejection reset keeps the receipt and lands on retry", async () => {
+  const { failDefinitivelyRejectedSubmission, rememberSubmissionReceipt, holdsSubmissionReceipt, awaitsNotSubmittedReset } = await import("./operation-loop.js");
+  const { DefinitiveBatchRejectionError } = await import("./batch-submission-error.js");
+  const state = {
+    status: "running", cursor: 0, run_id: "r1", state_revision: 4,
+    external_job: { phase: "submitting", lease_expires_at: new Date(Date.now() + 100_000).toISOString() },
+  } as unknown as OpState;
+  let resetCalls = 0;
+  const rpc = async (fn: string) => {
+    if (fn === "reset_bulk_operation_submission_lease") {
+      resetCalls++;
+      if (resetCalls === 1) return { data: null, error: { message: "upstream connect error" } };
+      return { data: { ok: true, state_revision: 5, lease_receipt_issued: false, operation: { status: "running", cursor: 0, external_job: { phase: "prepared" } } }, error: null };
+    }
+    return { data: { ok: true, state_revision: 6, lease_receipt_issued: false, reason: "applied" }, error: null };
+  };
+  const rejection = new DefinitiveBatchRejectionError("OpenRouter", 400, { category: "invalid_request" });
+  rememberSubmissionReceipt("op-def", "receipt-1");
+  await assert.rejects(failDefinitivelyRejectedSubmission("op-def", state, 4, "railway:r1", "receipt-1", rejection, rpc), /upstream connect error/);
+  assert.equal(holdsSubmissionReceipt("op-def"), true, "the only receipt is kept for the retry");
+  assert.equal(awaitsNotSubmittedReset("op-def"), true);
+  const failed = await failDefinitivelyRejectedSubmission("op-def", state, 4, "railway:r1", "receipt-1", rejection, rpc);
+  assert.equal(failed.status, "failed");
+  assert.equal(holdsSubmissionReceipt("op-def"), false);
+  assert.equal(awaitsNotSubmittedReset("op-def"), false);
+});
+
+test("a same-owner lease renewal does not reset the pre-POST retry ceiling", async () => {
+  const { holdReceiptAfterPreSubmissionFailure, rememberSubmissionReceipt, MAX_PRE_SUBMISSION_RETRIES } = await import("./operation-loop.js");
+  const { PreSubmissionError } = await import("./batch-submission-error.js");
+  const lease = new Date(Date.now() + 110_000).toISOString();
+  rememberSubmissionReceipt("op-renew", "receipt-1");
+  for (let attempt = 0; attempt < MAX_PRE_SUBMISSION_RETRIES; attempt++) {
+    assert.equal(holdReceiptAfterPreSubmissionFailure("op-renew", new PreSubmissionError("transient"), lease), true);
+    rememberSubmissionReceipt("op-renew", "receipt-1"); // renewal re-remembers the same receipt
+  }
+  assert.equal(holdReceiptAfterPreSubmissionFailure("op-renew", new PreSubmissionError("transient"), lease), false);
+  // A genuinely new receipt starts a fresh count.
+  rememberSubmissionReceipt("op-renew", "receipt-2");
+  assert.equal(holdReceiptAfterPreSubmissionFailure("op-renew", new PreSubmissionError("transient"), lease), true);
+});

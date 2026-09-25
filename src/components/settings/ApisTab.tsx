@@ -423,7 +423,7 @@ const TASK_MODEL_LABELS: Record<string, {
   vision_tagging: {
     label: "Image Tagging",
     description: "Vision model for analyzing thumbnails and generating tags, descriptions, characters. Must support image input plus tools, structured outputs, or JSON mode.",
-    defaultModel: "google/gemini-2.5-flash",
+    defaultModel: "qwen/qwen3-vl-32b-instruct",
     requiresVision: true,
     requiresStructuredOutput: true,
     fallbackKey: "vision_tagging_fallback",
