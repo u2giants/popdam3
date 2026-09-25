@@ -1,0 +1,31 @@
+{
+  "work_issue": 3365,
+  "outcome": "ready-for-merge",
+  "stop_conditions_hit": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "exit_code": 0,
+      "evidence": "16 tests pass, 0 fail at b627d480 after main refresh.",
+      "command": "node --test scripts/orchestrator-flow/throughput-report.test.mjs"
+    }
+  ],
+  "pr": 3368,
+  "assumptions_resolved": [
+    "No sufficient before/after live-outcome corpus exists in inspected sources; retain-two policy remains unchanged",
+    "Legacy report untouched; strict report refuses unknown or insufficient measurement claims"
+  ],
+  "files_changed": [
+    "docs/verification/workflow-refactor-measurement-20260920.md",
+    "docs/verification/workflow-review-tier-decision-20260920.md",
+    "scripts/orchestrator-flow/throughput-report.mjs",
+    "scripts/orchestrator-flow/throughput-report.test.mjs"
+  ],
+  "base_sha": "ca3f8663110e6eaebef9f4d3331f6d9bf4250f87",
+  "head_sha": "b627d480872c8004cfcbe478c19e1b6577869b0b",
+  "db_reads": [],
+  "schema_version": 1,
+  "contract_ref": "refs/db-contracts/3365/1",
+  "contract_sha256": "7258827ab67101217f58df09ece82c246378f693206d7baea3dbf9d688594d39",
+  "migration_versions": []
+}

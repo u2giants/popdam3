@@ -1,0 +1,44 @@
+{
+  "goal": "Add strict evidence coverage to workflow-refactor measurements without changing legacy reports or review policy",
+  "work_issue": 3365,
+  "work_type": "repo-maintenance",
+  "dispatcher": "Codex root 01a0c04c-509a-7721-a6f1-4fc61f39a07e",
+  "generation": 1,
+  "branch": "codex/workflow-step14-measurement-20260920",
+  "prohibited_actions": [
+    "No database, production, settings, reviewer-count, or concurrency-policy change",
+    "Hold merge for root numbered integration"
+  ],
+  "schema_version": 1,
+  "worktree": "D:/repos/shared-db-step14-measurement",
+  "required_checks": [
+    "node --test scripts/orchestrator-flow/throughput-report.test.mjs"
+  ],
+  "assumptions": [
+    "Insufficient sample means unknown improvement, not zero risk"
+  ],
+  "allowed_paths": [
+    "scripts/orchestrator-flow/throughput-report.mjs",
+    "scripts/orchestrator-flow/throughput-report.test.mjs",
+    "docs/verification/workflow-review-tier-decision-20260920.md",
+    "docs/verification/workflow-refactor-measurement-20260920.md",
+    ".agent/work/3365/1/contract.json",
+    ".agent/work/3365/1/completion.json"
+  ],
+  "route": "repo-maintenance",
+  "base_sha": "20641bc6bbcd4e6e8fe1e2211126837456c045ab",
+  "db_writes": [],
+  "stop_conditions": [
+    "Overlapping file ownership requires coordination"
+  ],
+  "db_reads": [],
+  "file_writes": [
+    "scripts/orchestrator-flow/throughput-report.mjs",
+    "scripts/orchestrator-flow/throughput-report.test.mjs",
+    "docs/verification/workflow-review-tier-decision-20260920.md",
+    "docs/verification/workflow-refactor-measurement-20260920.md",
+    ".agent/work/3365/1/contract.json",
+    ".agent/work/3365/1/completion.json"
+  ],
+  "worker": "measurement_baseline"
+}
