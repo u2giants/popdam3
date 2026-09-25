@@ -69,6 +69,26 @@ export function holdsSubmissionReceipt(opKey: string): boolean {
 }
 
 /**
+ * Phases the guarded writer treats as a live provider job. Mirrors c_live_phases
+ * in shared-db migration 20260824004025 (popdam_terminal_external_job_clear).
+ */
+const PROTECTED_EXTERNAL_JOB_PHASES = ["prepared", "submitting", "pending", "applying"] as const;
+const EXTERNAL_JOB_AMBIGUITY_MARKERS = ["ambiguous_since", "ambiguous_reason", "ambiguous_prior_phase", "ambiguous_prior_owner"] as const;
+
+/**
+ * True when the database would refuse to drop this external_job: it names a
+ * provider job, is in a live phase, or carries an unresolved ambiguity verdict.
+ * Clearing such a job through any writer is a permanent no-op, so the caller
+ * must never attempt it.
+ */
+export function isProtectedExternalJob(job: OpState["external_job"] | undefined): boolean {
+  if (!job) return false;
+  if (typeof job.provider_batch_id === "string" && job.provider_batch_id.length > 0) return true;
+  if (typeof job.phase === "string" && (PROTECTED_EXTERNAL_JOB_PHASES as readonly string[]).includes(job.phase)) return true;
+  return EXTERNAL_JOB_AMBIGUITY_MARKERS.some((marker) => (job as Record<string, unknown>)[marker] != null);
+}
+
+/**
  * Keep the receipt after a failure that provably happened before any provider
  * request. Returns true while retries remain.
  */
@@ -1126,6 +1146,30 @@ export async function tick(): Promise<void> {
       };
       const persisted = await persistOpState(opKey, failureState);
       if (persisted && failureState.status === "failed") await recordStyleGroupTerminalOutcome(opKey, failureState, "failed");
+      return;
+    }
+
+    // The guarded writer refuses to drop a protected external_job (a live
+    // provider job it believes exists: a prepared/submitting/pending/applying
+    // phase, a bound provider_batch_id, or an unresolved ambiguity). A handler
+    // that asks to clear such a job would make the save a permanent no-op and
+    // leave the operation running forever on the same page, so fail it visibly
+    // instead of silently stalling.
+    if (result.clear_external_job && isProtectedExternalJob(currentState.external_job)) {
+      logger.error("tick: refused to clear a protected external_job; failing the operation", {
+        opKey,
+        phase: currentState.external_job?.phase,
+        provider_batch_id: currentState.external_job?.provider_batch_id,
+      });
+      const failed = await failClaimedOperation(
+        (fn, params) => db().rpc(fn, params),
+        opKey,
+        { ...currentState, cursor, progress },
+        currentState.state_revision ?? 0,
+        "protected_external_job_clear_refused",
+        "The batch handler asked to clear a live provider job; the operation was failed for operator review instead of stalling",
+      );
+      await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
       return;
     }
 
