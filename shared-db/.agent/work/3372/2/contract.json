@@ -1,0 +1,45 @@
+{
+    "schema_version": 1,
+    "generation": 2,
+    "work_issue": 3372,
+    "work_type": "repo-maintenance",
+    "route": "repo-maintenance",
+    "goal": "Make relayed Disney DCP withdrawal answers discoverable and actionable across future repository chats",
+    "base_sha": "20641bc6bbcd4e6e8fe1e2211126837456c045ab",
+    "dispatcher": "Parent Codex expressly delegated prospective contract publication",
+    "worker": "Codex chat 01a0c060-c25a-7e10-b2ed-d0991b69189b on 916-ALIEN",
+    "branch": "codex/disney-answer-routing-20260920",
+    "worktree": "D:\\repos\\shared-db-disney-answer-routing-20260920",
+    "allowed_paths": [
+        "AGENTS.md",
+        "docs/disney-dcp-withdrawal-answer-routing.md",
+        ".agent/work/3372/2/contract.json",
+        ".agent/work/3372/2/completion.json"
+    ],
+    "file_writes": [
+        "AGENTS.md",
+        "docs/disney-dcp-withdrawal-answer-routing.md",
+        ".agent/work/3372/2/contract.json",
+        ".agent/work/3372/2/completion.json"
+    ],
+    "db_reads": [],
+    "db_writes": [],
+    "prohibited_actions": [
+        "No contact with Disney, Laura, Ilona or anyone else",
+        "No database writes or schema implementation",
+        "No private licensed examples in public artifacts",
+        "No rulebook merge bypass; parent owns merge"
+    ],
+    "required_checks": [
+        "git diff --check",
+        "node scripts/check-business-rule-library.mjs"
+    ],
+    "assumptions": [
+        "Albert may relay the answer in any future shared-db chat",
+        "Issue 3347 anchors DCP capture qualification; later route derives from remaining actual scope"
+    ],
+    "stop_conditions": [
+        "Stop before writing outside owned paths",
+        "Stop if answer evidence would disclose private licensed content"
+    ]
+}

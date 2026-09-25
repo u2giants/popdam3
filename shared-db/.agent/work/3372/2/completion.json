@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "work_issue": 3372,
+  "outcome": "ready-for-merge",
+  "pr": 3373,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3372/2",
+  "contract_sha256": "a6597f45bd53310d3ce04b5eca7e73a4a646be212f302c95c2ecb79842f2cd60",
+  "head_sha": "06b11e28cc7e0074d7052bd770aac852c8fff970",
+  "base_sha": "3839dd5a4ad54895b70ab8c771a8507953cf3dcd",
+  "files_changed": [
+    ".agent/work/3372/2/completion.json",
+    ".agent/work/3372/2/contract.json",
+    "AGENTS.md",
+    "docs/disney-dcp-withdrawal-answer-routing.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "evidence": "No whitespace errors (re-run at merge base 3839dd5a)",
+      "command": "git diff --check",
+      "exit_code": 0
+    },
+    {
+      "evidence": "Business-rule library check passed (re-run at merge base 3839dd5a). Scope: scans docs/business-rules/*.md only; does not scan docs/disney-dcp-withdrawal-answer-routing.md. The routing note local links use the file-plus-section-name convention and resolve to existing files (no fragment anchors).",
+      "command": "node scripts/check-business-rule-library.mjs",
+      "exit_code": 0
+    }
+  ],
+  "assumptions_resolved": [
+    "AGENTS routes a later relayed Disney/DCP withdrawal statement (including ambiguous or unnamed-speaker ones) to the existing local note, and points at the settled 2026-09-25 business rule",
+    "Note explicitly handles relayed provenance, privacy, ambiguous authority, closed anchor and fresh actual-scope routing",
+    "Issue #3347 (orchestrator work) is the durable anchor; technical work does not depend on the human answer",
+    "Cross-read of the settled Disney DCP Vault artwork withdrawal signals section in docs/business-rules/licensing-master-data.md against the routing note and the AGENTS entry: the note links to that section instead of restating it, and both record the question as answered",
+    "Contract ref refs/db-contracts/3372/2 was published prospectively under the dispatcher delegation recorded in contract.json; the completion report inherits that disclosure and does not independently prove publication ordering",
+    "M1: Rule-amendment step now names docs/business-rules/README.md as process authority and cites its steps 3, 5, 6 and Maintenance rule items 2, 3",
+    "M2: Routing note links to the settled rule for the #3347 engineering contract instead of restating it; AGENTS.md separation-of-facts fragment trimmed to avoid duplicated Settled-rule prose",
+    "M3: AGENTS.md trigger widened to anyone relaying a statement about DCP withdrawal/removal/missing artwork including ambiguous ones; note later-input definition aligned",
+    "M4: NONE (exit 3, queue do not dispatch) and UNSAFE (marker guard failed, stop and resolve collision) refusal outcomes named; DECLARED address noted as not proven reachable (#2350)",
+    "M5: Fragment-anchored links replaced with prose-section convention; check-business-rule-library.mjs scope disclosed in check evidence (it does not scan the routing note)"
+  ],
+  "stop_conditions_hit": []
+}
