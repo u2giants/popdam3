@@ -54,3 +54,33 @@ test('code, workflow, test, config, migration, mixed, rename-origin, and unknown
   assert.equal(run([]).code, 1)
   assert.equal(main(['u2giants/shared-db', '2715'], { read: () => { throw new Error('offline') }, out: () => {}, err: () => {} }), 1)
 })
+
+// ISSUE #3488 (regression). Merged PR #3311 carried `scripts/production_catalog_verification.py`
+// and its test file and still showed a green `Documents-only merge authorization` status on
+// the head. This adapter must refuse every `.py`-touching change -- alone or mixed with
+// prose -- so the lightweight grant can never be written for a code change.
+test('issue #3488: a .py-touching pull request is refused at the merge-authorization adapter', () => {
+  for (const path of ['scripts/production_catalog_verification.py', 'scripts/test_production_catalog_verification.py', 'tools/load.py', 'app.py']) {
+    assert.equal(run([{ filename: path }]).code, 1, `${path} alone must be refused`)
+    assert.equal(run([{ filename: 'docs/note.md' }, { filename: path }]).code, 1, `${path} mixed with prose must be refused`)
+    assert.equal(run([{ filename: path }, { filename: 'HANDOFF.d/x.md' }]).code, 1, `${path} mixed with a handoff must be refused`)
+  }
+})
+
+test('issue #3488: the merged PR #3311 file list is refused at the merge-authorization adapter', () => {
+  const rows = [
+    completePatch('.agent/work/2876/11/completion.json', '@@ -0,0 +1,2 @@\n+{\n+ "done": true'),
+    completePatch('.agent/work/2876/11/contract.json', '@@ -0,0 +1,2 @@\n+{\n+ "work": true'),
+    completePatch('docs/verification/throughput-guard-truth-baseline-20260828.json', '@@ -1 +1 @@\n-{"hash":"a"}\n+{"hash":"b"}'),
+    completePatch('scripts/production_catalog_verification.py', '@@ -1 +1 @@\n-jsonb_agg(x order by x->>\'name\')\n+jsonb_agg(x order by x.name)'),
+    completePatch('scripts/test_production_catalog_verification.py', '@@ -0,0 +1,3 @@\n+def test_order():\n+    assert True'),
+  ]
+  const result = run(rows)
+  assert.equal(result.code, 1)
+  assert.match(result.out, /not documents-only merge authorization/)
+  assert.match(result.out, /non-lightweight file/)
+})
+
+test('issue #3488: the true-prose-only path still receives the lightweight grant', () => {
+  assert.equal(run([{ filename: 'docs/note.md' }, { filename: 'HANDOFF.d/x.md' }, { filename: 'plan_delivery.md' }]).code, 0)
+})

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_issue": 3488,
+  "outcome": "ready-for-merge",
+  "pr": 3503,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3488/1",
+  "contract_sha256": "462b4ff4410046c063a840e5d9ab6d77bb3dd9215f16bc1e1b0b039ddb33e35d",
+  "base_sha": "5696ce12e3c302daea0f2b10fe1c20a101b1cddc",
+  "head_sha": "8525a897c2687ba196e05f495fe11cc61b5af017",
+  "files_changed": [
+    "scripts/check-documents-only-merge-authorization.test.mjs",
+    "scripts/lib/documents-only-change.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/documents-only-change.test.mjs scripts/check-documents-only-merge-authorization.test.mjs scripts/repository-maintenance-authorization.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "762 pass, 0 fail"
+    }
+  ],
+  "assumptions_resolved": [
+    "Classifiers were already fail-closed; regression tests confirm .py-only, .py+md, exact PR #3311 file list, and other non-prose extensions are refused on both classifiers and the adapter.",
+    "True-prose-only path still receives the lightweight grant.",
+    "No existing test assertion was weakened or deleted."
+  ],
+  "stop_conditions_hit": []
+}

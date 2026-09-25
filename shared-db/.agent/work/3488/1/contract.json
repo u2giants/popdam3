@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3488,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add regression tests locking fail-closed documents-only classification for .py and other non-prose files on both classifiers (classifyChangedPaths and classifyLightweightMergePullRequestFiles) plus the merge-authorization adapter. No production code change.",
+  "base_sha": "5696ce12e3c302daea0f2b10fe1c20a101b1cddc",
+  "dispatcher": "MiMo chat parent dispatch for issue #3488",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "mimo/3488-documents-only-py",
+  "worktree": "C:/repos/shared-db-wt-3488-docs-only-py",
+  "allowed_paths": [
+    "scripts/check-documents-only-merge-authorization.test.mjs",
+    "scripts/lib/documents-only-change.test.mjs",
+    ".agent/work/3488/1/contract.json",
+    ".agent/work/3488/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/check-documents-only-merge-authorization.test.mjs",
+    "scripts/lib/documents-only-change.test.mjs",
+    ".agent/work/3488/1/contract.json",
+    ".agent/work/3488/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change any production classifier or workflow logic; this PR is tests-only.",
+    "Do not weaken or delete any existing test assertion.",
+    "Do not touch any migration, database object, or live row."
+  ],
+  "required_checks": [
+    "node --test scripts/lib/documents-only-change.test.mjs scripts/check-documents-only-merge-authorization.test.mjs scripts/repository-maintenance-authorization.test.mjs scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "assumptions": [
+    "The existing classifiers are already fail-closed for non-prose paths; these tests lock that property in.",
+    "CI Agent work contract requires an evidence pair because test files count as code."
+  ],
+  "stop_conditions": [
+    "Stop if any existing test assertion must be weakened to make the new tests pass.",
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths."
+  ]
+}
