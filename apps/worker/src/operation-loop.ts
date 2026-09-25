@@ -30,8 +30,8 @@ import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
-import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError, ProviderRefusedSubmissionError } from "./batch-submission-error.js";
-import { awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, failClaimedOperation, failOperationWithoutResetContract, persistDefinitiveRejectionFailure, ResetContractUnavailableError, type RpcCall } from "./provider-submission-recovery.js";
+import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
+import { awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, failOperationAfterNotSubmitted, failClaimedOperation, failOperationWithoutResetContract, failOperationWithoutResetContractNotSubmitted, finishInterruptedReset, ResetContractUnavailableError, type RpcCall } from "./provider-submission-recovery.js";
 import { alertTerminalFailure, appendTerminalRun, type TerminalRun } from "./terminal-outcomes.js";
 import {
   getNextAutoResumeAt,
@@ -99,15 +99,39 @@ export function holdReceiptAfterPreSubmissionFailure(
   return false;
 }
 
-async function failNeverSentSubmission(opKey: string, state: OpState, revision: number, error: unknown): Promise<void> {
-  const failed = await failClaimedOperation(
-    (fn, params) => db().rpc(fn, params),
-    opKey,
-    state,
-    revision,
-    "pre_submission_failed",
-    `Provider batch was never sent: ${normalizeBatchError(error, "pre-submission failure").slice(0, 200)}`,
-  );
+async function failNeverSentSubmission(
+  opKey: string,
+  state: OpState,
+  revision: number,
+  owner: string,
+  leaseToken: string | undefined,
+  error: unknown,
+): Promise<void> {
+  const message = `Provider batch was never sent: ${normalizeBatchError(error, "pre-submission failure").slice(0, 200)}`;
+  const rpc: RpcCall = (fn, params) => db().rpc(fn, params);
+  // Nothing was POSTed, so the governed reset accepts this as `not_submitted`
+  // (NULL http status, fixed category) and returns the job to `prepared` on the
+  // next revision; we then fail it durably. The RPC still requires the current
+  // live unbound receipt, so a lost or expired lease falls back to a plain
+  // visible failure that carries the stored job forward unchanged.
+  if (leaseToken && state.external_job?.phase === "submitting" && !state.external_job.provider_batch_id) {
+    try {
+      const outcome = await failOperationAfterNotSubmitted(
+        rpc,
+        { opKey, expectedRevision: revision, submissionOwner: owner, leaseToken },
+        message,
+      );
+      await recordStyleGroupTerminalOutcome(opKey, outcome.state, "failed");
+      logger.error("tick: provider batch was never sent; failed the operation after a governed lease reset", { opKey });
+      return;
+    } catch (resetError) {
+      if (!(resetError instanceof ResetContractUnavailableError)) throw resetError;
+      const failed = await failOperationWithoutResetContractNotSubmitted(rpc, opKey, state, revision, message);
+      await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
+      return;
+    }
+  }
+  const failed = await failClaimedOperation(rpc, opKey, state, revision, "pre_submission_failed", message);
   await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
 }
 /** Yield after this many batches so the round-robin can serve other operations.
@@ -809,17 +833,18 @@ export async function tick(): Promise<void> {
     }
 
     if (awaitsDefinitiveRejectionFailure(currentState)) {
-      // The provider already rejected this payload and the receipt was reset,
-      // but the failure write did not land (crash or refused save). Finish it
-      // instead of resubmitting a payload that is known to be rejected.
-      const outcome = await persistDefinitiveRejectionFailure(
+      // The receipt was reset (provider rejection or never-submitted) but the
+      // failure write did not land (crash or refused save). Finish it under the
+      // reason the database recorded, instead of resubmitting a payload that is
+      // known to be rejected or a batch we already gave up preparing.
+      const outcome = await finishInterruptedReset(
         (fn, params) => db().rpc(fn, params),
         opKey,
         { ...currentState, cursor, progress },
         currentState.state_revision ?? 0,
-      );
+      )!;
       await recordStyleGroupTerminalOutcome(opKey, outcome.state, "failed");
-      logger.error("tick: completed the durable failure for a previously rejected batch submission", { opKey });
+      logger.error("tick: completed the durable failure for a reset batch submission", { opKey });
       return;
     }
 
@@ -838,11 +863,15 @@ export async function tick(): Promise<void> {
       });
     } catch (e) {
       const heldJob = currentState.external_job;
-      if (submissionLeaseTokens.has(opKey) && heldJob?.phase === "submitting" && !heldJob.provider_batch_id) {
+      const heldReceiptToken = submissionLeaseTokens.get(opKey);
+      if (heldReceiptToken && heldJob?.phase === "submitting" && !heldJob.provider_batch_id) {
         // With a held receipt on an unbound submitting job, this dispatch only
         // rebuilds the payload; no provider request was sent.
         if (!holdReceiptAfterPreSubmissionFailure(opKey, e, heldJob.lease_expires_at)) {
-          await failNeverSentSubmission(opKey, currentState, currentState.state_revision ?? 0, e);
+          await failNeverSentSubmission(
+            opKey, currentState, currentState.state_revision ?? 0,
+            `railway:${currentState.run_id ?? "unknown"}`, heldReceiptToken, e,
+          );
         }
         return;
       }
@@ -912,27 +941,18 @@ export async function tick(): Promise<void> {
       } catch (error) {
         if (error instanceof PreSubmissionError) {
           if (!holdReceiptAfterPreSubmissionFailure(opKey, error, claimedState.external_job?.lease_expires_at)) {
-            await failNeverSentSubmission(opKey, claimedState, claim.state_revision, error);
+            await failNeverSentSubmission(opKey, claimedState, claim.state_revision, owner, leaseToken, error);
           }
           return;
         }
         submissionLeaseTokens.delete(opKey);
         preSubmissionRetries.delete(opKey);
-        if (error instanceof ProviderRefusedSubmissionError) {
-          // Auth, billing and rate-limit refusals stop immediately and visibly.
-          const failed = await failClaimedOperation(
-            (fn, params) => db().rpc(fn, params),
-            opKey, claimedState, claim.state_revision, "provider_refused_submission", error.message,
-          );
-          await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
-          logger.error("tick: provider refused the batch submission", { opKey, status: error.status });
-          return;
-        }
         if (error instanceof DefinitiveBatchRejectionError) {
-          // The provider itself parsed and refused the payload, so no batch
-          // exists. Consume this receipt through the governed reset RPC, then
-          // fail the operation durably on the next revision (exactly once:
-          // both writes are revision- and receipt-guarded).
+          // The provider itself parsed and refused the payload (validation 400/
+          // 422 or auth/billing/rate-limit 401/402/403/429), so no batch exists.
+          // Consume this receipt through the governed reset RPC, then fail the
+          // operation durably on the next revision (exactly once: both writes are
+          // revision- and receipt-guarded).
           const rpc: RpcCall = (fn, params) => db().rpc(fn, params);
           let outcome: { state: OpState };
           try {

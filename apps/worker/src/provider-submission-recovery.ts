@@ -1,4 +1,4 @@
-import { DefinitiveBatchRejectionError } from "./batch-submission-error.js";
+import { DEFINITIVE_REJECTION_STATUSES, DefinitiveBatchRejectionError } from "./batch-submission-error.js";
 import { isGuardedEnvelope, type BulkOperationWriteEnvelope } from "./operation-lease.js";
 import type { OpState } from "./types.js";
 
@@ -28,6 +28,15 @@ export function isMissingRpcError(error: { message: string; code?: string } | nu
 
 export const DEFINITIVE_REJECTION_REASON = "provider_definitive_rejection";
 
+/**
+ * The worker failed before any provider POST (nothing usable left to submit,
+ * insufficient remaining lease, etc.), so no durable batch exists. Reset the
+ * receipt under this reason with a NULL http status and the fixed provider
+ * error category below (shared-db #3464).
+ */
+export const NOT_SUBMITTED_REASON = "not_submitted";
+export const NOT_SUBMITTED_PROVIDER_ERROR = { category: "not_submitted" } as const;
+
 export interface SubmissionReceipt {
   opKey: string;
   /** Revision returned by the claim that minted the receipt. */
@@ -43,30 +52,26 @@ export interface DefinitiveRejectionOutcome {
 }
 
 /**
- * Consume the current submission receipt after a parsed, provider-origin
- * 400/422 rejection (shared-db #3418, reset_bulk_operation_submission_lease),
- * then durably fail the operation on the next revision.
- *
- * Only DefinitiveBatchRejectionError reaches here. Timeouts, disconnects, 5xx
- * and every other status must stay on the ambiguous-submission path.
+ * Call the governed reset RPC for the given reason, verify its receipt-free
+ * proof, and return the reset operation and its new revision. Shared by both
+ * reset reasons; every guard (live unbound receipt, matching revision, no bound
+ * job) lives in the SQL function, not here.
  */
-export async function failOperationAfterDefinitiveRejection(
+async function resetSubmissionLease(
   rpc: RpcCall,
   receipt: SubmissionReceipt,
-  rejection: DefinitiveBatchRejectionError,
-  now = () => new Date().toISOString(),
-): Promise<DefinitiveRejectionOutcome> {
-  if (!(rejection instanceof DefinitiveBatchRejectionError)) {
-    throw new Error("Only a parsed definitive provider rejection may reset a submission lease");
-  }
+  reason: typeof DEFINITIVE_REJECTION_REASON | typeof NOT_SUBMITTED_REASON,
+  httpStatus: number | null,
+  providerError: Record<string, unknown>,
+): Promise<{ operation: OpState; stateRevision: number }> {
   const reset = await rpc("reset_bulk_operation_submission_lease", {
     p_op_key: receipt.opKey,
     p_expected_revision: receipt.expectedRevision,
     p_submission_owner: receipt.submissionOwner,
     p_lease_token: receipt.leaseToken,
-    p_reason: DEFINITIVE_REJECTION_REASON,
-    p_http_status: rejection.status,
-    p_provider_error: rejection.providerError,
+    p_reason: reason,
+    p_http_status: httpStatus,
+    p_provider_error: providerError,
   });
   if (isMissingRpcError(reset.error)) throw new ResetContractUnavailableError();
   if (reset.error) throw new Error(`Submission lease reset refused: ${reset.error.message}`);
@@ -79,12 +84,56 @@ export async function failOperationAfterDefinitiveRejection(
   ) {
     throw new Error("Submission lease reset returned no proof");
   }
-  const resetOperation = envelope.operation as OpState;
-  if (resetOperation.external_job?.phase !== "prepared" || resetOperation.external_job?.provider_batch_id) {
+  const operation = envelope.operation as OpState;
+  if (operation.external_job?.phase !== "prepared" || operation.external_job?.provider_batch_id) {
     throw new Error("Submission lease reset returned an unexpected provider job state");
   }
+  return { operation, stateRevision: envelope.state_revision };
+}
 
-  return persistDefinitiveRejectionFailure(rpc, receipt.opKey, resetOperation, envelope.state_revision, rejection.message, now);
+/**
+ * Consume the current submission receipt after a parsed, provider-origin
+ * definitive rejection (HTTP 400/401/402/403/422/429; shared-db #3464,
+ * reset_bulk_operation_submission_lease), then durably fail the operation on the
+ * next revision.
+ *
+ * Only DefinitiveBatchRejectionError reaches here. Timeouts, disconnects, 5xx
+ * and every other status must stay on the ambiguous-submission path.
+ */
+export async function failOperationAfterDefinitiveRejection(
+  rpc: RpcCall,
+  receipt: SubmissionReceipt,
+  rejection: DefinitiveBatchRejectionError,
+  now = () => new Date().toISOString(),
+): Promise<DefinitiveRejectionOutcome> {
+  if (!(rejection instanceof DefinitiveBatchRejectionError)
+    || !(DEFINITIVE_REJECTION_STATUSES as readonly number[]).includes(rejection.status)) {
+    throw new Error("Only a parsed definitive provider rejection may reset a submission lease");
+  }
+  const { operation, stateRevision } = await resetSubmissionLease(
+    rpc, receipt, DEFINITIVE_REJECTION_REASON, rejection.status, rejection.providerError,
+  );
+  return persistDefinitiveRejectionFailure(rpc, receipt.opKey, operation, stateRevision, rejection.message, now);
+}
+
+/**
+ * Consume the current submission receipt after a terminal never-submitted
+ * failure — the worker gave up before any provider POST (nothing usable left to
+ * submit, or too little lease time remained), so no durable batch exists
+ * (shared-db #3464, reason `not_submitted`). Then durably fail the operation on
+ * the next revision. The RPC still requires the current live unbound receipt, so
+ * an expired lease is refused and left to ordinary lease reconciliation.
+ */
+export async function failOperationAfterNotSubmitted(
+  rpc: RpcCall,
+  receipt: SubmissionReceipt,
+  message: string,
+  now = () => new Date().toISOString(),
+): Promise<DefinitiveRejectionOutcome> {
+  const { operation, stateRevision } = await resetSubmissionLease(
+    rpc, receipt, NOT_SUBMITTED_REASON, null, { ...NOT_SUBMITTED_PROVIDER_ERROR },
+  );
+  return persistNotSubmittedFailure(rpc, receipt.opKey, operation, stateRevision, message, now);
 }
 
 /**
@@ -99,26 +148,25 @@ export function awaitsDefinitiveRejectionFailure(state: OpState): boolean {
 }
 
 /**
- * Second, idempotent half of the rejection path: fail the reset operation on
- * its current revision. Safe to repeat after a crash; the guard makes it apply
- * exactly once.
+ * Second, idempotent half of a reset path: fail the reset operation on its
+ * current revision under the given terminal reason code. Safe to repeat after a
+ * crash; the revision guard makes it apply exactly once. Carries the database's
+ * reset external_job forward exactly, and never auto-resumes.
  */
-export async function persistDefinitiveRejectionFailure(
+async function persistResetFailure(
   rpc: RpcCall,
   opKey: string,
   resetOperation: OpState,
   stateRevision: number,
-  message?: string,
-  now = () => new Date().toISOString(),
+  reasonCode: string,
+  error: string,
+  now: () => string,
 ): Promise<DefinitiveRejectionOutcome> {
-  const status = resetOperation.external_job?.last_definitive_rejection_status;
-  // The rejection is deterministic for this payload, so auto-resuming would
-  // only repeat it. Carry the database's reset external_job forward exactly.
   const failedState: OpState = {
     ...resetOperation,
     status: "failed",
-    interruption_reason_code: "provider_definitive_rejection",
-    error: message ?? `Provider rejected the batch submission${typeof status === "number" ? ` (HTTP ${status})` : ""}`,
+    interruption_reason_code: reasonCode,
+    error,
     next_auto_resume_at: undefined,
     updated_at: now(),
   };
@@ -130,9 +178,60 @@ export async function persistDefinitiveRejectionFailure(
   });
   if (saved.error) throw new Error(`Protected operation save failed: ${saved.error.message}`);
   if (!isGuardedEnvelope(saved.data) || !(saved.data as BulkOperationWriteEnvelope).ok) {
-    throw new Error(`Protected provider rejection save refused: ${isGuardedEnvelope(saved.data) ? saved.data.reason : "no proof"}`);
+    throw new Error(`Protected ${reasonCode} save refused: ${isGuardedEnvelope(saved.data) ? saved.data.reason : "no proof"}`);
   }
   return { state: failedState, stateRevision: (saved.data as BulkOperationWriteEnvelope).state_revision };
+}
+
+/** Idempotent finisher for the definitive-rejection reset. */
+export async function persistDefinitiveRejectionFailure(
+  rpc: RpcCall,
+  opKey: string,
+  resetOperation: OpState,
+  stateRevision: number,
+  message?: string,
+  now = () => new Date().toISOString(),
+): Promise<DefinitiveRejectionOutcome> {
+  const status = resetOperation.external_job?.last_definitive_rejection_status;
+  return persistResetFailure(
+    rpc, opKey, resetOperation, stateRevision, "provider_definitive_rejection",
+    message ?? `Provider rejected the batch submission${typeof status === "number" ? ` (HTTP ${status})` : ""}`,
+    now,
+  );
+}
+
+/** Idempotent finisher for the never-submitted reset. */
+export async function persistNotSubmittedFailure(
+  rpc: RpcCall,
+  opKey: string,
+  resetOperation: OpState,
+  stateRevision: number,
+  message?: string,
+  now = () => new Date().toISOString(),
+): Promise<DefinitiveRejectionOutcome> {
+  return persistResetFailure(
+    rpc, opKey, resetOperation, stateRevision, "provider_not_submitted",
+    message ?? "Provider batch was never sent; the operation was failed for operator review",
+    now,
+  );
+}
+
+/**
+ * Route a reset operation left mid-finish (crash between the two writes) to the
+ * finisher matching the reason the database recorded. Returns null when the
+ * state is not an awaiting reset.
+ */
+export function finishInterruptedReset(
+  rpc: RpcCall,
+  opKey: string,
+  resetOperation: OpState,
+  stateRevision: number,
+  now = () => new Date().toISOString(),
+): Promise<DefinitiveRejectionOutcome> | null {
+  if (!awaitsDefinitiveRejectionFailure(resetOperation)) return null;
+  return resetOperation.external_job?.last_definitive_rejection_reason === NOT_SUBMITTED_REASON
+    ? persistNotSubmittedFailure(rpc, opKey, resetOperation, stateRevision, undefined, now)
+    : persistDefinitiveRejectionFailure(rpc, opKey, resetOperation, stateRevision, undefined, now);
 }
 
 /**
@@ -173,7 +272,7 @@ export async function failClaimedOperation(
   return failedState;
 }
 
-/** Fallback when the reset RPC is missing (PGRST202). */
+/** Fallback when the reset RPC is missing (PGRST202) on a definitive rejection. */
 export function failOperationWithoutResetContract(
   rpc: RpcCall,
   opKey: string,
@@ -184,4 +283,17 @@ export function failOperationWithoutResetContract(
 ): Promise<OpState> {
   return failClaimedOperation(rpc, opKey, claimedState, claimRevision, "reset_contract_unavailable",
     `${new ResetContractUnavailableError().message} (${rejection.message})`, now);
+}
+
+/** Fallback when the reset RPC is missing (PGRST202) on a never-submitted failure. */
+export function failOperationWithoutResetContractNotSubmitted(
+  rpc: RpcCall,
+  opKey: string,
+  claimedState: OpState,
+  claimRevision: number,
+  message: string,
+  now = () => new Date().toISOString(),
+): Promise<OpState> {
+  return failClaimedOperation(rpc, opKey, claimedState, claimRevision, "reset_contract_unavailable",
+    `${new ResetContractUnavailableError().message} (${message})`, now);
 }

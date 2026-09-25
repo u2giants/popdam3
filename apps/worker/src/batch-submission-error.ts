@@ -6,13 +6,35 @@ export class AmbiguousBatchSubmissionError extends Error {
   }
 }
 
-export type DefinitiveRejectionStatus = 400 | 422;
+/**
+ * The widened definitive-rejection status set accepted by
+ * reset_bulk_operation_submission_lease (shared-db #3464): validation (400/
+ * 422), auth (401/403), billing (402) and rate limit (429). Every one of these,
+ * when proven by the provider's own error envelope, means no durable batch was
+ * created, so the receipt may be consumed through the governed reset.
+ */
+export const DEFINITIVE_REJECTION_STATUSES = [400, 401, 402, 403, 422, 429] as const;
+export type DefinitiveRejectionStatus = (typeof DEFINITIVE_REJECTION_STATUSES)[number];
+
+function definitiveRejectionMessage(provider: string, status: DefinitiveRejectionStatus): string {
+  if (status === 401 || status === 403) {
+    return `${provider} refused the batch submission (HTTP ${status}, authorization); fix the key, then start a new run`;
+  }
+  if (status === 402) {
+    return `${provider} refused the batch submission (HTTP 402, billing); fix billing, then start a new run`;
+  }
+  if (status === 429) {
+    return `${provider} refused the batch submission (HTTP 429, rate limit); wait or raise the quota, then start a new run`;
+  }
+  return `${provider} rejected the batch submission (HTTP ${status})`;
+}
 
 /**
- * The provider itself answered the submission POST with a parsed validation
- * rejection (HTTP 400/422 whose JSON error body echoes the same status code).
- * Only this proves no batch was created, so only this may consume the
- * submission receipt through reset_bulk_operation_submission_lease.
+ * The provider itself answered the submission POST with a parsed definitive
+ * rejection (HTTP 400/401/402/403/422/429 whose JSON error body echoes the same
+ * status code). Only this proves no durable batch was created, so only this may
+ * consume the submission receipt through reset_bulk_operation_submission_lease
+ * with reason `provider_definitive_rejection`.
  * `providerError` is a sanitized summary: never the raw body, which may echo
  * prompts, media or credentials.
  */
@@ -22,39 +44,25 @@ export class DefinitiveBatchRejectionError extends Error {
     public status: DefinitiveRejectionStatus,
     public providerError: Record<string, string | number>,
   ) {
-    super(`${provider} rejected the batch submission (HTTP ${status})`);
+    super(definitiveRejectionMessage(provider, status));
     this.name = "DefinitiveBatchRejectionError";
   }
 }
 
 /**
- * The provider itself refused the submission for account reasons: auth (401/
- * 403), billing (402) or rate limit (429), proven by its own error envelope.
- * No batch was created, but the governed reset accepts only 400/422, so the
- * operation stops immediately and visibly instead of waiting as ambiguous.
- */
-export class ProviderRefusedSubmissionError extends Error {
-  constructor(public provider: string, public status: 401 | 402 | 403 | 429) {
-    const kind = status === 402 ? "billing" : status === 429 ? "rate limit" : "authorization";
-    super(`${provider} refused the batch submission (HTTP ${status}, ${kind}); fix the key, billing or quota, then start a new run`);
-    this.name = "ProviderRefusedSubmissionError";
-  }
-}
-
-/**
  * Classify a non-2xx submission response. Returns a definitive rejection only
- * when the status is 400/422 AND the body parses as the provider's own error
- * envelope (`{ "error": { "code": <same status>, ... } }`); a proxy or gateway
- * page does not carry that envelope. Everything else (other 4xx, 5xx, an
- * unparseable body) stays ambiguous: the database lease must expire into
- * ambiguous_submission rather than be reset.
+ * when the status is one of 400/401/402/403/422/429 AND the body parses as the
+ * provider's own error envelope (`{ "error": { "code": <same status>, ... } }`);
+ * a proxy or gateway page does not carry that envelope. Everything else (other
+ * 4xx, 5xx, an unparseable body) stays ambiguous: the database lease must expire
+ * into ambiguous_submission rather than be reset.
  */
 export function classifySubmissionHttpFailure(
   provider: string,
   status: number,
   bodyText: string | undefined,
-): DefinitiveBatchRejectionError | ProviderRefusedSubmissionError | AmbiguousBatchSubmissionError {
-  if ([400, 422, 401, 402, 403, 429].includes(status) && typeof bodyText === "string") {
+): DefinitiveBatchRejectionError | AmbiguousBatchSubmissionError {
+  if ((DEFINITIVE_REJECTION_STATUSES as readonly number[]).includes(status) && typeof bodyText === "string") {
     let parsed: unknown;
     try {
       parsed = JSON.parse(bodyText);
@@ -67,10 +75,7 @@ export function classifySubmissionHttpFailure(
     if (envelope && typeof envelope === "object" && !Array.isArray(envelope)) {
       const record = envelope as Record<string, unknown>;
       const code = typeof record.code === "string" ? Number(record.code) : record.code;
-      if (code === status && (status === 401 || status === 402 || status === 403 || status === 429)) {
-        return new ProviderRefusedSubmissionError(provider, status);
-      }
-      if (code === status && (status === 400 || status === 422)) {
+      if (code === status) {
         const summary: Record<string, string | number> = { provider, code: status };
         if (typeof record.status === "string" && /^[A-Z_]{1,64}$/.test(record.status)) summary.status = record.status;
         return new DefinitiveBatchRejectionError(provider, status as DefinitiveRejectionStatus, summary);
