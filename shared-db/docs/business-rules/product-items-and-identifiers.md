@@ -157,6 +157,15 @@ stored data identifies both sides — do not confuse them:
   products, NOT the parents. Excluding `prepack_detail` item numbers from a
   catalogue would remove real products, not sets.
 
+**Assortment-worded items without prepack codes — same treatment.** Owner
+ruling, Albert Hazan 2026-09-25 (issue #3024 review): items whose description
+says assortment ("Asst", "Assorted", e.g. "ASST LIC MDF WALL PLAQUES") are
+assortments even when ColdLion gives them **no** prepack code — only 309 of
+714 assortment-worded live items carry one. They are excluded from
+product-type review lists exactly like prepack parents (no independently
+derived product type; 405 additional items on top of the parents, measured
+2026-09-25).
+
 ## What is left after the exclusions is still not a catalogue
 
 **Unknown, measured 2026-09-07.** It is tempting to define the product
