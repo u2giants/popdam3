@@ -211,3 +211,32 @@ test("a reset attempted after the lease lapsed releases the receipt to lease rec
   assert.equal(holdsSubmissionReceipt("op-lapsed"), false);
   assert.equal(awaitsNotSubmittedReset("op-lapsed"), false);
 });
+
+test("finishing an interrupted reset clears every in-memory submission artifact for the operation", async () => {
+  const { forgetSubmissionState, failNeverSentSubmission, rememberSubmissionReceipt, holdsSubmissionReceipt, awaitsNotSubmittedReset } = await import("./operation-loop.js");
+  const state = {
+    status: "running", cursor: 0, state_revision: 4,
+    external_job: { phase: "submitting", lease_expires_at: new Date(Date.now() + 100_000).toISOString() },
+  } as unknown as OpState;
+  // The reset lands but the terminal write fails: pending state is retained.
+  const rpc = async (fn: string) => fn === "reset_bulk_operation_submission_lease"
+    ? { data: { ok: true, state_revision: 5, lease_receipt_issued: false, operation: { status: "running", external_job: { phase: "prepared" } } }, error: null }
+    : { data: null, error: { message: "network" } };
+  rememberSubmissionReceipt("op-finish", "receipt-1");
+  await assert.rejects(failNeverSentSubmission("op-finish", state, 4, "railway:r1", "receipt-1", new Error("x"), rpc));
+  assert.equal(awaitsNotSubmittedReset("op-finish"), true);
+  // The tick's interrupted-reset finisher then clears it, so a later run is not failed by stale memory.
+  forgetSubmissionState("op-finish");
+  assert.equal(awaitsNotSubmittedReset("op-finish"), false);
+  assert.equal(holdsSubmissionReceipt("op-finish"), false);
+  // A fresh receipt also starts clean even if something was left behind.
+  rememberSubmissionReceipt("op-finish-2", "r");
+  await assert.rejects(failNeverSentSubmission("op-finish-2", state, 4, "railway:r1", "r", new Error("x"), rpc));
+  rememberSubmissionReceipt("op-finish-2", "new-receipt");
+  assert.equal(awaitsNotSubmittedReset("op-finish-2"), false);
+});
+
+test("the tick clears in-memory submission state when it finishes an interrupted reset", () => {
+  const source = readFileSync(new URL("./operation-loop.ts", import.meta.url), "utf8");
+  assert.match(source, /finishInterruptedReset\([\s\S]{0,400}forgetSubmissionState\(opKey\)/);
+});

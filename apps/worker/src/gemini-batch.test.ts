@@ -402,3 +402,11 @@ test("a saved batch keeps its provider/model/pin identity regardless of current 
   // Legacy job without `provider` is OpenRouter; without `provider_pin` keeps the Settings pin.
   assert.deepEqual(batchJobIdentity({ phase: "pending", model: "x/y:batch" }, settings), { batchProvider: "openrouter", model: "x/y:batch", providerPin: "other" });
 });
+
+test("an explicit temperature (JSON repair uses 0) reaches Gemini's generationConfig", async () => {
+  globalThis.fetch = async () => new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "image/jpeg" } });
+  const payload = await buildGeminiBatchPayload([{ customId: "asset-1", request: { ...request(), temperature: 0 } }]);
+  assert.match(JSON.stringify(payload), /"generationConfig":\{[^}]*"temperature":0/);
+  const withoutTemperature = await buildGeminiBatchPayload([{ customId: "asset-1", request: request() }]);
+  assert.doesNotMatch(JSON.stringify(withoutTemperature), /"temperature"/);
+});

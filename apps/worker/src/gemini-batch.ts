@@ -156,6 +156,9 @@ async function requestToGemini(request: ChatCompletionRequest) {
   }
   const generationConfig: Record<string, unknown> = {};
   if (request.max_tokens) generationConfig.maxOutputTokens = request.max_tokens;
+  // Carry an explicit temperature (JSON repair asks for 0) instead of letting
+  // the provider default apply.
+  if (typeof request.temperature === "number") generationConfig.temperature = request.temperature;
   if (request.response_format?.type === "json_schema") {
     generationConfig.responseMimeType = "application/json";
     generationConfig.responseJsonSchema = toGeminiJsonSchema(request.response_format.json_schema.schema);
