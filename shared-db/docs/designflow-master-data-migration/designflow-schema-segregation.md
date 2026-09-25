@@ -60,9 +60,9 @@ DesignFlow data will first land in a Supabase **`designflow` staging schema** (f
 |---|---:|---|
 | **`core`** | **18** | Shared master data + art/age taxonomy |
 | **`app`** | **13** | Users, roles, audit, notifications |
-| **`plm`** | **72** | Operational PLM + config/reference remaining in PLM |
+| **`plm`** | **74** | Operational PLM + config/reference remaining in PLM (72 + 2 added 2026-09-24) |
 | **`pim`** | **0** | No DesignFlow tables in this export |
-| **Total** | **103** | Matches `information_schema` table list |
+| **Total** | **105** | 103 in the July export + 2 added later |
 
 ---
 
@@ -149,6 +149,8 @@ DesignFlow data will first land in a Supabase **`designflow` staging schema** (f
 | 22 | `item_character_associations` | Item ↔ character links |
 | 23 | `productUserAssignment` | Item user role assignments |
 | 24 | `ProductNickname` | Product nickname config (MG FK refs) |
+| 24a | `item_user_assignment` | Added after July; placed beside `productUserAssignment` (2026-09-24). `plm` table not yet created |
+| 24b | `item_workflow_action` | Added after July; placed with the item master (2026-09-24). `plm` table not yet created |
 
 #### Art pieces (operational)
 
@@ -323,3 +325,4 @@ Whole `merchGroup` table stays mapped to **`core`** (typed import). Import rules
 |---|---|
 | 2026-07-08 | Initial full 103-table segregation map |
 | 2026-07-08 | `DesignTeamTime(s)` → `plm`; `age_group`/`artists`/`art_types`/`artist_types` → `core` |
+| 2026-09-24 | Added `item_user_assignment` and `item_workflow_action` (new in Cloud SQL since July) to `plm` item master |
