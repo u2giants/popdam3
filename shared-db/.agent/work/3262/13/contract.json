@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "generation": 13,
+  "work_issue": 3262,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Land the ColdLion automatic order intake plan (plan_coldlion_order_intake.md), its settled business-rules authority section, and its registration in docs/agents/active-contracts-and-plans.md as a prose-only change set, so an implementing session can start Phase A0 from main",
+  "base_sha": "b32deb1ce57d2158193100c72e40ab1ea720d72d",
+  "dispatcher": "zcode session for issue #3262 (same session wrote the plan and ran the Qwen/Grok/Muse audits)",
+  "worker": "zcode",
+  "branch": "claude/order-intake-plan-docs",
+  "worktree": "C:/repos/shared-db/.ai/worktrees/fix-3248-topo-mimo",
+  "allowed_paths": [
+    "docs/business-rules/application-map.md",
+    "docs/business-rules/erp-orders-and-source-meaning.md",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/business-rules/master-data-access.md",
+    "plan_coldlion_order_intake.md",
+    ".agent/work/3262/13/contract.json",
+    ".agent/work/3262/13/completion.json"
+  ],
+  "file_writes": [
+    "docs/business-rules/application-map.md",
+    "docs/business-rules/erp-orders-and-source-meaning.md",
+    "docs/business-rules/master-data-access.md",
+    "docs/agents/active-contracts-and-plans.md",
+    "plan_coldlion_order_intake.md",
+    ".agent/work/3262/13/contract.json",
+    ".agent/work/3262/13/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "no database access of any kind",
+    "no workflow, script, or test changes",
+    "no migration files",
+    "no edits outside allowed_paths"
+  ],
+  "required_checks": [
+    "node scripts/agent-work-contract.mjs --validate-contract --contract-file .agent/work/3262/13/contract.json",
+    "node scripts/check-handoff-contract.mjs",
+    "node scripts/agent-work-contract.mjs --validate-completion --report-file .agent/work/3262/13/completion.json --contract-file .agent/work/3262/13/contract.json"
+  ],
+  "assumptions": [
+    "The repo's classifiers treat AGENTS.md and plan_*.md as rulebook files, so this prose change set rides the agent work contract pair rather than the documents-only exemption; PR #3248's checks demonstrated this on 2026-09-18.",
+    "Generation 2 republishes the same prose change set after origin/main was merged in on 2026-09-20 to clear a conflict limited to the .agent evidence pair; no plan, rulebook or business-rules content changed between generations.",
+    "Generation 8 moves this pull requests evidence to the generation-keyed layout introduced by #2708, so an unrelated merge to main no longer conflicts on the shared legacy pair and no longer voids the exact-head verdict.",
+    "Under the generation-keyed layout (#2708) this pull request carries exactly one evidence pair, at .agent/work/3262/13/, and does not touch the shared legacy .agent pair, which stays byte-for-byte as main carries it.",
+    "Generation 12 supersedes generation 11 (published 2026-09-25). It narrows allowed_paths/file_writes to the five prose files plus the evidence pair this PR changes — AGENTS.md and the HANDOFF.d entry are no longer named because the patch neither edits AGENTS.md nor touches any HANDOFF.d file. Content fixes from the 18:34 UTC governed-review REVISE are applied in the implementation commit.",
+    "Generation 13 supersedes generation 12 (published 2026-09-25) after the Muse REVISE at 8419ca67 named three minor findings: the live-proof gate must name the last_seen_run leading-key index as well as first_seen_run; the goal names registration in docs/agents/active-contracts-and-plans.md rather than AGENTS.md (which this PR leaves byte-identical); and the handoff-retirement sentence states the file is already absent rather than removed by this PR. The superseded generation-12 pair is removed so the pull request carries exactly one evidence pair."
+  ],
+  "stop_conditions": [
+    "stop and report rather than weaken a check if the handoff contract or agent work contract refuses any part of the change set",
+    "stop if main moved and the rebase is no longer clean rather than force-pushing over reviewed work"
+  ]
+}

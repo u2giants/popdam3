@@ -16,4 +16,6 @@ Companywide view and edit permissions for other Master Data objects remain **Unk
 
 ## Implementation and evidence
 
-The database access details and incident record remain in [`../../AGENTS.md`](../../AGENTS.md), section 0.4. This page owns the business meaning of the access decision.
+The database access details and incident record remain in [`../agents/owner-rulings.md`](../agents/owner-rulings.md), section 0.4. This page owns the business meaning of the access decision.
+
+The Styles grid replaces the legacy Google `MasterData` workbook (spreadsheet `1ZL6cEwydC0cWSGP2I92uILn1ixILr_qAeDfDfD6F214`, tabs `License.Style` and `Generic.Style`), recorded by Albert on 2026-09-17.

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 3262,
+  "outcome": "ready-for-merge",
+  "pr": 3248,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3262/13",
+  "contract_sha256": "2173f4ec61e7fdb578ef9caf892e4b6ed997f9d9b07a070d74eea5ba3d2e9430",
+  "head_sha": "e94961975a61e19e998fd2e5ef9aeeac99e6d8c2",
+  "files_changed": [
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/business-rules/application-map.md",
+    "docs/business-rules/erp-orders-and-source-meaning.md",
+    "docs/business-rules/master-data-access.md",
+    "plan_coldlion_order_intake.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node scripts/agent-work-contract.mjs --validate-contract --contract-file .agent/work/3262/13/contract.json",
+      "exit_code": 0,
+      "evidence": "prints 'Contract is valid.' for issue #3262 generation 13 (contract_sha256 unchanged at 2173f4ec61e7fdb578ef9caf892e4b6ed997f9d9b07a070d74eea5ba3d2e9430, published ref refs/db-contracts/3262/13)."
+    },
+    {
+      "command": "node scripts/check-handoff-contract.mjs",
+      "exit_code": 0,
+      "evidence": "passes \u00e2\u20ac\u201d no HANDOFF.d files in the change set; the handoff entry the plan names is already absent from the tree."
+    },
+    {
+      "command": "node scripts/agent-work-contract.mjs --validate-completion --report-file .agent/work/3262/13/completion.json --contract-file .agent/work/3262/13/contract.json",
+      "exit_code": 0,
+      "evidence": "prints 'Completion report satisfies its contract.' against the published contract hash 2173f4ec61e7fdb578ef9caf892e4b6ed997f9d9b07a070d74eea5ba3d2e9430 after rebinding to implementation head be5712844 on base 95807d236."
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 12 (2026-09-25): superseded generation 11. allowed_paths/file_writes narrowed to the five prose files plus the evidence pair this PR changes \u00e2\u20ac\u201d AGENTS.md and HANDOFF.d/2026-09-17T1440Z-edge-dev-zcode-order-intake-plan.md removed because the patch neither edits AGENTS.md nor touches any HANDOFF.d file. Content fixes from the 18:34 UTC governed-review REVISE applied in the implementation commit: C2 quarantine clarified (within-hash-group only, cross-version forks resolved by winner-selection); A1 last_seen_run leading-key index required for run-FK lookups; A2/C2 case-pack lookup includes item_pkey; read-only helpers STABLE, writers VOLATILE; routing_code_map.code declared PRIMARY KEY and asserted in live-proof; A0 --objects clarified as six new tables excluding sync_run.",
+    "Generation 13 (2026-09-25): supersedes generation 12 after the Muse REVISE at 8419ca67 named three minor findings. Finding 1 \u00e2\u20ac\u201d the A1 live-proof gate now names both run-FK leading-key indexes (first_seen_run and last_seen_run) by name. Finding 2 \u00e2\u20ac\u201d the goal names registration in docs/agents/active-contracts-and-plans.md rather than AGENTS.md, and the generation-12 assumption plus this report say five prose files plus the evidence pair. Finding 3 \u00e2\u20ac\u201d the handoff-retirement sentence states the HANDOFF.d file is already absent, not removed by this PR. The superseded generation-12 pair is removed so the pull request carries exactly one evidence pair.",
+    "Verified at e7d96c0f4: this pull request changes five prose files versus the merge base; its own keyed evidence pair (generation 13) follows the implementation head only.",
+    "Rebind after refreshing PR #3248 onto origin/main (530ffb393): implementation head 087e5f63c is the merge commit that keeps both sides of docs/agents/active-contracts-and-plans.md (main's four-schema self-service additive lane boundary and this PR's ColdLion plan registration) and carries the five prose files with no evidence pair. contract_sha256 is unchanged; refs/db-contracts/3262/13 stays immutable. Generation 12/13 pair files are not reintroduced; the pull request still carries exactly one pair (generation 13).",
+    "Rebind after refreshing PR #3248 onto origin/main (95807d236): content unchanged \u00e2\u20ac\u201d five prose files only. Implementation head be5712844 is the merge commit with no evidence pair; the generation-13 pair is rebound in the tail. contract_sha256 is unchanged at 2173f4ec61e7fdb578ef9caf892e4b6ed997f9d9b07a070d74eea5ba3d2e9430; refs/db-contracts/3262/13 stays immutable. The pull request still carries exactly one pair (generation 13)."
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "229ccbb0024e4bfbe261dc397688fa73df54f49c"
+}
