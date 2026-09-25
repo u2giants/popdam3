@@ -55,6 +55,16 @@ No refresh hard-deletes licensing Master Data.
 - Inactive or non-license Creative Assets identities remain preserved as source evidence, but they must not create canonical Property, Asset, or Style Guide links. Portal-presence status is separate: a source record may remain active in a capture manifest while its licensing status is inactive.
 - A future signed amendment changes Warner entitlement only after the private contract schedule and mappings are updated and revalidated. A portal refresh, ColdLion change, or newly visible asset cannot supersede the signed schedule by itself.
 
+## WildBrain Strawberry Shortcake property scope
+
+**Status: Settled. Authority: Laura, POP licensing team, confirmed 2026-09-25 and relayed by Albert Hazan the same day.**
+
+- For POP Creations, the Licensor WildBrain has exactly **one** Strawberry Shortcake Property: **Strawberry Shortcake Classic**, the option of that name in WildBrain CPLG's MediaBox Product Approvals (Submissions) system.
+- The Submissions system also offers `Strawberry Shortcake Bitty` and `Strawberry Shortcake Publishing`, and the rest of the WildBrain CPLG agency roster. None of these is ingested as a POP Property. The capture is kept only as private source evidence.
+- From the WildBrain Creative site (the WildBrain DAM Franchise / Era hierarchy), the eras `Strawberry Shortcake: 2003`, `Strawberry Shortcake: Berry in the Big City`, and `Strawberry Shortcake: Bitty` are **not ingested**.
+- The Creative-site root `Strawberry Shortcake`, and `Strawberry Shortcake: Classic`, both map to the Submissions Property `Strawberry Shortcake Classic`. This is an explicit owner-reviewed equivalence, not a name match.
+- The exact source identities and decisions live only in the private `u2giants/licensor-source-data` repository at `wildbrain/creative-to-submissions-strawberry-shortcake.csv` and `wildbrain/submissions/README.md`.
+
 ## Relationships
 
 - One Licensor may own many Properties; each Property has one owning Licensor at a time.
