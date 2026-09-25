@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "work_issue": 3464,
+  "generation": 2,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Widen PopDAM submission-lease reset to accept reason not_submitted with NULL http status and fixed provider_error category, and widen provider_definitive_rejection to HTTP 400/401/402/403/422/429, while preserving every other guard",
+  "base_sha": "6288c639735c4fe2bc431ace69e4596327d10611",
+  "dispatcher": "MiMo orchestrator, claim #3486",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "mimo/3464-lease-widen",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/3464-lease-widen",
+  "allowed_paths": [
+    "supabase/migrations/20260924183947_popdam_submission_lease_reset_widen.sql",
+    "supabase/tests/popdam_bulk_operation_definitive_rejection_contracts.sql",
+    "supabase/tests/popdam_submission_lease_reset_widen_contracts.sql",
+    ".agent/work/3464/2/contract.json",
+    ".agent/work/3464/2/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260924183947_popdam_submission_lease_reset_widen.sql",
+    "supabase/tests/popdam_bulk_operation_definitive_rejection_contracts.sql",
+    "supabase/tests/popdam_submission_lease_reset_widen_contracts.sql",
+    ".agent/work/3464/2/contract.json",
+    ".agent/work/3464/2/completion.json"
+  ],
+  "db_reads": [
+    "table public.admin_config"
+  ],
+  "db_writes": [
+    "function public.reset_bulk_operation_submission_lease"
+  ],
+  "prohibited_actions": [
+    "No shared preview or production database write from this author session",
+    "No merge or manual production dispatch",
+    "Do not reset expired, ambiguous or provider-bound submissions",
+    "Do not change public.update_bulk_operation or its grants"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python scripts/migration_derivation.py",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "PopDAM calls not_submitted only when the worker failed before any provider POST; SQL cannot verify this external claim",
+    "PopDAM calls provider_definitive_rejection only after authenticating and parsing a definitive provider HTTP 4xx response",
+    "Only the existing guarded writer may issue the next receipt after the reset bumps the revision"
+  ],
+  "stop_conditions": [
+    "Any path that grants a receipt to a different caller without a fresh guarded claim",
+    "Any path that turns timeout, disconnect, 5xx or expired-lease ambiguity into resubmission"
+  ]
+}

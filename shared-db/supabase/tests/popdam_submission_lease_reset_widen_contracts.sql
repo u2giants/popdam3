@@ -1,4 +1,7 @@
--- popcre/shared-db#3418, claim #3425. Every fixture write rolls back.
+-- popcre/shared-db#3464, claim #3486. Every fixture write rolls back.
+-- Behavior tests for the widened reset: not_submitted with NULL status and
+-- fixed provider_error category, and provider_definitive_rejection with
+-- HTTP 400/401/402/403/422/429. Every other guard is unchanged.
 begin;
 
 create table if not exists public.admin_config (
@@ -20,8 +23,6 @@ begin
   end if;
 end $bootstrap$;
 
--- A same-named view, altered column or different primary key must fail before
--- the behavioral fixture can give a misleading pass.
 do $exact_objects$
 declare
   v_table_oid oid := to_regclass('public.admin_config');
@@ -62,8 +63,6 @@ begin
 end;
 $exact_objects$;
 
--- The helper refuses a false success and verifies failed calls never mutate the
--- BULK_OPERATIONS value. It exists only within this rolled-back test transaction.
 create or replace function pg_temp.expect_lease_reset_refusal(
   p_revision bigint,
   p_owner text,
@@ -153,9 +152,9 @@ declare
   v_marker text;
   v_with_extra jsonb;
   v_error constant jsonb := '{"error":{"message":"synthetic rejection"}}'::jsonb;
+  v_not_submitted constant jsonb := '{"category":"not_submitted"}'::jsonb;
 begin
-  -- Use the real writer to mint the one-time receipt. All later assertions
-  -- start from the actual saved revision, owner and digest it produced.
+  -- Use the real writer to mint the one-time receipt.
   insert into public.admin_config(key, value, updated_at)
   values ('BULK_OPERATIONS',
           '{"bulk-tag":{"status":"running","state_revision":0,"external_job":{"phase":"prepared"}}}'::jsonb,
@@ -174,21 +173,8 @@ begin
   end if;
   select value into v_claimed from public.admin_config where key = 'BULK_OPERATIONS';
 
-  -- Invalid or unparsed provider outcomes can never turn an uncertain POST
-  -- into another chance to submit. This explicit set records the known
-  -- routing, policy, conflict, timeout and retry-shaped refusal cases.
-  -- Widened by #3464: 401/402/403/429 are now accepted definitive rejections.
-  foreach v_status in array array[200, 404, 405, 406,
-                                  407, 408, 409, 410, 411, 412, 413, 414,
-                                  415, 416, 417, 418, 419, 420, 421, 423,
-                                  424, 425, 426, 427, 428, 430, 431,
-                                  449, 451, 499, 500] loop
-    perform pg_temp.expect_lease_reset_refusal(
-      1, 'worker-A', v_token, 'provider_definitive_rejection',
-      v_status, v_error, '22023');
-  end loop;
-  -- Exhaust the entire 4xx space with the same provider-origin-shaped JSON
-  -- evidence: only the six accepted validation statuses may reach a reset.
+  -- 1. Every other 4xx still refuses under provider_definitive_rejection.
+  --    Only 400/401/402/403/422/429 are accepted.
   for v_status in 400..499 loop
     if v_status not in (400, 401, 402, 403, 422, 429) then
       perform pg_temp.expect_lease_reset_refusal(
@@ -196,14 +182,57 @@ begin
         v_status, v_error, '22023');
     end if;
   end loop;
+
+  -- 2. 5xx and timeout-shaped statuses refuse.
+  foreach v_status in array array[500, 501, 502, 503, 504] loop
+    perform pg_temp.expect_lease_reset_refusal(
+      1, 'worker-A', v_token, 'provider_definitive_rejection',
+      v_status, v_error, '22023');
+  end loop;
+
+  -- 3. NULL status with the wrong reason refuses.
+  perform pg_temp.expect_lease_reset_refusal(
+    1, 'worker-A', v_token, 'provider_definitive_rejection', null, v_error, '22023');
+  perform pg_temp.expect_lease_reset_refusal(
+    1, 'worker-A', v_token, 'timeout', null, v_error, '22023');
+  perform pg_temp.expect_lease_reset_refusal(
+    1, 'worker-A', v_token, 'disconnect', null, v_error, '22023');
+
+  -- 4. Non-NULL status with not_submitted refuses.
+  perform pg_temp.expect_lease_reset_refusal(
+    1, 'worker-A', v_token, 'not_submitted', 400, v_not_submitted, '22023');
+  perform pg_temp.expect_lease_reset_refusal(
+    1, 'worker-A', v_token, 'not_submitted', 200, v_not_submitted, '22023');
+
+  -- 5. not_submitted with wrong provider_error category refuses.
+  perform pg_temp.expect_lease_reset_refusal(
+    1, 'worker-A', v_token, 'not_submitted', null, '{"category":"wrong"}'::jsonb, '22023');
+  perform pg_temp.expect_lease_reset_refusal(
+    1, 'worker-A', v_token, 'not_submitted', null, '{}'::jsonb, '22023');
+  perform pg_temp.expect_lease_reset_refusal(
+    1, 'worker-A', v_token, 'not_submitted', null, null, '22023');
+  perform pg_temp.expect_lease_reset_refusal(
+    1, 'worker-A', v_token, 'not_submitted', null, '"string"'::jsonb, '22023');
+  perform pg_temp.expect_lease_reset_refusal(
+    1, 'worker-A', v_token, 'not_submitted', null, v_error, '22023');
+
+  -- 6. Wrong reason still refuses.
   perform pg_temp.expect_lease_reset_refusal(
     1, 'worker-A', v_token, 'timeout', 400, v_error, '22023');
+  perform pg_temp.expect_lease_reset_refusal(
+    1, 'worker-A', v_token, 'disconnect', 400, v_error, '22023');
+  perform pg_temp.expect_lease_reset_refusal(
+    1, 'worker-A', v_token, 'some_other_reason', 400, v_error, '22023');
+
+  -- 7. Invalid provider_error shapes refuse for provider_definitive_rejection.
   perform pg_temp.expect_lease_reset_refusal(
     1, 'worker-A', v_token, 'provider_definitive_rejection', 400, null, '22023');
   perform pg_temp.expect_lease_reset_refusal(
     1, 'worker-A', v_token, 'provider_definitive_rejection', 400, '{}'::jsonb, '22023');
   perform pg_temp.expect_lease_reset_refusal(
     1, 'worker-A', v_token, 'provider_definitive_rejection', 400, '[]'::jsonb, '22023');
+
+  -- 8. Argument guards remain unchanged.
   perform pg_temp.expect_lease_reset_refusal(
     1, 'worker-A', v_token, 'provider_definitive_rejection', 400, v_error, '22023', '');
   perform pg_temp.expect_lease_reset_refusal(
@@ -219,6 +248,7 @@ begin
   perform pg_temp.expect_lease_reset_refusal(
     1, 'worker-A', null, 'provider_definitive_rejection', 400, v_error, '22023');
 
+  -- 9. Wrong revision, wrong owner, wrong receipt refuse.
   perform pg_temp.expect_lease_reset_refusal(
     0, 'worker-A', v_token, 'provider_definitive_rejection', 400, v_error, '55000');
   perform pg_temp.expect_lease_reset_refusal(
@@ -226,6 +256,7 @@ begin
   perform pg_temp.expect_lease_reset_refusal(
     1, 'worker-A', 'wrong-receipt', 'provider_definitive_rejection', 400, v_error, '55000');
 
+  -- 10. Expired lease refuses.
   update public.admin_config
   set value = jsonb_set(v_claimed,
     '{bulk-tag,external_job,lease_expires_at}',
@@ -233,9 +264,11 @@ begin
   where key = 'BULK_OPERATIONS';
   perform pg_temp.expect_lease_reset_refusal(
     1, 'worker-A', v_token, 'provider_definitive_rejection', 400, v_error, '55000');
+  perform pg_temp.expect_lease_reset_refusal(
+    1, 'worker-A', v_token, 'not_submitted', null, v_not_submitted, '55000');
+  update public.admin_config set value = v_claimed where key = 'BULK_OPERATIONS';
 
-  -- A marker cannot be smuggled into a still-submitting phase to bypass the
-  -- explicit ambiguity refusal. Each protected marker is checked directly.
+  -- 11. Ambiguity markers refuse.
   foreach v_marker in array array['ambiguous_since', 'ambiguous_reason',
                                   'ambiguous_prior_phase', 'ambiguous_prior_owner'] loop
     update public.admin_config
@@ -245,30 +278,20 @@ begin
     perform pg_temp.expect_lease_reset_refusal(
       1, 'worker-A', v_token, 'provider_definitive_rejection', 400, v_error, '55000');
   end loop;
+  update public.admin_config set value = v_claimed where key = 'BULK_OPERATIONS';
 
+  -- 12. Bound provider job ID refuses.
   update public.admin_config
   set value = jsonb_set(v_claimed,
     '{bulk-tag,external_job,provider_batch_id}', '"bound-fixture"'::jsonb)
   where key = 'BULK_OPERATIONS';
   perform pg_temp.expect_lease_reset_refusal(
     1, 'worker-A', v_token, 'provider_definitive_rejection', 400, v_error, '55000');
-
-  update public.admin_config
-  set value = jsonb_set(v_claimed,
-    '{bulk-tag,external_job,phase}', '"ambiguous_submission"'::jsonb)
-  where key = 'BULK_OPERATIONS';
   perform pg_temp.expect_lease_reset_refusal(
-    1, 'worker-A', v_token, 'provider_definitive_rejection', 400, v_error, '55000');
+    1, 'worker-A', v_token, 'not_submitted', null, v_not_submitted, '55000');
+  update public.admin_config set value = v_claimed where key = 'BULK_OPERATIONS';
 
-  update public.admin_config
-  set value = jsonb_set(v_claimed, '{bulk-tag,status}', '"stopped"'::jsonb)
-  where key = 'BULK_OPERATIONS';
-  perform pg_temp.expect_lease_reset_refusal(
-    1, 'worker-A', v_token, 'provider_definitive_rejection', 400, v_error, '55000');
-
-  -- Positive path: current unexpired holder with exact receipt and revision,
-  -- no provider ID, parsed definitive 4xx. Reset consumes the receipt without
-  -- issuing another or recording the error body.
+  -- 13. Positive path: not_submitted with NULL status and fixed category resets.
   v_with_extra := jsonb_set(
     jsonb_set(
       jsonb_set(v_claimed, '{bulk-tag,external_job,lease_token}', '"stored-fixture"'::jsonb),
@@ -277,9 +300,10 @@ begin
   update public.admin_config set value = v_with_extra where key = 'BULK_OPERATIONS';
   v_reset := public.reset_bulk_operation_submission_lease(
     'bulk-tag', 1, 'worker-A', v_token,
-    'provider_definitive_rejection', 400, v_error);
+    'not_submitted', null, v_not_submitted);
   v_job := v_reset -> 'operation' -> 'external_job';
   if v_reset ->> 'ok' is distinct from 'true'
+     or v_reset ->> 'reason' is distinct from 'not_submitted'
      or (v_reset ->> 'state_revision')::bigint is distinct from 2
      or v_reset ->> 'lease_receipt_issued' is distinct from 'false'
      or v_reset ->> 'lease_token' is not null
@@ -288,14 +312,13 @@ begin
      or v_job ? 'lease_claimed_at' or v_job ? 'lease_token'
      or v_job ? 'submitted_at' or v_job ? 'next_poll_at'
      or v_job ? 'lease_proof' or v_job ? 'provider_batch_id'
-     or (v_job ->> 'last_definitive_rejection_status')::integer is distinct from 400
-     or nullif(v_job ->> 'last_definitive_rejection_at', '')::timestamptz is null
-     or v_job::text like '%synthetic rejection%' then
-    raise exception 'definitive rejection reset did not consume the lease safely';
+     or (v_job ->> 'last_definitive_rejection_status')::integer is not null
+     or v_job ->> 'last_definitive_rejection_reason' is distinct from 'not_submitted'
+     or nullif(v_job ->> 'last_definitive_rejection_at', '')::timestamptz is null then
+    raise exception 'not_submitted reset did not consume the lease safely';
   end if;
 
-  -- The reset's prepared phase has no receipt. Neither unproven writer may
-  -- advance it to submitting, plant a receipt digest or bind a provider ID.
+  -- 14. No receipt remint: neither unproven writer may advance the reset.
   perform pg_temp.expect_unproven_writer_refusal(
     jsonb_set(v_reset -> 'operation', '{external_job,phase}', '"submitting"'::jsonb), false);
   perform pg_temp.expect_unproven_writer_refusal(
@@ -309,10 +332,9 @@ begin
   perform pg_temp.expect_unproven_writer_refusal(
     jsonb_set(v_reset -> 'operation', '{external_job,provider_batch_id}', '"forged-job"'::jsonb), true);
 
-  -- A stale process cannot reset or claim the old revision. The ordinary
-  -- guarded claim, not the reset, issues the next receipt to one claimant.
+  -- 15. Stale process cannot reset or claim the old revision.
   perform pg_temp.expect_lease_reset_refusal(
-    1, 'worker-A', v_token, 'provider_definitive_rejection', 400, v_error, '55000');
+    1, 'worker-A', v_token, 'not_submitted', null, v_not_submitted, '55000');
   v_reclaim := public.update_bulk_operation(
     'bulk-tag',
     jsonb_set(v_reset -> 'operation', '{external_job,phase}', '"submitting"'::jsonb),
@@ -321,6 +343,8 @@ begin
      or v_reclaim ->> 'reason' is distinct from 'revision_conflict' then
     raise exception 'stale revision unexpectedly reclaimed a submission slot';
   end if;
+
+  -- 16. Fresh revision claim gets its own receipt; new statuses each reset once.
   v_reclaim := public.update_bulk_operation(
     'bulk-tag',
     jsonb_set(v_reset -> 'operation', '{external_job,phase}', '"submitting"'::jsonb),
@@ -331,21 +355,96 @@ begin
      or v_new_token is null or v_new_token = v_token then
     raise exception 'fresh revision did not receive its own one-time receipt';
   end if;
-  perform pg_temp.expect_lease_reset_refusal(
-    3, 'worker-B', v_token, 'provider_definitive_rejection', 400, v_error, '55000');
 
-  -- An ordinary parsed validation failure remains usable after the stricter
-  -- status gate; the current holder's new receipt can reset its own revision.
+  -- 16a. 401 resets once.
   v_reset := public.reset_bulk_operation_submission_lease(
     'bulk-tag', 3, 'worker-B', v_new_token,
-    'provider_definitive_rejection', 422, v_error);
+    'provider_definitive_rejection', 401, v_error);
   if v_reset ->> 'ok' is distinct from 'true'
      or (v_reset ->> 'state_revision')::bigint is distinct from 4
      or (v_reset -> 'operation' -> 'external_job' ->> 'last_definitive_rejection_status')::integer
-        is distinct from 422 then
-    raise exception 'parsed final 422 rejection was not safely reset';
+        is distinct from 401
+     or v_reset ->> 'reason' is distinct from 'provider_definitive_rejection' then
+    raise exception '401 rejection was not safely reset';
   end if;
 
+  -- 16b. 402 resets once on a fresh revision.
+  v_reclaim := public.update_bulk_operation(
+    'bulk-tag',
+    jsonb_set(v_reset -> 'operation', '{external_job,phase}', '"submitting"'::jsonb),
+    'running', 4, 'worker-B', 120);
+  v_new_token := v_reclaim ->> 'lease_token';
+  v_reset := public.reset_bulk_operation_submission_lease(
+    'bulk-tag', 5, 'worker-B', v_new_token,
+    'provider_definitive_rejection', 402, v_error);
+  if v_reset ->> 'ok' is distinct from 'true'
+     or (v_reset ->> 'state_revision')::bigint is distinct from 6
+     or (v_reset -> 'operation' -> 'external_job' ->> 'last_definitive_rejection_status')::integer
+        is distinct from 402 then
+    raise exception '402 rejection was not safely reset';
+  end if;
+
+  -- 16c. 403 resets once on a fresh revision.
+  v_reclaim := public.update_bulk_operation(
+    'bulk-tag',
+    jsonb_set(v_reset -> 'operation', '{external_job,phase}', '"submitting"'::jsonb),
+    'running', 6, 'worker-B', 120);
+  v_new_token := v_reclaim ->> 'lease_token';
+  v_reset := public.reset_bulk_operation_submission_lease(
+    'bulk-tag', 7, 'worker-B', v_new_token,
+    'provider_definitive_rejection', 403, v_error);
+  if v_reset ->> 'ok' is distinct from 'true'
+     or (v_reset ->> 'state_revision')::bigint is distinct from 8
+     or (v_reset -> 'operation' -> 'external_job' ->> 'last_definitive_rejection_status')::integer
+        is distinct from 403 then
+    raise exception '403 rejection was not safely reset';
+  end if;
+
+  -- 16d. 429 resets once on a fresh revision.
+  v_reclaim := public.update_bulk_operation(
+    'bulk-tag',
+    jsonb_set(v_reset -> 'operation', '{external_job,phase}', '"submitting"'::jsonb),
+    'running', 8, 'worker-B', 120);
+  v_new_token := v_reclaim ->> 'lease_token';
+  v_reset := public.reset_bulk_operation_submission_lease(
+    'bulk-tag', 9, 'worker-B', v_new_token,
+    'provider_definitive_rejection', 429, v_error);
+  if v_reset ->> 'ok' is distinct from 'true'
+     or (v_reset ->> 'state_revision')::bigint is distinct from 10
+     or (v_reset -> 'operation' -> 'external_job' ->> 'last_definitive_rejection_status')::integer
+        is distinct from 429 then
+    raise exception '429 rejection was not safely reset';
+  end if;
+
+  -- 16e. 400 still resets on a fresh revision.
+  v_reclaim := public.update_bulk_operation(
+    'bulk-tag',
+    jsonb_set(v_reset -> 'operation', '{external_job,phase}', '"submitting"'::jsonb),
+    'running', 10, 'worker-B', 120);
+  v_new_token := v_reclaim ->> 'lease_token';
+  v_reset := public.reset_bulk_operation_submission_lease(
+    'bulk-tag', 11, 'worker-B', v_new_token,
+    'provider_definitive_rejection', 400, v_error);
+  if v_reset ->> 'ok' is distinct from 'true'
+     or (v_reset ->> 'state_revision')::bigint is distinct from 12 then
+    raise exception '400 rejection was not safely reset';
+  end if;
+
+  -- 16f. 422 still resets on a fresh revision.
+  v_reclaim := public.update_bulk_operation(
+    'bulk-tag',
+    jsonb_set(v_reset -> 'operation', '{external_job,phase}', '"submitting"'::jsonb),
+    'running', 12, 'worker-B', 120);
+  v_new_token := v_reclaim ->> 'lease_token';
+  v_reset := public.reset_bulk_operation_submission_lease(
+    'bulk-tag', 13, 'worker-B', v_new_token,
+    'provider_definitive_rejection', 422, v_error);
+  if v_reset ->> 'ok' is distinct from 'true'
+     or (v_reset ->> 'state_revision')::bigint is distinct from 14 then
+    raise exception '422 rejection was not safely reset';
+  end if;
+
+  -- 17. Privilege checks unchanged.
   if has_function_privilege('anon',
        'public.reset_bulk_operation_submission_lease(text,bigint,text,text,text,integer,jsonb)',
        'EXECUTE') then
@@ -367,8 +466,7 @@ begin
 end;
 $test$;
 
--- Exercise the actual RPC as each granted/denied API role. A catalog grant
--- alone cannot prove that a role can reach the SECURITY DEFINER body.
+-- Exercise the actual RPC as each granted/denied API role.
 do $role_fixtures$
 declare
   v_claim jsonb;
@@ -423,11 +521,12 @@ begin
   if current_user <> 'authenticated' then raise exception 'authenticated role was not set'; end if;
   v_reset := public.reset_bulk_operation_submission_lease(
     'auth-reset', 1, 'authenticated-worker', current_setting('test.auth_reset_receipt'),
-    'provider_definitive_rejection', 400, '{"error":{"message":"synthetic"}}'::jsonb);
+    'not_submitted', null, '{"category":"not_submitted"}'::jsonb);
   if v_reset ->> 'ok' is distinct from 'true'
      or (v_reset ->> 'state_revision')::bigint is distinct from 2
-     or v_reset ->> 'lease_receipt_issued' is distinct from 'false' then
-    raise exception 'authenticated role could not safely reset its exact receipt';
+     or v_reset ->> 'lease_receipt_issued' is distinct from 'false'
+     or v_reset ->> 'reason' is distinct from 'not_submitted' then
+    raise exception 'authenticated role could not safely reset with not_submitted';
   end if;
 end;
 $authenticated_allowed$;
@@ -441,11 +540,11 @@ begin
   if current_user <> 'service_role' then raise exception 'service role was not set'; end if;
   v_reset := public.reset_bulk_operation_submission_lease(
     'service-reset', 1, 'service-worker', current_setting('test.service_reset_receipt'),
-    'provider_definitive_rejection', 422, '{"error":{"message":"synthetic"}}'::jsonb);
+    'provider_definitive_rejection', 429, '{"error":{"message":"synthetic"}}'::jsonb);
   if v_reset ->> 'ok' is distinct from 'true'
      or (v_reset ->> 'state_revision')::bigint is distinct from 2
      or v_reset ->> 'lease_receipt_issued' is distinct from 'false' then
-    raise exception 'service role could not safely reset its exact receipt';
+    raise exception 'service role could not safely reset with 429 rejection';
   end if;
 end;
 $service_allowed$;
