@@ -131,3 +131,22 @@ test("an explicit asset list whose last page is unusable finishes the operation 
     restore();
   }
 });
+
+test("a deleted asset is recorded as skipped and a new job hands its payload to the claim", async () => {
+  const restore = installFetch([], () => "anthropic");
+  const deleted = "423e4567-e89b-42d3-a456-426614174003";
+  try {
+    const result = await handleBulkAiTag(
+      { status: "running", cursor: 0, run_id: "run1" } as OpState,
+      false,
+      { client: candidateClient([USABLE, deleted]) },
+    );
+    assert.equal(result.skipped, 1);
+    assert.equal((result.skip_samples as Array<{ asset_id: string; reason: string }>)[0].reason, "Asset no longer exists");
+    const job = result.external_job as { prepared_at: string; items: Array<{ asset_id: string }> };
+    assert.deepEqual(job.items.map((item) => item.asset_id), [USABLE]);
+    assert.equal((result.transient_prepared_batch as { preparedAt: string }).preparedAt, job.prepared_at);
+  } finally {
+    restore();
+  }
+});

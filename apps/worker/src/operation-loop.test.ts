@@ -127,7 +127,7 @@ test("a pre-POST failure with too little lease left takes the not_submitted rese
   const short = new Date(now + PRE_SUBMISSION_RETRY_MIN_LEASE_MS - 1).toISOString();
   rememberSubmissionReceipt("op-short", "receipt");
   assert.equal(holdReceiptAfterPreSubmissionFailure("op-short", new PreSubmissionError("transient"), short, now), false);
-  assert.equal(holdsSubmissionReceipt("op-short"), false, "the receipt goes to the governed reset, never lapses");
+  assert.equal(holdsSubmissionReceipt("op-short"), true, "the receipt is kept for the governed reset, never dropped first");
   assert.equal(leaseCoversAnotherAttempt(new Date(now + PRE_SUBMISSION_RETRY_MIN_LEASE_MS).toISOString(), now), true);
   assert.equal(leaseCoversAnotherAttempt(undefined, now), false);
   assert.equal(remainingLeaseMs(new Date(now - 1).toISOString(), now), 0);
@@ -169,4 +169,45 @@ test("a provider POST whose ID save fails releases the receipt so no rebuild can
   assert.equal(holdsSubmissionReceipt("op-post"), true, "pre-POST failure keeps the receipt");
   releaseReceiptAfterPost("op-post", new Date(Date.now() + 60_000).toISOString());
   assert.equal(holdsSubmissionReceipt("op-post"), false);
+});
+
+test("a temporarily failing not_submitted reset keeps the receipt and lands on retry", async () => {
+  const { failNeverSentSubmission, rememberSubmissionReceipt, holdsSubmissionReceipt, awaitsNotSubmittedReset } = await import("./operation-loop.js");
+  const lease = new Date(Date.now() + 100_000).toISOString();
+  const state = {
+    status: "running", cursor: 0, run_id: "r1", state_revision: 4,
+    external_job: { phase: "submitting", submission_owner: "railway:r1", lease_expires_at: lease },
+  } as unknown as OpState;
+  let resetCalls = 0;
+  const calls: string[] = [];
+  const rpc = async (fn: string) => {
+    calls.push(fn);
+    if (fn === "reset_bulk_operation_submission_lease") {
+      resetCalls++;
+      if (resetCalls === 1) return { data: null, error: { message: "upstream connect error" } };
+      return { data: { ok: true, state_revision: 5, lease_receipt_issued: false, operation: { status: "running", cursor: 0, external_job: { phase: "prepared" } } }, error: null };
+    }
+    return { data: { ok: true, state_revision: 6, lease_receipt_issued: false, reason: "applied" }, error: null };
+  };
+  rememberSubmissionReceipt("op-reset", "receipt-1");
+  await assert.rejects(failNeverSentSubmission("op-reset", state, 4, "railway:r1", "receipt-1", new Error("no usable requests"), rpc), /upstream connect error/);
+  assert.equal(holdsSubmissionReceipt("op-reset"), true, "a transient reset failure never discards the only receipt");
+  assert.equal(awaitsNotSubmittedReset("op-reset"), true, "the next tick retries the reset");
+  await failNeverSentSubmission("op-reset", state, 4, "railway:r1", "receipt-1", new Error("no usable requests"), rpc);
+  assert.equal(holdsSubmissionReceipt("op-reset"), false);
+  assert.equal(awaitsNotSubmittedReset("op-reset"), false);
+  assert.deepEqual(calls, ["reset_bulk_operation_submission_lease", "reset_bulk_operation_submission_lease", "update_bulk_operation"]);
+});
+
+test("a reset attempted after the lease lapsed releases the receipt to lease reconciliation", async () => {
+  const { failNeverSentSubmission, rememberSubmissionReceipt, holdsSubmissionReceipt, awaitsNotSubmittedReset } = await import("./operation-loop.js");
+  const state = {
+    status: "running", cursor: 0, state_revision: 4,
+    external_job: { phase: "submitting", lease_expires_at: new Date(Date.now() - 1_000).toISOString() },
+  } as unknown as OpState;
+  rememberSubmissionReceipt("op-lapsed", "receipt-1");
+  const rpc = async () => ({ data: null, error: { message: "receipt_invalid" } });
+  await assert.rejects(failNeverSentSubmission("op-lapsed", state, 4, "railway:r1", "receipt-1", new Error("x"), rpc));
+  assert.equal(holdsSubmissionReceipt("op-lapsed"), false);
+  assert.equal(awaitsNotSubmittedReset("op-lapsed"), false);
 });

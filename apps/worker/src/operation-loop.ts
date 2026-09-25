@@ -56,6 +56,13 @@ const submissionLeaseRetryAfter = new Map<string, number>();
 // for logging). The receipt is never discarded for these: nothing was sent, so
 // giving it up would let the lease lapse into a false ambiguous_submission.
 const preSubmissionRetries = new Map<string, number>();
+// A never-sent submission whose governed not_submitted reset has not landed yet
+// (e.g. a temporary RPC failure). The receipt is kept and the reset retried on
+// the next tick while the lease is live; it is never silently discarded.
+const pendingNotSubmittedResets = new Map<string, string>();
+// The provider payload built together with a new prepared job, handed to the
+// very next submission claim in memory so the normal path never rebuilds it.
+const preparedPayloads = new Map<string, { preparedAt: string; payload: unknown }>();
 
 /** After any provider POST attempt, the receipt may never drive another POST. */
 export function releaseReceiptAfterPost(opKey: string, leaseExpiresAt: string | undefined): void {
@@ -141,21 +148,62 @@ export function holdReceiptAfterPreSubmissionFailure(
     return true;
   }
   preSubmissionRetries.delete(opKey);
-  submissionLeaseTokens.delete(opKey);
+  // The receipt stays held until the governed reset lands (failNeverSentSubmission).
   logger.error("tick: provider batch was never sent and cannot be prepared; failing the operation visibly", { opKey, attempts, error: message });
   return false;
 }
 
-async function failNeverSentSubmission(
+/** True while a never-sent reset for this operation still has to land. */
+export function awaitsNotSubmittedReset(opKey: string): boolean {
+  return pendingNotSubmittedResets.has(opKey);
+}
+
+/**
+ * Fail a never-sent submission through the governed not_submitted reset. The
+ * receipt is released only once a terminal write has landed; if the reset
+ * fails transiently while the lease is still live, the receipt is kept and the
+ * reset is retried on the next tick instead of letting the lease lapse into a
+ * false ambiguous_submission.
+ */
+export async function failNeverSentSubmission(
   opKey: string,
   state: OpState,
   revision: number,
   owner: string,
   leaseToken: string | undefined,
   error: unknown,
+  rpc: RpcCall = (fn, params) => db().rpc(fn, params),
 ): Promise<void> {
-  const message = `Provider batch was never sent: ${normalizeBatchError(error, "pre-submission failure").slice(0, 200)}`;
-  const rpc: RpcCall = (fn, params) => db().rpc(fn, params);
+  const message = pendingNotSubmittedResets.get(opKey)
+    ?? `Provider batch was never sent: ${normalizeBatchError(error, "pre-submission failure").slice(0, 200)}`;
+  try {
+    await failNeverSentSubmissionOnce(opKey, state, revision, owner, leaseToken, message, rpc);
+  } catch (resetError) {
+    if (leaseToken && remainingLeaseMs(state.external_job?.lease_expires_at) > 0) {
+      pendingNotSubmittedResets.set(opKey, message);
+      logger.error("tick: never-sent reset did not land; keeping the receipt to retry it", {
+        opKey, error: normalizeBatchError(resetError, "reset failed").slice(0, 200),
+      });
+    } else {
+      pendingNotSubmittedResets.delete(opKey);
+      submissionLeaseTokens.delete(opKey);
+    }
+    throw resetError;
+  }
+  pendingNotSubmittedResets.delete(opKey);
+  preSubmissionRetries.delete(opKey);
+  submissionLeaseTokens.delete(opKey);
+}
+
+async function failNeverSentSubmissionOnce(
+  opKey: string,
+  state: OpState,
+  revision: number,
+  owner: string,
+  leaseToken: string | undefined,
+  message: string,
+  rpc: RpcCall,
+): Promise<void> {
   // Nothing was POSTed, so the governed reset accepts this as `not_submitted`
   // (NULL http status, fixed category) and returns the job to `prepared` on the
   // next revision; we then fail it durably. The RPC still requires the current
@@ -931,10 +979,11 @@ export async function tick(): Promise<void> {
     const heldRetryToken = submissionLeaseTokens.get(opKey);
     const heldSubmittingJob = currentState.external_job;
     if (heldRetryToken && heldSubmittingJob?.phase === "submitting" && !heldSubmittingJob.provider_batch_id
-      && !leaseCoversAnotherAttempt(heldSubmittingJob.lease_expires_at)) {
+      && (pendingNotSubmittedResets.has(opKey) || !leaseCoversAnotherAttempt(heldSubmittingJob.lease_expires_at))) {
       preSubmissionRetries.delete(opKey);
-      submissionLeaseTokens.delete(opKey);
       if (remainingLeaseMs(heldSubmittingJob.lease_expires_at) === 0) {
+        submissionLeaseTokens.delete(opKey);
+        pendingNotSubmittedResets.delete(opKey);
         // Already lapsed: the governed reset requires a live receipt, so only
         // the database's lease reconciliation can resolve it now.
         logger.error("tick: held submission lease lapsed before a pre-POST retry; leaving it to lease reconciliation", { opKey });
@@ -958,6 +1007,12 @@ export async function tick(): Promise<void> {
         return;
       }
       const rememberedLeaseToken = submissionLeaseTokens.get(opKey);
+      const cachedPayload = preparedPayloads.get(opKey);
+      preparedPayloads.delete(opKey);
+      const reusablePayload = cachedPayload && currentState.external_job?.phase === "prepared"
+        && cachedPayload.preparedAt === currentState.external_job.prepared_at
+        ? cachedPayload.payload
+        : undefined;
       result = await dispatch(opKey, {
         ...currentState,
         cursor,
@@ -965,6 +1020,7 @@ export async function tick(): Promise<void> {
         external_job: currentState.external_job && rememberedLeaseToken
           ? { ...currentState.external_job, lease_token: rememberedLeaseToken }
           : currentState.external_job,
+        ...(reusablePayload ? { transient_prepared_batch: reusablePayload } : {}),
       });
     } catch (e) {
       const heldJob = currentState.external_job;
@@ -1310,7 +1366,13 @@ export async function tick(): Promise<void> {
 
     // Reload the database-assigned revision before attempting the submission
     // lease. Continuing in this same loop would claim with the old revision.
-    if (result.external_job) return;
+    if (result.external_job) {
+      const preparedJob = result.external_job as OpState["external_job"];
+      if (preparedJob?.phase === "prepared" && preparedJob.prepared_at && result.transient_prepared_batch) {
+        preparedPayloads.set(opKey, { preparedAt: preparedJob.prepared_at, payload: result.transient_prepared_batch });
+      }
+      return;
+    }
 
     if (result.done) {
       logger.info("tick: op completed", { opKey, batches: batchCount, progress });
