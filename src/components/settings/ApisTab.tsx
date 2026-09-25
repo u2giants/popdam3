@@ -974,6 +974,12 @@ export function AiModelsConfigSection() {
             googleKey,
             anthropicKey,
             openaiKey,
+            savedKeys: {
+              openRouterKey: savedOpenRouterKey,
+              googleKey: savedGoogleKey,
+              anthropicKey: savedAnthropicKey,
+              openaiKey: savedOpenaiKey,
+            },
           })}
           disabled={save.isPending || !!jsonError || !isDirty}
         >
