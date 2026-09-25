@@ -1,0 +1,53 @@
+{
+  "allowed_paths": [
+    "scripts/orchestrator-flow/select-preview-route.mjs",
+    "scripts/orchestrator-flow/select-preview-route.test.mjs",
+    "scripts/orchestrator-flow/preview-graph.mjs",
+    "scripts/orchestrator-flow/preview-graph.test.mjs",
+    "scripts/orchestrator-flow/isolated-rehearsal-evidence.mjs",
+    "scripts/orchestrator-flow/isolated-rehearsal-evidence.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~orchestrator-flow~isolated-rehearsal-evidence.mjs.json",
+    ".agent/work/3392/2/contract.json",
+    ".agent/work/3392/2/completion.json"
+  ],
+  "assumptions": [
+    "Existing production risk and self-service classifiers remain authoritative",
+    "Trusted runtime integration is separately owned"
+  ],
+  "base_sha": "8cf89c5ea6684d68b5cb433b12dd0542fe71cf0b",
+  "branch": "codex/isolated-route-preparation-0920",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex workflow-refactor owner",
+  "file_writes": [
+    "scripts/orchestrator-flow/select-preview-route.mjs",
+    "scripts/orchestrator-flow/select-preview-route.test.mjs",
+    "scripts/orchestrator-flow/preview-graph.mjs",
+    "scripts/orchestrator-flow/preview-graph.test.mjs",
+    "scripts/orchestrator-flow/isolated-rehearsal-evidence.mjs",
+    "scripts/orchestrator-flow/isolated-rehearsal-evidence.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~orchestrator-flow~isolated-rehearsal-evidence.mjs.json",
+    ".agent/work/3392/2/contract.json",
+    ".agent/work/3392/2/completion.json"
+  ],
+  "generation": 2,
+  "goal": "Bind isolated routing to independently verified baseline, closure and probe evidence while preserving shared ledger dependencies Also add the reviewed truth-audit disposition catalogue for the new isolated-rehearsal evidence module, which the repository truth audit and Tools offline tests require for every source file it discovers.",
+  "prohibited_actions": [
+    "No database writes or migration changes",
+    "No workflow activation or production dispatch",
+    "No other session files"
+  ],
+  "required_checks": [
+    "node --test scripts/orchestrator-flow/preview-graph.test.mjs scripts/orchestrator-flow/select-preview-route.test.mjs scripts/orchestrator-flow/isolated-rehearsal-evidence.test.mjs"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 1,
+  "stop_conditions": [
+    "Scope exceeds owned paths",
+    "Independent authenticity cannot be proven"
+  ],
+  "work_issue": 3392,
+  "work_type": "repo-maintenance",
+  "worker": "codex",
+  "worktree": "D:\\worktrees\\shared-db-isolated-route-preparation"
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source": "scripts/orchestrator-flow/isolated-rehearsal-evidence.mjs",
+  "sites": [
+    {
+      "site": "scripts/orchestrator-flow/isolated-rehearsal-evidence.mjs:22",
+      "semantic_key": "scripts/orchestrator-flow/isolated-rehearsal-evidence.mjs:241a413843accafbbc8605d3cd47ee9be58b88b1e6a7f345a60d848586e1ee3d:context-0d0438954d5470fc10f5f1d35f40663b3d90e226b22e2b576c2ad41cb104ce31",
+      "legacy_semantic_key": "scripts/orchestrator-flow/isolated-rehearsal-evidence.mjs:241a413843accafbbc8605d3cd47ee9be58b88b1e6a7f345a60d848586e1ee3d:1",
+      "line_sha256": "241a413843accafbbc8605d3cd47ee9be58b88b1e6a7f345a60d848586e1ee3d",
+      "disposition": "excluded",
+      "reason": "Local input-validation diagnostic: it refuses an in-process isolated-rehearsal manifest whose identity lacks one of five required hex digests. It makes no claim about any database, migration or catalog object being absent."
+    },
+    {
+      "site": "scripts/orchestrator-flow/isolated-rehearsal-evidence.mjs:26",
+      "semantic_key": "scripts/orchestrator-flow/isolated-rehearsal-evidence.mjs:22b6b1196272d50403eed880b3073b27b8c99e8c7e136a1e56dec1a672eb2cbd:context-d1cc72c1114f879ef73fb4b5e9ff7d4a817eeffcb827c06db31ef815dd2c71d2",
+      "legacy_semantic_key": "scripts/orchestrator-flow/isolated-rehearsal-evidence.mjs:22b6b1196272d50403eed880b3073b27b8c99e8c7e136a1e56dec1a672eb2cbd:1",
+      "line_sha256": "22b6b1196272d50403eed880b3073b27b8c99e8c7e136a1e56dec1a672eb2cbd",
+      "disposition": "excluded",
+      "reason": "Local input-validation diagnostic: it refuses an isolated-rehearsal manifest with an empty or duplicate contract-test list. It makes no claim about any database, migration or catalog object being absent."
+    }
+  ]
+}

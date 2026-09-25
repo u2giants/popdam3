@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { buildPreviewGraph, assertAcyclic } from './preview-graph.mjs'
 import { canonicalJson, sha256 } from './evidence-bundle.mjs'
 import { currentRepository } from '../lib/repository-identity.mjs'
+import { isolatedRehearsalForTarget } from './isolated-rehearsal-evidence.mjs'
 
 export const PREVIEW_CLASSIFIER_VERSION = 1
 export const NO_DATABASE_PREVIEW = 'NO_DATABASE_PREVIEW'
@@ -87,7 +88,7 @@ export function validatePreviewClassification(value,inspectedFiles,target){
   return {schema_version:1,repository:value.repository,issue:value.issue,pr:value.pr,base_sha:value.base_sha,head_sha:value.head_sha,decision:expectedDecision,reason_code:expectedReason,inspected_digest:inspectedDigest,files,applicable_checks:checks,invalidated_by:[...INVALIDATION_CONDITIONS]}
 }
 
-export function selectPreviewRoute(input){
+export function selectPreviewRoute(input,{isolatedEvidence}={}){
   try{
     if(!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(input.repository??''))||!/^[0-9a-f]{40}$/i.test(String(input.head_sha??''))||!/^[0-9a-f]{40}$/i.test(String(input.base_sha??''))||!Number.isInteger(input.pr)||!Number.isInteger(input.issue))throw new Error('exact repository, issue, PR, base and head are required')
     if(!/^[0-9a-f]{64}$/.test(String(input.bundle_id??'')))throw new Error('bundle identity is unavailable')
@@ -100,11 +101,14 @@ export function selectPreviewRoute(input){
     if(input.dependency_closure_complete!==true)throw new Error('migration dependency closure is not proven')
     const claims=[...(input.claims??[])]
     if(!claims.some((claim)=>claim.pr===input.pr))claims.push({issue:input.issue,pr:input.pr,versions:input.versions,merged:Boolean(input.merged)})
-    const graph=assertAcyclic(buildPreviewGraph({mainVersions:input.main_versions,previewVersions:input.preview_versions,claims}))
+    const isolated=isolatedEvidence===undefined?null:isolatedRehearsalForTarget(isolatedEvidence,input)
+    const graph=assertAcyclic(buildPreviewGraph({mainVersions:input.main_versions,previewVersions:input.preview_versions,claims,isolatedEvidence,target:input}))
     const requested=new Set(input.versions.map(String)),main=new Set(input.main_versions.map(String)),preview=new Set(input.preview_versions.map(String))
+    if(isolated&&[...requested].some(version=>preview.has(version)))throw new Error('existing shared-preview application must use its original evidence recovery route')
     const blockers=graph.edges.filter((edge)=>requested.has(edge.to)&&!requested.has(edge.from)).map((edge)=>edge.from)
     let route,reason
-    if(blockers.length){route='WAITING';reason=`preview contains unmerged predecessor(s): ${[...new Set(blockers)].join(', ')}`}
+    if(isolated){route='ISOLATED_REHEARSAL';reason='authenticated app-owned additive closure avoids shared-preview ledger dependencies'}
+    else if(blockers.length){route='WAITING';reason=`preview contains unmerged predecessor(s): ${[...new Set(blockers)].join(', ')}`}
     else if([...requested].every((version)=>preview.has(version))){
       if(!['preview-apply','preview-ledger-reconciliation'].includes(input.original_apply_evidence?.type)||!/^[0-9]+$/.test(String(input.original_apply_evidence.run_id??'')))throw new Error('already-applied versions require typed immutable preview evidence')
       route=input.merged?'PREVIEW_REBIND':'HISTORICAL_RECOVERY';reason='requested bytes already exist on preview; never reapply'
@@ -113,6 +117,7 @@ export function selectPreviewRoute(input){
       route='POST_MERGE_REHEARSAL';reason='merged versions are absent from preview'
     }else{route='NORMAL_PREVIEW';reason='open exact-head versions are absent from preview'}
     const context={repository:input.repository,issue:input.issue,pr:input.pr,base_sha:input.base_sha,head_sha:input.head_sha,bundle_id:input.bundle_id,versions:[...requested].sort(),graph_digest:graph.digest,route,blockers:[...new Set(blockers)].sort(),classification_digest:classification.inspected_digest,reason_code:classification.reason_code}
+    if(isolated)context.isolated_manifest_sha256=isolated.manifest_sha256
     return {status:route==='WAITING'?'WAITING':'READY',route,reason,context,decision_id:sha256(canonicalJson(context)),graph}
   }catch(error){return {status:'UNVERIFIABLE',route:'UNVERIFIABLE',reason:error.message}}
 }

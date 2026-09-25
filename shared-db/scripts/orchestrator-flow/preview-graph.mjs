@@ -1,8 +1,10 @@
 import { sha256, canonicalJson } from './evidence-bundle.mjs'
+import { isolatedRehearsalForTarget } from './isolated-rehearsal-evidence.mjs'
 
 export class PreviewGraphError extends Error {}
 
-export function buildPreviewGraph({mainVersions,previewVersions,claims=[]}){
+export function buildPreviewGraph({mainVersions,previewVersions,claims=[],isolatedEvidence,target}){
+  const isolated = isolatedEvidence === undefined ? new Set() : new Set(isolatedRehearsalForTarget(isolatedEvidence,target).identity.selected_versions)
   for(const [name,values] of Object.entries({mainVersions,previewVersions}))if(!Array.isArray(values)||values.some((value)=>!/^\d{14}$/.test(String(value))))throw new PreviewGraphError(`${name} must contain 14-digit versions`)
   const main=new Set(mainVersions.map(String)),preview=new Set(previewVersions.map(String)),nodes=new Map()
   for(const version of [...new Set([...main,...preview])].sort())nodes.set(version,{version,onMain:main.has(version),onPreview:preview.has(version),claim:null})
@@ -12,7 +14,7 @@ export function buildPreviewGraph({mainVersions,previewVersions,claims=[]}){
   }
   const edges=[]
   const previewOnly=[...preview].filter((version)=>!main.has(version)).sort()
-  for(const blocker of previewOnly)for(const target of [...nodes.keys()].filter((version)=>version>blocker&&!preview.has(version)))edges.push({from:blocker,to:target,reason:'preview-ledger-predecessor-not-on-main'})
+  for(const blocker of previewOnly)for(const target of [...nodes.keys()].filter((version)=>version>blocker&&!preview.has(version)&&!isolated.has(version)))edges.push({from:blocker,to:target,reason:'preview-ledger-predecessor-not-on-main'})
   return {schema_version:1,nodes:[...nodes.values()].sort((a,b)=>a.version.localeCompare(b.version)),edges,digest:sha256(canonicalJson({nodes:[...nodes.values()],edges}))}
 }
 

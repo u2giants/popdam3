@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "work_issue": 3392,
+  "outcome": "ready-for-merge",
+  "pr": 3394,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3392/2",
+  "contract_sha256": "9e8f9fad9c238d6e90c9a496effb05f7c8658dba6c248996be92aaaf14fdc1da",
+  "head_sha": "fa1881593a73672c2ac956d082176a4335bb40fc",
+  "base_sha": "85566ccb392b27022fe9bbb100d308fc587b13cc",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~orchestrator-flow~isolated-rehearsal-evidence.mjs.json",
+    "scripts/orchestrator-flow/isolated-rehearsal-evidence.mjs",
+    "scripts/orchestrator-flow/isolated-rehearsal-evidence.test.mjs",
+    "scripts/orchestrator-flow/preview-graph.mjs",
+    "scripts/orchestrator-flow/select-preview-route.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "evidence": "21 tests passed; zero failed, skipped, cancelled or todo at fa188159, including the new per-field identity validator coverage from governed-review F5.",
+      "command": "node --test scripts/orchestrator-flow/preview-graph.test.mjs scripts/orchestrator-flow/select-preview-route.test.mjs scripts/orchestrator-flow/isolated-rehearsal-evidence.test.mjs",
+      "exit_code": 0
+    },
+    {
+      "evidence": "truth audit OK: call_sites=319 sources=73 at fa188159.",
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0
+    }
+  ],
+  "assumptions_resolved": [
+    "Default shared route remains unchanged; only in-process authenticated capability enables isolated decision",
+    "Preparation only: runtime producer integration, independent review and actual live delivery remain pending"
+  ],
+  "stop_conditions_hit": []
+}
