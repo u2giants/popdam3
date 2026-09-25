@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_issue": 3364,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Verify explicit dependency acceptance stages without requiring administrative closure; preserve numeric legacy completion",
+  "base_sha": "e937f5f9630d228052f9107898fd77bed21da233",
+  "dispatcher": "Codex workflow-refactor root",
+  "worker": "Codex completion_stages",
+  "branch": "codex/workflow-completion-stages-0920",
+  "worktree": "D:/repos/.worktrees/shared-db-completion-stages-0920",
+  "allowed_paths": [
+    "scripts/lib/work-dependencies.mjs",
+    "scripts/lib/work-dependencies.test.mjs",
+    "scripts/lib/work-stage-evidence.mjs",
+    "scripts/lib/work-stage-evidence.test.mjs",
+    "scripts/orchestrator-flow/outcome-lifecycle.mjs",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/throughput-dispositions/scripts~lib~work-stage-evidence.mjs.json",
+    ".agent/work/3364/7/contract.json",
+    ".agent/work/3364/7/completion.json"
+  ],
+  "file_writes": [
+    "scripts/lib/work-dependencies.mjs",
+    "scripts/lib/work-dependencies.test.mjs",
+    "scripts/lib/work-stage-evidence.mjs",
+    "scripts/lib/work-stage-evidence.test.mjs",
+    "scripts/orchestrator-flow/outcome-lifecycle.mjs",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/throughput-dispositions/scripts~lib~work-stage-evidence.mjs.json",
+    ".agent/work/3364/7/contract.json",
+    ".agent/work/3364/7/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not change required_status_checks.strict; it is false by owner ruling in issue #1286",
+    "do not touch any migration or database object",
+    "do not edit another session's handoff, worktree, branch, or claim"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/work-dependencies.test.mjs scripts/lib/work-stage-evidence.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Manager integration is separate ordered work after PR3354",
+    "Legacy numeric dependencies retain their previous completion semantics"
+  ],
+  "stop_conditions": [
+    "Stop if a database mutation is needed",
+    "Stop if files outside allowed_paths are needed"
+  ],
+  "generation": 7
+}

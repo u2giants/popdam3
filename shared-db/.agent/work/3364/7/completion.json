@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "work_issue": 3364,
+  "outcome": "ready-for-merge",
+  "pr": 3366,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3364/7",
+  "contract_sha256": "a671992dc92c1d8e488bbbc191db518401e8c341de12617c2e1d682459ea92c8",
+  "head_sha": "3e16ba26c00555dca95abdcf82dc40bf50c505b9",
+  "base_sha": "e937f5f9630d228052f9107898fd77bed21da233",
+  "files_changed": [
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/throughput-dispositions/scripts~lib~work-stage-evidence.mjs.json",
+    "scripts/lib/work-dependencies.mjs",
+    "scripts/lib/work-stage-evidence.mjs",
+    "scripts/lib/work-stage-evidence.test.mjs",
+    "scripts/orchestrator-flow/outcome-lifecycle.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "exit_code": 0,
+      "evidence": "47 tests pass, 0 fail, 0 skipped at 3e16ba26 after signature-shape coverage.",
+      "command": "node --test scripts/lib/work-dependencies.test.mjs scripts/lib/work-stage-evidence.test.mjs"
+    },
+    {
+      "exit_code": 0,
+      "evidence": "Exit 0 with no output at 3e16ba26.",
+      "command": "git diff --check"
+    },
+    {
+      "exit_code": 0,
+      "evidence": "790 tests pass, 0 fail, 0 skipped at 3e16ba26.",
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/orchestrator-flow/admission-outcome.test.mjs"
+    }
+  ],
+  "assumptions_resolved": [
+    "Legacy numeric declarations retain full-completion behavior under existing regressions",
+    "No live manager activation: current-world stage verifier must be wired in subsequent integration",
+    "Invalidator inventory and disposition catalogue updated so the new helper is covered"
+  ],
+  "stop_conditions_hit": []
+}

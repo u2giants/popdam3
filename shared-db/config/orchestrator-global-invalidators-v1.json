@@ -30,6 +30,7 @@
     "scripts/lib/reviewer-capabilities.mjs",
     "scripts/lib/reviewer-caller-env.mjs",
     "scripts/lib/work-dependencies.mjs",
+    "scripts/lib/work-stage-evidence.mjs",
     "scripts/manage-migration-author-lanes.mjs",
     "scripts/orchestrator-flow/classify-invalidation.mjs",
     "scripts/orchestrator-flow/evidence-bundle.mjs",

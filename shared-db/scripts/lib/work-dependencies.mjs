@@ -25,6 +25,8 @@
 
 import { TRUSTED_OPERATOR_LOGIN, expectedOperatorAssociation, isTrustedOperatorComment } from './repository-identity.mjs'
 
+import { REQUIRED_STAGES, verifyAcceptedStage } from './work-stage-evidence.mjs'
+
 export class DependencyError extends Error {}
 
 // GRANDFATHER CUTOFF. Completion records did not exist before this rule shipped,
@@ -179,7 +181,7 @@ export function findCompletionRecord(comments,{requireTrustedAuthor=false}={}) {
 export function findDependencyCycles(edges) {
   const graph = new Map()
   for (const [from, targets] of Object.entries(edges ?? {})) {
-    graph.set(Number(from), [...new Set((targets ?? []).map(Number))])
+    graph.set(Number(from), [...new Set((targets ?? []).map(dependencyIssue))])
   }
   const cycles = []
   const seen = new Set()
@@ -216,10 +218,31 @@ export function findDependencyCycles(edges) {
  * checked elsewhere (it needs GitHub), but self-dependency and duplicates are
  * decidable from the scope block alone.
  */
+export function parseDependencyDeclarations(value) {
+  const items = typeof value === 'string' ? value.split(',').map(v => v.trim()).filter(Boolean) : (value ?? [])
+  if (!Array.isArray(items)) throw new DependencyError('dependencies must be an array or comma-separated declarations')
+  return items.map(item => {
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      if (Object.keys(item).some(key => !['issue', 'required_stage'].includes(key))) throw new DependencyError('dependency declaration has unknown fields')
+      if (!Number.isSafeInteger(item.issue) || item.issue <= 0 || !REQUIRED_STAGES.includes(item.required_stage)) throw new DependencyError('dependency must name a positive issue and known required_stage')
+      return { issue: item.issue, required_stage: item.required_stage }
+    }
+    const match = /^#?([1-9][0-9]*)(?:@([a-z-]+))?$/.exec(String(item))
+    if (!match || !Number.isSafeInteger(Number(match[1]))) throw new DependencyError('dependency must name a positive issue number, optionally @required-stage')
+    if (match[2] && !REQUIRED_STAGES.includes(match[2])) throw new DependencyError(`unknown required dependency stage: ${match[2]}`)
+    return match[2] ? { issue: Number(match[1]), required_stage: match[2] } : Number(match[1])
+  })
+}
+
+export function dependencyIssue(dependency) {
+  return typeof dependency === 'object' && dependency !== null ? dependency.issue : Number(dependency)
+}
+
 export function validateDependencyDeclaration(issueNumber, dependencies) {
-  const list = (dependencies ?? []).map(Number)
-  if (list.includes(Number(issueNumber))) throw new DependencyError(`issue #${issueNumber} depends on itself`)
-  const duplicates = list.filter((value, index) => list.indexOf(value) !== index)
+  const list = parseDependencyDeclarations(dependencies)
+  const numbers = list.map(dependencyIssue)
+  if (numbers.includes(Number(issueNumber))) throw new DependencyError(`issue #${issueNumber} depends on itself`)
+  const duplicates = numbers.filter((value, index) => numbers.indexOf(value) !== index)
   if (duplicates.length) throw new DependencyError(`issue #${issueNumber} lists duplicate dependencies: ${[...new Set(duplicates)].join(', ')}`)
   return list
 }
@@ -236,12 +259,35 @@ export function validateDependencyDeclaration(issueNumber, dependencies) {
  * find out", and telling them apart is the difference between fixing a typo and
  * investigating an outage.
  */
-export function classifyDependency(number, state) {
+export function classifyDependency(declaration, state) {
+  let dependency
+  try { [dependency] = parseDependencyDeclarations([declaration]) } catch (error) {
+    return { satisfied: false, status: 'invalid-dependency', reason: error.message }
+  }
+  const number = dependencyIssue(dependency)
+  const requiredStage = typeof dependency === 'object' ? dependency.required_stage : 'complete'
+
   if (!state || state.exists === false) {
     return { satisfied: false, status: 'invalid-dependency', reason: `dependency #${number} does not exist` }
   }
   if (state.unreadable) {
     return { satisfied: false, status: 'unknown', reason: `dependency #${number} could not be read: ${state.unreadable}. This is NOT "no dependency" — nothing was checked.` }
+  }
+  if (requiredStage !== 'complete') {
+    try {
+      // An intermediate event never contradicts an immutable final record.
+      const final = findCompletionRecord(state.comments, { requireTrustedAuthor: true })
+      if (final && (final.work_issue !== number || !isSuccessful(final))) {
+        throw new DependencyError('stage evidence conflicts with the final completion record')
+      }
+      const result = verifyAcceptedStage({ issue: number, stage: requiredStage, repository: state.repository, comments: state.comments, verify: state.verifyStageEvidence })
+      if (final && result.satisfied && result.events.some(event => (final.pr !== undefined && final.pr !== event.pr) || (final.merge_sha !== undefined && final.merge_sha !== event.merge_sha))) {
+        throw new DependencyError('stage evidence PR or merge conflicts with the final completion record')
+      }
+      return result
+    } catch (error) {
+      return { satisfied: false, status: 'unknown', reason: `dependency #${number} has unverifiable stage evidence: ${error.message}` }
+    }
   }
   if (state.open) {
     return { satisfied: false, status: 'waiting', reason: `dependency #${number} is still open` }
@@ -287,7 +333,7 @@ export function classifyDependency(number, state) {
 /** Classify every dependency of one issue. Blocked reasons are returned in order. */
 export function classifyDependencies(issueNumber, dependencies, statesByNumber) {
   const list = validateDependencyDeclaration(issueNumber, dependencies)
-  const results = list.map((number) => ({ number, ...classifyDependency(number, statesByNumber?.[number]) }))
+  const results = list.map((dependency) => ({ number: dependencyIssue(dependency), ...classifyDependency(dependency, statesByNumber?.[dependencyIssue(dependency)]) }))
   return {
     satisfied: results.every((result) => result.satisfied),
     results,

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/work-stage-evidence.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/work-stage-evidence.mjs:55",
+      "semantic_key": "scripts/lib/work-stage-evidence.mjs:eebdcf09ff9638de971c990866ddc3df7fcc2c41305230d2ebedcb662301d83e:context-77dad6cbb8a0d2e030e8f214987bc27d39dad874bb88950104c047fc1f5c8a95",
+      "line_sha256": "eebdcf09ff9638de971c990866ddc3df7fcc2c41305230d2ebedcb662301d83e",
+      "disposition": "excluded",
+      "reason": "Prose comment stating missing verifier/checks never authorize readiness; not an applied-state claim."
+    }
+  ]
+}
