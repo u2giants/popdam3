@@ -348,8 +348,7 @@ test("a just-submitted Gemini batch that briefly 404s gets the visibility grace"
   });
 });
 
-test("Gemini results without echoed keys correlate by request order only when all are missing", async () => {
-  const { correlateOrderedResults } = await import("./handlers/ai-tagging-batch-state.js");
+test("Gemini results without echoed keys fail closed instead of being matched by position", async () => {
   globalThis.fetch = async () => new Response(JSON.stringify({
     name: "batches/saved-123",
     state: "BATCH_STATE_SUCCEEDED",
@@ -359,11 +358,22 @@ test("Gemini results without echoed keys correlate by request order only when al
     ] } },
   }), { status: 200 });
   const record = await getGeminiBatch("key", "batches/saved-123");
-  const indexed = indexBatchResults(["a", "b"], correlateOrderedResults(["a", "b"], record.results ?? []));
-  assert.equal(parseGeminiBatchResult(indexed.get("b")!).content, "{\"n\":2}");
-  assert.throws(() => indexBatchResults(["a", "b", "c"], correlateOrderedResults(["a", "b", "c"], record.results ?? [])), /unknown result ID/);
-  const partial = [{ custom_id: "a" }, {}];
-  assert.throws(() => indexBatchResults(["a", "b"], correlateOrderedResults(["a", "b"], partial)), /unknown result ID/);
+  assert.throws(() => indexBatchResults(["a", "b"], record.results ?? []), /unknown result ID/);
+});
+
+test("Gemini inline results are read from the long-running operation's metadata.output", async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    name: "batches/saved-456",
+    metadata: { state: "BATCH_STATE_SUCCEEDED", output: { inlinedResponses: { inlinedResponses: [
+      { metadata: { key: "b" }, response: { candidates: [{ content: { parts: [{ text: "{\"n\":2}" }] } }] } },
+      { metadata: { key: "a" }, response: { candidates: [{ content: { parts: [{ text: "{\"n\":1}" }] } }] } },
+    ] } } },
+    done: true,
+  }), { status: 200 });
+  const record = await getGeminiBatch("key", "batches/saved-456");
+  assert.equal(record.status, "completed");
+  const indexed = indexBatchResults(["a", "b"], record.results ?? []);
+  assert.equal(parseGeminiBatchResult(indexed.get("a")!).content, "{\"n\":1}", "matched by key even when out of order");
 });
 
 test("one unusable thumbnail drops only its item; the rest of the page is submitted", async () => {

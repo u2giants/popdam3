@@ -65,7 +65,7 @@ import {
   type StyleGroupRepresentativeCandidate,
 } from "../style-group-representatives.js";
 import { fetchImageData, getAiTaggingApiKey, parseJsonObject, type ImageData } from "./ai-tagging-shared.js";
-import { correlateOrderedResults, indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
+import { indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 import { getVisionModels } from "./ai-tagging.js";
 
 const AI_TIMEOUT_MS = 90_000;
@@ -857,12 +857,28 @@ async function handleDurableGroupProfiles(
     };
   }
   if (record.status !== "completed") {
+    // A failed/cancelled/expired provider batch will never produce results.
+    // Record every unapplied group as a per-item failure and finish the job, so
+    // the receipt-proven clear advances past it. (Failing the operation instead
+    // would strand it: the database never lets a live pointer be dropped.)
+    const reason = `Provider batch ${record.status}`;
+    const at = new Date().toISOString();
+    const pendingItems = groupItems(job).filter((item) => item.status !== "applied" && item.status !== "failed_terminal");
     return {
-      ok: false,
-      done: false,
-      error: `Provider batch ${action.batchId} ${record.status}`,
-      error_code: "provider_terminal",
-      external_job: { ...job, provider_status: record.status, lease_token: job.lease_token, last_checked_at: new Date().toISOString() },
+      ok: true, done: false, profiled: 0, skipped: 0, failed: pendingItems.length,
+      failure_samples: pendingItems.map((item) => ({ at, style_group_id: item.style_group_id, sku: item.sku ?? "", error: reason, reason_category: "provider_batch_terminal" })),
+      nextOffset: job.next_cursor ?? job.page_cursor ?? opState.cursor ?? 0,
+      external_job: {
+        ...job,
+        phase: "completed",
+        provider_status: record.status,
+        lease_token: job.lease_token,
+        group_items: groupItems(job).map((item) => item.status === "applied" || item.status === "failed_terminal" ? item : { ...item, status: "failed_terminal" as const, error: reason }),
+        transient_poll_failures: undefined,
+        next_poll_at: undefined,
+        last_checked_at: at,
+      },
+      last_stage: "model_inference",
     };
   }
   if (action.type !== "apply") {
@@ -877,10 +893,10 @@ async function handleDurableGroupProfiles(
 
   const expectedResultIds = groupItems(job).map((item) => item.custom_id);
   const providerResults = (record.results ?? []) as ProviderBatchResultItem[];
-  const results = indexBatchResults(
-    expectedResultIds,
-    batchProvider === "google-gemini" ? correlateOrderedResults(expectedResultIds, providerResults) : providerResults,
-  );
+  // Results are matched only by their echoed custom_id, never by array
+  // position (Gemini inline responses can arrive out of order); a result
+  // without its ID fails closed.
+  const results = indexBatchResults(expectedResultIds, providerResults);
   // Per-item checkpoints: each group's outcome is saved on the job, so a crash
   // or a paused repair resumes after the last saved group instead of
   // re-applying (and re-repairing) the whole batch.

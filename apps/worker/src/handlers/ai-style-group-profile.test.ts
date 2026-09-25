@@ -685,7 +685,7 @@ test("temporary provider poll failures keep the same saved batch ID pending with
   }
 });
 
-test("failed, cancelled and expired provider batches report a terminal error", async () => {
+test("failed, cancelled and expired provider batches record per-item failures and finish the job so the page can advance", async () => {
   const originalFetch = globalThis.fetch;
   try {
     for (const status of ["failed", "cancelled", "expired"]) {
@@ -697,8 +697,14 @@ test("failed, cancelled and expired provider batches report a terminal error", a
         apiKey: "test-key",
         models: { primary: "test/vision-model:batch", fallback: null, providerPin: null },
       }));
-      assert.equal(result.ok, false, status);
-      assert.equal(result.error_code, "provider_terminal", status);
+      assert.equal(result.ok, true, status);
+      assert.equal(result.failed, 1, status);
+      const job = result.external_job as { phase: string; lease_token: string; group_items: Array<{ status: string }> };
+      assert.equal(job.phase, "completed", "a receipt-proven completed job is the one the database lets the loop clear");
+      assert.ok(job.lease_token, "the phase change is receipt-proven");
+      assert.deepEqual(job.group_items.map((item) => item.status), ["failed_terminal"]);
+      assert.equal((result.failure_samples as Array<{ error: string }>)[0].error, `Provider batch ${status}`);
+      assert.equal(result.nextOffset, GROUP_ID, "the cursor moves past the dead batch's page");
     }
   } finally {
     globalThis.fetch = originalFetch;

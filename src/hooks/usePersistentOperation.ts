@@ -52,10 +52,13 @@ const POPSG_CONSENSUS_CURSOR_RE = /^consensus:[A-Za-z0-9_-]+$/;
 
 export function isResumableOperationCursor(operationKey: string, cursor: unknown): boolean {
   const isAiTagOperation = operationKey === "ai-tag-untagged" || operationKey === "ai-tag-all" || operationKey === "ai-tag-groups";
-  if (isAiTagOperation) return typeof cursor === "string" && AI_CURSOR_RE.test(cursor);
+  // Cursor 0 is the start of a run (e.g. stopped during its first provider
+  // batch, whose saved job must be resumed, not dropped); any other number is a
+  // legacy offset.
+  if (isAiTagOperation) return cursor === 0 || (typeof cursor === "string" && AI_CURSOR_RE.test(cursor));
   // Style Group profiling keysets by style_groups.id — a bare UUID cursor.
   if (operationKey === "ai-tag-group-profiles") {
-    return typeof cursor === "string" && UUID_CURSOR_RE.test(cursor);
+    return cursor === 0 || (typeof cursor === "string" && UUID_CURSOR_RE.test(cursor));
   }
   if (operationKey === "tag-popsg-files") {
     return typeof cursor === "string"
