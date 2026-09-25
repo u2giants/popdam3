@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3125,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Assert that an empty --claim --objects set refuses alongside wrong/missing/duplicate cases in the #3125 order-insensitivity test matrix (test-only; the order-insensitivity repair itself already landed on main via a990ce74e).",
+  "base_sha": "85566ccb392b27022fe9bbb100d308fc587b13cc",
+  "dispatcher": "MiMo repo-maintenance session for issue #3125",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "mimo/3125-claim-order",
+  "worktree": "C:/repos/shared-db-wt-3125",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3125/1/contract.json",
+    ".agent/work/3125/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3125/1/contract.json",
+    ".agent/work/3125/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database, migration, schema, data, production or infrastructure mutation",
+    "Do not change any script behavior; this is a test-only change",
+    "Do not weaken collision detection or admission gates"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "assumptions": [
+    "The order-insensitivity repair (sorted comparison) already landed on main via commit a990ce74e",
+    "validateClaimObjects already throws 'at least one exact object is required' for an empty set"
+  ],
+  "stop_conditions": [
+    "Stop if any test that previously passed starts failing",
+    "Stop if the change requires touching scripts/manage-migration-author-lanes.mjs"
+  ]
+}

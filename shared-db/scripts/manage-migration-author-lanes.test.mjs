@@ -9511,12 +9511,13 @@ test('#3125 --claim --objects admits the admitted writes in any order and still 
   assert.ok(sorted.claim,'sorted order must be admitted')
   const reversed=acquireAuthorLane({...opts,task:'#41',objects:['table core.zeta','table core.alpha'],admitIssue:41,claim:true},NOW,await twoWriteAdmittedIo())
   assert.ok(reversed.claim,'the SAME writes in another order must be admitted, not refused')
-  // Set semantics only: a different object, a missing one and a duplicate all still refuse.
-  for(const objects of [['table core.zeta','table core.other'],['table core.zeta'],['table core.zeta','table core.zeta','table core.alpha']]){
+  // Set semantics only: a different object, a missing one, a duplicate and an
+  // EMPTY claim all still refuse -- order is irrelevant, membership is not.
+  for(const objects of [[],['table core.zeta','table core.other'],['table core.zeta'],['table core.zeta','table core.zeta','table core.alpha']]){
     const refusalIo=await twoWriteAdmittedIo()
     assert.throws(
       ()=>acquireAuthorLane({...opts,task:'#41',objects,admitIssue:41,claim:true},NOW,refusalIo),
-      /must exactly match admitted issue #41 writes|duplicate|exactly one/,
+      /must exactly match admitted issue #41 writes|duplicate|exactly one|at least one exact object/,
       `objects ${JSON.stringify(objects)} must still refuse`)
   }
 })

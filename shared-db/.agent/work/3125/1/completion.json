@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "work_issue": 3125,
+  "outcome": "ready-for-merge",
+  "pr": 3511,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3125/1",
+  "contract_sha256": "18e5e61569efd20045fa6e5bbf4d920d983241c21e5ef25fc6d2724b5c567d6c",
+  "head_sha": "a4e0ce7f78be568215cbf6ad7284437ef82e5d10",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "714 of 714 tests passed, 0 failed, 0 skipped at a4e0ce7f after refreshing onto origin/main."
+    }
+  ],
+  "assumptions_resolved": [
+    "validateClaimObjects already throws 'at least one exact object is required' for an empty set; the test now guards it"
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "49b4389d7ef009e5e86b5c0728ab22c5cfac0e20"
+}
