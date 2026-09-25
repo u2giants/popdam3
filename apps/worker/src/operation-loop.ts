@@ -1277,7 +1277,8 @@ export async function tick(): Promise<void> {
 
     const resultJob = result.external_job as OpState["external_job"] | undefined;
     if (!result.ok && currentState.external_job) {
-      const protectedErrorState = providerJobErrorState(currentState, result, resultJob, cursor, progress);
+      // Items applied before the stop are checkpointed on the job; count them.
+      const protectedErrorState = providerJobErrorState(currentState, result, resultJob, cursor, mergeProgress(opKey, progress, result));
       const saved = await guardedPersistOpState(opKey, protectedErrorState, {
         expectedRevision: currentState.state_revision ?? 0,
       });
