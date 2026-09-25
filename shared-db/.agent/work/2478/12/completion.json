@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "work_issue": 2478,
+  "outcome": "ready-for-merge",
+  "pr": 3385,
+  "migration_versions": [
+    "20260925061508"
+  ],
+  "contract_ref": "refs/db-contracts/2478/12",
+  "contract_sha256": "b68ef2ec30e85ca584d10a47cad7e8885b5bc7900e94533dae050511deeb44d8",
+  "head_sha": "5bc009eb59ee79cf1063f678636d3fbad2d75c50",
+  "base_sha": "530ffb393c7e129c7b9dbe41e0674835e66d9594",
+  "files_changed": [
+    ".github/live-proofs/2478.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20260925061508_shared_style_group_sku_key.sql"
+  ],
+  "db_reads": [
+    "supabase_migrations.schema_migrations"
+  ],
+  "db_writes": [
+    "function public.style_group_key_for_sku",
+    "function public.rebuild_style_groups_batch",
+    "function public.reconcile_style_group_drift"
+  ],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Exit 0 with no whitespace errors at implementation head 5bc009eb59ee79cf1063f678636d3fbad2d75c50 on merge base 530ffb393c7e129c7b9dbe41e0674835e66d9594."
+    },
+    {
+      "command": "python -m unittest scripts.test_production_migration_guard",
+      "exit_code": 0,
+      "evidence": "Ran 286 tests in 22.502s: OK; 0 failures, 0 skipped, at implementation head 5bc009eb59ee79cf1063f678636d3fbad2d75c50. Includes test_issue_2478_reissue_is_byte_identical_to_original pinning 20260925061508 vs 20260917112129 after newline normalization."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed through Git Bash at implementation head 5bc009eb59ee79cf1063f678636d3fbad2d75c50; Guard B compared against origin/main as of PR base 530ffb393; Guard B2 live ledger not configured; no migration run."
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Exit 0 at implementation head 5bc009eb: the checker falls back to legacy .agent/contract.json (work_type repo-maintenance) because the keyed pair is not yet in the changed set at the implementation head, reporting not-applicable. The probe shape was independently verified against the structural contract via probeShapeProblem(.github/live-proofs/2478.sql) returning null (no ambiguous backslash, one WITH/SELECT returning as passed). At merge time the check runs at the PR head where the keyed structural contract is in the diff and will shape-check the probe."
+    },
+    {
+      "command": "python -m unittest scripts.test_post_batch_app_verification",
+      "exit_code": 0,
+      "evidence": "Ran 142 tests in 0.405s: OK; 0 failures, 0 skipped, at implementation head 5bc009eb59ee79cf1063f678636d3fbad2d75c50."
+    }
+  ],
+  "assumptions_resolved": [
+    "Fresh ledger reads 2026-09-20T20:32:08Z: production absent both old versions; preview absent 20260911212849 and present 20260917112129; both derived-from bases applied on both targets",
+    "Supported atomic reissue retained old reservation and created retirement evidence 5ecc1ad8be6c79631a4f0e1f679238d6bc7377a4",
+    "New executable SQL exactly matches old SQL after newline normalization; old SQL hash tests pass",
+    "Implementation complete; actual independent reviews, new preview rehearsal, guarded merge and automatic production live proof still required; no database write performed",
+    "Full evidence-pair regeneration at generation 12 after supersession renamed the migration to 20260925061508: published contract to refs/db-contracts/2478/12 (sha256 b68ef2ec30e85ca584d10a47cad7e8885b5bc7900e94533dae050511deeb44d8); claim #2745 and reserved version 20260925061508 untouched.",
+    "Live-proof version reference corrected from 20260920203337 to 20260925061508 at Gemini review finding; migration SQL unchanged from original per contract stop condition.",
+    "F1 fix: test_issue_2478_reissue_is_byte_identical_to_original pins 20260925061508 vs 20260917112129 after newline normalization excluding version-header line.",
+    "F2 fix: live-proof consumers resolved via to_regprocedure with exact signatures (uuid, integer) and (integer); call assertion uses regex instead of loose substring.",
+    "F3 fix: live-proof asserts postgres EXECUTE privilege on both consumers.",
+    "F4 note: contract.base_sha (fdb4c3a8) records the dispatch base when work started; completion.base_sha records the PR merge base where evidence was measured. Per #2845 the immutable contract records dispatch base and completion records merge base. This distinction is intentional.",
+    "B1 fix (DeepSeek REVISE at f8efe004): live-proof regex changed from 'style_group_key_for_sku\\s*\\(' (backslash in standard string, refused by check-live-proof-probe.mjs lexer) to 'style_group_key_for_sku[[:space:]]*[(]' (POSIX classes, no backslash). probeShapeProblem returns null. Migration executable SQL unchanged per contract stop condition.",
+    "B2 fix (DeepSeek REVISE at f8efe004): probe-check evidence now records the actual mechanism — implementation-head run falls back to legacy contract (not-applicable), probe shape independently verified with structural contract, merge-time check runs at PR head with keyed contract in diff."
+  ],
+  "stop_conditions_hit": []
+}

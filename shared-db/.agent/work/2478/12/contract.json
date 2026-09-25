@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "work_issue": 2478,
+  "generation": 12,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Reissue unchanged SKU derivation under a fresh reserved version; retire both stranded originals without changing old files or ledgers.",
+  "base_sha": "fdb4c3a8ecc75e53253b280f77cb180261b2fc2f",
+  "dispatcher": "Codex root orchestrator marker 3297",
+  "worker": "01a0c083-03da-7fa3-bcc4-7b11bef0de87",
+  "branch": "codex/issue2478-sku-key-recovery-0920",
+  "worktree": "D:\\repos\\shared-db-worktrees\\issue2478-sku-key-recovery-0920",
+  "allowed_paths": [
+    "supabase/migrations/20260925061508_shared_style_group_sku_key.sql",
+    ".github/live-proofs/2478.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    ".agent/work/2478/12/contract.json",
+    ".agent/work/2478/12/completion.json",
+    "scripts/test_post_batch_app_verification.py"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260925061508_shared_style_group_sku_key.sql",
+    ".github/live-proofs/2478.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    ".agent/work/2478/12/contract.json",
+    ".agent/work/2478/12/completion.json",
+    "scripts/test_post_batch_app_verification.py"
+  ],
+  "db_reads": [
+    "supabase_migrations.schema_migrations"
+  ],
+  "db_writes": [
+    "function public.style_group_key_for_sku",
+    "function public.rebuild_style_groups_batch",
+    "function public.reconcile_style_group_drift"
+  ],
+  "prohibited_actions": [
+    "No database writes, merge, or production action by author",
+    "Never edit historical migration SQL, old reservations, or applied ledgers",
+    "Never reuse the missing historical manifest as rehearsal proof"
+  ],
+  "required_checks": [
+    "git diff --check",
+    "python -m unittest scripts.test_production_migration_guard",
+    "bash scripts/check-sql.sh",
+    "node scripts/check-live-proof-probe.mjs",
+    "python -m unittest scripts.test_post_batch_app_verification"
+  ],
+  "assumptions": [
+    "Root explicitly approved exact claim 2745 protected reissue after fresh production-absent and preview-present ledger proof",
+    "Reissue reserved 20260925061508 atomically and retained all old claims"
+  ],
+  "stop_conditions": [
+    "Stop if executable SQL differs from original 20260917112129",
+    "Stop on claim or target identity mismatch",
+    "Stop if either old version can enter an explicit production allowlist"
+  ]
+}
