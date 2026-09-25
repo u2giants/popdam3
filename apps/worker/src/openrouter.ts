@@ -189,7 +189,9 @@ export async function submitPreparedOpenRouterBatch(apiKey: string, prepared: Pr
   } catch {
     throw new AmbiguousBatchSubmissionError("OpenRouter");
   }
-  if (!record.id) throw new AmbiguousBatchSubmissionError("OpenRouter");
+  // A created batch must carry a non-empty string ID; anything else is not a
+  // durable pointer, and the POST may still have created a batch.
+  if (typeof record.id !== "string" || !record.id.trim()) throw new AmbiguousBatchSubmissionError("OpenRouter");
   return record;
 }
 

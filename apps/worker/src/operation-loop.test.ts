@@ -287,3 +287,29 @@ test("completion messages report images that were unusable", () => {
   assert.match(buildResultMessage("ai-tag-untagged", { tagged: 3, failed: 2, image_unusable: 2, visual_analysis_unavailable: 1 }), /3 visual analyses unavailable.*2 failed \(2 with unusable images\)/);
   assert.match(buildResultMessage("ai-tag-group-profiles", { profiled: 1, failed: 1, image_unusable: 1 }), /1 without usable representative images.*\(1 with unusable images\)/);
 });
+
+test("a completed provider job is cleared immediately while the receipt is still held", async () => {
+  const { clearCompletedJobNow, rememberSubmissionReceipt, holdsSubmissionReceipt } = await import("./operation-loop.js");
+  const writes: Array<{ state: OpState; revision: number }> = [];
+  const stored = {
+    status: "running", cursor: "ai1:1:123e4567-e89b-42d3-a456-426614174000", state_revision: 8,
+    external_job: { phase: "completed", provider_batch_id: "batch-1", lease_proof: "digest", operation_done_after_clear: false },
+  } as unknown as OpState;
+  rememberSubmissionReceipt("op-clear", "receipt-1");
+  const persist = (async (_key: string, state: OpState, options: { expectedRevision: number }) => {
+    writes.push({ state, revision: options.expectedRevision });
+    return { ok: true, state_revision: 9, reason: "ok", lease_receipt_issued: false, submission_owner: null, lease_expires_at: null, lease_token: null };
+  }) as never;
+  assert.equal(await clearCompletedJobNow("op-clear", { ok: true, state_revision: 8, operation: stored }, "receipt-1", persist), true);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].revision, 8);
+  const job = writes[0].state.external_job as Record<string, unknown>;
+  assert.equal(job.clear_after_reconciliation, true);
+  assert.equal(job.lease_token, "receipt-1");
+  assert.equal(job.lease_proof, "digest", "the exact stored job is offered back");
+  assert.equal(writes[0].state.status, "running");
+  assert.equal(holdsSubmissionReceipt("op-clear"), false);
+  // Not a completed job: nothing is written.
+  assert.equal(await clearCompletedJobNow("op-clear", { ok: true, state_revision: 8, operation: { ...stored, external_job: { phase: "applying", provider_batch_id: "batch-1" } } }, "r", persist), false);
+  assert.equal(writes.length, 1);
+});

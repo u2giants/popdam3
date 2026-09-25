@@ -138,3 +138,19 @@ test("an OpenRouter status read cut off mid-body stays a transient poll failure"
     globalThis.fetch = original;
   }
 });
+
+test("a created batch whose ID is not a non-empty string stays on the ambiguous path", async () => {
+  const original = globalThis.fetch;
+  try {
+    for (const id of [123, { value: "x" }, "", "   "]) {
+      globalThis.fetch = async () => new Response(JSON.stringify({ id, status: "validating" }), { status: 200 });
+      await assert.rejects(
+        submitOpenRouterBatch("key", [{ customId: "asset", request: { model: "google/gemini:batch", messages: [] } }]),
+        AmbiguousBatchSubmissionError,
+        JSON.stringify(id),
+      );
+    }
+  } finally {
+    globalThis.fetch = original;
+  }
+});
