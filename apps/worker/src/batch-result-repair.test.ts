@@ -130,3 +130,22 @@ test("repair keeps the OpenRouter provider pin and records only fixed failure ca
   });
   assert.deepEqual(requests[0].provider, pin);
 });
+
+test("arguments sent through a wrong-named tool go to the same-model repair instead of being discarded", async () => {
+  let repairPrompt = "";
+  const result = await structuredBatchResult({
+    apiKey: "k", model: "m:batch",
+    result: { content: "", toolCalls: [{ name: "tag_assets", arguments: { tags: ["red"] } }] },
+    toolName: "tag_asset", schema, validate,
+    repair: {
+      model: "m",
+      completion: async (_key: string, request: { messages: Array<{ content: unknown }> }) => {
+        repairPrompt = JSON.stringify(request.messages);
+        return { content: "{\"tags\":[\"red\"]}" };
+      },
+    } as never,
+  });
+  assert.deepEqual(result.value, { tags: ["red"] });
+  assert.equal(result.repaired, true);
+  assert.match(repairPrompt, /red/);
+});

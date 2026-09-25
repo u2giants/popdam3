@@ -94,6 +94,9 @@ export async function structuredBatchResult<T>(options: {
 }): Promise<BatchStructuredResult<T>> {
   const candidate = options.result.toolCalls?.find((call) => call.name === options.toolName)?.arguments
     ?? parseStructuredJson(options.result.content);
+  // A tool call under the wrong name is never accepted as-is, but its arguments
+  // are still the model's answer and go to the same-model repair.
+  const wrongToolArguments = candidate ? undefined : options.result.toolCalls?.find((call) => call.arguments && typeof call.arguments === "object")?.arguments;
   let reason: string;
   let repairPromptReason: string;
   if (candidate) {
@@ -105,11 +108,15 @@ export async function structuredBatchResult<T>(options: {
       repairPromptReason = error instanceof Error ? error.message : String(error);
       reason = "schema validation failed";
     }
+  } else if (wrongToolArguments) {
+    reason = "structured output used the wrong tool name";
+    repairPromptReason = `The answer was returned through the wrong tool; it must match the ${options.toolName} schema`;
   } else {
     reason = "No parsable structured output";
     repairPromptReason = reason;
   }
-  const malformed = options.result.content?.trim() || (candidate ? JSON.stringify(candidate) : "");
+  const malformed = options.result.content?.trim()
+    || (candidate ? JSON.stringify(candidate) : wrongToolArguments ? JSON.stringify(wrongToolArguments) : "");
   if (!malformed) throw new UnrepairableBatchResultError(`${reason}; the model returned no content to repair`);
   const repair = options.repair ?? sameModelRepairCompletion(options.model);
   let repaired: Awaited<ReturnType<typeof runJsonRepair<T>>>;

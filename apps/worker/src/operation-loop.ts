@@ -59,7 +59,10 @@ const preSubmissionRetries = new Map<string, number>();
 // A never-sent submission whose governed not_submitted reset has not landed yet
 // (e.g. a temporary RPC failure). The receipt is kept and the reset retried on
 // the next tick while the lease is live; it is never silently discarded.
-const pendingNotSubmittedResets = new Map<string, string>();
+type PendingReset =
+  | { kind: "not_submitted"; message: string }
+  | { kind: "definitive_rejection"; rejection: DefinitiveBatchRejectionError };
+const pendingNotSubmittedResets = new Map<string, PendingReset>();
 // The provider payload built together with a new prepared job, handed to the
 // very next submission claim in memory so the normal path never rebuilds it.
 const preparedPayloads = new Map<string, { preparedAt: string; payload: unknown }>();
@@ -74,6 +77,9 @@ export function releaseReceiptAfterPost(opKey: string, leaseExpiresAt: string | 
 
 /** Record the one-time receipt this worker was issued (never persisted). */
 export function rememberSubmissionReceipt(opKey: string, leaseToken: string): void {
+  // A same-owner renewal keeps the incumbent receipt: its retry count and any
+  // pending reset carry over, so the retry ceiling cannot be reset by renewing.
+  if (submissionLeaseTokens.get(opKey) === leaseToken) return;
   submissionLeaseTokens.set(opKey, leaseToken);
   // A newly minted receipt starts clean: no earlier reset or retry state applies.
   pendingNotSubmittedResets.delete(opKey);
@@ -186,13 +192,15 @@ export async function failNeverSentSubmission(
   error: unknown,
   rpc: RpcCall = (fn, params) => db().rpc(fn, params),
 ): Promise<void> {
-  const message = pendingNotSubmittedResets.get(opKey)
-    ?? `Provider batch was never sent: ${normalizeBatchError(error, "pre-submission failure").slice(0, 200)}`;
+  const pending = pendingNotSubmittedResets.get(opKey);
+  const message = pending?.kind === "not_submitted"
+    ? pending.message
+    : `Provider batch was never sent: ${normalizeBatchError(error, "pre-submission failure").slice(0, 200)}`;
   try {
     await failNeverSentSubmissionOnce(opKey, state, revision, owner, leaseToken, message, rpc);
   } catch (resetError) {
     if (leaseToken && remainingLeaseMs(state.external_job?.lease_expires_at) > 0) {
-      pendingNotSubmittedResets.set(opKey, message);
+      pendingNotSubmittedResets.set(opKey, { kind: "not_submitted", message });
       logger.error("tick: never-sent reset did not land; keeping the receipt to retry it", {
         opKey, error: normalizeBatchError(resetError, "reset failed").slice(0, 200),
       });
@@ -205,6 +213,53 @@ export async function failNeverSentSubmission(
   pendingNotSubmittedResets.delete(opKey);
   preSubmissionRetries.delete(opKey);
   submissionLeaseTokens.delete(opKey);
+}
+
+/**
+ * Consume the receipt after a parsed definitive provider rejection and fail the
+ * operation. Like the never-sent path, the receipt is released only once a
+ * terminal write lands; a transient reset failure while the lease is live keeps
+ * it and retries next tick.
+ */
+export async function failDefinitivelyRejectedSubmission(
+  opKey: string,
+  state: OpState,
+  revision: number,
+  owner: string,
+  leaseToken: string,
+  rejection: DefinitiveBatchRejectionError,
+  rpc: RpcCall = (fn, params) => db().rpc(fn, params),
+): Promise<OpState> {
+  let outcome: { state: OpState };
+  try {
+    try {
+      outcome = await failOperationAfterDefinitiveRejection(
+        rpc,
+        { opKey, expectedRevision: revision, submissionOwner: owner, leaseToken },
+        rejection,
+      );
+    } catch (resetError) {
+      if (!(resetError instanceof ResetContractUnavailableError)) throw resetError;
+      // Deploy-ordering gap: the governed RPC is not live yet. Fail the
+      // operation visibly under a named reason rather than sit ambiguous.
+      outcome = { state: await failOperationWithoutResetContract(rpc, opKey, state, revision, rejection) };
+    }
+  } catch (resetError) {
+    if (remainingLeaseMs(state.external_job?.lease_expires_at) > 0) {
+      pendingNotSubmittedResets.set(opKey, { kind: "definitive_rejection", rejection });
+      logger.error("tick: definitive-rejection reset did not land; keeping the receipt to retry it", {
+        opKey, error: normalizeBatchError(resetError, "reset failed").slice(0, 200),
+      });
+    } else {
+      pendingNotSubmittedResets.delete(opKey);
+      submissionLeaseTokens.delete(opKey);
+    }
+    throw resetError;
+  }
+  pendingNotSubmittedResets.delete(opKey);
+  preSubmissionRetries.delete(opKey);
+  submissionLeaseTokens.delete(opKey);
+  return outcome.state;
 }
 
 async function failNeverSentSubmissionOnce(
@@ -1003,6 +1058,15 @@ export async function tick(): Promise<void> {
         logger.error("tick: held submission lease lapsed before a pre-POST retry; leaving it to lease reconciliation", { opKey });
         return;
       }
+      const pendingReset = pendingNotSubmittedResets.get(opKey);
+      if (pendingReset?.kind === "definitive_rejection") {
+        const failed = await failDefinitivelyRejectedSubmission(
+          opKey, currentState, currentState.state_revision ?? 0,
+          `railway:${currentState.run_id ?? "unknown"}`, heldRetryToken, pendingReset.rejection,
+        );
+        await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
+        return;
+      }
       // A pre-POST retry is pending but the held lease can no longer cover a
       // rebuild plus renewal. Reset it as never-submitted while it is live.
       await failNeverSentSubmission(
@@ -1120,32 +1184,20 @@ export async function tick(): Promise<void> {
           }
           return;
         }
-        submissionLeaseTokens.delete(opKey);
-        preSubmissionRetries.delete(opKey);
         if (error instanceof DefinitiveBatchRejectionError) {
           // The provider itself parsed and refused the payload (validation 400/
           // 422 or auth/billing/rate-limit 401/402/403/429), so no batch exists.
           // Consume this receipt through the governed reset RPC, then fail the
           // operation durably on the next revision (exactly once: both writes are
-          // revision- and receipt-guarded).
-          const rpc: RpcCall = (fn, params) => db().rpc(fn, params);
-          let outcome: { state: OpState };
-          try {
-            outcome = await failOperationAfterDefinitiveRejection(
-              rpc,
-              { opKey, expectedRevision: claim.state_revision, submissionOwner: owner, leaseToken },
-              error,
-            );
-          } catch (resetError) {
-            if (!(resetError instanceof ResetContractUnavailableError)) throw resetError;
-            // Deploy-ordering gap: the governed RPC is not live yet. Fail the
-            // operation visibly under a named reason rather than sit ambiguous.
-            outcome = { state: await failOperationWithoutResetContract(rpc, opKey, claimedState, claim.state_revision, error) };
-          }
-          await recordStyleGroupTerminalOutcome(opKey, outcome.state, "failed");
-          logger.error("tick: provider definitively rejected the batch submission", { opKey, error: outcome.state.error });
+          // revision- and receipt-guarded). The receipt is kept until that lands.
+          preSubmissionRetries.delete(opKey);
+          const failed = await failDefinitivelyRejectedSubmission(opKey, claimedState, claim.state_revision, owner, leaseToken, error);
+          await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
+          logger.error("tick: provider definitively rejected the batch submission", { opKey, error: failed.error });
           return;
         }
+        submissionLeaseTokens.delete(opKey);
+        preSubmissionRetries.delete(opKey);
         // Everything else -- a timeout, disconnect, 5xx, any other status, an
         // unparseable response, or an unexpected error that is not a proven
         // pre-POST failure -- cannot prove the provider created nothing.
