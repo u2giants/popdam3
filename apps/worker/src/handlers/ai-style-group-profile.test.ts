@@ -926,3 +926,21 @@ test("groups dropped while rebuilding a claimed payload are recorded when it is 
     restore();
   }
 });
+
+test("a missing provider key while a submission receipt is held fails through the never-submitted path", async () => {
+  const { PreSubmissionError } = await import("../batch-submission-error.js");
+  const held = {
+    status: "running", cursor: 0, run_id: "run1",
+    external_job: {
+      version: 1, phase: "submitting", provider: "openrouter", model: "test/vision-model:batch", lease_token: "lease-1",
+      page_cursor: 0, next_cursor: GROUP_ID, scope: "style_group", group_items: [], items: [],
+    },
+  } as unknown as OpState;
+  await assert.rejects(
+    handleStyleGroupProfiles(held, deps({ client: recordingClient(), apiKey: "", models: { primary: "test/vision-model:batch", fallback: null, providerPin: null } })),
+    (error: unknown) => error instanceof PreSubmissionError && error.permanent === true,
+  );
+  const unheld = await handleStyleGroupProfiles({ ...held, external_job: { ...held.external_job!, phase: "pending", lease_token: undefined, provider_batch_id: "b" } } as OpState,
+    deps({ client: recordingClient(), apiKey: "", models: { primary: "test/vision-model:batch", fallback: null, providerPin: null } }));
+  assert.equal(unheld.ok, false);
+});

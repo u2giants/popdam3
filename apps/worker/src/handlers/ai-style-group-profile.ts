@@ -612,7 +612,15 @@ async function handleDurableGroupProfiles(
   const identity = batchJobIdentity(opState.external_job, models);
   const { model, batchProvider } = identity;
   const apiKey = dependencies.apiKey ?? await getBatchProviderApiKey(batchProvider);
-  if (!apiKey) return { ok: false, done: false, error: "No batch provider API key configured" };
+  if (!apiKey) {
+    const job = opState.external_job;
+    // With a held receipt nothing was sent yet: fail through the governed
+    // never-submitted reset instead of an ordinary error that would strand it.
+    if (job?.lease_token && job.phase === "submitting" && !job.provider_batch_id) {
+      throw new PreSubmissionError("No batch provider API key configured", true);
+    }
+    return { ok: false, done: false, error: "No batch provider API key configured" };
+  }
   const providerPin = batchProvider === "openrouter" ? buildProviderPin(identity.providerPin) : undefined;
   const fetchGroups = dependencies.fetchGroups ?? defaultFetchGroups;
   const fetchMembers = dependencies.fetchMembers ?? defaultFetchMembers;

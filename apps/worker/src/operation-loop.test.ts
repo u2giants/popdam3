@@ -282,3 +282,8 @@ test("a same-owner lease renewal does not reset the pre-POST retry ceiling", asy
   rememberSubmissionReceipt("op-renew", "receipt-2");
   assert.equal(holdReceiptAfterPreSubmissionFailure("op-renew", new PreSubmissionError("transient"), lease), true);
 });
+
+test("completion messages report images that were unusable", () => {
+  assert.match(buildResultMessage("ai-tag-untagged", { tagged: 3, failed: 2, image_unusable: 2, visual_analysis_unavailable: 1 }), /3 visual analyses unavailable.*2 failed \(2 with unusable images\)/);
+  assert.match(buildResultMessage("ai-tag-group-profiles", { profiled: 1, failed: 1, image_unusable: 1 }), /1 without usable representative images.*\(1 with unusable images\)/);
+});
