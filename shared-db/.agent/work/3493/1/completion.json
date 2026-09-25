@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "work_issue": 3493,
+  "outcome": "ready-for-merge",
+  "pr": 3499,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3493/1",
+  "contract_sha256": "b66d041ac7ff578fe759a3f66d690b953303859bdde17be22cc6f349ab7417e9",
+  "base_sha": "ca3f8663110e6eaebef9f4d3331f6d9bf4250f87",
+  "head_sha": "6d08722ff2361d6657f84999b4ed4aca941c5128",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/.github~workflows~database-contract-tests.yml.json",
+    "docs/verification/throughput-dispositions/scripts~production_business_risk_gate.py.json",
+    "docs/verification/throughput-dispositions/scripts~run-governed-review.mjs.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=317 sources=72 derived_digest=623c3a6c3f85"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 passed, 0 failed, 0 skipped at implementation head 6d08722ff2361d6657f84999b4ed4aca941c5128"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/*.test.mjs",
+      "exit_code": 0,
+      "evidence": "70 passed, 0 failed, 0 skipped; historical identity preserved and current-repository catalogue agreement holds"
+    }
+  ],
+  "assumptions_resolved": [
+    "19 site line numbers re-pointed across the three catalogues; every disposition, reason, legacy_semantic_key, and line_sha256 is unchanged for all 310 HISTORICAL_AUDIT entries.",
+    "The semantic-key mismatch at scripts/manage-migration-author-lanes.mjs:2367 was fixed on main in commit 4182d0a97; this work completes the remaining diagnostic line-number cleanup.",
+    "No database objects are read or written; work_type repo-maintenance declares empty db_reads and db_writes."
+  ],
+  "stop_conditions_hit": []
+}

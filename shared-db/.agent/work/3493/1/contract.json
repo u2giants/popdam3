@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3493,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Re-point stale diagnostic site line numbers in the three throughput truth-audit disposition catalogues so every recorded site line number agrees with current main, without changing any disposition, reason, legacy_semantic_key, or line_sha256.",
+  "base_sha": "ca3f8663110e6eaebef9f4d3331f6d9bf4250f87",
+  "dispatcher": "MiMo repo-maintenance session for issue #3493",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "mimo/3493-truth-audit-repair",
+  "worktree": "C:/repos/shared-db-wt-3493-truth-audit",
+  "allowed_paths": [
+    "docs/verification/throughput-dispositions/.github~workflows~database-contract-tests.yml.json",
+    "docs/verification/throughput-dispositions/scripts~production_business_risk_gate.py.json",
+    "docs/verification/throughput-dispositions/scripts~run-governed-review.mjs.json",
+    ".agent/work/3493/1/contract.json",
+    ".agent/work/3493/1/completion.json"
+  ],
+  "file_writes": [
+    "docs/verification/throughput-dispositions/.github~workflows~database-contract-tests.yml.json",
+    "docs/verification/throughput-dispositions/scripts~production_business_risk_gate.py.json",
+    "docs/verification/throughput-dispositions/scripts~run-governed-review.mjs.json",
+    ".agent/work/3493/1/contract.json",
+    ".agent/work/3493/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change any disposition, reason, legacy_semantic_key, or line_sha256 in the catalogues.",
+    "Do not weaken, delete, or bypass any truth-audit detector or check.",
+    "Do not touch any migration, workflow, database object, or live row.",
+    "Do not edit any file outside allowed_paths."
+  ],
+  "required_checks": [
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "node --test scripts/throughput-guard/*.test.mjs"
+  ],
+  "assumptions": [
+    "The three catalogue files changed at implementation head 6d08722ff2361d6657f84999b4ed4aca941c5128 are diagnostic site re-points only; historical audit identity is preserved for all 310 HISTORICAL_AUDIT entries."
+  ],
+  "stop_conditions": [
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths.",
+    "Stop if any required check fails, or if a disposition, reason, legacy_semantic_key, or line_sha256 would have to change."
+  ]
+}
