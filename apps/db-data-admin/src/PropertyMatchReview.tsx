@@ -16,6 +16,21 @@ import {
 
 type Props = { client: ApiClient }
 
+/**
+ * PostgREST errors are plain objects, not Error instances. Extract a safe,
+ * actionable message — a sanitized code at most — without leaking row values.
+ * Permission codes carry the same denial signal as an Error message would.
+ */
+function failureMessage(cause: unknown): string {
+  if (cause instanceof Error) return cause.message
+  if (cause && typeof cause === 'object' && 'code' in cause) {
+    const code = String((cause as { code: unknown }).code).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24) || 'unknown'
+    if (code === '42501' || code === 'PGRST301' || code === '401') return 'permission denied'
+    return `Request refused (${code}).`
+  }
+  return ''
+}
+
 const stateLabel: Record<MatchState, string> = {
   exact: 'One candidate',
   multiple: 'More than one candidate',
@@ -43,18 +58,28 @@ export function PropertyMatchReview({ client }: Props) {
   const load = useCallback(async () => {
     setLoading(true); setError(null); setDenied(false); setUnavailable(false)
     try {
-      const [loaded, options] = await Promise.all([loadPropertyMatchQueue(client), loadOpaPropertyOptions(client)])
-      setRows(loaded)
-      setPropertyOptions(options)
-      setChosen(Object.fromEntries(loaded.map(row => [row.resolution_id, defaultSelection(row)])))
-      setRequestIds(Object.fromEntries(loaded.map(row => [row.resolution_id, crypto.randomUUID()])))
-    } catch (cause) {
-      if (cause instanceof ReviewQueueUnavailableError) setUnavailable(true)
-      else {
-        const message = cause instanceof Error ? cause.message : ''
-        if (/permission|licensing|access/i.test(message)) setDenied(true)
-        else setError(message || 'The review queue could not be loaded.')
+      // The queue is the primary read; the OPA picker is supporting and must
+      // never erase a valid queue when it is refused or unavailable.
+      const [loaded, options] = await Promise.allSettled([
+        loadPropertyMatchQueue(client),
+        loadOpaPropertyOptions(client),
+      ])
+      if (loaded.status === 'rejected') {
+        const cause = loaded.reason
+        if (cause instanceof ReviewQueueUnavailableError) setUnavailable(true)
+        else {
+          const message = failureMessage(cause)
+          if (/permission|licensing|access/i.test(message)) setDenied(true)
+          else setError(message || 'The review queue could not be loaded.')
+        }
+        return
       }
+      setRows(loaded.value)
+      setChosen(Object.fromEntries(loaded.value.map(row => [row.resolution_id, defaultSelection(row)])))
+      setRequestIds(Object.fromEntries(loaded.value.map(row => [row.resolution_id, crypto.randomUUID()])))
+      if (options.status === 'fulfilled') setPropertyOptions(options.value)
+      // Picker failure leaves the recorded candidates as the only choices,
+      // which is still enough to approve or reject each row.
     } finally { setLoading(false) }
   }, [client])
 

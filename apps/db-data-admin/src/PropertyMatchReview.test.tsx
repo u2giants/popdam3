@@ -231,4 +231,21 @@ describe('PropertyMatchReview', () => {
     render(<PropertyMatchReview client={clientOf(rpc)} />)
     expect(await screen.findByRole('alert')).toHaveTextContent('Licensing Manager')
   })
+
+  it('surfaces a safe code when a PostgREST plain-object error is thrown', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST301' } })
+    render(<PropertyMatchReview client={clientOf(rpc)} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Licensing Manager')
+  })
+
+  it('shows the queue even when the OPA picker is refused', async () => {
+    const rpc = vi.fn().mockImplementation(async (fn: string) => {
+      if (fn === 'db_data_admin_property_match_queue') {
+        return { data: { rows: [row()], next_cursor: null, page_size: 200 }, error: null }
+      }
+      return { data: null, error: { code: '42501' } }
+    })
+    render(<PropertyMatchReview client={clientWithDeniedOpaView(rpc)} />)
+    expect(await screen.findByRole('heading', { name: 'Muppets' })).toBeInTheDocument()
+  })
 })
