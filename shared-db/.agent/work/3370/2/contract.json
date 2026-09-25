@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "work_issue": 3370,
+  "generation": 2,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Consolidate current workflow procedure with a small implementation-backed policy matrix and route examples, preserving safeguards and recording active-owner integration boundaries",
+  "base_sha": "20641bc6bbcd4e6e8fe1e2211126837456c045ab",
+  "dispatcher": "Codex owner-authorized workflow-refactor implementation session",
+  "worker": "codex",
+  "branch": "codex/workflow-current-policy",
+  "worktree": "C:/Users/ahazan2/.codex/worktrees/workflow-current-policy/shared-db",
+  "allowed_paths": [
+    "docs/agents/current-workflow.md",
+    "scripts/check-current-workflow-policy.mjs",
+    "scripts/check-current-workflow-policy.test.mjs",
+    "AGENTS.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "plan_orchestrator_throughput_phase_2.md",
+    "plan_orchestrator_required_load_reduction.md",
+    "plan_shared_db_popcre_transfer_merge_queue.md",
+    "docs/verification/throughput-dispositions/scripts~check-current-workflow-policy.mjs.json",
+    ".agent/work/3370/2/contract.json",
+    ".agent/work/3370/2/completion.json",
+    "docs/agents/standing-facts.md"
+  ],
+  "file_writes": [
+    "docs/agents/current-workflow.md",
+    "scripts/check-current-workflow-policy.mjs",
+    "scripts/check-current-workflow-policy.test.mjs",
+    "AGENTS.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "plan_orchestrator_throughput_phase_2.md",
+    "plan_orchestrator_required_load_reduction.md",
+    "plan_shared_db_popcre_transfer_merge_queue.md",
+    "docs/agents/standing-facts.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database mutation, production dispatch, settings changes, reduced reviewer count or concurrency ceilings",
+    "No edits to active PR3354/3279 owned files until integration on accepted main",
+    "No installed skill or personal memory edits"
+  ],
+  "required_checks": [
+    "node --test scripts/check-current-workflow-policy.test.mjs",
+    "node scripts/check-current-workflow-policy.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Main production-risk activation and code review requirements remain authoritative",
+    "Owner explicitly authorizes documentation-only merging without engineering waits"
+  ],
+  "stop_conditions": [
+    "Fail on a matrix contradiction instead of silently changing policy",
+    "Resolve overlapping active code before instruction consolidation"
+  ]
+}

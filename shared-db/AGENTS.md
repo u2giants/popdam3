@@ -8,6 +8,11 @@
 
 # AGENTS.md — cross-app coordination playbook
 
+## Current operating route
+
+- [current-workflow.md](docs/agents/current-workflow.md)
+- [plan_shared_db_workflow_refactor.md](plan_shared_db_workflow_refactor.md)
+
 ## Task declaration
 
 Before starting work, run `ai-task-gates start --class <class>` from the

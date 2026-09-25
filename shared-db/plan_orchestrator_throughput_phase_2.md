@@ -26,7 +26,7 @@ This is Phase 2 of the throughput repair. Phase 1 is [`plan_orchestrator_through
 | 9 | Integrate Phase 1 measurement and prove throughput without weakening safety | ✅ schema/report done 2026-08-28 | one ledger schema; separated waits; observed-only n=20 and zero-tolerance safety tests |
 | 10 | Full verification, staged rollout, landing and post-merge proof | ✅ done 2026-08-28 | shared-db merge `c33e68b`; skill merge `dcd3c14`; exact-head independent APPROVE; live orchestrator engine excluded from review; Qwen/Gemini inactive; no migration or database write |
 
-**Fresh implementation starts at Step 1.** Use a fresh session at each phase boundary: Phase A = Steps 1–2, Phase B = Steps 3–4, Phase C = Steps 5–6, Phase D = Steps 7–9, Phase E = Step 10. Re-read the remaining plan and current `origin/main` before each phase.
+**Historical implementation record — all steps below are complete.** Merge `c33e68b` is present in current main. Do not restart Step 1. Current author and reviewer concurrency is unlimited under the 2026-09-16 owner ruling; historical caps and provider wait queues below are superseded. Use [the current workflow](docs/agents/current-workflow.md) for operating instructions.
 
 ---
 

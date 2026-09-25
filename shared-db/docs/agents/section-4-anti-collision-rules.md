@@ -1,5 +1,7 @@
 # AGENTS.md §4 — the five anti-collision rules, full text
 
+- [current-workflow.md](current-workflow.md)
+
 > **Active hardening plan:** [`../../plan_multi_agent_database_coordination_hardening.md`](../../plan_multi_agent_database_coordination_hardening.md), issue #1366. Read its STATUS table first. It preserves the rules below while adding read/write dependencies, proven prerequisites, provider-neutral work contracts, lifecycle traces, recoverable fenced stage leases, and an opt-in Supabase branch pilot. Its implementation is repository maintenance outside the structure/schema orchestrator.
 >
 > **Completed reviewer API-budget plan:** [`../../plan_reviewer_assignment_api_budget.md`](../../plan_reviewer_assignment_api_budget.md), issue #1767. Read its STATUS table and verification link before changing reviewer assignment. It replaced historical availability scans with a bounded active-reviewer index, strict pre-lock quota/request checks, cached PR/verdict reads, and exhaustive mutex-cleanup tests. The current fixed per-operation ceiling is 25 requests; see the dated re-derivations and #2550 repair in the verification record.
@@ -862,11 +864,12 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    material objection. Ambiguous SQL stops for Albert. Ask him one plain
    business-risk question. Never ask him to approve migration numbers, project
    identifiers, SQL, or other technical details. This policy cannot authorize
-   its own rollout. `config/production-risk-policy-activation.json` remains
-   inactive, and the older exact-approval rule remains binding, until #1015 is
-   independently reviewed, both PRs are merged, the installed skill hash matches
-   canonical ai-devops, and the forward-test proof hash is recorded. The gate
-   verifies those facts again before it can permit automatic promotion.
+   its own rollout. The current activation record is active; the completed
+   rollout evidence is recorded in `config/production-risk-policy-activation.json`.
+   The gate still verifies that record, its immutable forward-test proof,
+   canonical skill hashes and the qualified delivery evidence before allowing
+   automatic promotion. Historical pre-activation requirements are evidence of
+   that rollout, not an instruction to repeat it or disable the active route.
    Record Qwen High as requested, but never override the wrapper's qualified
    fixed configuration.
 
@@ -985,24 +988,19 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    claimed the exclusion existed, and it never did. Promotions are serialised
    among themselves by the workflow `concurrency` group, not by this lock.
 
-   **Every pull request enters through that guarded merge lane, including
-   documentation-only and other non-migration changes.** A pull request that
-   changes no migration needs no migration-author claim, but the lease workflow
-   does not auto-authorize it: the guarded merge still proves the exact head,
-   current-main relationship, collision result, and governed review while it
-   holds the merge lock.
+   **Code and executable instructions use the guarded merge lane.** A change with
+   no migration needs no migration-author claim; its applicable exact-head review,
+   current-main relationship and collision protections remain enforced.
 
-   **One exemption, 2026-09-02 (#2102): a documents-only pull request draws no
-   database reviewer, and the merge gate requires no verdict for it.** It still
-   enters this same lane and still runs every other check; only the external
-   reviewer draw is skipped, because PR #2034 and PR #2070 spent migration
-   reviewer capacity on prose. Rulebook files — `AGENTS.md`, anything under
-   `.claude/skills/` or `skills/`, and `plan_*.md` — are **not** documents for
-   this purpose, and one non-document file of any kind removes the exemption from
-   the whole pull request. The classifier is
-   `scripts/lib/documents-only-change.mjs`; it fails closed on an empty,
-   unreadable or absent file list, and a refusal already recorded at the exact
-   head still blocks the merge.
+   **Documentation-only changes use the lightweight route** (owner ruling
+   2026-09-20), including standalone `plan_*.md` files. Prove the complete change
+   with the base-owned classifier in `scripts/lib/documents-only-change.mjs`;
+   empty, unreadable or incomplete inventory cannot qualify. Full engineering
+   CI and external reviewer waits are not required. `AGENTS.md`, `CLAUDE.md`,
+   skill/agent/command instructions and any mixed executable change retain
+   engineering protection. The existing narrow link-only routing-pointer
+   classifier does not exempt behavior-changing instructions. Exact-head
+   refusals remain binding. See the current workflow for the route map.
 
    When production acquires its lock, the production
    workflow revokes every open pull request's earlier merge authorization before

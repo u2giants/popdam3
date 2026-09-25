@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "work_issue": 3370,
+  "outcome": "ready-for-merge",
+  "pr": 3379,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3370/2",
+  "contract_sha256": "68ded1b684bc90f9e1671810290865cc100aecd750113d51aa85e7109068f938",
+  "head_sha": "04da020187a4c9d2ad0be5d38bb236aa2085f90e",
+  "base_sha": "d73912fc38e7b6502baedb2a8c18bce343d09e84",
+  "files_changed": [
+    "AGENTS.md",
+    "docs/agents/current-workflow.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/agents/standing-facts.md",
+    "plan_orchestrator_required_load_reduction.md",
+    "plan_orchestrator_throughput_phase_2.md",
+    "plan_shared_db_popcre_transfer_merge_queue.md",
+    "scripts/check-current-workflow-policy.mjs",
+    "scripts/check-current-workflow-policy.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-current-workflow-policy.test.mjs",
+      "evidence": "7 passed; 0 failed, cancelled, skipped or todo at 04da0201 after refreshing onto origin/main.",
+      "exit_code": 0
+    },
+    {
+      "command": "node scripts/check-current-workflow-policy.mjs",
+      "evidence": "Policy matrix and both active router links match at 04da0201.",
+      "exit_code": 0
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "evidence": "truth audit OK: call_sites=317 sources=72 derived_digest=623c3a6c3f85",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "evidence": "Exit 0 with no output at 04da0201.",
+      "exit_code": 0
+    }
+  ],
+  "assumptions_resolved": [
+    "Completed-plan artifact merges are current-main ancestors; activation record is active; no count ceilings added"
+  ],
+  "stop_conditions_hit": []
+}

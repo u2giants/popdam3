@@ -174,7 +174,9 @@ have already happened in this repo, more than once.
 
 18. **A DOCUMENTS-ONLY PULL REQUEST DRAWS NO DATABASE REVIEWER (owner decision, 2026-09-02, issue
     #2102; lightweight status path #2715).** A pull request whose changed files are **all** prose
-    documents still runs **every** automated check. It receives the required
+    documents, including standalone `plan_*.md` files, uses the lightweight documentation
+    route without full engineering CI or reviewer waits (owner ruling 2026-09-20).
+    It receives the required
     `Migration guarded merge authorization` status from
     `.github/workflows/documents-only-merge-authorization.yml` without dispatching the database
     guarded-merge workflow or consuming a slot from the small external **database reviewer pool**
@@ -184,22 +186,20 @@ have already happened in this repo, more than once.
     to migrations.
 
     **Rulebook files are NOT documents for this purpose and keep the full treatment:** `AGENTS.md`
-    (and `CLAUDE.md`), anything under `.claude/skills/` or `skills/`, and plan files
-    (`plan_*.md`). They instruct every later session, so a bad edit to one of them is as dangerous
+    (and `CLAUDE.md`), skill, agent and command instruction files. Standalone plans are
+    documentation; executable agent instructions retain the guarded path. A bad edit to an instruction is as dangerous
     as a bad migration. One non-document file of any kind — a `.sql`, a script, a workflow, a test,
     a config file — removes the exemption from the whole pull request.
 
-    **Review is not removed, and this is not a merge exemption.** The review of PR #2034 caught a
-    real customer order number heading into this **public** repository, so the content risk is
-    real; what changed is only which pool answers for it. The automated checks and the guarded
-    merge lane still answer, and a refusal already recorded at the exact head still blocks it — the
-    exemption is from *drawing* a reviewer and dispatching the database merge workflow, never from
-    *answering* a review already recorded for the exact head or from running automated checks.
+    Inspect the complete change for public-content risk and prove its documentation-only
+    classification. Exact-head refusals remain binding. Documentation does not require
+    an external reviewer draw or the full engineering test suites; code, migrations,
+    database writes, production promotion and executable instructions keep their protections.
 
     Enforced, not documented: `scripts/lib/documents-only-change.mjs` is the single deterministic
     classifier, listing the rulebook exclusions explicitly and failing closed whenever the
     changed-file list is empty, unreadable or absent. The required-status adapter
-    `scripts/check-documents-only-merge-authorization.mjs` separately permits plan files and
+    `scripts/check-documents-only-merge-authorization.mjs` also permits narrow
     declarative routing pointers in AGENTS, task-router, and skill files. It inspects the actual
     changed hunks and accepts only link-only list/table rows whose labels literally name the local
     Markdown target; free-form or behavior-changing instructions stay on the guarded code path. An
