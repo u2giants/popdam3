@@ -4963,6 +4963,10 @@ export type Database = {
         Args: { p_asset_id: string; p_group_id: string }
         Returns: undefined
       }
+      style_group_key_for_sku: {
+        Args: { p_relative_path: string }
+        Returns: string
+      }
       style_guide_tag_input_fingerprint: {
         Args: {
           p_file_extension: string
