@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "work_issue": 3659,
+  "outcome": "ready-for-merge",
+  "pr": 3660,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3659/2",
+  "contract_sha256": "0fa111e3961b6e52dc525d3c497e38f7a25bb3ffe9a9a7a0135ca78f0f825628",
+  "base_sha": "5d6bb13d9b27786c214e505ddd7bf4c756c19219",
+  "head_sha": "2001b3bf60150f59b98c7aea2ffc359ea083c0bb",
+  "files_changed": [
+    ".github/workflows/tools-offline-tests.yml",
+    ".mcp.json",
+    "scripts/mcp-supabase-launch.mjs",
+    "scripts/mcp-supabase-launch.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/mcp-supabase-launch.test.mjs",
+      "exit_code": 0,
+      "evidence": "5 passed, 0 failed on implementation head 2001b3bf; exact win32 and posix plans asserted on a Linux host, full server arguments pinned, realpath main guard, launcher existence"
+    },
+    {
+      "command": "CI step in tools-offline-tests.yml runs node --test scripts/mcp-supabase-launch.test.mjs",
+      "exit_code": 0,
+      "evidence": "step \"Run the Supabase MCP launcher tests (#3659)\" added; result recorded by the Tools offline tests check on this pull request"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=319 sources=80 on implementation head 2001b3bf; first CI run at d907dd5a failed test 52 (inventory drift) which this head fixes"
+    }
+  ],
+  "assumptions_resolved": [
+    "Live on edge-dev3 (Linux) at the implementation head: MCP initialize through node scripts/mcp-supabase-launch.mjs returned serverInfo supabase 0.11.0, both directly and through a symlinked scripts directory; with a missing launcher it printed the spawn error and exited 127.",
+    "Host working directory: not independently proven here; .mcp.json keeps a relative script path on the stated assumption that Claude Code starts project MCP servers from the repository root."
+  ],
+  "stop_conditions_hit": []
+}

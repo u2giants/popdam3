@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_issue": 3659,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Make the project .mcp.json Supabase MCP server start on Linux as well as Windows by launching through node and a repo script that selects the ai-devops secret launcher per platform, keeping the Windows launch route, read-only mode, version and project ref unchanged",
+  "base_sha": "5d6bb13d9b27786c214e505ddd7bf4c756c19219",
+  "dispatcher": "Claude chat 1b699f56-bfb1-4801-a2b9-db91edbc98f6 on edge-dev3 (non-orchestrator marker #3653)",
+  "worker": "claude",
+  "branch": "claude/mcp-cross-platform-launcher",
+  "worktree": ".claude/worktrees/popcre-shared-db-3522-b78d05",
+  "allowed_paths": [
+    ".mcp.json",
+    "scripts/mcp-supabase-launch.mjs",
+    "scripts/mcp-supabase-launch.test.mjs",
+    ".agent/work/3659/1/contract.json",
+    ".agent/work/3659/1/completion.json",
+    ".github/workflows/tools-offline-tests.yml",
+    ".agent/work/3659/2/contract.json",
+    ".agent/work/3659/2/completion.json"
+  ],
+  "file_writes": [
+    ".mcp.json",
+    "scripts/mcp-supabase-launch.mjs",
+    "scripts/mcp-supabase-launch.test.mjs",
+    ".agent/work/3659/1/contract.json",
+    ".agent/work/3659/1/completion.json",
+    ".github/workflows/tools-offline-tests.yml",
+    ".agent/work/3659/2/contract.json",
+    ".agent/work/3659/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not put any secret or token in the repository",
+    "do not remove the Windows mcp-launch.cmd route",
+    "do not edit another session's handoff, worktree, branch, or claim"
+  ],
+  "required_checks": [
+    "node --test scripts/mcp-supabase-launch.test.mjs",
+    "CI step in tools-offline-tests.yml runs node --test scripts/mcp-supabase-launch.test.mjs"
+  ],
+  "assumptions": [
+    "the implementation was drafted (first push of PR #3660 at d6287614) before this contract was published; the branch was reset and the implementation commit follows the published ref",
+    "Claude Code starts project MCP servers with the repository root as the working directory, so the relative script path resolves",
+    "generation 2 supersedes generation 1 per Qwen REVISE findings at 07e5eca6 (PR #3660 comment 5870527350): platform-selected win32/posix path joins, exact launcher and full server-argument assertions, launcher existence, realpath main guard, synchronous stderr diagnostic, signal re-raise and SIGHUP forwarding, and CI wiring in tools-offline-tests.yml; the generation-1 pair is removed so the pull request carries exactly one pair"
+  ],
+  "stop_conditions": [
+    "stop if the change would need to touch a file outside allowed_paths",
+    "stop if a test fails for a reason unrelated to these files"
+  ],
+  "generation": 2
+}
