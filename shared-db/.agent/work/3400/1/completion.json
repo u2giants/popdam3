@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "work_issue": 3400,
+  "outcome": "ready-for-merge",
+  "pr": 3734,
+  "migration_versions": [
+    "20260928182014"
+  ],
+  "contract_ref": "refs/db-contracts/3400/1",
+  "contract_sha256": "c77b8009f4e409a6c8a1688ba28f66ef8158487fb55dce9fecd31eee69e6d539",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "head_sha": "f3f76fcbeaf90ec7d18fa4bf8010a4647d01f9e6",
+  "files_changed": [
+    "supabase/migrations/20260928182014_hts_product_phrase_columns.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table plm.\"itemHeader\"",
+    "table plm.\"RFQItem\"",
+    "table dflow_prod.\"itemHeader\"",
+    "table dflow_prod.\"RFQItem\""
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards passed at implementation head f3f76fcb."
+    },
+    {
+      "command": "python scripts/migration_derivation.py",
+      "exit_code": 0,
+      "evidence": "exited 0 at f3f76fcb."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "git diff --check origin/main...HEAD exited 0 at f3f76fcb."
+    }
+  ],
+  "assumptions_resolved": [
+    "Claim #3733 open at version 20260928182014 with the four table objects."
+  ],
+  "stop_conditions_hit": []
+}
