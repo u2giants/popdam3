@@ -24,8 +24,11 @@ function logIndexedWriteResult(table: string, path: string, attempted: number, s
   if (!INDEXED_WRITE_MEASUREMENT) return;
   // Aggregate counts only. No row identifiers, paths, customer values, or error messages.
   console.info("[indexed-write-measurement]", {
-    observed_at: new Date().toISOString(), table, path,
-    attempted_rows: attempted, succeeded_rows: succeeded,
+    observed_at: new Date().toISOString(),
+    table,
+    path,
+    attempted_rows: attempted,
+    succeeded_rows: succeeded,
   });
 }
 /**
@@ -1089,10 +1092,8 @@ async function handleIngest(
       ...skuFields,
     };
     const moveQuery = db.from("assets").update(moveUpdates).eq("id", existingByHash.id);
-    const { data: movedRows, error: moveError } = INDEXED_WRITE_MEASUREMENT
-      ? await moveQuery.select("id") : await moveQuery;
-    logIndexedWriteResult("public.assets", "ingest-move", 1, moveError ? 0 :
-      INDEXED_WRITE_MEASUREMENT ? movedRows?.length ?? null : null);
+    const { data: movedRows, error: moveError } = INDEXED_WRITE_MEASUREMENT ? await moveQuery.select("id") : await moveQuery;
+    logIndexedWriteResult("public.assets", "ingest-move", 1, moveError ? 0 : INDEXED_WRITE_MEASUREMENT ? movedRows?.length ?? null : null);
 
     if (moveError) return err(moveError.message, 500);
 
@@ -1154,10 +1155,8 @@ async function handleIngest(
       ...skuFields,
     };
     const updateQuery = db.from("assets").update(updateFields).eq("id", existingByPath.id);
-    const { data: updatedRows, error: updateError } = INDEXED_WRITE_MEASUREMENT
-      ? await updateQuery.select("id") : await updateQuery;
-    logIndexedWriteResult("public.assets", "ingest-update", 1, updateError ? 0 :
-      INDEXED_WRITE_MEASUREMENT ? updatedRows?.length ?? null : null);
+    const { data: updatedRows, error: updateError } = INDEXED_WRITE_MEASUREMENT ? await updateQuery.select("id") : await updateQuery;
+    logIndexedWriteResult("public.assets", "ingest-update", 1, updateError ? 0 : INDEXED_WRITE_MEASUREMENT ? updatedRows?.length ?? null : null);
 
     if (updateError) return err(updateError.message, 500);
 
@@ -2961,8 +2960,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       .from("style_guide_files")
       .upsert(rows, { onConflict: "root_label,relative_path" })
       .select("id");
-    logIndexedWriteResult("public.style_guide_files", "crawl-upsert", rows.length,
-      upsertErr ? 0 : upsertedRows?.length ?? null);
+    logIndexedWriteResult("public.style_guide_files", "crawl-upsert", rows.length, upsertErr ? 0 : upsertedRows?.length ?? null);
 
     if (upsertErr) {
       console.error("[complete-style-guide-crawl] Upsert error:", upsertErr);
