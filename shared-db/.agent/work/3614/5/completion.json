@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "work_issue": 3614,
+  "outcome": "ready-for-merge",
+  "pr": 3615,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3614/5",
+  "contract_sha256": "b95dc8d592de99ca393dd76f5ce7c6cebd7b1ac3236e19631ffc39db32293be9",
+  "base_sha": "25c454807717d8353801d36a659253d6d2b809aa",
+  "head_sha": "a876b5ec8f39b26e864bbb515987dfd181ef9a09",
+  "files_changed": [
+    ".github/workflows/shared-db-2870-observation.yml",
+    "docs/verification/2870-observer-restore-evidence.md",
+    "docs/verification/throughput-dispositions/scripts~proofs~shared-db-2870-observation.mjs.json",
+    "scripts/proofs/2870-catalog.sql",
+    "scripts/proofs/2870-contract.json",
+    "scripts/proofs/shared-db-2870-observation.mjs",
+    "scripts/proofs/shared-db-2870-observation.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/proofs/shared-db-2870-observation.test.mjs",
+      "exit_code": 0,
+      "evidence": "13 pass, 0 fail at implementation head a876b5ec8f39b26e864bbb515987dfd181ef9a09 on current main 25c45480"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=319 sources=80 derived_digest=fb8271319bc6"
+    },
+    {
+      "command": "sha256sum four restored files equals backend develop 9899a3275ec34ca7138991a12fc51707b6482bc7 producer pins",
+      "exit_code": 0,
+      "evidence": "four actual hashes equal expected values recorded in docs/verification/2870-observer-restore-evidence.md"
+    },
+    {
+      "command": "git show 6dbdc25e0a4ab4f643928c4b394971b1f9ddb8f6:<path> equals current bytes for four restored files",
+      "exit_code": 0,
+      "evidence": "all four restored files byte-identical to original shared-db source"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "no whitespace errors against current main 25c45480"
+    }
+  ],
+  "assumptions_resolved": [
+    "Current main 25c45480 was integrated without changing any restored observer source byte.",
+    "All four restored source hashes still match the backend pin record and original shared-db source.",
+    "Thirteen observer tests and throughput audit pass at current implementation head.",
+    "The exact-head equivalence gate will decide whether prior independent approvals carry to refreshed PR head."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Read-only repository maintenance; no observer or production dispatch. Merge only via the guarded route after exact-head approval and full checks."
+}

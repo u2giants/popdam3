@@ -1,0 +1,10 @@
+{
+  "work_issue": 2870,
+  "source_repository": "popcre/shared-db",
+  "application_repository": "popcre/designflow-backend",
+  "application_branch": "develop",
+  "project_ref": "qsllyeztdwjgirsysgai",
+  "schema": "dflow_prod",
+  "live_assertion": "production dflow_prod users.app_profile_id and comments.app_comment_id exist as nullable uuid columns",
+  "columns": {"comments": "app_comment_id", "users": "app_profile_id"}
+}

@@ -1,0 +1,76 @@
+{
+  "schema_version": 2,
+  "generation": 5,
+  "work_issue": 3614,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Refresh the approved read-only observer restoration onto current main 25c45480, preserving exact pinned source bytes and reviewer-approved implementation diff.",
+  "base_sha": "25c454807717d8353801d36a659253d6d2b809aa",
+  "dispatcher": "Codex repo-maintenance session for issue #3614",
+  "worker": "Codex chat 01a0e65a-82f1-7d93-b8fb-4440da47884d on edge-dev3",
+  "branch": "codex/2870-observer-restore",
+  "worktree": "/home/ahazan/repos/shared-db-2870-observer-restore",
+  "allowed_paths": [
+    ".agent/work/3614/2/completion.json",
+    ".agent/work/3614/2/contract.json",
+    ".agent/work/3614/3/completion.json",
+    ".agent/work/3614/3/contract.json",
+    ".agent/work/3614/4/completion.json",
+    ".agent/work/3614/4/contract.json",
+    ".agent/work/3614/5/completion.json",
+    ".agent/work/3614/5/contract.json",
+    ".github/workflows/shared-db-2870-observation.yml",
+    "docs/verification/2870-observer-restore-evidence.md",
+    "docs/verification/throughput-dispositions/scripts~proofs~shared-db-2870-observation.mjs.json",
+    "scripts/proofs/2870-catalog.sql",
+    "scripts/proofs/2870-contract.json",
+    "scripts/proofs/shared-db-2870-observation.mjs",
+    "scripts/proofs/shared-db-2870-observation.test.mjs"
+  ],
+  "file_writes": [
+    ".agent/work/3614/2/completion.json",
+    ".agent/work/3614/2/contract.json",
+    ".agent/work/3614/3/completion.json",
+    ".agent/work/3614/3/contract.json",
+    ".agent/work/3614/4/completion.json",
+    ".agent/work/3614/4/contract.json",
+    ".agent/work/3614/5/completion.json",
+    ".agent/work/3614/5/contract.json",
+    ".github/workflows/shared-db-2870-observation.yml",
+    "docs/verification/2870-observer-restore-evidence.md",
+    "docs/verification/throughput-dispositions/scripts~proofs~shared-db-2870-observation.mjs.json",
+    "scripts/proofs/2870-catalog.sql",
+    "scripts/proofs/2870-contract.json",
+    "scripts/proofs/shared-db-2870-observation.mjs",
+    "scripts/proofs/shared-db-2870-observation.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not edit any of the four backend-pinned source files after restoring them from 6dbdc25e0a4ab4f643928c4b394971b1f9ddb8f6.",
+    "Do not dispatch the observer or mutate production in this code PR.",
+    "Do not alter application acceptance or backend pins."
+  ],
+  "required_checks": [
+    "node --test scripts/proofs/shared-db-2870-observation.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "sha256sum four restored files equals backend develop 9899a3275ec34ca7138991a12fc51707b6482bc7 producer pins",
+    "git show 6dbdc25e0a4ab4f643928c4b394971b1f9ddb8f6:<path> equals current bytes for four restored files",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The current main 25c45480 adds only non-overlapping workflow-plan prose after the previous d122 merge base.",
+    "The observer source and four backend-pinned hashes remain byte-identical after integrating current main.",
+    "The prior exact-head approvals may carry only if the approved implementation diff remains byte-identical under the repository equivalence guard."
+  ],
+  "stop_conditions": [
+    "Stop if integration changes any observer source byte or backend pin.",
+    "Stop if local tests, throughput audit, or exact-head equivalence fails.",
+    "Stop if guarded merge or required checks refuse."
+  ],
+  "evidence_parent": {
+    "work_issue": 3614,
+    "generation": 4,
+    "contract_sha256": "1eb167d9c85d65a18b6c53017a39d4231293af0663820b59b002ccf331543bab"
+  }
+}
