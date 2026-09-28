@@ -18,6 +18,7 @@ export type StyleGroupAssignment = {
   groupFields: Record<string, unknown>;
   existingGroup?: Record<string, unknown> | null;
   currentStyleGroupId?: string | null;
+  onAssetUpdate?: (attempted: number, succeeded: number | null) => void;
 };
 
 export const STYLE_GROUP_ASSIGNMENT_COLUMNS = [
@@ -58,7 +59,7 @@ export function changedStyleGroupFields(
 
 export async function assignStyleGroup(
   db: StyleGroupAssignmentDb,
-  { assetId, sku, groupFields, existingGroup, currentStyleGroupId }: StyleGroupAssignment,
+  { assetId, sku, groupFields, existingGroup, currentStyleGroupId, onAssetUpdate }: StyleGroupAssignment,
 ): Promise<{ groupId: string; created: boolean; metadataUpdated: boolean }> {
   let group = existingGroup;
   if (group === undefined) {
@@ -103,11 +104,13 @@ export async function assignStyleGroup(
   // Conditional assignment keeps repeated scans from refreshing the asset's
   // search document when membership has not changed.
   if (currentStyleGroupId !== groupId) {
-    const assignment = await db.from("assets")
+    const assignmentQuery = db.from("assets")
       .update({ style_group_id: groupId })
       .eq("id", assetId)
       // `neq` alone excludes NULL in SQL, leaving newly ingested assets ungrouped.
       .or(`style_group_id.is.null,style_group_id.neq.${groupId}`);
+    const assignment = onAssetUpdate ? await assignmentQuery.select("id") : await assignmentQuery;
+    onAssetUpdate?.(1, assignment.error ? 0 : assignment.data?.length ?? null);
     if (assignment.error) throw new Error(`asset style group assignment failed: ${assignment.error.message}`);
   }
 

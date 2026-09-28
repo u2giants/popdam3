@@ -45,11 +45,29 @@ import {
   shouldFetchNextMasterDataBatch,
 } from "@/lib/master-data-loading";
 import { getMg01Options, getMg02Options, getMg03Options } from "@/lib/mg-lookup";
-import { refreshStyleTrackerBridgeWithRetry, StyleRowSavedBridgeRefreshError } from "@/lib/style-tracker-save";
+import { bridgeWriteCounts, refreshStyleTrackerBridgeWithRetry, StyleRowSavedBridgeRefreshError } from "@/lib/style-tracker-save";
 import { cn } from "@/lib/utils";
 
 LicenseManager.setLicenseKey("");
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
+
+async function refreshBridgeWithMeasurement() {
+  const result = await supabase.rpc("refresh_style_tracker_item_bridge");
+  if (import.meta.env.VITE_POP_INDEXED_WRITE_MEASUREMENT === "1") {
+    const counts = bridgeWriteCounts(result.data, result.error);
+    // Only aggregate result counts. A failed/unknown attempt remains inconclusive.
+    console.info("[indexed-write-measurement]", {
+      observed_at: new Date().toISOString(),
+      table: "plm.style_tracker_item_bridge", path: "style-tracker-refresh",
+      attempted_rows: counts?.attempted_rows ?? null,
+      succeeded_rows: counts?.succeeded_rows ?? null,
+      inserted_rows: counts?.inserted_rows ?? null,
+      updated_rows: counts?.updated_rows ?? null,
+      base_total_rows: counts?.base_total_rows ?? null,
+    });
+  }
+  return result;
+}
 
 type FieldKey = StyleTrackerFieldKey;
 type RowData = Record<string, unknown>;
@@ -1360,9 +1378,7 @@ export default function StylesPage() {
       }
       const { error } = await (supabase as any).from("style_tracker_rows").update(buildUpdate(row, column, value)).eq("id", row.id);
       if (error) throw error;
-      await refreshStyleTrackerBridgeWithRetry(
-        () => (supabase as any).rpc("refresh_style_tracker_item_bridge"),
-      );
+      await refreshStyleTrackerBridgeWithRetry(refreshBridgeWithMeasurement);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["style-rows"] });
@@ -1835,7 +1851,7 @@ export default function StylesPage() {
         if (error) throw error;
       }));
     }
-    await refreshStyleTrackerBridgeWithRetry(() => (supabase as any).rpc("refresh_style_tracker_item_bridge"));
+    await refreshStyleTrackerBridgeWithRetry(refreshBridgeWithMeasurement);
     await queryClient.invalidateQueries({ queryKey: ["style-rows", active.name] });
     await queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
   };
