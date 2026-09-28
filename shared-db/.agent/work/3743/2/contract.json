@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3743,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Make the Actions quota preflight read the actually charged GitHub API bucket from real x-ratelimit headers instead of the misleading rate_limit endpoint, so an empty installation bucket waits or fails plainly instead of tripping the 60-second host latch; and make the transport take the real reset from a real endpoint when rate_limit contradicts a refusal",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "dispatcher": "Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3 (issue #3743)",
+  "worker": "claude",
+  "branch": "claude/actions-quota-true-bucket",
+  "worktree": ".claude/worktrees/actions-quota-true-bucket",
+  "allowed_paths": [
+    "scripts/check-actions-quota.mjs",
+    "scripts/check-actions-quota.test.mjs",
+    ".agent/work/3743/2/contract.json",
+    ".agent/work/3743/2/completion.json",
+    "scripts/lib/github-transport.mjs",
+    "scripts/lib/github-transport.test.mjs",
+    ".agent/work/3743/1/contract.json",
+    ".agent/work/3743/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/check-actions-quota.mjs",
+    "scripts/check-actions-quota.test.mjs",
+    ".agent/work/3743/2/contract.json",
+    ".agent/work/3743/2/completion.json",
+    "scripts/lib/github-transport.mjs",
+    "scripts/lib/github-transport.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not put any secret or token in the repository",
+    "do not weaken, skip, or remove any required check or the host quota latch"
+  ],
+  "required_checks": [
+    "node --test scripts/check-actions-quota.test.mjs scripts/lib/github-transport.test.mjs"
+  ],
+  "assumptions": [
+    "the rate_limit endpoint does not reflect the installation bucket GitHub enforces on github.token, as observed on run 36453601471"
+  ],
+  "stop_conditions": [
+    "stop if the change would need to touch a file outside allowed_paths"
+  ],
+  "generation": 2
+}

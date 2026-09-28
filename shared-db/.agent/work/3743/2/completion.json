@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_issue": 3743,
+  "outcome": "ready-for-merge",
+  "pr": 3742,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3743/2",
+  "contract_sha256": "134ef291ad5b9068b0624243ec85ec381c2b064e66180e644dbbd6e50a64697b",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "head_sha": "24e137a0d810383011960743e4e3b5e0ad871ee9",
+  "files_changed": [
+    "scripts/check-actions-quota.mjs",
+    "scripts/check-actions-quota.test.mjs",
+    "scripts/lib/github-transport.mjs",
+    "scripts/lib/github-transport.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-actions-quota.test.mjs scripts/lib/github-transport.test.mjs",
+      "exit_code": 0,
+      "evidence": "34 passed, 0 failed, including real-bucket reset tests (waits 421s from real headers, not 1s) and a refused preflight probe waiting for its own 403 reset"
+    }
+  ],
+  "assumptions_resolved": [
+    "run 36453601471: rate_limit said 5000 of 5000 at 18:38:12.79Z and pulls/3699/files was refused for installation at 18:38:13.12Z"
+  ],
+  "stop_conditions_hit": []
+}

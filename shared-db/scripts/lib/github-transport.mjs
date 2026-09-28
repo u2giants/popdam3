@@ -162,6 +162,35 @@ export function rateLimitResetDelayMs(raw, args, nowMs) {
   return Math.max(0, resetSeconds * 1000 - nowMs)
 }
 
+// REAL-BUCKET RESET (issue #3743)
+// --------------------------------
+// For the Actions token, GET /rate_limit reports a fresh per-token view
+// ("5000 of 5000") while GitHub refuses real calls with "API rate limit exceeded
+// for installation" -- the shared per-repository budget it actually enforces.
+// Reading that probe as "not exhausted" produced a 0ms delay ("waiting 1s"), an
+// immediate second refusal, and a 60-second unknown-reset latch on every rerun.
+// When the free probe contradicts the refusal, one real REST read is made and
+// the reset is taken from ITS x-ratelimit-* headers (gh prints them on stdout
+// with -i, including on a 403). Anything unreadable stays null: never guessed.
+export function realBucketResetDelayMs(raw, nowMs) {
+  const text = String(raw ?? '').replace(/\r\n/g, '\n')
+  const boundary = text.indexOf('\n\n')
+  const head = boundary < 0 ? text : text.slice(0, boundary)
+  if (!/^HTTP\//.test(head)) return null
+  const headers = new Map()
+  for (const line of head.split('\n').slice(1)) {
+    const at = line.indexOf(':')
+    if (at > 0) headers.set(line.slice(0, at).trim().toLowerCase(), line.slice(at + 1).trim())
+  }
+  const retryAfter = headers.get('retry-after')
+  if (retryAfter !== undefined && /^\d+$/.test(retryAfter)) return Number(retryAfter) * 1000
+  const remaining = headers.get('x-ratelimit-remaining')
+  const reset = headers.get('x-ratelimit-reset')
+  if (!/^\d+$/.test(remaining ?? '') || !/^\d+$/.test(reset ?? '')) return null
+  if (Number(remaining) > 0) return null
+  return Math.max(0, Number(reset) * 1000 - nowMs)
+}
+
 // HOST-WIDE EXHAUSTION LATCH (issue #2773)
 // ----------------------------------------
 // Every session on a machine shares one hourly bucket per token. Before this
@@ -299,6 +328,8 @@ export function runGitHubCommand(args, {
   // Only the real binary shares the host latch by default. An injected fake
   // executor is a test fixture and must never read or write the machine's latch.
   quotaLatch = executor === execFileSync ? hostQuotaLatch() : null,
+  // Only the real binary probes the real bucket by default; tests inject it.
+  repository = executor === execFileSync ? (process.env.GITHUB_REPOSITORY || null) : null,
 } = {}) {
   const mutating = isMutatingCall(args) || input !== undefined
   const allowed = mutating && !idempotentWrite ? 1 : Math.max(1, attempts)
@@ -342,6 +373,18 @@ GitHub API rate limit exhausted (host-wide latch); waiting ${Math.ceil(delay / 1
         } catch {
           delay = null // an unreadable reset is refused below, never guessed
         }
+        if (delay === 0 && repository) {
+          // The free probe says "not exhausted" about a call that WAS refused:
+          // it is reading the wrong bucket (#3743). Ask a real endpoint.
+          let real = null
+          try {
+            real = executor('gh', ['api', '-i', `repos/${repository}`], { encoding: 'utf8', maxBuffer, stdio: ['ignore', 'pipe', 'pipe'] })
+          } catch (probeError) {
+            real = probeError?.stdout ?? null
+          }
+          delay = realBucketResetDelayMs(real, now())
+          probe = null
+        }
         if (quotaLatch) {
           const buckets = delay === null ? quotaBucketsFor(args) : exhaustedBuckets(probe, args)
           try { quotaLatch.write(args, now() + (delay ?? UNKNOWN_RESET_LATCH_MS), buckets) } catch { /* the brake is best-effort; the refusal below is not */ }
@@ -367,6 +410,9 @@ GitHub API rate limit exhausted (host-wide latch); waiting ${Math.ceil(delay / 1
         wrapped.transientTransport = transient
         wrapped.rateLimitExhausted = exhausted
         wrapped.stderr = captured
+        // `gh api -i` prints the refused response's headers on stdout; keep them
+        // so a quota preflight can read the real reset (#3743).
+        if (error?.stdout !== undefined) wrapped.stdout = error.stdout
         // Quieter for the expected answers, LOUDER for real faults.
         if (captured && !(expectedFailure && expectedFailure.test(detail))) {
           reportStderr(`gh ${args.join(' ')}\n${captured}\n`)

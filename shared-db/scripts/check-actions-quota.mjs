@@ -3,8 +3,16 @@
 //
 // The Actions installation token shares one hourly REST budget across every
 // workflow run. When it ran out mid-job, checks failed with raw "API rate limit
-// exceeded" errors that read like real guard refusals. This step asks first,
-// using the `rate_limit` endpoint, which does not count against the quota.
+// exceeded" errors that read like real guard refusals. This step asks first.
+//
+// It must NOT trust the `rate_limit` endpoint for the Actions token (#3699,
+// 2026-09-28): that endpoint answered "5000 of 5000 left" and the very next
+// REST call 0.3s later was refused "API rate limit exceeded for installation".
+// The endpoint reports a fresh per-token view; the limit GitHub actually
+// enforces on GITHUB_TOKEN is the shared per-repository installation budget.
+// So the probe is one real, cheap REST read (the repository) and the answer is
+// taken from that response's x-ratelimit-* headers -- the bucket that is really
+// charged. It costs one request, which is the price of a true answer.
 //
 //   remaining >= ACTIONS_QUOTA_MIN_REMAINING (default 200)  -> continue
 //   below it, reset within the opted-in cap                 -> wait, then re-check once
@@ -27,10 +35,45 @@ export function minRemaining(env = process.env) {
   return Number.isInteger(value) && value >= 0 ? value : DEFAULT_MIN_REMAINING
 }
 
+// Parse x-ratelimit-* headers from a `gh api -i` response.
+export function quotaFromHeaders(raw) {
+  const text = String(raw ?? '').replace(/\r\n/g, '\n')
+  const boundary = text.indexOf('\n\n')
+  if (!/^HTTP\//.test(text) || boundary < 0) return null
+  const headers = new Map()
+  for (const line of text.slice(0, boundary).split('\n').slice(1)) {
+    const at = line.indexOf(':')
+    if (at > 0) headers.set(line.slice(0, at).trim().toLowerCase(), line.slice(at + 1).trim())
+  }
+  const num = (name) => (/^\d+$/.test(headers.get(name) ?? '') ? Number(headers.get(name)) : null)
+  const remaining = num('x-ratelimit-remaining')
+  const reset = num('x-ratelimit-reset')
+  if (remaining === null || reset === null) return { readable: false, why: 'response carries no x-ratelimit-remaining/reset headers' }
+  return { readable: true, remaining, limit: num('x-ratelimit-limit'), reset, resource: headers.get('x-ratelimit-resource') ?? 'core' }
+}
+
+// A refused probe is itself the answer: the charged bucket is empty.
+const EXHAUSTED = /rate limit exceeded/i
+
 export function readQuota(read) {
+  let raw
+  try {
+    raw = read()
+  } catch (error) {
+    const text = String(error?.stderr ?? error?.message ?? error)
+    if (EXHAUSTED.test(text)) {
+      // The refused response's own headers state the real bucket's reset.
+      const refused = quotaFromHeaders(error?.stdout)
+      if (refused?.readable) return { ...refused, remaining: Math.min(refused.remaining, 0) }
+      return { readable: true, remaining: 0, limit: null, reset: null, why: text.split('\n').find((l) => EXHAUSTED.test(l)) }
+    }
+    return { readable: false, why: error.message }
+  }
+  const fromHeaders = quotaFromHeaders(raw)
+  if (fromHeaders) return fromHeaders
   let payload
   try {
-    payload = JSON.parse(read())
+    payload = JSON.parse(raw)
   } catch (error) {
     return { readable: false, why: error.message }
   }
@@ -40,7 +83,10 @@ export function readQuota(read) {
 }
 
 export function checkQuota({
-  read = () => runGitHubCommand(['api', 'rate_limit'], { maxRateLimitWaitMs: 0 }),
+  read = () => runGitHubCommand(
+    ['api', '-i', process.env.GITHUB_REPOSITORY ? `repos/${process.env.GITHUB_REPOSITORY}` : 'rate_limit'],
+    { maxRateLimitWaitMs: 0, attempts: 1, quotaLatch: null },
+  ),
   wait = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms),
   now = Date.now,
   env = process.env,
@@ -54,6 +100,9 @@ export function checkQuota({
     if (quota.remaining >= floor) {
       log(`GitHub API quota: ${quota.remaining} of ${quota.limit} requests left; continuing.`)
       return { ok: true, remaining: quota.remaining }
+    }
+    if (quota.reset === null) {
+      return { ok: false, message: `installation quota low: the GitHub API refused the quota probe itself (${quota.why}); reset time not stated. Re-run this job later. No pull request check was evaluated.` }
     }
     const delay = quota.reset * 1000 - now()
     const resetAt = new Date(quota.reset * 1000).toISOString()
