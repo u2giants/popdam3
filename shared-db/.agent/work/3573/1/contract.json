@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3573,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Retire the idle start-reroute canary workflow and harness while keeping reviewer-start-watch create-only durable ref operations and resume behavior intact (#3536 first remaining child).",
+  "base_sha": "448fc15fc2b458589d698965ed34c6071e56dd49",
+  "dispatcher": "Codex repo-maintenance session for #3536 child #3573",
+  "worker": "Codex chat 01a0e56d-340b-7920-b498-7cbd8e01ad0a on edge-dev3",
+  "branch": "codex/retire-start-reroute-canary-3536",
+  "worktree": "/home/ahazan/repos/shared-db-3536-canary",
+  "allowed_paths": [
+    ".github/workflows/start-reroute-canary.yml",
+    "scripts/orchestrator-flow/start-reroute-canary.mjs",
+    "scripts/orchestrator-flow/start-reroute-canary.test.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
+    ".agent/work/3573/1/contract.json",
+    ".agent/work/3573/1/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/start-reroute-canary.yml",
+    "scripts/orchestrator-flow/start-reroute-canary.mjs",
+    "scripts/orchestrator-flow/start-reroute-canary.test.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
+    ".agent/work/3573/1/contract.json",
+    ".agent/work/3573/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not touch migrations, database objects, live rows, production or shared cloud infrastructure.",
+    "Do not weaken reviewer-start-watch reservation, create-only ref, acknowledgement, or fail-closed behavior.",
+    "Do not dispatch a runner canary or remove the live reviewer-start-watch workflow."
+  ],
+  "required_checks": [
+    "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs scripts/orchestrator-flow/start-reroute.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The start-reroute canary workflow is retired by #3536 and its only live import is reviewer-start-watch.mjs.",
+    "The merged #3538 slice already removed the other two one-off workflows."
+  ],
+  "stop_conditions": [
+    "Stop if another live import of the canary harness is found.",
+    "Stop if the durable ref adapter cannot be preserved without widening this contract."
+  ]
+}

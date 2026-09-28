@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 3573,
+  "outcome": "ready-for-merge",
+  "pr": 3575,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3573/1",
+  "contract_sha256": "61a88eb4e8059fcbe3aa655f8f8e53cc213f36dc9acaf02f525795c0f8a31085",
+  "base_sha": "448fc15fc2b458589d698965ed34c6071e56dd49",
+  "head_sha": "2dc608d092878f27b8ebb488bf1f32ccee4c135a",
+  "files_changed": [
+    ".github/workflows/start-reroute-canary.yml",
+    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
+    "scripts/orchestrator-flow/start-reroute-canary.mjs",
+    "scripts/orchestrator-flow/start-reroute-canary.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/orchestrator-flow/reviewer-start-watch.test.mjs scripts/orchestrator-flow/start-reroute.test.mjs",
+      "exit_code": 0,
+      "evidence": "48 pass, 0 fail"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=324 sources=76"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "no whitespace errors"
+    }
+  ],
+  "assumptions_resolved": [
+    "Repository search found no active import of start-reroute-canary.mjs except reviewer-start-watch.mjs; the latter now owns the identical durable ref adapter.",
+    "PRs #3445 and #3369 touch none of the five implementation paths in this PR."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Retires only the first remaining #3536 audit child; later cuts remain on the parent."
+}
