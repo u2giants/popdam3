@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "work_issue": 3607,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Permit a verified non-migration rename to use the repository-maintenance reviewer and merge route while refusing incomplete or conflicting file inventory",
+  "base_sha": "13d0d888a77eba476bc8282f652ad425645b7e33",
+  "dispatcher": "child issue #3607 and parent Codex session",
+  "worker": "Codex chat 01a0e56d-24b7-7653-836f-638a3461db1c",
+  "branch": "codex/3607-safe-rename-route",
+  "worktree": "/home/ahazan/repos/shared-db-3607-route",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not relax migration-side rename admission",
+    "Do not change database structure or rows",
+    "Do not alter any db-claim lease, #3505, or #3552"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "GraphQL file snapshots omit prior filenames while the paginated REST PR file reader returns them",
+    "A complete, matching GraphQL and REST inventory with readable prior paths can route non-migration renames as repository maintenance"
+  ],
+  "stop_conditions": [
+    "Stop if a rename cannot be bound to a complete matching current-head file inventory",
+    "Stop if any migration-side path could enter the repository-maintenance route",
+    "Stop if implementation needs a file outside the allowed paths"
+  ]
+}

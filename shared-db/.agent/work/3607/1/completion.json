@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "work_issue": 3607,
+  "outcome": "ready-for-merge",
+  "pr": 3608,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3607/1",
+  "contract_sha256": "3affdc11bfd15bea57d3758e00bb853269f387549e9f4f0c34a29ec05b68bb2b",
+  "base_sha": "66c7b7159f01de58a83e604bbc08744a84bcfe55",
+  "head_sha": "6859fbbacb0719a7c42e2027ff84a0ad0cfba6c3",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "729 pass, 0 fail at 6859fbba on main 66c7b715."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=319 sources=80 derived_digest=fb8271319bc6 at 6859fbba on main 66c7b715."
+    }
+  ],
+  "assumptions_resolved": [
+    "GraphQL omits prior filenames, so a reviewer rename triggers a REST inventory read under the reviewer mutex.",
+    "GraphQL and REST inventory path and status pairs must match exactly; duplicate or unreadable rows refuse.",
+    "A rename reaches repository maintenance only when the prior path is readable and neither side is a migration path.",
+    "Copies, unknown statuses, missing prior paths, and migration-side renames stay structural and require admission.",
+    "GraphQL DELETED and REST removed are normalized to the same status for exact mixed-inventory comparison.",
+    "A routing test exercises the GraphQL rename trigger, the REST callback, mixed deletion, prior-path migration, mismatch, unreadable prior path, and pagination refusals.",
+    "Admission-gate REST reads use the separate suspended reviewer-budget counter; the 25-request reviewer ceiling and 15-request mutex reserve are unchanged."
+  ],
+  "stop_conditions_hit": []
+}

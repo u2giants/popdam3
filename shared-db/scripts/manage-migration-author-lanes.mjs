@@ -2194,7 +2194,9 @@ export const githubIo = {
     const issueEvidence=reviewWireBudget?' comments(first:100){pageInfo{hasNextPage} nodes{body authorAssociation}}':''
     const query=`query($owner:String!,$name:String!,$pr:Int!){repository(owner:$owner,name:$name){pullRequest(number:$pr){state merged mergedAt headRefOid${evidence} files(first:100){pageInfo{hasNextPage} nodes{path changeType}} closingIssuesReferences(first:2){pageInfo{hasNextPage} nodes{... on Issue{number state body createdAt${issueEvidence}}}}}}}`
     const data=ghJson(['api','graphql','-f',`query=${query}`,'-F',`owner=${REPO_OWNER}`,'-F',`name=${REPO_NAME}`,'-F',`pr=${Number(pr)}`])
-    const snapshot=projectReviewerOperationRouteSnapshot(data)
+    // The caller's admission gate uses its own request counter, while the
+    // bounded-pagination refusal and mutex single-attempt policy remain active.
+    const snapshot=completeReviewerOperationRouteSnapshot(data,()=>githubIo.getPrFiles(Number(pr)))
     const row=data.data.repository.pullRequest,linked=row.closingIssuesReferences.nodes
     if(reviewWireBudget&&linked.length===1&&Number.isInteger(linked[0]?.number)){
       try{primeReviewStates([[`${linked[0].number}:${Number(pr)}`,reviewStateEntry(row,linked[0])]])}catch{}
@@ -5823,6 +5825,31 @@ export function projectReviewerOperationRouteSnapshot(data){
   }
 }
 
+export function completeReviewerOperationRouteSnapshot(data,readRestFiles){
+  let snapshot=projectReviewerOperationRouteSnapshot(data)
+  // GraphQL has no prior filename. A rename needs the complete REST inventory
+  // before either side of its path can be classified under the reviewer mutex.
+  // The REST read is gated on GraphQL reporting a rename. A file GraphQL reports
+  // as ADDED/MODIFIED is routed exactly as it was before rename support existed,
+  // so this gate adds no new trust: it only lets a GraphQL-reported rename use
+  // the maintenance route once REST proves both of its paths are non-migration.
+  if(snapshot.files.some((file)=>file.status==='renamed'))snapshot=reconcileReviewerOperationRouteFiles(snapshot,readRestFiles())
+  return snapshot
+}
+
+export function reconcileReviewerOperationRouteFiles(snapshot,restFiles){
+  if(!Array.isArray(snapshot?.files)||!Array.isArray(restFiles)||snapshot.files.length!==restFiles.length)throw new LaneError('reviewer rename routing GraphQL and REST file inventories disagree')
+  const key=(file)=>{
+    if(typeof file?.filename!=='string'||!file.filename.trim()||typeof file?.status!=='string'||!file.status.trim())throw new LaneError('reviewer rename routing file inventory is unreadable')
+    const status=file.status.toLowerCase()==='deleted'?'removed':file.status.toLowerCase()
+    return `${file.filename}\0${status}`
+  }
+  const graph=snapshot.files.map(key).sort(),rest=restFiles.map(key).sort()
+  if(new Set(graph).size!==graph.length||new Set(rest).size!==rest.length||graph.some((value,index)=>value!==rest[index]))throw new LaneError('reviewer rename routing GraphQL and REST file inventories disagree')
+  for(const file of restFiles)if(file.status.toLowerCase()==='renamed'&&(typeof file.previous_filename!=='string'||!file.previous_filename.trim()))throw new LaneError('reviewer rename routing prior filename is unreadable')
+  return {...snapshot,files:restFiles.map(({filename,status,previous_filename})=>previous_filename===undefined?{filename,status}:{filename,status,previous_filename})}
+}
+
 // GitHub does not include repository association unless it is requested. The
 // verdict predicate refuses association-less prose, so omitting this field here
 // makes a genuine OWNER verdict invisible to normal reviewer-lease cleanup.
@@ -7621,12 +7648,15 @@ export function derivePrOperationRoute(pr, io = githubIo, { headSha = null, issu
   const linkedNumber=Number(linked[0]?.number)
   if(!Number.isInteger(linkedNumber)||linkedNumber<1)throw new LaneError('pull request linked work issue identity is unreadable')
   if(issue!==null&&Number(issue)!==linkedNumber)throw new LaneError(`operation issue #${issue} does not match pull request #${pr} linked issue #${linkedNumber}`)
-  // GraphQL exposes no prior filename. Only the statuses whose current path is
-  // a complete description can enter repository-maintenance routing; copies,
-  // renames, CHANGED/UNCHANGED, and future enum values stay structural so the
-  // DDL admission check either proves them or refuses them.
+  // A verified rename supplies both paths. Copies, CHANGED/UNCHANGED, future
+  // enum values, and renames without a readable prior path stay structural.
+  // Either migration-side path also stays structural below.
   const completeCurrentPathStatuses=new Set(['added','modified','removed','deleted'])
-  const structural=files.some((file)=>file.previous_filename!==undefined||!completeCurrentPathStatuses.has(String(file.status).toLowerCase()))||paths.some((value)=>MIGRATION_PATH.test(String(value).replace(/\\/g,'/')))
+  const structural=files.some((file)=>{
+    const status=String(file.status).toLowerCase()
+    if(status==='renamed')return typeof file.previous_filename!=='string'||!file.previous_filename.trim()
+    return file.previous_filename!==undefined||!completeCurrentPathStatuses.has(status)
+  })||paths.some((value)=>MIGRATION_PATH.test(String(value).replace(/\\/g,'/')))
   if(structural)return {route:'structural',issue:linkedNumber,pr:Number(pr),headSha:livePr.head.sha}
 
   const work=snapshot?.linkedIssues?.[0]??io.getIssue(linkedNumber),scope=parseQueueScope(work?.body??'')

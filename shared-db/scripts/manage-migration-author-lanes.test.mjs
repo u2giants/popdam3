@@ -6,6 +6,7 @@ import test from 'node:test'
 import { namedHold, urgentHoldDetail, urgentHoldReason } from './manage-migration-author-lanes.mjs'
 import { rebindClaimWorktree, claimWorktreeRebindRef } from './manage-migration-author-lanes.mjs'
 import { allocatableReviewers, reconcilePreflightRows } from './manage-migration-author-lanes.mjs'
+import { completeReviewerOperationRouteSnapshot, derivePrOperationRoute, reconcileReviewerOperationRouteFiles } from './manage-migration-author-lanes.mjs'
 import { validateHoldReasonRecord } from './lib/hold-reason.mjs'
 import { ENGINES } from './lib/orchestrator-routing.mjs'
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
@@ -3563,6 +3564,56 @@ test('reviewer routing GraphQL projection is complete and treats every rename as
     value=>value.data.repository.pullRequest.closingIssuesReferences.pageInfo.hasNextPage=true,
     value=>value.data.repository.pullRequest.files.nodes=null,
   ]){const value=structuredClone(response);mutate(value);assert.throws(()=>projectReviewerOperationRouteSnapshot(value),/incomplete or paginated/)}
+})
+
+test('reviewer rename routing requires a complete matching REST inventory and readable prior path',()=>{
+  const snapshot={files:[{filename:'docs/new.json',status:'renamed'},{filename:'scripts/other.mjs',status:'modified'}]}
+  const rest=[{filename:'scripts/other.mjs',status:'modified'},{filename:'docs/new.json',status:'renamed',previous_filename:'docs/old.json'}]
+  assert.deepEqual(reconcileReviewerOperationRouteFiles(snapshot,rest).files,rest)
+  assert.throws(()=>reconcileReviewerOperationRouteFiles(snapshot,rest.slice(0,1)),/inventories disagree/)
+  assert.throws(()=>reconcileReviewerOperationRouteFiles(snapshot,[rest[0],{...rest[1],filename:'docs/elsewhere.json'}]),/inventories disagree/)
+  assert.throws(()=>reconcileReviewerOperationRouteFiles(snapshot,[rest[0],{filename:'docs/new.json',status:'renamed'}]),/prior filename is unreadable/)
+  assert.throws(()=>reconcileReviewerOperationRouteFiles(snapshot,[rest[0],{...rest[1],status:'copied'}]),/inventories disagree/)
+})
+
+test('reviewer routing fetches prior paths for mixed rename and deletion inventories',()=>{
+  const body=['```db-work-scope','status: ready','work_type: repo-maintenance','route: repo-maintenance','change_type: reviewer-tooling','priority: 5','depends_on:','writes:','reads:','```'].join('\n')
+  const data={data:{repository:{pullRequest:{state:'OPEN',merged:false,mergedAt:null,headRefOid:'a'.repeat(40),files:{pageInfo:{hasNextPage:false},nodes:[{path:'docs/new.json',changeType:'RENAMED'},{path:'docs/gone.json',changeType:'DELETED'}]},closingIssuesReferences:{pageInfo:{hasNextPage:false},nodes:[{number:41,state:'OPEN',body,createdAt:'2026-09-11T17:00:00Z'}]}}}}}
+  const rest=[{filename:'docs/new.json',status:'renamed',previous_filename:'docs/old.json'},{filename:'docs/gone.json',status:'removed'}]
+  let reads=0
+  const result=completeReviewerOperationRouteSnapshot(data,()=>{reads++;return rest})
+  assert.equal(reads,1)
+  assert.deepEqual(result.files,rest)
+  assert.equal(derivePrOperationRoute(7,{}, {headSha:'a'.repeat(40),issue:41,snapshot:result}).route,'repo-maintenance')
+  assert.equal(derivePrOperationRoute(7,{}, {headSha:'a'.repeat(40),issue:41,snapshot:completeReviewerOperationRouteSnapshot(data,()=>[{...rest[0],previous_filename:'supabase/migrations/old.sql'},rest[1]])}).route,'structural')
+  assert.throws(()=>completeReviewerOperationRouteSnapshot(data,()=>[{...rest[0],filename:'docs/other.json'},rest[1]]),/inventories disagree/)
+  assert.throws(()=>completeReviewerOperationRouteSnapshot(data,()=>[{filename:'docs/new.json',status:'renamed'},rest[1]]),/prior filename is unreadable/)
+  const truncated=structuredClone(data);truncated.data.repository.pullRequest.files.pageInfo.hasNextPage=true
+  assert.throws(()=>completeReviewerOperationRouteSnapshot(truncated,()=>rest),/incomplete or paginated/)
+  assert.throws(()=>completeReviewerOperationRouteSnapshot(data,()=>{throw new LaneError('REST inventory reached 100 rows')}),/reached 100 rows/)
+  const noRename=structuredClone(data);noRename.data.repository.pullRequest.files.nodes=[{path:'docs/gone.json',changeType:'DELETED'}]
+  completeReviewerOperationRouteSnapshot(noRename,()=>{throw new Error('must not read REST without a rename')})
+})
+
+test('githubIo reviewer routing wires the REST file inventory into rename reconciliation (#3608 review)',()=>{
+  const source=readFileSync(new URL('./manage-migration-author-lanes.mjs',import.meta.url),'utf8')
+  const start=source.indexOf('  readReviewerOperationRoute(pr){'),body=source.slice(start,source.indexOf('\n  },',start))
+  assert.ok(start>0,'githubIo.readReviewerOperationRoute must exist')
+  assert.match(body,/completeReviewerOperationRouteSnapshot\(data,\(\)=>githubIo\.getPrFiles\(Number\(pr\)\)\)/)
+  assert.equal(typeof githubIo.getPrFiles,'function')
+  assert.equal(typeof githubIo.readReviewerOperationRoute,'function')
+})
+
+test('operation route accepts only verified non-migration renames as repository maintenance',()=>{
+  const head='a'.repeat(40),body=['```db-work-scope','status: ready','work_type: repo-maintenance','route: repo-maintenance','change_type: reviewer-tooling','priority: 5','depends_on:','writes:','reads:','```'].join('\n')
+  const io={getPr:()=>({state:'open',head:{sha:head}}),closingIssuesForPr:()=>[{number:41}],getIssue:()=>({state:'open',body})}
+  const route=(files)=>derivePrOperationRoute(7,{...io,getPrFiles:()=>files},{headSha:head,issue:41})
+  assert.equal(route([{filename:'docs/new.json',status:'renamed',previous_filename:'docs/old.json'}]).route,'repo-maintenance')
+  assert.equal(route([{filename:'docs/new.json',status:'renamed',previous_filename:'supabase/migrations/20260901010101_old.sql'}]).route,'structural')
+  assert.equal(route([{filename:'supabase/migrations/20260901010101_new.sql',status:'renamed',previous_filename:'docs/old.json'}]).route,'structural')
+  assert.equal(route([{filename:'docs/new.json',status:'renamed'}]).route,'structural')
+  assert.equal(route([{filename:'docs/new.json',status:'copied',previous_filename:'docs/old.json'}]).route,'structural')
+  assert.equal(route([{filename:'docs/new.json',status:'changed'}]).route,'structural')
 })
 
 test('guarded merge rederives deterministic repository maintenance inside its mutex',()=>{
