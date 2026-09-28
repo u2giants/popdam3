@@ -74,15 +74,18 @@ async function receipts(dir, observedAt, overrides = {}) {
   const resultHash = await privateFile(resultPath, resultContent);
   const singleWriterPath = join(dir, "single-writer-receipt.txt");
   const singleWriterHash = await privateFile(singleWriterPath, "fixture exclusive writer attestation");
+  const resetWindowPath = join(dir, "reset-window-receipt.txt");
+  const resetWindowHash = await privateFile(resetWindowPath, "fixture independent reset-window attestation");
   const operationPath = join(dir, "operation.json");
   await privateFile(operationPath, JSON.stringify({
     name: "fixture crawl", paths: ["crawl-upsert"], source_commit: "a".repeat(40),
     attempted_rows: 1, succeeded_rows: 1,
     result_receipt_path: resultPath, result_receipt_sha256: resultHash,
     single_writer_receipt_path: singleWriterPath, single_writer_receipt_sha256: singleWriterHash,
+    reset_window_receipt_path: resetWindowPath, reset_window_receipt_sha256: resetWindowHash,
     ...overrides,
   }));
-  return { operationPath, resultPath, singleWriterPath };
+  return { operationPath, resultPath, singleWriterPath, resetWindowPath };
 }
 
 test("accepts only the exact production host, role, database, and verified TLS", () => {
@@ -116,6 +119,9 @@ test("mocked before/after writes private files and a value-free aggregate report
     assert.equal(report.indexed_value_changed, 1);
     assert.equal(report.succeeded_rows, 1);
     assert.equal(report.attribution_requires_receipt_review, true);
+    assert.equal(report.counter_attribution_requires_reset_window_review, true);
+    assert.equal(report.candidate_only, true);
+    assert.equal(report.internally_consistent, undefined);
     assert.equal((await lstat(join(dir, "report.json"))).mode & 0o077, 0);
     assert.ok(!reportText.includes('"indexed":"old"') && !reportText.includes('"indexed":"new"') &&
       !reportText.includes('[\\"1\\"]'));
@@ -141,18 +147,20 @@ test("row bound, receipt timing, and missing or changed receipts fail closed", a
     await assert.rejects(main(["before", "--table", TABLE, "--dir", dir, "--max-rows", "1"], deps), /row bound/);
     await assert.rejects(lstat(join(dir, "before.json")), { code: "ENOENT" });
   });
-  for (const fault of ["outside-time", "missing-result", "changed-result", "missing-single", "changed-single"]) {
+  for (const fault of ["outside-time", "missing-result", "changed-result", "missing-single", "changed-single", "missing-reset", "changed-reset"]) {
     await scratch(async (dir) => {
       const { context, deps } = harness({}, dir);
       await main(["before", "--table", TABLE, "--dir", dir], deps);
       await delay(12);
       const before = JSON.parse(await readFile(join(dir, "before.json"), "utf8"));
       const observed = fault === "outside-time" ? before.finished_at : new Date().toISOString();
-      const { operationPath, resultPath, singleWriterPath } = await receipts(dir, observed);
+      const { operationPath, resultPath, singleWriterPath, resetWindowPath } = await receipts(dir, observed);
       if (fault === "missing-result") await rm(resultPath);
       if (fault === "changed-result") await writeFile(resultPath, "changed", { mode: 0o600 });
       if (fault === "missing-single") await rm(singleWriterPath);
       if (fault === "changed-single") await writeFile(singleWriterPath, "changed", { mode: 0o600 });
+      if (fault === "missing-reset") await rm(resetWindowPath);
+      if (fault === "changed-reset") await writeFile(resetWindowPath, "changed", { mode: 0o600 });
       await delay(12);
       context.phase = "after";
       await assert.rejects(main(["after", "--dir", dir, "--operation", operationPath], deps));

@@ -16,7 +16,7 @@ The edge-function aggregate hooks are disabled unless `POP_INDEXED_WRITE_MEASURE
 
 ## After the workload
 
-Create a private `0600` JSON operation file with this shape, using only counts from the actual result receipt. The two receipt files must exist, be owned by the current user with mode `0600`, and have the stated SHA-256 hashes. The single-writer receipt must contain independently checked evidence that no other writer touched the target table during the window. Do not claim a single-writer window from table counters alone.
+Create a private `0600` JSON operation file with this shape, using only counts from the actual result receipt. The three receipt files must exist, be owned by the current user with mode `0600`, and have the stated SHA-256 hashes. The single-writer receipt must contain independently checked evidence that no other writer touched the target table during the window. A separate reset-window receipt must attest, from independent operational evidence, that no table-specific statistics reset occurred during the window. PostgreSQL exposes no per-table reset timestamp, so the runner cannot validate this from table counters or database reset timestamps. If either attestation cannot be independently established, the counter attribution remains inconclusive. Do not claim a single-writer or reset-free window from table counters alone.
 
 ```json
 {
@@ -28,7 +28,9 @@ Create a private `0600` JSON operation file with this shape, using only counts f
   "result_receipt_path": "/private/outside/repository/result-receipt",
   "result_receipt_sha256": "64-lowercase-hex-character-sha256",
   "single_writer_receipt_path": "/private/outside/repository/single-writer-receipt",
-  "single_writer_receipt_sha256": "64-lowercase-hex-character-sha256"
+  "single_writer_receipt_sha256": "64-lowercase-hex-character-sha256",
+  "reset_window_receipt_path": "/private/outside/repository/reset-window-receipt",
+  "reset_window_receipt_sha256": "64-lowercase-hex-character-sha256"
 }
 ```
 
@@ -38,6 +40,6 @@ The result receipt is a private JSON object of the form `{"events":[{"observed_a
 node scripts/measure-indexed-writes.mjs after --dir /private/outside/repository/measurement --operation /private/outside/repository/operation.json
 ```
 
-The observer writes `report.json` only when the live index inventory is unchanged; statistics have not reset; no row disappeared; changed rows have one update each; inserted rows and update totals match the table deltas; actual success counts match table writes; and a protected single-writer receipt is supplied. The report contains aggregates and receipt hashes, never row identifiers or values. It marks attribution as requiring independent receipt review. A matching aggregate cannot itself prove there were no other writers, so review the protected receipts before using the report for a storage decision. The observer cannot establish a representative workload by itself.
+The observer writes a candidate `report.json` only when the live index inventory is unchanged; observable database/server reset identities are unchanged; no row disappeared; changed rows have one update each; inserted rows and update totals match the table deltas; actual success counts match table writes; and protected writer and reset-window receipts are supplied. A table-specific reset may still escape those counters. The report contains aggregates and receipt hashes, never row identifiers or values. It explicitly requires independent writer, reset-window, result-receipt, and representative-workload review before counter attribution or a storage decision. A supplied receipt hash proves file integrity, not the truth of its contents. The observer cannot establish a representative workload by itself.
 
 The public Style Tracker refresh can perform a second designer-resolution update on a bridge row. Asset ingestion can also update the same asset again during style-group assignment. Such repeated writes cannot be classified from only two snapshots; the runner rejects the window instead of mislabeling it. An attributed measurement of those cases needs a separate per-write observer design. Search-document refreshes are excluded for the same reason until every writer has a complete receipt.

@@ -95,7 +95,7 @@ export function requireReadOnlyUrl(raw, ca) {
     database: "postgres", ssl: { ca, rejectUnauthorized: true, servername: host } };
 }
 
-const INVENTORY_SQL = `
+export const INVENTORY_SQL = `
   WITH indexes AS (
     SELECT i.indexrelid, i.indrelid, i.indkey, c.relname AS index_name,
       pg_get_indexdef(i.indexrelid) AS definition
@@ -103,7 +103,7 @@ const INVENTORY_SQL = `
     WHERE i.indrelid = $1::regclass
   )
   SELECT x.index_name, x.definition,
-    array_agg(DISTINCT a.attname ORDER BY a.attname) FILTER (WHERE a.attname IS NOT NULL) AS columns
+    (array_agg(DISTINCT a.attname ORDER BY a.attname) FILTER (WHERE a.attname IS NOT NULL))::text[] AS columns
   FROM indexes x
   LEFT JOIN LATERAL (
     SELECT k.attnum::smallint AS attnum FROM unnest(x.indkey) AS k(attnum) WHERE k.attnum > 0
@@ -115,7 +115,7 @@ const INVENTORY_SQL = `
   LEFT JOIN pg_attribute a ON a.attrelid = x.indrelid AND a.attnum = dep.attnum
   GROUP BY x.index_name, x.definition ORDER BY x.index_name`;
 
-const STATS_SQL = `
+export const STATS_SQL = `
   SELECT current_database() AS database_name, current_user AS role_name,
     session_user AS session_role, current_setting('transaction_read_only') AS read_only,
     pg_postmaster_start_time()::text AS server_started_at,
@@ -125,14 +125,16 @@ const STATS_SQL = `
     s.n_tup_newpage_upd::text
   FROM pg_stat_user_tables s WHERE s.relid = $1::regclass`;
 
+export const PRIMARY_SQL = `
+    SELECT (array_agg(a.attname ORDER BY k.ordinality))::text[] AS columns
+    FROM pg_constraint c CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY k(attnum, ordinality)
+    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+    WHERE c.conrelid = $1::regclass AND c.contype = 'p'`;
+
 async function capture(client, table, path, maxRows, CursorClass) {
   const startedAt = new Date().toISOString();
   const keys = TABLES[table];
-  const primary = await client.query(`
-    SELECT array_agg(a.attname ORDER BY k.ordinality) AS columns
-    FROM pg_constraint c CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY k(attnum, ordinality)
-    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
-    WHERE c.conrelid = $1::regclass AND c.contype = 'p'`, [table]);
+  const primary = await client.query(PRIMARY_SQL, [table]);
   if (JSON.stringify(primary.rows[0]?.columns) !== JSON.stringify(keys)) throw new Error("primary key changed");
   const inventory = normalizeIndexInventory((await client.query(INVENTORY_SQL, [table])).rows);
   const statsRows = (await client.query(STATS_SQL, [table])).rows;
@@ -170,7 +172,7 @@ async function capture(client, table, path, maxRows, CursorClass) {
     await file.close();
   }
   return { table, project_ref: PROJECT_REF, started_at: startedAt, finished_at: new Date().toISOString(),
-    inventory, stats: { table, project_ref: PROJECT_REF, table_reset_at: null, ...statValues },
+    inventory, stats: { table, project_ref: PROJECT_REF, ...statValues },
     row_count: rowCount, rows_sha256: digest.digest("hex") };
 }
 
@@ -221,8 +223,10 @@ export async function main(argv, { Client = pg.Client, CursorClass = Cursor,
       await verifyRows(resolve(directory, "after.rows.ndjson"), metadata);
       const operation = await readProtectedJson(options.operation);
       if (!operation.result_receipt_path || !operation.single_writer_receipt_path ||
+          !operation.reset_window_receipt_path ||
           await protectedFileHash(operation.result_receipt_path) !== operation.result_receipt_sha256 ||
-          await protectedFileHash(operation.single_writer_receipt_path) !== operation.single_writer_receipt_sha256) {
+          await protectedFileHash(operation.single_writer_receipt_path) !== operation.single_writer_receipt_sha256 ||
+          await protectedFileHash(operation.reset_window_receipt_path) !== operation.reset_window_receipt_sha256) {
         throw new Error("operation receipts are missing or changed");
       }
       const receipt = await readProtectedJson(operation.result_receipt_path);
@@ -236,7 +240,7 @@ export async function main(argv, { Client = pg.Client, CursorClass = Cursor,
         rowsFrom(resolve(directory, "after.rows.ndjson")));
       const report = assessWindow({ before, after: metadata, counts, operation });
       await writePrivateJson(resolve(directory, "report.json"), report);
-      log("Internally consistent aggregate report written; independent receipt review is still required.");
+      log("Candidate aggregate report written; independent writer, reset-window, and workload review is required.");
     } else log("Private before snapshot captured. Run only an independently authorized workload before after capture.");
   } finally {
     if (transactionOpen) {

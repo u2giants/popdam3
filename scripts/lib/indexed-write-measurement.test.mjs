@@ -8,10 +8,11 @@ const inventory = normalizeIndexInventory([
   { index_name: "primary", definition: "CREATE UNIQUE INDEX primary ON t (id)", columns: ["id"] },
 ]);
 const stats = (overrides = {}) => ({ project_ref: "qsllyeztdwjgirsysgai", table: "public.assets",
-  server_started_at: "start", bgwriter_reset_at: "reset", database_reset_at: null, table_reset_at: null,
+  server_started_at: "start", bgwriter_reset_at: "reset", database_reset_at: null,
   n_tup_ins: "10", n_tup_upd: "20", n_tup_hot_upd: "2", n_tup_newpage_upd: "3", ...overrides });
 const operation = { name: "one bounded ingest", paths: ["ingest-update"], source_commit: "a".repeat(40),
   result_receipt_sha256: "b".repeat(64), single_writer_receipt_sha256: "c".repeat(64),
+  reset_window_receipt_sha256: "d".repeat(64),
   attempted_rows: 4, succeeded_rows: 3 };
 const snapshot = (id, version, values) => ({ id, version, values: JSON.stringify(values) });
 const asyncRows = async function* (rows) { yield* rows; };
@@ -66,7 +67,8 @@ test("rejects retries, concurrent writers, failure count mismatch, reset, and in
   assert.throws(() => assessWindow({ before, after, counts, operation: { ...operation, succeeded_rows: 2 } }), /do not match/);
   assert.throws(() => assessWindow({ before, after: { ...after, stats: stats({ ...after.stats, bgwriter_reset_at: "new" }) }, counts, operation }), /reset identity/);
   assert.throws(() => assessWindow({ before, after: { ...after, inventory: { ...inventory, indexes: [] } }, counts, operation }), /index definitions/);
-  assert.throws(() => assessWindow({ before, after, counts, operation: { ...operation, single_writer_receipt_sha256: "" } }), /single-writer/);
+  assert.throws(() => assessWindow({ before, after, counts, operation: { ...operation, single_writer_receipt_sha256: "" } }), /writer\/reset-window/);
+  assert.throws(() => assessWindow({ before, after, counts, operation: { ...operation, reset_window_receipt_sha256: "" } }), /writer\/reset-window/);
 });
 
 test("rejects missing rows, duplicate IDs, and changed values without an update", async () => {

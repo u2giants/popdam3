@@ -36,8 +36,7 @@ export function counterDelta(before, after) {
   if (!before || !after || before.project_ref !== after.project_ref ||
       before.table !== after.table || before.server_started_at !== after.server_started_at ||
       before.bgwriter_reset_at !== after.bgwriter_reset_at ||
-      before.database_reset_at !== after.database_reset_at ||
-      before.table_reset_at !== after.table_reset_at) {
+      before.database_reset_at !== after.database_reset_at) {
     throw new Error("target or statistics reset identity changed");
   }
   const delta = {};
@@ -135,8 +134,9 @@ export function assessWindow({ before, after, counts, operation }) {
       new Set(operation.paths).size !== operation.paths.length ||
       typeof operation?.source_commit !== "string" || !/^[0-9a-f]{40}$/.test(operation.source_commit) ||
       typeof operation?.result_receipt_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(operation.result_receipt_sha256) ||
-      typeof operation?.single_writer_receipt_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(operation.single_writer_receipt_sha256)) {
-    throw new Error("operation identity or independent single-writer evidence is missing");
+      typeof operation?.single_writer_receipt_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(operation.single_writer_receipt_sha256) ||
+      typeof operation?.reset_window_receipt_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(operation.reset_window_receipt_sha256)) {
+    throw new Error("operation identity or independent writer/reset-window evidence is missing");
   }
   const attempted = nonnegativeInteger(operation.attempted_rows, "attempted_rows");
   const succeeded = nonnegativeInteger(operation.succeeded_rows, "succeeded_rows");
@@ -155,11 +155,13 @@ export function assessWindow({ before, after, counts, operation }) {
     throw new Error("updated row classification is incomplete");
   }
   return {
-    internally_consistent: true, attribution_requires_receipt_review: true,
+    candidate_only: true, counter_attribution_requires_reset_window_review: true,
+    attribution_requires_receipt_review: true, representative_workload_requires_review: true,
     table: before.stats.table, project_ref: before.stats.project_ref,
     source_commit: operation.source_commit, operation: operation.name, paths: operation.paths,
     result_receipt_sha256: operation.result_receipt_sha256,
     single_writer_receipt_sha256: operation.single_writer_receipt_sha256,
+    reset_window_receipt_sha256: operation.reset_window_receipt_sha256,
     before_finished_at: before.finished_at, after_started_at: after.started_at,
     attempted_rows: attempted, succeeded_rows: succeeded,
     failed_rows: attempted - succeeded, indexed_value_changed: counts.indexed_value_changed,
