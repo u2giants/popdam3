@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "generation": 2,
+  "work_issue": 3587,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Remediate the second independent review of PR #3518: preserve truth-audit coverage for ledger-truth claims and run reporter tests in the existing drift CI; keep production alarm #2508 open.",
+  "base_sha": "f7e0c910569561a44b966d1e5f46ecdef3cbebb4",
+  "dispatcher": "Codex non-orchestrator continuation for reporter issue #3587",
+  "worker": "Codex chat on edge-dev3",
+  "branch": "2508-ledger-drift",
+  "worktree": "/home/ahazan/repos/shared-db-3518",
+  "allowed_paths": [
+    ".agent/work/3587/2/contract.json",
+    ".agent/work/3587/2/completion.json",
+    ".github/workflows/migration-ledger-drift.yml",
+    "docs/verification/ledger-drift-2508-status-20260925.md",
+    "docs/verification/throughput-dispositions/scripts~report-ledger-drift-status.mjs.json",
+    "scripts/report-ledger-drift-status.mjs",
+    "scripts/report-ledger-drift-status.test.mjs"
+  ],
+  "file_writes": [
+    ".agent/work/3587/2/contract.json",
+    ".agent/work/3587/2/completion.json",
+    ".github/workflows/migration-ledger-drift.yml",
+    "docs/verification/ledger-drift-2508-status-20260925.md",
+    "docs/verification/throughput-dispositions/scripts~report-ledger-drift-status.mjs.json",
+    "scripts/report-ledger-drift-status.mjs",
+    "scripts/report-ledger-drift-status.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration, database write, production apply, or workflow dispatch.",
+    "Do not close production drift alarm #2508 before read-only proof of clearance.",
+    "Do not edit any db-claim lease or protected unrelated issue."
+  ],
+  "required_checks": [
+    "node --test scripts/report-ledger-drift-status.test.mjs",
+    "node --test scripts/check-migration-ledger-drift.test.mjs",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "Generation 1 preceded the initial reporter implementation; generation 2 is published before newly discovered review remediation.",
+    "The only workflow edit is adding the reporter test to the existing drift check job; no database or production action is invoked."
+  ],
+  "stop_conditions": [
+    "Stop if a migration, database object, production apply, or workflow dispatch is required.",
+    "Stop if fixing the findings requires changing the drift-check implementation."
+  ]
+}

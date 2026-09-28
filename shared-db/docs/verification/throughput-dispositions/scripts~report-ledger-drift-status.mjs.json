@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "source": "scripts/report-ledger-drift-status.mjs",
+  "sites": [
+    {
+      "source": "scripts/report-ledger-drift-status.mjs",
+      "site": "scripts/report-ledger-drift-status.mjs:166",
+      "semantic_key": "scripts/report-ledger-drift-status.mjs:30a27617bdd64c72568d0801df42a584fe3809b2c984d834461a87af6f43670a:context-a9a503193c7b3a17fc4ebde9b0f28f64f648aee04064058cde8188ee1cadd537",
+      "legacy_semantic_key": "scripts/report-ledger-drift-status.mjs:30a27617bdd64c72568d0801df42a584fe3809b2c984d834461a87af6f43670a:1",
+      "line_sha256": "30a27617bdd64c72568d0801df42a584fe3809b2c984d834461a87af6f43670a",
+      "disposition": "excluded",
+      "reason": "This is a conditional statement about the supplied drift-check JSON, not a live-catalog inference or a dynamic DDL derivability claim; the reporter performs no database read."
+    }
+  ]
+}

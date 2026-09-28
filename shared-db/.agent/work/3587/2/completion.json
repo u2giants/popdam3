@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "work_issue": 3587,
+  "outcome": "ready-for-merge",
+  "pr": 3518,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3587/2",
+  "contract_sha256": "ddf429d2233c1f65981a9b6b3025b27041febbbd7df0700865ccaece007990d2",
+  "head_sha": "b6a419baa8d7af7f82f9b2e97d5912ef19bedf9e",
+  "base_sha": "ede14870e913eb11b103b268b3d9a5f39430fbeb",
+  "files_changed": [
+    ".github/workflows/migration-ledger-drift.yml",
+    "docs/verification/ledger-drift-2508-status-20260925.md",
+    "docs/verification/throughput-dispositions/scripts~report-ledger-drift-status.mjs.json",
+    "scripts/report-ledger-drift-status.mjs",
+    "scripts/report-ledger-drift-status.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/report-ledger-drift-status.test.mjs",
+      "exit_code": 0,
+      "evidence": "29 passed as part of the 68-pass exact workflow suite at refreshed implementation head b6a419baa8d7af7f82f9b2e97d5912ef19bedf9e."
+    },
+    {
+      "command": "node --test scripts/check-migration-ledger-drift.test.mjs",
+      "exit_code": 0,
+      "evidence": "35 passed, 0 failed, 0 skipped at earlier implementation head f4e5184128316985e1f7e44e3f41d7fa46805066; included in 68-pass combined run at refreshed implementation head ff79cc48fc8fa79e12ae560631bc56cd79063e27."
+    },
+    {
+      "command": "node --test scripts/check-migration-ledger-drift.test.mjs scripts/check-worktree-freshness.test.mjs scripts/report-ledger-drift-status.test.mjs",
+      "exit_code": 0,
+      "evidence": "68 passed, 0 failed, 0 skipped at refreshed implementation head b6a419baa8d7af7f82f9b2e97d5912ef19bedf9e; temporary PATH alias supplied python3 as python, then removed."
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 passed, 0 failed, 0 skipped at refreshed implementation head b6a419baa8d7af7f82f9b2e97d5912ef19bedf9e."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=318 sources=79 derived_digest=b92d1a56e3b1 at refreshed implementation head."
+    },
+    {
+      "command": "git diff --check ede14870e913eb11b103b268b3d9a5f39430fbeb...b6a419baa8d7af7f82f9b2e97d5912ef19bedf9e",
+      "exit_code": 0,
+      "evidence": "No whitespace errors across refreshed implementation diff."
+    },
+    {
+      "command": "node scripts/agent-work-contract.mjs --validate-completion --report-file .agent/work/3587/2/completion.json --contract-file .agent/work/3587/2/contract.json",
+      "exit_code": 0,
+      "evidence": "Completion report satisfies its contract after refresh at implementation head b6a419baa8d7af7f82f9b2e97d5912ef19bedf9e."
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 1 was published before the initial reporter; generation 2 was published before the second-review remediation and is the only pair in this PR net diff.",
+    "The reporter truth statement now has one hand-reviewed disposition with a substantive reason; the catalogue is delivered rather than silently retired.",
+    "The existing read-only drift workflow runs the reporter test beside its producer tests; no schedule, token, database query, or production action changed.",
+    "Issue #2508 remains an open non-orchestrator production drift alarm; no production apply or database write occurred.",
+    "The producer-guaranteed merged/applied count identity is now asserted; a truncated gap list exits UNKNOWN instead of printing a clean ledger. This followed the approved review’s NEW-1 finding and has a CLI regression test.",
+    "Content-preserving refresh rebased the evidence pair on main 8b35d64e10ab351909aa434d1840acd6b5cb5e98; implementation head ff79cc48fc8fa79e12ae560631bc56cd79063e27 retains the byte-identical non-evidence PR diff reviewed at d03af918b6e59f2af37b59bc33718b71d0ccde7a.",
+    "Content-preserving refresh after PR #3521 merged; main ede14870e913eb11b103b268b3d9a5f39430fbeb, implementation head b6a419baa8d7af7f82f9b2e97d5912ef19bedf9e, reviewed non-evidence PR diff retained."
+  ],
+  "stop_conditions_hit": []
+}
