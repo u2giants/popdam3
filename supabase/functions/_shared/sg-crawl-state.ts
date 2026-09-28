@@ -90,15 +90,6 @@ export function hasMoreSgSearchDocuments(synced: number, batchSize: number): boo
   return synced >= batchSize;
 }
 
-// The database marks a run refreshing at file_groups, before folders or search.
-// The search stamp proves a search step ran, including an empty queue. The old
-// caller clears that stamp on a full batch, but preserves the positive count.
-export function shouldResumeSgSearch(lifecycleState: unknown, refreshCompletedAt: unknown, searchDocumentsSynced: unknown): boolean {
-  return lifecycleState === "refreshing" &&
-    (typeof refreshCompletedAt === "string" && refreshCompletedAt.length > 0 ||
-      Number.isSafeInteger(searchDocumentsSynced) && (searchDocumentsSynced as number) > 0);
-}
-
 export type SgRefreshStep = "file_groups" | "folders" | "search";
 export type SgRefreshResult = {
   data: unknown;
@@ -109,10 +100,9 @@ export type SgRefreshResult = {
 export async function runSteppableSgRefresh(
   runId: string,
   batchSize: number,
-  resumeSearch: boolean,
   call: (args: { p_run_id: string; p_search_batch_size: number; p_step: SgRefreshStep }) => Promise<SgRefreshResult>,
 ): Promise<{ synced: number; failedStep?: SgRefreshStep; error?: string }> {
-  const steps: SgRefreshStep[] = resumeSearch ? ["search"] : ["file_groups", "folders", "search"];
+  const steps: SgRefreshStep[] = ["file_groups", "folders", "search"];
   for (const step of steps) {
     const { data, error } = await call({
       p_run_id: runId,
