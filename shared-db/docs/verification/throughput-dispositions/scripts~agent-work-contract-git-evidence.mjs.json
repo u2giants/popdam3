@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": "scripts/agent-work-contract-git-evidence.mjs",
+  "sites": [
+    {
+      "site": "scripts/agent-work-contract-git-evidence.mjs:108",
+      "semantic_key": "scripts/agent-work-contract-git-evidence.mjs:c915117abf87e885648c019dc117ff1da695b5fa66b03d0c07221cc85c997ba2:context-f6e035a0e6e3e0928e32061a99f3fa5df2d019e88a3fc0a6c230130518c6557e",
+      "legacy_semantic_key": "scripts/agent-work-contract-git-evidence.mjs:c915117abf87e885648c019dc117ff1da695b5fa66b03d0c07221cc85c997ba2:1",
+      "line_sha256": "c915117abf87e885648c019dc117ff1da695b5fa66b03d0c07221cc85c997ba2",
+      "disposition": "enriched",
+      "reason": "Distinguishes a missing immutable contract ref from transport failure and refuses both with a specific error."
+    }
+  ]
+}

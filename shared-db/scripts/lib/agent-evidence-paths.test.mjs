@@ -57,3 +57,19 @@ test('#2708: the legacy pair stays acceptable so open pull requests need not all
   assert.deepEqual(pairs.at(-1), [...LEGACY_PAIR])
   assert.deepEqual(acceptableEvidencePairs({}), [[...LEGACY_PAIR]])
 })
+
+test('#3380: a schema_version 2 contract accepts only its keyed pair, never the legacy paths', () => {
+  // The tail predicate and resolveCurrentPair must agree: a v2 contract is not
+  // allowed to fall back to the legacy pair at the first join.
+  const v2 = acceptableEvidencePairs({ schema_version: 2, work_issue: 42, generation: 2 })
+  assert.equal(v2.length, 1)
+  assert.deepEqual(v2[0], ['.agent/work/42/2/completion.json', '.agent/work/42/2/contract.json'])
+
+  const v2Root = acceptableEvidencePairs({ schema_version: 2, work_issue: 42, generation: 1 })
+  assert.equal(v2Root.length, 1)
+  assert.deepEqual(v2Root[0], ['.agent/work/42/1/completion.json', '.agent/work/42/1/contract.json'])
+
+  // v1 keeps both, so open pull requests need not rewrite at once.
+  const v1 = acceptableEvidencePairs({ schema_version: 1, work_issue: 42, generation: 2 })
+  assert.equal(v1.length, 2)
+})

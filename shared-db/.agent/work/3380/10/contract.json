@@ -1,0 +1,76 @@
+{
+  "schema_version": 2,
+  "work_issue": 3380,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Append-only versioned evidence generations with explicit predecessor binding, unique current-pair resolution, committed-record mutation refusal, and non-inert .agent/ classification",
+  "base_sha": "064736836b55cd431a6adda7ed2972118ba985e0",
+  "dispatcher": "Codex non-orchestrator continuation: fix DeepSeek REVISE on PR #3445 and re-review",
+  "worker": "Codex chat on Linux",
+  "branch": "codex/immutable-generations-3380",
+  "worktree": "/home/ahazan/repos/shared-db-3445",
+  "allowed_paths": [
+    ".agent/work/3380/10/completion.json",
+    ".agent/work/3380/10/contract.json",
+    ".github/workflows/agent-work-contract.yml",
+    "docs/verification/throughput-dispositions/scripts~agent-work-contract-git-evidence.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~agent-work-contract.mjs.json",
+    "scripts/agent-work-contract-git-evidence.mjs",
+    "scripts/agent-work-contract-git-evidence.test.mjs",
+    "scripts/agent-work-contract.mjs",
+    "scripts/agent-work-contract.test.mjs",
+    "scripts/lib/agent-evidence-paths.mjs",
+    "scripts/lib/agent-evidence-paths.test.mjs",
+    "scripts/lib/evidence-generation-lineage.mjs",
+    "scripts/lib/evidence-generation-lineage.test.mjs"
+  ],
+  "file_writes": [
+    ".agent/work/3380/10/completion.json",
+    ".agent/work/3380/10/contract.json",
+    ".github/workflows/agent-work-contract.yml",
+    "docs/verification/throughput-dispositions/scripts~agent-work-contract-git-evidence.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~agent-work-contract.mjs.json",
+    "scripts/agent-work-contract-git-evidence.mjs",
+    "scripts/agent-work-contract-git-evidence.test.mjs",
+    "scripts/agent-work-contract.mjs",
+    "scripts/agent-work-contract.test.mjs",
+    "scripts/lib/agent-evidence-paths.mjs",
+    "scripts/lib/agent-evidence-paths.test.mjs",
+    "scripts/lib/evidence-generation-lineage.mjs",
+    "scripts/lib/evidence-generation-lineage.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database writes or migration changes",
+    "No production or preview dispatch",
+    "No rewrite of a committed generation record: refs/db-contracts/3380/7 stays published and byte-identical; generation 9 is a successor, never a replacement"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/evidence-generation-lineage.test.mjs scripts/agent-work-contract-git-evidence.test.mjs scripts/lib/agent-evidence-paths.test.mjs scripts/agent-work-contract.test.mjs",
+    "git diff --check",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs"
+  ],
+  "assumptions": [
+    "PR3363 and PR3386 already landed the keyed path and merged-evidence readers",
+    "Generations 1-6 of issue 3380 remain published reservations and are not reused",
+    "Generation 8 widens scope by exactly two throughput-truth-audit disposition catalogues: the main refresh moved call sites that scripts/agent-work-contract.mjs and scripts/agent-work-contract-git-evidence.mjs bind semantically, and check-throughput-truth-audit refuses stale keys. No other catalogue is touched.",
+    "Generation 8 is required because refs/db-contracts/3380/7 is already published and hash-locks its allowed_paths: refuseCommittedMutation refuses any amended generation-7 contract and names a successor generation as the only remedy. Generation 7 remains published and untouched.",
+    "The generation-7 pair files under .agent/work/3380/7/ are retired from this pull request's change set so exactly one evidence pair (3380/8) claims the work; the published generation-7 record at its ref is the immutable reservation.",
+    "The two historical disposition identities for scripts/agent-work-contract.mjs keep their recorded reason, disposition, line_sha256, and legacy_semantic_key verbatim; only site line numbers and new sites were added.",
+    "Generation 9 retires generation 8 from the PR diff and binds this successor to immutable refs/db-contracts/3380/8.",
+    "Generation 9 fixes transport-versus-absence and validates completion contract_sha256 against the published contract.",
+    "Generation 9 was already published as an unused reservation and is immutable; generation 10 succeeds it."
+  ],
+  "stop_conditions": [
+    "Refuse ambiguous lineage or a rewritten committed generation",
+    "Refuse any database or production action"
+  ],
+  "generation": 10,
+  "evidence_parent": {
+    "work_issue": 3380,
+    "generation": 9,
+    "contract_sha256": "29241636af92e2558e9cfc19919745c23eadc306232f80013ca1a3f59ffd41ef"
+  }
+}

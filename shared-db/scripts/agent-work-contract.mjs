@@ -46,13 +46,19 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { currentRepository } from './lib/repository-identity.mjs'
+import { requirePositiveInt, validateGenerationLineage, verifyPredecessorBinding } from './lib/evidence-generation-lineage.mjs'
 
 export const REPO = currentRepository(process.env.SHARED_DB_REPO)
 export const CONTRACT_REF_PREFIX = 'refs/db-contracts'
 export const CONTRACT_FENCE = 'db-agent-contract'
 export const CONTRACT_SCHEMA_VERSION = 1
+export const CONTRACT_SCHEMA_VERSIONS = Object.freeze([1, 2])
 
 export class ContractError extends Error {}
+/** The ref does not exist at all — distinct from a wrong object or a transport failure. */
+export class MissingPublishedContractError extends ContractError {}
+/** The ref exists but does not carry a readable contract object. */
+export class UnreadablePublishedContractError extends ContractError {}
 
 const CONTRACT_REQUIRED = Object.freeze([
   'schema_version', 'work_issue', 'work_type', 'route', 'goal', 'base_sha',
@@ -67,6 +73,19 @@ const LIST_FIELDS = Object.freeze(['allowed_paths', 'file_writes', 'db_reads', '
 const SHA_PATTERN = /^[0-9a-f]{7,40}$/
 
 /**
+ * Same canonical positive-integer rule as the lineage layer (requirePositiveInt),
+ * rethrown as ContractError so validateContract and validateGenerationLineage
+ * can never disagree on which integers are valid.
+ */
+function contractPositiveInt(value, message) {
+  try {
+    return requirePositiveInt(value, 'value')
+  } catch {
+    throw new ContractError(message)
+  }
+}
+
+/**
  * Hand-rolled validation, deliberately — see `scripts/check-handoff-contract.mjs`
  * for the precedent. This repository has no root `package.json`, and a partial
  * JSON-Schema implementation that claims to be draft 2020-12 is worse than an
@@ -76,19 +95,66 @@ export function validateContract(contract) {
   if (contract === null || typeof contract !== 'object' || Array.isArray(contract)) {
     throw new ContractError('contract must be a JSON object')
   }
-  if (contract.schema_version !== CONTRACT_SCHEMA_VERSION) {
-    throw new ContractError(`contract schema_version must be ${CONTRACT_SCHEMA_VERSION}`)
+  if (!CONTRACT_SCHEMA_VERSIONS.includes(contract.schema_version)) {
+    throw new ContractError(`contract schema_version must be one of ${CONTRACT_SCHEMA_VERSIONS.join(', ')}`)
   }
   for (const field of CONTRACT_REQUIRED) {
     if (contract[field] === undefined) throw new ContractError(`contract is missing ${field}`)
   }
   // UNKNOWN KEYS ARE REFUSED. A typo'd field name silently drops a constraint,
   // and a dropped constraint is indistinguishable from one that was never set.
-  const known = new Set([...CONTRACT_REQUIRED, 'generation'])
+  // `generation` and `evidence_parent` are the only optional lineage keys.
+  const known = new Set([...CONTRACT_REQUIRED, 'generation', 'evidence_parent'])
   for (const key of Object.keys(contract)) {
     if (!known.has(key)) throw new ContractError(`contract has unknown field ${key}; a typo silently drops a constraint`)
   }
-  if (!Number.isInteger(contract.work_issue) || contract.work_issue <= 0) throw new ContractError('contract work_issue must be a positive issue number')
+  if (contract.schema_version === 2) {
+    if (!('evidence_parent' in contract)) {
+      throw new ContractError('contract schema_version 2 requires an explicit evidence_parent (null only for generation 1)')
+    }
+    // PRESENT-BUT-NULL IS NOT ENOUGH FOR A SUCCESSOR. validateGenerationLineage
+    // already refuses a v2 generation > 1 with evidence_parent null; this layer
+    // must agree before the ref is created (create-if-absent burns the generation).
+    const selfGen = contract.generation === undefined
+      ? 1
+      : contractPositiveInt(contract.generation, 'contract generation must be a positive integer when present')
+    if (selfGen > 1 && contract.evidence_parent === null) {
+      throw new ContractError(`contract generation ${selfGen} must name its predecessor in evidence_parent; only generation 1 is a root`)
+    }
+  }
+  if (contract.schema_version === 1 && contract.evidence_parent !== undefined && contract.evidence_parent !== null) {
+    throw new ContractError('contract schema_version 1 authentic roots carry no evidence_parent; do not retrofit lineage onto a v1 record')
+  }
+  // THE VALUE MUST BE THE RIGHT OBJECT, NOT MERELY A PRESENT KEY. A v2 ref can
+  // otherwise be created that the gate then refuses; create-if-absent makes that
+  // generation unfixable, so the worker must burn it and publish a successor.
+  if (contract.evidence_parent !== undefined && contract.evidence_parent !== null) {
+    const parent = contract.evidence_parent
+    if (typeof parent !== 'object' || Array.isArray(parent)) {
+      throw new ContractError('contract evidence_parent must be null or an object with work_issue, generation, and contract_sha256')
+    }
+    const parentKeys = Object.keys(parent)
+    const allowedParent = new Set(['work_issue', 'generation', 'contract_sha256'])
+    for (const key of parentKeys) {
+      if (!allowedParent.has(key)) throw new ContractError(`contract evidence_parent has unknown field ${key}; a parent binding carries exactly work_issue, generation, and contract_sha256`)
+    }
+    const parentIssue = contractPositiveInt(parent.work_issue, 'contract evidence_parent.work_issue must be a positive issue number')
+    const selfIssue = contractPositiveInt(contract.work_issue, 'contract work_issue must be a positive issue number')
+    if (parentIssue !== selfIssue) {
+      throw new ContractError(`contract evidence_parent names issue #${parentIssue} but this chain is issue #${selfIssue}; a generation chain never crosses issues`)
+    }
+    const parentGen = contractPositiveInt(parent.generation, 'contract evidence_parent.generation must be a positive integer')
+    const selfGen = contract.generation === undefined
+      ? 1
+      : contractPositiveInt(contract.generation, 'contract generation must be a positive integer when present')
+    if (parentGen >= selfGen) {
+      throw new ContractError(`contract evidence_parent.generation ${parentGen} must be strictly before generation ${selfGen}; an append-only chain never points at itself or a successor`)
+    }
+    if (typeof parent.contract_sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(parent.contract_sha256)) {
+      throw new ContractError('contract evidence_parent.contract_sha256 must be a 64-character lowercase hex sha256')
+    }
+  }
+  contractPositiveInt(contract.work_issue, 'contract work_issue must be a positive issue number')
   for (const field of STRING_FIELDS) {
     if (typeof contract[field] !== 'string' || !contract[field].trim()) throw new ContractError(`contract ${field} must be a non-empty string`)
   }
@@ -99,8 +165,8 @@ export function validateContract(contract) {
       if (typeof value !== 'string' || !value.trim()) throw new ContractError(`contract ${field} must contain non-empty strings`)
     }
   }
-  if (contract.generation !== undefined && (!Number.isInteger(contract.generation) || contract.generation <= 0)) {
-    throw new ContractError('contract generation must be a positive integer when present')
+  if (contract.generation !== undefined) {
+    contractPositiveInt(contract.generation, 'contract generation must be a positive integer when present')
   }
   if (!contract.allowed_paths.length) throw new ContractError('contract allowed_paths must not be empty; a contract that allows nothing to be edited is not a contract')
   for (const pattern of contract.allowed_paths) assertSafePath(pattern)
@@ -284,6 +350,11 @@ export const contractIo = {
     try { return JSON.parse(gh(['api', `repos/${REPO}/git/ref/${ref.replace(/^refs\//, '')}`])).object.sha }
     catch (error) { if (/HTTP 404|Not Found/i.test(String(error.message))) return null; throw error }
   },
+  listRefs(prefix) {
+    const short = String(prefix).replace(/^refs\//, '')
+    const rows = JSON.parse(gh(['api', `repos/${REPO}/git/matching-refs/${short}`]))
+    return rows.map((row) => ({ ref: row.ref, sha: row.object?.sha })).filter((row) => row.sha)
+  },
   createRef(ref, sha) { gh(['api', '-X', 'POST', `repos/${REPO}/git/refs`, '-f', `ref=${ref}`, '-f', `sha=${sha}`]) },
   createBlobCommit(message) {
     // The contract text lives in the commit message of an empty-tree commit, the
@@ -301,6 +372,38 @@ export const contractIo = {
  */
 export function publishContract(contract, io = contractIo) {
   validateContract(contract)
+  // FULL LINEAGE VALIDATION BEFORE THE REF IS CREATED. Create-if-absent makes a
+  // generation unfixable, so a malformed v2 must not be published in the first
+  // place. validateGenerationLineage re-checks the parent shape and ordering;
+  // verifyPredecessorBinding proves the digest against the actual published parent.
+  let lineage
+  try {
+    lineage = validateGenerationLineage(contract)
+  } catch (lineageError) {
+    throw new ContractError(`contract lineage: ${lineageError.message}`)
+  }
+  if (lineage.evidence_parent !== null) {
+    const parentRef = contractRef(lineage.evidence_parent.work_issue, lineage.evidence_parent.generation)
+    let parentContract
+    try {
+      parentContract = readPublishedContract(parentRef, io)
+    } catch (readError) {
+      // Missing ref, wrong object, and transport failure are different problems
+      // with different remedies — never flatten them into one "not published".
+      if (readError instanceof MissingPublishedContractError) {
+        throw new ContractError(`evidence_parent names ${parentRef} but that predecessor contract is not published; a successor cannot bind to a missing parent`)
+      }
+      if (readError instanceof UnreadablePublishedContractError) {
+        throw new ContractError(`evidence_parent names ${parentRef} but that ref does not carry a readable contract object; a successor cannot bind to the wrong kind of ref`)
+      }
+      throw new ContractError(`could not read ${parentRef} to verify evidence_parent: ${readError.message}`)
+    }
+    try {
+      verifyPredecessorBinding(contract, parentContract)
+    } catch (bindError) {
+      throw new ContractError(`contract lineage: ${bindError.message}`)
+    }
+  }
   const generation = contract.generation ?? 1
   const ref = contractRef(contract.work_issue, generation)
   if (io.readRef(ref) !== null) {
@@ -336,11 +439,11 @@ export function publishContract(contract, io = contractIo) {
 /** Read a published contract back out of its ref. */
 export function readPublishedContract(ref, io = contractIo) {
   const sha = io.readRef(ref)
-  if (sha === null) throw new ContractError(`${ref} does not exist; no contract was published for this work`)
+  if (sha === null) throw new MissingPublishedContractError(`${ref} does not exist; no contract was published for this work`)
   const message = io.readCommitMessage(sha)
   const body = message.split('\n').slice(2).join('\n').trim()
   let parsed
-  try { parsed = JSON.parse(body) } catch { throw new ContractError(`${ref} does not carry a readable contract`) }
+  try { parsed = JSON.parse(body) } catch { throw new UnreadablePublishedContractError(`${ref} does not carry a readable contract`) }
   return validateContract(parsed)
 }
 

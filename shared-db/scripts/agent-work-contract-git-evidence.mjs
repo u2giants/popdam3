@@ -4,7 +4,8 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { contractHash, contractRef, validateContract } from './agent-work-contract.mjs'
-import { acceptableEvidencePairs, LEGACY_PAIR, resolveEvidencePair } from './lib/agent-evidence-paths.mjs'
+import { acceptableEvidencePairs, resolveEvidencePair } from './lib/agent-evidence-paths.mjs'
+import { validateGenerationLineage, classifyAgentPaths, resolveCurrentPair, refuseCommittedMutation, verifyPredecessorBinding, EvidenceLineageError } from './lib/evidence-generation-lineage.mjs'
 
 export class GitEvidenceError extends Error {}
 
@@ -67,13 +68,52 @@ export function verifyGitEvidence({ contract, report, prBaseSha, prHeadSha }, io
   const allowed = acceptableEvidencePairs(contract)
   const matches = allowed.some((pair) => afterImplementation.length === pair.length && afterImplementation.every((file, index) => file === pair[index]))
   if (!matches) {
-    throw new GitEvidenceError(`only this pull request's own two evidence files may follow report.head_sha; expected [${allowed[0].join(', ')}] (or the legacy [${LEGACY_PAIR.join(', ')}]) but found [${afterImplementation.join(', ')}]`)
+    const expectedList = allowed.map((pair) => `[${pair.join(', ')}]`).join(' or ')
+    throw new GitEvidenceError(`only this pull request's own two evidence files may follow report.head_sha; expected ${expectedList} but found [${afterImplementation.join(', ')}]`)
   }
   const expectedRef = contractRef(contract.work_issue, contract.generation ?? 1)
   if (report.contract_ref !== expectedRef) throw new GitEvidenceError(`completion report must name its contract's exact immutable ref ${expectedRef}`)
   const published = validateContract(io.readPublishedContract(report.contract_ref))
-  if (contractHash(published) !== contractHash(contract)) throw new GitEvidenceError('checked-in contract does not match the immutable contract published before the work')
+  // #3380: generation lineage is validated on the checked-in contract, the
+  // current pair is resolved from contract identity (never filename order), and
+  // every path under .agent/ in the implementation diff must be a real evidence
+  // record. Committed-record mutation is refused against the published contract,
+  // and a v2 evidence_parent digest is verified against the actual published
+  // parent contract so a forged parent binding is refused in production, not
+  // only in unit tests.
+  try {
+    const lineage = validateGenerationLineage(contract)
+    resolveCurrentPair([...actualFiles, ...afterImplementation], contract)
+    classifyAgentPaths(actualFiles)
+    refuseCommittedMutation(published, contract)
+    if (report.contract_sha256 !== contractHash(published)) {
+      throw new GitEvidenceError('completion report contract_sha256 does not match its published immutable contract')
+    }
+    const parentContract = lineage.evidence_parent === null
+      ? null
+      : io.readPublishedContract(contractRef(lineage.evidence_parent.work_issue, lineage.evidence_parent.generation))
+    verifyPredecessorBinding(contract, parentContract)
+  } catch (lineageError) {
+    if (lineageError instanceof EvidenceLineageError) throw new GitEvidenceError(`agent evidence lineage: ${lineageError.message}`)
+    throw lineageError
+  }
   return true
+}
+
+export function readPublishedContractFromGit(ref, runGit = execFileSync) {
+  let remote
+  try {
+    remote = runGit('git', ['ls-remote', '--exit-code', 'origin', ref], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  } catch (error) {
+    if (error.status === 2) throw new GitEvidenceError(`missing published contract: ${ref} does not exist`)
+    throw new GitEvidenceError(`could not read published contract ref ${ref}: git ls-remote failed (${error.message})`)
+  }
+  if (!remote) throw new GitEvidenceError(`could not read published contract ref ${ref}: empty remote response`)
+  try { runGit('git', ['fetch', '--quiet', '--no-tags', 'origin', ref], { stdio: 'ignore' }) }
+  catch (error) { throw new GitEvidenceError(`could not fetch published contract ${ref}: ${error.message}`) }
+  const message = runGit('git', ['show', '--format=%B', '--no-patch', 'FETCH_HEAD'], { encoding: 'utf8' })
+  const body = message.split(/\r?\n/).slice(2).join('\n').trim()
+  try { return JSON.parse(body) } catch { throw new GitEvidenceError(`${ref} does not carry readable immutable contract JSON`) }
 }
 
 export const gitIo = {
@@ -91,10 +131,7 @@ export const gitIo = {
     return execFileSync('git', ['rev-parse', ref], { encoding: 'utf8' }).trim()
   },
   readPublishedContract(ref) {
-    execFileSync('git', ['fetch', '--quiet', '--no-tags', 'origin', ref], { stdio: 'ignore' })
-    const message = execFileSync('git', ['show', '--format=%B', '--no-patch', 'FETCH_HEAD'], { encoding: 'utf8' })
-    const body = message.split(/\r?\n/).slice(2).join('\n').trim()
-    try { return JSON.parse(body) } catch { throw new GitEvidenceError(`${ref} does not carry readable immutable contract JSON`) }
+    return readPublishedContractFromGit(ref)
   },
 }
 

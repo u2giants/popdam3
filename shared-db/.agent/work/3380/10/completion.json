@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "work_issue": 3380,
+  "outcome": "ready-for-merge",
+  "pr": 3445,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3380/10",
+  "contract_sha256": "5bf3a53ef72c8432bd9a2beb0e629acb9ddef592500cade85314dbc353616617",
+  "head_sha": "e0bab42c8b0443945c9fcf71b62aec2fd0f603dc",
+  "base_sha": "15f18e1bbfe0e6db41a1dee21e404b425d6459f9",
+  "files_changed": [
+    ".github/workflows/agent-work-contract.yml",
+    "docs/verification/throughput-dispositions/scripts~agent-work-contract-git-evidence.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~agent-work-contract.mjs.json",
+    "scripts/agent-work-contract-git-evidence.mjs",
+    "scripts/agent-work-contract-git-evidence.test.mjs",
+    "scripts/agent-work-contract.mjs",
+    "scripts/agent-work-contract.test.mjs",
+    "scripts/lib/agent-evidence-paths.mjs",
+    "scripts/lib/agent-evidence-paths.test.mjs",
+    "scripts/lib/evidence-generation-lineage.mjs",
+    "scripts/lib/evidence-generation-lineage.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/evidence-generation-lineage.test.mjs scripts/agent-work-contract-git-evidence.test.mjs scripts/lib/agent-evidence-paths.test.mjs scripts/agent-work-contract.test.mjs",
+      "exit_code": 0,
+      "evidence": "102 passed, 0 failed, 0 skipped at implementation head e0bab42c8b0443945c9fcf71b62aec2fd0f603dc."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors against current main at implementation head e0bab42c8b0443945c9fcf71b62aec2fd0f603dc."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=321 sources=78 derived_digest=794d5dd1a0fd at implementation head."
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 passed, 0 failed, 0 skipped at implementation head e0bab42c8b0443945c9fcf71b62aec2fd0f603dc."
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 8 pair removed from the pull request diff and kept immutable at its published ref.",
+    "Generation 9 was already published as an unused reservation by the prior session; generation 10 binds to that exact published contract.",
+    "Fetch transport failure and absent ref are classified separately; completion digest is checked against the published immutable contract.",
+    "Schema v1 has no verified predecessor binding, and path classification validates filename shape only; downstream gates validate contents."
+  ],
+  "stop_conditions_hit": []
+}

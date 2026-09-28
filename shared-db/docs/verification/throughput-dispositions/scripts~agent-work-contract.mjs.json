@@ -3,7 +3,7 @@
   "source": "scripts/agent-work-contract.mjs",
   "sites": [
     {
-      "site": "scripts/agent-work-contract.mjs:83",
+      "site": "scripts/agent-work-contract.mjs:102",
       "semantic_key": "scripts/agent-work-contract.mjs:8bdd87b3d93bc127035d83148bbb7e0c26104614f1c54ad1582e94a6caae13fe:context-85f5e084e4b1e8a46c8bf50b8cfa2e9ea80ce8326c691949f25fdd904a45154f",
       "line_sha256": "8bdd87b3d93bc127035d83148bbb7e0c26104614f1c54ad1582e94a6caae13fe",
       "disposition": "excluded",
@@ -11,7 +11,23 @@
       "legacy_semantic_key": "scripts/agent-work-contract.mjs:8bdd87b3d93bc127035d83148bbb7e0c26104614f1c54ad1582e94a6caae13fe:1"
     },
     {
-      "site": "scripts/agent-work-contract.mjs:174",
+      "site": "scripts/agent-work-contract.mjs:391",
+      "semantic_key": "scripts/agent-work-contract.mjs:b0a7edc5bae440103a4eba68cfa91142704e67266162b2521ae47e3499a98f1f:context-5ccce55ca5db6ebe32d395fa9db3f05201d12322c8a4f7ad12f73dd9fb16cabd",
+      "line_sha256": "b0a7edc5bae440103a4eba68cfa91142704e67266162b2521ae47e3499a98f1f",
+      "disposition": "enriched",
+      "reason": "This comment documents the enriched refusal taxonomy introduced here: a missing ref, a wrong object, and a transport failure are different problems with different remedies and are never flattened into one unhelpful not-published error.",
+      "legacy_semantic_key": "scripts/agent-work-contract.mjs:b0a7edc5bae440103a4eba68cfa91142704e67266162b2521ae47e3499a98f1f:1"
+    },
+    {
+      "site": "scripts/agent-work-contract.mjs:394",
+      "semantic_key": "scripts/agent-work-contract.mjs:ee5bec6715192971ecf0ede289b0a0793165d5be4fe24fde2b6edee7e2f7e87e:context-8690c4c205acfbdb157d48dc251b130de19140270998e6cd276339b8ede54bbd",
+      "line_sha256": "ee5bec6715192971ecf0ede289b0a0793165d5be4fe24fde2b6edee7e2f7e87e",
+      "disposition": "enriched",
+      "reason": "Enriched by this implementation: the refusal names the exact predecessor ref that is missing, so a successor can never bind to a parent contract that was never published.",
+      "legacy_semantic_key": "scripts/agent-work-contract.mjs:ee5bec6715192971ecf0ede289b0a0793165d5be4fe24fde2b6edee7e2f7e87e:1"
+    },
+    {
+      "site": "scripts/agent-work-contract.mjs:240",
       "semantic_key": "scripts/agent-work-contract.mjs:fe9430e2905ab8e283fc7f4b08e4116f8b6c792be4ba6d2924dfbd184148b1c8:context-2b5254420ed2d487cc993a3dc5603400ebb82687be968c596981034e0b39835f",
       "line_sha256": "fe9430e2905ab8e283fc7f4b08e4116f8b6c792be4ba6d2924dfbd184148b1c8",
       "disposition": "excluded",
