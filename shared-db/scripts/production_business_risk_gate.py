@@ -741,6 +741,11 @@ PREVIEW_PRODUCER_PATHS = (
 PREVIEW_RUNTIME_DATA_DIRS = ("supabase", "config")
 
 PREVIEW_RUNTIME_DATA_EXEMPTIONS = {
+    "config/production-independent-reviewers.json": (
+        "Never read by the preview job. Only the non-writing independent "
+        "production review workflow reads this owner-approved GitHub identity "
+        "roster; preview application and its migration helpers cannot import it."
+    ),
     "supabase/.temp": (
         "Created locally by the Supabase CLI and excluded by the repository's "
         "gitignore rules. These machine-specific link and tool-version files "
@@ -2968,10 +2973,21 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
             run_id_text=str(args.review_run_id), expected_digest=args.review_digest,
             sha=args.main_sha, allowlist_raw=args.allowlist, api=api, downloader=downloader,
             output_dir=Path(temp),
+            require_independent=bool(getattr(args, "require_independent", False)),
+            apply_actor=getattr(args, "apply_actor", None),
+            apply_triggering_actor=getattr(args, "apply_triggering_actor", None),
+            source_pr=args.pr, source_pr_head=pr_head, work_issue=args.work_issue,
+            preview_run_id=int(preview_run_text) if preview_run_text else None,
+            preview_digest=preview_digest if preview_run_text else None,
+            dry_run_run_id=int(args.production_dry_run_run_id)
+                if getattr(args, "production_dry_run_run_id", None) else None,
+            dry_run_digest=getattr(args, "production_dry_run_digest", None),
         )
         review = json.loads(review_path.read_text(encoding="utf-8"))
     if review.get("verdict") != "APPROVE":
         return {"automaticPromotionAllowed": False, "ownerDecisionReasons": [RISK_TEXT["unresolved_material_objection"]]}
+    if review.get("schema_version") == "shared-db-production-apply-review/v3" and train is not None:
+        raise RiskGateError("independent manual review v3 requires one source PR; train approval needs its own exact source map")
     if review.get("schema_version") == "shared-db-production-apply-review/v2":
         if train is None:
             if review.get("source_pr") != args.pr or review.get("source_pr_head") != pr_head:
@@ -3110,6 +3126,11 @@ def main() -> int:
     parser.add_argument("--work-issue", type=int, required=True)
     parser.add_argument("--review-run-id", type=int, required=True)
     parser.add_argument("--review-digest", required=True)
+    parser.add_argument("--require-independent", action="store_true")
+    parser.add_argument("--apply-actor")
+    parser.add_argument("--apply-triggering-actor")
+    parser.add_argument("--production-dry-run-run-id")
+    parser.add_argument("--production-dry-run-digest")
     # EXACTLY ONE ROUTE (#2758): preview evidence (--preview-run-id, --preview-digest,
     # --preview-project-ref) OR --ephemeral-check-run-id, the Actions job ID of the
     # required "supabase/tests against an ephemeral database" check on the source

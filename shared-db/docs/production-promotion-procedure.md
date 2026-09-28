@@ -118,16 +118,27 @@ exact `sha256:` artifact digest; #2716 removes transcription only from the ordin
 1. **`production-apply-review`** — deterministic. The typed string, the exact SHA, and the whole
    guard chain (`parse_allowlist` → hard blocks, the §6.8 all-four bundle, the §6.5 hold, the
    co-presence rules → `validate_candidates` → whole-batch preflight). This job fails the run.
-2. **IMMUTABLE REVIEW EVIDENCE.** Dispatch the non-writing
-   `production-apply-review-evidence.yml` workflow with the exact current 40-character main SHA,
-   exact ordered allowlist, and verdict. GitHub records the authenticated reviewer actor and
-   uploads strict canonical JSON. Only `APPROVE` succeeds. The apply dispatch must pin that run by
-   its decimal run ID and canonical `sha256:` artifact digest. The verifier rejects URLs, paths,
-   stale or failed runs, another repository/workflow/SHA, altered or expired artifacts, unknown
-   JSON fields, a non-APPROVE verdict, a different actor, and any missing, duplicate, reordered,
-   subset or superset allowlist. It runs both before and after the environment wait. Because
-   GitHub artifacts expire, the second check copies the verified JSON into the final apply
-   evidence. This contract is provider- and model-neutral. Never add a provider or model name.
+2. **IMMUTABLE REVIEW EVIDENCE.** For manual recovery, the successful read-only production
+   dry-run artifact includes the exact SQL risk vector. An independent reviewer whose GitHub
+   identity is explicitly approved in `config/production-independent-reviewers.json` inspects
+   that report and directly dispatches `production-independent-review.yml` on `main`. The
+   reviewer must enter the exact risk reasons and can choose `REQUEST_CHANGES`. The successful
+   review artifact binds the exact main commit, source PR/head, work issue, production target,
+   ordered allowlist, preview run/digest, dry-run run/digest, action, risks, actor and verdict.
+   A separate operator dispatches the non-writing `production-apply-review-evidence.yml` and
+   pins the reviewer run and artifact digest; the operator cannot be the reviewer. The apply
+   run pins this second run and digest. Preflight, the business-risk gate, and the post-environment
+   check re-fetch both artifacts, authenticate both GitHub actors, and recompute the SQL risk
+   vector from exact source. Expired, absent, edited, stale, ambiguous or provider-unreadable
+   evidence refuses. Legacy v1 artifacts remain readable for audit but cannot authorize this
+   manual recovery; automatic v2 keeps its separate fully machine-qualified path. The reviewer
+   roster is initially empty, so no manual approval can issue until a separate owner-approved
+   roster change lands. A model's local report or descriptive label is not authenticated reviewer
+   identity. The independent packet deliberately carries no timestamp: freshness is bound by
+   exact-main equality (any later commit to `main` voids it) and by artifact expiry. Code enforces
+   reviewer independence only from the record operator and the apply actors; independence from
+   the migration author and source-PR applicant rests on the owner-controlled roster, so the
+   owner must not list an identity that authors or applies migrations.
 3. **`environment: production`.** Keep this binding. It remains the deployment boundary even
    after its separate manual-reviewer rule is removed.
 

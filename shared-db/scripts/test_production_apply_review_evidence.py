@@ -329,6 +329,7 @@ class WorkflowWiringTests(unittest.TestCase):
         cls.repo = Path(__file__).resolve().parents[1]
         cls.apply = (cls.repo / ".github/workflows/shared-supabase-migrations.yml").read_text(encoding="utf-8")
         cls.review = (cls.repo / ".github/workflows/production-apply-review-evidence.yml").read_text(encoding="utf-8")
+        cls.independent = (cls.repo / ".github/workflows/production-independent-review.yml").read_text(encoding="utf-8")
 
     def test_inputs_and_old_pointer_gate_are_replaced(self):
         self.assertIn("review_run_id:", self.apply)
@@ -341,14 +342,23 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertGreaterEqual(self.apply.count("actions: read"), 2)
         self.assertIn("environment: production", self.apply)
 
-    def test_review_workflow_is_non_writing_and_provider_neutral(self):
-        self.assertIn("production_review_allowlist import normalize_review_allowlist", self.review)
+    def test_record_workflow_is_non_writing_and_provider_neutral(self):
+        self.assertIn("python scripts/production_independent_review.py", self.review)
         self.assertIn("github.actor", self.review)
-        self.assertIn('Path(os.environ["RUNNER_TEMP"]', self.review)
+        self.assertIn("independent_review_run_id", self.review)
+        self.assertIn("dry_run_artifact_digest", self.review)
         self.assertIn("actions/upload-artifact@v4", self.review)
-        self.assertIn('"reviewer_actor"', self.review)
-        self.assertIn('"reviewer_label"', self.review)
+        self.assertIn("--operator-actor", self.review)
+        self.assertIn("reviewer_label", self.review)
         self.assertNotRegex(self.review, r"supabase|db push|psql")
+
+    def test_independent_reviewer_workflow_is_read_only_and_roster_bound(self):
+        self.assertIn("REVIEWER_ACTOR", self.independent)
+        self.assertIn("authorized_reviewers()", self.independent)
+        self.assertIn("verify_dry_run", self.independent)
+        self.assertIn("actions/upload-artifact@v4", self.independent)
+        self.assertIn("contents: read", self.independent)
+        self.assertNotRegex(self.independent, r"contents: write|environment: production|supabase db push|psql")
 
     def test_production_lane_keeps_ledger_aware_guard(self):
         self.assertIn("production_migration_guard.py preflight", self.apply)

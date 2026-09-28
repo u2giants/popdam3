@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "work_issue": 3619,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Bind manual production recovery to a separately authenticated independent reviewer and exact current-main production action, including immutable read-only dry-run SQL risk evidence, without weakening automatic risk refusals or executing production",
+  "base_sha": "25c454807717d8353801d36a659253d6d2b809aa",
+  "dispatcher": "Codex parent task 01a0e56c-5bf2-72f2-8bef-e3b0f9017725 relaying orchestrator blocker #3619",
+  "worker": "codex",
+  "branch": "codex/issue-3619-independent-review",
+  "worktree": "/home/ahazan/repos/shared-db-3619",
+  "allowed_paths": [
+    ".github/workflows/production-independent-review.yml",
+    ".github/workflows/production-apply-review-evidence.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "config/production-independent-reviewers.json",
+    "docs/production-promotion-procedure.md",
+    "docs/verification/throughput-dispositions/scripts~production_independent_review.py.json",
+    "scripts/production_apply_review_evidence.py",
+    "scripts/production_business_risk_gate.py",
+    "scripts/production_independent_review.py",
+    "scripts/test_production_apply_review_evidence.py",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/test_production_independent_review.py"
+  ],
+  "file_writes": [
+    ".github/workflows/production-independent-review.yml",
+    ".github/workflows/production-apply-review-evidence.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "config/production-independent-reviewers.json",
+    "docs/production-promotion-procedure.md",
+    "docs/verification/throughput-dispositions/scripts~production_independent_review.py.json",
+    "scripts/production_apply_review_evidence.py",
+    "scripts/production_business_risk_gate.py",
+    "scripts/production_independent_review.py",
+    "scripts/test_production_apply_review_evidence.py",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/test_production_independent_review.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not dispatch production review evidence, apply, or any database write",
+    "do not add a reviewer identity without separate owner-confirmed authority",
+    "do not alter automatic v2 risk refusal or merge during the orchestrator freeze"
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts.test_production_independent_review scripts.test_production_apply_review_evidence scripts.test_production_business_risk_gate scripts.test_production_migration_guard -q",
+    "node --test scripts/orchestrator-flow/migration-train.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "The reviewer roster is empty and therefore manual production recovery remains unavailable until owner-authorized reviewer identity lands separately",
+    "GitHub's workflow_dispatch input limit is 25 and the repaired apply workflow preserves its original 25 inputs",
+    "This contract was published after the first implementation commit and before the corrective commit; no pre-work publication is claimed"
+  ],
+  "stop_conditions": [
+    "stop before production use if the reviewer roster is empty or actor provenance cannot be verified",
+    "stop if the dry-run risk vector or current-main proof cannot be re-derived exactly"
+  ],
+  "generation": 1,
+  "evidence_parent": null
+}

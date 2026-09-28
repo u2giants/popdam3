@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "work_issue": 3619,
+  "outcome": "ready-for-merge",
+  "pr": 3641,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3619/1",
+  "contract_sha256": "ce550a332f5946728ab80ee3dde3ce2bbfe4de90606ded7b9c06c0b84f28ee34",
+  "head_sha": "ca0a9f1118d34fe54adb145920e5047b653fc50b",
+  "base_sha": "41a7698b3f294a54019c7a3ef5504ddf870f5703",
+  "files_changed": [
+    ".github/workflows/production-apply-review-evidence.yml",
+    ".github/workflows/production-independent-review.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "config/production-independent-reviewers.json",
+    "docs/production-promotion-procedure.md",
+    "docs/verification/throughput-dispositions/scripts~production_independent_review.py.json",
+    "scripts/production_apply_review_evidence.py",
+    "scripts/production_business_risk_gate.py",
+    "scripts/production_independent_review.py",
+    "scripts/test_production_apply_review_evidence.py",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/test_production_independent_review.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts.test_production_independent_review scripts.test_production_apply_review_evidence scripts.test_production_business_risk_gate scripts.test_production_migration_guard -q",
+      "exit_code": 0,
+      "evidence": "511 Python tests passed at ca0a9f1118d3"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/migration-train.test.mjs",
+      "exit_code": 0,
+      "evidence": "15 tests passed at ca0a9f1118d3"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK at ca0a9f1118d3"
+    }
+  ],
+  "assumptions_resolved": [
+    "The reviewer roster is empty, so manual recovery remains unavailable until a separate owner-approved identity change.",
+    "The apply workflow remains within the GitHub 25-input limit; source PR head and dry-run identity are re-derived from authenticated and digest-pinned evidence.",
+    "Contract refs/db-contracts/3619/1 was published after the initial implementation commit cc82b766 and before corrective implementation commit e9519b7e98c6; no pre-work publication is claimed."
+  ],
+  "stop_conditions_hit": []
+}
