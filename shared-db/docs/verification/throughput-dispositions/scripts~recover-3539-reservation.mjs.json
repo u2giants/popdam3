@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "source": "scripts/recover-3539-reservation.mjs",
+  "sites": [
+    {
+      "source": "scripts/recover-3539-reservation.mjs",
+      "site": "scripts/recover-3539-reservation.mjs:31",
+      "semantic_key": "scripts/recover-3539-reservation.mjs:31357c3bbfbf7f7e4e7abbaeedd780bf9a90034c3db081c202892c340d231f1e:context-91f1ca5f58f5a5e52aebe8eb1686cf1f98d4356403d5858b5e9e5b6b6531794c",
+      "legacy_semantic_key": "scripts/recover-3539-reservation.mjs:31357c3bbfbf7f7e4e7abbaeedd780bf9a90034c3db081c202892c340d231f1e:1",
+      "line_sha256": "31357c3bbfbf7f7e4e7abbaeedd780bf9a90034c3db081c202892c340d231f1e",
+      "disposition": "excluded",
+      "reason": "The old permanent reservation must exist before recovery; absence stops the one-time repair instead of being treated as evidence that no claim was made."
+    },
+    {
+      "source": "scripts/recover-3539-reservation.mjs",
+      "site": "scripts/recover-3539-reservation.mjs:49",
+      "semantic_key": "scripts/recover-3539-reservation.mjs:d6eb53159b119e924e03730e3bfebc4341436505258874b086709b0c025002a9:context-99f1158a437af026d03b46ef7c7e7253a2d8c240ebc40874e353b8b1ad979be7",
+      "legacy_semantic_key": "scripts/recover-3539-reservation.mjs:d6eb53159b119e924e03730e3bfebc4341436505258874b086709b0c025002a9:1",
+      "line_sha256": "d6eb53159b119e924e03730e3bfebc4341436505258874b086709b0c025002a9",
+      "disposition": "excluded",
+      "reason": "The target pull request must appear exactly once in the complete parser source list; a missing or ambiguous entry blocks permanent ref creation."
+    }
+  ]
+}

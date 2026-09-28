@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "generation": 7,
+  "work_issue": 3574,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Complete the one-time reservation repair with exact foreign-identity proof and required CI coverage",
+  "base_sha": "7fab5c716eb111a10c865b99e09b5ad94ff092b2",
+  "dispatcher": "Codex repository-maintenance session for issue #3574",
+  "worker": "codex",
+  "branch": "codex/repair-reservation-3574-v5",
+  "worktree": "/home/ahazan/repos/shared-db-3574-repair-v7",
+  "allowed_paths": [
+    "scripts/recover-3539-reservation.mjs",
+    "scripts/recover-3539-reservation.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~recover-3539-reservation.mjs.json",
+    ".github/workflows/pr-object-collision.yml",
+    ".agent/work/3574/7/contract.json",
+    ".agent/work/3574/7/completion.json"
+  ],
+  "file_writes": [
+    "scripts/recover-3539-reservation.mjs",
+    "scripts/recover-3539-reservation.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~recover-3539-reservation.mjs.json",
+    ".github/workflows/pr-object-collision.yml",
+    ".agent/work/3574/7/contract.json",
+    ".agent/work/3574/7/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not change migrations or database objects",
+    "do not merge structural PR #3557 or dispatch preview or production",
+    "do not delete the old permanent reservation"
+  ],
+  "required_checks": [
+    "node --test scripts/recover-3539-reservation.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/check-pr-object-collisions.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "The exact cause is inferred from GitHub version-edit and commit chronology; issue #3574 records the evidence and limits",
+    "The recorded Windows author worktree is remote; a clean local branch checkout at exact PR head proves the content",
+    "The old permanent reservation remains present",
+    "This one-time utility is owned by issue #3574 and should be retired by a follow-up repository-maintenance PR after recovery and audit closure"
+  ],
+  "stop_conditions": [
+    "stop on any conflicting claim, pull request, reservation, or changed head",
+    "stop if the exact PR-head checkout cannot be verified"
+  ]
+}

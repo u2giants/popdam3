@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "work_issue": 3574,
+  "outcome": "ready-for-merge",
+  "pr": 3581,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3574/7",
+  "contract_sha256": "4587ec715fafa9c7da88e4dc7314709b162e6495f411eac5ba9737bbe9921ba4",
+  "head_sha": "2b8ca3dc6a6f146319597e686e5a6208d3501119",
+  "base_sha": "7fab5c716eb111a10c865b99e09b5ad94ff092b2",
+  "files_changed": [
+    ".github/workflows/pr-object-collision.yml",
+    "docs/verification/throughput-dispositions/scripts~recover-3539-reservation.mjs.json",
+    "scripts/recover-3539-reservation.mjs",
+    "scripts/recover-3539-reservation.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/recover-3539-reservation.test.mjs",
+      "exit_code": 0,
+      "evidence": "8 passed, 0 failed at implementation 2b8ca3dc6a6f146319597e686e5a6208d3501119"
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "714 passed, 0 failed at implementation 2b8ca3dc6a6f146319597e686e5a6208d3501119"
+    },
+    {
+      "command": "node --test scripts/check-pr-object-collisions.test.mjs",
+      "exit_code": 0,
+      "evidence": "36 passed, 0 failed at implementation 2b8ca3dc6a6f146319597e686e5a6208d3501119"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=330 sources=78 derived_digest=162702651f60 at implementation 2b8ca3dc6a6f146319597e686e5a6208d3501119"
+    }
+  ],
+  "assumptions_resolved": [
+    "GitHub commit 49360aaa renamed the migration and the subsequent claim #3546 edit changed its fenced version; absent durable refs show the governed supersession did not complete. The causal inference and remaining audit limit are recorded at https://github.com/popcre/shared-db/issues/3574#issuecomment-5862531158.",
+    "Live GitHub issue, PR, and ref state were inspected read-only. The recovery CLI was not invoked and no live reservation or supersession ref was written.",
+    "A separate temporary harness called the exported recovery function with live read methods and in-memory owner-commit/ref write methods; that was an in-memory simulation, not a CLI dry-run.",
+    "A clean local branch checkout at the exact structural PR head was verified. The old permanent reservation remains present."
+  ],
+  "stop_conditions_hit": []
+}
