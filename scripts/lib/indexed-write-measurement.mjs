@@ -102,7 +102,7 @@ export async function compareSortedRows(beforeRows, afterRows) {
   let left = await nextRow(before, "before");
   let right = await nextRow(after, "after");
   const counts = { existing_rows: 0, updated_rows: 0, indexed_value_changed: 0,
-    hot_eligible_unchanged_index: 0, inserted_rows: 0 };
+    unchanged_index_value_rows: 0, inserted_rows: 0 };
   while (!left.done || !right.done) {
     if (left.done || (!right.done && right.value.id < left.value.id)) {
       counts.inserted_rows++;
@@ -117,7 +117,7 @@ export async function compareSortedRows(beforeRows, afterRows) {
     if (versionChanged) {
       counts.updated_rows++;
       if (valuesChanged) counts.indexed_value_changed++;
-      else counts.hot_eligible_unchanged_index++;
+      else counts.unchanged_index_value_rows++;
     }
     left = await nextRow(before, "before");
     right = await nextRow(after, "after");
@@ -151,7 +151,7 @@ export function assessWindow({ before, after, counts, operation }) {
   if (succeeded !== delta.n_tup_upd + delta.n_tup_ins) {
     throw new Error("operation successes do not match table writes");
   }
-  if (counts.indexed_value_changed + counts.hot_eligible_unchanged_index !== counts.updated_rows) {
+  if (counts.indexed_value_changed + counts.unchanged_index_value_rows !== counts.updated_rows) {
     throw new Error("updated row classification is incomplete");
   }
   return {
@@ -165,7 +165,7 @@ export function assessWindow({ before, after, counts, operation }) {
     before_finished_at: before.finished_at, after_started_at: after.started_at,
     attempted_rows: attempted, succeeded_rows: succeeded,
     failed_rows: attempted - succeeded, indexed_value_changed: counts.indexed_value_changed,
-    hot_eligible_unchanged_index: counts.hot_eligible_unchanged_index,
+    unchanged_index_value_rows: counts.unchanged_index_value_rows,
     inserted_rows: counts.inserted_rows, table_delta: delta,
     index_count: before.inventory.indexes.length,
   };

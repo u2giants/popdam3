@@ -49,7 +49,7 @@ test("compares inserts, indexed changes, and unchanged-index updates including N
   ]));
   assert.equal(counts.updated_rows, 2);
   assert.equal(counts.indexed_value_changed, 1);
-  assert.equal(counts.hot_eligible_unchanged_index, 1);
+  assert.equal(counts.unchanged_index_value_rows, 1);
   assert.equal(counts.inserted_rows, 1);
   const report = assessWindow({ before: { inventory, stats: stats(), finished_at: "before" },
     after: { inventory, stats: stats({ n_tup_ins: "11", n_tup_upd: "22", n_tup_hot_upd: "3", n_tup_newpage_upd: "4" }), started_at: "after" },
@@ -60,7 +60,7 @@ test("compares inserts, indexed changes, and unchanged-index updates including N
 });
 
 test("rejects retries, concurrent writers, failure count mismatch, reset, and index drift", () => {
-  const counts = { updated_rows: 2, inserted_rows: 1, indexed_value_changed: 1, hot_eligible_unchanged_index: 1 };
+  const counts = { updated_rows: 2, inserted_rows: 1, indexed_value_changed: 1, unchanged_index_value_rows: 1 };
   const before = { inventory, stats: stats() };
   const after = { inventory, stats: stats({ n_tup_ins: "11", n_tup_upd: "22", n_tup_hot_upd: "3", n_tup_newpage_upd: "4" }) };
   assert.throws(() => assessWindow({ before, after: { ...after, stats: stats({ n_tup_ins: "11", n_tup_upd: "23" }) }, counts, operation }), /repeated, concurrent/);
