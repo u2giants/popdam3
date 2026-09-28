@@ -148,6 +148,23 @@ export function evaluate(issues) {
   return { markers, retired, problems, ok: problems.length === 0 }
 }
 
+/** Confirm the sole marker against its canonical issue before reading routing. */
+export function refreshSingleMarker(result, readIssue) {
+  if (result.markers.length !== 1) return result
+  const marker = result.markers[0]
+  const fresh = readIssue(marker.number)
+  const labels = Array.isArray(fresh?.labels)
+    ? fresh.labels.map((label) => (typeof label === 'string' ? label : label?.name))
+    : []
+  if (fresh?.number !== marker.number || fresh?.state !== 'open' ||
+      !labels.includes(MARKER_LABEL) || fresh.pull_request) {
+    throw new Unknown(`marker #${marker.number} changed or could not be confirmed by direct issue read`)
+  }
+  marker.body = fresh.body ?? ''
+  marker.createdAt = fresh.created_at ?? null
+  return result
+}
+
 /** B1a, second leg: the retired label must not exist in the repo at all. */
 export function evaluateLabels(labels) {
   if (!Array.isArray(labels)) {
@@ -423,6 +440,7 @@ export const defaultIo = {
    * provably carried the label. Labels are matched client-side in `evaluate`.
    */
   openIssues: (repo) => ghJson(['api', '--paginate', `repos/${repo}/issues?state=open&per_page=100`]),
+  markerIssue: (repo, number) => ghJson(['api', `repos/${repo}/issues/${number}`]),
   labels: (repo) => ghJson(['api', '--paginate', `repos/${repo}/labels?per_page=100`]),
   /**
    * One issue's body, open or CLOSED — a predecessor marker is closed by
@@ -466,7 +484,7 @@ export function main(argv = [], io = defaultIo) {
 
   let result
   try {
-    result = evaluate(io.openIssues(repo))
+    result = refreshSingleMarker(evaluate(io.openIssues(repo)), (number) => io.markerIssue(repo, number))
 
     if (resolving) {
       // ⚠️ THE SAFETY FINDINGS GATE RESOLUTION. Found 2026-08-26 by independent

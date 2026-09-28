@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "work_issue": 3598,
+  "outcome": "ready-for-merge",
+  "pr": 3599,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3598/1",
+  "contract_sha256": "63874f64f88aa210200a69f492861bb33e9404df51e8e48c912c29434aadc1a2",
+  "base_sha": "7fab5c716eb111a10c865b99e09b5ad94ff092b2",
+  "head_sha": "3ede60813793a522be206f3b3c3b4db487a9aabd",
+  "files_changed": [
+    "scripts/check-orchestrator-marker.mjs",
+    "scripts/check-orchestrator-marker.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"command": "node --test scripts/check-orchestrator-marker.test.mjs", "exit_code": 0, "evidence": "46 passed, 0 failed on implementation head 3ede6081"},
+    {"command": "node --test scripts/lib/orchestrator-admission.test.mjs", "exit_code": 0, "evidence": "19 passed, 0 failed on implementation head 3ede6081"},
+    {"command": "bash scripts/check-sql.sh", "exit_code": 0, "evidence": "Static checks passed; no migration changed on implementation head 3ede6081"},
+    {"command": "node scripts/check-orchestrator-marker.mjs --resolve --json --repo popcre/shared-db", "exit_code": 0, "evidence": "Current open marker #3570 returned state declared on implementation head 3ede6081"}
+  ],
+  "assumptions_resolved": [
+    "The failed scheduled run saw marker #3552 without routing while its current GitHub body has a valid block and no earlier body edit event; direct issue confirmation is used before routing verdict."
+  ],
+  "stop_conditions_hit": []
+}

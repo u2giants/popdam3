@@ -21,6 +21,7 @@ import {
   EXIT_NONE,
   Unknown,
   evaluate,
+  refreshSingleMarker,
   evaluateRouting,
   resolveTarget,
   evaluateLabels,
@@ -58,6 +59,7 @@ const ROUTING = (over = {}) => {
 const issue = (number, labels, extra = {}) => ({
   number,
   title: `issue ${number}`,
+  state: 'open',
   labels: labels.map((name) => ({ name })),
   body: labels.includes(MARKER_LABEL) ? ROUTING() : '',
   created_at: '2026-08-27T09:00:00Z',
@@ -65,8 +67,9 @@ const issue = (number, labels, extra = {}) => ({
 })
 
 /** An io stub. Anything omitted returns an empty list. */
-const io = ({ issues = [], labels = [], bodies = {} } = {}) => ({
+const io = ({ issues = [], labels = [], bodies = {}, markerIssues = {} } = {}) => ({
   openIssues: () => issues,
+  markerIssue: (_repo, number) => markerIssues[number] ?? issues.find((item) => item.number === number),
   labels: () => labels,
   issueBody: (_repo, number) => bodies[number] ?? '',
 })
@@ -79,6 +82,30 @@ test('zero open markers PASSES', () => {
 
 test('exactly one open marker PASSES', () => {
   assert.equal(main([], io({ issues: [issue(793, [MARKER_LABEL])] })), EXIT_OK)
+})
+
+test('a stale list body is replaced by the direct issue body for guard and resolve', () => {
+  const current = issue(793, [MARKER_LABEL])
+  const listed = { ...current, body: '' }
+  const input = io({ issues: [listed], markerIssues: { 793: current } })
+  assert.equal(main([], input), EXIT_OK)
+  assert.equal(main(['--resolve'], input), EXIT_OK)
+})
+
+test('a direct issue body without routing still fails the guard', () => {
+  const listed = issue(793, [MARKER_LABEL])
+  const direct = { ...listed, body: '' }
+  assert.equal(main([], io({ issues: [listed], markerIssues: { 793: direct } })), EXIT_FAIL)
+})
+
+test('a changed or unreadable direct marker is UNKNOWN', () => {
+  const listed = issue(793, [MARKER_LABEL])
+  for (const direct of [undefined, { ...listed, state: 'closed' }, { ...listed, labels: [] }]) {
+    assert.throws(() => refreshSingleMarker(evaluate([listed]), () => direct), Unknown)
+  }
+  const input = io({ issues: [listed], markerIssues: { 793: { ...listed, state: 'closed' } } })
+  assert.equal(main([], input), EXIT_UNKNOWN)
+  assert.equal(main(['--resolve'], input), EXIT_UNKNOWN)
 })
 
 test('two open markers FAIL, and both are named', () => {
@@ -258,6 +285,7 @@ test('an UNREADABLE predecessor is UNKNOWN, not a pass', () => {
   const issues = [marker({ handover_issue: '1579' })]
   const exit = main([], {
     openIssues: () => issues,
+    markerIssue: (_repo, number) => issues.find((item) => item.number === number),
     labels: () => [],
     issueBody: () => {
       throw new Unknown('predecessor unreadable')

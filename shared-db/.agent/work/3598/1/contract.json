@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 3598,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Confirm the sole orchestrator marker by direct GitHub issue read before evaluating its routing contract, following alarm #3553",
+  "base_sha": "7fab5c716eb111a10c865b99e09b5ad94ff092b2",
+  "dispatcher": "repo-maintenance session for issue #3598",
+  "worker": "codex",
+  "branch": "codex/marker-3553-live-read",
+  "worktree": ".ai/worktrees/marker-3553",
+  "allowed_paths": [
+    "scripts/check-orchestrator-marker.mjs",
+    "scripts/check-orchestrator-marker.test.mjs"
+  ],
+  "file_writes": [
+    "scripts/check-orchestrator-marker.mjs",
+    "scripts/check-orchestrator-marker.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not dispatch an orchestrator",
+    "do not change migrations or database objects",
+    "do not treat an unreadable marker as no orchestrator"
+  ],
+  "required_checks": [
+    "node --test scripts/check-orchestrator-marker.test.mjs",
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "the open-issues list may carry a stale issue body immediately after marker creation",
+    "a direct issue read gives the current routing body"
+  ],
+  "stop_conditions": [
+    "stop if the direct issue cannot be read or disagrees with the list on marker identity",
+    "stop if the change requires an orchestrator dispatch or database operation"
+  ]
+}
