@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "source": "scripts/apply_attempt_recovery.py",
+  "sites": [
+    {
+      "site": "scripts/apply_attempt_recovery.py:216",
+      "semantic_key": "scripts/apply_attempt_recovery.py:331421232bb43909beccb37f30221dfd7150992063dc9c79f3e69ec5b4ad97f3:context-212e7630c93aee3e92a3f3220523185c30119a295cc6ce330286fae1a7735e94",
+      "legacy_semantic_key": "scripts/apply_attempt_recovery.py:331421232bb43909beccb37f30221dfd7150992063dc9c79f3e69ec5b4ad97f3:1",
+      "line_sha256": "331421232bb43909beccb37f30221dfd7150992063dc9c79f3e69ec5b4ad97f3",
+      "disposition": "excluded",
+      "reason": "Refusal message naming ledger-content gaps before marking recovered; it reports the gap for the caller and never asserts a schema object is absent."
+    },
+    {
+      "site": "scripts/apply_attempt_recovery.py:214",
+      "semantic_key": "scripts/apply_attempt_recovery.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:context-96b2c6973fcda378b53585d4c810185fda15be5699f5d796fbc1e821c87b6cd9",
+      "legacy_semantic_key": "scripts/apply_attempt_recovery.py:3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996:1",
+      "line_sha256": "3fb4af7e3ddb6724b4c4ca06f6283e3b5208d66bde4fd70e7a9a8719bd7a9996",
+      "disposition": "excluded",
+      "reason": "Branch that refuses recovery when the ledger lacks claimed migration content; the condition guards a refusal, not an absence assertion."
+    },
+    {
+      "site": "scripts/apply_attempt_recovery.py:213",
+      "semantic_key": "scripts/apply_attempt_recovery.py:4ab769582387c09153d4759276b96e2af1790e34d8a54c73dab2e141d60daab4:context-f274325f55fba8bf4c6ab15d866479b1821a7f30d0876307013071d5ba1cc74d",
+      "legacy_semantic_key": "scripts/apply_attempt_recovery.py:4ab769582387c09153d4759276b96e2af1790e34d8a54c73dab2e141d60daab4:1",
+      "line_sha256": "4ab769582387c09153d4759276b96e2af1790e34d8a54c73dab2e141d60daab4",
+      "disposition": "excluded",
+      "reason": "Computes a ledger-content gap for an exact claimed migration version; a missing ledger entry causes refusal and does not assert absence of any database object."
+    },
+    {
+      "site": "scripts/apply_attempt_recovery.py:200",
+      "semantic_key": "scripts/apply_attempt_recovery.py:ce284d3f1a7298e7d0d252f642f6bdc3774cb2b73c9f842219dc5d1999ab3344:context-b7539bd873ac2be6437056950560831f278d1bf821c28ceb75ac97dc55a97072",
+      "legacy_semantic_key": "scripts/apply_attempt_recovery.py:ce284d3f1a7298e7d0d252f642f6bdc3774cb2b73c9f842219dc5d1999ab3344:1",
+      "line_sha256": "ce284d3f1a7298e7d0d252f642f6bdc3774cb2b73c9f842219dc5d1999ab3344",
+      "disposition": "excluded",
+      "reason": "Comment stating the recovery semantic that a clean non-apply is not a re-apply grant; it makes no assertion that a database object or migration is absent."
+    }
+  ]
+}

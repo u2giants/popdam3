@@ -1,0 +1,47 @@
+{
+  "allowed_paths": [
+    "scripts/apply_attempt_recovery.py",
+    "scripts/test_apply_attempt_recovery.py",
+    "docs/verification/throughput-dispositions/scripts~apply_attempt_recovery.py.json",
+    ".agent/work/3589/1/contract.json",
+    ".agent/work/3589/1/completion.json"
+  ],
+  "assumptions": [
+    "This delivery is helper preparation only; parent #3397 remains open for separately owned adapters and consumer integration.",
+    "This new issue and branch have no implementation commit before contract publication."
+  ],
+  "base_sha": "f6277830af0ddca4d232f6d30246c804f6813a66",
+  "branch": "codex/3589-recovery-helper",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex chat 01a0e56c-5bf2-72f2-8bef-e3b0f9017725 on edge-dev3, authorized by Albert to finish non-orchestrator issues",
+  "file_writes": [
+    "scripts/apply_attempt_recovery.py",
+    "scripts/test_apply_attempt_recovery.py",
+    "docs/verification/throughput-dispositions/scripts~apply_attempt_recovery.py.json",
+    ".agent/work/3589/1/contract.json",
+    ".agent/work/3589/1/completion.json"
+  ],
+  "goal": "Prepare exact-content apply-attempt recovery helper, focused tests, and throughput disposition for #3397. This bounded child covers helper preparation only; no workflow activation or database access.",
+  "prohibited_actions": [
+    "No database writes",
+    "No workflow or existing apply implementation edits",
+    "No production activation"
+  ],
+  "required_checks": [
+    "python3 -m unittest discover -s scripts -p test_apply_attempt_recovery.py",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 1,
+  "stop_conditions": [
+    "Integration requires separately owned workflow changes",
+    "Any actual database access"
+  ],
+  "work_issue": 3589,
+  "work_type": "repo-maintenance",
+  "worker": "Codex subagent queue_readback on edge-dev3",
+  "worktree": "/home/ahazan/repos/shared-db-3589-helper",
+  "generation": 1
+}

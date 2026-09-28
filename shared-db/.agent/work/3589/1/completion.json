@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 3589,
+  "outcome": "ready-for-merge",
+  "pr": 3590,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3589/1",
+  "contract_sha256": "8e9bed907fbcf24b285dd9b740e93342efef2a47f0bb14aea27f4548f931bfac",
+  "head_sha": "afb814383c1f3b36e0bdeac29c8596048ade1e22",
+  "base_sha": "5f91f2f6582df8eb7774cf48aa1849e5891a0b02",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~apply_attempt_recovery.py.json",
+    "scripts/apply_attempt_recovery.py",
+    "scripts/test_apply_attempt_recovery.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_apply_attempt_recovery.py",
+      "exit_code": 0,
+      "evidence": "25 focused tests passed at refreshed implementation head, including contradiction, exact ledger, qualification, catalog, ordering, and lock cases."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Truth audit passed at refreshed implementation head: 328 call sites, 77 sources."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors between current main and refreshed implementation head."
+    }
+  ],
+  "assumptions_resolved": [
+    "This closes only helper-preparation child #3589; parent #3397 remains open for separately owned workflow adapter and consumer integration.",
+    "Governed Muse approval at prior content-equivalent head was recorded; refresh onto current main requires exact-head recheck before merge."
+  ],
+  "stop_conditions_hit": []
+}
