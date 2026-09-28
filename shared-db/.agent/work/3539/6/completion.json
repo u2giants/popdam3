@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3539,
+  "outcome": "ready-for-merge",
+  "pr": 3557,
+  "migration_versions": [
+    "20260925223300"
+  ],
+  "contract_ref": "refs/db-contracts/3539/6",
+  "contract_sha256": "4a48cdecce2f208a95baa3b5dc3782fe00b8ed9208aa2f829dba85166308fb8b",
+  "base_sha": "a096bccd0c112d92cc9b6be4010e8f019f9db083",
+  "head_sha": "bab2b5a0ecbb09bc194fb75ae748b0e7335f131d",
+  "files_changed": [
+    "docs/db-data-admin-scraped-properties.md",
+    "supabase/migrations/20260925223300_scraped_source_inventory_pixar_disney_dcpvault_licensor.sql",
+    "supabase/tests/db_data_admin_scraped_source_inventory.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function api.db_data_admin_scraped_source_inventory"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards passed at refreshed implementation head bab2b5a0 on main a096bccd; Guard B live-ledger check still awaits ephemeral CI."
+    },
+    {
+      "command": "python scripts/migration_derivation.py",
+      "exit_code": 0,
+      "evidence": "python3 scripts/migration_derivation.py exited 0 at refreshed implementation head bab2b5a0."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "git diff --check origin/main...HEAD exited 0 at refreshed implementation head bab2b5a0."
+    }
+  ],
+  "assumptions_resolved": [
+    "Claim #3546 remains open at version 20260925223300 with permanent reservation ref.",
+    "Production SQL grouping and identity expressions are unchanged from reviewed generation 4 implementation.",
+    "Installed CASE expressions are executed for all three arms with four DCP sources, Pixar key and name, non-DCP unresolved negative control, and Marvel ASGARD positive control.",
+    "Twelve source tables require a validated exact equality constraint and NOT NULL discriminator.",
+    "Qwen prior verdict is excluded due to 1Password review-policy violation; fresh exact-head governed review is required."
+  ],
+  "stop_conditions_hit": []
+}

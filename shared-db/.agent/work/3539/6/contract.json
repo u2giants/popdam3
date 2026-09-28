@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "generation": 6,
+  "work_issue": 3539,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Strengthen issue #3539 PR #3557 executable SQL contract proof at current main: assert Pixar group name, non-DCP negative controls, and exact validated source-system constraints while preserving production SQL semantics and full database-object scope.",
+  "base_sha": "b02d04c71e6240461ef37187134cc6b568e74b15",
+  "dispatcher": "Codex orchestrator chat 01a0e56c-2e17-78a2-ad57-cd154b990979 on edge-dev3",
+  "worker": "Codex subagent pr3557_finish on edge-dev3",
+  "branch": "codex/3539-g6",
+  "worktree": "/home/ahazan/repos/shared-db-3539-g6",
+  "allowed_paths": [
+    "supabase/migrations/20260925223300_scraped_source_inventory_pixar_disney_dcpvault_licensor.sql",
+    "docs/db-data-admin-scraped-properties.md",
+    "supabase/tests/db_data_admin_scraped_source_inventory.sql",
+    ".agent/work/3539/6/contract.json",
+    ".agent/work/3539/6/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260925223300_scraped_source_inventory_pixar_disney_dcpvault_licensor.sql",
+    "docs/db-data-admin-scraped-properties.md",
+    "supabase/tests/db_data_admin_scraped_source_inventory.sql",
+    ".agent/work/3539/6/contract.json",
+    ".agent/work/3539/6/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function api.db_data_admin_scraped_source_inventory"
+  ],
+  "prohibited_actions": [
+    "No shared preview or production database write from this author session",
+    "No merge or manual production dispatch; Guarded Merge belongs to the orchestrator",
+    "Do not change licensor_key or row_key for any row",
+    "Do not drop any row or invent a new licensor group beyond Disney grouping for Pixar and source-system grouping for *_dcpvault"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python scripts/migration_derivation.py",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Claim #3546 remains open at version 20260925223300 with permanent reservation and the function claim.",
+    "Existing migration semantics already implement owner-approved absolute DCP source-system grouping; generation 6 adds executable proof only.",
+    "A prior Qwen slot-2 verdict is excluded from authorization because its wrapper used 1Password during review."
+  ],
+  "stop_conditions": [
+    "Stop on claim or reservation change, or if migration is already applied.",
+    "Stop if any production SQL/schema semantics must change; seek orchestrator decision.",
+    "No preview, merge, or production write from this author session."
+  ],
+  "evidence_parent": {
+    "work_issue": 3539,
+    "generation": 4,
+    "contract_sha256": "011784a141772fbced19cf5841c3f693cd76b9649a2f47ca74ec625cb05d556e"
+  }
+}

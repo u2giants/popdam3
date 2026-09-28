@@ -15,22 +15,33 @@ Every section heading identifies one Licensor and one business purpose:
 Portal names may follow in parentheses. Landing-table names, folders, brands,
 and Property-like internal labels never create additional Licensors.
 
-## Canonical licensor grouping (#2905)
+## Canonical licensor grouping (#2905, #3539)
 
 `api.db_data_admin_scraped_source_inventory` returns `licensor_group_key` and
 `licensor_group_name` on every row of the Property, Character and Style Guide
 inventories. The page groups by that key, never by splitting label text, so each
 licensor shows exactly one Creative and one Submissions section. Disney, Marvel,
-Pixar, Lucasfilm / Star Wars and 20th Century are separate groups. DCP Vault rows
-under authoritative Marvel scope, Marvel OPA rows and Marvel ASGARD rows all
-belong to Marvel.
+Lucasfilm / Star Wars and 20th Century are separate groups. DCP Vault rows
+group by their source system; Marvel OPA rows and Marvel ASGARD rows group under
+Marvel. A DCP Vault authority or mapping conflict stays visible in its row
+status or mapping state without changing the source-system licensor group.
 
-Rows whose licensor is genuinely unresolved or in conflict go into one trailing
-group, key `unresolved`, named "Licensor not yet determined": OPA scope conflict
-or unresolved scope, DCP authority conflict or unresolved authority, and DCP
-Vault rows carrying only a non-authoritative Marvel tag. They are never dropped
-and never assigned to Disney. The existing `licensor_key` and `row_key` are
-unchanged, so paging cursors stay stable.
+Pixar is part of Disney and is not its own licensor (#3539). Rows whose
+`licensor_key` is `pixar` or `pixar-opa` group under Disney; section labels say
+Disney, with Pixar kept in parentheses as the portal/brand. The existing
+`licensor_key` and `row_key` are unchanged, so paging cursors stay stable.
+
+DCP Vault licensor comes from the source system (#3539, superseding the #2905
+unresolved-authority rule). Rows with `source_system` `disney_dcpvault` group to
+Disney, `marvel_dcpvault` to Marvel, `lucasfilm_dcpvault` to Lucasfilm / Star
+Wars, and `twentieth_century_dcpvault` to 20th Century, regardless of mapping
+authority status. Authority and mapping conflicts may still appear as row status or mapping state, but they never move a
+row into the unresolved group.
+
+Rows whose licensor is genuinely undetermined and is not covered by source-system
+DCP Vault grouping go into one trailing group, key `unresolved`, named "Licensor
+not yet determined": OPA scope conflict or unresolved scope outside those source
+systems. They are never dropped and never assigned to Disney.
 
 NBCUniversal Property rows whose `source_kind` is `property` or
 `franchise_asset` come from the Product Submissions picker and are Submissions;
