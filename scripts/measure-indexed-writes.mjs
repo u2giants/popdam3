@@ -13,7 +13,6 @@ import { assessWindow, compareSortedRows, normalizeIndexInventory, summarizeResu
 const PROJECT_REF = "qsllyeztdwjgirsysgai";
 const TABLES = {
   "public.assets": ["id"],
-  "public.dam_search_documents": ["document_type", "entity_id"],
   "public.style_guide_files": ["id"],
   "plm.style_tracker_item_bridge": ["id"],
 };
@@ -147,8 +146,11 @@ async function capture(client, table, path, maxRows, CursorClass) {
   const quote = (column) => `"${column.replaceAll('"', '""')}"`;
   const keyExpr = `jsonb_build_array(${keys.map((column) => `t.${quote(column)}`).join(", ")})::text`;
   const valuesExpr = `jsonb_build_object(${inventory.columns.map((column) => `'${column.replaceAll("'", "''")}', t.${quote(column)}`).join(", ")})::text`;
+  // These supported keys are UUIDs, or the fixed ASCII document type plus a UUID.
+  // Primary-key order matches their serialized comparison order without sorting
+  // a computed JSON expression over the entire production table.
   const sql = `SELECT ${keyExpr} AS id, t.xmin::text AS version, ${valuesExpr} AS values
-    FROM ${quotedTable} t ORDER BY id COLLATE "C"`;
+    FROM ${quotedTable} t ORDER BY ${keys.map((column) => `t.${quote(column)}`).join(", ")}`;
   const file = await open(path, "wx", 0o600);
   const digest = createHash("sha256");
   let rowCount = 0;
@@ -224,7 +226,7 @@ export async function main(argv, { Client = pg.Client, CursorClass = Cursor,
         throw new Error("operation receipts are missing or changed");
       }
       const receipt = await readProtectedJson(operation.result_receipt_path);
-      const receiptCounts = summarizeResultReceipt(receipt, { table, path: operation.path,
+      const receiptCounts = summarizeResultReceipt(receipt, { table, paths: operation.paths,
         afterBefore: before.finished_at, beforeAfter: metadata.started_at });
       if (Number(operation.attempted_rows) !== receiptCounts.attempted_rows ||
           Number(operation.succeeded_rows) !== receiptCounts.succeeded_rows) {

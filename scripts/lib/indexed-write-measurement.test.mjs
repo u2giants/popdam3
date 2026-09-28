@@ -10,7 +10,7 @@ const inventory = normalizeIndexInventory([
 const stats = (overrides = {}) => ({ project_ref: "qsllyeztdwjgirsysgai", table: "public.assets",
   server_started_at: "start", bgwriter_reset_at: "reset", database_reset_at: null, table_reset_at: null,
   n_tup_ins: "10", n_tup_upd: "20", n_tup_hot_upd: "2", n_tup_newpage_upd: "3", ...overrides });
-const operation = { name: "one bounded ingest", path: "ingest-update", source_commit: "a".repeat(40),
+const operation = { name: "one bounded ingest", paths: ["ingest-update"], source_commit: "a".repeat(40),
   result_receipt_sha256: "b".repeat(64), single_writer_receipt_sha256: "c".repeat(64),
   attempted_rows: 4, succeeded_rows: 3 };
 const snapshot = (id, version, values) => ({ id, version, values: JSON.stringify(values) });
@@ -22,11 +22,11 @@ test("catalog inventory keeps expression and partial predicate dependencies", ()
 });
 
 test("sums only real result events inside the snapshot bounds", () => {
-  const bounds = { table: "public.assets", path: "ingest-update",
+  const bounds = { table: "public.assets", paths: ["ingest-update", "style-group-assignment"],
     afterBefore: "2026-09-28T01:00:00Z", beforeAfter: "2026-09-28T02:00:00Z" };
   const receipt = { events: [
-    { table: bounds.table, path: bounds.path, observed_at: "2026-09-28T01:10:00Z", attempted_rows: 2, succeeded_rows: 1 },
-    { table: bounds.table, path: bounds.path, observed_at: "2026-09-28T01:20:00Z", attempted_rows: 1, succeeded_rows: 1 },
+    { table: bounds.table, path: "ingest-update", observed_at: "2026-09-28T01:10:00Z", attempted_rows: 2, succeeded_rows: 1 },
+    { table: bounds.table, path: "style-group-assignment", observed_at: "2026-09-28T01:20:00Z", attempted_rows: 1, succeeded_rows: 1 },
   ] };
   assert.deepEqual(summarizeResultReceipt(receipt, bounds), { attempted_rows: 3, succeeded_rows: 2 });
   assert.throws(() => summarizeResultReceipt({ events: [{ ...receipt.events[0], succeeded_rows: null }] }, bounds), /nonnegative/);

@@ -7,6 +7,25 @@ export class StyleRowSavedBridgeRefreshError extends Error {
   }
 }
 
+export function bridgeWriteCounts(data: unknown, error: unknown): {
+  attempted_rows: number; succeeded_rows: number; inserted_rows: number;
+  updated_rows: number; base_total_rows: number;
+} | null {
+  if (error || !Array.isArray(data) || data.length !== 1 || !data[0] || typeof data[0] !== "object") return null;
+  const row = data[0] as Record<string, unknown>;
+  for (const field of ["inserted_count", "updated_count", "total_count"]) {
+    const value = row[field];
+    if ((typeof value !== "number" && typeof value !== "string") || String(value).trim() === "") return null;
+  }
+  const inserted = Number(row.inserted_count);
+  const updated = Number(row.updated_count);
+  const total = Number(row.total_count);
+  if (![inserted, updated, total, inserted + updated].every(Number.isSafeInteger) ||
+      inserted < 0 || updated < 0 || total < 0 || inserted + updated < total) return null;
+  return { attempted_rows: inserted + updated, succeeded_rows: inserted + updated,
+    inserted_rows: inserted, updated_rows: updated, base_total_rows: total };
+}
+
 type RpcResult = { error: { message?: string } | null };
 
 export async function refreshStyleTrackerBridgeWithRetry(

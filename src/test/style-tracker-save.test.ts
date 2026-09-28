@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { refreshStyleTrackerBridgeWithRetry, StyleRowSavedBridgeRefreshError } from "@/lib/style-tracker-save";
+import { bridgeWriteCounts, refreshStyleTrackerBridgeWithRetry, StyleRowSavedBridgeRefreshError } from "@/lib/style-tracker-save";
 
 describe("style tracker split save", () => {
   it("retries only the idempotent bridge refresh", async () => {
@@ -19,5 +19,19 @@ describe("style tracker split save", () => {
 
     await expect(refreshStyleTrackerBridgeWithRetry(refresh, { delay: async () => undefined }))
       .rejects.toMatchObject<Partial<StyleRowSavedBridgeRefreshError>>({ rowSaved: true });
+  });
+});
+
+describe("bridge indexed-write receipt", () => {
+  it("includes public-wrapper designer updates without changing the returned total", () => {
+    expect(bridgeWriteCounts([{ inserted_count: 1, updated_count: 5, total_count: 4 }], null))
+      .toEqual({ attempted_rows: 6, succeeded_rows: 6, inserted_rows: 1,
+        updated_rows: 5, base_total_rows: 4 });
+  });
+
+  it("fails closed on errors or missing counts", () => {
+    expect(bridgeWriteCounts([{ inserted_count: 0, updated_count: 1, total_count: 1 }], { message: "failed" })).toBeNull();
+    expect(bridgeWriteCounts([{ inserted_count: null, updated_count: 1, total_count: 1 }], null)).toBeNull();
+    expect(bridgeWriteCounts([{ inserted_count: 0, updated_count: 0, total_count: 1 }], null)).toBeNull();
   });
 });

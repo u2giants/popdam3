@@ -16,7 +16,7 @@ function harness(state = {}, dir) {
   const context = { phase: "before", role: "supabase_read_only_user", failCursor: false,
     rowsBefore: [row("1", "10", "old")], rowsAfter: [row("1", "11", "new")], ...state };
   class FakeCursor {
-    constructor(sql) { this.sql = sql; this.offset = 0; }
+    constructor(sql) { this.sql = sql; context.cursorSql = sql; this.offset = 0; }
     async read(size) {
       if (context.failCursor) throw new Error("fixture cursor failure containing private values");
       const rows = context.phase === "before" ? context.rowsBefore : context.rowsAfter;
@@ -76,7 +76,7 @@ async function receipts(dir, observedAt, overrides = {}) {
   const singleWriterHash = await privateFile(singleWriterPath, "fixture exclusive writer attestation");
   const operationPath = join(dir, "operation.json");
   await privateFile(operationPath, JSON.stringify({
-    name: "fixture crawl", path: "crawl-upsert", source_commit: "a".repeat(40),
+    name: "fixture crawl", paths: ["crawl-upsert"], source_commit: "a".repeat(40),
     attempted_rows: 1, succeeded_rows: 1,
     result_receipt_path: resultPath, result_receipt_sha256: resultHash,
     single_writer_receipt_path: singleWriterPath, single_writer_receipt_sha256: singleWriterHash,
@@ -105,6 +105,7 @@ test("mocked before/after writes private files and a value-free aggregate report
     assert.equal((await lstat(join(dir, "before.rows.ndjson"))).mode & 0o077, 0);
     assert.equal((await lstat(join(dir, "before.json"))).mode & 0o077, 0);
     assert.equal(context.config.ssl.rejectUnauthorized, true);
+    assert.ok(context.cursorSql.includes('ORDER BY t."id"'));
     await delay(12);
     const { operationPath } = await receipts(dir, new Date().toISOString());
     await delay(12);

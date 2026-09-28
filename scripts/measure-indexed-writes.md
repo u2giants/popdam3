@@ -10,7 +10,7 @@ Use the documented production **session pooler** `aws-1-us-east-1.pooler.supabas
 node scripts/measure-indexed-writes.mjs before --table public.style_guide_files --dir /private/outside/repository/measurement
 ```
 
-The supported tables are `public.style_guide_files`, `public.assets`, `public.dam_search_documents`, and `plm.style_tracker_item_bridge`. The default row bound is 500,000; a larger explicit `--max-rows` may be set up to 2,000,000. If the bound is exceeded, stop and replan instead of weakening protections. The observer needs a consistent read-only snapshot and may be expensive for a large table; schedule the read accordingly.
+The supported tables are `public.style_guide_files`, `public.assets`, and `plm.style_tracker_item_bridge`. `public.dam_search_documents` is excluded from attributed reports because its database triggers and worker refreshes have no complete operation receipt. It needs a separate, governed observer plan. The default row bound is 500,000; a larger explicit `--max-rows` may be set up to 2,000,000. If the bound is exceeded, stop and replan instead of weakening protections. The observer needs a consistent read-only snapshot and may be expensive for a large table; schedule the read accordingly.
 
 The edge-function aggregate hooks are disabled unless `POP_INDEXED_WRITE_MEASUREMENT=1` on that runtime. The Style Tracker browser aggregate hook is disabled unless the built app has `VITE_POP_INDEXED_WRITE_MEASUREMENT=1`. The hooks emit timestamped attempted/succeeded counts only, never row identifiers or values. Neither flag is enabled by this script or this change. Copy the actual hook records into a private `0600` JSON receipt, preserving their timestamps and counts, and record the deployed source commit. A failed or unknown attempt makes the measurement inconclusive; do not substitute an estimate.
 
@@ -21,7 +21,7 @@ Create a private `0600` JSON operation file with this shape, using only counts f
 ```json
 {
   "name": "one representative full crawl",
-  "path": "crawl-upsert",
+  "paths": ["crawl-upsert", "crawl-reconcile"],
   "source_commit": "40-lowercase-hex-character-deployed-commit",
   "attempted_rows": 0,
   "succeeded_rows": 0,
@@ -32,10 +32,12 @@ Create a private `0600` JSON operation file with this shape, using only counts f
 }
 ```
 
-The result receipt is a private JSON object of the form `{"events":[{"observed_at":"2026-09-28T00:00:00.000Z","table":"public.style_guide_files","path":"crawl-upsert","attempted_rows":1,"succeeded_rows":1}]}`. Include every attempt for this path in the bounded window. The observer recomputes totals from those events and rejects any event outside the interval between the finished before snapshot and started after snapshot. Verify the receipt against the original platform logs; the observer cannot authenticate a copied log by itself.
+The result receipt is a private JSON object of the form `{"events":[{"observed_at":"2026-09-28T00:00:00.000Z","table":"public.style_guide_files","path":"crawl-upsert","attempted_rows":1,"succeeded_rows":1}]}`. Include every attempt for every listed path in the bounded window, including reconciliation calls and conditional asset style-group assignments. The observer recomputes totals from those events and rejects any event outside the interval between the finished before snapshot and started after snapshot. Verify the receipt against the original platform logs; the observer cannot authenticate a copied log by itself.
 
 ```text
 node scripts/measure-indexed-writes.mjs after --dir /private/outside/repository/measurement --operation /private/outside/repository/operation.json
 ```
 
 The observer writes `report.json` only when the live index inventory is unchanged; statistics have not reset; no row disappeared; changed rows have one update each; inserted rows and update totals match the table deltas; actual success counts match table writes; and a protected single-writer receipt is supplied. The report contains aggregates and receipt hashes, never row identifiers or values. It marks attribution as requiring independent receipt review. A matching aggregate cannot itself prove there were no other writers, so review the protected receipts before using the report for a storage decision. The observer cannot establish a representative workload by itself.
+
+The public Style Tracker refresh can perform a second designer-resolution update on a bridge row. Asset ingestion can also update the same asset again during style-group assignment. Such repeated writes cannot be classified from only two snapshots; the runner rejects the window instead of mislabeling it. An attributed measurement of those cases needs a separate per-write observer design. Search-document refreshes are excluded for the same reason until every writer has a complete receipt.

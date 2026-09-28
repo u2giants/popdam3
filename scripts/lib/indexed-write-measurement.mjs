@@ -53,10 +53,11 @@ export function counterDelta(before, after) {
   return delta;
 }
 
-export function summarizeResultReceipt(receipt, { table, path, afterBefore, beforeAfter }) {
+export function summarizeResultReceipt(receipt, { table, paths, afterBefore, beforeAfter }) {
   const lower = Date.parse(afterBefore);
   const upper = Date.parse(beforeAfter);
-  if (!Array.isArray(receipt?.events) || receipt.events.length === 0 ||
+  if (!Array.isArray(paths) || paths.length === 0 || paths.some((path) => typeof path !== "string" || !path) ||
+      new Set(paths).size !== paths.length || !Array.isArray(receipt?.events) || receipt.events.length === 0 ||
       !Number.isFinite(lower) || !Number.isFinite(upper) || lower >= upper) {
     throw new Error("result receipt or snapshot time bounds are invalid");
   }
@@ -64,7 +65,7 @@ export function summarizeResultReceipt(receipt, { table, path, afterBefore, befo
   let succeeded = 0;
   for (const event of receipt.events) {
     const observed = Date.parse(event?.observed_at);
-    if (event.table !== table || event.path !== path || !Number.isFinite(observed) ||
+    if (event.table !== table || !paths.includes(event.path) || !Number.isFinite(observed) ||
         observed <= lower || observed >= upper) {
       throw new Error("result receipt event is outside the named workload window");
     }
@@ -126,7 +127,9 @@ export function assessWindow({ before, after, counts, operation }) {
   assertSameInventory(before.inventory, after.inventory);
   const delta = counterDelta(before.stats, after.stats);
   if (typeof operation?.name !== "string" || !operation.name.trim() ||
-      typeof operation?.path !== "string" || !operation.path.trim() ||
+      !Array.isArray(operation?.paths) || operation.paths.length === 0 ||
+      operation.paths.some((path) => typeof path !== "string" || !path.trim()) ||
+      new Set(operation.paths).size !== operation.paths.length ||
       typeof operation?.source_commit !== "string" || !/^[0-9a-f]{40}$/.test(operation.source_commit) ||
       typeof operation?.result_receipt_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(operation.result_receipt_sha256) ||
       typeof operation?.single_writer_receipt_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(operation.single_writer_receipt_sha256)) {
@@ -151,7 +154,7 @@ export function assessWindow({ before, after, counts, operation }) {
   return {
     internally_consistent: true, attribution_requires_receipt_review: true,
     table: before.stats.table, project_ref: before.stats.project_ref,
-    source_commit: operation.source_commit, operation: operation.name, path: operation.path,
+    source_commit: operation.source_commit, operation: operation.name, paths: operation.paths,
     result_receipt_sha256: operation.result_receipt_sha256,
     single_writer_receipt_sha256: operation.single_writer_receipt_sha256,
     before_finished_at: before.finished_at, after_started_at: after.started_at,

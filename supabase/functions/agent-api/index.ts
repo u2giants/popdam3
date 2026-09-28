@@ -20,16 +20,8 @@ const PDF_TEXT_SAMPLE_PROGRESS_LIMIT = 25;
 const MAX_FUTURE_FILE_DATE_MS = 24 * 60 * 60 * 1000;
 const INDEXED_WRITE_MEASUREMENT = Deno.env.get("POP_INDEXED_WRITE_MEASUREMENT") === "1";
 
-function logIndexedWriteResult(table: string, path: string, attempted: number, succeeded: number | null): void {
-  if (!INDEXED_WRITE_MEASUREMENT) return;
-  // Aggregate counts only. No row identifiers, paths, customer values, or error messages.
-  console.info("[indexed-write-measurement]", {
-    observed_at: new Date().toISOString(),
-    table,
-    path,
-    attempted_rows: attempted,
-    succeeded_rows: succeeded,
-  });
+function logIndexedWriteResult(table: string, path: string, attempted: number | null, succeeded: number | null): void {
+  emitIndexedWriteReceipt(INDEXED_WRITE_MEASUREMENT, table, path, attempted, succeeded);
 }
 /**
  * Extensions PopSG will store. Allow-list on purpose: unrenderable files
@@ -63,6 +55,7 @@ import { isPdfBackfillComplete } from "../_shared/pdf-backfill-state.ts";
 import { buildSgCrawlCompletionUpdate, buildSgIngestCompletionUpdate, hasMoreSgSearchDocuments, SG_RECONCILE_BATCH_SIZE } from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
+import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
 
@@ -878,6 +871,9 @@ async function assignToStyleGroup(
       groupFields,
       existingGroup: existing?.group,
       currentStyleGroupId: existing?.styleGroupId,
+      onAssetUpdate: INDEXED_WRITE_MEASUREMENT
+        ? (attempted, succeeded) => logIndexedWriteResult("public.assets", "style-group-assignment", attempted, succeeded)
+        : undefined,
     });
   } catch (e) {
     // This is deliberately propagated. The bridge retries failed ingest calls,
@@ -3072,6 +3068,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
           p_min_ratio: 0.5,
         });
         if (reconcileErr) {
+          logIndexedWriteResult("public.style_guide_files", "crawl-reconcile", null, null);
           reconcileOk = false;
           reconcileFailure = `Reconcile failed for root "${rootLabel}": ${reconcileErr.message}`;
           console.error("[complete-style-guide-crawl]", reconcileFailure);
@@ -3085,11 +3082,16 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
           guard_reason: string | null;
         } | null;
         if (!batch) {
+          logIndexedWriteResult("public.style_guide_files", "crawl-reconcile", null, null);
           reconcileOk = false;
           reconcileFailure = `Reconcile returned no result for root "${rootLabel}"`;
           console.error("[complete-style-guide-crawl]", reconcileFailure);
           break;
         }
+        const deactivated = Number(batch.deactivated);
+        const measured = (!batch.guard_state || batch.guard_state === "ok") &&
+          Number.isSafeInteger(deactivated) && deactivated >= 0;
+        logIndexedWriteResult("public.style_guide_files", "crawl-reconcile", measured ? deactivated : null, measured ? deactivated : null);
         console.log(
           `[complete-style-guide-crawl] Reconcile root "${rootLabel}": deactivated=${batch.deactivated} remaining=${batch.remaining} done=${batch.done}`,
         );
