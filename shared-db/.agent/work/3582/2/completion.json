@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_issue": 3582,
+  "outcome": "ready-for-merge",
+  "pr": 3583,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3582/2",
+  "contract_sha256": "03517749c52d0dad7203b5262bd23da5732cb57487248a8709938f1a51965bcd",
+  "base_sha": "1660f92020a132d15465c1da5e860fdd281b7e24",
+  "head_sha": "466701e7d20427a5762e01b7b9b90cd208be1b97",
+  "files_changed": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "scripts/check-merge-queue-workflows.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-merge-queue-workflows.test.mjs scripts/check-required-checks-preflight.test.mjs",
+      "exit_code": 0,
+      "evidence": "71 passed, 0 failed at implementation head 466701e7d20427a5762e01b7b9b90cd208be1b97"
+    }
+  ],
+  "assumptions_resolved": [
+    "Protected-main preflight executes a protected-main script and relative imports from a current clean checkout.",
+    "The authority token occurs once, is consumed by the protected preflight, and is absent from all pull-request-head code steps.",
+    "Quota exhaustion can wait up to 15 minutes before the merge lock is acquired."
+  ],
+  "stop_conditions_hit": []
+}

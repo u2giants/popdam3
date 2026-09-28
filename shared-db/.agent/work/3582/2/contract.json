@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "generation": 2,
+  "work_issue": 3582,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Use the authority token only in a clean protected-main preflight before pull-request code runs, with an exact single-use regression guard and bounded quota wait.",
+  "base_sha": "1660f92020a132d15465c1da5e860fdd281b7e24",
+  "dispatcher": "Codex parent session for non-orchestrator issue 3361",
+  "worker": "Codex chat unknown on edge-dev3",
+  "branch": "codex/trusted-authority-preflight-3361",
+  "worktree": "/home/ahazan/repos/shared-db/.ai/worktrees/trusted-authority-preflight-3361",
+  "allowed_paths": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    ".agent/work/3582/1/contract.json",
+    ".agent/work/3582/1/completion.json",
+    ".agent/work/3582/2/contract.json",
+    ".agent/work/3582/2/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    ".agent/work/3582/1/contract.json",
+    ".agent/work/3582/1/completion.json",
+    ".agent/work/3582/2/contract.json",
+    ".agent/work/3582/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not alter database objects or settings",
+    "Do not run a pull-request script with AUTHORITY_TOKEN",
+    "Do not reveal the token value"
+  ],
+  "required_checks": [
+    "node --test scripts/check-merge-queue-workflows.test.mjs scripts/check-required-checks-preflight.test.mjs"
+  ],
+  "assumptions": [
+    "The existing preflight module resolves relative imports from its file location; its cwd-dependent mirror and pin reads use origin/main. The trusted checkout is verified clean and at current origin/main before the token is supplied to the script."
+  ],
+  "stop_conditions": [
+    "Stop if a guarded review or required check refuses",
+    "Stop if the trusted checkout cannot be proved current and clean"
+  ]
+}
