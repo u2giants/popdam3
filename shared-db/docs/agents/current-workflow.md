@@ -46,7 +46,7 @@ existing serial production lane. Do not infer a routing destination from an old
 handoff or invent a migration to test a workflow.
 
 **Self-service additive work:** an eligible additive change wholly inside the
-existing `crm`, `pim` or `dam` boundary may use the implemented self-service
+existing `crm`, `pim`, `dam` or `plm` boundary may use the implemented self-service
 route. The current classifier decides eligibility; shared references, other
 schemas, destructive changes and uncertain SQL retain the conservative route.
 Self-service removes central intake, not object/version protection or review.
