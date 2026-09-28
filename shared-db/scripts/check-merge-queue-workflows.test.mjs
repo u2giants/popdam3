@@ -292,6 +292,14 @@ test('both authority reads precede every pull-request script and run from protec
   assert.match(protectedQuota, /working-directory: trusted-policy/)
   assert.match(protectedLock, /working-directory: trusted-policy/)
   assert.match(protectedLock, /node scripts\/manage-migration-author-lanes\.mjs --acquire-merge/)
+  // #3669: the lock's "main moved independently" re-check needs the merge base
+  // of the head and the main tip, so protected main must carry full history and
+  // both commits must be fetched before acquisition.
+  const trustedCheckout = workflow.slice(workflow.indexOf('      - name: Check out protected main policy separately from the pull request'), start)
+  assert.match(trustedCheckout, /path: trusted-policy[\s\S]*fetch-depth: 0/, 'a shallow trusted-policy checkout has no merge base, so main moving independently is always refused')
+  assert.doesNotMatch(trustedCheckout, /fetch-depth: 1/)
+  assert.match(protectedLock, /HEAD_SHA: \$\{\{ inputs\.head_sha \}\}/)
+  assert.match(protectedLock, /git fetch --no-tags --quiet origin main "\$HEAD_SHA"\n\s*node scripts\/manage-migration-author-lanes\.mjs --acquire-merge/, 'the head and main tip must be fetched immediately before acquisition')
   assert.match(preflight, /GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS: '900'/)
   assert.match(preflight, /id: trusted_preflight/)
   assert.match(preflight, /echo "sha=\$\(git rev-parse HEAD\)" >> "\$GITHUB_OUTPUT"/)

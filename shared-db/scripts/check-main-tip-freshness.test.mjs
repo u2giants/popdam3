@@ -52,6 +52,26 @@ test('#2758: main moved by unrelated code, PR merges cleanly and touches none of
   } finally { rmSync(repo, { recursive: true, force: true }) }
 })
 
+// #3669: the guarded merge acquires its lane inside a checkout of protected
+// main. At depth 1 that checkout has no merge base, so the same independent
+// move above was always refused; with full history plus the fetched head
+// (what the workflow now does) it is accepted. The refusal is the control.
+test('#3669: independent main move is refused from a depth-1 clone and accepted once history and head are fetched', () => {
+  const { repo, head } = branchFixture()
+  const clone = mkdtempSync(join(tmpdir(), 'main-tip-clone-'))
+  try {
+    const tip = commitFiles(repo, { 'scripts/other.mjs': 'export const x = 1\n' }, 'main moves')
+    git(repo, ['config', 'uploadpack.allowAnySHA1InWant', 'true'])
+    git(clone, ['clone', '-q', '--depth', '1', '--branch', 'main', `file://${repo}`, '.'])
+    const shallow = branch(clone, head, tip)
+    assert.equal(shallow.ok, false); assert.match(shallow.reason, /could not compute the merge base/)
+    git(clone, ['fetch', '-q', '--unshallow', 'origin', 'main'])
+    git(clone, ['fetch', '-q', '--no-tags', 'origin', 'main', head])
+    const full = branch(clone, head, tip)
+    assert.equal(full.ok, true, full.reason); assert.equal(full.independent, true)
+  } finally { rmSync(repo, { recursive: true, force: true }); rmSync(clone, { recursive: true, force: true }) }
+})
+
 test('#2758: a branch that already merged main, with its own diff unchanged, is accepted', () => {
   const { repo, head } = branchFixture()
   try {

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 3669,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Give the guarded merge's lane acquisition the git history its main-moved-independently freshness check needs (trusted-policy full history plus fetched head), without weakening the check",
+  "base_sha": "4b451fb0961ecc074ad24487c5d1b8df87cf1d78",
+  "dispatcher": "repo-maintenance session for issue #3669 (Claude chat 1b699f56-bfb1-4801-a2b9-db91edbc98f6, edge-dev3)",
+  "worker": "claude",
+  "branch": "claude/merge-lane-fetch-depth",
+  "worktree": ".claude/worktrees/merge-lane-depth-1b699f",
+  "allowed_paths": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/check-main-tip-freshness.test.mjs",
+    ".agent/work/3669/1/contract.json",
+    ".agent/work/3669/1/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/check-main-tip-freshness.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not change classifyBranchFreshness or any refusal path",
+    "do not touch any migration or database object",
+    "do not execute pull-request code in the trusted-policy checkout"
+  ],
+  "required_checks": [
+    "node --test scripts/check-merge-queue-workflows.test.mjs",
+    "node --test scripts/check-main-tip-freshness.test.mjs"
+  ],
+  "assumptions": [
+    "classifyBranchFreshness (#2758) is the intended authority for an independent main move at acquisition"
+  ],
+  "stop_conditions": [
+    "stop if the fix would require weakening the freshness check",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ]
+}
