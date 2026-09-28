@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3527,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Restore a silence-released reviewer to the replacement draw when every other name on the same head is spent: a silent_worker_observed failure released with immutable evidence must not permanently exclude that provider from --replace-failed-reviewer (the #3492 capacity wall on PR #3309). Every other terminal failure code and any failure-ref=self evidence stays excluded fail-closed. Exact-head approval untouched.",
+  "base_sha": "33d5ec0d000552b204fbc2dbaae10ca2d5784c1c",
+  "dispatcher": "MiMo repo-maintenance session for issue #3527",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "fix/silence-release-redraw",
+  "worktree": "C:/repos/shared-db-wt-3507-silence-redraw",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3527/1/contract.json",
+    ".agent/work/3527/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3527/1/contract.json",
+    ".agent/work/3527/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not invent verdicts or weaken the two-reviewer exact-head approval rule.",
+    "Do not restore any terminal failure code other than a silence-released silent_worker_observed.",
+    "Do not touch any migration, workflow, database object, or live row."
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "Disclosed: generation 1 is published after implementation commit 77b42a5ba; no prior refs/db-contracts/3527/1 exists."
+  ],
+  "stop_conditions": [
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths."
+  ]
+}

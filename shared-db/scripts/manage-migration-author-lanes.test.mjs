@@ -2909,6 +2909,55 @@ test('silence release is accepted after reclaim and replace follows from failure
   assert.ok(replacement.failureSha)
 })
 
+// #3492 capacity wall on PR #3309: when every OTHER name is spent and the only
+// remaining candidate is the silence-released one, the release must actually
+// restore it. `silent_worker_observed` is a worker silence, not a provider
+// judgment -- the provider never produced a review or a verdict -- so a matching
+// immutable release record makes the name re-eligible. Fail-closed is preserved:
+// a non-silence release keeps the permanent exclusion and still refuses.
+test('a silence-released reviewer is re-drawn when it is the only name left (#3492 capacity wall)',()=>{
+  const {io,request,assigned,leaseRef}=silentLeaseIo(),options={...request,failedSequence:assigned.sequence,confirmNoVerdict:true,confirmNoArtifact:true}
+  probeSilentReviewer(options,new Date('2026-09-04T12:00:00Z'),io)
+  reclaimSilentReviewer(options,new Date('2026-09-04T14:00:00Z'),io)
+  assert.equal(io.refs.get(leaseRef)??null,null,'reclaim clears the lease')
+  const released=releaseFailedReviewer({...options,failureCode:'silent_worker_observed'},io)
+  assert.equal(released.reviewer,assigned.reviewer)
+  // Exhaust the pool: only the released reviewer's own provider stays usable.
+  const keep=ACTIVE_REVIEWERS.find((row)=>row.name===assigned.reviewer)
+  io.reviewerUsability=(reviewers)=>new Map(reviewers.map((row)=>[row.provider,{...usableAdmission(row),usable:row.provider===keep.provider}]))
+  const replacement=replaceFailedReviewer({...options,failureCode:'silent_worker_observed'},io)
+  assert.equal(replacement.reviewer,assigned.reviewer,'the silence-released provider must be re-drawn when no other name is available')
+  assert.ok(replacement.failureSha)
+})
+
+test('a non-silence release keeps the permanent exclusion and still refuses (fail-closed)',()=>{
+  const {io,request,assigned,leaseRef}=silentLeaseIo(),options={...request,failedSequence:assigned.sequence,confirmNoVerdict:true,confirmNoArtifact:true}
+  // Release with a provider-fault code while the lease is still live; no silence involved.
+  const released=releaseFailedReviewer({...options,failureCode:'insufficient_quota'},io)
+  assert.equal(released.reviewer,assigned.reviewer)
+  assert.equal(io.refs.get(leaseRef)??null,null,'release clears the lease')
+  const keep=ACTIVE_REVIEWERS.find((row)=>row.name===assigned.reviewer)
+  io.reviewerUsability=(reviewers)=>new Map(reviewers.map((row)=>[row.provider,{...usableAdmission(row),usable:row.provider===keep.provider}]))
+  assert.throws(()=>replaceFailedReviewer({...options,failureCode:'insufficient_quota'},io),/no other reviewer is available/)
+})
+
+// #3526 review: a predecessor silence release restores its name only for the
+// exact sequence it names; a later non-silence failure of the same provider on
+// the same head keeps the provider excluded (mixed history stays fail-closed).
+test('a silence-released provider that later fails with a non-silence code stays excluded (#3526)',()=>{
+  const {io,request,assigned}=silentLeaseIo(),options={...request,failedSequence:assigned.sequence,confirmNoVerdict:true,confirmNoArtifact:true}
+  probeSilentReviewer(options,new Date('2026-09-04T12:00:00Z'),io)
+  reclaimSilentReviewer(options,new Date('2026-09-04T14:00:00Z'),io)
+  releaseFailedReviewer({...options,failureCode:'silent_worker_observed'},io)
+  const keep=ACTIVE_REVIEWERS.find((row)=>row.name===assigned.reviewer)
+  io.reviewerUsability=(reviewers)=>new Map(reviewers.map((row)=>[row.provider,{...usableAdmission(row),usable:row.provider===keep.provider}]))
+  const redraw=replaceFailedReviewer({...options,failureCode:'silent_worker_observed'},io)
+  assert.equal(redraw.reviewer,assigned.reviewer)
+  const second={...options,failedSequence:redraw.sequence}
+  releaseFailedReviewer({...second,failureCode:'insufficient_quota'},io)
+  assert.throws(()=>replaceFailedReviewer({...second,failureCode:'insufficient_quota'},io),/no other reviewer is available/)
+})
+
 // Issue #3027 Step 7: the reviewer START watcher's unstarted mode.
 function withStartMarker(fixture){
   const ref=reviewStartedMarkerRef({...fixture.request,sequence:fixture.assigned.sequence,slot:1}),sha=fixture.io.makeOwnerCommit('db-coordination review-started')

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 3527,
+  "outcome": "ready-for-merge",
+  "pr": 3526,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3527/1",
+  "contract_sha256": "676c4366ec610f5968cd121913b089f9d94b9fa582b7e4232a2cfe703295c382",
+  "base_sha": "5d6bb13d9b27786c214e505ddd7bf4c756c19219",
+  "head_sha": "7f64c90b6259a9bfacaf700362c378da97e1836c",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "725 pass, 0 fail at ec9fab24 on main 5d6bb13d (adds the mixed-history exclusion test answering the #3526 Muse review)."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=319 sources=80 derived_digest=fb8271319bc6 at ec9fab24."
+    }
+  ],
+  "assumptions_resolved": [
+    "Rebuilt on current main to clear the protected-source lane after merges of PRs #3520/#3521/#3522/#3525."
+  ],
+  "stop_conditions_hit": []
+}

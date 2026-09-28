@@ -6895,8 +6895,12 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     const failedLease=failedLeaseMatches?liveFailedLease:null
     // What the failed reviewer's lease ref must read AFTER a successful
     // replacement: empty when we released our own lease, unchanged when the ref
-    // belongs to somebody else's review.
-    const failedLeaseAfter=unrelatedFailedLeaseSha
+    // belongs to somebody else's review. When the replacement is the SAME
+    // reviewer re-drawn onto the same head and slot (a silence-released name
+    // restored by the #3492 capacity fix), the failed and replacement lease
+    // refs are ONE ref: after the transition it holds the replacement lease,
+    // so that is what the readback must expect -- not emptiness.
+    // Defined after replacementLeaseRef/replacementLeaseSha below.
     // The failing check rides along in the immutable evidence, so a later reader
     // can tell a real provider outage from a stopped local service without
     // re-deriving it from memory.
@@ -6909,9 +6913,34 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     // replacement allocates. (Byte-identical retries come from the create-only
     // replacement ref read above, not from this advancement.)
     // Refuse only when no other active reviewer is left.
+    //
+    // A `silent_worker_observed` failure released with immutable evidence is a
+    // WORKER silence, not a provider judgment: the provider never produced a
+    // review or a verdict, and the release proves the silence was probed,
+    // confirmed and the lease reclaimed. Permanently excluding that name -- the
+    // #2224 shape, a claim about the world recorded as permanent -- deadlocks
+    // the slot once every other name has failed on the same head (#3492 on PR
+    // #3309: 4 of 5 failed, the fifth holds the other slot). Such a sequence is
+    // re-eligible here. Every other terminal failure code, and any failure whose
+    // evidence is the replacement record itself (`failure-ref=self`), stays
+    // excluded fail-closed.
+    const silenceReleasedSequences=new Set()
+    if(releasedFailure?.failureCode==='silent_worker_observed')silenceReleasedSequences.add(request.failedSequence)
     const bySequence=new Map([[initial.sequence,initial.reviewer],...parsedReplacements.map((row)=>[row.sequence,row.reviewer])])
-    const failedNames=new Set([original.reviewer])
-    for(const row of parsedReplacements){const name=bySequence.get(row.failedSequence);if(name)failedNames.add(name)}
+    for(const row of parsedReplacements){
+      if(!row.failureSha||row.failureSha===row.assignmentSha)continue
+      const record=fixedRecords?.get?.(`${failureBase}-${row.failedSequence}`)??null
+      let release=null
+      try{release=parseReviewRelease(record?.commit??io.getCommit(row.failureSha))}catch{continue}
+      // Bind the predecessor release to its exact identity, exactly as the
+      // current-request release is bound above: a record whose issue, PR, head,
+      // failed sequence or reviewer differs never restores a name.
+      if(release.issue!==request.issue||release.pr!==request.pr||release.headSha!==request.headSha||release.failedSequence!==row.failedSequence||release.reviewer!==bySequence.get(row.failedSequence))continue
+      if(release.failureCode==='silent_worker_observed')silenceReleasedSequences.add(row.failedSequence)
+    }
+    const failedNames=new Set()
+    if(!silenceReleasedSequences.has(request.failedSequence))failedNames.add(original.reviewer)
+    for(const row of parsedReplacements){const name=bySequence.get(row.failedSequence);if(name&&!silenceReleasedSequences.has(row.failedSequence))failedNames.add(name)}
     let sequence=null, reviewer=null
     for(let offset=0;offset<ACTIVE_REVIEWERS.length;offset+=1){
       const candidateSequence=cursor.sequence+1+offset, candidate=ACTIVE_REVIEWERS[(candidateSequence-1)%ACTIVE_REVIEWERS.length]
@@ -6944,6 +6973,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     const cursorReplacementSha=replacementSha
     const replacementLeaseRef=reviewLeaseRefForAssignment({...request,reviewer:reviewer.name,sequence},concurrentLeases)
     const replacementLeaseSha=cursorReplacementSha
+    const failedLeaseAfter=unrelatedFailedLeaseSha??(failedLeaseRef===replacementLeaseRef?replacementLeaseSha:null)
     const replacementStale=preflightBusy.stale.find((row)=>row.ref===replacementLeaseRef)
     let failureCreated=false, cursorUpdated=false,failedLeaseReleased=false,replacementStaleReleased=false,replacementLeaseCreated=false
     requireReviewWireCapacity(12);acquireReviewMutex(ownerSha,io);mutexAcquired=true
