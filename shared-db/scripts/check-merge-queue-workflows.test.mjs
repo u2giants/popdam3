@@ -424,3 +424,22 @@ test('the EOL guard in check-sql.sh fetches its base and still fails closed (#32
   assert.ok(sql.includes('fetch --quiet --no-tags origin "$eol_base_ref"'), 'the EOL guard no longer fetches the base branch explicitly')
   assert.ok(sql.includes('EOL guard cannot resolve base'), 'the EOL guard no longer fails closed when the base cannot be resolved')
 })
+
+// 2026-09-28: the Queue interlock job's own permission block omitted
+// `issues: read`, so openClaims() saw only pull requests (53 rows, 0 issues)
+// and refused every merge group (merge-queue-gate run on pr-3567). Job-level
+// permissions REPLACE the workflow-level block, so the job must name it itself.
+test('Queue interlock job and the workflow level both grant exactly issues: read', () => {
+  const text = readWorkflow('merge-queue-gate.yml')
+  const workflowLevel = /\npermissions:\n((?:  [^\n]*\n)+)/.exec(text)
+  assert.ok(workflowLevel, 'workflow-level permissions block exists (the verify job inherits it)')
+  assert.match(workflowLevel[1], /^  issues: read\b/m)
+  const start = text.indexOf('\n  authorize:\n')
+  assert.ok(start >= 0, 'authorize job exists')
+  const rest = text.slice(start + 1)
+  const next = rest.slice(1).search(/\n  [A-Za-z0-9_-]+:\n/)
+  const job = next < 0 ? rest : rest.slice(0, next + 1)
+  const block = /\n    permissions:\n((?:      [^\n]*\n)+)/.exec(job)
+  assert.ok(block, 'authorize job has its own permissions block')
+  assert.match(block[1], /^      issues: read\b/m)
+})

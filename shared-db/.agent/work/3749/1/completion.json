@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "work_issue": 3749,
+  "outcome": "ready-for-merge",
+  "pr": 3750,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3749/1",
+  "contract_sha256": "0f3f5ccd2e4dc90dedf1204625eb4c8ec1814317647dcd9b6064f0a0e52f6a69",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "head_sha": "a8c6bed187385dcf3ddd1b3e59d6a9b3788c7d24",
+  "files_changed": [".github/workflows/merge-queue-gate.yml","scripts/check-merge-queue-workflows.test.mjs"],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [{"command": "node --test scripts/check-merge-queue-workflows.test.mjs", "exit_code": 0, "evidence": "21 pass, 0 fail; the new test fails (20 pass, 1 fail) with main's workflow file"}],
+  "assumptions_resolved": ["merge-queue-gate Queue interlock on the pr-3567 group logged 53 rows / 0 issues while a user token lists 58 open issues"],
+  "stop_conditions_hit": []
+}
