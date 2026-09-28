@@ -1,0 +1,80 @@
+{
+  "allowed_paths": [
+    "supabase/migrations/20260928003740_popsg_refresh_steps_under_ceiling.sql",
+    "supabase/tests/issue_3458_steppable_refresh_ephemeral.sql",
+    "scripts/test_3458_index_guard.test.mjs",
+    "docs/agents/3458-caller-contract.md",
+    ".agent/work/3458/8/contract.json",
+    ".agent/work/3458/8/completion.json",
+    "HANDOFF.d/2026-09-28T1120Z-edge-dev3-codex-orch-3570-wrapup.md",
+    ".github/workflows/tools-offline-tests.yml"
+  ],
+  "assumptions": [
+    "adding an overload named public.refresh_style_guide_matviews stays inside the claimed object function public.refresh_style_guide_matviews",
+    "leaving the legacy (uuid,integer) body byte-identical keeps production catalog contract popsg_refresh_search_sync_queue_v1 green",
+    "REFRESH MATERIALIZED VIEW CONCURRENTLY cannot run inside a transaction block, so matview steps are proven by body shape and the search step is proven live",
+    "Fresh read-only preview and production catalogs both contain sgfg_group_key_uidx, a valid unique plain-column non-partial index on style_guide_file_groups; neither contains sgfilegroups_group_uidx.",
+    "The folders matview has the expected valid unique plain-column non-partial sgfolders_licensor_property_uidx in both targets.",
+    "The failed preview apply run 36414234942 left preview ledger 697 unchanged and did not apply version 20260928003740.",
+    "Generation 7 changes no migration, test or caller-document bytes relative to generation 6 checkpoint 4aaa42d2; it only refreshes the base, drops superseded .agent evidence from the PR tree, and retires the #3458-keyed handoff.",
+    "The migration file stays byte-identical to generation 6 checkpoint 4aaa42d2 because preview run 36427442828 already applied version 20260928003740 from those bytes; migration-level hardening (relkind, exact proconfig) would need a new version and is out of this generation's scope."
+  ],
+  "base_sha": "41a7698b3f294a54019c7a3ef5504ddf870f5703",
+  "branch": "mimo/3458-style-guide-refresh",
+  "db_reads": [
+    "table public.style_guide_search_sync_queue",
+    "table public.style_guide_search_documents",
+    "table public.style_guide_pdf_text",
+    "table public.style_guide_crawl_runs",
+    "table public.style_guide_files",
+    "materialized view public.style_guide_file_groups",
+    "materialized view public.style_guide_folders"
+  ],
+  "db_writes": [
+    "function public.refresh_style_guide_matviews"
+  ],
+  "dispatcher": "Claude orchestrator sub-agent (marker #3653) under existing issue #3458 / claim #3483 / PR #3487",
+  "evidence_parent": {
+    "work_issue": 3458,
+    "generation": 7,
+    "contract_sha256": "769242a77fc9a52dbc4800b5c8d6c771eacc91f96348fd59e723cb255dd67127"
+  },
+  "file_writes": [
+    "supabase/migrations/20260928003740_popsg_refresh_steps_under_ceiling.sql",
+    "supabase/tests/issue_3458_steppable_refresh_ephemeral.sql",
+    "scripts/test_3458_index_guard.test.mjs",
+    ".agent/work/3458/8/contract.json",
+    ".agent/work/3458/8/completion.json",
+    "HANDOFF.d/2026-09-28T1120Z-edge-dev3-codex-orch-3570-wrapup.md",
+    ".github/workflows/tools-offline-tests.yml"
+  ],
+  "generation": 8,
+  "goal": "Batch the slot-2 REVISE findings at 310baa15 without changing the preview-applied migration bytes: wire the #3458 index-guard test into CI, tighten it against OR/true bypasses and any statement_timeout or ALTER ROLE, deny role public in the ephemeral test, fix its stale version header, and bind a successor evidence pair on current main.",
+  "prohibited_actions": [
+    "Do not raise any statement timeout",
+    "Do not rewrite the legacy (uuid,integer) body (its prosrc md5 is pinned by popsg_refresh_search_sync_queue_v1)",
+    "Do not invent additional claimed objects",
+    "Do not write production or dispatch production manually",
+    "Do not delete or replay application rows"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 scripts/test_migration_derivation.py",
+    "node --test scripts/test_3458_index_guard.test.mjs",
+    "git diff --check",
+    "Database Contract Tests on isolated ephemeral database",
+    "Tools offline tests runs node --test scripts/test_3458_index_guard.test.mjs"
+  ],
+  "route": "shared-db-orchestrator",
+  "schema_version": 2,
+  "stop_conditions": [
+    "stop if live preview and production indexes differ materially",
+    "stop if the repair weakens unique, valid, plain-column, or non-partial requirements",
+    "stop if the legacy (uuid,integer) function body or claimed object scope changes",
+    "stop if any database write outside the governed preview lane is required"
+  ],
+  "work_issue": 3458,
+  "work_type": "structural",
+  "worker": "claude:3458-gen8-review-fixes",
+  "worktree": "/home/ahazan/repos/shared-db-3458-refresh"
+}

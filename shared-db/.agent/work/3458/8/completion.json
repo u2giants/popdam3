@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "work_issue": 3458,
+  "outcome": "ready-for-merge",
+  "pr": 3487,
+  "migration_versions": [
+    "20260928003740"
+  ],
+  "contract_ref": "refs/db-contracts/3458/8",
+  "contract_sha256": "c31af027c063e9e3c873780354c5fa5135c731943d2f729a20b0079dbaab8853",
+  "head_sha": "9064480339a6baf2a2fe5061f9780b2ed04f594b",
+  "base_sha": "d2980b4a8b2f282e74d700b8fb380d6fdb14acda",
+  "files_changed": [
+    ".github/workflows/tools-offline-tests.yml",
+    "HANDOFF.d/2026-09-28T1120Z-edge-dev3-codex-orch-3570-wrapup.md",
+    "docs/agents/3458-caller-contract.md",
+    "scripts/test_3458_index_guard.test.mjs",
+    "supabase/migrations/20260928003740_popsg_refresh_steps_under_ceiling.sql",
+    "supabase/tests/issue_3458_steppable_refresh_ephemeral.sql"
+  ],
+  "db_reads": [
+    "table public.style_guide_search_sync_queue",
+    "table public.style_guide_search_documents",
+    "table public.style_guide_pdf_text",
+    "table public.style_guide_crawl_runs",
+    "table public.style_guide_files",
+    "materialized view public.style_guide_file_groups",
+    "materialized view public.style_guide_folders"
+  ],
+  "db_writes": [
+    "function public.refresh_style_guide_matviews"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards passed at implementation head 90644803 on merge base d2980b4a."
+    },
+    {
+      "command": "python3 scripts/test_migration_derivation.py",
+      "exit_code": 0,
+      "evidence": "44 migration derivation tests passed at 90644803."
+    },
+    {
+      "command": "node --test scripts/test_3458_index_guard.test.mjs",
+      "exit_code": 0,
+      "evidence": "6 of 6 tests passed at 90644803, including the new OR/true bypass refusal and the any-form statement_timeout / ALTER ROLE refusal."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors in d2980b4a...90644803."
+    },
+    {
+      "command": "Database Contract Tests on isolated ephemeral database",
+      "exit_code": 0,
+      "evidence": "workflow_dispatch run 36433428235 succeeded at gen8 implementation commit 0450fc3c on disposable branch claude/3458-gen8-ephemeral-proof; issue_3458 suite reported all 6 checks passed with the public-role denial added. git diff 0450fc3c 90644803 is empty for the migration, ephemeral test, guard test, caller document and workflow. Ephemeral test SHA-256 3c383837a996a6638c718c6c8fb0b8e3b626004d68a5dc73773f15c2a16e71bd; migration SHA-256 c8387167cbd822ac8df8c0def3fb7d778cd24f0c8877427a33b7bc4d1d7769a5 unchanged since gen6."
+    },
+    {
+      "command": "Tools offline tests runs node --test scripts/test_3458_index_guard.test.mjs",
+      "exit_code": 0,
+      "evidence": "Step 'Run the #3458 CONCURRENTLY index-guard test' added to .github/workflows/tools-offline-tests.yml; PR CI executes it at the pushed head."
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 8 succeeds immutable generation 7 (769242a7). The migration bytes are unchanged since gen6 checkpoint 4aaa42d2 and match what preview run 36427442828 applied (preview ledger 698 -> 699, added 20260928003740).",
+    "Slot-2 REVISE H1 (guard test not run in CI) and L5/L6/L7 are fixed. M1 is the repository's evidence design: head_sha names the implementation commit and only the evidence pair follows it. M2/M3 and L1-L4/L8/L9 are non-blocking migration-level hardening or inherited behavior that would require a new migration version; not changed here.",
+    "The retired handoff is the one keyed to #3458, as the handoff gate requires for the PR that closes #3458."
+  ],
+  "stop_conditions_hit": []
+}
