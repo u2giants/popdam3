@@ -11,6 +11,8 @@ import { lineOpensWithVerdictWord, isVerdictFor } from './lib/review-verdict.mjs
 import { runGitHubCommand, spawnGitHub } from './lib/github-transport.mjs'
 // Issue #2729 Step 7: one lifecycle source of truth decides retry versus reroute.
 import { reviewerStartDecision, NON_VERDICT_TERMINAL_REASONS } from './orchestrator-flow/start-reroute.mjs'
+// Issue #2492: size the reviewer's turn budget to the migration it must read.
+import { withTurnBudget, changedMigrationLines, turnBudgetDiagnostic } from './lib/reviewer-turn-budget.mjs'
 import { REVIEW_CALLER_VARIABLES, reviewCallerEnvironment } from './lib/reviewer-caller-env.mjs'
 import { loadReviewBrief, storeReviewBrief } from './lib/review-packet.mjs'
 import { GOVERNED_VERDICT_WRAPPERS, VERDICT_CONTRACT_FLAG_WRAPPERS, forbiddenGovernedSubcommand, wrapperBaseName } from './lib/reviewer-capabilities.mjs'
@@ -454,7 +456,17 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
   const resolveSource=deps.sourceResolver??resolveReviewSource
   const sourceIdentity=resolveSource(options)
   const brief=(deps.briefPreparer??prepareCompleteReviewBrief)(options,sourceIdentity)
-  const wrapperArgs=wrapperSourceContractArgs(options.wrapper,wrapperVerdictContractArgs(options.wrapper,brief.wrapperArgs,options.headSha),sourceIdentity)
+  const contractArgs=wrapperSourceContractArgs(options.wrapper,wrapperVerdictContractArgs(options.wrapper,brief.wrapperArgs,options.headSha),sourceIdentity)
+  // ISSUE #2492 — SIZE THE TURN BUDGET BEFORE THE REVIEWER IS LAUNCHED.
+  // A large migration exhausts the wrapper's 20-turn default and ends with no
+  // verdict at all, which spends a reviewer slot, a release and a replacement.
+  // The measurement never throws and never lowers the budget; see the module.
+  // The brief and both argument contracts above run FIRST, so they never see a
+  // `--max-turns` they were not written to understand.
+  let measuredLines=null
+  try{measuredLines=(deps.measureReviewSize??changedMigrationLines)({worktree:options.worktree},deps.spawnSync??execFileSync)}catch{measuredLines=null}
+  const turnBudget=withTurnBudget(options.wrapper,contractArgs,measuredLines)
+  const wrapperArgs=turnBudget.args
   const skipDoctor=options.skipDoctor===true||options.skipDoctor==='true'
   const assignment=reviewAssignmentIdentity(options),lifecycle=[]
   preflightWithTimeoutRetry({reviewer:options.reviewer,wrapper:options.wrapper,worktree:options.worktree,headSha:options.headSha,skipDoctor},assignment,deps,lifecycle)
@@ -491,7 +503,9 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
   }
   const verdict=verdictFromOutput(rawBody,options.headSha)
   if(run.error||run.status!==0||!verdict){
-    const reason=wrapperFailureReason(run),message=`review wrapper did not produce a recordable terminal verdict (exit ${run.status??'unknown'}): ${reason}`
+    // Issue #2492: a refusal that says only "no verdict" costs a fresh hand
+    // investigation every time. Name the budget the reviewer was actually given.
+    const reason=wrapperFailureReason(run),message=`review wrapper did not produce a recordable terminal verdict (exit ${run.status??'unknown'}): ${reason}.${turnBudgetDiagnostic(turnBudget)}`.trimEnd()
     const terminal=NON_VERDICT_TERMINAL_REASONS.find((code)=>reason.split('; ').some((part)=>part.startsWith(`${code}:`)))
     if(terminal){
       lifecycle.push(lifecycleEvent(deps,assignment,'terminal_non_verdict',{reason:terminal,head_sha:assignment.head_sha}))

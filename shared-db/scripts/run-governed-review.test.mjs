@@ -852,6 +852,71 @@ test('review start marker is recorded before the provider spawns, and a failed r
   assert.throws(()=>reviewStartedRef({issue:1,pr:2,headSha:'short'},1),/exact issue/)
 })
 
+// ---------------------------------------------------------------------------
+// ISSUE #2492 — a large migration must not exhaust the reviewer's turn budget,
+// and a round that still ends without a verdict must say what it was given.
+// ---------------------------------------------------------------------------
+
+test('#2492: a grok review is launched with a turn budget sized to the migration',()=>{
+  let launched
+  runGovernedReview({...options,reviewer:'grok-4.6',wrapper:'ai-grok-review'},{
+    preflight:()=>{},resolve:(name)=>name,
+    measureReviewSize:()=>1798,
+    spawn:(command,args)=>{
+      if(command==='gh')return{status:0,stdout:JSON.stringify({html_url:'https://x/#c9'})}
+      launched=args
+      return{status:0,stdout:`Fine.\nVERDICT: APPROVE ${options.headSha}`}
+    },
+    record:()=>({ref:'refs/db-review-verdicts/t',sha:'f'.repeat(40)}),
+  })
+  const index=launched.indexOf('--max-turns')
+  assert.ok(index>0,'the grok wrapper must be told how many turns this review needs')
+  assert.ok(Number(launched[index+1])>20,'a 1798-line migration must not be given the 20-turn default that failed three times')
+})
+
+test('#2492: a size that cannot be measured still launches, on a raised floor',()=>{
+  let launched
+  runGovernedReview({...options,reviewer:'grok-4.6',wrapper:'ai-grok-review'},{
+    preflight:()=>{},resolve:(name)=>name,
+    measureReviewSize:()=>{throw new Error('not a git repository')},
+    spawn:(command,args)=>{
+      if(command==='gh')return{status:0,stdout:JSON.stringify({html_url:'https://x/#c10'})}
+      launched=args
+      return{status:0,stdout:`Fine.\nVERDICT: APPROVE ${options.headSha}`}
+    },
+    record:()=>({ref:'refs/db-review-verdicts/u',sha:'f'.repeat(40)}),
+  })
+  assert.ok(Number(launched[launched.indexOf('--max-turns')+1])>20)
+},{skip:false})
+
+test('#2492: a turn-limit refusal NAMES the budget the reviewer was given',()=>{
+  assert.throws(()=>runGovernedReview({...options,reviewer:'grok-4.6',wrapper:'ai-grok-review'},{
+    preflight:()=>{},resolve:(name)=>name,measureReviewSize:()=>1798,
+    spawn:()=>({status:1,stderr:'turn_limit_cancelled',stdout:''}),
+    record:()=>assert.fail('must not record'),
+  }),(error)=>{
+    assert.match(error.message,/did not produce a recordable terminal verdict/)
+    assert.match(error.message,/turn_limit_cancelled/)
+    assert.match(error.message,/was launched with \d+ turn\(s\)/,'a bare "no verdict" costs a fresh hand investigation every time')
+    assert.match(error.message,/1798 changed migration line/)
+    return true
+  })
+})
+
+test('#2492: reviewers with no per-call turn contract are launched unchanged',()=>{
+  let launched
+  runGovernedReview(options,{
+    preflight:()=>{},resolve:(name)=>name,measureReviewSize:()=>1798,
+    spawn:(command,args)=>{
+      if(command==='gh')return{status:0,stdout:JSON.stringify({html_url:'https://x/#c11'})}
+      launched=args
+      return{status:0,stdout:`Fine.\nVERDICT: APPROVE ${options.headSha}`}
+    },
+    record:()=>({ref:'refs/db-review-verdicts/v',sha:'f'.repeat(40)}),
+  })
+  assert.ok(!launched.includes('--max-turns'),'ai-glm has no --max-turns contract and must not be handed one')
+})
+
 // ISSUE #2998 item 1 + ISSUE #2923: the brief, checked before a reviewer draw.
 import { PROBE_REVIEW_CHECKLIST } from './run-governed-review.mjs'
 test('#2998-1 a promptless handoff refuses before a draw; #2923 the probe checklist is front-loaded',()=>{
