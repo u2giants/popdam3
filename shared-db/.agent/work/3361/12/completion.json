@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "work_issue": 3361,
+  "outcome": "ready-for-merge",
+  "pr": 3369,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3361/12",
+  "contract_sha256": "ff12835581c7e23e179dde50dc90de4d87e42030759f209e234de9580a187b8f",
+  "base_sha": "3ba1b77df0e8e0bc52ac3b36df5741d676feb3f3",
+  "head_sha": "794028ac562a33883f1b074fbc2eb87abbf90296",
+  "files_changed": [
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/migration-author-lease.yml",
+    "docs/verification/main-required-status-checks.json",
+    "docs/verification/throughput-dispositions/README.md",
+    "docs/verification/throughput-dispositions/scripts~check-required-checks-preflight.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~update-required-checks.mjs.json",
+    "docs/verification/throughput-retired-identity-sites-3369.json",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/check-required-checks-preflight.mjs",
+    "scripts/check-required-checks-preflight.test.mjs",
+    "scripts/check-throughput-truth-audit.mjs",
+    "scripts/lib/merge-self-context.mjs",
+    "scripts/lib/required-check-authority.mjs",
+    "scripts/lib/required-check-authority.test.mjs",
+    "scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+    "scripts/update-required-checks.mjs",
+    "scripts/update-required-checks.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-merge-queue-workflows.test.mjs scripts/check-required-checks-preflight.test.mjs scripts/update-required-checks.test.mjs scripts/lib/required-check-authority.test.mjs scripts/check-self-service-additive-lane.test.mjs",
+      "exit_code": 0,
+      "evidence": "106 passed, 0 failed at implementation head 794028ac562a33883f1b074fbc2eb87abbf90296"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+      "exit_code": 0,
+      "evidence": "8 passed, 0 failed at implementation head 794028ac562a33883f1b074fbc2eb87abbf90296"
+    },
+    {
+      "command": "node --test --test-name-pattern database-only scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "1 passed, 0 failed at implementation head 794028ac562a33883f1b074fbc2eb87abbf90296"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=320 sources=78 derived_digest=0b296afb602f at implementation head 794028ac562a33883f1b074fbc2eb87abbf90296"
+    },
+    {
+      "command": "python3 YAML safe_load guarded-migration-merge.yml",
+      "exit_code": 0,
+      "evidence": "workflow YAML valid at implementation head 794028ac562a33883f1b074fbc2eb87abbf90296"
+    },
+    {
+      "command": "node --test --test-name-pattern context scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+      "exit_code": 0,
+      "evidence": "2 passed, 0 failed at implementation head 794028ac562a33883f1b074fbc2eb87abbf90296"
+    }
+  ],
+  "assumptions_resolved": [
+    "The self-service additive boundary is checked by protected-main code before quota or lock acquisition.",
+    "The merge lock is acquired and released by protected-main code; release pins the preflight checkout SHA and clears process loader and startup variables.",
+    "Both token-bearing reads run before any PR-head script and use AUTHORITY_TOKEN only for authority calls; status/check calls retain github.token.",
+    "Omitted any-source app_id is normalized consistently in readback and effective policy.",
+    "The immutable historical cutover artifact is restored in full and 12 retired identities are preserved in an explicit PR-scoped archive.",
+    "The merge-queue mirror baseline remains classic-only while a separate authority snapshot records inherited rulesets.",
+    "Refresh-mirror now derives its classic contexts from the classic protection source; a regression proves ruleset-only contexts remain in authority evidence without entering that baseline."
+  ],
+  "stop_conditions_hit": []
+}

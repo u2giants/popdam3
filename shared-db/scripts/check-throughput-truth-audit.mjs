@@ -12,7 +12,8 @@ export const PATTERN = /\bmissing\b|never created|not applied|NOT_DERIVABLE|_cre
  *  source changes never edit a common count, digest or file (issue #2832). */
 export const DISPOSITION_DIR = 'docs/verification/throughput-dispositions';
 export const DISPOSITION_SCHEMA_VERSION = 1;
-/** The pre-partition aggregate is retained as historical evidence only; it is never read. */
+/** Historical cutover evidence: runtime auditing does not read it; a test
+ *  pins its contents and checks that retained identities match catalogues. */
 export const HISTORICAL_AUDIT = 'docs/verification/throughput-guard-truth-audit-20260828.json';
 
 function sha256(value) { return crypto.createHash('sha256').update(value).digest('hex'); }

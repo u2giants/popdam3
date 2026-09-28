@@ -71,5 +71,9 @@ by the checker rather than stored in a shared artifact an author must edit.
 2. Edit only that source file's catalogue here, adding or retiring the affected entries.
 3. Write a real reason. Re-run the checker until it prints `truth audit OK`.
 
-`docs/verification/throughput-guard-truth-audit-20260828.json` is retained as historical evidence
-of the dispositions at the cutover. It is not read and is not a second source of truth.
+`docs/verification/throughput-guard-truth-audit-20260828.json` is immutable historical
+evidence of the dispositions at the cutover. Runtime auditing reads the partitioned
+catalogues; a regression test pins the historical file and compares retained identities.
+Retired preflight identities from PR #3369 are recorded with their original verdicts in
+`docs/verification/throughput-retired-identity-sites-3369.json` and checked alongside
+the earlier retirement archive.

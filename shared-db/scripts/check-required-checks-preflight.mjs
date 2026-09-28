@@ -1,217 +1,88 @@
 #!/usr/bin/env node
-// Pre-flight for the guarded merge (#1201).
-//
-// The guarded merge used to post its own authorization and then enter a bounded
-// merge loop while holding the repository-wide exclusive merge lane. When a
-// DIFFERENT required status check was missing or failing, every merge attempt was
-// refused with the same "base branch policy prohibits the merge" message that the
-// eventual-consistency retry exists for, so the workflow retried a condition no
-// retry can resolve, held the lock for minutes, and reported nothing useful. This
-// check runs BEFORE the lock is taken and names the exact contexts that are not
-// satisfied on the reviewed head.
-import { execFileSync } from 'node:child_process'
-import { runGitHubCommand } from './lib/github-transport.mjs'
+// Fresh effective GitHub settings are the authority. The committed mirror is
+// informational only: neither expiry nor checking every reported job detects a
+// newly required check that has never reported. Unknown authority refuses.
 import { pathToFileURL } from 'node:url'
-import { REPO, MERGE_ADVISORY_CONTEXT } from './manage-migration-author-lanes.mjs'
+import { runGitHubCommand } from './lib/github-transport.mjs'
+import { resolveRepositoryIdentity } from './lib/repository-identity.mjs'
+import { readEffectiveRequiredChecks, computeRevision, probeAuthorityReadPermissions } from './lib/required-check-authority.mjs'
 import { MERGE_SELF_CONTEXT as SELF_CONTEXT } from './lib/merge-self-context.mjs'
-
-export class PreflightError extends Error {}
-
-// Posted by the guarded merge itself, after this pre-flight has passed. Requiring
-// it here would make the pre-flight unsatisfiable on every first run.
 export { SELF_CONTEXT }
+export class PreflightError extends Error {}
 export const SELF_CHECK_RUN = 'merge'
-
-// Routing diagnostic from documents-only-merge-authorization.yml (#2715) and the
-// advisory commit status posted by the lane manager (#2838/#3505). It succeeds
-// on every code PR by design ("guarded code checks required"), so requiring it
-// here would make every code PR unmergeable through the guarded lane (#2759).
-// It is never a required context; the mirrored required contexts are still
-// enforced in full. #3505: the advisory commit status uses its own context name
-// (MERGE_ADVISORY_CONTEXT, single-sourced from the producer) so it can never
-// stand in for a real grant; the workflow check run retains the original name.
-export const ADVISORY_CONTEXTS = [MERGE_ADVISORY_CONTEXT, 'Documents-only merge authorization']
-
-// A skipped or neutral required check can still be refused by the merge API.
-// Accept only explicit success so that refusal happens before the merge lock.
+export const REQUIRED_CHECKS_MIRROR = 'docs/verification/main-required-status-checks.json'
+// The GitHub Actions app (github-actions[bot]) is the only producer of the self
+// authorization status this workflow posts after every other gate passes. A
+// different producer on that context means someone other than this workflow
+// claimed the self-authorization identity (see check-required-checks-preflight
+// self-authorization tests and issue #3361).
+export const GITHUB_ACTIONS_APP_ID = 15368
 const REQUIRED_SUCCESS = new Set(['success'])
 const REPORTED_SUCCESS = new Set(['success', 'neutral', 'skipped'])
 
-// A required context can be answered by either a commit status or a check run.
-// Latest wins for each name; a check run that has not completed has no conclusion
-// and is reported as pending rather than passing.
-export function observedStates({ statuses = [], checkRuns = [] }) {
+// Keep the producer partition until AFTER selecting the newest result. A newer
+// success from a different app must never mask the required app's failure.
+export function observedStates({ statuses = [], checkRuns = [], appId, sha }) {
   const seen = new Map()
+  const put = (name, kind, id, timestamp, state) => {
+    const key = `${kind}:${name}`
+    const at = Date.parse(timestamp)
+    const orderedId = Number.isSafeInteger(id) && id > 0 ? id : null
+    const current = { name, at, id: orderedId, state }
+    if (orderedId === null && !Number.isFinite(at)) current.state = 'ambiguous'
+    const prior = seen.get(key)
+    if (!prior) { seen.set(key, current); return }
+    // IDs order attempts even when a queued run has no started_at yet. Compare
+    // IDs only within one API channel; status and check IDs use different sets.
+    const order = prior.id !== null && orderedId !== null ? orderedId - prior.id : at - prior.at
+    if (!Number.isFinite(order) || (order === 0 && prior.state !== current.state)) seen.set(key, { ...current, state: 'ambiguous' })
+    else if (order > 0) seen.set(key, current)
+  }
   for (const s of statuses) {
     if (!s?.context) continue
-    const at = Date.parse(s.updated_at ?? s.created_at ?? 0) || 0
-    const prior = seen.get(s.context)
-    if (!prior || at >= prior.at) seen.set(s.context, { at, state: String(s.state ?? '') })
+    if (appId != null && s.app != null && s.app.id !== appId) continue
+    // REST commit-status objects carry `creator`, not `app`. When the producer
+    // is unverifiable and the requirement is app-bound, a success must not
+    // satisfy it (fail-closed) but a non-success must remain visible so a
+    // red status can never hide behind a green same-name check run.
+    if (appId != null && s.app == null && REQUIRED_SUCCESS.has(String(s.state ?? ''))) continue
+    put(s.context, 'status', s.id, s.updated_at ?? s.created_at, String(s.state ?? ''))
   }
   for (const r of checkRuns) {
-    if (!r?.name) continue
-    const at = Date.parse(r.completed_at ?? r.started_at ?? 0) || 0
-    const state = r.status === 'completed' ? String(r.conclusion ?? '') : 'pending'
-    const prior = seen.get(r.name)
-    if (!prior || at >= prior.at) seen.set(r.name, { at, state })
+    if (!r?.name || (appId != null && r.app?.id !== appId)) continue
+    if (sha && r.head_sha !== sha) continue
+    put(r.name, 'check', r.id, r.started_at ?? r.completed_at, r.status === 'completed' ? String(r.conclusion ?? '') : 'pending')
   }
-  return new Map([...seen].map(([name, v]) => [name, v.state]))
-}
-
-// WHEN THE REQUIRED LIST CANNOT BE READ FROM THE API.
-//
-// That read needs administration access, and GitHub Actions HAS NO `administration`
-// permission scope -- declaring one makes the workflow file unparseable, which took
-// the only merge path in this repository down entirely. So `github.token` cannot read
-// it, ever.
-//
-// The first attempt at this fallback checked only that every check REPORTED on the
-// head was green, and claimed that was strictly stronger. It is not, and a governed
-// review produced the counterexample: a head with one green non-required check and a
-// required context that never reported at all passes the reported-checks test and
-// fails the required-list test. Not knowing the required list means not being able to
-// notice one is missing.
-//
-// So the fallback does not guess. It reads a COMMITTED MIRROR of the required list
-// (`docs/verification/main-required-status-checks.json`, rewritten by
-// `scripts/update-required-checks.mjs` whenever it changes the live list) and applies
-// BOTH tests: every mirrored context must be green, AND every check reported on the
-// head must be green. The second half is what covers mirror rot -- a context added
-// live but not yet mirrored is still caught the moment it reports. A missing or empty
-// mirror is a refusal, never an empty required list.
-export const REQUIRED_CHECKS_MIRROR = 'docs/verification/main-required-status-checks.json'
-export const MIRROR_BOOTSTRAP_MAIN_SHA = 'e0532e3c974a199f623f160f56416bdef4037461'
-export const PINNED_REQUIRED_CONTEXTS = Object.freeze([
-  // 'Agent work contract' joined the required list on 2026-09-08, the Switch 1
-  // action of issue #1403, one day after enforced mode was activated. The pin only
-  // ever defends against SHRINKING, so growth is recorded here deliberately.
-  'Agent work contract',
-  'Cancelled work guard', 'Cross-PR object collision', 'Domain ownership',
-  'Handoff contract', 'Intake pointer guard', 'Migration author lease',
-  'Migration guarded merge authorization', 'Orchestrator marker guard',
-  'Promotion contract tests (offline)', 'SQL migration guards', 'Tools offline tests',
-  // Joined 2026-09-25 (#2530 Step 8): the additive queue gate, plus the two contexts
-  // live protection already required but the mirror had never recorded.
-  'Destructive SQL outside migrations', 'Merge queue gate',
-  'supabase/tests against an ephemeral database',
-  // Restored 2026-09-25 (#2530 Step 8, #3562): required on 2026-09-18/20 per the
-  // dated transfer artifacts, dropped with no recorded decision, restored additively.
-  'Queue-sensitive checks (aggregate)',
-])
-
-export const PREFLIGHT_SOURCE_PATH = 'scripts/check-required-checks-preflight.mjs'
-
-// The floor the origin/main mirror is judged against must come from origin/main too.
-// Reading it from the PROPOSED HEAD deadlocked the first time the pin grew: guarded
-// merge checks out the head, so the head's larger pin was compared against main's
-// not-yet-updated mirror and refused the one commit that would have updated it --
-// and that refusal lands on the only merge path there is. It was also the last place
-// a proposed head could influence the list used to judge itself, which the comment on
-// readRequiredChecksMirror already said must never happen. Reading main's own pin
-// fixes both. Growth stays one-directional: the head's pin must still contain every
-// name main's pin has, so a head cannot quietly drop a floor entry.
-export function parsePinnedFloor(source, where) {
-  const withoutComments = String(source).replace(/\/\/.*/g, '')
-  const block = /PINNED_REQUIRED_CONTEXTS\s*=\s*Object\.freeze\(\[([\s\S]*?)\]\)/.exec(withoutComments)
-  if (!block) throw new PreflightError(`${PREFLIGHT_SOURCE_PATH} on ${where} carries no readable PINNED_REQUIRED_CONTEXTS, so the pinned floor is unknown`)
-  const names = [...block[1].matchAll(/'([^']*)'/g)].map((m) => m[1])
-  if (names.length === 0) throw new PreflightError(`PINNED_REQUIRED_CONTEXTS in ${PREFLIGHT_SOURCE_PATH} on ${where} is empty, which is not the same as "nothing is required"`)
-  return names
-}
-
-export function readPinnedFloor(root = process.cwd(), run = execFileSync) {
-  let raw
-  try { raw = run('git', ['show', `origin/main:${PREFLIGHT_SOURCE_PATH}`], { encoding: 'utf8', cwd: root, maxBuffer: 8 * 1024 * 1024 }) }
-  catch (e) {
-    throw new PreflightError(`the trusted origin/main copy of ${PREFLIGHT_SOURCE_PATH} is missing or unreadable (${sanitize(e.message)}), so the pinned floor is unknown`)
+  const states = new Map()
+  for (const { name, state } of seen.values()) {
+    // GitHub requires BOTH channels when a commit status and a check share a
+    // required name. One channel's success must never overwrite the other's red.
+    if (!states.has(name) || states.get(name) === 'success') states.set(name, state)
+    else if (state !== 'success' && states.get(name) !== state) states.set(name, 'ambiguous')
   }
-  const floor = parsePinnedFloor(raw, 'origin/main')
-  const dropped = floor.filter((context) => !PINNED_REQUIRED_CONTEXTS.includes(context))
-  if (dropped.length) throw new PreflightError(`this head drops contexts origin/main still pins: ${dropped.join(', ')}. The pin may only grow.`)
-  return floor
+  return states
 }
-
-export function parseMirror(raw, where) {
-  let parsed
-  try { parsed = JSON.parse(raw) }
-  catch (e) { throw new PreflightError(`${REQUIRED_CHECKS_MIRROR} on ${where} is not readable JSON (${sanitize(e.message)}), so the required list is unknown from both sources`) }
-  const contexts = parsed?.contexts
-  if (!Array.isArray(contexts) || contexts.length === 0 || contexts.some((c) => typeof c !== 'string')) {
-    throw new PreflightError(`${REQUIRED_CHECKS_MIRROR} on ${where} carries no usable contexts, which is not the same as "nothing is required"`)
-  }
-  return contexts
-}
-
-// The proposed head must never supply the list used to judge itself. Once main has
-// the mirror, only that protected copy is read. The first merge is bound to the exact
-// current main SHA and the independently reviewed immutable context floor above.
-export function readRequiredChecksMirror(root = process.cwd(), run = execFileSync) {
-  let raw
-  try { raw = run('git', ['show', `origin/main:${REQUIRED_CHECKS_MIRROR}`], { encoding: 'utf8', cwd: root, maxBuffer: 8 * 1024 * 1024 }) }
-  catch (e) {
-    let mainSha = ''
-    try { mainSha = String(run('git', ['rev-parse', 'origin/main'], { encoding: 'utf8', cwd: root })).trim() } catch {}
-    if (mainSha === MIRROR_BOOTSTRAP_MAIN_SHA) return [...PINNED_REQUIRED_CONTEXTS]
-    throw new PreflightError(`the trusted origin/main mirror ${REQUIRED_CHECKS_MIRROR} is missing or unreadable (${sanitize(e.message)}), so the required list is unknown from both sources`)
-  }
-  const contexts = parseMirror(raw, 'origin/main')
-  // The pre-flight strips its own context before testing, so a mirror naming ONLY
-  // that context leaves nothing to test and would pass with zero coverage.
-  if (contexts.filter((c) => c !== SELF_CONTEXT).length === 0) {
-    throw new PreflightError(`${REQUIRED_CHECKS_MIRROR} names no context other than ${SELF_CONTEXT}, so the mirror would test nothing`)
-  }
-  const missingPinned = readPinnedFloor(root, run).filter((context) => !contexts.includes(context))
-  if (missingPinned.length) throw new PreflightError(`the trusted origin/main mirror is a stale subset; missing pinned contexts: ${missingPinned.join(', ')}`)
-  return contexts
-}
-
-export function evaluateWithoutRequiredList({ statuses, checkRuns, reason, mirrorContexts }) {
-  const states = observedStates({ statuses, checkRuns })
-  // Half one: every MIRRORED required context must be green. This is the half the
-  // reported-checks test cannot do, and the half the review's counterexample needed.
-  requireContexts(mirrorContexts.filter((c) => c !== SELF_CONTEXT), states, `main's required list is unreadable (${reason}), so the committed mirror ${REQUIRED_CHECKS_MIRROR} was used`)
-  // Half two: everything else that reported must also be green, so a context added
-  // live but not yet mirrored cannot slip through once it starts reporting.
-  const bad = [...states].filter(([name, state]) => ![SELF_CONTEXT, SELF_CHECK_RUN, ...ADVISORY_CONTEXTS.filter((c) => !mirrorContexts.includes(c))].includes(name) && !REPORTED_SUCCESS.has(state))
-  if (bad.length) throw new PreflightError(`${describe(bad)} on the reviewed head. The required list came from the committed mirror, so EVERY reported check must pass. No retry can clear this, so the merge lane was not taken.`)
-  return { required: mirrorContexts.filter((c) => c !== SELF_CONTEXT).length, mode: 'committed-mirror' }
-}
-
-function describe(bad) {
-  const pending = bad.filter(([, s]) => s === 'pending' || s === '').map(([n]) => n)
-  const failing = bad.filter(([, s]) => s !== 'pending' && s !== '').map(([n, s]) => `${n} (${s})`)
-  const parts = []
-  if (failing.length) parts.push(`failing: ${failing.join(', ')}`)
-  if (pending.length) parts.push(`still running: ${pending.join(', ')}`)
-  return parts.join('; ')
-}
-
-function requireContexts(required, states, prefix) {
-  const missing = [], bad = []
-  for (const context of required) {
-    if (!states.has(context)) { missing.push(context); continue }
-    const state = states.get(context)
-    if (!REQUIRED_SUCCESS.has(state)) bad.push([context, state])
-  }
-  if (!missing.length && !bad.length) return
-  const parts = []
-  if (missing.length) parts.push(`never reported: ${missing.join(', ')}`)
-  if (bad.length) parts.push(describe(bad))
-  throw new PreflightError(`${prefix}. ${parts.join('; ')}. No retry can clear this, so the merge lane was not taken.`)
-}
-
-export function evaluatePreflight({ requiredContexts, statuses, checkRuns, protectionUnreadable, mirrorContexts }) {
-  if (protectionUnreadable) return evaluateWithoutRequiredList({ statuses, checkRuns, reason: protectionUnreadable, mirrorContexts })
-  if (!Array.isArray(requiredContexts) || requiredContexts.length === 0) throw new PreflightError('branch protection returned no required status check list, which is not the same as "nothing is required"')
-  const required = requiredContexts.filter((c) => c !== SELF_CONTEXT)
-  const states = observedStates({ statuses, checkRuns })
+export function evaluatePreflight({ authority, statuses = [], checkRuns = [], sha }) {
+  if (authority?.mode !== 'live-effective-settings' || !/^[a-f0-9]{64}$/.test(authority?.revision ?? '') || !Array.isArray(authority?.checks) || !authority.checks.length || !/^[a-f0-9]{40}$/.test(sha ?? '')) throw new PreflightError('fresh effective required-check authority and exact reviewed head are required')
+  // Rebind the revision to the authority's own content. A shape-only hex string
+  // is not proof; recomputing the digest from {repository_id, repository,
+  // branch, sources, checks} refuses an authority whose recorded revision does not
+  // match what it actually carries, including the enforced checks list.
+  if (computeRevision(authority) !== authority.revision) throw new PreflightError('effective required-check authority revision does not match its own content; refusing a tampered or stale digest')
+  const required = authority.checks.filter((item) => item.context !== SELF_CONTEXT)
+  if (!required.length) throw new PreflightError('effective settings name only the self authorization; no independent required checks')
+  // The self authorization is produced later by this workflow's GitHub Actions
+  // app. Exclusion is safe only for that producer (or an unrestricted context).
+  if (authority.checks.some((item) => item.context === SELF_CONTEXT && item.app_id != null && item.app_id !== GITHUB_ACTIONS_APP_ID)) throw new PreflightError('self authorization requires a different producer')
   const missing = [], pending = [], failing = []
-  for (const context of required) {
-    const state = states.get(context)
-    if (state === undefined) missing.push(context)
+  for (const item of required) {
+    const states = observedStates({ statuses, checkRuns, appId: item.app_id, sha })
+    const state = states.get(item.context)
+    const label = `${item.context}${item.app_id == null ? '' : ` [app ${item.app_id}]`}`
+    if (state === undefined) missing.push(label)
     else if (REQUIRED_SUCCESS.has(state)) continue
-    else if (state === 'pending' || state === '') pending.push(`${context}`)
-    else failing.push(`${context} (${state})`)
+    else if (state === 'pending' || state === '') pending.push(label)
+    else failing.push(`${label} (${state})`)
   }
   if (missing.length || pending.length || failing.length) {
     const parts = []
@@ -220,134 +91,76 @@ export function evaluatePreflight({ requiredContexts, statuses, checkRuns, prote
     if (missing.length) parts.push(`never reported: ${missing.join(', ')}`)
     throw new PreflightError(`required status checks are not satisfied on the reviewed head — ${parts.join('; ')}. No retry can clear this, so the merge lane was not taken.`)
   }
-  return { required: required.length, mode: 'required-contexts' }
+  const requiredNames = new Set(authority.checks.map((item) => item.context))
+  const advisory = [...observedStates({ statuses, checkRuns, sha })].filter(([name, state]) => !requiredNames.has(name) && name !== SELF_CHECK_RUN && !REPORTED_SUCCESS.has(state))
+  return { required: required.length, mode: authority.mode, revision: authority.revision, advisory, shadow: advisory.length ? 'old all-reported rule would refuse advisory results; effective required results pass' : 'no advisory disagreement' }
 }
-
-function gh(args) {
-  // No 2>/dev/null || echo '' here: an HTTP 401/403 or a network failure must be
-  // reported as itself, never as an empty result that reads like "not green yet".
-  // Issue #2342: shared transport, identical refusal.
-  return runGitHubCommand(args, {
-    wrapError: (detail) => new PreflightError(`GitHub read failed: ${detail}`),
-  })
+function json(args) {
+  const raw = runGitHubCommand(args, { wrapError: (detail) => new PreflightError(`GitHub read failed: ${detail}`) })
+  try { return JSON.parse(raw) } catch { throw new PreflightError('GitHub returned malformed JSON') }
 }
-function json(args) { const raw = gh(args); try { return JSON.parse(raw) } catch { throw new PreflightError('GitHub returned malformed JSON') } }
-
-// `gh api --paginate --slurp` returns an ARRAY of page objects; a single-page read
-// through the same path still returns that array with one element. Flattening here
-// rather than at each call site is what keeps the >100 case honest.
-//
-// WHY THIS IS NOT COSMETIC (#2274). Both reads used to be a bare `per_page=100`
-// with no pagination. This repository already reports seventeen checks on a head,
-// and a re-run adds a report rather than replacing one. Past a hundred reports a
-// context that really did pass would come back absent, `evaluatePreflight` would
-// call it "never reported", and the merge would be refused for a reason no one
-// could act on. That is the safe direction, but it is an unexplainable block on
-// the ONLY merge path, so it is fixed rather than documented.
 export function collectPages(payload, key) {
   const pages = Array.isArray(payload) ? payload : [payload]
   const out = []
   for (const page of pages) {
-    const rows = page?.[key]
-    // A page that does not carry the list AT ALL is not an empty page -- it is a
-    // read we did not understand. Skipping it silently drops however many reports
-    // it held, and the whole point of paginating was to stop dropping reports.
-    if (rows === undefined || rows === null) throw new PreflightError(`GitHub returned a page with no "${key}" list`)
-    if (!Array.isArray(rows)) throw new PreflightError(`GitHub returned a non-list "${key}" page`)
-    out.push(...rows)
+    if (!Array.isArray(page?.[key])) throw new PreflightError(`GitHub returned a page with no usable "${key}" list`)
+    out.push(...page[key])
   }
   return out
 }
-
-// The refusal text is printed into a public workflow log, so the API's own error
-// string is flattened and bounded rather than passed through whole.
 export function sanitize(text) {
   const flat = String(text ?? '').replace(/\s+/g, ' ').trim()
   return (flat.length > 200 ? `${flat.slice(0, 200)}...` : flat) || 'no reason was reported'
 }
-
-// ONLY a permission refusal degrades. A 403 from this token is permanent and is the
-// documented reason the fallback exists; a 5xx, a timeout or malformed JSON is
-// transient, and quietly switching tests on a blip would hide a real outage behind a
-// different check. Those refuse, and the merge is retried later.
-export function isPermissionRefusal(message) {
-  // Word-bounded, so a duration like `1403ms` or an id containing 403 is not a
-  // permission refusal and does not silently switch the pre-flight to the fallback.
-  return /\b(403|401)\b|resource not accessible|must have admin|not accessible by integration/i.test(String(message ?? ''))
-}
-
-// The count GitHub itself reports, taken from the FIRST page of a slurped read.
-// Every page repeats it, and a payload that was never an array still answers.
-export function reportedTotal(payload) {
-  const first = Array.isArray(payload) ? payload[0] : payload
-  return first?.total_count
-}
-
-// Kept as a belt-and-braces check ALONGSIDE real pagination, not instead of it.
-// `--paginate` should now return every report, so this can only fire if the
-// pagination itself came up short -- a truncated read, a `Link` header GitHub did
-// not send, a mocked dependency. Reading fewer reports than GitHub says exist
-// means the second half of the fallback (every OTHER check must also be passing)
-// was judged on a partial list, so it refuses rather than guesses.
-export function requireWholePage(what, totalCount, page) {
-  // A missing total is NOT "we saw everything". Both endpoints document
-  // `total_count`, so its absence means the payload is not the one we think we are
-  // reading, and answering "complete" for an unrecognised payload is the same
-  // fail-open this whole change exists to close.
-  if (!Number.isInteger(totalCount)) throw new PreflightError(`GitHub did not report how many ${what} exist on the reviewed head, so the read cannot be shown to be complete. The merge lane was not taken.`)
-  if (!Array.isArray(page)) throw new PreflightError(`The ${what} read did not produce a list, so it cannot be compared against GitHub's own count. The merge lane was not taken.`)
-  if (totalCount > page.length) {
-    throw new PreflightError(`GitHub reported ${totalCount} ${what} on the reviewed head but pagination returned only ${page.length}, so some checks were never seen. The merge lane was not taken.`)
+// Wrap a read function so authority calls use a different GH_TOKEN. The
+// elevated token is used ONLY for branch-protection reads; every other read
+// stays on the caller's default token. GH_TOKEN is swapped only for the
+// duration of one read call and restored immediately after.
+function tokenScopedRead(token, baseRead) {
+  return (args) => {
+    const prev = process.env.GH_TOKEN
+    process.env.GH_TOKEN = token
+    try { return baseRead(args) } finally {
+      if (prev === undefined) delete process.env.GH_TOKEN
+      else process.env.GH_TOKEN = prev
+    }
   }
 }
-
-export function gatherPreflightInput(env = process.env, deps = { json }) {
+export function reportedTotal(payload) { return (Array.isArray(payload) ? payload[0] : payload)?.total_count }
+export function requireWholePage(what, totalCount, page) {
+  if (!Number.isInteger(totalCount) || totalCount < 0) throw new PreflightError(`GitHub did not report how many ${what} exist on the reviewed head`)
+  if (!Array.isArray(page) || totalCount > page.length) throw new PreflightError(`GitHub reported ${totalCount} ${what} but pagination returned only ${page?.length ?? 'no list'}`)
+}
+export function gatherPreflightInput(env = process.env, deps = {}) {
   const read = deps.json ?? json
   const sha = String(env.REQUESTED_SHA ?? '').trim()
   if (!/^[0-9a-f]{40}$/.test(sha)) throw new PreflightError('REQUESTED_SHA must be a 40-character head SHA')
-  let protection = null, protectionUnreadable = null
-  try { protection = read(['api', `repos/${REPO}/branches/main/protection/required_status_checks`]) }
-  catch (e) {
-    if (!isPermissionRefusal(e.message)) throw e
-    protectionUnreadable = sanitize(e.message)
+  const repo = deps.repo ?? resolveRepositoryIdentity()
+  // The authority reads need admin-level access. When an elevated token is
+  // provided (AUTHORITY_TOKEN), use it ONLY for those reads; everything else
+  // stays on the default token. When no elevated token is available, the
+  // default token is used and probeAuthorityReadPermissions must be called
+  // first to name the denial before any merge lane is taken.
+  const elevatedToken = String(env.AUTHORITY_TOKEN ?? '').trim()
+  const authorityReadFn = elevatedToken ? tokenScopedRead(elevatedToken, read) : read
+  const authorityRead = () => {
+    try { return readEffectiveRequiredChecks({ repo, read: authorityReadFn }) }
+    catch (error) { throw new PreflightError(`effective required-check authority unreadable: ${sanitize(error.message)}; no snapshot fallback`) }
   }
-  // #2274: BOTH reads are paginated. Seventeen checks report on a head here and a
-  // re-run adds a report rather than replacing one, so a hundred is reachable. Past
-  // it, an unpaginated read made a context that really did pass look like it had
-  // never reported, and the only merge path refused for a reason nobody could act
-  // on. `--slurp` returns an array of pages; `collectPages` flattens it, and a
-  // single-page read comes back through the same path unchanged.
-  const combined = read(['api', '--paginate', '--slurp', `repos/${REPO}/commits/${sha}/status?per_page=100`])
-  const runs = read(['api', '--paginate', '--slurp', `repos/${REPO}/commits/${sha}/check-runs?per_page=100`])
-  const statuses = collectPages(combined, 'statuses')
-  const checkRuns = collectPages(runs, 'check_runs')
+  const before = authorityRead()
+  const combined = read(['api', '--paginate', '--slurp', `repos/${repo}/commits/${sha}/status?per_page=100`])
+  const runs = read(['api', '--paginate', '--slurp', `repos/${repo}/commits/${sha}/check-runs?per_page=100`])
+  const statuses = collectPages(combined, 'statuses'), checkRuns = collectPages(runs, 'check_runs')
   requireWholePage('commit statuses', reportedTotal(combined), statuses)
   requireWholePage('check runs', reportedTotal(runs), checkRuns)
-  // NO `?? []` on the contexts. An empty list must never be read as "nothing is
-  // required" -- that is the fail-open this whole script exists to prevent.
-  return {
-    protectionUnreadable,
-    mirrorContexts: protectionUnreadable ? readRequiredChecksMirror(deps.root ?? process.cwd(), deps.run ?? execFileSync) : null,
-    requiredContexts: protectionUnreadable ? null : protection?.contexts,
-    statuses,
-    checkRuns,
-  }
+  const authority = authorityRead()
+  if (before.revision !== authority.revision || before.base_sha !== authority.base_sha) throw new PreflightError('effective settings or protected branch changed during the read; authorization must be recomputed')
+  return { authority, statuses, checkRuns, sha }
 }
-
-// popcre/ai-devops#507 (a): a head whose checks are only still running, or have not
-// registered yet, is waited on instead of refused. Nothing failing is ever waited on,
-// every pass is re-read from GitHub in full, and the same refusal is printed once the
-// budget is spent, so the gate is exactly as strict as before; it only stops turning
-// "not finished yet" into a lost dispatch.
-export function isWaitableRefusal(message) {
-  const text = String(message ?? '')
-  return /still running:|never reported:/.test(text) && !/failing:/.test(text)
-}
+export function isWaitableRefusal(message) { return /still running:|never reported:/.test(String(message ?? '')) && !/failing:/.test(String(message ?? '')) }
 export async function waitForPreflight(env = process.env, deps = {}) {
-  const gather = deps.gather ?? gatherPreflightInput
-  const evaluate = deps.evaluate ?? evaluatePreflight
-  const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)))
-  const now = deps.now ?? Date.now
+  const gather = deps.gather ?? gatherPreflightInput, evaluate = deps.evaluate ?? evaluatePreflight
+  const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))), now = deps.now ?? Date.now
   const log = deps.log ?? ((line) => console.log(line))
   const budgetMs = Math.max(0, Number(env.PREFLIGHT_WAIT_SECONDS ?? 900)) * 1000
   const intervalMs = Math.max(1, Number(env.PREFLIGHT_POLL_SECONDS ?? 30)) * 1000
@@ -363,13 +176,40 @@ export async function waitForPreflight(env = process.env, deps = {}) {
     }
   }
 }
-
 export async function main(env = process.env, deps = {}) {
+  // --probe-permissions: attempt exactly the two load-bearing authority reads
+  // and fail closed with an actionable message if the token cannot complete
+  // them. Kept for the dedicated workflow step; the default path below also
+  // probes first so a denied permission is named even when the workflow YAML
+  // comes from main and has no separate probe step.
+  if (env.PROBE_AUTHORITY_PERMISSIONS === '1' || process.argv.includes('--probe-permissions')) {
+    try {
+      const repo = deps.repo ?? resolveRepositoryIdentity()
+      const baseRead = deps.json ?? json
+      const elevatedToken = String(env.AUTHORITY_TOKEN ?? '').trim()
+      const read = elevatedToken ? tokenScopedRead(elevatedToken, baseRead) : baseRead
+      const result = probeAuthorityReadPermissions({ repo, read })
+      console.log(`Authority-read permissions proven for ${result.repo} (branch ${result.branch}): ${result.proven.join(' + ')}.`)
+      return 0
+    } catch (e) {
+      console.error(`REFUSED: ${e.message}`)
+      return 2
+    }
+  }
   try {
-    const { required, mode } = await waitForPreflight(env, deps)
-    console.log(mode === 'required-contexts'
-      ? `Required status checks satisfied on the reviewed head (${required} contexts).`
-      : `main's required list was unreadable from the API, so the committed mirror was used: all ${required} mirrored contexts and every other check reported on the reviewed head are passing.`)
+    // PROBE-THEN-GATHER in one invocation (issue #3361). workflow_dispatch
+    // runs the workflow YAML from main, which may lack a separate probe step.
+    // Probing here names the denied permission before any merge lane is taken,
+    // even with main's current step list.
+    const repo = deps.repo ?? resolveRepositoryIdentity()
+    const baseRead = deps.json ?? json
+    const elevatedToken = String(env.AUTHORITY_TOKEN ?? '').trim()
+    const probeRead = elevatedToken ? tokenScopedRead(elevatedToken, baseRead) : baseRead
+    probeAuthorityReadPermissions({ repo, read: probeRead })
+    const result = await waitForPreflight(env, deps)
+    console.log(`Fresh effective required status checks satisfied (${result.required} contexts; revision ${result.revision}).`)
+    for (const [name, state] of result.advisory ?? []) console.log(`ADVISORY: ${name} (${state}); not required by effective GitHub policy.`)
+    console.log(`SHADOW: ${result.shadow}`)
     return 0
   } catch (e) { console.error(`REFUSED: ${e.message}`); return 2 }
 }

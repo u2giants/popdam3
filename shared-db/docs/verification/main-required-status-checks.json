@@ -1,8 +1,208 @@
 {
-  "_why": "MIRROR of the live required status checks on the protected branch, NOT the authority. GitHub branch protection still enforces at merge time. scripts/check-required-checks-preflight.mjs reads this because the merge workflow token cannot read branch protection (there is no `administration` permission scope in GitHub Actions; declaring one makes the workflow unparseable). Rewritten by scripts/update-required-checks.mjs from the post-write readback. Do not hand-edit.",
+  "_why": "Informational for guarded merge and never merge authority. Merge-queue activation uses these contexts as a coverage baseline. Protected merge boundaries read classic protection and applicable inherited rulesets live. Rewritten by scripts/update-required-checks.mjs; do not hand-edit.",
+  "authority": {
+    "schema_version": 1,
+    "mode": "live-effective-settings",
+    "repository_id": 1275568548,
+    "repository": "popcre/shared-db",
+    "branch": "main",
+    "base_sha": "f6277830af0ddca4d232f6d30246c804f6813a66",
+    "capturedIso": "2026-09-28T01:40:28.457Z",
+    "revision": "65122c856c3a3cf3ffb9f82dc057a6ea8e1c6944d02d594d761dd98b8c792ac2",
+    "sources": {
+      "classic": {
+        "id": "BPR_kwDOTAehpM4E2ure",
+        "requiresStatusChecks": true,
+        "requiresStrictStatusChecks": false,
+        "requiredStatusCheckContexts": [
+          "SQL migration guards",
+          "supabase/tests against an ephemeral database",
+          "Cross-PR object collision",
+          "Destructive SQL outside migrations",
+          "Migration guarded merge authorization",
+          "Merge queue gate",
+          "Agent work contract",
+          "Cancelled work guard",
+          "Domain ownership",
+          "Handoff contract",
+          "Intake pointer guard",
+          "Migration author lease",
+          "Orchestrator marker guard",
+          "Promotion contract tests (offline)",
+          "Tools offline tests",
+          "Queue-sensitive checks (aggregate)"
+        ],
+        "requiredStatusChecks": [
+          {
+            "context": "SQL migration guards",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "supabase/tests against an ephemeral database",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Cross-PR object collision",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Destructive SQL outside migrations",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Migration guarded merge authorization",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Merge queue gate",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Agent work contract",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Cancelled work guard",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Domain ownership",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Handoff contract",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Intake pointer guard",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Migration author lease",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Orchestrator marker guard",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Promotion contract tests (offline)",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Tools offline tests",
+            "app": {
+              "databaseId": 15368
+            }
+          },
+          {
+            "context": "Queue-sensitive checks (aggregate)",
+            "app": {
+              "databaseId": 15368
+            }
+          }
+        ]
+      },
+      "rulesets": []
+    },
+    "checks": [
+      {
+        "context": "Agent work contract",
+        "app_id": 15368
+      },
+      {
+        "context": "Cancelled work guard",
+        "app_id": 15368
+      },
+      {
+        "context": "Cross-PR object collision",
+        "app_id": 15368
+      },
+      {
+        "context": "Destructive SQL outside migrations",
+        "app_id": 15368
+      },
+      {
+        "context": "Domain ownership",
+        "app_id": 15368
+      },
+      {
+        "context": "Handoff contract",
+        "app_id": 15368
+      },
+      {
+        "context": "Intake pointer guard",
+        "app_id": 15368
+      },
+      {
+        "context": "Merge queue gate",
+        "app_id": 15368
+      },
+      {
+        "context": "Migration author lease",
+        "app_id": 15368
+      },
+      {
+        "context": "Migration guarded merge authorization",
+        "app_id": 15368
+      },
+      {
+        "context": "Orchestrator marker guard",
+        "app_id": 15368
+      },
+      {
+        "context": "Promotion contract tests (offline)",
+        "app_id": 15368
+      },
+      {
+        "context": "Queue-sensitive checks (aggregate)",
+        "app_id": 15368
+      },
+      {
+        "context": "SQL migration guards",
+        "app_id": 15368
+      },
+      {
+        "context": "supabase/tests against an ephemeral database",
+        "app_id": 15368
+      },
+      {
+        "context": "Tools offline tests",
+        "app_id": 15368
+      }
+    ]
+  },
   "repo": "popcre/shared-db",
   "branch": "main",
-  "capturedIso": "2026-09-25T22:25:09.421Z",
+  "capturedIso": "2026-09-28T01:40:28.457Z",
   "strict": false,
   "contexts": [
     "Agent work contract",
@@ -21,5 +221,71 @@
     "SQL migration guards",
     "Tools offline tests",
     "supabase/tests against an ephemeral database"
+  ],
+  "checks": [
+    {
+      "context": "Agent work contract",
+      "app_id": 15368
+    },
+    {
+      "context": "Cancelled work guard",
+      "app_id": 15368
+    },
+    {
+      "context": "Cross-PR object collision",
+      "app_id": 15368
+    },
+    {
+      "context": "Destructive SQL outside migrations",
+      "app_id": 15368
+    },
+    {
+      "context": "Domain ownership",
+      "app_id": 15368
+    },
+    {
+      "context": "Handoff contract",
+      "app_id": 15368
+    },
+    {
+      "context": "Intake pointer guard",
+      "app_id": 15368
+    },
+    {
+      "context": "Merge queue gate",
+      "app_id": 15368
+    },
+    {
+      "context": "Migration author lease",
+      "app_id": 15368
+    },
+    {
+      "context": "Migration guarded merge authorization",
+      "app_id": 15368
+    },
+    {
+      "context": "Orchestrator marker guard",
+      "app_id": 15368
+    },
+    {
+      "context": "Promotion contract tests (offline)",
+      "app_id": 15368
+    },
+    {
+      "context": "Queue-sensitive checks (aggregate)",
+      "app_id": 15368
+    },
+    {
+      "context": "SQL migration guards",
+      "app_id": 15368
+    },
+    {
+      "context": "supabase/tests against an ephemeral database",
+      "app_id": 15368
+    },
+    {
+      "context": "Tools offline tests",
+      "app_id": 15368
+    }
   ]
 }

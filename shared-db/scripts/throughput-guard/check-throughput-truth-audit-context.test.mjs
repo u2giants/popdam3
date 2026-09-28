@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { discover, run, readCatalogues, dispositionFileName, DISPOSITION_DIR, DISPOSITION_SCHEMA_VERSION, HISTORICAL_AUDIT } from '../check-throughput-truth-audit.mjs';
 
 function fixture(source, reason = 'Reviewed against the exact enclosing source context.') {
@@ -67,12 +68,17 @@ function assertHistoricalDispositions(historical, current, retired) {
 
 test('context migration preserves every historical identity hash verdict and reason, including explicit retirements', () => {
   const root = path.resolve(import.meta.dirname, '../..');
-  const historical = JSON.parse(fs.readFileSync(path.join(root, HISTORICAL_AUDIT), 'utf8')).sites;
+  const historicalBytes = fs.readFileSync(path.join(root, HISTORICAL_AUDIT));
+  assert.equal(createHash('sha256').update(historicalBytes).digest('hex'), '0bee7c5e3777ba2f921c5b191b5ca14badeb5efca75db37c8875fc6bab91aa43', 'the historical cutover record must not be edited or pruned');
+  const historical = JSON.parse(historicalBytes).sites;
   const current = [...readCatalogues(root).values()].flatMap(({ sites }) => sites);
   const archive = JSON.parse(fs.readFileSync(path.join(root, 'docs/verification/throughput-retired-identity-sites.json'), 'utf8'));
   assert.equal(archive.schema_version, 1);
   assert.equal(archive.retired_by_pr, 3521);
-  assertHistoricalDispositions(historical, current, archive.sites);
+  const authorityRetirements = JSON.parse(fs.readFileSync(path.join(root, 'docs/verification/throughput-retired-identity-sites-3369.json'), 'utf8'));
+  assert.equal(authorityRetirements.schema_version, 1);
+  assert.equal(authorityRetirements.retired_by_pr, 3369);
+  assertHistoricalDispositions(historical, current, [...archive.sites, ...authorityRetirements.sites]);
 });
 
 test('historical identity retirement refuses unexplained loss and changed verdicts', () => {

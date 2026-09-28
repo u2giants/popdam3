@@ -9,7 +9,8 @@
 //
 // The context list is derived from TWO sources and must cover both:
 //   1. the committed mirror docs/verification/main-required-status-checks.json
-//      (the list the guarded merge pre-flight enforces);
+//      (informational only; the guarded merge pre-flight enforces fresh live
+//      effective settings, and the mirror cannot authorize a merge);
 //   2. KNOWN_LIVE_ADDITIONS below — contexts already live but not yet mirrored.
 // The mirror must never shrink this coverage, and this test fails the moment a
 // mirrored context has no mapped merge-group-capable emitter.
@@ -258,28 +259,50 @@ test('the guarded merge lane is dual-mode and never uses --admin', () => {
   assert.ok(text.includes('--match-head-commit'), 'the guarded lane dropped exact-head matching')
 })
 
-test('the authority token reaches only a clean protected-main preflight step', () => {
+test('both authority reads precede every pull-request script and run from protected main', () => {
   const workflow = readWorkflow('guarded-migration-merge.yml')
   const start = workflow.indexOf('      - name: Pre-flight the required status checks before taking the merge lane')
-  const end = workflow.indexOf('      - name: Acquire the exclusive merge lane', start)
-  const next = workflow.indexOf('      - name: Require current main and rerun every applicable coordination guard', start)
-  assert.ok(start >= 0 && end > start, 'the preflight must precede lock acquisition')
-  assert.ok(next > start && next < end, 'the token must be scoped before any pull-request script runs')
-  const preflight = workflow.slice(start, next)
-  const outside = workflow.slice(0, start) + workflow.slice(next)
-  assert.equal((workflow.match(/secrets\.SYNC_TOKEN/g) ?? []).length, 1, 'the authority secret must occur exactly once in this workflow')
-  assert.equal((outside.match(/secrets\.SYNC_TOKEN/g) ?? []).length, 0, 'no head-code step may receive the authority secret')
-  assert.match(preflight, /working-directory: trusted-policy/)
-  assert.match(preflight, /AUTHORITY_TOKEN: \$\{\{ secrets\.SYNC_TOKEN \}\}/)
-  assert.match(preflight, /export GH_TOKEN="\$AUTHORITY_TOKEN"/, 'the protected read must use the authority credential')
-  assert.doesNotMatch(preflight, /GH_TOKEN: \$\{\{ github\.token \}\}/, 'the weaker token must not shadow the authority credential')
+  const classifier = workflow.indexOf('      - name: Refuse out-of-boundary self-service changes before taking the merge lane', start)
+  const quota = workflow.indexOf('      - name: Check the GitHub API quota before taking the merge lane', classifier)
+  const lock = workflow.indexOf('      - name: Acquire the exclusive merge lane', quota)
+  const reread = workflow.indexOf('      - name: Re-read required-check authority under the merge lock from protected main', lock)
+  const guard = workflow.indexOf('      - name: Require current main and rerun every applicable coordination guard', reread)
+  assert.ok(start >= 0 && start < classifier && classifier < quota && quota < lock && lock < reread && reread < guard, 'both authority reads and lock acquisition must precede every pull-request script')
+  const preflight = workflow.slice(start, classifier)
+  const protectedClassifier = workflow.slice(classifier, quota)
+  const protectedQuota = workflow.slice(quota, lock)
+  const protectedLock = workflow.slice(lock, reread)
+  const underlock = workflow.slice(reread, guard)
+  const outside = workflow.slice(0, start) + protectedClassifier + protectedQuota + protectedLock + workflow.slice(guard)
+  assert.equal((workflow.match(/\$\{\{ secrets\.SYNC_TOKEN \}\}/g) ?? []).length, 2, 'the authority secret must occur only in the two protected preflight steps')
+  assert.equal((outside.match(/\$\{\{ secrets\.SYNC_TOKEN \}\}/g) ?? []).length, 0, 'no head-code step may receive the authority secret')
+  for (const step of [preflight, underlock]) {
+    assert.match(step, /working-directory: trusted-policy/)
+    assert.match(step, /AUTHORITY_TOKEN: \$\{\{ secrets\.SYNC_TOKEN \}\}/)
+    assert.match(step, /GH_TOKEN: \$\{\{ github\.token \}\}/, 'ordinary status reads must retain the limited token')
+    assert.doesNotMatch(step, /export GH_TOKEN="\$AUTHORITY_TOKEN"/, 'the authority token must be selected for authority calls only')
+    assert.match(step, /export PATH="\$TRUSTED_PATH"/)
+    assert.match(step, /NODE_OPTIONS: ''/)
+    assert.match(step, /git rev-parse HEAD[\s\S]*git rev-parse origin\/main/)
+    assert.match(step, /git status --porcelain/)
+    assert.match(step, /node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/check-required-checks-preflight\.mjs"/)
+  }
+  assert.match(protectedClassifier, /working-directory: trusted-policy/)
+  assert.match(protectedClassifier, /node scripts\/check-self-service-additive-lane\.mjs --pr/)
+  assert.match(protectedQuota, /working-directory: trusted-policy/)
+  assert.match(protectedLock, /working-directory: trusted-policy/)
+  assert.match(protectedLock, /node scripts\/manage-migration-author-lanes\.mjs --acquire-merge/)
   assert.match(preflight, /GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS: '900'/)
-  assert.match(preflight, /export PATH="\$TRUSTED_PATH"/)
-  assert.match(preflight, /NODE_OPTIONS: ''/)
-  assert.match(preflight, /git rev-parse HEAD[\s\S]*git rev-parse origin\/main/)
-  assert.match(preflight, /git status --porcelain/)
-  assert.match(preflight, /node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/check-required-checks-preflight\.mjs"/)
-  assert.doesNotMatch(outside, /^\s*AUTHORITY_TOKEN:/m, 'head code outside the protected preflight must not receive the authority token')
+  assert.match(preflight, /id: trusted_preflight/)
+  assert.match(preflight, /echo "sha=\$\(git rev-parse HEAD\)" >> "\$GITHUB_OUTPUT"/)
+  assert.match(underlock, /PREFLIGHT_WAIT_SECONDS: '0'/)
+  const release = workflow.slice(workflow.indexOf('      - name: Release the exclusive merge lane with ownership proof'))
+  assert.match(release, /working-directory: trusted-policy/)
+  assert.match(release, /TRUSTED_MAIN_SHA: \$\{\{ steps\.trusted_preflight\.outputs\.sha \}\}/)
+  assert.match(release, /test "\$\(git rev-parse HEAD\)" = "\$TRUSTED_MAIN_SHA"/)
+  assert.match(release, /NODE_OPTIONS: ''/)
+  assert.match(release, /node scripts\/manage-migration-author-lanes\.mjs --release-merge/)
+  assert.doesNotMatch(outside, /^\s*AUTHORITY_TOKEN:/m, 'head code outside the protected reads must not receive the authority token')
 })
 
 test('the preview rehearsal publishes the exact rehearsed main SHA, and only on success', () => {

@@ -40,6 +40,7 @@ import { execFileSync } from 'node:child_process'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { readEffectiveRequiredChecks, normalizeRequirements } from './lib/required-check-authority.mjs'
 import { resolveRepositoryIdentity, RepositoryIdentityError } from './lib/repository-identity.mjs'
 
 export const DEFAULT_BRANCH = 'main'
@@ -53,6 +54,7 @@ Options:
   --add <context>     A required status check context to ADD. Repeatable. Required.
   --repo <owner/name> Default: GITHUB_REPOSITORY, else this checkout's verified GitHub origin
   --branch <name>     Default: ${DEFAULT_BRANCH}
+  --refresh-mirror    Read effective settings and refresh local evidence; no GitHub mutation.
   --apply             Actually write. Without it this is a dry run that changes nothing.
   --help
 
@@ -97,6 +99,7 @@ export function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === '--help' || arg === '-h') { options.help = true; continue }
+    if (arg === '--refresh-mirror') { options.refreshMirror = true; continue }
     if (arg === '--apply') { options.apply = true; continue }
     const value = argv[i + 1]
     if (arg === '--add') {
@@ -142,6 +145,11 @@ export function validateLiveDocument(document) {
     // this tool the sole author of the whole list.
     throw new RequiredChecksError('live required_status_checks.contexts is EMPTY; that is not a credible reading of a protected branch. Nothing was compared. Investigate before writing.')
   }
+  if (document.checks !== undefined) {
+    let checks
+    try { checks = normalizeRequirements(document.checks) } catch (error) { throw new RequiredChecksError(error.message) }
+    if (document.contexts.some((context) => !checks.some((check) => check.context === context)) || checks.some((check) => !document.contexts.includes(check.context))) throw new RequiredChecksError('live contexts and producer bindings disagree')
+  }
   return document
 }
 
@@ -165,7 +173,8 @@ export function planUnion(live, additions) {
   const removed = existing.filter((context) => !next.includes(context))
   if (removed.length) throw new RequiredChecksError(`refusing: the computed change would REMOVE ${removed.join(', ')}`)
 
-  return { strict: validated.strict, existing, toAdd, alreadyPresent, next, changed: toAdd.length > 0 }
+  const checks = validated.checks === undefined ? undefined : [...validated.checks.map((check) => ({ ...check })), ...toAdd.map((context) => ({ context, app_id: null }))]
+  return { strict: validated.strict, existing, toAdd, alreadyPresent, next, checks, changed: toAdd.length > 0 }
 }
 
 export function renderPlan(plan, { repo, branch, apply }) {
@@ -203,8 +212,11 @@ export function readLive({ repo, branch }, io = {}) {
     throw new RequiredChecksError(`could not read live required status checks: ${error.message}`)
   }
   try {
-    return JSON.parse(raw)
-  } catch {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed?.checks)) throw new RequiredChecksError("live producer bindings are missing; refusing to write")
+    return parsed
+  } catch (error) {
+    if (error instanceof RequiredChecksError) throw error
     throw new RequiredChecksError('live required_status_checks response was not valid JSON; nothing was compared')
   }
 }
@@ -214,32 +226,37 @@ export function applyUnion({ repo, branch }, plan, io = {}) {
   // The NARROW endpoint. PATCH here touches only required_status_checks and
   // leaves force-push, deletion, admin enforcement, reviews and everything else
   // untouched. `strict` is echoed back exactly as read.
-  const body = JSON.stringify({ strict: plan.strict, contexts: plan.next })
+  // Omit app_id for unrestricted checks: GitHub's documented "any source"
+  // encoding is the absence of app_id, not -1 or null (which may 422 or fail
+  // to match check runs produced by a specific app).
+  const checks = plan.checks?.map((check) => (check.app_id == null || check.app_id === -1) ? { context: check.context } : { context: check.context, app_id: check.app_id })
+  const body = JSON.stringify(plan.checks ? { strict: plan.strict, checks } : { strict: plan.strict, contexts: plan.next })
   run(['api', '-X', 'PATCH', `repos/${repo}/branches/${branch}/protection/required_status_checks`, '--input', '-'], { input: body })
   return body
 }
 
-// The guarded merge pre-flight cannot read branch protection: that read needs
-// administration access and GitHub Actions has no such permission scope. It falls
-// back to this committed mirror, so this tool -- the only thing that changes the live
-// list -- rewrites the mirror from the READBACK, never from the request. A mirror
-// written from the intended change would record a write that did not happen.
+// This committed readback is human-readable evidence, never merge authority.
+// Fresh effective settings must be read again at every protected merge boundary.
 export const MIRROR_PATH = 'docs/verification/main-required-status-checks.json'
 
-export function mirrorDocument(validated, repo, branch, now = new Date()) {
+export function mirrorDocument(validated, repo, branch, now = new Date(), authority) {
   return `${JSON.stringify({
-    _why: 'MIRROR of the live required status checks on the protected branch, NOT the authority. GitHub branch protection still enforces at merge time. scripts/check-required-checks-preflight.mjs reads this because the merge workflow token cannot read branch protection (there is no `administration` permission scope in GitHub Actions; declaring one makes the workflow unparseable). Rewritten by scripts/update-required-checks.mjs from the post-write readback. Do not hand-edit.',
+    _why: 'Informational for guarded merge and never merge authority. Merge-queue activation uses these contexts as a coverage baseline. Protected merge boundaries read classic protection and applicable inherited rulesets live. Rewritten by scripts/update-required-checks.mjs; do not hand-edit.',
+    authority: authority ?? null,
     repo, branch,
     capturedIso: now.toISOString(),
     strict: validated.strict,
-    contexts: [...validated.contexts].sort(),
+    // Merge-queue coverage uses this as the classic readback baseline. The
+    // separate authority snapshot records inherited ruleset requirements.
+    contexts: [...new Set(validated.contexts)].sort(),
+    checks: authority?.checks ?? validated.checks ?? null,
   }, null, 2)}
 `
 }
 
 export function writeMirror(validated, { repo, branch }, io = {}) {
   const write = io.write ?? writeFileSync
-  write(join(io.root ?? process.cwd(), MIRROR_PATH), mirrorDocument(validated, repo, branch, io.now), 'utf8')
+  write(join(io.root ?? process.cwd(), MIRROR_PATH), mirrorDocument(validated, repo, branch, io.now, io.authority), 'utf8')
 }
 
 export function verifyReadback(live, plan) {
@@ -254,6 +271,12 @@ export function verifyReadback(live, plan) {
   if (validated.strict !== plan.strict) {
     throw new RequiredChecksError(`readback FAILED: strict changed from ${plan.strict} to ${validated.strict}. Issue #1286 requires it stay ${plan.strict}. Restore it immediately.`)
   }
+  if (plan.checks) {
+    const afterChecks = normalizeRequirements(validated.checks)
+    for (const before of normalizeRequirements(plan.checks)) {
+      if (!afterChecks.some((after) => after.context === before.context && after.app_id === before.app_id)) throw new RequiredChecksError(`readback FAILED: producer binding changed for ${before.context}`)
+    }
+  }
   return validated
 }
 
@@ -267,6 +290,18 @@ export async function main(argv, io = {}) {
     error(String(parseError.message)); error(USAGE); return 2
   }
   if (options.help) { log(USAGE); return 0 }
+  const effective = () => (io.readEffective ?? readEffectiveRequiredChecks)({ repo: options.repo, branch: options.branch, read: (args) => JSON.parse((io.run ?? gh)(args)) })
+  if (options.refreshMirror) {
+    if (options.apply || options.add.length) { error('--refresh-mirror cannot be combined with --apply or --add'); return 2 }
+    try {
+      const authority = effective()
+      const classic = authority.sources?.classic
+      if (!classic?.requiresStatusChecks || !Array.isArray(classic.requiredStatusCheckContexts) || classic.requiredStatusCheckContexts.length === 0) throw new RequiredChecksError('cannot refresh classic coverage baseline without readable classic required checks')
+      writeMirror({ strict: classic.requiresStrictStatusChecks, contexts: classic.requiredStatusCheckContexts }, options, { ...io, authority })
+      log(`Refreshed informational mirror from live effective settings (${authority.checks.length} requirements, revision ${authority.revision}); no settings changed.`)
+      return 0
+    } catch (readError) { error(readError.message); return 2 }
+  }
   if (!options.add.length) { error('at least one --add context is required'); error(USAGE); return 2 }
 
   let plan
@@ -305,9 +340,12 @@ export async function main(argv, io = {}) {
     log('')
     log(`READBACK OK — ${after.contexts.length} contexts required, strict: ${after.strict}`)
     for (const context of after.contexts) log(`    = ${context}`)
-    writeMirror(after, options, io)
+    const authority = effective()
+    const classic = authority.sources.classic
+    if (!classic || JSON.stringify([...classic.requiredStatusCheckContexts].sort()) !== JSON.stringify([...after.contexts].sort())) throw new RequiredChecksError('effective settings changed since classic readback; mirror not written')
+    writeMirror(after, options, { ...io, authority })
     log('')
-    log(`Rewrote ${MIRROR_PATH} from the readback. COMMIT IT: the guarded merge pre-flight reads it when it cannot read branch protection, and a stale mirror is a stale guard.`)
+    log(`Rewrote ${MIRROR_PATH} from the readback. COMMIT IT as informational readback; fresh effective settings alone authorize preflight.`)
     return 0
   } catch (verifyError) {
     error(String(verifyError.message))

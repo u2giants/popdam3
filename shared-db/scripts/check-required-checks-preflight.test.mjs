@@ -1,618 +1,190 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { collectPages, evaluatePreflight, evaluateWithoutRequiredList, gatherPreflightInput, isPermissionRefusal, observedStates, readRequiredChecksMirror, requireWholePage, sanitize, PreflightError, REQUIRED_CHECKS_MIRROR, SELF_CONTEXT, SELF_CHECK_RUN, PINNED_REQUIRED_CONTEXTS, MIRROR_BOOTSTRAP_MAIN_SHA, PREFLIGHT_SOURCE_PATH, parsePinnedFloor, readPinnedFloor, ADVISORY_CONTEXTS } from './check-required-checks-preflight.mjs'
-import { MERGE_ADVISORY_CONTEXT } from './manage-migration-author-lanes.mjs'
-
-const ok = (name) => ({ name, status: 'completed', conclusion: 'success', completed_at: '2026-09-03T00:00:00Z' })
-
-test('a fully green head passes and does not require the workflow\'s own context', () => {
-  const result = evaluatePreflight({
-    requiredContexts: ['SQL migration guards', SELF_CONTEXT],
-    statuses: [], checkRuns: [ok('SQL migration guards')],
-  })
-  assert.equal(result.required, 1)
-})
-
-test('a required check that never reported is refused by name — the #1175 case', () => {
-  assert.throws(() => evaluatePreflight({
-    requiredContexts: ['SQL migration guards', 'Domain ownership'],
-    statuses: [], checkRuns: [ok('SQL migration guards')],
-  }), (e) => e instanceof PreflightError && /never reported: Domain ownership/.test(e.message))
-})
-
-test('a failing required check is refused with its state', () => {
-  assert.throws(() => evaluatePreflight({
-    requiredContexts: ['Cross-PR object collision'],
-    statuses: [], checkRuns: [{ name: 'Cross-PR object collision', status: 'completed', conclusion: 'failure' }],
-  }), (e) => /failing: Cross-PR object collision \(failure\)/.test(e.message))
-})
-
-test('an in-progress required check is pending, not passing', () => {
-  assert.throws(() => evaluatePreflight({
-    requiredContexts: ['Tools offline tests'],
-    statuses: [], checkRuns: [{ name: 'Tools offline tests', status: 'in_progress', conclusion: null }],
-  }), (e) => /still running: Tools offline tests/.test(e.message))
-})
-
-test('a commit status can satisfy a required context', () => {
-  assert.throws(() => evaluatePreflight({
-    requiredContexts: ['neutral guard'], statuses: [],
-    checkRuns: [{ name: 'neutral guard', status: 'completed', conclusion: 'neutral' }],
-  }), PreflightError)
-  assert.throws(() => evaluatePreflight({
-    requiredContexts: ['skipped guard'], statuses: [],
-    checkRuns: [{ name: 'skipped guard', status: 'completed', conclusion: 'skipped' }],
-  }), PreflightError)
-  assert.throws(() => evaluatePreflight({
-    requiredContexts: ['empty guard'], statuses: [],
-    checkRuns: [{ name: 'empty guard', status: 'completed', conclusion: '' }],
-  }), PreflightError)
-  assert.equal(evaluatePreflight({
-    requiredContexts: ['Handoff contract'],
-    statuses: [{ context: 'Handoff contract', state: 'success', updated_at: '2026-09-03T00:00:00Z' }],
-    checkRuns: [],
-  }).required, 1)
-})
-
-test('the latest report wins when a context was re-run', () => {
-  const states = observedStates({
-    statuses: [
-      { context: 'Intake pointer guard', state: 'failure', updated_at: '2026-09-03T00:00:00Z' },
-      { context: 'Intake pointer guard', state: 'success', updated_at: '2026-09-03T01:00:00Z' },
-    ], checkRuns: [],
-  })
-  assert.equal(states.get('Intake pointer guard'), 'success')
-  const stale = observedStates({
-    statuses: [
-      { context: 'Intake pointer guard', state: 'success', updated_at: '2026-09-03T00:00:00Z' },
-      { context: 'Intake pointer guard', state: 'failure', updated_at: '2026-09-03T01:00:00Z' },
-    ], checkRuns: [],
-  })
-  assert.equal(stale.get('Intake pointer guard'), 'failure')
-})
-
-test('a newer check run beats an older commit status with the same exact name', () => {
-  const states = observedStates({
-    statuses: [{ context: 'Domain ownership', state: 'success', updated_at: '2026-09-03T00:00:00Z' }],
-    checkRuns: [{ name: 'Domain ownership', status: 'completed', conclusion: 'failure', completed_at: '2026-09-03T01:00:00Z' }],
-  })
-  assert.equal(states.get('Domain ownership'), 'failure')
-})
-
-test('only the exact self-context is excluded', () => {
-  assert.throws(() => evaluatePreflight({
-    requiredContexts: [`${SELF_CONTEXT} extra`], statuses: [], checkRuns: [],
-  }), new RegExp(`never reported: ${SELF_CONTEXT} extra`))
-})
-
-test('a missing required-contexts list is refused rather than read as "nothing required"', () => {
-  assert.throws(() => evaluatePreflight({ requiredContexts: undefined, statuses: [], checkRuns: [] }),
-    (e) => e instanceof PreflightError && /no required status check list/.test(e.message))
-})
-
-// ---------------------------------------------------------------------------
-// #2274: the gaps the #2272 governed review named. Each of these was a mutation
-// the suite would previously have stayed green through.
-// ---------------------------------------------------------------------------
-
-test('nothing but an explicit success satisfies a REQUIRED context', () => {
-  // #2274 originally pinned `neutral` and `skipped` as passing for a required
-  // context. #2276 tightened that: the merge API can still refuse a skipped or
-  // neutral required check, so accepting one here would refuse AFTER taking the
-  // merge lock instead of before. Only `success` counts, and this test now pins
-  // the stricter rule rather than the one it replaced. `neutral` and `skipped`
-  // remain passing for a NON-required reported check (REPORTED_SUCCESS), which
-  // is a different set and is pinned by the fallback tests below.
-  for (const conclusion of ['skipped', 'neutral']) {
-    assert.throws(() => evaluatePreflight({
-      requiredContexts: ['preview'], statuses: [],
-      checkRuns: [{ name: 'preview', status: 'completed', conclusion }],
-    }), (e) => e.message.includes(`failing: preview (${conclusion})`))
+import { evaluatePreflight, gatherPreflightInput, observedStates, collectPages, requireWholePage, waitForPreflight, PreflightError, SELF_CONTEXT, GITHUB_ACTIONS_APP_ID } from './check-required-checks-preflight.mjs'
+import { readEffectiveRequiredChecks, computeRevision, RequiredCheckAuthorityError } from './lib/required-check-authority.mjs'
+const sha = 'a'.repeat(40)
+function makeAuthority(overrides = {}) {
+  const base = {
+    mode: 'live-effective-settings',
+    repository_id: 1,
+    repository: 'popcre/shared-db',
+    branch: 'main',
+    sources: { classic: null, rulesets: [] },
+    checks: [{ context: 'required', app_id: GITHUB_ACTIONS_APP_ID }, { context: SELF_CONTEXT, app_id: GITHUB_ACTIONS_APP_ID }],
   }
-  // `cancelled` and `timed_out` are NOT in the passing set either. A check that was
-  // cancelled reported no result; treating it as passing is the whole failure
-  // this pre-flight exists to prevent.
-  for (const conclusion of ['cancelled', 'timed_out', 'action_required', 'stale']) {
-    assert.throws(() => evaluatePreflight({
-      requiredContexts: ['preview'], statuses: [],
-      checkRuns: [{ name: 'preview', status: 'completed', conclusion }],
-    }), (e) => e.message.includes(`failing: preview (${conclusion})`))
-  }
+  const merged = { ...base, ...overrides }
+  merged.revision = computeRevision(merged)
+  return merged
+}
+const authority = makeAuthority()
+const ok = (name = 'required', extra = {}) => ({ name, head_sha: sha, app: { id: GITHUB_ACTIONS_APP_ID }, status: 'completed', conclusion: 'success', started_at: '2026-09-20T10:00:00Z', ...extra })
+const evaluate = (extra = {}) => evaluatePreflight({ authority, sha, checkRuns: [ok()], ...extra })
+test('green exact-head required producer passes with only self authorization excluded', () => assert.equal(evaluate().required, 1))
+test('required missing, pending, failing, skipped and neutral all refuse', () => {
+  assert.throws(() => evaluate({ checkRuns: [] }), /never reported/)
+  assert.throws(() => evaluate({ checkRuns: [ok('required', { status: 'queued' })] }), /still running/)
+  for (const conclusion of ['failure', 'cancelled', 'neutral', 'skipped', 'timed_out']) assert.throws(() => evaluate({ checkRuns: [ok('required', { conclusion })] }), /failing/)
 })
-
-test('a completed check run with no conclusion is pending, not passing', () => {
-  assert.throws(() => evaluatePreflight({
-    requiredContexts: ['Domain ownership'], statuses: [],
-    checkRuns: [{ name: 'Domain ownership', status: 'completed', conclusion: null }],
-  }), (e) => /still running: Domain ownership/.test(e.message))
+test('wrong app and wrong head cannot satisfy required result; later foreign success cannot mask failure', () => {
+  assert.throws(() => evaluate({ checkRuns: [ok('required', { app: { id: 7 } })] }), /never reported/)
+  assert.throws(() => evaluate({ checkRuns: [ok('required', { head_sha: 'c'.repeat(40) })] }), /never reported/)
+  assert.throws(() => evaluate({ checkRuns: [ok('required', { conclusion: 'failure' }), ok('required', { app: { id: 7 }, started_at: '2026-09-20T11:00:00Z' })] }), /failing/)
+  assert.throws(() => evaluate({ checkRuns: [], statuses: [{ context: 'required', state: 'success', creator: { id: GITHUB_ACTIONS_APP_ID } }] }), /never reported/)
 })
-
-test('the self-context filter is an exact match, not a substring', () => {
-  // A context merely CONTAINING the workflow's own name must still be required.
-  // A substring filter here would silently drop a real required check.
-  assert.throws(() => evaluatePreflight({
-    requiredContexts: [SELF_CONTEXT, `${SELF_CONTEXT} (dry run)`],
-    statuses: [], checkRuns: [],
-  }), (e) => e.message.includes(`never reported: ${SELF_CONTEXT} (dry run)`))
+test('advisory failure remains visible without independently vetoing a merge', () => {
+  const result = evaluate({ checkRuns: [ok(), ok('optional', { conclusion: 'failure' })] })
+  assert.deepEqual(result.advisory, [['optional', 'failure']])
+  assert.match(result.shadow, /would refuse advisory/)
 })
-
-test('when a commit status and a check run share one name, the later report wins', () => {
-  const statusLater = observedStates({
-    statuses: [{ context: 'Handoff contract', state: 'failure', updated_at: '2026-09-03T02:00:00Z' }],
-    checkRuns: [{ name: 'Handoff contract', status: 'completed', conclusion: 'success', completed_at: '2026-09-03T01:00:00Z' }],
-  })
-  assert.equal(statusLater.get('Handoff contract'), 'failure')
-  const runLater = observedStates({
-    statuses: [{ context: 'Handoff contract', state: 'failure', updated_at: '2026-09-03T01:00:00Z' }],
-    checkRuns: [{ name: 'Handoff contract', status: 'completed', conclusion: 'success', completed_at: '2026-09-03T02:00:00Z' }],
-  })
-  assert.equal(runLater.get('Handoff contract'), 'success')
+test('an unexpired attestation never substitutes for fresh effective settings', () => {
+  assert.throws(() => evaluate({ authority: { ...makeAuthority(), mode: 'snapshot', expires: '2099-01-01' } }), /fresh effective/)
 })
-
-test('every page of a paginated read is collected, not only the first', () => {
-  // The real failure this prevents: past 100 reports on one head, a context that
-  // DID pass comes back absent and the merge is refused for an unactionable reason.
-  const rows = collectPages([
-    { statuses: [{ context: 'a' }, { context: 'b' }] },
-    { statuses: [{ context: 'c' }] },
-  ], 'statuses')
-  assert.deepEqual(rows.map((r) => r.context), ['a', 'b', 'c'])
-  // A single unwrapped object still works, so the shape is not load-bearing.
-  assert.equal(collectPages({ statuses: [{ context: 'a' }] }, 'statuses').length, 1)
-  // A page with the key absent is a read we did not understand, so it is refused
-  // rather than counted as empty: skipping it drops however many reports it held,
-  // which is the very thing pagination was added to stop doing.
-  assert.throws(() => collectPages([{}], 'statuses'),
-    (e) => e instanceof PreflightError && /no "statuses" list/.test(e.message))
-  assert.throws(() => collectPages([{ statuses: null }], 'statuses'),
-    (e) => e instanceof PreflightError && /no "statuses" list/.test(e.message))
-  // A page whose key is not a list is refused rather than skipped.
-  assert.throws(() => collectPages([{ statuses: 'nope' }], 'statuses'),
-    (e) => e instanceof PreflightError && /non-list "statuses" page/.test(e.message))
+test('a newly effective requirement is enforced even with a still-valid old snapshot', () => {
+  const current = makeAuthority({ checks: [...authority.checks, { context: 'new ruleset requirement', app_id: 7 }] })
+  assert.throws(() => evaluate({ authority: current, snapshot: authority }), /never reported: new ruleset/)
 })
-
-test('a 200 whose body carries no contexts list is refused, not read as "nothing required"', () => {
-  // The 404 case already failed closed. THIS is the 200-shaped fail-open the
-  // #2272 review found: `protection?.contexts ?? []` turned a bodyless success
-  // into zero required checks, and zero required checks pass having checked nothing.
-  for (const requiredContexts of [undefined, null, {}, 'SQL migration guards']) {
-    assert.throws(() => evaluatePreflight({ requiredContexts, statuses: [], checkRuns: [] }),
-      (e) => e instanceof PreflightError && /no required status check list/.test(e.message))
-  }
+test('same name requirements from two apps both apply; self authorization cannot change producer', () => {
+  assert.throws(() => evaluate({ authority: makeAuthority({ checks: [...authority.checks, { context: 'required', app_id: 7 }] }) }), /app 7/)
+  assert.throws(() => evaluate({ authority: makeAuthority({ checks: [{ context: SELF_CONTEXT, app_id: 7 }, { context: 'required', app_id: GITHUB_ACTIONS_APP_ID }] }) }), /different producer/)
 })
-
-// The fallback used when `github.token` cannot read main's branch protection.
-// It has to be STRICTLY STRONGER than the check it replaces, never weaker, and it
-// must not read an unchecked head as a green one.
-const REASON = 'HTTP 403: Resource not accessible by integration'
-
-const MIRROR = ['SQL migration guards', 'Tools offline tests']
-
-test('an unreadable required list uses the committed mirror, and every reported check must also be green', () => {
-  const result = evaluatePreflight({
-    protectionUnreadable: REASON, mirrorContexts: MIRROR,
-    statuses: [], checkRuns: [ok('SQL migration guards'), ok('Tools offline tests')],
-  })
-  assert.equal(result.mode, 'committed-mirror')
-  assert.equal(result.required, 2)
+test('revision digest is rebound to content; a tampered or stale digest refuses', () => {
+  const tampered = { ...makeAuthority(), revision: 'b'.repeat(64) }
+  assert.throws(() => evaluate({ authority: tampered }), /revision does not match its own content/)
+  const changedChecks = { ...makeAuthority(), checks: [{ context: 'different requirement', app_id: GITHUB_ACTIONS_APP_ID }] }
+  assert.throws(() => evaluate({ authority: changedChecks }), /revision does not match its own content/)
 })
-
-// THE COUNTEREXAMPLE A GOVERNED REVIEW FOUND, and the reason the reported-checks-only
-// fallback was not, in fact, strictly stronger: one green non-required check on a head
-// whose required context never reported at all. Without the mirror this PASSED.
-test('the fallback refuses a head whose required context never reported, even with other checks green', () => {
-  assert.throws(() => evaluatePreflight({
-    protectionUnreadable: REASON, mirrorContexts: MIRROR,
-    statuses: [], checkRuns: [ok('SQL migration guards')],
-  }), (e) => {
-    assert.ok(e.message.includes('never reported: Tools offline tests'))
-    return true
-  })
+test('GITHUB_ACTIONS_APP_ID is the documented GitHub Actions producer identity', () => {
+  assert.equal(GITHUB_ACTIONS_APP_ID, 15368)
+  assert.ok(Number.isSafeInteger(GITHUB_ACTIONS_APP_ID) && GITHUB_ACTIONS_APP_ID > 0)
 })
-
-test('the mirror does not have to name the workflow own context', () => {
-  const result = evaluatePreflight({
-    protectionUnreadable: REASON, mirrorContexts: [...MIRROR, SELF_CONTEXT],
-    statuses: [], checkRuns: [ok('SQL migration guards'), ok('Tools offline tests'),
-      { name: SELF_CONTEXT, status: 'completed', conclusion: 'failure' }],
-  })
-  assert.equal(result.mode, 'committed-mirror')
+test('latest attempt wins within producer; same-time contradictory results refuse', () => {
+  assert.throws(() => evaluate({ checkRuns: [ok(), ok('required', { status: 'queued', started_at: '2026-09-20T11:00:00Z' })] }), /still running/)
+  assert.throws(() => evaluate({ checkRuns: [ok(), ok('required', { conclusion: 'failure' })] }), /ambiguous/)
+  assert.equal(observedStates({ statuses: [{ context: 'x', state: 'success', id: 1 }] }).get('x'), 'success')
 })
-
-// The mirror reader is given a fake `git show`; only origin/main may be read.
-// The pinned floor now comes from origin/main's own copy of the pre-flight source, so
-// the stub has to answer two different paths. Unless a test says otherwise, main pins
-// exactly what this head pins, which is the steady state between growth merges.
-const pinSource = (...names) => [
-  'export const PINNED_REQUIRED_CONTEXTS = Object.freeze([',
-  "  // a comment naming 'Some retired guard' must not be read as a pinned context",
-  ...names.map((name) => `  '${name}',`),
-  '])',
-].join('\n')
-
-const mirrorRun = (byRef) => (bin, args) => {
-  if (args[0] === 'rev-parse') {
-    if (!('origin/main@sha' in byRef)) throw new Error('origin/main is unreadable')
-    return byRef['origin/main@sha']
-  }
-  const [ref, path] = String(args[1]).split(':')
-  if (path === PREFLIGHT_SOURCE_PATH) {
-    const key = `${ref}@pin`
-    if (key in byRef) {
-      if (byRef[key] === null) throw new Error(`fatal: path does not exist in '${ref}'`)
-      return byRef[key]
+function liveRead({ mutateAfter = false, deny = false, truncate = false } = {}) {
+  let reads = 0
+  return (args) => {
+    if (args.includes('graphql')) {
+      if (deny) throw Error('403 integration cannot read')
+      reads++
+      return { data: { repository: { databaseId: 1, nameWithOwner: 'popcre/shared-db', ref: { name: 'main', target: { oid: sha }, branchProtectionRule: { id: 'BPR_1', requiresStatusChecks: true, requiresStrictStatusChecks: false, requiredStatusCheckContexts: ['required'], requiredStatusChecks: [{ context: 'required', app: { databaseId: 15368 } }] } } } } }
     }
-    return pinSource(...PINNED_REQUIRED_CONTEXTS)
+    if (args.some((arg) => arg.includes('/rules/branches/'))) return [mutateAfter && reads > 1 ? [{ type: 'required_status_checks', ruleset_id: 2, ruleset_source: 'popcre', ruleset_source_type: 'Organization', parameters: { required_status_checks: [{ context: 'new', integration_id: 7 }] } }] : []]
+    if (args.some((arg) => arg.includes('/check-runs'))) return [{ total_count: truncate ? 2 : 1, check_runs: [ok()] }]
+    return [{ total_count: 0, statuses: [] }]
   }
-  if (!(ref in byRef)) throw new Error(`fatal: path does not exist in '${ref}'`)
-  return byRef[ref]
 }
-const doc = (...contexts) => JSON.stringify({ contexts })
-
-test('a missing mirror on origin/main is refused, never replaced by the head copy', () => {
-  assert.throws(() => readRequiredChecksMirror('/x', mirrorRun({})), (e) => {
-    assert.ok(e.message.includes('trusted origin/main mirror'))
-    return true
-  })
+test('gather checks effective settings before and after paginated statuses and refuses mutation', () => {
+  const input = gatherPreflightInput({ REQUESTED_SHA: sha }, { repo: 'popcre/shared-db', json: liveRead() })
+  assert.equal(evaluatePreflight(input).required, 1)
+  assert.throws(() => gatherPreflightInput({ REQUESTED_SHA: sha }, { repo: 'popcre/shared-db', json: liveRead({ mutateAfter: true }) }), /changed during/)
+  assert.throws(() => gatherPreflightInput({ REQUESTED_SHA: sha }, { repo: 'popcre/shared-db', json: liveRead({ deny: true }) }), /no snapshot fallback/)
+  assert.throws(() => gatherPreflightInput({ REQUESTED_SHA: sha }, { repo: 'popcre/shared-db', json: liveRead({ truncate: true }) }), /pagination returned only/)
 })
-
-test('an unusable mirror body is refused, never read as an empty required list', () => {
-  for (const body of ['{}', '{"contexts":[]}', '{"contexts":"SQL migration guards"}', '{"contexts":[1,2]}', 'not json']) {
-    assert.throws(() => readRequiredChecksMirror('/x', mirrorRun({ 'origin/main': body })), PreflightError)
-  }
-  assert.deepEqual(readRequiredChecksMirror('/x', mirrorRun({ 'origin/main': doc(...PINNED_REQUIRED_CONTEXTS) })), PINNED_REQUIRED_CONTEXTS)
-})
-
-test('THE HEAD CANNOT REMOVE A CONTEXT main REQUIRES — only main is tested', () => {
-  // A pull request that deletes `Domain ownership` from its own copy of the mirror
-  // must not thereby stop the pre-flight from requiring it.
-  const contexts = readRequiredChecksMirror('/x', mirrorRun({
-    'origin/main': doc(...PINNED_REQUIRED_CONTEXTS),
-    HEAD: doc('SQL migration guards'),
-  }))
-  assert.deepEqual(contexts, PINNED_REQUIRED_CONTEXTS)
-})
-
-test('optional skipped jobs and the running merge job cannot deadlock the preflight', () => {
-  const result = evaluateWithoutRequiredList({
-    reason: REASON, mirrorContexts: MIRROR, statuses: [],
-    checkRuns: [ok('SQL migration guards'), ok('Tools offline tests'),
-      { name: 'preview', status: 'completed', conclusion: 'skipped' },
-      { name: SELF_CHECK_RUN, status: 'in_progress', conclusion: null }],
-  })
-  assert.equal(result.mode, 'committed-mirror')
-})
-
-test('the documents-only routing diagnostic failing on a code PR does not block the guarded merge (#2759)', () => {
-  const result = evaluateWithoutRequiredList({
-    reason: REASON, mirrorContexts: MIRROR,
-    statuses: [{ context: MERGE_ADVISORY_CONTEXT, state: 'failure' }],
-    checkRuns: [ok('SQL migration guards'), ok('Tools offline tests'),
-      { name: 'Documents-only merge authorization', status: 'completed', conclusion: 'failure' }],
-  })
-  assert.equal(result.mode, 'committed-mirror')
-  assert.throws(() => evaluateWithoutRequiredList({
-    reason: REASON, mirrorContexts: MIRROR, statuses: [],
-    checkRuns: [ok('SQL migration guards'), ok('Tools offline tests'),
-      { name: 'Some other guard', status: 'completed', conclusion: 'failure' }],
-  }), /Some other guard/)
-})
-
-// PRODUCER-CONSUMER PIN (#3505 review M1). The advisory context string was
-// duplicated: a local const in the lane manager (the producer that posts the
-// status) and an array literal here (the consumer that treats it as
-// non-required). Drift between the two names breaks the #2759 fallback path:
-// a renamed producer would leave every code PR unmergeable when branch
-// protection is unreadable. One exported constant, plus a test that both sides
-// agree, removes that failure mode.
-test('#3505 M1: the advisory context is single-sourced and both sides agree', () => {
-  // The consumer's advisory list must contain exactly the producer's name
-  // (plus the legacy workflow check-run name, which is a different thing).
-  assert.ok(ADVISORY_CONTEXTS.includes(MERGE_ADVISORY_CONTEXT), 'ADVISORY_CONTEXTS must include the producer\'s MERGE_ADVISORY_CONTEXT')
-  assert.equal(ADVISORY_CONTEXTS.filter((c) => c === MERGE_ADVISORY_CONTEXT).length, 1)
-  assert.ok(ADVISORY_CONTEXTS.includes('Documents-only merge authorization'), 'the legacy workflow check-run name stays in the advisory list')
-
-  // The producer module must define the constant once and use it — no second
-  // hardcoded copy may reappear in the posting path.
-  const producerSource = readFileSync(new URL('./manage-migration-author-lanes.mjs', import.meta.url), 'utf8')
-  const occurrences = producerSource.split(MERGE_ADVISORY_CONTEXT).length - 1
-  assert.equal(occurrences, 1, `MERGE_ADVISORY_CONTEXT literal must appear exactly once in the producer (the export); found ${occurrences}`)
-  assert.match(producerSource, /export const MERGE_ADVISORY_CONTEXT = 'Documents-only merge advisory'/)
-  assert.match(producerSource, /const ADVISORY_CONTEXT=MERGE_ADVISORY_CONTEXT/)
-
-  // The consumer must not hardcode the literal either.
-  const consumerSource = readFileSync(new URL('./check-required-checks-preflight.mjs', import.meta.url), 'utf8')
-  assert.ok(!consumerSource.includes(`'${MERGE_ADVISORY_CONTEXT}'`), 'the pre-flight must import MERGE_ADVISORY_CONTEXT, not hardcode the literal')
-  assert.match(consumerSource, /ADVISORY_CONTEXTS = \[MERGE_ADVISORY_CONTEXT,/)
-})
-
-test('the legacy documents-only advisory status name still routes correctly (#2759 old-name coverage)', () => {
-  const result = evaluateWithoutRequiredList({
-    reason: REASON, mirrorContexts: MIRROR,
-    statuses: [{ context: 'Documents-only merge authorization', state: 'failure' }],
-    checkRuns: [ok('SQL migration guards'), ok('Tools offline tests'),
-      { name: 'Documents-only merge authorization', status: 'completed', conclusion: 'failure' }],
-  })
-  assert.equal(result.mode, 'committed-mirror')
-})
-
-test('the head cannot inject a context into the trusted list', () => {
-  const contexts = readRequiredChecksMirror('/x', mirrorRun({
-    'origin/main': doc(...PINNED_REQUIRED_CONTEXTS),
-    HEAD: doc('SQL migration guards', 'Brand new guard'),
-  }))
-  assert.deepEqual(contexts, PINNED_REQUIRED_CONTEXTS)
-})
-
-test('the first mirror merge bootstraps only at the exact reviewed main head', () => {
-  assert.deepEqual(readRequiredChecksMirror('/x', mirrorRun({ 'origin/main@sha': MIRROR_BOOTSTRAP_MAIN_SHA })), PINNED_REQUIRED_CONTEXTS)
-  assert.throws(() => readRequiredChecksMirror('/x', mirrorRun({ 'origin/main@sha': 'f'.repeat(40), HEAD: doc('SQL migration guards') })), /missing or unreadable/)
-})
-
-test('a mirror naming only the workflow own context would test nothing, so it is refused', () => {
-  // The pre-flight strips SELF_CONTEXT before testing. A one-entry mirror of exactly
-  // that name is non-empty and used to pass with zero required-check coverage.
-  assert.throws(() => readRequiredChecksMirror('/x', mirrorRun({ 'origin/main': doc(SELF_CONTEXT) })), (e) => {
-    assert.ok(e.message.includes('would test nothing'))
-    return true
-  })
-})
-
-test('the committed mirror on disk is real and includes the workflow own context', () => {
-  const onDisk = JSON.parse(readFileSync(new URL(`../${REQUIRED_CHECKS_MIRROR}`, import.meta.url), 'utf8'))
-  assert.ok(onDisk.contexts.includes(SELF_CONTEXT))
-  assert.equal(onDisk.strict, false, 'strict must stay false — owner ruling, issue #1286')
-})
-
-// Pinning the exact list is the defence against mirror rot in the shrinking
-// direction: the workflow reads origin/main, and origin/main can only change through
-// a pull request whose tests must pass, so dropping a context here fails CI first.
-test('the committed mirror is exactly the list main requires today', () => {
-  const onDisk = JSON.parse(readFileSync(new URL(`../${REQUIRED_CHECKS_MIRROR}`, import.meta.url), 'utf8'))
-  assert.deepEqual([...onDisk.contexts].sort(), [...PINNED_REQUIRED_CONTEXTS].sort())
-  assert.equal(onDisk.strict, false, 'strict must stay false — owner ruling, issue #1286')
-  assert.ok(onDisk.contexts.includes(SELF_CONTEXT))
-})
-
-// The regression this pair exists for: the first governed review of PR #2613 found that
-// growing the pin made the guarded merge unsatisfiable, because the pin came from the
-// checked-out head while the mirror came from origin/main. The head that ADDS a context
-// must still be mergeable; only main's own two records are compared with each other.
-test('a head that grows the pin is still mergeable against main\'s older mirror', () => {
-  const older = PINNED_REQUIRED_CONTEXTS.filter((c) => c !== 'Agent work contract')
-  const contexts = readRequiredChecksMirror('/x', mirrorRun({
-    'origin/main': doc(...older),
-    'origin/main@pin': pinSource(...older),
-  }))
-  assert.deepEqual(contexts, older)
-})
-
-test('main\'s mirror is still judged against main\'s own pin, so a real shrink is refused', () => {
-  assert.throws(() => readRequiredChecksMirror('/x', mirrorRun({
-    'origin/main': doc(...PINNED_REQUIRED_CONTEXTS.filter((c) => c !== 'Domain ownership')),
-  })), /stale subset; missing pinned contexts: Domain ownership/)
-})
-
-test('a head may not drop a context origin/main still pins', () => {
-  assert.throws(() => readPinnedFloor('/x', mirrorRun({
-    'origin/main': doc(...PINNED_REQUIRED_CONTEXTS),
-    'origin/main@pin': pinSource(...PINNED_REQUIRED_CONTEXTS, 'Retired-only-on-this-head'),
-  })), /may only grow/)
-})
-
-test('an unreadable origin/main pre-flight source is a refusal, never an empty floor', () => {
-  assert.throws(() => readPinnedFloor('/x', mirrorRun({ 'origin/main@pin': null })), /pinned floor is unknown/)
-  assert.throws(() => parsePinnedFloor('export const SOMETHING_ELSE = []', 'origin/main'), /no readable PINNED_REQUIRED_CONTEXTS/)
-  assert.throws(() => parsePinnedFloor('export const PINNED_REQUIRED_CONTEXTS = Object.freeze([])', 'origin/main'), /is empty/)
-})
-
-test('a context named only inside a comment is not read as pinned', () => {
-  const floor = parsePinnedFloor(pinSource('SQL migration guards'), 'origin/main')
-  assert.deepEqual(floor, ['SQL migration guards'])
-})
-
-test('a stale-subset HEAD mirror cannot hide a required main context', () => {
-  const contexts = readRequiredChecksMirror('/x', mirrorRun({
-    'origin/main': doc(...PINNED_REQUIRED_CONTEXTS),
-    HEAD: doc('SQL migration guards'),
-  }))
-  assert.throws(() => evaluateWithoutRequiredList({
-    statuses: [], reason: REASON, mirrorContexts: contexts,
-    checkRuns: [ok('SQL migration guards')],
-  }), /never reported:.*Domain ownership/)
-})
-
-test('a read that returned fewer checks than GitHub reports is refused, not judged partially', () => {
-  // Since #2274 both reads paginate, so this can only fire if the pagination
-  // itself came up short. It stays as the belt-and-braces check it always was:
-  // judging the fallback's "every OTHER check is green" half on a partial list
-  // is exactly how an unchecked head reads as a green one.
-  assert.throws(() => requireWholePage('check runs', 140, [1, 2, 3]), (e) => {
-    assert.ok(e.message.includes('pagination returned only 3'))
-    return true
-  })
-  assert.equal(requireWholePage('check runs', 3, [1, 2, 3]), undefined)
-  // A total GitHub did not report is not a total we met. Both endpoints document
-  // `total_count`, so its absence means we are not reading the payload we think we
-  // are, and calling that complete is the fail-open this change exists to close.
-  assert.throws(() => requireWholePage('check runs', undefined, [1]),
-    (e) => e instanceof PreflightError && /did not report how many check runs/.test(e.message))
-  assert.throws(() => requireWholePage('check runs', '3', [1, 2, 3]),
-    (e) => e instanceof PreflightError && /did not report how many check runs/.test(e.message))
-  assert.throws(() => requireWholePage('check runs', 3, 'nope'),
-    (e) => e instanceof PreflightError && /did not produce a list/.test(e.message))
-})
-
-test('the fallback blocks a NON-required failing check, which the required-list test would have allowed', () => {
-  const args = {
-    statuses: [], checkRuns: [ok('SQL migration guards'), { name: 'optional lint', status: 'completed', conclusion: 'failure', completed_at: '2026-09-03T00:00:00Z' }],
-  }
-  assert.equal(evaluatePreflight({ ...args, requiredContexts: ['SQL migration guards'] }).required, 1)
-  assert.throws(() => evaluatePreflight({ ...args, protectionUnreadable: REASON, mirrorContexts: ['SQL migration guards'] }), (e) => {
-    assert.ok(e instanceof PreflightError)
-    assert.ok(e.message.includes('optional lint (failure)'))
-    return true
-  })
-})
-
-test('a head with nothing reported at all is refused, not treated as green', () => {
-  assert.throws(() => evaluatePreflight({ protectionUnreadable: REASON, mirrorContexts: MIRROR, statuses: [], checkRuns: [] }), (e) => {
-    assert.ok(e.message.includes('never reported'))
-    return true
-  })
-})
-
-test('the fallback names still-running checks separately from failing ones', () => {
-  assert.throws(() => evaluateWithoutRequiredList({
-    statuses: [], reason: REASON, mirrorContexts: ['preview'],
-    checkRuns: [{ name: 'preview', status: 'in_progress', started_at: '2026-09-03T00:00:00Z' }],
-  }), (e) => {
-    assert.ok(e.message.includes('still running: preview'))
-    return true
-  })
-})
-
-test('the reason is flattened and bounded before it reaches a public workflow log', () => {
-  assert.equal(sanitize('  HTTP 403:\n  not\taccessible  '), 'HTTP 403: not accessible')
-  assert.equal(sanitize(''), 'no reason was reported')
-  assert.equal(sanitize(undefined), 'no reason was reported')
-  assert.equal(sanitize('x'.repeat(500)).length, 203)
-})
-
-test('a readable required list still takes precedence over the fallback', () => {
-  const result = evaluatePreflight({
-    protectionUnreadable: null,
-    requiredContexts: ['SQL migration guards'],
-    statuses: [], checkRuns: [ok('SQL migration guards')],
-  })
-  assert.equal(result.mode, 'required-contexts')
-})
-
-// The defects below were all live in the first attempt at this fix and every unit
-// test still passed, because nothing exercised `gatherPreflightInput` -> `evaluatePreflight`.
-const SHA = 'e'.repeat(40)
-const ENV = { REQUESTED_SHA: SHA }
-const MIRROR_DEP = { root: '/x', run: mirrorRun({ 'origin/main': doc(...PINNED_REQUIRED_CONTEXTS) }) }
-// The URL is the LAST argument, never a fixed slot: since #2282 the paginated reads
-// put `--paginate --slurp` ahead of it, and a mock that reads `args[1]` would match
-// the flag instead of the path, silently answer every read with the check-run shape,
-// and pass while the code under test was never exercised. Assert the shape instead
-// of assuming it.
-const urlOf = (args) => {
-  const path = args[args.length - 1]
-  assert.ok(typeof path === 'string' && path.startsWith(`repos/`), `expected a URL last in the gh args, got ${JSON.stringify(args)}`)
-  return path
-}
-const paged = (rows, key) => {
-  // Shaped like a real `gh api --paginate --slurp` answer: a LIST of pages, each
-  // repeating GitHub's own `total_count`.
-  const first = rows.slice(0, 1), rest = rows.slice(1)
-  return rest.length ? [{ total_count: rows.length, [key]: first }, { total_count: rows.length, [key]: rest }]
-                     : [{ total_count: rows.length, [key]: rows }]
-}
-const reader = ({ protection, statuses = [], checkRuns = [] }) => (args) => {
-  const path = urlOf(args)
-  if (path.includes('/protection/')) { if (protection instanceof Error) throw protection; return protection }
-  if (path.includes('/status?')) {
-    assert.ok(args.includes('--paginate') && args.includes('--slurp'), 'the commit-status read must paginate')
-    return paged(statuses, 'statuses')
-  }
-  assert.ok(args.includes('--paginate') && args.includes('--slurp'), 'the check-run read must paginate')
-  return paged(checkRuns, 'check_runs')
-}
-const refusal = () => Object.assign(new PreflightError('GitHub read failed: HTTP 403: Resource not accessible by integration'), {})
-
-test('a 403 on the protection read reaches evaluatePreflight as the fallback, not as "nothing required"', () => {
-  const input = gatherPreflightInput(ENV, { ...MIRROR_DEP, json: reader({ protection: refusal(), checkRuns: PINNED_REQUIRED_CONTEXTS.filter((context) => context !== SELF_CONTEXT).map(ok) }) })
-  assert.ok(input.protectionUnreadable)
-  assert.equal(input.requiredContexts, null)
-  assert.deepEqual(input.mirrorContexts, PINNED_REQUIRED_CONTEXTS)
-  assert.equal(evaluatePreflight(input).mode, 'committed-mirror')
-})
-
-test('a 403 does not become a pass when the head is not green', () => {
-  const input = gatherPreflightInput(ENV, { ...MIRROR_DEP, json: reader({ protection: refusal(), checkRuns: [{ name: 'SQL migration guards', status: 'completed', conclusion: 'failure', completed_at: '2026-09-03T00:00:00Z' }] }) })
-  assert.throws(() => evaluatePreflight(input), PreflightError)
-})
-
-test('a transient failure refuses instead of silently degrading to the fallback', () => {
-  const boom = new PreflightError('GitHub read failed: HTTP 502 Bad Gateway')
-  assert.throws(() => gatherPreflightInput(ENV, { json: reader({ protection: boom }) }), (e) => e === boom)
-  assert.equal(isPermissionRefusal('HTTP 502 Bad Gateway'), false)
-  assert.equal(isPermissionRefusal('HTTP 403: Resource not accessible by integration'), true)
-})
-
-test('a 200 carrying an empty contexts list is refused, not read as "nothing is required"', () => {
-  const input = gatherPreflightInput(ENV, { json: reader({ protection: { contexts: [] }, checkRuns: [ok('anything')] }) })
-  assert.deepEqual(input.requiredContexts, [])
-  assert.throws(() => evaluatePreflight(input), (e) => {
-    assert.ok(e.message.includes('not the same as'))
-    return true
-  })
-})
-
-test('a readable protection list is passed through and used', () => {
-  const input = gatherPreflightInput(ENV, { json: reader({ protection: { contexts: ['SQL migration guards'] }, checkRuns: [ok('SQL migration guards')] }) })
-  assert.equal(input.protectionUnreadable, null)
-  assert.equal(evaluatePreflight(input).mode, 'required-contexts')
-})
-
-// Without these, `requireWholePage` is only ever called DIRECTLY by a unit test, so
-// deleting both calls out of `gatherPreflightInput` -- or making `reportedTotal`
-// always answer undefined -- leaves the whole suite green while the completeness
-// guard never runs on the real path. That is the mutation the #2282 review named.
-test('a slurped read GitHub says is short is refused by gatherPreflightInput itself', () => {
-  const short = (key) => (args) => {
-    const path = args[args.length - 1]
-    if (path.includes('/protection/')) return { contexts: ['SQL migration guards'] }
-    const rows = [ok('SQL migration guards')]
-    // GitHub says there are two; pagination handed back one.
-    if (path.includes('/status?')) return [{ total_count: key === 'statuses' ? 2 : 0, statuses: key === 'statuses' ? rows : [] }]
-    return [{ total_count: key === 'check_runs' ? 2 : 0, check_runs: key === 'check_runs' ? rows : [] }]
-  }
-  for (const key of ['statuses', 'check_runs']) {
-    assert.throws(() => gatherPreflightInput(ENV, { ...MIRROR_DEP, json: short(key) }),
-      (e) => e instanceof PreflightError && /never seen/.test(e.message), `a short ${key} read was not refused`)
+test('authority reads use AUTHORITY_TOKEN only and restore GH_TOKEN for status reads', () => {
+  const previous = process.env.GH_TOKEN
+  process.env.GH_TOKEN = 'ordinary-test-token'
+  const observed = []
+  const source = liveRead()
+  try {
+    const input = gatherPreflightInput({ REQUESTED_SHA: sha, AUTHORITY_TOKEN: 'authority-test-token' }, {
+      repo: 'popcre/shared-db',
+      json(args) {
+        observed.push({ authority: args.includes('graphql') || args.some((arg) => String(arg).includes('/rules/branches/')), token: process.env.GH_TOKEN })
+        return source(args)
+      },
+    })
+    assert.equal(evaluatePreflight(input).required, 1)
+    assert.ok(observed.some(({ authority, token }) => authority && token === 'authority-test-token'))
+    assert.ok(observed.some(({ authority, token }) => !authority && token === 'ordinary-test-token'))
+    assert.ok(observed.every(({ authority, token }) => token === (authority ? 'authority-test-token' : 'ordinary-test-token')))
+    assert.equal(process.env.GH_TOKEN, 'ordinary-test-token')
+  } finally {
+    if (previous === undefined) delete process.env.GH_TOKEN
+    else process.env.GH_TOKEN = previous
   }
 })
-
-test('a slurped read carrying no total at all is refused by gatherPreflightInput itself', () => {
-  const untotalled = (args) => {
-    const path = args[args.length - 1]
-    if (path.includes('/protection/')) return { contexts: ['SQL migration guards'] }
-    if (path.includes('/status?')) return [{ statuses: [] }]
-    return [{ check_runs: [ok('SQL migration guards')] }]
+test('pagination preserves all pages and refuses incomplete totals', () => {
+  assert.deepEqual(collectPages([{ check_runs: [1] }, { check_runs: [2] }], 'check_runs'), [1, 2])
+  assert.throws(() => collectPages([{}], 'check_runs'), /no usable/)
+  assert.throws(() => requireWholePage('checks', undefined, []), /how many/)
+})
+test('ruleset pagination refuses a short non-last page (fail-open guard)', () => {
+  const rule = { type: 'required_status_checks', ruleset_id: 1, ruleset_source: 'popcre', ruleset_source_type: 'Organization', parameters: { required_status_checks: [{ context: 'required', integration_id: 15368 }] } }
+  const graphql = { data: { repository: { databaseId: 1, nameWithOwner: 'popcre/shared-db', ref: { name: 'main', target: { oid: sha }, branchProtectionRule: null } } } }
+  // Probe mock: REST /protection returns 404 (genuine absence of classic rule).
+  const probe404 = () => { const err = Error('gh: Not Found (HTTP 404)'); err.stderr = 'gh: Not Found (HTTP 404)'; throw err }
+  const okRead = (args) => {
+    if (args.includes('graphql')) return graphql
+    if (args.some((arg) => /\/branches\/[^/]+\/protection$/.test(String(arg)))) return probe404()
+    // Two pages: first has 1 rule (short), second has 1 rule. With per_page=100
+    // the first page is incomplete → must refuse.
+    return [[rule], [rule]]
   }
-  assert.throws(() => gatherPreflightInput(ENV, { ...MIRROR_DEP, json: untotalled }),
-    (e) => e instanceof PreflightError && /did not report how many/.test(e.message))
+  assert.throws(() => readEffectiveRequiredChecks({ repo: 'popcre/shared-db', read: okRead }), (err) => err instanceof RequiredCheckAuthorityError && /pagination is incomplete/.test(err.message))
+  // Single full-length page (exactly per_page) is ambiguous: --paginate may have
+  // stopped at a Link boundary. Refuse unless a second (even empty) page
+  // confirms the end.
+  const fullPage = Array.from({ length: 100 }, (_, i) => ({ ...rule, ruleset_id: i + 1, parameters: { required_status_checks: [{ context: `c${i}`, integration_id: 15368 }] } }))
+  const truncatedRead = (args) => {
+    if (args.includes('graphql')) return graphql
+    if (args.some((arg) => /\/branches\/[^/]+\/protection$/.test(String(arg)))) return probe404()
+    return [fullPage]
+  }
+  assert.throws(() => readEffectiveRequiredChecks({ repo: 'popcre/shared-db', read: truncatedRead }), (err) => err instanceof RequiredCheckAuthorityError && /pagination is incomplete/.test(err.message))
+  // With a confirming empty second page, a single full page is accepted.
+  const fullRead = (args) => {
+    if (args.includes('graphql')) return graphql
+    if (args.some((arg) => /\/branches\/[^/]+\/protection$/.test(String(arg)))) return probe404()
+    if (args.some((arg) => String(arg).includes('page=2'))) return []
+    return [fullPage]
+  }
+  const result = readEffectiveRequiredChecks({ repo: 'popcre/shared-db', read: fullRead })
+  assert.equal(result.checks.length, 100)
+  // Two pages where the first is exactly per_page and the second is partial → accepted.
+  const partialLast = [[...fullPage], [rule]]
+  const partialRead = (args) => {
+    if (args.includes('graphql')) return graphql
+    if (args.some((arg) => /\/branches\/[^/]+\/protection$/.test(String(arg)))) return probe404()
+    return partialLast
+  }
+  const result2 = readEffectiveRequiredChecks({ repo: 'popcre/shared-db', read: partialRead })
+  assert.equal(result2.checks.length, 101)
+})
+test('waiting rereads authority, never waits a failure or unknown authority, and bounds pending waits', async () => {
+  let time = 0, reads = 0
+  const deps = { now: () => time, sleep: async (ms) => { time += ms }, log() {}, gather() { reads++; return {} }, evaluate() { if (reads < 2) throw new PreflightError('still running: required'); return { required: 1 } } }
+  assert.equal((await waitForPreflight({ PREFLIGHT_WAIT_SECONDS: '2', PREFLIGHT_POLL_SECONDS: '1' }, deps)).required, 1)
+  assert.equal(reads, 2)
+  for (const message of ['failing: required', 'authority unreadable']) await assert.rejects(waitForPreflight({}, { ...deps, evaluate() { throw new PreflightError(message) } }), new RegExp(message))
+  await assert.rejects(waitForPreflight({ PREFLIGHT_WAIT_SECONDS: '0' }, { ...deps, evaluate() { throw new PreflightError('never reported: required') } }), /Waited/)
 })
 
-test('the fallback refuses a head missing a check that reported on an earlier attempt', () => {
-  // The dangerous case: green noise on the SHA and the real guard absent.
-  assert.throws(() => evaluateWithoutRequiredList({
-    statuses: [], reason: 'x', mirrorContexts: ['SQL migration guards'],
-    checkRuns: [ok('some unrelated job'), { name: 'SQL migration guards', status: 'queued', started_at: '2026-09-03T00:00:00Z' }],
-  }), PreflightError)
+test('new queued check with no timestamp cannot be hidden behind a completed older run', () => {
+  assert.throws(() => evaluate({ checkRuns: [ok('required', { id: 1 }), ok('required', { id: 2, status: 'queued', started_at: null, completed_at: null })] }), /still running/)
+  assert.throws(() => evaluate({ checkRuns: [ok('required', { started_at: 'invalid', completed_at: null })] }), /ambiguous/)
 })
-
-
-import { waitForPreflight, isWaitableRefusal } from './check-required-checks-preflight.mjs'
-test('#507(a) running or unregistered checks are waited on; failing checks refuse at once; budget still refuses', async () => {
-  assert.equal(isWaitableRefusal('x — still running: supabase/tests. No retry'), true)
-  assert.equal(isWaitableRefusal('x — never reported: a. No retry'), true)
-  assert.equal(isWaitableRefusal('x — failing: a (failure); still running: b'), false)
-  let clock = 0, calls = 0, slept = 0
-  const deps = (results) => ({ gather: () => ({}), evaluate: () => { const r = results[Math.min(calls++, results.length - 1)]; if (r instanceof Error) throw r; return r }, sleep: async (ms) => { slept++; clock += ms }, now: () => clock, log: () => {} })
-  const running = new PreflightError('required status checks are not satisfied on the reviewed head — still running: supabase/tests. No retry can clear this, so the merge lane was not taken.')
-  const ok = { required: 13, mode: 'required-contexts' }
-  assert.deepEqual(await waitForPreflight({ PREFLIGHT_POLL_SECONDS: 30 }, deps([running, running, ok])), ok)
-  assert.equal(slept, 2)
-  calls = 0; slept = 0; clock = 0
-  await assert.rejects(waitForPreflight({}, deps([new PreflightError('— failing: a (failure). No retry')])), /failing: a/)
-  assert.equal(slept, 0)
-  calls = 0; clock = 0
-  await assert.rejects(waitForPreflight({ PREFLIGHT_WAIT_SECONDS: 90, PREFLIGHT_POLL_SECONDS: 30 }, deps([running])), /still running: supabase\/tests.*Waited 90s/)
-  calls = 0; clock = 0
-  await assert.rejects(waitForPreflight({}, deps([new Error('GitHub read failed')])), /GitHub read failed/)
+test('unrestricted same-name commit status and check must both pass', () => {
+  const unrestricted = makeAuthority({ checks: [{ context: 'required', app_id: null }] })
+  assert.throws(() => evaluate({ authority: unrestricted, statuses: [{ context: 'required', state: 'failure', id: 1 }] }), /failing/)
+  assert.equal(evaluate({ authority: unrestricted, statuses: [{ context: 'required', state: 'success', id: 1 }] }).required, 1)
+})
+test('app-bound requirement: failing status without app field stays visible behind a passing check run', () => {
+  // REST commit statuses carry `creator`, not `app`. A red status must never
+  // hide behind a green same-name check run (BOTH-channels invariant).
+  assert.throws(() => evaluate({ statuses: [{ context: 'required', state: 'failure', id: 1 }] }), /failing/)
+  assert.throws(() => evaluate({ statuses: [{ context: 'required', state: 'error', id: 1 }] }), /failing/)
+  assert.throws(() => evaluate({ statuses: [{ context: 'required', state: 'pending', id: 1 }] }), /still running|ambiguous/)
+})
+test('app-bound requirement: unverifiable success status cannot satisfy', () => {
+  // Without `app` on the status object the producer is unknown; a success from
+  // an unknown producer must not satisfy an app-bound requirement (fail-closed).
+  assert.throws(() => evaluate({ checkRuns: [], statuses: [{ context: 'required', state: 'success', id: 1 }] }), /never reported/)
+})
+test('app-bound requirement: known-wrong-app status is excluded entirely', () => {
+  // A status from a different app is ignored; the passing check run alone satisfies.
+  assert.equal(evaluate({ statuses: [{ context: 'required', state: 'failure', id: 1, app: { id: 7 } }] }).required, 1)
+  // But a status with NO app field (REST reality) that is red must still surface.
+  assert.throws(() => evaluate({ statuses: [{ context: 'required', state: 'failure', id: 1 }] }), /failing/)
 })
