@@ -52,7 +52,14 @@ import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from ".
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
 import { isPdfBackfillComplete } from "../_shared/pdf-backfill-state.ts";
-import { buildSgCrawlCompletionUpdate, buildSgIngestCompletionUpdate, hasMoreSgSearchDocuments, SG_RECONCILE_BATCH_SIZE } from "../_shared/sg-crawl-state.ts";
+import {
+  buildSgCrawlCompletionUpdate,
+  buildSgIngestCompletionUpdate,
+  hasMoreSgSearchDocuments,
+  runSteppableSgRefresh,
+  SG_RECONCILE_BATCH_SIZE,
+  shouldResumeSgSearch,
+} from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
@@ -2975,11 +2982,16 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
   }
 
   if (done) {
-    const { data: runData } = await db
+    const { data: runData, error: runErr } = await db
       .from("style_guide_crawl_runs")
-      .select("roots_scanned")
+      .select("roots_scanned,lifecycle_state,reconcile_completed_at,refresh_completed_at,search_documents_synced")
       .eq("id", runId)
       .single();
+    if (runErr || !runData) return err(`Could not load crawl state: ${runErr?.message ?? "run not found"}`, 500);
+    const resumeSearch = shouldResumeSgSearch(runData.lifecycle_state, runData.refresh_completed_at, runData.search_documents_synced);
+    if (resumeSearch && !runData.reconcile_completed_at) {
+      return err("Crawl cannot resume search before reconciliation completes", 500);
+    }
     const rootsScanned = (runData?.roots_scanned as string[] | null) || [];
     const inaccessibleRootSet = new Set(inaccessibleRoots);
     const accessibleRoots = rootsScanned.filter((root) => !inaccessibleRootSet.has(root));
@@ -3030,17 +3042,19 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       // Persist the accepted ingest result before asking the database guard to
       // evaluate this run. The guard deliberately reads files_found from the
       // run row; leaving the default zero here makes a healthy crawl look empty.
-      const { error: ingestStateErr } = await db.from("style_guide_crawl_runs").update(
-        buildSgIngestCompletionUpdate(
-          finalFileCount,
-          acceptedFileCount,
-          inaccessibleRoots,
-          new Date().toISOString(),
-        ),
-      ).eq("id", runId);
-      if (ingestStateErr) {
-        console.error("[complete-style-guide-crawl] Could not persist ingest completion:", ingestStateErr.message);
-        return err(`Could not persist crawl ingest completion: ${ingestStateErr.message}`, 500);
+      if (!resumeSearch) {
+        const { error: ingestStateErr } = await db.from("style_guide_crawl_runs").update(
+          buildSgIngestCompletionUpdate(
+            finalFileCount,
+            acceptedFileCount,
+            inaccessibleRoots,
+            new Date().toISOString(),
+          ),
+        ).eq("id", runId);
+        if (ingestStateErr) {
+          console.error("[complete-style-guide-crawl] Could not persist ingest completion:", ingestStateErr.message);
+          return err(`Could not persist crawl ingest completion: ${ingestStateErr.message}`, 500);
+        }
       }
 
       // ── Reconcile BEFORE completion ───────────────────────────────
@@ -3060,7 +3074,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       let reconcileFailure: string | undefined = accessibleRoots.length > 0 ? undefined : "No accessible roots to reconcile; refusing to report completion";
       let reconcileAttentionRequired = false;
 
-      for (const root of accessibleRoots) {
+      for (const root of resumeSearch ? [] : accessibleRoots) {
         const rootLabel = root.split("/").filter(Boolean).pop() || root;
         const { data, error: reconcileErr } = await db.rpc("reconcile_stale_sg_files_batch", {
           p_root_label: rootLabel,
@@ -3125,19 +3139,13 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       // completion CHECK constraint rejects the update below.
       if (reconcileOk) {
         const searchBatchSize = 5000;
-        const { data: refreshData, error: refreshErr } = await db.rpc("refresh_style_guide_matviews", {
-          p_run_id: runId,
-          p_search_batch_size: searchBatchSize,
-        });
-        if (refreshErr) {
+        const refresh = await runSteppableSgRefresh(runId, searchBatchSize, resumeSearch, async (args) => await db.rpc("refresh_style_guide_matviews", args));
+        if (refresh.error) {
           reconcileOk = false;
-          reconcileFailure = `Matview refresh failed: ${refreshErr.message}`;
+          reconcileFailure = `Matview refresh step ${refresh.failedStep} failed: ${refresh.error}`;
           console.error("[complete-style-guide-crawl]", reconcileFailure);
         } else {
-          const refresh = (Array.isArray(refreshData) ? refreshData[0] : refreshData) as {
-            search_documents_synced: number;
-          } | null;
-          const synced = refresh?.search_documents_synced ?? 0;
+          const synced = refresh.synced;
           if (hasMoreSgSearchDocuments(synced, searchBatchSize)) {
             const { error: continuationErr } = await db.from("style_guide_crawl_runs").update({
               lifecycle_state: "refreshing",
