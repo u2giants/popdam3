@@ -63,12 +63,14 @@ export function summarizeResultReceipt(receipt, { table, paths, afterBefore, bef
   }
   let attempted = 0;
   let succeeded = 0;
+  const seenPaths = new Set();
   for (const event of receipt.events) {
     const observed = Date.parse(event?.observed_at);
     if (event.table !== table || !paths.includes(event.path) || !Number.isFinite(observed) ||
         observed <= lower || observed >= upper) {
       throw new Error("result receipt event is outside the named workload window");
     }
+    seenPaths.add(event.path);
     const oneAttempted = nonnegativeInteger(event.attempted_rows, "receipt attempted_rows");
     const oneSucceeded = nonnegativeInteger(event.succeeded_rows, "receipt succeeded_rows");
     if (oneSucceeded > oneAttempted) throw new Error("receipt success count exceeds attempts");
@@ -78,6 +80,7 @@ export function summarizeResultReceipt(receipt, { table, paths, afterBefore, bef
       throw new Error("receipt aggregate exceeds safe integer range");
     }
   }
+  if (paths.some((path) => !seenPaths.has(path))) throw new Error("result receipt is missing a declared path");
   return { attempted_rows: attempted, succeeded_rows: succeeded };
 }
 

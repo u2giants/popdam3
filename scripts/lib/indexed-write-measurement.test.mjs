@@ -32,6 +32,7 @@ test("sums only real result events inside the snapshot bounds", () => {
   assert.throws(() => summarizeResultReceipt({ events: [{ ...receipt.events[0], succeeded_rows: null }] }, bounds), /nonnegative/);
   assert.throws(() => summarizeResultReceipt({ events: [{ ...receipt.events[0], observed_at: bounds.beforeAfter }] }, bounds), /outside/);
   assert.throws(() => summarizeResultReceipt({ events: [{ ...receipt.events[0], path: "other" }] }, bounds), /outside/);
+  assert.throws(() => summarizeResultReceipt({ events: [receipt.events[0]] }, bounds), /missing a declared path/);
 });
 
 test("compares inserts, indexed changes, and unchanged-index updates including NULL", async () => {
