@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "work_issue": 3679,
+  "outcome": "ready-for-merge",
+  "pr": 3693,
+  "migration_versions": [
+    "20260928211543"
+  ],
+  "contract_ref": "refs/db-contracts/3679/4",
+  "contract_sha256": "c8f0e750833be06c2c98097f266785ee8c52e7e8b8a145e8ae5b79c919839c82",
+  "head_sha": "0c96f5e3dcc09e325d3de2b8ae08042c2243b811",
+  "base_sha": "a2bf06bcbb6e76fb4939f78ee0d9e38353dceb33",
+  "files_changed": [
+    ".github/live-proofs/3679.sql",
+    "plan_coldlion_order_intake.md",
+    "supabase/migrations/20260928211543_coldlion_order_intake_staging.sql",
+    "supabase/tests/coldlion_order_intake_staging_contracts.sql"
+  ],
+  "db_reads": [
+    "coldlion.sync_run",
+    "coldlion.window_ledger"
+  ],
+  "db_writes": [
+    "coldlion.intake_window_state",
+    "coldlion.intake_order_line",
+    "coldlion.intake_order_component",
+    "coldlion.intake_new_order",
+    "coldlion.routing_code_map",
+    "coldlion.intake_quarantine",
+    "coldlion.sync_run"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed against base origin/main (newest base version 20260928003740 sorts before 20260928211543; no duplicate or backdated version; expected-count, verify-cost and EOL-reference guards green). Run before and after the derived-from header amend."
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Local invocation exits 0 (no pull-request context locally, so it reports not-applicable against the repo-local contract); the workflow run on PR #3693 is the enforced judgement and sees migration 20260928211543, work_issue 3679, and the probe .github/live-proofs/3679.sql (one read-only WITH, one row, boolean aliased passed). A red probe check on the PR is a failed check, not covered by this report."
+    },
+    {
+      "command": "node scripts/agent-work-contract.mjs --validate-contract --contract-file .agent/work/3679/4/contract.json",
+      "exit_code": 0,
+      "evidence": "Contract validates against the published ref refs/db-contracts/3679/3 (sha256 126da89a650b543600513f1502dcf931d9d36b1277bc4720dc230c538804093c), published before the implementation was pushed."
+    },
+    {
+      "command": "node scripts/agent-work-contract.mjs --validate-completion --report-file .agent/work/3679/4/completion.json --contract-file .agent/work/3679/4/contract.json",
+      "exit_code": 0,
+      "evidence": "Run with --expected-pr 3693 --expected-head-sha 376a3560a565e6debdf2838f3a9302ff293f218d immediately before the evidence commit. Round-3 fixes: pg_index join for the probe's index binding, nullable EP001 fragments, full winner-key fragments, A2 ticked live, stale sentence fixed; version superseded to 20260928211543 after base-main advance past 20260928211543."
+    }
+  ],
+  "assumptions_resolved": [
+    "The plan's Phase A0 db-work-scope block predates the current admission grammar; issue #3679 carries the plan's block extended with change_type/service_class/generated_types/live_assertion, and --objects includes pre-existing coldlion.sync_run because the claim must exactly match the admitted writes list. Held: admission and claim #3680 succeeded on the extended block.",
+    "The routing vocabulary seeded is the full observed 2026-09-17 set from the business-rules routing table (16 codes); codes outside it quarantine at C1 rather than seed silently. Held: the seed is exactly those 16 codes, asserted by the contract test and the live-proof probe.",
+    "The live-proof probe asserts the window_ledger-untouched property through the last_run_id join (20260818232639:206), which detects the in-place state updates the sealed failure recorder performs; a bare count(*) cannot. Held: the probe uses the real join.",
+    "Generation 2 supersedes generation 1 (both published 2026-09-28, before the implementation was pushed): required_checks is narrowed to commands a session can run locally; the Database Contract Tests CI run and the PR-context live-proof probe judgement are enforced by pull request #3693's own required checks. Held: this report runs exactly the generation-2 required checks.",
+    "Generation 3 supersedes generation 2: the evidence paths in allowed_paths/file_writes are corrected to .agent/work/3679/3/ so the report's pair paths satisfy the subset rule; nothing else changed. The git-evidence gate's requirement that files_changed list the pair files is honoured alongside it.",
+    "Generation 4 supersedes generation 3: version supersession 20260928155332 -> 20260928211543 after the base branch advanced; the branch is refreshed from current main (merge base a2bf06bc) and the pair names the renamed migration file."
+  ],
+  "stop_conditions_hit": []
+}

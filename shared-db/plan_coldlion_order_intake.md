@@ -33,9 +33,9 @@ decision.
 | Step | State | Evidence |
 |---|---|---|
 | 0. Land the business-rules + plan docs (one governed PR; the `.agent` evidence-pair `.json` files are not prose, so the change set is classified code and rides the guarded checks — `scripts/lib/documents-only-change.mjs` treats standalone `plan_*.md` as documents) | ✅ done | PR #3248 |
-| A0. db-work issue + author lane + reserved version (governance dispatch) | ⬜ open | — |
+| A0. db-work issue + author lane + reserved version (governance dispatch) | ✅ done 2026-09-28 | db-work issue #3679 — the plan's scope block extended per the current admission grammar (change_type/service_class/generated_types/live_assertion) and `--objects` including pre-existing `coldlion.sync_run` to exactly match the admitted writes; author-lane claim #3680; reserved version 20260928211543 (superseding 20260928155332 after base-main advance); contract published at refs/db-contracts/3679/3 |
 | A. Migration: intake staging + routing-code map + quarantine | ⬜ open | — |
-| A2. Verify item case-pack landing (verify-only — already landed) | ⬜ open | — |
+| A2. Verify item case-pack landing (verify-only — already landed) | ✅ done 2026-09-28 | live read on production: coldlion.item_detail = 26,227 rows; count(carton_qty) = 26,227 and count(inner_pack_qty) = 26,227 (100%) via aws-1-us-east-1.pooler.supabase.com |
 | C0. Owner ruling: salesOrderNo↔production_order cardinality + placeholder key | ✅ ruled 2026-09-17 (1:N; placeholder per sales order) | `docs/business-rules/erp-orders-and-source-meaning.md` intake section; sheet measurement 434/4,005 |
 | B. Poller tool (windows, paging, staging upsert, novelty detection) | ⬜ open | — |
 | B0. Bounded bootstrap mode (limit + claim-only + cron disabled until live proof) | ⬜ open | — |
@@ -47,10 +47,10 @@ decision.
 | E. Offline unit tests (flat `tools/*.test.mjs` names) | ⬜ open | — |
 | F. Live proof: sample-week comparison vs the Google sheet | ⬜ open | — |
 
-A fresh session starts at the first `⬜ open` row in order (currently **A0**), after reading
+A fresh session starts at the first `⬜ open` row in order (currently **A1**), after reading
 [`docs/business-rules/erp-orders-and-source-meaning.md`](docs/business-rules/erp-orders-and-source-meaning.md)
-(the intake section) and this whole file. As of 2026-09-25 every row except Step 0
-(✅ landed, PR #3248) and C0 (✅ ruled 2026-09-17) is open.
+(the intake section) and this whole file. As of 2026-09-28 every row except Step 0 (✅ PR #3248), C0 (✅ ruled
+2026-09-17), A0 (✅ claim #3680) and A2 (✅ live-verified) is open.
 
 ---
 

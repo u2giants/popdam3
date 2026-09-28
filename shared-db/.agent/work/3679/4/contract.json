@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "generation": 4,
+  "work_issue": 3679,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Create the unsealed ColdLion order-intake staging layer (six new coldlion tables mirroring the sealed order-history projection identities, the curated routing_code_map seed, and the closed append-only landing posture) so the intake poller (plan Phases B-F) can stage current + forward windows without ever touching the sealed-window machinery",
+  "base_sha": "589acec126b5f70aebf5d584e59e9872e206605d",
+  "dispatcher": "zcode session for issue #3679 (author-lane claim #3680, reserved version 20260928155332)",
+  "worker": "zcode",
+  "branch": "coldlion-order-intake",
+  "worktree": "C:/repos/shared-db/.ai/worktrees/coldlion-order-intake",
+  "allowed_paths": [
+    "supabase/migrations/20260928211543_coldlion_order_intake_staging.sql",
+    ".github/live-proofs/3679.sql",
+    "supabase/tests/coldlion_order_intake_staging_contracts.sql",
+    "plan_coldlion_order_intake.md",
+    ".agent/work/3679/4/contract.json",
+    ".agent/work/3679/4/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260928211543_coldlion_order_intake_staging.sql",
+    ".github/live-proofs/3679.sql",
+    "supabase/tests/coldlion_order_intake_staging_contracts.sql",
+    "plan_coldlion_order_intake.md",
+    ".agent/work/3679/4/contract.json",
+    ".agent/work/3679/4/completion.json"
+  ],
+  "db_reads": [
+    "coldlion.sync_run",
+    "coldlion.window_ledger"
+  ],
+  "db_writes": [
+    "coldlion.intake_window_state",
+    "coldlion.intake_order_line",
+    "coldlion.intake_order_component",
+    "coldlion.intake_new_order",
+    "coldlion.routing_code_map",
+    "coldlion.intake_quarantine",
+    "coldlion.sync_run"
+  ],
+  "prohibited_actions": [
+    "never write coldlion.window_ledger, the page-evidence tables, or the sealed order_history_*/prod_history_* tables; coldlion.sync_run is the one shared table and the only pre-existing object written",
+    "never weaken the #1772 input-only write contract on plm or add any plm privilege; plm objects are reads in this change",
+    "never edit or re-derive the Settled business rulings; the migration implements them as recorded",
+    "no bare grant all to service_role on the new tables; the append-only evidence posture (revoke truncate/references/trigger/maintain) is mandatory",
+    "no edits outside allowed_paths"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node scripts/check-live-proof-probe.mjs",
+    "node scripts/agent-work-contract.mjs --validate-contract --contract-file .agent/work/3679/4/contract.json",
+    "node scripts/agent-work-contract.mjs --validate-completion --report-file .agent/work/3679/4/completion.json --contract-file .agent/work/3679/4/contract.json"
+  ],
+  "assumptions": [
+    "The plan's Phase A0 db-work-scope block predates the current admission grammar; issue #3679 carries the plan's block extended with change_type/service_class/generated_types/live_assertion, and --objects includes pre-existing coldlion.sync_run because the claim must exactly match the admitted writes list",
+    "The routing vocabulary seeded here is the full observed 2026-09-17 set from the business-rules routing table; genuinely new codes quarantine at C1 rather than seed silently",
+    "The live-proof probe asserts the window_ledger-untouched property through the last_run_id join, which detects the in-place state updates the sealed failure recorder performs",
+    "Generation 2 supersedes generation 1 (both published 2026-09-28, before the implementation was pushed): required_checks is narrowed to commands a session can run locally — the Database Contract Tests CI and the PR-context live-proof probe run are enforced by the pull request's own required checks on #3693, not by this contract. No scope, path, object, or goal change.",
+    "Generation 3 supersedes generation 2 (published 2026-09-28): generation 2 carried generation 1's .agent/work/3679/1/ evidence paths in allowed_paths/file_writes, so a report listing the generation-2 pair paths failed the subset rule. Generation 3 corrects the evidence paths to .agent/work/3679/3/ and changes nothing else — scope, objects, goal and prohibitions are identical.",
+    "Generation 4 supersedes generation 3 (2026-09-28): the base branch advanced past the reserved version, so the claim's version was superseded 20260928155332 -> 20260928211543 (manager-recorded supersession 23a8edb7b057c87c8f6e9293484a386a98b90d2) and the migration file renamed; allowed_paths/file_writes now name the renamed file. The branch was refreshed from current main (merge base a2bf06bc). Scope, objects and prohibitions unchanged."
+  ],
+  "stop_conditions": [
+    "stop and flag if any step conflicts with the plan's goal (canonical rows within the business day, replacing Adam's typing only)",
+    "stop if live behaviour differs from the plan's 2026-09-17 live-verified statements rather than adapting silently",
+    "stop if the reserved version 20260928155332 or the claimed objects collide with other in-flight work"
+  ]
+}
