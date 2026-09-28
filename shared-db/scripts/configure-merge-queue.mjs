@@ -31,7 +31,7 @@ import { pathToFileURL } from 'node:url'
 import { createTreeReader } from './lib/github-tree.mjs'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { resolveRepositoryIdentity, RepositoryIdentityError } from './lib/repository-identity.mjs'
-import { PREVIEW_REHEARSAL_CONTEXT, QUEUE_RULE, RULESET_NAME, baseNeedsPreview, migrationVersions, readAuthorizationStatuses, rehearsalState } from './merge-queue-contract.mjs'
+import { PREVIEW_REHEARSAL_CONTEXT, QUEUE_RULE, queueParametersEqual, RULESET_NAME, baseNeedsPreview, migrationVersions, readAuthorizationStatuses, rehearsalState } from './merge-queue-contract.mjs'
 
 export class ConfigureQueueError extends Error {}
 
@@ -200,7 +200,7 @@ export function verifyReadback(written, desired = desiredRuleset()) {
   if (!Array.isArray(rules) || rules.length !== 1 || rules[0]?.type !== 'merge_queue') {
     throw new ConfigureQueueError('read-back mismatch: ruleset does not carry exactly one merge_queue rule')
   }
-  if (JSON.stringify(rules[0].parameters) !== JSON.stringify(QUEUE_RULE.parameters)) {
+  if (!queueParametersEqual(rules[0].parameters)) {
     throw new ConfigureQueueError(`read-back mismatch: queue parameters ${JSON.stringify(rules[0]?.parameters)} != approved ${JSON.stringify(QUEUE_RULE.parameters)}`)
   }
   return written

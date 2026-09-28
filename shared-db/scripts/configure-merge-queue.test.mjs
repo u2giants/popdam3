@@ -135,6 +135,13 @@ test('read-back: every field must equal the desired document', () => {
   assert.throws(() => verifyReadback({ name: RULESET_NAME }), /did not read back with an ID/)
 })
 
+test('read-back accepts GitHub key order for identical queue parameters (#3566, ruleset 24024180)', () => {
+  const githubOrder = { merge_method: 'MERGE', max_entries_to_build: 1, min_entries_to_merge: 1, max_entries_to_merge: 1, min_entries_to_merge_wait_minutes: 0, grouping_strategy: 'ALLGREEN', check_response_timeout_minutes: 30 }
+  const written = { id: 24024180, ...desiredRuleset(), rules: [{ type: 'merge_queue', parameters: githubOrder }] }
+  assert.equal(verifyReadback(written).id, 24024180)
+  assert.throws(() => verifyReadback({ ...written, rules: [{ type: 'merge_queue', parameters: { ...githubOrder, grouping_strategy: 'HEADGREEN' } }] }), /read-back mismatch: queue parameters/)
+})
+
 test('rollback names only the recorded main merge queue ruleset', () => {
   const rulesets = [{ id: 5, name: 'other' }, { id: 9, name: RULESET_NAME }]
   assert.equal(planRollback({ rulesets }).id, 9)

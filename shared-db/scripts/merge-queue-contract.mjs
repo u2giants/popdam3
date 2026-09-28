@@ -174,7 +174,17 @@ export function queueRulesetMatches(detail) {
   if (!Array.isArray(rules)) return false
   const queue = rules.filter((rule) => rule?.type === 'merge_queue')
   if (queue.length !== 1) return false
-  return JSON.stringify(queue[0].parameters ?? {}) === JSON.stringify(QUEUE_RULE.parameters)
+  return queueParametersEqual(queue[0].parameters)
+}
+
+// Key-order-independent equality of queue parameters (#3566). GitHub returns the
+// approved values in its own key order, so string comparison of JSON falsely
+// refused the live approved queue. Still exact: same key set, every value ===.
+export function queueParametersEqual(actual, expected = QUEUE_RULE.parameters) {
+  if (!actual || typeof actual !== 'object' || Array.isArray(actual)) return false
+  const a = Object.keys(actual).sort(), e = Object.keys(expected).sort()
+  if (a.length !== e.length || a.some((key, i) => key !== e[i])) return false
+  return e.every((key) => actual[key] === expected[key])
 }
 
 // queueMode() returns 'active' only for the exact approved rule, 'inactive'

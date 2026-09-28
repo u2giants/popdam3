@@ -1,0 +1,61 @@
+{
+  "_why": "Dated verification record (#2530 Step 8, work issue #3566): read-back of the activated main merge queue ruleset and of main branch protection. configure-merge-queue.mjs --apply activated the ruleset but exited 1 on a false key-order mismatch fixed by #3566; the values below equal QUEUE_RULE.parameters.",
+  "repo": "popcre/shared-db",
+  "capturedIso": "2026-09-25T23:17:33Z",
+  "ruleset": {
+    "id": 24024180,
+    "name": "main merge queue",
+    "target": "branch",
+    "enforcement": "active",
+    "bypass_actors": [],
+    "conditions": {
+      "ref_name": {
+        "exclude": [],
+        "include": [
+          "refs/heads/main"
+        ]
+      }
+    },
+    "rules": [
+      {
+        "type": "merge_queue",
+        "parameters": {
+          "merge_method": "MERGE",
+          "max_entries_to_build": 1,
+          "min_entries_to_merge": 1,
+          "max_entries_to_merge": 1,
+          "min_entries_to_merge_wait_minutes": 0,
+          "grouping_strategy": "ALLGREEN",
+          "check_response_timeout_minutes": 30
+        }
+      }
+    ]
+  },
+  "branchProtection": {
+    "enforce_admins": true,
+    "strict": false,
+    "requiredContextCount": 16,
+    "requiredContexts": [
+      "Agent work contract",
+      "Cancelled work guard",
+      "Cross-PR object collision",
+      "Destructive SQL outside migrations",
+      "Domain ownership",
+      "Handoff contract",
+      "Intake pointer guard",
+      "Merge queue gate",
+      "Migration author lease",
+      "Migration guarded merge authorization",
+      "Orchestrator marker guard",
+      "Promotion contract tests (offline)",
+      "Queue-sensitive checks (aggregate)",
+      "SQL migration guards",
+      "Tools offline tests",
+      "supabase/tests against an ephemeral database"
+    ]
+  },
+  "rollback": {
+    "command": "node scripts/configure-merge-queue.mjs --rollback --apply",
+    "scope": "deletes exactly ruleset 24024180 (main merge queue); nothing else. Dry run without --apply first. Rollback is an owner/coordinator decision."
+  }
+}

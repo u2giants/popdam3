@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "generation": 2,
+  "work_issue": 3566,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Make the configure-merge-queue read-back comparison of queue parameters independent of key order (GitHub returns identical values in a different order), prove it with a test in GitHub's order, and commit a dated verification record of ruleset 24024180 with its rollback command. Generation 2 supersedes 1 (unused) because queueRulesetMatches in merge-queue-contract.mjs has the same key-order defect, which makes queueMode() refuse the live approved queue as foreign/unknown; both comparisons share one helper.",
+  "base_sha": "d68be25cb86cb0546dc2b58602953d148c44faef",
+  "dispatcher": "Claude chat f059b471-9513-4c04-a25e-3ffaf099a129 on edge-dev3 (#2530 Step 8 follow-up)",
+  "worker": "Claude chat f059b471-9513-4c04-a25e-3ffaf099a129 on edge-dev3",
+  "branch": "claude/2530-queue-readback-order",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/queue-readback",
+  "allowed_paths": [
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "docs/verification/merge-queue-activation-20260925.json",
+    ".agent/work/3566/2/contract.json",
+    ".agent/work/3566/2/completion.json",
+    "scripts/merge-queue-contract.mjs",
+    "scripts/merge-queue-contract.test.mjs"
+  ],
+  "file_writes": [
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "docs/verification/merge-queue-activation-20260925.json",
+    ".agent/work/3566/2/contract.json",
+    ".agent/work/3566/2/completion.json",
+    "scripts/merge-queue-contract.mjs",
+    "scripts/merge-queue-contract.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not touch any migration or database object.",
+    "Do not change, disable or roll back the live ruleset or branch protection.",
+    "Do not loosen the read-back: every approved parameter must still match exactly, and extra or absent keys must still refuse."
+  ],
+  "required_checks": [
+    "node --test scripts/configure-merge-queue.test.mjs"
+  ],
+  "assumptions": [
+    "Ruleset 24024180 is active; the coordinator verified the read-back values equal the approved parameters and only key order differs."
+  ],
+  "stop_conditions": [
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the queue misbehaves; report to the coordinator, never disable anything."
+  ]
+}

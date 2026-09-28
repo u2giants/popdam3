@@ -18,6 +18,7 @@ import {
   pullRequestFromQueueRef,
   queueMode,
   queueRulesetMatches,
+  queueParametersEqual,
   readOpenPullRequests,
   readPullRequestFiles,
   recheckQueueInterlock,
@@ -420,4 +421,21 @@ test('--recheck-interlock CLI uses newest status and fail-closed production 404 
   } finally {
     console.log = originalLog
   }
+})
+
+// #3566: GitHub read back ruleset 24024180 with identical values in ITS key order;
+// JSON-string comparison refused the live approved queue.
+const GITHUB_ORDER_PARAMETERS = { merge_method: 'MERGE', max_entries_to_build: 1, min_entries_to_merge: 1, max_entries_to_merge: 1, min_entries_to_merge_wait_minutes: 0, grouping_strategy: 'ALLGREEN', check_response_timeout_minutes: 30 }
+
+test('queue parameters compare by key and value, not by key order (#3566)', () => {
+  assert.notEqual(JSON.stringify(GITHUB_ORDER_PARAMETERS), JSON.stringify(QUEUE_RULE.parameters), 'fixture must reproduce the differing order')
+  assert.equal(queueParametersEqual(GITHUB_ORDER_PARAMETERS), true)
+  assert.equal(queueRulesetMatches({ ...approvedDetail, rules: [{ type: 'merge_queue', parameters: GITHUB_ORDER_PARAMETERS }] }), true)
+  assert.equal(queueParametersEqual({ ...GITHUB_ORDER_PARAMETERS, max_entries_to_build: 2 }), false)
+  assert.equal(queueParametersEqual({ ...GITHUB_ORDER_PARAMETERS, extra: 1 }), false)
+  const { grouping_strategy, ...absent } = GITHUB_ORDER_PARAMETERS
+  assert.equal(queueParametersEqual(absent), false)
+  assert.equal(queueParametersEqual({ ...GITHUB_ORDER_PARAMETERS, max_entries_to_build: '1' }), false)
+  assert.equal(queueParametersEqual(null), false)
+  assert.equal(queueParametersEqual([]), false)
 })
