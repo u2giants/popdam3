@@ -9371,6 +9371,40 @@ test('#2457 a refused mutex release still reports the completed assignment inste
   assert.throws(()=>assignNextReviewer({issue:1767,pr:1800,headSha:"a".repeat(40),admissionOptions:{pr:1800}},io),(error)=>/could not be proved after atomic deletion/.test(error.message)&&/THE OPERATION ITSELF COMPLETED/.test(error.message)&&/"sequence":\d+/.test(error.message)&&/"reviewer":"/.test(error.message)&&Boolean(error.completedResult?.reviewer))
 })
 
+// Issue #2457: --replace-failed-reviewer is a reviewer DRAW too, and it was the
+// path that reproduced this twice on PR #2409. The replacement itself succeeded;
+// only the readback that proves the mutex release keeps answering with the
+// pre-deletion owner. That refusal must carry the completed result instead of
+// leaving the operator a bare "RECOVERY REQUIRED" for healthy state.
+test('#2457 a refused mutex release still reports the completed replacement instead of losing it',()=>{
+  const io=failedReviewIo()
+  let releasedOwner=null
+  io.readReviewStates=(leases)=>new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'open'},pr:{state:'open',head:{sha:lease.headSha}},evidence:[]}]))
+  io.readReviewRefs=(refs)=>new Map(refs.map((ref)=>[ref,(ref===MUTEX_REF&&releasedOwner)?releasedOwner:(io.refs.get(ref)??null)]))
+  io.atomicReviewRefs=(changes)=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha)io.refs.set(change.ref,change.sha);else io.refs.delete(change.ref)}}
+  // The compare-and-swap deletion is accepted and really removes the ref; every
+  // read that follows it -- replica ladder AND ref-API confirmation -- still
+  // answers with the owner that was just deleted.
+  io.atomicReviewMutexRelease=(ownerSha)=>{io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:null}]);releasedOwner=ownerSha}
+  io.readRefOverApi=(ref)=>(ref===MUTEX_REF&&releasedOwner)?releasedOwner:(io.refs.get(ref)??null)
+  io.wait=()=>{}
+  let refused=null
+  assert.throws(()=>replaceFailedReviewer(replacementRequest,io),(error)=>(refused=error,
+    /could not be proved after atomic deletion/.test(error.message)&&
+    /THE OPERATION ITSELF COMPLETED/.test(error.message)&&
+    /"reviewer":/.test(error.message)&&
+    /"replacementSha":/.test(error.message)&&
+    Boolean(error.completedResult?.reviewer)&&
+    Boolean(error.completedResult?.replacementSha)))
+  // Durable state, not only the message: the replacement record the refusal
+  // names really exists at the ref it reports.
+  assert.ok(refused.completedResult.assignmentRef)
+  assert.equal(io.refs.get(refused.completedResult.assignmentRef),refused.completedResult.replacementSha)
+  // The deletion itself worked: refusing and telling the operator to retry would
+  // draw a SECOND reviewer, which is exactly the harm the old message invited.
+  assert.equal(io.refs.get(MUTEX_REF),undefined)
+})
+
 
 
 // Issue #3182: guarded --rebind-claim-worktree.

@@ -6670,6 +6670,11 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
   const failureBase=`${REVIEW_FAILURE_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}`
   const fixedRecords=io.readReviewRecords?.([replacementRef,assignmentRef,REVIEW_CURSOR_REF,assignmentVerdictRef,failureRef],replacementBase,failureBase)??null
   let ownerSha=null,mutexAcquired=false
+  // Issue #2457: the replacement that this function draws is COMPLETED before the
+  // mutex is released. Carried on a refused release so the operator learns which
+  // reviewer was drawn instead of being sent to a guarded recovery against a
+  // mutex that the atomic deletion already removed.
+  let completedResult=null
   try{
     let priorReplacement=fixedRecords?(fixedRecords.get(replacementRef)?.sha??null):io.readRef(replacementRef)
     // The first implementation used one unsuffixed immutable ref. Preserve it
@@ -6738,7 +6743,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
         if(rollback.length)throw new LaneError(`${error.message}; idempotent lease rollback incomplete: ${rollback.join('; ')}`)
         throw error
       }
-      return {...parsed,slot:request.slot,wrapper:reviewer.wrapper,failureCode:String(failureCode),replacementSha:priorReplacement,replacementSequence:request.failedSequence,assignmentRef:replacementRef}
+      return completedResult={...parsed,slot:request.slot,wrapper:reviewer.wrapper,failureCode:String(failureCode),replacementSha:priorReplacement,replacementSequence:request.failedSequence,assignmentRef:replacementRef}
     }
     const assignmentSha=fixedRecords?.get(assignmentRef)?.sha??io.readRef(assignmentRef)
     if(!assignmentSha){
@@ -6944,7 +6949,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
         io.atomicReviewRefs(changes)
         const refs=io.readReviewRefs([MUTEX_REF,failureRef,REVIEW_CURSOR_REF,replacementRef,failedLeaseRef,replacementLeaseRef,...(stoppedStartRef?[stoppedStartRef]:[])])
         if(refs.get(MUTEX_REF)!==ownerSha||refs.get(failureRef)!==failureSha||refs.get(REVIEW_CURSOR_REF)!==cursorReplacementSha||refs.get(replacementRef)!==replacementSha||refs.get(failedLeaseRef)!==failedLeaseAfter||refs.get(replacementLeaseRef)!==replacementLeaseSha||(stoppedStartRef&&refs.get(stoppedStartRef)!==replacementSha))throw new LaneError('atomic review replacement readback mismatch')
-        return {sequence,reviewer:reviewer.name,wrapper:reviewer.wrapper,...request,...(effectiveAllowlist?{reviewerAllowlist:effectiveAllowlist}:{}),priorSequence:cursor.sequence,failureCode:String(failureCode),failureSha,replacementSha,replacementSequence:request.failedSequence,assignmentRef:replacementRef}
+        return completedResult={sequence,reviewer:reviewer.name,wrapper:reviewer.wrapper,...request,...(effectiveAllowlist?{reviewerAllowlist:effectiveAllowlist}:{}),priorSequence:cursor.sequence,failureCode:String(failureCode),failureSha,replacementSha,replacementSequence:request.failedSequence,assignmentRef:replacementRef}
       }
       if(io.readReviewRefs){
         const locked=io.readReviewRefs([MUTEX_REF,REVIEW_CURSOR_REF,failedLeaseRef,...(replacementStale?[replacementLeaseRef]:[])])
@@ -6967,7 +6972,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
         const refs=io.readReviewRefs([MUTEX_REF,failureRef,REVIEW_CURSOR_REF,replacementRef,failedLeaseRef,replacementLeaseRef])
         if(refs.get(MUTEX_REF)!==ownerSha||refs.get(failureRef)!==failureSha||refs.get(REVIEW_CURSOR_REF)!==cursorReplacementSha||refs.get(replacementRef)!==replacementSha||refs.get(failedLeaseRef)!==failedLeaseAfter||refs.get(replacementLeaseRef)!==replacementLeaseSha)throw new LaneError('batched review replacement readback mismatch')
       }
-      return {sequence,reviewer:reviewer.name,wrapper:reviewer.wrapper,...request,...(effectiveAllowlist?{reviewerAllowlist:effectiveAllowlist}:{}),priorSequence:cursor.sequence,failureCode:String(failureCode),failureSha,replacementSha,replacementSequence:request.failedSequence,assignmentRef:replacementRef}
+      return completedResult={sequence,reviewer:reviewer.name,wrapper:reviewer.wrapper,...request,...(effectiveAllowlist?{reviewerAllowlist:effectiveAllowlist}:{}),priorSequence:cursor.sequence,failureCode:String(failureCode),failureSha,replacementSha,replacementSequence:request.failedSequence,assignmentRef:replacementRef}
     }catch(error){
       const rollback=[]
       try{if(replacementLeaseCreated&&io.readRef(replacementLeaseRef)===replacementLeaseSha)releaseOwnedRef(replacementLeaseRef,replacementLeaseSha,io)}catch(e){rollback.push(e.message)}
@@ -6979,7 +6984,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
       if(rollback.length)throw new LaneError(`review replacement failed (${error.message}) and rollback was incomplete: ${rollback.join('; ')}`)
       throw error
     }
-  }finally{if(mutexAcquired)finalizeReviewMutex(ownerSha,io)}
+  }finally{if(mutexAcquired)finalizeReviewMutexPreservingResult(ownerSha,io,completedResult)}
 }
 
 export function replaceFailedReviewer(request,io=githubIo){return withReviewRequestBudget(()=>replaceFailedReviewerOperation(request,reviewOperationIo(io)))}

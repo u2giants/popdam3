@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 2457,
+  "outcome": "ready-for-merge",
+  "pr": 3522,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2457/3",
+  "contract_sha256": "bbbb8af017cdfb4f7a06e7c415aa4e92ccfef6ab3b8ca07abc82a5bddf3596ad",
+  "head_sha": "43f5ae110beeba9d6e67be88b1a8d33db600806b",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "The refresh helper executed the focused suite successfully at 43f5ae11 after merging origin/main; 721 tests passed and 0 failed. Its later evidence rewrite refused the nonstandard check label, so this report was rebound by hand. The source-fix revert regression was demonstrated in the preceding generation-3 completion: 714 passed and the #2457 replacement test failed."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Exit 0 with no output at 43f5ae11 against origin/main."
+    }
+  ],
+  "assumptions_resolved": [
+    "Source fix 6754166f predates generation 3; generation 3 covers the refresh and test strengthening"
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "08790dcd7c0f54ea8e96721424ef07cec8ff092e"
+}

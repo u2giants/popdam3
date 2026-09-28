@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "generation": 3,
+  "work_issue": 2457,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Land PR #3522: carry the completed replacement result on a refused reviewer-mutex release readback in replaceFailedReviewerOperation (source fix already present at 6754166f), refresh onto origin/main after #3512, and strengthen the #2457 replacement test to assert durable state (mutex ref absent, replacement record present).",
+  "base_sha": "85566ccb392b27022fe9bbb100d308fc587b13cc",
+  "dispatcher": "Albert Hazan owner session relaying: land PR #3522 (non-orchestrator tooling)",
+  "worker": "Claude chat 8fdb5997-a920-42ed-8919-c3dda08a0a3f on edge-dev3",
+  "branch": "claude/stale-readback-2457",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/popcre-shared-db-3522-b78d05",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/2457/3/contract.json",
+    ".agent/work/2457/3/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/2457/3/contract.json",
+    ".agent/work/2457/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database, migration, schema, data, production or infrastructure mutation",
+    "Do not remove or weaken the RECOVERY REQUIRED mutex-release refusal",
+    "Do not widen any review request ceiling",
+    "Do not hand-delete any refs/db-review-active or refs/db-coordination ref"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The source fix commit 6754166f predates this generation; this generation declares the scope of the remaining work (refresh, test strengthening, evidence) and the whole PR diff it will be judged on"
+  ],
+  "stop_conditions": [
+    "Stop if the new #2457 test does not fail with the source fix reverted",
+    "Stop if any previously passing test fails"
+  ]
+}
