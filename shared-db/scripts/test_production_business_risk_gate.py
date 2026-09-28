@@ -1989,7 +1989,6 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     # either words it with the phrase or writes it a test.
     PHRASE_VERIFIED_EXEMPTIONS = frozenset({
         "config/blocker-ledger",
-        "config/production-independent-reviewers.json",
         "supabase/tests",
         "supabase/ci-bootstrap",
         "config/production-risk-policy-activation.json",

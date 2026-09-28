@@ -282,101 +282,11 @@ def validate_automatic_evidence(
         raise EvidenceError("created_at must be canonical UTC YYYY-MM-DDTHH:MM:SSZ")
 
 
-def validate_independent_record(
-    data: dict[str, Any], *, run_id: int, run_attempt: int, sha: str,
-    allowlist: list[str], operator_actor: str, apply_actor: str | None,
-    apply_triggering_actor: str | None,
-    source_pr: int | None, source_pr_head: str | None,
-    work_issue: int | None, preview_run_id: int | None,
-    preview_digest: str | None, dry_run_run_id: int | None,
-    dry_run_digest: str | None, api: Callable, downloader: Callable,
-) -> None:
-    try:
-        from production_independent_review import (
-            RECORD_FIELDS, RECORD_SCHEMA, PRODUCTION_PROJECT_REF,
-            verify_review, verify_dry_run, verify_current_main,
-        )
-    except ImportError:
-        from .production_independent_review import (
-            RECORD_FIELDS, RECORD_SCHEMA, PRODUCTION_PROJECT_REF,
-            verify_review, verify_dry_run, verify_current_main,
-        )
-    if (not apply_actor or not apply_triggering_actor or source_pr is None
-            or work_issue is None or preview_run_id is None or preview_digest is None
-            ):
-        raise EvidenceError("independent review needs complete exact production action context")
-    if set(data) != RECORD_FIELDS:
-        raise EvidenceError("independent operator record has wrong fields")
-    verify_current_main(sha=sha, api=api)
-    if run_attempt != 1:
-        raise EvidenceError("independent operator evidence cannot be a rerun")
-    source = api(f"repos/{REPOSITORY}/pulls/{source_pr}")
-    if (not isinstance(source, dict) or source.get("state") != "closed"
-            or not source.get("merged_at") or not isinstance(source.get("head"), dict)
-            or not SHA_RE.fullmatch(str(source["head"].get("sha", "")))):
-        raise EvidenceError("source PR head is not authenticated from merged GitHub metadata")
-    actual_source_head = source["head"]["sha"]
-    if source_pr_head is not None and source_pr_head != actual_source_head:
-        raise EvidenceError("source PR head differs from separately derived risk proof")
-    source_pr_head = actual_source_head
-    if dry_run_run_id is None:
-        dry_run_run_id = data.get("dry_run_run_id")
-    if dry_run_digest is None:
-        dry_run_digest = data.get("dry_run_artifact_digest")
-    expected = {
-        "schema_version": RECORD_SCHEMA, "repository": REPOSITORY,
-        "workflow_file": WORKFLOW_PATH, "workflow_run_id": run_id,
-        "workflow_run_attempt": run_attempt, "reviewed_main_sha": sha,
-        "target_project_ref": PRODUCTION_PROJECT_REF,
-        "action": "production-apply", "ordered_allowlist": allowlist,
-        "source_pr": source_pr, "source_pr_head": source_pr_head,
-        "work_issue": work_issue, "preview_run_id": preview_run_id,
-        "preview_artifact_digest": preview_digest,
-        "dry_run_run_id": dry_run_run_id,
-        "dry_run_artifact_digest": dry_run_digest,
-        "verdict": "APPROVE", "operator_actor": operator_actor,
-    }
-    for key, value in expected.items():
-        if type(data.get(key)) is not type(value) or data.get(key) != value:
-            raise EvidenceError(f"independent operator record has wrong {key}")
-    reviewer = data.get("reviewer_actor")
-    if (not isinstance(reviewer, str) or not reviewer
-            or reviewer.casefold() in {operator_actor.casefold(), apply_actor.casefold(), apply_triggering_actor.casefold()}):
-        raise EvidenceError("independent reviewer must differ from record and apply operators")
-    nested_id, nested_digest = data.get("review_run_id"), data.get("review_artifact_digest")
-    if type(nested_id) is not int or nested_id < 1 or not isinstance(nested_digest, str):
-        raise EvidenceError("independent reviewer run binding is malformed")
-    packet, authenticated_reviewer = verify_review(
-        run_id=nested_id, digest=nested_digest, sha=sha, allowlist=allowlist,
-        source_pr=source_pr, source_pr_head=source_pr_head, work_issue=work_issue,
-        preview_run_id=preview_run_id, preview_digest=preview_digest,
-        dry_run_id=dry_run_run_id, dry_run_digest=dry_run_digest,
-        api=api, downloader=downloader,
-    )
-    if authenticated_reviewer.casefold() != reviewer.casefold():
-        raise EvidenceError("recorded reviewer differs from authenticated reviewer")
-    for key in packet:
-        if (key not in {"schema_version", "workflow_file", "workflow_run_id", "workflow_run_attempt"}
-                and data.get(key) != packet[key]):
-            raise EvidenceError(f"operator record changed reviewer-approved {key}")
-    verify_dry_run(
-        run_id=dry_run_run_id, digest=dry_run_digest, sha=sha,
-        allowlist=allowlist, repo_root=Path(__file__).resolve().parents[1],
-        api=api, downloader=downloader,
-    )
-
-
 def verify(
     *, run_id_text: str, expected_digest: str, sha: str, allowlist_raw: str,
     api: Callable[[str], Any] = gh_json,
     downloader: Callable[[int, Path], None] = download_artifact_zip,
     output_dir: Path,
-    require_independent: bool = False, apply_actor: str | None = None,
-    apply_triggering_actor: str | None = None,
-    source_pr: int | None = None, source_pr_head: str | None = None,
-    work_issue: int | None = None, preview_run_id: int | None = None,
-    preview_digest: str | None = None, dry_run_run_id: int | None = None,
-    dry_run_digest: str | None = None,
 ) -> Path:
     allowlist = validate_request(run_id_text, expected_digest, sha, allowlist_raw)
     run_id = int(run_id_text)
@@ -405,28 +315,10 @@ def verify(
             allowlist=allowlist, workflow_actor=reviewer_actor,
         )
     else:
-        if data.get("schema_version") == "shared-db-production-apply-review/v3":
-            triggering = run.get("triggering_actor") if isinstance(run, dict) else None
-            if (not isinstance(triggering, dict)
-                    or str(triggering.get("login", "")).casefold() != reviewer_actor.casefold()):
-                raise EvidenceError("independent operator run has unproved triggering actor")
-            validate_independent_record(
-                data, run_id=run_id, run_attempt=run_attempt, sha=sha,
-                allowlist=allowlist, operator_actor=reviewer_actor,
-                apply_actor=apply_actor, apply_triggering_actor=apply_triggering_actor,
-                source_pr=source_pr,
-                source_pr_head=source_pr_head, work_issue=work_issue,
-                preview_run_id=preview_run_id, preview_digest=preview_digest,
-                dry_run_run_id=dry_run_run_id, dry_run_digest=dry_run_digest,
-                api=api, downloader=downloader,
-            )
-        else:
-            if require_independent:
-                raise EvidenceError("legacy manual v1 evidence cannot authorize this production recovery")
-            validate_evidence(
-                data, run_id=run_id, run_attempt=run_attempt, sha=sha,
-                allowlist=allowlist, reviewer_actor=reviewer_actor,
-            )
+        validate_evidence(
+            data, run_id=run_id, run_attempt=run_attempt, sha=sha,
+            allowlist=allowlist, reviewer_actor=reviewer_actor,
+        )
     output_dir.mkdir(parents=True, exist_ok=True)
     output = output_dir / evidence_file
     output.write_text(canonical_json(data), encoding="utf-8", newline="\n")
@@ -440,23 +332,7 @@ def main() -> int:
     parser.add_argument("--commit-sha", required=True)
     parser.add_argument("--allowlist", required=True)
     parser.add_argument("--output-dir", type=Path, default=Path(os.environ.get("RUNNER_TEMP", ".")))
-    parser.add_argument("--require-independent", action="store_true")
-    parser.add_argument("--apply-actor")
-    parser.add_argument("--apply-triggering-actor")
-    parser.add_argument("--source-pr")
-    parser.add_argument("--source-pr-head")
-    parser.add_argument("--work-issue")
-    parser.add_argument("--preview-run-id")
-    parser.add_argument("--preview-digest")
-    parser.add_argument("--dry-run-run-id")
-    parser.add_argument("--dry-run-digest")
     args = parser.parse_args()
-    def optional_positive(raw: str | None) -> int | None:
-        if raw in {None, ""}:
-            return None
-        if not RUN_ID_RE.fullmatch(raw):
-            raise EvidenceError("production action ID must be a positive integer")
-        return int(raw)
     try:
         output = verify(
             run_id_text=args.review_run_id,
@@ -464,15 +340,6 @@ def main() -> int:
             sha=args.commit_sha,
             allowlist_raw=args.allowlist,
             output_dir=args.output_dir,
-            require_independent=args.require_independent,
-            apply_actor=args.apply_actor,
-            apply_triggering_actor=args.apply_triggering_actor,
-            source_pr=optional_positive(args.source_pr),
-            source_pr_head=args.source_pr_head, work_issue=optional_positive(args.work_issue),
-            preview_run_id=optional_positive(args.preview_run_id),
-            preview_digest=args.preview_digest,
-            dry_run_run_id=optional_positive(args.dry_run_run_id),
-            dry_run_digest=args.dry_run_digest,
         )
     except (EvidenceError, OSError, subprocess.CalledProcessError, zipfile.BadZipFile) as exc:
         print(f"::error::Production apply review evidence rejected: {exc}", file=sys.stderr)

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "work_issue": 3656,
+  "outcome": "ready-for-merge",
+  "pr": 3667,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3656/1",
+  "contract_sha256": "5ca4cc1e1a0dc3027caf86443c123595959167109f708539583ff4edfaf02156",
+  "head_sha": "d8be5fc0d199e01d5e51446ff99fb451ee4ae4b6",
+  "base_sha": "d2980b4a8b2f282e74d700b8fb380d6fdb14acda",
+  "files_changed": [
+    ".github/workflows/production-apply-review-evidence.yml",
+    ".github/workflows/production-independent-review.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "config/production-independent-reviewers.json",
+    "docs/owner-rulings.md",
+    "docs/production-promotion-procedure.md",
+    "docs/verification/throughput-dispositions/scripts~production_independent_review.py.json",
+    "scripts/production_apply_review_evidence.py",
+    "scripts/production_business_risk_gate.py",
+    "scripts/production_independent_review.py",
+    "scripts/test_production_apply_review_evidence.py",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/test_production_independent_review.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts.test_production_apply_review_evidence scripts.test_production_business_risk_gate scripts.test_production_migration_guard -q",
+      "exit_code": 0,
+      "evidence": "Python tests passed at d8be5fc0d199"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/migration-train.test.mjs",
+      "exit_code": 0,
+      "evidence": "15 tests passed at d8be5fc0d199"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK at d8be5fc0d199"
+    }
+  ],
+  "assumptions_resolved": [
+    "Owner ruling quoted on #3656 removes only the independent reviewer identity; allocator exact-head AI review stays. Contract refs/db-contracts/3656/1 was published after implementation commit 8f968c47add8, whose content was re-committed without evidence as d8be5fc0d199; no pre-work publication is claimed."
+  ],
+  "stop_conditions_hit": []
+}

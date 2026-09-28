@@ -2024,3 +2024,14 @@ four DesignFlow services (issue #2873) are in
 [`docs/security/pg-net-direct-login-rule.md`](security/pg-net-direct-login-rule.md).
 Per §6.18, the technical risk judgement behind the exception is an engineering review
 (Qwen 3.8 Max, APPROVE, 2026-09-23), not an owner sign-off.
+
+### 6.22 OWNER RULING — no independent production reviewer identity (Albert Hazan, 2026-09-28)
+
+Verbatim from Albert's chat (about 11:00 AM EDT, 2026-09-28, recorded on #3656): "i don't need
+an independent production reviewer. remove that requirement". The separately registered
+independent reviewer identity for manual production recovery (the roster, workflow and v3 record
+added by #3641) is removed. This supersedes, for this repository, the 2026-09-16 rule that routed
+every technical production approval to a separate independent reviewer. Still required: the
+allocator-assigned exact-head AI review APPROVE on the source pull request, exact-main binding,
+ordered allowlist, preview proof, target proof, business-risk evidence and the production
+environment boundary. See `docs/production-promotion-procedure.md` step 2.

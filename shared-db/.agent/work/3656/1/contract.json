@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "work_issue": 3656,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Apply owner ruling 2026-09-28: remove the separately registered independent production reviewer identity requirement (#3641) from manual production recovery while keeping exact-head AI review, exact-main, allowlist, preview, target and business-risk gates",
+  "base_sha": "d2980b4a8b2f282e74d700b8fb380d6fdb14acda",
+  "dispatcher": "Claude parent chat 1b699f56-bfb1-4801-a2b9-db91edbc98f6",
+  "worker": "claude",
+  "branch": "claude/3656-remove-independent-reviewer",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/3656-remove-indep-reviewer",
+  "allowed_paths": [
+    ".github/workflows/production-apply-review-evidence.yml",
+    ".github/workflows/production-independent-review.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "config/production-independent-reviewers.json",
+    "docs/owner-rulings.md",
+    "docs/production-promotion-procedure.md",
+    "docs/verification/throughput-dispositions/scripts~production_independent_review.py.json",
+    "scripts/production_apply_review_evidence.py",
+    "scripts/production_business_risk_gate.py",
+    "scripts/production_independent_review.py",
+    "scripts/test_production_apply_review_evidence.py",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/test_production_independent_review.py",
+    ".agent/work/3656/1/contract.json"
+  ],
+  "file_writes": [
+    ".github/workflows/production-apply-review-evidence.yml",
+    ".github/workflows/production-independent-review.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "config/production-independent-reviewers.json",
+    "docs/owner-rulings.md",
+    "docs/production-promotion-procedure.md",
+    "docs/verification/throughput-dispositions/scripts~production_independent_review.py.json",
+    "scripts/production_apply_review_evidence.py",
+    "scripts/production_business_risk_gate.py",
+    "scripts/production_independent_review.py",
+    "scripts/test_production_apply_review_evidence.py",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/test_production_independent_review.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not dispatch any production workflow or database write"
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts.test_production_apply_review_evidence scripts.test_production_business_risk_gate scripts.test_production_migration_guard -q",
+    "node --test scripts/orchestrator-flow/migration-train.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "Owner ruling quoted on #3656 removes only the independent reviewer identity; allocator exact-head AI review stays"
+  ],
+  "stop_conditions": [
+    "stop if any other production gate would be weakened"
+  ],
+  "generation": 1,
+  "evidence_parent": null
+}
