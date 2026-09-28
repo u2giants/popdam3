@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "work_issue": 3612,
+  "outcome": "ready-for-merge",
+  "pr": 3613,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3612/1",
+  "contract_sha256": "5a957604ccfaa1cc52a11fb0e1079ab314c09fa2712614fcd17c2b75b5ac192c",
+  "base_sha": "589acec126b5f70aebf5d584e59e9872e206605d",
+  "head_sha": "6efa5bb95673a8962e4ff861310e11ea462055d8",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "729 pass, 0 fail at 6efa5bb9 on main 589acec1."
+    },
+    {
+      "command": "env PATH=/usr/bin:/bin python3 scripts/test_verify_preview_apply_artifact.py -q",
+      "exit_code": 0,
+      "evidence": "exited 0 at 6efa5bb9 on main 589acec1."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "git diff --check origin/main...6efa5bb9 exited 0."
+    }
+  ],
+  "assumptions_resolved": [
+    "edge-dev3 has /usr/bin/python3 and no python alias; the verifier test suite passes using Python 3 only.",
+    "This is the only Python launcher in manage-migration-author-lanes.mjs; verifier code and its input/output contract are unchanged."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Repository maintenance only; no migration or database change. The guarded merge workflow needs this repair after the currently pinned automatic production run ends."
+}

@@ -131,10 +131,12 @@ above; this list exists so you recognise one before it costs you the same aftern
    reference charge and material entries and those references have to resolve.
    Subtracting prepacks and non-inventory entries still does not leave a
    catalogue - there is no prepack marker on the item row, and the junk records
-   are untouched by either exclusion. *(2026-09-25 update, issue #3024 review:
-   flag census `Y` on 36 of 18,990 items; prepack parents, though unmarked on
-   the item row, are identifiable from `archive.erp_items_current.prepack_code`
-   — 1,437 live parents — while `coldlion.prepack_detail.item_no` lists the
+   are untouched by either exclusion. *(2026-09-28 correction, issue #3024
+   review: flag census `Y` on 36 of ~18,990 items; prepack parents, though
+   unmarked on `/items`, ARE marked live on the SKU-level
+   `GET /itemDetails` → `prePackCode` — 2,513 distinct parents — while the
+   archive-based recipe (`archive.erp_items_current.prepack_code`, 1,437)
+   undercounts by ~1,000 and `coldlion.prepack_detail.item_no` lists the
    child components, not the parents. Recipe and the 2026-09-25 rulings:
    [`business-rules/product-items-and-identifiers.md`](business-rules/product-items-and-identifiers.md)
    § *Prepack parents*.)*

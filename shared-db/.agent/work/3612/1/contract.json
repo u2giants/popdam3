@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3612,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Run the guarded preview artifact verifier on hosts that provide python3 without a python alias, preserving all verifier semantics.",
+  "base_sha": "9794470eb01b974eb71ab31696c097d7383839da",
+  "dispatcher": "Codex repo-maintenance session for issue #3612",
+  "worker": "Codex chat 01a0e65a-82f1-7d93-b8fb-4440da47884d on edge-dev3",
+  "branch": "codex/preview-verifier-python3",
+  "worktree": "/home/ahazan/repos/shared-db-preview-python3",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    ".agent/work/3612/1/contract.json",
+    ".agent/work/3612/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    ".agent/work/3612/1/contract.json",
+    ".agent/work/3612/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not alter verifier inputs, output, validation, artifact trust, or failure semantics.",
+    "Do not modify migrations or perform production or shared database writes."
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "env PATH=/usr/bin:/bin python3 scripts/test_verify_preview_apply_artifact.py -q",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "python3 is supported and available on all repository CI and operator hosts.",
+    "No other program calls verifyPreviewApplyArtifact with a separate interpreter override."
+  ],
+  "stop_conditions": [
+    "Stop if python3 is not available in a required environment.",
+    "Stop if a change outside the allowed paths is necessary."
+  ]
+}
