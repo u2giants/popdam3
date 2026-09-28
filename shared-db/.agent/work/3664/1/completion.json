@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 3664,
+  "outcome": "ready-for-merge",
+  "pr": 3668,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3664/1",
+  "contract_sha256": "67bd7129b7f2e6f2d71c24043530da6a20323c787330225322e1ec728778e6d3",
+  "base_sha": "66c7b7159f01de58a83e604bbc08744a84bcfe55",
+  "head_sha": "635229f3878edc9614bb6a12a9b9d7eae721420e",
+  "files_changed": [
+    "scripts/mcp-supabase-launch.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/mcp-supabase-launch.test.mjs",
+      "exit_code": 0,
+      "evidence": "5 passed, 0 failed on Windows (pwsh node --test) and under Git Bash; main-module guard test builds win32-safe URLs via pathToFileURL and the mock realpath folds separators"
+    }
+  ],
+  "assumptions_resolved": [
+    "Live launcher unaffected: production import.meta.url always carries a drive letter on Windows, so fileURLToPath succeeds; the failure was test-only (driveless URLs throw ERR_INVALID_FILE_URL_PATH on win32)",
+    "Production isMainModule unchanged: still compares realpath(module) to realpath(argv1) and returns false on any throw"
+  ],
+  "stop_conditions_hit": []
+}

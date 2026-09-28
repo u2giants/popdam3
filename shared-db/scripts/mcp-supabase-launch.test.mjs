@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { isMainModule, launchPlan, SERVER_ARGS } from './mcp-supabase-launch.mjs'
 
 const EXPECTED_SERVER_ARGS = ['-y', '@supabase/mcp-server-supabase@0.11.0', '--read-only', '--project-ref', 'qsllyeztdwjgirsysgai']
@@ -27,11 +27,16 @@ test('linux and macOS use the shell launcher with an exact posix path on any hos
 })
 
 test('main-module guard compares real paths and never throws', () => {
-  const real = (p) => p.replace('/link/', '/real/')
-  assert.equal(isMainModule('file:///link/a.mjs', '/real/a.mjs', real), true)
-  assert.equal(isMainModule('file:///real/a.mjs', '/real/b.mjs', real), false)
-  assert.equal(isMainModule('file:///real/a.mjs', undefined, real), false)
-  assert.equal(isMainModule('file:///real/a.mjs', '/x', () => { throw new Error('ENOENT') }), false)
+  // win32 file URLs need a drive letter (fileURLToPath throws otherwise), so
+  // build them via pathToFileURL. The mock realpath folds separators so the
+  // '/link/' -> '/real/' mapping applies on both win32 and POSIX.
+  const root = process.platform === 'win32' ? 'C:' : ''
+  const url = (posixPath) => pathToFileURL(root + posixPath).href
+  const real = (p) => p.replaceAll('\\', '/').replace('/link/', '/real/')
+  assert.equal(isMainModule(url('/link/a.mjs'), root + '/real/a.mjs', real), true)
+  assert.equal(isMainModule(url('/real/a.mjs'), root + '/real/b.mjs', real), false)
+  assert.equal(isMainModule(url('/real/a.mjs'), undefined, real), false)
+  assert.equal(isMainModule(url('/real/a.mjs'), '/x', () => { throw new Error('ENOENT') }), false)
 })
 
 test('.mcp.json launches the existing script through node and holds no secret', () => {
