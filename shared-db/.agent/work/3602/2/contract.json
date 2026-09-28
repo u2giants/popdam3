@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "generation": 2,
+  "work_issue": 3602,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Retire only the completed one-time 3539 reservation recovery utility, its focused test, required test invocation, and its source-specific truth-audit catalogue while preserving permanent evidence and guards",
+  "base_sha": "13d0d888a77eba476bc8282f652ad425645b7e33",
+  "dispatcher": "Codex repository-maintenance session for issue #3602",
+  "worker": "codex",
+  "branch": "codex/3602-retire-g2",
+  "worktree": "/home/ahazan/repos/shared-db-3602-retire-g2",
+  "allowed_paths": [
+    "scripts/recover-3539-reservation.mjs",
+    "scripts/recover-3539-reservation.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~recover-3539-reservation.mjs.json",
+    ".github/workflows/pr-object-collision.yml",
+    ".agent/work/3602/2/contract.json",
+    ".agent/work/3602/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/recover-3539-reservation.mjs",
+    "scripts/recover-3539-reservation.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~recover-3539-reservation.mjs.json",
+    ".github/workflows/pr-object-collision.yml",
+    ".agent/work/3602/2/contract.json",
+    ".agent/work/3602/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not change migrations or database objects",
+    "do not delete permanent reservation, supersession, claim, or audit refs",
+    "do not weaken collision, contract, or guarded-merge checks",
+    "do not merge or trigger preview or production"
+  ],
+  "required_checks": [
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node --test scripts/check-pr-object-collisions.test.mjs scripts/check-dispatch-collision.test.mjs scripts/check-pr-source-collisions.test.mjs",
+    "node scripts/check-github-transport-conformance.mjs"
+  ],
+  "assumptions": [
+    "issue #3602 records successful permanent reservation repair and claim renewal",
+    "the source-specific truth-audit catalogue must retire when its source is removed",
+    "historical agent-work evidence and permanent refs remain intact",
+    "The g1 cleanup was approved and all checks passed, but Guarded Merge refused its stale main base; g2 rebuilds the same four-file change from current main"
+  ],
+  "stop_conditions": [
+    "stop if another live call site for the recovery utility is discovered",
+    "stop if recovery has not completed or its permanent evidence is absent",
+    "stop if a required safeguard would need to be changed outside the listed files"
+  ]
+}

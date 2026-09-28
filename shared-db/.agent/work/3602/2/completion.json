@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 3602,
+  "outcome": "ready-for-merge",
+  "pr": 3603,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3602/2",
+  "contract_sha256": "36a471ccfe410b3a275b404dafdcaa6ffe3e3cbe9f533c33fc543efa1e45cf7a",
+  "head_sha": "99cada40f524644bcb1fe337f11079f8d239e46b",
+  "base_sha": "13d0d888a77eba476bc8282f652ad425645b7e33",
+  "files_changed": [
+    ".github/workflows/pr-object-collision.yml",
+    "docs/verification/throughput-dispositions/scripts~recover-3539-reservation.mjs.json",
+    "scripts/recover-3539-reservation.mjs",
+    "scripts/recover-3539-reservation.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=318 sources=77 derived_digest=e9c25f33ea9a at implementation 99cada40f524644bcb1fe337f11079f8d239e46b"
+    },
+    {
+      "command": "node --test scripts/check-pr-object-collisions.test.mjs scripts/check-dispatch-collision.test.mjs scripts/check-pr-source-collisions.test.mjs",
+      "exit_code": 0,
+      "evidence": "131 passed, 0 failed at implementation 99cada40f524644bcb1fe337f11079f8d239e46b"
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "326 files scanned, every GitHub call uses the governed transport at implementation 99cada40f524644bcb1fe337f11079f8d239e46b"
+    }
+  ],
+  "assumptions_resolved": [
+    "Issue #3602 records successful repair, claim renewal and passing Migration author lease rerun; issue #3574 is closed with the same signed evidence.",
+    "No live reference to the removed utility remains outside its historical agent evidence; its dedicated CI step and source-specific truth-audit catalogue were removed together.",
+    "The permanent reservation, supersession, claim, contract and historical audit refs were not modified.",
+    "PR #3603 g1 Guarded Merge run 36375004245 refused stale main base; g2 rebuild started from current main 13d0d888 with only the same four implementation paths changed."
+  ],
+  "stop_conditions_hit": []
+}
