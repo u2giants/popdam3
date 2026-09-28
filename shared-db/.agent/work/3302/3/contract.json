@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "generation": 3,
+  "work_issue": 3302,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Complete PR #3515's ColdLion replay proof test hardening: pin each CTE's sync_run source and the replay fullSnapshot predicate with mutation controls, describe the named RLS check truthfully, and run this focused test in required CI. No probe SQL or database change.",
+  "base_sha": "7fab5c716eb111a10c865b99e09b5ad94ff092b2",
+  "dispatcher": "Codex successor orchestrator for linked issue #3302 and repair issue #3594",
+  "worker": "Codex subagent for PR #3515 generation-3 repair",
+  "branch": "codex/3515-gen3",
+  "worktree": "/home/ahazan/repos/shared-db-3515-gen3",
+  "allowed_paths": [
+    "scripts/issue-2863-live-proof.test.mjs",
+    ".github/workflows/tools-offline-tests.yml",
+    ".agent/work/3302/3/contract.json",
+    ".agent/work/3302/3/completion.json"
+  ],
+  "file_writes": [
+    "scripts/issue-2863-live-proof.test.mjs",
+    ".github/workflows/tools-offline-tests.yml",
+    ".agent/work/3302/3/contract.json",
+    ".agent/work/3302/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No live-proof probe SQL change, migration, or database write.",
+    "No weakening the existing assertion or hardcoded expected counts.",
+    "No ColdLion row values in commits.",
+    "Do not alter the immutable generation-2 contract or its published ref."
+  ],
+  "required_checks": [
+    "node --test scripts/issue-2863-live-proof.test.mjs",
+    "node scripts/agent-work-contract.mjs --validate-contract --contract-file .agent/work/3302/3/contract.json"
+  ],
+  "assumptions": [
+    "Existing PR #3515 head 0780a340968707b9b41924d78d51df6ae90c3494 is preserved as codex/3515-prior-head; this generation starts from current origin/main 7fab5c716eb111a10c865b99e09b5ad94ff092b2 before replaying and repairing its test-only change."
+  ],
+  "stop_conditions": [
+    "Stop if origin/main or the remote PR branch changes before the guarded one-head update.",
+    "Stop if a required correction needs any file outside allowed_paths."
+  ]
+}

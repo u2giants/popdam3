@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "work_issue": 3302,
+  "outcome": "ready-for-merge",
+  "pr": 3515,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3302/3",
+  "contract_sha256": "f5d15de11fdcdd497d31c26b3669b7a38c9c2313b3dfd08cb0b12b4fe3237f83",
+  "base_sha": "7fab5c716eb111a10c865b99e09b5ad94ff092b2",
+  "head_sha": "179a963b798276fe5fcb5adf553f0a573a3470b5",
+  "files_changed": [
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/issue-2863-live-proof.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/issue-2863-live-proof.test.mjs",
+      "exit_code": 0,
+      "evidence": "25 pass, 0 fail; four source-swap controls and one replay fullSnapshot removal control passed"
+    },
+    {
+      "command": "node scripts/agent-work-contract.mjs --validate-contract --contract-file .agent/work/3302/3/contract.json",
+      "exit_code": 0,
+      "evidence": "Contract is valid; immutable ref published before implementation"
+    },
+    {
+      "command": "node --test scripts/documents-fast-ci-workflow.test.mjs scripts/check-documents-ci-route.test.mjs",
+      "exit_code": 0,
+      "evidence": "58 pass, 0 fail; pure-prose route remains intact"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed; zero added migrations"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=328 sources=77; CI step appended beyond existing recorded workflow sites"
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 3 published at refs/db-contracts/3302/3, commit ee0df14c53c10385f6da03e982c26305b33ba048, before implementation commit 179a963b798276fe5fcb5adf553f0a573a3470b5; generation 2 remains immutable.",
+    "Existing PR #3515 head 0780a340968707b9b41924d78d51df6ae90c3494 was preserved locally as codex/3515-prior-head before rebuilding from origin/main 7fab5c716eb111a10c865b99e09b5ad94ff092b2.",
+    "No live-proof SQL or database structure/data changed; the old production live proof remains the historical result for issue #2863."
+  ],
+  "stop_conditions_hit": []
+}
