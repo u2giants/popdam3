@@ -109,7 +109,7 @@ DesignFlow data will first land in a Supabase **`designflow` staging schema** (f
 | 12 | `app_settings` | `app` settings | |
 | 13 | `ai_cache_events` | `app` telemetry cache | |
 
-### 4.3 `plm` — PLM operational + config (72 tables)
+### 4.3 `plm` — PLM operational + config (74 tables)
 
 #### Production & logistics
 
@@ -149,8 +149,8 @@ DesignFlow data will first land in a Supabase **`designflow` staging schema** (f
 | 22 | `item_character_associations` | Item ↔ character links |
 | 23 | `productUserAssignment` | Item user role assignments |
 | 24 | `ProductNickname` | Product nickname config (MG FK refs) |
-| 24a | `item_user_assignment` | Added after July; placed beside `productUserAssignment` (2026-09-24). `plm` table not yet created |
-| 24b | `item_workflow_action` | Added after July; placed with the item master (2026-09-24). `plm` table not yet created |
+| 24a | `item_user_assignment` | Final `plm` home beside `productUserAssignment` (#3498). Before row movement, preflight legacy keys: the final PLM FKs are VALID while dflow source FKs are NOT VALID. DesignFlow grants and append-only wiring remain separate work; resolve parent CASCADE versus append-only DELETE trigger before moving rows. |
+| 24b | `item_workflow_action` | Final `plm` item-master home (#3498). Before row movement, preflight legacy item/step keys against VALID PLM FKs; source dflow FKs are NOT VALID. Notification references, DesignFlow grants, and append-only wiring remain separate work. Preserve identity IDs with OVERRIDING SYSTEM VALUE and advance the new sequence past max(id). |
 
 #### Art pieces (operational)
 
@@ -274,7 +274,7 @@ When tables move out of `designflow`, these FKs become **cross-schema** and must
 
 3. app         (13 tables — users/roles first within app)
 
-4. plm         (72 tables — operational, in dependency order):
+4. plm         (74 tables — operational, in dependency order):
    a. Reference: companyCode, divisionCode, SeasonCode, FOBCountry, ...
    b. Item master: itemHeader → itemDetail → itemAttachment
    c. Art: art_piece → art_piece_attachment
@@ -326,3 +326,4 @@ Whole `merchGroup` table stays mapped to **`core`** (typed import). Import rules
 | 2026-07-08 | Initial full 103-table segregation map |
 | 2026-07-08 | `DesignTeamTime(s)` → `plm`; `age_group`/`artists`/`art_types`/`artist_types` → `core` |
 | 2026-09-24 | Added `item_user_assignment` and `item_workflow_action` (new in Cloud SQL since July) to `plm` item master |
+| 2026-09-27 | Added their final `plm` structural homes under #3498. Source rows remain in `dflow` until separately governed movement and wiring; retire the source-dependent live proof when those source tables retire. |

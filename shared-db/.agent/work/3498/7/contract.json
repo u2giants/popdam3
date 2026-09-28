@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "generation": 7,
+  "work_issue": 3498,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Rebind unchanged PLM assignment/action structural migration and proof to current main after #3489 merge; retire generation-6 evidence.",
+  "base_sha": "9794470eb01b974eb71ab31696c097d7383839da",
+  "dispatcher": "Codex root chat 01a0e56c-2e17-78a2-ad57-cd154b990979",
+  "worker": "Codex root chat 01a0e56c-2e17-78a2-ad57-cd154b990979",
+  "branch": "codex/3510-landing",
+  "worktree": "/home/ahazan/repos/shared-db-3510-landing",
+  "allowed_paths": [
+    "supabase/migrations/20260925222635_plm_item_user_assignment_and_workflow_action.sql",
+    "supabase/tests/plm_item_assignment_action_homes_contract.sql",
+    ".github/live-proofs/3498.sql",
+    "docs/designflow-master-data-migration/designflow-schema-segregation.md",
+    ".agent/work/3498/7/contract.json",
+    ".agent/work/3498/7/completion.json",
+    ".agent/work/3498/6/"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260925222635_plm_item_user_assignment_and_workflow_action.sql",
+    "supabase/tests/plm_item_assignment_action_homes_contract.sql",
+    ".github/live-proofs/3498.sql",
+    "docs/designflow-master-data-migration/designflow-schema-segregation.md",
+    ".agent/work/3498/7/contract.json",
+    ".agent/work/3498/7/completion.json",
+    ".agent/work/3498/6/contract.json",
+    ".agent/work/3498/6/completion.json"
+  ],
+  "db_reads": [
+    "table dflow.item_user_assignment",
+    "table dflow.item_workflow_action"
+  ],
+  "db_writes": [
+    "table plm.item_user_assignment",
+    "table plm.item_workflow_action",
+    "index plm.item_user_assignment_rfq_item_id_idx",
+    "index plm.item_workflow_action_rfq_item_id_idx",
+    "index plm.item_workflow_action_prior_step_id_idx",
+    "index plm.item_workflow_action_new_step_id_idx",
+    "index plm.item_workflow_action_source_action_rfq_item_idx",
+    "index plm.item_user_assignment_one_active",
+    "index plm.item_workflow_action_one_return_per_source"
+  ],
+  "prohibited_actions": [
+    "No preview, merge, or production action from this author",
+    "No row movement or grants in this migration; structure only",
+    "No writes outside the two tables and seven exact index objects claimed by #3502"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 -m unittest scripts.test_shared_db_live_proof",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Current main is 9794470eb01b974eb71ab31696c097d7383839da after #3489 merge; migration version 20260925222635 remains reserved by #3502.",
+    "SQL, proof, test, and documentation files retain byte-identical PR content from generation-6 exact-head reviewed source.",
+    "Completion head_sha denotes implementation commit; evidence-only tail carries both generation-7 files."
+  ],
+  "stop_conditions": [
+    "Stop if migration or proof differs from generation-6 reviewed head.",
+    "Stop if migration version or object claim collides with current main.",
+    "Stop if final exact-head reviews or CI fail."
+  ]
+}

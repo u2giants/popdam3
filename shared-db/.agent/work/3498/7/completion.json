@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "work_issue": 3498,
+  "outcome": "ready-for-merge",
+  "pr": 3510,
+  "migration_versions": [
+    "20260925222635"
+  ],
+  "contract_ref": "refs/db-contracts/3498/7",
+  "contract_sha256": "72350fab529099aadcf6065320206a2600b204f11103db3f02dbaac43a30793c",
+  "head_sha": "376d430e02a22e88bf2a81afa49a574b970cacdf",
+  "base_sha": "9794470eb01b974eb71ab31696c097d7383839da",
+  "files_changed": [
+    ".github/live-proofs/3498.sql",
+    "docs/designflow-master-data-migration/designflow-schema-segregation.md",
+    "supabase/migrations/20260925222635_plm_item_user_assignment_and_workflow_action.sql",
+    "supabase/tests/plm_item_assignment_action_homes_contract.sql"
+  ],
+  "db_reads": [
+    "table dflow.item_user_assignment",
+    "table dflow.item_workflow_action"
+  ],
+  "db_writes": [
+    "table plm.item_user_assignment",
+    "table plm.item_workflow_action",
+    "index plm.item_user_assignment_rfq_item_id_idx",
+    "index plm.item_workflow_action_rfq_item_id_idx",
+    "index plm.item_workflow_action_prior_step_id_idx",
+    "index plm.item_workflow_action_new_step_id_idx",
+    "index plm.item_workflow_action_source_action_rfq_item_idx",
+    "index plm.item_user_assignment_one_active",
+    "index plm.item_workflow_action_one_return_per_source"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Guard B and static checks passed against refreshed main; live-ledger Guard B2 remains governed CI/promotion check."
+    },
+    {
+      "command": "python3 -m unittest scripts.test_shared_db_live_proof",
+      "exit_code": 0,
+      "evidence": "28 tests passed."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Main now includes #3489 at 9794470e and remains below reserved migration 20260925222635.",
+    "Four implementation blobs are byte-identical to generation-6 reviewed PR head bde29aac.",
+    "Generation-6 evidence removed; generation-7 contract and completion form the only evidence tail.",
+    "Preview, merge and production remain root orchestrator duties."
+  ],
+  "stop_conditions_hit": []
+}
