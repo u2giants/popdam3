@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 2998,
+  "outcome": "ready-for-merge",
+  "pr": 3528,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2998/8",
+  "contract_sha256": "3fca7599dfa7b96a8ed9edd14ff034a6adcd9146c8d96062ba37005e6982ae90",
+  "head_sha": "ee54fc44c347e5761467ae75f0a30cdd7821832f",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "files_changed": [
+    "config/orchestrator-global-invalidators-v1.json",
+    "scripts/lib/reviewer-draw-readiness.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/queue-hygiene-report.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/reviewer-wire-budget.test.mjs scripts/check-pr-source-collisions.test.mjs scripts/check-pr-object-collisions.test.mjs scripts/orchestrator-flow/evidence-bundle.test.mjs scripts/queue-hygiene-report.test.mjs",
+      "exit_code": 0,
+      "evidence": "813 pass, 0 fail at ee54fc44 on main c0708496."
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "339 files scanned, every GitHub call goes through the transport, at ee54fc44."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "git diff --check on the ee54fc44 implementation change exited 0."
+    }
+  ],
+  "assumptions_resolved": [
+    "The previously published generation-8 contract names the two CI repair files; generation 7 was removed from the final PR diff so there is exactly one evidence pair.",
+    "The single githubIo hook handoffCollisions is a read; the readiness module no longer imports the object-collision guard, and its imports (github-transport, open-pr-files, check-pr-source-collisions) were already inventoried."
+  ],
+  "stop_conditions_hit": []
+}

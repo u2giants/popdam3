@@ -61,6 +61,7 @@ import { isContentPreservingRefresh } from './lib/pr-content-equivalence.mjs'
 import { wrapperEmitsGovernedVerdict } from './lib/reviewer-capabilities.mjs'
 import { classifyBranchFreshness } from './check-main-tip-freshness.mjs'
 import { MigrationTrainError, TRAIN_REF_PREFIX, assertDispatchMatchesTrain, assertRecordedTrain, assertTrainProductionEvidence, proposeTrain, trainRecordRef, transitionTrain, validateTrain } from './orchestrator-flow/migration-train.mjs'
+import { assertDrawPromptContract, collectHandoffCollisions, preDrawHandoffChecks } from './lib/reviewer-draw-readiness.mjs'
 
 // Resolved from explicit/env/verified origin, never hard-coded (#2530).
 export const REPO = currentRepository()
@@ -1870,10 +1871,12 @@ export function reviewRecordRefs(refs,matches=[]){
 // Rulebook files are excluded from the exemption, and the classifier fails closed:
 // if the changed-file list cannot be read, the draw proceeds exactly as before.
 // A refusal here is never silent -- it names the rule and the classification.
-export function assertReviewerDrawIsWarranted(pr,io=githubIo){
+export function assertReviewerDrawIsWarranted(pr,io=githubIo,rows){
   if(typeof io?.pullRequestFiles!=='function')return null
-  let rows
-  try{rows=io.pullRequestFiles(pr)}catch{return null}
+  if(rows===null)return null // the shared pre-draw read failed: proceed, no second fetch
+  if(rows===undefined){
+    try{rows=io.pullRequestFiles(pr)}catch{return null}
+  }
   const verdict=classifyChangedPaths(changedPathsFromPullRequestFiles(rows))
   if(!verdict.documentsOnly)return verdict
   throw new LaneError(`PR #${pr} is a documents-only change (${verdict.reason}), so it does not draw from the database reviewer pool (#2102). Every automated check still runs and it still merges through the guarded merge lane; the merge gate does not require a reviewer verdict for it. Rulebook files -- AGENTS.md, skills, plan_*.md -- are never documents for this purpose and would have been drawn for.`)
@@ -1899,10 +1902,11 @@ export function assertReviewerDrawIsWarranted(pr,io=githubIo){
 //    and the guarded merge lane still refuses a real conflict later regardless.
 //  - An unreadable PR proceeds exactly as before, matching the classifier above, so a
 //    transport fault never silently converts into a reviewer refusal.
-export function assertReviewerDrawReadiness(pr,io=githubIo){
+export function assertReviewerDrawReadiness(pr,io=githubIo,live){
   if(typeof io?.getPr!=='function')return null
-  let live
-  try{live=io.getPr(Number(pr))}catch{return null}
+  if(live===undefined){
+    try{live=io.getPr(Number(pr))}catch{return null}
+  }
   if(!live||typeof live!=='object')return null
   if(live.draft===true)throw new LaneError(`PR #${pr} is still a DRAFT, so no reviewer was drawn and no reviewer capacity was spent. A draft pull request cannot be merged, so a verdict on it could not be acted on. Mark the pull request ready for review, then assign a reviewer.`)
   // Closed-and-UNMERGED refuses (issue #3348). A merged pull request stays drawable:
@@ -1915,6 +1919,44 @@ export function assertReviewerDrawReadiness(pr,io=githubIo){
   if(String(live.state??'').toLowerCase()==='closed'&&mergeFieldsPresent&&live.merged!==true&&!live.merged_at)throw new LaneError(`PR #${pr} is CLOSED without being merged, so no reviewer was drawn and no reviewer capacity was spent. A verdict on an abandoned pull request can never be acted on. Reopen the pull request (or open a new one), then assign a reviewer.`)
   if(live.mergeable===false)throw new LaneError(`PR #${pr} conflicts with its base branch (GitHub reports mergeable=false), so no reviewer was drawn and no reviewer capacity was spent. Bring the branch up to date with main, resolve the conflict, push, then assign a reviewer.`)
   return {draft:false,mergeable:live.mergeable===undefined?null:live.mergeable}
+}
+
+// ISSUE #2998 — THE ONE PRE-DRAW HANDOFF READINESS RESULT.
+//
+// Every checkable pre-condition of a successful handoff runs HERE, side-effect
+// free, before any cursor, assignment or replacement mutation — and it runs on
+// BOTH draw paths, because a replacement draw spends reviewer capacity exactly
+// like a first draw. The two guards above are unchanged in behavior; they now
+// accept already-fetched reads, so those two reads are shared, never repeated:
+// a failed shared read is passed on as null (read failed, proceed) rather than
+// undefined (not fetched), so a flaky transport is not asked twice. The
+// protected-source collision scan costs extra reads only when this pull request
+// edits the protected source, and those are counted and capped in logical reads
+// (lib/reviewer-draw-readiness.mjs, PRE_DRAW_READ_BUDGET). The result is printed
+// to stderr as one `pre-draw readiness:` line, so a degraded check (transport)
+// is visible and never mistaken for a full pass.
+//
+// The file-list and PR reads that fail proceed, exactly as the guards above
+// always have. The collision guards proceed only on a genuine transport fault;
+// an incomplete input refuses (fail closed). A refusal never reads as an approval.
+function preDrawRead(fn,arg){
+  if(typeof fn!=='function')return undefined
+  try{return fn(arg)}catch{return null}
+}
+export function assertReviewerDrawHandoff(o,io=githubIo,{path='assign'}={}){
+  // 1. The carried brief is VALIDATED (not delivered) before anything is read
+  //    or consumed (#2998 fix 1); the runner still injects the VERDICT line.
+  assertDrawPromptContract({prompt:o.prompt,promptFile:o.promptFile,headSha:o.headSha})
+  // One fetch each, shared by all three guards below.
+  const rows=preDrawRead(io.pullRequestFiles?.bind(io),o.pr)
+  const live=preDrawRead(io.getPr?.bind(io),Number(o.pr))
+  // 2. Existing guards, unchanged, fed the shared reads.
+  assertReviewerDrawIsWarranted(o.pr,io,rows)
+  assertReviewerDrawReadiness(o.pr,io,live)
+  // 3. Evidence pair, current-with-main, cross-PR collision (#2998 fix 3).
+  const result=preDrawHandoffChecks({pr:Number(o.pr),headSha:o.headSha,issue:o.issue,rows,live,path},io)
+  console.error(`pre-draw readiness: ${JSON.stringify({evidence:{state:result.evidence?.state??null,validated:result.evidence?.validated??null,reason:result.evidence?.reason??null},currentMain:result.currentMain?.state??null,collisionReads:result.collisionReads,degraded:result.degraded})}`)
+  return result
 }
 
 // ISSUE #2448 — a close comment must state the cause that actually ran.
@@ -2186,6 +2228,11 @@ export const githubIo = {
   // raises, and `assertReviewerDrawIsWarranted` catches it and draws as before:
   // "we could not tell" costs a review, it never grants an exemption.
   pullRequestFiles(pr){return ghPaginated(`repos/${REPO}/pulls/${Number(pr)}/files?per_page=100`)},
+  // ISSUE #2998 — the cross-PR collision reads ride on this io so a test double
+  // without the hook skips the check, while the real CLI always runs it. The
+  // scan makes zero API calls unless this pull request edits a protected source
+  // and then reads under a counted logical-read ceiling.
+  handoffCollisions(pr,rows){return collectHandoffCollisions({repo:REPO,pr,rows})},
   readReviewerOperationRoute(pr){
     // Issue #3187: inside a reviewer operation the same snapshot also reads the PR's and
     // its single linked issue's review evidence, primed for the fresh state read that
@@ -9146,7 +9193,7 @@ function parseArgs(argv) {
     else if (a === '--confirm-stale') out.confirmStale = true
     else if (/^--acquire-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
     else if (/^--release-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
-    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--target-url','--description','--claim-number','--failed-sequence','--failure-code','--failing-check','--old-version','--reviewer','--reviewer-allowlist','--status','--wrapper','--version-pr-map','--blocked-on','--review-slot','--reason','--evidence','--evidence-sha','--verdict','--findings-ref','--replacement-sequence','--run-id','--artifact-id','--artifact-digest','--manifest-digest','--database-preview-classification-file','--worktree-state','--recovery-artifact','--hold-reason'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
+    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--target-url','--description','--claim-number','--failed-sequence','--failure-code','--failing-check','--old-version','--reviewer','--reviewer-allowlist','--status','--wrapper','--version-pr-map','--blocked-on','--review-slot','--reason','--evidence','--evidence-sha','--verdict','--findings-ref','--replacement-sequence','--run-id','--artifact-id','--artifact-digest','--manifest-digest','--database-preview-classification-file','--worktree-state','--recovery-artifact','--hold-reason','--prompt','--prompt-file'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
     else if(a==='--confirm-local-dependency-unfixable')out.confirmLocalDependencyUnfixable=true
     else if(a==='--skip-doctor')out.skipDoctor=true
     else if(a==='--confirm-no-verdict')out.confirmNoVerdict=true
@@ -9385,7 +9432,7 @@ export function main(argv, now = new Date(), io = githubIo) {
     // same readiness pre-conditions apply to it (governed review of PR #3338). Wiring
     // the guard to only one of the two draw paths left the waste class #2998 was filed
     // to stop wide open on the other.
-    if(o.replaceFailedReviewer){assertReviewerDrawIsWarranted(o.pr,io);assertReviewerDrawReadiness(o.pr,io);const result=replaceFailedReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1,admissionOptions:io.enforceAdmission===true?o:null},io);console.log(JSON.stringify(result,null,2));return 0}
+    if(o.replaceFailedReviewer){assertReviewerDrawHandoff(o,io,{path:'replace'});const result=replaceFailedReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1,admissionOptions:io.enforceAdmission===true?o:null},io);console.log(JSON.stringify(result,null,2));return 0}
     if(o.releaseFailedReviewer){console.log(JSON.stringify(releaseFailedReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},io),null,2));return 0}
     if(o.probeSilentReviewer){console.log(JSON.stringify(probeSilentReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},now,io),null,2));return 0}
     if(o.reclaimSilentReviewer){console.log(JSON.stringify(reclaimSilentReviewer({...o,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1},now,io),null,2));return 0}
@@ -9396,7 +9443,7 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.excludeReviewer){console.log(JSON.stringify(excludeReviewerForPr(o,io),null,2));return 0}
     if(o.reinstateReviewerExclusion){console.log(JSON.stringify(reinstateReviewerExclusion(o,io),null,2));return 0}
     if(o.reviewerPreflight){console.log(JSON.stringify(reviewerExecutionPreflight(o,io),null,2));return 0}
-    if(o.assignReviewer){assertReviewerDrawIsWarranted(o.pr,io);assertReviewerDrawReadiness(o.pr,io);console.log(JSON.stringify(assignWithMutexRetry({issue:o.issue,pr:o.pr,headSha:o.headSha,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1,reviewerAllowlist:o.reviewerAllowlist,admissionOptions:io.enforceAdmission===true?o:null},io),null,2));return 0}
+    if(o.assignReviewer){assertReviewerDrawHandoff(o,io,{path:'assign'});console.log(JSON.stringify(assignWithMutexRetry({issue:o.issue,pr:o.pr,headSha:o.headSha,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1,reviewerAllowlist:o.reviewerAllowlist,admissionOptions:io.enforceAdmission===true?o:null},io),null,2));return 0}
     if(o.activateReviewCutover){console.log(JSON.stringify(activateReviewCutover(io),null,2));return 0}
     if (o.acquireExclusive) { if(o.acquireExclusive!=='merge')requireAdmissionArguments(o,io,{pr:o.pr??null});console.log(JSON.stringify(acquireExclusive(o.acquireExclusive, { owner:o.owner, pr:o.pr, headSha:o.headSha, versions:o.versions, versionPrMap:o.versionPrMap, admissionOptions:o }, io), null, 2)); return 0 }
     if (o.releaseExclusive) { if (!o.ownerSha) throw new LaneError('--owner-sha is required for safe release'); releaseOwnedRef(EXCLUSIVE_REFS[o.releaseExclusive], o.ownerSha, io); return 0 }

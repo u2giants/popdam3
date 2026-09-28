@@ -1,0 +1,55 @@
+{
+  "allowed_paths": [
+    "scripts/lib/reviewer-draw-readiness.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/queue-hygiene-report.test.mjs",
+    "config/orchestrator-global-invalidators-v1.json",
+    ".agent/work/2998/8/contract.json",
+    ".agent/work/2998/8/completion.json"
+  ],
+  "assumptions": [
+    "The four original fixes of #2998 already landed through the PR #3338 / union PR #3354 merge; this contract covers only the remaining acceptance named in the 2026-09-20 audit comment on the issue.",
+    "Prompt arguments are optional at draw time: refresh-code-pr-branch re-draws with no brief and the codex wrapper takes no prompt by design, so the runner's pre-start prompt guard remains the backstop while a carried brief is validated before the draw.",
+    "Every pre-draw read fails open on transport trouble, matching the existing assertReviewerDrawReadiness doctrine: only a definite bad fact refuses a draw, and a refusal never reads as an approval.",
+    "Merged-pull-request draws (#2915) keep their current reachability: current-main and cross-PR checks are gated to open pull requests and evidence validation for a non-open pull request stops at classification plus content checks.",
+    "The cross-PR protected-source guard serializes this pull request behind the earlier ready pull requests editing scripts/manage-migration-author-lanes.mjs; that standing queue is honoured, not bypassed, and no --admin override is used."
+  ],
+  "base_sha": "b32deb1ce57d2158193100c72e40ab1ea720d72d",
+  "branch": "mimo/2998-handoff-failfast",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Owner Albert Hazan authorized resolving open non-orchestrator issues in this repository",
+  "file_writes": [
+    "scripts/lib/reviewer-draw-readiness.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/queue-hygiene-report.test.mjs",
+    "config/orchestrator-global-invalidators-v1.json",
+    ".agent/work/2998/8/contract.json",
+    ".agent/work/2998/8/completion.json"
+  ],
+  "generation": 8,
+  "goal": "Fail fast before a reviewer draw (#2998 remaining acceptance): validate the carried review prompt, the contract/completion evidence pair, current-with-main readiness, and cross-PR protected-source and object collision on BOTH the first (--assign-reviewer) and replacement (--replace-failed-reviewer) draw paths, as one side-effect-free readiness result before any cursor, assignment or replacement mutation, reusing the repository's existing validators. Generation 8 supersedes 7 only to add config/orchestrator-global-invalidators-v1.json (the manager import closure must inventory the new readiness module) and scripts/queue-hygiene-report.test.mjs (the githubIo hook classification must name the two new read hooks), both proven necessary by the first CI run on generation 7.",
+  "prohibited_actions": [
+    "No database, preview, production, repository-setting, or orchestrator-marker mutation.",
+    "Do not reduce what a reviewer must check, make any verdict optional, or let a failed handoff read as an approval.",
+    "Do not edit paths outside this contract; no --admin override on this code change."
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs scripts/reviewer-wire-budget.test.mjs scripts/check-pr-source-collisions.test.mjs scripts/check-pr-object-collisions.test.mjs scripts/orchestrator-flow/evidence-bundle.test.mjs scripts/queue-hygiene-report.test.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "git diff --check"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 1,
+  "stop_conditions": [
+    "A required check needs a file outside allowed_paths.",
+    "A change would reduce what a reviewer must check, make a verdict optional, or let a refusal read as an approval.",
+    "Reviewer allocation is refused repo-wide by a blocker unrelated to this change rather than by this readiness guard."
+  ],
+  "work_issue": 2998,
+  "work_type": "repo-maintenance",
+  "worker": "MiMo chat unknown on edge-dev",
+  "worktree": "C:/repos/shared-db-2998-handoff-failfast"
+}
