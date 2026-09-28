@@ -244,6 +244,22 @@ export const REVIEW_REF_ROW_LIMIT = 1000
 // what lets a fail-open catch re-raise instead of reporting "unreadable".
 export function markReviewRefListingRefusal(error,detail){error.reviewRefListingRefusal=detail;return error}
 export function isReviewRefListingRefusal(error){return Boolean(error?.reviewRefListingRefusal)}
+
+// Issue #3349. A transient read failure in the lease probe carries its cause --
+// which read, which ref, and the transport error -- so the caller names the real
+// reason instead of the generic "active reviewer leases are unreadable".
+export function markLeaseReadFailure(error,detail){error.leaseReadFailure=detail;return error}
+export function isLeaseReadFailure(error){return Boolean(error?.leaseReadFailure)}
+
+function leaseReadFailureError(detail){
+  const kind=detail.kind==='determinate'?'determinate':'transient'
+  const guidance=kind==='determinate'
+    ?'This is a determinate failure: no retry will clear it. The named remote reviewer lease ref needs governed recovery. Resolve the malformed lease before retiring abandoned leases with --reap-abandoned-review-leases --apply-recovery.'
+    :'Retry the operation.'
+  const where=detail.ref?` on ${detail.ref}`:''
+  const cause=detail.cause??'unknown error'
+  return markLeaseReadFailure(new LaneError(`active reviewer leases are unreadable (${kind} ${detail.read} failure${where}): ${cause}. ${guidance}`),detail)
+}
 // Issue #2711. A lease snapshot too large for one process argument fails at
 // spawn (E2BIG / ENAMETOOLONG / "argument list too long"). No retry can clear
 // that, so it is a determinate refusal naming the reap command, never the
@@ -2233,12 +2249,13 @@ export const githubIo = {
     const entries=[],leases=[]
     for(const [ref,sha] of present){
       const commit=commits.get(sha)
-      if(!commit?.message)throw new LaneError('active reviewer lease snapshot is unreadable')
+      if(!commit?.message)throw markLeaseReadFailure(new LaneError('active reviewer lease snapshot is unreadable'),{read:'lease snapshot commit',ref,kind:'determinate',cause:'commit has no message'})
       let lease
-      try{lease=parseReviewLease({message:commit.message})}catch{throw new LaneError('active reviewer lease snapshot is unreadable')}
-      if(!lease||!allowed.has(lease.reviewer))throw new LaneError('active reviewer lease snapshot is unreadable')
+      try{lease=parseReviewLease({message:commit.message})}
+      catch(error){throw markLeaseReadFailure(new LaneError(`active reviewer lease snapshot is unreadable: ${error.message}`),{read:'lease snapshot parse',ref,kind:'determinate',cause:error.message})}
+      if(!lease||!allowed.has(lease.reviewer))throw markLeaseReadFailure(new LaneError('active reviewer lease snapshot is unreadable'),{read:'lease snapshot reviewer',ref,kind:'determinate',cause:`reviewer ${lease?.reviewer??'unknown'} not in allowed set`})
       const legacy=reviewActiveRef(lease.reviewer),parallelRef=/^[0-9a-f]{40}$/i.test(lease.headSha)?reviewLeaseRefForAssignment(lease,true):null
-      if(ref!==legacy&&ref!==parallelRef)throw new LaneError('active reviewer lease ref does not match its durable assignment identity')
+      if(ref!==legacy&&ref!==parallelRef)throw markLeaseReadFailure(new LaneError('active reviewer lease ref does not match its durable assignment identity'),{read:'lease ref identity',ref,kind:'determinate',cause:`ref ${ref} does not match reviewer ${lease.reviewer} assignment identity`})
       entries.push([ref,{sha,commit:{message:commit.message,committedDate:commit.committedDate??null}}])
       leases.push(lease)
     }
@@ -2289,14 +2306,15 @@ export const githubIo = {
     const entries=[]
     refs.forEach((ref,index)=>{
       const target=repo[`r${index}`]
-      if(target===undefined)throw new LaneError('active reviewer lease snapshot is unreadable')
+      if(target===undefined)throw markLeaseReadFailure(new LaneError('active reviewer lease snapshot is unreadable'),{read:'lease snapshot target',ref,kind:'transient',cause:'GraphQL target is undefined'})
       if(target===null)return
-      if(!target?.oid||!target?.message)throw new LaneError('active reviewer lease snapshot is unreadable')
+      if(!target?.oid||!target?.message)throw markLeaseReadFailure(new LaneError('active reviewer lease snapshot is unreadable'),{read:'lease snapshot target',ref,kind:'determinate',cause:'target has no oid or message'})
       let lease
-      try{lease=parseReviewLease({message:target.message})}catch{throw new LaneError('active reviewer lease snapshot is unreadable')}
-      if(!allowed.has(lease.reviewer))throw new LaneError('active reviewer lease snapshot is unreadable')
+      try{lease=parseReviewLease({message:target.message})}
+      catch(error){throw markLeaseReadFailure(new LaneError(`active reviewer lease snapshot is unreadable: ${error.message}`),{read:'lease snapshot parse',ref,kind:'determinate',cause:error.message})}
+      if(!allowed.has(lease.reviewer))throw markLeaseReadFailure(new LaneError('active reviewer lease snapshot is unreadable'),{read:'lease snapshot reviewer',ref,kind:'determinate',cause:`reviewer ${lease?.reviewer??'unknown'} not in allowed set`})
       const legacy=reviewActiveRef(lease.reviewer),parallelRef=/^[0-9a-f]{40}$/i.test(lease.headSha)?reviewLeaseRefForAssignment(lease,true):null
-      if(ref!==legacy&&ref!==parallelRef)throw new LaneError('active reviewer lease ref does not match its durable assignment identity')
+      if(ref!==legacy&&ref!==parallelRef)throw markLeaseReadFailure(new LaneError('active reviewer lease ref does not match its durable assignment identity'),{read:'lease ref identity',ref,kind:'determinate',cause:`ref ${ref} does not match reviewer ${lease.reviewer} assignment identity`})
       entries.push([ref,{sha:target.oid,commit:{message:target.message,committedDate:target.committedDate??null}}])
     })
     return new Map(entries)
@@ -5136,9 +5154,9 @@ function isReviewAssignmentLive(assignment,states,io){
 // availability. (Before issue #3130 the test-only rotation helper kept rotating on
 // null; it no longer reads this at all.)
 export function findBusyReviewers(io,requested=[],{keepUnreadableLeases=false}={}){
-  if(typeof io.readRef!=='function')return null
+  if(typeof io.readRef!=='function')throw leaseReadFailureError({read:'readRef capability check',kind:'determinate',cause:'io.readRef is not a function'})
   let cutover
-  try{cutover=io.readRef(REVIEW_ACTIVE_CUTOVER_REF)}catch{return null}
+  try{cutover=io.readRef(REVIEW_ACTIVE_CUTOVER_REF)}catch(error){throw leaseReadFailureError({read:'cutover read',ref:REVIEW_ACTIVE_CUTOVER_REF,kind:'transient',cause:error?.message??String(error)})}
   if(!cutover)throw new LaneError('active reviewer lease cutover is incomplete; assignment refused')
   const busy=new Set()
   const stale=[]
@@ -5153,31 +5171,41 @@ export function findBusyReviewers(io,requested=[],{keepUnreadableLeases=false}={
   try{snapshot=typeof io.readActiveReviewLeases==='function'?io.readActiveReviewLeases():null}
   catch(error){
     if(isReviewRefListingRefusal(error))throw new LaneError(`active reviewer lease namespace cannot be listed: ${error.message}`)
-    return null
+    if(isLeaseReadFailure(error)){const d=error.leaseReadFailure;throw leaseReadFailureError({read:d.read??'lease snapshot read',ref:d.ref,kind:d.kind,cause:d.cause??error.message})}
+    throw leaseReadFailureError({read:'lease snapshot read',kind:'transient',cause:error?.message??String(error)})
   }
   const records=[]
   const refs=snapshot?[...snapshot.keys()]:[...ACTIVE_REVIEWERS,...OVERFLOW_REVIEWERS].map((reviewer)=>reviewActiveRef(reviewer.name))
   for(const ref of refs){
     let sha
-    try{sha=snapshot?snapshot.get(ref)?.sha??null:io.readRef(ref)}catch{return null}
+    try{sha=snapshot?snapshot.get(ref)?.sha??null:io.readRef(ref)}catch(error){throw leaseReadFailureError({read:'lease ref read',ref,kind:'transient',cause:error?.message??String(error)})}
     if(!sha)continue
     let assignment,commit
-    try{commit=snapshot?.get(ref)?.commit??io.getCommit(sha);assignment=parseReviewLease(commit)}catch{return null}
+    try{commit=snapshot?.get(ref)?.commit??io.getCommit(sha);assignment=parseReviewLease(commit)}
+    catch(error){
+      // A malformed lease is determinate: no retry parses it. A transport error
+      // (getCommit) is transient. Issue #3349. The production snapshot readers
+      // mark their parse failures via markLeaseReadFailure; the fallback reader
+      // path catches parseReviewLease directly.
+      if(isLeaseReadFailure(error)){const d=error.leaseReadFailure;throw leaseReadFailureError({read:d.read??'lease commit parse',ref:d.ref??ref,kind:d.kind,cause:d.cause??error.message})}
+      const isParse=error instanceof LaneError&&/malformed/i.test(error.message)
+      throw leaseReadFailureError({read:'lease commit parse',ref,kind:isParse?'determinate':'transient',cause:error?.message??String(error)})
+    }
     const reviewer=REVIEWERS.find((row)=>row.name===assignment?.reviewer)
     const legacy=reviewer?reviewActiveRef(reviewer.name):null
     const parallel=reviewer&&/^[0-9a-f]{40}$/i.test(assignment.headSha)?reviewLeaseRefForAssignment(assignment,true):null
-    if(!reviewer||ref!==legacy&&ref!==parallel||(io.requiresExactReviewHeadSha&&!/^[0-9a-f]{40}$/i.test(assignment.headSha)))return null
+    if(!reviewer||ref!==legacy&&ref!==parallel||(io.requiresExactReviewHeadSha&&!/^[0-9a-f]{40}$/i.test(assignment.headSha)))throw leaseReadFailureError({read:'lease ref structure',ref,kind:'determinate',cause:`lease ref does not match a recognized reviewer assignment (reviewer=${assignment?.reviewer??'unknown'})`})
     const heldSince=commit?.committedDate??commit?.committer?.date??commit?.commit?.committer?.date??null
     records.push({reviewer,ref,sha,assignment,heldSince})
   }
   let states=null
-    try{states=typeof io.readReviewStates==='function'?io.readReviewStates([...records.map((row)=>row.assignment),...requested]):null}catch{return null}
+    try{states=typeof io.readReviewStates==='function'?io.readReviewStates([...records.map((row)=>row.assignment),...requested]):null}catch(error){throw leaseReadFailureError({read:'review states read',kind:'transient',cause:error?.message??String(error)})}
   for(const {reviewer,ref,sha,assignment} of records){
     let prRow
     try{
       const state=states?.get(`${assignment.issue}:${assignment.pr}`)
       prRow=state?.pr??io.getPr(assignment.pr)
-    }catch{return null}
+    }catch(error){throw leaseReadFailureError({read:'lease PR read',ref,kind:'transient',cause:error?.message??String(error)})}
     if(prRow?.state!=='open'||prRow?.head?.sha!==assignment.headSha){stale.push({ref,sha,assignment});continue}
     let verdict
     try{verdict=hasVerdictForHead(assignment.issue,assignment.pr,assignment.headSha,io,leaseVerdictOptions(assignment))}catch(error){
@@ -5187,7 +5215,7 @@ export function findBusyReviewers(io,requested=[],{keepUnreadableLeases=false}={
       // Capacity reporting must retain the readable lease row so it can expose
       // the verdict read error on that row. Mutation callers keep the existing
       // fail-closed whole-probe behavior.
-      if(!keepUnreadableLeases)return null
+      if(!keepUnreadableLeases)throw leaseReadFailureError({read:'verdict read',ref,kind:'transient',cause:error?.message??String(error)})
       busy.add(assignment.reviewer)
       continue
     }

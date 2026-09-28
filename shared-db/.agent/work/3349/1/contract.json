@@ -1,0 +1,45 @@
+{
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3349/1/contract.json",
+    ".agent/work/3349/1/completion.json"
+  ],
+  "assumptions": [
+    "PR #3338 is closed unmerged; its fail-fast work does not cover the findBusyReviewers error-reporting defect, which is present on origin/main.",
+    "Open ready PRs #3396 (draft) and #3506 (merged) previously touched the protected script; #3396 is draft so it does not block the protected-source collision check."
+  ],
+  "base_sha": "b32deb1ce57d2158193100c72e40ab1ea720d72d",
+  "branch": "mimo/3349-lease-probe",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "MiMo repo-maintenance session for issue #3349",
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3349/1/contract.json",
+    ".agent/work/3349/1/completion.json"
+  ],
+  "generation": 1,
+  "goal": "Make the reviewer lease probe carry the real cause of a failed read (which read failed, which ref, the transport/parse error, transient vs determinate) on the refusal instead of collapsing every failure into \"active reviewer leases are unreadable\", without weakening fail-closed behavior (#3349).",
+  "prohibited_actions": [
+    "Do not change any database structure, migration, view, function, trigger, or live row.",
+    "Do not weaken fail-closed behavior: every current return-null path in findBusyReviewers must still refuse.",
+    "Do not raise REVIEW_REF_ROW_LIMIT or retire any ref.",
+    "Do not touch production, workflows, or secrets."
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 1,
+  "stop_conditions": [
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths.",
+    "Stop if any existing test asserting fail-closed refusal starts passing because the refusal disappeared."
+  ],
+  "work_issue": 3349,
+  "work_type": "repo-maintenance",
+  "worker": "MiMo chat unknown on edge-dev",
+  "worktree": "C:/repos/shared-db-3349"
+}
