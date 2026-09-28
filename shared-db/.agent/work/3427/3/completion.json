@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "contract_ref": "refs/db-contracts/3427/3",
+  "outcome": "ready-for-merge",
+  "head_sha": "f900b3baae1b996adc4cfcb25675f4a164298d91",
+  "work_issue": 3427,
+  "migration_versions": [],
+  "contract_sha256": "48acdcbb23e3f64816f1054bccb69508a363ee9c70b082753f96ced4bdfb3871",
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "evidence": "813 reviewer manager and exact-head tests pass on refreshed implementation head f900b3ba, including unbounded and legacy replacement slot discovery and wire budgets",
+      "exit_code": 0,
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/check-exact-head-approval.test.mjs"
+    },
+    {
+      "evidence": "8 historical identity lifecycle tests pass on refreshed implementation head f900b3ba",
+      "exit_code": 0,
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs"
+    },
+    {
+      "evidence": "truth audit OK: call_sites=317 sources=78 derived_digest=91ab50bcde4d on refreshed implementation head f900b3ba",
+      "exit_code": 0,
+      "command": "node scripts/check-throughput-truth-audit.mjs"
+    },
+    {
+      "evidence": "no whitespace errors on refreshed implementation head f900b3ba",
+      "exit_code": 0,
+      "command": "git diff --check"
+    }
+  ],
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "docs/verification/throughput-retired-identity-sites.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "base_sha": "8b35d64e10ab351909aa434d1840acd6b5cb5e98",
+  "pr": 3521,
+  "assumptions_resolved": [
+    "PR #3586 merged its pending historical identity ledger before this PR retired those identities",
+    "The retired identity verdicts and reasons match their original records",
+    "Reviewer peer discovery has no fixed slot ceiling and stays within the 25-request budget"
+  ],
+  "stop_conditions_hit": []
+}

@@ -27,13 +27,6 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:10203ad02cbf2b582359cb072ce142147e2970c7b9c0aee6318b80c1daf3c1f0:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:5711",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:14e03f439297e93956633573e69f4ec650cbbde1ab02de3677ccbe41412000a5:context-7428faf261f7d5be527defd5514d8a97834ca03ca1c51fabe111f0e1bf0e2a21",
-      "line_sha256": "14e03f439297e93956633573e69f4ec650cbbde1ab02de3677ccbe41412000a5",
-      "disposition": "excluded",
-      "reason": "Excluded: local tooling or CI wording matched the discovery pattern and makes no database presence, absence, or applied-migration claim."
-    },
-    {
       "site": "scripts/manage-migration-author-lanes.mjs:7100",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7:context-339bdfbb6f15a84e7908a538253ad9fe7340bc445971020d3ee696abb9de29e3",
       "line_sha256": "1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7",
@@ -122,14 +115,6 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:6276ee13ad22403bec37597da04e4e6b9b2b3c4fb62b00bbb08b4ebaee525bf2:1"
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:5701",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:725ad6a26a99dd10f4914ee276f361b53002358769a10700fe337cf72971536d:context-a26d2e11e4a6a2720a1f8b6e98e0b572160f5a317bd1a867ee0df2f3a9601730",
-      "line_sha256": "725ad6a26a99dd10f4914ee276f361b53002358769a10700fe337cf72971536d",
-      "disposition": "excluded",
-      "reason": "Throws the same slot-1-not-assigned refusal on the three-call fallback path; a control-flow refusal, not a throughput signal.",
-      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:725ad6a26a99dd10f4914ee276f361b53002358769a10700fe337cf72971536d:1"
-    },
-    {
       "site": "scripts/manage-migration-author-lanes.mjs:2415",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019:context-c2f512c23ffd4d20bb63f0f30599f6d46d525c6444ffcfc12d42fe0103540da4",
       "line_sha256": "7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019",
@@ -152,14 +137,6 @@
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415:1"
-    },
-    {
-      "site": "scripts/manage-migration-author-lanes.mjs:5657",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:9dac7631419297007ceea584de88ab851db2d59762e538577f7aaa37ef039446:context-70e9a5c96df3098bca4e62b7c01761f55035ac5ec51770896fdfff1d1f33249e",
-      "line_sha256": "9dac7631419297007ceea584de88ab851db2d59762e538577f7aaa37ef039446",
-      "disposition": "excluded",
-      "reason": "Builds the LaneError thrown when slot 1 was never assigned; the word missing is prose in the operator message, not a throughput or DDL-derivability signal.",
-      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:9dac7631419297007ceea584de88ab851db2d59762e538577f7aaa37ef039446:1"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:8790",
@@ -232,14 +209,6 @@
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:ce0ab3a91a6f988f7aa5002646c036fdcabab77a37713a33a87f8a8668d9e835:1"
-    },
-    {
-      "site": "scripts/manage-migration-author-lanes.mjs:5690",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:d168f4919a6088f9a4f3293afd73123c1847251f17c9d5f491b64b2dcde71e4a:context-a2c4f9c4551bb0547f0a6d7c0f2eb7aa3db853df71cea77170d9847a89a742ff",
-      "line_sha256": "d168f4919a6088f9a4f3293afd73123c1847251f17c9d5f491b64b2dcde71e4a",
-      "disposition": "excluded",
-      "reason": "Throws the slot-1-not-assigned refusal on the batched read path; a control-flow refusal, carrying no throughput guard meaning.",
-      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:d168f4919a6088f9a4f3293afd73123c1847251f17c9d5f491b64b2dcde71e4a:1"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:8743",

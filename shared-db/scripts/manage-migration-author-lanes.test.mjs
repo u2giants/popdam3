@@ -15,6 +15,7 @@ import { OWN_START_ONLY_ACTIVITY, ENGINE_REVIEWER_EXCLUSION } from './manage-mig
 import { assignWithMutexRetry } from './manage-migration-author-lanes.mjs'
 import { SLOT_INDEPENDENCE_CONFLICT } from './manage-migration-author-lanes.mjs'
 import { canonicalReviewerAllowlist } from './manage-migration-author-lanes.mjs'
+import { parseAssignmentRef } from './manage-migration-author-lanes.mjs'
 import { setScopeStatus, wrongOwnerMessage } from './manage-migration-author-lanes.mjs'
 import { readyRecord, persistInitialReady } from './orchestrator-flow/reconcile.mjs'
 import { canonicalJson, sha256 } from './orchestrator-flow/evidence-bundle.mjs'
@@ -1161,8 +1162,10 @@ test('10,000 historical assignments do not change bounded availability cost',()=
     return {requests,activeReads,historyScans}
   }
   const empty=run(0), large=run(10_000)
-  assert.equal(large.historyScans,0);assert.equal(empty.requests,large.requests)
-  assert.equal(large.requests,21,JSON.stringify(large));assert.equal(large.activeReads,0,JSON.stringify(large))
+  // One head-narrowed prefix scan discovers peer slots; it is O(1) in history
+  // because the prefix names the exact issue/pr/head. Cost must stay constant.
+  assert.equal(large.historyScans,1);assert.equal(empty.requests,large.requests)
+  assert.equal(large.requests,20,JSON.stringify(large));assert.equal(large.activeReads,0,JSON.stringify(large))
 })
 
 test('complete assignment stays inside the real wire-attempt budget',()=>{
@@ -1252,7 +1255,7 @@ test('complete slot-2 assignment stays inside the real wire-attempt budget (issu
   // section still fits. Both reviewers derived that mechanism correctly, and
   // the wrong name was nearly merged anyway -- so the gate is now asserted by
   // behaviour below, not only by its numeral.
-  assert.equal(attempts,24,`slot 2 used ${attempts} wire attempts including a fresh slot-1 independence check; keep the ${REVIEW_OPERATION_REQUEST_LIMIT}-request ceiling`)
+  assert.equal(attempts,23,`slot 2 used ${attempts} wire attempts with the shared peer resolver; keep the ${REVIEW_OPERATION_REQUEST_LIMIT}-request ceiling`)
   assert.equal(REVIEW_MUTEX_SECTION_RESERVE,15,'the mutex-section entry-gate reserve changed without this budget being re-derived')
   assert.equal(REVIEW_OPERATION_REQUEST_LIMIT,25,'the ceiling changed; re-derive it against the real cost rather than raising it again')
   // The three pins above are near-tautologies: they restate constants. None of
@@ -1303,13 +1306,13 @@ test('complete replacement stays inside the real wire-attempt budget',()=>{
   assert.ok(result.reviewer);assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`used ${attempts} wire attempts`)
   const mutexAt=labels.indexOf(`createRef:${MUTEX_REF}`)
   assert.notEqual(mutexAt,-1,`mutex acquisition was not observed: ${labels.join(',')}`)
-  assert.equal(mutexAt,10,'the first replacement path spends 10 requests before its mutex gate, including the fixed slot-2 independence read')
-  assert.equal(labels.length-mutexAt,12,`new replacement success path costs exactly 12 requests after mutex acquisition including the fresh independence read: ${labels.slice(mutexAt).join(',')}`)
+  assert.equal(mutexAt,11,'the first replacement path spends 11 requests before its mutex gate with the shared peer resolver')
+  assert.equal(labels.length-mutexAt,13,`new replacement success path costs 13 requests after mutex acquisition with the shared peer resolver: ${labels.slice(mutexAt).join(',')}`)
   attempts=0;labels.length=0
   assert.deepEqual(replaceFailedReviewer(replacementRequest,io),result)
   const retryMutexAt=labels.indexOf(`createRef:${MUTEX_REF}`)
   assert.notEqual(retryMutexAt,-1,`retry mutex acquisition was not observed: ${labels.join(',')}`)
-  assert.equal(retryMutexAt,11,'the idempotent path spends 11 requests before its mutex gate, including the fixed slot-2 independence read')
+  assert.equal(retryMutexAt,14,'the idempotent path spends 14 requests before its mutex gate with the shared peer resolver')
   assert.equal(labels.length-retryMutexAt,10,`idempotent replacement success path costs exactly 10 requests after mutex acquisition: ${labels.slice(retryMutexAt).join(',')}`)
   const source=readFileSync(new URL('./manage-migration-author-lanes.mjs',import.meta.url),'utf8')
   assert.match(source,/requireReviewWireCapacity\(11\);acquireReviewMutex\(ownerSha,io\);mutexAcquired=true/,'the idempotent reserve changed without re-derivation')
@@ -2037,9 +2040,9 @@ test('three terminal providers do not grow replacement preflight past the fixed 
   const third=replaceFailedReviewer({...replacementRequest,failedSequence:second.sequence},io)
   assert.ok(third.reviewer)
   const mutexAt=labels.indexOf(`createRef:${MUTEX_REF}`)
-  assert.equal(mutexAt,10,`third terminal-provider replacement pre-mutex accounting drifted: ${labels.join(',')}`)
-  assert.equal(labels.length-mutexAt,11,`third terminal-provider replacement post-mutex accounting drifted: ${labels.join(',')}`)
-  assert.equal(attempts,21,`third terminal-provider replacement wire accounting drifted: ${labels.join(',')}`)
+  assert.equal(mutexAt,11,`third terminal-provider replacement pre-mutex accounting drifted: ${labels.join(',')}`)
+  assert.equal(labels.length-mutexAt,12,`third terminal-provider replacement post-mutex accounting drifted: ${labels.join(',')}`)
+  assert.equal(attempts,23,`third terminal-provider replacement wire accounting drifted: ${labels.join(',')}`)
   assert.ok(attempts<=REVIEW_OPERATION_REQUEST_LIMIT,`third terminal-provider replacement used ${attempts} wire attempts`)
   const source=readFileSync(new URL('./manage-migration-author-lanes.mjs',import.meta.url),'utf8')
   assert.match(source,/const allRefs=reviewRecordRefs\(\[\.\.\.refs,\.\.\.dependentFailures\],matches\)/,'the production batch must include every immutable matching replacement, predecessor failure and verdict ref')
@@ -5740,6 +5743,110 @@ test('#3427 a conflicting slot-1 replacement is refused and can be redrawn witho
   assert.equal(io.refs.get(replacementRef),conflictingSha,'conflict history remains immutable')
   assert.ok(io.refs.has(`${REVIEW_REPLACEMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}-${sequence}`))
   assert.equal(io.refs.get(started),recovered.replacementSha,'the atomic recovery seals the unstarted conflicting review against a late launch')
+})
+
+test('#3427 slot 3 draws a third distinct provider and refuses both peer holders',()=>{
+  const io=reviewIo(),request={issue:3430,pr:3431,headSha:'c'.repeat(40)}
+  const first=assignNextReviewer(request,io)
+  const second=assignNextReviewer({...request,slot:2},io)
+  const third=assignNextReviewer({...request,slot:3},io)
+  assert.equal(third.slot,3)
+  assert.notEqual(third.reviewer,first.reviewer,'slot 3 must not duplicate slot 1')
+  assert.notEqual(third.reviewer,second.reviewer,'slot 3 must not duplicate slot 2')
+  // Idempotent retry of each slot stays stable.
+  assert.deepEqual(assignNextReviewer(request,io),first)
+  assert.deepEqual(assignNextReviewer({...request,slot:2},io),second)
+  assert.deepEqual(assignNextReviewer({...request,slot:3},io),third)
+})
+
+test('#3427 batched peer read includes an occupied slot above 64 without an extra namespace request',()=>{
+  const io=reviewIo(),request={issue:3436,pr:3437,headSha:'e'.repeat(40)}
+  const first=assignNextReviewer(request,io)
+  const occupied=ACTIVE_REVIEWERS.find((row)=>row.name!==first.reviewer).name
+  const highRef=`${REVIEW_ASSIGNMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}-slot65`
+  const highSha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=${first.sequence+1} reviewer=${occupied} issue=${request.issue} pr=${request.pr} head=${request.headSha} slot=65`)
+  io.refs.set(highRef,highSha)
+  io.readReviewRecords=(refs,prefix,_failurePrefix,assignmentPrefix)=>{
+    if(assignmentPrefix)assert.equal(assignmentPrefix,`${REVIEW_ASSIGNMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}`)
+    const matching=[...io.refs.entries()].filter(([ref])=>prefix&&ref.startsWith(prefix)||assignmentPrefix&&ref.startsWith(assignmentPrefix)).map(([ref,sha])=>({ref,sha,commit:io.getCommit(sha)}))
+    const records=new Map(refs.map((ref)=>{const sha=io.refs.get(ref);return [ref,sha?{sha,commit:io.getCommit(sha)}:null]}))
+    Object.defineProperty(records,'matching',{value:matching})
+    return records
+  }
+  const second=assignNextReviewer({...request,slot:2},io)
+  assert.notEqual(second.reviewer,first.reviewer)
+  assert.notEqual(second.reviewer,occupied)
+})
+
+test('#3427 legacy unsuffixed slot-one replacement excludes its live holder in fallback and batched reads',()=>{
+  for(const batched of [false,true]){
+    const io=reviewIo(),request={issue:3438,pr:3439,headSha:'a'.repeat(40)}
+    const first=assignNextReviewer(request,io)
+    const live=ACTIVE_REVIEWERS.find((row)=>row.name!==first.reviewer).name
+    const legacyRef=`${REVIEW_REPLACEMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}`
+    const legacySha=io.makeOwnerCommit(`db-coordination reviewer-failure-replacement sequence=${first.sequence+1} reviewer=${live} issue=${request.issue} pr=${request.pr} head=${request.headSha} slot=1 failed-sequence=${first.sequence} prior-sequence=${first.sequence} failure-ref=self failed-reviewer=${first.reviewer} code=turn_limit_cancelled verdict=none artifact=none`)
+    io.refs.set(legacyRef,legacySha)
+    assert.equal(parseAssignmentRef(legacyRef),null,'the shared ref parser keeps its strict contract')
+    assert.equal(parseAssignmentRef(`${legacyRef}-slot2`),null,'unsuffixed replacement is legacy slot one only')
+    if(batched)io.readReviewRecords=(refs,prefix,_failurePrefix,assignmentPrefix)=>{
+      const matching=[...io.refs.entries()].filter(([ref])=>prefix&&ref.startsWith(prefix)||assignmentPrefix&&ref.startsWith(assignmentPrefix)).map(([ref,sha])=>({ref,sha,commit:io.getCommit(sha)}))
+      const records=new Map(refs.map((ref)=>{const sha=io.refs.get(ref);return [ref,sha?{sha,commit:io.getCommit(sha)}:null]}))
+      Object.defineProperty(records,'matching',{value:matching})
+      return records
+    }
+    const second=assignNextReviewer({...request,slot:2},io)
+    assert.notEqual(second.reviewer,live,`slot two must exclude the live legacy replacement (${batched?'batched':'fallback'})`)
+  }
+})
+
+test('#3427 a slot-one replacement with a conflicting durable allowlist refuses the next peer draw',()=>{
+  const io=reviewIo(),request={issue:3434,pr:3435,headSha:'f'.repeat(40)}
+  const first=assignNextReviewer(request,io)
+  const sequence=first.sequence+1
+  const replacementRef=`${REVIEW_REPLACEMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}-${first.sequence}`
+  const replacementSha=io.makeOwnerCommit(`db-coordination reviewer-failure-replacement sequence=${sequence} reviewer=${first.reviewer} issue=${request.issue} pr=${request.pr} head=${request.headSha} slot=1 allowlist=${first.reviewer} failed-sequence=${first.sequence} prior-sequence=${first.sequence} failure-ref=self failed-reviewer=${first.reviewer} code=turn_limit_cancelled verdict=none artifact=none`)
+  io.refs.set(replacementRef,replacementSha)
+  assert.throws(()=>assignNextReviewer({...request,slot:2},io),/conflicting allowlists/)
+})
+
+test('#3427 slot 1 replacement after three slots draws a provider outside all peers',()=>{
+  const io=withAtomicRefs(reviewIo()),request={issue:3432,pr:3433,headSha:'d'.repeat(40)}
+  io.requiresExactReviewHeadSha=true
+  io.getPr=()=>({number:request.pr,state:'open',head:{sha:request.headSha,ref:'codex/x'}})
+  const first=assignNextReviewer(request,io)
+  const second=assignNextReviewer({...request,slot:2},io)
+  const third=assignNextReviewer({...request,slot:3},io)
+  const peers=new Set([first.reviewer,second.reviewer,third.reviewer])
+  // Forge a conflicting slot-1 replacement that names the slot-3 provider.
+  const sequence=third.sequence+1
+  const replacementRef=`${REVIEW_REPLACEMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}-${first.sequence}`
+  const failureRef=`${REVIEW_FAILURE_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}-${first.sequence}`
+  const conflictingSha=io.makeOwnerCommit(`db-coordination reviewer-failure-replacement sequence=${sequence} reviewer=${third.reviewer} issue=${request.issue} pr=${request.pr} head=${request.headSha} slot=1 failed-sequence=${first.sequence} prior-sequence=${third.sequence} failure-ref=self failed-reviewer=${first.reviewer} code=turn_limit_cancelled verdict=none artifact=none`)
+  io.refs.set(replacementRef,conflictingSha);io.refs.set(failureRef,conflictingSha);io.refs.set(REVIEW_CURSOR_REF,conflictingSha)
+  io.refs.delete(reviewActiveRef(first.reviewer,first))
+  // Give the peers verdicts so recovery proves the other slots are preserved.
+  const secondVerdict=giveVerdict(io,{...request,slot:2}),secondSha=io.refs.get(secondVerdict)
+  const thirdVerdict=giveVerdict(io,{...request,slot:3}),thirdSha=io.refs.get(thirdVerdict)
+  assert.throws(()=>assignNextReviewer(request,io),/already holds another review slot/)
+  const started=reviewStartedMarkerRef({...request,slot:1,sequence})
+  const recovered=replaceFailedReviewer({...request,failedSequence:sequence,failureCode:SLOT_INDEPENDENCE_CONFLICT,confirmNoVerdict:true,confirmNoArtifact:true},io)
+  assert.ok(!peers.has(recovered.reviewer),'the redrawn slot-1 provider must differ from every peer')
+  assert.equal(io.refs.get(secondVerdict),secondSha,'the slot-2 verdict is untouched')
+  assert.equal(io.refs.get(thirdVerdict),thirdSha,'the slot-3 verdict is untouched')
+  assert.equal(io.refs.get(replacementRef),conflictingSha,'conflict history remains immutable')
+  assert.equal(io.refs.get(started),recovered.replacementSha,'the recovery seals the unstarted conflicting review')
+})
+
+test('#3427 head-SHA case is normalized so peer exclusion sees the same namespace',()=>{
+  const io=reviewIo(),lower='e'.repeat(40),upper=lower.toUpperCase()
+  const first=assignNextReviewer({issue:3434,pr:3435,headSha:upper},io)
+  // The request above stores lowercase internally; the assignment ref is lowercase.
+  assert.ok(io.refs.has(`${REVIEW_ASSIGNMENT_REF_PREFIX}/3434-3435-${lower}`),'the assignment ref must be lowercase')
+  const second=assignNextReviewer({issue:3434,pr:3435,headSha:lower,slot:2},io)
+  assert.notEqual(second.reviewer,first.reviewer,'slot 2 drawn with a lowercase head must see the uppercase-drawn slot 1 peer')
+  // Retrying with the original uppercase input still resolves the same records.
+  assert.deepEqual(assignNextReviewer({issue:3434,pr:3435,headSha:upper},io),first)
+  assert.deepEqual(assignNextReviewer({issue:3434,pr:3435,headSha:upper,slot:2},io),second)
 })
 
 // LEGACY SHORT-HEAD FIXTURE PROTOCOL ONLY: reviewIo() sets no requiresExactReviewHeadSha, so
