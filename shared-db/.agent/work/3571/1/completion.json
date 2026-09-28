@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "work_issue": 3571,
+  "outcome": "ready-for-merge",
+  "pr": 3572,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3571/1",
+  "contract_sha256": "355826b4996f35b7c0415896550d72b16b5400cd986e43fe2ae3eca6010844ad",
+  "base_sha": "448fc15fc2b458589d698965ed34c6071e56dd49",
+  "head_sha": "3b98e49c396042fc260d6ec9635023db51697b7a",
+  "files_changed": [".github/workflows/guarded-migration-merge.yml"],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [{"command": "node --test scripts/check-merge-queue-workflows.test.mjs", "exit_code": 0, "evidence": "19 passed, 0 failed on implementation head 3b98e49c"}],
+  "assumptions_resolved": ["Both preflight invocations now receive AUTHORITY_TOKEN from the existing SYNC_TOKEN secret. All other workflow steps retain their current token use."],
+  "stop_conditions_hit": []
+}

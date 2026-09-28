@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 3571,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Pass the existing SYNC_TOKEN secret as AUTHORITY_TOKEN to the two guarded-merge required-check preflight invocations, so issue 3361 can replace the mirror preflight with live authority reads after this workflow lands on main.",
+  "base_sha": "448fc15fc2b458589d698965ed34c6071e56dd49",
+  "dispatcher": "Codex parent session for non-orchestrator issue 3361",
+  "worker": "Codex chat unknown on edge-dev3",
+  "branch": "codex/authority-token-bootstrap-3361",
+  "worktree": "/home/ahazan/repos/shared-db/.ai/worktrees/authority-token-bootstrap-3361",
+  "allowed_paths": [".github/workflows/guarded-migration-merge.yml", ".agent/work/3571/1/contract.json", ".agent/work/3571/1/completion.json"],
+  "file_writes": [".github/workflows/guarded-migration-merge.yml", ".agent/work/3571/1/contract.json", ".agent/work/3571/1/completion.json"],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": ["Do not change database structure or data", "Do not change required-check settings", "Do not expose the token value"],
+  "required_checks": ["node --test scripts/check-merge-queue-workflows.test.mjs"],
+  "assumptions": ["SYNC_TOKEN already exists as a repository secret and has repo scope, as proved in issue 3361. The old preflight ignores AUTHORITY_TOKEN; this change prepares main's workflow for issue 3361's new preflight."],
+  "stop_conditions": ["Stop if any required check or governed review refuses"]
+}
