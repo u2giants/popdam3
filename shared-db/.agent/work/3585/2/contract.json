@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "work_issue": 3585,
+  "generation": 2,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Preserve historical truth-audit dispositions when reviewer slot refactoring retires source call sites, while refusing unexplained deletion or altered verdicts",
+  "base_sha": "1660f92020a132d15465c1da5e860fdd281b7e24",
+  "dispatcher": "Codex chat 01a0e599-4717-7991-a584-f6190638cb92",
+  "worker": "Codex chat 01a0e599-4717-7991-a584-f6190638cb92",
+  "branch": "codex/3585-audit-retirement",
+  "worktree": "/home/ahazan/repos/shared-db-3585",
+  "allowed_paths": [
+    "scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+    "docs/verification/throughput-retired-identity-sites.json",
+    ".agent/work/3585/2/contract.json",
+    ".agent/work/3585/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+    "docs/verification/throughput-retired-identity-sites.json",
+    ".agent/work/3585/2/contract.json",
+    ".agent/work/3585/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database write, migration edit, production action, or audit guard bypass",
+    "Do not weaken the current semantic inventory guard",
+    "Do not edit shared checkout or PR #3521 contract"
+  ],
+  "required_checks": [
+    "node --test scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Four current reviewer-manager call sites are removed by PR #3521",
+    "The historical audit snapshot remains immutable"
+  ],
+  "stop_conditions": [
+    "Stop if any historical verdict or reason changes",
+    "Stop if a missing historical site is not explicitly archived",
+    "Stop if the change needs a file outside allowed_paths"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "contract_ref": "refs/db-contracts/3585/2",
+  "contract_sha256": "3c238b4da0a39123768ac8efa7158963460d4764ca01b9e6f076e5b51591d643",
+  "work_issue": 3585,
+  "pr": 3586,
+  "outcome": "ready-for-merge",
+  "head_sha": "2faaf332041a048992c01797b50d72f2bffdc5b4",
+  "base_sha": "1660f92020a132d15465c1da5e860fdd281b7e24",
+  "files_changed": [
+    "docs/verification/throughput-retired-identity-sites.json",
+    "scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs"
+  ],
+  "migration_versions": [],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+      "exit_code": 0,
+      "evidence": "8 context tests pass, including negative retirement cases"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=324 sources=76 derived_digest=f44461cb6d08"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "no whitespace errors"
+    }
+  ],
+  "assumptions_resolved": [
+    "Three historical identities are staged as pending while their call sites remain present",
+    "The archive requires a completed retirement when a historical site disappears"
+  ],
+  "stop_conditions_hit": []
+}

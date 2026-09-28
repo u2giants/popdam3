@@ -44,17 +44,44 @@ test('malicious source encodings and excluded roots refuse', () => {
   }
 });
 
-test('context migration preserves every historical identity hash verdict and reason', () => {
+function assertHistoricalDispositions(historical, current, retired) {
+  assert.equal(new Set(retired.map((row) => row.semantic_key)).size, retired.length, 'retired identity keys must be unique');
+  const historicalByKey = new Map(historical.map((row) => [row.semantic_key, row]));
+  for (const row of retired) {
+    const original = historicalByKey.get(row.semantic_key);
+    assert.ok(original, `retired identity was not in the historical audit: ${row.semantic_key}`);
+    for (const field of ['line_sha256', 'disposition', 'reason']) assert.equal(row[field], original[field], `retired identity changed its historical ${field}`);
+  }
+  const retiredByKey = new Map(retired.map((row) => [row.semantic_key, row]));
+  for (const original of historical) {
+    const matches = current.filter((row) => (row.legacy_semantic_key ?? row.semantic_key) === original.semantic_key);
+    assert.ok(matches.length <= 1, `duplicate current historical identity: ${original.semantic_key}`);
+    const retirement = retiredByKey.get(original.semantic_key);
+    if (matches.length && retirement) assert.equal(retirement.state, 'pending', `live identity cannot already be retired: ${original.semantic_key}`);
+    if (!matches.length && retirement) assert.equal(retirement.state, 'retired', `missing identity needs a completed retirement: ${original.semantic_key}`);
+    const matched = matches[0] ?? retirement;
+    assert.ok(matched, `historical identity disappeared without a retirement record: ${original.semantic_key}`);
+    for (const field of ['line_sha256', 'disposition', 'reason']) assert.equal(matched[field], original[field], `${original.semantic_key}: ${field}`);
+  }
+}
+
+test('context migration preserves every historical identity hash verdict and reason, including explicit retirements', () => {
   const root = path.resolve(import.meta.dirname, '../..');
   const historical = JSON.parse(fs.readFileSync(path.join(root, HISTORICAL_AUDIT), 'utf8')).sites;
   const current = [...readCatalogues(root).values()].flatMap(({ sites }) => sites);
-  for (const original of historical) {
-    const matches = current.filter((row) => (row.legacy_semantic_key ?? row.semantic_key) === original.semantic_key);
-    assert.equal(matches.length, 1, original.semantic_key);
-    assert.equal(matches[0].line_sha256, original.line_sha256);
-    assert.equal(matches[0].disposition, original.disposition);
-    assert.equal(matches[0].reason, original.reason);
-  }
+  const archive = JSON.parse(fs.readFileSync(path.join(root, 'docs/verification/throughput-retired-identity-sites.json'), 'utf8'));
+  assert.equal(archive.schema_version, 1);
+  assert.equal(archive.retired_by_pr, 3521);
+  assertHistoricalDispositions(historical, current, archive.sites);
+});
+
+test('historical identity retirement refuses unexplained loss and changed verdicts', () => {
+  const row = { semantic_key: 'scripts/x.py:hash:1', line_sha256: 'hash', disposition: 'excluded', reason: 'reviewed reason' };
+  assert.throws(() => assertHistoricalDispositions([row], [], []), /disappeared without a retirement record/);
+  assert.throws(() => assertHistoricalDispositions([row], [], [{ ...row, state: 'retired', reason: 'new reason' }]), /changed its historical reason/);
+  assert.throws(() => assertHistoricalDispositions([row], [], [{ ...row, state: 'pending' }]), /needs a completed retirement/);
+  assert.throws(() => assertHistoricalDispositions([row], [row], [{ ...row, state: 'retired' }]), /live identity cannot already be retired/);
+  assert.throws(() => assertHistoricalDispositions([row], [], [row, row]), /keys must be unique/);
 });
 
 test('separate YAML jobs distinguish identical snippets without ordinal identity', () => {
