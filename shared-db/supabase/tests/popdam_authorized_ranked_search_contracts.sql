@@ -94,8 +94,14 @@ begin
     raise exception 'legacy unfiltered ranked-search overload survived ordered replay';
   end if;
 
+  if to_regprocedure(
+       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)'
+     ) is not null then
+    raise exception 'old 7-arg ranked-search overload survived the semantic-floor signature swap';
+  end if;
+
   select pg_get_functiondef(
-    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)'::regprocedure
+    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'::regprocedure
   ) into v_definition;
 
   if position('candidate_asset_ids as materialized' in v_definition) = 0
@@ -119,6 +125,13 @@ begin
   if position('* 0.35' in v_definition) = 0 then
     raise exception 'hybrid search semantic weighting changed';
   end if;
+  if position('min_semantic_score' in v_definition) = 0
+     or position('p_min_semantic_score' in v_definition) = 0 then
+    raise exception 'semantic-only score floor parameter is missing from ranked search';
+  end if;
+  if position('p.min_semantic_score is null' in v_definition) = 0 then
+    raise exception 'semantic floor must be applied only inside the semantic leg before blend';
+  end if;
   if position('total_count' in v_definition) = 0
      or position('has_more' in v_definition) = 0
      or position('facets' in v_definition) = 0 then
@@ -126,9 +139,11 @@ begin
   end if;
 
   if has_function_privilege('anon',
-       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)', 'EXECUTE')
+       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)', 'EXECUTE')
      or not has_function_privilege('authenticated',
-       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)', 'EXECUTE') then
+       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)', 'EXECUTE')
+     or not has_function_privilege('service_role',
+       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)', 'EXECUTE') then
     raise exception 'ranked search execute grants violate the authenticated boundary';
   end if;
 
@@ -178,7 +193,7 @@ begin
     raise exception 'ranked Style Group expansion requires its active asset key index';
   end if;
   select pg_get_functiondef(
-    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)'::regprocedure
+    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'::regprocedure
   ) into v_definition;
   if position('candidate_asset_ids' in v_definition) = 0
      or position('select distinct a.document_type, a.entity_id, a.asset_id' in v_definition) = 0 then
@@ -216,7 +231,7 @@ begin
   end if;
   if not exists (
     select 1 from pg_proc
-    where oid = 'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)'::regprocedure
+    where oid = 'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'::regprocedure
       and 'statement_timeout=8s' = any(coalesce(proconfig,'{}'))
   ) then
     raise exception 'ranked search lost its explicit edge timeout';

@@ -1052,7 +1052,7 @@ CATALOG_CONTRACTS = {
         and position('select distinct a.*' in pg_get_functiondef(p.oid)) = 0
         and 'statement_timeout=8s' = any(coalesce(p.proconfig, '{}'))
         from pg_proc p
-        where p.oid = to_regprocedure('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)'))
+        where p.oid = to_regprocedure('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'))
       and (select
         position('require_dam_access' in pg_get_functiondef(p.oid)) > 0
         and (length(pg_get_functiondef(p.oid)) - length(replace(pg_get_functiondef(p.oid),
@@ -1063,9 +1063,9 @@ CATALOG_CONTRACTS = {
         from pg_proc p
         where p.oid = to_regprocedure('public.get_filter_counts(jsonb)'))
       and not has_function_privilege('anon',
-        'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)', 'EXECUTE')
+        'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)', 'EXECUTE')
       and has_function_privilege('authenticated',
-        'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)', 'EXECUTE')
+        'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)', 'EXECUTE')
       and not has_function_privilege('anon', 'public.get_filter_counts(jsonb)', 'EXECUTE')
       and has_function_privilege('authenticated', 'public.get_filter_counts(jsonb)', 'EXECUTE')
 """,
@@ -1081,7 +1081,7 @@ CATALOG_CONTRACTS = {
         and position('select distinct a.*' in pg_get_functiondef(p.oid)) = 0
         and 'statement_timeout=8s' = any(coalesce(p.proconfig, '{}'))
         from pg_proc p
-        where p.oid = to_regprocedure('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)'))
+        where p.oid = to_regprocedure('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'))
       and (select
         position('authorized as materialized' in pg_get_functiondef(p.oid)) > 0
         and position('require_dam_access' in pg_get_functiondef(p.oid)) > 0
@@ -1174,11 +1174,11 @@ CATALOG_CONTRACTS = {
         and 'statement_timeout=8s' = any(coalesce(p.proconfig, '{}'))
         from pg_proc p
         where p.oid = to_regprocedure(
-          'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)'))
+          'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'))
       and not has_function_privilege('anon',
-        'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)', 'EXECUTE')
+        'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)', 'EXECUTE')
       and has_function_privilege('authenticated',
-        'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)', 'EXECUTE')
+        'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)', 'EXECUTE')
 """,
     "popdam_ranked_search_rank_keys_through_visibility_v4": """
       (select
@@ -1197,11 +1197,11 @@ CATALOG_CONTRACTS = {
         and position('require_dam_access' in pg_get_functiondef(p.oid)) > 0
         and 'statement_timeout=8s' = any(coalesce(p.proconfig, '{}'))
         from pg_proc p where p.oid = to_regprocedure(
-          'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)'))
+          'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'))
       and not has_function_privilege('anon',
-        'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)', 'EXECUTE')
+        'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)', 'EXECUTE')
       and has_function_privilege('authenticated',
-        'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)', 'EXECUTE')
+        'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)', 'EXECUTE')
 """,
     "coco_owner_ruling_v1": """
       case when to_regclass('core.taxonomy_owner_ruling') is null then true else

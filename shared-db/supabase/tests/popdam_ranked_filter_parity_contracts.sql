@@ -4,7 +4,7 @@ do $$
 declare v_filter text; v_search text; v_counts text;
 begin
   select pg_get_functiondef('public.filter_effective_assets(jsonb)'::regprocedure) into v_filter;
-  select pg_get_functiondef('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)'::regprocedure) into v_search;
+  select pg_get_functiondef('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'::regprocedure) into v_search;
   select pg_get_functiondef('public.get_effective_filter_counts(jsonb)'::regprocedure) into v_counts;
 
   if position('customerId' in v_filter)=0 or position('a.customer_id' in v_filter)=0
@@ -30,7 +30,7 @@ begin
   end if;
   if has_function_privilege('anon','public.filter_effective_assets(jsonb)','EXECUTE')
      or has_function_privilege('anon','public.get_effective_filter_counts(jsonb)','EXECUTE')
-     or has_function_privilege('anon','public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)','EXECUTE') then
+     or has_function_privilege('anon','public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)','EXECUTE') then
     raise exception 'anon gained access to a DAM filter contract';
   end if;
 end;

@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "work_issue": 3457,
+  "outcome": "ready-for-merge",
+  "pr": 3489,
+  "migration_versions": [
+    "20260925222432"
+  ],
+  "contract_ref": "refs/db-contracts/3457/17",
+  "contract_sha256": "0006eb213bded9528bb5bbee88f4fd37b7d50c9bee54e5b7886f048e3f122df8",
+  "base_sha": "b02d04c71e6240461ef37187134cc6b568e74b15",
+  "head_sha": "ac6fdfd8f8da95443fe03febb1d066f44df36dad",
+  "files_changed": [
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20260925222432.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "supabase/migrations/20260925222432_popdam_search_semantic_score_floor.sql",
+    "supabase/tests/popdam_authorized_ranked_search_contracts.sql",
+    "supabase/tests/popdam_ranked_filter_parity_contracts.sql",
+    "supabase/tests/popdam_semantic_score_floor_behavior.sql"
+  ],
+  "db_reads": [
+    "public.dam_search_documents",
+    "public.assets",
+    "public.style_groups",
+    "public.asset_effective_tags",
+    "public.admin_config"
+  ],
+  "db_writes": [
+    "function public.search_dam_documents",
+    "function public.search_assets_full_text",
+    "function public.search_style_groups_full_text"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Exit 0 at unchanged migration code 87b42f32 against base b02d04c7; run /tmp/pr3489-87b-check-sql.log. The g17 implementation ac6fdfd8 changes evidence files only."
+    },
+    {
+      "command": "python3 scripts/migration_derivation.py supabase/migrations/20260925222432_popdam_search_semantic_score_floor.sql",
+      "exit_code": 0,
+      "evidence": "Exit 0 at unchanged migration code 87b42f32; g17 implementation changes evidence files only."
+    },
+    {
+      "command": "python3 -m pytest scripts/test_check_production_verification_sidecars.py scripts/test_production_catalog_verification.py",
+      "exit_code": 0,
+      "evidence": "244 passed at unchanged code 87b42f32; g17 implementation changes evidence files only."
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/sidecar-registry-evidence.test.mjs",
+      "exit_code": 0,
+      "evidence": "Exit 0 at unchanged code 87b42f32; g17 implementation changes evidence files only."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs",
+      "exit_code": 0,
+      "evidence": "Exit 0, 61 sidecars at unchanged code 87b42f32; g17 implementation changes evidence files only."
+    },
+    {
+      "command": "Database Contract Tests GitHub run 36378929659 at PR head 2ab6eac86fb9b617ebdf204d4a6a92496a6074da",
+      "exit_code": 0,
+      "evidence": "Final-head CI succeeded. Job log explicitly records T1-T8 PASS and PASS popdam_semantic_score_floor_behavior.sql. g17 implementation changes evidence pair only; migration and behavior-test blobs match that successful head exactly."
+    },
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "Exit 0 at g17 implementation ac6fdfd8."
+    }
+  ],
+  "assumptions_resolved": [
+    "Base b02d04c71e6240461ef37187134cc6b568e74b15 maximum migration version is 20260925193145; reserved 20260925222432 is later. Guard B static pass at unchanged code; Guard B2 live ledger is independently enforced in governed preview and remains a merge gate.",
+    "Final-head Database Contract Tests run 36378929659 executed the behavior fixture: T1-T8 PASS and PASS popdam_semantic_score_floor_behavior.sql. Migration and fixture blobs have not changed after that head.",
+    "Completion head_sha is the implementation commit ac6fdfd8; the evidence-only tail is separately verified by agent-work-contract-git-evidence.mjs against the final PR head.",
+    "Only generation-17 contract/completion are present in the final PR diff; generation-16 pair was removed on this branch and is absent on main.",
+    "Three declared function writes and the style-group ORDER BY/LIMIT tail remain unchanged from reviewed generation 16."
+  ],
+  "stop_conditions_hit": []
+}

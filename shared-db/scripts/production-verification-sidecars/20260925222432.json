@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260925222432",
+  "migration_sha256": "644ce75a887d1fa172677aa5cb06f60b03417b47fcad406ecefc7f29d3979e4b",
+  "checks": [
+    {
+      "id": "popdam_ranked_search_semantic_floor_forward_9",
+      "kind": "catalog_contract",
+      "contract": "popdam_ranked_search_rank_keys_through_visibility_v4",
+      "expected_count": 1
+    },
+    {
+      "id": "popdam_ranked_search_semantic_floor_drops_7arg",
+      "kind": "catalog_absence",
+      "object": "public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real)",
+      "expected_count": 1
+    }
+  ]
+}

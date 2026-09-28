@@ -2169,7 +2169,7 @@ class SupersededContractBatchTests(unittest.TestCase):
                 by_id[early]["superseded_objects"],
                 [
                     "routine:public.search_dam_documents("
-                    "text,jsonb,integer,integer,text[],extensions.vector,real)"
+                    "text,jsonb,integer,integer,text[],extensions.vector,real,real)"
                 ],
             )
         self.assertNotIn("superseded_by", by_id[self.FORWARD_8])
@@ -2308,7 +2308,7 @@ class SupersededContractBatchTests(unittest.TestCase):
             ),
             {
                 "routine:public.search_dam_documents("
-                "text,jsonb,integer,integer,text[],extensions.vector,real)",
+                "text,jsonb,integer,integer,text[],extensions.vector,real,real)",
             },
         )
         # Overload precision: a different argument signature is a different
@@ -2470,7 +2470,7 @@ class CatalogAbsenceCheckTests(unittest.TestCase):
             ("20260101000002", "do $ begin perform 1; end $;\n", [{
                 "id": "helper_is_gone", "kind": "catalog_absence",
                 "object": "public.search_dam_documents(text,jsonb,integer,integer,"
-                          "text[],extensions.vector,real)",
+                          "text[],extensions.vector,real,real)",
                 "expected_count": 1,
             }]),
         ]
@@ -2484,7 +2484,7 @@ class CatalogAbsenceCheckTests(unittest.TestCase):
         self.assertNotIn("helper_is_present", sql)
         self.assertIn("helper_is_gone", sql)
         self.assertIn("to_regprocedure('public.search_dam_documents(text,jsonb,"
-                      "integer,integer,text[],extensions.vector,real)') is null", sql)
+                      "integer,integer,text[],extensions.vector,real,real)') is null", sql)
 
 
 class NetAclTests(unittest.TestCase):

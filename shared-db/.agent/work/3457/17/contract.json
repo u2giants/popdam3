@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "work_issue": 3457,
+  "generation": 17,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Rebind the unchanged #3457 migration and behavior test to current main with precise completion evidence. Remove the superseded generation-16 evidence pair; correct stale version and generation notes. Preserve SQL, sidecar, test, and application behavior bytes.",
+  "base_sha": "b02d04c71e6240461ef37187134cc6b568e74b15",
+  "dispatcher": "Codex root chat 01a0e56c-2e17-78a2-ad57-cd154b990979",
+  "worker": "Codex root chat 01a0e56c-2e17-78a2-ad57-cd154b990979",
+  "branch": "codex/3489-landing",
+  "worktree": "/home/ahazan/repos/shared-db-3489-landing",
+  "allowed_paths": [
+    "supabase/migrations/20260925222432_popdam_search_semantic_score_floor.sql",
+    "supabase/tests/popdam_authorized_ranked_search_contracts.sql",
+    "supabase/tests/popdam_ranked_filter_parity_contracts.sql",
+    "supabase/tests/popdam_semantic_score_floor_behavior.sql",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20260925222432.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    ".agent/work/3457/17/",
+    ".agent/work/3457/16/"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260925222432_popdam_search_semantic_score_floor.sql",
+    "supabase/tests/popdam_authorized_ranked_search_contracts.sql",
+    "supabase/tests/popdam_ranked_filter_parity_contracts.sql",
+    "supabase/tests/popdam_semantic_score_floor_behavior.sql",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20260925222432.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    ".agent/work/3457/17/contract.json",
+    ".agent/work/3457/17/completion.json",
+    ".agent/work/3457/16/contract.json",
+    ".agent/work/3457/16/completion.json"
+  ],
+  "db_reads": [
+    "public.dam_search_documents",
+    "public.assets",
+    "public.style_groups",
+    "public.asset_effective_tags",
+    "public.admin_config"
+  ],
+  "db_writes": [
+    "function public.search_dam_documents",
+    "function public.search_assets_full_text",
+    "function public.search_style_groups_full_text"
+  ],
+  "prohibited_actions": [
+    "no production writes",
+    "no preview apply without explicit orchestrator permission",
+    "do not edit AGENTS.md or HANDOFF.md",
+    "do not merge the PR"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 scripts/migration_derivation.py supabase/migrations/20260925222432_popdam_search_semantic_score_floor.sql",
+    "python3 -m pytest scripts/test_check_production_verification_sidecars.py scripts/test_production_catalog_verification.py",
+    "node --test scripts/orchestrator-flow/sidecar-registry-evidence.test.mjs",
+    "node scripts/check-production-verification-sidecars.mjs"
+  ],
+  "assumptions": [
+    "Current main is b02d04c71e6240461ef37187134cc6b568e74b15; its maximum migration version is 20260925193145, below reserved 20260925222432.",
+    "The completion head_sha denotes the implementation commit; the subsequent evidence-only tail is checked by agent-work-contract-git-evidence.mjs against the exact pull-request head.",
+    "Final-head Database Contract Tests run 36378929659 succeeded; exact T1-T8 executed behavior is separately evidenced by run 36378507057 against unchanged migration and behavior-test blobs.",
+    "The previous generation-16 evidence pair is superseded and removed from the final pull-request diff; only generation-17 pair remains."
+  ],
+  "stop_conditions": [
+    "Stop if the migration or behavior-test blob differs from the generation-16 reviewed head.",
+    "Stop if a new migration version appears on main above reserved 20260925222432.",
+    "Stop if final PR diff contains any evidence pair other than generation 17.",
+    "Stop if final CI or exact-head governed review fails."
+  ]
+}
