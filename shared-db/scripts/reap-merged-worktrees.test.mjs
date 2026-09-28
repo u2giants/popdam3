@@ -17,8 +17,10 @@ import {
   claimedHolds,
   isIdle,
   lastActivityMs,
+  main,
   normalizeWorktreePath,
   plan,
+  readGitHubArray,
   DEFAULT_IDLE_HOURS,
   MIN_IDLE_HOURS,
 } from "./reap-merged-worktrees.mjs";
@@ -37,6 +39,80 @@ const wt = (over = {}) => ({
 });
 
 const merged = new Set(["feature/x"]);
+
+test('GitHub listings use the shared read transport and preserve argv', () => {
+  const args = ['pr', 'list', '--repo', 'popcre/shared-db', '--state', 'merged'];
+  let received;
+  const rows = readGitHubArray(args, (actual) => {
+    received = actual;
+    return '[{"headRefName":"feature/x"}]';
+  });
+  assert.deepEqual(received, args);
+  assert.deepEqual(rows, [{ headRefName: 'feature/x' }]);
+  assert.throws(() => readGitHubArray(args, () => '{}'), /non-array listing/);
+});
+
+test('main routes all three GitHub reads through the shared transport', () => {
+  const calls = [];
+  const output = [];
+  main({
+    argv: ['node', REAPER],
+    env: { HANDOFF_REPO: 'popcre/shared-db' },
+    runGitHub: (args) => {
+      calls.push(args);
+      if (args[0] === 'pr') return '[{"headRefName":"feature/x"}]';
+      return '[]';
+    },
+    worktrees: () => [wt({ path: '/w/main', isMain: true, branch: 'main' })],
+    log: (line) => output.push(line),
+  });
+  assert.deepEqual(calls, [
+    ['pr', 'list', '--repo', 'popcre/shared-db', '--state', 'merged', '--limit', '400', '--json', 'headRefName'],
+    ['issue', 'list', '--repo', 'popcre/shared-db', '--state', 'open', '--label', 'orchestrator-marker', '--limit', '20', '--json', 'number,title'],
+    ['issue', 'list', '--repo', 'popcre/shared-db', '--state', 'open', '--label', 'db-claim', '--limit', '200', '--json', 'number,body'],
+  ]);
+  assert.match(output.join('\n'), /orchestrator not running/);
+});
+
+test('main aborts on merged read failure and refuses apply when live claims are unreadable', () => {
+  const base = {
+    argv: ['node', REAPER, '--apply'],
+    env: { HANDOFF_REPO: 'popcre/shared-db' },
+    worktrees: () => [wt({ path: '/w/main', isMain: true, branch: 'main' })],
+    log: () => {},
+    error: () => {},
+  };
+  assert.throws(() => main({ ...base, runGitHub: () => { throw new Error('merged read failed'); } }), /merged read failed/);
+  const calls = [];
+  const exits = [];
+  main({
+    ...base,
+    runGitHub: (args) => {
+      calls.push(args);
+      if (args[0] === 'pr') return '[]';
+      if (args.includes('orchestrator-marker')) return '[{"number":1}]';
+      throw new Error('claims read failed');
+    },
+    exit: (code) => exits.push(code),
+  });
+  assert.equal(calls.length, 3, 'claim failure must not skip or invent a GitHub read');
+  assert.deepEqual(exits, [1], 'active orchestrator plus unreadable claims refuses apply');
+
+  const bothReadFailures = [];
+  const bothExits = [];
+  main({
+    ...base,
+    runGitHub: (args) => {
+      if (args[0] === 'pr') return '[]';
+      throw new Error('liveness read failed');
+    },
+    error: (line) => bothReadFailures.push(line),
+    exit: (code) => bothExits.push(code),
+  });
+  assert.deepEqual(bothExits, [1]);
+  assert.match(bothReadFailures.join('\n'), /could not read orchestrator markers/);
+  assert.match(bothReadFailures.join('\n'), /could not read open database claims/);
+});
 
 test("a clean worktree whose pull request merged is retireable", () => {
   const { remove, keep } = plan([wt()], merged);

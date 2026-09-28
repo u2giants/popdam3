@@ -28,6 +28,7 @@ import { execSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runGitHubCommand } from './lib/github-transport.mjs';
 import { resolveRepositoryIdentity } from './lib/repository-identity.mjs';
 
 // Issue #1868. The reaper refused to run AT ALL while any orchestrator marker was
@@ -175,6 +176,12 @@ function sh(cmd, opts = {}) {
   return execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...opts }).trim();
 }
 
+export function readGitHubArray(args, run = runGitHubCommand) {
+  const rows = JSON.parse(run(args));
+  if (!Array.isArray(rows)) throw new Error('GitHub returned a non-array listing');
+  return rows;
+}
+
 function readWorktrees() {
   const out = [];
   let current = null;
@@ -245,24 +252,33 @@ export function lastActivityMs(worktreePath) {
   return newest;
 }
 
-function main() {
-  const repo = resolveRepositoryIdentity({ explicit: process.env.HANDOFF_REPO });
-  const apply = process.argv.includes("--apply");
-  const force = process.argv.includes("--force");
-  const idleArg = process.argv.indexOf("--idle-hours");
-  const idleHours = idleArg > -1 ? Number(process.argv[idleArg + 1]) : DEFAULT_IDLE_HOURS;
+export function main({
+  argv = process.argv,
+  env = process.env,
+  runGitHub = runGitHubCommand,
+  worktrees = readWorktrees,
+  activity = lastActivityMs,
+  log = console.log,
+  error = console.error,
+  exit = process.exit,
+} = {}) {
+  const repo = resolveRepositoryIdentity({ explicit: env.HANDOFF_REPO });
+  const apply = argv.includes("--apply");
+  const force = argv.includes("--force");
+  const idleArg = argv.indexOf("--idle-hours");
+  const idleHours = idleArg > -1 ? Number(argv[idleArg + 1]) : DEFAULT_IDLE_HOURS;
   if (!Number.isFinite(idleHours) || idleHours < MIN_IDLE_HOURS) {
-    console.error(
+    error(
       `::error::--idle-hours must be a number of hours no smaller than ${MIN_IDLE_HOURS}`,
     );
-    process.exit(2);
+    exit(2);
+    return;
   }
 
-  const merged = new Set(
-    JSON.parse(sh(`gh pr list --repo ${repo} --state merged --limit 400 --json headRefName`)).map(
-      (p) => p.headRefName,
-    ),
-  );
+  const merged = new Set(readGitHubArray(
+    ['pr', 'list', '--repo', repo, '--state', 'merged', '--limit', '400', '--json', 'headRefName'],
+    runGitHub,
+  ).map((p) => p.headRefName));
 
   // The positive liveness signals, read BEFORE anything is planned so a dry run
   // shows exactly what an --apply would do. A failed read is recorded, never
@@ -270,31 +286,33 @@ function main() {
   let markers = [];
   let markersReadable = true;
   try {
-    markers = JSON.parse(
-      sh(`gh issue list --repo ${repo} --state open --label orchestrator-marker --limit 20 --json number,title`),
+    markers = readGitHubArray(
+      ['issue', 'list', '--repo', repo, '--state', 'open', '--label', 'orchestrator-marker', '--limit', '20', '--json', 'number,title'],
+      runGitHub,
     );
   } catch (err) {
     markersReadable = false;
-    console.error(`::warning::could not read orchestrator markers: ${err.message}`);
+    error(`::warning::could not read orchestrator markers: ${err.message}`);
   }
   let claims = [];
   let claimsReadable = true;
   try {
-    claims = JSON.parse(
-      sh(`gh issue list --repo ${repo} --state open --label db-claim --limit 200 --json number,body`),
+    claims = readGitHubArray(
+      ['issue', 'list', '--repo', repo, '--state', 'open', '--label', 'db-claim', '--limit', '200', '--json', 'number,body'],
+      runGitHub,
     );
   } catch (err) {
     claimsReadable = false;
-    console.error(`::warning::could not read open database claims: ${err.message}`);
+    error(`::warning::could not read open database claims: ${err.message}`);
   }
   // An unreadable marker list counts as "an orchestrator is live". Never let a
   // failed read relax a guard.
   const orchestratorActive = !markersReadable || markers.length > 0;
   const { paths: claimedPaths, branches: claimedBranches } = claimedHolds(claims.map((c) => c.body));
 
-  const worktrees = readWorktrees();
-  for (const w of worktrees) w.lastActivityMs = w.isMain ? null : lastActivityMs(w.path);
-  const { remove, keep } = plan(worktrees, merged, {
+  const inspectedWorktrees = worktrees();
+  for (const w of inspectedWorktrees) w.lastActivityMs = w.isMain ? null : activity(w.path);
+  const { remove, keep } = plan(inspectedWorktrees, merged, {
     claimedPaths,
     claimedBranches,
     selfPath: process.cwd(),
@@ -306,18 +324,18 @@ function main() {
   const markerNote = markersReadable
     ? markers.map((m) => `#${m.number}`).join(", ") || "none"
     : "marker list unreadable";
-  console.log(
-    `${worktrees.length} worktree(s). ${remove.length} retireable, ${keep.length} kept.\n` +
+  log(
+    `${inspectedWorktrees.length} worktree(s). ${remove.length} retireable, ${keep.length} kept.\n` +
       `orchestrator ${orchestratorActive ? "LIVE" : "not running"} (${markerNote}); ` +
       `${claimsReadable ? `${claimedPaths.size} claimed worktree path(s), ${claimedBranches.size} claimed branch(es)` : "CLAIMS UNREADABLE"}; ` +
       `idle window ${idleHours}h.\n`,
   );
-  for (const { worktree, reason } of keep) console.log(`  KEEP    ${worktree.path}\n          ${reason}`);
-  console.log();
-  for (const w of remove) console.log(`  RETIRE  ${w.path}  (${w.branch})`);
+  for (const { worktree, reason } of keep) log(`  KEEP    ${worktree.path}\n          ${reason}`);
+  log();
+  for (const w of remove) log(`  RETIRE  ${w.path}  (${w.branch})`);
 
   if (!apply) {
-    console.log("\nDry run. Re-run with --apply to remove the retireable ones.");
+    log("\nDry run. Re-run with --apply to remove the retireable ones.");
     return;
   }
 
@@ -327,13 +345,14 @@ function main() {
   // replaced. AGENTS.md 2.1-W still stands: never remove a worktree held by a live
   // agent.
   if (blockedByLiveOrchestrator(orchestratorActive, force, claimsReadable)) {
-    console.error(
+    error(
       "\n::error::An orchestrator is ACTIVE and the open database claims could not be read, so " +
         "there is no way to tell which of these worktrees an agent is holding right now. " +
         "Refusing to remove anything. Fix the claim read and re-run; --force only when you have " +
         "confirmed no agent is running.",
     );
-    process.exit(1);
+    exit(1);
+    return;
   }
 
   let removed = 0;
@@ -341,12 +360,12 @@ function main() {
     try {
       sh(`git worktree remove "${w.path}"`);
       removed++;
-      console.log(`removed ${w.path}`);
+      log(`removed ${w.path}`);
     } catch (err) {
-      console.error(`::warning::git refused to remove ${w.path}: ${err.message}`);
+      error(`::warning::git refused to remove ${w.path}: ${err.message}`);
     }
   }
-  console.log(`\nRemoved ${removed} of ${remove.length}.`);
+  log(`\nRemoved ${removed} of ${remove.length}.`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) main();

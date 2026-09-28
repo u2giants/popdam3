@@ -34,6 +34,9 @@ const DIRTY = {
   'scripts/shelling-out.mjs': [
     'const raw = execSync(`gh api repos/${owner}/${repo}/contents/${file}`)',
   ].join('\n'),
+  'scripts/reaper-style-shell-helper.mjs': [
+    'const merged = JSON.parse(sh(`gh pr list --repo ${repo} --state merged --json headRefName`))',
+  ].join('\n'),
   'scripts/spawn-sync-wrapper.cjs': [
     "const r = spawnSync('gh', ['pr', 'view', '1', '--json', 'headRefOid'])",
   ].join('\n'),
@@ -60,10 +63,11 @@ test('the checker refuses a known-dirty tree — every forbidden shape is caught
 
   assert.equal(byFile.get('scripts/ninth-wrapper.mjs')?.rule, 'node-gh-spawn')
   assert.equal(byFile.get('scripts/shelling-out.mjs')?.rule, 'node-gh-shell')
+  assert.equal(byFile.get('scripts/reaper-style-shell-helper.mjs')?.rule, 'node-gh-shell')
   assert.equal(byFile.get('scripts/spawn-sync-wrapper.cjs')?.rule, 'node-gh-spawn')
   assert.equal(byFile.get('.github/workflows/bare-read.yml')?.rule, 'workflow-gh-api-read')
   assert.equal(byFile.get('scripts/per-file-contents.mjs')?.rule, 'node-per-file-contents-call')
-  assert.equal(findings.length, 5, 'each dirty file must be reported exactly once')
+  assert.equal(findings.length, 6, 'each dirty file must be reported exactly once')
 })
 
 test('the failure message names the file, the line and the remedy', () => {

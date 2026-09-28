@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 3646,
+    "generation": 2,
+    "contract_sha256": "04338625579d40f9f900dafd9e68284a7ed05425c7873452d2a36255b84c264d"
+  },
+  "work_issue": 3646,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Route maintenance worktree-reaper GitHub reads through shared transport, prove all three production call sites and fail-closed decisions, and teach the transport source guard to catch the previously used template-string shell helper. Earlier PRs 3645 and 3648 are closed, unmergeable attempts.",
+  "base_sha": "4b91483c85da7bac3421219b40252c169a455087",
+  "dispatcher": "Codex parent session for popcre/ai-devops issue 658, non-orchestrator tooling work",
+  "worker": "Codex chat 01a0e5e9-a3be-7501-b0c8-bbfe4e752992 on edge-dev3",
+  "branch": "codex/3646-gh-reaper-g3",
+  "worktree": "/home/ahazan/repos/.worktrees/shared-db-3646-gh-reaper-g3",
+  "allowed_paths": [
+    "scripts/reap-merged-worktrees.mjs",
+    "scripts/reap-merged-worktrees.test.mjs",
+    "scripts/check-github-transport-conformance.mjs",
+    "scripts/check-github-transport-conformance.test.mjs",
+    ".agent/work/3646/3/contract.json",
+    ".agent/work/3646/3/completion.json"
+  ],
+  "file_writes": [
+    "scripts/reap-merged-worktrees.mjs",
+    "scripts/reap-merged-worktrees.test.mjs",
+    "scripts/check-github-transport-conformance.mjs",
+    "scripts/check-github-transport-conformance.test.mjs",
+    ".agent/work/3646/3/contract.json",
+    ".agent/work/3646/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change database structure or data",
+    "Do not change Actions credential selection or workflows",
+    "Do not weaken reaper marker, claim, or deletion safety decisions"
+  ],
+  "required_checks": [
+    "node --test scripts/reap-merged-worktrees.test.mjs",
+    "node --test scripts/check-github-transport-conformance.test.mjs",
+    "node scripts/check-github-transport-conformance.mjs"
+  ],
+  "assumptions": [
+    "The shared transport accepts the reaper's gh argv shapes and preserves its credential environment.",
+    "The earlier published contracts and closed PRs remain historical evidence only; this generation is published before all source edits in its final implementation branch."
+  ],
+  "stop_conditions": [
+    "Stop if any required check or exact-head governed review refuses",
+    "Stop if the transport guard would need to ban legitimate GitHub writes"
+  ]
+}

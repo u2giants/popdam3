@@ -71,9 +71,11 @@ export function isTestFile(relPath) {
 const NODE_GH_SPAWN =
   /\b(?:execFileSync|execFile|spawnSync|spawn)\s*\(\s*(['"`])gh\1/
 
-// A shell string handed to execSync/exec that starts a `gh` command.
+// A shell string handed to execSync/exec or the repository's former sh helper
+// that starts a `gh` command. The reaper once used sh(`gh ...`), which the
+// original rule missed even though it performed the same direct read.
 const NODE_GH_SHELL =
-  /\b(?:execSync|exec)\s*\(\s*[`'"][^`'"]*\bgh\s+(?:api|issue|pr|run|release|repo|search|api)\b/
+  /\b(?:execSync|exec|sh)\s*\(\s*[`'"][^`'"]*\bgh\s+(?:api|issue|pr|run|release|repo|search)\b/
 
 // `gh api` inside a workflow `run:` block. Matched at a word boundary so
 // `# gh api` in a comment is still matched (a commented example that gets
