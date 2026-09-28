@@ -18,6 +18,16 @@ const TIFF_REINSPECT_DEFAULT_BATCH = 50;
 const LOG_TAIL_LINES = 50;
 const PDF_TEXT_SAMPLE_PROGRESS_LIMIT = 25;
 const MAX_FUTURE_FILE_DATE_MS = 24 * 60 * 60 * 1000;
+const INDEXED_WRITE_MEASUREMENT = Deno.env.get("POP_INDEXED_WRITE_MEASUREMENT") === "1";
+
+function logIndexedWriteResult(table: string, path: string, attempted: number, succeeded: number | null): void {
+  if (!INDEXED_WRITE_MEASUREMENT) return;
+  // Aggregate counts only. No row identifiers, paths, customer values, or error messages.
+  console.info("[indexed-write-measurement]", {
+    observed_at: new Date().toISOString(), table, path,
+    attempted_rows: attempted, succeeded_rows: succeeded,
+  });
+}
 /**
  * Extensions PopSG will store. Allow-list on purpose: unrenderable files
  * (fonts, web/code, archives, video, 3D, office docs, temp files) never enter
@@ -1078,10 +1088,11 @@ async function handleIngest(
       ...thumbMove,
       ...skuFields,
     };
-    const { error: moveError } = await db
-      .from("assets")
-      .update(moveUpdates)
-      .eq("id", existingByHash.id);
+    const moveQuery = db.from("assets").update(moveUpdates).eq("id", existingByHash.id);
+    const { data: movedRows, error: moveError } = INDEXED_WRITE_MEASUREMENT
+      ? await moveQuery.select("id") : await moveQuery;
+    logIndexedWriteResult("public.assets", "ingest-move", 1, moveError ? 0 :
+      INDEXED_WRITE_MEASUREMENT ? movedRows?.length ?? null : null);
 
     if (moveError) return err(moveError.message, 500);
 
@@ -1142,10 +1153,11 @@ async function handleIngest(
       ...thumbnailFields,
       ...skuFields,
     };
-    const { error: updateError } = await db
-      .from("assets")
-      .update(updateFields)
-      .eq("id", existingByPath.id);
+    const updateQuery = db.from("assets").update(updateFields).eq("id", existingByPath.id);
+    const { data: updatedRows, error: updateError } = INDEXED_WRITE_MEASUREMENT
+      ? await updateQuery.select("id") : await updateQuery;
+    logIndexedWriteResult("public.assets", "ingest-update", 1, updateError ? 0 :
+      INDEXED_WRITE_MEASUREMENT ? updatedRows?.length ?? null : null);
 
     if (updateError) return err(updateError.message, 500);
 
@@ -1191,6 +1203,7 @@ async function handleIngest(
     .insert(newAssetRow)
     .select("id")
     .single();
+  logIndexedWriteResult("public.assets", "ingest-insert", 1, insertError ? 0 : newAsset ? 1 : null);
 
   if (insertError) return err(insertError.message, 500);
 
@@ -2948,6 +2961,8 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       .from("style_guide_files")
       .upsert(rows, { onConflict: "root_label,relative_path" })
       .select("id");
+    logIndexedWriteResult("public.style_guide_files", "crawl-upsert", rows.length,
+      upsertErr ? 0 : upsertedRows?.length ?? null);
 
     if (upsertErr) {
       console.error("[complete-style-guide-crawl] Upsert error:", upsertErr);

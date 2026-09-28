@@ -51,6 +51,27 @@ import { cn } from "@/lib/utils";
 LicenseManager.setLicenseKey("");
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
 
+async function refreshBridgeWithMeasurement() {
+  const result = await supabase.rpc("refresh_style_tracker_item_bridge");
+  if (import.meta.env.VITE_POP_INDEXED_WRITE_MEASUREMENT === "1") {
+    const counts = !result.error && Array.isArray(result.data) && result.data.length === 1
+      ? result.data[0] : null;
+    const inserted = Number(counts?.inserted_count);
+    const updated = Number(counts?.updated_count);
+    const total = Number(counts?.total_count);
+    const valid = counts && Number.isSafeInteger(inserted) && Number.isSafeInteger(updated) &&
+      Number.isSafeInteger(total) && inserted >= 0 && updated >= 0 && inserted + updated === total;
+    // Only aggregate result counts. A failed/unknown attempt remains inconclusive.
+    console.info("[indexed-write-measurement]", {
+      observed_at: new Date().toISOString(),
+      table: "plm.style_tracker_item_bridge", path: "style-tracker-refresh",
+      attempted_rows: valid ? total : null, succeeded_rows: valid ? total : null,
+      inserted_rows: valid ? inserted : null, updated_rows: valid ? updated : null,
+    });
+  }
+  return result;
+}
+
 type FieldKey = StyleTrackerFieldKey;
 type RowData = Record<string, unknown>;
 
@@ -1360,9 +1381,7 @@ export default function StylesPage() {
       }
       const { error } = await (supabase as any).from("style_tracker_rows").update(buildUpdate(row, column, value)).eq("id", row.id);
       if (error) throw error;
-      await refreshStyleTrackerBridgeWithRetry(
-        () => (supabase as any).rpc("refresh_style_tracker_item_bridge"),
-      );
+      await refreshStyleTrackerBridgeWithRetry(refreshBridgeWithMeasurement);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["style-rows"] });
@@ -1835,7 +1854,7 @@ export default function StylesPage() {
         if (error) throw error;
       }));
     }
-    await refreshStyleTrackerBridgeWithRetry(() => (supabase as any).rpc("refresh_style_tracker_item_bridge"));
+    await refreshStyleTrackerBridgeWithRetry(refreshBridgeWithMeasurement);
     await queryClient.invalidateQueries({ queryKey: ["style-rows", active.name] });
     await queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
   };
