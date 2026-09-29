@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "work_issue": 3684,
+  "outcome": "ready-for-merge",
+  "pr": 3730,
+  "migration_versions": [
+    "20260929082814"
+  ],
+  "contract_ref": "refs/db-contracts/3684/5",
+  "contract_sha256": "515c2c538de1ded60939d713877dd18190a1d33a1ae9fc51c6cc0328549c0629",
+  "head_sha": "a462e9a7deab760f8a3c3244213e76a343dcab49",
+  "base_sha": "102a43f6568c95b7c8ed01dd32ca1c106fda9d66",
+  "files_changed": [
+    ".github/live-proofs/3684.sql",
+    "supabase/migrations/20260929082814_peanuts_durable_entity_lifecycle.sql",
+    "supabase/tests/peanuts_durable_entity_lifecycle_contracts.sql",
+    "supabase/tests/peanuts_landing_contracts.sql"
+  ],
+  "db_reads": [
+    "table plm.peanuts_capture",
+    "table plm.peanuts_asset",
+    "table plm.peanuts_art_program",
+    "table plm.peanuts_character",
+    "table plm.peanuts_style_guide",
+    "table plm.peanuts_initiative"
+  ],
+  "db_writes": [
+    "function plm.peanuts_publish_lifecycle",
+    "index plm.idx_peanuts_entity_lifecycle_first_seen",
+    "index plm.idx_peanuts_entity_lifecycle_last_changed",
+    "index plm.idx_peanuts_entity_lifecycle_last_seen",
+    "index plm.idx_peanuts_entity_lifecycle_withdrawn_capture",
+    "index plm.idx_peanuts_lifecycle_publication_baseline",
+    "index plm.idx_peanuts_lifecycle_publication_latest",
+    "policy peanuts_entity_lifecycle_plm_read on plm.peanuts_entity_lifecycle",
+    "policy peanuts_lifecycle_publication_plm_read on plm.peanuts_lifecycle_publication",
+    "table plm.peanuts_entity_lifecycle",
+    "table plm.peanuts_lifecycle_publication"
+  ],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Exit 0 against origin/main at implementation head a462e9a7deab760f8a3c3244213e76a343dcab49."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at a462e9a7deab760f8a3c3244213e76a343dcab49, including the backdating guard; live ledger not configured locally."
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Exit 0 at a462e9a7deab760f8a3c3244213e76a343dcab49. The probe also returned passed=true on an ephemeral Supabase stack with the migration applied, both empty and after the contract fixture (10 publications, 5307 entities, 6 withdrawn), and false after a planted last_seen_at mutation."
+    }
+  ],
+  "assumptions_resolved": [
+    "Claim #3728 re-reserved as 20260929082814 (supersession 02cfbd07); scope unchanged at the eleven declared writes",
+    "No database write performed by the author; preview, merge and production follow the serialized lanes"
+  ],
+  "stop_conditions_hit": [],
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 3684,
+    "generation": 4,
+    "contract_sha256": "7d55d75dda62288a9226cbb4847488715966d4e661629db8fa370e67c301615f"
+  }
+}

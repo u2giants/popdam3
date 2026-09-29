@@ -30,7 +30,7 @@
 --   insert here, and section F exercises the functions on their own terms.
 --
 -- WHAT IT ASSERTS
---   A. The 19 tables exist, RLS is enabled on every one, and each carries exactly 2 read
+--   A. The 19 landing tables (the 2 #3684 durable-state tables are counted separately) exist, RLS is enabled on every one, and each carries exactly 2 read
 --      policies. No media column. No art-program-to-character table, in any form.
 --   B. Append-only privilege separation genuinely DENIES update, delete AND truncate --
 --      proven by executing them as service_role, not merely by reading a grant table --
@@ -104,9 +104,10 @@ begin
   -- Nothing outside the claim may have appeared under this prefix.
   select count(*) into v_n from information_schema.tables
    where table_schema = 'plm' and table_name like 'peanuts\_%' and table_type = 'BASE TABLE';
-  if v_n <> 19 then
+  -- 19 landing tables plus the two #3684 durable-state tables.
+  if v_n <> 21 then
     v_fail := v_fail + 1;
-    raise warning 'A FAIL: plm holds % peanuts tables, expected exactly 19', v_n;
+    raise warning 'A FAIL: plm holds % peanuts tables, expected exactly 21', v_n;
   end if;
 
   -- THE REFUSED RELATIONSHIP. The art-program field is multi-select, so pairing art
@@ -163,7 +164,7 @@ begin
   end loop;
 
   if v_fail > 0 then raise exception 'A FAILED (% failures)', v_fail; end if;
-  raise notice 'A passed: 19 tables, RLS, 38 policies, no media, no art-program/character link';
+  raise notice 'A passed: 19 landing tables (+2 durable-state), RLS, 38 policies, no media, no art-program/character link';
 end;
 $$;
 
@@ -186,8 +187,8 @@ begin
   select count(*) into v_n from information_schema.role_table_grants
    where table_schema = 'plm' and table_name like 'peanuts\_%'
      and grantee = 'service_role' and privilege_type = 'SELECT';
-  if v_n <> 19 then
-    raise exception 'B FAILED: expected 19 service_role SELECT grants, found %', v_n;
+  if v_n <> 21 then  -- includes the two #3684 durable-state tables
+    raise exception 'B FAILED: expected 21 service_role SELECT grants, found %', v_n;
   end if;
 
   select count(*) into v_n from information_schema.role_table_grants
@@ -210,8 +211,8 @@ begin
   select count(*) into v_n from information_schema.role_table_grants
    where table_schema = 'plm' and table_name like 'peanuts\_%'
      and grantee = 'authenticated' and privilege_type = 'SELECT';
-  if v_n <> 19 then
-    raise exception 'B FAILED: expected 19 authenticated SELECT grants, found %', v_n;
+  if v_n <> 21 then  -- includes the two #3684 durable-state tables
+    raise exception 'B FAILED: expected 21 authenticated SELECT grants, found %', v_n;
   end if;
 
   raise notice 'B (catalog) passed';
@@ -1366,8 +1367,18 @@ begin
   -- inserted above one of these instead of beside it, this goes red.
   select count(*) into v_before from api.source_capture_inventory
    where source_system = 'peanuts';
-  if v_before <> 19 then
-    raise exception 'G FAILED: % peanuts tables classified, expected 19', v_before;
+  if v_before <> 21 then  -- 19 landing + 2 #3684 durable-state tables
+    raise exception 'G FAILED: % peanuts tables classified, expected 21', v_before;
+  end if;
+  -- The two #3684 durable-state tables are mutable ledgers, not capture snapshots. They
+  -- must be reported as retained rows only, never as a latest-complete capture count
+  -- (review of #3730, M5): neither carries a column named capture_id.
+  if (select count(*) from api.source_capture_inventory
+       where table_name in ('peanuts_entity_lifecycle', 'peanuts_lifecycle_publication')
+         and count_basis = 'retained_only' and latest_complete_status is null
+         and latest_complete_row_count is null
+         and count_note = 'Retained rows only; no source-specific latest-complete contract is defined for this table.') <> 2 then
+    raise exception 'G FAILED: #3684 durable-state tables are not classified as retained-only ledgers';
   end if;
 
   -- EVERY plm table, against the classification rule restated here independently. Walking
