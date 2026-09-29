@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "work_issue": 3618,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Allow guarded operator adoption of an expired migration-author claim while preserving the claim, permanent version reservation, and immutable evidence.",
+  "base_sha": "9794470eb01b974eb71ab31696c097d7383839da",
+  "dispatcher": "Codex parent shared-db session",
+  "worker": "Codex chat 01a0e56c-2e17-78a2-ad57-cd154b990979 on edge-dev3",
+  "branch": "codex/3618-claim-author-recovery",
+  "worktree": "/home/ahazan/repos/shared-db-3618-claim-author-recovery",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/claim-author-transfer.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3618/2/contract.json",
+    ".agent/work/3618/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/claim-author-transfer.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3618/2/contract.json",
+    ".agent/work/3618/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not mutate issue 2110 or claim 3378 in this work",
+    "Do not treat the shared GitHub login as authenticated Albert approval",
+    "Do not remove the prior claim or permanent version reservation",
+    "Do not merge, preview, or run production changes"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs scripts/claim-author-transfer.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "An operator can attest to a verbatim authorization from the current chat, but the tool cannot independently authenticate that human source.",
+    "The existing abandonment audit and sole live orchestrator marker remain required.",
+    "Generation 1 remains historical; this generation adds exact record, reservation, and retry validation after independent review."
+  ],
+  "stop_conditions": [
+    "Stop if the exact claim, PR, version reservation, audit, chat marker, or operator attestation cannot be proved",
+    "Stop if a target worktree identity collides or the immutable adoption record cannot be read back",
+    "Stop before any live claim transfer pending a separate exact owner decision"
+  ],
+  "evidence_parent": {
+    "work_issue": 3618,
+    "generation": 1,
+    "contract_sha256": "23813e833f051a9bbe0f49710053296736ca3b84f09d5d5c145c09f8a737ae75"
+  }
+}

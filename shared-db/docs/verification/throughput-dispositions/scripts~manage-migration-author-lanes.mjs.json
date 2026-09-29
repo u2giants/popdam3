@@ -83,6 +83,14 @@
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:435a6abb51443c34755210b1f1927ce87702403e85b83c894a9d0ee9a1b367f8:1"
     },
     {
+      "site": "scripts/manage-migration-author-lanes.mjs:6441",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:4a05e72c7f4ab1a1b4582203940a8e38fb3e768e40420fbdd9de37f92b4d4749:context-58900ec10a412f0c8ed9c878e60f4710b07d05226a3c504cb472add6460bce5f",
+      "line_sha256": "4a05e72c7f4ab1a1b4582203940a8e38fb3e768e40420fbdd9de37f92b4d4749",
+      "disposition": "excluded",
+      "reason": "The PR parser must expose exactly one migration version and at least one object before operator adoption; missing parser data refuses the transfer and makes no claim about database application.",
+      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:4a05e72c7f4ab1a1b4582203940a8e38fb3e768e40420fbdd9de37f92b4d4749:1"
+    },
+    {
       "site": "scripts/manage-migration-author-lanes.mjs:6295",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:503def9aef2f0e8e8abf283a5af3c9a92ad163f596e106465de933c9736e0284:context-b70dab2dbb4b2c17c46965019d049eb610acb652b25f77ea8043f9858b6f3044",
       "line_sha256": "503def9aef2f0e8e8abf283a5af3c9a92ad163f596e106465de933c9736e0284",
@@ -233,6 +241,14 @@
       "disposition": "excluded",
       "reason": "Fail-closed immutable reviewer-evidence validation; the word missing does not describe database or migration state.",
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:f30023772b56725e26d2ee56709548ccdbe3ba11879aad96d6fe6f357c85079a:1"
+    },
+    {
+      "site": "scripts/manage-migration-author-lanes.mjs:6445",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:f70bb424f24c07066d4bd5b6b80e1bf9987558d410b0b712a65c761b414ab497:context-8ffd6b06dbae68529e8af8cbc2f21ca9305f714c5aa058f5654307e7f0604308",
+      "line_sha256": "f70bb424f24c07066d4bd5b6b80e1bf9987558d410b0b712a65c761b414ab497",
+      "disposition": "excluded",
+      "reason": "The open-claim roster must contain the exact current claim body before operator adoption; missing or changed roster evidence refuses the transfer, without inferring database state.",
+      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:f70bb424f24c07066d4bd5b6b80e1bf9987558d410b0b712a65c761b414ab497:1"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:1196",

@@ -3612,7 +3612,7 @@ export function recoverStaleAuthorMutex({ expectedSha, confirmStale, serializedR
     const message=commit?.message ?? commit?.commit?.message ?? ''
     const dateText=commit?.committer?.date ?? commit?.commit?.committer?.date
     const acquiredAt=new Date(dateText)
-    if(!/^db-coordination (?:admission(?:-operation)?|outcome-(?:advance|complete|repair)|author-acquisition|author-capacity-relinquish|author-capacity-resume|preview|preview-recovery|preview-rehearsal|preview-ready-preparation|merge|production|repository-maintenance-authorization|queue-scope-status|claim-release|duplicate-claim-release|claim-split-recovery|claim-object-expansion|claim-reversion|claim-version-supersession|claim-worktree-rebind|claim-lease-renewal|expired-claim-recovery|reviewer-assignment-lock|reviewer-replacement-lock|reviewer-queue-lock|reviewer-silence-release-lock|reviewer-replacement|reviewer-failure-replacement|reviewer-index-cutover-activation-audit|reviewer-exclusion-lock|reviewer-reinstatement-lock|reviewer-release-lock|reviewer-abandoned-lease-reap-lock|reviewer-verdict-archive-lock|merged-claim-reissue-lock)(?: |$)/.test(message.split('\n')[0]))throw new LaneError('refusing recovery: mutex owner commit is not a recognized coordination lock')
+    if(!/^db-coordination (?:admission(?:-operation)?|outcome-(?:advance|complete|repair)|author-acquisition|author-capacity-relinquish|author-capacity-resume|preview|preview-recovery|preview-rehearsal|preview-ready-preparation|merge|production|repository-maintenance-authorization|queue-scope-status|claim-release|duplicate-claim-release|claim-split-recovery|claim-object-expansion|claim-reversion|claim-version-supersession|claim-worktree-rebind|claim-author-transfer-mutex|claim-lease-renewal|expired-claim-recovery|reviewer-assignment-lock|reviewer-replacement-lock|reviewer-queue-lock|reviewer-silence-release-lock|reviewer-replacement|reviewer-failure-replacement|reviewer-index-cutover-activation-audit|reviewer-exclusion-lock|reviewer-reinstatement-lock|reviewer-release-lock|reviewer-abandoned-lease-reap-lock|reviewer-verdict-archive-lock|merged-claim-reissue-lock)(?: |$)/.test(message.split('\n')[0]))throw new LaneError('refusing recovery: mutex owner commit is not a recognized coordination lock')
     if(Number.isNaN(acquiredAt.valueOf()))throw new LaneError('refusing recovery: mutex owner time is unreadable')
     const age=now-acquiredAt
     if(age<minAgeMs)throw new LaneError(`refusing recovery: mutex is only ${Math.max(0,Math.floor(age/1000))} seconds old`)
@@ -6569,6 +6569,109 @@ export function rebindClaimWorktree(options,now=new Date(),io=githubIo){
   }finally{releaseMutexOnExit(ownerSha,io)}
 }
 
+// #3618. Transfer an abandoned claim without releasing its object lock or version.
+// The abandonment audit proves the author is unavailable. An operator adoption
+// attests to a verbatim current-chat instruction; GitHub's shared login does
+// not authenticate the human who wrote an issue comment.
+export const CLAIM_AUTHOR_TRANSFER_REF_PREFIX='refs/db-claim-author-transfers/'
+function replaceLeaseAuthor(body,owner,worktree,expiresAt){
+  const fences=[...String(body).matchAll(/```db-author-lease\s*\n([\s\S]*?)```/g)]
+  if(fences.length!==1)throw new LaneError('claim must contain exactly one author lease')
+  const block=fences[0][1]
+  if((block.match(/^owner:/gm)??[]).length!==1)throw new LaneError('claim author is ambiguous')
+  const changed=block.replace(/^owner:.*$/m,`owner: ${owner}`)
+  const located=body.slice(0,fences[0].index)+fences[0][0].replace(block,()=>changed)+body.slice(fences[0].index+fences[0][0].length)
+  return replaceLeaseExpiry(replaceLeaseLocation(located,parseAuthorLease(located).branch,worktree),expiresAt)
+}
+function transferRecord(ref,io){
+  const sha=io.readRef(ref);if(!sha)return null
+  const prefix='db-coordination claim-author-operator-adoption '
+  const message=String(io.getCommit(sha)?.message??'')
+  if(!message.startsWith(prefix))throw new LaneError('operator adoption record is unreadable')
+  let record
+  try{record=JSON.parse(message.slice(prefix.length))}catch{throw new LaneError('operator adoption record is malformed')}
+  const fields=['kind','human_identity_authenticated','issue','claim','pr','head_sha','version','old_owner','new_owner','branch','old_worktree','target_worktree','abandonment_issue','old_worktree_state','reservation_sha','authorization_chat_id','authorization_quote','recovery_artifact','lease_hours']
+  if(!record||typeof record!=='object'||Array.isArray(record)||Object.keys(record).length!==fields.length||Object.keys(record).some((key)=>!fields.includes(key))||record.kind!=='operator-adoption'||record.human_identity_authenticated!==false||!Number.isSafeInteger(record.issue)||record.issue<=0||!Number.isSafeInteger(record.claim)||record.claim<=0||!Number.isSafeInteger(record.pr)||record.pr<=0||!Number.isSafeInteger(record.abandonment_issue)||record.abandonment_issue<=0||!/^[0-9a-f]{40}$/.test(String(record.head_sha))||!/^[0-9a-f]{40}$/.test(String(record.reservation_sha))||!/^\d{14}$/.test(String(record.version))||typeof record.old_owner!=='string'||!record.old_owner||typeof record.new_owner!=='string'||!record.new_owner||record.old_owner===record.new_owner||typeof record.branch!=='string'||!record.branch||typeof record.old_worktree!=='string'||!record.old_worktree||typeof record.target_worktree!=='string'||!record.target_worktree||normalizeWorktreePath(record.old_worktree)===normalizeWorktreePath(record.target_worktree)||!WORKTREE_STATES.includes(record.old_worktree_state)||typeof record.recovery_artifact!=='string'||typeof record.authorization_quote!=='string'||record.authorization_quote.trim().length<20||record.authorization_quote!==record.authorization_quote.trim()||!record.authorization_chat_id||!(record.lease_hours>0&&record.lease_hours<=24))throw new LaneError('operator adoption record has invalid exact fields')
+  return {sha,record}
+}
+export function transferClaimAuthor(options,now=new Date(),io=githubIo){
+  const request={issue:Number(options.issue),claim:Number(options.claim),pr:Number(options.pr),headSha:String(options.headSha??''),oldOwner:String(options.oldOwner??''),newOwner:String(options.newOwner??''),branch:String(options.branch??''),oldWorktree:String(options.worktree??''),targetWorktree:String(options.targetWorktree??''),abandonmentIssue:Number(options.abandonmentIssue),oldWorktreeState:String(options.worktreeState??''),authorizationChatId:String(options.authorizationChatId??''),authorizationQuote:String(options.authorizationQuote??''),recoveryArtifact:String(options.recoveryArtifact??''),leaseHours:Number(options.leaseHours)}
+  if(![request.issue,request.claim,request.pr,request.abandonmentIssue].every((n)=>Number.isSafeInteger(n)&&n>0)||!/^[0-9a-f]{40}$/.test(request.headSha)||!request.oldOwner||!request.newOwner||request.oldOwner===request.newOwner||!request.branch||!request.oldWorktree||!request.targetWorktree||!WORKTREE_STATES.includes(request.oldWorktreeState)||!(request.leaseHours>0&&request.leaseHours<=24))throw new LaneError('author transfer requires exact issue, claim, PR, head, old/new owner, branch, old/new worktree, old worktree state, abandonment issue, and lease hours')
+  if(/[\s`]/.test(request.branch))throw new LaneError('claim branch contains a forbidden character')
+  if(/[\r\n`]/.test(request.newOwner+request.targetWorktree)||request.newOwner!==request.newOwner.trim()||request.targetWorktree!==request.targetWorktree.trim()||normalizeWorktreePath(request.oldWorktree)===normalizeWorktreePath(request.targetWorktree))throw new LaneError('successor identity is invalid or reuses the old worktree')
+  if(!request.authorizationChatId||request.authorizationQuote.trim().length<20||request.authorizationQuote!==request.authorizationQuote.trim())throw new LaneError('operator adoption requires current-chat ID and verbatim user authorization quote')
+  const proofOptions={claim:request.claim,blockedOn:`issue:#${request.abandonmentIssue}`,worktreeState:request.oldWorktreeState}
+  const verify=(allowAdopted=false)=>{
+    const claim=io.getIssue(request.claim),lease=parseAuthorLease(claim?.body??'',now)
+    if(claim?.state!=='open'||workstreamKey(claim.title)!==`#${request.issue}`)throw new LaneError('claim is not open for the exact work issue')
+    const adopted=allowAdopted&&lease.owner===request.newOwner&&lease.worktree===request.targetWorktree
+    if(lease.legacy||(!adopted&&(lease.owner!==request.oldOwner||lease.worktree!==request.oldWorktree||lease.capacityState!=='expired-unconfirmed'))||lease.branch!==request.branch)throw new LaneError('claim is not the exact expired old-author lease')
+    assertClaimNotRetired(lease.version,'transferred',io)
+    const issue=io.getIssue(request.issue)
+    renewalIssueScope(issue,lease,[request.issue],{allowClaimSuperset:true})
+    const audit=adopted?true:assertAbandonmentEvidence(proofOptions,lease,proofOptions.blockedOn,io)
+    if(!audit)throw new LaneError('exact abandonment audit proof is absent')
+    if(!adopted){const observed=observedWorktreeState(request.oldWorktree,io);if(observed!==request.oldWorktreeState&&!(observed==='absent'&&request.oldWorktreeState==='remote'))throw new LaneError('old worktree state differs from explicit declaration')}
+    const marker=io.orchestratorFlowAdapter().resolveMarker()
+    if(!marker?.live||marker.task!==request.authorizationChatId)throw new LaneError('operator adoption chat ID does not match live sole-orchestrator marker')
+    if(request.oldWorktreeState!=='clean')requireDereferenceableRecoveryArtifact(request.recoveryArtifact,io)
+    const pr=io.getPr(request.pr)
+    if(pr?.state!=='open'||pr.head?.sha!==request.headSha||pr.head?.ref!==request.branch)throw new LaneError('open PR head or branch changed')
+    const versions=migrationVersions(io.getPrFiles(request.pr))
+    if(versions.length!==1||versions[0]!==lease.version)throw new LaneError('PR migration does not match permanent claim version')
+    const sources=io.prSources(),self=sources.filter((source)=>new RegExp(`^PR #${request.pr}(?:\\s|$)`).test(source.label))
+    if(self.length!==1||self[0].branch!==request.branch||self[0].versions?.length!==1||String(self[0].versions[0])!==lease.version||!self[0].objects?.length)throw new LaneError('PR parser source is missing or ambiguous')
+    const held=new Set(lease.objects.map(normalizeObject))
+    if(validateClaimObjects(self[0].objects??[]).some((object)=>!held.has(object)))throw new LaneError('PR writes an object outside the claim')
+    const claims=io.openClaims(),matches=claims.filter((row)=>Number(row.number)===request.claim)
+    if(matches.length!==1||matches[0].body!==claim.body)throw new LaneError('target claim is missing or changed in the open-claim roster')
+    if(claims.some((row)=>Number(row.number)!==request.claim&&normalizeWorktreePath(parseAuthorLease(row.body,now).worktree)===normalizeWorktreePath(request.targetWorktree)))throw new LaneError('successor worktree belongs to another open claim')
+    assertRetirementIdentityAvailable({branch:'',worktree:request.targetWorktree},io)
+    assertLaneAvailable(claims.filter((row)=>Number(row.number)!==request.claim),lease.objects,now,{prSources:sources.filter((source)=>source!==self[0])})
+    const reservationSha=io.readRef(`refs/db-claims/${lease.version}`)
+    if(!/^[0-9a-f]{40}$/.test(String(reservationSha))||!io.getCommit(reservationSha))throw new LaneError('permanent version reservation is unreadable')
+    for(const [kind,ref] of Object.entries(EXCLUSIVE_REFS))if(io.readRef(ref))throw new LaneError(`cannot transfer while ${kind} stage is held`)
+    if(!io.localClean(request.targetWorktree)||io.localHead(request.targetWorktree)!==request.headSha||io.localBranch(request.targetWorktree)!==request.branch)throw new LaneError('successor worktree must be clean on the claim branch at exact PR head')
+    return {claim,lease,reservationSha,adopted}
+  }
+  const ownerSha=io.makeOwnerCommit(`db-coordination claim-author-transfer-mutex claim=${request.claim}`)
+  acquireMutex(ownerSha,io)
+  let bodyChanged=false,evidenceCreated=false,beforeBody=null,ref=null,transferSha=null
+  try{
+    const current=io.getIssue(request.claim),currentLease=parseAuthorLease(current?.body??'',now)
+    const identity={issue:request.issue,claim:request.claim,pr:request.pr,head_sha:request.headSha,version:currentLease.version,old_owner:request.oldOwner,new_owner:request.newOwner,branch:request.branch,old_worktree:request.oldWorktree,target_worktree:request.targetWorktree,abandonment_issue:request.abandonmentIssue,old_worktree_state:request.oldWorktreeState}
+    ref=`${CLAIM_AUTHOR_TRANSFER_REF_PREFIX}${request.claim}-${currentLease.version}-${sha256(canonicalJson(identity)).slice(0,20)}`
+    const prior=transferRecord(ref,io),fresh=verify(Boolean(prior))
+    if(fresh.lease.version!==identity.version)throw new LaneError('claim version changed during operator adoption')
+    const record={kind:'operator-adoption',human_identity_authenticated:false,...identity,reservation_sha:fresh.reservationSha,authorization_chat_id:request.authorizationChatId,authorization_quote:request.authorizationQuote,recovery_artifact:request.recoveryArtifact,lease_hours:request.leaseHours}
+    if(prior&&JSON.stringify(prior.record)!==JSON.stringify(record))throw new LaneError('existing operator adoption record differs from exact request')
+    if(fresh.adopted){if(!prior)throw new LaneError('claim was adopted without immutable evidence');return {claim:request.claim,version:fresh.lease.version,owner:request.newOwner,worktree:request.targetWorktree,ref,sha:prior.sha,idempotent:true}}
+    transferSha=prior?.sha
+    if(!transferSha){
+      transferSha=io.makeOwnerCommit(`db-coordination claim-author-operator-adoption ${JSON.stringify(record)}`)
+      if(!io.createRef(ref,transferSha))throw new LaneError('immutable operator adoption record could not be created')
+      evidenceCreated=true
+      if(readRefAfterWrite(ref,transferSha,io)!==transferSha)throw new LaneError('immutable operator adoption record could not be read back')
+    }
+    requireOwnedRef(MUTEX_REF,ownerSha,io)
+    beforeBody=fresh.claim.body
+    const newBody=replaceLeaseAuthor(fresh.claim.body,request.newOwner,request.targetWorktree,new Date(now.valueOf()+request.leaseHours*3600000))
+    bodyChanged=true;io.updateIssue(request.claim,{body:newBody})
+    const after=io.getIssue(request.claim),newLease=parseAuthorLease(after?.body??'',now)
+    if(after?.body!==newBody||newLease.owner!==request.newOwner||newLease.worktree!==request.targetWorktree||newLease.version!==fresh.lease.version||newLease.branch!==request.branch||JSON.stringify(newLease.objects)!==JSON.stringify(fresh.lease.objects))throw new LaneError('author transfer claim readback failed')
+    if(io.readRef(`refs/db-claims/${fresh.lease.version}`)!==fresh.reservationSha||!io.getCommit(fresh.reservationSha))throw new LaneError('permanent version reservation changed after adoption')
+    requireOwnedRef(MUTEX_REF,ownerSha,io)
+    return {claim:request.claim,version:fresh.lease.version,owner:request.newOwner,worktree:request.targetWorktree,ref,sha:transferSha,idempotent:false}
+  }catch(error){
+    if(io.readRef(MUTEX_REF)!==ownerSha)throw new LaneError(`${error.message}; ROLLBACK NOT ATTEMPTED because mutex ownership was lost`)
+    const failures=[]
+    if(bodyChanged)try{io.updateIssue(request.claim,{body:beforeBody});if(io.getIssue(request.claim)?.body!==beforeBody)throw new LaneError('claim body rollback readback failed')}catch(e){failures.push(e.message)}
+    if(evidenceCreated&&/could not be read back/.test(error.message))try{if(io.readRef(ref)===transferSha)releaseOwnedRef(ref,transferSha,io)}catch(e){failures.push(e.message)}
+    if(failures.length)throw new LaneError(`${error.message}; ROLLBACK INCOMPLETE: ${failures.join('; ')}`)
+    throw error
+  }finally{if(io.readRef(MUTEX_REF)===ownerSha)releaseOwnedRef(MUTEX_REF,ownerSha,io)}
+}
+
 function parseMergedClaimReissue(commit){
   const message=commit?.message??commit?.commit?.message??''
   const match=/^db-coordination merged-claim-reissued issue=(\d+) claim=(\d+) source-pr=(\d+) old=(\d{14}) new=(\d{14}) old-ref=([0-9a-f]{7,40}) new-ref=([0-9a-f]{7,40}) merge=([0-9a-f]{40})$/i.exec(message)
@@ -9278,11 +9381,12 @@ function parseArgs(argv) {
     else if (['--propose-train','--validate-train','--authorize-train','--dispatch-train','--close-train','--verify-train-dispatch','--train-proof','--authorization-digest','--target-identity','--target','--commit-sha','--allowlist','--failed-applied-prefix'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
     else if (a === '--reissue-merged-stranded-claim') out.reissueMergedClaim = true
     else if (a === '--rebind-claim-worktree') out.rebindClaimWorktree = true
+    else if (a === '--transfer-claim-author') out.transferClaimAuthor = true
     else if (a === '--reversion-active-claim' || a === '--supersede-active-claim-version') out.reversionClaim = true
     else if (a === '--confirm-stale') out.confirmStale = true
     else if (/^--acquire-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.acquireExclusive = a.slice(10)
     else if (/^--release-(preview|preview-recovery|preview-rehearsal|merge|production)$/.test(a)) out.releaseExclusive = a.slice(10)
-    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--target-url','--description','--claim-number','--failed-sequence','--failure-code','--failing-check','--old-version','--reviewer','--reviewer-allowlist','--status','--wrapper','--version-pr-map','--blocked-on','--review-slot','--reason','--evidence','--evidence-sha','--verdict','--findings-ref','--replacement-sequence','--run-id','--artifact-id','--artifact-digest','--manifest-digest','--database-preview-classification-file','--worktree-state','--recovery-artifact','--hold-reason','--prompt','--prompt-file'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
+    else if (['--task','--owner','--branch','--worktree','--issue','--pr','--head-sha','--owner-sha','--expected-sha','--released-claim','--active-claim','--source-pr','--target-pr','--target-branch','--target-worktree','--target-url','--description','--claim-number','--failed-sequence','--failure-code','--failing-check','--old-version','--reviewer','--reviewer-allowlist','--status','--wrapper','--version-pr-map','--blocked-on','--review-slot','--reason','--evidence','--evidence-sha','--verdict','--findings-ref','--replacement-sequence','--run-id','--artifact-id','--artifact-digest','--manifest-digest','--database-preview-classification-file','--worktree-state','--recovery-artifact','--hold-reason','--prompt','--prompt-file','--old-owner','--new-owner','--abandonment-issue','--authorization-chat-id','--authorization-quote-file'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
     else if(a==='--confirm-local-dependency-unfixable')out.confirmLocalDependencyUnfixable=true
     else if(a==='--skip-doctor')out.skipDoctor=true
     else if(a==='--confirm-no-verdict')out.confirmNoVerdict=true
@@ -9380,7 +9484,7 @@ export function main(argv, now = new Date(), io = githubIo) {
   try {
     const o = parseArgs(argv)
     if(String(process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING??'').trim())io=withMergedPrIssueBinding(io,process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING)
-    const primaryKeys=['proposeTrain','validateTrain','authorizeTrain','dispatchTrain','closeTrain','verifyTrainDispatch','authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','abandonmentAudit','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','recoverSplit','expandClaim','expandClaimFromIssue','renewClaim','recoverExpiredClaim','relinquishAuthorLease','resumeAuthorLease','repairResumedClaim','reissueMergedClaim','reversionClaim','rebindClaimWorktree','replaceFailedReviewer','releaseFailedReviewer','probeSilentReviewer','reclaimSilentReviewer','reapAbandonedReviewLeases','archiveOldReviewVerdicts','reviewerCapacity','reviewerStartWatchLeases','excludeReviewer','reinstateReviewerExclusion','reviewerPreflight','deliveryPreflight','assignReviewer','activateReviewCutover','acquireExclusive','releaseExclusive','claim','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','setScopeStatus','releaseClaim','releaseDuplicateClaim','cleanup','audit']
+    const primaryKeys=['proposeTrain','validateTrain','authorizeTrain','dispatchTrain','closeTrain','verifyTrainDispatch','authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','abandonmentAudit','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','recoverSplit','expandClaim','expandClaimFromIssue','renewClaim','recoverExpiredClaim','relinquishAuthorLease','resumeAuthorLease','repairResumedClaim','reissueMergedClaim','reversionClaim','rebindClaimWorktree','transferClaimAuthor','replaceFailedReviewer','releaseFailedReviewer','probeSilentReviewer','reclaimSilentReviewer','reapAbandonedReviewLeases','archiveOldReviewVerdicts','reviewerCapacity','reviewerStartWatchLeases','excludeReviewer','reinstateReviewerExclusion','reviewerPreflight','deliveryPreflight','assignReviewer','activateReviewCutover','acquireExclusive','releaseExclusive','claim','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','setScopeStatus','releaseClaim','releaseDuplicateClaim','cleanup','audit']
     const selectedPrimary=primaryKeys.filter((key)=>Object.prototype.hasOwnProperty.call(o,key))
     const hasAdmission=Object.prototype.hasOwnProperty.call(o,'admitIssue')
     if(selectedPrimary.length>1)throw new LaneError(`choose exactly one primary operation; received ${selectedPrimary.join(', ')}`)
@@ -9516,6 +9620,7 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.repairResumedClaim){console.log(JSON.stringify(repairResumedClaim({...o,claim:o.claimNumber??o.claim},now,io),null,2));return 0}
     if(o.reissueMergedClaim){console.log(JSON.stringify(reissueMergedStrandedClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
     if(o.rebindClaimWorktree){console.log(JSON.stringify(rebindClaimWorktree({...o,claim:o.claimNumber},now,io),null,2));return 0}
+    if(o.transferClaimAuthor){console.log(JSON.stringify(transferClaimAuthor({...o,claim:o.claimNumber,authorizationQuote:o.authorizationQuoteFile?readFileSync(o.authorizationQuoteFile,'utf8').trim():''},now,io),null,2));return 0}
     if(o.reversionClaim){console.log(JSON.stringify(reversionActiveClaim({...o,claim:o.claimNumber},now,io),null,2));return 0}
     // A REPLACEMENT draw spends reviewer capacity exactly like a first draw, so the
     // same readiness pre-conditions apply to it (governed review of PR #3338). Wiring

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_issue": 3618,
+  "outcome": "ready-for-merge",
+  "pr": 3620,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3618/2",
+  "contract_sha256": "0ab40253327d7b2eb97824986ff288646484c603640d0617bd283de97b89bca3",
+  "base_sha": "339359bde6337379a5c2216808fc9b60303eb3d5",
+  "head_sha": "6f9bf4a614a71398695d35620bab356725d0894d",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "scripts/claim-author-transfer.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/claim-author-transfer.test.mjs",
+      "exit_code": 0,
+      "evidence": "759/759 pass at 6f9bf4a6 after rollback fix for Muse REVISE at f462aff8 (sibling-style rollback, evidence-readback ref cleanup, transferRecord tightening, branch sanitization)"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=324 sources=81 derived_digest=0efc8d70957e at 6f9bf4a6 on main 339359bd."
+    }
+  ],
+  "assumptions_resolved": [
+    "Normal newline-terminated quote files work; immutable adoption records have exact schema and valid reservation commit identity.",
+    "A retired target worktree and former-author resume, renew, and rebind paths refuse; partial writes can be retried safely."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Re-bound by MiMo chat unknown on edge-dev after replacing applied_with_warning with sibling-style rollback per Muse REVISE; required checks rerun: 759 tests pass, throughput truth audit exit 0, diff --check 0."
+}
