@@ -211,3 +211,29 @@ begin
 end
 $phase3$;
 rollback;
+
+-- #3725: the validator casts text to timestamptz (TimeZone-dependent), so it
+-- must never be declared IMMUTABLE again; the ALTER must leave the rest intact.
+do $volatility_3725$
+declare p record;
+begin
+  select provolatile, proconfig, prosecdef, prorettype, md5(prosrc) as body_md5, oid
+    into p from pg_proc
+   where oid = 'plm.wb_validate_normalized_row(text,jsonb)'::regprocedure;
+  if p.provolatile is distinct from 's' then
+    raise exception 'plm.wb_validate_normalized_row must be STABLE (provolatile s), found %', p.provolatile;
+  end if;
+  if p.proconfig is distinct from array['search_path=pg_catalog'] or p.prosecdef
+     or p.prorettype <> 'void'::regtype or p.body_md5 <> 'e28fedd3c0534399a3d890f5cf69a9ec' then
+    raise exception 'plm.wb_validate_normalized_row definition drifted: %', row_to_json(p);
+  end if;
+  -- Why STABLE: the frozen body still performs offset-less text->timestamptz casts.
+  if position('::timestamptz' in (select prosrc from pg_proc where oid = p.oid)) = 0 then
+    raise exception 'plm.wb_validate_normalized_row no longer casts to timestamptz; re-derive its volatility (#3725)';
+  end if;
+  if has_function_privilege('anon', p.oid, 'EXECUTE') or has_function_privilege('authenticated', p.oid, 'EXECUTE')
+     or not has_function_privilege('service_role', p.oid, 'EXECUTE') then
+    raise exception 'plm.wb_validate_normalized_row grants drifted';
+  end if;
+end
+$volatility_3725$;

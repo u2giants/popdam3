@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "work_issue": 3725,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Mark plm.wb_validate_normalized_row(text,jsonb) STABLE instead of IMMUTABLE (TimeZone-dependent timestamptz casts) and pin provolatile in a contract test",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "dispatcher": "shared-db orchestrator (Claude chat 626c9036-7381-4131-aeee-6e29883153c6, edge-dev3), author claim #3740",
+  "worker": "claude",
+  "branch": "fix/3725-wb-validate-stable",
+  "worktree": ".claude/worktrees/wb-3725-stable",
+  "allowed_paths": [
+    "supabase/migrations/20260929005943_wb_validate_normalized_row_stable.sql",
+    "supabase/tests/wb_normalized_source_contracts.sql",
+    "scripts/production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20260929005943.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    ".github/live-proofs/3725.sql",
+    ".agent/work/3725/1/contract.json",
+    ".agent/work/3725/1/completion.json",
+    ".agent/work/3725/2/contract.json",
+    ".agent/work/3725/2/completion.json",
+    ".agent/work/3725/3/contract.json",
+    ".agent/work/3725/3/completion.json",
+    ".agent/work/3725/4/contract.json",
+    ".agent/work/3725/4/completion.json",
+    ".agent/work/3725/5/contract.json",
+    ".agent/work/3725/5/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260929005943_wb_validate_normalized_row_stable.sql",
+    "supabase/tests/wb_normalized_source_contracts.sql",
+    "scripts/production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20260929005943.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    ".github/live-proofs/3725.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function plm.wb_validate_normalized_row"
+  ],
+  "prohibited_actions": [
+    "do not CREATE OR REPLACE the function body",
+    "do not change search_path, owner or grants",
+    "do not touch any other database object"
+  ],
+  "required_checks": [
+    "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+    "supabase/tests/wb_normalized_source_contracts.sql in the ephemeral-database CI job"
+  ],
+  "assumptions": [
+    "no index, generated column, constraint or IMMUTABLE caller depends on the function"
+  ],
+  "stop_conditions": [
+    "stop if any object requires the function to be IMMUTABLE"
+  ],
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 3725,
+    "generation": 4,
+    "contract_sha256": "2380abfd6046965f56a8c4cf900266e53a4feda524f76d1d686a2f784f72f7f8"
+  }
+}

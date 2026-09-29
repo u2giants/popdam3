@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 3725,
+  "outcome": "ready-for-merge",
+  "pr": 3741,
+  "migration_versions": [
+    "20260929005943"
+  ],
+  "contract_ref": "refs/db-contracts/3725/5",
+  "contract_sha256": "92c86bd0681f463591412429746f41f3b18d793b1e66c55c8badab1d442a0055",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "head_sha": "96fcf8ffd0e2fc88ae13c1398af17562233f3e16",
+  "files_changed": [
+    ".github/live-proofs/3725.sql",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20260929005943.json",
+    "scripts/production_catalog_verification.py",
+    "supabase/migrations/20260929005943_wb_validate_normalized_row_stable.sql",
+    "supabase/tests/wb_normalized_source_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function plm.wb_validate_normalized_row"
+  ],
+  "checks": [
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "status OK at head 1862629c after re-reservation 20260928183916 -> 20260929005943 (migration SQL bytes unchanged; sidecar migration_sha256 recomputed by the lane tool)"
+    },
+    {
+      "command": "supabase/tests/wb_normalized_source_contracts.sql in the ephemeral-database CI job",
+      "exit_code": 0,
+      "evidence": "Migration SQL and supabase/tests/wb_normalized_source_contracts.sql are byte-identical to head 783606cf, where Actions run 36480025736 job 109123182327 concluded success; the ephemeral job re-runs on this head after push."
+    }
+  ],
+  "assumptions_resolved": [
+    "Every reference to the function in supabase/migrations is its definition, grants, or a PERFORM call; no index, generated column, constraint or IMMUTABLE function depends on it.",
+    "Live production (read-only, before the change): md5(prosrc) e28fedd3c0534399a3d890f5cf69a9ec, proconfig search_path=pg_catalog, prosecdef false, returns void, provolatile i; the live-proof probe's non-version conditions hold.",
+    "Read-only production survey: the only non-C IMMUTABLE routine outside system schemas whose body contains ::timestamptz, ::timestamp, to_char( or now() is plm.wb_validate_normalized_row(text,jsonb) itself."
+  ],
+  "stop_conditions_hit": [],
+  "disclosure": "Generations 1-3 were published and superseded as review findings and the guarded-merge live-proof requirement added files outside their allowed paths. Governed preview has not run yet; it is not claimed here. Generation 5 exists only because Guarded Merge run 36502834074 refused the backdated version 20260928183916 (newest on main 20260928211543); the claim was re-reserved via --supersede-active-claim-version to 20260929005943 and the live-proof version literal followed. No SQL changed. Evidence conventions (answering DeepSeek REVISE at 5cb1cc72): contract_sha256 is the digest of the canonical contract published at refs/db-contracts/3725/5 (what agent-work-contract.mjs validates), not of the pretty-printed file bytes; files_changed is Git's diff from base_sha to head_sha as scripts/agent-work-contract-git-evidence.mjs requires, which still includes the generation-4 pair removed afterwards because #2708 allows exactly one evidence pair in the PR; evidence_parent names generation 4, which remains readable at refs/db-contracts/3725/4. Known low-severity leftovers, deliberately not changed: the comment at scripts/production_catalog_verification.py:4628 still names the pre-re-reservation version 20260928183916 because editing the detector would force a reviewed baseline regeneration; the migration post-apply guard uses <> on NOT NULL catalog columns, where NULL is unreachable."
+}

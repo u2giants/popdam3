@@ -4624,5 +4624,22 @@ CATALOG_CONTRACTS["popsg_refresh_search_sync_queue_v1"] = (
     POPSG_REFRESH_SEARCH_SYNC_QUEUE_CONTRACT
 )
 
+WB_VALIDATE_NORMALIZED_ROW_STABLE_CONTRACT = (
+    # Issue #3725. ALTER-only migration 20260928183916 marks the validator STABLE
+    # (it casts text to timestamptz, which depends on TimeZone) and must leave the
+    # body, search_path, security mode, return type and grants unchanged.
+    "exists (select 1 from pg_proc p where p.oid=to_regprocedure('plm.wb_validate_normalized_row(text,jsonb)')"
+    " and p.provolatile='s' and not p.prosecdef and p.prorettype='void'::regtype"
+    " and p.proconfig=array['search_path=pg_catalog']"
+    " and md5(p.prosrc)='e28fedd3c0534399a3d890f5cf69a9ec'"
+    " and not has_function_privilege('anon',p.oid,'EXECUTE')"
+    " and not has_function_privilege('authenticated',p.oid,'EXECUTE')"
+    " and has_function_privilege('service_role',p.oid,'EXECUTE'))"
+)
+CATALOG_CONTRACTS["wb_validate_normalized_row_stable_v1"] = (
+    WB_VALIDATE_NORMALIZED_ROW_STABLE_CONTRACT
+)
+
+
 if __name__ == "__main__":
     raise SystemExit(main())
