@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { activationDate, conflictsWithMain, filePaths, gather, lastActivityAt, latestChecksFailing, openProtectedCollisions, parseStalePlaceNudge, stalePlaceNudgeLine, stalePlaceSkips, stalePlaceYield } from './check-pr-source-collisions.mjs'
+import { activationDate, conflictsWithMain, filePaths, gather, lastActivityAt, main, mergeGroupProblem, readMergeGroupFacts, latestChecksFailing, openProtectedCollisions, parseStalePlaceNudge, stalePlaceNudgeLine, stalePlaceSkips, stalePlaceYield } from './check-pr-source-collisions.mjs'
 
 const NOW='2026-09-18T12:00:00Z'
 const PROTECTED='scripts/manage-migration-author-lanes.mjs'
@@ -157,4 +157,87 @@ test('conflictsWithMain: a computed false or dirty state conflicts, computing do
   assert.equal(conflictsWithMain({mergeable:null,mergeable_state:'dirty'}),true)
   assert.equal(conflictsWithMain({mergeable:null,mergeable_state:'unknown'}),false)
   assert.equal(conflictsWithMain({mergeable:true,mergeable_state:'clean'}),false)
+})
+
+// 2026-09-28 deadlock replay: nine ready pull requests all editing the lane
+// manager. Before, every one but the head of the line exited 1 and stayed red
+// forever. Now each passes and names its place; the merge queue serializes.
+test('overlapping ready PRs queue instead of failing each other (2026-09-28 deadlock replay)',()=>{
+  const prs=Array.from({length:9},(_,i)=>({number:3600+i,title:`pr${i}`,draft:false,activatedAt:`2026-09-28T0${i}:00:00Z`,files:[PROTECTED]}))
+  const verdicts=prs.map((current)=>{
+    const out=[];const err=[]
+    const code=main({},{gatherInput:()=>({current,others:prs.filter((pr)=>pr!==current)}),now:'2026-09-28T12:00:00Z',log:(m)=>out.push(m),error:(m)=>err.push(m)})
+    return {code,out,err}
+  })
+  assert.deepEqual(verdicts.map((v)=>v.code),Array(9).fill(0))
+  assert.ok(verdicts.every((v)=>v.err.length===0))
+  assert.match(verdicts[0].out.join('\n'),/No other ready open pull request/)
+  for(let i=1;i<9;i++){
+    const text=verdicts[i].out.join('\n')
+    assert.match(text,/^QUEUED:/m)
+    assert.equal((text.match(/earlier overlapping PR/g)??[]).length,i)
+  }
+})
+
+test('an unreadable collision audit still refuses (fail closed)',()=>{
+  const err=[]
+  assert.equal(main({},{gatherInput:()=>{throw new Error('boom')},log:()=>{},error:(m)=>err.push(m)}),2)
+  assert.match(err[0],/audit is unavailable: boom/)
+})
+
+const A='a'.repeat(40),B='b'.repeat(40),C='c'.repeat(40),D='d'.repeat(40)
+test('merge group: its base plus exactly one PR passes; everything else refuses',()=>{
+  assert.equal(mergeGroupProblem({baseSha:A,headSha:B,headParents:[A,C]}),null)
+  assert.match(mergeGroupProblem({baseSha:A,headSha:B,headParents:[D,C]}),/not exactly one pull request/)
+  assert.match(mergeGroupProblem({baseSha:A,headSha:B,headParents:[A]}),/not exactly one pull request/)
+  assert.match(mergeGroupProblem({baseSha:A,headSha:B,headParents:[A,C,D]}),/not exactly one pull request/)
+  assert.match(mergeGroupProblem({baseSha:'x',headSha:B,headParents:[A,C]}),/base or head SHA is unreadable/)
+  assert.match(mergeGroupProblem({baseSha:A,headSha:B,headParents:null}),/parents are unreadable/)
+  assert.match(mergeGroupProblem(),/unreadable/)
+})
+
+test('merge-group mode exits 1 on a stacked group or unreadable facts, 0 only on the exact shape',()=>{
+  const env={SOURCE_COLLISION_MODE:'merge-group'}
+  const run=(groupFacts)=>{const err=[];const code=main(env,{groupFacts,gatherInput:()=>{throw new Error('PR scan must not run on merge_group')},log:()=>{},error:(m)=>err.push(m)});return {code,err}}
+  assert.equal(run(()=>({baseSha:A,headSha:B,headParents:[A,C]})).code,0)
+  assert.equal(run(()=>({baseSha:A,headSha:B,headParents:[D,C]})).code,1)
+  const broken=run(()=>{throw new Error('no event file')})
+  assert.equal(broken.code,1);assert.match(broken.err[0],/unreadable: no event file/)
+})
+
+test('merge-group mode end to end: real event file and real git history',async()=>{
+  const {execFileSync}=await import('node:child_process')
+  const {mkdtempSync,writeFileSync}=await import('node:fs')
+  const {tmpdir}=await import('node:os')
+  const {join}=await import('node:path')
+  const dir=mkdtempSync(join(tmpdir(),'mg-'))
+  const g=(...args)=>execFileSync('git',['-C',dir,'-c','user.name=t','-c','user.email=t@t','-c','commit.gpgsign=false',...args],{encoding:'utf8'}).trim()
+  g('init','-q','-b','main');writeFileSync(join(dir,'f'),'1');g('add','f');g('commit','-qm','base')
+  const base=g('rev-parse','HEAD')
+  g('checkout','-qb','pr1');writeFileSync(join(dir,'p1'),'1');g('add','p1');g('commit','-qm','pr1')
+  g('checkout','-q','main');g('checkout','-qb','pr2');writeFileSync(join(dir,'p2'),'1');g('add','p2');g('commit','-qm','pr2')
+  g('checkout','-q','main');g('merge','-q','--no-ff','-m','group1','pr1')
+  const group1=g('rev-parse','HEAD')
+  g('merge','-q','--no-ff','-m','group2 stacked','pr2')
+  const stacked=g('rev-parse','HEAD')
+  const run=(payload)=>{
+    const path=join(dir,'event.json');writeFileSync(path,JSON.stringify(payload))
+    const env={SOURCE_COLLISION_MODE:'merge-group',GITHUB_EVENT_PATH:path}
+    const err=[];const code=main(env,{groupFacts:()=>readMergeGroupFacts(env,{cwd:dir}),log:()=>{},error:(m)=>err.push(m)})
+    return {code,err}
+  }
+  assert.equal(run({merge_group:{base_sha:base,head_sha:group1}}).code,0)
+  const s=run({merge_group:{base_sha:base,head_sha:stacked}});assert.equal(s.code,1);assert.match(s.err[0],/not exactly one pull request/)
+  assert.equal(run({merge_group:{base_sha:base}}).code,1)
+  const garbled=join(dir,'bad.json');writeFileSync(garbled,'{not json')
+  const genv={SOURCE_COLLISION_MODE:'merge-group',GITHUB_EVENT_PATH:garbled}
+  assert.equal(main(genv,{groupFacts:()=>readMergeGroupFacts(genv,{cwd:dir}),log:()=>{},error:()=>{}}),1)
+})
+
+test('workflow pins the merge-group step to merge_group with merge-group mode',async()=>{
+  const {readFileSync}=await import('node:fs')
+  const yml=readFileSync(new URL('../.github/workflows/pr-object-collision.yml',import.meta.url),'utf8')
+  const step=yml.slice(yml.indexOf('- name: Merge group is its base plus exactly one PR'))
+  assert.match(step.slice(0,400),/if: github\.event_name == 'merge_group'[\s\S]*SOURCE_COLLISION_MODE: merge-group[\s\S]*node scripts\/check-pr-source-collisions\.mjs/)
+  assert.match(yml,/node --test [^\n]*scripts\/manage-migration-author-lanes\.test\.mjs/)
 })

@@ -2,11 +2,17 @@
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { currentPullNumber, loadOpenPullFiles } from './lib/open-pr-files.mjs'
 import { pathToFileURL } from 'node:url'
+import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 
 export const PROTECTED_SOURCE_PATHS=new Set(['scripts/manage-migration-author-lanes.mjs'])
 
 // THE STALE-PLACE RULE (issue #3273)
 // ----------------------------------
+// SINCE #3721 this rule no longer changes the exit code: overlap passes at PR
+// time and the merge queue decides order. It now only decides which earlier
+// pull requests are LISTED as ahead. The text below is its original rationale.
+//
 // An earlier ready pull request that edits a protected source serializes every
 // later one, and until 2026-09-18 that place in the queue had no expiry: on
 // that date PRs #3215, #3217 and #3228 sat 8+ hours ahead of #3247 while
@@ -219,15 +225,66 @@ export function gather(env=process.env,{load=loadOpenPullFiles,timeline=readTime
     others:overlapping.map(enrich),
   }
 }
-export function main(env=process.env){
-  let input;try{input=gather(env)}catch(error){console.error(`ERROR: protected source collision audit is unavailable: ${error.message}`);return 2}
-  const skips=stalePlaceSkips(input.current,input.others)
-  for(const row of skips)console.log(`STALE-PLACE SKIP: ${row.file} — PR #${row.pr} "${row.title}" is inactive 24h+ with failing checks or a main conflict, and a dated nudge names this pull request; it no longer precedes this one.`)
-  const collisions=openProtectedCollisions(input.current,input.others)
-  if(!collisions.length){console.log('No other ready open pull request edits the same protected coordination source.');return 0}
-  console.error('ERROR: another ready open pull request edits the same protected coordination source.')
-  for(const row of collisions)console.error(`  ${row.file} — PR #${row.pr} "${row.title}"`)
-  console.error('Merge or close the other pull request, then rebase and re-run this check. No migration version or database-object claim is consumed.')
-  return 1
+// THE MERGE-TIME PROOF (review of PR #3722). Queueing instead of refusing is
+// safe only if every overlapping change is tested on a tree that already
+// contains the earlier one. That is proved per merge group from the facts of
+// the group itself -- the tree actually being tested -- using only the event
+// payload and local git (the rulesets API needs admin access, and a repo PAT
+// must never reach pull-request code):
+//
+//   the group head is a single two-parent merge whose first parent IS the
+//   group's base_sha, i.e. the group is exactly "main as GitHub chose it +
+//   this one pull request", not stacked on another queued entry.
+//
+// Because each queued entry merges into main before the next group is built on
+// it, an earlier overlapping change is in the later group's base. Main moving
+// OUTSIDE the queue is deliberately not a refusal: GitHub rebuilds such groups
+// itself, and only an admin bypass can move main outside the queue -- the same
+// bypass could merge past the old PR-time refusal too. Anything unreadable
+// refuses. This same job runs the lane-manager suites on that tree.
+export function mergeGroupProblem({baseSha,headSha,headParents}={}){
+  const sha=(value)=>typeof value==='string'&&/^[0-9a-f]{40}$/.test(value)
+  if(!sha(baseSha)||!sha(headSha))return 'the merge group base or head SHA is unreadable'
+  if(!Array.isArray(headParents)||!headParents.every(sha))return 'the merge group head parents are unreadable'
+  if(headParents.length!==2||headParents[0]!==baseSha)return 'the merge group is not exactly one pull request merged onto its base'
+  return null
+}
+export function readMergeGroupFacts(env,{cwd}={}){
+  const event=JSON.parse(readFileSync(env.GITHUB_EVENT_PATH,'utf8'))
+  const baseSha=event?.merge_group?.base_sha,headSha=event?.merge_group?.head_sha
+  if(typeof headSha!=='string'||!headSha)return {baseSha,headSha,headParents:null}
+  const line=execFileSync('git',['rev-list','--parents','-n','1',headSha],{encoding:'utf8',cwd}).trim().split(/\s+/)
+  return {baseSha,headSha,headParents:line[0]===headSha?line.slice(1):null}
+}
+
+// QUEUE, DON'T REFUSE (issue #3721; Albert Hazan, 2026-09-28: "overlapping
+// changes wait their turn in the automatic merge line instead of blocking each
+// other"). Until then an overlap with an earlier ready pull request FAILED this
+// required check and the red verdict never re-ran when the predecessor merged,
+// so about nine ready pull requests blocked one another at once.
+//
+// The harm this rule exists for (issue #1831: two branches editing the lane
+// manager combining silently in git) is now held at MERGE time: on every
+// merge_group, SOURCE_COLLISION_MODE=merge-group proves the group is its base
+// plus exactly one pull request (mergeGroupProblem above), and the same
+// job runs the lane-manager suites on that tree. A textual conflict ejects the
+// entry; a semantic one fails those tests. At PR time overlap is reported and
+// passes. Ordering and stale-place rules still decide the printed list. An
+// unreadable PR-time audit still exits 2.
+export function main(env=process.env,{gatherInput=gather,groupFacts=()=>readMergeGroupFacts(env),now,log=console.log,error=console.error}={}){
+  if(env.SOURCE_COLLISION_MODE==='merge-group'){
+    let problem;try{problem=mergeGroupProblem(groupFacts())}catch(cause){problem=`the merge group facts are unreadable: ${cause.message}`}
+    if(problem){error(`ERROR: queued protected-source changes must be re-tested on the group base plus exactly one pull request, but ${problem}.`);return 1}
+    log('Merge group is exactly its base plus one pull request: overlapping protected-source changes are re-tested on the combined tree.')
+    return 0
+  }
+  let input;try{input=gatherInput(env)}catch(cause){error(`ERROR: protected source collision audit is unavailable: ${cause.message}`);return 2}
+  const skips=stalePlaceSkips(input.current,input.others,{now})
+  for(const row of skips)log(`STALE-PLACE SKIP: ${row.file} — PR #${row.pr} "${row.title}" is inactive 24h+ with failing checks or a main conflict, and a dated nudge names this pull request; it no longer precedes this one.`)
+  const ahead=openProtectedCollisions(input.current,input.others,{now})
+  if(!ahead.length){log('No other ready open pull request edits the same protected coordination source.');return 0}
+  log('QUEUED: an earlier ready open pull request edits the same protected coordination source. This pull request waits its turn in the merge queue; its merge group must be its base plus only this pull request, and is re-tested there.')
+  for(const row of ahead)log(`  earlier overlapping PR (activation order; GitHub's queue order decides): ${row.file} — PR #${row.pr} "${row.title}"`)
+  return 0
 }
 if(import.meta.url===pathToFileURL(process.argv[1]??'').href)process.exit(main())

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "work_issue": 3721,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Protected-source overlap among ready PRs reports a place in the serial merge queue and passes, instead of failing the required Cross-PR object collision check against each other",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "dispatcher": "repo-maintenance session for issue #3721 (Claude chat eac6b686-2bdd-4fce-91fe-47ae8516cb81, edge-dev3)",
+  "worker": "claude",
+  "branch": "fix/collision-queue-ordering",
+  "worktree": "../shared-db-collision-queue",
+  "allowed_paths": [
+    "scripts/check-pr-source-collisions.mjs",
+    "scripts/check-pr-source-collisions.test.mjs",
+    "scripts/queue-hygiene-report.mjs",
+    ".github/workflows/pr-object-collision.yml",
+    ".agent/work/3721/1/contract.json",
+    ".agent/work/3721/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/check-pr-source-collisions.mjs",
+    "scripts/check-pr-source-collisions.test.mjs",
+    "scripts/queue-hygiene-report.mjs",
+    ".github/workflows/pr-object-collision.yml"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not change the database-object collision check",
+    "do not weaken the fail-closed refusal on an unreadable audit",
+    "do not touch any migration or database object",
+    "do not touch draft PRs 3620 3622 3625 3626 3627 3636 3666"
+  ],
+  "required_checks": [
+    "node --test scripts/check-pr-source-collisions.test.mjs"
+  ],
+  "assumptions": [
+    "the main merge queue ruleset builds and merges one entry at a time (max_entries_to_build=1), re-testing each PR on a main containing earlier overlapping changes"
+  ],
+  "stop_conditions": [
+    "stop if the merge queue is not serial",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ]
+}

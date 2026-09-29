@@ -5,8 +5,9 @@
 // WHY A STANDALONE MODULE (a 2026-09-17 placement decision, not the plan's
 // first draft): the plan drafted this as a subcommand inside
 // scripts/manage-migration-author-lanes.mjs. That file is a PROTECTED
-// COORDINATION SOURCE (scripts/check-pr-source-collisions.mjs): only one open
-// ready pull request may edit it, and on the day this landed another session's
+// COORDINATION SOURCE (scripts/check-pr-source-collisions.mjs): at the time a
+// later overlapping ready pull request was refused (#3721 later made it queue
+// in the merge queue, proved at merge_group time), and on the day this landed another session's
 // pull request (#3215) held the lane. Rather than queue behind it, the report
 // moved here — importing the same exported machinery (buildDynamicQueues,
 // parseAuthorLease, githubIo) so the derivation stays THE audit's derivation,

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_issue": 3721,
+  "outcome": "ready-for-merge",
+  "pr": 3722,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3721/1",
+  "contract_sha256": "2df19f21f01d5dc718a0475ee3825a05e6d0c59596002a0e9bf330f923dbc0e6",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "head_sha": "8e02711407573f1e507eb83b03a6593abfbb0401",
+  "files_changed": [
+    ".github/workflows/pr-object-collision.yml",
+    "scripts/check-pr-source-collisions.mjs",
+    "scripts/check-pr-source-collisions.test.mjs",
+    "scripts/queue-hygiene-report.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-pr-source-collisions.test.mjs",
+      "exit_code": 0,
+      "evidence": "22 passed, 0 failed at 8e027114; nine-PR deadlock replay: all nine exit 0, PR i lists i earlier PRs; merge-group proof end to end with a real event file and real git history accepts base+one PR, refuses a stacked group, a missing head and a garbled event; workflow step pinned; unreadable PR-time audit exits 2"
+    },
+    {
+      "command": "node --test scripts/check-pr-source-collisions.test.mjs scripts/check-merge-queue-workflows.test.mjs scripts/check-pr-object-collisions.test.mjs scripts/check-dispatch-collision.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/lib/open-pr-files.test.mjs",
+      "exit_code": 0,
+      "evidence": "892 passed, 0 failed at 8e027114"
+    }
+  ],
+  "assumptions_resolved": [
+    "Queue premise is proved per merge group from the event payload and local git (group head = base + exactly one PR), not read from the admin-only rulesets API; live ruleset read by the author on 2026-09-28 showed max_entries_to_build=1, max_entries_to_merge=1; recent queue merges on main (e.g. 9ffb8d39: parents adfe4cd5=prior main, 894dc187=PR head) match that shape"
+  ],
+  "stop_conditions_hit": [],
+  "disclosure": "A first draft (commit d7323796) was pushed before the contract ref was published; the branch was reset to base, the contract published, and the change recommitted. Reviews REVISE on e9d4c154 (DeepSeek), 84ae31f2 (Grok) and 1fe6b2db (DeepSeek) shaped the merge-group proof; history was squashed so the evidence pair alone follows implementation commit 8e027114."
+}
