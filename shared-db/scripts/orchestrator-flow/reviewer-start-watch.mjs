@@ -23,6 +23,9 @@ import { runGitHubCommand } from '../lib/github-transport.mjs'
 import { currentRepository } from '../lib/repository-identity.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
+// Run 36487949025: an unbounded manager child hung for hours inside the author mutex.
+// Each gh call inside it is now bounded too; this caps the whole child.
+export const MANAGER_TIMEOUT_MS = 15 * 60 * 1000
 export const MANAGER = path.resolve(HERE, '..', 'manage-migration-author-lanes.mjs')
 export const REPLACEMENT_PROVIDER = 'next-eligible'
 
@@ -257,7 +260,8 @@ export function pendingFromRefNames(refs) {
 
 export function liveWatchIo(repo, env = process.env) {
   const manager = (args) => {
-    const run = spawnSync(process.execPath, [MANAGER, ...args], { encoding: 'utf8', env, maxBuffer: 16 * 1024 * 1024 })
+    const run = spawnSync(process.execPath, [MANAGER, ...args], { encoding: 'utf8', env, maxBuffer: 16 * 1024 * 1024, timeout: MANAGER_TIMEOUT_MS, killSignal: 'SIGKILL' })
+    if (run.error?.code === 'ETIMEDOUT') throw new Error(`lane manager ${args[0]} did not finish within ${MANAGER_TIMEOUT_MS / 60000} minutes and was killed`)
     if (run.status !== 0) throw new Error(String(run.stderr || run.stdout || `manager exited ${run.status}`).trim())
     return JSON.parse(run.stdout)
   }

@@ -38,7 +38,7 @@ const scope = (status, workType, route, priority, objects = []) => '```db-work-s
 
 const MUTATION_HOOKS = [
   'postCommitStatus', 'updateIssue', 'makeOwnerCommit', 'makeReviewVerdictCommit',
-  'createRef', 'deleteRef', 'updateRef', 'atomicReviewRefs', 'atomicReviewMutexRelease',
+  'createRef', 'deleteRef', 'releaseRefOverGit', 'updateRef', 'atomicReviewRefs', 'atomicReviewMutexRelease',
   'reserveVersion', 'createClaim', 'createIssueIn', 'commentIssue', 'closeIssue',
   'closeClaim', 'contentPreservingRefresh', 'rewriteVersion', 'commitAndPushReversion',
 ]

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { AUTO_REROUTES_PER_SLOT, RESUME_ATTEMPT_LIMIT, dispatchSubref, exitCodeFor, leaseStartDecision, liveDurableIo, priorReroutesForSlot, managerArgs, mootable, pendingFromRefNames, rowFromRecord, runStep, watchOnce } from './reviewer-start-watch.mjs'
+import { AUTO_REROUTES_PER_SLOT, MANAGER_TIMEOUT_MS, RESUME_ATTEMPT_LIMIT, dispatchSubref, exitCodeFor, leaseStartDecision, liveDurableIo, priorReroutesForSlot, managerArgs, mootable, pendingFromRefNames, rowFromRecord, runStep, watchOnce } from './reviewer-start-watch.mjs'
 
 const head = 'b'.repeat(40)
 const drawn = '2026-09-16T12:00:00.000Z'
@@ -330,4 +330,12 @@ test('a pass that could not finish a reroute exits non-zero', () => {
   assert.equal(exitCodeFor([{ action: 'wait' }, { action: 'governed-return-and-reroute', reroute: {} }]), 0)
   assert.equal(exitCodeFor([{ action: 'governed-return-and-reroute', error: 'replace refused' }]), 1)
   assert.equal(exitCodeFor([{ resumed: 'refs/x', error: 'boom' }]), 1)
+})
+
+// Run 36487949025: the manager child hung for hours inside the author mutex.
+test('the lane manager child is bounded well inside the leg margin', async () => {
+  const { readFileSync } = await import('node:fs')
+  assert.ok(MANAGER_TIMEOUT_MS > 0 && MANAGER_TIMEOUT_MS <= 20 * 60 * 1000)
+  const src = readFileSync(new URL('./reviewer-start-watch.mjs', import.meta.url), 'utf8')
+  assert.match(src, /spawnSync\(process\.execPath, \[MANAGER, \.\.\.args\], \{[^}]*timeout: MANAGER_TIMEOUT_MS/)
 })

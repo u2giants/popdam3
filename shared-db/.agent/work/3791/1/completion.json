@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 3791,
+  "outcome": "ready-for-merge",
+  "pr": 3792,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3791/1",
+  "contract_sha256": "7d1313881e986e40647f247abde7c38556f743732c4fd0b8462afb8a4a528fb0",
+  "base_sha": "58836647e5645bb7e96049a8b72b5ded768a9010",
+  "head_sha": "a91bf46e3cb84de411921253aba0c6cb729e320c",
+  "files_changed": [
+    "scripts/lib/github-transport.mjs",
+    "scripts/lib/github-transport.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/mutex-release-on-refusal.test.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
+    "scripts/queue-hygiene-report.mjs",
+    "scripts/queue-hygiene-report.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/mutex-release-on-refusal.test.mjs scripts/lib/github-transport.test.mjs scripts/orchestrator-flow/reviewer-start-watch.test.mjs scripts/queue-hygiene-report.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "812 passed, 0 failed at a91bf46e (merge of main 58836647)"
+    }
+  ],
+  "assumptions_resolved": [
+    "contract generation 1 was published after the implementation commits and says so in its assumptions; its allowed_paths equal the governed-reviewed diff at f4a3259e exactly"
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "work_issue": 3791,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Release coordination locks (author mutex, recovery-active marker) even when the GitHub API refuses the release, via an owner-verified git fallback; bound every gh and git child and the reviewer-start-watch lane-manager child",
+  "base_sha": "bbe08bbeb0f2c8cbefa6da4f6cdf0b8ee1e0fdf0",
+  "dispatcher": "Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3 (issue #3791)",
+  "worker": "claude",
+  "branch": "fix/reviewer-watch-bounded-gh",
+  "worktree": ".claude/worktrees/reviewer-watch-bounded-gh",
+  "allowed_paths": [
+    "scripts/lib/github-transport.mjs",
+    "scripts/lib/github-transport.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/mutex-release-on-refusal.test.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
+    "scripts/queue-hygiene-report.mjs",
+    "scripts/queue-hygiene-report.test.mjs",
+    ".agent/work/3791/1/contract.json",
+    ".agent/work/3791/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/lib/github-transport.mjs",
+    "scripts/lib/github-transport.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/mutex-release-on-refusal.test.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.mjs",
+    "scripts/orchestrator-flow/reviewer-start-watch.test.mjs",
+    "scripts/queue-hygiene-report.mjs",
+    "scripts/queue-hygiene-report.test.mjs",
+    ".agent/work/3791/1/contract.json",
+    ".agent/work/3791/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not weaken any gate, reviewer rule or exact-head approval",
+    "never delete a lock ref owned by another owner"
+  ],
+  "required_checks": [
+    "node --test scripts/mutex-release-on-refusal.test.mjs scripts/lib/github-transport.test.mjs scripts/orchestrator-flow/reviewer-start-watch.test.mjs scripts/queue-hygiene-report.test.mjs scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "assumptions": [
+    "this contract generation was published AFTER the implementation commits (disclosed, not back-dated): the Agent work contract check surfaced only after the governed APPROVE at f4a3259e; scope equals the reviewed diff exactly"
+  ],
+  "stop_conditions": [
+    "stop if the change needs a file outside allowed_paths"
+  ],
+  "generation": 1
+}

@@ -10,6 +10,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   runGitHubCommand,
+  ghCommandTimeoutMs,
+  DEFAULT_GH_COMMAND_TIMEOUT_MS,
+  MAX_GH_COMMAND_TIMEOUT_MS,
   ghJson,
   isTransientGitHubTransport,
   isMutatingCall,
@@ -378,4 +381,38 @@ test('an unreadable real-bucket probe is never guessed (#3743)', () => {
   assert.equal(realBucketResetDelayMs(null, NOW_MS), null)
   assert.equal(realBucketResetDelayMs('garbage', NOW_MS), null)
   assert.equal(realBucketResetDelayMs('HTTP/2.0 200 OK\nX-Ratelimit-Remaining: 12\nX-Ratelimit-Reset: 1\n\n{}', NOW_MS), null, 'a bucket with quota left states no wait')
+})
+
+// Run 36487949025: a gh child that never answered held the author mutex for hours.
+test('every gh child carries a wall-clock bound, and a timeout fails once without retry', () => {
+  const seen = []
+  const executor = (_bin, _args, options) => {
+    seen.push(options)
+    const error = new Error('spawnSync gh ETIMEDOUT'); error.code = 'ETIMEDOUT'; error.stderr = ''
+    throw error
+  }
+  assert.throws(
+    () => runGitHubCommand(['api', 'repos/o/r'], { executor, wait: () => {}, reportStderr: () => {}, timeoutMs: 5000 }),
+    /did not answer within 5s and was killed/,
+  )
+  assert.equal(seen.length, 1, 'a timed-out read is not retried')
+  assert.equal(seen[0].timeout, 5000)
+  assert.equal(seen[0].killSignal, 'SIGKILL')
+})
+
+test('the default gh timeout applies with no option, and the env can shorten but never disable it', () => {
+  let options = null
+  runGitHubCommand(['api', 'repos/o/r'], { executor: (_b, _a, o) => { options = o; return '{}' } })
+  assert.ok(Number.isFinite(options.timeout) && options.timeout > 0)
+  assert.equal(ghCommandTimeoutMs({}), DEFAULT_GH_COMMAND_TIMEOUT_MS)
+  assert.equal(ghCommandTimeoutMs({ GITHUB_COMMAND_TIMEOUT_SECONDS: '30' }), 30000)
+  for (const raw of ['0', '-5', 'abc']) assert.equal(ghCommandTimeoutMs({ GITHUB_COMMAND_TIMEOUT_SECONDS: raw }), DEFAULT_GH_COMMAND_TIMEOUT_MS)
+  assert.equal(ghCommandTimeoutMs({ GITHUB_COMMAND_TIMEOUT_SECONDS: '999999' }), MAX_GH_COMMAND_TIMEOUT_MS)
+})
+
+test('a timed-out read is never retried even when its stderr looks transient (review L4)', () => {
+  let calls = 0
+  const executor = () => { calls += 1; const e = new Error('ETIMEDOUT'); e.code = 'ETIMEDOUT'; e.stderr = 'connection timed out'; throw e }
+  assert.throws(() => runGitHubCommand(['api', 'repos/o/r'], { executor, wait: () => {}, reportStderr: () => {}, timeoutMs: 1000 }), /was killed/)
+  assert.equal(calls, 1)
 })
