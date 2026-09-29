@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "work_issue": 3628,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Produce the durable #2478 live-proof artifact through a narrowly scoped verified-TLS read-only production probe without widening helper grants or weakening the general proof route",
+  "base_sha": "a096bccd0c112d92cc9b6be4010e8f019f9db083",
+  "dispatcher": "Codex orchestrator child chat 01a0e67b-144e-7083-a0cd-56286d6b5445",
+  "worker": "codex",
+  "branch": "codex/3628-live-proof-v2",
+  "worktree": "/home/ahazan/repos/shared-db-3628-proof-v2",
+  "allowed_paths": [
+    ".github/workflows/shared-db-live-proof.yml",
+    "scripts/style_group_live_proof.py",
+    "scripts/test_style_group_live_proof.py",
+    "scripts/certs/supabase-root-2021.crt"
+  ],
+  "file_writes": [
+    ".github/workflows/shared-db-live-proof.yml",
+    "scripts/style_group_live_proof.py",
+    "scripts/test_style_group_live_proof.py",
+    "scripts/certs/supabase-root-2021.crt"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not alter any database schema, helper EXECUTE privilege, application row, or migration",
+    "do not disable TLS certificate or hostname verification",
+    "do not weaken the general Management API proof route or BYPASSRLS refusal",
+    "do not dispatch a production migration workflow"
+  ],
+  "required_checks": [
+    "python3 -m unittest discover -s scripts -p test_style_group_live_proof.py",
+    "python3 -m unittest discover -s scripts -p test_shared_db_live_proof.py",
+    "git diff --check",
+    "read-only exact #2478 probe returns one passed=true row through the verified session pooler"
+  ],
+  "assumptions": [
+    "the repository Actions secret SUPABASE_DB_PASSWORD_PRODUCTION exists",
+    "Supabase Root 2021 CA remains valid and verifies the session pooler hostname",
+    "the immutable #2478 probe bytes match the pinned digest"
+  ],
+  "stop_conditions": [
+    "stop if the issue #2478 probe, production target, or CA bytes differ from their reviewed pins",
+    "stop if the required proof needs a database write or grant change",
+    "stop if the change needs a file outside allowed_paths"
+  ]
+}

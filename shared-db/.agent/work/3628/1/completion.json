@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "work_issue": 3628,
+  "outcome": "ready-for-merge",
+  "pr": 3632,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3628/1",
+  "contract_sha256": "ee8a8a784fe77ae39986a3f5ef2e126e334f210fbcf2ceb78d7c6225e7ccd846",
+  "base_sha": "a096bccd0c112d92cc9b6be4010e8f019f9db083",
+  "head_sha": "222f9aa229f0f849f6324973a0f3bd83b34e4c26",
+  "files_changed": [
+    ".github/workflows/shared-db-live-proof.yml",
+    "scripts/certs/supabase-root-2021.crt",
+    "scripts/style_group_live_proof.py",
+    "scripts/test_style_group_live_proof.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_style_group_live_proof.py",
+      "exit_code": 0,
+      "evidence": "8 focused tests passed on implementation head 222f9aa2 (Qwen review fixes: assertion-version binding, real BYPASSRLS clause test, misroute/output/time-budget refusals)"
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_shared_db_live_proof.py",
+      "exit_code": 0,
+      "evidence": "existing general live-proof tests passed on 222f9aa2; BYPASSRLS refusal retained and now exercised by a 9-column state"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace or conflict-marker errors"
+    },
+    {
+      "command": "read-only exact #2478 probe returns one passed=true row through the verified session pooler",
+      "exit_code": 0,
+      "evidence": "Production project qsllyeztdwjgirsysgai returned exactly one passed=true row in READ ONLY force-rollback transaction over verified TLS, session pooler port 5432"
+    }
+  ],
+  "assumptions_resolved": [
+    "GitHub Actions repository secret SUPABASE_DB_PASSWORD_PRODUCTION exists by name; no value was accessed or exposed",
+    "Pinned public Supabase Root 2021 CA verified the session pooler certificate chain and hostname; certificate expiry is in 2031",
+    "The exact committed #2478 probe digest matched and returned passed=true locally through the new route without a production write",
+    "The Actions runner's execution and immutable artifact remain for after merge; this report does not claim those outcomes"
+  ],
+  "stop_conditions_hit": []
+}
