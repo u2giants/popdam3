@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 3758,
+  "outcome": "ready-for-merge",
+  "pr": 3759,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3758/2",
+  "contract_sha256": "a9ae1807a4a34230239a2747e9bddfc55204d2e1cd419baa67545ee97e1872e1",
+  "base_sha": "a8b146a8b2e1295fb770d909ddae2e433b864aa3",
+  "head_sha": "50d3e023bb1fdd705a90fb3181aea4cbbfe45c49",
+  "files_changed": [
+    ".github/workflows/documents-only-merge-authorization.yml",
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/merge-queue-gate.yml",
+    ".github/workflows/migration-author-lease.yml",
+    ".github/workflows/orchestrator-marker-guard.yml",
+    ".github/workflows/pr-guards.yml"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test on every scripts/*.test.mjs that reads .github/workflows",
+      "exit_code": 0,
+      "evidence": "24 workflow-reading test files, 1149 pass, 0 fail"
+    },
+    {
+      "command": "yaml parse of every workflow",
+      "exit_code": 0,
+      "evidence": "yaml.safe_load succeeded for every .github/workflows/*.yml"
+    }
+  ],
+  "assumptions_resolved": [
+    "The workflow edits were drafted before the contract was published; they were set aside, the contract published, then re-applied unchanged as the implementation commit.",
+    "Generation 2: main #3746 moved three PR guard jobs into pr-guards.yml; the identical mint step and GH_TOKEN fallback were applied to those same read-only steps there (2+4+2 steps), and the removed standalone copies were taken from main."
+  ],
+  "stop_conditions_hit": []
+}

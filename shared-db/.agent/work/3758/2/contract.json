@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "work_issue": 3758,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Move pure-read GitHub API steps in seven guard workflows onto a read-only pop-ai-watchers GitHub App token with github.token fallback, so they stop exhausting the per-repository Actions installation budget; writes, locks and status posts keep github.token; no gate logic changes; generation 2: main (#3746) moved the destructive-sql, pr-object-collision and orchestrator-marker-guard PR jobs into pr-guards.yml, so the same read-token change is carried there",
+  "base_sha": "a8b146a8b2e1295fb770d909ddae2e433b864aa3",
+  "dispatcher": "shared-db orchestrator, Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3 (#2530 deadlock breaker)",
+  "worker": "Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3",
+  "branch": "claude/app-read-token",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/rebase-3759-626c",
+  "allowed_paths": [
+    ".agent/work/3758/1/contract.json",
+    ".agent/work/3758/1/completion.json",
+    ".github/workflows/destructive-analysis-guard.yml",
+    ".github/workflows/documents-only-merge-authorization.yml",
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/merge-queue-gate.yml",
+    ".github/workflows/migration-author-lease.yml",
+    ".github/workflows/orchestrator-marker-guard.yml",
+    ".github/workflows/pr-object-collision.yml",
+    ".github/workflows/pr-guards.yml",
+    ".agent/work/3758/2/contract.json",
+    ".agent/work/3758/2/completion.json"
+  ],
+  "file_writes": [
+    ".agent/work/3758/1/contract.json",
+    ".agent/work/3758/1/completion.json",
+    ".github/workflows/destructive-analysis-guard.yml",
+    ".github/workflows/documents-only-merge-authorization.yml",
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/merge-queue-gate.yml",
+    ".github/workflows/migration-author-lease.yml",
+    ".github/workflows/orchestrator-marker-guard.yml",
+    ".github/workflows/pr-object-collision.yml",
+    ".github/workflows/pr-guards.yml",
+    ".agent/work/3758/2/contract.json",
+    ".agent/work/3758/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not give the app token to any step that writes, locks, posts statuses or merges",
+    "do not change gate logic",
+    "do not print or commit any secret"
+  ],
+  "required_checks": [
+    "node --test on every scripts/*.test.mjs that reads .github/workflows",
+    "yaml parse of every workflow"
+  ],
+  "assumptions": [
+    "pop-ai-watchers installation grants actions/checks/contents/pull_requests/statuses read and issues write (read implied), per orgs/popcre/installations"
+  ],
+  "stop_conditions": [
+    "stop if a converted step is found to write"
+  ],
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 3758,
+    "generation": 1,
+    "contract_sha256": "961372bb3f5415d6b5544d74cc8d66e5c9e29307ab7a767df010a4fe86ad5e12"
+  }
+}
