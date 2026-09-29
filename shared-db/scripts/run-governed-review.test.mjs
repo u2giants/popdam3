@@ -3,8 +3,8 @@ import { currentRepository, expectedOperatorAssociation } from './lib/repository
 // Fixtures follow the resolved repository identity and its operator association (#3255).
 const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAssociation()
 import test from 'node:test'
-import { parseArgs, runGovernedReview as executeGovernedReview,resolveReviewSource, reserveReviewReceipt, validateSourceReceipt, wrapperFailureReason, wrapperSourceContractArgs, wrapperVerdictContractArgs, wrapperBaseName, codexReportPath, codexGovernedBody, verdictFromOutput, neutraliseVerdictLine, extraVerdictLines, PRESERVED_HEADER, resolveReplacementSequence } from './run-governed-review.mjs'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
+import { parseArgs, runGovernedReview as executeGovernedReview,resolveReviewSource, reserveReviewReceipt, validateSourceReceipt, wrapperFailureReason, redactWrapperStderr, wrapperFailureLogText, writeWrapperFailureLog, wrapperSourceContractArgs, wrapperVerdictContractArgs, wrapperBaseName, codexReportPath, codexGovernedBody, verdictFromOutput, neutraliseVerdictLine, extraVerdictLines, PRESERVED_HEADER, resolveReplacementSequence } from './run-governed-review.mjs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
@@ -1187,4 +1187,42 @@ test('#3799 two refs matching the two readings are refused as ambiguous',()=>{
 test('#3799 no replacement sequence is left alone',()=>{
   const o={issue:1,pr:1,headSha:rsHead}
   assert.equal(resolveReplacementSequence(o,rsLive),o)
+})
+
+test('#3810: an unrecognized wrapper failure saves a redacted stderr tail and names the path; verdict logic unchanged',()=>{
+  const secret='sk-'+'A'.repeat(30),gh='ghp_'+'B'.repeat(36)
+  const stderr=`${'x'.repeat(9000)}\nweird provider failure Authorization: Bearer ${'C'.repeat(40)}\nOPENAI_API_KEY=${secret} token ${gh}\n`
+  let saved,meta
+  assert.throws(()=>runGovernedReview({...options},{
+    spawn:(command)=>command==='gh'?{status:0,stdout:'{}'}:{status:7,stdout:'',stderr},
+    resolve:(name)=>name,preflight:()=>{},record:()=>assert.fail('must not record'),
+    writeFailureLog:(text,m)=>{saved=text;meta=m;return '/private/log/path.log'},
+  }),(error)=>{
+    assert.match(error.message,/exit 7\): wrapper stderr was present but its reason was not recognized/)
+    assert.match(error.message,/saved to \/private\/log\/path\.log\./)
+    assert.ok(!error.message.includes('weird provider failure'),'raw stderr never enters the refusal')
+    return true
+  })
+  assert.equal(meta.pr,options.pr)
+  assert.match(saved,/exit_status: 7/)
+  assert.match(saved,/weird provider failure/)
+  for(const s of [secret,gh,'C'.repeat(40)])assert.ok(!saved.includes(s),'secrets are redacted')
+  assert.ok(saved.length<9000,'only a bounded tail is kept')
+  // a failing log writer never changes the refusal's reason
+  assert.throws(()=>runGovernedReview({...options},{
+    spawn:(command)=>command==='gh'?{status:0,stdout:'{}'}:{status:7,stdout:'',stderr:'odd'},
+    resolve:(name)=>name,preflight:()=>{},record:()=>assert.fail('must not record'),
+    writeFailureLog:()=>{throw new Error('disk full')},
+  }),/not recognized; inspect the exact wrapper session\. Wrapper diagnostics could not be saved\./)
+})
+
+test('#3810: the failure log is written privately and without clobbering',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'wf-'))
+  try{
+    const file=writeWrapperFailureLog(wrapperFailureLogText({status:1,stderr:'boom'},{wrapper:'ai-deepseek-agent',pr:3759,headSha:'7'.repeat(40),reason:'r'}),{dir,pr:3759,headSha:'7'.repeat(40)})
+    assert.match(file,/pr3759-7777777-/)
+    assert.match(readFileSync(file,'utf8'),/wrapper: ai-deepseek-agent[\s\S]*boom/)
+    if(process.platform!=='win32')assert.equal(statSync(file).mode&0o777,0o600)
+    assert.equal(redactWrapperStderr('SECRET_X: abcdefgh'),'SECRET_X=[REDACTED]')
+  }finally{rmSync(dir,{recursive:true,force:true})}
 })

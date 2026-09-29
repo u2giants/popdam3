@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "work_issue": 3810,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "On a governed-review wrapper failure, save a bounded redacted stderr tail plus exit details to a private log outside the worktree and name its path in the refusal, without changing verdict, reroute, or approval logic",
+  "base_sha": "eb5a027ad3e78c33b509c2dcb2cf14368e5e8e39",
+  "dispatcher": "shared-db orchestrator, Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3",
+  "worker": "Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3",
+  "branch": "fix/review-wrapper-stderr-log",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/wrapper-stderr-log",
+  "allowed_paths": ["scripts/run-governed-review.mjs","scripts/run-governed-review.test.mjs",".agent/work/3810/1/contract.json",".agent/work/3810/1/completion.json"],
+  "file_writes": ["scripts/run-governed-review.mjs","scripts/run-governed-review.test.mjs",".agent/work/3810/1/contract.json",".agent/work/3810/1/completion.json"],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": ["do not change verdict, reroute, terminal-reason, or approval logic", "do not echo raw stderr into the refusal", "do not touch any migration or database object"],
+  "required_checks": ["node --test scripts/run-governed-review.test.mjs", "node --test scripts/lib/review-packet.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/repair-voided-findings.test.mjs scripts/check-review-parallelism-brief.test.mjs"],
+  "assumptions": ["a private file under the user's cache directory is an acceptable durable location for redacted diagnostics"],
+  "stop_conditions": ["stop if saving diagnostics would require changing any verdict path"],
+  "generation": 1
+}

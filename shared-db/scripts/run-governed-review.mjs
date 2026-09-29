@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync, mkdirSync, mkdtempSync, lstatSync, realpathSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { tmpdir, homedir } from 'node:os'
 import { join, resolve as resolvePath } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
@@ -421,6 +421,44 @@ export function wrapperFailureReason(run){
   if(/already active|already in progress|held for reconciliation|active or retained|retained (?:lock|exact-work|protection)|protection for this exact session is retained|reconcile the retained lock/i.test(stderr))reasons.push('the wrapper reported retained or active work; inspect that exact session')
   return reasons.join('; ')||(stderr?'wrapper stderr was present but its reason was not recognized; inspect the exact wrapper session':'the wrapper supplied no recognized diagnostic')
 }
+// ISSUE #3810 -- an unrecognized wrapper failure was undiagnosable because stderr was
+// discarded. Save a bounded, redacted stderr tail plus the exit details to a private file
+// OUTSIDE the worktree (so worktree retirement cannot lose it) and name that path in the
+// refusal. Diagnostic only: it never feeds any verdict, reroute, or approval decision.
+const FAILURE_LOG_TAIL_BYTES=8192
+const SECRET_PATTERNS=[
+  /\b(?:sk|pk|rk|xai|gsk|ghp|gho|ghs|ghu|ghr|glpat|op)[-_][A-Za-z0-9_\-]{12,}/g,
+  /\bgithub_pat_[A-Za-z0-9_]{20,}/g,
+  /\bAIza[0-9A-Za-z_\-]{20,}/g,
+  /\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{5,}/g,
+  /\b(Bearer|Basic|token)\s+[A-Za-z0-9._~+\/=\-]{12,}/gi,
+  /\b([A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)\s*[:=]\s*["']?[^\s"']{4,}/gi,
+  /\b[A-Za-z0-9+\/_\-]{40,}={0,2}(?![0-9a-f])/g
+]
+export function redactWrapperStderr(text){
+  let out=String(text??'')
+  out=out.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g,'')
+  for(const pattern of SECRET_PATTERNS)out=out.replace(pattern,(match,label)=>typeof label==='string'&&/[A-Za-z]/.test(label)&&match.startsWith(label)?`${label}=[REDACTED]`:'[REDACTED]')
+  return out
+}
+export function wrapperFailureLogText(run,{wrapper,pr,headSha,reason,at=new Date().toISOString()}={}){
+  const stderr=String(run?.stderr??'')
+  const tail=stderr.length>FAILURE_LOG_TAIL_BYTES?stderr.slice(-FAILURE_LOG_TAIL_BYTES):stderr
+  return [
+    `time: ${at}`,`wrapper: ${wrapperBaseName(String(wrapper??'unknown'))}`,`pr: ${Number(pr)||'unknown'}`,`head: ${/^[0-9a-f]{40}$/.test(String(headSha))?headSha:'unknown'}`,
+    `exit_status: ${run?.status??'none'}`,`signal: ${run?.signal??'none'}`,`spawn_error: ${run?.error?redactWrapperStderr(run.error.code??run.error.message??'error'):'none'}`,
+    `recognized_reason: ${reason}`,`stderr_bytes: ${stderr.length}`,`stderr_tail (last ${FAILURE_LOG_TAIL_BYTES} chars, redacted):`,redactWrapperStderr(tail),''
+  ].join('\n')
+}
+export function wrapperFailureLogDir(env=process.env){
+  return env.SHARED_DB_REVIEW_FAILURE_LOG_DIR||join(homedir(),'.cache','shared-db','review-wrapper-failures')
+}
+export function writeWrapperFailureLog(text,{dir=wrapperFailureLogDir(),pr,headSha}={}){
+  mkdirSync(dir,{recursive:true,mode:0o700})
+  const file=join(dir,`pr${Number(pr)||0}-${String(headSha??'').slice(0,7)||'nohead'}-${new Date().toISOString().replace(/[:.]/g,'-')}-${randomUUID().slice(0,8)}.log`)
+  writeFileSync(file,text,{mode:0o600,flag:'wx'})
+  return file
+}
 // ISSUE #2729 STEP 7 -- RETRY ONCE, THEN REROUTE, DECIDED BY THE LIFECYCLE.
 // The manager's preflight throws `doctor did not answer within 60s` when the local
 // reviewer service hangs. That says nothing about the provider, so the SAME reviewer
@@ -514,7 +552,15 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
   if(run.error||run.status!==0||!verdict){
     // Issue #2492: a refusal that says only "no verdict" costs a fresh hand
     // investigation every time. Name the budget the reviewer was actually given.
-    const reason=wrapperFailureReason(run),message=`review wrapper did not produce a recordable terminal verdict (exit ${run.status??'unknown'}): ${reason}.${turnBudgetDiagnostic(turnBudget)}`.trimEnd()
+    const reason=wrapperFailureReason(run)
+    let logNote=''
+    if(typeof deps.writeFailureLog==='function'){
+      try{
+        const saved=deps.writeFailureLog(wrapperFailureLogText(run,{wrapper:options.wrapper,pr:options.pr,headSha:options.headSha,reason}),{pr:options.pr,headSha:options.headSha})
+        if(saved)logNote=` Wrapper diagnostics (redacted stderr tail and exit details) saved to ${saved}.`
+      }catch{logNote=' Wrapper diagnostics could not be saved.'}
+    }
+    const message=`review wrapper did not produce a recordable terminal verdict (exit ${run.status??'unknown'}): ${reason}.${turnBudgetDiagnostic(turnBudget)}${logNote}`.trimEnd()
     const terminal=NON_VERDICT_TERMINAL_REASONS.find((code)=>reason.split('; ').some((part)=>part.startsWith(`${code}:`)))
     if(terminal){
       lifecycle.push(lifecycleEvent(deps,assignment,'terminal_non_verdict',{reason:terminal,head_sha:assignment.head_sha}))
@@ -682,7 +728,7 @@ export function recordReviewStart(options,io,at=Date.now(),leaseHeld=reviewLease
 export function governedReviewDeps(env=process.env){
   const value=String(env.SHARED_DB_MERGED_PR_ISSUE_BINDING??'').trim()
   const io=value?withMergedPrIssueBinding(githubIo,value):githubIo
-  return {spawn:spawnSync,preflight:(o)=>reviewerExecutionPreflight(o,io),recordStart:(o)=>recordReviewStart(o,io),record:(o)=>recordReviewVerdict(o,io),resolve:resolveCommandPath,readReport:(path)=>readFileSync(path,'utf8'),io}
+  return {spawn:spawnSync,preflight:(o)=>reviewerExecutionPreflight(o,io),recordStart:(o)=>recordReviewStart(o,io),record:(o)=>recordReviewVerdict(o,io),resolve:resolveCommandPath,readReport:(path)=>readFileSync(path,'utf8'),writeFailureLog:(text,meta)=>writeWrapperFailureLog(text,{...meta,dir:wrapperFailureLogDir(env)}),io}
 }
 // #498 items 16-17 (popcre/ai-devops): refuse or repair paperwork faults BEFORE any
 // reviewer starts, so no review round is spent without a recordable verdict.

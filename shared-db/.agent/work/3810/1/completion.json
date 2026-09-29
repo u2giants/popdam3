@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 3810,
+  "outcome": "ready-for-merge",
+  "pr": 3811,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3810/1",
+  "contract_sha256": "2c4cd7fe408c55f6eeb8b854fe832b5bc323d96ebcb3a313284fbdf063ee2b40",
+  "base_sha": "8f0d320a505a541ac57f6798adbb7e1fd91a9b38",
+  "head_sha": "dc85954a891afb0c3c9174f29bb05ffd85e9d227",
+  "files_changed": [
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/run-governed-review.test.mjs",
+      "exit_code": 0,
+      "evidence": "98 tests, 0 failures at dc85954a891a"
+    },
+    {
+      "command": "node --test scripts/lib/review-packet.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/repair-voided-findings.test.mjs scripts/check-review-parallelism-brief.test.mjs",
+      "exit_code": 0,
+      "evidence": "772 tests, 0 failures at dc85954a891a"
+    }
+  ],
+  "assumptions_resolved": [
+    "The implementation commit was made before this contract was published; the contract records that commit's exact scope unchanged. Live proof: the first governed review of this PR (Qwen, seq 4502) failed and the runner saved its redacted diagnostics log and named the path in the refusal."
+  ],
+  "stop_conditions_hit": []
+}
