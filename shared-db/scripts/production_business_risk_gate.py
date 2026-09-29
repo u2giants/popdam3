@@ -2392,7 +2392,11 @@ NEW_COLUMN_CHECK_RISKS = frozenset({RISK_TEXT["expected_downtime"]})
 
 
 def new_column_check_risks(statement: str) -> frozenset | None:
-    """Risks of an ADD COLUMN list whose CHECKs bind only their own new column, or None."""
+    """Risks of an ADD COLUMN list whose CHECKs bind only their own new column, or None.
+
+    A list of plain nullable built-in columns (no CHECK) is catalog-only, exactly
+    like the single-column allowlist entry, so it reports no risk (#3400).
+    """
     m = re.fullmatch(rf"alter table (?:only )?{_ALLOW_QUALIFIED} (.+)", statement)
     if not m:
         return None
@@ -2405,7 +2409,7 @@ def new_column_check_risks(statement: str) -> frozenset | None:
             if column.group(2) != column.group(1):
                 return None
             checked = True
-    return NEW_COLUMN_CHECK_RISKS if checked else None
+    return NEW_COLUMN_CHECK_RISKS if checked else frozenset()
 
 
 def _classify_statements(statements: list[str] | None, prior: "_PriorMigrations | None" = None) -> set[str]:

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 3807,
+  "outcome": "ready-for-merge",
+  "pr": 3789,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3807/1",
+  "contract_sha256": "b146e6861318033808299fdc9b4996334f9c5058cd06b92e7a51bda8d3e1bfc0",
+  "base_sha": "7adeb4618ef0f7bd87df6ebd867f39d6230dd237",
+  "head_sha": "f3f50663b19ccae836b0aa35e92cc127dde6f553",
+  "files_changed": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts/test_production_business_risk_gate.py",
+      "exit_code": 0,
+      "evidence": "Ran 188 tests in 3.493s OK on implementation head f3f50663; includes test_a_plain_multi_column_add_reports_no_risk"
+    },
+    {
+      "command": "python3 -m unittest scripts/test_production_business_risk_gate_preview_contents_mutations.py",
+      "exit_code": 0,
+      "evidence": "Ran 12 tests in 0.003s OK on implementation head f3f50663"
+    }
+  ],
+  "assumptions_resolved": [
+    "diagnose_risk_coverage reports 0 findings for 20260928182014 with the fix (all three before)."
+  ],
+  "stop_conditions_hit": []
+}
