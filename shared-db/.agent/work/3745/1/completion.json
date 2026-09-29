@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "work_issue": 3745,
+  "outcome": "ready-for-merge",
+  "pr": 3744,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3745/1",
+  "contract_sha256": "c7bde5bed007d29383aa75166d04bb87ce6057cdd991e6d1a1e247fecf0b3df3",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "head_sha": "8268c529f69d82b8916506f72e4e3d6b779ec026",
+  "files_changed": [
+    ".github/workflows/destructive-analysis-guard.yml",
+    ".github/workflows/issue-orchestrator-label.yml"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-merge-queue-workflows.test.mjs scripts/sync-issue-orchestrator-label.test.mjs scripts/check-destructive-analysis.test.mjs",
+      "exit_code": 0,
+      "evidence": "42 passed, 0 failed"
+    }
+  ],
+  "assumptions_resolved": [
+    "check-destructive-analysis.mjs line 45 returns 0 when the destructive-proposal label is absent",
+    "sync-issue-orchestrator-label.mjs classifies from the issue body db-work-scope block only"
+  ],
+  "stop_conditions_hit": []
+}
