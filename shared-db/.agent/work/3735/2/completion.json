@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3735,
+  "outcome": "ready-for-merge",
+  "pr": 3736,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3735/2",
+  "contract_sha256": "73f623c07621e6b71534c114792ade69d60c5384331c33a1e1442f736d644a2e",
+  "base_sha": "26fe20370b595b5b5a2e889dff8cb3e38a918aab",
+  "head_sha": "670cfbe7ee55df7906803e5147e8e534ee8b550d",
+  "files_changed": [
+    ".github/workflows/shared-supabase-migrations.yml",
+    "scripts/github_rate_limit.py",
+    "scripts/historical_preview_recovery.py",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_historical_preview_recovery.py",
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 scripts/test_historical_preview_recovery.py",
+      "exit_code": 0,
+      "evidence": "25 tests OK at 670cfbe7e after merging origin/main 26fe20370; incl. default-reader-never-waits (signature default 0 asserted) and workflow guards for both the after-ledger capture and the delta report."
+    },
+    {
+      "command": "python3 scripts/test_production_business_risk_gate.py",
+      "exit_code": 0,
+      "evidence": "Ran 189 tests in 48s, OK at 670cfbe7e after merging origin/main 26fe20370 (run from the repository root as CI does), including the gate wait IS github_rate_limit.wait_for_reset_once and a reset exactly at the cap sleeps 900s, not 901s."
+    }
+  ],
+  "assumptions_resolved": [
+    "The recovery proof runs before 'Acquire the exclusive GitHub-backed preview lane', so the bounded wait holds no lock",
+    "The business-risk gate imports the moved helpers unchanged; its gh_json wait logic is untouched",
+    "Disclosure: a draft of the implementation existed locally before the contract was published; the implementation commit was re-created after publication",
+    "Review round 1 (REVISE 0917bc4b): after-ledger always written with reason; direct module tests added",
+    "Review round 2 (REVISE 83594502): github_rate_limit.py made custody-only so older exact-main rehearsals are not stranded; docstring corrected (gate imports helpers only); sleep capped at budget; workflow guard test added; required check now recorded passing from the repo root",
+    "CI round: workflow comment reworded so the throughput truth-audit call-site inventory is unchanged (71/71 throughput-guard tests pass)",
+    "Review round 4 (REVISE c4e42b41): the wait itself is now one function (wait_for_reset_once) used by both readers, so the cap and log cannot drift; the gate at exactly the cap now sleeps 900s instead of 901s",
+    "Generation 2 contract published to add scripts/test_production_business_risk_gate.py (round-4 review asked for a gate test); implementation commit re-created after that publication",
+    "Review round 5 (REVISE e4cb1e53): the wait is opt-in everywhere (module default 0, recovery gh() default 0); only the recovery CLI passes 15 min via gh_pre_lane, so any lane-holding caller of verify() keeps failing fast",
+    "Review round 6 (REVISE 40e817a8): the delta report now prints NOT AVAILABLE with the placeholder reason instead of a traceback (simulated locally: exit 0); the reader's default 0 is asserted via its signature",
+    "Refresh onto origin/main 26fe20370: merge auto-resolved scripts/production_business_risk_gate.py and scripts/test_production_business_risk_gate.py (main f3f50663b multi-column ADD COLUMN catalog-only + this branch rate-limit wait extraction); both Python suites re-proved at implementation head 670cfbe7e."
+  ],
+  "stop_conditions_hit": []
+}

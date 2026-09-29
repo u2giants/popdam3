@@ -335,4 +335,124 @@ class CommandLineTests(unittest.TestCase):
         self.assertIn("not both", result.stdout + result.stderr)
 
 
+
+
+class RateLimitTests(unittest.TestCase):
+    """Issue #3735: a primary quota exhaustion waits once for the reset."""
+
+    def _runner(self, responses, reset_in=120):
+        calls = []
+        def runner(cmd, **_):
+            calls.append(cmd)
+            if cmd[-1] == "rate_limit":
+                return subprocess.CompletedProcess(cmd, 0, stdout='{"resources":{"core":{"remaining":0,"reset":%d}}}' % (1000 + reset_in), stderr="")
+            code, out, err = responses.pop(0)
+            return subprocess.CompletedProcess(cmd, code, stdout=out, stderr=err)
+        return runner, calls
+
+    def test_waits_for_reset_then_rereads(self):
+        import historical_preview_recovery as h
+        runner, calls = self._runner([
+            (1, "", "gh: API rate limit exceeded for installation ID 1. (HTTP 403)"),
+            (0, '{"number": 7}', ""),
+        ])
+        slept = []
+        self.assertEqual(h.gh("repos/o/r/pulls/7", runner=runner, sleep=slept.append, clock=lambda: 1000,
+                              rate_limit_wait_seconds=h.PRE_LANE_RATE_LIMIT_WAIT_SECONDS), {"number": 7})
+        self.assertEqual(slept, [121])
+
+    def test_reset_beyond_budget_fails_closed(self):
+        import historical_preview_recovery as h
+        runner, _ = self._runner([(1, "", "gh: API rate limit exceeded for installation (HTTP 403)")], reset_in=3600)
+        with self.assertRaises(ValueError):
+            h.gh("repos/o/r/pulls/7", runner=runner, sleep=lambda s: None, clock=lambda: 1000,
+                 rate_limit_wait_seconds=h.PRE_LANE_RATE_LIMIT_WAIT_SECONDS)
+
+    def test_other_403_fails_closed_without_waiting(self):
+        import historical_preview_recovery as h
+        runner, _ = self._runner([(1, "", "gh: Resource not accessible (HTTP 403)")])
+        slept = []
+        with self.assertRaises(ValueError):
+            h.gh("repos/o/r/pulls/7", runner=runner, sleep=slept.append, clock=lambda: 1000,
+                 rate_limit_wait_seconds=h.PRE_LANE_RATE_LIMIT_WAIT_SECONDS)
+        self.assertEqual(slept, [])
+
+    def test_default_reader_never_waits_and_only_the_cli_opts_in(self):
+        import inspect
+        import historical_preview_recovery as h
+        runner, _ = self._runner([(1, "", "gh: API rate limit exceeded (HTTP 403)")])
+        with self.assertRaises(ValueError):
+            h.gh("repos/o/r/pulls/7", runner=runner, sleep=lambda s: self.fail("default reader waited"), clock=lambda: 1000)
+        self.assertIs(inspect.signature(h.verify).parameters["api"].default, h.gh)
+        self.assertIn("api=gh_pre_lane", inspect.getsource(h))
+        from github_rate_limit import gh_api_json_waiting_for_reset
+        self.assertEqual(inspect.signature(gh_api_json_waiting_for_reset).parameters["rate_limit_wait_seconds"].default, 0)
+        self.assertEqual(h.PRE_LANE_RATE_LIMIT_WAIT_SECONDS, 900)
+
+
+    def test_module_zero_budget_never_waits(self):
+        from github_rate_limit import gh_api_json_waiting_for_reset
+        runner, _ = self._runner([(1, "", "gh: API rate limit exceeded (HTTP 403)")])
+        slept = []
+        with self.assertRaises(ValueError):
+            gh_api_json_waiting_for_reset("x", runner=runner, sleep=slept.append, clock=lambda: 1000, rate_limit_wait_seconds=0)
+        self.assertEqual(slept, [])
+
+    def test_module_second_exhaustion_fails_closed(self):
+        from github_rate_limit import gh_api_json_waiting_for_reset
+        runner, _ = self._runner([
+            (1, "", "gh: API rate limit exceeded (HTTP 403)"),
+            (1, "", "gh: API rate limit exceeded (HTTP 403)"),
+        ])
+        slept = []
+        with self.assertRaises(ValueError):
+            gh_api_json_waiting_for_reset("x", runner=runner, sleep=slept.append, clock=lambda: 1000, rate_limit_wait_seconds=900)
+        self.assertEqual(slept, [121])
+
+    def test_module_invalid_json_fails_closed(self):
+        from github_rate_limit import gh_api_json_waiting_for_reset
+        runner, _ = self._runner([(0, "not json", "")])
+        with self.assertRaises(ValueError):
+            gh_api_json_waiting_for_reset("x", runner=runner, sleep=lambda s: None, clock=lambda: 1000)
+
+    def test_module_secondary_limit_is_not_waited(self):
+        from github_rate_limit import gh_api_json_waiting_for_reset
+        runner, _ = self._runner([(1, "", "gh: You have exceeded a secondary rate limit. API rate limit exceeded (HTTP 403)")])
+        slept = []
+        with self.assertRaises(ValueError):
+            gh_api_json_waiting_for_reset("x", runner=runner, sleep=slept.append, clock=lambda: 1000, rate_limit_wait_seconds=900)
+        self.assertEqual(slept, [])
+
+
+    def test_module_wait_never_exceeds_budget(self):
+        from github_rate_limit import gh_api_json_waiting_for_reset
+        runner, _ = self._runner([
+            (1, "", "gh: API rate limit exceeded (HTTP 403)"), (0, "{}", ""),
+        ], reset_in=900)
+        slept = []
+        gh_api_json_waiting_for_reset("x", runner=runner, sleep=slept.append, clock=lambda: 1000, rate_limit_wait_seconds=900)
+        self.assertEqual(slept, [900])
+
+
+class AfterLedgerStepTests(unittest.TestCase):
+    """#3735: the after-ledger capture records why instead of failing when CLI
+    setup did not run, so the artifact never lacks preview-ledger-after.txt."""
+
+    def test_capture_after_guards_on_cli_setup_outcome(self):
+        text = (Path(__file__).resolve().parents[1] / ".github/workflows/shared-supabase-migrations.yml").read_text(encoding="utf-8")
+        self.assertIn("      - uses: supabase/setup-cli@v1\n        id: setup_supabase\n", text)
+        start = text.index("- name: Capture preview migration record (after)")
+        step = text[start:text.index("- name:", start + 10)]
+        self.assertIn("if: always()", step)
+        self.assertIn("SETUP_OUTCOME: ${{ steps.setup_supabase.outcome }}", step)
+        guard = step.index('if [ "${SETUP_OUTCOME:-}" != "success" ]; then')
+        self.assertIn('tee "$RUNNER_TEMP/preview-ledger-after.txt"', step[guard:step.index("supabase migration list")])
+        self.assertLess(guard, step.index("supabase migration list"))
+        # The delta report names the placeholder instead of tracing back on it.
+        start = text.index("- name: Report the preview ledger delta")
+        delta = text[start:text.index("- name:", start + 10)]
+        self.assertIn('if placeholder.startswith("NOT CAPTURED:"):', delta)
+        self.assertLess(delta.index("NOT CAPTURED:"), delta.index("parse_remote_versions(before_p)"))
+
+
 if __name__=="__main__": unittest.main()

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "work_issue": 3735,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Make the historical preview recovery proof wait once (bounded, max 15 minutes) for a GitHub primary rate-limit reset instead of aborting, reusing the business-risk gate's wait via a shared module, and skip 'Capture preview migration record (after)' when Supabase CLI setup did not succeed (generation 2: adds scripts/test_production_business_risk_gate.py so the gate's shared wait is tested, per governed review)",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "dispatcher": "Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3 (issue #3735)",
+  "worker": "claude",
+  "branch": "fix/3735-preview-recovery-ratelimit",
+  "worktree": ".claude/worktrees/fix-3735",
+  "allowed_paths": [
+    "scripts/github_rate_limit.py",
+    "scripts/historical_preview_recovery.py",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_historical_preview_recovery.py",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/3735/2/contract.json",
+    ".agent/work/3735/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/github_rate_limit.py",
+    "scripts/historical_preview_recovery.py",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_historical_preview_recovery.py",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/3735/2/contract.json",
+    ".agent/work/3735/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not put any secret or token in the repository",
+    "do not relax any fail-closed evidence judgment; only a primary rate-limit exhaustion with a reset inside the budget may wait"
+  ],
+  "required_checks": [
+    "python3 scripts/test_historical_preview_recovery.py",
+    "python3 scripts/test_production_business_risk_gate.py"
+  ],
+  "assumptions": [
+    "the recovery proof runs before the preview lane is taken, so a bounded wait holds no lock",
+    "moving the rate-limit helpers into a shared module leaves the business-risk gate's behavior unchanged"
+  ],
+  "stop_conditions": [
+    "stop if the change would need to touch a file outside allowed_paths",
+    "stop if a test fails for a reason unrelated to these files"
+  ],
+  "generation": 2
+}

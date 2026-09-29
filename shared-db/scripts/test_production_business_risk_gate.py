@@ -295,6 +295,18 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         self.assertEqual(calls, [f"repos/{REPOSITORY}/pulls/1108", "rate_limit", f"repos/{REPOSITORY}/pulls/1108"])
         self.assertEqual(sleeps, [301])
 
+    def test_rate_limit_wait_is_the_shared_module_and_never_exceeds_the_cap(self):
+        # #3735: the gate and the historical recovery proof share one wait.
+        import github_rate_limit
+        import production_business_risk_gate as gate
+        self.assertIs(gate.wait_for_reset_once, github_rate_limit.wait_for_reset_once)
+        self.assertIs(gate.rate_limit_exhausted, github_rate_limit.rate_limit_exhausted)
+        calls, sleeps = [], []
+        runner, clock = self.rate_limit_runner(calls, reset_in=900)
+        self.assertEqual(gh_json(f"repos/{REPOSITORY}/pulls/1108", runner=runner, sleep=sleeps.append,
+                                 rate_limit_wait_seconds=3600, clock=clock), {"ok": True})
+        self.assertEqual(sleeps, [900])
+
     def test_lane_held_default_fails_fast_on_a_rate_limit(self):
         calls = []
         runner, clock = self.rate_limit_runner(calls, reset_in=60)

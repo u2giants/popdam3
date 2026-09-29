@@ -183,40 +183,10 @@ class PreviewProducerMismatch(RiskGateError):
     """Two readable, proved commits carry different preview-producer bytes."""
 
 
-RATE_LIMIT_WAIT_CAP_SECONDS = 15 * 60
-
-
-def rate_limit_exhausted(error: str) -> bool:
-    """A PRIMARY quota exhaustion: "rate limit exceeded" with HTTP 403 or 429.
-
-    A secondary (abuse) limit, "Resource not accessible", or any other 403 is not
-    this, and is never waited on.
-    """
-    lowered = error.lower()
-    return "rate limit exceeded" in lowered and "secondary rate limit" not in lowered and bool(
-        re.search(r"http (?:403|429)\b", lowered)
-    )
-
-
-def rate_limit_reset_seconds(runner, now: float) -> float | None:
-    """Seconds until the REST quota resets, from the free `rate_limit` endpoint.
-
-    None when the answer cannot be read: an unknown reset is never guessed.
-    """
-    probe = runner(
-        ["gh", "api", "rate_limit"], text=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",
-    )
-    if probe.returncode != 0:
-        return None
-    try:
-        core = json.loads(probe.stdout)["resources"]["core"]
-        remaining, reset = core["remaining"], core["reset"]
-    except (json.JSONDecodeError, KeyError, TypeError):
-        return None
-    if not isinstance(remaining, int) or not isinstance(reset, (int, float)):
-        return None
-    return 0.0 if remaining > 0 else max(0.0, reset - now)
+try:  # shared bounded rate-limit wait (#3735)
+    from github_rate_limit import RATE_LIMIT_WAIT_CAP_SECONDS, rate_limit_exhausted, rate_limit_reset_seconds, wait_for_reset_once
+except ImportError:  # pragma: no cover
+    from scripts.github_rate_limit import RATE_LIMIT_WAIT_CAP_SECONDS, rate_limit_exhausted, rate_limit_reset_seconds, wait_for_reset_once
 
 
 def gh_json(
@@ -252,13 +222,11 @@ def gh_json(
             try: return json.loads(result.stdout)
             except json.JSONDecodeError as exc: raise RiskGateError("GitHub returned invalid JSON") from exc
         error = (result.stderr or "GitHub API request failed").strip()
-        if budget > 0 and not rate_limit_waited and rate_limit_exhausted(error):
-            delay = rate_limit_reset_seconds(runner, clock())
-            if delay is not None and delay <= budget:
-                rate_limit_waited = True
-                print(f"GitHub API quota exhausted; waiting {int(delay) + 1}s for its reset, then re-reading once.", file=sys.stderr)
-                sleep(delay + 1)
-                continue  # the wait does not spend a transport attempt
+        if not rate_limit_waited and wait_for_reset_once(
+            error, runner=runner, sleep=sleep, clock=clock, budget=budget,
+        ):
+            rate_limit_waited = True
+            continue  # the wait does not spend a transport attempt
         transient = any(marker in error.lower() for marker in TRANSIENT_GITHUB_ERRORS)
         if not transient or attempt >= effective_attempts - 1:
             raise RiskGateError(f"GitHub API request failed: {error}")
@@ -650,6 +618,9 @@ PREVIEW_PRODUCER_PATHS = (
     # call reads, so an unpinned copy could point evidence reads elsewhere.
     "scripts/lib/repository-identity.mjs",
     "scripts/repository_identity.py",
+    # Imported by the historical recovery proof for its bounded rate-limit
+    # wait (#3735); it decides whether a failed read is retried.
+    "scripts/github_rate_limit.py",
     # Invoked by the manager before preview preparation to prove the live sole
     # orchestrator identity. Its result gates whether preparation may proceed.
     "scripts/check-orchestrator-marker.mjs",
@@ -1042,6 +1013,9 @@ PREVIEW_CUSTODY_ONLY_PATHS = frozenset((
     "scripts/lib/pr-content-equivalence.mjs",
     "scripts/lib/repository-identity.mjs",
     "scripts/repository_identity.py",
+    # Decides only whether a failed read is retried after a quota reset
+    # (#3735); it never shapes the apply, ledgers or manifest.
+    "scripts/github_rate_limit.py",
     "scripts/check-orchestrator-marker.mjs",
     "scripts/db-coordination-events.mjs",
     "scripts/check-dispatch-collision.mjs",

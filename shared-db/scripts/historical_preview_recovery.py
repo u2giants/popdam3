@@ -84,9 +84,24 @@ SCHEMA_V3 = "shared-db-historical-preview-source/v3"
 SCHEMA_V4 = "shared-db-historical-preview-source/v4"
 
 
-def gh(endpoint):
-    return json.loads(subprocess.run(["gh", "api", endpoint], check=True, text=True,
-        stdout=subprocess.PIPE, encoding="utf-8").stdout)
+# RATE LIMIT (issue #3735). The wait is opt-in: gh() never waits by default,
+# so a caller holding a lane (e.g. the production gate, which injects its own
+# reader) keeps failing fast. Only this script's CLI -- which runs BEFORE the
+# preview lane is taken -- passes PRE_LANE_RATE_LIMIT_WAIT_SECONDS, waiting once
+# for the stated reset (at most 15 minutes) and re-reading.
+PRE_LANE_RATE_LIMIT_WAIT_SECONDS = 15 * 60
+
+
+def gh(endpoint, **kwargs):
+    try:
+        from github_rate_limit import gh_api_json_waiting_for_reset
+    except ImportError:  # pragma: no cover
+        from scripts.github_rate_limit import gh_api_json_waiting_for_reset
+    return gh_api_json_waiting_for_reset(endpoint, **kwargs)
+
+
+def gh_pre_lane(endpoint):
+    return gh(endpoint, rate_limit_wait_seconds=PRE_LANE_RATE_LIMIT_WAIT_SECONDS)
 
 
 def parse_versions(allowlist):
@@ -199,8 +214,8 @@ if __name__ == "__main__":
     if a.source_map and a.source_pr is not None:
         print("::error::Historical preview recovery takes --source-pr or --source-map, not both"); raise SystemExit(2)
     try:
-        result = verify(a.source_pr, a.main_sha, a.allowlist, source_map=a.source_map,
-                        original_run_map=a.original_run_map)
+        result = verify(a.source_pr, a.main_sha, a.allowlist, api=gh_pre_lane,
+                        source_map=a.source_map, original_run_map=a.original_run_map)
     except (ValueError, subprocess.CalledProcessError) as exc:
         print(f"::error::Historical preview recovery rejected: {exc}"); raise SystemExit(2)
     a.output.write_text(json.dumps(result, sort_keys=True) + "\n", encoding="utf-8")
