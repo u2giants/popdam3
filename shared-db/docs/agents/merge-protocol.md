@@ -11,8 +11,10 @@ Merge a `shared-db` PR **only when every item is true**:
    intended changes, no surprise drops/renames).
 3. The migration is applied to the **preview** branch and works there.
 4. Every app that depends on the change has been tested against preview and the
-   owner has confirmed the behavior is correct.
-5. The change is additive, or any removal was explicitly approved.
+   AI has verified the behavior is correct (Albert is asked only about business
+   meaning, never for technical approval — owner ruling 2026-09-28).
+5. The change is additive, or any removal is recoverable and was approved by the
+   allocator-assigned AI reviewer's exact-head APPROVE.
 
 Then: merge to `main` (this auto-syncs the `shared-db/` folder into all apps) and
 run the governed merged-main preview rehearsal. For one source PR, a successful

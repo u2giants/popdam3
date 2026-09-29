@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "work_issue": 3674,
+  "outcome": "ready-for-merge",
+  "pr": 3673,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3674/4",
+  "contract_sha256": "e01cb4efeed3b04e59a4623d6ba266bc61d1dab3925d9dccad3f5281a2cb75de",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "head_sha": "b1f8c0e2e195c6b9808820343d7790df87eac266",
+  "files_changed": [
+    ".github/ISSUE_TEMPLATE/author-lane-abandonment.md",
+    "AGENTS.md",
+    "docs/agents/in-flight-check.md",
+    "docs/agents/merge-protocol.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/agents/standing-facts.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node scripts/check-cancelled-work.mjs",
+      "exit_code": 0,
+      "evidence": "run on implementation head b1f8c0e2"
+    }
+  ],
+  "assumptions_resolved": [
+    "prose-only rulebook change; code-enforced owner routes report Blocked until #3675"
+  ],
+  "stop_conditions_hit": []
+}

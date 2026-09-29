@@ -13,8 +13,8 @@ ls supabase/migrations          # files not yet applied to production
 git status --short              # uncommitted migration files in the working tree
 ```
 
-If anything looks like in-progress database work, **stop and serialize** — land
-it (or ask the owner) before adding your own schema change.
+If anything looks like in-progress database work, **stop and serialize** — land it (or wait for
+its owner session) before adding your own schema change.
 
 **Currently in flight: the ERP mirror relocation.** The Coldlion ERP pull tables (`public.erp_*`,
 `public.prod_order_*`) are being moved out of `public` into the designed `ingest` / `plm` / `api`

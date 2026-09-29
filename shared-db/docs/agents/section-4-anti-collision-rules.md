@@ -163,8 +163,9 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    **Procedure 2 — terminal retirement** (the work cannot or should not return):
 
    1. Record the evidence that the work is terminal on the audit issue.
-   2. Obtain Albert's explicit decision **only** for potentially recoverable
-      work — see the authority boundary below.
+   2. For potentially recoverable work, preserve a rescue branch or patch backup,
+      leave the claim protective, and report it `Blocked —` until #3675 lands —
+      see the authority boundary below.
    3. Close the pull request through the normal authenticated operator flow.
       Never delete its branch or its refs.
    4. Retire the claim with the tombstoning `--release-claim`, which writes an
@@ -176,9 +177,13 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    **Authority boundary (settled).** The orchestrator may retire work on its own
    evidence where the worktree is `clean`, or `absent` with its absence proven
    and its durable branch and pull-request evidence complete — in both cases
-   nothing unrecoverable is being discarded. Albert decides, and only Albert
-   decides, whether potentially recoverable uncommitted work may be abandoned:
-   that is any worktree observed `dirty` or `remote`. An `ambiguous` observation
+   nothing unrecoverable is being discarded. Potentially recoverable uncommitted
+   work (any worktree observed `dirty` or
+   `remote`) is never abandoned as-is and never sent to Albert (owner ruling
+   2026-09-28): preserve a rescue branch or patch backup, leave the claim
+   protective, and report it `Blocked —`. The lane tool still requires
+   `--owner-decision` for a retirement from `dirty`/`remote`; never bypass it.
+   Issue #3675 replaces it with an assigned AI reviewer's APPROVE. An `ambiguous` observation
    is not a state; re-observe, or treat it as `3` and stop.
 
    Audit lanes with `node scripts/manage-migration-author-lanes.mjs --audit`.
@@ -383,7 +388,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    | `curated-master-data` | `fork` | a fresh session **dispatched by this orchestrator**, under §6.4 |
    | `application-data`, `source-data` | `reject` | the owning application repository, after being forwarded |
    | `repo-maintenance`, `documentation` | `repo-session` | a **separately started** repository session — not an orchestrator assignment at all |
-   | `security-settings` | `return-to-owner` | Albert |
+   | `security-settings` | `return-to-owner` | Albert (code-enforced today; moving to an AI session is issue #3675) |
 
    **Owner ruling, 2026-08-21 (issue #1366).** The orchestrator does database
    structure and schema only. `repo-maintenance` and `documentation` are not
@@ -658,8 +663,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    a current exact-head re-read and `APPROVE` or `REVISE` with evidence. Verify
    every claim independently. Relay disagreements with
    `templates/delegation/debate-turn.md`, stopping at agreement or the initial
-   review plus three rebuttals. If material disagreement remains, stop the merge
-   and ask Albert one concise decision. Never send secrets or licensed rows.
+   review plus three rebuttals. If material disagreement remains, stop the merge and route it to a third allocator-assigned reviewer or an engineer; never ask Albert to decide a technical dispute (owner ruling 2026-09-28). Never send secrets or licensed rows.
    Do not impose a fixed hard-kill timer on a reviewer that is still making progress.
 
    Run the returned wrapper only through `scripts/run-governed-review.mjs`. The
@@ -1148,8 +1152,9 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    describe was built in the first place (#1194, #1208). Open an issue instead.
 3. **Additive by default (expand, then contract).** Adding a column or table
    cannot break another app. **Renaming or dropping** one that another app reads
-   *will*. Default to additive changes. Only rename/drop after explicit owner
-   sign-off and a checked deprecation across all dependent apps.
+   *will*. Default to additive changes. Only rename/drop after the allocator-assigned AI reviewer's exact-head
+   APPROVE and a checked deprecation across all dependent apps (owner ruling
+   2026-09-28: never ask a human to approve).
 4. **New timestamped migration files only.** Each change is a new
    `YYYYMMDDHHMMSS_*.sql` file. Never edit a migration that has already been
    applied anywhere — that is how two sessions silently clobber each other.
