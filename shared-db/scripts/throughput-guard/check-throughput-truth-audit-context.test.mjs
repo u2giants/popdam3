@@ -45,17 +45,24 @@ test('malicious source encodings and excluded roots refuse', () => {
   }
 });
 
+/** Historical identities are the pre-context keys the immutable cutover audit records.
+ *  Post-migration rows carry that key in `legacy_semantic_key`; older retirement
+ *  archives still store it directly in `semantic_key`. */
+function historicalIdentity(row) {
+  return row.legacy_semantic_key ?? row.semantic_key;
+}
+
 function assertHistoricalDispositions(historical, current, retired) {
-  assert.equal(new Set(retired.map((row) => row.semantic_key)).size, retired.length, 'retired identity keys must be unique');
+  assert.equal(new Set(retired.map(historicalIdentity)).size, retired.length, 'retired identity keys must be unique');
   const historicalByKey = new Map(historical.map((row) => [row.semantic_key, row]));
   for (const row of retired) {
-    const original = historicalByKey.get(row.semantic_key);
-    assert.ok(original, `retired identity was not in the historical audit: ${row.semantic_key}`);
+    const original = historicalByKey.get(historicalIdentity(row));
+    assert.ok(original, `retired identity was not in the historical audit: ${historicalIdentity(row)}`);
     for (const field of ['line_sha256', 'disposition', 'reason']) assert.equal(row[field], original[field], `retired identity changed its historical ${field}`);
   }
-  const retiredByKey = new Map(retired.map((row) => [row.semantic_key, row]));
+  const retiredByKey = new Map(retired.map((row) => [historicalIdentity(row), row]));
   for (const original of historical) {
-    const matches = current.filter((row) => (row.legacy_semantic_key ?? row.semantic_key) === original.semantic_key);
+    const matches = current.filter((row) => historicalIdentity(row) === original.semantic_key);
     assert.ok(matches.length <= 1, `duplicate current historical identity: ${original.semantic_key}`);
     const retirement = retiredByKey.get(original.semantic_key);
     if (matches.length && retirement) assert.equal(retirement.state, 'pending', `live identity cannot already be retired: ${original.semantic_key}`);
@@ -78,7 +85,10 @@ test('context migration preserves every historical identity hash verdict and rea
   const authorityRetirements = JSON.parse(fs.readFileSync(path.join(root, 'docs/verification/throughput-retired-identity-sites-3369.json'), 'utf8'));
   assert.equal(authorityRetirements.schema_version, 1);
   assert.equal(authorityRetirements.retired_by_pr, 3369);
-  assertHistoricalDispositions(historical, current, [...archive.sites, ...authorityRetirements.sites]);
+  const historicalMgRetirements = JSON.parse(fs.readFileSync(path.join(root, 'docs/verification/throughput-retired-identity-sites-3605.json'), 'utf8'));
+  assert.equal(historicalMgRetirements.schema_version, 1);
+  assert.equal(historicalMgRetirements.retired_by_issue, 3605);
+  assertHistoricalDispositions(historical, current, [...archive.sites, ...authorityRetirements.sites, ...historicalMgRetirements.sites]);
 });
 
 test('historical identity retirement refuses unexplained loss and changed verdicts', () => {

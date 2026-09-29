@@ -77,3 +77,5 @@ catalogues; a regression test pins the historical file and compares retained ide
 Retired preflight identities from PR #3369 are recorded with their original verdicts in
 `docs/verification/throughput-retired-identity-sites-3369.json` and checked alongside
 the earlier retirement archive.
+The retired historical MG test-workflow identity from issue #3605 is preserved with its
+original verdict in `docs/verification/throughput-retired-identity-sites-3605.json`.
