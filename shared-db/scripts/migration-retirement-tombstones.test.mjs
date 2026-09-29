@@ -8,8 +8,10 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import {
   LaneError,
+  REVIEW_ASSIGNMENT_REF_PREFIX,
   RETIRED_CLAIM_REF_PREFIX,
   RETIREMENT_SCHEMA_VERSION,
+  RETIREMENT_CLOSE_REASON,
   RETIREMENT_RECORD_PREFIX,
   RETIREMENT_REF_ROW_LIMIT,
   retiredClaimRef,
@@ -134,10 +136,17 @@ test('#2301 a retirement record refuses an unknown field, a short head SHA, a ba
   assert.throws(() => validateRetirementRecord(record({ worktree_state: 'vanished' })), /worktree_state must be one of/)
 })
 
-test('#2301 retiring unmerged work needs a durable owner decision, not a typed sentence', () => {
-  assert.throws(() => validateRetirementRecord(record({ worktree_state: 'dirty' })), /requires an owner-decision record/)
-  assert.throws(() => validateRetirementRecord(record({ worktree_state: 'remote' })), /requires an owner-decision record/)
-  assert.throws(() => validateRetirementRecord(record({ owner_decision: 'the owner said fine' })), /allowed only for a dirty or remote/)
+test('#3675 retiring unmerged work needs preservation evidence and an AI reviewer APPROVE, never an owner decision', () => {
+  const art = 'artifact:' + 'a'.repeat(40)
+  assert.throws(() => validateRetirementRecord(record({ worktree_state: 'dirty' })), /requires a preservation artifact/)
+  assert.throws(() => validateRetirementRecord(record({ worktree_state: 'remote' })), /requires a preservation artifact/)
+  assert.throws(() => validateRetirementRecord(record({ worktree_state: 'dirty', preservation: art })), /AI reviewer APPROVE artifact/)
+  assert.throws(() => validateRetirementRecord(record({ worktree_state: 'dirty', preservation: 'rescued it', review_approval: art })), /retirement preservation must be artifact/)
+  assert.equal(validateRetirementRecord(record({ worktree_state: 'remote', preservation: art, review_approval: art })).review_approval, art)
+  assert.throws(() => validateRetirementRecord(record({ preservation: art })), /allowed only for a dirty or remote/)
+  assert.throws(() => validateRetirementRecord(record({ worktree_state: 'dirty', preservation: 'artifact:https://example.com/x', review_approval: art })), /immutable object hash/)
+  assert.throws(() => validateRetirementRecord(record({ worktree_state: 'dirty', preservation: art, review_approval: 'artifact:https://example.com/x' })), /immutable object hash/)
+  assert.throws(() => validateRetirementRecord(record({ worktree_state: 'dirty', preservation: art, review_approval: art, owner_decision: art })), /unknown field owner_decision/)
 })
 
 test('#2301 a retirement record survives a format and parse round trip', () => {
@@ -389,4 +398,105 @@ test('#2301 a retirement audit costs ONE bounded ref listing, not one call per c
   const before = io.calls.listRefs
   for (let n = 0; n < 40; n++) isVersionRetired(`2026090112${String(n).padStart(4, '0')}`, io)
   assert.equal(io.calls.listRefs - before, 1, '40 retirement questions must cost exactly one ref listing')
+})
+
+// --- #3675: no human approval on dirty/remote retirement --------------------
+
+test('#3675 a version 1 record written before #3675 stays readable, and only version 2 is ever written', () => {
+  const art = 'artifact:' + 'b'.repeat(40)
+  const legacy = { ...record({ worktree_state: 'dirty' }), schema_version: 1, owner_decision: art }
+  delete legacy.preservation
+  assert.equal(validateRetirementRecord(legacy).owner_decision, art)
+  assert.equal(parseRetirementRecord(`${RETIREMENT_RECORD_PREFIX}${JSON.stringify(legacy)}`).schema_version, 1)
+  assert.throws(() => formatRetirementRecord(legacy), /only schema_version 2/)
+  assert.equal(RETIREMENT_SCHEMA_VERSION, 2)
+})
+
+test('#3675 a version 2 record with preservation and review_approval survives a round trip', () => {
+  const art = 'artifact:' + 'c'.repeat(40)
+  const full = record({ worktree_state: 'remote', preservation: art, review_approval: art })
+  const parsed = parseRetirementRecord(formatRetirementRecord(full))
+  assert.equal(parsed.preservation, art)
+  assert.equal(parsed.review_approval, art)
+})
+
+test('#3675 the close reason no longer claims an owner confirmation', () => {
+  assert.doesNotMatch(RETIREMENT_CLOSE_REASON, /owner/i)
+})
+
+const DIRTY_ARGV = RETIRE_ARGV.map((x) => (x === 'absent' ? 'dirty' : x))
+
+test('#3675 --owner-decision and --review-approval are refused by name at the command boundary', () => {
+  for (const flag of ['--owner-decision', '--review-approval']) {
+    resetRetirementSnapshot()
+    const io = releaseIo()
+    assert.notEqual(main([...DIRTY_ARGV, flag, 'artifact:' + 'd'.repeat(40)], NOW, io), 0)
+    assert.equal(io.refs.get(retiredClaimRef(VERSION)), undefined)
+  }
+})
+
+test('#3675 a dirty retirement refuses without a dereferenceable preservation artifact and writes nothing', () => {
+  resetRetirementSnapshot()
+  let io = releaseIo()
+  assert.notEqual(main(DIRTY_ARGV, NOW, io), 0, 'missing --preservation must refuse')
+  assert.equal(io.refs.get(retiredClaimRef(VERSION)), undefined)
+  resetRetirementSnapshot()
+  io = releaseIo(); io.verifyArtifact = () => null
+  assert.notEqual(main([...DIRTY_ARGV, '--preservation', 'artifact:' + 'e'.repeat(40)], NOW, io), 0, 'an undereferenceable artifact must refuse')
+  assert.equal(io.refs.get(retiredClaimRef(VERSION)), undefined)
+  resetRetirementSnapshot()
+  io = releaseIo(); io.verifyArtifact = () => ({ kind: 'git-object' })
+  assert.notEqual(main([...DIRTY_ARGV, '--preservation', 'artifact:https://example.com/x'], NOW, io), 0, 'an https preservation reference cannot be dereferenced and must refuse')
+  assert.equal(io.refs.get(retiredClaimRef(VERSION)), undefined)
+})
+
+test('#3675 a dirty retirement with preservation still refuses without the durable exact-head AI reviewer APPROVE', () => {
+  resetRetirementSnapshot()
+  const io = releaseIo(); io.verifyArtifact = () => ({ kind: 'git-object' })
+  assert.notEqual(main([...DIRTY_ARGV, '--preservation', 'artifact:' + 'f'.repeat(40)], NOW, io), 0)
+  assert.equal(io.refs.get(retiredClaimRef(VERSION)), undefined, 'no tombstone without the durable APPROVE')
+  assert.equal(io.closed, undefined)
+})
+
+// A durable single-slot APPROVE keyed exactly as the allocator and governed
+// runner key it: <work issue>-<pr>-<head>. The claim title names the work
+// issue, which differs from the claim's own issue number (Grok REVISE at c6cc3145).
+function approvedDirtyIo({ verdictIssue = 4100 } = {}) {
+  const io = releaseIo(); io.verifyArtifact = () => ({ kind: 'git-object' })
+  io.openClaims = () => [{ number: 4101, title: 'db-claim: work for #4100', body: claimBody(LEASE) }]
+  const findingsBody = 'review findings', assignment = '1'.repeat(40), verdictSha = '4'.repeat(40)
+  const commits = new Map([[assignment, { message: `db-coordination reviewer-cursor sequence=1 reviewer=grok-4.6 issue=${verdictIssue} pr=4102 head=${HEAD} slot=1` }]])
+  io.refs.set(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${verdictIssue}-4102-${HEAD}`, assignment)
+  const record = { verdict: 'APPROVE', head_sha: HEAD, issue: verdictIssue, pr: 4102, slot: 1, reviewer: 'grok-4.6', assignment_sha: assignment, findings_digest: createHash('sha256').update(findingsBody).digest('hex'), findings_ref: 'https://github.com/u2giants/shared-db/pull/4102#issuecomment-1' }
+  io.refs.set(`refs/db-review-verdicts/${verdictIssue}-4102-${HEAD}`, verdictSha)
+  commits.set(verdictSha, { message: `db-review-verdict ${JSON.stringify(record)}`, parents: [{ sha: assignment }] })
+  const baseList = io.listRefs
+  io.listRefs = (prefix) => (prefix.startsWith('refs/db-review') ? [...io.refs].filter(([ref]) => ref.startsWith(prefix)).map(([ref, sha]) => ({ ref, sha })) : baseList(prefix))
+  io.getCommit = (sha) => commits.get(sha)
+  io.readFindings = () => findingsBody
+  return { io, verdictSha }
+}
+
+test('#3675 a dirty retirement succeeds with dereferenceable preservation plus the durable APPROVE under the work issue', () => {
+  resetRetirementSnapshot()
+  const { io, verdictSha } = approvedDirtyIo()
+  const preservation = 'artifact:' + 'f'.repeat(40)
+  assert.equal(main([...DIRTY_ARGV, '--preservation', preservation], NOW, io), 0)
+  const tombstone = readRetirementRecord(VERSION, io)
+  assert.equal(tombstone.preservation, preservation)
+  assert.equal(tombstone.review_approval, `artifact:${verdictSha}`, 'review_approval is written from the durable verdict ref')
+  assert.equal(io.closed.number, 4101)
+})
+
+test('#3675 an APPROVE filed under the claim number instead of the work issue does not satisfy retirement', () => {
+  resetRetirementSnapshot()
+  const { io } = approvedDirtyIo({ verdictIssue: 4101 })
+  assert.notEqual(main([...DIRTY_ARGV, '--preservation', 'artifact:' + 'f'.repeat(40)], NOW, io), 0)
+  assert.equal(io.refs.get(retiredClaimRef(VERSION)), undefined)
+})
+
+test('#3675 this suite is wired into the lane-test CI step', async () => {
+  const { readFileSync } = await import('node:fs')
+  const workflow = readFileSync(new URL('../.github/workflows/migration-author-lease.yml', import.meta.url), 'utf8')
+  assert.match(workflow, /scripts\/migration-retirement-tombstones\.test\.mjs/)
 })

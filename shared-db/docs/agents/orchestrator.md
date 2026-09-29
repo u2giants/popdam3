@@ -56,8 +56,9 @@ instead.** The machine-readable form of this table is `NON_STRUCTURAL_EXITS` in
   end to end. The orchestrator lists such issues in `--queue-audit` under
   `OUTSIDE ORCHESTRATOR — OWNED BY REPO SESSION` purely so nothing accumulates unseen, and then
   takes no action on them.
-- **RETURN-TO-OWNER** — `security-settings`. It needs authority the orchestrator does not have.
-  Put it to Albert; do not dispatch it to any session.
+- **`security-settings`** exits to `repo-session` (#3675, owner ruling 2026-09-28: never ask a
+  human to approve): a separately started AI session obtains the needed access itself. It is
+  never put to Albert, and the orchestrator does not do it.
 
 ### Every dispatch carries the waiting instruction (issue #2998 item 4, added 2026-09-20)
 

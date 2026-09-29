@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "work_issue": 3675,
+  "outcome": "ready-for-merge",
+  "pr": 3757,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3675/4",
+  "contract_sha256": "6d6fdd1d83a45e9043208e5da207b10fe90154dc6c59f244f20e08aed401119c",
+  "base_sha": "755bd33cdcefe3f7b0e236c32408668f2d7aac16",
+  "head_sha": "e06c74f984a83171e25d0463e007073cd14f2183",
+  "files_changed": [
+    ".github/ISSUE_TEMPLATE/author-lane-abandonment.md",
+    ".github/workflows/migration-author-lease.yml",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/agents/orchestrator.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/agents/standing-facts.md",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "plan_author_lane_abandonment_lifecycle.md",
+    "scripts/check-repository-identity-conformance.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/migration-retirement-tombstones.test.mjs",
+    "scripts/test_production_migration_guard.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/migration-retirement-tombstones.test.mjs scripts/lib/reviewer-turn-budget.test.mjs",
+      "exit_code": 0,
+      "evidence": "798 pass on implementation head e06c74f9 after refreshing onto origin/main 755bd33c (non-.agent plus/minus identical to approved 6acf767b; context line numbers only shift from main's landed edits)"
+    },
+    {
+      "command": "node scripts/check-cancelled-work.mjs",
+      "exit_code": 0,
+      "evidence": "OK — no cancelled instruction reintroduced (2 row(s) checked) on implementation head e06c74f9"
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_migration_guard",
+      "exit_code": 0,
+      "evidence": "289 tests OK on implementation head e06c74f9"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 pass on implementation head e06c74f9"
+    }
+  ],
+  "assumptions_resolved": [
+    "refs/db-claims-retired/* had 0 refs on 2026-09-28; v1 records remain readable",
+    "Approval at 6acf767b carries because the non-.agent plus/minus diff from the merge base is unchanged by this successor and by the main-tip refresh; only evidence records and main's landed context move.",
+    "Refreshed onto origin/main 755bd33c (through #3730/#3818/#3788/#3736/#3464-related merges). Overlap limited to scripts/manage-migration-author-lanes.mjs and scripts/manage-migration-author-lanes.test.mjs; auto-merged cleanly and the PR's plus/minus contribution is byte-identical to approved 6acf767b."
+  ],
+  "stop_conditions_hit": []
+}

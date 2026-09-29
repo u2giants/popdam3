@@ -4205,7 +4205,12 @@ class AbandonmentDocumentationAgreementTests(unittest.TestCase):
             lowered = text.lower()
             for state in ("clean", "absent", "dirty", "remote"):
                 self.assertIn(state, lowered, f"{name} lost worktree state {state}")
-            self.assertIn("albert", lowered, f"{name} lost who decides")
+            # #3675 (owner ruling 2026-09-28: never ask a human to approve):
+            # the dirty/remote side is decided by the allocator-assigned AI
+            # reviewer's APPROVE on a preserved copy, never by a human.
+            self.assertIn("approve", lowered, f"{name} lost who decides")
+            self.assertIn("preserv", lowered, f"{name} lost the preservation requirement")
+            self.assertNotIn("albert alone decides", lowered, f"{name} still routes the decision to a human")
             # The boundary is only a boundary if the venue says which side the
             # orchestrator may act on alone and which side it may not.
             self.assertRegex(

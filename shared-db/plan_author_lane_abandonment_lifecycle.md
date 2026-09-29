@@ -337,7 +337,7 @@ Behavior:
 - new claims cannot reuse a retired branch or worktree path;
 - successors use a fresh branch, worktree, claim, and permanently distinct migration version;
 - retirement/tombstone refs are never deleted;
-- dirty or remote terminal retirement requires an owner-decision record. Ordinary capacity relinquishment does not.
+- dirty or remote terminal retirement requires a preservation artifact plus an allocator-assigned AI reviewer APPROVE (#3675; formerly an owner-decision record). Ordinary capacity relinquishment does not.
 
 Dependencies: Step 1’s `worktree_state`. Step 2 should already be landed so retirement is not used merely to free capacity.
 
@@ -412,7 +412,7 @@ The abandonment record must identify claim, PR/head, recorded owner, branch, mig
 Document two separate procedures:
 
 1. **Quarantine/recovery:** create durable abandonment audit → relinquish capacity with explicit worktree state → keep PR/claim/locks/work untouched → recover → resume atomically.
-2. **Terminal retirement:** when work cannot or should not return, record evidence → obtain Albert’s explicit decision only for dirty/remote potentially recoverable work → close PR through the normal authenticated operator flow → tombstoning `--release-claim` → successor obtains fresh tuple/version.
+2. **Terminal retirement:** when work cannot or should not return, record evidence → for dirty/remote potentially recoverable work, preserve it and obtain the allocator-assigned AI reviewer's APPROVE (#3675) → close PR through the normal authenticated operator flow → tombstoning `--release-claim` → successor obtains fresh tuple/version.
 
 Record the already-settled authority boundary in both the rules and handoff: the orchestrator may retire `clean` work or `absent` work whose absence is proven and whose durable branch/PR evidence is complete; Albert decides only whether potentially recoverable `dirty` or `remote` uncommitted work may be abandoned.
 

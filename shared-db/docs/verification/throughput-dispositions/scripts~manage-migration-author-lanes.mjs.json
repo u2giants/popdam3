@@ -3,8 +3,8 @@
   "source": "scripts/manage-migration-author-lanes.mjs",
   "sites": [
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:1970",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:05273e5eb60dddc0c2ee25ac82b3006b17f7580a27d12233ef85b71a56789b8c:context-1095276b78453d9430b35537eccd8bba09c946f0931091686ff2c30fa48f57e5",
+      "site": "scripts/manage-migration-author-lanes.mjs:2027",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:05273e5eb60dddc0c2ee25ac82b3006b17f7580a27d12233ef85b71a56789b8c:context-062294b7ecbf7ef42002612399f0688c4bbfebdbbea9b652823d408aee8f8460",
       "line_sha256": "05273e5eb60dddc0c2ee25ac82b3006b17f7580a27d12233ef85b71a56789b8c",
       "disposition": "excluded",
       "reason": "Issue #2301 Step 3 retirement-record validation message; it names a missing required field in a tombstone payload and makes no claim about whether a migration was applied to the database.",
@@ -241,6 +241,14 @@
       "disposition": "enriched",
       "reason": "The queue explicitly excludes an issue missing the required admission fields, so it cannot advertise work that the claim gate must refuse.",
       "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:fc5dbd3411165633fff781b72e2e50b072c8134f5ea05a3a39f2ae78125cbc07:1"
+    },
+    {
+      "site": "scripts/manage-migration-author-lanes.mjs:2053",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:1dbfccc8144ea14ddb358bfd7811a43b49a4390207d11c6e6c8453a6628a391e:context-585330ac3bf24522e7c0d8d37f1acad34267acf31dfb75b356369b819d267859",
+      "line_sha256": "1dbfccc8144ea14ddb358bfd7811a43b49a4390207d11c6e6c8453a6628a391e",
+      "disposition": "excluded",
+      "reason": "Issue #3675 legacy (schema v1) retirement-record read validation; it names a missing owner_decision field in a tombstone payload and makes no claim about whether a migration was applied to the database.",
+      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:1dbfccc8144ea14ddb358bfd7811a43b49a4390207d11c6e6c8453a6628a391e:1"
     }
   ]
 }

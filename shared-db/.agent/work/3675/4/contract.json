@@ -1,0 +1,85 @@
+{
+  "schema_version": 2,
+  "generation": 4,
+  "work_issue": 3675,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Move code-enforced owner-only routes to AI sessions: security-settings exits to repo-session, and dirty/remote retirement needs preservation plus AI reviewer APPROVE artifacts instead of an owner decision. Generation 4 is the successor to the immutably published generation 3 record: refuseCommittedMutation rejected an in-place allowed_paths edit (recorded b858c00a, proposed bb54f634), so this generation binds evidence_parent to that recorded hash, retires the mutated generation-3 pair from the pull request diff, and re-scopes allowed_paths to cover scripts/check-repository-identity-conformance.mjs and the generation-4 evidence pair without touching any implementation file.",
+  "base_sha": "58836647e5645bb7e96049a8b72b5ded768a9010",
+  "dispatcher": "MiMo orchestrator marker #3821 evidence-contract fixer (edge-dev)",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "claude/3675-no-owner-routes",
+  "worktree": ".ai/worktrees/pr-3757-allowlist-fix",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/migration-retirement-tombstones.test.mjs",
+    ".github/workflows/migration-author-lease.yml",
+    "scripts/queue-hygiene-report.mjs",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/agents/standing-facts.md",
+    "docs/agents/orchestrator.md",
+    "docs/agents/active-contracts-and-plans.md",
+    "plan_author_lane_abandonment_lifecycle.md",
+    ".github/ISSUE_TEMPLATE/author-lane-abandonment.md",
+    "scripts/test_production_migration_guard.py",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "scripts/check-repository-identity-conformance.mjs",
+    ".agent/work/3675/3/completion.json",
+    ".agent/work/3675/3/contract.json",
+    ".agent/work/3675/4/completion.json",
+    ".agent/work/3675/4/contract.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/migration-retirement-tombstones.test.mjs",
+    ".github/workflows/migration-author-lease.yml",
+    "scripts/queue-hygiene-report.mjs",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/agents/standing-facts.md",
+    "docs/agents/orchestrator.md",
+    "docs/agents/active-contracts-and-plans.md",
+    "plan_author_lane_abandonment_lifecycle.md",
+    ".github/ISSUE_TEMPLATE/author-lane-abandonment.md",
+    "scripts/test_production_migration_guard.py",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "scripts/check-repository-identity-conformance.mjs",
+    ".agent/work/3675/3/completion.json",
+    ".agent/work/3675/3/contract.json",
+    ".agent/work/3675/4/completion.json",
+    ".agent/work/3675/4/contract.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not remove any technical gate other than the two owner-approval requirements named in #3675",
+    "do not edit another session's handoff, worktree, branch, or claim",
+    "do not rewrite a committed generation record: refs/db-contracts/3675/3 stays published and byte-identical; generation 4 is a successor, never a replacement"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs scripts/migration-retirement-tombstones.test.mjs scripts/lib/reviewer-turn-budget.test.mjs",
+    "node scripts/check-cancelled-work.mjs",
+    "python3 -m unittest scripts.test_production_migration_guard",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs"
+  ],
+  "assumptions": [
+    "refs/db-claims-retired/* had 0 refs on 2026-09-28; v1 records remain readable",
+    "PR #3673 merged; branch refreshed onto current main",
+    "Generation 4 is required because refs/db-contracts/3675/3 is already published and hash-locks its allowed_paths: refuseCommittedMutation refuses any amended generation-3 contract and names a successor generation with evidence_parent bound to the recorded hash as the only remedy. Generation 3 remains published and byte-identical.",
+    "The generation-3 pair files under .agent/work/3675/3/ are retired from this pull request's change set so exactly one evidence pair (3675/4) claims the work; their published ref is the immutable reservation.",
+    "allowed_paths widens by exactly two kinds of path versus the published generation 3 record: scripts/check-repository-identity-conformance.mjs (already in the implementation diff at 6acf767b) and the generation-4 evidence pair under .agent/work/3675/4/. The generation-3 pair paths stay listed because the task scope names them; the generation-4 pair is the live record bound by contract identity.",
+    "Approval at 6acf767b carries because the non-.agent diff from the merge base is unchanged by this successor; only evidence records move."
+  ],
+  "stop_conditions": [
+    "stop if a test fails for a reason unrelated to these files",
+    "stop if the change would need to touch a file outside allowed_paths",
+    "refuse any rewrite of a committed generation record"
+  ],
+  "evidence_parent": {
+    "work_issue": 3675,
+    "generation": 3,
+    "contract_sha256": "b858c00a4e787d81824bda4186de572fbe7edc230434cc56a3985e0137c1cd30"
+  }
+}

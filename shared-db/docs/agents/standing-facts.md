@@ -136,8 +136,8 @@ have already happened in this repo, more than once.
     The shared-db orchestrator accepts, dispatches, reviews, merges and promotes **structural and
     schema work only**. `repo-maintenance` and `documentation` are performed by a **separately
     started repository session** and are never an orchestrator assignment — not even to dispatch.
-    `security-settings` is still routed `return-to-owner` by the lane tool; issue #3675 moves it
-    to an AI session that obtains the access itself (owner ruling 2026-09-28).
+    `security-settings` is routed `repo-session` by the lane tool (#3675): an AI session obtains
+    the access itself (owner ruling 2026-09-28).
     `--queue-audit` lists these under `OUTSIDE ORCHESTRATOR — OWNED BY REPO SESSION` for audit
     visibility only; that list is **not** a worklist.
 
