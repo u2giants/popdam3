@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "work_issue": 2678,
+  "outcome": "ready-for-merge",
+  "pr": 3516,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2678/4",
+  "contract_sha256": "1f5c3710710524a556ab8c5b66d7cf6717b97c0c0153f1e172b03f4ebd28ff37",
+  "base_sha": "2165881c630eec86f71d5c55a1eb712884bafa0a",
+  "head_sha": "99bbb8308d355c4687e93a48e80fd15141303f00",
+  "files_changed": [
+    "scripts/run-governed-review.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/run-governed-review.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "re-run after merging main at 2165881c: 95/96,1-skipped pass, 0 fail"
+    }
+  ],
+  "assumptions_resolved": [
+    "The runtime pass-through for issue #2678 was already on main; the missing half was the runner-side spawn proof, now covered end to end.",
+    "The caller-marker isolation covers all four detectReviewCaller markers, so the negative case holds on Claude Code and Codex machines alike.",
+    "No existing test assertion was weakened and no production code was touched."
+  ],
+  "stop_conditions_hit": []
+}

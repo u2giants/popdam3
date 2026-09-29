@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "generation": 4,
+  "work_issue": 2678,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add the missing runner-side regression proof for issue #2678: a test asserting that run-governed-review.mjs spawns the reviewer wrapper with its AI_*_CALLER environment (detected caller, explicit exported caller never overruled, no caller invented when undetectable, and the pre-start refusal kept fail-closed). Tests-only; the runtime pass-through itself already landed on main.",
+  "base_sha": "33d5ec0d000552b204fbc2dbaae10ca2d5784c1c",
+  "dispatcher": "Owner Albert Hazan authorized resolving open non-orchestrator issue #2678 (parent dispatch to MiMo chat)",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "mimo/2678-caller-env",
+  "worktree": "C:/repos/shared-db-wt-2678-caller-env",
+  "allowed_paths": [
+    "scripts/run-governed-review.test.mjs",
+    ".agent/work/2678/4/contract.json",
+    ".agent/work/2678/4/completion.json"
+  ],
+  "file_writes": [
+    "scripts/run-governed-review.test.mjs",
+    ".agent/work/2678/4/contract.json",
+    ".agent/work/2678/4/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change any production script; this pull request is tests-only.",
+    "Do not weaken or delete any existing test assertion.",
+    "Do not touch any migration, database object, or live row.",
+    "Do not print secrets or environment values into tests, logs, or the pull request."
+  ],
+  "required_checks": [
+    "node --test scripts/run-governed-review.test.mjs scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "assumptions": [
+    "The caller pass-through fix for issue #2678 already landed on main (scripts/lib/reviewer-caller-env.mjs plus both spawn sites); only the governed runner's own spawn proof was missing.",
+    "CI Agent work contract enforces an evidence pair because a test file counts as code."
+  ],
+  "stop_conditions": [
+    "Stop if any production code change becomes necessary; that is outside this contract.",
+    "Stop if any existing test assertion must be weakened to make the new test pass.",
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths."
+  ]
+}
