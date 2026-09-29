@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "work_issue": 3685,
+  "generation": 6,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Add durable wildbrain entity state and a serialized, coverage-qualified publish function beside the immutable capture snapshots, without altering any snapshot table.",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "dispatcher": "Claude chat 1b699f56-bfb1-4801-a2b9-db91edbc98f6 on edge-dev3 (orchestrator marker 3653)",
+  "worker": "626c9036-7381-4131-aeee-6e29883153c6",
+  "branch": "claude/3685-wildbrain-durable-state",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/sdb-3685-wildbrain",
+  "allowed_paths": [
+    "supabase/migrations/20260929071000_wildbrain_durable_entity_lifecycle.sql",
+    "supabase/tests/wildbrain_durable_entity_lifecycle_contracts.sql",
+    "supabase/tests/wildbrain_landing_contracts.sql",
+    ".github/live-proofs/3685.sql",
+    ".agent/work/3685/6/contract.json",
+    ".agent/work/3685/6/completion.json",
+    ".agent/work/3685/1/contract.json",
+    ".agent/work/3685/1/completion.json",
+    ".agent/work/3685/2/contract.json",
+    ".agent/work/3685/2/completion.json",
+    ".agent/work/3685/3/contract.json",
+    ".agent/work/3685/3/completion.json",
+    ".agent/work/3685/4/contract.json",
+    ".agent/work/3685/4/completion.json",
+    ".agent/work/3685/5/contract.json",
+    ".agent/work/3685/5/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260929071000_wildbrain_durable_entity_lifecycle.sql",
+    "supabase/tests/wildbrain_durable_entity_lifecycle_contracts.sql",
+    "supabase/tests/wildbrain_landing_contracts.sql",
+    ".github/live-proofs/3685.sql",
+    ".agent/work/3685/6/contract.json",
+    ".agent/work/3685/6/completion.json"
+  ],
+  "db_reads": [
+    "table plm.wildbrain_capture",
+    "table plm.wildbrain_asset",
+    "table plm.wildbrain_era",
+    "table plm.wildbrain_creative_group",
+    "table plm.wildbrain_character",
+    "table plm.wildbrain_guide"
+  ],
+  "db_writes": [
+    "function plm.wildbrain_publish_lifecycle",
+    "index plm.wildbrain_entity_lifecycle_first_seen_idx",
+    "index plm.wildbrain_entity_lifecycle_last_changed_idx",
+    "index plm.wildbrain_entity_lifecycle_last_seen_idx",
+    "index plm.wildbrain_entity_lifecycle_withdrawn_idx",
+    "index plm.wildbrain_lifecycle_publication_baseline_idx",
+    "index plm.wildbrain_lifecycle_publication_latest_idx",
+    "policy wildbrain_entity_lifecycle_plm_read on plm.wildbrain_entity_lifecycle",
+    "policy wildbrain_lifecycle_publication_plm_read on plm.wildbrain_lifecycle_publication",
+    "table plm.wildbrain_entity_lifecycle",
+    "table plm.wildbrain_lifecycle_publication"
+  ],
+  "prohibited_actions": [
+    "Do not alter, rewrite or delete any capture snapshot table or row",
+    "Do not load, backfill or publish licensed rows from the migration",
+    "Do not include any licensor value in this public repository",
+    "No preview, merge or production action outside the serialized lanes"
+  ],
+  "required_checks": [
+    "git diff --check",
+    "bash scripts/check-sql.sh",
+    "node scripts/check-live-proof-probe.mjs"
+  ],
+  "assumptions": [
+    "Claim reserved version 20260929071000 for exactly the eleven declared writes",
+    "The ephemeral database contract job executes the new contract test"
+  ],
+  "stop_conditions": [
+    "Stop if the migration writes any object outside db_writes",
+    "Stop if any snapshot table would change"
+  ]
+}

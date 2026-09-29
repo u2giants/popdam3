@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "work_issue": 3685,
+  "outcome": "ready-for-merge",
+  "pr": 3731,
+  "migration_versions": [
+    "20260929071000"
+  ],
+  "contract_ref": "refs/db-contracts/3685/6",
+  "contract_sha256": "361636fdff34047141756fd7aedca32bf100e9310c7b1a0522061bc20974ceeb",
+  "head_sha": "0a7e91e8edcfcaea08416a1b68e989e1c92b595b",
+  "base_sha": "8f0d320a505a541ac57f6798adbb7e1fd91a9b38",
+  "files_changed": [
+    ".agent/work/3685/6/completion.json",
+    ".agent/work/3685/6/contract.json",
+    ".github/live-proofs/3685.sql",
+    "supabase/migrations/20260929071000_wildbrain_durable_entity_lifecycle.sql",
+    "supabase/tests/wildbrain_durable_entity_lifecycle_contracts.sql",
+    "supabase/tests/wildbrain_landing_contracts.sql"
+  ],
+  "db_reads": [
+    "table plm.wildbrain_capture",
+    "table plm.wildbrain_asset",
+    "table plm.wildbrain_era",
+    "table plm.wildbrain_creative_group",
+    "table plm.wildbrain_character",
+    "table plm.wildbrain_guide"
+  ],
+  "db_writes": [
+    "function plm.wildbrain_publish_lifecycle",
+    "index plm.wildbrain_entity_lifecycle_first_seen_idx",
+    "index plm.wildbrain_entity_lifecycle_last_changed_idx",
+    "index plm.wildbrain_entity_lifecycle_last_seen_idx",
+    "index plm.wildbrain_entity_lifecycle_withdrawn_idx",
+    "index plm.wildbrain_lifecycle_publication_baseline_idx",
+    "index plm.wildbrain_lifecycle_publication_latest_idx",
+    "policy wildbrain_entity_lifecycle_plm_read on plm.wildbrain_entity_lifecycle",
+    "policy wildbrain_lifecycle_publication_plm_read on plm.wildbrain_lifecycle_publication",
+    "table plm.wildbrain_entity_lifecycle",
+    "table plm.wildbrain_lifecycle_publication"
+  ],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Exit 0 against the merge base at implementation head 0a7e91e8edcfcaea08416a1b68e989e1c92b595b."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at 0a7e91e8edcfcaea08416a1b68e989e1c92b595b; live ledger not configured locally."
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Exit 0 locally; outcome #3685 returns to u2giants/licensor-source-data, so the probe check reports not applicable here."
+    }
+  ],
+  "assumptions_resolved": [
+    "Claim #3729 superseded 20260928181124 -> 20260929071000 and expanded to the eleven declared writes",
+    "No database write performed by the author; preview, merge and production follow the serialized lanes",
+    "Ephemeral Supabase replay (supabase db start, 17.6.1.171) at a211550fe3c2f8f7fd4145862b47b495ff08ea5e: wildbrain_durable_entity_lifecycle_contracts.sql passed; wildbrain_landing_contracts.sql passed sections A-G and stopped at H on the #2123 character promotion contract, whose migration does not replay from empty locally (environmental, outside this change)",
+    "Claim #3729 version superseded 20260928210844 -> 20260929071000 by --supersede-active-claim-version (supersession 29e4e77c)",
+    "Claim #3729 version superseded 20260929034233 -> 20260929071000 after main advanced (supersession 6120b59d)",
+    "Claim #3729 version superseded 20260929044600 -> 20260929071000 after #3695 merged 20260929045102"
+  ],
+  "stop_conditions_hit": []
+}
