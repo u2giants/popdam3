@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "work_issue": 3815,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Name source-drift and denied-tool wrapper refusals in run-governed-review wrapperFailureReason instead of reporting them as unrecognized",
+  "base_sha": "cafdaf257810bf56866708eb6ab69efec52109bb",
+  "dispatcher": "repo-maintenance session for issue #3815 (Claude chat 626c9036 on edge-dev3)",
+  "worker": "claude",
+  "branch": "fix/governed-review-source-drift-reason",
+  "worktree": ".claude/worktrees/gov-source-drift",
+  "allowed_paths": ["scripts/run-governed-review.mjs", "scripts/run-governed-review.test.mjs"],
+  "file_writes": ["scripts/run-governed-review.mjs", "scripts/run-governed-review.test.mjs"],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": ["do not touch any migration or database object", "do not weaken any wrapper source-drift or verdict gate"],
+  "required_checks": ["node --test scripts/run-governed-review.test.mjs"],
+  "assumptions": ["ai-gemini prints 'changed the protected source checkout' on provider-source-drift and 'headless runtime denied a tool' on denied turns"],
+  "stop_conditions": ["stop if the change would need to touch a file outside allowed_paths"]
+}

@@ -208,6 +208,11 @@ test('typed terminal reasons require complete tokens rather than diagnostic subs
   assert.equal(wrapperFailureReason({stderr:'start_failed: not-caller_identity_missing'}),'start_failed: the wrapper refused before the provider turn started')
 })
 
+test('source drift and denied-tool wrapper refusals are named, not unrecognized',()=>{
+  assert.match(wrapperFailureReason({stderr:'ai-gemini: Gemini changed the protected source checkout; response rejected'}),/^source_drift: the reviewed checkout changed during the reviewer turn/)
+  assert.match(wrapperFailureReason({stderr:'ai-gemini: Gemini ended its turn after the headless runtime denied a tool (RunCommand); no usable verdict; evidence preserved'}),/^tool_denied: /)
+})
+
 test('a precise turn-budget refusal takes precedence over generic cancellation prose',()=>{
   {
     const evidenceOnly=wrapperFailureReason({stderr:'ai-grok-review: Grok stopped WITHOUT a final answer\n  reason: turn_limit_cancelled\nincomplete provider evidence retained for invocation f57a260c\n'})

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 3815,
+  "outcome": "ready-for-merge",
+  "pr": 3816,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3815/1",
+  "contract_sha256": "46f2ed0f6d176c833f960e4a2084fbdfb3b8d1a925aea39f6643e8b868d7c112",
+  "base_sha": "cafdaf257810bf56866708eb6ab69efec52109bb",
+  "head_sha": "59d60c79bb3f3b1498fc2fde5c6ab70f4ac7779e",
+  "files_changed": [
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/run-governed-review.test.mjs",
+      "exit_code": 0,
+      "evidence": "96 pass, 0 fail"
+    }
+  ],
+  "assumptions_resolved": [
+    "Confirmed from ai-gemini source and the preserved failure artifact for session sdb-3695-r6b."
+  ],
+  "stop_conditions_hit": []
+}

@@ -405,6 +405,11 @@ export function wrapperFailureReason(run){
   }
   if(/timed-out|timed out|deadline|time limit/i.test(stderr))reasons.push('the wrapper reported a timeout')
   if(/local_dependency_unavailable/i.test(stderr))reasons.push('a local reviewer dependency is unavailable')
+  // A wrapper that finds the reviewed checkout changed during the turn refuses the
+  // verdict. The writer is usually the calling session itself (a log redirected
+  // into the checkout, or a parallel slot's output), not the reviewer.
+  if(/changed the protected source checkout|source checkout changed|checkout files changed between turns/i.test(stderr))reasons.push('source_drift: the reviewed checkout changed during the reviewer turn; keep caller logs and scratch outside the checkout (or in a git-ignored root .tmp-* path) and rerun')
+  if(/headless runtime denied a tool/i.test(stderr))reasons.push('tool_denied: the reviewer runtime denied a tool call and ended the turn without a verdict')
   if(/execution-context-denied/i.test(stderr))reasons.push('the wrapper reported execution-context-denied')
   if(hasReason('content-filter')||hasReason('DataInspectionFailed'))reasons.push('provider_unavailable: content-filter rejected the request')
   else if(hasReason('provider-unavailable'))reasons.push('provider_unavailable: the provider refused the request')
