@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 3813,
+  "outcome": "ready-for-merge",
+  "pr": 3814,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3813/1",
+  "contract_sha256": "b3dc895f3a366953c601f8f887504b93c829f67d28b247d0e6bb5036899984cb",
+  "base_sha": "58836647e5645bb7e96049a8b72b5ded768a9010",
+  "head_sha": "2e9b122afdd97bbbbcac84a886c7bec2ca5ef88a",
+  "files_changed": [
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 scripts/test_preview_ledger_orphan_reconcile.py",
+      "exit_code": 0,
+      "evidence": "Ran 30 tests, OK"
+    }
+  ],
+  "assumptions_resolved": [
+    "cmp of 20260928145444 at b26dbd4d and 20260929040458 on main: identical; run 36456516739 is the only preview run whose log shows Applying migration 20260928145444; no preview run applied 20260928211405"
+  ],
+  "stop_conditions_hit": []
+}

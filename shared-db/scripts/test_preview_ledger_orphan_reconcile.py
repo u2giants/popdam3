@@ -9,7 +9,23 @@ class Tests(unittest.TestCase):
         workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
         self.assertIn('config/preview-ledger-orphan-reconciliations.json',workflow)
         self.assertNotIn('case "$ISSUE:$CLAIM:$SOURCE_PR:$ORPHAN:$REPLACEMENT"',workflow)
-        self.assertEqual(len(M.SUPPORTED_CASES),11)
+        self.assertEqual(len(M.SUPPORTED_CASES),12)
+
+    def test_issue_3458_byte_identical_rename_is_narrowly_evidence_bound(self):
+        case=M.SUPPORTED_CASES[(3458,3483,3672)]
+        self.assertEqual(case,{
+            'mode':'byte_identical_rename',
+            'orphan_version':'20260928145444',
+            'replacement_version':'20260929040458',
+            'orphan_run_head':'b26dbd4d5240bf1484424edfe68f40901b547ec7',
+            'orphan_commit_sha':'b26dbd4d5240bf1484424edfe68f40901b547ec7',
+            'preview_run_id':36456516739,
+            'preview_artifact_id':10985084878,
+            'preview_artifact_digest':'sha256:045e0129523ccc99aa0fc16d92cbb9a05e1abe712c77e81cf47de2a892b83fbe',
+            'merged_source':True,
+            'issue_state':'open',
+            'claim_state':'open',
+        })
 
     def test_issue_2506_rehearsal_reset_is_narrowly_evidence_bound(self):
         case=M.SUPPORTED_CASES[(2506,2510,2512,'20260907131610','20260907131610')]

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 3813,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Allowlist the byte-identical preview ledger rename 20260928145444 -> 20260929040458 (PR #3672) so preview-ledger-orphan-reconciliation.yml can clear the preview drift blocking every preview apply",
+  "base_sha": "2165881c630eec86f71d5c55a1eb712884bafa0a",
+  "dispatcher": "shared-db orchestrator 626c9036 (marker #3732)",
+  "worker": "claude:3813-preview-orphan-case",
+  "branch": "claude/3813-preview-orphan-case",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/h626-3567",
+  "allowed_paths": [
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py",
+    ".agent/work/3813/1/contract.json",
+    ".agent/work/3813/1/completion.json"
+  ],
+  "file_writes": [
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py",
+    ".agent/work/3813/1/contract.json",
+    ".agent/work/3813/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not change any migration or database object",
+    "do not widen the reconciliation workflow or reconcile script",
+    "do not hand-edit any database ledger"
+  ],
+  "required_checks": [
+    "python3 scripts/test_preview_ledger_orphan_reconcile.py"
+  ],
+  "assumptions": [
+    "20260928145444 was applied to preview only by run 36456516739 (artifact 10985084878) from PR #3672 head b26dbd4d, and is byte-identical to 20260929040458 merged by #3672 as 36e44f96",
+    "20260928211405 was never applied to preview"
+  ],
+  "stop_conditions": [
+    "stop if the orphan and replacement migration bytes differ",
+    "stop if a test fails for a reason unrelated to these files"
+  ],
+  "generation": 1
+}
