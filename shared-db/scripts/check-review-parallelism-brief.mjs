@@ -24,17 +24,20 @@ export const REQUIRED_CLAUSES = Object.freeze([
   { name: 'earlier-head-not-authorized', pattern: /a review\s+bound to an earlier head does not authorize a later head/i },
   { name: 'equivalence-stays-narrow', pattern: /pr-content-equivalence\.mjs/i },
   { name: 'equivalence-bound-to-agent-only', pattern: /byte-identical, ignoring only `\.agent\/` evidence files/i },
-  { name: 'no-check-becomes-optional', pattern: /no required check becomes optional/i },
+  // Owner ruling 2026-09-28 (Albert Hazan): the old "no required check becomes optional" promise
+  // is retired. Retiring a required check is now an AI decision that must carry evidence and an
+  // assigned AI reviewer's APPROVE; the brief must still say so.
+  { name: 'check-retirement-needs-evidence-and-review', pattern: /retiring a required check is an ai decision with evidence/i },
   { name: 'no-gate-skipped-no-reviewer-dropped', pattern: /no gate is skipped, and no reviewer\s+requirement is dropped/i },
   { name: 'test-evidence-widening-refused', pattern: /test or evidence files is refused/i },
-  { name: 'parallelise-do-not-delete', pattern: /parallelise; do not delete/i },
+  { name: 'parallelise-do-not-delete', pattern: /parallelising; do not delete the\s+exact-head review/i },
 ]);
 
 /** Language that would turn a throughput edit into a weaker gate. Any hit fails the check. */
 export const FORBIDDEN_CLAUSES = Object.freeze([
-  // `(?<!no )` keeps the brief's own negated promise ("No required check becomes optional")
-  // from tripping the guard, while any affirmative rewording still does.
-  { name: 'optional-required-check', pattern: /(?<!no )(required|ci) checks? (may|can|is|are|were|becomes?|become|turn)[^.\n]{0,40}optional/i },
+  // Retiring a check is allowed only through the evidence-and-review route; a blanket statement
+  // that required checks are optional (for a slow matrix, a small change, ...) is still refused.
+  { name: 'optional-required-check', pattern: /(required|ci) checks? (may|can|is|are|were|becomes?|become|turn)[^.\n]{0,40}optional/i },
   { name: 'skippable-review', pattern: /(skip|waive|bypass|drop) the (governed )?review/i },
   // Matches both "An approval of an earlier head still authorizes …" and the brief's own
   // subject shape inverted ("A review bound to an earlier head still authorizes …").

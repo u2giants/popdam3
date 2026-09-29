@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_issue": 3774,
+  "outcome": "ready-for-merge",
+  "pr": 3788,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3774/1",
+  "contract_sha256": "ff54612a9aa919a6a6692ff51b369fb6a0655853162584c2e63ad2156c29e6d2",
+  "base_sha": "7adeb4618ef0f7bd87df6ebd867f39d6230dd237",
+  "head_sha": "e4ce361e2260e19d78fdb2c19ea407a2487a3b97",
+  "files_changed": [
+    "AGENTS.md",
+    "docs/agents/owner-rulings.md",
+    "scripts/check-review-parallelism-brief.mjs",
+    "scripts/check-review-parallelism-brief.test.mjs",
+    "scripts/orchestrator-flow/runner-lanes.json",
+    "scripts/update-required-checks.mjs",
+    "scripts/update-required-checks.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-review-parallelism-brief.test.mjs",
+      "exit_code": 0,
+      "evidence": "# pass 8 # fail 0"
+    },
+    {
+      "command": "node --test scripts/update-required-checks.test.mjs",
+      "exit_code": 0,
+      "evidence": "# pass 34 # fail 0"
+    },
+    {
+      "command": "node --test scripts/check-merge-queue-workflows.test.mjs",
+      "exit_code": 0,
+      "evidence": "# pass 21 # fail 0"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/runner-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "# pass 13 # fail 0"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 pass, 0 fail"
+    }
+  ],
+  "assumptions_resolved": [
+    "production_business_risk_gate.py REQUIRED_CHECKS names Cross-PR object collision, Migration author lease, SQL migration guards and supabase/tests against an ephemeral database; neither retired context appears, so it needs no change",
+    "Muse governed review REVISE (seq 4462 replacement) findings fixed in one batch: may/can restored in the optional-check guard with tests, --remove named correctly in ruling 0.5, planUnion message updated"
+  ],
+  "stop_conditions_hit": []
+}

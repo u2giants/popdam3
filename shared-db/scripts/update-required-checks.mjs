@@ -28,7 +28,9 @@
 //     branch-protection object;
 //   * reads the live document first and forms an exact SET UNION;
 //   * preserves the live `strict` value byte-for-value and refuses to change it;
-//   * REFUSES any removal or rename - this tool only ever adds;
+//   * REFUSES any removal or rename unless each retired context is named with
+//     --remove (owner ruling 2026-09-28, docs/agents/owner-rulings.md §0.5),
+//     and never removes a production-promotion context (PROTECTED_CONTEXTS);
 //   * is DRY RUN by default and applies only with --apply;
 //   * fails closed on an empty, malformed, or incomplete live document, because
 //     "I could not read the current contexts" must never be treated as "there
@@ -47,11 +49,18 @@ export const DEFAULT_BRANCH = 'main'
 
 export class RequiredChecksError extends Error {}
 
+// Production promotion (scripts/production_business_risk_gate.py REQUIRED_CHECKS)
+// requires these at the merged head. They can never be retired by this tool.
+export const PROTECTED_CONTEXTS = Object.freeze(['Cross-PR object collision', 'Migration author lease'])
+
 export const USAGE = `Usage:
   node scripts/update-required-checks.mjs --add "<context>" [--add "<context>"...] [options]
 
 Options:
-  --add <context>     A required status check context to ADD. Repeatable. Required.
+  --add <context>     A required status check context to ADD. Repeatable.
+  --remove <context>  A required context to RETIRE (owner ruling 2026-09-28). Repeatable.
+                      Needs a reviewed PR stating the before/after list. Never allowed
+                      for ${PROTECTED_CONTEXTS.join(', ')}.
   --repo <owner/name> Default: GITHUB_REPOSITORY, else this checkout's verified GitHub origin
   --branch <name>     Default: ${DEFAULT_BRANCH}
   --refresh-mirror    Read effective settings and refresh local evidence; no GitHub mutation.
@@ -95,7 +104,7 @@ export function ghSpawnOptions(input) {
 }
 
 export function parseArgs(argv) {
-  const options = { add: [], repo: undefined, branch: DEFAULT_BRANCH, apply: false, help: false }
+  const options = { add: [], remove: [], repo: undefined, branch: DEFAULT_BRANCH, apply: false, help: false }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === '--help' || arg === '-h') { options.help = true; continue }
@@ -105,6 +114,10 @@ export function parseArgs(argv) {
     if (arg === '--add') {
       if (value === undefined || value.startsWith('--')) throw new RequiredChecksError('--add requires a context name')
       options.add.push(value); i++; continue
+    }
+    if (arg === '--remove') {
+      if (value === undefined || value.startsWith('--')) throw new RequiredChecksError('--remove requires a context name')
+      options.remove.push(value); i++; continue
     }
     if (arg === '--repo') {
       if (!value || value.startsWith('--')) throw new RequiredChecksError('--repo requires owner/name')
@@ -153,10 +166,16 @@ export function validateLiveDocument(document) {
   return document
 }
 
-export function planUnion(live, additions) {
+export function planUnion(live, additions, removals = []) {
   const validated = validateLiveDocument(live)
   const requested = additions.map((context) => String(context))
-  if (!requested.length) throw new RequiredChecksError('at least one --add context is required')
+  const retiring = [...new Set(removals.map((context) => String(context)))]
+  if (!requested.length && !retiring.length) throw new RequiredChecksError('at least one --add or --remove context is required')
+  for (const context of retiring) {
+    if (PROTECTED_CONTEXTS.includes(context)) throw new RequiredChecksError(`refusing: ${context} is required for production promotion and can never be retired`)
+    if (!validated.contexts.includes(context)) throw new RequiredChecksError(`refusing: ${context} is not currently required; nothing to retire`)
+    if (requested.includes(context)) throw new RequiredChecksError(`refusing: ${context} is both added and removed`)
+  }
   for (const context of requested) {
     if (!context.trim()) throw new RequiredChecksError('a context to add must not be empty or whitespace')
   }
@@ -166,15 +185,16 @@ export function planUnion(live, additions) {
   const toAdd = [...new Set(requested.filter((context) => !existingSet.has(context)))]
   // Union, with the live order preserved and additions appended. Preserving order
   // keeps the diff readable and makes an accidental reordering visible.
-  const next = [...existing, ...toAdd]
+  const next = [...existing.filter((context) => !retiring.includes(context)), ...toAdd]
 
-  // Belt and braces: prove the result is a superset before anything is written.
-  // If this ever fires, the union logic above is wrong and must not reach GitHub.
+  // Belt and braces: the only contexts that may disappear are the ones named
+  // with --remove. If this ever fires, the logic above is wrong.
   const removed = existing.filter((context) => !next.includes(context))
-  if (removed.length) throw new RequiredChecksError(`refusing: the computed change would REMOVE ${removed.join(', ')}`)
+  const unexpected = removed.filter((context) => !retiring.includes(context))
+  if (unexpected.length) throw new RequiredChecksError(`refusing: the computed change would REMOVE ${unexpected.join(', ')}`)
 
-  const checks = validated.checks === undefined ? undefined : [...validated.checks.map((check) => ({ ...check })), ...toAdd.map((context) => ({ context, app_id: null }))]
-  return { strict: validated.strict, existing, toAdd, alreadyPresent, next, checks, changed: toAdd.length > 0 }
+  const checks = validated.checks === undefined ? undefined : [...validated.checks.filter((check) => !retiring.includes(check.context)).map((check) => ({ ...check })), ...toAdd.map((context) => ({ context, app_id: null }))]
+  return { strict: validated.strict, existing: existing.filter((context) => !retiring.includes(context)), before: existing, toAdd, toRemove: retiring, alreadyPresent, next, checks, changed: toAdd.length > 0 || retiring.length > 0 }
 }
 
 export function renderPlan(plan, { repo, branch, apply }) {
@@ -184,8 +204,9 @@ export function renderPlan(plan, { repo, branch, apply }) {
   lines.push('')
   lines.push(`  strict: ${plan.strict}  (PRESERVED EXACTLY — issue #1286 owner ruling; this tool never changes it)`)
   lines.push('')
-  lines.push(`  currently required (${plan.existing.length}):`)
-  for (const context of plan.existing) lines.push(`    = ${context}`)
+  const current = plan.before ?? plan.existing
+  lines.push(`  currently required (${current.length}):`)
+  for (const context of current) lines.push(`    = ${context}`)
   if (plan.alreadyPresent.length) {
     lines.push('')
     lines.push('  already present, nothing to do:')
@@ -199,7 +220,15 @@ export function renderPlan(plan, { repo, branch, apply }) {
     lines.push('  ADDING: nothing. Every requested context is already required.')
   }
   lines.push('')
-  lines.push(`  resulting list (${plan.next.length}): no context removed, no context renamed.`)
+  if (plan.toRemove?.length) {
+    lines.push('')
+    lines.push(`  RETIRING (${plan.toRemove.length}) — owner ruling 2026-09-28:`)
+    for (const context of plan.toRemove) lines.push(`    - ${context}`)
+  }
+  lines.push('')
+  lines.push(plan.toRemove?.length
+    ? `  resulting list (${plan.next.length}): only the contexts named above removed.`
+    : `  resulting list (${plan.next.length}): no context removed, no context renamed.`)
   return lines.join('\n')
 }
 
@@ -277,6 +306,8 @@ export function verifyReadback(live, plan) {
       if (!afterChecks.some((after) => after.context === before.context && after.app_id === before.app_id)) throw new RequiredChecksError(`readback FAILED: producer binding changed for ${before.context}`)
     }
   }
+  const retired = plan.toRemove ?? []
+  if (retired.some((context) => validated.contexts.includes(context))) throw new RequiredChecksError(`readback FAILED: ${retired.filter((context) => validated.contexts.includes(context)).join(', ')} is still required after the write`)
   return validated
 }
 
@@ -292,7 +323,7 @@ export async function main(argv, io = {}) {
   if (options.help) { log(USAGE); return 0 }
   const effective = () => (io.readEffective ?? readEffectiveRequiredChecks)({ repo: options.repo, branch: options.branch, read: (args) => JSON.parse((io.run ?? gh)(args)) })
   if (options.refreshMirror) {
-    if (options.apply || options.add.length) { error('--refresh-mirror cannot be combined with --apply or --add'); return 2 }
+    if (options.apply || options.add.length || options.remove.length) { error('--refresh-mirror cannot be combined with --apply, --add or --remove'); return 2 }
     try {
       const authority = effective()
       const classic = authority.sources?.classic
@@ -302,11 +333,11 @@ export async function main(argv, io = {}) {
       return 0
     } catch (readError) { error(readError.message); return 2 }
   }
-  if (!options.add.length) { error('at least one --add context is required'); error(USAGE); return 2 }
+  if (!options.add.length && !options.remove.length) { error('at least one --add or --remove context is required'); error(USAGE); return 2 }
 
   let plan
   try {
-    plan = planUnion(readLive(options, io), options.add)
+    plan = planUnion(readLive(options, io), options.add, options.remove)
   } catch (readError) {
     error(String(readError.message))
     // A refusal to remove is a REFUSAL (1). Anything else here means we could not

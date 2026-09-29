@@ -36,8 +36,10 @@ test('editing the brief into a weaker gate is refused', () => {
     'Equivalence now ignores `.agent/` evidence files and tests, so a reviewed head survives.',
   ];
   assert.equal(weakenings.length, FORBIDDEN_CLAUSES.length);
+  // Review of PR #3788: may/can phrasings must still be refused.
+  weakenings.push('Required checks may be optional for small changes.', 'CI checks can turn optional on retry.', 'CI checks may become optional when the queue is long.');
   for (const weakening of weakenings) {
-    const damaged = live().replace('- No required check becomes optional', `- ${weakening}\n- No required check becomes optional`);
+    const damaged = live().replace('- **Retiring a required check', `- ${weakening}\n- **Retiring a required check`);
     assert.throws(() => checkBrief(damaged), /weakens a safeguard|parallelise, do not delete/, weakening);
   }
 });
@@ -53,13 +55,21 @@ test('inverting the brief\'s own earlier-head sentence is refused', () => {
   assert.throws(() => checkBrief(damaged), /no longer states "earlier-head-not-authorized"|weakens a safeguard/);
 });
 
-test('dropping the gate/reviewer half of the no-check-optional bullet is refused', () => {
+test('dropping the gate/reviewer half of the check-retirement bullet is refused', () => {
   // M1: "no gate is skipped, and no reviewer requirement is dropped" is a stated safety claim
-  // and must be pinned, not merely share a line with the optional-check promise.
+  // and must be pinned, not merely share a line with the check-retirement rule.
   const damaged = live().replace('no gate is skipped, and no reviewer', 'gates may be skipped and reviewers');
   assert.throws(() => checkBrief(damaged), /no longer states "no-gate-skipped-no-reviewer-dropped"/);
 });
 
 test('the brief refuses the one proposal in #3002 that would review less', () => {
   assert.match(briefSection(live()), /test or evidence files is\s+REFUSED/);
+});
+
+test('the 2026-09-28 owner ruling replaces the no-drop promise with an evidence-and-review route', () => {
+  const section = briefSection(live());
+  assert.doesNotMatch(section, /no required check becomes optional/i);
+  assert.match(section, /owner ruling\s+2026-09-28/);
+  const damaged = live().replace('Retiring a required check is an AI decision with evidence', 'Required checks are dropped freely');
+  assert.throws(() => checkBrief(damaged), /no longer states "check-retirement-needs-evidence-and-review"/);
 });

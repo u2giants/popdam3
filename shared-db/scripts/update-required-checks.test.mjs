@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  parseArgs, planUnion, renderPlan, validateLiveDocument, readLive, applyUnion,
+  parseArgs, planUnion, PROTECTED_CONTEXTS, renderPlan, validateLiveDocument, readLive, applyUnion,
   verifyReadback, main, RequiredChecksError, DEFAULT_BRANCH, ghSpawnOptions, mirrorDocument, writeMirror, MIRROR_PATH } from './update-required-checks.mjs'
 import { resolveRepositoryIdentity } from './lib/repository-identity.mjs'
 
@@ -108,7 +108,7 @@ test('duplicate --add values collapse to one addition', () => {
 test('an empty or whitespace context is refused rather than added', () => {
   assert.throws(() => planUnion(LIVE, ['']), /must not be empty/)
   assert.throws(() => planUnion(LIVE, ['   ']), /must not be empty/)
-  assert.throws(() => planUnion(LIVE, []), /at least one --add context is required/)
+  assert.throws(() => planUnion(LIVE, []), /at least one --add or --remove context is required/)
 })
 
 // A RENAME is a REMOVE plus an ADD. This tool must never be the thing that
@@ -313,4 +313,29 @@ test('refresh mirror keeps a ruleset-only context out of the classic coverage ba
   assert.deepEqual(mirror.contexts, ['classic'])
   assert.deepEqual(mirror.authority.checks.map((check) => check.context), ['classic', 'ruleset-only'])
   assert.equal(transport.calls.length, 0)
+})
+
+// Owner ruling 2026-09-28 (docs/agents/owner-rulings.md §0.5): a named context may be retired.
+test('--remove retires exactly the named context and nothing else', () => {
+  const target = LIVE.contexts.find((context) => !PROTECTED_CONTEXTS.includes(context))
+  const plan = planUnion(LIVE, [], [target])
+  assert.deepEqual(plan.toRemove, [target])
+  assert.equal(plan.next.length, LIVE.contexts.length - 1)
+  assert.ok(!plan.next.includes(target))
+  assert.ok(plan.changed)
+  const text = renderPlan(plan, { repo: DEFAULT_REPO, branch: 'main', apply: false })
+  assert.ok(text.includes(`- ${target}`))
+  assert.match(text, /only the contexts named above removed/)
+})
+
+test('--remove refuses the production-promotion contexts and unknown names', () => {
+  for (const context of PROTECTED_CONTEXTS) assert.throws(() => planUnion({ ...LIVE, contexts: [...LIVE.contexts, context] }, [], [context]), /production promotion/)
+  assert.throws(() => planUnion(LIVE, [], ['No such guard']), /not currently required/)
+})
+
+test('readback fails when a retired context is still required', () => {
+  const target = LIVE.contexts.find((context) => !PROTECTED_CONTEXTS.includes(context))
+  const plan = planUnion(LIVE, [], [target])
+  assert.throws(() => verifyReadback(LIVE, plan), /still required after the write/)
+  assert.doesNotThrow(() => verifyReadback({ ...LIVE, contexts: plan.next, checks: LIVE.checks?.filter((c) => c.context !== target) }, plan))
 })

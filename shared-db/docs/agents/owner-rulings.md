@@ -275,3 +275,30 @@ Two traps that made it look safe to tighten:
 
 If a genuinely read-only DAM tester is needed, express it with the **app-schema** roles
 that gate the shared `api.*`/`dam.*` contracts. Never narrow `style_tracker_rows`.
+
+## 0.5 OWNER RULING — required checks may be cut by AI decision with evidence (Albert Hazan, 2026-09-28)
+
+Albert's exact words, from his chat on 2026-09-28 at about 6:35 PM EDT:
+
+> "kill the rule that says no required check may be dropped without my say. cut the gates"
+
+What this changes:
+
+- The AGENTS.md §5.0-C promise "No required check becomes optional" is retired. A required
+  check on `main` may now be retired, merged into another, or made advisory by AI decision,
+  without asking Albert, when measured evidence shows it mostly fails for reasons unrelated to
+  the change (for example an empty GitHub API quota).
+- The pull request that does it must state the exact before/after required-check list and carry
+  an assigned AI reviewer's APPROVE (shared-db allocator) before branch protection is changed.
+- `scripts/update-required-checks.mjs` accepts a removal only through its explicit
+  `--remove` flag, naming each retired context.
+
+What this does NOT change: the exact-head APPROVE rule and the refusal to widen head
+equivalence beyond `.agent/` files (§5.0-C) stand. `Cross-PR object collision` and
+`Migration author lease` stay required because production promotion
+(`scripts/production_business_risk_gate.py`) depends on them.
+
+First use (2026-09-28): `Agent work contract` and `Orchestrator marker guard` were made advisory
+(the workflows still run and report; they no longer block merging). Evidence: 24/43 and 14/42
+failed in the 14 days to 2026-09-28, sampled failures being API-quota refusals or missing
+evidence files, not defects in the change (`docs/plans/plan_gate_cutback.md` §5–§6).

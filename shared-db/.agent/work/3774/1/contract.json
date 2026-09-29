@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_issue": 3774,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Record Albert's 2026-09-28 ruling allowing AI to retire required checks, amend AGENTS.md 5.0-C, add --remove to update-required-checks, and make Agent work contract and Orchestrator marker guard advisory",
+  "base_sha": "a2bf06bcbb6e76fb4939f78ee0d9e38353dceb33",
+  "dispatcher": "Claude chat a3b25ec9-4d49-4ba1-9623-9db18ddacfa4 on edge-dev3",
+  "worker": "Claude chat a3b25ec9-4d49-4ba1-9623-9db18ddacfa4 on edge-dev3",
+  "branch": "claude/gate-cutback-owner-ruling",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/gate-cutback",
+  "allowed_paths": [
+    "AGENTS.md",
+    "docs/agents/owner-rulings.md",
+    "scripts/check-review-parallelism-brief.mjs",
+    "scripts/check-review-parallelism-brief.test.mjs",
+    "scripts/update-required-checks.mjs",
+    "scripts/update-required-checks.test.mjs",
+    "scripts/orchestrator-flow/runner-lanes.json",
+    ".agent/work/3774/1/contract.json",
+    ".agent/work/3774/1/completion.json"
+  ],
+  "file_writes": [
+    "AGENTS.md",
+    "docs/agents/owner-rulings.md",
+    "scripts/check-review-parallelism-brief.mjs",
+    "scripts/check-review-parallelism-brief.test.mjs",
+    "scripts/update-required-checks.mjs",
+    "scripts/update-required-checks.test.mjs",
+    "scripts/orchestrator-flow/runner-lanes.json",
+    ".agent/work/3774/1/contract.json",
+    ".agent/work/3774/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "never retire Cross-PR object collision or Migration author lease",
+    "do not change branch protection before the PR merges and an assigned AI reviewer approves"
+  ],
+  "required_checks": [
+    "node --test scripts/check-review-parallelism-brief.test.mjs",
+    "node --test scripts/update-required-checks.test.mjs",
+    "node --test scripts/check-merge-queue-workflows.test.mjs",
+    "node --test scripts/orchestrator-flow/runner-lanes.test.mjs"
+  ],
+  "assumptions": [
+    "the edits were drafted locally before this contract was published; they are committed only after publication"
+  ],
+  "stop_conditions": [
+    "stop if a change outside allowed_paths is needed"
+  ],
+  "generation": 1
+}

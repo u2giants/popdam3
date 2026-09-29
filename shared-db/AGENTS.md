@@ -183,8 +183,15 @@ to "spend" only one review.
   changes what the change proves, and a reviewer who never saw it never reviewed
   it. Widening equivalence beyond `.agent/` would be reviewing less, not
   reviewing faster.
-- No required check becomes optional, no gate is skipped, and no reviewer
-  requirement is dropped. Parallelise; do not delete.
+- **Retiring a required check is an AI decision with evidence (owner ruling
+  2026-09-28, see `docs/agents/owner-rulings.md`).** A required check may be
+  retired, merged into another, or made advisory when measured evidence shows it
+  mostly fails for reasons unrelated to the change; the pull request carrying it
+  states the exact before/after required-check list and gets an assigned AI
+  reviewer's APPROVE before branch protection changes. On any single pull
+  request no gate is skipped, and no reviewer
+  requirement is dropped. Speed comes from parallelising; do not delete the
+  exact-head review.
 
 `scripts/check-review-parallelism-brief.mjs` holds this brief and this refusal in
 place, and fails the tools-offline check if either is removed or contradicted.
