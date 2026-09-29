@@ -76,3 +76,25 @@ test("refusal must be an error with the expected SQLSTATE", () => {
   assert.throws(() => evaluateRefusal("x", 200, {}, "22023"), ProofFailure);
   assert.throws(() => evaluateRefusal("x", 400, { code: "55000" }, "22023"), ProofFailure);
 });
+
+import { evaluateClaim, evaluateReset, fixtureState } from "./shared-db-live-proof.mjs";
+
+test("3418-retry claim must mint exactly one receipt at the next revision", () => {
+  assert.equal(evaluateClaim({ ok: true, lease_receipt_issued: true, lease_token: "t", state_revision: 1 }, 1), "t");
+  assert.throws(() => evaluateClaim({ ok: false, reason: "lease_held" }, 1), ProofFailure);
+  assert.throws(() => evaluateClaim({ ok: true, lease_receipt_issued: false, lease_token: null, state_revision: 1 }, 1), ProofFailure);
+});
+
+test("3418-retry reset must clear the lease and never return a receipt", () => {
+  const good = { ok: true, reason: "provider_definitive_rejection", lease_receipt_issued: false, lease_token: null, state_revision: 2,
+    operation: { external_job: { phase: "prepared", last_definitive_rejection_status: 422 } } };
+  assert.equal(evaluateReset(good, 2).phase, "prepared");
+  assert.throws(() => evaluateReset({ ...good, lease_token: "x" }, 2), ProofFailure);
+  assert.throws(() => evaluateReset({ ...good, operation: { external_job: { ...good.operation.external_job, lease_proof: "p" } } }, 2), ProofFailure);
+  assert.throws(() => evaluateReset(good, 3), ProofFailure);
+});
+
+test("3418-retry fixtures sort after every real running operation", () => {
+  assert.equal(fixtureState().status, "running");
+  assert.ok(Date.parse(fixtureState().updated_at) > Date.parse("2900-01-01"));
+});
