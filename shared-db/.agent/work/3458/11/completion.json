@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "work_issue": 3458,
+  "outcome": "ready-for-merge",
+  "pr": 3672,
+  "migration_versions": [
+    "20260929040458"
+  ],
+  "contract_ref": "refs/db-contracts/3458/11",
+  "contract_sha256": "2c24172772ee6402c914197c815fa5018ee9de1fd5ae502703445b69df521760",
+  "head_sha": "b53b7bf253d2447147bd9d415bf9a45d945bd09c",
+  "base_sha": "eb5a027ad3e78c33b509c2dcb2cf14368e5e8e39",
+  "files_changed": [
+    "scripts/production_migration_guard.py",
+    "scripts/test_3458_index_guard.test.mjs",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20260929040458_popsg_refresh_steps_reissue.sql",
+    "supabase/tests/issue_3458_steppable_refresh_ephemeral.sql"
+  ],
+  "db_reads": [
+    "table public.style_guide_search_sync_queue",
+    "table public.style_guide_search_documents",
+    "table public.style_guide_pdf_text",
+    "table public.style_guide_crawl_runs",
+    "table public.style_guide_files",
+    "materialized view public.style_guide_file_groups",
+    "materialized view public.style_guide_folders"
+  ],
+  "db_writes": [
+    "function public.refresh_style_guide_matviews"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards passed at 4d39a788 on merge base 9ffb8d39."
+    },
+    {
+      "command": "python3 scripts/test_migration_derivation.py",
+      "exit_code": 0,
+      "evidence": "44 migration derivation tests passed at 4d39a788."
+    },
+    {
+      "command": "python3 scripts/test_production_migration_guard.py",
+      "exit_code": 0,
+      "evidence": "290 guard tests passed at 4d39a788, including #3458 SQL identity, retired classification and derived-from base pins."
+    },
+    {
+      "command": "python3 scripts/test_post_batch_app_verification.py",
+      "exit_code": 0,
+      "evidence": "142 tests passed with 20260928003740 pinned as retired."
+    },
+    {
+      "command": "node --test scripts/test_3458_index_guard.test.mjs",
+      "exit_code": 0,
+      "evidence": "6 of 6 tests passed against 20260929040458."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors in 9ffb8d39...4d39a788."
+    },
+    {
+      "command": "Database Contract Tests on isolated ephemeral database",
+      "exit_code": 0,
+      "evidence": "workflow_dispatch run 36439757186 on this branch at 2b87cfb1 succeeded (issue_3458_steppable_refresh_ephemeral.sql PASS, all 6 checks); migration and ephemeral test bytes are unchanged between 2b87cfb1 and 4d39a788 (only guard tests and a main merge changed)."
+    }
+  ],
+  "assumptions_resolved": [
+    "Executable SQL of 20260929040458 equals 20260928003740 (diff of non-comment lines empty); it is idempotent, so preview (holding 20260928003740) and production (not holding it) converge on the same final state.",
+    "20260928003740 is retired in HARD_BLOCKED and RETIRED_VERSION_REASONS, the guard's existing never-promote mechanism.",
+    "Review round 1 (muse, non-authorizing) M1 and round 2 (qwen REVISE at 932f879c) H1/M2/M3 answered: SQL identity, retirement classification and derived-from base pinned in scripts/test_production_migration_guard.py; evidence pair added. The ledger-drift .mjs pin is outside this contract's allowed paths; the Python classify_pending_version pin covers the same classifier."
+  ],
+  "stop_conditions_hit": []
+}

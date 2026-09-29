@@ -1,0 +1,81 @@
+{
+  "allowed_paths": [
+    "supabase/migrations/20260929040458_popsg_refresh_steps_reissue.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_3458_index_guard.test.mjs",
+    "supabase/tests/issue_3458_steppable_refresh_ephemeral.sql",
+    ".agent/work/3458/11/contract.json",
+    ".agent/work/3458/11/completion.json"
+  ],
+  "assumptions": [
+    "20260928003740 merged as 4b451fb0 but its only preview apply (run 36427442828) ran at PR head b38c082a before PR #3641 changed shared-supabase-migrations.yml, so automatic qualification (run 36438555535) refused it permanently; preview already holds the version.",
+    "Orchestrator decision (marker #3653): replacement migration per the 20260914061331 -> 20260914075758 precedent; claim #3483 reissued with --reissue-merged-stranded-claim to reserved version 20260928145444.",
+    "The replacement carries executable SQL identical to 20260928003740 (CREATE OR REPLACE, COMMENT, REVOKE/GRANT, catalogue-only verify), so it is idempotent on preview (which holds 20260928003740) and on production (which does not).",
+    "Retiring 20260928003740 in HARD_BLOCKED/RETIRED_VERSION_REASONS is the mechanism the promotion guard uses to never apply a superseded version.",
+    "Main gained newer migration 20260928182014 (#3400) while PR #3672 waited, so 20260928145444 became backdated; per check-sql Guard B it was re-reserved with --reversion-active-claim as 20260929040458 (supersession ref 32b6b5c8). 20260928145444 is already applied on preview with identical idempotent SQL and is reconciled after merge through preview-ledger-orphan-reconciliation.yml.",
+    "Main gained 20260929005943 while PR #3672 waited, so 20260928211405 became backdated; re-reserved through --reversion-active-claim as 20260929040458 (supersession e69b1ac1). Pure rename; migration bytes unchanged."
+  ],
+  "base_sha": "eb5a027ad3e78c33b509c2dcb2cf14368e5e8e39",
+  "branch": "claude/3458-reissue-popsg-refresh-steps",
+  "db_reads": [
+    "table public.style_guide_search_sync_queue",
+    "table public.style_guide_search_documents",
+    "table public.style_guide_pdf_text",
+    "table public.style_guide_crawl_runs",
+    "table public.style_guide_files",
+    "materialized view public.style_guide_file_groups",
+    "materialized view public.style_guide_folders"
+  ],
+  "db_writes": [
+    "function public.refresh_style_guide_matviews"
+  ],
+  "dispatcher": "Claude orchestrator sub-agent (marker #3653) under issue #3458 / claim #3483 (successor tracking #3671)",
+  "evidence_parent": {
+    "work_issue": 3458,
+    "generation": 10,
+    "contract_sha256": "9d6e71d1e78b28c5e3328603c28217cc218fd09480965f3a7cfbf81265e9a553"
+  },
+  "file_writes": [
+    "supabase/migrations/20260929040458_popsg_refresh_steps_reissue.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_3458_index_guard.test.mjs",
+    "supabase/tests/issue_3458_steppable_refresh_ephemeral.sql",
+    ".agent/work/3458/11/contract.json",
+    ".agent/work/3458/11/completion.json"
+  ],
+  "generation": 11,
+  "goal": "Reissue merged-stranded 20260928003740 as fresh version 20260929040458 (re-reserved from 20260928145444) with identical idempotent SQL and retire the original in the production promotion guard, so the steppable refresh overload can qualify for automatic production promotion.",
+  "prohibited_actions": [
+    "Do not raise any statement timeout",
+    "Do not rewrite the legacy (uuid,integer) body (its prosrc md5 is pinned by popsg_refresh_search_sync_queue_v1)",
+    "Do not invent additional claimed objects",
+    "Do not write production or dispatch production manually",
+    "Do not delete or replay application rows"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 scripts/test_migration_derivation.py",
+    "python3 scripts/test_production_migration_guard.py",
+    "python3 scripts/test_post_batch_app_verification.py",
+    "node --test scripts/test_3458_index_guard.test.mjs",
+    "git diff --check",
+    "Database Contract Tests on isolated ephemeral database"
+  ],
+  "route": "shared-db-orchestrator",
+  "schema_version": 2,
+  "stop_conditions": [
+    "stop if live preview and production indexes differ materially",
+    "stop if the repair weakens unique, valid, plain-column, or non-partial requirements",
+    "stop if the legacy (uuid,integer) function body or claimed object scope changes",
+    "stop if any database write outside the governed preview lane is required",
+    "stop if the replacement's executable SQL differs from 20260928003740"
+  ],
+  "work_issue": 3458,
+  "work_type": "structural",
+  "worker": "claude:3458-gen11-reversion",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/shared-db-3458-reissue"
+}

@@ -300,6 +300,7 @@ class GuardTests(unittest.TestCase):
                 "20260903200951",
                 "20260908195056",
                 "20260915015414",
+                "20260928003740",
             },
         )
 
@@ -377,6 +378,54 @@ class GuardTests(unittest.TestCase):
             / "20260905024139_reissue_coldlion_division_reference_table.sql"
         ).read_bytes()
         self.assertEqual(original, reissue)
+
+    def test_issue_3458_reissue_has_identical_executable_sql(self) -> None:
+        """20260929040458 retires 20260928003740 only because it runs the SAME SQL.
+
+        The reissue adds header comments only, so compare every non-comment
+        line. A later edit to either file must fail here.
+        """
+        migrations = REPO / "supabase" / "migrations"
+
+        def executable(name: str) -> list[str]:
+            text = (migrations / name).read_text(encoding="utf-8")
+            return [line for line in text.splitlines() if not line.startswith("--")]
+
+        self.assertEqual(
+            executable("20260928003740_popsg_refresh_steps_under_ceiling.sql"),
+            executable("20260929040458_popsg_refresh_steps_reissue.sql"),
+        )
+
+    def test_issue_3458_original_is_blocked_but_reissue_is_allowed(self) -> None:
+        with self.assertRaisesRegex(GuardError, "20260928003740"):
+            parse_allowlist("20260928003740")
+        with self.assertRaisesRegex(GuardError, "20260928003740"):
+            parse_allowlist("20260928003740,20260929040458")
+        self.assertEqual(parse_allowlist("20260929040458"), ["20260929040458"])
+        for applied in (set(), {"20260928003740"}):
+            with self.subTest(applied=applied):
+                result = classify_pending_version("20260928003740", applied, REPO)
+                self.assertEqual(result["kind"], "retired")
+                self.assertIn("20260929040458", result["reason"])
+        self.assertNotEqual(
+            classify_pending_version("20260929040458", set(), REPO)["kind"], "retired"
+        )
+
+    def test_issue_3458_reissue_declares_only_the_production_base(self) -> None:
+        """The comment-blind SQL identity test cannot see `-- derived-from:`.
+
+        The reissue must derive from 20260917005221 (live in production) and
+        never from the retired 20260928003740, which production will never hold.
+        """
+        from migration_derivation import declared_bases
+
+        path = (
+            REPO / "supabase" / "migrations"
+            / "20260929040458_popsg_refresh_steps_reissue.sql"
+        )
+        self.assertEqual(
+            declared_bases("20260929040458", path=path), frozenset({"20260917005221"})
+        )
 
     def test_stranded_bulk_operation_history_original_is_blocked_but_reissue_is_allowed(
         self,
