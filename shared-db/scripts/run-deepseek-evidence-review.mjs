@@ -11,7 +11,41 @@ import os from 'node:os'
 import path from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { resolveCommandPath } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, resolveCommandPath } from './manage-migration-author-lanes.mjs'
+import { VERDICT_CONTRACT_FLAG_WRAPPERS, wrapperBaseName } from './lib/reviewer-capabilities.mjs'
+import { reviewCallerEnvironment } from './lib/reviewer-caller-env.mjs'
+
+// #3764: never hard-code the reviewer name. 'deepseek-chat' was retired and every
+// preflight refused; the active DeepSeek row is whatever the allocator says it is.
+export function activeDeepSeekReviewer(wrapper = 'ai-deepseek-agent', active = ACTIVE_REVIEWERS) {
+  const rows = active.filter((row) => row.provider === 'deepseek' && row.wrapper === wrapper)
+  if (rows.length !== 1) throw new Error(`expected exactly one active DeepSeek reviewer for ${wrapper}; found ${rows.length}`)
+  return rows[0].name
+}
+
+// The model the active DeepSeek row was qualified on (registry evidence for
+// deepseek-v4.1-flash, 2026-09-23). The registry has no model field, so this is
+// the one literal; the test pins it to that row's recorded evidence.
+// `--model deepseek-flash` is the ai-deepseek-agent formal-review flag documented in
+// the deepseek-second-opinion skill ("A formal assigned review adds --governed-verdict
+// <exact-head-sha> and --model deepseek-flash"), and was exercised live on 2026-09-28
+// for PR #3744's governed DeepSeek verdicts.
+export const DEEPSEEK_REVIEW_MODEL = 'deepseek-flash'
+
+export function assertVerdictContractWrapper(wrapper) {
+  if (!VERDICT_CONTRACT_FLAG_WRAPPERS.includes(wrapperBaseName(wrapper))) throw new Error('wrapper does not take the --governed-verdict contract')
+}
+
+export function deepSeekLaunchArgs(bundlePath, headSha) {
+  return ['send', 'Review the attached governed evidence packet completely.', '--file', bundlePath, '--review', '--governed-verdict', headSha, '--model', DEEPSEEK_REVIEW_MODEL]
+}
+
+// Caller identity comes from the ONE authority (lib/reviewer-caller-env.mjs), the
+// same path the governed runner and doctor probe use; codex stays the historical
+// default when nothing names or detects a caller.
+export function deepSeekChildEnv(wrapper, env = process.env) {
+  return { ...env, AI_DEEPSEEK_CALLER: 'codex', ...reviewCallerEnvironment(wrapper, env, { required: false }) }
+}
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex')
@@ -116,17 +150,19 @@ export function runReview(options, deps = {}) {
   if (fs.existsSync(bundlePath)) {
     if (!fs.readFileSync(bundlePath).equals(bundle.payload)) throw new Error('existing evidence bundle digest path has different bytes')
   } else fs.writeFileSync(bundlePath, bundle.payload, { flag: 'wx' })
-  const wrapperArgs = ['send', 'Review the attached governed evidence packet completely.', '--file', bundlePath, '--review']
+  const wrapperArgs = deepSeekLaunchArgs(bundlePath, options.headSha)
   if (commandLineLength(wrapper, wrapperArgs) > 7000) throw new Error('review launch still exceeds the safe Windows command-line budget')
-  const preflightArgs = ['scripts/manage-migration-author-lanes.mjs', '--reviewer-preflight', '--reviewer', 'deepseek-chat', '--wrapper', wrapper, '--worktree', worktree, '--head-sha', options.headSha]
+  assertVerdictContractWrapper(wrapper)
+  const childEnv = deepSeekChildEnv(wrapper, deps.env ?? process.env)
+  const preflightArgs = ['scripts/manage-migration-author-lanes.mjs', '--reviewer-preflight', '--reviewer', activeDeepSeekReviewer(wrapper, deps.activeReviewers), '--wrapper', wrapper, '--worktree', worktree, '--head-sha', options.headSha]
   ;(deps.preflight ?? ((args) => execFileSync(process.execPath, args, { cwd: worktree, stdio: 'inherit' })))(preflightArgs)
-  const run = deps.spawn ?? ((command, args) => {
+  const run = deps.spawn ?? ((command, args, env) => {
     const resolved = resolveCommandPath(command)
     if (!resolved) return { status: null, error: new Error(`cannot resolve reviewer wrapper: ${command}`) }
     const plan = reviewSpawnPlan(resolved, args)
-    return spawnSync(plan.file, plan.args, { cwd: worktree, stdio: 'inherit', env: { ...process.env, AI_DEEPSEEK_CALLER: 'codex' } })
+    return spawnSync(plan.file, plan.args, { cwd: worktree, stdio: 'inherit', env })
   })
-  const result = run(wrapper, wrapperArgs)
+  const result = run(wrapper, wrapperArgs, childEnv)
   if (result.error) throw result.error
   if (result.status !== 0) throw new Error(`DeepSeek review exited ${result.status}`)
   return { headSha: options.headSha, bundlePath, bundleSha256: bundle.digest, manifest: bundle.manifest, argumentCharacters: commandLineLength(wrapper, wrapperArgs) }

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "work_issue": 3764,
+  "outcome": "ready-for-merge",
+  "pr": 3765,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3764/1",
+  "contract_sha256": "9b5e7b84946d2621bd2e813cb74edf3711e63caa8a238ae17769a66eb02ffa24",
+  "base_sha": "eb79610f53a273626e6ee64635ffbf6a598aaba5",
+  "head_sha": "0ad336c38371b8ad5c2d9525129d7fa24f6bd067",
+  "files_changed": [
+    "scripts/run-deepseek-evidence-review.mjs",
+    "scripts/run-deepseek-evidence-review.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/run-deepseek-evidence-review.test.mjs",
+      "exit_code": 0,
+      "evidence": "11 passed, 0 failed (also with AI_DEEPSEEK_CALLER=mimo exported; removing the shared-caller merge fails 2 tests)"
+    }
+  ],
+  "assumptions_resolved": [
+    "exactly one ACTIVE_REVIEWERS row (deepseek-v4.1-flash) uses ai-deepseek-agent; a live --reviewer-preflight for it passed on 2026-09-28",
+    "--model deepseek-flash is the documented ai-deepseek-agent formal-review flag and ran live for PR #3744 on 2026-09-28"
+  ],
+  "stop_conditions_hit": []
+}
