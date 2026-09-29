@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "generation": 2,
+  "work_issue": 3437,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add regression tests proving preview preparation accepts a claim that over-declares its writes (superset of the SQL's writes) while an unclaimed write, an empty set, and a duplicate set still refuse (#3437)",
+  "base_sha": "c4250cd753e8b8780e0af05de9b0ceceb08c070b",
+  "dispatcher": "MiMo repo-maintenance session for issue #3437",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "3437-claim-superset",
+  "worktree": "C:/repos/shared-db-wt-3437",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/legacy-relation-alias.test.mjs",
+    ".agent/work/3437/2/contract.json",
+    ".agent/work/3437/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/legacy-relation-alias.test.mjs",
+    ".agent/work/3437/2/contract.json",
+    ".agent/work/3437/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database structure change, database write, migration edit, or production action",
+    "Do not weaken the refusal of an unclaimed write, an empty set, or a duplicate set to make any test pass",
+    "Do not edit the shared checkout; work stays in the worktree"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs scripts/orchestrator-flow/legacy-relation-alias.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The superset behavior itself already landed on main in PR #3436 (structuralWritesCovered); generation 2 adds only the missing regression tests",
+    "Disclosed: generation 2 is published after implementation commit e4c5998b; refs/db-contracts/3437/1 exists from the earlier generation and is not replaced"
+  ],
+  "stop_conditions": [
+    "Stop if any refusal path would have to be weakened for a test to pass",
+    "Stop if the change needs a file outside allowed_paths",
+    "Stop if any required check fails"
+  ]
+}

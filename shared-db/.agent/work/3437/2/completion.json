@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "work_issue": 3437,
+  "outcome": "ready-for-merge",
+  "pr": 3513,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3437/2",
+  "contract_sha256": "b12fd6f14453d261e10290cb52f030506cf5503f751e11fde8d087d6bc85e30c",
+  "base_sha": "2165881c630eec86f71d5c55a1eb712884bafa0a",
+  "head_sha": "696f23894d020f8c76dfcbecbb1c8324c82a2605",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/legacy-relation-alias.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/orchestrator-flow/legacy-relation-alias.test.mjs",
+      "exit_code": 0,
+      "evidence": "re-run after merging main at 2165881c: 755/755 pass, 0 fail"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=319 sources=80 derived_digest=fb8271319bc6"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "no whitespace errors"
+    }
+  ],
+  "assumptions_resolved": [
+    "The superset acceptance behavior already landed on main in PR #3436 (structuralWritesCovered); this generation adds only the missing regression coverage for over-declared, unclaimed, empty, and duplicate sets",
+    "Admission and merge-outcome matching against the issue scope still use the exact structuralWritesMatch and are unchanged"
+  ],
+  "stop_conditions_hit": []
+}

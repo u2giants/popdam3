@@ -6760,6 +6760,8 @@ test('preview preparation classifies migration SQL, not filenames, and binds it 
   // #3418: a claim that over-declares (superset of the SQL's writes) may rehearse; an unclaimed write still refuses.
   assert.equal(deriveLivePreviewCandidate(1769,mergedRehearsalIo({writes:['table plm.wwe_property','table plm.extra_locked']}).io).pr,1809)
   assert.throws(()=>deriveLivePreviewCandidate(1769,mergedRehearsalIo({writes:['table plm.other']}).io),/not all covered by claim #1805 writes/)
+  // #3437: an empty claim still refuses before preview preparation can proceed.
+  assert.throws(()=>deriveLivePreviewCandidate(1769,mergedRehearsalIo({writes:[]}).io),/at least one exact object to write/)
   assert.equal(deriveLivePreviewCandidate(1769,mergedRehearsalIo().io).pr,1809)
   { const noScope=mergedRehearsalIo().io; noScope.getIssue=()=>({body:'no scope fence here'}); assert.throws(()=>deriveLivePreviewCandidate(1769,noScope),/issue #1769 has no db-work-scope block; add exactly one before preparing preview dispatch/) }
 })

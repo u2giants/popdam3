@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { inspectPrStructuralChange, structuralWritesMatch } from './admission.mjs'
+import { inspectPrStructuralChange, structuralWritesMatch, structuralWritesCovered } from './admission.mjs'
 import { completeOutcome, OUTCOME_STATES, outcomeEvent } from './outcome-lifecycle.mjs'
 import { formatEventComment } from '../db-coordination-events.mjs'
 import { expectedOperatorAssociation } from '../lib/repository-identity.mjs'
@@ -22,6 +22,22 @@ test('different names, real extra writes, duplicate entries and missing actual w
   const actual=inspect(view+grant)
   for(const declared of [['view api.a','table api.b'],[...held,'function api.f'],[...held,'view api.a'],[...held,'table api.a'],[]])
     assert.equal(structuralWritesMatch(actual,declared),false)
+})
+test('#3437 claim coverage accepts an over-declared claim and still refuses unclaimed, empty, and duplicate sets',()=>{
+  const inspection={objects:['table api.a','table api.b']}
+  // Exact and over-declared (superset) claims both cover every SQL write.
+  assert.equal(structuralWritesCovered(inspection,['table api.a','table api.b']),true)
+  assert.equal(structuralWritesCovered(inspection,['table api.a','table api.b','function api.f']),true)
+  // Any write the claim does not hold still refuses.
+  assert.equal(structuralWritesCovered(inspection,['table api.a']),false)
+  // Empty claim, empty inspection, and duplicate entries in either set refuse.
+  assert.equal(structuralWritesCovered(inspection,[]),false)
+  assert.equal(structuralWritesCovered({objects:[]},['table api.a']),false)
+  assert.equal(structuralWritesCovered({objects:['table api.a','table api.a']},['table api.a']),false)
+  assert.equal(structuralWritesCovered(inspection,['table api.a','table api.b','table api.b']),false)
+  // Unreadable inputs refuse rather than read as a match.
+  assert.equal(structuralWritesCovered({objects:null},['table api.a']),false)
+  assert.equal(structuralWritesCovered(inspection,null),false)
 })
 test('CREATE without grant and split-migration proof cannot erase aliases',()=>{
   assert.equal(structuralWritesMatch(inspect(view),held),false)
