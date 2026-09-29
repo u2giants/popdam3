@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 3428,
+    "generation": 1,
+    "contract_sha256": "0e7a359bcfcfe301b122b04fba6ed253e932903885a3003dc363ad7af886bf3c"
+  },
+  "work_issue": 3428,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add a separate fail-closed DesignFlow sandbox (xupnyeifmpsacrqahwwm) migration route: verified target identity, sandbox allowlist, exact main/source-PR binding, ledger and catalog collision preflight, serial lock, bounded dry-run, post-apply ledger and catalog proof",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "dispatcher": "repo-maintenance session for issue #3428 (Claude chat 1b699f56-bfb1-4801-a2b9-db91edbc98f6 on edge-dev3)",
+  "worker": "claude",
+  "branch": "claude/sandbox-migration-route-3428",
+  "worktree": ".claude/worktrees/popcre-shared-db-3522-b78d05",
+  "allowed_paths": [
+    ".github/workflows/designflow-sandbox-migrations.yml",
+    "scripts/sandbox_migration_preflight.py",
+    "scripts/test_sandbox_migration_preflight.py",
+    "scripts/production_migration_guard.py",
+    "docs/verification/throughput-dispositions/.github~workflows~designflow-sandbox-migrations.yml.json",
+    "docs/verification/throughput-dispositions/scripts~sandbox_migration_preflight.py.json",
+    "scripts/sandbox-migration-binding.mjs",
+    "scripts/sandbox-migration-binding.test.mjs",
+    ".github/workflows/tools-offline-tests.yml"
+  ],
+  "file_writes": [
+    ".github/workflows/designflow-sandbox-migrations.yml",
+    "scripts/sandbox_migration_preflight.py",
+    "scripts/test_sandbox_migration_preflight.py",
+    "scripts/production_migration_guard.py",
+    "docs/verification/throughput-dispositions/.github~workflows~designflow-sandbox-migrations.yml.json",
+    "docs/verification/throughput-dispositions/scripts~sandbox_migration_preflight.py.json",
+    "scripts/sandbox-migration-binding.mjs",
+    "scripts/sandbox-migration-binding.test.mjs",
+    ".github/workflows/tools-offline-tests.yml"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not apply or dispatch anything against any database",
+    "do not change the preview or production lanes in shared-supabase-migrations.yml",
+    "do not touch any migration file",
+    "never print the sandbox database password"
+  ],
+  "required_checks": [
+    "python -m unittest scripts/test_*.py",
+    "node --test scripts/check-workflow-preview-ref.test.mjs scripts/check-merge-queue-workflows.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node --test scripts/sandbox-migration-binding.test.mjs",
+    "node scripts/check-github-transport-conformance.mjs"
+  ],
+  "assumptions": [
+    "the concurrency group is the serial lock because this workflow is the only route here that writes to the sandbox",
+    "the sandbox credential is the vault item named in the dispatch and is provisioned as an environment secret",
+    "generation 2 supersedes generation 1 only to add the GitHub-transport binding script, its test, and its tools-offline wiring after CI's transport conformance refused direct gh api calls in the workflow"
+  ],
+  "stop_conditions": [
+    "stop if the route would need to widen the production or preview target",
+    "stop if a change outside allowed_paths is needed"
+  ]
+}

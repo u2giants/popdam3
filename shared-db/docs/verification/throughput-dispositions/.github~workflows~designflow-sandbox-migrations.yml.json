@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": ".github/workflows/designflow-sandbox-migrations.yml",
+  "sites": [
+    {
+      "site": ".github/workflows/designflow-sandbox-migrations.yml:125",
+      "semantic_key": ".github/workflows/designflow-sandbox-migrations.yml:2497abcdd5b5b1bbb6e7103894be2a50a584e5f614020bde72470f4747b6e9c2:context-53dfb9ac28e341a542177a5402a41aaa59be95c01b0e12a99ad0e9a950d47dfa",
+      "line_sha256": "2497abcdd5b5b1bbb6e7103894be2a50a584e5f614020bde72470f4747b6e9c2",
+      "disposition": "excluded",
+      "reason": "Step name for the refusal that stops the sandbox run when the environment secret is absent, before any credential use; it asserts nothing about migration throughput.",
+      "legacy_semantic_key": ".github/workflows/designflow-sandbox-migrations.yml:2497abcdd5b5b1bbb6e7103894be2a50a584e5f614020bde72470f4747b6e9c2:1"
+    }
+  ]
+}

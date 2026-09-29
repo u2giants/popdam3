@@ -1507,7 +1507,7 @@ def assert_content_manifest(directory: Path) -> None:
 
 # The ledgers the shared guard can be pointed at. Only used to word refusals
 # truthfully; every check runs identically whichever ledger was read.
-LEDGER_NAMES = ("production", "preview")
+LEDGER_NAMES = ("production", "preview", "sandbox")
 
 
 def validate_candidates(

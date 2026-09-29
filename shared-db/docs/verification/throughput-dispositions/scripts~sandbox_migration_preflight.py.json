@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source": "scripts/sandbox_migration_preflight.py",
+  "sites": [
+    {
+      "site": "scripts/sandbox_migration_preflight.py:236",
+      "semantic_key": "scripts/sandbox_migration_preflight.py:0d2d210ab0fdf1547dca214f9c6dcf737faa0a486e152853040afa6edef995bc:context-3951e5681b7df7f324f970230761513227da30ece291a5ef3da6a481f05c11df",
+      "line_sha256": "0d2d210ab0fdf1547dca214f9c6dcf737faa0a486e152853040afa6edef995bc",
+      "disposition": "excluded",
+      "reason": "Local variable in the post-apply sandbox ledger proof that lists allowlisted versions absent from the after-ledger; any entry refuses with exit 2.",
+      "legacy_semantic_key": "scripts/sandbox_migration_preflight.py:0d2d210ab0fdf1547dca214f9c6dcf737faa0a486e152853040afa6edef995bc:1"
+    },
+    {
+      "site": "scripts/sandbox_migration_preflight.py:238",
+      "semantic_key": "scripts/sandbox_migration_preflight.py:e686a2ef27bffc620df1c846b6d1f4312831a451aa831b3129a42017c87b25f8:context-dceedb3bbd3a1d82acaf408cc3138ac369ccde3c76db96c2b7a5dd40cd5724be",
+      "line_sha256": "e686a2ef27bffc620df1c846b6d1f4312831a451aa831b3129a42017c87b25f8",
+      "disposition": "excluded",
+      "reason": "Local variable in the post-apply sandbox ledger proof that lists allowlisted versions absent from the after-ledger; any entry refuses with exit 2.",
+      "legacy_semantic_key": "scripts/sandbox_migration_preflight.py:e686a2ef27bffc620df1c846b6d1f4312831a451aa831b3129a42017c87b25f8:1"
+    }
+  ]
+}
