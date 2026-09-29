@@ -33,7 +33,7 @@ export function changedMigrations(changedFiles) {
 
 // Runs scripts/check_pass2_routine_supersession.py --rebuild-check. Exit 0 is
 // PASS, 1 is a proven mismatch, anything else (or unreadable output) refuses.
-export function runRoutineRebuildCheck(migrations, { repoRoot = REPO_ROOT, python = process.env.PYTHON || 'python' } = {}) {
+export function runRoutineRebuildCheck(migrations, { repoRoot = REPO_ROOT, python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3') } = {}) {
   const result = spawnSync(python, [path.join(repoRoot, 'scripts', 'check_pass2_routine_supersession.py'), '--rebuild-check', '--migrations-dir', path.join(repoRoot, 'supabase', 'migrations'), ...migrations], { encoding: 'utf8' })
   let report = null
   try { report = JSON.parse(result.stdout) } catch { /* refused below */ }

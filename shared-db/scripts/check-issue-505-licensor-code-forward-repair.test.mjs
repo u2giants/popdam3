@@ -8,6 +8,7 @@ const migration = readFileSync(
 )
 const productionGuard = readFileSync(new URL('./production_migration_guard.py', import.meta.url), 'utf8')
 const producerGate = readFileSync(new URL('./production_business_risk_gate.py', import.meta.url), 'utf8')
+const sidecarRegistry = JSON.parse(readFileSync(new URL('../config/production-verification-sidecar-registry.json', import.meta.url), 'utf8'))
 
 test('DS SKU artifacts are refused only on licensed or Disney identity evidence', () => {
   const assetGuard = migration.split('from public.assets a')[1].split('from public.style_groups')[0]
@@ -35,5 +36,9 @@ test('forward repair preserves every asset and style-group row', () => {
 
 test('stranded original is blocked and the producer gate pins the successor sidecar', () => {
   assert.match(productionGuard, /"20260830195655"/)
-  assert.match(producerGate, /20260830204711\.json/)
+  // #3028 moved the pinned sidecar list into the sidecar registry, which the
+  // producer gate adds to PREVIEW_PRODUCER_PATHS.
+  assert.match(producerGate, /SIDECAR_REGISTRY_PATH = "config\/production-verification-sidecar-registry\.json"/)
+  assert.match(producerGate, /PREVIEW_PRODUCER_PATHS \+= \(SIDECAR_REGISTRY_PATH,\) \+ sidecar_registry_paths\(\)/)
+  assert.ok(sidecarRegistry.sidecars.some((entry) => entry.version === '20260830204711'))
 })

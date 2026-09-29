@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "work_issue": 3697,
+  "outcome": "ready-for-merge",
+  "pr": 3698,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3697/1",
+  "contract_sha256": "c0ba14d98e64a1f66da9a7b10402101da66439b5a2bd37671d3bf352da338964",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "head_sha": "488ee9f4f409b7d2a110561625269587275d1640",
+  "files_changed": ["scripts/check-issue-505-licensor-code-forward-repair.test.mjs", "scripts/check-skill-drift.test.mjs", "scripts/orchestrator-flow/delivery-preflight-gate.mjs"],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"command": "node --test scripts/check-skill-drift.test.mjs scripts/check-issue-505-licensor-code-forward-repair.test.mjs scripts/orchestrator-flow/delivery-preflight-gate.test.mjs", "exit_code": 0, "evidence": "18 passed, 0 failed on edge-dev3 (Linux, python3 only)"},
+    {"command": "git diff --check", "exit_code": 0, "evidence": "no whitespace errors"}
+  ],
+  "assumptions_resolved": [
+    "No throughput disposition was needed: check-throughput-truth-audit reports OK at the implementation commit.",
+    "Files owned by PR #3635 were not touched."
+  ],
+  "stop_conditions_hit": []
+}

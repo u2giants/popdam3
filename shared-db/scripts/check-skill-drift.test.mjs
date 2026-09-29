@@ -1,18 +1,25 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
 const script = path.resolve('scripts/check-skill-drift.mjs')
-const canonical = path.join(process.env.AI_DEVOPS_DIR || 'C:/repos/ai-devops', 'skills', 'shared')
+// Same candidate list as scripts/check-skill-drift.mjs, so the test finds the
+// ai-devops checkout on Linux hosts as well as Windows ones.
+const sourceRoot = process.env.AI_DEVOPS_DIR || [
+  'C:/repos/ai-devops',
+  '/c/repos/ai-devops',
+  '/repos/ai-devops',
+  path.join(process.env.HOME ?? '', 'repos/ai-devops'),
+].find((dir) => existsSync(path.join(dir, 'skills', 'shared'))) || 'C:/repos/ai-devops'
+const canonical = path.join(sourceRoot, 'skills', 'shared')
 
 function fixture() {
   const root = mkdtempSync(path.join(tmpdir(), 'skill-drift-'))
   mkdirSync(path.join(root, 'skills'), { recursive: true })
   cpSync(canonical, path.join(root, 'skills', 'shared'), { recursive: true })
-  const sourceRoot = process.env.AI_DEVOPS_DIR || 'C:/repos/ai-devops'
   const target = path.join(root, 'skills', 'claude', 'shared-db-change')
   mkdirSync(path.dirname(target), { recursive: true })
   cpSync(path.join(sourceRoot, 'skills', 'claude', 'shared-db-change'), target, { recursive: true })
