@@ -18,7 +18,10 @@ introducing a new advisory lock, add its key here. Before choosing a key, read t
    locks, where the point is a key per entity rather than a stable global identity.
 2. **Transaction-scoped (`pg_*_advisory_xact_lock`) by default.** The lock is released by
    `COMMIT` or `ROLLBACK`, so a crashed, cancelled or timed-out session cannot leave a lane
-   wedged. Session-scoped locks need an explicit unlock and a documented reason.
+   wedged. A lock taken inside a subtransaction (a savepoint or a PL/pgSQL exception block)
+   is also released when that subtransaction aborts; it is kept only if the subtransaction
+   commits. `supabase/tests/wb_qualified_baseline_publication_contracts.sql` proves this at
+   runtime before relying on it (#3691). Session-scoped locks need an explicit unlock and a documented reason.
 3. **`try`, not a blocking wait, for scheduled work.** A scheduled job that queues behind a
    long-running one applies a plan computed against a snapshot that has since moved. Prefer
    "skip this cycle and report it" over "wait and then act on stale input".
