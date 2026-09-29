@@ -101,7 +101,7 @@ that may be edited after the fact.
 
 ### 5.2 A red check on `main` can be a STALE verdict — the domain-ownership guard scans more than its trigger watches (learned 2026-07-31)
 
-> **Moved 2026-09-16:** the DB Data Admin application, its deploy workflow and its launch-readiness check now live in [`u2giants/popdam3`](https://github.com/u2giants/popdam3) at `apps/db-data-admin`, `.github/workflows/db-data-admin.yml` and `scripts/db-data-admin/` (popdam3 PR #135). This repository no longer builds or deploys it. The history below is kept; the only domain-ownership run in this repository is now `domain-ownership.yml`.
+> **Moved 2026-09-16:** the DB Data Admin application, its deploy workflow and its launch-readiness check now live in [`u2giants/popdam3`](https://github.com/u2giants/popdam3) at `apps/db-data-admin`, `.github/workflows/db-data-admin.yml` and `scripts/db-data-admin/` (popdam3 PR #135). This repository no longer builds or deploys it. The history below is kept; the only domain-ownership run in this repository is now the `domain-ownership` job of `pr-guards.yml` (#3746).
 
 **Read this before you debug a failing check on `main`.** The `DB Data Admin` workflow
 (`.github/workflows/db-data-admin.yml`) has a `verify` job whose first step,
@@ -151,9 +151,10 @@ that same filter also gates the `container` build, Playwright browser tests and 
 docs PR. The correct permanent fix is a separate, tiny `domain-ownership` workflow with no
 `paths:` filter, running only the two `node` commands.
 
-✅ **That fix IS BUILT and has been since 2026-08-05.** It is
-[`.github/workflows/domain-ownership.yml`](../../.github/workflows/domain-ownership.yml): no `paths:`
-filter, `on: pull_request` plus `on: push` to `main`, one job that runs
+✅ **That fix IS BUILT and has been since 2026-08-05.** It was built
+as its own `domain-ownership.yml` workflow and, since #3746 (2026-09-28), is the `domain-ownership`
+job of [`.github/workflows/pr-guards.yml`](../../.github/workflows/pr-guards.yml): no `paths:`
+filter, runs on `pull_request`, `merge_group` and `push` to `main`, and
 `scripts/check-domain-ownership.test.mjs` and then `scripts/check-domain-ownership.mjs`. Its
 check-run name is **`Domain ownership`** and it is one of the six required contexts on `main`
 (§6.7). Verified green against the `main` tip on 2026-08-09. (The former duplicate invocation inside
@@ -161,9 +162,10 @@ check-run name is **`Domain ownership`** and it is one of the six required conte
 
 *(This paragraph said "Not yet built" until 2026-08-09, four days after it was built, while
 §6.7 of this same file already relied on the workflow existing. Issue #657. If you are adding
-a repo-wide guard, the pattern to copy is `domain-ownership.yml` or
-`intake-pointer-guard.yml`: own workflow, no `paths:` filter, unique check-run name, required
-context.)*
+a repo-wide guard, add a JOB to `.github/workflows/pr-guards.yml` (#3746) -- never a new
+per-push workflow file: no `paths:` filter, a unique job `name:` (that is the check-run context),
+a job-level `if:` listing its events (both `pull_request` and `merge_group` for a required
+context) and its own job-level `permissions:`.)*
 
 **The stale-verdict trap itself is NOT retired.** Everything above about reading the run's SHA
 before believing a red X still applies, to every `paths:`-filtered workflow in this repo.

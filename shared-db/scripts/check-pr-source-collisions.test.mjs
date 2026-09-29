@@ -236,7 +236,8 @@ test('merge-group mode end to end: real event file and real git history',async()
 
 test('workflow pins the merge-group step to merge_group with merge-group mode',async()=>{
   const {readFileSync}=await import('node:fs')
-  const yml=readFileSync(new URL('../.github/workflows/pr-object-collision.yml',import.meta.url),'utf8')
+  const {jobBlockByName}=await import('./lib/workflow-jobs.mjs')
+  const yml=jobBlockByName(readFileSync(new URL('../.github/workflows/pr-guards.yml',import.meta.url),'utf8'),'Cross-PR object collision')
   const step=yml.slice(yml.indexOf('- name: Merge group is its base plus exactly one PR'))
   assert.match(step.slice(0,400),/if: github\.event_name == 'merge_group'[\s\S]*SOURCE_COLLISION_MODE: merge-group[\s\S]*node scripts\/check-pr-source-collisions\.mjs/)
   assert.match(yml,/node --test [^\n]*scripts\/manage-migration-author-lanes\.test\.mjs/)

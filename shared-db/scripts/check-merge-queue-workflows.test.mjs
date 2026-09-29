@@ -17,6 +17,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
+import { emittedJobNames, jobBlockByName, jobBlocks, jobEvents, stepBlock } from './lib/workflow-jobs.mjs'
 
 const readWorkflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 const MIRROR = JSON.parse(readFileSync(new URL('../docs/verification/main-required-status-checks.json', import.meta.url), 'utf8'))
@@ -26,37 +27,24 @@ const MIRROR = JSON.parse(readFileSync(new URL('../docs/verification/main-requir
 // dated readback artifact below (16 contexts, strict false), so nothing is pending.
 const KNOWN_LIVE_ADDITIONS = []
 
-// The exact job-level display names a workflow emits. A literal `name:` emits
-// itself; a lane-capable name EXPRESSION emits its `|| '<default>'` branch on
-// every non-lane run, which is the only form a required context can take.
-function emittedJobNames(text) {
-  const names = new Set()
-  for (const [, raw] of text.matchAll(/^ {4}name: (.+)$/gm)) {
-    const value = raw.trim()
-    const expr = /^\$\{\{.*\|\| '([^']+)' \}\}$/.exec(value)
-    names.add(expr ? expr[1] : value)
-  }
-  return names
-}
-
 // context -> emitter. kind 'check-run': the workflow job named `job` reports
 // the context on whatever commit it runs on, so merge_group coverage means the
 // workflow triggers on merge_group. kind 'commit-status': a status is POSTed to
 // an explicit SHA — by the guarded merge lane on the reviewed PR head, and by
 // the queue gate on the synthetic group SHA.
 const CONTEXT_MAP = {
-  'Agent work contract': { workflow: 'agent-work-contract.yml', kind: 'check-run', job: 'Agent work contract' },
-  'Cancelled work guard': { workflow: 'cancelled-work-guard.yml', kind: 'check-run', job: 'Cancelled work guard' },
-  'Cross-PR object collision': { workflow: 'pr-object-collision.yml', kind: 'check-run', job: 'Cross-PR object collision' },
-  'Destructive SQL outside migrations': { workflow: 'destructive-analysis-guard.yml', kind: 'check-run', job: 'Destructive SQL outside migrations' },
-  'Domain ownership': { workflow: 'domain-ownership.yml', kind: 'check-run', job: 'Domain ownership' },
-  'Handoff contract': { workflow: 'handoff-contract-guard.yml', kind: 'check-run', job: 'Handoff contract' },
-  'Intake pointer guard': { workflow: 'intake-pointer-guard.yml', kind: 'check-run', job: 'Intake pointer guard' },
+  'Agent work contract': { workflow: 'pr-guards.yml', kind: 'check-run', job: 'Agent work contract' },
+  'Cancelled work guard': { workflow: 'pr-guards.yml', kind: 'check-run', job: 'Cancelled work guard' },
+  'Cross-PR object collision': { workflow: 'pr-guards.yml', kind: 'check-run', job: 'Cross-PR object collision' },
+  'Destructive SQL outside migrations': { workflow: 'pr-guards.yml', kind: 'check-run', job: 'Destructive SQL outside migrations' },
+  'Domain ownership': { workflow: 'pr-guards.yml', kind: 'check-run', job: 'Domain ownership' },
+  'Handoff contract': { workflow: 'pr-guards.yml', kind: 'check-run', job: 'Handoff contract' },
+  'Intake pointer guard': { workflow: 'pr-guards.yml', kind: 'check-run', job: 'Intake pointer guard' },
   'Migration author lease': { workflow: 'migration-author-lease.yml', kind: 'check-run', job: 'Migration author lease' },
   'Migration guarded merge authorization': { kind: 'commit-status' },
-  'Orchestrator marker guard': { workflow: 'orchestrator-marker-guard.yml', kind: 'check-run', job: 'Orchestrator marker guard' },
+  'Orchestrator marker guard': { workflow: 'pr-guards.yml', kind: 'check-run', job: 'Orchestrator marker guard' },
   'Promotion contract tests (offline)': { workflow: 'coldlion-promotion-contract-tests.yml', kind: 'check-run', job: 'Promotion contract tests (offline)' },
-  'Queue-sensitive checks (aggregate)': { workflow: 'queue-sensitive-aggregate.yml', kind: 'check-run', job: 'Queue-sensitive checks (aggregate)' },
+  'Queue-sensitive checks (aggregate)': { workflow: 'pr-guards.yml', kind: 'check-run', job: 'Queue-sensitive checks (aggregate)' },
   'SQL migration guards': { workflow: 'shared-supabase-migrations.yml', kind: 'check-run', job: 'SQL migration guards' },
   'supabase/tests against an ephemeral database': { workflow: 'database-contract-tests.yml', kind: 'check-run', job: 'supabase/tests against an ephemeral database' },
   'Tools offline tests': { workflow: 'tools-offline-tests.yml', kind: 'check-run', job: 'Tools offline tests' },
@@ -86,11 +74,10 @@ test('the committed mirror equals the dated live readback artifact', () => {
 // actually SCAN on merge_group, not merely run green. Pin the step, its event gate,
 // its group base and its fail-closed base resolution.
 test('destructive SQL guard scans the queued group against merge_group.base_sha, fail-closed', () => {
-  const text = readWorkflow('destructive-analysis-guard.yml')
-  const job = text.slice(text.indexOf('    name: Destructive SQL outside migrations'))
-  const at = job.indexOf('      - name: Scan SQL added by the queued group')
-  assert.ok(at >= 0, 'the merge_group scan step is missing from the Destructive SQL job')
-  const step = job.slice(at, (job.indexOf('\n      - name:', at + 1) + 1 || job.length + 1) - 1)
+  const job = jobBlockByName(readWorkflow('pr-guards.yml'), 'Destructive SQL outside migrations')
+  assert.ok(job, 'no job emits Destructive SQL outside migrations')
+  const step = stepBlock(job, 'Scan SQL added by the queued group')
+  assert.ok(step, 'the merge_group scan step is missing from the Destructive SQL job')
   assert.match(step, /^ {8}if: github\.event_name == 'merge_group'$/m)
   assert.match(step, /^ {10}BASE_SHA: \$\{\{ github\.event\.merge_group\.base_sha \}\}$/m)
   assert.match(step, /git cat-file -e "\$\{BASE_SHA\}\^\{commit\}"/)
@@ -122,7 +109,41 @@ test('every check-run emitter triggers on pull_request AND merge_group checks_re
     // Exact object: a job whose display name (literal, or the default branch of a
     // lane-capable name expression) equals the context. A substring or comment is not enough.
     assert.ok(emittedJobNames(text).has(spec.job), `${spec.workflow} does not emit a job named exactly "${spec.job}"`)
+    // #3746: the JOB bearing the context must itself admit both events. A
+    // file-level trigger is not enough once one file holds many gated jobs.
+    assert.deepEqual(requiredJobEventProblems(text, spec.job), [], `${spec.workflow} (${context})`)
   }
+})
+
+function requiredJobEventProblems(text, name) {
+  const block = jobBlockByName(text, name)
+  if (!block) return [`no job emits "${name}"`]
+  const events = jobEvents(block)
+  if (events === null) return []
+  if (!Array.isArray(events)) return [`job "${name}" has an unrecognised job-level if: ${events}`]
+  return ['pull_request', 'merge_group'].filter((event) => !events.includes(event)).map((event) => `job "${name}" does not run on ${event}`)
+}
+
+test('the job-level event check fails when a required job drops merge_group or pull_request', () => {
+  const text = readWorkflow('pr-guards.yml')
+  for (const [event] of [['merge_group'], ['pull_request']]) {
+    const broken = text.replace(
+      /(^ {4}name: Agent work contract\n {4}if: contains\(fromJSON\('\[)([^\]]*)(\]'\), github\.event_name\)$)/m,
+      (_, head, list, tail) => head + list.split(', ').filter((item) => item !== `"${event}"`).join(', ') + tail,
+    )
+    assert.notEqual(broken, text, 'the negative fixture did not change the file')
+    assert.deepEqual(requiredJobEventProblems(broken, 'Agent work contract'), [`job "Agent work contract" does not run on ${event}`])
+  }
+  assert.match(requiredJobEventProblems("jobs:\n  a:\n    name: A\n    if: github.event_name != 'merge_group'\n", 'A')[0], /unrecognised/)
+})
+
+test('pr-guards.yml uses default pull_request types: no ready_for_review (#3746 review B2)', () => {
+  const text = readWorkflow('pr-guards.yml')
+  const onBlock = /^on:\n([\s\S]*?)^\w/m.exec(text)?.[1] ?? ''
+  assert.match(onBlock, /^ {2}pull_request:\n {2}merge_group:$/m, 'pull_request must carry no types list')
+  assert.ok(!/ready_for_review/.test(onBlock.replace(/^\s*#.*$/gm, '')), 'ready_for_review would start the required aggregate for lane checks it never starts')
+  const aggregate = jobEvents(jobBlockByName(text, 'Queue-sensitive checks (aggregate)'))
+  assert.deepEqual(aggregate, ['pull_request', 'merge_group'])
 })
 
 test('no required-context workflow is path-filtered (a filtered required check stays pending forever)', () => {
@@ -148,8 +169,14 @@ test('no queue check is cancelled in progress: a re-requested group must never k
 })
 
 test('PR-payload steps defer or re-resolve on merge_group (the payload does not exist there)', () => {
-  for (const name of ['pr-object-collision.yml', 'handoff-contract-guard.yml', 'migration-author-lease.yml', 'agent-work-contract.yml']) {
-    const text = readWorkflow(name)
+  // Each job defends itself: one job's defence must never satisfy another's (#3746 review M1).
+  const guards = jobBlocks(readWorkflow('pr-guards.yml'))
+  const units = [
+    ...['agent-work-contract', 'handoff-contract', 'pr-object-collision'].map((id) => [`pr-guards.yml#${id}`, guards.get(id)]),
+    ['migration-author-lease.yml', readWorkflow('migration-author-lease.yml')],
+  ]
+  for (const [name, text] of units) {
+    assert.ok(text, `${name} is missing`)
     const usesPayload = /github\.event\.pull_request\.|github\.base_ref|GITHUB_BASE_REF/.test(text)
     if (!usesPayload) continue
     const defended =

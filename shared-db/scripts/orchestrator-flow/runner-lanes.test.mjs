@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { loadRegistry, validateRegistry, qualifiedLanesFor, replacementDispatchInputs, aggregateVerdict, laneCheckName, workflowLaneConformance, runAggregate, fetchCheckRuns, RunnerLaneError } from './runner-lanes.mjs'
 import { runnerStartDecision, reserveRunnerReroute, acceptRunnerResult, createDurableStartRerouteAdapter, dispatchQueuedReroute } from './start-reroute.mjs'
 import { canonicalJson, sha256 } from './evidence-bundle.mjs'
+import { emittedJobNames } from '../lib/workflow-jobs.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const registry = loadRegistry()
@@ -47,8 +48,8 @@ test('both queue-sensitive workflows expose exactly the registry lanes and keep 
     assert.deepEqual(workflowLaneConformance(registry, text, job), [], job.workflow)
     assert.ok(text.includes(`  ${job.job_id}:`), `${job.workflow} has job ${job.job_id}`)
   }
-  const aggregate = fs.readFileSync(path.join(ROOT, '.github/workflows/queue-sensitive-aggregate.yml'), 'utf8').replace(/\r\n/g, '\n')
-  assert.ok(aggregate.includes(`name: ${registry.aggregate_context}\n`))
+  const aggregate = fs.readFileSync(path.join(ROOT, '.github/workflows/pr-guards.yml'), 'utf8').replace(/\r\n/g, '\n')
+  assert.ok(emittedJobNames(aggregate).has(registry.aggregate_context), 'no job emits the aggregate context')
   assert.ok(!/runs-on:.*(cores|large|gpu)/i.test(aggregate))
   assert.ok(workflowLaneConformance(registry, 'runs-on: ubuntu-latest', registry.queue_sensitive_jobs[0]).length >= 3, 'conformance check can fail')
 })

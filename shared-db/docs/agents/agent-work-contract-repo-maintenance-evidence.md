@@ -24,7 +24,7 @@ since merged.
 pull request carrying a contract pair is held to the same rule: the checked-in contract must
 hash-match a contract published to an immutable ref **before** the work began.
 
-The exemptions in `.github/workflows/agent-work-contract.yml` — report-only mode, the
+The exemptions in the `agent-work-contract` job of `.github/workflows/pr-guards.yml` (formerly `agent-work-contract.yml`, #3746) — report-only mode, the
 grandfathered pull-request list, and the documents-only exemption (#2591) — are reached only
 when the evidence pair is absent or inherited. Mode is `enforced`
 (`config/agent-work-contract-activation.json`), grandfathering is a closed list pinned to exact

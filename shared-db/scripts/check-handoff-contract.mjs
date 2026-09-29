@@ -43,7 +43,7 @@
  * opens an issue and never blocks a pull request.
  *
  * Design rules, same as the other repo-wide guards (see
- * .github/workflows/intake-pointer-guard.yml):
+ * .github/workflows/pr-guards.yml):
  *   1. No `paths:` filter on the workflow -- a filtered guard reports stale green.
  *   2. Unique check-run name so it can be a required context.
  *   3. NO SILENT PASS. If issue state cannot be read, this FAILS. A guard that

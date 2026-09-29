@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "work_issue": 3746,
+  "outcome": "ready-for-merge",
+  "pr": 3748,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3746/4",
+  "contract_sha256": "adbd6ff90a460d3afb561035d99d9797b362a99d1223b57f83b9593758ff98a2",
+  "base_sha": "bbe08bbeb0f2c8cbefa6da4f6cdf0b8ee1e0fdf0",
+  "head_sha": "30cbde9b5193b36ee63e453232343ab9a6aee435",
+  "files_changed": [
+    ".github/workflows/agent-work-contract.yml",
+    ".github/workflows/cancelled-work-guard.yml",
+    ".github/workflows/destructive-analysis-guard.yml",
+    ".github/workflows/domain-ownership.yml",
+    ".github/workflows/handoff-contract-guard.yml",
+    ".github/workflows/intake-pointer-guard.yml",
+    ".github/workflows/orchestrator-marker-guard.yml",
+    ".github/workflows/pii-forward-guard.yml",
+    ".github/workflows/pr-guards.yml",
+    ".github/workflows/pr-object-collision.yml",
+    ".github/workflows/public-data-venue-guard.yml",
+    ".github/workflows/queue-sensitive-aggregate.yml",
+    "docs/agents/agent-work-contract-repo-maintenance-evidence.md",
+    "docs/agents/merge-protocol.md",
+    "scripts/check-closeout-readiness.test.mjs",
+    "scripts/check-handoff-contract.mjs",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/check-pr-source-collisions.test.mjs",
+    "scripts/lib/workflow-jobs.mjs",
+    "scripts/lib/workflow-jobs.test.mjs",
+    "scripts/orchestrator-flow/runner-lanes.test.mjs",
+    "tools/intake-inventory.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-merge-queue-workflows.test.mjs",
+      "exit_code": 0,
+      "evidence": "all pass; each required context's own job block admits pull_request and merge_group (negative case proves it fails), pr-guards uses default pull_request types, merge_group never cancelled"
+    },
+    {
+      "command": "node --test scripts/check-closeout-readiness.test.mjs",
+      "exit_code": 0,
+      "evidence": "all pass; queue/documents_only ordering asserted inside the Agent work contract job block"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/runner-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "all pass; aggregate context found with emittedJobNames"
+    },
+    {
+      "command": "node --test scripts/documents-fast-ci-workflow.test.mjs scripts/check-documents-ci-route.test.mjs",
+      "exit_code": 0,
+      "evidence": "all pass"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=319 sources=80"
+    },
+    {
+      "command": "node --test scripts/lib/workflow-jobs.test.mjs",
+      "exit_code": 0,
+      "evidence": "5 pass: per-job slicing, exact-name lookup, event gate parsing incl. always(), step slicing, negative cases"
+    }
+  ],
+  "assumptions_resolved": [
+    "Jobs inside one workflow report their plain job name as the check-run context, so all required contexts are byte-identical",
+    "ready_for_review dropped from the shared trigger: it cannot be per-job and would start the required aggregate for lane checks it never starts",
+    "scripts/lib/open-pr-files.mjs left unedited: it is a global orchestrator invalidator and its comment is past-tense history",
+    "generations 1 and 2 superseded; this PR carries only the generation 3 pair"
+  ],
+  "stop_conditions_hit": []
+}

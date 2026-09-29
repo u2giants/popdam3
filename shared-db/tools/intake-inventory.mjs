@@ -113,7 +113,7 @@ export const CLASSIFICATION = [
     'Nothing to do. The block states in its own body that the rule is already in force in `AGENTS.md` and standing fact 5, and that no action is required. It exists only so that no backlog number is invisible in the queue — a need this migration removes outright.'),
   M('Backlog B5', 'WI-45 Backlog B5: the two live constraints it still carries'),
   X('Backlog B6 — cross-PR object collision guard',
-    'Landed. PR #397 shipped `.github/workflows/pr-object-collision.yml`, which is present in the tree, and the guard was proven by drill PRs #398/#399/#401/#404/#405. The one open follow-up — re-assessing it against the four-worktree evidence — is carried by WI-28.'),
+    'Landed. PR #397 shipped `.github/workflows/pr-object-collision.yml` (since #3746 the `pr-object-collision` job of `.github/workflows/pr-guards.yml`, which is present in the tree), and the guard was proven by drill PRs #398/#399/#401/#404/#405. The one open follow-up — re-assessing it against the four-worktree evidence — is carried by WI-28.'),
   X('Backlog B7',
     'Not a task. Its own annotation says the standard "is not done, it is now how guards are built" — it is standing policy, proven by PR #397. There is nothing left to close.'),
   M('Backlog B9', 'WI-46 Backlog B9: no armed-but-read-only state for the production enable variable'),
