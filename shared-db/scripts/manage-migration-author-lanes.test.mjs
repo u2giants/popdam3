@@ -7524,6 +7524,21 @@ function slotTwoReplacementScenario(issue,pr,head){
   return {io,first,slotTwo,replacement,replacementRef,evidenceSha:io.refs.get(replacementRef)}
 }
 
+test('#3730 a returned self-evidencing slot-2 replacement leaves the slot redrawable, not unreadable',()=>{
+  const head='d'.repeat(40),issue=3684,pr=3730,{io,first,slotTwo,replacement,evidenceSha}=slotTwoReplacementScenario(issue,pr,head)
+  excludeReviewerForPr({issue,pr,reviewer:replacement.reviewer,reason:'independence-conflict',evidenceSha},io)
+  const request={issue,pr,headSha:head,slot:2}
+  // Before #3730 both routes refused with "reviewer release evidence is unreadable".
+  assert.throws(()=>assignNextReviewer(request,io),(error)=>!/unreadable/.test(error.message)&&/--replace-failed-reviewer/.test(error.message))
+  const redrawn=replaceFailedReviewer({...request,failedSequence:slotTwo.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},io)
+  assert.ok(![first.reviewer,slotTwo.reviewer,replacement.reviewer].includes(redrawn.reviewer),'fresh, independent, non-failed, non-excluded reviewer')
+  assert.equal(io.refs.get(`${REVIEW_FAILURE_REF_PREFIX}/${issue}-${pr}-${head}-${slotTwo.sequence}`),evidenceSha,'immutable failure evidence is unchanged')
+  // The identity stays bound: a mismatched failure code is still refused.
+  const other={issue,pr,headSha:'e'.repeat(40)},s2=slotTwoReplacementScenario(issue,pr,other.headSha)
+  excludeReviewerForPr({issue,pr,reviewer:s2.replacement.reviewer,reason:'independence-conflict',evidenceSha:s2.evidenceSha},s2.io)
+  assert.throws(()=>replaceFailedReviewer({...other,slot:2,failedSequence:s2.slotTwo.sequence,failureCode:'provider_unavailable',confirmNoVerdict:true,confirmNoArtifact:true},s2.io),/does not match the replacement request/)
+})
+
 test('excluding a slot-2 replacement holder charges the return to slot 2, never slot 1',()=>{
   const head='1'.repeat(40),{io,replacement,replacementRef,evidenceSha}=slotTwoReplacementScenario(2077,2100,head)
   assert.ok(replacementRef&&evidenceSha)

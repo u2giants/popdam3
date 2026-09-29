@@ -6693,12 +6693,25 @@ function parseReviewRelease(commit){
   return {reviewer:match[1],issue:Number(match[2]),pr:Number(match[3]),headSha:match[4],failedSequence:Number(match[5]),failureCode:match[6],failingCheck:match[7]??null}
 }
 
+// #3730: a failure ref may hold a `failure-ref=self` replacement record rather
+// than a `--release-failed-reviewer` record -- the replacement IS the immutable
+// failure evidence for its failed sequence. When that replacement is later
+// returned (e.g. by --exclude-reviewer), the failure ref still names it, and a
+// strict release parser left the slot permanently undrawable ("reviewer release
+// evidence is unreadable"). Read either shape, bound to the same exact identity.
+function parseTerminalFailureEvidence(commit){
+  const message=commit?.message??commit?.commit?.message??''
+  const self=/^db-coordination reviewer-failure-replacement sequence=\d+ reviewer=[a-z0-9.-]+ issue=(\d+) pr=(\d+) head=([0-9a-f]{40})(?: slot=\d+)?(?: allowlist=[a-z0-9.,-]+)? failed-sequence=(\d+) prior-sequence=\d+ failure-ref=self failed-reviewer=([a-z0-9.-]+) code=([a-z_]+)(?: failing-check=([^ ]+))? verdict=none artifact=none$/i.exec(message)
+  if(!self)return parseReviewRelease(commit)
+  return {reviewer:self[5],issue:Number(self[1]),pr:Number(self[2]),headSha:self[3],failedSequence:Number(self[4]),failureCode:self[6],failingCheck:self[7]??null,selfReplacement:true}
+}
+
 function assertAssignmentWasNotTerminallyReleased(request,assignment,io){
   if(io.enableReviewerSilence){const silenceRef=silenceReleaseRef({...request,sequence:assignment.sequence}),silenceSha=io.readRef(silenceRef)
     if(silenceSha)throw new LaneError(`reviewer ${assignment.reviewer} silent lease was reclaimed with immutable evidence; assignment retry will not recreate its lease. Draw a new reviewer for this exact head and slot.`)}
   const ref=reviewerFailureRef({...request,failedSequence:assignment.sequence}),sha=io.readRef(ref)
   if(!sha)return
-  const released=parseReviewRelease(io.getCommit(sha))
+  const released=parseTerminalFailureEvidence(io.getCommit(sha))
   if(released.issue===request.issue&&released.pr===request.pr&&released.headSha===request.headSha&&released.failedSequence===assignment.sequence&&released.reviewer===assignment.reviewer)throw new LaneError(`reviewer ${assignment.reviewer} terminal failure was released with immutable evidence; assignment retry will not recreate its lease. Use --replace-failed-reviewer for this sequence after capacity is available.`)
   throw new LaneError('reviewer failure evidence exists but does not match the durable assignment; assignment retry refused')
 }
@@ -6939,7 +6952,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     const releasedFailureSha=fixedRecords?(fixedRecords.get(failureRef)?.sha??null):io.readRef(failureRef)
     let releasedFailure=null
     if(releasedFailureSha){
-      releasedFailure=parseReviewRelease(fixedRecords?.get(failureRef)?.sha===releasedFailureSha?fixedRecords.get(failureRef).commit:io.getCommit(releasedFailureSha))
+      releasedFailure=parseTerminalFailureEvidence(fixedRecords?.get(failureRef)?.sha===releasedFailureSha?fixedRecords.get(failureRef).commit:io.getCommit(releasedFailureSha))
       if(releasedFailure.issue!==request.issue||releasedFailure.pr!==request.pr||releasedFailure.headSha!==request.headSha||releasedFailure.failedSequence!==request.failedSequence||releasedFailure.reviewer!==original.reviewer||releasedFailure.failureCode!==String(failureCode))throw new LaneError('immutable reviewer release evidence does not match the replacement request')
     }
     const cursorSha=fixedRecords?.get(REVIEW_CURSOR_REF)?.sha??io.readRef(REVIEW_CURSOR_REF), cursor=parseReviewCursor(cursorSha?(fixedRecords?.get(REVIEW_CURSOR_REF)?.sha===cursorSha?fixedRecords.get(REVIEW_CURSOR_REF).commit:io.getCommit(cursorSha)):null)

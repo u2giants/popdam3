@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 3817,
+  "outcome": "ready-for-merge",
+  "pr": 3818,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3817/1",
+  "contract_sha256": "267c59a4f77e6d7da5ddcde4edf96ea4185751828064452d733e30eccc704283",
+  "base_sha": "102a43f6568c95b7c8ed01dd32ca1c106fda9d66",
+  "head_sha": "b18bc78d36f98eb98bccbb3c2b86446d6c361a09",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "745 pass, 0 fail at b18bc78d36f98eb98bccbb3c2b86446d6c361a09 (main merged)."
+    }
+  ],
+  "assumptions_resolved": [
+    "The fix was drafted before the contract was published; it was set aside, the contract published, then re-applied unchanged as the implementation commit."
+  ],
+  "stop_conditions_hit": []
+}
