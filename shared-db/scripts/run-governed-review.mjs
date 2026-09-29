@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve as resolvePath } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
-import { REPO, REVIEW_STARTED_REF_PREFIX, reviewStartedMarkerRef, reviewLeaseStillHeld, recordReviewVerdict, reviewerExecutionPreflight, resolveCommandPath, githubIo, withMergedPrIssueBinding } from './manage-migration-author-lanes.mjs'
+import { REPO, REVIEW_REPLACEMENT_REF_PREFIX, parseReviewCursor, reviewSlotSuffix, REVIEW_STARTED_REF_PREFIX, reviewStartedMarkerRef, reviewLeaseStillHeld, recordReviewVerdict, reviewerExecutionPreflight, resolveCommandPath, githubIo, withMergedPrIssueBinding } from './manage-migration-author-lanes.mjs'
 import { lineOpensWithVerdictWord, isVerdictFor } from './lib/review-verdict.mjs'
 // Issue #2342: one shared transport owns the never-replay-a-write policy.
 import { runGitHubCommand, spawnGitHub } from './lib/github-transport.mjs'
@@ -842,7 +842,33 @@ export function prepareGovernedReview(options,{env=process.env,github=readGitHub
   const callerEnv=reviewCallerEnvironment(options.wrapper,env)
   return {options:{...options,headSha:live,wrapperArgs:promptHeadContract(options.wrapperArgs??[],live,files,options.wrapper)},callerEnv}
 }
+// Issue #3799. A replacement assignment is recorded under the REPLACED reviewer's
+// sequence (refs/db-review-replacements/<issue>-<pr>-<head><slot>-<failedSequence>),
+// but the allocator prints the replacement's own draw sequence too, so callers pass
+// either. Resolve both forms to the one ref key, bound to the exact issue, PR, head,
+// slot and named reviewer. Two different refs matching the two readings is refused
+// as ambiguous; no match is passed through unchanged so the recorder still refuses.
+export function resolveReplacementSequence(options,io){
+  if(options.replacementSequence==null||options.replacementSequence==='')return options
+  const given=Number(options.replacementSequence)
+  if(!Number.isInteger(given)||given<1)return options
+  const issue=Number(options.issue),pr=Number(options.pr),slot=Number(options.slot??options.reviewSlot??1),head=String(options.headSha??'').toLowerCase()
+  const base=`${REVIEW_REPLACEMENT_REF_PREFIX}/${issue}-${pr}-${head}${reviewSlotSuffix(slot)}-`
+  const matches=new Map()
+  for(const row of io.listRefs(base)??[]){
+    const tail=String(row.ref??'').slice(base.length)
+    if(!String(row.ref??'').startsWith(base)||!/^\d+$/.test(tail))continue
+    let parsed
+    try{parsed=parseReviewCursor(io.getCommit(row.sha))}catch{continue}
+    if(!parsed||parsed.issue!==issue||parsed.pr!==pr||!head.startsWith(String(parsed.headSha).toLowerCase())||(parsed.slot!==null&&parsed.slot!==slot))continue
+    if(options.reviewer&&parsed.reviewer!==options.reviewer)continue
+    if(Number(tail)===given||parsed.sequence===given)matches.set(row.ref,Number(tail))
+  }
+  if(matches.size>1)throw new Error(`replacement sequence ${given} is ambiguous: it names more than one replacement assignment (${[...matches.keys()].join(', ')}); no reviewer was started`)
+  if(matches.size===0)return options
+  return {...options,replacementSequence:[...matches.values()][0]}
+}
 export function main(argv=process.argv.slice(2)){
-  try{const prepared=prepareGovernedReview(parseArgs(argv));Object.assign(process.env,prepared.callerEnv);const result=runGovernedReview(prepared.options,governedReviewDeps());process.stdout.write(`${result.body}\n\nDURABLE VERDICT: ${result.artifact.ref} ${result.artifact.sha}\nSOURCE EVIDENCE: ${JSON.stringify(result.sourceEvidence)}\n`);return 0}catch(error){if(error?.startDecision)process.stderr.write(`REROUTE: ${JSON.stringify(error.startDecision)}\n`);process.stderr.write(`REFUSED: ${error.message}\n`);return 2}
+  try{const prepared=prepareGovernedReview(parseArgs(argv));Object.assign(process.env,prepared.callerEnv);const deps=governedReviewDeps();const result=runGovernedReview(resolveReplacementSequence(prepared.options,deps.io),deps);process.stdout.write(`${result.body}\n\nDURABLE VERDICT: ${result.artifact.ref} ${result.artifact.sha}\nSOURCE EVIDENCE: ${JSON.stringify(result.sourceEvidence)}\n`);return 0}catch(error){if(error?.startDecision)process.stderr.write(`REROUTE: ${JSON.stringify(error.startDecision)}\n`);process.stderr.write(`REFUSED: ${error.message}\n`);return 2}
 }
 if(import.meta.url===pathToFileURL(process.argv[1]??'').href)process.exitCode=main()

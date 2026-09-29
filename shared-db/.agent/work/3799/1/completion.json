@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "work_issue": 3799,
+  "outcome": "ready-for-merge",
+  "pr": 3800,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3799/1",
+  "contract_sha256": "2e4ddaba28e386b422f3702e1f712737e01377e475a4b75084f8cb9789122eb9",
+  "base_sha": "bbe08bbeb0f2c8cbefa6da4f6cdf0b8ee1e0fdf0",
+  "head_sha": "c80bcab90e22e27d0bac9937bfceba067ae6645b",
+  "files_changed": [
+    ".agent/work/3799/1/contract.json",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/run-governed-review.test.mjs",
+      "exit_code": 0,
+      "evidence": "94 passed, 0 failed; the 5 new #3799-labelled cases fail against main (resolver absent)"
+    }
+  ],
+  "assumptions_resolved": [
+    "Fix is confined to run-governed-review.mjs; manage-migration-author-lanes.mjs untouched, so no protected-file queue slot needed."
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,41 @@
+{
+ "schema_version": 1,
+ "work_issue": 3799,
+ "work_type": "repo-maintenance",
+ "route": "repo-maintenance",
+ "goal": "Let run-governed-review resolve --replacement-sequence given as either the replaced reviewer's sequence or the replacement's own draw sequence, bound to exact issue, PR, head, slot and reviewer, refusing ambiguity; no change to exact-head or assignment checks",
+ "base_sha": "bbe08bbeb0f2c8cbefa6da4f6cdf0b8ee1e0fdf0",
+ "dispatcher": "shared-db orchestrator via Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3",
+ "worker": "Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3",
+ "branch": "claude/replacement-sequence-resolve",
+ "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/repl-seq",
+ "allowed_paths": [
+  "scripts/run-governed-review.mjs",
+  "scripts/run-governed-review.test.mjs",
+  ".agent/work/3799/1/contract.json",
+  ".agent/work/3799/1/completion.json"
+ ],
+ "file_writes": [
+  "scripts/run-governed-review.mjs",
+  "scripts/run-governed-review.test.mjs",
+  ".agent/work/3799/1/contract.json",
+  ".agent/work/3799/1/completion.json"
+ ],
+ "db_reads": [],
+ "db_writes": [],
+ "prohibited_actions": [
+  "do not touch any migration or database object",
+  "do not modify scripts/manage-migration-author-lanes.mjs",
+  "do not weaken exact-head or assignment binding checks"
+ ],
+ "required_checks": [
+  "node --test scripts/run-governed-review.test.mjs"
+ ],
+ "assumptions": [
+  "replacement refs are keyed by failed-sequence and their commit message carries the replacement's own sequence"
+ ],
+ "stop_conditions": [
+  "stop if the fix requires changing manage-migration-author-lanes.mjs"
+ ],
+ "generation": 1
+}
