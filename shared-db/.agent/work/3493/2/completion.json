@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 3493,
+  "outcome": "ready-for-merge",
+  "pr": 3519,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3493/2",
+  "contract_sha256": "3e5571c8e01d0907656819a6974dcdf8fa69b33c30e81673f3f4dc7b114f6f62",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "head_sha": "d5efadbf21f205b858f4325c056d806b3cbb60a7",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=319 sources=80 derived_digest=fb8271319bc6"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "no whitespace errors"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 passed, 0 failed at implementation head d5efadbf21f205b858f4325c056d806b3cbb60a7"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/*.test.mjs",
+      "exit_code": 0,
+      "evidence": "# pass 71 # fail 0 at implementation head d5efadbf21f205b858f4325c056d806b3cbb60a7 (python resolved to python3)"
+    }
+  ],
+  "assumptions_resolved": [
+    "Regenerated on current main: every changed row differs only in its site value; the audit detector and its tests are untouched."
+  ],
+  "stop_conditions_hit": []
+}

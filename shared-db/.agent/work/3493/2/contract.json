@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "generation": 2,
+  "work_issue": 3493,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Re-point the 31 stale diagnostic site line numbers in docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json so every recorded site line agrees with current main, without changing any semantic_key, line_sha256, disposition, reason, or legacy_semantic_key, and without touching the truth-audit detector.",
+  "base_sha": "b32deb1ce57d2158193100c72e40ab1ea720d72d",
+  "dispatcher": "MiMo repo-maintenance session for issue #3493",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "mimo/3493-site-repoint-gen2",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/3493-pr3499",
+  "allowed_paths": [
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3493/2/contract.json",
+    ".agent/work/3493/2/completion.json"
+  ],
+  "file_writes": [
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3493/2/contract.json",
+    ".agent/work/3493/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change any semantic_key, line_sha256, disposition, reason, or legacy_semantic_key in the catalogue.",
+    "Do not weaken, delete, or bypass any truth-audit detector, test, or check.",
+    "Do not edit scripts/check-throughput-truth-audit.mjs or any scripts/throughput-guard test.",
+    "Do not touch any migration, workflow, database object, or live row.",
+    "Do not edit any file outside allowed_paths."
+  ],
+  "required_checks": [
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "node --test scripts/throughput-guard/*.test.mjs"
+  ],
+  "assumptions": [
+    "The truth-audit detector selects catalogue rows by semantic_key only and never reads the recorded site field, so re-pointing site cannot change any disposition or any CI verdict.",
+    "Only scripts/manage-migration-author-lanes.mjs.json carries stale site line numbers; the other 71 catalogues already agree with current main."
+  ],
+  "stop_conditions": [
+    "Stop on any gate refusal rather than weakening the gate.",
+    "Stop if the change needs a file outside allowed_paths.",
+    "Stop if any required check fails, or if a semantic_key, line_sha256, disposition, reason, or legacy_semantic_key would have to change."
+  ]
+}
