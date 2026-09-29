@@ -12,6 +12,7 @@
 // Every 2911/2934 call is read-only: the PostgREST OpenAPI schema document,
 // a one-row select, and the read-only preview guard function.
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
 const EXPECTED_URL = "https://qsllyeztdwjgirsysgai.supabase.co";
@@ -28,6 +29,8 @@ const ASSERTIONS = {
   2860: "A natural service-role Files-mode call to public.search_style_guide_library_v2 with no query, p_limit=1, offset 0 and modified_desc sort completes under the normal statement timeout without SQLSTATE 57014.",
   2911: "From the application's production service-role connection, read-only: public.style_guide_files has column has_talent_likeness, nullable, with no default, and the application's read of public.style_guide_files still succeeds.",
   2802: "a PopDAM read of a style-guide file returns has_talent_likeness as true, false or null exactly as stored, with null distinguishable from false",
+  3418: "In production, only the current unexpired submission-lease holder presenting its exact receipt and current revision can reset an unbound provider submission after PopDAM verifies provider origin and parses a nonempty JSON validation error with HTTP 400 or 422; timeout, disconnect, unreadable or plain-text error, other 4xx, 5xx, expired or ambiguous lease, bound provider ID, wrong holder, wrong receipt, or wrong revision cannot reset or remint a receipt for another caller. PopDAM owns the later no-duplicate-POST live retry proof.",
+  3457: "On production, public.search_dam_documents has the 8-arg signature with p_min_semantic_score real default null, the 7-arg signature is dropped, execute is granted to authenticated and service_role only, a semantic floor is applied only inside the semantic leg before blend, and null floor preserves prior blended-rank behaviour exactly.",
   2934: "From the application's production service-role connection, read-only: public.deactivate_stale_sg_files no longer exists, and the application's stale-file deactivation path (public.preview_stale_sg_files guard ahead of public.reconcile_stale_sg_files_batch) is still exposed and its read-only guard call succeeds.",
 };
 
@@ -102,6 +105,126 @@ export function evaluateLikenessRead2802(rows, expected) {
     }
   }
   return rows.length;
+}
+
+// Pure: the one exposed search_dam_documents takes p_min_semantic_score.
+export function evaluateSearch3457(openapi) {
+  const post = openapi?.paths?.["/rpc/search_dam_documents"]?.post;
+  if (!post) fail("public.search_dam_documents is not exposed");
+  const body = (post.parameters || []).find((p) => p.in === "body");
+  const props = body?.schema?.properties || {};
+  if (!props.p_min_semantic_score) throw new NotYetApplied("search_dam_documents has no p_min_semantic_score");
+  const names = Object.keys(props).sort();
+  if (names.length !== 8) fail(`search_dam_documents exposes ${names.length} args, expected 8`);
+  return { function: "public.search_dam_documents", args: names, p_min_semantic_score: props.p_min_semantic_score.format ?? null };
+}
+
+// Pure: the reset function is exposed with its seven arguments.
+export function evaluateReset3418(openapi) {
+  const post = openapi?.paths?.["/rpc/reset_bulk_operation_submission_lease"]?.post;
+  if (!post) throw new NotYetApplied("public.reset_bulk_operation_submission_lease is not exposed");
+  const body = (post.parameters || []).find((p) => p.in === "body");
+  const names = Object.keys(body?.schema?.properties || {}).sort();
+  const expected = ["p_expected_revision", "p_http_status", "p_lease_token", "p_op_key", "p_provider_error", "p_reason", "p_submission_owner"];
+  if (JSON.stringify(names) !== JSON.stringify(expected)) fail(`reset function args are ${names.join(",")}`);
+  return { function: "public.reset_bulk_operation_submission_lease", args: names };
+}
+
+// Pure: a guarded call must be refused with the expected SQLSTATE.
+export function evaluateRefusal(name, status, json, expectedCode) {
+  if (status < 400) fail(`guard ${name} was NOT refused (HTTP ${status})`);
+  if (json?.code !== expectedCode) fail(`guard ${name} refused with ${json?.code ?? "unknown"}, expected ${expectedCode}`);
+  return { guard: name, http: status, sqlstate: json.code };
+}
+
+async function rawPost(path, body) {
+  const response = await fetch(`${url}${path}`, {
+    method: "POST",
+    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+  return { status: response.status, json };
+}
+
+async function bulkOperationsFingerprint() {
+  const { json } = await call("/rest/v1/admin_config?select=value,updated_at&key=eq.BULK_OPERATIONS");
+  const row = Array.isArray(json) ? json[0] : null;
+  return {
+    updated_at: row?.updated_at ?? null,
+    sha256: createHash("sha256").update(JSON.stringify(row?.value ?? null)).digest("hex"),
+    value: row?.value ?? null,
+  };
+}
+
+// Non-mutating: every call below is built so a guard must refuse it (a random,
+// never-issued receipt can never match the stored md5 lease proof), and the
+// BULK_OPERATIONS row is fingerprinted before and after.
+async function proveLeaseReset() {
+  const schema = evaluateReset3418(await openapi());
+  const before = await bulkOperationsFingerprint();
+  const fn = "/rest/v1/rpc/reset_bulk_operation_submission_lease";
+  const evidence = { p_reason: "provider_definitive_rejection", p_http_status: 400, p_provider_error: { message: "live proof" } };
+  const missingKey = `live-proof-nonexistent-${randomUUID()}`;
+  const base = { p_op_key: missingKey, p_expected_revision: 0, p_submission_owner: "live-proof", p_lease_token: randomUUID(), ...evidence };
+  const cases = [
+    ["http_status_500", { ...base, p_http_status: 500 }, "22023"],
+    ["http_status_404", { ...base, p_http_status: 404 }, "22023"],
+    ["http_status_408_timeout", { ...base, p_http_status: 408 }, "22023"],
+    ["reason_not_definitive_rejection", { ...base, p_reason: "timeout" }, "22023"],
+    ["empty_provider_error", { ...base, p_provider_error: {} }, "22023"],
+    ["plain_text_provider_error", { ...base, p_provider_error: "plain text" }, "22023"],
+    ["missing_receipt", { ...base, p_lease_token: "" }, "22023"],
+    ["nonexistent_operation", base, "55000"],
+  ];
+  const opKey = Object.keys(before.value && typeof before.value === "object" ? before.value : {})[0];
+  if (opKey) {
+    const revision = Number(before.value[opKey]?.state_revision ?? 0) || 0;
+    const real = { ...base, p_op_key: opKey, p_expected_revision: revision };
+    cases.push(["existing_operation_wrong_receipt", { ...real, p_lease_token: randomUUID() }, "55000"]);
+    cases.push(["existing_operation_wrong_revision", { ...real, p_expected_revision: revision + 1000000 }, "55000"]);
+  }
+  const refusals = [];
+  for (const [name, args, code] of cases) {
+    const { status, json } = await rawPost(fn, args);
+    refusals.push(evaluateRefusal(name, status, json, code));
+  }
+  const after = await bulkOperationsFingerprint();
+  if (after.sha256 !== before.sha256 || after.updated_at !== before.updated_at) fail("BULK_OPERATIONS changed during the refusal calls");
+  return {
+    call: "public.reset_bulk_operation_submission_lease guarded refusals",
+    elapsed_ms: 0,
+    schema,
+    refusals,
+    row_unchanged: { key: "BULK_OPERATIONS", updated_at: after.updated_at, sha256: after.sha256 },
+    not_exercised: "success path, expired/ambiguous lease, bound provider id and wrong holder on a live lease were not called; PopDAM owns the later no-duplicate-POST live retry proof",
+  };
+}
+
+// Read-only: schema check plus two keyword searches with and without a floor.
+async function proveSearchFloor() {
+  const schema = evaluateSearch3457(await openapi());
+  const common = { p_query: "mug", p_filters: {}, p_limit: 5, p_offset: 0 };
+  const seven = await rawPost("/rest/v1/rpc/search_dam_documents", { ...common, p_document_types: null, p_query_embedding: null, p_min_rank: 0 });
+  if (seven.status >= 400) fail(`7-named-arg call failed (${seven.json?.code}); overload ambiguity would mean the 7-arg form still exists`);
+  const nullFloor = await call("/rest/v1/rpc/search_dam_documents", { method: "POST", body: { ...common, p_min_semantic_score: null } });
+  const floor = await call("/rest/v1/rpc/search_dam_documents", { method: "POST", body: { ...common, p_min_semantic_score: 0.5 } });
+  const ids = (rows) => (Array.isArray(rows) ? rows.map((r) => `${r.document_type}:${r.entity_id}:${r.rank}`) : null);
+  if (!ids(nullFloor.json) || !ids(floor.json)) fail("search did not return rows arrays");
+  const same = JSON.stringify(ids(nullFloor.json)) === JSON.stringify(ids(floor.json));
+  if (!same) fail("a floor without an embedding changed keyword results");
+  return {
+    call: "public.search_dam_documents keyword query, null floor vs 0.5 floor, no embedding",
+    elapsed_ms: nullFloor.elapsedMs + floor.elapsedMs,
+    schema,
+    seven_named_arg_call_unambiguous: true,
+    rows_null_floor: nullFloor.json.length,
+    rows_floor_0_5: floor.json.length,
+    identical_results: same,
+    not_proven: "grants (anon denied) not checked: no anon key available; semantic-leg floor with an embedding and exact prior-rank equivalence not exercised",
+  };
 }
 
 async function openapi() {
@@ -197,7 +320,7 @@ async function setOutput(applied) {
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `applied=${applied}\n`);
 }
 
-const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop };
+const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, 3457: proveSearchFloor };
 
 async function main() {
   if (url !== EXPECTED_URL) fail("SUPABASE_URL is not the production project");

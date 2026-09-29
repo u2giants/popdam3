@@ -51,3 +51,28 @@ test("2934 reports not yet applied while the wrapper exists", () => {
 test("2934 fails when the current stale-file path is missing", () => {
   assert.throws(() => evaluateDrop2934(paths("preview_stale_sg_files")), ProofFailure);
 });
+
+import { evaluateRefusal, evaluateReset3418, evaluateSearch3457 } from "./shared-db-live-proof.mjs";
+
+const rpc = (name, args) => ({
+  paths: { [`/rpc/${name}`]: { post: { parameters: [{ in: "body", schema: { properties: Object.fromEntries(args.map((a) => [a, {}])) } }] } } },
+});
+
+test("3457 needs the 8-arg form with p_min_semantic_score", () => {
+  const eight = ["p_query", "p_filters", "p_limit", "p_offset", "p_document_types", "p_query_embedding", "p_min_rank", "p_min_semantic_score"];
+  assert.equal(evaluateSearch3457(rpc("search_dam_documents", eight)).args.length, 8);
+  assert.throws(() => evaluateSearch3457(rpc("search_dam_documents", eight.slice(0, 7))), NotYetApplied);
+});
+
+test("3418 needs the reset function with its seven args", () => {
+  const args = ["p_op_key", "p_expected_revision", "p_submission_owner", "p_lease_token", "p_reason", "p_http_status", "p_provider_error"];
+  assert.ok(evaluateReset3418(rpc("reset_bulk_operation_submission_lease", args)));
+  assert.throws(() => evaluateReset3418({ paths: {} }), NotYetApplied);
+  assert.throws(() => evaluateReset3418(rpc("reset_bulk_operation_submission_lease", args.slice(1))), ProofFailure);
+});
+
+test("refusal must be an error with the expected SQLSTATE", () => {
+  assert.equal(evaluateRefusal("x", 400, { code: "22023" }, "22023").sqlstate, "22023");
+  assert.throws(() => evaluateRefusal("x", 200, {}, "22023"), ProofFailure);
+  assert.throws(() => evaluateRefusal("x", 400, { code: "55000" }, "22023"), ProofFailure);
+});
