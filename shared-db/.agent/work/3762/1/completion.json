@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "work_issue": 3762,
+  "outcome": "ready-for-merge",
+  "pr": 3760,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3762/1",
+  "contract_sha256": "9cdf0b2b6ff101678eeae9ead9405e440373ba450e0d74f3dbe16eba811b460d",
+  "base_sha": "2165881c630eec86f71d5c55a1eb712884bafa0a",
+  "head_sha": "f9382c8d40edaed955090bfa6456a485980fdfba",
+  "files_changed": ["scripts/lib/reviewer-turn-budget.mjs","scripts/lib/reviewer-turn-budget.test.mjs"],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [{"command": "node --test scripts/lib/reviewer-turn-budget.test.mjs scripts/run-governed-review.test.mjs", "exit_code": 0, "evidence": "rerun after main refresh: 108 pass, 0 fail; 24 lines now 40 turns, 1798 lines still above floor, cap 120"}],
+  "assumptions_resolved": ["Implementation commit preceded contract publication; contract describes it unchanged."],
+  "stop_conditions_hit": []
+}

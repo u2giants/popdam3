@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "work_issue": 3762,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Give the governed Grok reviewer a turn floor equal to the unmeasured grant (40) so small migration reviews stop ending turn_limit_cancelled at 25 turns; large reviews still scale; cap stays 120",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "dispatcher": "shared-db orchestrator helper, Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3",
+  "worker": "Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3",
+  "branch": "fix/grok-turn-floor",
+  "worktree": "/home/ahazan/repos/sdb-grok-turns",
+  "allowed_paths": ["scripts/lib/reviewer-turn-budget.mjs","scripts/lib/reviewer-turn-budget.test.mjs",".agent/work/3762/1/contract.json",".agent/work/3762/1/completion.json"],
+  "file_writes": ["scripts/lib/reviewer-turn-budget.mjs","scripts/lib/reviewer-turn-budget.test.mjs",".agent/work/3762/1/contract.json",".agent/work/3762/1/completion.json"],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": ["do not touch any migration or database object","do not remove the turn cap","do not override an operator-supplied --max-turns"],
+  "required_checks": ["node --test scripts/lib/reviewer-turn-budget.test.mjs scripts/run-governed-review.test.mjs"],
+  "assumptions": ["ai-grok-review honors --max-turns as a per-call bound"],
+  "stop_conditions": ["stop if the wrapper ignores --max-turns"],
+  "generation": 1
+}

@@ -122,3 +122,12 @@ test('the refusal names the budget the reviewer was actually given', () => {
   assert.match(text, new RegExp(`${LARGE} changed migration line`))
   assert.equal(turnBudgetDiagnostic(null), '', 'a review with no sized budget adds nothing to the refusal')
 })
+
+test('a small governed review gets at least the unmeasured grant (PR #3734: 24 lines got 25 turns and ran out)', () => {
+  for (const lines of [0, 24, 250, 1000]) {
+    assert.ok(turnBudgetFor(lines, POLICY) >= POLICY.unmeasured, `${lines} lines must not get fewer turns than an unknown size`)
+  }
+  assert.equal(turnBudgetFor(24, POLICY), 40)
+  assert.ok(turnBudgetFor(1798, POLICY) > 40, 'large reviews still scale above the floor')
+  assert.equal(turnBudgetFor(10 ** 9, POLICY), POLICY.cap, 'the cap stays bounded')
+})

@@ -47,9 +47,17 @@ export const GROK_WRAPPER = 'ai-grok-review'
  * `perLines`/`step` come from the two measured occurrences: 914 changed lines fit
  * inside 20 turns and 1798 did not, so the grant rises with the reading load
  * rather than being set to one guessed number.
+ *
+ * `floor` (issue: PR #3734 at 41ba011) is the governed-review minimum. A governed
+ * review carries a fixed reading load that does not scale with migration size:
+ * the review contract, the completion evidence, the brief and the repository
+ * rules. A 24-line migration was granted base+step = 25 turns, spent all 25 on
+ * that fixed load and ended `turn_limit_cancelled` with no verdict, while an
+ * UNMEASURED review would have received 40. A known-small review must never get
+ * less than an unknown-size one, so the floor equals the unmeasured grant.
  */
 export const TURN_BUDGET_POLICY = Object.freeze({
-  [GROK_WRAPPER]: Object.freeze({ option: '--max-turns', base: 20, perLines: 250, step: 5, cap: 120, unmeasured: 40 }),
+  [GROK_WRAPPER]: Object.freeze({ option: '--max-turns', base: 20, perLines: 250, step: 5, floor: 40, cap: 120, unmeasured: 40 }),
 })
 
 export const MIGRATIONS_PATH = 'supabase/migrations'
@@ -79,7 +87,8 @@ export function turnBudgetFor(changedLines, policy) {
   if (changedLines === null || changedLines === undefined) return policy.unmeasured
   const lines = Number(changedLines)
   if (!Number.isFinite(lines) || lines < 0) return policy.unmeasured
-  return Math.min(policy.cap, policy.base + Math.ceil(lines / policy.perLines) * policy.step)
+  const scaled = policy.base + Math.ceil(lines / policy.perLines) * policy.step
+  return Math.min(policy.cap, Math.max(policy.floor ?? 0, scaled))
 }
 
 /**
