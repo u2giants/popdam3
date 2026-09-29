@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 3829,
+  "outcome": "ready-for-merge",
+  "pr": 3830,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3829/2",
+  "contract_sha256": "e59986835b68da344141e38f5830ae1981f79b2a1ebe25c5be144536ee818521",
+  "base_sha": "339359bde6337379a5c2216808fc9b60303eb3d5",
+  "head_sha": "9c4bf4205ba9c24464b6631aba0bd2e06b1946b3",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~run-governed-review.mjs.json",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/run-governed-review.test.mjs",
+      "exit_code": 0,
+      "evidence": "101/101 pass at 9c4bf4205"
+    },
+    {
+      "command": "node --test scripts/merged-pr-issue-binding.test.mjs scripts/lib/review-packet.test.mjs scripts/repair-voided-findings.test.mjs scripts/check-review-parallelism-brief.test.mjs",
+      "exit_code": 0,
+      "evidence": "38/38 pass at 9c4bf4205"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth-audit OK after disposition catalogue refresh"
+    }
+  ],
+  "assumptions_resolved": [
+    "resolveReviewSource accepts a verified merged-PR issue binding at the exact merged head (#3829)",
+    "Disposition catalogue refreshed for context-bound semantic key drift after the resolveReviewSource change"
+  ],
+  "stop_conditions_hit": []
+}

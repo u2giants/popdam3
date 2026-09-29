@@ -122,7 +122,7 @@ function readGitHub(args){
   try{return {status:0,stdout:runGitHubCommand(args,{executor:execFileSync})}}
   catch(error){return {status:1,error,stderr:String(error?.stderr??'')}}
 }
-export function resolveReviewSource(options,{git=spawnSync,github=readGitHub,digest=readReviewSourceDigest}={}){
+export function resolveReviewSource(options,{git=spawnSync,github=readGitHub,digest=readReviewSourceDigest,io=githubIo,env=process.env}={}){
   if(!Number.isSafeInteger(Number(options.pr))||Number(options.pr)<1)throw new Error('source identity requires a pull request number')
   const head=String(options.headSha??'').toLowerCase()
   if(!/^[0-9a-f]{40}$/.test(head)||!options.worktree)throw new Error('source identity requires an exact head and worktree')
@@ -130,7 +130,19 @@ export function resolveReviewSource(options,{git=spawnSync,github=readGitHub,dig
   if(response.error||response.status!==0)throw new Error('could not resolve live pull request source identity')
   let pr
   try{pr=JSON.parse(response.stdout)}catch{throw new Error('live pull request source identity is unreadable')}
-  if(pr.state!=='open'||pr.merged||pr.number!==Number(options.pr)||pr.base?.repo?.full_name?.toLowerCase()!==REPO.toLowerCase())throw new Error('pull request source repository or state does not match this review')
+  if(pr.number!==Number(options.pr)||pr.base?.repo?.full_name?.toLowerCase()!==REPO.toLowerCase())throw new Error('pull request source repository or state does not match this review')
+  // Mirror reviewTargetIsRecordable: an open PR at the exact head is unchanged. A
+  // merged PR is accepted only at its exact merged head through the same verified
+  // merged-PR issue binding the lane CLI and verdict recording already trust; a
+  // closed unmerged PR, or a merged PR without that binding, still refuses. The
+  // digest and exact file-comparison checks below apply to every accepted source.
+  if(String(pr.state??'').toLowerCase()==='open'){
+    if(pr.merged)throw new Error('pull request source repository or state does not match this review')
+  }else{
+    const value=String(env.SHARED_DB_MERGED_PR_ISSUE_BINDING??'').trim()
+    const bound=value?withMergedPrIssueBinding(io,value):null
+    if(!pr.merged_at||typeof bound?.mergedPrReviewTarget!=='function'||bound.mergedPrReviewTarget(Number(options.pr),Number(options.issue))!==true)throw new Error('pull request source repository or state does not match this review')
+  }
   const target=String(pr.base?.sha??'').toLowerCase(),baseRef=String(pr.base?.ref??'')
   if(pr.head?.sha?.toLowerCase()!==head)throw new Error('live pull request head differs from the assigned review head')
   if(!/^[0-9a-f]{40}$/.test(target)||!baseRef)throw new Error('live pull request target is missing or invalid')

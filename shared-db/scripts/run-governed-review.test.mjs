@@ -38,13 +38,37 @@ test('all qualified wrappers receive immutable source arguments without rewritin
 function sourceIo(overrides={}){
   const pr={number:options.pr,state:'open',merged:false,base:{ref:'develop',sha:'b'.repeat(40),repo:{full_name:THIS_REPO}},head:{sha:options.headSha},...overrides.pr}
   const seen=[]
-  return {seen,digest:()=>overrides.digest??'d'.repeat(64),github:(args)=>({status:0,stdout:JSON.stringify(args[1].includes('/compare/')?{base_commit:{sha:'c'.repeat(40)},merge_base_commit:{sha:'c'.repeat(40)},files:fixtureFiles,...overrides.comparison}:pr)}),git:(_command,args)=>{
+  return {seen,digest:()=>overrides.digest??'d'.repeat(64),...(overrides.io?{io:overrides.io}:{}),env:overrides.env??{},
+    github:(args)=>({status:0,stdout:JSON.stringify(args[1].includes('/compare/')?{base_commit:{sha:'c'.repeat(40)},merge_base_commit:{sha:'c'.repeat(40)},files:fixtureFiles,...overrides.comparison}:pr)}),git:(_command,args)=>{
     const op=args[2];seen.push(args.slice(2))
     if(overrides.fail===op)return{status:1,stdout:''}
     const stdout={remote:`https://github.com/${THIS_REPO}.git`,'rev-parse':options.headSha,status:'','cat-file':'','merge-base':'c'.repeat(40),diff:'M\0source.txt\0',...overrides.stdout}[op]
     return{status:0,stdout}
   }}
 }
+// A lane io that satisfies verifyMergedPrIssueBinding for options.pr / options.issue
+// at options.headSha, mirroring the fixtures in merged-pr-issue-binding.test.mjs.
+function mergedBindingIo(overrides={}){
+  const head=options.headSha
+  const state={
+    pr:{number:options.pr,merged_at:'2026-09-29T06:57:17Z',merge_commit_sha:'e'.repeat(40),head:{sha:head,ref:`codex/issue-${options.issue}-work`},body:`Repairs #${options.issue}.\n\nWork issue #${options.issue}; active claim #1; orchestrator #2.`},
+    completion:{work_issue:options.issue,pr:options.pr,migration_versions:['20260911213429']},
+    files:[{filename:'.agent/contract.json',status:'added'},{filename:'.agent/completion.json',status:'added'},{filename:'supabase/migrations/20260911213429_popsg_search.sql',status:'added'}],
+    linked:[],
+    refs:new Set(['refs/db-claims/20260911213429']),
+    issueState:'open',
+    ...overrides,
+  }
+  return {
+    getPr:()=>state.pr?{changed_files:state.files.length,...state.pr}:state.pr,
+    getIssue:(n)=>({number:n,state:state.issueState}),
+    getFileAt:(file,ref)=>{assert.equal(ref,head);return typeof state.completion==='string'?state.completion:JSON.stringify(state.completion)},
+    getPrFiles:()=>state.files,
+    readRef:(ref)=>state.refs.has(ref)?'a'.repeat(40):null,
+    closingIssuesForPr:()=>state.linked,
+  }
+}
+const MERGED_REST_PR={state:'closed',merged:true,merged_at:'2026-09-29T06:57:17Z'}
 test('source resolver binds live non-main PR target to local merge-base',()=>{
   assert.deepEqual(resolveReviewSource(options,sourceIo()),fixtureSource(options))
 })
@@ -79,6 +103,37 @@ test('source resolver refuses stale or wrong repository evidence before provider
     {stdout:{remote:'https://github.com/other/repo.git'}},{stdout:{'rev-parse':'f'.repeat(40)}},
     {stdout:{status:' M file'}},{fail:'cat-file'},{stdout:{'merge-base':''}},
   ])assert.throws(()=>resolveReviewSource(options,sourceIo(overrides)),/source|head|repository|dirty|merge-base/)
+})
+test('source resolver accepts a merged PR at its exact merged head only through the verified binding',()=>{
+  const binding=`${options.pr}:${options.issue}`
+  const merged={pr:{...MERGED_REST_PR},io:mergedBindingIo(),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:binding}}
+  assert.deepEqual(resolveReviewSource(options,sourceIo(merged)),fixtureSource(options),'the bound merged head resolves the same source identity')
+  for(const overrides of [
+    {pr:{...MERGED_REST_PR}},// merged, no binding at all
+    {pr:{...MERGED_REST_PR},io:mergedBindingIo(),env:{}},// verified io present but the binding is unset
+    {pr:{...MERGED_REST_PR},io:mergedBindingIo(),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:'garbage'}},// a malformed binding value refuses
+    {pr:{...MERGED_REST_PR},io:mergedBindingIo(),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:`${options.pr}:${options.issue+1}`}},// a different issue refuses
+    {pr:{...MERGED_REST_PR},io:mergedBindingIo(),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:`${options.pr+1}:${options.issue}`}},// a different PR refuses
+    {pr:{...MERGED_REST_PR},io:mergedBindingIo({issueState:'closed'}),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:binding}},// a closed work issue refuses
+    {pr:{...MERGED_REST_PR},io:mergedBindingIo({refs:new Set()}),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:binding}},// no claim reservation refuses
+    {pr:{...MERGED_REST_PR},io:mergedBindingIo({completion:{work_issue:options.issue,pr:options.pr,migration_versions:['1']}}),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:binding}},// a disagreeing completion record refuses
+  ])assert.throws(()=>resolveReviewSource(options,sourceIo(overrides)))
+  for(const overrides of [
+    {pr:{...MERGED_REST_PR,head:{sha:'f'.repeat(40)}},io:mergedBindingIo(),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:binding}},// a different merged head refuses
+    {pr:{state:'closed',merged:false,merged_at:null},io:mergedBindingIo(),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:binding}},// closed unmerged refuses
+    {pr:{state:'open',merged:true,merged_at:'2026-09-29T06:57:17Z'},io:mergedBindingIo(),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:binding}},// an "open" merged contradiction refuses
+  ])assert.throws(()=>resolveReviewSource(options,sourceIo(overrides)),/source|head|repository|state/)
+})
+test('a bound merged head still runs every digest and file-comparison check',()=>{
+  const binding=`${options.pr}:${options.issue}`
+  for(const overrides of [
+    {pr:{...MERGED_REST_PR},io:mergedBindingIo(),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:binding},comparison:{files:null}},
+    {pr:{...MERGED_REST_PR},io:mergedBindingIo(),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:binding},comparison:{files:[{filename:'wrong.txt',status:'modified'}]}},
+    {pr:{...MERGED_REST_PR},io:mergedBindingIo(),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:binding},digest:'bad'},
+    {pr:{...MERGED_REST_PR},io:mergedBindingIo(),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:binding},fail:'diff'},
+    {pr:{...MERGED_REST_PR},io:mergedBindingIo(),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:binding},stdout:{status:' M file'}},
+    {pr:{...MERGED_REST_PR},io:mergedBindingIo(),env:{SHARED_DB_MERGED_PR_ISSUE_BINDING:binding},stdout:{remote:'https://github.com/other/repo.git'}},
+  ])assert.throws(()=>resolveReviewSource(options,sourceIo(overrides)),/file|comparison|manifest|identity|digest|dirty|repository/)
 })
 test('source movement after provider completion prevents every publication and recording',()=>{
   let reads=0,calls=0
