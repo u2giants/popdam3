@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 3536,
+  "generation": 2,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Remove the 3 idle cron triggers from coldlion-licensor-property-phase6-parallel.yml while keeping workflow_dispatch and the PHASE6_SCHEDULE_ENABLED env-flag gate, and update the phase6 schedule-map lockstep test to assert the crons are absent",
+  "base_sha": "067420b116cbfe53b851ea460a11190607b9b699",
+  "dispatcher": "issue #3536 cron-trigger child and parent MiMo session",
+  "worker": "MiMo chat ses_ffe5f181be6e4fferDgoW5x63k on edge-dev3",
+  "branch": "fix/3536-phase6-cron",
+  "worktree": "C:/repos/shared-db-wt-3536-cron",
+  "allowed_paths": [
+    ".github/workflows/coldlion-licensor-property-phase6-parallel.yml",
+    "tools/phase6-schedule-map.test.mjs",
+    ".agent/work/3536/2/contract.json",
+    ".agent/work/3536/2/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/coldlion-licensor-property-phase6-parallel.yml",
+    "tools/phase6-schedule-map.test.mjs",
+    ".agent/work/3536/2/contract.json",
+    ".agent/work/3536/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change database structure or data",
+    "Do not touch #3505, #3552, or any db-claim lease",
+    "Do not remove workflow_dispatch or the PHASE6_SCHEDULE_ENABLED env-flag gate"
+  ],
+  "required_checks": [
+    "node --test tools/coldlion-licensor-property-phase6.test.mjs tools/phase6-schedule-map.test.mjs"
+  ],
+  "assumptions": [
+    "The 3 idle cron entries are uncontested cuts per the #3536 CI-audit cut list",
+    "workflow_dispatch and the PHASE6_SCHEDULE_ENABLED gate must remain so the phase6 parallel lane stays manually dispatchable",
+    "The implementation commit predates this contract publication; the immutable ref cannot be backdated and the evidence pair commit sits on top of the implementation head"
+  ],
+  "stop_conditions": [
+    "Stop if removing the cron entries would break a required branch protection context",
+    "Stop if the change would need to touch a file outside allowed_paths",
+    "Stop if any required check fails"
+  ]
+}

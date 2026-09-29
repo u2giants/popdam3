@@ -43,8 +43,19 @@ test("workflow case arms match PHASE6_SCHEDULE_JOBS keys and jobs", () => {
       new RegExp(`"${cron.replace(/\*/g, "\\*")}"\\)\\s*JOB=${job}`),
       `missing case arm for ${cron} -> ${job}`,
     );
-    assert.match(workflow, new RegExp(`cron:\\s*"${cron.replace(/\*/g, "\\*")}"`));
   }
+  // The three idle schedule: cron triggers were removed by the #3536 CI-audit
+  // child; workflow_dispatch remains the only trigger. The case arms above stay
+  // in lockstep with PHASE6_SCHEDULE_JOBS for any future schedule re-enable.
+  for (const cron of Object.keys(PHASE6_SCHEDULE_JOBS)) {
+    assert.doesNotMatch(
+      workflow,
+      new RegExp(`cron:\\s*"${cron.replace(/\*/g, "\\*")}"`),
+      `schedule trigger ${cron} must stay removed`,
+    );
+  }
+  assert.doesNotMatch(workflow, /^\s*-\s*cron:/m);
+  assert.doesNotMatch(workflow, /^\s*schedule:/m);
   assertScheduleMapComplete(Object.keys(PHASE6_SCHEDULE_JOBS));
 });
 
