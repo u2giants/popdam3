@@ -209,6 +209,13 @@ test('typed terminal reasons require complete tokens rather than diagnostic subs
 })
 
 test('a precise turn-budget refusal takes precedence over generic cancellation prose',()=>{
+  {
+    const evidenceOnly=wrapperFailureReason({stderr:'ai-grok-review: Grok stopped WITHOUT a final answer\n  reason: turn_limit_cancelled\nincomplete provider evidence retained for invocation f57a260c\n'})
+    assert.ok(!evidenceOnly.includes('retained or active work'),evidenceOnly)
+    assert.ok(evidenceOnly.startsWith('turn_limit_cancelled:'),evidenceOnly)
+    for(const stderr of ['ai-grok-review: error: this exact Grok review submission is already active or retained: x','ai-gemini: error: review already active or recovery required: session','  Do not retry while this paid turn is unconfirmed; reconcile the retained lock first.'])
+      assert.ok(wrapperFailureReason({stderr}).includes('retained or active work'),stderr)
+  }
   const reason=wrapperFailureReason({stderr:'turn_limit_cancelled: Grok cancelled without a final answer. provider_cancelled'})
   assert.equal(reason,'turn_limit_cancelled: the provider exhausted its declared turn budget')
 })

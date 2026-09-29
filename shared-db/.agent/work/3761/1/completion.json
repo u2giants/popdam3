@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "work_issue": 3761,
+  "outcome": "ready-for-merge",
+  "pr": 3747,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3761/1",
+  "contract_sha256": "a76c1170121e253adfd2cbb89bbe1d7a3132dda0819ce7f7b4f0faf34dc1a16e",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "head_sha": "a51b3216127c2afd0c3402e04ed67a9d8ef2a267",
+  "files_changed": ["scripts/run-governed-review.mjs", "scripts/run-governed-review.test.mjs"],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [{"command": "node --test scripts/run-governed-review.test.mjs", "exit_code": 0, "evidence": "89 pass, 0 fail"}],
+  "assumptions_resolved": ["The fix was drafted before the contract was published; it was set aside, the contract published, then re-applied unchanged as the implementation commit."],
+  "stop_conditions_hit": []
+}

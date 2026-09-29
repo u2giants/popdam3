@@ -409,7 +409,11 @@ export function wrapperFailureReason(run){
   if(hasReason('content-filter')||hasReason('DataInspectionFailed'))reasons.push('provider_unavailable: content-filter rejected the request')
   else if(hasReason('provider-unavailable'))reasons.push('provider_unavailable: the provider refused the request')
   if(!outOfCredit&&/usage-limit|insufficient.quota|quota exceeded|usage limit/i.test(stderr))reasons.push('the wrapper reported a usage limit')
-  if(/already active|already in progress|held for reconciliation|retained/i.test(stderr))reasons.push('the wrapper reported retained or active work; inspect that exact session')
+  // Only a wrapper LOCK refusal is "retained or active work". Wrappers also say
+  // "evidence retained" / "report ... retained" after an ordinary failed turn (for
+  // example Grok's turn_limit_cancelled), which is diagnostic preservation, not a
+  // held session; matching a bare "retained" mislabelled every such failure.
+  if(/already active|already in progress|held for reconciliation|active or retained|retained (?:lock|exact-work|protection)|protection for this exact session is retained|reconcile the retained lock/i.test(stderr))reasons.push('the wrapper reported retained or active work; inspect that exact session')
   return reasons.join('; ')||(stderr?'wrapper stderr was present but its reason was not recognized; inspect the exact wrapper session':'the wrapper supplied no recognized diagnostic')
 }
 // ISSUE #2729 STEP 7 -- RETRY ONCE, THEN REROUTE, DECIDED BY THE LIFECYCLE.

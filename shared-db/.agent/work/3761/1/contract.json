@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "work_issue": 3761,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Stop run-governed-review wrapperFailureReason labelling evidence-retained wrapper failures as retained or active work",
+  "base_sha": "c07084960a4dbe619686d1071d979a0ffbc04247",
+  "dispatcher": "repo-maintenance session for issue #3761 (Claude chat 626c9036 on edge-dev3)",
+  "worker": "claude",
+  "branch": "fix/governed-review-retained-classifier",
+  "worktree": ".claude/worktrees/pr3747-evidence",
+  "allowed_paths": ["scripts/run-governed-review.mjs", "scripts/run-governed-review.test.mjs"],
+  "file_writes": ["scripts/run-governed-review.mjs", "scripts/run-governed-review.test.mjs"],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": ["do not touch any migration or database object", "do not weaken the real wrapper lock-refusal detection"],
+  "required_checks": ["node --test scripts/run-governed-review.test.mjs"],
+  "assumptions": ["wrappers print 'incomplete provider evidence retained' after ordinary failures"],
+  "stop_conditions": ["stop if the change would need to touch a file outside allowed_paths"]
+}
