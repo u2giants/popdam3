@@ -245,6 +245,8 @@ begin
       join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'plm' and con.contype = 'p' and c.relname like 'nbcu\_%'
        and c.relname <> 'nbcu_capture'
+       -- #3683: durable cross-capture state is deliberately NOT capture-scoped.
+       and c.relname not in ('nbcu_entity_lifecycle', 'nbcu_lifecycle_publication')
   loop
     if r.first_col <> 'capture_id' then
       v_fail := v_fail + 1;
@@ -270,6 +272,7 @@ begin
       join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'plm' and con.contype = 'f' and c.relname like 'nbcu\_%'
        and f.relname like 'nbcu\_%' and f.relname <> 'nbcu_capture'
+       and c.relname not in ('nbcu_entity_lifecycle', 'nbcu_lifecycle_publication')
   loop
     if r.first_col <> 'capture_id' or array_length(
          (select con2.conkey from pg_constraint con2 where con2.conname = r.conname
@@ -1186,9 +1189,41 @@ begin
   else v_pass := v_pass+1; end if;
 
   select count(*) into v_n from pg_class
-   where relnamespace='plm'::regnamespace and relkind='r' and relname like 'nbcu\_%';
+   where relnamespace='plm'::regnamespace and relkind='r' and relname like 'nbcu\_%'
+     -- #3683 durable-state tables are not landing tables.
+     and relname not in ('nbcu_entity_lifecycle', 'nbcu_lifecycle_publication');
   if v_n <> 16 then v_fail := v_fail+1;
     raise warning 'I6 FAIL: % plm.nbcu_* tables, expected 16', v_n;
+  else v_pass := v_pass+1; end if;
+
+  -- #3695 review: the name exclusions above must match exactly the two #3683 durable
+  -- tables and their reviewed keys, so a rename or drop cannot pass the 15/16 literals.
+  select count(*) into v_n from pg_class
+   where relnamespace='plm'::regnamespace and relkind='r' and relname like 'nbcu\_%';
+  if v_n <> 18
+     or to_regclass('plm.nbcu_entity_lifecycle') is null
+     or to_regclass('plm.nbcu_lifecycle_publication') is null
+     or (select pg_get_constraintdef(oid) from pg_constraint
+          where conname = 'nbcu_entity_lifecycle_pkey'
+            and conrelid = to_regclass('plm.nbcu_entity_lifecycle'))
+        is distinct from 'PRIMARY KEY (entity_kind, entity_key)'
+     or (select pg_get_constraintdef(oid) from pg_constraint
+          where conname = 'nbcu_lifecycle_publication_pkey'
+            and conrelid = to_regclass('plm.nbcu_lifecycle_publication'))
+        is distinct from 'PRIMARY KEY (published_capture_id)' then
+    v_fail := v_fail+1;
+    raise warning 'I6 FAIL: % plm.nbcu_* tables (expected 18) or the excluded #3683 durable tables differ from their reviewed keys', v_n;
+  else v_pass := v_pass+1; end if;
+  -- #3695 review: the two #3683 durable-state tables are mutable ledgers, not capture
+  -- snapshots. api.source_capture_inventory must report them as retained rows only,
+  -- never as a latest-complete capture count; neither carries a column named capture_id.
+  if (select count(*) from api.source_capture_inventory
+       where table_name in ('nbcu_entity_lifecycle', 'nbcu_lifecycle_publication')
+         and count_basis = 'retained_only' and latest_complete_status is null
+         and latest_complete_row_count is null
+         and count_note = 'Retained rows only; no source-specific latest-complete contract is defined for this table.') <> 2 then
+    v_fail := v_fail+1;
+    raise warning 'I6 FAIL: #3683 durable-state tables are not classified as retained-only ledgers';
   else v_pass := v_pass+1; end if;
 
   raise notice 'I: % passed / % failed', v_pass, v_fail;

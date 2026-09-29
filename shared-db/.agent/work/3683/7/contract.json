@@ -1,0 +1,104 @@
+{
+  "schema_version": 2,
+  "work_issue": 3683,
+  "generation": 7,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Add durable NBCU entity state and a serialized, coverage-qualified publish function beside the immutable capture snapshots, without altering any snapshot table.",
+  "base_sha": "58836647e5645bb7e96049a8b72b5ded768a9010",
+  "dispatcher": "Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3 (orchestrator helper, marker #3732)",
+  "worker": "1b699f56-bfb1-4801-a2b9-db91edbc98f6",
+  "branch": "claude/3683-nbcu-durable-state",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/sdb-3683-nbcu",
+  "allowed_paths": [
+    "supabase/migrations/20260929045102_nbcu_durable_entity_lifecycle.sql",
+    "supabase/tests/nbcu_durable_entity_lifecycle_contracts.sql",
+    "supabase/tests/nbcu_landing_contracts.sql",
+    ".github/live-proofs/3683.sql",
+    "supabase/tests/plm_maintain_revokes_and_default_privileges.sql",
+    ".agent/work/3683/1/contract.json",
+    ".agent/work/3683/1/completion.json",
+    ".agent/work/3683/2/contract.json",
+    ".agent/work/3683/2/completion.json",
+    ".agent/work/3683/3/contract.json",
+    ".agent/work/3683/3/completion.json",
+    ".agent/work/3683/4/contract.json",
+    ".agent/work/3683/4/completion.json",
+    ".agent/work/3683/5/contract.json",
+    ".agent/work/3683/5/completion.json",
+    ".agent/work/3683/6/contract.json",
+    ".agent/work/3683/6/completion.json",
+    ".agent/work/3683/7/contract.json",
+    ".agent/work/3683/7/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260929045102_nbcu_durable_entity_lifecycle.sql",
+    "supabase/tests/nbcu_durable_entity_lifecycle_contracts.sql",
+    "supabase/tests/nbcu_landing_contracts.sql",
+    ".github/live-proofs/3683.sql",
+    "supabase/tests/plm_maintain_revokes_and_default_privileges.sql",
+    ".agent/work/3683/1/contract.json",
+    ".agent/work/3683/1/completion.json",
+    ".agent/work/3683/2/contract.json",
+    ".agent/work/3683/2/completion.json",
+    ".agent/work/3683/3/contract.json",
+    ".agent/work/3683/3/completion.json",
+    ".agent/work/3683/4/contract.json",
+    ".agent/work/3683/4/completion.json",
+    ".agent/work/3683/5/contract.json",
+    ".agent/work/3683/5/completion.json",
+    ".agent/work/3683/6/contract.json",
+    ".agent/work/3683/6/completion.json",
+    ".agent/work/3683/7/contract.json",
+    ".agent/work/3683/7/completion.json"
+  ],
+  "db_reads": [
+    "table plm.nbcu_capture",
+    "table plm.nbcu_scope",
+    "table plm.nbcu_asset",
+    "table plm.nbcu_property",
+    "table plm.nbcu_character",
+    "table plm.nbcu_style_guide",
+    "table plm.nbcu_ip_family"
+  ],
+  "db_writes": [
+    "function plm.nbcu_publish_lifecycle",
+    "index plm.nbcu_entity_lifecycle_first_seen_idx",
+    "index plm.nbcu_entity_lifecycle_kind_last_seen_idx",
+    "index plm.nbcu_entity_lifecycle_last_changed_idx",
+    "index plm.nbcu_entity_lifecycle_withdrawn_capture_idx",
+    "index plm.nbcu_lifecycle_publication_baseline_idx",
+    "index plm.nbcu_lifecycle_publication_latest_idx",
+    "policy nbcu_entity_lifecycle_plm_read on plm.nbcu_entity_lifecycle",
+    "policy nbcu_lifecycle_publication_plm_read on plm.nbcu_lifecycle_publication",
+    "table plm.nbcu_entity_lifecycle",
+    "table plm.nbcu_lifecycle_publication"
+  ],
+  "prohibited_actions": [
+    "Do not alter, rewrite or delete any NBCU capture snapshot table or row",
+    "Do not load, backfill or publish licensed rows from the migration",
+    "Do not include any licensor value in this public repository",
+    "No preview, merge or production action outside the serialized lanes"
+  ],
+  "required_checks": [
+    "git diff --check",
+    "bash scripts/check-sql.sh",
+    "node scripts/check-live-proof-probe.mjs"
+  ],
+  "assumptions": [
+    "Claim #3694 was expanded with the six serving indexes and its version superseded 20260928160635 -> 20260929045102 by the claim tool (supersession 85c13612)",
+    "The ephemeral database contract job executes supabase/tests/nbcu_durable_entity_lifecycle_contracts.sql; it was also run locally against an ephemeral Supabase Postgres before push",
+    "Generation 5 supersedes generation 4 for the round-3 fixes: the publication key is renamed published_capture_id so api.source_capture_inventory reports both durable tables as retained rows only (orchestrator decision, same as Peanuts #3730), and the privilege-revokes test now names the two durable tables; db_reads and db_writes are unchanged",
+    "Migration version superseded 20260928211044 -> 20260929045102 by the claim tool (supersession 2a8aa93c) after the earlier hand rename to 20260929011044 was found unreserved",
+    "Generation 7 rebinds evidence after the merge conductor merged main into the branch (base 58836647); no implementation file changed"
+  ],
+  "stop_conditions": [
+    "Stop if the migration writes any object outside db_writes",
+    "Stop if any snapshot table would change"
+  ],
+  "evidence_parent": {
+    "work_issue": 3683,
+    "generation": 6,
+    "contract_sha256": "fc58546b096aed517fe60688b9001393bef6683f8e94ff21f38af27383ebbfe2"
+  }
+}

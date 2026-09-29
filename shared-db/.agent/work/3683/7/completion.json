@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "work_issue": 3683,
+  "outcome": "ready-for-merge",
+  "pr": 3695,
+  "migration_versions": [
+    "20260929045102"
+  ],
+  "contract_ref": "refs/db-contracts/3683/7",
+  "contract_sha256": "6390bea1c9352f64f9bf8d80180fc8ec8ea885ec72d85ec65bd2dd681c51b4e9",
+  "head_sha": "c1f267f4112828755a08d917aee5ceab5032d02d",
+  "base_sha": "58836647e5645bb7e96049a8b72b5ded768a9010",
+  "files_changed": [
+    ".github/live-proofs/3683.sql",
+    "supabase/migrations/20260929045102_nbcu_durable_entity_lifecycle.sql",
+    "supabase/tests/nbcu_durable_entity_lifecycle_contracts.sql",
+    "supabase/tests/nbcu_landing_contracts.sql",
+    "supabase/tests/plm_maintain_revokes_and_default_privileges.sql"
+  ],
+  "db_reads": [
+    "table plm.nbcu_capture",
+    "table plm.nbcu_scope",
+    "table plm.nbcu_asset",
+    "table plm.nbcu_property",
+    "table plm.nbcu_character",
+    "table plm.nbcu_style_guide",
+    "table plm.nbcu_ip_family"
+  ],
+  "db_writes": [
+    "function plm.nbcu_publish_lifecycle",
+    "index plm.nbcu_entity_lifecycle_first_seen_idx",
+    "index plm.nbcu_entity_lifecycle_kind_last_seen_idx",
+    "index plm.nbcu_entity_lifecycle_last_changed_idx",
+    "index plm.nbcu_entity_lifecycle_withdrawn_capture_idx",
+    "index plm.nbcu_lifecycle_publication_baseline_idx",
+    "index plm.nbcu_lifecycle_publication_latest_idx",
+    "policy nbcu_entity_lifecycle_plm_read on plm.nbcu_entity_lifecycle",
+    "policy nbcu_lifecycle_publication_plm_read on plm.nbcu_lifecycle_publication",
+    "table plm.nbcu_entity_lifecycle",
+    "table plm.nbcu_lifecycle_publication"
+  ],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Exit 0 against base 58836647e5645bb7e96049a8b72b5ded768a9010 at implementation head c1f267f4112828755a08d917aee5ceab5032d02d."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at c1f267f4112828755a08d917aee5ceab5032d02d."
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Exit 0 at c1f267f4112828755a08d917aee5ceab5032d02d."
+    },
+    {
+      "command": "psql -v ON_ERROR_STOP=1 -f supabase/tests/{nbcu_durable_entity_lifecycle_contracts,nbcu_landing_contracts,plm_maintain_revokes_and_default_privileges}.sql (local ephemeral Supabase Postgres 17 after a two-pass migration replay, pre-adoption baseline and fixture seed)",
+      "exit_code": 0,
+      "evidence": "All three exit 0 at c1f267f4112828755a08d917aee5ceab5032d02d; api.source_capture_inventory reports nbcu_entity_lifecycle and nbcu_lifecycle_publication as retained_only. The live probe returns t on published synthetic state. The PR-changed files at c1f267f4112828755a08d917aee5ceab5032d02d are byte-identical to db614840d4fee33cd51cf95b58523ef8f8558893 (only main was merged in); CI re-runs this file at the pushed head."
+    },
+    {
+      "command": "(echo \"set nbcu.contention_dsn = 'host=<db container ip> dbname=postgres user=postgres password=<local default>';\"; cat supabase/tests/nbcu_durable_entity_lifecycle_contracts.sql) | docker exec -i supabase_db_sdb3683 psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 --no-psqlrc",
+      "exit_code": 0,
+      "evidence": "Two-session contention run at c1f267f4112828755a08d917aee5ceab5032d02d, exit 0, output line: 'NOTICE:  contention PASS: second session waited on the publication lock'. In CI the same case logs 'contention SKIP' because no second session can open (accepted by the orchestrator when this local run is recorded). Re-run at c1f267f4112828755a08d917aee5ceab5032d02d: same PASS line. The PR-changed files at c1f267f4112828755a08d917aee5ceab5032d02d are byte-identical to db614840d4fee33cd51cf95b58523ef8f8558893 (only main was merged in); CI re-runs this file at the pushed head."
+    }
+  ],
+  "assumptions_resolved": [
+    "Claim #3694 expanded with six serving indexes and version superseded 20260928160635 -> 20260929045102 by the claim tool",
+    "Generation 3 contract replaces generation 2 because the version re-claim changed its paths; db_reads and db_writes are unchanged",
+    "#3695 REVISE findings on 4c6c83f2 addressed at d4514b54: withdrawal index reordered to lead with last_seen_capture_id (name kept, so db-work-scope is unchanged), FK-only indexes labelled, held-drop magnitude recorded, exact column/CHECK/policy/function assertions, equal-timestamp and viewer-boundary tests, two-session dblink contention test, non-tautological live proof",
+    "#3695 DeepSeek REVISE on 2866083e addressed at c09e9fb2: completeness gate made NULL-safe (IS DISTINCT FROM), header states finalize_nbcu_capture enforces expected-count parity, live probe also refuses service_role UPDATE/DELETE on both tables; generation-3 pair retired, generation 4 binds this head",
+    "#3695 DeepSeek REVISE on c6db5746 addressed at 8eb91499 per orchestrator decisions: publication key renamed published_capture_id and the landing test pins both durable tables as retained_only in api.source_capture_inventory (shared view unchanged, #2662 scope); finalize citation now 20260825130924; revokes test names both durable tables; logged CI skip of the contention case accepted with the recorded local two-session run",
+    "No database write performed by the author; preview, merge and production follow the serialized lanes",
+    "Migration version superseded 20260928211044 -> 20260929045102 by the claim tool (supersession 2a8aa93c); the earlier 20260929011044 was a hand rename that was never reserved",
+    "Equal source_captured_at refusal is an intentional technical rule (orchestrator sign-off, #3695 round 4): equal timestamps give an ambiguous order, refusing is the safe default; recorded in the migration header",
+    "Accepted residuals (orchestrator, round 4): a mass drop is held on every comparable run and never applied without a separately reviewed change; the dblink contention case logs SKIP in CI, with the local two-session PASS recorded in checks above",
+    "Live probe: its data comparison is vacuously true until the loader's first successful publish (both tables start empty); stated in the probe header",
+    "CI 'supabase/tests against an ephemeral database' runs on the pushed head after this record is committed; its run URL is cited in the #3695 review briefs and the ready-for-conductor comment",
+    "Main was merged into the branch by the merge conductor (merge 9ca957d4, base 58836647e5645bb7e96049a8b72b5ded768a9010); evidence regenerated as generation 7; claim #3694 lease renewed to 2026-09-29T18:46Z after it expired"
+  ],
+  "stop_conditions_hit": []
+}

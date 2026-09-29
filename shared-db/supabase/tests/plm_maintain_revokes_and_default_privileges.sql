@@ -135,7 +135,9 @@ declare
     -- makes it REQUIRED TO EXIST, so this file goes red on any database where
     -- 20260811070000 has not been applied. That is intended; do not "fix" it by
     -- removing the name.
-    'nbcu_asset_ip_family'];
+    'nbcu_asset_ip_family',
+    -- #3683 durable-state tables: loader writes only through plm.nbcu_publish_lifecycle.
+    'nbcu_entity_lifecycle','nbcu_lifecycle_publication'];
   v_found text[];
   v_missing text[];
   t     text;
