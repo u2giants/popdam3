@@ -155,17 +155,18 @@ sentence is falsified — see the note below.)*
 > separate lines, and if either should have been summed the landed cost for that order
 > is wrong.
 
-> **VENDOR ANSWER, PARTIAL, 2026-09-24 (register entry 2.36 in
-> [`coldlion-open-questions.md`](coldlion-open-questions.md); ticket #3351):** ColdLion's
-> business contact settled two of the five shapes. Rows identical in every business field are
-> **the customer's PO entered as written**, and a quantity split across two rows of one line is
-> **valid as written**. **Nothing may be summed, merged or de-duplicated on `(prodOrderNo,
-> prodLineSeq)`** — the collapse this page warned about would destroy real vendor data, not tidy
-> it. The seven-costs-on-one-line shape was called an outlier on one order, hedged, and is **not**
-> a rule. **The identity question itself is still unanswered:** what uniquely identifies a row,
-> what `prodLineSeq` means here, and whether a status / cancellation / revision flag exists that
-> `/proddetails` does not return are with ColdLion's technical team, who have not replied. `pkey`
-> remains the only proven identity and the constraint decision on #3234 stays held.
+> **VENDOR ANSWER, COMPLETE ON IDENTITY, 2026-09-29 (register entry 2.36 in
+> [`coldlion-open-questions.md`](coldlion-open-questions.md); ticket #3351):** JamieLynn settled
+> shapes A and B (2026-09-24): identical rows and split quantities are **the customer's PO
+> entered as written**. **Nothing may be summed, merged or de-duplicated on `(prodOrderNo,
+> prodLineSeq)`**. The seven-costs-on-one-line shape was a hedged outlier, not a rule.
+> **ColdLion's technical team then answered the identity questions (2026-09-29):** **`pkey` is
+> the unique identifier** (consider stage code); **`prodLineSeq` groups sizes and may repeat** —
+> it is not a line identity and means nothing for POP; **ignore `prodQty` = 0**; **filter to
+> `ISS` stage** and ignore the rest. A cancelled-qty field exists, but cancel-vs-delete practice
+> is Unknown. Factory-cost impact is still open — they asked us to elaborate. **`pkey` is now
+> the settled identity.** The #3234 constraint decision (drop the falsified
+> `unique (company_code, prod_order_no, prod_line_seq)`) is **unblocked**.
 
 ### Disposition — all 21 fields land, plus the request-stamped `company_code`
 
