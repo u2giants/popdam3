@@ -52,7 +52,13 @@ import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from ".
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
 import { isPdfBackfillComplete } from "../_shared/pdf-backfill-state.ts";
-import { buildSgCrawlCompletionUpdate, buildSgIngestCompletionUpdate, hasMoreSgSearchDocuments, SG_RECONCILE_BATCH_SIZE } from "../_shared/sg-crawl-state.ts";
+import {
+  buildSgCrawlCompletionUpdate,
+  buildSgIngestCompletionUpdate,
+  hasMoreSgSearchDocuments,
+  runSteppableSgRefresh,
+  SG_RECONCILE_BATCH_SIZE,
+} from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
@@ -2975,11 +2981,12 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
   }
 
   if (done) {
-    const { data: runData } = await db
+    const { data: runData, error: runErr } = await db
       .from("style_guide_crawl_runs")
       .select("roots_scanned")
       .eq("id", runId)
       .single();
+    if (runErr || !runData) return err(`Could not load crawl state: ${runErr?.message ?? "run not found"}`, 500);
     const rootsScanned = (runData?.roots_scanned as string[] | null) || [];
     const inaccessibleRootSet = new Set(inaccessibleRoots);
     const accessibleRoots = rootsScanned.filter((root) => !inaccessibleRootSet.has(root));
@@ -3125,19 +3132,16 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       // completion CHECK constraint rejects the update below.
       if (reconcileOk) {
         const searchBatchSize = 5000;
-        const { data: refreshData, error: refreshErr } = await db.rpc("refresh_style_guide_matviews", {
-          p_run_id: runId,
-          p_search_batch_size: searchBatchSize,
-        });
-        if (refreshErr) {
+        // The existing bridge sends the same final request for a search
+        // continuation and a restarted crawl. Replay both matview steps in
+        // separate statements so either path is safe without a bridge change.
+        const refresh = await runSteppableSgRefresh(runId, searchBatchSize, async (args) => await db.rpc("refresh_style_guide_matviews", args));
+        if (refresh.error) {
           reconcileOk = false;
-          reconcileFailure = `Matview refresh failed: ${refreshErr.message}`;
+          reconcileFailure = `Matview refresh step ${refresh.failedStep} failed: ${refresh.error}`;
           console.error("[complete-style-guide-crawl]", reconcileFailure);
         } else {
-          const refresh = (Array.isArray(refreshData) ? refreshData[0] : refreshData) as {
-            search_documents_synced: number;
-          } | null;
-          const synced = refresh?.search_documents_synced ?? 0;
+          const synced = refresh.synced;
           if (hasMoreSgSearchDocuments(synced, searchBatchSize)) {
             const { error: continuationErr } = await db.from("style_guide_crawl_runs").update({
               lifecycle_state: "refreshing",
