@@ -406,12 +406,12 @@ const HEARTBEAT_STAT_TIMEOUT_MS = 10_000;
 // immediately instead of piling up another stuck libuv request every beat.
 const pendingStatProbes = new Map<string, Promise<unknown>>();
 async function probeStat(path: string): Promise<void> {
-  let probe = pendingStatProbes.get(path);
-  if (!probe) {
-    probe = stat(path).finally(() => pendingStatProbes.delete(path));
-    probe.catch(() => {}); // settled later; errors surface via the race below
-    pendingStatProbes.set(path, probe);
+  if (pendingStatProbes.has(path)) {
+    throw new Error(`stat ${path} timed out (previous probe still pending)`);
   }
+  const probe = stat(path).finally(() => pendingStatProbes.delete(path));
+  probe.catch(() => {}); // may settle long after the race below gave up
+  pendingStatProbes.set(path, probe);
   await withTimeout(probe, HEARTBEAT_STAT_TIMEOUT_MS, `stat ${path}`);
 }
 

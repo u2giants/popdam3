@@ -33,9 +33,9 @@ test("fires once with diagnostics and non-zero exit after timeout without succes
   const h = harness();
   setActivity("scan:walk");
   h.wd.noteSuccess();
+  h.wd.noteFailure("heartbeat timed out after 300000ms"); // last completed beat, then a hang
   h.advance(9 * 60_000);
   assert.equal(h.wd.check(), false);
-  h.wd.noteFailure("heartbeat timed out after 300000ms");
   h.advance(60_000);
   assert.equal(h.wd.check(), true);
   assert.equal(h.wd.check(), true);
@@ -89,16 +89,23 @@ test("API outage holds restart until the outage ceiling, then restarts", () => {
   assert.deepEqual(h.exits, [70]);
 });
 
-test("timeouts do not count as a healthy API answer", () => {
+test("a completed fetch timeout proves the loop is alive and holds restart", () => {
   const h = harness();
   h.advance(10 * 60_000);
   h.wd.noteFailure("The operation was aborted due to timeout");
+  assert.equal(h.wd.check(), false);
+});
+
+test("a hung beat (no completion at all) restarts at the timeout", () => {
+  const h = harness();
+  h.wd.noteFailure("agent-api heartbeat returned 503: x");
+  h.advance(10 * 60_000 + 1); // last completion is older than the window
   assert.equal(h.wd.check(), true);
 });
 
 test("classifyHeartbeatFailure", () => {
   assert.equal(classifyHeartbeatFailure("agent-api heartbeat returned 403: x"), "auth");
-  assert.equal(classifyHeartbeatFailure("stat scan root timed out after 10000ms"), "timeout");
+  assert.equal(classifyHeartbeatFailure("The operation was aborted due to timeout"), "api");
   assert.equal(classifyHeartbeatFailure("agent-api heartbeat returned 500: x"), "api");
   assert.equal(classifyHeartbeatFailure("agent-api heartbeat returned 504: upstream timeout"), "api");
 });

@@ -137,14 +137,15 @@ export function createLivenessWatchdog(opts: LivenessWatchdogOptions) {
   };
 }
 
-export type FailureKind = "auth" | "api" | "timeout";
+export type FailureKind = "auth" | "api";
 
-/** auth = key rejected; api = server/network answered with an error; timeout = something hung. */
+/**
+ * auth = key rejected (restart cannot help). api = any other failure that
+ * COMPLETED — including fetch timeouts — which proves the loop is alive.
+ * A real hang never completes, so it never reaches noteFailure at all.
+ */
 export function classifyHeartbeatFailure(message: string): FailureKind {
   if (/returned 40[13]\b/.test(message)) return "auth";
-  // Any HTTP status means the server answered — even if its body mentions a timeout.
-  if (/returned \d{3}\b/.test(message)) return "api";
-  if (/timed out|timeout|aborted/i.test(message)) return "timeout";
   return "api";
 }
 
@@ -208,7 +209,7 @@ export function startEventLoopBackstop(
 
 /** Rejects if `p` does not settle within `ms` — keeps the heartbeat loop from hanging forever. */
 export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  let t: ReturnType<typeof setTimeout>;
+  let t: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
     p,
     new Promise<T>((_, reject) => {
