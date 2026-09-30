@@ -16,6 +16,7 @@ import { config } from "./config.js";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
 import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { createLivenessWatchdog, startEventLoopBackstop, setActivity, getActivity, withTimeout } from "./liveness-watchdog.js";
 import { exec } from "node:child_process";
 import { stat, readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import { validateScanRoots, scanFiles, isPdfCandidate, type FileCandidate, type ScanCallbacks } from "./scanner.js";
@@ -219,8 +220,11 @@ async function sendHeartbeat() {
     scan_roots: effectiveRoots,
   };
 
+  // Every fs probe is time-boxed: on a hung NAS mount (or a libuv threadpool
+  // saturated by scan I/O) an un-bounded stat() never settles, the loop's
+  // .finally() never reschedules, and heartbeats stop forever (#167).
   try {
-    await stat(effectiveMountRoot);
+    await withTimeout(stat(effectiveMountRoot), HEARTBEAT_STAT_TIMEOUT_MS, "stat mount root");
     diagnostics.mount_root_exists = true;
   } catch {
     diagnostics.mount_root_exists = false;
@@ -230,7 +234,7 @@ async function sendHeartbeat() {
   const readableRoots: string[] = [];
   for (const root of effectiveRoots) {
     try {
-      await stat(root);
+      await withTimeout(stat(root), HEARTBEAT_STAT_TIMEOUT_MS, "stat scan root");
       readableRoots.push(root);
     } catch {
       unreadableRoots.push(root);
@@ -240,6 +244,7 @@ async function sendHeartbeat() {
   diagnostics.unreadable_roots = unreadableRoots;
   diagnostics.scan_roots_readable = unreadableRoots.length === 0;
   diagnostics.marker_statuses = { ...markerStatuses };
+  diagnostics.activity = getActivity();
 
   const response = await api.heartbeat(agentId, { ...counters }, lastError, {
     image_tag: imageTag,
@@ -247,6 +252,7 @@ async function sendHeartbeat() {
     build_sha: buildSha,
   }, diagnostics);
   lastError = undefined;
+  livenessWatchdog.noteSuccess();
   logger.debug("Heartbeat sent");
 
   if (response.config) {
@@ -383,10 +389,37 @@ async function sendHeartbeat() {
   }
 }
 
+const HEARTBEAT_STAT_TIMEOUT_MS = 10_000;
+// Whole-beat ceiling: callApi retries up to 5x with a 30s timeout each, so a
+// beat can legitimately take a few minutes. Anything beyond this is a hang.
+const HEARTBEAT_TOTAL_TIMEOUT_MS = 5 * 60_000;
+const WATCHDOG_TIMEOUT_MS = Math.max(
+  60_000,
+  Number(process.env.HEARTBEAT_WATCHDOG_MINUTES || 10) * 60_000,
+);
+
+const livenessWatchdog = createLivenessWatchdog({
+  timeoutMs: WATCHDOG_TIMEOUT_MS,
+  isAuthFailing: api.isAuthFailing,
+  getDiagnostics: () => ({
+    agent_id: agentId,
+    version: packageVersion,
+    is_scanning: isScanning,
+    counters: { ...counters },
+    last_error: lastError,
+  }),
+  logFatal: (msg, meta) => logger.error(msg, meta),
+  logWarn: (msg, meta) => logger.warn(msg, meta),
+  exit: (code) => process.exit(code),
+});
+
 function startHeartbeat() {
   const loop = () => {
-    sendHeartbeat()
-      .catch((e) => logger.error("Heartbeat failed", { error: (e as Error).message }))
+    withTimeout(sendHeartbeat(), HEARTBEAT_TOTAL_TIMEOUT_MS, "heartbeat")
+      .catch((e) => {
+        livenessWatchdog.noteFailure((e as Error).message);
+        logger.error("Heartbeat failed", { error: (e as Error).message });
+      })
       .finally(() => {
         // Slow down after repeated auth failures instead of retrying every 30s.
         const delayMs = api.suggestedHeartbeatDelayMs();
@@ -812,6 +845,7 @@ async function runScan(providedSessionId?: string) {
   }
 
   isScanning = true;
+  setActivity("scan:walk");
   abortRequested = false;
   resetCounters();
   const sessionId = providedSessionId || randomUUID();
@@ -991,6 +1025,7 @@ async function runScan(providedSessionId?: string) {
       return;
     }
 
+    setActivity(`scan:ingest (${scanCandidates.length} candidates)`);
     await processScanCandidates(scanCandidates, sessionId);
     logScanMemory("ingest_complete", {
       sessionId,
@@ -1020,6 +1055,7 @@ async function runScan(providedSessionId?: string) {
     // restart can resume. The ingest phase clears it before processing starts.
   } finally {
     isScanning = false;
+    setActivity("idle");
     lastScanCompletedAt = Date.now();
   }
 
@@ -1952,6 +1988,11 @@ async function main() {
 
   // 2. Start heartbeat (independent timer — fallback command channel)
   startHeartbeat();
+  // 2b. Liveness watchdog (#167): exit non-zero if heartbeats stop succeeding,
+  // and SIGKILL from a worker thread if the event loop freezes outright.
+  livenessWatchdog.start();
+  startEventLoopBackstop(WATCHDOG_TIMEOUT_MS);
+  logger.info("Heartbeat watchdog armed", { timeout_ms: WATCHDOG_TIMEOUT_MS });
 
   // 3. Start Realtime watcher (instant scan-request delivery when SUPABASE_ANON_KEY is set)
   const cleanupRealtime = startRealtimeWatcher(config.supabaseUrl, config.supabaseAnonKey, agentId, onRealtimeScanRequest);
