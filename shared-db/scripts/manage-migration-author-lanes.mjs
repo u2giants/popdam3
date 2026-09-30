@@ -6228,7 +6228,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1,reviewerAllowlist=
       // was independent when assigned can become a same-provider conflict by
       // the time a retry lands here. Every return path below must fail the
       // same way a fresh assignment would, never hand back a stale answer.
-      if(!eligibleNames.has(prior.reviewer))throw new LaneError(`durable assignment sequence ${prior.sequence} belongs to a retired, quarantined or orchestrator-conflicting reviewer ${prior.reviewer}; its active lease was not recreated. Record a governed replacement for this exact head`)
+      if(!eligibleNames.has(prior.reviewer))throw new LaneError(`durable assignment sequence ${prior.sequence} belongs to a retired, quarantined or orchestrator-conflicting reviewer ${prior.reviewer}; its active lease was not recreated. Record a governed replacement for this exact head. If ${prior.reviewer} is only quarantined (not retired) and already recorded a substantive exact-head verdict, that verdict still counts once the quarantine is cleared: run ai-review-preflight clear (or requalify) for the provider and re-run this check; do not attempt replacement or release while that verdict exists — both refuse by design and must never delete or forge refs.`)
       if(preflightLease?.sha===priorSha&&preflightLease.lease.issue===prior.issue&&preflightLease.lease.pr===prior.pr&&preflightLease.lease.headSha===prior.headSha&&preflightLease.lease.sequence===prior.sequence&&!stalePrior){
         assertAssignmentWasNotTerminallyReleased(request,prior,io)
         requireOwnedRef(MUTEX_REF,ownerSha,io)
@@ -6275,7 +6275,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1,reviewerAllowlist=
       // Refuse here, before any ref is created, with the same repair route.
       if(!eligibleNames.has(current.reviewer))throw new LaneError(ACTIVE_REVIEWERS.some((row)=>row.name===current.reviewer)
         ?`current reviewer ${current.reviewer} conflicts with the live orchestrator engine; assign an independent reviewer`
-        :`current reviewer cursor sequence ${current.sequence} belongs to a retired, quarantined or orchestrator-conflicting reviewer ${current.reviewer}; no assignment was recorded and no lease was taken. Record a governed replacement for this exact head`)
+        :`current reviewer cursor sequence ${current.sequence} belongs to a retired, quarantined or orchestrator-conflicting reviewer ${current.reviewer}; no assignment was recorded and no lease was taken. Record a governed replacement for this exact head. If ${current.reviewer} is only quarantined (not retired) and already recorded a substantive exact-head verdict, that verdict still counts once the quarantine is cleared: run ai-review-preflight clear (or requalify) for the provider and re-run this check; do not attempt replacement or release while that verdict exists — both refuse by design and must never delete or forge refs.`)
       assertDistinct(current.reviewer)
       assertAssignmentWasNotTerminallyReleased(request,current,io)
       if(!io.createRef(assignmentRef,cursorSha)&&readRefAfterWrite(assignmentRef,cursorSha,io)!==cursorSha)throw new LaneError('review assignment record could not be proved; retry the same assignment')
@@ -6877,7 +6877,7 @@ export function releaseFailedReviewer(options,io=githubIo){
     const superseded=String(options.failureCode)===REVIEW_TARGET_SUPERSEDED
     if(superseded){if(!reviewTargetSuperseded(prRow,request.headSha))throw new LaneError(`${REVIEW_TARGET_SUPERSEDED} requires proof the review target moved: PR #${request.pr} must be closed or its open head must differ from ${request.headSha}. The recorded head is still the open PR head, so this is not a superseded target.`)}
     else if(!reviewIssueEligible(issueRow,prRow,io)||!reviewTargetEligible(prRow,io)||prRow?.head?.sha!==request.headSha)throw new LaneError('reviewer release requires the exact eligible PR head')
-    if(hasVerdictForHead(request.issue,request.pr,request.headSha,io,{slot:request.slot}))throw new LaneError('an existing verdict for the exact head forbids reviewer release')
+    if(hasVerdictForHead(request.issue,request.pr,request.headSha,io,{slot:request.slot}))throw new LaneError('an existing verdict for the exact head forbids reviewer release. That verdict is the authorization of record; do not delete, forge, or replace it. If the reviewer that wrote it is only quarantined (not retired), clear the quarantine with ai-review-preflight clear (or requalify) so the existing exact-head verdict counts again.')
     const cached=activeLeaseRecordForAssignment(preflightBusy,{...original,slot:request.slot}),leaseRefForRelease=resolveAssignmentLeaseRef({...original,slot:request.slot},Boolean(io.requiresExactReviewHeadSha),io,preflightBusy),failedLeaseSha=cached?.sha??io.readRef(leaseRefForRelease),failedLease=failedLeaseSha?(cached?.sha===failedLeaseSha?cached.lease:parseReviewLease(io.getCommit(failedLeaseSha))):null
     // State the SLOT explicitly (#2694 review). The tuple compared here omitted the
     // slot, and was only safe because the single global sequence cursor keeps
@@ -7119,7 +7119,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     // listing, so the attributed head-wide check answers for it too and the
     // separate single-ref read it used to do is gone.
     const hasVerdict=headVerdictBlocksReplacement(request.issue,request.pr,request.headSha,io,{slot:request.slot})
-    if(hasVerdict)throw new LaneError('an existing verdict for the exact head forbids reviewer replacement')
+    if(hasVerdict)throw new LaneError('an existing verdict for the exact head forbids reviewer replacement. That verdict is the authorization of record; do not delete, forge, or replace it. If the reviewer that wrote it is only quarantined (not retired), clear the quarantine with ai-review-preflight clear (or requalify) so the existing exact-head verdict counts again.')
     // findBusyReviewers returns a complete, fail-closed snapshot of the static
     // reviewer catalog. It evaluates capacity only for today's drawable roster,
     // but it also carries an exact retired-reviewer lease when an older failure
