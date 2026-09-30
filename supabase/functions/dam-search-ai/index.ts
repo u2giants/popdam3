@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
+import { parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
 
 declare const Supabase: {
   ai: {
@@ -156,7 +157,15 @@ corsServe(async (req) => {
     if (typeof filters !== "object" || Array.isArray(filters)) {
       return err("Invalid filters", 400);
     }
-    const embedding = await embedText(query);
+    const [embedding, floorConfig] = await Promise.all([
+      embedText(query),
+      // Server-side only: callers cannot override the admin-configured floor.
+      serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle(),
+    ]);
+    // Fail open: a config read failure must not take search down; it only
+    // drops the optional floor for this request.
+    if (floorConfig.error) console.error("SEARCH_MIN_SEMANTIC_SCORE read failed; searching without floor", floorConfig.error.message);
+    const minSemanticScore = floorConfig.error ? null : parseSemanticFloor(floorConfig.data?.value);
 
     // The caller-scoped client is required here: the RPC enforces DAM access
     // from auth.uid(), which a service-role client would bypass.
@@ -168,6 +177,7 @@ corsServe(async (req) => {
       p_document_types: documentTypes,
       p_query_embedding: embedding,
       p_min_rank: minRank,
+      p_min_semantic_score: minSemanticScore,
     });
     if (error) throw error;
     const results = Array.isArray(data)

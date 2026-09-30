@@ -10,6 +10,7 @@ import { ConflictDialog, type ConflictState } from "./diagnostics/ConflictDialog
 import { QueueManagerDialog } from "./diagnostics/QueueManagerDialog";
 import { AiTaggingInstructionsSection, CharacterStatsSection, AiModelsConfigSection } from "./ApisTab";
 import { SearchIndexCard } from "./SearchIndexCard";
+import { SemanticFloorCard } from "./SemanticFloorCard";
 
 export default function AiTaggingTab() {
   const { call } = useAdminApi();
@@ -98,6 +99,7 @@ export default function AiTaggingTab() {
 
       <AiTaggingSection requestOp={requestOp} />
       <SearchIndexCard />
+      <SemanticFloorCard />
       <AiModelsConfigSection />
       <AiTaggingInstructionsSection />
       <CharacterStatsSection />
