@@ -226,7 +226,7 @@ async function sendHeartbeat() {
   // "unreadable" — under heavy scan I/O a slow stat does not mean a bad root.
   const timedOutRoots: string[] = [];
   try {
-    await withTimeout(stat(effectiveMountRoot), HEARTBEAT_STAT_TIMEOUT_MS, "stat mount root");
+    await probeStat(effectiveMountRoot);
     diagnostics.mount_root_exists = true;
   } catch (e) {
     if (/timed out/.test((e as Error).message)) {
@@ -239,7 +239,7 @@ async function sendHeartbeat() {
   const readableRoots: string[] = [];
   for (const root of effectiveRoots) {
     try {
-      await withTimeout(stat(root), HEARTBEAT_STAT_TIMEOUT_MS, "stat scan root");
+      await probeStat(root);
       readableRoots.push(root);
     } catch (e) {
       if (/timed out/.test((e as Error).message)) timedOutRoots.push(root);
@@ -400,9 +400,28 @@ async function sendHeartbeat() {
 }
 
 const HEARTBEAT_STAT_TIMEOUT_MS = 10_000;
+
+// A stat() on a hung mount cannot be cancelled. Keep at most one probe per
+// path in flight: while an earlier probe is still stuck, report "timed out"
+// immediately instead of piling up another stuck libuv request every beat.
+const pendingStatProbes = new Map<string, Promise<unknown>>();
+async function probeStat(path: string): Promise<void> {
+  let probe = pendingStatProbes.get(path);
+  if (!probe) {
+    probe = stat(path).finally(() => pendingStatProbes.delete(path));
+    probe.catch(() => {}); // settled later; errors surface via the race below
+    pendingStatProbes.set(path, probe);
+  }
+  await withTimeout(probe, HEARTBEAT_STAT_TIMEOUT_MS, `stat ${path}`);
+}
+
+// One heartbeat can legitimately take ~5.5 min (5 attempts x 60s fetch timeout
+// + backoff + stat probes), so the watchdog never fires sooner than 10 min —
+// HEARTBEAT_WATCHDOG_MINUTES can only raise it.
+const WATCHDOG_MIN_MINUTES = 10;
 const WATCHDOG_TIMEOUT_MS = (() => {
   const minutes = Number(process.env.HEARTBEAT_WATCHDOG_MINUTES);
-  return Number.isFinite(minutes) && minutes >= 1 ? minutes * 60_000 : 10 * 60_000;
+  return (Number.isFinite(minutes) ? Math.max(minutes, WATCHDOG_MIN_MINUTES) : WATCHDOG_MIN_MINUTES) * 60_000;
 })();
 
 const livenessWatchdog = createLivenessWatchdog({
