@@ -7,18 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { toast } from "sonner";
+import { parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../../../supabase/functions/_shared/semantic-floor.ts";
 
-const KEY = "SEARCH_MIN_SEMANTIC_SCORE";
-
-export function readSemanticFloor(raw: unknown): number | null {
-  const value = raw && typeof raw === "object" && !Array.isArray(raw) && "value" in raw
-    ? (raw as { value: unknown }).value
-    : raw;
-  if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) return null;
-  if (typeof value !== "number" && typeof value !== "string") return null;
-  const n = Number(value);
-  return Number.isFinite(n) && n >= 0 && n <= 1 ? n : null;
-}
+// Same parser the dam-search-ai edge function applies, so the UI and search agree.
+const KEY = SEARCH_MIN_SEMANTIC_SCORE_KEY;
+export const readSemanticFloor = parseSemanticFloor;
 
 export function SemanticFloorCard() {
   const { call } = useAdminApi();

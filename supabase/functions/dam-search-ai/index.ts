@@ -162,8 +162,10 @@ corsServe(async (req) => {
       // Server-side only: callers cannot override the admin-configured floor.
       serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle(),
     ]);
-    if (floorConfig.error) throw floorConfig.error;
-    const minSemanticScore = parseSemanticFloor(floorConfig.data?.value);
+    // Fail open: a config read failure must not take search down; it only
+    // drops the optional floor for this request.
+    if (floorConfig.error) console.error("SEARCH_MIN_SEMANTIC_SCORE read failed; searching without floor", floorConfig.error.message);
+    const minSemanticScore = floorConfig.error ? null : parseSemanticFloor(floorConfig.data?.value);
 
     // The caller-scoped client is required here: the RPC enforces DAM access
     // from auth.uid(), which a service-role client would bypass.
