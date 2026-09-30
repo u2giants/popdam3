@@ -1,6 +1,6 @@
 import { unwrapConfigValue } from "./config-utils.ts";
 
-/** admin_config key holding the semantic-similarity floor for DAM search (issue #97). */
+/** admin_config key for the DAM search semantic floor (popdam3 #97; RPC contract shared-db #3457). */
 export const SEARCH_MIN_SEMANTIC_SCORE_KEY = "SEARCH_MIN_SEMANTIC_SCORE";
 
 /**

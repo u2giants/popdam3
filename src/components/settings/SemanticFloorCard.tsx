@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../../../supabase/functions/_shared/semantic-floor.ts";
 
 // Same parser the dam-search-ai edge function applies, so the UI and search agree.
+// The explicit .ts specifier is allowed by tsconfig.app.json allowImportingTsExtensions
+// (bundler resolution) and matches Deno, which requires it.
 const KEY = SEARCH_MIN_SEMANTIC_SCORE_KEY;
 export const readSemanticFloor = parseSemanticFloor;
 
