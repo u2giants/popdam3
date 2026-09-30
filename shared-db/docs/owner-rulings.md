@@ -40,6 +40,7 @@
 | [6.19](#619-owner-ruling-contact-information-does-not-belong-in-this-system-at-all-except-popcrm-routing-email-albert-hazan-2026-09-06) | OWNER RULING — contact information does not belong in this system at all, except PopCRM routing email (Albert Hazan, 2026-09-06) |
 | [6.20](#620-owner-ruling-the-peanuts-property-is-the-art-program-not-the-retailer-initiative-and-wildbrains-era-and-creative-group-are-two-axes-not-a-choice-albert-hazan-2026-09-07) | OWNER RULING — the Peanuts property is the ART PROGRAM, not the retailer initiative; and WildBrain's era and creative group are two axes, not a choice (Albert Hazan, 2026-09-07) |
 | [6.21](#621-owner-ruling-no-new-direct-database-logins-albert-hazan-2026-09-23) | OWNER RULING — no new direct database logins (Albert Hazan, 2026-09-23) |
+| [6.23](#623-owner-ruling-albert-is-not-a-technical-reviewer-production-risk-classes-are-accepted-by-the-ai-reviewer-albert-hazan-2026-09-30) | OWNER RULING — Albert is not a technical reviewer; production risk classes are accepted by the AI reviewer (Albert Hazan, 2026-09-30) |
 
 ---
 
@@ -2035,3 +2036,22 @@ every technical production approval to a separate independent reviewer. Still re
 allocator-assigned exact-head AI review APPROVE on the source pull request, exact-main binding,
 ordered allowlist, preview proof, target proof, business-risk evidence and the production
 environment boundary. See `docs/production-promotion-procedure.md` step 2.
+
+### 6.23 OWNER RULING — Albert is not a technical reviewer; production risk classes are accepted by the AI reviewer (Albert Hazan, 2026-09-30)
+
+Verbatim from Albert's chat (2026-09-30): "i am non-technical and unqualified to answer technical
+questions. as a reviewer. now and in the future". Read with the 2026-09-28 ruling "never ask a
+human to approve".
+
+Consequence for the automatic production promotion lane: the risk classes the business-risk gate
+derives from SQL text (`material_access_change`, `permanent_data_rewrite_or_loss`,
+`expected_downtime`) are no longer accepted through a `production-owner-decision` block from
+Albert (precedent #3282 is retired for new use). They are accepted only by the allocator-assigned
+AI reviewer's durable exact-head APPROVE on the source PR whose findings contain one
+`production-risk-assessment` block naming the exact promoted main SHA, the exact ordered versions,
+the source PR, and a written assessment of every flagged class
+(`scripts/prove-production-risk-acceptance.mjs`). `recovery_unproven` and
+`unresolved_material_objection` are never accepted by anyone. Every other gate is unchanged: exact
+main, ordered allowlist, preview or ephemeral evidence, hard blocks, production lock, target proof
+and post-apply verification. Never ask Albert a technical question, and never author or forge a
+comment in his name.

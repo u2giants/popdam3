@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "work_issue": 3849,
+  "outcome": "ready-for-merge",
+  "pr": 3850,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3849/1",
+  "contract_sha256": "36e5a3c3b64202461ec104a9876090b62d36e59dc2cfa857e7015ddbfc6dbdea",
+  "head_sha": "e8ae5649f4db23aaa9e4389be640b29dbfcc5746",
+  "base_sha": "b687b3dd4573bedb9f79b4105e137abfab2c2fb7",
+  "files_changed": [
+    ".github/workflows/production-owner-decision-evidence.yml",
+    "AGENTS.md",
+    "docs/owner-rulings.md",
+    "docs/production-promotion-procedure.md",
+    "scripts/production_business_risk_gate.py",
+    "scripts/prove-production-risk-acceptance.mjs",
+    "scripts/prove-production-risk-acceptance.test.mjs",
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -m pytest scripts/test_production_business_risk_gate.py -q",
+      "exit_code": 0,
+      "evidence": "191 passed, 284 subtests passed at e8ae5649f4db23aaa9e4389be640b29dbfcc5746 (run from the repository root)."
+    },
+    {
+      "command": "node --test scripts/prove-production-risk-acceptance.test.mjs",
+      "exit_code": 0,
+      "evidence": "# pass 3 # fail 0 at e8ae5649f4db23aaa9e4389be640b29dbfcc5746."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors against b687b3dd4573bedb9f79b4105e137abfab2c2fb7."
+    }
+  ],
+  "assumptions_resolved": [
+    "The contract was published after implementation commit e8ae5649f4db23aaa9e4389be640b29dbfcc5746, recorded in the contract's assumptions."
+  ],
+  "stop_conditions_hit": []
+}

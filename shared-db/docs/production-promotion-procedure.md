@@ -104,9 +104,14 @@ artifact digests.
 
 The automatic dispatch queues behind this workflow's single global concurrency group. The
 production job then acquires the exclusive production lock and repeats the governed evidence
-checks. Automatic v2 evidence also fails to an engineer if any of the five derived risk classes
-is present: permanent data loss/rewrite, expected downtime, material access change, unproven
-recovery, or unresolved material objection. Missing or ambiguous qualification evidence stops
+checks. Automatic v2 evidence fails to an engineer if unproven recovery or an unresolved material
+objection is derived. If the SQL-derived classes (permanent data loss/rewrite, expected downtime,
+material access change) are present, it proceeds only when the allocator-assigned AI reviewer's
+durable exact-head APPROVE on the source PR carries one `production-risk-assessment` block naming
+the exact main SHA, the exact ordered versions, the source PR and a written assessment of every
+flagged class (owner ruling 2026-09-30, `docs/owner-rulings.md` §6.23: Albert is not a technical
+reviewer). Draw that review with the allocator (a fresh `--review-slot` on the merged source PR
+head), never out of rotation; never ask Albert, and never use a `production-owner-decision` block. Missing or ambiguous qualification evidence stops
 before dispatch; any failed recheck after dispatch still stops before a database write with
 `ENGINEER ACTION REQUIRED`. It never falls back to asking Albert to name versions. Manual
 production dispatch is a recovery/engineering path only and is not authorized by the automatic

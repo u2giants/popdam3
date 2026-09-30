@@ -2378,6 +2378,49 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 enforce_automatic_risk_decision(automatic, decision)
             enforce_automatic_risk_decision(legacy, decision)
 
+    def test_ai_reviewer_assessment_accepts_flagged_sql_risks_never_a_human(self):
+        # Owner ruling 2026-09-30: Albert is not a technical reviewer. A flagged SQL
+        # risk class is accepted only by the durable exact-head AI reviewer assessment.
+        automatic = {"schema_version": "shared-db-production-apply-review/v2"}
+        flagged = decide_business_risk(
+            [RISK_TEXT["material_access_change"], RISK_TEXT["permanent_data_rewrite_or_loss"]],
+            recovery_proven=True, review_approved=True,
+        )
+        seen = []
+        evidence = {"verdictRef": "refs/db-review-verdicts/1-2-" + "a" * 40 + "-slot3"}
+        self.assertEqual(
+            enforce_automatic_risk_decision(automatic, flagged, lambda keys: seen.append(keys) or evidence),
+            evidence,
+        )
+        self.assertEqual(seen, [["material_access_change", "permanent_data_rewrite_or_loss"]])
+        with self.assertRaisesRegex(RiskGateError, "ENGINEER ACTION REQUIRED.*never by a human: no durable"):
+            enforce_automatic_risk_decision(
+                automatic, flagged,
+                lambda keys: (_ for _ in ()).throw(RiskGateError("no durable APPROVE")),
+            )
+        with self.assertRaisesRegex(RiskGateError, "ENGINEER ACTION REQUIRED"):
+            enforce_automatic_risk_decision(automatic, flagged)
+        for key in ("recovery_unproven", "unresolved_material_objection"):
+            decision = {"automaticPromotionAllowed": False, "ownerDecisionReasons": [RISK_TEXT[key]]}
+            with self.subTest(key=key), self.assertRaisesRegex(RiskGateError, "ENGINEER ACTION REQUIRED"):
+                enforce_automatic_risk_decision(automatic, decision, lambda keys: self.fail("must not ask"))
+
+    def test_ai_risk_acceptance_prover_output_is_bound_to_the_exact_promotion(self):
+        import production_business_risk_gate as gate
+        good = {"mainSha": "b" * 40, "orderedAllowlist": ["20260930185929"], "sourcePr": 7,
+                "headSha": "c" * 40, "assessedRisks": {"material_access_change": "x"}}
+        def runner(out, code=0):
+            return lambda *a, **k: type("R", (), {"returncode": code, "stdout": json.dumps(out), "stderr": "refused"})()
+        kwargs = dict(issue=1, pr=7, head_sha="c" * 40, main_sha="b" * 40,
+                      allowlist=["20260930185929"], risks=["material_access_change"])
+        self.assertEqual(gate.prove_ai_risk_acceptance(**kwargs, runner=runner(good)), good)
+        with self.assertRaisesRegex(RiskGateError, "refused"):
+            gate.prove_ai_risk_acceptance(**kwargs, runner=runner(good, 2))
+        for field, value in (("mainSha", "d" * 40), ("orderedAllowlist", []), ("sourcePr", 8),
+                             ("headSha", "e" * 40), ("assessedRisks", {})):
+            with self.subTest(field=field), self.assertRaisesRegex(RiskGateError, "not bound"):
+                gate.prove_ai_risk_acceptance(**kwargs, runner=runner({**good, field: value}))
+
     def test_forged_preview_claim_is_rejected_before_download(self):
         forged = "b" * 40
         run = {

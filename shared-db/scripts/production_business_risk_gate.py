@@ -2899,17 +2899,79 @@ def optional_text(value: Any) -> str | None:
     return text or None
 
 
-def enforce_automatic_risk_decision(review: dict[str, Any], decision: dict[str, Any]) -> None:
-    """An automatic v2 verdict may proceed only when every risk class is clear."""
+# OWNER RULING, Albert Hazan in his chat 2026-09-30 (verbatim): "i am
+# non-technical and unqualified to answer technical questions. as a reviewer.
+# now and in the future". With 2026-09-28's "never ask a human to approve", a
+# flagged risk class is accepted ONLY by the allocator-assigned AI reviewer's
+# durable exact-head APPROVE whose findings assess every flagged class for the
+# exact versions at the exact main SHA (scripts/prove-production-risk-acceptance.mjs).
+# Only these three SQL-derived classes can be accepted that way; an unproven
+# recovery or an unresolved objection is never accepted by anyone.
+AI_ACCEPTABLE_RISKS = ("expected_downtime", "material_access_change", "permanent_data_rewrite_or_loss")
+RISK_ACCEPTANCE_PROVER = Path(__file__).resolve().parent / "prove-production-risk-acceptance.mjs"
+
+
+def derived_risk_keys(decision: dict[str, Any]) -> list[str]:
+    reasons = decision.get("ownerDecisionReasons") or []
+    keys = sorted(key for key, text in RISK_TEXT.items() if text in reasons)
+    if len(keys) != len(set(reasons)):
+        raise RiskGateError("a derived risk reason has no known risk class")
+    return keys
+
+
+def prove_ai_risk_acceptance(
+    *, issue: int, pr: int, head_sha: str, main_sha: str, allowlist: list[str], risks: list[str],
+    runner: Callable[..., Any] = subprocess.run,
+) -> dict[str, Any]:
+    result = runner(
+        ["node", str(RISK_ACCEPTANCE_PROVER), "--issue", str(issue), "--pr", str(pr),
+         "--head-sha", head_sha, "--main-sha", main_sha, "--allowlist", ",".join(allowlist),
+         "--risks", ",".join(risks)],
+        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",
+    )
+    if result.returncode != 0:
+        raise RiskGateError((result.stderr or "reviewer risk acceptance is not proved").strip())
+    try:
+        evidence = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RiskGateError("reviewer risk acceptance output is not JSON") from exc
+    if (
+        evidence.get("mainSha") != main_sha or evidence.get("orderedAllowlist") != allowlist
+        or evidence.get("sourcePr") != pr or evidence.get("headSha") != head_sha.lower()
+        or sorted(evidence.get("assessedRisks") or {}) != sorted(risks)
+    ):
+        raise RiskGateError("reviewer risk acceptance is not bound to this exact promotion")
+    return evidence
+
+
+def enforce_automatic_risk_decision(
+    review: dict[str, Any], decision: dict[str, Any], acceptance: Callable[[list[str]], dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    """An automatic v2 verdict proceeds when every risk class is clear, or when every
+    flagged class is accepted by the durable exact-head AI reviewer assessment."""
     if (
         review.get("schema_version") == "shared-db-production-apply-review/v2"
         and decision.get("automaticPromotionAllowed") is not True
     ):
         reasons = decision.get("ownerDecisionReasons") or ["business-risk decision is not clear"]
-        raise RiskGateError(
+        prefix = (
             "ENGINEER ACTION REQUIRED: automatic production promotion is not fully "
             f"machine-qualified: {'; '.join(str(reason) for reason in reasons)}"
         )
+        try:
+            keys = derived_risk_keys(decision)
+        except RiskGateError as exc:
+            raise RiskGateError(f"{prefix} ({exc})") from exc
+        if acceptance is None or not keys or any(key not in AI_ACCEPTABLE_RISKS for key in keys):
+            raise RiskGateError(prefix)
+        try:
+            return acceptance(keys)
+        except RiskGateError as exc:
+            raise RiskGateError(
+                f"{prefix}. These classes are accepted only by the allocator-assigned AI reviewer's durable "
+                f"exact-head APPROVE assessing each of them at this exact main SHA, never by a human: {exc}"
+            ) from exc
+    return None
 
 
 def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifact) -> dict[str, Any]:
@@ -3010,7 +3072,13 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
                 except (RiskGateError, ValueError) as exc:
                     raise RiskGateError(f"migration train preview proof for source PR {train_pr}: {exc}") from exc
     decision = decide_business_risk(classify_sql(repo_root, allowlist), recovery_proven=True, review_approved=True)
-    enforce_automatic_risk_decision(review, decision)
+    ai_risk_acceptance = enforce_automatic_risk_decision(
+        review, decision,
+        lambda keys: prove_ai_risk_acceptance(
+            issue=args.work_issue, pr=args.pr, head_sha=pr_head, main_sha=args.main_sha,
+            allowlist=allowlist, risks=keys,
+        ),
+    )
     # OWNER RULING 2026-08-18: the machine-readable owner-decision block remains
     # retired as a mandatory technical rubber stamp. The five independently
     # derived risks are still recorded in the evidence below, but a missing block
@@ -3063,6 +3131,7 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
             "ephemeralCi": ephemeral_evidence,
             "allowlist": allowlist,
             "ownerDecision": owner_evidence,
+            "aiRiskAcceptance": ai_risk_acceptance,
         },
     }
     if train is not None:

@@ -53,6 +53,9 @@ the map below.
 
 - **Never ask a human to approve (Albert Hazan, 2026-09-28).** Allocator-assigned AI review
   gates technical actions; the AI performs every manual step itself. Full text: §1 below.
+- **Albert is not a technical reviewer, now or in the future (Albert Hazan, 2026-09-30).**
+  Production risk classes are accepted by the allocator-assigned AI reviewer's durable exact-head
+  assessment, never by Albert. Full text: [`owner-rulings.md` §6.23](docs/owner-rulings.md).
 
 - **§0.0-B — STRUCTURE, not DATA (Albert Hazan, 2026-08-13).** This repo and its orchestrator
   govern the *shape* of the database (schema, tables, columns, views, functions, triggers, RLS,

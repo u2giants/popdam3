@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "work_issue": 3849,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Accept flagged automatic-production risk classes only by the allocator-assigned AI reviewer's durable exact-head assessment at the exact main SHA, never by Albert (owner ruling 2026-09-30)",
+  "base_sha": "b687b3dd4573bedb9f79b4105e137abfab2c2fb7",
+  "dispatcher": "Claude chat 07df4e05-b3e9-4363-931a-b63ff0886144",
+  "worker": "Claude subagent chat 07df4e05-b3e9-4363-931a-b63ff0886144",
+  "branch": "claude/ai-risk-acceptance",
+  "worktree": "/worksp/shared-db/.wt-ai-risk",
+  "allowed_paths": [
+    ".github/workflows/production-owner-decision-evidence.yml",
+    "AGENTS.md",
+    "docs/owner-rulings.md",
+    "docs/production-promotion-procedure.md",
+    "scripts/production_business_risk_gate.py",
+    "scripts/prove-production-risk-acceptance.mjs",
+    "scripts/prove-production-risk-acceptance.test.mjs",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/3849/1/contract.json",
+    ".agent/work/3849/1/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/production-owner-decision-evidence.yml",
+    "AGENTS.md",
+    "docs/owner-rulings.md",
+    "docs/production-promotion-procedure.md",
+    "scripts/production_business_risk_gate.py",
+    "scripts/prove-production-risk-acceptance.mjs",
+    "scripts/prove-production-risk-acceptance.test.mjs",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/3849/1/contract.json",
+    ".agent/work/3849/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database write, migration edit, or manual production command",
+    "Never ask a human to approve and never author a comment in Albert's name",
+    "Do not relax exact main, allowlist, preview evidence, hard blocks, or the production lock"
+  ],
+  "required_checks": [
+    "python -m pytest scripts/test_production_business_risk_gate.py -q",
+    "node --test scripts/prove-production-risk-acceptance.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "This contract is published after implementation commit e8ae5649f4db23aaa9e4389be640b29dbfcc5746 already exists on the branch, as in #3443"
+  ],
+  "stop_conditions": [
+    "Refuse any risk class other than the three SQL-derived ones",
+    "Refuse an assessment not bound to exact main, allowlist, source PR, and every derived class"
+  ]
+}
