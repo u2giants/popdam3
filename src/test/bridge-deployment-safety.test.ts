@@ -15,7 +15,7 @@ describe("bridge deployment safety", () => {
 
   it("keeps the production mount writable without unsupported Synology CPU controls", () => {
     const compose = read("deploy/synology/docker-compose.yml");
-    expect(compose).toContain("/volume1/nas-share:/mnt/nas/mac  #");
+    expect(compose).toContain("/volume1/mac:/mnt/nas/mac  #");
     expect(compose).not.toContain("/mnt/nas/mac:ro");
     expect(compose).not.toContain("cpus:");
   });
