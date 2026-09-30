@@ -4776,13 +4776,25 @@ export type Database = {
         Args: never
         Returns: undefined
       }
-      refresh_style_guide_matviews: {
-        Args: { p_run_id?: string; p_search_batch_size?: number }
-        Returns: {
-          refreshed_at: string
-          search_documents_synced: number
-        }[]
-      }
+      refresh_style_guide_matviews:
+        | {
+            Args: { p_run_id?: string; p_search_batch_size?: number }
+            Returns: {
+              refreshed_at: string
+              search_documents_synced: number
+            }[]
+          }
+        | {
+            Args: {
+              p_run_id: string
+              p_search_batch_size: number
+              p_step: string
+            }
+            Returns: {
+              refreshed_at: string
+              search_documents_synced: number
+            }[]
+          }
       refresh_style_tracker_item_bridge: {
         Args: never
         Returns: {
