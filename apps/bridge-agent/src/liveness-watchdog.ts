@@ -48,7 +48,7 @@ const mb = (b: number) => Math.round((b / 1024 / 1024) * 10) / 10;
 
 export function createLivenessWatchdog(opts: LivenessWatchdogOptions) {
   const now = opts.now ?? Date.now;
-  const startedAt = now();
+  let startedAt = now();
   let lastSuccessAt: number | null = null;
   let lastFailureAt: number | null = null;
   let lastFailureError: string | undefined;
@@ -123,6 +123,7 @@ export function createLivenessWatchdog(opts: LivenessWatchdogOptions) {
     check,
     diagnostics,
     start() {
+      startedAt = now(); // grace period starts when armed, not at module load
       lag = monitorEventLoopDelay({ resolution: 50 });
       lag.enable();
       timer = setInterval(check, opts.checkIntervalMs ?? 30_000);

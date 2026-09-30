@@ -229,8 +229,10 @@ async function sendHeartbeat() {
     await withTimeout(stat(effectiveMountRoot), HEARTBEAT_STAT_TIMEOUT_MS, "stat mount root");
     diagnostics.mount_root_exists = true;
   } catch (e) {
-    if (/timed out/.test((e as Error).message)) timedOutRoots.push(effectiveMountRoot);
-    else diagnostics.mount_root_exists = false;
+    if (/timed out/.test((e as Error).message)) {
+      timedOutRoots.push(effectiveMountRoot);
+      diagnostics.mount_root_exists = null; // unknown: probe hung, not proven missing
+    } else diagnostics.mount_root_exists = false;
   }
 
   const unreadableRoots: string[] = [];
@@ -246,7 +248,10 @@ async function sendHeartbeat() {
   }
   diagnostics.readable_roots = readableRoots;
   diagnostics.unreadable_roots = unreadableRoots;
-  diagnostics.scan_roots_readable = unreadableRoots.length === 0;
+  // null = unknown (some probe hung). A hung NAS probe does not fail the beat:
+  // the process is alive and reporting, which is what the watchdog measures;
+  // the hang itself is surfaced via stat_timed_out_roots.
+  diagnostics.scan_roots_readable = unreadableRoots.length > 0 ? false : timedOutRoots.length > 0 ? null : true;
   if (timedOutRoots.length > 0) diagnostics.stat_timed_out_roots = timedOutRoots;
   diagnostics.marker_statuses = { ...markerStatuses };
   diagnostics.activity = getActivity();
@@ -466,9 +471,12 @@ function onRealtimeScanRequest() {
   const now = Date.now();
   if (now - _lastRealtimeWakeMs < 2_000) return; // debounce
   _lastRealtimeWakeMs = now;
-  runHeartbeatOnce().catch((e) =>
-    logger.error("Realtime-triggered heartbeat failed", { error: (e as Error).message }),
-  );
+  // If a beat is already in flight this wake is skipped on purpose: that beat
+  // (or the next scheduled one) delivers the same force_scan command.
+  runHeartbeatOnce().catch((e) => {
+    livenessWatchdog.noteFailure((e as Error).message);
+    logger.error("Realtime-triggered heartbeat failed", { error: (e as Error).message });
+  });
 }
 
 interface CloudConfig {
