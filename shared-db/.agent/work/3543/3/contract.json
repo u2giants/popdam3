@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "generation": 3,
+  "work_issue": 3543,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Carry the approved generation-2 change onto current main after main landed migration 20260930185929: reserved version superseded 20260930184303 -> 20260930193549 through the governed supersession (claim #3844); content otherwise unchanged. Forward-only replacement of function public.update_bulk_operation adding a governed receiptless clear of a completed, bound, non-ambiguous external_job after its submission-lease receipt has expired, at the exact current revision; a repeat clear is a no-op. Reserved version 20260930184303 under claim #3844.",
+  "base_sha": "cab1314f9123ff138e884eeaf03450252d83bb51",
+  "dispatcher": "Claude chat 6437c16f-a3a5-451b-a7eb-ee598ad6bfa5 on hetz (claim-first, no orchestrator marker)",
+  "worker": "Claude chat 6437c16f-a3a5-451b-a7eb-ee598ad6bfa5 on hetz",
+  "branch": "claude/3543-terminal-external-job-clear",
+  "worktree": "/worksp/shared-db-wt-3543",
+  "allowed_paths": [
+    "supabase/migrations/20260930193549_popdam_expired_lease_terminal_external_job_clear.sql",
+    "supabase/tests/popdam_expired_lease_terminal_clear_contracts.sql",
+    ".agent/work/3543/3/contract.json",
+    ".agent/work/3543/3/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260930193549_popdam_expired_lease_terminal_external_job_clear.sql",
+    "supabase/tests/popdam_expired_lease_terminal_clear_contracts.sql",
+    ".agent/work/3543/3/contract.json",
+    ".agent/work/3543/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.update_bulk_operation"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The implementation was drafted and first pushed at abc76af8 before this contract existed; the branch is rebuilt so the implementation commit follows publication of this contract, with identical file content.",
+    "Consumer u2giants/popdam3#92 will send the clear without lease_token only after the lease has expired.",
+    "Generation 1 (refs/db-contracts/3543/1) is immutable; generation 2 carries the REVISE fixes with the same reserved version and object.",
+    "Generation 3 re-bases onto current main and renames the migration to the superseded version 20260930193549; SQL content is unchanged from the generation-2 head 9b01529c approved by deepseek slot 1 and grok slot 2."
+  ],
+  "prohibited_actions": [
+    "No manual preview or production apply outside the governed lanes.",
+    "No change to any object other than function public.update_bulk_operation."
+  ],
+  "stop_conditions": [
+    "Stop if the change needs an object other than function public.update_bulk_operation."
+  ],
+  "evidence_parent": {
+    "work_issue": 3543,
+    "generation": 2,
+    "contract_sha256": "53a193d3268c6c04f8ef971da8513d94453a4021543bc3318f0508a29898db89"
+  }
+}

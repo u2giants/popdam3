@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "work_issue": 3543,
+  "outcome": "ready-for-merge",
+  "pr": 3845,
+  "migration_versions": [
+    "20260930193549"
+  ],
+  "contract_ref": "refs/db-contracts/3543/3",
+  "contract_sha256": "13d1a52ea38bcea367c249c0282e0b654eacb4c75744ff0ea72a160bfbee5a9e",
+  "base_sha": "cab1314f9123ff138e884eeaf03450252d83bb51",
+  "head_sha": "fdb81c5ac1694beef16758494644caa4e525873a",
+  "files_changed": [
+    "supabase/migrations/20260930193549_popdam_expired_lease_terminal_external_job_clear.sql",
+    "supabase/tests/popdam_expired_lease_terminal_clear_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.update_bulk_operation"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at fdb81c5a"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ],
+  "assumptions_resolved": [
+    "Migration and test bytes are identical to the generation-2 head 9b01529c (only the migration filename version changed via governed supersession); those bytes passed the new and existing update_bulk_operation contract tests locally against a throwaway postgres 17."
+  ],
+  "stop_conditions_hit": []
+}
