@@ -4838,6 +4838,18 @@ export type Database = {
         Returns: number
       }
       require_dam_access: { Args: never; Returns: boolean }
+      reset_bulk_operation_submission_lease: {
+        Args: {
+          p_expected_revision: number
+          p_http_status: number
+          p_lease_token: string
+          p_op_key: string
+          p_provider_error: Json
+          p_reason: string
+          p_submission_owner: string
+        }
+        Returns: Json
+      }
       reset_dam_search_embedding_errors: {
         Args: { p_document_type?: string; p_entity_ids?: string[] }
         Returns: number
@@ -4880,6 +4892,7 @@ export type Database = {
           p_filters: Json
           p_limit: number
           p_min_rank?: number
+          p_min_semantic_score?: number
           p_offset: number
           p_query: string
           p_query_embedding?: string
