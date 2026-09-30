@@ -22,7 +22,7 @@
 --   as supabase/tests/dam_order_list_item_columns_contract.sql does.
 --
 -- WHAT IT ASSERTS, AND WHY IT IS SHAPED THIS WAY
---   A. CATALOGUE. All 28 tables (11 WildBrain + 17 NBCU) hold the grant, hold ONLY
+--   A. CATALOGUE. All 28 tables (12 WildBrain incl. the #3545 option table + 16 NBCU) hold the grant, hold ONLY
 --      SELECT for authenticated, carry a `<table>_plm_read` policy whose stored
 --      predicate is byte-identical to the already-applied Sega house predicate, still
 --      carry their original `<table>_service_read` policy, and still have RLS enabled.
@@ -82,6 +82,7 @@ declare
     'wildbrain_asset_category','wildbrain_asset_nature','wildbrain_character',
     'wildbrain_asset','wildbrain_asset_character','wildbrain_guide',
     'wildbrain_guide_alias','wildbrain_asset_guide',
+    'wildbrain_submission_property_option',  -- #3545, same grant and policy
     'nbcu_capture','nbcu_scope','nbcu_property','nbcu_ip_family',
     'nbcu_character','nbcu_style_guide','nbcu_asset','nbcu_asset_metadata_value',
     'nbcu_asset_scope','nbcu_ip_family_property','nbcu_property_character',
@@ -90,9 +91,9 @@ declare
 begin
   raise notice '=== A. CATALOGUE ===';
 
-  if array_length(v_tables, 1) <> 27 then
+  if array_length(v_tables, 1) <> 28 then
     raise exception 'A FAILED (fixture): the table list is %, expected the 27 objects '
-      'named in claim #1252', array_length(v_tables, 1);
+      'named in claim #1252 plus the #3545 Classic option table (28)', array_length(v_tables, 1);
   end if;
 
   -- The reference predicate is the ALREADY-APPLIED Sega policy, read from the catalog.

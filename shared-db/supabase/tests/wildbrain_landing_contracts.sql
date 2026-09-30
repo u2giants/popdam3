@@ -49,7 +49,7 @@
 
 
 -- =====================================================================================
--- A. OBJECT EXISTENCE -- 13 tables and 2 functions, read from the catalog. No views.
+-- A. OBJECT EXISTENCE -- 13 landing/state tables and 2 functions (the #3545 option table is covered in B1 and I1), read from the catalog. No views.
 -- =====================================================================================
 do $$
 declare
@@ -270,15 +270,15 @@ begin
   select count(*) into v_n from information_schema.role_table_grants
    where table_schema = 'plm' and table_name like 'wildbrain\_%'
      and grantee = 'service_role' and privilege_type = 'SELECT';
-  if v_n <> 13 then  -- 11 landing + 2 #3685 durable-state tables
-    v_fail := v_fail + 1; raise warning 'FAIL expected 13 SELECT grants, found %', v_n;
+  if v_n <> 14 then  -- 11 landing + 2 #3685 + 1 Classic option
+    v_fail := v_fail + 1; raise warning 'FAIL expected 14 SELECT grants, found %', v_n;
   end if;
 
   select count(*) into v_n from information_schema.role_table_grants
    where table_schema = 'plm' and table_name like 'wildbrain\_%'
      and grantee = 'service_role' and privilege_type = 'INSERT';
-  if v_n <> 10 then
-    v_fail := v_fail + 1; raise warning 'FAIL expected 10 INSERT grants, found %', v_n;
+  if v_n <> 11 then
+    v_fail := v_fail + 1; raise warning 'FAIL expected 11 INSERT grants, found %', v_n;
   end if;
 
   select count(*) into v_n from information_schema.role_table_grants
@@ -299,16 +299,16 @@ begin
   -- CHANGED BY MIGRATION 20260819151510 (issue #1249, the owner ruling "scrape data
   -- should be visible to Licensing department users"). This block asserted that
   -- `authenticated` held NOTHING on the thirteen wildbrain tables. It now holds SELECT on
-  -- all thirteen and nothing else, and an RLS policy -- not the grant -- decides who that
+  -- all fourteen (thirteen plus the #3545 option table) and nothing else, and an RLS policy -- not the grant -- decides who that
   -- SELECT actually returns rows to. The behavioural half of that ruling lives in
   -- supabase/tests/wildbrain_nbcu_licensing_read_access_contracts.sql; what stays here is
   -- the half this file has always owned: the grant must not have widened past reads.
   select count(*) into v_n from information_schema.role_table_grants
    where table_schema = 'plm' and table_name like 'wildbrain\_%'
      and grantee = 'authenticated' and privilege_type = 'SELECT';
-  if v_n <> 13 then  -- 11 landing + 2 #3685 durable-state tables
+  if v_n <> 14 then  -- 11 landing + 2 #3685 durable-state tables + 1 #3545 Classic option
     v_fail := v_fail + 1;
-    raise warning 'FAIL expected 13 SELECT grants to authenticated (issue #1249), found %', v_n;
+    raise warning 'FAIL expected 14 SELECT grants to authenticated (issue #1249, #3545), found %', v_n;
   end if;
 
   select count(*) into v_n from information_schema.role_table_grants
@@ -320,11 +320,11 @@ begin
       '#1249 widened READS only', v_n;
   end if;
 
-  -- RLS enabled on all thirteen, and one read policy each.
+  -- RLS enabled on all fourteen, and one read policy each.
   select count(*) into v_n from pg_class c join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'plm' and c.relname like 'wildbrain\_%' and c.relkind = 'r' and c.relrowsecurity;
-  if v_n <> 13 then  -- 11 landing + 2 #3685 durable-state tables
-    v_fail := v_fail + 1; raise warning 'FAIL expected RLS enabled on 13 tables, found %', v_n;
+  if v_n <> 14 then  -- 11 landing + 2 #3685 + 1 Classic option
+    v_fail := v_fail + 1; raise warning 'FAIL expected RLS enabled on 14 tables, found %', v_n;
   end if;
 
   -- NO TRIGGER may be doing this job. If one appears, someone replaced an inspectable
@@ -1895,14 +1895,14 @@ begin
   raise notice '=== I. api.source_capture_inventory CLASSIFIES WILDBRAIN ===';
 
   -- I1. Every wildbrain table is classified 'wildbrain', and the count is the real number
-  --     of base tables rather than a literal that would drift. The literal 13 is asserted
+  --     of base tables rather than a literal that would drift. The literal 14 is asserted
   --     separately below so this cannot pass vacuously on an empty schema.
   select count(*) into v_tables
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'plm' and c.relkind = 'r' and c.relname like 'wildbrain\_%';
-  if v_tables <> 13 then  -- 11 landing + 2 #3685 durable-state tables
+  if v_tables <> 14 then  -- 11 landing + 2 #3685 durable-state tables + 1 #3545 option
     raise exception
-      'I1 FAILED: % plm.wildbrain_* base tables exist, expected 13. If the WildBrain table set legitimately changed, update this number AND check that api.source_capture_inventory still classifies every one of them.',
+      'I1 FAILED: % plm.wildbrain_* base tables exist, expected 14. If the WildBrain table set legitimately changed, update this number AND check that api.source_capture_inventory still classifies every one of them.',
       v_tables;
   end if;
   select count(*) into v_n from api.source_capture_inventory
@@ -1962,14 +1962,17 @@ begin
   --     misleading rather than absent.
   select count(*) into v_n from api.source_capture_inventory
    where table_name like 'wildbrain\_%' and count_basis <> 'latest_complete'
-     -- #3685 durable cross-capture state is not a per-capture snapshot.
-     and table_name not in ('wildbrain_entity_lifecycle', 'wildbrain_lifecycle_publication');
+     -- #3685 durable cross-capture state is not a per-capture snapshot. The #3545
+     -- Classic option table is an owner-scoped, one-row curated option list with no
+     -- capture_id (its check constraint pins the single authorized option), so it has
+     -- no capture to count against and can only be retained_only.
+     and table_name not in ('wildbrain_entity_lifecycle', 'wildbrain_lifecycle_publication', 'wildbrain_submission_property_option');
   if v_n <> 0 then
     raise exception 'I4 FAILED: % wildbrain tables are not on the latest_complete basis', v_n;
   end if;
   select count(*) into v_n from api.source_capture_inventory
    where table_name like 'wildbrain\_%'
-     and table_name not in ('wildbrain_entity_lifecycle', 'wildbrain_lifecycle_publication')
+     and table_name not in ('wildbrain_entity_lifecycle', 'wildbrain_lifecycle_publication', 'wildbrain_submission_property_option')
      and count_note like 'Retained rows only%';
   if v_n <> 0 then
     raise exception
@@ -1977,7 +1980,7 @@ begin
   end if;
   select count(*) into v_n from api.source_capture_inventory
    where table_name like 'wildbrain\_%'
-     and table_name not in ('wildbrain_entity_lifecycle', 'wildbrain_lifecycle_publication')
+     and table_name not in ('wildbrain_entity_lifecycle', 'wildbrain_lifecycle_publication', 'wildbrain_submission_property_option')
      and count_note not like '%WildBrain capture%';
   if v_n <> 0 then
     raise exception
@@ -2008,7 +2011,7 @@ begin
     raise exception 'I6 FAILED: the view no longer reports one row per plm table';
   end if;
 
-  raise notice 'I: 13 wildbrain tables classified, every other source unchanged, columns and grants intact.';
+  raise notice 'I: 14 wildbrain tables classified, every other source unchanged, columns and grants intact.';
 end;
 $$;
 

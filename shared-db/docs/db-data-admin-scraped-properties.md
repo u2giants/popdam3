@@ -70,7 +70,8 @@ renders these labels in the Mapping column instead of "Mapped" or a dash.
 
 An unmapped Creative Property remains visible and its full row is highlighted
 red. Conflict and unmapped states are explicit; rows are never guessed,
-silently dropped, or presented as matched.
+silently dropped, or presented as matched. The one recorded exception is an
+owner do-not-ingest decision (see below).
 
 Contract Property evidence is a separate privacy-protected source. It may show
 whether reviewed contract evidence exists and whether its document chain is
@@ -96,3 +97,22 @@ Changing database tables, mapping contracts, or the API response is structural
 shared-db work. Changing row styling or other frontend-only presentation is
 ordinary application work in `apps/db-data-admin`. Licensed mapping rows and
 contract evidence remain in the private source-data workflow.
+
+## Owner do-not-ingest decisions (#3545)
+
+A Creative identity can carry an approved `excluded` decision in
+`plm.dcp_opa_property_resolution` (zero Submissions members). The newest decision
+for that exact source copy being `excluded` omits the row from the page: it is
+not a POP Property and is not highlighted red. The source row is kept; exclusion
+is a recorded decision, not a delete. First use: WildBrain Strawberry Shortcake,
+where only Classic is a POP Property (business rule "WildBrain Strawberry
+Shortcake property scope"); the Creative root and Classic eras map to the
+Submissions option Strawberry Shortcake Classic, and the other eras are excluded.
+
+Property Matching (`api.db_data_admin_scraped_properties`) is a separate
+matching workbench and is unchanged: an excluded identity stays listed there,
+and its `mapping_state` carries the value `excluded` verbatim while its
+`contract_status` is `unknown` (the same as any non-mapped row). The Property
+Matching frontend (`u2giants/popdam3` `apps/db-data-admin`, main `c3f3cb34`)
+contains no reference to `mapping_state` (checked by search 2026-09-30); any
+future consumer must treat `excluded` as a settled owner decision, not unmapped.
