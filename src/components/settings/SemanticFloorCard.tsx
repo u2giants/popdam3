@@ -54,9 +54,10 @@ export function SemanticFloorCard() {
         <Label htmlFor="semantic-floor">Minimum semantic score</Label>
         <div className="flex gap-2">
           <Input id="semantic-floor" type="text" inputMode="decimal" placeholder="No floor" value={draft}
-            onChange={(e) => setDraft(e.target.value)} disabled={config.isLoading} className="max-w-[10rem]" />
-          <Button size="sm" disabled={invalid || save.isPending || config.isLoading} onClick={() => save.mutate(parsed)}>Save</Button>
+            onChange={(e) => setDraft(e.target.value)} disabled={config.isLoading || config.isError} className="max-w-[10rem]" />
+          <Button size="sm" disabled={invalid || save.isPending || config.isLoading || config.isError} onClick={() => save.mutate(parsed)}>Save</Button>
         </div>
+        {config.isError && <p className="text-xs text-destructive">Could not load the current floor; editing is disabled.</p>}
         {invalid && <p className="text-xs text-destructive">Enter a number between 0 and 1, or leave blank.</p>}
       </CardContent>
     </Card>

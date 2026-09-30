@@ -57,3 +57,17 @@ describe("SemanticFloorCard non-numeric input", () => {
     expect(screen.getByText(/Enter a number between 0 and 1/)).toBeInTheDocument();
   });
 });
+
+describe("SemanticFloorCard load failure", () => {
+  it("disables saving when the current value cannot be loaded", async () => {
+    call.mockReset();
+    call.mockImplementation(async (action: string) => {
+      if (action === "get-config") throw new Error("boom");
+      return { ok: true };
+    });
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><SemanticFloorCard /></QueryClientProvider>);
+    await screen.findByText(/Could not load the current floor/);
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(call).not.toHaveBeenCalledWith("set-config", expect.anything());
+  });
+});
