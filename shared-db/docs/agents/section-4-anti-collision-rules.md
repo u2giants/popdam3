@@ -467,12 +467,14 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    The set grants permission only: live preflight, quarantine, orchestrator independence, per-PR exclusions and
    slot independence still decide who is usable. It creates no concurrency cap.
 
-   For new assignments, the machine-independent cursor rotates Grok 4.6 → Qwen
-   3.8 Max → Muse Spark 1.3 Contributor → Gemini 3.8 Flash High → DeepSeek
-   V4.1 Flash → repeat,
+   For new assignments, the machine-independent cursor rotates Grok 4.6 → GLM
+   5.3 → Qwen 3.8 Max → Muse Spark 1.3 Contributor → Gemini 3.8 Flash High →
+   DeepSeek V4.1 Flash → repeat,
    skipping any reviewer whose engine matches the live orchestrator. GLM 5.3
-   (paused 2026-09-18) and Kimi K3 (paused 2026-09-22, account out of credit,
-   issue #3423) are not drawable until removed from `RETIRED_REVIEWERS`.
+   was restored on 2026-09-30 (owner instruction: "add GLM back into the
+   reviewer rotation") after its 2026-09-18 weekly-usage pause. Kimi K3
+   (paused 2026-09-22, account out of credit, issue #3423) is not drawable
+   until removed from `RETIRED_REVIEWERS`.
    Codex GPT-5.6 Sol was retired from the rotation on 2026-09-06 (issue #2485)
    by owner instruction and is no longer drawable.
    That is exactly `ACTIVE_REVIEWERS` in
@@ -526,7 +528,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    refuses outright — before any commit or ref is created — to record a
    code-review verdict from a reviewer whose wrapper cannot read the repository.
    Every drawable reviewer is given a real checkout: Grok via `--cwd`, Muse via
-   an `ai-review-sandbox` clone (as is paused GLM), Qwen via a sealed
+   an `ai-review-sandbox` clone (as is GLM), Qwen via a sealed
    evidence-packet checkout, Gemini via a disposable sandbox copy of
    the checkout under `--sandbox`, paused Kimi via a read-only agent profile, and
    DeepSeek V4.1 Flash via `ai-deepseek-agent --review` read-only repository

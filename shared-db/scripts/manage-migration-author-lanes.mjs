@@ -538,16 +538,24 @@ export const REVIEWERS = Object.freeze([
 // authorizes a merge. The 2026-09-17 owner ruling -- GLM never reviews
 // GLM-orchestrated work -- is unaffected and keeps binding when GLM returns.
 //
+// RESTORED 2026-09-30 (owner instruction, chat: "add GLM back into the reviewer
+// rotation"): 'glm-5.3' is deleted from this list. The REVIEWERS row stays where
+// it always sat (same slot as 'glm-5.2'), so no in-flight sequence is reassigned
+// and every durable verdict it already recorded still authorizes a merge. The
+// 2026-09-17 independence ruling (GLM never reviews GLM-orchestrated work) is
+// unchanged and still binding.
+//
 // PAUSED 2026-09-22 (owner instruction, issue #3423): 'kimi-k3'.
 // The Kimi account has been out of credit and suspended since 2026-09-17, so
 // every draw that landed on it failed and left the PR "waiting for a reviewer"
 // until a replacement round. The owner then confirmed the live pool as Grok,
-// Qwen, Muse and Gemini (GLM stays paused above); DeepSeek V4.1 Flash joined it
-// on 2026-09-23 (issue #3468), so the live pool is five. This is a PAUSE, not a
+// Qwen, Muse and Gemini (GLM was paused above that day, since restored
+// 2026-09-30); DeepSeek V4.1 Flash joined it on 2026-09-23 (issue #3468), and
+// with glm-5.3 restored the live pool is six. This is a PAUSE, not a
 // retirement: restoring Kimi is a one-line deletion from this list once the
 // account has credit AND `AI_KIMI_CALLER=claude ai-kimi doctor` passes. Its
 // REVIEWERS row stays so every durable verdict it recorded still authorizes.
-export const RETIRED_REVIEWERS = Object.freeze(['glm-5.2', 'muse-spark-1.2-contributor', 'deepseek-chat', 'codex-gpt-5.6-sol', 'glm-5.3', 'kimi-k3'])
+export const RETIRED_REVIEWERS = Object.freeze(['glm-5.2', 'muse-spark-1.2-contributor', 'deepseek-chat', 'codex-gpt-5.6-sol', 'kimi-k3'])
 
 // Not retired -- quarantined pending a passing live qualification. Kept separate
 // from RETIRED_REVIEWERS on purpose: retirement is a permanent disposition,

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 3840,
+  "outcome": "ready-for-merge",
+  "pr": 3841,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3840/1",
+  "contract_sha256": "fb50ea403fac11ec2f38508debb0ef3c05b3ca0655686d7d0a5f7bdc3bdb7fd6",
+  "base_sha": "e838f1527d858d4010428a2e82830ebc928ad4ea",
+  "head_sha": "b0e0c03a106d1b08832b84629a1660134828e272",
+  "files_changed": [
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "745 tests, 745 pass, 0 fail at b0e0c03a106d1b08832b84629a1660134828e272 - the implementation commit this report follows"
+    },
+    {
+      "command": "node --test scripts/run-governed-review.test.mjs scripts/record-review-verdict.test.mjs scripts/run-deepseek-evidence-review.test.mjs",
+      "exit_code": 0,
+      "evidence": "130 tests, 130 pass, 0 fail at b0e0c03a106d1b08832b84629a1660134828e272"
+    }
+  ],
+  "assumptions_resolved": [
+    "Restoring GLM is a one-line deletion from RETIRED_REVIEWERS, exactly as the 2026-09-18 PAUSED comment recorded; no draw, replacement, or capacity behaviour changed.",
+    "The 2026-09-17 independence ruling (GLM never reviews GLM-orchestrated work) is unchanged and still binds.",
+    "Roster-pinned replacement expectations shift one slot because glm-5.3 returns to its historical REVIEWERS position between grok-4.6 and the still-paused kimi-k3."
+  ],
+  "stop_conditions_hit": []
+}
