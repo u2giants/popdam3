@@ -53,7 +53,7 @@ export function SemanticFloorCard() {
       <CardContent className="space-y-2">
         <Label htmlFor="semantic-floor">Minimum semantic score</Label>
         <div className="flex gap-2">
-          <Input id="semantic-floor" type="number" min={0} max={1} step={0.01} placeholder="No floor" value={draft}
+          <Input id="semantic-floor" type="text" inputMode="decimal" placeholder="No floor" value={draft}
             onChange={(e) => setDraft(e.target.value)} disabled={config.isLoading} className="max-w-[10rem]" />
           <Button size="sm" disabled={invalid || save.isPending || config.isLoading} onClick={() => save.mutate(parsed)}>Save</Button>
         </div>

@@ -44,3 +44,16 @@ describe("SemanticFloorCard", () => {
     await waitFor(() => expect(call).toHaveBeenCalledWith("set-config", { entries: { SEARCH_MIN_SEMANTIC_SCORE: { value: null } } }));
   });
 });
+
+describe("SemanticFloorCard non-numeric input", () => {
+  it("blocks save for non-numeric text instead of clearing the floor", async () => {
+    call.mockReset();
+    call.mockImplementation(async (action: string) => action === "get-config"
+      ? { config: { SEARCH_MIN_SEMANTIC_SCORE: { value: 0.35 } } } : { ok: true });
+    renderCard();
+    const input = await screen.findByDisplayValue("0.35");
+    fireEvent.change(input, { target: { value: "abc" } });
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByText(/Enter a number between 0 and 1/)).toBeInTheDocument();
+  });
+});
