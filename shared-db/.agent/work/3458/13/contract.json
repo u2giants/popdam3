@@ -1,0 +1,77 @@
+{
+  "allowed_paths": [
+    "supabase/migrations/20260930185929_popsg_refresh_steps_reissue2.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_3458_index_guard.test.mjs",
+    ".agent/work/3458/13/contract.json",
+    ".agent/work/3458/13/completion.json"
+  ],
+  "assumptions": [
+    "20260929040458 merged in PR #3672 (merge 36e44f96) but preview holds it only through ledger reconciliation run 36546629950 (rename of 20260928145444, whose sole apply was run 36456516739), so no preview run recorded evidence for 20260929040458; merged-main rehearsal run 36760878045 refused it: already applied on preview.",
+    "Production (qsllyeztdwjgirsysgai) holds neither 20260929040458 nor the 3-argument overload (read-only check 2026-09-30).",
+    "Owner ruling relayed by the parent session, Albert's exact words in his chat 2026-09-30: 'do the database changes yourself, according to the new rules if they weren't already done'. Claim #3483 reissued with --reissue-merged-stranded-claim to reserved version 20260930185929 (retirement ref 283170ac).",
+    "The replacement carries executable SQL identical to 20260929040458 (header comments added only), idempotent on preview, where the objects already exist, and on production.",
+    "Retiring 20260929040458 in HARD_BLOCKED/RETIRED_VERSION_REASONS is the guard's never-promote mechanism."
+  ],
+  "base_sha": "e5d3b11a063c6f3e981191e02048348ecfc4b2f9",
+  "branch": "claude/3458-reissue2-popsg-refresh-steps",
+  "db_reads": [
+    "table public.style_guide_search_sync_queue",
+    "table public.style_guide_search_documents",
+    "table public.style_guide_pdf_text",
+    "table public.style_guide_crawl_runs",
+    "table public.style_guide_files",
+    "materialized view public.style_guide_file_groups",
+    "materialized view public.style_guide_folders"
+  ],
+  "db_writes": [
+    "function public.refresh_style_guide_matviews"
+  ],
+  "dispatcher": "Claude chat 07df4e05-b3e9-4363-931a-b63ff0886144 on hetz (claim-first) under issue #3458 / claim #3483",
+  "evidence_parent": {
+    "contract_sha256": "4a42da3cb5bed925b3942ebe78fb6c6495cc0f423e8e7445c59ea2f6bea200f5",
+    "generation": 12,
+    "work_issue": 3458
+  },
+  "file_writes": [
+    "supabase/migrations/20260930185929_popsg_refresh_steps_reissue2.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_3458_index_guard.test.mjs",
+    ".agent/work/3458/13/contract.json",
+    ".agent/work/3458/13/completion.json"
+  ],
+  "generation": 13,
+  "goal": "Reissue merged-stranded 20260929040458 as fresh version 20260930185929 with identical idempotent executable SQL and retire the original in the production promotion guard, so the steppable refresh overload can qualify for automatic production promotion.",
+  "prohibited_actions": [
+    "Do not raise any statement timeout",
+    "Do not rewrite the legacy (uuid,integer) body (its prosrc md5 is pinned by popsg_refresh_search_sync_queue_v1)",
+    "Do not invent additional claimed objects",
+    "Do not write production or dispatch production manually",
+    "Do not delete or replay application rows"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 scripts/test_migration_derivation.py",
+    "python3 scripts/test_production_migration_guard.py",
+    "python3 scripts/test_post_batch_app_verification.py",
+    "node --test scripts/test_3458_index_guard.test.mjs",
+    "git diff --check"
+  ],
+  "route": "claim-first",
+  "schema_version": 2,
+  "stop_conditions": [
+    "stop if live preview and production indexes differ materially",
+    "stop if the repair weakens unique, valid, plain-column, or non-partial requirements",
+    "stop if the legacy (uuid,integer) function body or claimed object scope changes",
+    "stop if any database write outside the governed preview lane is required",
+    "stop if the replacement's executable SQL differs from 20260929040458"
+  ],
+  "work_issue": 3458,
+  "work_type": "structural",
+  "worker": "claude:3458-gen12-reissue2",
+  "worktree": "/tmp/claude-1000/sdb-3458"
+}

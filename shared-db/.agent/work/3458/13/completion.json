@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "work_issue": 3458,
+  "outcome": "ready-for-merge",
+  "pr": 3847,
+  "migration_versions": [
+    "20260930185929"
+  ],
+  "contract_ref": "refs/db-contracts/3458/13",
+  "contract_sha256": "75589cb94678368d00caceea32b333bc011894c89ce87d4f5299176fabc94470",
+  "head_sha": "853b601e3b68a11948b3de4b485abab414241e59",
+  "base_sha": "e5d3b11a063c6f3e981191e02048348ecfc4b2f9",
+  "files_changed": [
+    "scripts/production_migration_guard.py",
+    "scripts/test_3458_index_guard.test.mjs",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20260930185929_popsg_refresh_steps_reissue2.sql"
+  ],
+  "db_reads": [
+    "table public.style_guide_search_sync_queue",
+    "table public.style_guide_search_documents",
+    "table public.style_guide_pdf_text",
+    "table public.style_guide_crawl_runs",
+    "table public.style_guide_files",
+    "materialized view public.style_guide_file_groups",
+    "materialized view public.style_guide_folders"
+  ],
+  "db_writes": [
+    "function public.refresh_style_guide_matviews"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards passed."
+    },
+    {
+      "command": "python3 scripts/test_migration_derivation.py",
+      "exit_code": 0,
+      "evidence": "Derivation tests passed."
+    },
+    {
+      "command": "python3 scripts/test_production_migration_guard.py",
+      "exit_code": 0,
+      "evidence": "291 guard tests passed, including second-reissue SQL identity, block of 20260929040458 and derived-from base pin."
+    },
+    {
+      "command": "python3 scripts/test_post_batch_app_verification.py",
+      "exit_code": 0,
+      "evidence": "Passed with 20260929040458 pinned as retired."
+    },
+    {
+      "command": "node --test scripts/test_3458_index_guard.test.mjs",
+      "exit_code": 0,
+      "evidence": "All tests passed against 20260930185929."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Executable SQL of 20260930185929 equals 20260929040458 (non-comment lines identical, pinned by test); idempotent, so preview (objects present) and production (absent) converge.",
+    "20260929040458 is retired in HARD_BLOCKED and RETIRED_VERSION_REASONS."
+  ],
+  "stop_conditions_hit": []
+}

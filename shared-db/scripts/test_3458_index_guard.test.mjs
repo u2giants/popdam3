@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const migration = readFileSync(
-  new URL('../supabase/migrations/20260929040458_popsg_refresh_steps_reissue.sql', import.meta.url),
+  new URL('../supabase/migrations/20260930185929_popsg_refresh_steps_reissue2.sql', import.meta.url),
   'utf8',
 );
 const ephemeral = readFileSync(

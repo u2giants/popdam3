@@ -93,6 +93,12 @@ HARD_BLOCKED = {
     # 4b451fb0, and preview already holds the version. Reissued with identical
     # executable SQL as 20260929040458. Never apply this original.
     "20260928003740",
+    # #3458 second merged-stranded reissue (claim #3483). Preview holds
+    # 20260929040458 only through ledger reconciliation run 36546629950 (a
+    # rename of 20260928145444), so no preview run recorded evidence for it and
+    # the merged-main rehearsal refuses it (run 36760878045). Reissued with
+    # identical executable SQL as 20260930185929. Never apply this original.
+    "20260929040458",
     # #505 merged-stranded original. Its first preview apply refused and rolled
     # back transactionally after live app drift invalidated an over-broad
     # licensor_id-is-null assumption. 20260830204711 carries the preserved
@@ -248,6 +254,7 @@ RETIRED_VERSION_REASONS = {
     "20260908195056": "unpromotable producer provenance (preview apply run 34273765771 checked out 53937748ee2b8fdba2ada40a79219f4d62d02f77 with lane-manager bytes different from current main) and preview already holds the version, so no fresh qualifying ledger delta can be produced; reissued with identical migration content as 20260909202801 under issue 2439 and claim 2443",
     "20260915015414": "stranded preview-only version (preview apply run 34920902290 at unmerged PR 2930 head a119760e, never merged, never applied to production) and preview already holds the version, so its bytes can never change; reissued with the same function bodies plus derived-from header as 20260915023506 under issue 2792 and claim 2931",
     "20260928003740": "unpromotable producer provenance (only preview apply run 36427442828 was dispatched at PR 3487 head b38c082a before PR 3641 changed .github/workflows/shared-supabase-migrations.yml, so its evidence cannot bind merge commit 4b451fb0961ecc074ad24487c5d1b8df87cf1d78) and preview already holds the version, so no qualifying evidence can ever be produced; reissued with identical executable SQL as 20260929040458 under issue 3458 and claim 3483",
+    "20260929040458": "unpromotable preview provenance (preview holds it only through ledger reconciliation run 36546629950, a rename of 20260928145444 whose sole apply was run 36456516739; no preview run recorded evidence for this version and merged-main rehearsal run 36760878045 refused it as already applied) and production never held it; reissued with identical executable SQL as 20260930185929 under issue 3458 and claim 3483",
     "20260814170749": "stranded without qualifying preview evidence after the preview project replacement; reissued with identical executable SQL as 20260825201330 under issue 1517, applied to production 2026-08-25 (PR 1541, run 32901820150)",
     "20260819011639": "unpromotable producer provenance; replaced byte-for-byte by 20260820142402, applied to production 2026-08-20 (issue 1171)",
     "20260819151536": "production verification times out and rolls the migration back; replaced by 20260820004338, applied to production 2026-08-20 (issue 1280)",
