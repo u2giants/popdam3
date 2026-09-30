@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "work_issue": 2179,
+  "outcome": "ready-for-merge",
+  "pr": 3711,
+  "migration_versions": [
+    "20260929093750"
+  ],
+  "contract_ref": "refs/db-contracts/2179/7",
+  "contract_sha256": "04882737a39e8de36df2844ce30e4d4de2d15e45722de0bbfbc0866f5bd61237",
+  "base_sha": "8f0d320a505a541ac57f6798adbb7e1fd91a9b38",
+  "head_sha": "04df5fb0337a007aa555784b83c33eaf30e8bc7f",
+  "files_changed": [
+    ".github/live-proofs/2179.sql",
+    "config/production-verification-sidecar-registry.json",
+    "docs/coldlion-field-decisions-20260819.csv",
+    "docs/coldlion-item-images-loader-contract.md",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20260929093750.json",
+    "scripts/production_catalog_verification.py",
+    "supabase/migrations/20260929093750_coldlion_item_image_metadata_landing.sql",
+    "supabase/tests/coldlion_item_image_metadata_landing_contracts.sql",
+    "tools/coldlion-landing-item-images.test.mjs",
+    "tools/coldlion-landing/lib/item-images-spec.mjs"
+  ],
+  "db_reads": [
+    "table coldlion.sync_run"
+  ],
+  "db_writes": [
+    "table coldlion.item_image_metadata"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at 04df5fb03"
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs",
+      "exit_code": 0,
+      "evidence": "status OK"
+    },
+    {
+      "command": "node --test tools/coldlion-landing-item-images.test.mjs",
+      "exit_code": 0,
+      "evidence": "8/8 pass"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ],
+  "assumptions_resolved": [
+    "L7 qualified table name; L8 index comment corrected"
+  ],
+  "stop_conditions_hit": []
+}

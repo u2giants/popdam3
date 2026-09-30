@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20260929093750",
+  "migration_sha256": "1f8aac7b1ea1f48821d1931a7890a9c4f73412fa6ae0ddefdbd5e24de9f91a74",
+  "checks": [
+    {
+      "id": "coldlion_item_image_metadata",
+      "kind": "catalog_contract",
+      "contract": "coldlion_item_image_metadata_v1",
+      "expected_count": 1
+    }
+  ]
+}

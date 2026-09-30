@@ -559,3 +559,19 @@ itemDetails,merchGroup12Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comm
 itemDetails,merchGroup13Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
 itemDetails,merchGroup14Desc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
 itemDetails,labelDesc,ingest,,,,owner ruling 2026-09-03 (issue #2081 comment 5526450180): ingest on /items and /itemDetails in their own right; not an extension of D15
+itemImages,pkey,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,resourceId,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,companyCode,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,divisionCode,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,itemNo,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,colorCode,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,labelCode,ingest,17,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,fileName,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,fileType,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,itemImageDesc,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,createdTime,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,createdUser,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,modTime,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,modUser,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
+itemImages,resourceContent,ignore,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; image bytes excluded from landing
+itemImages,thumbnail128,ignore,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; image bytes excluded from landing

@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "generation": 7,
+  "work_issue": 2179,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Address Grok slot-2 REVISE on PR #3711 head 79f8cd31: positively assert coldlion.sync_run FK in the SQL contract test; record resourceContent/thumbnail128 as decided ignore in the field-decision register; correct generation evidence path lists. Structure only; reserved version 20260929093750 under claim #3706 unchanged.",
+  "base_sha": "8f0d320a505a541ac57f6798adbb7e1fd91a9b38",
+  "dispatcher": "MiMo shared-db orchestrator ses_ffe5f11ee4312ffetphUcC3hBX on edge-dev (marker #3832); generation 7 corrects evidence path lists and lands Grok REVISE fixes after generation 6",
+  "worker": "MiMo successor orchestrator for #2179 on edge-dev",
+  "branch": "claude/coldlion-item-images-2179",
+  "worktree": "C:/repos/shared-db-review-3711-v2",
+  "allowed_paths": [
+    "supabase/migrations/20260929093750_coldlion_item_image_metadata_landing.sql",
+    "supabase/tests/coldlion_item_image_metadata_landing_contracts.sql",
+    "docs/coldlion-item-images-loader-contract.md",
+    "docs/coldlion-field-decisions-20260819.csv",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/production-verification-sidecars/20260929093750.json",
+    "scripts/production_catalog_verification.py",
+    "tools/coldlion-landing/lib/item-images-spec.mjs",
+    "tools/coldlion-landing-item-images.test.mjs",
+    ".agent/work/2179/7/contract.json",
+    ".agent/work/2179/7/completion.json",
+    ".github/live-proofs/2179.sql"
+  ],
+  "file_writes": [
+    "supabase/tests/coldlion_item_image_metadata_landing_contracts.sql",
+    "docs/coldlion-field-decisions-20260819.csv",
+    "tools/coldlion-landing-item-images.test.mjs",
+    ".agent/work/2179/7/contract.json",
+    ".agent/work/2179/7/completion.json"
+  ],
+  "db_reads": [
+    "table coldlion.sync_run"
+  ],
+  "db_writes": [
+    "table coldlion.item_image_metadata"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node scripts/check-production-verification-sidecars.mjs",
+    "node --test tools/coldlion-landing-item-images.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The 2026-09-08 census is the grain evidence; pkey is the only proven identity.",
+    "Claim #3706 re-reserved twice by governed supersession (20260928170501 -> 20260929032359 -> 20260929044541) after main landed newer migrations; file content unchanged",
+    "Re-reserved again 20260929044541 -> 20260929093750 after main landed 20260929045102",
+    "Re-reserved 20260929070422 -> 20260929093750; generation 6 updates the live proof and evidence paths that the re-reserve commit missed",
+    "Generation 6 published refs/db-contracts/2179/6 with evidence paths still naming generation 5; that ref is immutable. Generation 7 is the successor and names its own evidence paths correctly.",
+    "Grok slot-2 REVISE at 79f8cd31 findings 1-3 are addressed in this generation; migration DDL and reserved version 20260929093750 are unchanged."
+  ],
+  "prohibited_actions": [
+    "No row loads, no preview or production apply outside the governed lanes.",
+    "No image-content column."
+  ],
+  "stop_conditions": [
+    "Stop if the change needs an object outside table coldlion.item_image_metadata."
+  ],
+  "evidence_parent": {
+    "work_issue": 2179,
+    "generation": 6,
+    "contract_sha256": "e6fe4c08b8e481e8523c67b8a307561f6364f366b8cf4baa84fa4dd02916035a"
+  }
+}

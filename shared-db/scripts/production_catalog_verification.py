@@ -4624,6 +4624,48 @@ CATALOG_CONTRACTS["popsg_refresh_search_sync_queue_v1"] = (
     POPSG_REFRESH_SEARCH_SYNC_QUEUE_CONTRACT
 )
 
+# Issue #2179. ColdLion /itemImages METADATA landing table. Structure only; the
+# post-apply check is the proven grain (company_code, pkey), the complete owner
+# field disposition (14 ingested source fields + 5 provenance), NO image-content
+# column, and the landing-layer lockdown (RLS on, no policy, no anon/authenticated
+# privilege). pg_attribute and has_table_privilege are used because
+# information_schema is role-filtered under supabase_read_only_user.
+COLDLION_ITEM_IMAGE_METADATA_CONTRACT = (
+    _shape_contract(
+        relations=('coldlion.item_image_metadata',),
+        constraints=(
+            ('coldlion.item_image_metadata','item_image_metadata_pkey'),
+            ('coldlion.item_image_metadata','item_image_metadata_run_id_fkey'),
+        ),
+    )
+    + " and (select pg_get_constraintdef(oid) from pg_constraint where conrelid=to_regclass('coldlion.item_image_metadata') and contype='p')='PRIMARY KEY (company_code, pkey)'"
+    + " and (select count(*) from pg_constraint where conrelid=to_regclass('coldlion.item_image_metadata') and contype='u')=0"
+    + " and (select count(*) from pg_attribute a where a.attrelid=to_regclass('coldlion.item_image_metadata') and a.attnum>0 and not a.attisdropped)=19"
+    + " and (select count(*) from pg_attribute a where a.attrelid=to_regclass('coldlion.item_image_metadata') and a.attnum>0 and not a.attisdropped and a.attname in ('company_code','pkey','resource_id','division_code','item_no','color_code','label_code','file_name','file_type','item_image_desc','created_time','created_user','mod_time','mod_user','run_id','fetched_at','source_hash','first_seen_at','last_seen_at'))=19"
+    + " and (select relkind from pg_class where oid=to_regclass('coldlion.item_image_metadata'))='r'"
+    + " and (select count(*) from pg_attribute a where a.attrelid=to_regclass('coldlion.item_image_metadata') and a.attnum>0 and not a.attisdropped and ((a.attname='company_code' and a.atttypid='text'::regtype) or (a.attname='pkey' and a.atttypid='int8'::regtype) or (a.attname='resource_id' and a.atttypid='int8'::regtype) or (a.attname='division_code' and a.atttypid='text'::regtype) or (a.attname='item_no' and a.atttypid='text'::regtype) or (a.attname='color_code' and a.atttypid='text'::regtype) or (a.attname='label_code' and a.atttypid='text'::regtype) or (a.attname='file_name' and a.atttypid='text'::regtype) or (a.attname='file_type' and a.atttypid='text'::regtype) or (a.attname='item_image_desc' and a.atttypid='text'::regtype) or (a.attname='created_time' and a.atttypid='timestamptz'::regtype) or (a.attname='created_user' and a.atttypid='text'::regtype) or (a.attname='mod_time' and a.atttypid='timestamptz'::regtype) or (a.attname='mod_user' and a.atttypid='text'::regtype) or (a.attname='run_id' and a.atttypid='uuid'::regtype) or (a.attname='fetched_at' and a.atttypid='timestamptz'::regtype) or (a.attname='source_hash' and a.atttypid='text'::regtype) or (a.attname='first_seen_at' and a.atttypid='timestamptz'::regtype) or (a.attname='last_seen_at' and a.atttypid='timestamptz'::regtype)))=19"
+    + " and (select count(*) from pg_constraint c where c.conrelid=to_regclass('coldlion.item_image_metadata') and c.contype='c')=2"
+    + " and (select count(*) from pg_constraint c where c.conrelid=to_regclass('coldlion.item_image_metadata') and c.contype='c' and position('^[0-9a-f]{64}$' in pg_get_constraintdef(c.oid))>0)=1"
+    + " and (select count(*) from pg_constraint c where c.conrelid=to_regclass('coldlion.item_image_metadata') and c.contype='c' and pg_get_constraintdef(c.oid) ~ 'last_seen_at.*first_seen_at')=1"
+    + " and (select count(*) from pg_attribute a where a.attrelid=to_regclass('coldlion.item_image_metadata') and a.attnum>0 and not a.attisdropped and a.attnotnull and a.attname in ('company_code','pkey','run_id','fetched_at','source_hash','first_seen_at','last_seen_at'))=7"
+    + " and (select count(*) from pg_attribute a where a.attrelid=to_regclass('coldlion.item_image_metadata') and a.attnum>0 and not a.attisdropped and not a.attnotnull and a.attname in ('resource_id','division_code','item_no','color_code','label_code','file_name','file_type','item_image_desc','created_time','created_user','mod_time','mod_user'))=12"
+    + " and (select count(*) from pg_constraint c where c.conrelid=to_regclass('coldlion.item_image_metadata') and c.contype='f' and pg_get_constraintdef(c.oid) ~ 'FOREIGN KEY [(]run_id[)] REFERENCES coldlion[.]sync_run[(]id[)]')=1"
+    + " and (select count(*) from pg_constraint c where c.conrelid=to_regclass('coldlion.item_image_metadata') and c.contype='f' and pg_get_constraintdef(c.oid) !~* 'ON (DELETE|UPDATE)')=1"
+    + " and (select count(*) from pg_class i join pg_index x on x.indexrelid=i.oid where i.relname='item_image_metadata_pkey_idx' and x.indrelid=to_regclass('coldlion.item_image_metadata') and pg_get_indexdef(i.oid) ~ '[(]pkey[)]')=1"
+    + " and (select count(*) from pg_class i join pg_index x on x.indexrelid=i.oid where i.relname='item_image_metadata_run_id_idx' and x.indrelid=to_regclass('coldlion.item_image_metadata') and pg_get_indexdef(i.oid) ~ '[(]run_id[)]')=1"
+    + " and has_table_privilege('service_role','coldlion.item_image_metadata','SELECT')"
+    + " and (select count(*) from pg_attribute a where a.attrelid=to_regclass('coldlion.item_image_metadata') and a.attnum>0 and not a.attisdropped and (a.attname in ('resource_content','thumbnail128','thumbnail_128','raw') or a.atttypid='bytea'::regtype))=0"
+    + " and (select relrowsecurity from pg_class where oid=to_regclass('coldlion.item_image_metadata'))"
+    + " and (select count(*) from unnest(array['anon','authenticated']) g(r) cross join unnest(array['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) p(v) where has_table_privilege(g.r,'coldlion.item_image_metadata',p.v))=0"
+    + " and (select count(*) from pg_policies where schemaname='coldlion' and tablename='item_image_metadata')=0"
+    + " and (select count(*) from pg_constraint c join pg_class rt on rt.oid=c.confrelid join pg_namespace rn on rn.oid=rt.relnamespace where c.conrelid=to_regclass('coldlion.item_image_metadata') and c.contype='f' and (rn.nspname<>'coldlion' or rt.relname<>'sync_run'))=0"
+    + " and (select count(*) from pg_constraint c join pg_class rt on rt.oid=c.confrelid join pg_namespace rn on rn.oid=rt.relnamespace where c.conrelid=to_regclass('coldlion.item_image_metadata') and c.contype='f' and rn.nspname='coldlion' and rt.relname='sync_run')=1"
+    + " and (select count(*) from pg_constraint c where c.conrelid=to_regclass('coldlion.item_image_metadata') and c.contype='f' and pg_get_constraintdef(c.oid) ilike 'FOREIGN KEY (run_id) REFERENCES%sync_run(id)%')=1"
+)
+CATALOG_CONTRACTS["coldlion_item_image_metadata_v1"] = (
+    COLDLION_ITEM_IMAGE_METADATA_CONTRACT
+)
+
 WB_VALIDATE_NORMALIZED_ROW_STABLE_CONTRACT = (
     # Issue #3725. ALTER-only migration 20260928183916 marks the validator STABLE
     # (it casts text to timestamptz, which depends on TimeZone) and must leave the
