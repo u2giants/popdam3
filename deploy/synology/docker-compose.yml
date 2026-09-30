@@ -26,7 +26,7 @@ services:
     volumes:
       # PopDAM uses short-lived marker writes and check-in verification on its
       # primary mount. Keep only the independent Style Guides crawl read-only.
-      - /volume1/nas-share:/mnt/nas/mac  # host-path:container-path
+      - /volume1/mac:/mnt/nas/mac  # host-path:container-path
       - /volume1/styleguides:/mnt/nas/styleguides:ro  # Style Guides folder (read-only crawl)
       # Persistent data volume: preserves agent key (agent-config.json) across rebuilds.
       # Without this, the agent re-pairs on every container recreate, invalidating the old
