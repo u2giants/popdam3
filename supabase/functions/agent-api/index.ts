@@ -213,6 +213,7 @@ const HEARTBEAT_CONFIG_KEYS_WINDOWS = [
   "WINDOWS_REPAIR_CODE",
   "PDF_TEXT_SAMPLE_REQUEST",
   "PDF_BACKFILL", // windows is now the primary full-library backfill processor
+  "POPSG_PDF_BACKFILL", // trigger_popsg_pdf_backfill reads this key; absent = command always false
   "PDF_EXTRACTION_CONFIG",
   "ANTHROPIC_API_KEY",
   "GOOGLE_AI_API_KEY",
