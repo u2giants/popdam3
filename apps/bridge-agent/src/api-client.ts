@@ -12,10 +12,6 @@ import { logger } from "./logger.js";
 // the heartbeat instead.
 let consecutiveAuthFailures = 0;
 
-export function isAuthFailing(): boolean {
-  return consecutiveAuthFailures > 0;
-}
-
 export function suggestedHeartbeatDelayMs(): number {
   if (consecutiveAuthFailures === 0) return 30_000;
   if (consecutiveAuthFailures < 3) return 30_000;

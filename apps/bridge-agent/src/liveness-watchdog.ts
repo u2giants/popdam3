@@ -1,23 +1,8 @@
 /**
- * Heartbeat liveness watchdog (issue #167).
- *
- * Incident: the NAS bridge container stayed "Up" for six days with node busy
- * but sent no heartbeats, and nothing restarted it. This module makes that
- * state self-healing and diagnosable:
- *
- *   1. Main-thread watchdog — if no heartbeat has SUCCEEDED for `timeoutMs`,
- *      log one clear fatal line with diagnostics (current activity/phase,
- *      last success, memory, event-loop lag) and exit non-zero so Docker's
- *      restart policy (`restart: unless-stopped`) starts a fresh process.
- *   2. Worker-thread backstop — if the main event loop itself is frozen
- *      (synchronous work that never yields), the main-thread timer can never
- *      fire. A tiny worker watches a shared "loop tick" timestamp and SIGKILLs
- *      the process when the loop has not ticked for `loopFrozenMs`.
- *
- * Auth failures are excluded from the restart: a revoked key is permanent
- * until re-pairing, so restarting every N minutes would only add noise.
- *
- * This module never touches the Docker self-updater.
+ * Heartbeat liveness watchdog (#167). If heartbeats stop succeeding, log one
+ * FATAL line with diagnostics and exit non-zero so Docker's restart policy
+ * starts a fresh process. A worker-thread backstop covers a frozen event loop,
+ * where the main-thread timer could never fire. Never touches the self-updater.
  */
 
 import { monitorEventLoopDelay, type IntervalHistogram } from "node:perf_hooks";
@@ -35,8 +20,12 @@ export interface LivenessWatchdogOptions {
   now?: () => number;
   /** Extra diagnostics from the agent (activity, counters…). */
   getDiagnostics?: () => WatchdogDiagnostics;
-  /** True when the most recent heartbeat failures are auth failures (restart would not help). */
-  isAuthFailing?: () => boolean;
+  /**
+   * While heartbeats keep completing with a server/network answer (the
+   * process is clearly alive, the API is down), wait up to this long before
+   * restarting anyway. Default 6x timeoutMs.
+   */
+  outageCeilingMs?: number;
   logFatal: (msg: string, meta: Record<string, unknown>) => void;
   logWarn?: (msg: string, meta: Record<string, unknown>) => void;
   exit: (code: number) => void;
@@ -63,8 +52,10 @@ export function createLivenessWatchdog(opts: LivenessWatchdogOptions) {
   let lastSuccessAt: number | null = null;
   let lastFailureAt: number | null = null;
   let lastFailureError: string | undefined;
+  let lastFailureKind: FailureKind | null = null;
+  const outageCeilingMs = opts.outageCeilingMs ?? opts.timeoutMs * 6;
   let fired = false;
-  let authWarned = false;
+  let warned = false;
   let timer: ReturnType<typeof setInterval> | null = null;
   let lag: IntervalHistogram | null = null;
 
@@ -76,6 +67,7 @@ export function createLivenessWatchdog(opts: LivenessWatchdogOptions) {
       last_heartbeat_success_at: lastSuccessAt ? new Date(lastSuccessAt).toISOString() : null,
       last_heartbeat_failure_at: lastFailureAt ? new Date(lastFailureAt).toISOString() : null,
       last_heartbeat_error: lastFailureError,
+      last_heartbeat_failure_kind: lastFailureKind,
       memory_mb: { rss: mb(mem.rss), heap_used: mb(mem.heapUsed), heap_total: mb(mem.heapTotal), external: mb(mem.external) },
       event_loop_lag_ms: lag
         ? { mean: Math.round(lag.mean / 1e6), p99: Math.round(lag.percentile(99) / 1e6), max: Math.round(lag.max / 1e6) }
@@ -87,17 +79,19 @@ export function createLivenessWatchdog(opts: LivenessWatchdogOptions) {
   /** Returns true when the watchdog decided to exit. */
   function check(): boolean {
     if (fired) return true;
-    const ref = lastSuccessAt ?? startedAt;
-    const silentMs = now() - ref;
+    const t = now();
+    const silentMs = t - (lastSuccessAt ?? startedAt);
     if (silentMs < opts.timeoutMs) return false;
-    if (opts.isAuthFailing?.()) {
-      if (!authWarned) {
-        authWarned = true;
-        opts.logWarn?.("Heartbeat watchdog: no successful heartbeat, but failures are auth errors — not restarting (re-pair the agent)", {
-          silent_ms: silentMs,
-          ...diagnostics(),
-        });
-      }
+    const recentAnswer = lastFailureAt !== null && t - lastFailureAt < opts.timeoutMs;
+    // A revoked key is permanent until re-pairing: restarting cannot help.
+    if (recentAnswer && lastFailureKind === "auth") {
+      warnOnce("Heartbeat watchdog: no successful heartbeat, but the API rejects the agent key — not restarting (re-pair the agent)", silentMs);
+      return false;
+    }
+    // The loop is alive and the API answers with errors / is unreachable:
+    // tolerate an outage for a while instead of restart-looping every N min.
+    if (recentAnswer && lastFailureKind === "api" && silentMs < outageCeilingMs) {
+      warnOnce("Heartbeat watchdog: heartbeats failing with API/network errors — process alive, holding restart", silentMs);
       return false;
     }
     fired = true;
@@ -110,14 +104,21 @@ export function createLivenessWatchdog(opts: LivenessWatchdogOptions) {
     return true;
   }
 
+  function warnOnce(msg: string, silentMs: number) {
+    if (warned) return;
+    warned = true;
+    opts.logWarn?.(msg, { silent_ms: silentMs, ...diagnostics() });
+  }
+
   return {
     noteSuccess() {
       lastSuccessAt = now();
-      authWarned = false;
+      warned = false;
     },
     noteFailure(error: string) {
       lastFailureAt = now();
       lastFailureError = error.slice(0, 300);
+      lastFailureKind = classifyHeartbeatFailure(error);
     },
     check,
     diagnostics,
@@ -135,6 +136,15 @@ export function createLivenessWatchdog(opts: LivenessWatchdogOptions) {
   };
 }
 
+export type FailureKind = "auth" | "api" | "timeout";
+
+/** auth = key rejected; api = server/network answered with an error; timeout = something hung. */
+export function classifyHeartbeatFailure(message: string): FailureKind {
+  if (/returned 40[13]\b/.test(message)) return "auth";
+  if (/timed out|timeout|aborted/i.test(message)) return "timeout";
+  return "api";
+}
+
 function safe(fn: () => WatchdogDiagnostics): WatchdogDiagnostics {
   try {
     return fn();
@@ -145,17 +155,18 @@ function safe(fn: () => WatchdogDiagnostics): WatchdogDiagnostics {
 
 // ── Frozen-event-loop backstop ──────────────────────────────────────
 
+// ESM: this package is "type": "module", so eval'd worker code runs as ESM.
 const BACKSTOP_SOURCE = `
-const { workerData } = require("node:worker_threads");
-const fs = require("node:fs");
-const ticks = new Float64Array(workerData.buf);
+import { workerData } from "node:worker_threads";
+import { writeSync } from "node:fs";
+const ticks = new BigInt64Array(workerData.buf);
 setInterval(() => {
-  const age = Date.now() - ticks[0];
+  const age = Date.now() - Number(Atomics.load(ticks, 0));
   if (age > workerData.frozenMs) {
-    fs.writeSync(2, JSON.stringify({
+    writeSync(2, JSON.stringify({
       ts: new Date().toISOString(), level: "error",
       msg: "FATAL event-loop watchdog: main thread frozen — killing process so Docker restarts the agent",
-      frozen_ms: age, frozen_ms_limit: workerData.frozenMs,
+      frozen_ms: age, limit_ms: workerData.frozenMs,
     }) + "\\n");
     process.kill(workerData.pid, "SIGKILL");
   }
@@ -166,20 +177,29 @@ setInterval(() => {
  * Starts the worker-thread backstop. The main thread stamps a shared buffer
  * every `tickMs`; the worker SIGKILLs the process if the stamp goes stale.
  */
-export function startEventLoopBackstop(frozenMs: number, tickMs = 5_000): () => void {
+export function startEventLoopBackstop(
+  frozenMs: number,
+  opts: { tickMs?: number; onError?: (e: Error) => void } = {},
+): { worker: Worker; stop: () => void } {
+  const tickMs = opts.tickMs ?? 5_000;
   const buf = new SharedArrayBuffer(8);
-  const ticks = new Float64Array(buf);
-  ticks[0] = Date.now();
-  const tick = setInterval(() => { ticks[0] = Date.now(); }, tickMs);
+  const ticks = new BigInt64Array(buf);
+  const stamp = () => Atomics.store(ticks, 0, BigInt(Date.now()));
+  stamp();
+  const tick = setInterval(stamp, tickMs);
   tick.unref?.();
   const worker = new Worker(BACKSTOP_SOURCE, {
     eval: true,
     workerData: { buf, frozenMs, pid: process.pid, checkMs: Math.min(tickMs, 10_000) },
   });
+  worker.on("error", (e) => opts.onError?.(e));
   worker.unref();
-  return () => {
-    clearInterval(tick);
-    void worker.terminate();
+  return {
+    worker,
+    stop: () => {
+      clearInterval(tick);
+      void worker.terminate();
+    },
   };
 }
 

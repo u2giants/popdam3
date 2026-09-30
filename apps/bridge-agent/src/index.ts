@@ -220,14 +220,17 @@ async function sendHeartbeat() {
     scan_roots: effectiveRoots,
   };
 
-  // Every fs probe is time-boxed: on a hung NAS mount (or a libuv threadpool
-  // saturated by scan I/O) an un-bounded stat() never settles, the loop's
-  // .finally() never reschedules, and heartbeats stop forever (#167).
+  // Every fs probe is time-boxed: on a hung NAS mount an unbounded stat()
+  // never settles, the loop's .finally() never reschedules, and heartbeats
+  // stop forever (#167). A timed-out probe is reported as "timed out", not as
+  // "unreadable" — under heavy scan I/O a slow stat does not mean a bad root.
+  const timedOutRoots: string[] = [];
   try {
     await withTimeout(stat(effectiveMountRoot), HEARTBEAT_STAT_TIMEOUT_MS, "stat mount root");
     diagnostics.mount_root_exists = true;
-  } catch {
-    diagnostics.mount_root_exists = false;
+  } catch (e) {
+    if (/timed out/.test((e as Error).message)) timedOutRoots.push(effectiveMountRoot);
+    else diagnostics.mount_root_exists = false;
   }
 
   const unreadableRoots: string[] = [];
@@ -236,13 +239,15 @@ async function sendHeartbeat() {
     try {
       await withTimeout(stat(root), HEARTBEAT_STAT_TIMEOUT_MS, "stat scan root");
       readableRoots.push(root);
-    } catch {
-      unreadableRoots.push(root);
+    } catch (e) {
+      if (/timed out/.test((e as Error).message)) timedOutRoots.push(root);
+      else unreadableRoots.push(root);
     }
   }
   diagnostics.readable_roots = readableRoots;
   diagnostics.unreadable_roots = unreadableRoots;
   diagnostics.scan_roots_readable = unreadableRoots.length === 0;
+  if (timedOutRoots.length > 0) diagnostics.stat_timed_out_roots = timedOutRoots;
   diagnostics.marker_statuses = { ...markerStatuses };
   diagnostics.activity = getActivity();
 
@@ -390,21 +395,27 @@ async function sendHeartbeat() {
 }
 
 const HEARTBEAT_STAT_TIMEOUT_MS = 10_000;
-// Whole-beat ceiling: callApi retries up to 5x with a 30s timeout each, so a
-// beat can legitimately take a few minutes. Anything beyond this is a hang.
-const HEARTBEAT_TOTAL_TIMEOUT_MS = 5 * 60_000;
-const WATCHDOG_TIMEOUT_MS = Math.max(
-  60_000,
-  Number(process.env.HEARTBEAT_WATCHDOG_MINUTES || 10) * 60_000,
-);
+const WATCHDOG_TIMEOUT_MS = (() => {
+  const minutes = Number(process.env.HEARTBEAT_WATCHDOG_MINUTES);
+  return Number.isFinite(minutes) && minutes >= 1 ? minutes * 60_000 : 10 * 60_000;
+})();
 
 const livenessWatchdog = createLivenessWatchdog({
   timeoutMs: WATCHDOG_TIMEOUT_MS,
-  isAuthFailing: api.isAuthFailing,
   getDiagnostics: () => ({
     agent_id: agentId,
     version: packageVersion,
-    is_scanning: isScanning,
+    heartbeat_in_flight: heartbeatInFlight,
+    busy_jobs: {
+      scan: isScanning,
+      pdf_text_sample: isSamplingPdfText,
+      ai_sentinel_scan: isAiSentinelScanning,
+      pdf_backfill: isPdfBackfilling,
+      compat_audit: isAuditingCompatThumbnails,
+      compat_preview: isPreviewingCompatThumbnails,
+      style_guide_crawl: isCrawlingStyleGuides,
+      blank_thumb_cleanup: isBlankThumbCleanupRunning,
+    },
     counters: { ...counters },
     last_error: lastError,
   }),
@@ -413,9 +424,22 @@ const livenessWatchdog = createLivenessWatchdog({
   exit: (code) => process.exit(code),
 });
 
+// One beat at a time: the scheduled loop and the Realtime wake share this
+// guard, so a slow beat is never overlapped by a second one.
+let heartbeatInFlight = false;
+async function runHeartbeatOnce(): Promise<void> {
+  if (heartbeatInFlight) return;
+  heartbeatInFlight = true;
+  try {
+    await sendHeartbeat();
+  } finally {
+    heartbeatInFlight = false;
+  }
+}
+
 function startHeartbeat() {
   const loop = () => {
-    withTimeout(sendHeartbeat(), HEARTBEAT_TOTAL_TIMEOUT_MS, "heartbeat")
+    runHeartbeatOnce()
       .catch((e) => {
         livenessWatchdog.noteFailure((e as Error).message);
         logger.error("Heartbeat failed", { error: (e as Error).message });
@@ -442,7 +466,7 @@ function onRealtimeScanRequest() {
   const now = Date.now();
   if (now - _lastRealtimeWakeMs < 2_000) return; // debounce
   _lastRealtimeWakeMs = now;
-  sendHeartbeat().catch((e) =>
+  runHeartbeatOnce().catch((e) =>
     logger.error("Realtime-triggered heartbeat failed", { error: (e as Error).message }),
   );
 }
@@ -1991,7 +2015,9 @@ async function main() {
   // 2b. Liveness watchdog (#167): exit non-zero if heartbeats stop succeeding,
   // and SIGKILL from a worker thread if the event loop freezes outright.
   livenessWatchdog.start();
-  startEventLoopBackstop(WATCHDOG_TIMEOUT_MS);
+  startEventLoopBackstop(WATCHDOG_TIMEOUT_MS, {
+    onError: (e) => logger.error("Event-loop backstop worker failed", { error: e.message }),
+  });
   logger.info("Heartbeat watchdog armed", { timeout_ms: WATCHDOG_TIMEOUT_MS });
 
   // 3. Start Realtime watcher (instant scan-request delivery when SUPABASE_ANON_KEY is set)
