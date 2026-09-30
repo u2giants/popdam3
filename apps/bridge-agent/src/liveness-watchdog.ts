@@ -142,6 +142,8 @@ export type FailureKind = "auth" | "api" | "timeout";
 /** auth = key rejected; api = server/network answered with an error; timeout = something hung. */
 export function classifyHeartbeatFailure(message: string): FailureKind {
   if (/returned 40[13]\b/.test(message)) return "auth";
+  // Any HTTP status means the server answered — even if its body mentions a timeout.
+  if (/returned \d{3}\b/.test(message)) return "api";
   if (/timed out|timeout|aborted/i.test(message)) return "timeout";
   return "api";
 }

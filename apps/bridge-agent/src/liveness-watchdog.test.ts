@@ -100,6 +100,7 @@ test("classifyHeartbeatFailure", () => {
   assert.equal(classifyHeartbeatFailure("agent-api heartbeat returned 403: x"), "auth");
   assert.equal(classifyHeartbeatFailure("stat scan root timed out after 10000ms"), "timeout");
   assert.equal(classifyHeartbeatFailure("agent-api heartbeat returned 500: x"), "api");
+  assert.equal(classifyHeartbeatFailure("agent-api heartbeat returned 504: upstream timeout"), "api");
 });
 
 test("event-loop backstop worker boots and stays alive", async () => {
