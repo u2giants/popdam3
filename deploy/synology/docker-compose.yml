@@ -5,7 +5,16 @@ services:
   bridge-agent:
     image: ghcr.io/u2giants/popdam-bridge:stable
     container_name: popdam-bridge
+    # Required: the heartbeat watchdog (#167) exits non-zero when heartbeats
+    # stop succeeding and relies on this policy to start a fresh process.
     restart: unless-stopped
+    # json-file (not Synology's default "db" driver) so logs survive container
+    # restarts and rotate themselves: at most 5 x 20 MB per container (#167).
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     env_file: .env
     environment:
       # Canonical container name — anchors the self-update path so it never
