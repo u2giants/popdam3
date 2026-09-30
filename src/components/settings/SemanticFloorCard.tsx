@@ -20,7 +20,9 @@ export function SemanticFloorCard() {
     queryKey: ["admin-config", KEY],
     queryFn: () => call("get-config", { keys: [KEY] }),
   });
-  const current = readSemanticFloor(config.data?.config?.[KEY]);
+  // get-config returns { value: <stored row value>, updated_at }; the stored
+  // row value is { value: n } as written by Save below, which parseSemanticFloor unwraps.
+  const current = readSemanticFloor(config.data?.config?.[KEY]?.value);
   const [draft, setDraft] = useState("");
   useEffect(() => setDraft(current === null ? "" : String(current)), [current]);
 

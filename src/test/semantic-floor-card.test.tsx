@@ -24,7 +24,7 @@ describe("SemanticFloorCard", () => {
 
   it("shows the stored floor and saves a new one", async () => {
     call.mockImplementation(async (action: string) => action === "get-config"
-      ? { config: { SEARCH_MIN_SEMANTIC_SCORE: { value: 0.35 } } } : { ok: true });
+      ? { config: { SEARCH_MIN_SEMANTIC_SCORE: { value: { value: 0.35 }, updated_at: "2026-09-30T00:00:00Z" } } } : { ok: true });
     renderCard();
     const input = await screen.findByDisplayValue("0.35");
     fireEvent.change(input, { target: { value: "0.5" } });
@@ -49,7 +49,7 @@ describe("SemanticFloorCard non-numeric input", () => {
   it("blocks save for non-numeric text instead of clearing the floor", async () => {
     call.mockReset();
     call.mockImplementation(async (action: string) => action === "get-config"
-      ? { config: { SEARCH_MIN_SEMANTIC_SCORE: { value: 0.35 } } } : { ok: true });
+      ? { config: { SEARCH_MIN_SEMANTIC_SCORE: { value: { value: 0.35 }, updated_at: "2026-09-30T00:00:00Z" } } } : { ok: true });
     renderCard();
     const input = await screen.findByDisplayValue("0.35");
     fireEvent.change(input, { target: { value: "abc" } });
@@ -69,5 +69,25 @@ describe("SemanticFloorCard load failure", () => {
     await screen.findByText(/Could not load the current floor/);
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     expect(call).not.toHaveBeenCalledWith("set-config", expect.anything());
+  });
+});
+
+describe("SemanticFloorCard round-trip", () => {
+  it("reads back exactly what Save stored, through the admin-api get-config envelope", async () => {
+    call.mockReset();
+    let stored: unknown = null;
+    call.mockImplementation(async (action: string, body: { entries?: Record<string, unknown> }) => {
+      if (action === "set-config") { stored = body.entries?.SEARCH_MIN_SEMANTIC_SCORE; return { ok: true }; }
+      // admin-api handleGetConfig: config[key] = { value: row.value, updated_at }
+      return { config: stored === null ? {} : { SEARCH_MIN_SEMANTIC_SCORE: { value: stored, updated_at: "t" } } };
+    });
+    renderCard();
+    const input = await screen.findByLabelText("Minimum semantic score");
+    await waitFor(() => expect(input).not.toBeDisabled());
+    fireEvent.change(input, { target: { value: "0.6" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByDisplayValue("0.6")).toBeInTheDocument();
+    await waitFor(() => expect(call.mock.calls.filter(([a]) => a === "get-config").length).toBeGreaterThan(1));
+    expect(screen.getByDisplayValue("0.6")).toBeInTheDocument();
   });
 });
