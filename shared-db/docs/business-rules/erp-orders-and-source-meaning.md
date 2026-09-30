@@ -367,9 +367,14 @@ and it is done by owner decision, never by an automated mapping.
   JamieLynn, 2026-09-24. **Settled.**
 - **A cancelled-quantity field exists on the production side**, but whether the back office
   cancels or deletes cancelled lines is **Unknown**. Authority: ColdLion technical team, 2026-09-29.
-- **Whether multi-row production-order shapes change what we owe the factory is Unknown.**
-  ColdLion asked us to elaborate the question (2026-09-29); do not infer a cost rule until they
-  answer.
+- **Factory amount owed is the sum of `prodQty` × `prodCost` over every real row.** Split
+  quantities and faithful double-entered PO lines are both valid charges. Authority: JamieLynn,
+  2026-09-29 (answers to the worked examples). **Settled.**
+- **Ikonick production-order rows that do not fit the model are an owner exception.** When the
+  customer on an order is Ikonick, either ignore the awkward rows or squeeze them to fit our
+  system/method. Ikonick POs do not have to make sense. Multi-cost rows under one item on an
+  Ikonick order are this case (the item stood for different things reported under one number).
+  Authority: Albert Hazan, 2026-09-29. **Settled owner ruling.**
 
 ## How ColdLion works — our working model of the ERP
 
@@ -437,12 +442,19 @@ incomplete. **Settled**, verified live.
 - **`prodLineSeq` groups sizes** of one item/color/label/dim. It **can repeat**. POP does not
   use size, so the field means nothing here and must never be a unique constraint.
 - **Look-alike rows are real.** A customer PO can carry the same line twice (exact duplicate) or
-  split a quantity across two rows. Do not de-duplicate and do not sum.
+  split a quantity across two rows. Do not de-duplicate and do not collapse them into one line.
+  For **payment**, add `prodQty` × `prodCost` across those rows (settled 2026-09-29).
 - **Ignore `prodQty` = 0.** Those rows are zeroed rather than cancelled; same effect as cancel.
 - **Filter to `ISS` when loading production-order detail.** Other rows often only show in-transit
   and receiving, not extra purchase lines.
-- **Cost impact is still Unknown.** ColdLion has not yet answered whether multi-row shapes change
-  what we owe the factory; they asked for elaboration. Do not invent a cost rule from the row shapes.
+- **Cost impact is settled (JamieLynn, 2026-09-29): each real row is a real charge.** Amount
+  owed to the factory = sum of `prodQty` × `prodCost` across the rows. A split-quantity line
+  (400 + 200 of one item) is 600 units owed. A customer PO that carries the same line twice
+  (1600 + 1600) is 3200 pieces owed, not a duplication. Keep the rows separate; add the money.
+- **Ikonick multi-cost rows are an owner exception, not a cost formula.** Same item at several
+  unit costs on one line is the Ikonick pattern: the item stood for different things reported
+  under one number. Either ignore those rows or squeeze them to fit our method. Do not treat
+  that shape as a general multi-cost rule. Owner ruling, Albert, 2026-09-29.
 
 ### What ColdLion computes, and what it refuses to explain
 

@@ -79,6 +79,15 @@ shipping and billing detail). It never sets, promotes, or demotes the CRM
 classification, and a missing match never blocks or downgrades one. A single CRM
 customer may match more than one ColdLion customer code.
 
+## Ikonick orders are an owner exception
+
+**Status: Settled.** Authority: Albert Hazan, 2026-09-29.
+
+Ikonick (IKONICK) had a weird arrangement with POP. **If the customer on an order is Ikonick,
+either ignore the awkward rows or squeeze them to fit our system and method. Ikonick POs do not
+have to make sense.** Do not spend effort reconciling their production-order shapes to normal
+rules, and do not treat their outliers as a companywide data rule.
+
 ## Source authority
 
 - The CRM's own customer classification is authoritative for whether a company

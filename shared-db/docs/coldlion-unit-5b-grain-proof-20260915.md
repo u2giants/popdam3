@@ -164,8 +164,7 @@ sentence is falsified — see the note below.)*
 > the unique identifier** (consider stage code); **`prodLineSeq` groups sizes and may repeat** —
 > it is not a line identity and means nothing for POP; **ignore `prodQty` = 0**; **filter to
 > `ISS` stage** and ignore the rest. A cancelled-qty field exists, but cancel-vs-delete practice
-> is Unknown. Factory-cost impact is still open — they asked us to elaborate. **`pkey` is now
-> the settled identity.** The #3234 constraint decision (drop the falsified
+> is Unknown. Factory cost is settled 2026-09-29: **amount owed = sum of `prodQty` × `prodCost` over every real row**. Ikonick multi-cost rows are an owner exception. **`pkey` is the settled identity.** The #3234 constraint decision (drop the falsified
 > `unique (company_code, prod_order_no, prod_line_seq)`) is **unblocked**.
 
 ### Disposition — all 21 fields land, plus the request-stamped `company_code`
