@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "work_issue": 3853,
+  "outcome": "ready-for-merge",
+  "pr": 3864,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3853/8",
+  "contract_sha256": "1c52a1b8e4aff240271d4473044f56e52e18eab3acd1a0c2ed8c83cd778cabe7",
+  "head_sha": "a4f9c9bc1304916525569d91b4adeb8eb0fec4ee",
+  "base_sha": "5deadd0432d282b204b4702464867f472025c333",
+  "files_changed": [
+    ".github/workflows/coldlion-order-intake.yml",
+    "HANDOFF.d/2026-10-01T0040Z-edge-dev-zcode-coldlion-intake-phase-a-done.md",
+    "plan_coldlion_order_intake.md",
+    "tools/coldlion-landing/lib/order-intake-decode.mjs",
+    "tools/coldlion-landing/lib/order-intake-run.mjs",
+    "tools/coldlion-landing/lib/order-intake-stage.mjs",
+    "tools/coldlion-landing/lib/order-intake-windows.mjs",
+    "tools/coldlion-landing/order-intake.mjs",
+    "tools/coldlion-order-intake-decode.test.mjs",
+    "tools/coldlion-order-intake-entry.test.mjs",
+    "tools/coldlion-order-intake-stage.test.mjs",
+    "tools/coldlion-order-intake-window-arithmetic.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed. Set DATABASE_URL to run migrations against a disposable database. — full script output at implementation head a4f9c9bc1304916525569d91b4adeb8eb0fec4ee (0 added migrations)."
+    },
+    {
+      "command": "node --test tools/coldlion-order-intake-*.test.mjs",
+      "exit_code": 0,
+      "evidence": "node --test summary at implementation head a4f9c9bc1304916525569d91b4adeb8eb0fec4ee: tests 38, pass 38, fail 0, cancelled 0, skipped 0. True per-file split counted from source: window-arithmetic 9, decode 10, stage 14, entry 5 (the entry file pins the snake_case producer/consumer key contract and the side-effect-free import of order-intake.mjs)."
+    }
+  ],
+  "assumptions_resolved": [
+    "This generation supersedes generation 7 before its merge-review round completed. The eleven code/plan files are byte-identical to the generation-7 implementation (238be3f24fb772abdae1a47bf181bdc221c89f9d); the only content addition is the retirement of HANDOFF.d/2026-10-01T0040Z-edge-dev-zcode-coldlion-intake-phase-a-done.md, which the pull request's own Handoff contract check demanded because this pull request closes issue #3853 and that handoff points at it. Its durable knowledge survives elsewhere: the staged-dispatch ladder and gates in plan_coldlion_order_intake.md §9, the governed-review tooling traps committed via PR #3856, and the remaining steps tracked by the plan STATUS table. Generations 1-7 stay published and immutable.",
+    "origin/main stayed at 5deadd0432d282b204b4702464867f472025c333 through the rebuild, so the recorded base_sha is the pull request's merge base; no rebase was needed."
+  ],
+  "stop_conditions_hit": []
+}

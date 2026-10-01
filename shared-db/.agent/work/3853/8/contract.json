@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "work_issue": 3853,
+  "generation": 8,
+  "evidence_parent": {
+    "work_issue": 3853,
+    "generation": 7,
+    "contract_sha256": "d4d40fbeb610ba76d91a1fff1b9595697c783cd8ad40fb89c3d695af29fdf488"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Generation 8 carries generation 7's round-4 fix head forward unchanged (H-1: every read of the stager's snake_case summary keys goes through the exported, test-pinned foldWindowResult/stagedRowCount helpers; L-4: direct-run guard makes the entry point importable without auto-running main(); L-2: the component dedupe key preserves the constraint's NULLS NOT DISTINCT semantics; L-3: the workflow --limit description states the total-staged-budget semantics; L-1: completion evidence records the true per-file test split) and adds exactly one thing the PR's own CI demanded: the Handoff contract check refuses a pull request that closes issue #3853 while HANDOFF.d/2026-10-01T0040Z-edge-dev-zcode-coldlion-intake-phase-a-done.md still points at it, so that handoff file is retired (git rm) in this head. The handoff's durable knowledge lives on: the staged-dispatch ladder and gates are in plan_coldlion_order_intake.md §9, the governed-review tooling traps are in docs committed via PR #3856, and the remaining plan steps (C2, D cron enablement, E remainder, F live proof) are tracked by the plan STATUS table. Every round-1..round-4 finding stays fixed and carried forward byte-identical except the retired handoff path. The whole review round runs at this generation's head.",
+  "base_sha": "5deadd0432d282b204b4702464867f472025c333",
+  "dispatcher": "ZCode chat unknown on edge-dev (Phase B merge session, issue #3853)",
+  "worker": "ZCode chat unknown on edge-dev",
+  "branch": "coldlion-intake-b",
+  "worktree": "C:/repos/shared-db/.ai/worktrees/coldlion-intake-b",
+  "allowed_paths": [
+    "tools/coldlion-landing/lib/order-intake-windows.mjs",
+    "tools/coldlion-landing/lib/order-intake-stage.mjs",
+    "tools/coldlion-landing/lib/order-intake-run.mjs",
+    "tools/coldlion-landing/lib/order-intake-decode.mjs",
+    "tools/coldlion-landing/order-intake.mjs",
+    "tools/coldlion-order-intake-window-arithmetic.test.mjs",
+    "tools/coldlion-order-intake-decode.test.mjs",
+    "tools/coldlion-order-intake-stage.test.mjs",
+    "tools/coldlion-order-intake-entry.test.mjs",
+    ".github/workflows/coldlion-order-intake.yml",
+    "plan_coldlion_order_intake.md",
+    "HANDOFF.d/2026-10-01T0040Z-edge-dev-zcode-coldlion-intake-phase-a-done.md",
+    ".agent/work/3853/8/contract.json",
+    ".agent/work/3853/8/completion.json"
+  ],
+  "file_writes": [
+    "HANDOFF.d/2026-10-01T0040Z-edge-dev-zcode-coldlion-intake-phase-a-done.md",
+    ".agent/work/3853/8/contract.json",
+    ".agent/work/3853/8/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database write, no migration file, and no schema change: this is non-orchestrator tools-code work only",
+    "Never enable the workflow cron schedule; the trigger stays commented out until the Phase F live proof passes (plan B0)",
+    "Never invoke or add a workflow step for the unbuilt Phase C2 writer (order-intake-write.mjs)",
+    "Never touch the sealed-window machinery: no writes to coldlion.window_ledger, page evidence, or sealed order_history_*/prod_history_* tables from the intake path",
+    "No broad staging: only the twelve named files plus this evidence pair may be committed"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node --test tools/coldlion-order-intake-*.test.mjs"
+  ],
+  "assumptions": [
+    "This generation supersedes generation 7 before its merge-review round completed: the pull request's own Handoff contract check failed at the generation-7 head demanding the handoff file that points at issue #3853 be retired in this pull request, and any content change voids the started reviews, so the fix is batched into this one rebuilt head. Generations 1-7 stay published and immutable",
+    "Base is origin/main 5deadd0432d282b204b4702464867f472025c333; if main advances mid-flight the branch is rebuilt at a fresh merge-base with re-derived files_changed, never amended"
+  ],
+  "stop_conditions": [
+    "Stop and report if check-sql.sh or the offline intake tests fail at the implementation head",
+    "Stop on any coordination-mutex refusal and wait for the holder instead of recovering it",
+    "Stop if the guarded merge lane refuses with a reason this session cannot resolve with evidence"
+  ]
+}

@@ -553,13 +553,22 @@ reads:
     loaded, and the very first live-proof week would find nothing. Index note: the
     `LIKE 'coldlion:so:<so>:%'` prefix predicate only rides the existing
     `unique (source_system, source_id)` b-tree when the column's collation supports LIKE
-    optimisation (C/POSIX). **Default to the range-scan rewrite** (`>= prefix AND <
-    prefix || chr(1)`), which rides the existing unique b-tree at `20260810010000:245` and
-    needs no new index. Only if the range scan is rejected should an implementer add
-    `(source_system, source_id text_pattern_ops)` on `plm.production_order_line_source_ref` —
-    and that is a write on a `plm` object A0 declares under `reads:`, so it requires
-    redeclaring A0's `writes:` list first. Name whichever is chosen, because the 3×-cadence
-    rule must never absorb an unindexed scan.
+    optimisation (C/POSIX). **Shipped form (PR #3864, corrected in review 2026-10-01): the
+    LIKE behind the equality** — `source_system = 'coldlion' AND source_id like
+    'coldlion:so:<so>:%'`. The equality narrows the existing unique b-tree at
+    `20260810010000:245` to the coldlion rows (a small set), the LIKE is the semantic
+    prefix test, and correctness is collation-proof. Two byte-order range forms were
+    tried in review and both withdrawn: `< prefix || chr(1)` bounds the range to the
+    bare prefix string (every real ref sorts above it, so it suppresses nothing), and
+    the prefix's last-byte successor (`< 'coldlion:so:<so>;'`) wrongly EXCLUDES real
+    refs under any collation that orders ':' and ';' unexpectedly — a silent missed
+    detection. Never reintroduce a byte-order range here without asserting the column's
+    collation first. If the LIKE filter over the coldlion subset ever shows up in the
+    cadence arithmetic, the sanctioned fix is `text_pattern_ops` on
+    `plm.production_order_line_source_ref` — and that is a write on a `plm` object A0
+    declares under `reads:`, so it requires redeclaring A0's `writes:` list first.
+    Name whichever is chosen, because the 3×-cadence rule must never absorb an
+    unindexed scan.
   - *Gate (staged dispatch ladder — no production write before its turn):* (1) preview
     `--dry-run --limit 5` from a laptop prints the windows it would fetch and the orders it
     would detect, touching nothing; (2) preview workflow-dispatch stages real preview windows;
