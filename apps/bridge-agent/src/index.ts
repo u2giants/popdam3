@@ -1876,19 +1876,66 @@ async function handleApplyUpdate() {
     }
   }
 
-  // ── Step 3a: Recreate via docker compose (preferred) ──────────────
+  // ── Step 3a: Recreate via docker compose from a detached helper ───
+  // Compose must NOT run inside this container: (1) the in-container path
+  // (/app/compose) makes Compose derive the wrong project name ("compose"),
+  // so it tries to create a second "popdam-bridge" and hits a name conflict;
+  // (2) recreating this container would kill the Compose CLI mid-recreate.
+  // A one-shot helper from the freshly pulled image runs Compose against the
+  // HOST project directory under the real project name. If this container
+  // is not Compose-owned yet, the helper parks it, lets Compose create the
+  // service, and restores it untouched if Compose fails.
   if (composePath) {
-    logger.info("Recreating container via compose", { composePath });
-    exec(
-      `docker compose -f "${composePath}" up -d --force-recreate`,
-      { timeout: 120_000 },
-      async (err: Error | null) => {
-        if (!err) return; // new container is up — this one exits naturally
-        const msg = `docker compose recreation failed; current container was left recoverable: ${err.message}`;
-        logger.error("Self-update stopped safely", { error: msg });
-        await api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
-      },
-    );
+    try {
+      const { stdout: inspectOut } = await execFileAsync("docker", [
+        "inspect", containerId, "--format", "{{json .}}",
+      ]);
+      const info = JSON.parse(inspectOut.trim());
+      const labels: Record<string, string> = info?.Config?.Labels ?? {};
+      const mounts: Array<{ Source: string; Destination: string }> = info?.Mounts ?? [];
+      const composeDir = composePath.slice(0, composePath.lastIndexOf("/")) || "/";
+      const composeFile = composePath.slice(composePath.lastIndexOf("/") + 1);
+      const hostDir =
+        mounts.find((m) => m.Destination === composeDir)?.Source
+        ?? labels["com.docker.compose.project.working_dir"]
+        ?? composeDir;
+      const project = labels["com.docker.compose.project"]
+        || hostDir.split("/").filter(Boolean).pop()
+        || "popdam";
+      const canonicalName = process.env.POPDAM_CONTAINER_NAME || "popdam-bridge";
+      const parked = `${canonicalName}-preupdate`;
+      const q = (v: string) => `'${v.replace(/'/g, "'\\''")}'`;
+      const dc = `docker compose -p ${q(project)} -f ${q(composeFile)}`;
+      const script = [
+        "set -u",
+        `cd ${q(hostDir)} || exit 1`,
+        `${dc} config --quiet || exit 1`,
+        `owner="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' ${q(containerId)} 2>/dev/null || true)"`,
+        `if [ "$owner" = ${q(project)} ]; then exec ${dc} up -d --force-recreate; fi`,
+        `docker rm -f ${q(parked)} >/dev/null 2>&1 || true`,
+        `docker rename ${q(containerId)} ${q(parked)} || exit 1`,
+        `docker stop -t 30 ${q(containerId)} || true`,
+        `if ${dc} up -d --force-recreate; then docker rm ${q(containerId)}; exit 0; fi`,
+        `echo "compose up failed; restoring previous container" >&2`,
+        `docker rm -f ${q(canonicalName)} >/dev/null 2>&1 || true`,
+        `docker rename ${q(containerId)} ${q(canonicalName)}`,
+        `docker start ${q(containerId)}`,
+        "exit 1",
+      ].join("\n");
+      logger.info("Recreating container via compose helper", { composePath, hostDir, project });
+      await execFileAsync("docker", [
+        "run", "-d", "--rm",
+        "--name", `${canonicalName}-updater-${Date.now()}`,
+        "-v", "/var/run/docker.sock:/var/run/docker.sock",
+        "-v", `${hostDir}:${hostDir}:ro`,
+        "--entrypoint", "sh",
+        NEW_IMAGE, "-c", script,
+      ]);
+    } catch (e) {
+      const msg = `docker compose recreation failed; current container was left recoverable: ${(e as Error).message}`;
+      logger.error("Self-update stopped safely", { error: msg });
+      await api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
+    }
     return;
   }
 
