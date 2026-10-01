@@ -597,8 +597,13 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
     staleTime: 2 * 60 * 1000,
   });
 
+  // Cover image always first, in both the Files list and the carousel
+  const orderedAssets = [...(groupAssets ?? [])].sort(
+    (a, b) => Number(b.id === localPrimaryId) - Number(a.id === localPrimaryId),
+  );
+
   // Thumbnailed assets for the carousel
-  const thumbStrip = (groupAssets ?? []).filter((a) => !!a.thumbnail_url);
+  const thumbStrip = orderedAssets.filter((a) => !!a.thumbnail_url);
 
   useEffect(() => {
     if (thumbStrip.length > 0 && carouselIndex >= thumbStrip.length) {
@@ -931,13 +936,19 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                 <button
                   key={a.id}
                   className={cn(
-                    "shrink-0 rounded overflow-hidden border-2 transition-colors",
+                    "relative shrink-0 rounded overflow-hidden border-2 transition-colors",
                     compact ? "h-7 w-7" : "h-9 w-9",
                     carouselIndex === idx ? "border-primary" : "border-transparent hover:border-muted-foreground/30"
                   )}
                   onClick={() => { setSelectedAssetId(null); setCarouselIndex(idx); }}
                 >
                   <img src={a.thumbnail_url!} alt={a.filename} className="h-full w-full object-cover" />
+                  {a.id === localPrimaryId && (
+                    <Star
+                      aria-label="Cover image"
+                      className="absolute top-0.5 left-0.5 h-2.5 w-2.5 fill-amber-400 text-amber-500 drop-shadow"
+                    />
+                  )}
                 </button>
               ))}
             </div>
@@ -1432,7 +1443,7 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading files…
                   </div>
                 ) : (
-                  (groupAssets ?? []).map((asset) => {
+                  orderedAssets.map((asset) => {
                     const isCover = asset.id === localPrimaryId;
                     const hasThumb = !!asset.thumbnail_url;
                     const thumbIdx = thumbStrip.findIndex((a) => a.id === asset.id);
