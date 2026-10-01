@@ -1077,3 +1077,69 @@ test("a rotated key polling a just-submitted batch waits out the visibility grac
     globalThis.fetch = originalFetch;
   }
 });
+
+test("one missing provider result fails only that group; the other group is applied and the operation continues", async () => {
+  const GROUP_2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const idA = "popdam-group:run1:g:json_schema:0";
+  const idB = "popdam-group:run1:g:json_schema:1";
+  const originalFetch = globalThis.fetch;
+  const body = { choices: [{ message: { content: JSON.stringify(PROFILE) } }] };
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    id: "batch_saved",
+    status: "completed",
+    results: [{ custom_id: idA, response: { status_code: 200, body } }],
+  }), { status: 200, headers: { "content-type": "application/json" } })) as typeof fetch;
+  try {
+    const client = recordingClient();
+    const result = await handleStyleGroupProfiles(pendingGroupJob({
+      phase: "applying",
+      group_items: [
+        { style_group_id: GROUP_ID, custom_id: idA, status: "submitted" },
+        { style_group_id: GROUP_2, custom_id: idB, status: "submitted" },
+      ],
+    }), deps({
+      client,
+      apiKey: "test-key",
+      models: { primary: "test/vision-model:batch", fallback: null, providerPin: null },
+      fetchGroups: async (options) => options.groupIds?.[0] === GROUP_2 ? [{ ...GROUP, id: GROUP_2 }] : [GROUP],
+    }));
+    assert.equal(result.ok, true, "the operation is not failed");
+    assert.equal(result.profiled, 1);
+    assert.equal(result.failed, 1);
+    const job = result.external_job as { phase: string; group_items: Array<{ style_group_id: string; status: string; error?: string }> };
+    assert.equal(job.phase, "completed");
+    assert.deepEqual(job.group_items.map((item) => [item.style_group_id, item.status]), [[GROUP_ID, "applied"], [GROUP_2, "failed_terminal"]]);
+    const samples = result.failure_samples as Array<{ style_group_id: string; error: string }>;
+    assert.equal(samples.length, 1);
+    assert.equal(samples[0].style_group_id, GROUP_2);
+    assert.match(samples[0].error, /result missing/);
+    assert.ok(client.calls.length > 0, "the present result was written");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("an unknown or duplicate provider result ID still fails the whole apply closed", async () => {
+  const idA = "popdam-group:run1:g:json_schema:0";
+  const originalFetch = globalThis.fetch;
+  const body = { choices: [{ message: { content: JSON.stringify(PROFILE) } }] };
+  try {
+    for (const results of [
+      [{ custom_id: "popdam-group:other", response: { status_code: 200, body } }],
+      [{ custom_id: idA, response: { status_code: 200, body } }, { custom_id: idA, response: { status_code: 200, body } }],
+    ]) {
+      globalThis.fetch = (async () => new Response(JSON.stringify({ id: "batch_saved", status: "completed", results }), {
+        status: 200, headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+      const client = recordingClient();
+      await assert.rejects(handleStyleGroupProfiles(pendingGroupJob({ phase: "applying" }), deps({
+        client,
+        apiKey: "test-key",
+        models: { primary: "test/vision-model:batch", fallback: null, providerPin: null },
+      })), /unknown result ID|duplicate result ID/);
+      assert.equal(client.calls.length, 0, "nothing is written when the result set is untrustworthy");
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

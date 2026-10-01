@@ -73,10 +73,12 @@ test("restart simulation checks the saved batch without another submission", asy
   assert.equal(gets, 1);
 });
 
-test("batch results reject unknown, duplicate, and missing IDs", () => {
+test("batch results reject unknown and duplicate IDs but leave a missing ID to the per-item path", () => {
   assert.throws(() => indexBatchResults(["a"], [{ custom_id: "b" }]), /unknown result ID/);
   assert.throws(() => indexBatchResults(["a"], [{ custom_id: "a" }, { custom_id: "a" }]), /duplicate result ID/);
-  assert.throws(() => indexBatchResults(["a", "b"], [{ custom_id: "a" }]), /missing/);
+  const partial = indexBatchResults(["a", "b"], [{ custom_id: "a" }]);
+  assert.equal(partial.size, 1, "a missing expected result is left to the per-item failure path");
+  assert.equal(partial.has("b"), false);
 });
 
 test("treats only a newly submitted batch 404 as temporary", () => {

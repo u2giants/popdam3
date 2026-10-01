@@ -65,9 +65,9 @@ export function indexBatchResults<T extends { custom_id?: string }>(
     }
     indexed.set(result.custom_id, result);
   }
-  for (const customId of expected) {
-    if (!indexed.has(customId)) throw new Error("Provider batch result is missing");
-  }
+  // An expected ID with no result is NOT an error here: the caller fails only
+  // that item (per-item failure path), so one missing answer cannot abort the
+  // whole batch or the operation. Unknown and duplicate IDs still fail closed.
   return indexed;
 }
 
