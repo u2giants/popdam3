@@ -16,7 +16,12 @@ export async function fetchAppliedVersions(projectRef,token=process.env.SUPABASE
   return rows.map((row)=>{if(!row||row.version===undefined||row.version===null)throw new Unknown('a ledger row came back without a `version` column');return String(row.version)})
 }
 
-export function readRepoVariable(name,{run=runGitHubCommand}={}){
+export function readRepoVariable(name,{run=runGitHubCommand,workflowPreviewRef}={}){
+  // The scheduled audit has an Actions GITHUB_TOKEN that can read workflow
+  // context vars but cannot call the repository-variables REST endpoint. Keep
+  // the existing lookup for every other caller. readPreviewLedger validates
+  // this exact ref against the checked-in preview cross-check before use.
+  if(name==='PREVIEW_PROJECT_REF'&&workflowPreviewRef!==undefined)return String(workflowPreviewRef).trim()
   try{return run(['variable','get',name,'--repo',currentRepository()],{wrapError:(detail)=>new Unknown(`repository variable ${name} is unavailable: ${detail}`)}).trim()}catch(error){throw error instanceof Unknown?error:new Unknown(`repository variable ${name} is unavailable: ${error.message}`)}
 }
 

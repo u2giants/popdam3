@@ -8391,6 +8391,7 @@ test('the preview gate excludes the context the guarded merge sets for itself', 
   // so the exclusion above is proven to be narrow rather than a blanket pass.
   const red=new Map([['SQL migration guards','FAILURE'],['Migration author lease','SUCCESS']])
   assert.deepEqual(pendingRequiredContexts(required,red),['SQL migration guards'])
+  assert.throws(()=>pendingRequiredContexts([],green),/policy has no checks/)
 })
 
 test('#2460 expired recovery works for a claim legitimately expanded beyond its issue scope, and still enforces the subset guarantee',()=>{
@@ -9279,6 +9280,7 @@ test('#2987 a verdict-namespace ceiling refusal names its real cause and the arc
   assert.throws(()=>findBusyReviewers(transient),/transient.*failure.*HTTP 502.*Retry the operation/)
 })
 
+// A LEGACY CLAIM TITLE MUST NOT BLANK THE WHOLE READ-ONLY AUDIT. On 2026-09-16 the
 // A LEGACY CLAIM TITLE MUST NOT BLANK THE WHOLE READ-ONLY AUDIT. On 2026-09-16 the
 // live `--abandonment-audit` printed one refusal and nothing else, because claim
 // #2871 was titled "CLAIM: issue-2870-cutover-columns" -- no `#` -- and the identity

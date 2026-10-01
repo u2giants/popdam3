@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "files": [
+    ".github/workflows/author-lane-abandonment-audit.yml",
     ".github/workflows/guarded-migration-merge.yml",
     ".github/workflows/migration-author-lease.yml",
     ".github/workflows/production-apply-review-evidence.yml",
@@ -27,6 +28,8 @@
     "scripts/lib/merge-self-context.mjs",
     "scripts/lib/agent-evidence-paths.mjs",
     "scripts/lib/pr-content-equivalence.mjs",
+    "scripts/lib/required-check-authority.mjs",
+    "scripts/lib/required-check-readback.mjs",
     "scripts/lib/repository-identity.mjs",
     "scripts/lib/review-verdict-artifact.mjs",
     "scripts/lib/review-verdict.mjs",

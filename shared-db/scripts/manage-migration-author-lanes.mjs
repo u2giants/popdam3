@@ -18,6 +18,7 @@ import { reconcileFlow, persistInitialReady, preparePreviewDispatch, repairPrevi
 import { MERGE_SELF_CONTEXT } from './lib/merge-self-context.mjs'
 import { selectPreviewArtifacts } from './orchestrator-flow/preview-artifact-selection.mjs'
 import { currentRepository, isThisRepositoryOrHistorical, isTrustedOperatorComment, repositoryCommentApiPath } from './lib/repository-identity.mjs'
+import { readRequiredCheckContexts } from './lib/required-check-readback.mjs'
 
 // `Migration guarded merge authorization` is posted by the guarded merge ITSELF,
 // after this gate has already passed -- see SELF_CONTEXT in
@@ -33,6 +34,7 @@ import { currentRepository, isThisRepositoryOrHistorical, isTrustedOperatorComme
 // it, and a pin test asserts the two sides agree.
 export const MERGE_ADVISORY_CONTEXT = 'Documents-only merge advisory'
 export function pendingRequiredContexts(protectedContexts=[],observed=new Map()){
+  if(!Array.isArray(protectedContexts)||!protectedContexts.length)throw new LaneError('required full CI policy has no checks; refusing preview proof')
   const byName=observed instanceof Map?observed:new Map(Object.entries(observed))
   return protectedContexts.filter((name)=>name!==MERGE_SELF_CONTEXT&&byName.get(name)!=='SUCCESS')
 }
@@ -2633,7 +2635,13 @@ export const githubIo = {
   getFileAt(file,ref){const text=laneTreeReader.readFileAtRef(REPO,file,ref);if(text===null)throw new LaneError(`could not read ${file} at ${ref}`);return text},
   treeFiles(ref){return laneTreeReader.pathsAtRef(REPO,ref)},
   previewGateProof(issue,pr,head,bundleId,dependencies=[]){
-    const protectedContexts=ghJson(['api',`repos/${REPO}/branches/main/protection/required_status_checks`])?.contexts??[]
+    const protectedContexts=readRequiredCheckContexts({
+      protectedChecks:()=>ghJson(['api',`repos/${REPO}/branches/main/protection/required_status_checks`]),
+      branch:()=>ghJson(['api',`repos/${REPO}/branches/main`]),
+      repository:()=>ghJson(['api',`repos/${REPO}`]),
+      branchRules:()=>ghJson(['api','--paginate','--slurp',`repos/${REPO}/rules/branches/main?per_page=100`]),
+      confirmRulesEnd:(page)=>ghJson(['api',`repos/${REPO}/rules/branches/main?per_page=100&page=${page}`]),
+    })
     const checks=JSON.parse(gh(['pr','checks',String(pr),'--repo',REPO,'--json','name,state']))
     const byName=new Map(checks.map((row)=>[row.name,String(row.state).toUpperCase()]))
     const failed=pendingRequiredContexts(protectedContexts,byName)
@@ -3172,9 +3180,11 @@ function githubFlowAdapter(io,claimNumber=null,admissionOptions=null){
   }
 }
 
-function livePreviewLedger(){
-  const code=`import {readPreviewLedger} from './scripts/orchestrator-flow/read-preview-ledger.mjs';try{console.log(JSON.stringify(await readPreviewLedger()))}catch(e){console.error(e.message);process.exit(2)}`
-  try{return JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',code],{encoding:'utf8',stdio:['ignore','pipe','pipe'],env:process.env}))}catch(error){throw new LaneError(`fresh preview ledger is unavailable (${String(error.stderr??error.message).trim()})`)}
+function livePreviewLedger({workflowPreviewRef}={}){
+  const ledgerOptions=workflowPreviewRef===undefined?'':'{readRepoVariable:(name)=>readRepoVariable(name,{workflowPreviewRef:process.env.AUDIT_WORKFLOW_PREVIEW_REF})}'
+  const code=`import {readPreviewLedger,readRepoVariable} from './scripts/orchestrator-flow/read-preview-ledger.mjs';try{console.log(JSON.stringify(await readPreviewLedger(${ledgerOptions})))}catch(e){console.error(e.message);process.exit(2)}`
+  const env=workflowPreviewRef===undefined?process.env:{...process.env,AUDIT_WORKFLOW_PREVIEW_REF:String(workflowPreviewRef)}
+  try{return JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',code],{encoding:'utf8',stdio:['ignore','pipe','pipe'],env}))}catch(error){throw new LaneError(`fresh preview ledger is unavailable (${String(error.stderr??error.message).trim()})`)}
 }
 export function deriveLiveNoDatabasePreview(issue,io){
   const evidence=io.databasePreviewClassification?.(issue)
@@ -9589,6 +9599,7 @@ export function main(argv, now = new Date(), io = githubIo) {
       // message is still printed in full; only the code it is filed under moves.
       try{
         if(typeof io.orchestratorFlowAdapter!=='function')throw new LaneError('reconcile runtime adapter is unavailable')
+        if(io.previewLedger===undefined)io={...io,previewLedger:()=>livePreviewLedger({workflowPreviewRef:process.env.PREVIEW_PROJECT_REF})}
         const result=reconcileFlow(io.flowSnapshot(now),reportOnlyFlowIo(io.orchestratorFlowAdapter()))
         console.log(JSON.stringify(result,null,2))
         return abandonmentAuditExit(result)

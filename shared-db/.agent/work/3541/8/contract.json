@@ -1,0 +1,74 @@
+{
+  "schema_version": 2,
+  "work_issue": 3541,
+  "generation": 8,
+  "evidence_parent": {
+    "work_issue": 3541,
+    "generation": 7,
+    "contract_sha256": "c148e358975f870bb8c2ea6b4d3add26217cbea625e6445868048cc50f5f1719"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Repair the scheduled abandonment audit required-check and preview reads while preserving fail-closed live authority; correct governed review findings on PR #3625",
+  "base_sha": "25c454807717d8353801d36a659253d6d2b809aa",
+  "dispatcher": "non-orchestrator issue #3541; parent Codex session",
+  "worker": "Codex chat 01a0e6d4-fe66-7de1-801f-3b213ad704d5",
+  "branch": "codex/3541-abandonment-check-access",
+  "worktree": "/home/ahazan/repos/shared-db-3541-permission",
+  "allowed_paths": [
+    "config/orchestrator-global-invalidators-v1.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/lib/required-check-readback.mjs",
+    "scripts/lib/required-check-readback.test.mjs",
+    "scripts/orchestrator-flow/read-preview-ledger.mjs",
+    "scripts/orchestrator-flow/read-preview-ledger.test.mjs",
+    ".github/workflows/author-lane-abandonment-audit.yml",
+    ".agent/work/3541/8/contract.json",
+    ".agent/work/3541/8/completion.json"
+  ],
+  "file_writes": [
+    "config/orchestrator-global-invalidators-v1.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/lib/required-check-readback.mjs",
+    "scripts/lib/required-check-readback.test.mjs",
+    "scripts/orchestrator-flow/read-preview-ledger.mjs",
+    "scripts/orchestrator-flow/read-preview-ledger.test.mjs",
+    ".github/workflows/author-lane-abandonment-audit.yml",
+    ".agent/work/3541/8/contract.json",
+    ".agent/work/3541/8/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change #3505 or #3552",
+    "Do not mutate any database claim or lease",
+    "Do not mutate database or infrastructure",
+    "Do not merge before orchestrator #3570 releases preview and protected-source predecessors clear"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/required-check-readback.test.mjs",
+    "node --test scripts/orchestrator-flow/read-preview-ledger.test.mjs scripts/orchestrator-flow/reconcile.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "git diff --check",
+    "node --test scripts/check-workflow-preview-ref.test.mjs",
+    "node --test scripts/orchestrator-flow/evidence-bundle.test.mjs"
+  ],
+  "assumptions": [
+    "The live main branch readback identifies repository id 1275568548 and classic required checks; active rulesets are reconciled and empty or ambiguous policy refuses",
+    "The scheduled workflow GITHUB_TOKEN can read the repository and branch endpoints, and its protected endpoint denial is the exact integration HTTP 403",
+    "The preview environment restricts the step-scoped Supabase token and the main-ref job guard rejects branch dispatch",
+    "No repository-maintenance db-claim can pass parseAuthorLease because valid claims require exact database objects; a stale or structurally invalid claim remains exit 3",
+    "The main workflow live result remains unproven until after merge",
+    "Generation 6 failed evidence pair was committed as 1c5af8fd and later removed from the final PR diff by an ordinary revert; its contract ref and signed disclosure remain immutable. Generation 7 had an inaccurate assumption claiming the pair was never committed; generation 8 corrects that record without rewriting either predecessor."
+  ],
+  "stop_conditions": [
+    "Stop if a non-main workflow dispatch can reach the credential-bearing audit job",
+    "Stop if required checks are empty, ruleset pages incomplete, repository identity wrong, or producer identities conflict",
+    "Stop if the preview ref is absent or mismatches the checked-in preview ref",
+    "Stop if the audit can write a claim, lease, or database row",
+    "Stop an attempted merge while orchestrator #3570 preview hold or protected-source predecessors remain"
+  ]
+}
