@@ -111,6 +111,72 @@ Related, unfixed: those runners tell you to install `pg` in a scratch dir and se
 **`NODE_PATH` is CommonJS-only** — `await import("pg")` resolves relative to the tool's own
 location, so this does not work for ESM tools.
 
+## 10.4 Governed-review tooling: four traps that each cost a session (added 2026-10-01)
+
+Learned across seven review rounds on PR #3389. Each of these looks like something it is not.
+
+### A wrapper `doctor` exiting 1 with no named check is LOCAL version drift, not a dead provider
+
+`reviewerExecutionPreflight` runs the wrapper's own `doctor` before any reviewer starts, and
+refuses with, verbatim:
+
+> `doctor could not be run (exit 1) and named no check` — this is a **LOCAL** dependency fault on
+> this machine, not a provider fault. Fix the local service and retry the same reviewer. Do NOT
+> pause the reviewer and do NOT record `provider_unavailable` against it.
+
+**Take that literally.** The refusal reads like an outage, and pausing a provider is the wrong
+reflex: it removes a healthy reviewer from the rotation for every machine, and the fault stays
+here. Observed with `ai-grok-review`, whose doctor printed
+`version policy: UNQUALIFIED — installed 1.0.41, requires exactly 1.0.13`.
+
+- Reproduce the runner's own probe rather than running the wrapper by hand:
+  `node -e "import('./scripts/manage-migration-author-lanes.mjs').then(m=>m.githubIo.reviewerDoctor('<wrapper>').then(r=>console.log(r.ok, r.failingChecks)))"`
+- **Never pipe a by-hand doctor run through `head`.** `wrapper doctor | head -30; echo exit=$?`
+  reports `head`'s status, so a failing doctor reads as `exit=0`. That misread cost an hour.
+- Fix it by pointing the wrapper at the already-downloaded qualified build —
+  `AI_GROK_BIN="$HOME/.grok/downloads/grok-<qualified>-windows-x86_64"` — **not** by
+  `grok update --version`, which downgrades the user's default install for every other use.
+
+### The wrapper CLIs are not interchangeable
+
+`run-governed-review.mjs` forwards everything after `--` to the drawn wrapper, and the wrappers
+disagree about their first argument. `ai-deepseek-agent` takes `send` / `reply <session>`; the
+others take `new <session>` / `ask <session>`. Both spellings pass the brief with `--prompt-file`,
+because for `ai-deepseek-agent` — which has no prompt flag and would fold the path into the message
+as literal text — the runner reads the file and passes it as a private `--file` (issue #3479).
+
+Getting this wrong refuses **before** a reviewer starts and spends no capacity, so it is cheap. It
+is not grounds to replace the reviewer: the draw stays valid and the same `--assignment-id` works.
+
+### A reviewer can burn its whole budget on reasoning and return nothing
+
+One round ended with `finish_reason: stop`, 28,372 reasoning tokens, and no answer text at all —
+the model had drafted findings internally and never emitted them. The runner correctly refuses
+("no recordable terminal verdict") and saves diagnostics under
+`~/.cache/shared-db/review-wrapper-failures/`. **Read the private response file named there before
+concluding anything**: it is the only place the lost reasoning survives, and in that instance it
+contained one correct finding worth acting on.
+
+This is a truncated-output failure, not an outage. Nothing is paused; re-draw.
+
+### Live-register assertions make CI and your worktree disagree
+
+A test that asserts a verdict for a real entry in `docs/coldlion-open-questions.md` passes locally
+and fails in CI whenever `main` has reworded that entry, because **CI tests the merge of the pull
+request into `main`** while the worktree carries the branch's copy. It looks exactly like a
+platform difference and is not. Before trusting a one-test CI failure on a docs-coupled guard,
+re-run the assertion against `git show origin/main:<path>` — not against the checked-out file.
+
+### And one that is not about tooling at all
+
+A reviewer finding is **evidence, not an instruction**. One round reported that a dollar tag inside
+a string literal wrongly ends a dollar-quoted body early. PostgreSQL dollar quoting has no escapes,
+so a bare `$$` inside a `$$`-tagged body really does close it and such SQL is invalid; the code
+written to answer the report made the scanner skip a *genuine* closing tag that followed a comment
+on the same line, and two tests were written asserting behaviour the database rejects. Check a
+finding against the language before acting on it, and say so in the evidence packet when you
+decline one.
+
 ## 10.1 Clean-slate local replay is unsupported — use the dependency closure
 
 Applying every migration in filename order against an empty local Postgres **cannot
