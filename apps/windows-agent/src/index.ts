@@ -663,6 +663,25 @@ function startPolling() {
       // Fill all available slots — try PopDAM jobs first, then SG jobs
       while (activeJobs < maxConcurrency) {
         try {
+          // Never claim a PopDAM job against a dead Z: mapping. ensureNasMapped is a
+          // cheap access check while the share is reachable; when the SMB session has
+          // dropped (for example after the NAS password was rotated) it remaps with the
+          // credentials the latest heartbeat delivered from admin_config. If that still
+          // fails, mark the agent unhealthy so the preflight recheck keeps retrying and
+          // no job is consumed as a failure.
+          if (cloudNasHost) {
+            const zMap = await ensureNasMapped(cloudNasMountPath, {
+              host: cloudNasHost,
+              share: cloudNasShare,
+              username: cloudNasUsername,
+              password: cloudNasPassword,
+            });
+            if (!zMap.ok) {
+              logger.warn("NAS unavailable before claim — pausing claims until remap succeeds", { error: zMap.error });
+              healthStatus = { ...healthStatus, healthy: false, nasHealthy: false };
+              break;
+            }
+          }
           const job = await api.claimRender(agentId);
           if (job) {
             if (!job.relative_path) {
