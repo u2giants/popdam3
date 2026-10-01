@@ -285,6 +285,8 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 **Required contract**: self-update only runs through an existing Compose file. Missing Compose state or a Compose failure is reported and leaves the running container recoverable; it never falls back to `docker run`, renames containers, strips read-only flags, or prunes backups. The manual updater validates Compose first, never runs `compose down`, verifies stability for 45 seconds, and restores the prior image if verification fails.
 
+**Compose must not run inside the bridge (fixed 1.16.16, 2026-10-01)**: run from inside the container, Compose sees `/app/compose` and derives project name `compose` instead of the host project `popdam`, so it tries to create a second `popdam-bridge` ("container name already in use"); it would also be killed when it stops its own container. The agent now launches a detached one-shot helper (`popdam-bridge-updater-<ts>`, from the pulled `:stable` image) that runs `docker compose -p <project>` against the host project dir mounted at the same path. If the running container is not Compose-owned, the helper renames it to `popdam-bridge-preupdate`, stops it, runs Compose, and restores it on failure. Live-proven on edgesynology1 via an in-app update.
+
 **Build/runtime validation**: build identity remains baked into immutable `/app/build-info.json`. The Docker build must also import the compiled eligibility module from the clean runtime stage, so a missing JSON artifact cannot publish. Do not replace this with a host build or a test against a dirty local `dist/` directory.
 
 ---

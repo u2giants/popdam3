@@ -195,7 +195,7 @@ The bridge agent runs as a Docker container on the Synology NAS, managed by `doc
 
 **Updating on the NAS (two paths):**
 
-Primary — in-app self-update: Admin UI → Settings → Agents → Update. This sets an `UPDATE_REQUEST` command in `admin_config`. The agent receives it on the next heartbeat, pulls `:stable`, and recreates through its existing Compose file. If Compose cannot be found or fails, the update stops visibly and preserves the running container; there is no unmanaged `docker run` fallback.
+Primary — in-app self-update: Admin UI → Settings → Agents → Update. This sets an `UPDATE_REQUEST` command in `admin_config`. The agent receives it on the next heartbeat, pulls `:stable`, and recreates through its existing Compose file, run from a detached one-shot helper container under the host project name (see KNOWN_QUIRKS #26). If Compose cannot be found or fails, the update stops visibly and preserves the running container; there is no unmanaged `docker run` fallback.
 
 Fallback — manual on NAS:
 ```bash
