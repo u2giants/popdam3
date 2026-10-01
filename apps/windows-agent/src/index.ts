@@ -649,10 +649,6 @@ function startPolling() {
   const loop = async () => {
     if (!configReceived) {
       logger.debug("Skipping poll — waiting for cloud config (NAS host + Spaces credentials)");
-    } else if (!healthStatus.healthy) {
-      logger.debug("Skipping poll — agent is unhealthy", {
-        nasHealthy: healthStatus.nasHealthy,
-      });
     } else if (stopAcceptingJobs) {
       logger.debug("Skipping poll — job claiming halted (force_stop_jobs active)");
     } else if (
@@ -680,6 +676,9 @@ function startPolling() {
             // Skip only PopDAM claims; PopSG jobs use their own share and still run.
             // The gate retries the remap on every poll with the latest credentials.
             logger.warn("Main NAS unavailable — skipping PopDAM claims until remap succeeds", { error: zGate.error });
+            healthStatus = { ...healthStatus, healthy: false, nasHealthy: false, lastPreflightError: zGate.error || null };
+          } else if (!healthStatus.healthy) {
+            healthStatus = { ...healthStatus, healthy: true, nasHealthy: true, lastPreflightError: null };
           }
           const job = zGate.ready ? await api.claimRender(agentId) : null;
           if (job) {
@@ -698,8 +697,10 @@ function startPolling() {
           }
 
           // No PopDAM job — try SG job (ensure SG NAS is mapped first)
-          await ensureSgNasMapped();
-          const sgJob = await api.claimSgRender(agentId);
+          // Health is per share: the main-NAS gate above guards PopDAM claims, and
+          // PopSG claims are guarded by their own share mapping here.
+          const sgReady = await ensureSgNasMapped();
+          const sgJob = sgReady ? await api.claimSgRender(agentId) : null;
           if (sgJob) {
             if (!sgJob.relative_path) {
               logger.error("Claimed SG job missing relative_path", { jobId: sgJob.job_id });
