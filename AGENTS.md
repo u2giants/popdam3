@@ -27,7 +27,7 @@ When the user says **"wrap up"**, that means: update the relevant Markdown docs 
 | PostgreSQL DB | canonical `/worksp/shared-db/supabase/migrations/` | Supabase (hosted) |
 | Cloud worker (AI tagging, ERP, rebuild) | `apps/worker/` | Railway (Node.js) |
 | Bridge agent (NAS scanner + thumbnailer) | `apps/bridge-agent/` | Synology Docker |
-| Windows render agent (Illustrator) | `apps/windows-agent/` | Windows VM (manual install) |
+| Windows render agent (no Illustrator) | `apps/windows-agent/` | Windows PC/VM (manual install) |
 | Desktop helper (checkout/checkin) | `apps/popdam-helper/` | Electron, Mac + Windows |
 
 ---
@@ -290,7 +290,7 @@ popdam3/
 │   ├── worker/                 ← Railway cloud worker (Node.js, TypeScript)
 │   │   └── src/handlers/       ← Per-operation batch handlers
 │   ├── bridge-agent/           ← Synology NAS agent (Docker, TypeScript)
-│   ├── windows-agent/          ← Windows Illustrator render agent (TypeScript)
+│   ├── windows-agent/          ← Windows render agent: Inkscape/ImageMagick/Ghostscript/Poppler/Tesseract (TypeScript)
 │   └── popdam-helper/          ← Electron desktop app
 ├── packages/path-filters/      ← Shared path filter logic (Node.js workspace pkg)
 ├── scripts/                    ← Utility scripts (nas-ssh.sh, etc.)
@@ -402,7 +402,7 @@ Files outside project-owned areas that were intentionally modified:
 | `coolify-proxy` | Traefik reverse proxy for Coolify apps | Coolify on VPS | Traefik service `https-0-qxj8a0j3tpa9lq4q5rs6pezy@docker` routes to frontend | `traefik:v3.6` managed by Coolify |
 | Railway worker | Persistent batch processor for AI tagging, ERP, style groups, SeaDrive mirror | Railway | Railway service for `apps/worker/` (exact Railway project ID unknown; verify in Railway dashboard) | `apps/worker/Dockerfile`; Railway rebuilds on every push to `main` |
 | `popdam-bridge` | Synology NAS scanner, thumbnailer, upload/check-in verifier | Synology Container Manager / docker compose | Host `edgesynology1` (edgesynology2 copy retired 2026-09-23, #141); compose reference `deploy/synology/docker-compose.yml` | `ghcr.io/u2giants/popdam-bridge:stable` from `.github/workflows/publish-bridge-agent.yml` |
-| Windows render agent | Illustrator/Windows render and PDF text backfill agent | Manual Windows VM install | Release channel `windows-agent-latest` | `apps/windows-agent/`, packaged by `.github/workflows/publish-windows-agent.yml` |
+| Windows render agent | Windows render (Inkscape, ImageMagick, Ghostscript, Poppler, Tesseract — no Illustrator) and PDF text backfill agent | Manual Windows VM install | Release channel `windows-agent-latest` | `apps/windows-agent/`, packaged by `.github/workflows/publish-windows-agent.yml` |
 | POP DAM Helper | Designer desktop checkout/check-in helper | End-user desktop install | Release channel `popdam-helper-latest` | `apps/popdam-helper/`, packaged by `.github/workflows/publish-popdam-helper.yml` |
 | Supabase edge functions | Admin, agent, helper, auth, export, sync APIs | Supabase | Project `qsllyeztdwjgirsysgai` | `supabase/functions/**`, deployed by `.github/workflows/deploy-supabase.yml` |
 | PostgreSQL | PopDAM/PopSG database, auth metadata, pg_cron jobs | Supabase | Project `qsllyeztdwjgirsysgai` | Canonical `u2giants/shared-db/supabase/migrations/**`, applied through shared-db preview-first workflow |
@@ -577,6 +577,8 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 **Versioning:** Bump `apps/bridge-agent/package.json` version in same commit.
 
 ### Windows Render Agent
+
+**No Adobe Illustrator.** An Illustrator-driven render was tried and abandoned: it never managed to open the `.ai` files. The agent renders with Inkscape, ImageMagick (`magick`), Ghostscript (`gswin64c`), Poppler (`pdftoppm`) and Tesseract (OCR). Any Windows machine with those tools and NAS access can host it.
 
 **Workflow:** `.github/workflows/publish-windows-agent.yml`
 **Distribution:** GitHub Release (`windows-agent-latest` tag)
