@@ -13,6 +13,11 @@ REM ─────────────────────────�
 
 set POPDAM_LAUNCHER=1
 
+REM ── Log files (matches the release installer's launcher) ───────
+set "CONFIG_DIR=%ProgramData%\PopDAM"
+set "LOG_DIR=%CONFIG_DIR%\logs"
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+
 REM ── Read drive mapping from agent-config.json (if present) ──────
 set AGENT_CONFIG=%ProgramData%\PopDAM\agent-config.json
 set DRIVE_LETTER=
@@ -47,7 +52,7 @@ if defined DRIVE_LETTER if defined NAS_UNC (
 REM ── Supervisor loop ─────────────────────────────────────────────
 :loop
 echo [launcher] Starting PopDAM Windows Render Agent...
-"%~dp0node.exe" "%~dp0dist\index.js"
+"%~dp0node.exe" "%~dp0dist\index.js" >> "%LOG_DIR%\agent.log" 2>> "%LOG_DIR%\agent-error.log"
 set EXIT_CODE=%ERRORLEVEL%
 
 if %EXIT_CODE% equ 77 (

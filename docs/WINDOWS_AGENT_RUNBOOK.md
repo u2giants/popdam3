@@ -217,6 +217,7 @@ Only one machine should run the agent at a time. Pairing uses the same agent nam
 | 9 | SSH commands to edge-alien broke on quoting | The remote shell is Windows PowerShell, so `&` and `\"` get mangled | Send scripts with `powershell -NoProfile -EncodedCommand <base64 UTF-16>`. |
 | 10 | `Get-ScheduledTask` over SSH found no PopDAM task, although `schtasks /query` did | Quoting and filtering differences in the SSH session | Use `schtasks /end` and `schtasks /change /disable` with `/tn 'PopDAM Windows Render Agent'` inside an encoded script. Then kill any leftover `node.exe` under `C:\Program Files\PopDAM` and the `popdam-launcher` `cmd` process. |
 | 11 | A long log grep over SSH on edge-alien hung for more than 120 s | Large log files read over SSH | Use `-Tail` on the logs. Don't run `Select-String` over whole log files remotely. |
+| 12 | The agent's cmd window floods with JSON logs it never showed on edge-alien | The release installer's launcher redirects stdout/stderr to `%ProgramData%\PopDAM\logs\agent.log` and `agent-error.log`. The manual-install `scripts/windows-agent/popdam-launcher.bat` used to print to the console instead. | Use the fixed launcher (redirects like the installer), or prefer `popdam-windows-agent-setup.exe`. The visible window is normal for the interactive task; it should stay almost empty. |
 
 ### Pairing code without the UI
 
