@@ -23,7 +23,7 @@ import { compressTiff, deleteOriginalBackup, scanTiffFiles, setTimestampConfig, 
 import { inspectAiFile } from "./ai-raster-inspector";
 import { captureTimestamps } from "./tiff-timestamps";
 import { ensureNasMapped } from "./nas-mapper";
-import { nasReadyForClaim } from "./claim-gate";
+import { nasReadyForClaim, sgReadyForClaim } from "./claim-gate";
 import { resetSkipWarnings, shouldSkipPath } from "@popdam/path-filters";
 import { startJanitor } from "./janitor";
 import path from "node:path";
@@ -699,7 +699,8 @@ function startPolling() {
           // No PopDAM job — try SG job (ensure SG NAS is mapped first)
           // Health is per share: the main-NAS gate above guards PopDAM claims, and
           // PopSG claims are guarded by their own share mapping here.
-          const sgReady = await ensureSgNasMapped();
+          const sgReady = await sgReadyForClaim(
+            Boolean(cloudSgNasShare || cloudSgNasMountPath), zGate.ready, ensureSgNasMapped);
           const sgJob = sgReady ? await api.claimSgRender(agentId) : null;
           if (sgJob) {
             if (!sgJob.relative_path) {

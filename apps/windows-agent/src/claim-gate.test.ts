@@ -31,3 +31,15 @@ test("redactSecret removes every occurrence of the password", () => {
   assert.ok(out.includes("[REDACTED]"));
   assert.equal(redactSecret(msg, ""), msg);
 });
+
+import { sgReadyForClaim } from "./claim-gate";
+
+test("PopSG without its own share follows the main share", async () => {
+  assert.equal(await sgReadyForClaim(false, false, async () => true), false);
+  assert.equal(await sgReadyForClaim(false, true, async () => false), true);
+});
+
+test("PopSG with its own share uses only that share", async () => {
+  assert.equal(await sgReadyForClaim(true, false, async () => true), true);
+  assert.equal(await sgReadyForClaim(true, true, async () => false), false);
+});

@@ -11,3 +11,16 @@ export async function nasReadyForClaim(
   const result = await ensure();
   return result.ok ? { ready: true } : { ready: false, error: result.error };
 }
+
+/**
+ * PopSG jobs read from their own share when one is configured; otherwise they
+ * fall back to the main share, so they are ready only when the main share is.
+ */
+export async function sgReadyForClaim(
+  sgShareConfigured: boolean,
+  mainReady: boolean,
+  ensureSg: () => Promise<boolean>,
+): Promise<boolean> {
+  if (!sgShareConfigured) return mainReady;
+  return ensureSg();
+}
