@@ -1,0 +1,72 @@
+{
+  "schema_version": 2,
+  "work_issue": 3234,
+  "generation": 8,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Drop the falsified unique (company_code, prod_order_no, prod_line_seq) on coldlion.prod_detail, keep PRIMARY KEY (company_code, pkey), and align contracts, loader, live proof, and sidecar to settled pkey-only identity.",
+  "base_sha": "b687b3dd4573bedb9f79b4105e137abfab2c2fb7",
+  "dispatcher": "takeover per owner instruction 2026-09-30 ~8:50 PM EDT (stuck PR #3852 must land); claim #3851",
+  "worker": "Claude chat 13b4d2 (sub-agent of eec180db) on hetz",
+  "branch": "mimo/3234-drop-prod-detail-line-unique",
+  "worktree": "/tmp/claude-1000/sdb-3852",
+  "allowed_paths": [
+    "supabase/migrations/20260930212107_coldlion_prod_detail_drop_line_seq_unique.sql",
+    "supabase/tests/coldlion_prepack_prod_detail_landing_contracts.sql",
+    "tools/coldlion-landing/lib/prod-details.mjs",
+    "tools/coldlion-landing-prod-details.test.mjs",
+    ".github/live-proofs/3234.sql",
+    "scripts/production-verification-sidecars/20260930212107.json",
+    "scripts/production_catalog_verification.py",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "config/production-verification-sidecar-registry.json",
+    ".agent/work/3234/8/contract.json",
+    ".agent/work/3234/8/completion.json",
+    ".agent/work/3234/6/contract.json",
+    ".agent/work/3234/6/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20260930212107_coldlion_prod_detail_drop_line_seq_unique.sql",
+    "supabase/tests/coldlion_prepack_prod_detail_landing_contracts.sql",
+    "tools/coldlion-landing/lib/prod-details.mjs",
+    "tools/coldlion-landing-prod-details.test.mjs",
+    ".github/live-proofs/3234.sql",
+    "scripts/production-verification-sidecars/20260930212107.json",
+    "scripts/production_catalog_verification.py",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "config/production-verification-sidecar-registry.json",
+    ".agent/work/3234/8/contract.json",
+    ".agent/work/3234/8/completion.json",
+    ".agent/work/3234/6/contract.json",
+    ".agent/work/3234/6/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table coldlion.prod_detail"
+  ],
+  "prohibited_actions": [
+    "do not drop or alter PRIMARY KEY (company_code, pkey)",
+    "do not collapse or de-duplicate rows that share prod_line_seq",
+    "do not change RLS grants on the landing layer"
+  ],
+  "required_checks": [
+    "node --test tools/coldlion-landing-prod-details.test.mjs",
+    "bash scripts/check-sql.sh",
+    "python3 scripts/check_production_verification_sidecars.py --repo . --scan-version 20260930212107",
+    "python3 -m unittest scripts/test_production_catalog_verification.py"
+  ],
+  "assumptions": [
+    "ColdLion technical team 2026-09-29 settled pkey as the only row identity and prodLineSeq as a repeatable size-grouping field",
+    "Claim #3851 reserved migration version 20260930212107 and locks table coldlion.prod_detail"
+  ],
+  "stop_conditions": [
+    "stop if the drop would require changing the primary key or RLS posture",
+    "stop if a test fails for a reason unrelated to this identity correction",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ],
+  "evidence_parent": {
+    "work_issue": 3234,
+    "generation": 7,
+    "contract_sha256": "d4e2b671e25a6d768dba59aa5af325b0529c5e36993bbff3f1a5b87e6d9da649"
+  }
+}

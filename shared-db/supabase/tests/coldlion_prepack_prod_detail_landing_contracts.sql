@@ -94,9 +94,9 @@ begin
     raise exception 'coldlion.prepack_detail grain is not (company_code, prepack_code, sequence_no)';
   end if;
 
-  --    /proddetails proved TWO independent identities, 166 distinct over 166 each. The
-  --    vendor row id is the primary key; the line identity is asserted separately so a
-  --    future pull that breaks it fails visibly instead of collapsing two lines.
+  --    /proddetails identity is (company_code, pkey) ONLY (ColdLion technical team
+  --    2026-09-29). prodLineSeq groups sizes and may repeat; the former unique
+  --    (company_code, prod_order_no, prod_line_seq) was falsified and dropped (#3234).
   if not exists (
     select 1 from pg_constraint
     where conrelid = 'coldlion.prod_detail'::regclass and contype = 'p'
@@ -105,12 +105,12 @@ begin
     raise exception 'coldlion.prod_detail grain is not (company_code, pkey)';
   end if;
 
-  if not exists (
+  if exists (
     select 1 from pg_constraint
     where conrelid = 'coldlion.prod_detail'::regclass and contype = 'u'
       and pg_get_constraintdef(oid) = 'UNIQUE (company_code, prod_order_no, prod_line_seq)'
   ) then
-    raise exception 'coldlion.prod_detail does not assert the second proven identity (prod_order_no, prod_line_seq)';
+    raise exception 'coldlion.prod_detail still asserts the falsified unique (company_code, prod_order_no, prod_line_seq); #3234 requires it dropped';
   end if;
 
   -- 7. The empty-date marker must be storable as NULL, so no source date column may be
@@ -183,7 +183,7 @@ begin
 
   -- 11. The grain proof must stay attached to the objects.
   if coalesce(obj_description('coldlion.prepack_detail'::regclass, 'pg_class'), '') not like '%456 rows%'
-     or coalesce(obj_description('coldlion.prod_detail'::regclass, 'pg_class'), '') not like '%166 rows%' then
+     or coalesce(obj_description('coldlion.prod_detail'::regclass, 'pg_class'), '') not like '%Grain proof and vendor answers%' then
     raise exception 'unit 5b table comments no longer carry the live grain proof';
   end if;
 end $$;
@@ -285,17 +285,16 @@ begin
     raise exception 'request-stamped company_code did not separate two companies on one pkey';
   end if;
 
-  -- A NEW vendor row id that reuses an existing (prodOrderNo, prodLineSeq) must be a
-  -- visible conflict. Both identities were proven; neither may silently break.
-  begin
-    insert into coldlion.prod_detail(
-      company_code, pkey, prod_order_no, prod_line_seq, item_no, prod_qty,
-      run_id, fetched_at, source_hash, first_seen_at, last_seen_at)
-    values ('TESTCO', 800003, 990001, 1, 'ITEM-X', 7, v_run2, now(), repeat('5',64), now(), now());
-    raise exception 'a second row reused (prod_order_no, prod_line_seq) without failing';
-  exception when unique_violation then
-    null;
-  end;
+  -- A NEW vendor row id reusing (prodOrderNo, prodLineSeq) must LAND as its own row.
+  -- Settled 2026-09-29: prodLineSeq is not a line identity and may repeat (#3234).
+  insert into coldlion.prod_detail(
+    company_code, pkey, prod_order_no, prod_line_seq, item_no, prod_qty,
+    run_id, fetched_at, source_hash, first_seen_at, last_seen_at)
+  values ('TESTCO', 800003, 990001, 1, 'ITEM-X', 7, v_run2, now(), repeat('5',64), now(), now());
+
+  if (select count(*) from coldlion.prod_detail where prod_order_no = 990001 and prod_line_seq = 1) <> 2 then
+    raise exception 'prod_detail refused a second row on one (prod_order_no, prod_line_seq); #3234 requires them to land';
+  end if;
 
   -- A DIFFERING payload on the prepack key must be a visible conflict, never a silent
   -- second row: that is the case the grain proof does not cover.

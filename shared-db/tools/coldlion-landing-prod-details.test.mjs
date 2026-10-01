@@ -72,7 +72,7 @@ test("the spec carries exactly the 21 live /proddetails fields", () => {
     ["colorCode", "createdTime", "createdUser", "custPONumber", "dimCode", "divisionCode", "itemDesc", "itemNo", "itemPkey", "labelCode", "merchGroup05Desc", "modTime", "modUser", "pkey", "prepackCode", "prodCost", "prodLineSeq", "prodOrderNo", "prodQty", "sizeCode", "wipQty"],
   );
   assert.deepEqual(PROD_DETAIL_SPEC.key, ["company_code", "pkey"]);
-  assert.deepEqual(PROD_DETAIL_SPEC.uniqueIdentity, ["company_code", "prod_order_no", "prod_line_seq"]);
+  assert.deepEqual(PROD_DETAIL_SPEC.uniqueIdentity, ["company_code", "pkey"]);
 });
 
 test("projection normalises sentinels, stamps the company, and hashes the complete record", () => {
@@ -109,25 +109,22 @@ test("a malformed value is a per-key refusal, not retried-forever transport", ()
   }
 });
 
-test("identity collisions are per-key refusals, not run-fatal", () => {
-  // Regression semantics bought live on 2026-09-17: order 20344 returned two rows
-  // with distinct pkeys sharing one prodLineSeq, falsifying the #2863 unique
-  // constraint. One key's data must not abort a run with thousands of healthy keys.
-  const cases = [
-    [sourceRow(), sourceRow({ itemNo: "SYN-OTHER" })],
-    [sourceRow(), sourceRow({ pkey: 900002, itemNo: "SYN-OTHER" })],
-    [sourceRow({ pkey: "" })],
-    [sourceRow({ prodOrderNo: 20001 })],
-  ];
-  for (const rows of cases) {
-    try { projected(rows); assert.fail("must throw"); }
-    catch (error) {
-      assert.equal(error.refused, "identity-collision", "the key is refused with a durable reason");
-      assert.equal(error.fatal, undefined, "a refused key does not abort the run");
-    }
+test("duplicate pkey is a per-key refusal; repeating prodLineSeq lands both rows", () => {
+  // Settled 2026-09-29 (ColdLion technical team; #3234): pkey is the only row
+  // identity. prodLineSeq groups sizes and MAY REPEAT. Split quantities and
+  // faithful double-entered PO lines are real rows — never collapse them.
+  try { projected([sourceRow(), sourceRow({ itemNo: "SYN-OTHER" })]); assert.fail("must throw"); }
+  catch (error) {
+    assert.equal(error.refused, "identity-collision", "a repeated pkey is refused with a durable reason");
+    assert.equal(error.fatal, undefined, "a refused key does not abort the run");
+    assert.match(error.message, /duplicate rows for one pkey/);
   }
-  assert.throws(() => projected(cases[0]), /duplicate rows for one pkey/);
-  assert.throws(() => projected(cases[1]), /duplicate rows for one prodOrderNo \+ prodLineSeq/);
+  const shared = projected([
+    sourceRow(),
+    sourceRow({ pkey: 900002, itemNo: "SYN-OTHER" }),
+  ]);
+  assert.equal(shared.rows.length, 2, "two distinct pkeys sharing prodLineSeq both land");
+  assert.throws(() => projected([sourceRow({ pkey: "" })]), /blank identity/);
 });
 
 test("a row for another production order is refused", () => {
@@ -136,9 +133,9 @@ test("a row for another production order is refused", () => {
   assert.doesNotThrow(() => assertRequestedOrder([sourceRow({ prodOrderNo: "20000" })], 20000), "the vendor may send the order as a JSON string");
 });
 
-test("either identity appearing twice in one response is refused", () => {
+test("only a repeated pkey is refused; prodLineSeq may repeat", () => {
   assert.throws(() => projected([sourceRow(), sourceRow({ itemNo: "SYN-OTHER" })]), /duplicate rows for one pkey/);
-  assert.throws(() => projected([sourceRow(), sourceRow({ pkey: 900002, itemNo: "SYN-OTHER" })]), /duplicate rows for one prodOrderNo \+ prodLineSeq/);
+  assert.equal(projected([sourceRow(), sourceRow({ pkey: 900002, itemNo: "SYN-OTHER" })]).rows.length, 2);
 });
 
 test("a blank identity field is refused", () => {

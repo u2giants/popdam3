@@ -4,7 +4,7 @@
 // Shape and grain were proven live on 2026-09-15
 // (docs/coldlion-unit-5b-grain-proof-20260915.md) and re-derived live on 2026-09-17
 // before this loader landed: a BARE ARRAY of at most 21 fields, `pkey` a real vendor row
-// id unique on its own, `(prodOrderNo, prodLineSeq)` independently unique, and
+// id unique on its own (the sole identity after #3234; prodLineSeq may repeat), and
 // `companyCode` required by the request yet absent from the payload — stamped here.
 //
 // The feed is enumerated, never paged: request keys are harvested from the
@@ -24,9 +24,9 @@ export const PROD_DETAIL_SPEC = Object.freeze({
   endpoint: "/proddetails",
   table: "prod_detail",
   key: ["company_code", "pkey"],
-  // The SECOND proven identity. Not an upsert target: a pull that breaks it must fail
-  // on the table's unique constraint, not silently collapse two lines into one.
-  uniqueIdentity: ["company_code", "prod_order_no", "prod_line_seq"],
+  // Settled 2026-09-29 (ColdLion technical team; #3234): pkey is the only row identity.
+  // prodLineSeq groups sizes and MAY REPEAT. Do not treat it as unique.
+  uniqueIdentity: ["company_code", "pkey"],
   requestKey: "prodOrderNo",
   fields: [
     f("pkey", "pkey", "int"),
@@ -115,10 +115,8 @@ export function assertRequestedOrder(rows, prodOrderNo) {
  *
  * Unknown or omitted FIELDS are fatal for the whole run — the feed's shape changed and
  * every later key would fail the same way. Everything else is a PER-KEY refusal: a row
- * for another order, a blank identity field, or EITHER identity appearing twice in one
- * response. The second case is not hypothetical: on 2026-09-17 the live feed returned
- * two distinct-pkey rows for one (prodOrderNo, prodLineSeq), the exact collision the
- * #2863 unique constraint exists to make visible.
+ * for another order, a blank identity field, or a repeated `pkey`. Distinct pkeys that
+ * share one prodLineSeq both land (settled 2026-09-29; #3234 dropped the old unique).
  */
 export function projectProdDetailRows(sourceRows, { runId, fetchedAt, companyCode, prodOrderNo }) {
   try {
@@ -129,7 +127,6 @@ export function projectProdDetailRows(sourceRows, { runId, fetchedAt, companyCod
   assertRequestedOrder(sourceRows, prodOrderNo);
 
   const byPkey = new Map();
-  const byLine = new Map();
   const rows = [];
   for (const source of sourceRows) {
     const row = { company_code: companyCode };
@@ -149,15 +146,13 @@ export function projectProdDetailRows(sourceRows, { runId, fetchedAt, companyCod
     if (row.pkey === null || row.prod_order_no === null || row.prod_line_seq === null) {
       throw refusal(new Error("/proddetails returned a row with a blank identity field (pkey, prodOrderNo or prodLineSeq)"));
     }
-    const lineKey = `${row.company_code}\u001f${row.prod_order_no}\u001f${row.prod_line_seq}`;
+    // pkey is the only row identity (ColdLion technical team 2026-09-29; #3234).
+    // prodLineSeq may repeat: split quantities and faithful double-entered PO lines
+    // are real rows. Never collapse them.
     if (byPkey.has(String(row.pkey))) {
       throw refusal(new Error("/proddetails returned duplicate rows for one pkey"));
     }
-    if (byLine.has(lineKey)) {
-      throw refusal(new Error(`/proddetails returned duplicate rows for one prodOrderNo + prodLineSeq (prodLineSeq ${row.prod_line_seq}); both the table's unique constraint and this loader refuse to collapse them`));
-    }
     byPkey.set(String(row.pkey), row);
-    byLine.set(lineKey, row);
     rows.push(row);
   }
   return { rows, zeroRow: rows.length === 0 };
@@ -203,9 +198,9 @@ function stageSql(rows) {
  * the live table, write the change trail, upsert, and finish the run record — all in
  * the caller's single transaction.
  *
- * The upsert targets ONLY (company_code, pkey). The second proven identity is enforced
- * by the table's unique constraint: if the vendor ever re-keys a line, this statement
- * raises instead of merging two lines into one.
+ * The upsert targets ONLY (company_code, pkey). After #3234 that is the sole row
+ * identity: prodLineSeq may repeat, so two real rows on one line number both land
+ * under distinct pkeys and are never merged.
  */
 export function buildProdDetailLoadSql({ run, rows }) {
   const keys = PROD_DETAIL_SPEC.key;

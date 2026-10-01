@@ -4476,21 +4476,9 @@ CATALOG_CONTRACTS["dcp_narrow_asset_style_map_v1"] = (
 # The landing layer is also unreachable by any application role, so the contract
 # asserts row level security on both tables and the absence of any anon or
 # authenticated grant -- the rule the whole coldlion schema depends on.
-COLDLION_UNIT_5B_LANDING_CONTRACT = (
-    _shape_contract(
-        relations=('coldlion.prepack_detail','coldlion.prod_detail'),
-        constraints=(
-            ('coldlion.prepack_detail','prepack_detail_pkey'),
-            ('coldlion.prod_detail','prod_detail_pkey'),
-            ('coldlion.prod_detail','prod_detail_company_code_prod_order_no_prod_line_seq_key'),
-            ('coldlion.prepack_detail','prepack_detail_run_id_fkey'),
-            ('coldlion.prod_detail','prod_detail_run_id_fkey'),
-        ),
-    )
-    # The proven grain, stated exactly, on both tables.
-    + " and (select pg_get_constraintdef(oid) from pg_constraint where conrelid=to_regclass('coldlion.prepack_detail') and contype='p')='PRIMARY KEY (company_code, prepack_code, sequence_no)'"
-    + " and (select pg_get_constraintdef(oid) from pg_constraint where conrelid=to_regclass('coldlion.prod_detail') and contype='p')='PRIMARY KEY (company_code, pkey)'"
-    + " and (select pg_get_constraintdef(oid) from pg_constraint where conrelid=to_regclass('coldlion.prod_detail') and contype='u')='UNIQUE (company_code, prod_order_no, prod_line_seq)'"
+# Shared, unchanged lockdown/field-disposition half of the coldlion unit 5b contracts.
+_COLDLION_UNIT_5B_LANDING_COMMON = (
+    ""
     # Complete field disposition: 18 source + 5 provenance, and 21 source plus the
     # request-stamped company_code + 5 provenance. No field dropped, none invented.
     # information_schema views are role-filtered the same way role_table_grants is:
@@ -4521,8 +4509,53 @@ COLDLION_UNIT_5B_LANDING_CONTRACT = (
     + " and (select count(*) from pg_attribute a where a.attrelid in (to_regclass('coldlion.prepack_detail'),to_regclass('coldlion.prod_detail')) and a.attnum>0 and not a.attisdropped and a.attname='raw')=0"
     + " and (select count(*) from pg_constraint c join pg_class t on t.oid=c.conrelid join pg_namespace n on n.oid=t.relnamespace join pg_class rt on rt.oid=c.confrelid join pg_namespace rn on rn.oid=rt.relnamespace where c.contype='f' and n.nspname='coldlion' and t.relname in ('prepack_detail','prod_detail') and rn.nspname<>'coldlion')=0"
 )
+
+COLDLION_UNIT_5B_LANDING_CONTRACT = (
+    _shape_contract(
+        relations=('coldlion.prepack_detail','coldlion.prod_detail'),
+        constraints=(
+            ('coldlion.prepack_detail','prepack_detail_pkey'),
+            ('coldlion.prod_detail','prod_detail_pkey'),
+            ('coldlion.prod_detail','prod_detail_company_code_prod_order_no_prod_line_seq_key'),
+            ('coldlion.prepack_detail','prepack_detail_run_id_fkey'),
+            ('coldlion.prod_detail','prod_detail_run_id_fkey'),
+        ),
+    )
+    # The proven grain, stated exactly, on both tables.
+    + " and (select pg_get_constraintdef(oid) from pg_constraint where conrelid=to_regclass('coldlion.prepack_detail') and contype='p')='PRIMARY KEY (company_code, prepack_code, sequence_no)'"
+    + " and (select pg_get_constraintdef(oid) from pg_constraint where conrelid=to_regclass('coldlion.prod_detail') and contype='p')='PRIMARY KEY (company_code, pkey)'"
+    + " and (select pg_get_constraintdef(oid) from pg_constraint where conrelid=to_regclass('coldlion.prod_detail') and contype='u')='UNIQUE (company_code, prod_order_no, prod_line_seq)'"
+    + _COLDLION_UNIT_5B_LANDING_COMMON
+)
 CATALOG_CONTRACTS["coldlion_unit_5b_landing_v1"] = (
     COLDLION_UNIT_5B_LANDING_CONTRACT
+)
+
+# Issue #3234, migration 20260930212107. ColdLion reuses prod_line_seq inside one
+# production order, so the (company_code, prod_order_no, prod_line_seq) unique key
+# was dropped; the vendor row id pkey stays the only identity. This contract is
+# v1 with that key replaced by an assertion that prod_detail carries NO unique
+# constraint at all. It reads pg_constraint (not information_schema, which is
+# role-filtered for coldlion under supabase_read_only_user), and as a
+# catalog_contract over the same relations it supersedes v1 in any batch that
+# carries both versions.
+COLDLION_UNIT_5B_LANDING_CONTRACT_V2 = (
+    _shape_contract(
+        relations=('coldlion.prepack_detail','coldlion.prod_detail'),
+        constraints=(
+            ('coldlion.prepack_detail','prepack_detail_pkey'),
+            ('coldlion.prod_detail','prod_detail_pkey'),
+            ('coldlion.prepack_detail','prepack_detail_run_id_fkey'),
+            ('coldlion.prod_detail','prod_detail_run_id_fkey'),
+        ),
+    )
+    + " and (select pg_get_constraintdef(oid) from pg_constraint where conrelid=to_regclass('coldlion.prepack_detail') and contype='p')='PRIMARY KEY (company_code, prepack_code, sequence_no)'"
+    + " and (select pg_get_constraintdef(oid) from pg_constraint where conrelid=to_regclass('coldlion.prod_detail') and contype='p')='PRIMARY KEY (company_code, pkey)'"
+    + " and (select count(*) from pg_constraint where conrelid=to_regclass('coldlion.prod_detail') and contype='u')=0"
+    + _COLDLION_UNIT_5B_LANDING_COMMON
+)
+CATALOG_CONTRACTS["coldlion_unit_5b_landing_v2"] = (
+    COLDLION_UNIT_5B_LANDING_CONTRACT_V2
 )
 
 

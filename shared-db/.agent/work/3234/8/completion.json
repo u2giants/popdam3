@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "work_issue": 3234,
+  "outcome": "ready-for-merge",
+  "pr": 3852,
+  "migration_versions": [
+    "20260930212107"
+  ],
+  "contract_ref": "refs/db-contracts/3234/8",
+  "contract_sha256": "2004c511882ae3a1d3bba586300ee2e2bd0577fa9d2ac715398fe0fd0e759629",
+  "base_sha": "b687b3dd4573bedb9f79b4105e137abfab2c2fb7",
+  "head_sha": "f61fa88ac7bab5bb7d5bd019fab2633091b7fe30",
+  "files_changed": [
+    ".github/live-proofs/3234.sql",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20260930212107.json",
+    "scripts/production_catalog_verification.py",
+    "supabase/migrations/20260930212107_coldlion_prod_detail_drop_line_seq_unique.sql",
+    "supabase/tests/coldlion_prepack_prod_detail_landing_contracts.sql",
+    "tools/coldlion-landing-prod-details.test.mjs",
+    "tools/coldlion-landing/lib/prod-details.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table coldlion.prod_detail"
+  ],
+  "checks": [
+    {
+      "command": "node --test tools/coldlion-landing-prod-details.test.mjs",
+      "exit_code": 0,
+      "evidence": "39/39 pass"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "static checks passed"
+    },
+    {
+      "command": "python3 scripts/check_production_verification_sidecars.py --repo . --scan-version 20260930212107",
+      "exit_code": 0,
+      "evidence": "OK; markers [43] covered by reviewed no_durable_target sidecar (now catalog contract coldlion_unit_5b_landing_v2)"
+    },
+    {
+      "command": "supabase db query --linked (preview apply + inventory)",
+      "exit_code": 0,
+      "evidence": "project-ref mvpkijzfmfcxhnzqogzs; unique prod_line_seq constraint absent; PK (company_code,pkey) remains; version 20260930212107 applied"
+    },
+    {
+      "command": "python3 -m unittest scripts/test_production_catalog_verification.py",
+      "exit_code": 0,
+      "evidence": "Ran 228 tests OK; v1 contract text byte-identical to previous head; v2 asserts zero unique constraints on coldlion.prod_detail"
+    },
+    {
+      "command": "node -e verifyBaseline (scripts/check-production-verification-sidecars.mjs)",
+      "exit_code": 0,
+      "evidence": "detector digest regenerated; historical inventory unchanged"
+    }
+  ],
+  "assumptions_resolved": [
+    "pkey is the sole /proddetails row identity (ColdLion technical team 2026-09-29)",
+    "prodLineSeq may repeat and is not a unique constraint"
+  ],
+  "stop_conditions_hit": []
+}
