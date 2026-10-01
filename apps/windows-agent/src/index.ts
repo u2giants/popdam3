@@ -668,8 +668,7 @@ function startPolling() {
           // cheap access check while the share is reachable; when the SMB session has
           // dropped (for example after the NAS password was rotated) it remaps with the
           // credentials the latest heartbeat delivered from admin_config. If that still
-          // fails, mark the agent unhealthy so the preflight recheck keeps retrying and
-          // no job is consumed as a failure.
+          // fails, no PopDAM job is claimed (so none is consumed as a failure).
           const zGate = await nasReadyForClaim(cloudNasHost, () =>
             ensureNasMapped(cloudNasMountPath, {
               host: cloudNasHost,
@@ -678,11 +677,11 @@ function startPolling() {
               password: cloudNasPassword,
             }));
           if (!zGate.ready) {
-            logger.warn("NAS unavailable before claim — pausing claims until remap succeeds", { error: zGate.error });
-            healthStatus = { ...healthStatus, healthy: false, nasHealthy: false };
-            break;
+            // Skip only PopDAM claims; PopSG jobs use their own share and still run.
+            // The gate retries the remap on every poll with the latest credentials.
+            logger.warn("Main NAS unavailable — skipping PopDAM claims until remap succeeds", { error: zGate.error });
           }
-          const job = await api.claimRender(agentId);
+          const job = zGate.ready ? await api.claimRender(agentId) : null;
           if (job) {
             if (!job.relative_path) {
               logger.error("Claimed job missing relative_path", { jobId: job.job_id });
