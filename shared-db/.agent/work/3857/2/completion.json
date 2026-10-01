@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "work_issue": 3857,
+  "outcome": "ready-for-merge",
+  "pr": 3858,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3857/2",
+  "contract_sha256": "a9fdb75b1fe76b9551b1cd19bfb188cca364c0d9be517e34077d21168dfca8c7",
+  "base_sha": "583fda671d107a755db7a789e8b695dbc7513d8d",
+  "head_sha": "3c9bdf8a3354d4eba630845cab43ca4c90abbfdd",
+  "files_changed": [
+    ".github/workflows/author-lane-abandonment-audit.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "scripts/lib/authority-token-read.mjs",
+    "scripts/lib/authority-token-read.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/authority-token-read.test.mjs",
+      "exit_code": 0,
+      "evidence": "2 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/lib/required-check-readback.test.mjs",
+      "exit_code": 0,
+      "evidence": "6 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "745 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/reconcile.test.mjs",
+      "exit_code": 0,
+      "evidence": "32 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/evidence-bundle.test.mjs",
+      "exit_code": 0,
+      "evidence": "6 pass, 0 fail"
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "343 files scanned, every GitHub call goes through scripts/lib/github-transport.mjs"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 2 supersedes generation 1 (published with a truncated base_sha; no verdict was ever recorded against it). Branch refreshed onto current main (merge 583fda67) after the Blacksmith pool outage cleared.",
+    "secrets.SYNC_TOKEN is the same classic PAT guarded-migration-merge.yml already passes as AUTHORITY_TOKEN."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Live proof card: #3541 — the next scheduled audit run must return exit 0 or 2."
+}

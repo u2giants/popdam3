@@ -19,6 +19,7 @@ import { MERGE_SELF_CONTEXT } from './lib/merge-self-context.mjs'
 import { selectPreviewArtifacts } from './orchestrator-flow/preview-artifact-selection.mjs'
 import { currentRepository, isThisRepositoryOrHistorical, isTrustedOperatorComment, repositoryCommentApiPath } from './lib/repository-identity.mjs'
 import { readRequiredCheckContexts } from './lib/required-check-readback.mjs'
+import { authorityReadEnv } from './lib/authority-token-read.mjs'
 
 // `Migration guarded merge authorization` is posted by the guarded merge ITSELF,
 // after this gate has already passed -- see SELF_CONTEXT in
@@ -1558,6 +1559,21 @@ export function runGitHubCommand(args,{executor=execFileSync,wait=(ms)=>Atomics.
   })
 }
 function gh(args,options) { return runGitHubCommand(args,options) }
+
+// Issue #3857: the authority reads above run with AUTHORITY_TOKEN when it is
+// present, using it ONLY for those reads; every other GitHub call stays on the
+// ambient GH_TOKEN. Same swap-and-restore shape as tokenScopedRead in
+// check-required-checks-preflight.mjs: the call keeps the DEFAULT executor so
+// the host-wide quota latch stays active and the wire budget is charged exactly
+// once (a custom executor would disable the latch and double-charge the budget
+// -- a governed review of this change proved both).
+function authorityGhJson(args){
+  const scopedEnv=authorityReadEnv()
+  if(!scopedEnv)return ghJson(args)
+  const prior=process.env.GH_TOKEN
+  process.env.GH_TOKEN=scopedEnv.GH_TOKEN
+  try{return ghJson(args)}finally{if(prior===undefined)delete process.env.GH_TOKEN;else process.env.GH_TOKEN=prior}
+}
 const hasLabel = (issue, name) => (issue?.labels ?? []).some((label) => (typeof label === 'string' ? label : label?.name) === name)
 
 export function createRefWithReadback(ref,sha,{run=gh,readRef}={}) {
@@ -2636,8 +2652,12 @@ export const githubIo = {
   treeFiles(ref){return laneTreeReader.pathsAtRef(REPO,ref)},
   previewGateProof(issue,pr,head,bundleId,dependencies=[]){
     const protectedContexts=readRequiredCheckContexts({
-      protectedChecks:()=>ghJson(['api',`repos/${REPO}/branches/main/protection/required_status_checks`]),
-      branch:()=>ghJson(['api',`repos/${REPO}/branches/main`]),
+      // The two authority reads need admin-level access a workflow token can
+      // never have (issue #3857): they run with AUTHORITY_TOKEN when it is
+      // present -- the same SYNC_TOKEN pattern guarded-migration-merge.yml
+      // uses -- and fail closed unchanged when it is not.
+      protectedChecks:()=>authorityGhJson(['api',`repos/${REPO}/branches/main/protection/required_status_checks`]),
+      branch:()=>authorityGhJson(['api',`repos/${REPO}/branches/main`]),
       repository:()=>ghJson(['api',`repos/${REPO}`]),
       branchRules:()=>ghJson(['api','--paginate','--slurp',`repos/${REPO}/rules/branches/main?per_page=100`]),
       confirmRulesEnd:(page)=>ghJson(['api',`repos/${REPO}/rules/branches/main?per_page=100&page=${page}`]),
