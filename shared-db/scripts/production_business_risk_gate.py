@@ -172,6 +172,10 @@ ALLOWLIST = {
     "create_index_on_new_table": re.compile(
         rf"create (?:unique )?index (?:(?!concurrently )(?!if )(?!on ){_ALLOW_IDENT} )?on ({_ALLOW_QUALIFIED}) ?(?:using [a-z]+ ?)?\([^;]*\)"),
     "comment_on": re.compile(r"comment on [a-z ]+ [^;]+ is (?:''|null)"),
+    # A volatility flag alone: catalog-only. No CASCADE, RENAME, OWNER, SET,
+    # SUPPORT, COST, ROWS, PARALLEL, LEAKPROOF, or security clause may follow.
+    "alter_function_volatility": re.compile(
+        rf"alter function {_ALLOW_QUALIFIED} ?{_ALLOW_ARGS} (?:immutable|stable|volatile)"),
 }
 
 
@@ -2229,8 +2233,15 @@ def classify_sql(repo_root: Path, allowlist: list[str]) -> list[str]:
         if len(matches) != 1:
             raise RiskGateError(f"expected one migration for {version}, found {len(matches)}")
         raw = matches[0].read_text(encoding="utf-8")
-        reasons.update(_classify_statements(
-            sql_top_level_statements(raw), prior=_PriorMigrations(repo_root, version, raw)))
+        statements = sql_top_level_statements(raw)
+        bodies = sql_top_level_statements(raw, keep_dollar_quoted=True)
+        prior = _PriorMigrations(repo_root, version, raw)
+        shadowed = prior.defined_function_names()
+        excused: set[int] = set()
+        if statements is not None and bodies is not None and len(statements) == len(bodies):
+            excused = {i for i, s in enumerate(statements)
+                       if _is_assertion_do_block(s, bodies[i], shadowed)}
+        reasons.update(_classify_statements(statements, prior=prior, excused_do=excused))
     return sorted(reasons)
 
 
@@ -2289,6 +2300,7 @@ class _PriorMigrations:
     """Statements of every migration on this tree older than ``version``, newest first."""
 
     def __init__(self, repo_root: Path, version: str, current_raw: str | None = None):
+        self.current_raw = current_raw
         self.current_exact = (None if current_raw is None
                               else sql_top_level_statements(current_raw, keep_literals=True))
         self.files = sorted(
@@ -2296,6 +2308,51 @@ class _PriorMigrations:
              if re.fullmatch(r"\d{14}", path.name[:14]) and path.name[:14] < version),
             key=lambda path: path.name, reverse=True)
         self._cache: dict[Path, tuple[list[str], list[str]] | None] = {}
+        self._defined_names: set[str] | None = None
+
+    def defined_function_names(self) -> set[str] | None:
+        """Unqualified names of every `create ... function` in the migration set.
+
+        None when any file cannot be tokenised: a name that cannot be read
+        might be defined, so the caller must refuse rather than trust a
+        whitelist entry (H1/M1, #3826).
+        """
+        if self._defined_names is not None:
+            return self._defined_names
+        sources = ([self.current_raw] if self.current_raw is not None else []) + [
+            path.read_text(encoding="utf-8") for path in self.files]
+        names: set[str] = set()
+        for raw in sources:
+            statements = sql_top_level_statements(raw)
+            if statements is None:
+                return None
+            for s in statements:
+                m = _CREATE_FUNCTION_NAME.match(s)
+                if m:
+                    names.add(_function_unqualified_name(m.group(1)))
+        self._defined_names = names
+        return names
+
+    def function_bodies(self, name: str) -> list[str]:
+        """Every known body of `create ... function name`, current file first.
+
+        All definitions of the name are collected, not just the newest, so an
+        overload with an unsafe body cannot hide behind a safe sibling. An
+        unparseable file makes the whole lookup empty -- the IMMUTABLE claim
+        then refuses rather than trusting a body that was never read.
+        """
+        found: list[str] = []
+        sources = ([self.current_raw] if self.current_raw is not None else []) + [
+            path.read_text(encoding="utf-8") for path in self.files]
+        for raw in sources:
+            statements = sql_top_level_statements(raw, keep_dollar_quoted=True)
+            if statements is None:
+                return []
+            for s in statements:
+                body = _create_function_body(s, name)
+                if body is not None:
+                    found.append(body)
+        return found
 
     def latest_touching(self, name: str) -> list[str] | None:
         """The ordered statements naming ``name`` in the newest earlier migration that names it.
@@ -2386,7 +2443,247 @@ def new_column_check_risks(statement: str) -> frozenset | None:
     return NEW_COLUMN_CHECK_RISKS if checked else frozenset()
 
 
-def _classify_statements(statements: list[str] | None, prior: "_PriorMigrations | None" = None) -> set[str]:
+# DO ASSERTION BLOCKS (#3725). A post-apply `DO $$ ... $$` that only reads
+# catalogs and RAISEs on mismatch writes nothing, holds no lock, and changes
+# no access. The tokenizer empties dollar-quoted bodies, so the body is checked
+# separately via keep_dollar_quoted output. Fail-closed: any DML/DDL/DCL
+# keyword, any non-whitelisted function call, or a missing RAISE refuses the
+# whole block. Table reads are not restricted to pg_catalog; the forbidden-
+# keyword and call-whitelist checks are the enforced safety boundary.
+_DO_FORBIDDEN = re.compile(
+    r"\b(?:insert|update|delete|truncate|merge|create|alter|drop|grant|revoke"
+    r"|execute|call|perform|copy|lock|notify|listen|commit|rollback|prepare"
+    r"|deallocate|refresh|vacuum|analyze|cluster|reindex|rename|discard"
+    r"|fetch|move|close|open|return|set|reset|comment|security|owner|owned"
+    r"|set_config|nextval|setval|currval|lastval"
+    r"|analyse|load|checkpoint|unlisten|savepoint|release|explain"
+    r"|reassign|import|foreign|share|key"
+    r"|pg_terminate_backend|pg_cancel_backend|pg_sleep|pg_reload_conf"
+    r"|pg_advisory_lock|pg_advisory_unlock|pg_try_advisory_lock"
+    r"|lo_import|lo_export|lo_create|lo_unlink"
+    r"|dblink|dblink_exec|dblink_connect"
+    r"|pg_switch_wal|pg_rotate_logfile"
+    r"|pg_create_logical_replication_slot|pg_create_physical_replication_slot"
+    r"|pg_drop_replication_slot|pg_logical_emit_message"
+    r"|pg_read_file|pg_read_binary_file|pg_ls_dir|pg_stat_file|pg_write_file"
+    r"|pg_import_system_collations"
+    r")\b")
+# Function calls allowed in an assertion body: catalog readers and pure
+# expressions. Anything else (including every user-defined name) is refused.
+_DO_SAFE_CALLS = frozenset({
+    "to_regprocedure", "to_regclass", "to_regtype", "to_regoper", "to_regoperator", "to_regproc",
+    "pg_get_functiondef", "pg_get_function_identity_arguments", "pg_get_function_result",
+    "pg_get_function_arguments", "pg_get_viewdef", "pg_get_indexdef", "pg_get_constraintdef",
+    "pg_get_serial_sequence", "pg_get_triggerdef", "pg_get_ruledef", "pg_get_expr",
+    "obj_description", "col_description", "shobj_description",
+    "md5", "sha256", "encode", "decode",
+    "row_to_json", "to_json", "to_jsonb", "json_build_object", "jsonb_build_object",
+    "json_extract_path", "jsonb_extract_path", "json_extract_path_text", "jsonb_extract_path_text",
+    "array_length", "array_agg", "array_append", "array_remove", "array_position",
+    "coalesce", "nullif", "greatest", "least",
+    "format", "quote_ident", "quote_literal", "quote_nullable",
+    "substring", "trim", "overlay", "position", "extract", "cast", "normalize",
+    "pg_typeof", "current_setting", "current_schema", "current_user", "session_user",
+    "current_database", "current_catalog",
+    "count", "sum", "avg", "min", "max",
+    "unnest", "generate_series",
+})
+# Keywords that may precede '(' without being a function call.
+_DO_HARMLESS_CALLS = frozenset({
+    "in", "not", "exists", "between", "like", "ilike", "similar", "escape",
+    "any", "all", "some", "distinct", "on", "using", "returning", "with",
+    "recursive", "union", "intersect", "except", "from", "where", "group",
+    "having", "order", "limit", "offset", "for", "window", "over", "partition",
+    "rows", "range", "preceding", "following", "unbounded", "current", "row",
+    "lateral", "only", "table", "values", "into", "as", "case", "when", "then",
+    "else", "end", "if", "elsif", "loop", "while", "exit", "continue",
+    "declare", "begin", "raise", "null", "true", "false", "unknown",
+    "and", "or", "is", "isnull", "notnull",
+    # type names that take a parameter list in DECLARE
+    "numeric", "decimal", "varchar", "character", "char", "bit", "varbit",
+    "timestamp", "timestamptz", "time", "timetz", "interval", "precision",
+    "double", "float", "real", "smallint", "integer", "bigint", "int",
+    "int2", "int4", "int8", "text", "boolean", "bool", "json", "jsonb",
+    "xml", "bytea", "uuid", "date", "money", "inet", "cidr", "macaddr",
+    "tsvector", "regtype", "regclass", "regproc", "regprocedure",
+    "regoper", "regoperator", "regrole", "regnamespace", "record", "void",
+})
+_DO_CALL = re.compile(
+    r"(?:([a-z_][a-z0-9_]*|\"[^\"]+\")\.)?([a-z_][a-z0-9_]*|\"[^\"]+\")\s*\(")
+
+
+# ALTER FUNCTION ... IMMUTABLE (#3826, Muse M2). IMMUTABLE is a promise the
+# planner caches and reorders on; a body that reads the clock, a sequence, or a
+# table breaks it (wrong results, stale index use). Flipping to STABLE or
+# VOLATILE only weakens the claim and needs no body check -- the safe
+# direction, and what 20260929005943 does. Fail-closed: the body must be
+# locatable and must contain no volatility-unsafe construct and no call
+# outside the pure whitelist; anything else reports all three risks.
+_IMMUTABLE_ALTER = re.compile(rf"alter function ({_ALLOW_QUALIFIED}) ?{_ALLOW_ARGS} immutable")
+
+_VOLATILITY_UNSAFE = re.compile(
+    r"\b(?:now|current_timestamp|current_date|current_time|localtime|localtimestamp"
+    r"|statement_timestamp|transaction_timestamp|clock_timestamp|timeofday"
+    r"|random|gen_random_uuid|uuid_generate_v1|uuid_generate_v4"
+    r"|nextval|setval|currval|lastval|set_config|current_setting"
+    r"|txid_current|pg_backend_pid|pg_is_in_recovery|pg_sleep"
+    r"|pg_advisory_lock|pg_advisory_unlock|pg_try_advisory_lock"
+    r"|insert|update|delete|merge|truncate|execute|perform|call|copy|lock"
+    r"|create|alter|drop|grant|revoke|refresh|vacuum|reindex|cluster"
+    # A SELECT without FROM is a pure expression; FROM/JOIN is what makes a
+    # body depend on database state and therefore non-immutable.
+    r"|from|join"
+    r"|timestamptz|timestamp with time zone|timetz|time with time zone"
+    r")\b")
+
+# Calls an IMMUTABLE body may make: value-level builtins only. A user-defined
+# name carries unknown volatility, and a catalog reader is at best STABLE.
+_IMMUTABLE_SAFE_CALLS = frozenset({
+    "abs", "mod", "power", "sqrt", "cbrt", "ceil", "ceiling", "floor", "round",
+    "sign", "trunc", "exp", "ln", "log", "pi", "degrees", "radians",
+    "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "div",
+    "factorial", "gcd", "lcm", "width_bucket",
+    "length", "char_length", "character_length", "bit_length", "octet_length",
+    "lower", "upper", "initcap", "lpad", "rpad", "btrim", "ltrim", "rtrim", "trim",
+    "replace", "repeat", "reverse", "split_part", "strpos", "position",
+    "substring", "substr", "overlay", "translate", "concat", "concat_ws",
+    "left", "right", "chr", "ascii", "md5", "to_hex", "encode", "decode",
+    "quote_literal", "quote_ident", "quote_nullable",
+    "coalesce", "nullif", "greatest", "least", "array", "array_length",
+    "array_lower", "array_upper", "array_dims", "cardinality", "unnest",
+    "jsonb_typeof", "json_typeof", "jsonb_extract_path", "jsonb_extract_path_text",
+    "jsonb_array_length", "jsonb_object_keys", "jsonb_array_elements",
+    "jsonb_array_elements_text", "jsonb_each", "jsonb_each_text",
+})
+
+_CREATE_FUNCTION_BODY = re.compile(
+    rf"create (?:or replace )?function ({_ALLOW_QUALIFIED}) ?\(.*\) returns\b.*?\bas\b\s*"
+    r"(\$(?:[a-z_][a-z0-9_]*)?\$|\$\$)(.*?)\2",
+    re.S)
+
+# H1/M1 (#3826): a bare whitelisted call is only the builtin while nothing in
+# the migration set defines that name. Any `create [or replace] function` of the
+# same unqualified name -- public.md5, pg_catalog.md5, even an overload -- can
+# sit on the search_path ahead of pg_catalog and turn the whitelist exemption
+# into arbitrary-DML cover (CREATE FUNCTION md5 that deletes, then a DO that
+# merely calls bare md5()). The name match is intentionally broader than
+# _CREATE_FUNCTION_BODY: a string-literal or C body shadows just as hard as a
+# dollar-quoted one.
+_CREATE_FUNCTION_NAME = re.compile(
+    rf"create (?:or replace )?function ({_ALLOW_IDENT}(?:\.{_ALLOW_IDENT})*) ?\(")
+
+
+def _function_unqualified_name(qualified: str) -> str:
+    """PostgreSQL unqualified identity of a (possibly schema-qualified) name."""
+    part = qualified.split(".")[-1]
+    return part[1:-1].replace('""', '"') if part.startswith('"') else part
+
+
+def _create_function_body(statement: str, name: str) -> str | None:
+    """The body of a kept `create ... function name ... as <body>` statement."""
+    m = _CREATE_FUNCTION_BODY.fullmatch(statement)
+    return None if m is None or m.group(1) != name else m.group(3)
+
+
+def _immutable_body_is_safe(statement: str, prior: "_PriorMigrations | None") -> bool:
+    """True only for an IMMUTABLE claim whose function body is provably pure.
+
+    STABLE and VOLATILE need no proof (weaker claims). An IMMUTABLE claim is
+    accepted only when every definition of that name is found and every body
+    is free of volatility-unsafe constructs and unknown calls.
+    """
+    m = _IMMUTABLE_ALTER.fullmatch(statement)
+    if not m:
+        return True
+    if prior is None:
+        return False
+    bodies = prior.function_bodies(m.group(1))
+    if not bodies:
+        return False
+    shadowed = prior.defined_function_names()
+    for body in bodies:
+        code = sql_top_level_statements(body)
+        if code is None:
+            return False
+        text = ";".join(code).lower()
+        if _VOLATILITY_UNSAFE.search(text):
+            return False
+        for call in _DO_CALL.finditer(text):
+            schema, name = call.group(1), call.group(2)
+            if schema is not None:
+                return False
+            if name not in _IMMUTABLE_SAFE_CALLS and name not in _DO_HARMLESS_CALLS:
+                return False
+            # M1: a whitelist entry is only the builtin while no create
+            # function of that name sits in the migration set. A shadowed
+            # name carries the user body's volatility, not the builtin's.
+            if shadowed is None or name in shadowed:
+                return False
+    return True
+
+
+def _do_body_is_assertion_only(body: str, shadowed: set[str] | None = None) -> bool:
+    """True when a DO body has no DML/DDL/DCL, no side-effecting calls, and a RAISE.
+
+    ``shadowed`` is the set of unqualified names the migration set defines with
+    `create ... function`, or None when that set cannot be read. A bare
+    whitelisted call is only safe while its name is still the builtin (H1,
+    #3826): a same-file CREATE FUNCTION for the name turns the exemption into
+    arbitrary-DML cover. Fail closed -- an unknown shadow set refuses every
+    bare whitelist entry. `pg_catalog.`-qualified calls stay accepted for a
+    safe name: the explicit schema is the builtin regardless of search_path.
+    """
+    # ONE string/comment-aware pass, not comment-first regexes (#3826). A `--`
+    # or `/*` inside a string literal is not a comment in PostgreSQL; stripping
+    # comments first let `'a--b'` or `'/*'` hide real DML from this scan while
+    # the database ran it. sql_top_level_statements consumes each literal
+    # atomically, so neither delimiter inside a string can start a comment or
+    # swallow code, and unparseable input (None) is refused like any other
+    # unrecognised body.
+    statements = sql_top_level_statements(body)
+    if statements is None:
+        return False
+    lowered = ";".join(statements).lower()
+    if not re.search(r"\braise\b", lowered):
+        return False
+    if _DO_FORBIDDEN.search(lowered):
+        return False
+    for m in _DO_CALL.finditer(lowered):
+        schema, name = m.group(1), m.group(2)
+        if schema is not None:
+            if schema != "pg_catalog":
+                return False
+            if name not in _DO_SAFE_CALLS:
+                return False
+        elif name not in _DO_SAFE_CALLS and name not in _DO_HARMLESS_CALLS:
+            return False
+        elif shadowed is None or name in shadowed:
+            return False
+    return True
+
+
+def _is_assertion_do_block(statement: str, body_statement: str | None,
+                           shadowed: set[str] | None = None) -> bool:
+    """True when a normalised DO statement is an assertion-only block.
+
+    ``statement`` is the tokeniser output with dollar-quoted bodies emptied to
+    ``$$ $$``; ``body_statement`` is the keep_dollar_quoted form whose body is
+    still present.  Either may be None-safe: a missing body refuses.
+    """
+    if not re.fullmatch(r"do(?: language (?:plpgsql))?(?: as)? \$\$ \$\$", statement):
+        return False
+    if body_statement is None:
+        return False
+    m = re.fullmatch(
+        r"do(?: language (?:plpgsql))?(?: as)? (\$(?:[a-z_][a-z0-9_]*)?\$|\$\$)(.*?)\1",
+        body_statement, flags=re.S)
+    if not m:
+        return False
+    return _do_body_is_assertion_only(m.group(2), shadowed)
+
+
+def _classify_statements(statements: list[str] | None, prior: "_PriorMigrations | None" = None,
+                         excused_do: set[int] | None = None) -> set[str]:
     """All three risks unless EVERY statement is recognised. Unparsed is all."""
     every = {RISK_TEXT["permanent_data_rewrite_or_loss"],
              RISK_TEXT["expected_downtime"], RISK_TEXT["material_access_change"]}
@@ -2396,9 +2693,12 @@ def _classify_statements(statements: list[str] | None, prior: "_PriorMigrations 
     reasons: set[str] = set()
     reestablished = _reestablished_functions(statements, prior)
     for index, s in enumerate(statements):
-        if index in reestablished or NARROWING_REVOKE.fullmatch(s):
+        if index in reestablished or (excused_do and index in excused_do) or NARROWING_REVOKE.fullmatch(s):
             continue
         entry = allowlist_entry(s, new_tables)
+        if entry == "alter_function_volatility" and not _immutable_body_is_safe(s, prior):
+            # A purity claim the body does not support is not catalog-only.
+            return every
         if entry is None:
             partial = new_column_check_risks(s)
             if partial is None:
@@ -2532,6 +2832,7 @@ def sql_top_level_statements(raw: str, keep_literals: bool = False, spans: list 
     start = 0
     current: list[str] = []
     literals: list[str] = []  # keep_literals: exact literal text, restored after folding
+    kept_bodies: list[str] = []  # keep_dollar_quoted: body text, restored after folding
     i, n = 0, len(raw)
     while i < n:
         ch = raw[i]
@@ -2593,7 +2894,12 @@ def sql_top_level_statements(raw: str, keep_literals: bool = False, spans: list 
                 if end == -1:
                     return None
                 if keep_dollar_quoted:
-                    current.append(raw[i:end + len(tag.group(0))])
+                    kept_bodies.append(raw[i:end + len(tag.group(0))])
+                    # Placeholder survives _normalise_outside_identifiers (no
+                    # letters, no whitespace) and cannot collide with real text:
+                    # any `$$<n>$$` in the source is itself a dollar quote and
+                    # was replaced by a placeholder of its own.
+                    current.append(f"$${len(kept_bodies) - 1}$$")
                 else:
                     current.append(" $$ $$ ")
                 i = end + len(tag.group(0))
@@ -2612,10 +2918,29 @@ def sql_top_level_statements(raw: str, keep_literals: bool = False, spans: list 
     normalised = [_normalise_outside_identifiers(s) for s in out]
     if keep_literals:
         normalised = [re.sub(r"'#(\d+)'", lambda m: literals[int(m.group(1))], s) for s in normalised]
+    if kept_bodies:
+        normalised = [
+            re.sub(r"\$\$(\d+)\$\$", lambda m: _normalise_dollar_body(kept_bodies[int(m.group(1))]), s)
+            for s in normalised]
     kept = [(s, raw_spans[index]) for index, s in enumerate(normalised) if s]
     if spans is not None:
         spans.extend(span for _, span in kept)
     return [s for s, _ in kept]
+
+
+def _normalise_dollar_body(region: str) -> str:
+    """Lower-case and fold horizontal whitespace, keeping the line structure.
+
+    keep_dollar_quoted exists so a body's content can be inspected (reference
+    scanning, and the DO-assertion checker). Lines must survive the fold: a
+    `--` comment ends at its newline in PostgreSQL, so a body folded onto one
+    line would let a comment swallow the DML that follows it on later lines.
+    Lower-casing and the "quoted identifiers" carve-out stay as in
+    _normalise_outside_identifiers, which the reference scanner matches on.
+    """
+    parts = re.split(r'("[^"]*")', region)
+    return "".join(part if index % 2 else re.sub(r"[^\S\n]+", " ", part.lower())
+                   for index, part in enumerate(parts))
 
 
 def _normalise_outside_identifiers(statement: str) -> str:

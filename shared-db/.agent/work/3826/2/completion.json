@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "work_issue": 3826,
+  "outcome": "ready-for-merge",
+  "pr": 3825,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3826/2",
+  "contract_sha256": "ad059e32dc2f035475897c1a3c2516685082de8fd94bf546c73c75ee006760ee",
+  "base_sha": "5deadd0432d282b204b4702464867f472025c333",
+  "head_sha": "6b0feca6758e3dbb29f5b2748c6d7df68f35c372",
+  "files_changed": [
+    ".agent/work/3826/2/completion.json",
+    ".agent/work/3826/2/contract.json",
+    "docs/verification/throughput-dispositions/scripts~production_business_risk_gate.py.json",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts/test_production_business_risk_gate.py",
+      "exit_code": 0,
+      "evidence": "Ran 197 tests OK on implementation head 6b0feca67 after H1/M1 shadowing fix"
+    },
+    {
+      "command": "python3 -m unittest scripts/test_production_business_risk_gate_preview_contents_mutations.py",
+      "exit_code": 0,
+      "evidence": "Ran 12 tests OK on implementation head 6b0feca67 after H1/M1 shadowing fix"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK on implementation head 6b0feca67: call_sites=326 sources=81 derived_digest=7d0e2aefbc3d"
+    }
+  ],
+  "assumptions_resolved": [
+    "H1: bare whitelisted calls in DO assertion bodies are refused when any create function in the migration set defines that name; unknown shadow set fails closed; pg_catalog. qualification remains the builtin.",
+    "M1: IMMUTABLE body checks share the same shadowing rule so a redefined name cannot lie about purity.",
+    "Tests cover the traced CREATE FUNCTION md5 + DO bare-md5 exploit for both H1 and M1, including a prior-migration shadow and the unshadowed baseline.",
+    "contract_sha256 kept at ad059e32dc2f035475897c1a3c2516685082de8fd94bf546c73c75ee006760ee; contract.json rewritten formatting-only."
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,56 @@
+{
+  "allowed_paths": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    "docs/verification/throughput-dispositions/scripts~production_business_risk_gate.py.json",
+    ".agent/work/3826/1/contract.json",
+    ".agent/work/3826/1/completion.json",
+    ".agent/work/3826/2/contract.json",
+    ".agent/work/3826/2/completion.json"
+  ],
+  "assumptions": [
+    "ALTER FUNCTION with only a volatility flag (immutable/stable/volatile) and no other clause is catalog-only",
+    "A DO block whose body only reads catalogs and RAISEs on mismatch writes nothing"
+  ],
+  "base_sha": "755bd33cdcefe3f7b0e236c32408668f2d7aac16",
+  "branch": "fix-risk-gate-alter-function-do-3821",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "MiMo shared-db orchestrator marker #3821 on edge-dev",
+  "evidence_parent": {
+    "contract_sha256": "ba1ed2561c03ff42e33a3de44cca04c17f029049340e13116cca834f93b7836e",
+    "generation": 1,
+    "work_issue": 3826
+  },
+  "file_writes": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    "docs/verification/throughput-dispositions/scripts~production_business_risk_gate.py.json",
+    ".agent/work/3826/1/contract.json",
+    ".agent/work/3826/1/completion.json",
+    ".agent/work/3826/2/contract.json",
+    ".agent/work/3826/2/completion.json"
+  ],
+  "generation": 2,
+  "goal": "Teach the production business-risk gate to classify ALTER FUNCTION ... <volatility> as catalog-only and post-apply DO assertion blocks (RAISE on mismatch, no DML/DDL) as zero-risk, so migration 20260929005943 (#3725) can promote automatically; keep every other shape refused.",
+  "prohibited_actions": [
+    "Do not change database structure or data",
+    "Do not weaken real risk detection: DML, DDL, DCL, dynamic SQL, side-effecting calls, and any ALTER FUNCTION clause beside volatility must still report every risk",
+    "Do not change workflows or reviewer/merge gates"
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts/test_production_business_risk_gate.py",
+    "python3 -m unittest scripts/test_production_business_risk_gate_preview_contents_mutations.py",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop if any required check or exact-head governed review refuses",
+    "Stop if the change would need to touch a file outside allowed_paths"
+  ],
+  "work_issue": 3826,
+  "work_type": "repo-maintenance",
+  "worker": "MiMo chat unknown on edge-dev",
+  "worktree": ".ai/worktrees/risk-gate-3821-mimo"
+}
