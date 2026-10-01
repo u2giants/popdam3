@@ -188,6 +188,55 @@ on conflict (key) do update set value=excluded.value, updated_at=now();
 ```
 Get the checksum by downloading the release zip and running `sha256sum`. The agent picks it up within ~10 min.
 
+## 9. Moving the agent to another machine (lessons from edge-alien → edge-dev, 2026-10-01)
+
+The agent was moved from **edge-alien** to **edge-dev** on 2026-10-01 so edge-alien could be reformatted. It is due to move back to edge-alien on a fresh Windows install. Every problem hit on the first move is listed here with the fix, so the move back is quick.
+
+### Order that worked
+
+1. Install the five tools on the new machine (below).
+2. Create a pairing code (below), keeping the agent name `windows-render-agent`.
+3. Stop **and disable** the agent on the old machine.
+4. Install the agent on the new machine, then start it.
+5. Check that the NAS maps, then queue one test job and confirm `render_queue.claimed_by` is the new agent and `status=completed`.
+
+Only one machine should run the agent at a time. Pairing uses the same agent name (`windows-render-agent`). The pair route upserts on `agent_name`, so the new pairing replaces the old machine's key and keeps the same `agent_registrations.id`. The old machine then fails to authenticate. That is expected, but stop it first anyway so it doesn't keep retrying.
+
+### Problems hit, and what to do
+
+| # | Problem | Cause | Do this next time |
+|---|---------|-------|-------------------|
+| 1 | `winget install ArtifexSoftware.GhostScript` reports "No package found" | Ghostscript is not in winget | Download `gs*w64.exe` from the GitHub releases of `ArtifexSoftware/ghostpdl-downloads` and run it with `/S`. It installs to `C:\Program Files\gs\gs<ver>\bin\gswin64c.exe`. |
+| 2 | The agent logs "Poppler not found" | The winget Poppler package (`oschwartz10612.Poppler`) puts `pdftoppm.exe` under `%LOCALAPPDATA%\Microsoft\WinGet\Packages\oschwartz10612.Poppler_*\poppler-<ver>\Library\bin\`, a folder the agent does not search | Add `POPPLER_PATH=<full path to pdftoppm.exe>` to the install-dir `.env`. Note that this path is per-user. |
+| 3 | Writes to `C:\Program Files\PopDAM` are denied | The Claude session is not elevated | Run each admin step as a script through `Start-Process pwsh -Verb RunAs -Wait`. Every run shows a UAC prompt that someone at the console has to accept. One prompt was cancelled; retrying worked. Batch the admin steps into as few scripts as possible. |
+| 4 | `install-scheduled-task.ps1` fails with a parse error ("string is missing the terminator") | The file is UTF-8 without a BOM and contains box and em-dash characters, which Windows PowerShell 5.1 misreads | Run it with **pwsh 7**, not `powershell.exe`. |
+| 5 | The agent crashes at start with `Cannot find module '@popdam/path-filters'` | A manual install copied `package.json` and ran `npm ci`. The `file:../../packages/path-filters` dependency became a junction pointing to `C:\Program Files\packages\path-filters`, which does not exist. | Build `packages/path-filters` in a scratch copy (`npm i typescript@5`, then `tsc`). Delete the junction and copy `package.json` plus `dist\` into `node_modules\@popdam\path-filters`. **Better:** use the release installer `popdam-windows-agent-setup.exe`, which bundles it. The installer is GUI-only (its NSIS custom page asks for the server URL and pairing code). |
+| 6 | `npm` fails with `EEXIST ... _cacache\tmp` | The local npm cache was corrupt or in use | Pass `--cache <scratch folder>`. |
+| 7 | The scheduled task shows result **255** and "Ready" after the first start | On first run the agent self-updated from 0.16.4 to the release build. The swap restart ended that first run. | Start the task again. The second start stayed up (result 267009 while running). Check the heartbeat in `agent_registrations`, not the process list. A non-elevated shell cannot see the elevated `node.exe` command line. |
+| 8 | The NAS map fails with `System error 86` (wrong password) on both Z: and Y: | `admin_config.WINDOWS_AGENT_NAS_USER/PASS` still held an old pre-rotation login. The NAS passwords had been rotated that day. | Use the current NAS service-account login from 1Password (`vibe_coding` vault). First test it with `net use` against the main share from the new machine, then update `WINDOWS_AGENT_NAS_USER`, `WINDOWS_AGENT_NAS_PASS` and `WINDOWS_AGENT_SG_NAS_PASS` in `admin_config`. The agent picks them up on its next heartbeat. |
+| 9 | SSH commands to edge-alien broke on quoting | The remote shell is Windows PowerShell, so `&` and `\"` get mangled | Send scripts with `powershell -NoProfile -EncodedCommand <base64 UTF-16>`. |
+| 10 | `Get-ScheduledTask` over SSH found no PopDAM task, although `schtasks /query` did | Quoting and filtering differences in the SSH session | Use `schtasks /end` and `schtasks /change /disable` with `/tn 'PopDAM Windows Render Agent'` inside an encoded script. Then kill any leftover `node.exe` under `C:\Program Files\PopDAM` and the `popdam-launcher` `cmd` process. |
+| 11 | A long log grep over SSH on edge-alien hung for more than 120 s | Large log files read over SSH | Use `-Tail` on the logs. Don't run `Select-String` over whole log files remotely. |
+
+### Pairing code without the UI
+
+Insert a row into `agent_pairings` (application row data, not a schema change) with the production service-role key from 1Password. Use the fields `pairing_code` (format `XXXX-XXXX-XXXX-XXXX` from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`), `agent_type='windows-render'`, `agent_name='windows-render-agent'`, `status='pending'` and `expires_at`. Write the code straight into the install-dir `.env` as `POPDAM_PAIRING_CODE`, next to `SUPABASE_URL=https://qsllyeztdwjgirsysgai.supabase.co` and `AGENT_NAME=windows-render-agent`. Never print the code in chat. After pairing, the code is removed from config and `agent_key` is saved to `%ProgramData%\PopDAM\agent-config.json`.
+
+### Do not
+
+- Don't install Illustrator. It is not used.
+- Don't pair under a new agent name unless you mean to keep two agents. A second name creates a second registration.
+- Don't leave the old machine's task enabled. It restarts at logon.
+- Don't run `install-scheduled-task.ps1` with Windows PowerShell 5.1.
+- Don't trust `admin_config` NAS credentials without testing them first with `net use`.
+
+### Moving back to edge-alien (fresh Windows)
+
+1. On edge-alien, install the tools: winget `Inkscape.Inkscape`, `ImageMagick.ImageMagick`, `oschwartz10612.Poppler` and `UB-Mannheim.TesseractOCR`, plus Ghostscript from Artifex. Also install Node and pwsh 7.
+2. Enable OpenSSH Server so the next session can reach it.
+3. On edge-dev, run `schtasks /end` and `/change /disable` for the task.
+4. Pair edge-alien, preferably with the release installer, so problem 5 doesn't happen. Then test the NAS and queue a test job (steps 2–5 of "Order that worked").
+
 ## 8. Compat-thumbnail audit (fix `.ai` warning-page thumbnails in bulk)
 
 Some `.ai` thumbnails render Adobe's "saved without PDF Content" warning page instead of artwork (an earlier render used the PDF layer). **Settings → Windows Agent → "Audit AI Compat Thumbnails"** OCR-detected these — but as of 2026-07-03 it uses a **perceptual hash** (`compat-audit.ts`, `COMPAT_REF_HASHES`), because the old OCR looked for "compatibility" while the page says "Compatible" (flagged 0). The audit hashes every `.ai` thumbnail, clears the warning ones (`thumbnail_url=null`), and re-queues them for **native (Inkscape) render**, which recovers the real artwork. Triggers: `COMPAT_AUDIT_PREVIEW_REQUEST` (read-only report) and `COMPAT_AUDIT_REQUEST` (clear + re-render) in `admin_config`. A full ~46k scan takes ~8 min. **Do not** use the ".ai Sentinel Cleanup" delete flow for these — the files contain real artwork (see AGENTS.md `.ai` quirk).
