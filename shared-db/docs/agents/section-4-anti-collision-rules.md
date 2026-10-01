@@ -483,7 +483,15 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    the code is the truth and this sentence must be re-derived from it, never the
    other way round.
    Codex cannot review when Codex orchestrates; Claude cannot review when Claude
-   orchestrates. Albert approved Codex on 2026-08-28 after its wrapper
+   orchestrates; and GLM cannot review when a ZCode orchestrator runs, because
+   ZCode's engine is GLM-5.3 — the exclusion follows the model engine behind the
+   harness, not the harness name (owner ruling 2026-09-17, "I never want GLM
+   reviewing GLM code", enforced by PR #3232: the glm rows carry
+   `orchestratorEngine:'glm'`, a marker may declare `engine: zcode` with a
+   `sess_<uuid>` id, and `ENGINE_REVIEWER_EXCLUSION` maps zcode → glm before the
+   draw, while codex and claude map to themselves unchanged). ZCode is not a
+   reviewer; adding it as one was permanently rejected by the same ruling.
+   Albert approved Codex on 2026-08-28 after its wrapper
    qualified.
 
    **Gemini 3.8 Flash High is ACTIVE again as of 2026-09-06** (PR #2438,
