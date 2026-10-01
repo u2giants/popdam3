@@ -228,7 +228,7 @@ export async function heartbeat(
 export interface IngestPayload {
   relative_path: string;
   filename: string;
-  file_type: "psd" | "ai" | "pdf";
+  file_type: "psd" | "ai" | "pdf" | "png" | "jpg";
   file_size: number;
   modified_at: string;
   file_created_at: string | null;

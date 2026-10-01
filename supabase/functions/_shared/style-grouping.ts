@@ -51,6 +51,7 @@ export function extractSkuFolder(relativePath: string): string | null {
  * Select the primary asset from a list of assets in the same group.
  *
  * Priority tiers (highest → lowest):
+ *  0. png/jpg with "comp-view" or "compview" in filename (default cover)
  *  1. in a "photography" subfolder + filename base ends in "3-4" (any file type)
  *  2. "mockup" in filename + usable thumbnail
  *  3. "art" in filename + usable thumbnail
@@ -88,6 +89,13 @@ export function selectPrimaryAsset(
   const hasPackaging = (a: typeof assets[0]) => fn(a).includes("packaging");
   const hasUsableThumbnail = (a: typeof assets[0]) => !!a.thumbnail_url && !a.thumbnail_error;
   const isOther = (a: typeof assets[0]) => !hasMockup(a) && !hasArt(a) && !hasPackaging(a);
+
+  // Tier 0: comp-view png/jpg is always the default cover
+  const p0 = assets.find((a) => {
+    const name = fn(a);
+    return /\.(png|jpe?g)$/.test(name) && (name.includes("comp-view") || name.includes("compview"));
+  });
+  if (p0) return p0.id;
 
   // Tier 1: photography subfolder + filename base ends in "3-4" (any file type, any thumbnail state)
   const p1 = assets.find((a) => isPhotography34(a));

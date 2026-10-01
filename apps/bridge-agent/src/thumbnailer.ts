@@ -54,6 +54,18 @@ export interface PdfThumbnailResult extends ThumbnailResult {
 }
 
 /**
+ * Generate a thumbnail for a png/jpg file (comp views).
+ */
+async function thumbnailRaster(filePath: string): Promise<ThumbnailResult> {
+  const fileBuffer = await readFile(filePath);
+  const img = sharp(fileBuffer).rotate().flatten({ background: "#ffffff" });
+  const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
+  const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "raster.toBuffer");
+  const meta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "raster.meta");
+  return { buffer, width: meta.width || 0, height: meta.height || 0 };
+}
+
+/**
  * Generate a thumbnail for a PSD file.
  * Sharp can read PSD files directly (flattened composite).
  */
@@ -384,9 +396,10 @@ export async function isBlankThumbnail(buffer: Buffer): Promise<boolean> {
  */
 export async function generateThumbnail(
   filePath: string,
-  fileType: "psd" | "ai" | "pdf",
+  fileType: "psd" | "ai" | "pdf" | "png" | "jpg",
 ): Promise<ThumbnailResult | PdfThumbnailResult> {
   if (fileType === "psd") return thumbnailPsd(filePath);
+  if (fileType === "png" || fileType === "jpg") return thumbnailRaster(filePath);
   if (fileType === "ai") {
     const result = await thumbnailAi(filePath);
     if (await isBlankThumbnail(result.buffer)) {

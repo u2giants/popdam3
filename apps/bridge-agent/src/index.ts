@@ -777,7 +777,7 @@ function shouldDeferToWindows(
   // "shared" mode: apply policy rules
   if (effectiveMode === "shared" && policy) {
     // File type must be eligible
-    if (!policy.shared_types.includes(file.fileType)) {
+    if (!(policy.shared_types as string[]).includes(file.fileType)) {
       return { defer: false, reason: "type_not_eligible" };
     }
 

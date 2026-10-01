@@ -16,7 +16,8 @@ import { logger } from "./logger.js";
 import type { Counters } from "./api-client.js";
 import { shouldSkipFolder, shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
 
-const SUPPORTED_EXTENSIONS = new Set([".psd", ".ai", ".pdf"]);
+const SUPPORTED_EXTENSIONS = new Set([".psd", ".ai", ".pdf", ".png", ".jpg", ".jpeg"]);
+const RASTER_EXTENSIONS = new Set([".png", ".jpg", ".jpeg"]);
 
 // PDF keyword filter: only ingest PDFs whose filename matches these keywords
 const PDF_KEYWORDS = [
@@ -24,6 +25,13 @@ const PDF_KEYWORDS = [
   "licensing sheet", "licensing-sheet", "licensing_sheet",
   "_comp view", "_compview",
 ];
+
+// Raster keyword filter: only ingest png/jpg files that are comp views.
+// These become the style group's default cover (see selectPrimaryAsset).
+export function isCompViewFilename(filename: string): boolean {
+  const lower = filename.toLowerCase();
+  return lower.includes("comp-view") || lower.includes("compview");
+}
 
 export function isPdfCandidate(filename: string): boolean {
   const lower = filename.toLowerCase();
@@ -34,7 +42,7 @@ export interface FileCandidate {
   absolutePath: string;
   relativePath: string; // POSIX canonical (no leading slash)
   filename: string;
-  fileType: "psd" | "ai" | "pdf";
+  fileType: "psd" | "ai" | "pdf" | "png" | "jpg";
   fileSize: number;
   modifiedAt: Date;
   fileCreatedAt: Date | null;
@@ -213,6 +221,12 @@ async function* scanDirectory(
       continue;
     }
 
+    // Raster keyword filter: only accept png/jpg comp views
+    if (RASTER_EXTENSIONS.has(ext) && !isCompViewFilename(entry.name)) {
+      counters.rejected_wrong_type++;
+      continue;
+    }
+
     // Skip .ai files when a same-named .pdf sibling exists in the same directory.
     // The PDF is the canonical distributable; the .ai is the editable source.
     if (ext === ".ai") {
@@ -235,7 +249,8 @@ async function* scanDirectory(
       relPath = relPath.split("\\").join("/"); // Ensure POSIX
       if (relPath.startsWith("/")) relPath = relPath.slice(1);
 
-      const fileType: "psd" | "ai" | "pdf" = ext === ".psd" ? "psd" : ext === ".ai" ? "ai" : "pdf";
+      const fileType: "psd" | "ai" | "pdf" | "png" | "jpg" =
+        ext === ".psd" ? "psd" : ext === ".ai" ? "ai" : ext === ".png" ? "png" : RASTER_EXTENSIONS.has(ext) ? "jpg" : "pdf";
 
       const candidate: FileCandidate = {
         absolutePath: fullPath,

@@ -974,8 +974,8 @@ async function handleIngest(
 
   const pdfPage2Url = optionalString(body, "pdf_page2_url");
 
-  if (!["psd", "ai", "pdf"].includes(fileType)) {
-    return err("file_type must be 'psd', 'ai', or 'pdf'");
+  if (!["psd", "ai", "pdf", "png", "jpg"].includes(fileType)) {
+    return err("file_type must be 'psd', 'ai', 'pdf', 'png', or 'jpg'");
   }
 
   const db = serviceClient();
