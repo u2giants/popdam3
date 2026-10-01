@@ -700,7 +700,9 @@ function startPolling() {
           // Health is per share: the main-NAS gate above guards PopDAM claims, and
           // PopSG claims are guarded by their own share mapping here.
           const sgReady = await sgReadyForClaim(
-            Boolean(cloudSgNasShare || cloudSgNasMountPath), zGate.ready, ensureSgNasMapped);
+            // toSgUncPath reads from the PopSG mount only when one is set; otherwise
+            // it builds the path on the main mount/host, so readiness follows that.
+            Boolean((cloudSgNasMountPath || "").trim()), zGate.ready, ensureSgNasMapped);
           const sgJob = sgReady ? await api.claimSgRender(agentId) : null;
           if (sgJob) {
             if (!sgJob.relative_path) {
