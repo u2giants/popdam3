@@ -4,7 +4,14 @@ import { corsServe, err, json } from "../_shared/http.ts";
 import { findRunningConflict } from "../_shared/operation-constants.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalString, requireString } from "../_shared/validators.ts";
-import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, isDirectGeminiBatchModelId, safeSecretFingerprint, upsertConfigRowsAtomically, withValidatedCounterparts } from "../_shared/direct-batch-model.ts";
+import {
+  directGeminiBatchAllowedForServerConsumer,
+  directGeminiBatchSelectionHasKey,
+  isDirectGeminiBatchModelId,
+  safeSecretFingerprint,
+  upsertConfigRowsAtomically,
+  withValidatedCounterparts,
+} from "../_shared/direct-batch-model.ts";
 
 // ── Extracted handler modules ───────────────────────────────────────
 import {
@@ -333,8 +340,8 @@ async function handleSetConfig(
     return err("BULK_OPERATIONS must be changed through update-bulk-op", 400);
   }
   const taskModels = entries.AI_TASK_MODELS;
-  const selectsDirectGemini = taskModels && typeof taskModels === "object" && !Array.isArray(taskModels)
-    && isDirectGeminiBatchModelId((taskModels as Record<string, unknown>).vision_tagging);
+  const selectsDirectGemini = taskModels && typeof taskModels === "object" && !Array.isArray(taskModels) &&
+    isDirectGeminiBatchModelId((taskModels as Record<string, unknown>).vision_tagging);
   if (taskModels && typeof taskModels === "object" && !Array.isArray(taskModels)) {
     for (const [taskKey, modelId] of Object.entries(taskModels as Record<string, unknown>)) {
       if (!directGeminiBatchAllowedForServerConsumer(modelId, taskKey === "vision_tagging" ? "vision_tagging_primary" : taskKey)) {
