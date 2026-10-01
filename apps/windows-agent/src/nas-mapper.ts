@@ -24,6 +24,15 @@ export interface NasCredentials {
 }
 
 /** True if the string looks like a drive letter (e.g. "Z:" or "Z") */
+/**
+ * Remove a secret from text before it is logged or returned. `net use` errors
+ * from execFile include the full command line, which carries the NAS password.
+ */
+export function redactSecret(text: string, secret: string | undefined): string {
+  if (!text || !secret) return text;
+  return text.split(secret).join("[REDACTED]");
+}
+
 function isDriveLetter(s: string): boolean {
   const clean = s.trim().replace(/:$/, "");
   return /^[A-Za-z]$/.test(clean);
@@ -126,7 +135,7 @@ export async function ensureNasMapped(
     });
 
     if (stderr && stderr.toLowerCase().includes("error")) {
-      logger.warn("net use stderr", { stderr: stderr.trim() });
+      logger.warn("net use stderr", { stderr: redactSecret(stderr.trim(), password) });
     }
 
     logger.info("NAS share mapped successfully", {
@@ -134,7 +143,7 @@ export async function ensureNasMapped(
       uncPath,
     });
   } catch (e) {
-    const msg = (e as Error).message;
+    const msg = redactSecret((e as Error).message, password);
     // "already connected" is fine — means mapping exists
     if (!msg.includes("already") && !msg.includes("1219")) {
       return {

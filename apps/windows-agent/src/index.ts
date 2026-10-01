@@ -23,6 +23,7 @@ import { compressTiff, deleteOriginalBackup, scanTiffFiles, setTimestampConfig, 
 import { inspectAiFile } from "./ai-raster-inspector";
 import { captureTimestamps } from "./tiff-timestamps";
 import { ensureNasMapped } from "./nas-mapper";
+import { nasReadyForClaim } from "./claim-gate";
 import { resetSkipWarnings, shouldSkipPath } from "@popdam/path-filters";
 import { startJanitor } from "./janitor";
 import path from "node:path";
@@ -669,18 +670,17 @@ function startPolling() {
           // credentials the latest heartbeat delivered from admin_config. If that still
           // fails, mark the agent unhealthy so the preflight recheck keeps retrying and
           // no job is consumed as a failure.
-          if (cloudNasHost) {
-            const zMap = await ensureNasMapped(cloudNasMountPath, {
+          const zGate = await nasReadyForClaim(cloudNasHost, () =>
+            ensureNasMapped(cloudNasMountPath, {
               host: cloudNasHost,
               share: cloudNasShare,
               username: cloudNasUsername,
               password: cloudNasPassword,
-            });
-            if (!zMap.ok) {
-              logger.warn("NAS unavailable before claim — pausing claims until remap succeeds", { error: zMap.error });
-              healthStatus = { ...healthStatus, healthy: false, nasHealthy: false };
-              break;
-            }
+            }));
+          if (!zGate.ready) {
+            logger.warn("NAS unavailable before claim — pausing claims until remap succeeds", { error: zGate.error });
+            healthStatus = { ...healthStatus, healthy: false, nasHealthy: false };
+            break;
           }
           const job = await api.claimRender(agentId);
           if (job) {
