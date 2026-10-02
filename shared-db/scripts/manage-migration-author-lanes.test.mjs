@@ -7388,6 +7388,20 @@ test('excluding the holder of this head assignment returns the slot and a differ
   assert.equal([...io.refs.keys()].some((ref)=>ref.startsWith(`${REVIEW_FAILURE_REF_PREFIX}/1999-2002-`)),false)
 })
 
+// #3866: an assignment whose lease was already released is stranded. exclude
+// must still return it (no verdict), so assign-reviewer can draw a fresh reviewer.
+test('#3866 excluding a lease-less outstanding assignment returns the slot',()=>{
+  const head='e'.repeat(40),{io,first,assignmentRef,evidenceSha}=returnScenario(3866,3866,head)
+  // Simulate a prior replacement that released the lease without returning the assignment
+  const leaseRef=reviewActiveRef(first.reviewer)
+  io.refs.delete(leaseRef)
+  const excluded=excludeReviewerForPr({issue:3866,pr:3866,reviewer:first.reviewer,reason:'terminal-unavailable',evidenceSha},io)
+  assert.equal(excluded.returned.length,1)
+  assert.equal(io.refs.get(assignmentRef),undefined)
+  const next=assignNextReviewer({issue:3866,pr:3866,headSha:head},io)
+  assert.notEqual(next.reviewer,first.reviewer)
+})
+
 // The same proof through the atomic compare-and-swap io, because the exclusion
 // takes a different write path there and a readback mismatch must be provable.
 test('the exclusion return lands atomically with the exclusion record (issue #1999)',()=>{

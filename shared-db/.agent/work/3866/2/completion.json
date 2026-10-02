@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "work_issue": 3866,
+  "outcome": "ready-for-merge",
+  "pr": 0,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3866/2",
+  "contract_sha256": "41fa664da918e0fa389502da4ba31d33df3fe312f0916521e7653dce3b1b8ba6",
+  "head_sha": "7afbc42b839f15a046c939bf415e2a447fe9f164",
+  "base_sha": "a233e49a3c5a9c6bbba1c6ebbc51c81001db84f3",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "750 pass, 0 fail including the new #3866 stranded-assignment test."
+    }
+  ],
+  "assumptions_resolved": [
+    "Lease-less assignments with no verdict are returned on exclude; verdict-bearing assignments stay."
+  ],
+  "notes": "Generation 2 after base_sha correction.",
+  "stop_conditions_hit": []
+}

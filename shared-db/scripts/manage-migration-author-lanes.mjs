@@ -4646,7 +4646,16 @@ export function excludeReviewerForPr({issue,pr,reviewer,reason,evidenceSha},io=g
       // probed here, and whichever one actually holds this assignment SHA is
       // carried on the row and is the one the release deletes.
       const leaseRef=reviewLeaseRefCandidates({...parsed,slot:named.slot},Boolean(io.requiresExactReviewHeadSha)).find((candidate)=>readLeaseRef(candidate)===row.sha)??null
-      if(!leaseRef)continue
+      // #3866: an assignment whose lease was already released (e.g. by a prior
+      // replacement that was later returned) is stranded. Without this, exclude
+      // reports returned:[] forever and assign-reviewer refuses because the
+      // durable assignment still names the excluded reviewer. A lease-less
+      // assignment with no verdict is still outstanding and must be returned;
+      // one with a verdict is an old approved assignment and stays.
+      if(!leaseRef){
+        const vref=verdictRef({issue,pr,headSha:named.headSha,slot:named.slot,replacementSequence:named.replacementSequence})
+        if(io.readRef(vref))continue
+      }
       held.push({ref:row.ref,sha:row.sha,headSha:named.headSha,slot:named.slot,replacementSequence:named.replacementSequence,sequence:parsed.sequence,leaseRef})
     }
     // A reviewer that already recorded a durable verdict for an assignment

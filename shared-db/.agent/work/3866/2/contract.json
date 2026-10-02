@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 3866,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Return lease-less outstanding assignments on --exclude-reviewer so a stranded slot (lease already released, no verdict) can be redrawn; approved assignments with verdicts are never stripped",
+  "base_sha": "a233e49a3c5a9c6bbba1c6ebbc51c81001db84f3",
+  "dispatcher": "MiMo chat ses_ffe5f07deb797fferq5MiQQA2y on edge-dev",
+  "worker": "mimo",
+  "branch": "fix/3866-reviewer-release-evidence",
+  "worktree": "C:/repos/shared-db/.ai/worktrees/fix-3866",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3866/2/contract.json",
+    ".agent/work/3866/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3866/2/contract.json",
+    ".agent/work/3866/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not strip an assignment that already recorded a durable verdict",
+    "do not edit another session's handoff, worktree, branch, or claim"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "assumptions": [
+    "parseTerminalFailureEvidence on main already accepts replacement-format failure refs (#3730); this PR fixes the remaining exclude-returns-empty gap",
+    "the implementation commit precedes the published contract ref"
+  ],
+  "stop_conditions": [
+    "stop if a test fails for a reason unrelated to the exclusion return path",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ],
+  "generation": 2
+}
