@@ -1,0 +1,50 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 3869,
+    "generation": 1,
+    "contract_sha256": "0e6fb5e8a3b666cd4811010b017e0bde9d2aec8a583dc34adb9151ce1ca42b01"
+  },
+  "work_issue": 3869,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Add a read-only production-order to ColdLion sales-order mapping view plm.v_prod_order_sales_order_link (with the sales-order start date, the owner-ruled customer promise) and a supporting expression index on coldlion.order_history_line(lower(btrim(prod_reference_no))), applied to the DesignFlow sandbox (xupnyeifmpsacrqahwwm) only",
+  "base_sha": "de12c0cc43bb0bb5d610f4c1f9a3e01a2248ba8b",
+  "dispatcher": "claim-first structural session for issue #3869 (Claude chat fb5671db-a462-4888-b6d9-b75af80e91c5 on al8960ofc)",
+  "worker": "claude",
+  "branch": "db/3869-coldlion-so-link",
+  "worktree": "C:/repos/shared-db-worktrees/3869",
+  "allowed_paths": [
+    "supabase/migrations/20261002135053_coldlion_prod_order_sales_order_link.sql"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261002135053_coldlion_prod_order_sales_order_link.sql"
+  ],
+  "db_reads": [
+    "table coldlion.order_history_line",
+    "table coldlion.prod_history_line",
+    "table plm.ProdOrderHeader"
+  ],
+  "db_writes": [
+    "index coldlion.order_history_line_prod_reference_no_lower_idx",
+    "table coldlion.order_history_line",
+    "view plm.v_prod_order_sales_order_link"
+  ],
+  "prohibited_actions": [
+    "do not apply anything to shared production or shared preview from this session",
+    "do not alter or drop any existing object",
+    "never put licensed ColdLion rows in GitHub, logs, or prompts"
+  ],
+  "required_checks": [
+    "BEGIN; migration; coverage query; ROLLBACK against the DesignFlow sandbox"
+  ],
+  "assumptions": [
+    "the PO-to-SO relationship is many-to-many, so a mapping view is the correct shape rather than filling ProdOrderHeader.salesOrderNo",
+    "generation 2 supersedes generation 1 only to correct the goal text (trimmed reference index, start date) and to list coldlion.order_history_line as a read, after governed review"
+  ],
+  "stop_conditions": [
+    "stop if the migration would need to alter an existing object",
+    "stop if a change outside allowed_paths is needed"
+  ]
+}

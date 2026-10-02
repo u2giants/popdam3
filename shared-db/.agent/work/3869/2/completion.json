@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 3869,
+  "outcome": "ready-for-merge",
+  "pr": 3873,
+  "migration_versions": [
+    "20261002135053"
+  ],
+  "contract_ref": "refs/db-contracts/3869/2",
+  "contract_sha256": "580850f3cc27c2af9b7527e1bf5a140398aa7f14d845398bb7b535c9488293dc",
+  "base_sha": "de12c0cc43bb0bb5d610f4c1f9a3e01a2248ba8b",
+  "head_sha": "86f811a2e1501350f3fdb2088551650c74b8bf75",
+  "files_changed": [
+    "supabase/migrations/20261002135053_coldlion_prod_order_sales_order_link.sql"
+  ],
+  "db_reads": [
+    "table coldlion.order_history_line",
+    "table coldlion.prod_history_line",
+    "table plm.ProdOrderHeader"
+  ],
+  "db_writes": [
+    "index coldlion.order_history_line_prod_reference_no_lower_idx",
+    "table coldlion.order_history_line",
+    "view plm.v_prod_order_sales_order_link"
+  ],
+  "checks": [
+    {
+      "command": "BEGIN; migration; coverage query; ROLLBACK against the DesignFlow sandbox",
+      "exit_code": 0,
+      "evidence": "target xupnyeifmpsacrqahwwm; migration executed twice in one transaction (re-runnable, all self- and post-checks pass); 22332 pairs; 2771 of 3514 production orders linked; 3111 pairs asserted by more than one source; 22254 pairs carry sales_order_start_date (2752 production orders); 0 sales orders with disagreeing line start dates in the newest fetch; 0 with a start date that changed across fetches; full view scan 705 ms; rolled back"
+    }
+  ],
+  "assumptions_resolved": [
+    "Confirmed many-to-many: about 1310 sandbox production orders map to more than one sales order, so a view is required."
+  ],
+  "stop_conditions_hit": [],
+  "disclosure": "The contract was published after the migration commit f66b6335 was pushed, because the agent work contract check reported it missing; the contract matches the work already done exactly. Governed DeepSeek review of head 771a9712 returned REVISE (not re-runnable view, no self-checks, no observation time, overstated independence, service_role grant); all were fixed in a later implementation commit, which also adds sales_order_start_date per the owner ruling that the sales-order start date is the promise. Second governed DeepSeek review of head c0b20c7a returned REVISE (trim asymmetry, index-definition checks, id uniqueness, security_invoker post-check, data read in apply transaction, re-join, comment); all fixed in a later implementation commit. coldlion.order_history_line is read by the view and is covered by the declared table write on it. Third governed DeepSeek review of head 0da2adde returned REVISE (index validity, deparse-fragile index check, view shape and privilege post-checks, version-unqualified dates, contract goal and reads); fixed in dadf1a99, and contract generation 2 corrects the goal and reads. Not adopted: asserting the current ColdLion identity constraint, because the sandbox deliberately carries the older line shape and the view is built on the column set common to both; and a supabase/tests contract, because the reviewed apply targets only the sandbox and the post-checks run inside the migration. Fourth governed DeepSeek review of head c6feced1 ended with an unrecordable verdict (its private response drafted REVISE on four narrow items: start-date-changed semantics, company null-safety, invalid-index recovery, deparse-literal comparison); all four fixed in a later implementation commit. Head 0ba95538: GLM 5.3 APPROVE (slot 1); DeepSeek REVISE (slot 2, replacement for Muse) on deparse-parenthesis risk and index readiness, both fixed in a later implementation commit; the comparison was executed against both the sandbox rendering and a fully parenthesised rendering. company matching is null-safe (is not distinct from), so O3 is answered by documentation, not a nullability assertion. Head 9e3ee898: GLM 5.3 APPROVE (slot 2); slot 1 Grok could not authenticate and Muse is not installable here, both replaced; the DeepSeek replacement drafted REVISE (prod_history_line access path under null-safe company matching, undocumented access paths, header-index readiness, comment precision) but its verdict was unrecordable; those are fixed in head_sha by restoring plain company equality, documenting the access paths, and checking indisready/indislive. A supabase/tests contract was not added because the apply is sandbox-only and the checks run inside the migration. Head c426c473: DeepSeek (slot 1 replacement) APPROVE and GLM 5.3 (slot 2) APPROVE. The branch was then rewritten (no content change; backup ref backup/3869-pre-rewrite) so the implementation commit carries only the migration and the evidence pair follows it, as the evidence contract requires."
+}
