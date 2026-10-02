@@ -76,15 +76,28 @@ serves the chosen warehouse (L.A. port or NJ port), clears customs, pays duty, t
 warehouse, and makes the goods available there. This reconciles the first ruling's
 "Warehouse → NJ seaport" wording, which described the NJ case.
 
-### Transit times (approximate, calendar days)
+### Transit times (approximate, calendar days) — condition-dependent and dated
 
-| Leg | About |
-|---|---|
-| China → US West Coast port (L.A.) | 19 days |
-| China → US East Coast port (NJ) | 35 days |
-| Port → POP warehouse (L.A. or NJ, Warehouse term) | +7 days on top of that port's transit |
+**Transit times change with world shipping conditions.** "Standard" is the normal-conditions
+figure; "Current" is what Albert reported as of the date shown. Anyone using these numbers
+(for example to compute a required factory ship date) must treat the Current column as dated
+and re-confirm it with Albert or the forwarder when it is old; never silently fall back to
+Standard while a Current disruption is on record.
 
-These are Albert's "about" figures, not guarantees.
+| Leg (port to port) | Standard | Current (as of 2026-10-02) | Source |
+|---|---|---|---|
+| China → L.A. (US West Coast) | about 19 days | about 19 days (no disruption stated) | Albert, 2026-10-02 |
+| China → NJ (US East Coast) | about 35 days | about 35 days (no disruption stated) | Albert, 2026-10-02 |
+| Kochi (Cochin), India → NJ/NY | 25 days, standard Suez routing | **45 days via the Cape of Good Hope — Suez closed** | Albert, 2026-10-02 |
+| Kochi (Cochin), India → L.A. | usually 30–35 days | **about 60 days — Panama Canal capacity constrained** | Albert, 2026-10-02 |
+| Port → POP warehouse (L.A. or NJ, Warehouse term) | +7 days on top of that port's transit | +7 days | Albert, 2026-10-02 |
+
+These are Albert's approximate figures, not guarantees.
+
+**US customs clearance adds no time when all goes well (Settled, Albert, 2026-10-02).** Albert's
+words: "customs clearance, if everything goes well, is done concurrently with shipping, while
+the container is on the water." The transit figures above therefore already cover clearance in
+the normal case; a clearance problem can add time that is not modelled here.
 
 ### Customer start and cancel dates
 
@@ -106,8 +119,7 @@ from the Warehouse term above) and the cost bases in [`rfq-pricing.md`](rfq-pric
 
 ## Unknown — not yet answered (do not guess)
 
-- **Customs-clearance duration** at the US port (not included in the transit figures).
-- **Transit times from India and other non-China origins.**
+- **Transit times from origins other than China and Kochi, India** (other Indian ports, other countries).
 - **Which warehouse a given sales order uses** (L.A. or NJ) and which data field records it.
 - **DDP production-PO timing**: how the factory's ship date relates to delivery when the factory
   carries freight, customs, and duty.
@@ -122,5 +134,5 @@ from the Warehouse term above) and the cost bases in [`rfq-pricing.md`](rfq-pric
   order's start/cancel date and compares against the production order's ship date. Under these
   rules the required factory ship date depends on the sales-order term (roughly: FOB China ≈
   the customer date; POE L.A. ≈ 19 days earlier, POE NJ ≈ 35 days earlier, Warehouse +7 more,
-  each before customs time). How the plan should convert dates is a design decision for that
-  plan, still blocked on the customs-clearance and warehouse-source Unknowns above.
+  customs normally concurrent; Kochi origins use the dated India rows). How the plan should convert dates is a design decision for that
+  plan, still blocked on the warehouse-source Unknown above and must use the dated Current transit figures.
