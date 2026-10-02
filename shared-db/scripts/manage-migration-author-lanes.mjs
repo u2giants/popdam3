@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createStageEvidenceVerifier } from './lib/work-stage-evidence.mjs'
 import { resolveEvidencePair, isEvidencePath } from './lib/agent-evidence-paths.mjs'
 
 import { execFileSync } from 'node:child_process'
@@ -11,7 +12,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gatherOpenPrObjects, normalizeObject, parseClaimBlock } from './check-dispatch-collision.mjs'
-import { classifyDependencies, findCompletionRecord, findDependencyCycles, validateCompletionRecord, validateDependencyDeclaration, COMPLETION_FENCE, DependencyError } from './lib/work-dependencies.mjs'
+import { dependencyIssue, parseDependencyDeclarations, classifyDependencies, findCompletionRecord, findDependencyCycles, validateCompletionRecord, validateDependencyDeclaration, COMPLETION_FENCE, DependencyError } from './lib/work-dependencies.mjs'
 import { assertLease, evaluateRecovery, formatLeaseMessage, parseLeaseMessage, recoveredLeaseMetadata, LeaseError } from './lib/exclusive-lease.mjs'
 import { coordinationEvent, formatEventComment, parseEventComment, auditTimeline, renderTimeline } from './db-coordination-events.mjs'
 import { reconcileFlow, persistInitialReady, preparePreviewDispatch, repairPreviewReady, terminalizeReady, readyRecord, MODE_SEQUENCE, parseAbandonmentAudit, reportOnlyFlowIo, abandonmentAuditExit, AUDIT_EXIT_UNVERIFIABLE } from './orchestrator-flow/reconcile.mjs'
@@ -59,7 +60,7 @@ import { changedPathsFromPullRequestFiles, classifyChangedPaths, classifyLightwe
 import { HISTORICAL_RESTORATIONS, validateHistoricalRestorationFile } from './historical-migration-restorations.mjs'
 import { AdmissionError, SERVICE_CLASSES, CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, STRUCTURAL_ROUTES, parseImpactBlock, evaluateAdmission, inspectPrStructuralChange, structuralWritesMatch, structuralWritesCovered } from './orchestrator-flow/admission.mjs'
 import { assertNamedHold, conflicts, describeLeaseHolder, formatHoldReason, HoldReasonError } from './lib/hold-reason.mjs'
-import { OUTCOME_STATES, OutcomeError, advanceOutcome, completeOutcome, outcomeEvent, outcomeHistory, repairOutcomeHistory } from './orchestrator-flow/outcome-lifecycle.mjs'
+import { OUTCOME_STATES, OutcomeError, advanceOutcome, completeOutcome, verifyOutcomeAcceptance, outcomeEvent, outcomeHistory, repairOutcomeHistory } from './orchestrator-flow/outcome-lifecycle.mjs'
 import { isContentPreservingRefresh } from './lib/pr-content-equivalence.mjs'
 import { wrapperEmitsGovernedVerdict } from './lib/reviewer-capabilities.mjs'
 import { classifyBranchFreshness } from './check-main-tip-freshness.mjs'
@@ -1026,8 +1027,7 @@ export function parseQueueScope(body = '') {
   if (!ROUTES_BY_WORK_TYPE[workType].has(route)) throw new LaneError(`route ${route} is not valid for work_type ${workType}`)
   const priority = Number(fields.get('priority'))
   if (!Number.isInteger(priority) || priority < 0) throw new LaneError('db-work-scope priority must be a non-negative integer')
-  const dependencies = (fields.get('depends_on') ?? '').split(',').map((v)=>v.trim()).filter(Boolean).map((v)=>Number(String(v).replace(/^#/,'')))
-  if (dependencies.some((v)=>!Number.isInteger(v) || v <= 0)) throw new LaneError('db-work-scope depends_on must contain issue numbers')
+  const dependencies = parseDependencyDeclarations(fields.get('depends_on') ?? '')
   // LEGACY_OBJECTS_MEANS_WRITES. A flat `objects:` list never distinguished a
   // reader from a writer, so the only safe reading of an existing claim is the
   // conservative one: every declared object is a WRITE. Reading a legacy claim as
@@ -1088,7 +1088,8 @@ function overlaps(a, b) { return conflicts({ writes: a, reads: [] }, { writes: b
 function downstreamBlockerCounts(dependencyEdges) {
   const dependents = new Map()
   for (const [issue, dependencies] of Object.entries(dependencyEdges)) {
-    for (const dependency of dependencies) {
+    for (const declaration of dependencies) {
+      const dependency = dependencyIssue(declaration)
       if (!dependents.has(dependency)) dependents.set(dependency, new Set())
       dependents.get(dependency).add(Number(issue))
     }
@@ -1114,6 +1115,36 @@ function queueOrder(a,b) {
     || b.blockedIssueCount-a.blockedIssueCount
     || a.createdAt-b.createdAt
     || a.issue-b.issue
+}
+
+
+/** Fetch current dependency facts without changing issues or dispatching work. */
+export function readDependencyStates(declarations, io = githubIo) {
+  const parsed = parseDependencyDeclarations(declarations ?? [])
+  const explicit = new Set(parsed.filter(value => typeof value === 'object').map(dependencyIssue))
+  const states = {}
+  for (const number of new Set(parsed.map(dependencyIssue))) {
+    let issue
+    try { issue = io.getIssue(number) } catch (error) {
+      const detail = String(error?.stderr ?? error?.message ?? error)
+      states[number] = /HTTP 404|Not Found/i.test(detail) ? { exists: false } : { exists: true, unreadable: detail }
+      continue
+    }
+    if (!issue || issue.pull_request || !['open', 'closed'].includes(issue.state)) {
+      states[number] = { exists: true, unreadable: `#${number} is not a readable work issue` }; continue
+    }
+    const state = { exists: true, open: issue.state === 'open', closedAt: issue.closed_at ?? null, comments: [], repository: REPO }
+    if (!state.open || explicit.has(number)) {
+      try {
+        state.comments = io.getIssueComments(number).map(comment => ({ ...comment, author: comment.user?.login ?? comment.author }))
+      } catch (error) {
+        states[number] = { exists: true, unreadable: `comments unreadable: ${String(error?.message ?? error)}` }; continue
+      }
+    }
+    if (explicit.has(number)) state.verifyStageEvidence = createStageEvidenceVerifier({ ...io, parseScope: parseQueueScope }, REPO)
+    states[number] = state
+  }
+  return states
 }
 
 export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssueNumbers = issues.map((issue)=>issue.number), dependencyStates = null, claimPullStates = new Map(), authoredOnMain = new Set(), outcomeStates = new Map()) {
@@ -1181,7 +1212,7 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
           continue
         }
       } else {
-        const waiting = scope.dependencies.filter((number)=>openNumbers.has(number))
+        const waiting = scope.dependencies.filter((declaration)=>typeof declaration === 'object' || openNumbers.has(dependencyIssue(declaration))).map(dependencyIssue)
         if (waiting.length) { skipped.push({ issue:issue.number, reason:`depends-on-open:${waiting.join(',')}` }); continue }
       }
       try { evaluateAdmission(issue, scope, parseImpactBlock(issue.body)) }
@@ -1222,7 +1253,7 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
         continue
       }
     } else {
-      const waiting = scope.dependencies.filter((number)=>openNumbers.has(number))
+      const waiting = scope.dependencies.filter((declaration)=>typeof declaration === 'object' || openNumbers.has(dependencyIssue(declaration))).map(dependencyIssue)
       if (waiting.length) { skipped.push({ issue:issue.number, reason:`depends-on-open:${waiting.join(',')}` }); continue }
     }
     const createdAt = Date.parse(issue.createdAt ?? issue.created_at ?? '')
@@ -2571,33 +2602,7 @@ export const githubIo = {
   // just the ones that happen to be open, because a nonexistent number and an
   // unreadable issue must both BLOCK rather than release. Any failure is recorded
   // as `unreadable` and never collapsed into "fine".
-  dependencyStates(numbers) {
-    const states = {}
-    for (const number of [...new Set((numbers ?? []).map(Number))]) {
-      let issue
-      try {
-        issue = ghJson(['api', `repos/${REPO}/issues/${number}`])
-      } catch (error) {
-        const detail = String(error?.stderr ?? error?.message ?? error)
-        // A 404 is an ANSWER: the issue does not exist. Anything else is "I could
-        // not find out", which is a different and equally blocking condition.
-        states[number] = /HTTP 404|Not Found/i.test(detail) ? { exists: false } : { exists: true, unreadable: detail }
-        continue
-      }
-      if (issue.pull_request) { states[number] = { exists: true, unreadable: `#${number} is a pull request, not a work issue` }; continue }
-      const state = { exists: true, open: issue.state === 'open', closedAt: issue.closed_at ?? null, comments: [] }
-      if (!state.open) {
-        try {
-          state.comments = ghPaginated(`repos/${REPO}/issues/${number}/comments?per_page=100`).map((c)=>({ body:c.body, author_association:c.author_association, author:c.user?.login }))
-        } catch (error) {
-          states[number] = { exists: true, unreadable: `comments unreadable: ${String(error?.message ?? error)}` }
-          continue
-        }
-      }
-      states[number] = state
-    }
-    return states
-  },
+  dependencyStates(declarations) { return readDependencyStates(declarations, this) },
   mergeCommitInMain(sha) {
     try { assertMergeCommitInMainHistory(sha, this.readRef('refs/heads/main'), this); return true }
     catch { return false }
@@ -8975,6 +8980,63 @@ export function setScopeStatus(options, now = new Date(), io = githubIo) {
   } finally { releaseMutexOnExit(ownerSha,io) }
 }
 
+
+function verifyMergedWorkRecord(record, io, { verifyLinkage = false } = {}) {
+    const pr = io.getPr(record.pr)
+    if (!pr?.merged_at) throw new DependencyError(`pull request #${record.pr} is not merged`)
+    // GitHub's own merge_commit_sha, which is the squash commit when the repo
+    // squashes. The source branch head is NOT what lands on main.
+    const actual = pr.merge_commit_sha
+    if (!actual || String(actual).toLowerCase() !== String(record.merge_sha).toLowerCase()) {
+      throw new DependencyError(`report merge_sha ${record.merge_sha} does not match GitHub's merge_commit_sha ${actual ?? 'none'} for PR #${record.pr}`)
+    }
+    assertMergeCommitInMainHistory(actual, io.readRef('refs/heads/main'), io)
+    const files = io.getPrFiles(record.pr) ?? []
+    const actualVersions = [...new Set(files
+      .map((file)=>/supabase\/migrations\/(\d{14})_/.exec(file.filename ?? ''))
+      .filter(Boolean).map((match)=>match[1]))].sort()
+    const declared = [...record.migration_versions].sort()
+    if (actualVersions.join(',') !== declared.join(',')) {
+      throw new DependencyError(`report migration_versions [${declared.join(', ')}] do not match the versions PR #${record.pr} actually added [${actualVersions.join(', ')}]`)
+    }
+  if (verifyLinkage) {
+    if (record.merge_sha !== pr.merge_commit_sha) throw new DependencyError('completion must bind the exact merge SHA')
+    if (pr.base?.repo?.full_name !== REPO || pr.base?.ref !== 'main') throw new DependencyError('completion PR belongs to another repository or branch')
+    const linked = io.closingIssuesForPr(record.pr)
+    if (!Array.isArray(linked) || linked.length !== 1 || Number(linked[0]?.number) !== record.work_issue) throw new DependencyError('completion PR must link exclusively to its work issue')
+  }
+}
+
+/** Current-world read side; never closes an issue or publishes a completion. */
+export function verifyCompletionAcceptance({ issue, record }, io = githubIo) {
+  const work = io.getIssue(Number(issue))
+  if (!work || !['open', 'closed'].includes(work.state)) throw new DependencyError('completion issue is unreadable')
+  const scope = parseQueueScope(work.body ?? '')
+  if (!scope) throw new DependencyError('completion issue has no typed scope')
+  const comments = io.issueComments(Number(issue))
+  const stored = findCompletionRecord(comments, { requireTrustedAuthor: true, repository: REPO })
+  if (!stored) return { status: scope.workType === 'structural' ? 'awaiting-live-proof' : 'incomplete', workType: scope.workType }
+  record = validateCompletionRecord(record ?? stored)
+  if (record.work_issue !== Number(issue) || [...new Set([...Object.keys(stored), ...Object.keys(record)])].some(key => JSON.stringify(stored[key]) !== JSON.stringify(record[key]))) throw new DependencyError('completion does not match the immutable trusted record')
+  if (['cancelled', 'superseded', 'returned', 'failed'].includes(record.outcome)) return { status: 'cancelled-or-superseded', workType: scope.workType, record }
+  if (scope.workType === 'structural') {
+    if (record.outcome !== 'live_verified') return { status: 'awaiting-live-proof', workType: scope.workType, record }
+    const history = outcomeHistory(comments, Number(issue))
+    const events = history.events.filter(event => event.event_type === 'live_verified' && !history.superseded.includes(event.event_id))
+    if (!history.valid || !events.length) throw new DependencyError('structural completion has no valid live acceptance history')
+    for (const event of events) {
+      const checked = verifyOutcomeAcceptance({ issue: Number(issue), evidenceRef: event.evidence_urls?.[0] }, { ...io, parseScope: parseQueueScope }).completion
+      if (Object.keys(checked).some(key => checked[key] !== record[key])) throw new DependencyError('structural completion differs from rederived acceptance')
+    }
+  } else if (['repo-maintenance', 'documentation'].includes(scope.workType) && scope.route === 'repo-maintenance' && record.outcome === 'merged') {
+    if (scope.liveAssertion) return { status: 'awaiting-live-proof', workType: scope.workType, record }
+    verifyMergedWorkRecord(record, io, { verifyLinkage: true })
+    if (record.migration_versions.length) throw new DependencyError('maintenance completion cannot claim structural migrations')
+  } else return { status: 'unverifiable', workType: scope.workType, record }
+  return { status: work.state === 'open' ? 'delivered-closeout-pending' : 'complete', workType: scope.workType, record,
+    ...(work.state === 'open' ? { ownerAction: { issue: Number(issue), action: 'opener closes accepted issue', url: `https://github.com/${REPO}/issues/${issue}` } } : {}) }
+}
+
 export function completeWork({ issue, report }, io = githubIo) {
   const record = validateCompletionRecord(report)
   if (record.work_issue !== Number(issue)) {
@@ -8995,25 +9057,7 @@ export function completeWork({ issue, report }, io = githubIo) {
 
   // RE-DERIVE THE EVIDENCE. A merged record claims a pull request and a merge
   // commit; both are checkable, so neither is taken on trust.
-  if (record.outcome === 'merged') {
-    const pr = io.getPr(record.pr)
-    if (!pr?.merged_at) throw new DependencyError(`pull request #${record.pr} is not merged`)
-    // GitHub's own merge_commit_sha, which is the squash commit when the repo
-    // squashes. The source branch head is NOT what lands on main.
-    const actual = pr.merge_commit_sha
-    if (!actual || !actual.startsWith(record.merge_sha) && !record.merge_sha.startsWith(actual)) {
-      throw new DependencyError(`report merge_sha ${record.merge_sha} does not match GitHub's merge_commit_sha ${actual ?? 'none'} for PR #${record.pr}`)
-    }
-    assertMergeCommitInMainHistory(actual, io.readRef('refs/heads/main'), io)
-    const files = io.getPrFiles(record.pr) ?? []
-    const actualVersions = [...new Set(files
-      .map((file)=>/supabase\/migrations\/(\d{14})_/.exec(file.filename ?? ''))
-      .filter(Boolean).map((match)=>match[1]))].sort()
-    const declared = [...record.migration_versions].sort()
-    if (actualVersions.join(',') !== declared.join(',')) {
-      throw new DependencyError(`report migration_versions [${declared.join(', ')}] do not match the versions PR #${record.pr} actually added [${actualVersions.join(', ')}]`)
-    }
-  }
+  if (record.outcome === 'merged') verifyMergedWorkRecord(record, io)
 
   const body = [
     'Completion record for this work. Published by `--complete-work`; immutable.',
@@ -9724,7 +9768,7 @@ export function main(argv, now = new Date(), io = githubIo) {
       for (const issue of issues) {
         let scope = null
         try { scope = parseQueueScope(issue.body) } catch { /* malformed scopes are reported by the audit itself */ }
-        for (const number of scope?.dependencies ?? []) referenced.add(number)
+        for (const declaration of scope?.dependencies ?? []) referenced.add(declaration)
       }
       const dependencyStates = referenced.size && io.dependencyStates ? io.dependencyStates([...referenced]) : null
       // Re-derive the merge evidence rather than trusting the record's own claim.

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": "scripts/queue-hygiene-report.mjs",
+  "sites": [
+    {
+      "site": "scripts/queue-hygiene-report.mjs:69",
+      "semantic_key": "scripts/queue-hygiene-report.mjs:261e132b69cec4087a9d4520bf66d2f400644026495be53e5b114a077b43b5df:context-6ab848a67bb0f343b35a6ac4127681dd704abb4ad8666d716a4f325e56860a99",
+      "line_sha256": "261e132b69cec4087a9d4520bf66d2f400644026495be53e5b114a077b43b5df",
+      "disposition": "excluded",
+      "reason": "Prose comment stating the read-only report never treats a missing proof as delivery; not an applied-state claim.",
+      "legacy_semantic_key": "scripts/queue-hygiene-report.mjs:261e132b69cec4087a9d4520bf66d2f400644026495be53e5b114a077b43b5df:1"
+    }
+  ]
+}

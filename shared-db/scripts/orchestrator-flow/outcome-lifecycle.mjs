@@ -316,7 +316,7 @@ export function outcomeEvent({ issue, state, actor, timestamp, evidenceUrls = []
 
 function sameSha(expected, actual) { return String(expected).toLowerCase() === String(actual).toLowerCase() }
 
-export function completeOutcome({ issue, evidenceRef, actor, timestamp = new Date().toISOString() }, io) {
+export function verifyOutcomeAcceptance({ issue, evidenceRef }, io) {
   const work = io.getIssue(Number(issue))
   if (!work || !['open','closed'].includes(String(work.state).toLowerCase())) throw new OutcomeError(`outcome issue #${issue} is unreadable`)
   const scope = io.parseScope(work.body ?? '')
@@ -368,6 +368,11 @@ export function completeOutcome({ issue, evidenceRef, actor, timestamp = new Dat
     merge_sha:evidence.merge_sha, application_repository:evidence.application_repository,
     application_commit_sha:evidence.application_commit_sha, live_evidence:evidence.live_evidence,
   })
+  return { work, scope, comments, history, evidence, completion }
+}
+
+export function completeOutcome({ issue, evidenceRef, actor, timestamp = new Date().toISOString() }, io) {
+  const { comments, history, evidence, completion } = verifyOutcomeAcceptance({ issue, evidenceRef }, io)
   const existingCompletion=findCompletionRecord(comments)
   if(existingCompletion){
     for(const [key,value] of Object.entries(completion))if(existingCompletion[key]!==value)throw new OutcomeError(`existing immutable completion record disagrees on ${key}`)

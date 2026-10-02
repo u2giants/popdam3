@@ -92,7 +92,8 @@ test('stage envelope rejects coercible fields and unknown assertions; verifier c
 })
 
 import { createStageEvidenceVerifier, publishStageEvent, stageEventRef, stageRevocationRef } from './work-stage-evidence.mjs'
-import { parseOutcomeEvidence } from '../orchestrator-flow/outcome-lifecycle.mjs'
+import { parseOutcomeEvidence, verifyOutcomeAcceptance, outcomeEvent } from '../orchestrator-flow/outcome-lifecycle.mjs'
+import { formatEventComment } from '../db-coordination-events.mjs'
 
 function runtimeIo() {
   const refs = new Map(), commits = new Map(), comments = [], calls = []
@@ -235,4 +236,29 @@ test('database-applied accepts its own complete proof without any future live pr
     assert.throws(() => parseOutcomeEvidence('```db-outcome-evidence\n' + JSON.stringify(bad) + '\n```', { requiredStage: 'database-applied' }))
   }
   assert.throws(() => publishStageEvent({ ...input, stage: 'live-verified' }, io), /application_commit_sha/)
+})
+
+
+test('runtime checkpoint binds acceptance requirements but ignores administrative status', () => {
+  const io = runtimeIo(), originalScope = io.parseScope
+  const result = publishStageEvent(publishInput({ stage: 'live-verified', evidenceRef: 'https://github.com/popcre/shared-db/issues/10#issuecomment-123' }), io)
+  io.parseScope = () => ({ ...originalScope(), status: 'blocked', priority: 99 })
+  assert.equal(createStageEvidenceVerifier(io, 'popcre/shared-db')(result.event).stageAccepted, true)
+  io.parseScope = () => ({ ...originalScope(), generatedTypes: 'not-applicable' })
+  assert.throws(() => createStageEvidenceVerifier(io, 'popcre/shared-db')(result.event), /digest changed/)
+})
+
+
+test('structural completion read side reuses every live gate without any mutation', () => {
+  const io = runtimeIo()
+  const stages = ['entered', 'classified', 'dispatched', 'implementation_complete', 'review_ready', 'preview_verified', 'merged', 'production_authorized', 'production_applied']
+  io.comments.push(...stages.map((state, index) => ({ author: 'u2giants', author_association: expectedOperatorAssociation(), body: formatEventComment(outcomeEvent({ issue: 10, state, actor: 'test', timestamp: new Date(Date.UTC(2026, 8, 20, 18, index)).toISOString(), evidenceUrls: [] })) })))
+  const structuralScope = io.parseScope()
+  io.parseScope = () => ({ ...structuralScope, generatedTypes: 'not-applicable' })
+  io.getIssue = () => ({ state: 'open', body: 'scope' })
+  io.readOutcomeEvidence = () => io.evidenceComment.body
+  for (const method of ['commentIssue', 'makeOwnerCommit', 'createRef']) io[method] = () => { throw new Error('read side attempted mutation') }
+  assert.equal(verifyOutcomeAcceptance({ issue: 10, evidenceRef: 'exact-proof' }, io).completion.outcome, 'live_verified')
+  io.verifyLiveAssertion = () => false
+  assert.throws(() => verifyOutcomeAcceptance({ issue: 10, evidenceRef: 'exact-proof' }, io), /live application assertion/)
 })

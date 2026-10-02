@@ -158,12 +158,13 @@ export function parseCompletionComment(body) {
  * second record means either a mistake or an attempt to overwrite history, and
  * quietly preferring one would hide both.
  */
-export function findCompletionRecord(comments,{requireTrustedAuthor=false}={}) {
+export function findCompletionRecord(comments,{requireTrustedAuthor=false,repository}={}) {
   const found = []
   for (const comment of comments ?? []) {
     const record = parseCompletionComment(comment?.body)
     if (record) {
-      if(requireTrustedAuthor&&!isTrustedOperatorComment(comment))throw new DependencyError(`db-work-completion must be authored by operator ${TRUSTED_OPERATOR_LOGIN} with the ${expectedOperatorAssociation()} association this repository's owner implies`)
+      if(requireTrustedAuthor&&(typeof repository!=='string'||!repository))throw new DependencyError('a trusted completion read requires the explicit current repository identity')
+      if(requireTrustedAuthor&&!isTrustedOperatorComment(comment,repository))throw new DependencyError(`db-work-completion must be authored by operator ${TRUSTED_OPERATOR_LOGIN} with the ${expectedOperatorAssociation(repository)} association this repository's owner implies`)
       found.push(record)
     }
   }
@@ -276,7 +277,7 @@ export function classifyDependency(declaration, state) {
   if (requiredStage !== 'complete') {
     try {
       // An intermediate event never contradicts an immutable final record.
-      const final = findCompletionRecord(state.comments, { requireTrustedAuthor: true })
+      const final = findCompletionRecord(state.comments, { requireTrustedAuthor: true, repository: state.repository })
       if (final && (final.work_issue !== number || !isSuccessful(final))) {
         throw new DependencyError('stage evidence conflicts with the final completion record')
       }
@@ -294,7 +295,7 @@ export function classifyDependency(declaration, state) {
   }
   let record
   try {
-    record = findCompletionRecord(state.comments,{requireTrustedAuthor:true})
+    record = findCompletionRecord(state.comments,{requireTrustedAuthor:true,repository:state.repository})
   } catch (error) {
     return { satisfied: false, status: 'unknown', reason: `dependency #${number} has an unusable completion record: ${error.message}` }
   }

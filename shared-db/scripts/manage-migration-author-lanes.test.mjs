@@ -5348,14 +5348,14 @@ test('a dependency that never existed BLOCKS instead of releasing instantly', ()
 })
 
 test('a proven merged dependency does release downstream work', () => {
-  const states = { 10: { exists: true, open: false, comments: [completionComment(mergedRecord(10))], mergeInMain: true } }
+  const states = { 10: { exists: true, open: false, repository: REPO, comments: [completionComment(mergedRecord(10))], mergeInMain: true } }
   const result = buildDynamicQueues([{ number: 20, title: 'downstream', body: depScope('#10') }], [], NOW, [20], states)
   assert.deepEqual(result.dispatchable, [20])
 })
 
 test('an unsuccessful outcome blocks and the audit says which outcome', () => {
   const cancelled = { schema_version: 1, work_issue: 10, outcome: 'cancelled', reason: 'superseded by a different approach' }
-  const states = { 10: { exists: true, open: false, comments: [completionComment(cancelled)] } }
+  const states = { 10: { exists: true, open: false, repository: REPO, comments: [completionComment(cancelled)] } }
   const result = buildDynamicQueues([{ number: 20, title: 'downstream', body: depScope('#10') }], [], NOW, [20], states)
   assert.deepEqual(result.dispatchable, [])
   assert.match(result.skipped.find((row)=>row.issue===20).detail, /completed as cancelled: superseded/)
@@ -5441,6 +5441,14 @@ test('completeWork refuses a merged report whose pull request is not merged', ()
 test('completeWork refuses a merged report whose sha disagrees with GitHub', () => {
   const io = completionIo({ pr: { merged_at: 'x', merge_commit_sha: 'deadbee' } })
   assert.throws(() => completeWork({ issue: 5, report: mergedRecord(5) }, io), /does not match GitHub's merge_commit_sha/)
+})
+
+test('#3396 review: completeWork refuses a merged report whose sha is only a prefix of GitHub\'s', () => {
+  // abc1234 is a prefix of this 40-character merge commit; prefix agreement is not identity.
+  const io = completionIo({ pr: { merged_at: 'x', merge_commit_sha: 'abc1234' + '0'.repeat(33) } })
+  assert.throws(() => completeWork({ issue: 5, report: mergedRecord(5) }, io), /does not match GitHub's merge_commit_sha/)
+  const reverse = completionIo({ pr: { merged_at: 'x', merge_commit_sha: 'abc12' } })
+  assert.throws(() => completeWork({ issue: 5, report: mergedRecord(5) }, reverse), /does not match GitHub's merge_commit_sha/)
 })
 
 test('completeWork refuses a merged report whose migration_versions are wrong', () => {

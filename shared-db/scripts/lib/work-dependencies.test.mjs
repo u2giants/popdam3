@@ -5,7 +5,7 @@ import {
   validateCompletionRecord, isSuccessful, parseCompletionComment, findCompletionRecord,
   findDependencyCycles, validateDependencyDeclaration, classifyDependency, classifyDependencies, COMPLETION_RECORD_REQUIRED_FROM,
 } from './work-dependencies.mjs'
-import { expectedOperatorAssociation } from './repository-identity.mjs'
+import { expectedOperatorAssociation, currentRepository } from './repository-identity.mjs'
 
 // The trusted association follows the resolved repository owner (#3255): OWNER
 // under a personal account, MEMBER under the popcre organization.
@@ -96,8 +96,8 @@ test('two completion records on one issue is an error, not latest-wins', () => {
 })
 
 test('only an explicitly identified repository owner can publish dependency completion',()=>{
-  for(const over of [{author_association:'NONE'},{author_association:undefined},{author:'attacker'},{author:undefined},{author_association:OTHER_ASSOCIATION},{author_association:'COLLABORATOR'}])assert.throws(()=>findCompletionRecord([comment(merged(),over)],{requireTrustedAuthor:true}),new RegExp(`operator u2giants with the ${TRUSTED_ASSOCIATION} association`))
-  assert.deepEqual(findCompletionRecord([comment(merged())],{requireTrustedAuthor:true}),merged())
+  for(const over of [{author_association:'NONE'},{author_association:undefined},{author:'attacker'},{author:undefined},{author_association:OTHER_ASSOCIATION},{author_association:'COLLABORATOR'}])assert.throws(()=>findCompletionRecord([comment(merged(),over)],{requireTrustedAuthor:true,repository:currentRepository()}),new RegExp(`operator u2giants with the ${TRUSTED_ASSOCIATION} association`))
+  assert.deepEqual(findCompletionRecord([comment(merged())],{requireTrustedAuthor:true,repository:currentRepository()}),merged())
 })
 
 // --- DECLARATION AND CYCLES ------------------------------------------------
@@ -137,7 +137,7 @@ test('a dependency that never existed BLOCKS instead of releasing instantly', ()
 })
 
 test('a closed dependency with no completion record still BLOCKS', () => {
-  const result = classifyDependency(10, { exists: true, open: false, comments: [] })
+  const result = classifyDependency(10, { exists: true, open: false, repository: currentRepository(), comments: [] })
   assert.equal(result.satisfied, false)
   assert.equal(result.status, 'waiting')
   assert.match(result.reason, /closure alone is not success/)
@@ -146,7 +146,7 @@ test('a closed dependency with no completion record still BLOCKS', () => {
 test('every unsuccessful outcome blocks and names the outcome', () => {
   for (const outcome of UNSUCCESSFUL_OUTCOMES) {
     const record = { schema_version: 1, work_issue: 10, outcome, reason: 'because' }
-    const result = classifyDependency(10, { exists: true, open: false, comments: [comment(record)] })
+    const result = classifyDependency(10, { exists: true, open: false, repository: currentRepository(), comments: [comment(record)] })
     assert.equal(result.satisfied, false, `${outcome} must not satisfy a dependency`)
     assert.equal(result.status, 'completed-unsuccessfully')
     assert.match(result.reason, new RegExp(outcome))
@@ -155,13 +155,13 @@ test('every unsuccessful outcome blocks and names the outcome', () => {
 })
 
 test('a merged completion satisfies, and an owner ruling satisfies', () => {
-  assert.equal(classifyDependency(10, { exists: true, open: false, comments: [comment(merged())], mergeInMain: true }).satisfied, true)
-  assert.equal(classifyDependency(10, { exists: true, open: false, comments: [comment(ruling())] }).satisfied, true)
+  assert.equal(classifyDependency(10, { exists: true, open: false, repository: currentRepository(), comments: [comment(merged())], mergeInMain: true }).satisfied, true)
+  assert.equal(classifyDependency(10, { exists: true, open: false, repository: currentRepository(), comments: [comment(ruling())] }).satisfied, true)
 })
 
 // The record is a claim. If main's history disagrees with it, the claim loses.
 test('a merged completion whose commit is not in main is not satisfied', () => {
-  const result = classifyDependency(10, { exists: true, open: false, comments: [comment(merged())], mergeInMain: false })
+  const result = classifyDependency(10, { exists: true, open: false, repository: currentRepository(), comments: [comment(merged())], mergeInMain: false })
   assert.equal(result.satisfied, false)
   assert.equal(result.status, 'unknown')
   assert.match(result.reason, /not in main's history/)
@@ -181,20 +181,20 @@ test('an unreadable dependency blocks and says nothing was checked', () => {
 })
 
 test('a completion record for the wrong issue blocks', () => {
-  const result = classifyDependency(10, { exists: true, open: false, comments: [comment(merged({ work_issue: 11 }))] })
+  const result = classifyDependency(10, { exists: true, open: false, repository: currentRepository(), comments: [comment(merged({ work_issue: 11 }))] })
   assert.equal(result.satisfied, false)
   assert.match(result.reason, /carries a completion record for issue #11/)
 })
 
 test('an unusable completion record blocks rather than being ignored', () => {
-  const result = classifyDependency(10, { exists: true, open: false, comments: [{ body: '```db-work-completion\n{bad}\n```' }] })
+  const result = classifyDependency(10, { exists: true, open: false, repository: currentRepository(), comments: [{ body: '```db-work-completion\n{bad}\n```' }] })
   assert.equal(result.status, 'unknown')
   assert.match(result.reason, /unusable completion record/)
 })
 
 test('classifyDependencies is satisfied only when every dependency is', () => {
   const states = {
-    10: { exists: true, open: false, comments: [comment(merged())], mergeInMain: true },
+    10: { exists: true, open: false, repository: currentRepository(), comments: [comment(merged())], mergeInMain: true },
     11: { exists: true, open: true },
   }
   assert.equal(classifyDependencies(1, [10], states).satisfied, true)
@@ -235,7 +235,7 @@ test('a dependency closed after the cutoff still needs proof', () => {
 })
 
 test('an unknown close date is NOT grandfathered, because absence of a date is not proof of age', () => {
-  assert.equal(classifyDependency(10, { exists: true, open: false, comments: [] }).satisfied, false)
+  assert.equal(classifyDependency(10, { exists: true, open: false, repository: currentRepository(), comments: [] }).satisfied, false)
   assert.equal(classifyDependency(10, { exists: true, open: false, closedAt: null, comments: [] }).satisfied, false)
 })
 
@@ -244,9 +244,21 @@ test('an unknown close date is NOT grandfathered, because absence of a date is n
 test('the cutoff never rescues an unsuccessful outcome', () => {
   const cancelled = { schema_version: 1, work_issue: 10, outcome: 'cancelled', reason: 'dropped' }
   const result = classifyDependency(10, {
-    exists: true, open: false, closedAt: '2026-08-01T00:00:00Z',
+    exists: true, open: false, repository: currentRepository(), closedAt: '2026-08-01T00:00:00Z',
     comments: [comment(cancelled)],
   })
   assert.equal(result.satisfied, false)
   assert.equal(result.status, 'completed-unsuccessfully')
+})
+
+test('#3396 review: a completion record is judged against the explicit repository, not ambient identity', () => {
+  // u2giants-owned repository expects OWNER; popcre-owned expects MEMBER.
+  const owned = comment(merged(), { author_association: 'OWNER' })
+  const member = comment(merged(), { author_association: 'MEMBER' })
+  assert.deepEqual(findCompletionRecord([owned], { requireTrustedAuthor: true, repository: 'u2giants/example' }), merged())
+  assert.throws(() => findCompletionRecord([owned], { requireTrustedAuthor: true, repository: 'popcre/shared-db' }), /must be authored by operator/)
+  assert.deepEqual(findCompletionRecord([member], { requireTrustedAuthor: true, repository: 'popcre/shared-db' }), merged())
+  assert.throws(() => findCompletionRecord([member], { requireTrustedAuthor: true, repository: 'u2giants/example' }), /must be authored by operator/)
+  // Fail closed: a trusted read never falls back to ambient identity.
+  assert.throws(() => findCompletionRecord([member], { requireTrustedAuthor: true }), /explicit current repository identity/)
 })

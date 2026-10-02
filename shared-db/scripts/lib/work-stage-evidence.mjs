@@ -33,12 +33,12 @@ export function validateStageEvent(event) {
 
 // Comments are transport, never proof. The trusted operator may publish an event,
 // but current repository facts and stage-specific evidence must still verify it.
-export function findStageEvents(comments) {
+export function findStageEvents(comments, repository) {
   const events = new Map()
   for (const comment of comments ?? []) {
     const matches = [...String(comment?.body ?? '').matchAll(/```db-work-stage\s*\n([\s\S]*?)```/g)]
     if (!matches.length) continue
-    if (!isTrustedOperatorComment(comment)) throw new Error('stage event author is not the trusted repository operator')
+    if (!isTrustedOperatorComment(comment, repository)) throw new Error('stage event author is not the trusted repository operator')
     if (matches.length !== 1) throw new Error('a stage comment must contain exactly one event')
     const event = validateStageEvent(JSON.parse(matches[0][1]))
     const prior = events.get(event.event_id)
@@ -57,7 +57,7 @@ export function findStageEvents(comments) {
 export function verifyAcceptedStage({ issue, stage, repository, comments, verify }) {
   if (typeof repository !== 'string' || !REPOSITORY.test(repository)) throw new Error('current repository identity is required')
   if (!REQUIRED_STAGES.includes(stage) || stage === 'complete') throw new Error('intermediate required stage is invalid')
-  const events = findStageEvents(comments).filter(event => event.work_issue === issue && event.stage === stage)
+  const events = findStageEvents(comments, repository).filter(event => event.work_issue === issue && event.stage === stage)
   if (!events.length) return { satisfied: false, status: 'waiting', reason: `dependency #${issue} has no ${stage} event` }
   if (typeof verify !== 'function') throw new Error('current-world stage evidence verifier is unavailable')
   // Every claim for the selected stage must verify. A newer event cannot hide a
@@ -79,7 +79,7 @@ export const stageRevocationRef = event => `refs/db-work-stage-revocations/${eve
 const sameEvent = (a, b) => EVENT_FIELDS.every(field => a[field] === b[field])
 
 function assertFinalConsistency(event, io) {
-  const final = findCompletionRecord(io.issueComments(event.work_issue), { requireTrustedAuthor: true })
+  const final = findCompletionRecord(io.issueComments(event.work_issue), { requireTrustedAuthor: true, repository: event.repository })
   if (final && (final.work_issue !== event.work_issue || !isSuccessful(final) || (final.pr !== undefined && final.pr !== event.pr) || (final.merge_sha !== undefined && final.merge_sha !== event.merge_sha))) throw new Error('stage event contradicts immutable final completion')
 }
 
@@ -118,7 +118,13 @@ function currentEvidence(event, io) {
     if (io.applicationCommitInDefaultBranch(evidence.application_repository, evidence.application_commit_sha) !== true || io.verifyLiveAssertion(evidence) !== true) throw new Error('live application evidence did not verify')
     if (scope.generatedTypes === 'required' && io.verifyGeneratedTypes(evidence) !== true) throw new Error('required generated types did not verify')
   }
-  return comment.body
+  // Bind semantic acceptance requirements as well as immutable artifact content.
+  // Queue status, priority and other administrative changes do not alter proof.
+  return JSON.stringify({ body: comment.body, acceptance: {
+    workType: scope.workType, route: scope.route, writes: [...scope.writes].sort(),
+    applicationReturnTo: scope.applicationReturnTo, liveAssertion: scope.liveAssertion,
+    generatedTypes: scope.generatedTypes,
+  } })
 }
 
 function readDurableEvent(event, io) {
@@ -166,7 +172,7 @@ export function publishStageEvent({ issue, stage, repository, pr, evidenceRef, s
     if (!readDurableEvent(event, io)) throw new Error('created stage event did not read back')
   }
   createStageEvidenceVerifier(io, repository)(event)
-  const seen = () => findStageEvents(io.issueComments(issue)).some(existing => existing.event_id === event.event_id && sameEvent(existing, event))
+  const seen = () => findStageEvents(io.issueComments(issue), repository).some(existing => existing.event_id === event.event_id && sameEvent(existing, event))
   if (seen()) return { event, resumed: true }
   let writeError
   try { io.commentIssue(issue, '```' + STAGE_FENCE + '\n' + JSON.stringify(event, null, 2) + '\n```\n\n' + signature) } catch (error) { writeError = error }

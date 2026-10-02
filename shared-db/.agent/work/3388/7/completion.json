@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "work_issue": 3388,
+  "outcome": "ready-for-merge",
+  "pr": 3396,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3388/7",
+  "contract_sha256": "7266406651ae2b2421c44b208b562b9ea834289596065dc086acd3679039aad2",
+  "base_sha": "514e09be0ce155f380e0e091b25da8805a3bef98",
+  "head_sha": "3c9e613cd06a4b767d627047a4f407568fd4f30a",
+  "files_changed": [
+    ".agent/work/3388/7/completion.json",
+    ".agent/work/3388/7/contract.json",
+    "docs/verification/throughput-dispositions/scripts~lib~work-stage-evidence.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~orchestrator-flow~outcome-lifecycle.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~queue-hygiene-report.mjs.json",
+    "docs/verification/throughput-retired-identity-sites.json",
+    "scripts/coordination-scenarios.test.mjs",
+    "scripts/lib/work-dependencies.mjs",
+    "scripts/lib/work-dependencies.test.mjs",
+    "scripts/lib/work-stage-evidence.mjs",
+    "scripts/lib/work-stage-evidence.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/outcome-lifecycle.mjs",
+    "scripts/queue-hygiene-report.mjs",
+    "scripts/queue-hygiene-report.test.mjs",
+    "scripts/work-stage-manager-integration.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/queue-hygiene-report.test.mjs scripts/lib/work-stage-evidence.test.mjs scripts/merged-pr-issue-binding.test.mjs scripts/work-stage-manager-integration.test.mjs scripts/lib/work-dependencies.test.mjs scripts/coordination-scenarios.test.mjs",
+      "exit_code": 0,
+      "evidence": "113 passed, 0 failed on edge-dev3"
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "745 passed, 0 failed"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=322 sources=82 derived_digest=bd4ebafd3ddc"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "no whitespace errors"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 passed, 0 failed"
+    }
+  ],
+  "assumptions_resolved": [
+    "Grok REVISE findings fixed: every trusted completion read passes the explicit repository and fails closed without one; manager stage verifier receives parseScope; unused publishStageEvent import removed; prefix-collision merge SHA test added",
+    "Test fixtures that inject dependency states now carry the repository that readDependencyStates always sets in production",
+    "Evidence head_sha names the implementation commit; the reviewed head is the evidence commit on top, by design of the evidence protocol"
+  ],
+  "stop_conditions_hit": []
+}
