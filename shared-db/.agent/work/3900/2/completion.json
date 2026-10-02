@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 3900,
+  "outcome": "ready-for-merge",
+  "pr": 3902,
+  "migration_versions": [
+    "20261002194800"
+  ],
+  "contract_ref": "refs/db-contracts/3900/2",
+  "contract_sha256": "96d7f51da1de6a60e521b411454ff4986ff5d8a75413b6794aca202a8e22dace",
+  "head_sha": "3bd25883b3f4d8d7c10774477166c682f0cb61a1",
+  "base_sha": "d26cedf5733e1e43938d5ce3e2007cce10a67fea",
+  "files_changed": [
+    "supabase/migrations/20261002194800_style_group_item_short_description.sql",
+    "supabase/tests/style_group_item_short_description_contract.sql"
+  ],
+  "db_reads": [
+    "table plm.item",
+    "table public.style_tracker_rows"
+  ],
+  "db_writes": [
+    "function public.refresh_sku_human_description",
+    "table public.style_groups"
+  ],
+  "checks": [
+    {
+      "command": "database-contract-tests style_group_item_short_description_contract.sql",
+      "exit_code": 0,
+      "evidence": "Passed in PR #3902 CI job 111002410655 (supabase/tests against an ephemeral database, run 37056483761) at migration-identical head 3528c7d10eb3c6690d323a33c1dbb89a7adc2a80; 3bd25883b3f4d8d7c10774477166c682f0cb61a1 only removes evidence files."
+    }
+  ],
+  "assumptions_resolved": [
+    "Item Master wins; sheet only fills SKUs without an Item Master description; manual sources untouched (T1-T3, T8).",
+    "Review rounds addressed: try-lock on BULK_OPERATIONS, typed dependency verify, stated index assumption; GLM and Qwen APPROVE at 858cc577 before the version re-reservation.",
+    "public.admin_config is written as data (BULK_OPERATIONS row) only."
+  ],
+  "stop_conditions_hit": []
+}
