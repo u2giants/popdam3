@@ -1,0 +1,58 @@
+{
+  "schema_version": 2,
+  "work_issue": 3891,
+  "generation": 2,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Repoint plm.art_piece_attachment_art_piece_id_fkey to dflow.art_piece and app.RolePermissions_RoleId_fkey to dflow.Roles (#3882 child 2b), same names, columns and actions; supersedes the FK part of closed PR #3391.",
+  "base_sha": "3efebc3f956c0bfcb5567b49c3422aa6a79d9c22",
+  "dispatcher": "owner instruction 2026-10-02 chat: take over the older change and finish those two links (claim-first structural work); claim #3892. Generation 2 declares the frozen-parent reads of the precondition (DeepSeek review F1) and tightens precondition/probe (F2).",
+  "worker": "Claude chat c0f64531-7679-436c-be2c-65c829d345dd on al8960ofc",
+  "branch": "fix/3882-frozen-fk-repoints",
+  "worktree": "C:/repos/shared-db-worktrees/fk-frozen-repoint-3882",
+  "allowed_paths": [
+    "supabase/migrations/20261002161522_repoint_frozen_designflow_fks_to_dflow.sql",
+    ".github/live-proofs/3891.sql",
+    ".agent/work/3891/2/contract.json",
+    ".agent/work/3891/2/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261002161522_repoint_frozen_designflow_fks_to_dflow.sql",
+    ".github/live-proofs/3891.sql",
+    ".agent/work/3891/2/contract.json",
+    ".agent/work/3891/2/completion.json"
+  ],
+  "db_reads": [
+    "table dflow.art_piece",
+    "table dflow.\"Roles\"",
+    "table designflow_frozen_20260710.art_piece",
+    "table designflow_frozen_20260710.\"Roles\""
+  ],
+  "db_writes": [
+    "table app.\"RolePermissions\"",
+    "table plm.art_piece_attachment"
+  ],
+  "prohibited_actions": [
+    "do not change columns, types or rows",
+    "do not drop or alter schema designflow_frozen_20260710 (#2110)",
+    "do not touch the four dflow tables of PR #3886",
+    "do not edit any applied migration"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node scripts/check-live-proof-probe.mjs"
+  ],
+  "assumptions": [
+    "zero existing child rows orphan against dflow.art_piece and dflow.Roles (live read 2026-10-02, production and preview)",
+    "claim #3892 locks app.RolePermissions and plm.art_piece_attachment"
+  ],
+  "stop_conditions": [
+    "stop if either current FK definition differs from the design",
+    "stop if the change would need a file outside allowed_paths"
+  ],
+  "evidence_parent": {
+    "work_issue": 3891,
+    "generation": 1,
+    "contract_sha256": "fff3f1d04e54b585fb2f8d40607394894761afb8e79d807cf74ae86ff6d3ede8"
+  }
+}

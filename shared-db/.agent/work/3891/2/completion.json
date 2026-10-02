@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "work_issue": 3891,
+  "outcome": "ready-for-merge",
+  "pr": 3893,
+  "migration_versions": [
+    "20261002161522"
+  ],
+  "contract_ref": "refs/db-contracts/3891/2",
+  "contract_sha256": "5154a1272618309c18804ccc2da37ea4b3dceeab9c4e1ea00c6724ca8aac0291",
+  "base_sha": "3efebc3f956c0bfcb5567b49c3422aa6a79d9c22",
+  "head_sha": "d85f2c94653ca7a158dbbaac507d42a5490f857c",
+  "files_changed": [
+    ".github/live-proofs/3891.sql",
+    "supabase/migrations/20261002161522_repoint_frozen_designflow_fks_to_dflow.sql"
+  ],
+  "db_reads": [
+    "table dflow.art_piece",
+    "table dflow.\"Roles\"",
+    "table designflow_frozen_20260710.art_piece",
+    "table designflow_frozen_20260710.\"Roles\""
+  ],
+  "db_writes": [
+    "table app.\"RolePermissions\"",
+    "table plm.art_piece_attachment"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed, including the #1684 EOL reference guard"
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Live-proof probe present: .github/live-proofs/3891.sql."
+    }
+  ],
+  "assumptions_resolved": [
+    "live read 2026-10-02: 0 of 2276 attachments and 0 of 4 role permissions lack a dflow parent on production and preview",
+    "live read 2026-10-02: current FKs are NOT DEFERRABLE and MATCH SIMPLE; 0 frozen/dflow parent identity mismatches (1,114 art parents, 4 role rows); both child columns indexed"
+  ],
+  "stop_conditions_hit": []
+}
