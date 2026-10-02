@@ -104,10 +104,10 @@ begin
   -- Nothing outside the claim may have appeared under this prefix.
   select count(*) into v_n from information_schema.tables
    where table_schema = 'plm' and table_name like 'peanuts\_%' and table_type = 'BASE TABLE';
-  -- 19 landing tables plus the two #3684 durable-state tables.
-  if v_n <> 21 then
+  -- 19 landing tables plus the two #3684 durable-state tables plus the #3897 submission option table.
+  if v_n <> 22 then
     v_fail := v_fail + 1;
-    raise warning 'A FAIL: plm holds % peanuts tables, expected exactly 21', v_n;
+    raise warning 'A FAIL: plm holds % peanuts tables, expected exactly 22', v_n;
   end if;
 
   -- THE REFUSED RELATIONSHIP. The art-program field is multi-select, so pairing art
@@ -187,15 +187,15 @@ begin
   select count(*) into v_n from information_schema.role_table_grants
    where table_schema = 'plm' and table_name like 'peanuts\_%'
      and grantee = 'service_role' and privilege_type = 'SELECT';
-  if v_n <> 21 then  -- includes the two #3684 durable-state tables
-    raise exception 'B FAILED: expected 21 service_role SELECT grants, found %', v_n;
+  if v_n <> 22 then  -- includes the two #3684 durable-state tables
+    raise exception 'B FAILED: expected 22 service_role SELECT grants, found %', v_n;
   end if;
 
   select count(*) into v_n from information_schema.role_table_grants
    where table_schema = 'plm' and table_name like 'peanuts\_%'
      and grantee = 'service_role' and privilege_type = 'INSERT';
-  if v_n <> 18 then
-    raise exception 'B FAILED: expected 18 service_role INSERT grants, found %', v_n;
+  if v_n <> 19 then
+    raise exception 'B FAILED: expected 19 service_role INSERT grants, found %', v_n;
   end if;
 
   if has_table_privilege('service_role','plm.peanuts_capture','INSERT') then
@@ -211,8 +211,8 @@ begin
   select count(*) into v_n from information_schema.role_table_grants
    where table_schema = 'plm' and table_name like 'peanuts\_%'
      and grantee = 'authenticated' and privilege_type = 'SELECT';
-  if v_n <> 21 then  -- includes the two #3684 durable-state tables
-    raise exception 'B FAILED: expected 21 authenticated SELECT grants, found %', v_n;
+  if v_n <> 22 then  -- includes the two #3684 durable-state tables
+    raise exception 'B FAILED: expected 22 authenticated SELECT grants, found %', v_n;
   end if;
 
   raise notice 'B (catalog) passed';
@@ -1367,8 +1367,8 @@ begin
   -- inserted above one of these instead of beside it, this goes red.
   select count(*) into v_before from api.source_capture_inventory
    where source_system = 'peanuts';
-  if v_before <> 21 then  -- 19 landing + 2 #3684 durable-state tables
-    raise exception 'G FAILED: % peanuts tables classified, expected 21', v_before;
+  if v_before <> 22 then  -- 19 landing + 2 #3684 durable-state tables
+    raise exception 'G FAILED: % peanuts tables classified, expected 22', v_before;
   end if;
   -- The two #3684 durable-state tables are mutable ledgers, not capture snapshots. They
   -- must be reported as retained rows only, never as a latest-complete capture count
