@@ -99,6 +99,7 @@ listed in the map.
 | Merchandise groups and product taxonomy | [`merchandise-and-product-taxonomy.md`](merchandise-and-product-taxonomy.md) |
 | Products, Items, SKUs, style numbers, and identifiers | [`product-items-and-identifiers.md`](product-items-and-identifiers.md) |
 | ERP field, order, and source meaning | [`erp-orders-and-source-meaning.md`](erp-orders-and-source-meaning.md) |
+| Shipping terms and delivery responsibility (FOB / POE / Warehouse) | [`shipping-terms-and-delivery-responsibility.md`](shipping-terms-and-delivery-responsibility.md) |
 | RFQ pricing, margin, and royalty | [`rfq-pricing.md`](rfq-pricing.md) |
 | Product-development workflow | [`product-development-workflow.md`](product-development-workflow.md) |
 | Samples, inventory, shipping, and custody | [`samples-inventory-and-shipping.md`](samples-inventory-and-shipping.md) |

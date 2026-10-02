@@ -20,7 +20,7 @@ line. Royalty, dilution, logistics, duty, agent cost, and margin are distinct
 inputs. A missing required licensed-product input must fail visibly; it must not
 silently become zero.
 
-The customer-side delivery terms determine POP's cost basis:
+The customer-side delivery terms determine POP's cost basis (where POP's delivery responsibility ends for each term: [`shipping-terms-and-delivery-responsibility.md`](shipping-terms-and-delivery-responsibility.md)):
 
 | Term | POP's cost basis |
 |---|---|

@@ -95,7 +95,7 @@ defect):
 | `DDPNJ` / `DDP New Jersey` | POE | NJ |
 | `MDDP` / `MDDP` | MDDP | NINGBO (on the sheet) |
 
-**POE vs DDP — definitions and who differentiates them (Settled, Albert, 2026-09-17).**
+**POE vs DDP — definitions and who differentiates them (Settled, Albert, 2026-09-17).** Where POP's delivery responsibility ends for each sales-order term (FOB China, POE NJ, POE L.A., Warehouse) is Settled in [`shipping-terms-and-delivery-responsibility.md`](shipping-terms-and-delivery-responsibility.md).
 
 - **POE (port of entry):** POP is responsible for getting the goods to a domestic port and
   paying freight and duty; the customer picks the container up at that port.
