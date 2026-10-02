@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_issue": 3911,
+  "outcome": "ready-for-merge",
+  "pr": 3929,
+  "migration_versions": [
+    "20261002222102"
+  ],
+  "contract_ref": "refs/db-contracts/3911/7",
+  "contract_sha256": "ffb9e25ebe09df0b1f220ef4d6065cdaa8a01d8582fe9b8c5f5f4aa85f99795b",
+  "head_sha": "794c3cc60090bba003962d6de2d82e3a411790b2",
+  "base_sha": "0cf19993119fe26378ed7bc85e9f7facc66580ce",
+  "files_changed": [
+    ".github/live-proofs/3911.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20261002222102_pdf_rich_extraction_follows_asset_group_forward.sql",
+    "supabase/tests/pdf_rich_extraction_follows_asset_group_contracts.sql"
+  ],
+  "db_reads": [
+    "function public.refresh_dam_search_style_group_document",
+    "function public.refresh_style_group_rich_metadata",
+    "table dam.pdf_rich_extraction"
+  ],
+  "db_writes": [
+    "function dam.rollup_moved_pdf_rich_extraction_groups",
+    "function dam.sync_pdf_rich_extraction_style_group",
+    "table public.assets",
+    "trigger trg_assets_rollup_pdf_rich_extraction_groups on public.assets",
+    "trigger trg_assets_sync_pdf_rich_extraction_group on public.assets"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at 794c3cc60090bba003962d6de2d82e3a411790b2."
+    },
+    {
+      "command": "python3 -m pytest scripts/test_production_migration_guard.py -q",
+      "exit_code": 0,
+      "evidence": "292 passed at 794c3cc60090bba003962d6de2d82e3a411790b2; every scripts/test_*.py file also passes locally."
+    },
+    {
+      "command": "supabase/tests against an ephemeral database (CI)",
+      "exit_code": 0,
+      "evidence": "behavioural test runs in this PR's ephemeral-database check at 794c3cc60090bba003962d6de2d82e3a411790b2."
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 7 was published before implementation commit 794c3cc60090bba003962d6de2d82e3a411790b2."
+  ],
+  "stop_conditions_hit": []
+}

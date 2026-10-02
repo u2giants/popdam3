@@ -274,6 +274,7 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(
             HARD_BLOCKED,
             {
+                "20261002204050",
                 "20260911212849",
                 "20260917112129",
                 "20260906222338",
@@ -349,6 +350,14 @@ class GuardTests(unittest.TestCase):
             migrations / "20260925061508_shared_style_group_sku_key.sql"
         ).read_bytes().replace(b"\r\n", b"\n")
         self.assertEqual(original.split(b"\n", 1)[1], reissue.split(b"\n", 1)[1])
+
+    def test_rich_extraction_stranded_original_is_retired(self) -> None:
+        for allowlist in ("20261002204050", "20261002204050,20261002222102"):
+            with self.subTest(allowlist=allowlist), self.assertRaisesRegex(GuardError, "20261002204050"):
+                parse_allowlist(allowlist)
+        self.assertEqual(parse_allowlist("20261002222102"), ["20261002222102"])
+        for applied in (set(), {"20261002204050"}):
+            self.assertEqual(classify_pending_version("20261002204050", applied, REPO)["kind"], "retired")
 
     def test_character_alias_mismatched_original_is_retired(self) -> None:
         for allowlist in ("20260906222338", "20260906222338,20260911152203"):

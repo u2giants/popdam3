@@ -7,7 +7,7 @@ begin;
 
 do $contract$
 declare
-  g1 uuid; g2 uuid; g3 uuid; a1 uuid; a2 uuid;
+  g1 uuid; g2 uuid; g3 uuid; a1 uuid; a2 uuid; n int;
   v uuid; rm jsonb;
 begin
   if not exists (
@@ -70,6 +70,32 @@ begin
     raise exception '#3911: bulk move did not roll up both extractions';
   end if;
   update public.assets set style_group_id = g2 where id in (a1, a2);
+
+  -- 2c. nightly-rebuild write shape: UPDATE inside a data-modifying CTE
+  with moved as (
+    update public.assets a set style_group_id = g1
+    where a.id in (a1, a2) and a.style_group_id is distinct from g1
+    returning 1
+  ) select count(*) into n from moved;
+  if n <> 2 or (select count(*) from dam.pdf_rich_extraction where asset_id in (a1, a2) and style_group_id = g1) <> 2 then
+    raise exception '#3911: CTE regroup did not re-point both rows';
+  end if;
+  select rich_metadata into rm from public.style_groups where id = g1;
+  if rm #>> '{legal,copyright,0}' is distinct from 'T3911' then
+    raise exception '#3911: CTE regroup did not roll up';
+  end if;
+  update public.assets set style_group_id = g2 where id in (a1, a2);
+  if exists (select 1 from pg_temp.pdf_rich_extraction_moved_groups) then
+    raise exception '#3911: moved-groups list not drained';
+  end if;
+
+  -- 2d. both functions keep their privilege shape
+  if (select count(*) from pg_proc
+      where oid in ('dam.sync_pdf_rich_extraction_style_group()'::regprocedure,
+                    'dam.rollup_moved_pdf_rich_extraction_groups()'::regprocedure)
+        and prosecdef and proconfig = array['search_path=public, dam, pg_temp']::text[]) <> 2 then
+    raise exception '#3911: trigger functions lost SECURITY DEFINER or pinned search_path';
+  end if;
 
   -- 3. group delete (SET NULL) then re-assignment to a recreated group
   delete from public.style_groups where id = g2;

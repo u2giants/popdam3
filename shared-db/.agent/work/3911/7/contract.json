@@ -1,0 +1,72 @@
+{
+  "allowed_paths": [
+    "supabase/migrations/20261002222102_pdf_rich_extraction_follows_asset_group_forward.sql",
+    ".github/live-proofs/3911.sql",
+    "supabase/tests/pdf_rich_extraction_follows_asset_group_contracts.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    ".agent/work/3911/7/contract.json",
+    ".agent/work/3911/7/completion.json",
+    "scripts/test_post_batch_app_verification.py",
+    ".agent/work/3911/6/contract.json",
+    ".agent/work/3911/6/completion.json"
+  ],
+  "assumptions": [
+    "Generation 7 adds scripts/test_post_batch_app_verification.py, whose retired-version contract list must include 20261002204050",
+    "Generation 7 is published before its implementation commit"
+  ],
+  "base_sha": "0cf19993119fe26378ed7bc85e9f7facc66580ce",
+  "branch": "claude/rich-extraction-forward-3911",
+  "db_reads": [
+    "function public.refresh_dam_search_style_group_document",
+    "function public.refresh_style_group_rich_metadata",
+    "table dam.pdf_rich_extraction"
+  ],
+  "db_writes": [
+    "function dam.rollup_moved_pdf_rich_extraction_groups",
+    "function dam.sync_pdf_rich_extraction_style_group",
+    "table public.assets",
+    "trigger trg_assets_rollup_pdf_rich_extraction_groups on public.assets",
+    "trigger trg_assets_sync_pdf_rich_extraction_group on public.assets"
+  ],
+  "dispatcher": "PopDAM coordinator session (Albert's chat); claim #3912 reissued",
+  "evidence_parent": {
+    "contract_sha256": "53c9c9c4ae9b6a592385d284387578298d6cc037369f5f01d6ac84c8316794a5",
+    "generation": 6,
+    "work_issue": 3911
+  },
+  "file_writes": [
+    "supabase/migrations/20261002222102_pdf_rich_extraction_follows_asset_group_forward.sql",
+    ".github/live-proofs/3911.sql",
+    "supabase/tests/pdf_rich_extraction_follows_asset_group_contracts.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    ".agent/work/3911/7/contract.json",
+    ".agent/work/3911/7/completion.json",
+    "scripts/test_post_batch_app_verification.py",
+    ".agent/work/3911/6/contract.json",
+    ".agent/work/3911/6/completion.json"
+  ],
+  "generation": 7,
+  "goal": "Forward replacement 20261002222102 for merged-stranded 20261002204050 (PR #3913 carries a durable reviewer refusal on its risk sign-off): same row+statement triggers made re-runnable over preview's existing objects, answering the DeepSeek findings; retire 20261002204050 in the production guard; obtain the reviewer production-risk-assessment before merge.",
+  "prohibited_actions": [
+    "no data statement in the migration",
+    "never apply 20261002204050 to production",
+    "no manual production command"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 -m pytest scripts/test_production_migration_guard.py -q",
+    "supabase/tests against an ephemeral database (CI)"
+  ],
+  "route": "shared-db-orchestrator",
+  "schema_version": 2,
+  "stop_conditions": [
+    "stop if the change would need to touch a file outside allowed_paths",
+    "stop if the replacement cannot be applied both where 20261002204050 exists (preview) and where it does not (production)"
+  ],
+  "work_issue": 3911,
+  "work_type": "structural",
+  "worker": "Claude chat d2375ee0-fcd9-47b0-9008-da311f11c552 on hetz",
+  "worktree": "/worksp/shared-db/.wt-rich-fwd"
+}
