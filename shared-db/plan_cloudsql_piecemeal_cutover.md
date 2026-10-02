@@ -109,3 +109,27 @@ without AuditLog, a copy measured in minutes.
 - Licensor/property follows `docs/licensor-property-cloudsql-cutover-plan-20260806.md` and the
   curated-data rulings (§6.4–6.6): moving G6 moves DesignFlow's copy; it never overwrites curated
   `core.*`.
+
+## 6. All-at-once readiness check (2026-10-02, live catalog + row counts)
+
+Owner ruling, Albert Hazan, 2026-10-02: "reading production row counts is allowed." (Extends the
+§0.1-A.1 waiver for `albert_read_only` to `count(*)`; row contents stay off-limits.)
+
+[SNAPSHOT 2026-10-02 — catalog + `count(*)` on Cloud SQL `designflow` and Supabase production,
+mapped through `designflow-backend` `config/table-schema-map.js` @ c4867e8. RE-DERIVE BEFORE ACTING.]
+
+- **Ready (88 of 105):** same structure in their mapped Supabase home (9 in `dflow`, 79 in
+  `plm`/`app`/`core`), plus 6 with additive-only drift (`users`, `Roles`, `artists`, `comments`,
+  `item_workflow_action`, `item_user_assignment`). Supabase already holds a lagging copy of most
+  production rows (65 tables have identical counts) — a final top-up copy, not a fresh load.
+- **Not ready (12):** `art_piece` (`plm` copy is a redesign: uuid id, 17 columns missing, empty);
+  `property_character_associations` and `item_character_associations` (re-keyed to
+  `core.character`, empty); `properties_and_characters` (map points at a `core` table that does not
+  exist); `FactoryTime` (new NOT NULL columns); `itemHeader`, `itemDetail`, `RFQItem`,
+  `user_notification`, `ProdOrderHeader` (additions to verify); `art_piece_attachment` and
+  `RolePermissions` (foreign keys still point at schema `designflow_frozen_20260710`).
+- **New structure not in DesignFlow code at all:** canonical licensor/property/character/style
+  guide (scrapes), ColdLion item, customer, vendor and order ingestion. DesignFlow still uses its
+  own `merchGroup`/`licenseList`/`properties_and_characters` copies and pulls ColdLion itself.
+  Moving as-is would leave two licensor/property masters and double ColdLion loading.
+- Evidence (full per-table lists) was kept in session scratch; re-run the comparison to reproduce.
