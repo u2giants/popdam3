@@ -184,7 +184,16 @@ export async function handleShortenItemDescriptions(opState: OpState): Promise<B
     }));
   }
 
-  if (terminalError) return { ok: false, done: false, error: terminalError, shortened, failed };
+  // The Muse contributor endpoint has provider-side outage windows (503, then 404
+  // model_not_found for a valid id; popcre/ai-devops#683) that clear on their own.
+  // Report them as a transient gateway interruption so the operation auto-resumes
+  // from its cursor with backoff instead of failing the whole backfill.
+  if (terminalError) {
+    return {
+      ok: false, done: false, shortened, failed,
+      error: `503 provider unavailable — Muse contributor outage, will auto-resume: ${terminalError}`,
+    };
+  }
 
   return {
     ok: true,
