@@ -23,7 +23,7 @@ export function isValidAutoResumeCursor(opKey: string, cursor: unknown): boolean
   }
   // Style Group profiling keysets by style_groups.id, so its resumable cursor is a
   // bare UUID. Without this the op cannot auto-resume after a Railway restart.
-  if (opKey === "ai-tag-group-profiles") {
+  if (opKey === "ai-tag-group-profiles" || opKey === "shorten-item-descriptions") {
     return typeof cursor === "string" && UUID_CURSOR_RE.test(cursor);
   }
   return false;

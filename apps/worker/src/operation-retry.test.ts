@@ -31,3 +31,8 @@ test("candidate timeout fallback keeps first retry full sized then reduces", () 
   assert.equal(getAiRetryPageSize(50, 1), 25);
   assert.equal(getAiRetryPageSize(50, 2), 10);
 });
+
+test("shorten-item-descriptions resumes from its style_groups.id cursor", () => {
+  assert.equal(isValidAutoResumeCursor("shorten-item-descriptions", "03466df3-8f50-4c49-98d8-5525201c95a7"), true);
+  assert.equal(isValidAutoResumeCursor("shorten-item-descriptions", "not-a-uuid"), false);
+});
