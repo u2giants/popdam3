@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// DO NOT SCHEDULE (#3903): plm.merch_group_header holds curated, owner-approved rows
+// (approval #539, implementation #1177) and this loader is a vendor-mirror upsert
+// that would overwrite them. The nightly Item Master step instead guards against a
+// stale dictionary by refusing sweeps that collapse resolution per division.
 
 import { pathToFileURL } from "node:url";
 import {
