@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_issue": 3806,
+  "outcome": "ready-for-merge",
+  "pr": 3808,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3806/1",
+  "contract_sha256": "a56f1676e0042303eee36d7d542d938812edea6691b719a3916c3c36b7eb5cd0",
+  "head_sha": "d32362517baf9675a52af753ebb2a9fc8e4861a3",
+  "base_sha": "4191faccf94a8e425f4898d5659fafdf179eb45e",
+  "files_changed": [
+    ".github/workflows/review-verdict-auto-archive.yml",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "748 pass, 0 fail at merge d3236251 after refreshing onto current main 4191facc."
+    }
+  ],
+  "assumptions_resolved": [
+    "Archive-not-delete and REVIEW_REF_ROW_LIMIT ceiling (#2152) unchanged; hourly workflow is separate from the read-only abandonment audit."
+  ],
+  "notes": "Evidence pair generation 1 added after the merge implementation head to satisfy enforced contract mode (#2708).",
+  "stop_conditions_hit": []
+}

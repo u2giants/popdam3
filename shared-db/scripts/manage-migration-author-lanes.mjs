@@ -5733,7 +5733,13 @@ export function archiveOldReviewVerdicts(options={},now=new Date(),io=githubIo){
   const pulls=readPullStateMap(io)
   const scan=verdictArchiveScan(io,pulls)
   const report={generatedAt:new Date(now).toISOString(),limit:REVIEW_REF_ROW_LIMIT,total:scan.total,candidates:scan.candidates.length,archiveReasons:countReasons(scan.candidates),kept:scan.kept}
-  if(!options.applyRecovery||!scan.candidates.length)return {...report,applied:false,archived:0,remaining:scan.total}
+  // Issue #3806: a scheduled run passes archiveThreshold so it archives only once the
+  // namespace has grown past it, well before the REVIEW_REF_ROW_LIMIT refusal.
+  const threshold=options.archiveThreshold
+  if(threshold!==undefined&&!(Number.isInteger(threshold)&&threshold>=0&&threshold<REVIEW_REF_ROW_LIMIT))throw new LaneError(`--archive-threshold must be an integer from 0 to ${REVIEW_REF_ROW_LIMIT-1}`)
+  const belowThreshold=threshold!==undefined&&scan.total<=threshold
+  if(threshold!==undefined)report.threshold=threshold
+  if(!options.applyRecovery||!scan.candidates.length||belowThreshold)return {...report,applied:false,archived:0,remaining:scan.total,...(belowThreshold?{skipped:'below-threshold'}:{})}
   if(typeof io.atomicReviewRefs!=='function'||typeof io.readReviewRefs!=='function')throw new LaneError('verdict archive requires atomic compare-and-swap ref support')
   const ownerSha=io.makeOwnerCommit(`db-coordination reviewer-verdict-archive-lock candidates=${scan.candidates.length} at=${new Date(now).toISOString()}`)
   let acquired=false
@@ -9389,6 +9395,7 @@ function parseArgs(argv) {
     else if (a === '--reviewer-start-watch-leases') out.reviewerStartWatchLeases = true
     else if (a === '--reap-abandoned-review-leases') out.reapAbandonedReviewLeases = true
     else if (a === '--archive-old-review-verdicts') out.archiveOldReviewVerdicts = true
+    else if (a === '--archive-threshold') out.archiveThreshold = Number(argv[++i])
     else if (a === '--reviewer-preflight') out.reviewerPreflight = true
     else if (a === '--cleanup-stale') out.cleanup = true
     else if (a === '--release-claim') out.releaseClaim = next(i), i++

@@ -9230,6 +9230,22 @@ test('#2987 verdict archive previews, then moves only verdicts nothing can still
   assert.equal(archiveOldReviewVerdicts({applyRecovery:true},new Date(),io).candidates,0)
 })
 
+test('#3806 scheduled verdict archive acts only above its threshold and refuses a bad threshold',()=>{
+  const {io,pull}=verdictArchiveIo()
+  const h='c'.repeat(40)
+  pull(41);const a=giveVerdict(io,{issue:1,pr:41,headSha:h})
+  pull(42);const b=giveVerdict(io,{issue:2,pr:42,headSha:h})
+  const before=new Map(io.refs)
+  const idle=archiveOldReviewVerdicts({applyRecovery:true,archiveThreshold:2},new Date('2026-09-28T00:00:00Z'),io)
+  assert.equal(idle.applied,false);assert.equal(idle.skipped,'below-threshold');assert.equal(idle.threshold,2);assert.equal(idle.candidates,2)
+  assert.deepEqual(io.refs,before,'at or below the threshold nothing moves')
+  assert.throws(()=>archiveOldReviewVerdicts({applyRecovery:true,archiveThreshold:REVIEW_REF_ROW_LIMIT},new Date(),io),/--archive-threshold must be an integer/)
+  assert.throws(()=>archiveOldReviewVerdicts({applyRecovery:true,archiveThreshold:Number.NaN},new Date(),io),/--archive-threshold must be an integer/)
+  const acted=archiveOldReviewVerdicts({applyRecovery:true,archiveThreshold:1},new Date('2026-09-28T00:00:00Z'),io)
+  assert.equal(acted.applied,true);assert.equal(acted.archived,2);assert.equal(acted.skipped,undefined)
+  for(const ref of [a,b]){assert.equal(io.refs.has(ref),false);assert.equal(io.refs.get(archivedVerdictRef(ref)),before.get(ref))}
+})
+
 test('#2987 verdict archive skips a pull request reopened before the mutex was held',()=>{
   const {io,prs,pull}=verdictArchiveIo()
   pull(31);const ref=giveVerdict(io,{issue:1,pr:31,headSha:'b'.repeat(40)})
