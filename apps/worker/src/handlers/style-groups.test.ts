@@ -32,3 +32,7 @@ test("rebuild state preserves the pre-delete group total across worker batches",
 
   assert.equal(normalized.total_groups_before_delete, 10_868);
 });
+
+test("a fresh rebuild starts at rebuild_assets and never clears or deletes every group first", () => {
+  assert.equal(normalizeRebuildState(null).stage, "rebuild_assets");
+});

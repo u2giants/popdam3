@@ -140,7 +140,13 @@ async function clearState(): Promise<void> {
 
 export function normalizeRebuildState(state: RebuildState | null): RebuildState {
   return {
-    stage: state?.stage ?? "clear_assets",
+    // A fresh run starts at rebuild_assets. rebuild_style_groups_batch is an
+    // idempotent upsert on sku that also ungroups assets whose path no longer
+    // yields a SKU, so clearing every asset and deleting every group first is
+    // unnecessary - and it destroyed every column that lives only on the group
+    // (item_description, group AI profile, rich_metadata, cover choice, and the
+    // ON DELETE CASCADE child rows) every night.
+    stage: state?.stage ?? "rebuild_assets",
     last_asset_id: state?.last_asset_id ?? null,
     last_group_id: state?.last_group_id ?? null,
     last_rebuild_asset_id: state?.last_rebuild_asset_id ?? null,
@@ -299,7 +305,7 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     }
 
     const nextState: RebuildState = !hasMore
-      ? { ...state, stage: "delete_groups", last_asset_id: null, last_group_id: null, total_groups_before_delete: totalGroupsBeforeDelete, stage_started_at: new Date().toISOString() }
+      ? { ...state, stage: "rebuild_assets", last_asset_id: null, last_rebuild_asset_id: null, total_groups_before_delete: totalGroupsBeforeDelete, stage_started_at: new Date().toISOString() }
       : { ...state, stage: "clear_assets", last_asset_id: result.last_id ?? null };
 
     await saveState(nextState);
@@ -315,36 +321,56 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     };
   }
 
-  // ── Stage 2: delete existing style groups ─────────────────────────
+  // ── Stage 5: prune groups left with no live member asset ──────────
+  // Runs AFTER finalize_stats has recomputed asset_count. Only groups whose
+  // count is 0 AND that an exact re-check confirms empty are deleted; groups that
+  // still own assets keep their id and every group-only column.
   if (state.stage === "delete_groups") {
-    let q = client.from("style_groups").select("id").order("id", { ascending: true }).limit(GROUP_DELETE_BATCH);
+    let q = client.from("style_groups").select("id").eq("asset_count", 0).order("id", { ascending: true }).limit(GROUP_DELETE_BATCH);
     if (state.last_group_id) q = q.gt("id", state.last_group_id);
 
     const { data: rows, error: fetchErr } = await q;
     if (fetchErr) return { ok: false, done: false, error: formatError(fetchErr), error_stage: "delete_groups" };
 
     const ids = (rows ?? []).map((r: { id: string }) => r.id);
-    if (ids.length > 0) {
-      const { error: delErr } = await client.from("style_groups").delete().in("id", ids);
+    const emptyIds: string[] = [];
+    for (const id of ids) {
+      const { count, error: cntErr } = await client
+        .from("assets")
+        .select("id", { count: "exact", head: false })
+        .eq("style_group_id", id)
+        .eq("is_deleted", false)
+        .limit(0);
+      if (cntErr) return { ok: false, done: false, error: formatError(cntErr), error_stage: "delete_groups" };
+      if (count === 0) emptyIds.push(id);
+    }
+    if (emptyIds.length > 0) {
+      const { error: delErr } = await client.from("style_groups").delete().in("id", emptyIds);
       if (delErr) return { ok: false, done: false, error: formatError(delErr), error_stage: "delete_groups" };
     }
 
     const reachedEnd = ids.length < GROUP_DELETE_BATCH;
-    const nextState: RebuildState = reachedEnd
-      ? { ...state, stage: "rebuild_assets", last_group_id: null, last_rebuild_asset_id: null, stage_started_at: new Date().toISOString() }
-      : { ...state, stage: "delete_groups", last_group_id: ids[ids.length - 1] };
+    if (reachedEnd) {
+      await clearState();
+      return {
+        ok: true,
+        done: true,
+        stage: "delete_groups",
+        groups_deleted: emptyIds.length,
+        total_assets: state.total_assets ?? 0,
+        nextOffset: (typeof opState.cursor === "number" ? opState.cursor : 0) + 1,
+      };
+    }
 
-    await saveState(nextState);
-
+    await saveState({ ...state, stage: "delete_groups", last_group_id: ids[ids.length - 1] });
     return {
       ok: true,
       done: false,
       stage: "delete_groups",
-      groups_deleted: ids.length,
-      total_groups_before_delete: state.total_groups_before_delete ?? 0,
+      groups_deleted: emptyIds.length,
       nextOffset: (typeof opState.cursor === "number" ? opState.cursor : 0) + 1,
-      total_processed: nextState.total_processed ?? 0,
-      total_assets: nextState.total_assets ?? 0,
+      total_processed: state.total_processed ?? 0,
+      total_assets: state.total_assets ?? 0,
     };
   }
 
@@ -471,10 +497,10 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     const processed = (row.processed as number) ?? 0;
 
     if (isDone || returnedSub === "complete") {
-      await clearState();
+      await saveState({ ...state, stage: "delete_groups", last_group_id: null, stage_started_at: new Date().toISOString() });
       return {
         ok: true,
-        done: true,
+        done: false,
         stage: "finalize_stats",
         sub: "complete",
         counts_processed: processed,
