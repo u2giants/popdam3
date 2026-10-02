@@ -60,7 +60,7 @@ relayed verbatim by the coordinating session:
 | Production-PO term | Share | Meaning |
 |---|---|---|
 | FOB (origin port) | about 99% | POP's responsibility **starts at the seaport of the manufacturer's country** (for example Ningbo or Qingdao, China; Cochin, India). From there, the **sales-order term** decides whether POP or the customer handles shipping, US customs clearance, and duty. |
-| DDP | about 1% | The **factory** arranges and pays freight, clears customs, and pays duty. |
+| DDP | about 1% | The **factory** arranges and pays freight, clears customs, and pays duty. The **DDP production-PO ship date is the date the factory must hand the goods over to POP at the US port** (Settled, Albert, 2026-10-02). |
 
 ### mDDP (sales-order term, rarely if ever used now)
 
@@ -81,8 +81,45 @@ warehouse, and makes the goods available there. This reconciles the first ruling
 
 **Which warehouse comes from the ColdLion sales order (Settled, Albert, 2026-10-02).** Albert's
 words: "the warehouse should be on the sales order in ColdLion." For a Warehouse-terms order, L.A.
-vs NJ is read from the ColdLion sales order, never guessed. The exact ColdLion field is
-**pending confirmation** (being verified separately); record it here once confirmed.
+vs NJ is read from the ColdLion sales order, never guessed. The field is the **ColdLion
+sales-order line warehouse field** (stored in `coldlion.order_history_line`; the ColdLion API
+also sends a plain-English name). ColdLion has **no separate terms field**: this one field
+carries both the sales-order term and the location.
+
+## Third ruling: origins, DDP factory date, and ColdLion warehouse values
+
+**Status:** Settled. **Authority:** Albert Hazan (owner), in his chat, 2026-10-02 (EDT),
+relayed verbatim by the coordinating session:
+
+> "DDP factory ship date is the date they must hand over to Us at the US port. right now we
+> don't make in other countries aside from china and india. Anthony's Warehouse is in L.A. West
+> End Express is NJ. Deco Signs is a domestic USA manufacturer. Walmart picks up from Anthony's
+> Warehouse in L.A. Amazon lately has been shipped via Amazon Global Logistics (AGL) where we
+> deliver to their facility in China and they arrange shipping to their AWD and FBA facilities
+> in the U.S. but we still own the inventory until it's sold"
+
+- **Origin countries:** POP currently manufactures only in **China and India**.
+- **DDP production PO:** the factory ship date is the date the factory must hand over to POP at
+  the US port.
+
+### Meaning of each ColdLion sales-order line warehouse value
+
+Order counts are 2025-onward observations supplied by the coordinating session (evidence, not
+rule).
+
+| Warehouse value | Meaning | Where POP's responsibility ends / dates measured | 2025+ orders |
+|---|---|---|---|
+| FOB (China) | FOB China | the customer's forwarder facility in China | 658 |
+| Anthony's Warehouse | **POP's L.A. warehouse** — Warehouse term, L.A. | available for pickup at Anthony's Warehouse, L.A. | 1,496 |
+| West End Express | **POP's NJ warehouse** — Warehouse term, NJ | available for pickup at West End Express, NJ | 6 |
+| Walmart Fulfillment Center | Walmart picks up from Anthony's Warehouse in L.A. — treat as **Warehouse, L.A.** | available for pickup at Anthony's Warehouse, L.A. | 11 |
+| POE California | POE L.A. | available at the L.A. port | 108 |
+| POE East Coast | POE NJ | available at the NJ port | 33 |
+| mDDP | mDDP | the same point as FOB China | 49 |
+| Amazon | **Amazon Global Logistics (AGL):** POP delivers to Amazon's facility in China; Amazon ships to its AWD and FBA facilities in the US; **POP still owns the inventory until it is sold** | Amazon's facility in China (measured like FOB China) | 4 |
+| Deco Signs | a **domestic US manufacturer** — no ocean leg | Unknown (lead time Unknown) | 34 |
+| DDP + US state (NJ 16, NC 7, PA 7, CA 5, five others 1 each) | sales-order DDP: POP also trucks to the customer's warehouse in that state ([`erp-orders-and-source-meaning.md`](erp-orders-and-source-meaning.md), *POE vs DDP*, 2026-09-17) | Unknown (see below) | 46 |
+| blank | — | Unknown | 3 |
 
 ### Transit times (approximate, calendar days) — condition-dependent and dated
 
@@ -127,12 +164,13 @@ from the Warehouse term above) and the cost bases in [`rfq-pricing.md`](rfq-pric
 
 ## Unknown — not yet answered (do not guess)
 
-- **Transit times from origins other than China and Kochi, India** (other Indian ports, other countries).
-- **Which ColdLion sales-order field** carries the warehouse (L.A. vs NJ) — pending confirmation.
-- **DDP production-PO timing**: how the factory's ship date relates to delivery when the factory
-  carries freight, customs, and duty.
-- The delivery-responsibility meaning of other ERP routing codes (POE Savannah/Norfolk,
-  sales-order DDP-by-state, FOB India/USA) in this frame.
+- **"DDP <state>" sales orders:** the exact delivery point at which the customer's start/cancel
+  dates are measured, and the trucking time from port to the customer's warehouse.
+- **Deco Signs** (domestic US manufacturer): lead time and where dates are measured.
+- **Blank** warehouse values on sales orders: what they mean.
+- Transit times from Indian ports other than Kochi (China and India are the only origins today).
+- The meaning of older or rarer ERP routing codes not in the table above (for example POE
+  Savannah/Norfolk) in this frame.
 
 ## Open question (not a rule)
 
