@@ -1,0 +1,53 @@
+{
+  "schema_version": 2,
+  "work_issue": 3859,
+  "generation": 2,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Add index (company_code, prod_order_no) on coldlion.prod_detail for per-order reconcile lookups now that the line-seq unique constraint is gone.",
+  "base_sha": "5deadd0432d282b204b4702464867f472025c333",
+  "dispatcher": "owner instruction 2026-10-01 to complete #3234 follow-ups; claim #3861",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "mimo/3859-prod-detail-order-index",
+  "worktree": "C:/repos/shared-db-wt-3234-fin",
+  "allowed_paths": [
+    "supabase/migrations/20261001122410_coldlion_prod_detail_order_index.sql",
+    ".github/live-proofs/3859.sql",
+    ".agent/work/3859/2/contract.json",
+    ".agent/work/3859/2/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261001122410_coldlion_prod_detail_order_index.sql",
+    ".github/live-proofs/3859.sql",
+    ".agent/work/3859/2/contract.json",
+    ".agent/work/3859/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table coldlion.prod_detail",
+    "index coldlion.prod_detail_company_code_prod_order_no_idx"
+  ],
+  "prohibited_actions": [
+    "do not change the primary key or RLS on coldlion.prod_detail",
+    "do not drop or rewrite existing indexes",
+    "do not load rows"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node scripts/check-live-proof-probe.mjs"
+  ],
+  "assumptions": [
+    "CREATE INDEX IF NOT EXISTS is additive and safe on the landing table",
+    "Claim #3861 locks table coldlion.prod_detail and the new index"
+  ],
+  "stop_conditions": [
+    "stop if the index would rewrite the table",
+    "stop if a test fails for a reason unrelated to this index",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ],
+  "evidence_parent": {
+    "work_issue": 3859,
+    "generation": 1,
+    "contract_sha256": "1bb261b12be3960c931e69a500f393ee9791f4483ac23c853694fb52c8372aad"
+  }
+}

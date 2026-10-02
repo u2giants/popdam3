@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 3859,
+  "outcome": "ready-for-merge",
+  "pr": 3862,
+  "migration_versions": [
+    "20261001122410"
+  ],
+  "contract_ref": "refs/db-contracts/3859/2",
+  "contract_sha256": "7bc563346b355877d909aed7c2964532827bf24b828b62d7bb10ff93294f2cca",
+  "base_sha": "5deadd0432d282b204b4702464867f472025c333",
+  "head_sha": "63943940bc513b41d0516685e387b48f005d340d",
+  "files_changed": [
+    ".github/live-proofs/3859.sql",
+    "supabase/migrations/20261001122410_coldlion_prod_detail_order_index.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table coldlion.prod_detail",
+    "index coldlion.prod_detail_company_code_prod_order_no_idx"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "static checks passed for additive CREATE INDEX"
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Live-proof probe present: .github/live-proofs/3859.sql."
+    }
+  ],
+  "assumptions_resolved": [
+    "per-order reconcile lookups need (company_code, prod_order_no) after the line-seq unique drop"
+  ],
+  "stop_conditions_hit": []
+}
