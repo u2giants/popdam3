@@ -37,9 +37,9 @@ decision.
 | A. Migration: intake staging + routing-code map + quarantine | ✅ done 2026-09-30 | PR #3693 (merge fd622fa142); version 20260928211543 (superseded from 20260928155332); 2× exact-head APPROVE (DeepSeek slot 1 + Grok slot 2 at 96d99d419); production apply run 36759340591; machine live-proof run 36761375751 passed (probe .github/live-proofs/3679.sql); issue #3679 closed live_verified |
 | A2. Verify item case-pack landing (verify-only — already landed) | ✅ done 2026-09-28 | live read on production: coldlion.item_detail = 26,227 rows; count(carton_qty) = 26,227 and count(inner_pack_qty) = 26,227 (100%) via aws-1-us-east-1.pooler.supabase.com |
 | C0. Owner ruling: salesOrderNo↔production_order cardinality + placeholder key | ✅ ruled 2026-09-17 (1:N; placeholder per sales order) | `docs/business-rules/erp-orders-and-source-meaning.md` intake section; sheet measurement 434/4,005 |
-| B. Poller tool (windows, paging, staging upsert, novelty detection) | ⬜ open | — |
-| B0. Bounded bootstrap mode (limit + claim-only + cron disabled until live proof) | ⬜ open | — |
-| B1. Poller entry point + window/fetch/stage/detect (Phase B detail) | ⬜ open | — |
+| B. Poller tool (windows, paging, staging upsert, novelty detection) | ✅ done 2026-10-01 | PR #3864 (merged via guarded lane): poller + staging upsert + novelty detection; `node --test tools/coldlion-order-intake-*.test.mjs` 33/33; `bash scripts/check-sql.sh` pass |
+| B0. Bounded bootstrap mode (limit + claim-only + cron disabled until live proof) | ✅ done 2026-10-01 | PR #3864 (merged via guarded lane): poller + staging upsert + novelty detection; `node --test tools/coldlion-order-intake-*.test.mjs` 33/33; `bash scripts/check-sql.sh` pass; workflow cron COMMENTED OUT (stays off until F1) |
+| B1. Poller entry point + window/fetch/stage/detect (Phase B detail) | ✅ done 2026-10-01 | PR #3864 (merged via guarded lane): poller + staging upsert + novelty detection; `node --test tools/coldlion-order-intake-*.test.mjs` 33/33; `bash scripts/check-sql.sh` pass; C1 decode module + its 6 tests also landed (row C1 stays open until the staged ladder runs it live) |
 | C. Routing decode + canonical placeholder writer | ⬜ open | — |
 | C1. Routing decode step (post-poll join + quarantine) | ⬜ open | — |
 | C2. Canonical writer (placeholder create/claim + source refs) | ⬜ open | — |
