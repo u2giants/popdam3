@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 3781,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Step 10 first slice: pure target-queue identity module, compatibility matrix, and sandbox/fake-lock tests without taking shared workflow or lock-manager files",
+  "base_sha": "a16f25afe1a9cec96c71c5cbd4d5a3a6a3ded218",
+  "dispatcher": "MiMo session for issue #3781 Step 10",
+  "worker": "mimo",
+  "branch": "mimo/3781-step10-target-queues",
+  "worktree": ".ai/worktrees/step10-target-queues-mimo",
+  "allowed_paths": [
+    "docs/verification/step10-target-queue-design-20260928.md",
+    "scripts/target-queue-identity.mjs",
+    "scripts/target-queue-identity.test.mjs"
+  ],
+  "file_writes": [
+    "docs/verification/step10-target-queue-design-20260928.md",
+    "scripts/target-queue-identity.mjs",
+    "scripts/target-queue-identity.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not edit .github/workflows/shared-supabase-migrations.yml (owned by PR #3736)",
+    "do not edit scripts/manage-migration-author-lanes.mjs or its tests (owned by open PRs)",
+    "do not edit scripts/orchestrator-flow/runner-lanes.mjs (owned by PR #3748)",
+    "do not touch any migration or database object",
+    "do not remove or weaken object claims, exclusive production locks, exact-head approval, or required checks"
+  ],
+  "required_checks": [
+    "node --test scripts/target-queue-identity.test.mjs"
+  ],
+  "assumptions": [
+    "Step 8 (#2530/#3566) and Step 9 (#3779) keep shared workflow/lock files until they land",
+    "wiring this module into workflows is a later change on accepted current main"
+  ],
+  "stop_conditions": [
+    "stop if implementing the matrix would require editing a shared workflow or lock-manager file",
+    "stop if a test fails for a reason outside this module",
+    "stop if the change would need a path outside allowed_paths"
+  ]
+}

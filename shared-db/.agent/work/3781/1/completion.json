@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_issue": 3781,
+  "outcome": "ready-for-merge",
+  "pr": 3822,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3781/1",
+  "contract_sha256": "378824171e52e4c512ed616b4d9f5a004a5064084f2cd100516c7d780d87d362",
+  "base_sha": "a16f25afe1a9cec96c71c5cbd4d5a3a6a3ded218",
+  "head_sha": "0ef454f3e35ac663987139c6d960319634e17ba2",
+  "files_changed": [
+    "docs/verification/step10-target-queue-design-20260928.md",
+    "scripts/target-queue-identity.mjs",
+    "scripts/target-queue-identity.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/target-queue-identity.test.mjs",
+      "exit_code": 0,
+      "evidence": "21 pass, 0 fail"
+    }
+  ],
+  "assumptions_resolved": [
+    "shared workflow/lock files remain with #3736 / open lock PRs / #3748",
+    "module is pure and unwired; live queue-split proof stays Partial on #3781"
+  ],
+  "stop_conditions_hit": []
+}
