@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "work_issue": 3874,
+  "outcome": "ready-for-merge",
+  "pr": 3908,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3874/8",
+  "contract_sha256": "dbe8d736758d53578e9d3d4c18ca5488602c5acf9fe5a85e1559de7b5fcd0d8e",
+  "base_sha": "128a78ce7b8347248211d23b4a2014c4877bd68e",
+  "head_sha": "0b061403bfb0d291b315331216c5cbff468cc68f",
+  "files_changed": [
+    ".agent/work/3874/8/completion.json",
+    ".agent/work/3874/8/contract.json",
+    ".github/workflows/issue-orchestrator-label.yml",
+    "AGENTS.md",
+    "docs/agents/orchestrator.md",
+    "scripts/check-repository-identity-conformance.mjs",
+    "scripts/check-skill-drift.mjs",
+    "scripts/check-skill-drift.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/admission.mjs",
+    "scripts/reviewer-wire-budget.test.mjs",
+    "scripts/sync-issue-orchestrator-label.mjs",
+    "scripts/sync-issue-orchestrator-label.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "755 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/*.test.mjs",
+      "exit_code": 0,
+      "evidence": "397 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/check-skill-drift.test.mjs",
+      "exit_code": 0,
+      "evidence": "5 pass, 0 fail"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    },
+    {
+      "command": "node scripts/check-repository-identity-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "OK, 44 entries"
+    },
+    {
+      "command": "node --test scripts/reviewer-wire-budget.test.mjs",
+      "exit_code": 0,
+      "evidence": "4 pass, 0 fail"
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 8 supersedes 7 only to set SHARED_DB_AUTHOR_ENGINE in the wire-budget CLI fixture. Branch refreshed from main by merge after a guarded merge refused a stale base; checks re-run.",
+    "Marker guard workflow, preview resolveMarker and orchestrator-admission.mjs remain open on #3874."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Live proof card: #3874."
+}

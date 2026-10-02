@@ -10842,3 +10842,53 @@ test('#2998 CLI: a fully valid handoff clears every readiness check and reaches 
     assert.deepEqual(printed.degraded, [])
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// #3874: the orchestrator role is retired. Reviewer independence follows the
+// authoring session's declared engine, and `claim-first` is a structural route.
+import { authorEngineFromEnv as __authorEngineFromEnv, knownAuthorEngines as __knownAuthorEngines, CLAIM_FIRST_ROUTES as __CLAIM_FIRST_ROUTES, ROUTES_BY_WORK_TYPE as __ROUTES_BY_WORK_TYPE, QUEUE_ROUTES as __QUEUE_ROUTES } from './manage-migration-author-lanes.mjs'
+import { STRUCTURAL_ROUTES as __STRUCTURAL_ROUTES } from './orchestrator-flow/admission.mjs'
+test('#3874 author engine is mandatory and fails closed', () => {
+  assert.throws(() => __authorEngineFromEnv(undefined), /SHARED_DB_AUTHOR_ENGINE is not set/)
+  assert.throws(() => __authorEngineFromEnv('   '), /SHARED_DB_AUTHOR_ENGINE is not set/)
+  assert.throws(() => __authorEngineFromEnv('claud'), /not a known engine/)
+  assert.throws(() => __authorEngineFromEnv('claude; rm -rf /'), /not a known engine/)
+  assert.equal(__authorEngineFromEnv('  Claude '), 'claude')
+  for (const engine of ['codex', 'claude', 'zcode', 'glm']) assert.ok(__knownAuthorEngines().has(engine))
+})
+test('#3874 a declared author engine strictly excludes its same-engine reviewer', () => {
+  const all = reviewersForOrchestrator(null)
+  const glmRows = all.filter((row) => String(row.orchestratorEngine ?? '').toLowerCase() === 'glm')
+  assert.ok(glmRows.length > 0, 'fixture needs at least one GLM-engine reviewer')
+  const withoutZcode = reviewersForOrchestrator(__authorEngineFromEnv('zcode'))
+  assert.equal(withoutZcode.length, all.length - glmRows.length)
+  assert.ok(withoutZcode.every((row) => String(row.orchestratorEngine ?? '').toLowerCase() !== 'glm'))
+})
+test('#3874 the real GitHub io reads SHARED_DB_AUTHOR_ENGINE and refuses when it is unset', () => {
+  const saved = process.env.SHARED_DB_AUTHOR_ENGINE
+  try {
+    delete process.env.SHARED_DB_AUTHOR_ENGINE
+    assert.throws(() => githubIo.resolveOrchestratorEngine(), /SHARED_DB_AUTHOR_ENGINE is not set/)
+    process.env.SHARED_DB_AUTHOR_ENGINE = 'codex'
+    assert.equal(githubIo.resolveOrchestratorEngine(), 'codex')
+  } finally {
+    if (saved === undefined) delete process.env.SHARED_DB_AUTHOR_ENGINE; else process.env.SHARED_DB_AUTHOR_ENGINE = saved
+  }
+})
+test('#3874 claim-first is a structural route and the legacy alias still works', () => {
+  for (const route of ['claim-first', 'shared-db-orchestrator']) {
+    assert.ok(__CLAIM_FIRST_ROUTES.has(route))
+    assert.ok(__QUEUE_ROUTES.has(route))
+    assert.ok(__ROUTES_BY_WORK_TYPE.structural.has(route))
+    assert.ok(__STRUCTURAL_ROUTES.includes(route))
+  }
+})
+test('#3874 a route: claim-first issue is dispatched by the queue builder end to end', () => {
+  const issues = [
+    { number: 1, title: 'claim-first', body: scope('ready', 'structural', 'claim-first', 10, ['table core.a']) },
+    { number: 2, title: 'legacy', body: scope('ready', 'structural', 'shared-db-orchestrator', 9, ['table core.b']) },
+    { number: 3, title: 'not structural', body: scope('ready', 'repo-maintenance', 'repo-maintenance', 8) },
+  ]
+  const result = buildDynamicQueues(issues, [], NOW)
+  assert.equal(result.fullyAudited, true)
+  assert.deepEqual(new Set(result.dispatchable), new Set([1, 2]))
+})

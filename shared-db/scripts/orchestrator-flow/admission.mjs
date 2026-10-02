@@ -17,7 +17,10 @@ export const SERVICE_CLASSES = Object.freeze(['urgent-application', 'standard-ap
 // additive objects confined to the app-owned {crm,pim,dam,plm} schemas. Every other
 // gate (claim, object locks, version reservation, reviewers, serial lanes,
 // guarded merge) is unchanged for both routes.
-export const STRUCTURAL_ROUTES = Object.freeze(['shared-db-orchestrator', 'self-service-additive'])
+// `claim-first` is the canonical structural route since the orchestrator role was
+// retired (owner ruling 2026-10-02, AGENTS.md §0.0-D, issue #3874).
+// `shared-db-orchestrator` stays accepted as a legacy alias for existing issues.
+export const STRUCTURAL_ROUTES = Object.freeze(['claim-first', 'shared-db-orchestrator', 'self-service-additive'])
 export const STRUCTURAL_CHANGE_TYPES = Object.freeze([
   'schema', 'table', 'column', 'type', 'view', 'function', 'trigger',
   'rls-policy', 'grant', 'index', 'constraint', 'extension', 'publication',

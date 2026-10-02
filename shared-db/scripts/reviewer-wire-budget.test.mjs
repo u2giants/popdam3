@@ -32,7 +32,7 @@ function run(dir, args) {
   rmSync(log, { force: true })
   const result = spawnSync(process.execPath, [cli, ...args], {
     encoding: 'utf8', timeout: 180000,
-    env: { ...process.env, WIRE_STATE: state, WIRE_LOG: log, NODE_OPTIONS: `--import ${fake}`, GH_TOKEN: 'wire-fixture-no-network', GIT_TERMINAL_PROMPT: '0' },
+    env: { ...process.env, WIRE_STATE: state, WIRE_LOG: log, NODE_OPTIONS: `--import ${fake}`, GH_TOKEN: 'wire-fixture-no-network', GIT_TERMINAL_PROMPT: '0', SHARED_DB_AUTHOR_ENGINE: 'claude' },
   })
   const rows = existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line)) : []
   const api = rows.filter((row) => row.kind === 'rest' || row.kind === 'graphql')

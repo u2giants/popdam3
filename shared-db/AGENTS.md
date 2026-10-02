@@ -67,10 +67,12 @@ the map below.
   safety rule (exact-object claims, version reservation, review, guarded merge, serial
   production lane, live proof) still binds. Where older text below says "the orchestrator",
   read "the session doing the structural work"; marker and dispatch steps are historical.
-  Automation still carrying the old name is machine metadata, not an instruction: the issue
-  field `route: shared-db-orchestrator` (the lane tooling's structural route value), marker
-  reads inside reviewer assignment, the issue-orchestrator-label workflow, and the skill-drift
-  guard. Sessions never hand-apply or report that label. Retiring that automation is open on #3874.
+  Tooling follows (#3874): new structural issues use `route: claim-first`
+  (`route: shared-db-orchestrator` is still accepted as a legacy alias); reviewer assignment no
+  longer reads the marker, and the authoring session declares its engine in
+  `SHARED_DB_AUTHOR_ENGINE` (required — unset or unknown refuses) so a same-engine reviewer is
+  excluded; the orchestrator / non-orchestrator issue labeler is removed. Still open on #3874:
+  the marker guard workflow, the preview-dispatch marker read, and `orchestrator-admission.mjs`.
   **This ruling supersedes every older passage in this repo that says otherwise** (dated docs,
   plans, handoffs, runbooks): such passages are historical records, not instructions.
 

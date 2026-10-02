@@ -1,0 +1,71 @@
+{
+  "allowed_paths": [
+    ".github/workflows/issue-orchestrator-label.yml",
+    "scripts/sync-issue-orchestrator-label.mjs",
+    "scripts/sync-issue-orchestrator-label.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/admission.mjs",
+    "scripts/check-skill-drift.mjs",
+    "scripts/check-skill-drift.test.mjs",
+    "AGENTS.md",
+    ".agent/work/3874/8/contract.json",
+    ".agent/work/3874/8/completion.json",
+    "scripts/check-repository-identity-conformance.mjs",
+    "docs/agents/orchestrator.md",
+    "scripts/reviewer-wire-budget.test.mjs"
+  ],
+  "assumptions": [
+    "Owner ruling 2026-10-02 (Albert Hazan: \"there is no longer an orchestrator\"); prose landed in PR #3875. This generation retires the tooling that still keys on the orchestrator role.",
+    "route: shared-db-orchestrator stays accepted as a legacy alias so existing issues keep working; new canonical structural route is claim-first.",
+    "Generation 6 supersedes 5 only to add scripts/check-repository-identity-conformance.mjs: its allowlist entry for check-skill-drift.mjs became stale when the marker rule text was replaced.",
+    "Generation 7 supersedes 6 after governed REVISE refs/db-review-verdicts/3874-3908-25aff31c: author engine becomes mandatory and vocabulary-checked (fail closed), orchestrator-marker label restored to the drift --repo rule, stronger tests, docs/agents/orchestrator.md route sentence aligned. Marker guard workflow, preview resolveMarker and orchestrator-admission.mjs remain explicitly out of scope and are recorded as open on #3874.",
+    "Generation 8 supersedes 7 (APPROVED at 88f80bc1) only to set SHARED_DB_AUTHOR_ENGINE in the reviewer wire-budget CLI fixture, which now must declare the mandatory author engine."
+  ],
+  "base_sha": "335b0232769eefadb0cc38791c98422c6b409ea5",
+  "branch": "chore/3874-retire-orchestrator-tooling",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "repo-maintenance session for issue #3874",
+  "file_writes": [
+    ".github/workflows/issue-orchestrator-label.yml",
+    "scripts/sync-issue-orchestrator-label.mjs",
+    "scripts/sync-issue-orchestrator-label.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/admission.mjs",
+    "scripts/check-skill-drift.mjs",
+    "scripts/check-skill-drift.test.mjs",
+    "AGENTS.md",
+    ".agent/work/3874/8/contract.json",
+    ".agent/work/3874/8/completion.json",
+    "scripts/check-repository-identity-conformance.mjs",
+    "docs/agents/orchestrator.md",
+    "scripts/reviewer-wire-budget.test.mjs"
+  ],
+  "generation": 8,
+  "goal": "Retire orchestrator-role tooling: add claim-first structural route (legacy alias kept), stop reviewer assignment reading the orchestrator marker (author engine from SHARED_DB_AUTHOR_ENGINE instead), delete the orchestrator/non-orchestrator issue labeler, and drop marker-label rules from the skill-drift check.",
+  "prohibited_actions": [
+    "Do not touch any migration or database object.",
+    "Do not weaken exact-object claims, version reservation, reviewer independence, guarded merge or the production lane.",
+    "Do not change required status checks or branch protection."
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/orchestrator-flow/*.test.mjs",
+    "node --test scripts/check-skill-drift.test.mjs",
+    "git diff --check",
+    "node scripts/check-repository-identity-conformance.mjs",
+    "node --test scripts/reviewer-wire-budget.test.mjs"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 1,
+  "stop_conditions": [
+    "Stop if the change needs a file outside allowed_paths.",
+    "Stop on any test failure caused by this change that cannot be fixed without weakening a gate."
+  ],
+  "work_issue": 3874,
+  "work_type": "repo-maintenance",
+  "worker": "Claude chat fb5671db-a462-4888-b6d9-b75af80e91c5 on al8960ofc",
+  "worktree": "C:/repos/shared-db-wt-noorch2"
+}

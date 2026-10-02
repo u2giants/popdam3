@@ -42,7 +42,6 @@ export const ALLOWLIST = {
   'tools/migrate-intake-to-issues.mjs': [1, 'one-off intake migration that already ran; historical record'],
   'tools/intake-inventory.mjs': [1, PROSE],
   'scripts/check-cancelled-work.mjs': [1, 'describes a cancelled owner decision about the historical repository; text, not an API target'],
-  'scripts/check-skill-drift.mjs': [1, PROSE],
   'scripts/lib/orchestrator-admission.mjs': [1, PROSE],
   'scripts/refresh-code-pr-branch.mjs': [1, PROSE],
   'tools/sync-opa-property-character.mjs': [1, PROSE],

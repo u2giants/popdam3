@@ -720,6 +720,20 @@ function inheritReturnedReviewerAllowlist(requested,request,io){
 // invalidator (config/orchestrator-global-invalidators-v1.json).
 export const ENGINE_REVIEWER_EXCLUSION=Object.freeze({codex:'codex',claude:'claude',zcode:'glm'})
 
+// The authoring engine is MANDATORY and fails closed (#3874 review): an unset,
+// blank, malformed or unknown value refuses rather than silently excluding no
+// reviewer. Known engines are the exclusion-map keys plus every reviewer engine
+// (test 1652 already pins the exclusion-map keys to the routing engine list).
+export function knownAuthorEngines(reviewers=REVIEWERS){
+  return new Set([...Object.keys(ENGINE_REVIEWER_EXCLUSION),...reviewers.map((row)=>String(row.orchestratorEngine??'').toLowerCase()).filter(Boolean)])
+}
+export function authorEngineFromEnv(value,known=knownAuthorEngines()){
+  const engine=String(value??'').trim().toLowerCase()
+  if(!engine)throw new LaneError('SHARED_DB_AUTHOR_ENGINE is not set; declare the authoring session engine (e.g. claude, codex, zcode) so a same-engine reviewer is excluded. Reviewer assignment refused')
+  if(!known.has(engine))throw new LaneError(`SHARED_DB_AUTHOR_ENGINE="${engine.slice(0,40)}" is not a known engine (${[...known].sort().join(', ')}); reviewer assignment refused`)
+  return engine
+}
+
 export function reviewersForOrchestrator(engine, reviewers=ACTIVE_REVIEWERS){
   if(engine===null)return reviewers.filter(()=>true)
   const normalized=String(engine??'').trim().toLowerCase()
@@ -884,13 +898,15 @@ function reviewTargetSuperseded(prRow,headSha){return Boolean(prRow?.state)&&(St
 
 export const QUEUE_STATUSES = new Set(['ready','blocked','owner-decision'])
 export const QUEUE_WORK_TYPES = new Set(['structural','curated-master-data','application-data','source-data','repo-maintenance','documentation','security-settings'])
-export const QUEUE_ROUTES = new Set(['shared-db-orchestrator','self-service-additive','curated-master-data-governance','application-session','source-data-session','owner-only','repo-maintenance'])
+// claim-first: canonical structural route (#3874); shared-db-orchestrator: legacy alias.
+export const CLAIM_FIRST_ROUTES = new Set(['claim-first','shared-db-orchestrator'])
+export const QUEUE_ROUTES = new Set(['claim-first','shared-db-orchestrator','self-service-additive','curated-master-data-governance','application-session','source-data-session','owner-only','repo-maintenance'])
 export const ROUTES_BY_WORK_TYPE = Object.freeze({
   // self-service-additive (#3199 Phase B2): structural work confined by the
   // merge-time boundary classifier to additive changes in {crm,pim,dam}. It is
   // a ROUTE, never a work type: NON_STRUCTURAL_EXITS is untouched and shape
   // work stays structural.
-  structural: new Set(['shared-db-orchestrator','self-service-additive']),
+  structural: new Set(['claim-first','shared-db-orchestrator','self-service-additive']),
   'curated-master-data': new Set(['curated-master-data-governance']),
   'application-data': new Set(['application-session']),
   'source-data': new Set(['source-data-session']),
@@ -1220,7 +1236,7 @@ export function buildDynamicQueues(issues, claims, now = new Date(), allOpenIssu
       selfServiceLane.push({ issue:issue.number, title:issue.title, workType:scope.workType, route:scope.route })
       continue
     }
-    if (scope.workType !== 'structural' || scope.route !== 'shared-db-orchestrator') {
+    if (scope.workType !== 'structural' || !CLAIM_FIRST_ROUTES.has(scope.route)) {
       skipped.push({ issue:issue.number, reason:'not-migration-author-work', workType:scope.workType, route:scope.route }); continue
     }
     // A closed author claim is the normal result of a merge. If its permanently
@@ -3077,8 +3093,13 @@ export const githubIo = {
     catch(error){output=String(error?.stdout??'');if(error?.code==='ETIMEDOUT'||error?.signal)return reconcilePreflightRows(output,reviewers,{complete:false})}
     return reconcilePreflightRows(output,reviewers)
   },
+  // The orchestrator role is retired (owner ruling 2026-10-02, issue #3874), so
+  // reviewer assignment no longer reads the orchestrator marker. Reviewer
+  // independence now follows the AUTHORING session's engine, declared in
+  // SHARED_DB_AUTHOR_ENGINE (e.g. claude, codex, glm, zcode). Unset, blank or
+  // unknown values refuse (fail closed); see authorEngineFromEnv.
   resolveOrchestratorEngine(){
-    return orchestratorEngineFromResolution(readOrchestratorResolution(()=>runOrchestratorResolver()))
+    return authorEngineFromEnv(process.env.SHARED_DB_AUTHOR_ENGINE)
   },
   orchestratorFlowAdapter(claimNumber,admissionOptions=null){ return githubFlowAdapter(this,claimNumber,admissionOptions) },
   flowSnapshot(now=new Date()){

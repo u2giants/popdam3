@@ -7,9 +7,9 @@
 > independent review, guarded merge, serial production lane). **Historical and NOT to be
 > followed:** §0.0-C's accept-and-dispatch and dispatch-waiting text, and ALL of §11b, §11c
 > and §11d (the role, marker routing, `check-orchestrator-marker.mjs --resolve`, starting as
-> or handing over to an orchestrator, queueing to wait for one). `route: shared-db-orchestrator`
-> survives only as the machine route value the lane tooling uses for structural work; it names
-> no session. Retiring that tooling dependency is open on #3874.
+> or handing over to an orchestrator, queueing to wait for one). New structural issues use
+> `route: claim-first`; `route: shared-db-orchestrator` is accepted only as a legacy alias and
+> names no session (#3874).
 
 > Moved verbatim from `AGENTS.md` by issue #3481 so that file stays a short router. Section numbers and headings are unchanged; a citation of "AGENTS.md §X" resolves here. Relative link targets were re-pointed from this folder; no rule text changed.
 
