@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3882,
+  "outcome": "ready-for-merge",
+  "pr": 3886,
+  "migration_versions": [
+    "20261002173317"
+  ],
+  "contract_ref": "refs/db-contracts/3882/2",
+  "contract_sha256": "2aac39161c6037db68a0887bd4d3a942a504166c177582ddc74a8e66d55ec60c",
+  "base_sha": "9299911e72ca293c99b491939c1279dcc770406b",
+  "head_sha": "558ff3d168a71b485d64b756bfff6cb4cdd23e6a",
+  "files_changed": [
+    ".github/live-proofs/3882.sql",
+    "supabase/migrations/20261002173317_dflow_cutover_fk_repoint_to_mapped_parents.sql"
+  ],
+  "db_reads": [
+    "table core.\"merchGroup\"",
+    "table core.\"licenseList\"",
+    "table plm.\"divisionCode\"",
+    "table plm.\"SeasonCode\"",
+    "table plm.\"itemHeader\""
+  ],
+  "db_writes": [
+    "table dflow.art_piece",
+    "table dflow.item_character_associations",
+    "table dflow.properties_and_characters",
+    "table dflow.property_character_associations"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "static checks passed at 558ff3d168a71b485d64b756bfff6cb4cdd23e6a"
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Live-proof probe present: .github/live-proofs/3882.sql."
+    }
+  ],
+  "assumptions_resolved": [
+    "live read 2026-10-02: 0 orphan rows against each new parent on production and preview",
+    "precondition block and probe executed read-only on production and preview 2026-10-02: precondition OK, probe passed=false before apply"
+  ],
+  "stop_conditions_hit": []
+}

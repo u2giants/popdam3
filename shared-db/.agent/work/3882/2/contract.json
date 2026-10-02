@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "work_issue": 3882,
+  "generation": 2,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Repoint 14 dflow foreign keys to the parents the DesignFlow Cloud SQL cutover loads (#3882 child 2), same names, columns and actions.",
+  "base_sha": "9299911e72ca293c99b491939c1279dcc770406b",
+  "dispatcher": "owner instruction 2026-10-02 (claim-first structural work); claim #3884; version superseded 20261002155049 -> 20261002173317 by the lane tool after #3887 landed. Published after the probe version-string commit b1224683, which changes no SQL.",
+  "worker": "Claude chat c0f64531-7679-436c-be2c-65c829d345dd on al8960ofc",
+  "branch": "fix/3882-fk-repoints",
+  "worktree": "C:/repos/shared-db-worktrees/fk-repoint-3882",
+  "allowed_paths": [
+    "supabase/migrations/20261002173317_dflow_cutover_fk_repoint_to_mapped_parents.sql",
+    ".github/live-proofs/3882.sql",
+    ".agent/work/3882/2/contract.json",
+    ".agent/work/3882/2/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261002173317_dflow_cutover_fk_repoint_to_mapped_parents.sql",
+    ".github/live-proofs/3882.sql",
+    ".agent/work/3882/2/contract.json",
+    ".agent/work/3882/2/completion.json"
+  ],
+  "db_reads": [
+    "table core.\"merchGroup\"",
+    "table core.\"licenseList\"",
+    "table plm.\"divisionCode\"",
+    "table plm.\"SeasonCode\"",
+    "table plm.\"itemHeader\""
+  ],
+  "db_writes": [
+    "table dflow.art_piece",
+    "table dflow.item_character_associations",
+    "table dflow.properties_and_characters",
+    "table dflow.property_character_associations"
+  ],
+  "prohibited_actions": [
+    "do not change columns, types or rows",
+    "do not touch plm.art_piece_attachment or app.\"RolePermissions\" (PR #3391)",
+    "do not edit any applied migration"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node scripts/check-live-proof-probe.mjs"
+  ],
+  "assumptions": [
+    "zero existing child rows orphan against the new parents (live read 2026-10-02, production and preview)",
+    "claim #3884 locks the four dflow tables"
+  ],
+  "stop_conditions": [
+    "stop if any current FK definition differs from the design",
+    "stop if the change would need a file outside allowed_paths"
+  ],
+  "evidence_parent": {
+    "work_issue": 3882,
+    "generation": 1,
+    "contract_sha256": "e100860297ee4d12492f6db65e67dfbbdfc14cda9dbc5a2200eaa0a37395307d"
+  }
+}
