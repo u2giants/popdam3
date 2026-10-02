@@ -40,7 +40,7 @@ export function validateErpClassification(value: Record<string, unknown>) {
 let cachedClassModel: string | null = null;
 let classCacheExpires = 0;
 
-async function getClassificationModel(): Promise<string> {
+export async function getClassificationModel(): Promise<string> {
   if (cachedClassModel && Date.now() < classCacheExpires) return cachedClassModel;
   const client = db();
   const { data } = await client

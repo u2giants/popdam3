@@ -24,6 +24,7 @@ import { handleRelinkOrphanedAssets } from "./handlers/relink-orphaned.js";
 import { handlePropagateGroupTags } from "./handlers/tag-propagation.js";
 import { handleRefreshGroupMetadata } from "./handlers/group-metadata-refresh.js";
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handlers/erp.js";
+import { handleShortenItemDescriptions } from "./handlers/item-short-description.js";
 import { handleRichPdfExtract } from "./handlers/rich-pdf.js";
 import { handlePopSGFileTags, processPendingPopSGTags } from "./handlers/popsg-tags.js";
 import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
@@ -341,6 +342,7 @@ const OP_LANES: Record<string, string> = {
   "backfill-sku-names": "metadata",
   "erp-enrichment": "erp",
   "erp-classify": "erp",
+  "shorten-item-descriptions": "item-descriptions",
   "propagate-group-tags": "style-groups",
   "refresh-group-metadata": "style-groups",
   "cleanup-mega-group-tags": "style-groups",
@@ -459,6 +461,16 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         total: Math.max((prev.total as number) || 0, (batch.total as number) || 0),
         assets_updated: ((prev.assets_updated as number) || 0) + ((batch.assets_updated as number) || 0),
         groups_updated: ((prev.groups_updated as number) || 0) + ((batch.groups_updated as number) || 0),
+      };
+    case "shorten-item-descriptions":
+      return {
+        shortened: ((prev.shortened as number) || 0) + ((batch.shortened as number) || 0),
+        failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
+        scanned: ((prev.scanned as number) || 0) + ((batch.scanned as number) || 0),
+        failure_samples: [
+          ...(Array.isArray(prev.failure_samples) ? prev.failure_samples : []),
+          ...(Array.isArray(batch.failure_samples) ? batch.failure_samples : []),
+        ].slice(-100),
       };
     case "erp-classify":
       return {
@@ -655,6 +667,8 @@ export function buildResultMessage(opKey: string, progress: Record<string, unkno
       return `Reconciled counts for ${progress.counts_processed || 0} groups, primaries for ${progress.primaries_processed || 0} groups`;
     case "erp-enrichment":
       return `Enriched ${progress.assets_updated || 0} assets, ${progress.groups_updated || 0} groups`;
+    case "shorten-item-descriptions":
+      return `Shortened ${progress.shortened || 0} item descriptions. ${progress.failed || 0} failed.`;
     case "erp-classify":
       return `AI-classified ${progress.classified || 0} items (${progress.skipped_unclassifiable || 0} unclassifiable)`;
     case "propagate-group-tags":
@@ -724,6 +738,8 @@ export async function dispatch(opKey: string, opState: OpState): Promise<BatchRe
       return handleApplyErpEnrichment(opState);
     case "erp-classify":
       return handleClassifyErpCategories(opState);
+    case "shorten-item-descriptions":
+      return handleShortenItemDescriptions(opState);
     case "rich-pdf-extract":
       return handleRichPdfExtract(opState);
     case "tag-popsg-files":

@@ -187,6 +187,7 @@ function GalleryCard({
   const hue = skuHue(g.sku);
   const inits = initials(g);
   const subLine = [g.licensor_name, g.property_name].filter(Boolean).join(" · ") || null;
+  const cardDescription = g.item_short_description?.trim() || g.cover_description;
 
   return (
     <button
@@ -249,7 +250,7 @@ function GalleryCard({
             {subLine}
           </span>
         )}
-        {g.cover_description && (
+        {cardDescription && (
           <span
             style={{
               fontSize: 13,
@@ -259,7 +260,7 @@ function GalleryCard({
               whiteSpace: "nowrap",
             }}
           >
-            {g.cover_description}
+            {cardDescription}
           </span>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
