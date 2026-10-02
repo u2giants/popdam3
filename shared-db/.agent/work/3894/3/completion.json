@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 3894,
+  "outcome": "ready-for-merge",
+  "pr": 3896,
+  "migration_versions": [
+    "20261002183413"
+  ],
+  "contract_ref": "refs/db-contracts/3894/3",
+  "contract_sha256": "5e65793e7772671a3ebbc2fbd35623acfea4096928d08a09cfd5d4de30de4440",
+  "base_sha": "64a05014bf0326efcdcd65d4de1dd96692a7cd63",
+  "head_sha": "ddad2628d69846fbb44f9ca2236ca4f57c9fbffe",
+  "files_changed": [
+    ".github/live-proofs/3894.sql",
+    "supabase/migrations/20261002183413_studio_dcp_asset_do_not_use_reason.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "column plm.lucasfilm_dcp_asset.do_not_use_reason",
+    "column plm.marvel_dcp_asset.do_not_use_reason",
+    "column plm.twentieth_century_dcp_asset.do_not_use_reason",
+    "table plm.lucasfilm_dcp_asset",
+    "table plm.marvel_dcp_asset",
+    "table plm.twentieth_century_dcp_asset"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed for additive nullable column + non-whitespace check constraint"
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Live-proof probe present: .github/live-proofs/3894.sql."
+    }
+  ],
+  "assumptions_resolved": [
+    "nullable column with no default is metadata-only in Postgres; existing rows stay NULL (usable)"
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "work_issue": 3894,
+  "generation": 3,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Add nullable do_not_use_reason (non-blank check) to plm.lucasfilm_dcp_asset, plm.marvel_dcp_asset and plm.twentieth_century_dcp_asset so multi-licensor assets can be marked do-not-use.",
+  "base_sha": "64a05014bf0326efcdcd65d4de1dd96692a7cd63",
+  "dispatcher": "owner rule (Albert, chat 2026-10-02) via u2giants/licensor-source-data#104; claim #3895",
+  "worker": "Claude chat unknown on al8960ofc",
+  "branch": "lsd104-studio-asset-lifecycle",
+  "worktree": "C:/repos/shared-db-worktrees/issue104-studio-lifecycle",
+  "allowed_paths": [
+    "supabase/migrations/20261002183413_studio_dcp_asset_do_not_use_reason.sql",
+    ".github/live-proofs/3894.sql",
+    ".agent/work/3894/3/contract.json",
+    ".agent/work/3894/3/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261002183413_studio_dcp_asset_do_not_use_reason.sql",
+    ".github/live-proofs/3894.sql",
+    ".agent/work/3894/3/contract.json",
+    ".agent/work/3894/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "column plm.lucasfilm_dcp_asset.do_not_use_reason",
+    "column plm.marvel_dcp_asset.do_not_use_reason",
+    "column plm.twentieth_century_dcp_asset.do_not_use_reason",
+    "table plm.lucasfilm_dcp_asset",
+    "table plm.marvel_dcp_asset",
+    "table plm.twentieth_century_dcp_asset"
+  ],
+  "prohibited_actions": [
+    "do not backfill or change any row in the migration",
+    "do not change existing columns, keys, RLS or grants",
+    "do not delete rows"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node scripts/check-live-proof-probe.mjs"
+  ],
+  "assumptions": [
+    "a nullable column with no default is additive and needs no table rewrite",
+    "claim #3895 locks the three tables and the new columns"
+  ],
+  "stop_conditions": [
+    "stop if the change would rewrite or lock the tables for a long time",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ],
+  "evidence_parent": {
+    "work_issue": 3894,
+    "generation": 2,
+    "contract_sha256": "d93ebac9243d42beeb529de8abd69f9e34d93ece42c7bd3cafdec6f9cd061bdf"
+  }
+}
