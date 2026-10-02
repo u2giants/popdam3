@@ -96,6 +96,23 @@ export function foldWindowResult(summary, result) {
   return summary;
 }
 
+/**
+ * Read the object-assertion answer off queryRows' row list WITHOUT destructuring
+ * the row away (round-0 live finding, generation 14): the assertion's HEALTHY
+ * answer is an empty string, and psql prints an empty line for it, which
+ * queryRows filters out — so zero rows is the healthy shape here, exactly as
+ * the writer's identical pre-flight learned (order-intake-write.mjs, PR #3868:
+ * "never destructure the row away (an empty result would make the inner
+ * destructure read `undefined is not iterable` and refuse a healthy DB)").
+ * The old `const [[missingObjects]] = ...` form crashed the FIRST real run
+ * (preview, 2026-10-02) before any window was fetched — on a database where
+ * every required object was present.
+ */
+export function missingObjectsFromRows(rows) {
+  const [row] = Array.isArray(rows) ? rows : [];
+  return row?.[0] ?? "";
+}
+
 async function main() {
   const apiKey = process.env.COLDLION_API_KEY;
   if (!apiKey) {
@@ -110,8 +127,8 @@ async function main() {
   // constraints, and a load into a database missing them is a load into nothing
   // (round-2 review M-1). Read-only, refused before the first window.
   if (!options.dryRun) {
-    const [[missingObjects]] = queryRows(buildIntakeObjectAssertionSql(), {});
-    if (missingObjects && missingObjects.trim()) {
+    const missingObjects = missingObjectsFromRows(queryRows(buildIntakeObjectAssertionSql(), {}));
+    if (missingObjects.trim()) {
       console.error(`refusing to poll: required database objects are missing: ${missingObjects}`);
       process.exit(2);
     }

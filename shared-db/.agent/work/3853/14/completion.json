@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "work_issue": 3853,
+  "outcome": "ready-for-merge",
+  "pr": 3905,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3853/14",
+  "contract_sha256": "4336373439c38c5f508c2ced2930d9ac32b2605cbde0320e9956aef242a8b932",
+  "head_sha": "93a70587b2f0b9eafbbbbb49f895d6a0224277eb",
+  "base_sha": "d6b087b218b9d0deb53ff7a164fc7b7a0465870d",
+  "files_changed": [
+    "tools/coldlion-landing/order-intake.mjs",
+    "tools/coldlion-order-intake-entry.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed (issue #1235 expected-count guard, verify-cost guard, #1684 EOL reference guard; 0 added migrations) — exit 0 at the implementation head 93a70587b2f0b9eafbbbbb49f895d6a0224277eb."
+    },
+    {
+      "command": "node --test tools/coldlion-order-intake-*.test.mjs",
+      "exit_code": 0,
+      "evidence": "64/64 pass at the implementation head (generation-13 main is 63/63; the new entry-suite pin adds one). The pin: missingObjectsFromRows treats zero rows, an empty row, and undefined as 'nothing missing' and never throws — the exact destructuring that crashed the first real run."
+    },
+    {
+      "command": "node --test tools/*.test.mjs in a clean clone (the edge-dev machine's shared .git/info/exclude trips tools/gitignore-tracked-contradiction.test.mjs in every local worktree; the clean clone runs exactly what CI runs)",
+      "exit_code": 0,
+      "evidence": "1018 tests, 1018 pass, 0 fail, exit 0 — run in a clean local clone (fresh clone of popcre/shared-db pulled to main d6b087b218b9d0deb53ff7a164fc7b7a0465870d with only this generation's two files applied, i.e. exactly the implementation head's tree)."
+    },
+    {
+      "command": "live preview proof (recorded in the completion, run before publication of the impl commit from the fixed entry point against the shared preview database, read-only verification after): the real-run pre-flight passes on a healthy preview and the run proceeds past the object assertion",
+      "exit_code": 0,
+      "evidence": "Discovery evidence (pre-contract, byte-identical entry-point edits): 11:24 AM EDT a real --limit 1 run from main+gen-13 code crashed 'undefined is not iterable' in 0.7s with NO sync_run row (read-only check: 0 intake runs in the preceding 40 minutes); 11:28 AM EDT the fixed entry point passed the pre-flight and failed on main's then-unmerged stage terminator, recording failed sync_run 804f83c0-6fd3-4501-bab2-7e45b97ee4e8 (syntax error at the transaction end). Post-impl-commit proof at THIS exact head (93a70587, gen-13 fix now in-tree): the full ladder rung 2 ran end-to-end against preview — intake --limit 5 exit 0 (trailing window 2026-09-08..2026-09-14, fetched=121, lines+11/~0, components+11/~0, 5 NEW orders 7127517,7127522,7127677,7127678,7127917; decode zero_so=0 new_unknown_codes=0 quarantined=0 decoded=6); writer --write --limit 5 exit 0 (ordersCreated=5 ordersQuarantined=0 ordersLeftPending=0 headers+5/~0 lines+5/~0); read-only verification: sync_run 59a4b4b0-fd04-4b5c-a147-507c2f94404d succeeded (window 2026-09-08..2026-09-14, rows_fetched=121, rows_inserted=22, 13:38:29.608-13:38:34.066 EDT) and 6bc92349-da7a-4f81-a71f-738e858b1b8f succeeded (rows_inserted=10, 13:38:44.696 EDT); canonical placeholders COLDLION-SO-7127517/7127522/7127677/7127678/7127917 created 13:38:44 EDT with their coldlion:so-header:<so> source refs; coldlion.intake_quarantine = 0 rows."
+    }
+  ],
+  "assumptions_resolved": [
+    "The defect and its fix mirror the C2 writer's own pre-flight lesson verbatim (order-intake-write.mjs, PR #3868): queryRows drops empty lines, the object assertion's healthy answer IS an empty line, so zero rows is the healthy shape — 'never destructure the row away'. The old `const [[missingObjects]] = ...` form refused a healthy database.",
+    "CARRIED FORWARD from generation 13's completion, unchanged and still open for the next owner: the writer's terminator (order-intake-write.mjs:642) and the decode twin (order-intake-decode.mjs:122) are correctly TERMINATED today but UNPINNED — deleting either ';' leaves every suite green (round-0/round-1 mutation evidence). Both test files remain outside this generation's allowed paths.",
+    "CARRIED FORWARD from generation 13's completion for the Phase D dispatch owner: L-2 (EXPLAIN the LIKE-prefix novelty probe on the real database at/after the first real dispatch; no text_pattern_ops index exists, collation unasserted) and L-3 (the stager's pre-flight omits its own conflict targets and written columns; fail-loud, widening is behavior change).",
+    "The staged dispatch ladder continues after this change lands: rung 3 (ONE bounded production dispatch of coldlion-order-intake.yml on main) is this session's next step, run from MERGED main; this code change dispatches nothing and enables no cron.",
+    "The repo-wide node --test tools/*.test.mjs check runs in a clean local clone at the implementation head because the edge-dev machine's shared .git/info/exclude trips tools/gitignore-tracked-contradiction.test.mjs in every worktree of this repository on this machine.",
+    "Base is GitHub main d6b087b218b9d0deb53ff7a164fc7b7a0465870d (merge of PR #3878); the branch was cut from it directly, so the merge base equals it."
+  ],
+  "stop_conditions_hit": []
+}

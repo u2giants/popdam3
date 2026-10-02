@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "work_issue": 3853,
+  "generation": 14,
+  "evidence_parent": {
+    "work_issue": 3853,
+    "generation": 13,
+    "contract_sha256": "65f6176c35b64d4f2542f395969c8f3562fcfce36ea3d15e63f79ac8026ee612"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Generation 14 fixes the SECOND live blocker in the ColdLion order-intake entry point, found while executing the staged dispatch ladder's rung 2 (preview) minutes after generation 13 merged: order-intake.mjs's real-run pre-flight destructured the object-assertion read as `const [[missingObjects]] = queryRows(buildIntakeObjectAssertionSql(), {})` — but the assertion's HEALTHY answer is an empty string, psql prints an empty line for it, and queryRows filters empty lines out, so zero rows is the healthy shape. The inner destructure then reads `undefined is not iterable` and main() dies (exit 1, no window fetched, no sync_run row) on exactly a healthy database. LIVE EVIDENCE on the shared preview database, 2026-10-02: (1) 11:24 AM EDT — a real `--limit 1` run from main+gen-13 code crashed with exactly `undefined is not iterable (cannot read property Symbol(Symbol.iterator))` after 0.7s, and preview recorded NO sync_run row (verified read-only: 0 intake runs in the preceding 40 minutes); (2) 11:28 AM EDT — the same run from THIS generation's fixed entry point passed the object assertion, fetched the window, and then failed on main's then-unfixed stage terminator — the failed sync_run row 804f83c0-6fd3-4501-bab2-7e45b97ee4e8 was recorded (error_message: syntax error at or near the transaction end), simultaneously proving live: the entry fix unblocks the pre-flight, the gen-13 terminator fix was required (that failure was BEFORE gen-13 merged), and the failure recorder works. The fix mirrors the C2 writer's own pre-flight pattern verbatim (order-intake-write.mjs, PR #3868: 'queryRows drops empty lines, so ZERO rows is the healthy shape here — never destructure the row away'), extracted as an exported helper `missingObjectsFromRows(rows)` and pinned in the entry suite (zero rows / empty row / undefined all read as 'nothing missing', never throw). Also CARRIES generation 13's recorded remainder forward per its completion: the writer's terminator (order-intake-write.mjs:642) and the decode twin (order-intake-decode.mjs:122) are unpinned against mutation (deleting either ';' leaves every suite green); both stay out of this generation's allowed paths exactly as generation 13 recorded, for the next owner. This generation is code-only; the dispatch ladder continues after it lands.",
+  "base_sha": "d6b087b218b9d0deb53ff7a164fc7b7a0465870d",
+  "dispatcher": "ZCode chat unknown on edge-dev (dispatch-ladder session, issue #3853)",
+  "worker": "ZCode chat unknown on edge-dev",
+  "branch": "coldlion-intake-entry-fix",
+  "worktree": "C:/repos/shared-db/.ai/worktrees/coldlion-intake-entryfix",
+  "allowed_paths": [
+    "tools/coldlion-landing/order-intake.mjs",
+    "tools/coldlion-order-intake-entry.test.mjs",
+    ".agent/work/3853/14/contract.json",
+    ".agent/work/3853/14/completion.json"
+  ],
+  "file_writes": [
+    "tools/coldlion-landing/order-intake.mjs",
+    "tools/coldlion-order-intake-entry.test.mjs",
+    ".agent/work/3853/14/contract.json",
+    ".agent/work/3853/14/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration file and no database structure change of any kind: non-orchestrator tools-code work only",
+    "Never enable the workflow cron and never dispatch coldlion-order-intake.yml in this generation: the staged dispatch ladder (rung 2 preview stage + rung 3 ONE bounded production dispatch) runs from merged main AFTER this change lands, owned by this session's ladder, not by this code change",
+    "Never start the F1 sample-week proof",
+    "No behavior change beyond the safe pre-flight consumption: the object-assertion SQL, the refusal message text, and every other code path are untouched; a database with genuinely missing objects still refuses verbatim",
+    "Do not pin the writer's or the decoder's terminators here (their test files are outside allowed_paths; both gaps stay recorded for the next owner per generation 13's completion)",
+    "Only the two code files and this evidence pair may be committed"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node --test tools/coldlion-order-intake-*.test.mjs",
+    "node --test tools/*.test.mjs in a clean clone (the edge-dev machine's shared .git/info/exclude trips tools/gitignore-tracked-contradiction.test.mjs in every local worktree; the clean clone runs exactly what CI runs)",
+    "live preview proof (recorded in the completion, run before publication of the impl commit from the fixed entry point against the shared preview database, read-only verification after): the real-run pre-flight passes on a healthy preview and the run proceeds past the object assertion"
+  ],
+  "assumptions": [
+    "db_reads/db_writes stay empty because the repo-maintenance contract type demands it; the preview-database contact is recorded truthfully as a required check, in the goal, and in the completion evidence instead",
+    "The preview live evidence (11:24 and 11:28 AM EDT runs, sync_run 804f83c0) predates this contract's publication because the defect was DISCOVERED by executing the plan's own rung-2 gate; the contract is published before this generation's implementation commit, and the discovery runs touched no repository files",
+    "Base is GitHub main d6b087b218b9d0deb53ff7a164fc7b7a0465870d (merge of PR #3878); if main advances mid-flight the branch is refreshed at a fresh merge-base with re-derived files_changed per the generation rules, never amended after a completion report names a head"
+  ],
+  "stop_conditions": [
+    "Stop and report if check-sql.sh or any offline intake test fails at the implementation head",
+    "Stop if the fixed entry point still fails the pre-flight on a healthy preview database",
+    "Stop on any coordination-mutex, contract-lineage, or guarded-lane refusal this session cannot resolve with evidence"
+  ]
+}

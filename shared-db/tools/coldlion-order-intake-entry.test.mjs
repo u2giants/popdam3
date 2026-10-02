@@ -11,7 +11,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { foldWindowResult, stagedRowCount, parseArgs } from "./coldlion-landing/order-intake.mjs";
+import { foldWindowResult, stagedRowCount, parseArgs, missingObjectsFromRows } from "./coldlion-landing/order-intake.mjs";
 
 // Exactly the shape stageIntakeWindow returns on a live window
 // (lib/order-intake-run.mjs: parseStageSummary keys + the wrapper fields).
@@ -102,4 +102,20 @@ test("importing the entry point does not run the poll (round-4 L-4 pin: main() o
   // free: reaching this line proves the module did not call main() (which
   // would exit 2 here — no COLDLION_API_KEY in the test environment).
   assert.ok(true);
+});
+
+test("missingObjectsFromRows treats ZERO rows as the healthy shape — the destructuring that crashed the first real run (generation-14 pin)", () => {
+  // The object assertion's healthy answer is an empty string; psql prints an
+  // empty line for it; queryRows filters empty lines out. The old
+  // `const [[missingObjects]] = queryRows(...)` form read `undefined is not
+  // iterable` on exactly that healthy shape and crashed the first real run
+  // (preview, 2026-10-02) before any window was fetched — on a database where
+  // every required object was present. Zero rows must read as "nothing
+  // missing" and never throw; the writer's pre-flight learned the same lesson
+  // (order-intake-write.mjs, PR #3868: "never destructure the row away").
+  assert.equal(missingObjectsFromRows([]), "");
+  assert.equal(missingObjectsFromRows([[]]), "");
+  assert.equal(missingObjectsFromRows([["coldlion.intake_quarantine"]]), "coldlion.intake_quarantine");
+  assert.equal(missingObjectsFromRows([["a", "ignored"]]), "a");
+  assert.equal(missingObjectsFromRows(undefined), "");
 });
