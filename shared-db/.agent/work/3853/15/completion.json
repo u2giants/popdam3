@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 3853,
+  "outcome": "ready-for-merge",
+  "pr": 3909,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3853/15",
+  "contract_sha256": "aeded5ee1d5307c546112d2d9255418a127fcedb21e92203959b843eb7266c4e",
+  "head_sha": "7f31525f3224939ac65219de6709198fc261e784",
+  "base_sha": "64a05014bf0326efcdcd65d4de1dd96692a7cd63",
+  "files_changed": [
+    ".github/workflows/coldlion-order-intake.yml",
+    "tools/coldlion-order-intake-workflow.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed (verify-cost guard: 0 added migrations; #1684 EOL reference guard: no new dependency) — exit 0 at the implementation head 7f31525f3224939ac65219de6709198fc261e784."
+    },
+    {
+      "command": "node --test tools/coldlion-order-intake-*.test.mjs",
+      "exit_code": 0,
+      "evidence": "67/67 pass at the implementation head (main is 64/64; the new workflow-shape suite adds 3). The pins: the writer step is skipped when github.event.inputs.dry_run or claim_only is 'true' and runs order-intake-write.mjs with ARGS=(--write) only otherwise; it sits after 'Stage, detect, and decode' with the declared-target env block, --limit \"$LIMIT\" pass-through, and $GITHUB_STEP_SUMMARY; no pull_request/push trigger and no active schedule exist in the workflow."
+    },
+    {
+      "command": "node --test tools/*.test.mjs in a clean clone (the edge-dev machine's shared .git/info/exclude trips tools/gitignore-tracked-contradiction.test.mjs in every local worktree; the clean clone and CI run exactly this glob)",
+      "exit_code": 0,
+      "evidence": "1021 tests, 1021 pass, 0 fail, exit 0 — run in a clean local clone checked out at exactly the implementation head 7f31525f3224939ac65219de6709198fc261e784 (gen 14's clean clone was 1018; the 3 new workflow-shape tests account for the difference)."
+    }
+  ],
+  "assumptions_resolved": [
+    "The writer CLI's flag vocabulary is exactly --write / --limit <n> / --order <so> (order-intake-write.mjs parseArgs, verified by reading the script at base 64a05014): no new workflow input was needed, and the step passes --write plus --limit from the existing limit input only.",
+    "github.event.inputs.dry_run/claim_only arrive as the strings 'true'/'false' for boolean dispatch inputs, so the step-level if compares against those strings — the exact convention the decode step's env plumbing already uses in this workflow.",
+    "Failure alerting and sync_run reporting were verified rather than rebuilt: order-intake-write.mjs's catch runs the SIBLING failure recorder (buildWriteFailureSql: failed sync_run row + alert, no window_ledger write) only when --write was passed and the fault is not a client-side spawn fault, and its summary line goes to stdout, which the step tees into $GITHUB_STEP_SUMMARY.",
+    "The D1 bad-key alert-path proof on preview and the ONE bounded production dispatch (limit=5, claim_only=false, dry_run=false) happen from merged main after this PR lands, under the session's own gates, and are recorded as issue evidence — not in this PR.",
+    "CARRIED FORWARD from generation 14's completion, unchanged and still open for the next owner: the writer's terminator (order-intake-write.mjs:642) and the decode twin (order-intake-decode.mjs:122) are correctly TERMINATED today but UNPINNED against mutation; L-2 (EXPLAIN the LIKE-prefix novelty probe on the real database at/after the first real dispatch) and L-3 (the stager's pre-flight omits its own conflict targets and written columns) — L-2 is discharged by the Phase D dispatch owner after the production dispatch if the lane's rules allow a read-only EXPLAIN, else carried.",
+    "Base is GitHub main 64a05014bf0326efcdcd65d4de1dd96692a7cd63 (merge commit of docs PR #3906); the branch was cut from it directly, so the merge base equals it."
+  ],
+  "stop_conditions_hit": []
+}

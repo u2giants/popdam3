@@ -1,0 +1,58 @@
+{
+  "schema_version": 2,
+  "work_issue": 3853,
+  "generation": 15,
+  "evidence_parent": {
+    "generation": 14,
+    "work_issue": 3853,
+    "contract_sha256": "4336373439c38c5f508c2ced2930d9ac32b2605cbde0320e9956aef242a8b932"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Generation 15 completes plan_coldlion_order_intake.md Phase D (D1) for the ColdLion automatic order intake: add the CANONICAL WRITER step to .github/workflows/coldlion-order-intake.yml, exactly where the workflow's own in-file comment reserved it ('Phase C2 adds the writer step here'). The writer script itself landed and is live-proven on preview (order-intake-write.mjs, PR #3868); the staged dispatch ladder's production run 37046307914 (2:16 PM EDT 2026-10-02) staged + decoded 5 orders but minted ZERO production placeholders because main has no writer step. This change runs node tools/coldlion-landing/order-intake-write.mjs with --write in the same job as the step AFTER 'Stage, detect, and decode' (a writer failure can never block staging), SKIPPED when the dispatch's dry_run or claim_only input is true, carrying the same declared-target env block (DATABASE_URL / COLDLION_EXPECTED_PROJECT_REF / COLDLION_API_KEY), the same --limit semantics the writer CLI honors, and piping its summary to $GITHUB_STEP_SUMMARY; reporting to coldlion.sync_run notes and failure alerting through the already-landed SIBLING failure recorder stay inside the writer (verified, not rebuilt). No new triggers and no new inputs; the cron trigger STAYS commented out (schedule enablement belongs to Phase F after the sample-week proof). Stale header/input-description text that said the writer 'is NOT built yet' is updated to the landed reality. A new offline workflow-shape suite tools/coldlion-order-intake-workflow.test.mjs (the coldlion-alert-monitor-workflow.test.mjs house pattern) pins the gating: skip on dry_run/claim_only, --write only otherwise, position after decode, env block, limit, summary, no pull_request/push triggers, schedule stays disabled — and it matches the coldlion-order-intake-*.test.mjs glob the workflow itself runs before touching anything, so every dispatch re-proves its own gating.",
+  "base_sha": "64a05014bf0326efcdcd65d4de1dd96692a7cd63",
+  "dispatcher": "ZCode chat unknown on edge-dev (Phase-D completion dispatch, issue #3853)",
+  "worker": "ZCode chat unknown on edge-dev",
+  "branch": "coldlion-intake-d",
+  "worktree": "C:/repos/shared-db/.ai/worktrees/coldlion-intake-d",
+  "allowed_paths": [
+    ".github/workflows/coldlion-order-intake.yml",
+    "tools/coldlion-order-intake-workflow.test.mjs",
+    ".agent/work/3853/15/contract.json",
+    ".agent/work/3853/15/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/coldlion-order-intake.yml",
+    "tools/coldlion-order-intake-workflow.test.mjs",
+    ".agent/work/3853/15/contract.json",
+    ".agent/work/3853/15/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration file and no database structure change of any kind: non-orchestrator tools-code work only",
+    "Never enable the workflow cron and never add an active schedule trigger: the trigger block stays commented until Phase F's sample-week live proof passes (plan B0)",
+    "Never add a pull_request or push trigger, and never add a workflow input: the three existing inputs (limit, claim_only, dry_run) already cover the writer's CLI vocabulary (--write, --limit)",
+    "Never dispatch coldlion-order-intake.yml from this code change or its PR: the ONE bounded production dispatch (limit=5, claim_only=false, dry_run=false) runs from merged main after this lands, owned by this session's ladder under its own production gate",
+    "Never start the F1 sample-week proof",
+    "Never rebuild writer reporting or failure alerting: sync_run notes and the SIBLING failure recorder already live in order-intake-write.mjs (PR #3868) and are only verified here",
+    "Do not pin the writer's or the decoder's transaction terminators here (order-intake-write.mjs / order-intake-decode.mjs are outside allowed_paths; the gap stays recorded for the next owner per generation 13's and 14's completions)",
+    "Only the workflow file, the new workflow-shape test, and this evidence pair may be committed"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node --test tools/coldlion-order-intake-*.test.mjs",
+    "node --test tools/*.test.mjs in a clean clone (the edge-dev machine's shared .git/info/exclude trips tools/gitignore-tracked-contradiction.test.mjs in every local worktree; the clean clone and CI run exactly this glob)"
+  ],
+  "assumptions": [
+    "db_reads/db_writes stay empty because the repo-maintenance contract type demands it; the preview alert-path proof (D1 bad-key gate) and the ONE bounded production dispatch happen after merge from main, under the session's own gates, and are recorded as issue evidence rather than in this PR",
+    "Base is GitHub main 64a05014bf0326efcdcd65d4de1dd96692a7cd63 (merge commit of docs PR #3906); if main advances mid-flight the branch is refreshed at a fresh merge-base with re-derived files_changed per the generation rules, never amended after a completion report names a head",
+    "The writer CLI's flag vocabulary is exactly --write / --limit <n> / --order <so> (order-intake-write.mjs parseArgs); --limit is passed through the dispatch's existing limit input, so no new input is required",
+    "github.event.inputs.dry_run/claim_only are the strings 'true'/'false' at dispatch time, so the step-level if compares against those strings exactly as the decode step's env plumbing already does"
+  ],
+  "stop_conditions": [
+    "Stop and report if check-sql.sh or any offline intake test fails at the implementation head",
+    "Stop on any coordination-mutex, contract-lineage, or guarded-lane refusal this session cannot resolve with evidence",
+    "Stop if the governed review cannot reach two non-GLM APPROVE verdicts at the exact implementation head after the batch-fix rounds the lane allows"
+  ]
+}
