@@ -1,0 +1,65 @@
+{
+  "allowed_paths": [
+    "supabase/migrations/20261002204050_pdf_rich_extraction_follows_asset_group.sql",
+    ".github/live-proofs/3911.sql",
+    "supabase/tests/pdf_rich_extraction_follows_asset_group_contracts.sql",
+    ".agent/work/3911/5/contract.json",
+    ".agent/work/3911/5/completion.json",
+    ".agent/work/3911/4/contract.json",
+    ".agent/work/3911/4/completion.json"
+  ],
+  "assumptions": [
+    "Generation 5 answers DeepSeek REVISE on 083714ce: fixes the probe's tgattr comparison (int2vector casts to a 0-based array, so plain array equality was always false; verified read-only on production), asserts tgattr in the CI test too, makes the migration re-runnable, documents whole-group rollup cost and the RLS privilege boundary",
+    "Generation 5 is published before its implementation commit"
+  ],
+  "base_sha": "56a747cc90d635d7aeea76f9d8be0bae99775351",
+  "branch": "claude/rich-extraction-follow-group",
+  "db_reads": [
+    "function public.refresh_dam_search_style_group_document",
+    "function public.refresh_style_group_rich_metadata",
+    "table dam.pdf_rich_extraction"
+  ],
+  "db_writes": [
+    "function dam.rollup_moved_pdf_rich_extraction_groups",
+    "function dam.sync_pdf_rich_extraction_style_group",
+    "table public.assets",
+    "trigger trg_assets_rollup_pdf_rich_extraction_groups on public.assets",
+    "trigger trg_assets_sync_pdf_rich_extraction_group on public.assets"
+  ],
+  "dispatcher": "PopDAM coordinator session (Albert's chat) via u2giants/popdam3 rich-metadata restore; claim #3912",
+  "evidence_parent": {
+    "contract_sha256": "b635ce2359eac928c06ab69ddb0a82bde76c8a9026f814d868f57941817d739f",
+    "generation": 4,
+    "work_issue": 3911
+  },
+  "file_writes": [
+    "supabase/migrations/20261002204050_pdf_rich_extraction_follows_asset_group.sql",
+    ".github/live-proofs/3911.sql",
+    "supabase/tests/pdf_rich_extraction_follows_asset_group_contracts.sql",
+    ".agent/work/3911/5/contract.json",
+    ".agent/work/3911/5/completion.json",
+    ".agent/work/3911/4/contract.json",
+    ".agent/work/3911/4/completion.json"
+  ],
+  "generation": 5,
+  "goal": "Make dam.pdf_rich_extraction rows follow their asset to its current style group (trigger on public.assets) so a regroup cannot orphan spec-sheet data again.",
+  "prohibited_actions": [
+    "no data statement in the migration",
+    "do not change existing functions, columns, RLS or grants",
+    "no manual production command"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "supabase/tests against an ephemeral database (CI)"
+  ],
+  "route": "shared-db-orchestrator",
+  "schema_version": 2,
+  "stop_conditions": [
+    "stop if the trigger would roll up a group more than once per statement",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ],
+  "work_issue": 3911,
+  "work_type": "structural",
+  "worker": "Claude chat d2375ee0-fcd9-47b0-9008-da311f11c552 on hetz",
+  "worktree": "/worksp/shared-db/.wt-rich-follow"
+}

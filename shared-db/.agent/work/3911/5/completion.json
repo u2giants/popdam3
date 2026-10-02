@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3911,
+  "outcome": "ready-for-merge",
+  "pr": 3913,
+  "migration_versions": [
+    "20261002204050"
+  ],
+  "contract_ref": "refs/db-contracts/3911/5",
+  "contract_sha256": "f7b8f142a151b4c53281cd3cf434be54f76bb9eaaabd7ef2fe4e3105b7b69077",
+  "head_sha": "c9e3dee1b6df75699b5b67db1daa0689a4998c43",
+  "base_sha": "56a747cc90d635d7aeea76f9d8be0bae99775351",
+  "files_changed": [
+    ".github/live-proofs/3911.sql",
+    "supabase/migrations/20261002204050_pdf_rich_extraction_follows_asset_group.sql",
+    "supabase/tests/pdf_rich_extraction_follows_asset_group_contracts.sql"
+  ],
+  "db_reads": [
+    "function public.refresh_dam_search_style_group_document",
+    "function public.refresh_style_group_rich_metadata",
+    "table dam.pdf_rich_extraction"
+  ],
+  "db_writes": [
+    "function dam.rollup_moved_pdf_rich_extraction_groups",
+    "function dam.sync_pdf_rich_extraction_style_group",
+    "table public.assets",
+    "trigger trg_assets_rollup_pdf_rich_extraction_groups on public.assets",
+    "trigger trg_assets_sync_pdf_rich_extraction_group on public.assets"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at c9e3dee1b6df75699b5b67db1daa0689a4998c43."
+    },
+    {
+      "command": "supabase/tests against an ephemeral database (CI)",
+      "exit_code": 0,
+      "evidence": "behavioural test pdf_rich_extraction_follows_asset_group_contracts.sql runs in the PR's ephemeral-database check at c9e3dee1b6df75699b5b67db1daa0689a4998c43."
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 5 was published before implementation commit c9e3dee1b6df75699b5b67db1daa0689a4998c43.",
+    "Re-runnable DDL (OR REPLACE / DROP IF EXISTS) was deliberately NOT adopted: plain CREATE keeps the migration purely additive for the production risk gate; the header explains this."
+  ],
+  "stop_conditions_hit": []
+}
