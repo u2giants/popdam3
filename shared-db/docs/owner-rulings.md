@@ -2072,3 +2072,19 @@ authorization`) proves the exact base/head inventory is pure prose and the heavy
 short-circuit under their unchanged check names. Anything not positively proven prose — code,
 tests, scripts, workflows, config, `.json`/`.yml`/`.sql`, and agent rulebooks such as `AGENTS.md`
 or skills — takes the full engineering path. `enforce_admins` stays on.
+
+### 6.25 OWNER RULING — AI sessions launch the merged-preview run that starts automatic promotion (Albert Hazan, 2026-10-02)
+
+Verbatim from Albert's chat (2026-10-02): "let AI launch it and remove that rule permanently."
+
+Guarded merge does not start the merged-main preview rehearsal, and the automatic production
+promotion only starts from that run. The earlier standing rule barred any "session-made workflow
+dispatch", so an approved, merged change could sit unpromoted. That bar is removed permanently
+(popcre/ai-devops#1255). Any AI session may, for an approved and merged change, run
+`ai-task-gates check --before shared-db-promotion` in this checkout and then dispatch
+`shared-supabase-migrations.yml` on `main` with `target=preview`, `mode=apply` and
+`merged_preview_source_pr=<merged PR>`. Every gate the run and the production job apply is unchanged:
+exact-head durable verdict, guarded-merge status, single admitted work issue, preview evidence,
+the business-risk gate with the reviewer `production-risk-assessment` block (§6.23), the production
+lock, the fresh dry-run and post-apply verification. A refusal is fixed at its cause, never
+bypassed. This ruling authorizes no manual production dispatch or command.

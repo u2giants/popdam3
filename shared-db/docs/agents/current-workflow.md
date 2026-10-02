@@ -61,7 +61,9 @@ not authorize taking a live lock or discarding recoverable work.
 
 Automatic production policy is active for its existing qualified route. A
 successful qualifying merged-main preview can advance through the existing
-production workflow's independent checks. This does not authorize a session-made
+production workflow's independent checks. Any AI session may launch that merged-main
+preview run for an approved, merged change (owner ruling 2026-10-02, `docs/owner-rulings.md`
+§6.25). This does not authorize a session-made
 production dispatch, a new isolated-to-production trigger, or an unverified
 target. Re-prove the configured target immediately before every write. Resolve
 preview from `PREVIEW_PROJECT_REF`; historical project IDs are not authority.
