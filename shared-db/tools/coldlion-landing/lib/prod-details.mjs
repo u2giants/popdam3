@@ -202,6 +202,8 @@ function stageSql(rows) {
  * identity: prodLineSeq may repeat, so two real rows on one line number both land
  * under distinct pkeys and are never merged.
  */
+const ABSENT_STATE = "absent from current production detail response";
+
 export function buildProdDetailLoadSql({ run, rows }) {
   const keys = PROD_DETAIL_SPEC.key;
   // company_code is REQUEST-STAMPED, not a payload field, so it joins the column
@@ -221,6 +223,7 @@ export function buildProdDetailLoadSql({ run, rows }) {
     // first_seen_at is deliberately NOT updated: it is the row's first landing, forever.
     "last_seen_at = excluded.last_seen_at",
   ].join(",\n      ");
+  const orderScope = `d.company_code = ${sqlText(run.companyCode)} and d.prod_order_no = ${sqlNumber(run.requestParams.prodOrderNo)}`;
   const notes = `key=${run.requestParams.prodOrderNo} rowsFetched=${run.rowsFetched} zeroRow=${run.zeroRow ? 1 : 0}`;
 
   return `begin;
@@ -244,6 +247,25 @@ select 'prod_detail', ${naturalKey}, case when t.company_code is null then 'inse
        t.source_hash, s.source_hash, case when t.company_code is null then null else ${priorRaw} end, s.source_raw, s.run_id
   from _stage_prod_detail s left join coldlion.prod_detail t on ${join}
  where t.company_code is null or t.source_hash <> s.source_hash;
+
+-- Current-state semantics (#3180 requests fullSnapshot): a line this order's response
+-- no longer carries is removed, with change_log evidence of its last landed state —
+-- the same pattern as prepack_detail. Scoped to THIS order only, so no other order is
+-- ever touched. Without this, an order ColdLion emptied (24314, 2026-09-26) kept its
+-- old lines forever and the reconciliation failed every night after.
+insert into coldlion.change_log
+  (table_name, natural_key, change_kind, previous_source_hash, new_source_hash, previous_raw, new_raw, run_id)
+select 'prod_detail', jsonb_build_object('company_code', d.company_code, 'pkey', d.pkey),
+       'updated', d.source_hash, encode(extensions.digest('${ABSENT_STATE}','sha256'),'hex'),
+       (to_jsonb(d) - array['run_id','fetched_at','first_seen_at','last_seen_at']::text[]),
+       jsonb_build_object('_state','${ABSENT_STATE}'), ${sqlUuid(run.id)}
+  from coldlion.prod_detail d
+ where ${orderScope}
+   and not exists (select 1 from _stage_prod_detail s where s.company_code = d.company_code and s.pkey = d.pkey);
+
+delete from coldlion.prod_detail d
+ where ${orderScope}
+   and not exists (select 1 from _stage_prod_detail s where s.company_code = d.company_code and s.pkey = d.pkey);
 
 insert into coldlion.prod_detail (${all.join(", ")})
 select ${data.map((c) => `s.${c}`).join(", ")}, s.run_id, s.fetched_at, s.source_hash, s.fetched_at, s.fetched_at

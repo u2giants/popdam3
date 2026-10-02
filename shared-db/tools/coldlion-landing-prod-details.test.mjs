@@ -545,3 +545,11 @@ test("the scheduled refresh runs the prod-detail step after history and masters"
     "the refresh must see the orders the history step landed moments ago");
   assert.match(sync, /--mode refresh/);
 });
+
+test("a line the order's response no longer carries is removed with change_log evidence, scoped to that order", () => {
+  const sql = buildProdDetailLoadSql({ run: runFor({ rowsFetched: 0, zeroRow: true }), rows: [] });
+  assert.match(sql, /delete from coldlion\.prod_detail d\n where d\.company_code = '[^']+' and d\.prod_order_no = \d+\n   and not exists/);
+  assert.match(sql, /'_state','absent from current production detail response'/);
+  assert.ok(sql.indexOf("'_state'") < sql.indexOf("delete from coldlion.prod_detail"), "evidence is written before the delete");
+  assert.ok(sql.indexOf("delete from coldlion.prod_detail") < sql.indexOf("insert into coldlion.prod_detail"));
+});

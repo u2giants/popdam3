@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "work_issue": 3928,
+  "outcome": "ready-for-merge",
+  "pr": 3927,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3928/1",
+  "contract_sha256": "f540c3c90959229864a408b0008fd8f3a9439e97b7e8471a77923ab061809940",
+  "head_sha": "e992ba6bca037e13b0ae1e4c7b5e7d9e5e5f56c6",
+  "base_sha": "728042f8c36bc36c7aa06534cbaec5020b681737",
+  "files_changed": [
+    "tools/coldlion-landing-prod-details.test.mjs",
+    "tools/coldlion-landing/lib/prod-details.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test tools/coldlion-landing-prod-details.test.mjs",
+      "exit_code": 0,
+      "evidence": "Local run at e992ba6: 40 pass, 0 fail. New removal statements rehearsed against production in a rolled-back transaction: REHEARSAL remaining=0 evidence=8 total=17364 (= rowsFetchedTotal)."
+    }
+  ],
+  "assumptions_resolved": [
+    "Implementation drafted before the contract was published (disclosed in the contract); recommitted unchanged after publication.",
+    "Only order 24314 currently diverges (8 stale lines, 0 fetched since 2026-09-26)."
+  ],
+  "stop_conditions_hit": []
+}
