@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "work_issue": 3853,
+  "generation": 12,
+  "evidence_parent": {
+    "work_issue": 3853,
+    "generation": 11,
+    "contract_sha256": "b5073a11a0833546bcba59c38d820df3d2a3b6527b021a75ecb969da29a96843"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Generation 12 batches the round-3 slot-2 (deepseek-v4.1-flash) REVISE findings at 77d00c80f into one rebuilt head; slot 1 (gemini-3.8-flash-high) APPROVed that head. Round-3 #1 (pg_get_constraintdef rendering of the NULLS NOT DISTINCT uniques unconfirmed): CLOSED WITH LIVE EVIDENCE the reviewer could not reach (no DB in the sandbox) — pg_get_constraintdef returns 'UNIQUE NULLS NOT DISTINCT (sales_order_no, sales_order_line_no, master_item_no, line_source_hash)' and the component twin verbatim, captured live on preview, and the preview gate already passed the pre-flight with exactly these strings (a wrong rendering would have refused every run, which did not happen). #2 (company_source_ref.company_id vs erp_customer.customer_id id-space): CLOSED WITH FILE EVIDENCE — core.company_source_ref.company_id references core.customer(id) (20260621150815:126-128) and plm.erp_customer.customer_id references core.customer(id) (20260715234500:43), the SAME id space, and the preview gate resolved both lookups in agreement (153 agreeing rows on preview; the synthetic order resolved). #3 (columns existence-only): typed entries now pin information_schema.data_type (assortment_component_ordinal integer, quantity_ordered/case_pack numeric, start_ship_date/cancel_date date, metadata jsonb, uuid/boolean/text keys). #4 (triggers name-only): WRITE_REQUIRED_TRIGGERS now carries the exact pg_get_triggerdef text (CREATE TRIGGER set_updated_at BEFORE UPDATE ... FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()) and the assertion also requires tgenabled='O'. #5 (column list incomplete): the list now covers every column the module writes (state_changed_at added) plus every column it reads — the staging read columns derive from the Phase B INTAKE_LINE_SPEC/INTAKE_COMPONENT_SPEC (single source of truth, imported) and the lookup columns (routing_code_map order_type/ship_to, erp_customer active/customer_id, company_source_ref keys, item_detail carton_qty/item_pkey, intake_new_order sales_order_no/warehouse_code). #9: line_updates now corrects line_number with the rest (a drifted value cannot persist against a source_id that encodes the line number). #10: a run WITHOUT --write records NOTHING anywhere — the failure recorder is write-mode only. #11: plan STATUS row E counts corrected to the actual 61/61 → now 62/62 claim 24 with this generation's new pins. #12: the review brief's scope line now names all seven diff paths. DECLINED with reasons: #6 (the second-tier DISTINCT ON and the ordinalled window sort in memory over per-order sets already narrowed by the winner indexes — conceded in-code, bounded, not an unindexed scan of a growing table; the migration's 'never forces a second sort' comment is tier-one-scoped) and #8 (SQL [[:space:]] vs JS trim differs only on characters that cannot reach the SQL: values.mjs text() already JS-trims every staged value, and the normalization is metadata-only). Preview gate re-proven at THIS head on preview mvpkijzfmfcxhnzqogzs: the strengthened shape-level object assertion answers missing_objects='' live (every asserted constraint, index, trigger, and typed column exists with the exact expected definitions); the re-pend gate re-claimed synthetic order 998877002 through the UPDATE path with headers+0/~0 lines+0/~0 and a byte-identical max(updated_at) fingerprint (09:38:57.338646-04 unchanged) — the strongest second-run no-op proof; and a --write-less dry run rolled back leaving state pending and recording nothing new. Cron stays disabled; no dispatch started.",
+  "base_sha": "4191faccf94a8e425f4898d5659fafdf179eb45e",
+  "dispatcher": "ZCode chat unknown on edge-dev (C2 implementation session, issue #3853)",
+  "worker": "ZCode chat unknown on edge-dev",
+  "branch": "coldlion-intake-c2",
+  "worktree": "C:/repos/shared-db/.ai/worktrees/coldlion-intake-c2",
+  "allowed_paths": [
+    "tools/coldlion-landing/order-intake-write.mjs",
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-order-intake-claim.test.mjs",
+    "plan_coldlion_order_intake.md",
+    "HANDOFF.d/2026-10-02T0019Z-edge-dev-zcode-coldlion-intake-phase-b-done.md",
+    ".agent/work/3853/12/contract.json",
+    ".agent/work/3853/12/completion.json"
+  ],
+  "file_writes": [
+    "tools/coldlion-landing/order-intake-write.mjs",
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-order-intake-claim.test.mjs",
+    ".agent/work/3853/12/contract.json",
+    ".agent/work/3853/12/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration file and no database structure change of any kind: non-orchestrator tools-code work only",
+    "Never enable the workflow cron or dispatch any workflow; the staged dispatch ladder is later work this change must not start",
+    "Never run the writer against production; the preview gate runs only on the shared preview database with synthetic identifiers",
+    "Never touch the sealed-window machinery: no writes to coldlion.window_ledger, page evidence, or sealed order_history_*/prod_history_* tables; never create core.customer rows; never modify or delete a google_order_list source ref",
+    "Do not edit the landed Phase B staging module (order-intake-stage.mjs); its unterminated final SELECT is reported for the Phase D owner",
+    "No broad staging: only the three code files, the plan STATUS rows, the retired handoff path, and this evidence pair may be committed"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node --test tools/coldlion-order-intake-*.test.mjs",
+    "node --test tools/*.test.mjs",
+    "preview gate (plan §650-653) on the shared preview database at the implementation head: prove the shape-level object assertion answers empty live; re-claim a previously created synthetic order through the UPDATE path (re-pend to pending, run the writer with --write --order <so>) and prove zero rows change with byte-identical updated_at fingerprints; prove a run without --write rolls back and records nothing"
+  ],
+  "assumptions": [
+    "db_reads/db_writes stay empty because the repo-maintenance contract type demands it; the preview-gate database contact is recorded truthfully as a required check, in the goal, and in the completion evidence instead",
+    "The repo-wide node --test tools/*.test.mjs check runs in a clean local clone at the implementation head because the edge-dev machine's shared .git/info/exclude (/.ai/reviews/) fails tools/gitignore-tracked-contradiction.test.mjs in every worktree of this repository on this machine, including the merged, CI-green Phase B worktree; the clean clone runs exactly what CI runs",
+    "Base is GitHub main 4191faccf94a8e425f4898d5659fafdf179eb45e (unchanged since generation 9); if main advances mid-flight the branch is refreshed at a fresh merge-base with re-derived files_changed per the generation rules, never amended after a completion report names a head"
+  ],
+  "stop_conditions": [
+    "Stop and report if check-sql.sh or any offline intake test fails at the implementation head",
+    "Stop if the preview database refuses with Remote migration versions not found: wait and retry later, never supabase migration repair",
+    "Stop if a database shape change appears unavoidable for the writer: report blocked with the verbatim reason instead of widening scope",
+    "Stop on any coordination-mutex or guarded-lane refusal this session cannot resolve with evidence"
+  ]
+}

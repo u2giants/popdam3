@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "work_issue": 3853,
+  "outcome": "ready-for-merge",
+  "pr": 3868,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3853/12",
+  "contract_sha256": "e8e6f7c4a9e7bbf7f4f0184cd08d675828d168b2f88531bf5a93ec2dc06311b2",
+  "head_sha": "775c49a51109dc431f89f31b052af97f11938940",
+  "base_sha": "4191faccf94a8e425f4898d5659fafdf179eb45e",
+  "files_changed": [
+    "HANDOFF.d/2026-10-02T0019Z-edge-dev-zcode-coldlion-intake-phase-b-done.md",
+    "plan_coldlion_order_intake.md",
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-landing/order-intake-write.mjs",
+    "tools/coldlion-order-intake-claim.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed. Set DATABASE_URL to run migrations against a disposable database. — exit 0 in a clean clone at the implementation head 775c49a51109dc431f89f31b052af97f11938940 (0 added migrations)."
+    },
+    {
+      "command": "node --test tools/coldlion-order-intake-*.test.mjs",
+      "exit_code": 0,
+      "evidence": "62/62 pass at the implementation head (window-arithmetic 9, decode 10, stage 14, entry 5, claim 24 — the claim file adds the round-4 pins: trigger definitions asserted by exact pg_get_triggerdef text and enabled state, typed column assertions, the Phase-B-spec-derived staging column surface, line_number corrected by line_updates, and the write-mode-only failure recorder)."
+    },
+    {
+      "command": "node --test tools/*.test.mjs",
+      "exit_code": 0,
+      "evidence": "1016 tests, 1016 pass, 0 fail, exit 0 — run in a clean local clone checked out at the implementation head 775c49a51109dc431f89f31b052af97f11938940, because the edge-dev machine's shared .git/info/exclude carries a local /.ai/reviews/ line that makes tools/gitignore-tracked-contradiction.test.mjs fail in ANY worktree of this repository on this machine (identical failure in the merged, CI-green Phase B worktree). The clean clone runs the suite exactly as CI runs it."
+    },
+    {
+      "command": "preview gate (plan §650-653) on the shared preview database at the implementation head: prove the shape-level object assertion answers empty live; re-claim a previously created synthetic order through the UPDATE path (re-pend to pending, run the writer with --write --order <so>) and prove zero rows change with byte-identical updated_at fingerprints; prove a run without --write rolls back and records nothing",
+      "exit_code": 0,
+      "evidence": "Preview project mvpkijzfmfcxhnzqogzs (pooler aws-0-us-east-1). (1) The strengthened object assertion (constraints by exact pg_get_constraintdef incl. both NULLS NOT DISTINCT staging uniques — round-3 #1 closed: pg_get_constraintdef renders 'UNIQUE NULLS NOT DISTINCT (...)' verbatim; indexes by exact pg_get_indexdef; triggers by exact pg_get_triggerdef 'CREATE TRIGGER set_updated_at BEFORE UPDATE ON ... FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()' with tgenabled='O'; typed columns; the full write+read column surface) answered missing_objects='' live against preview. (2) The customer id-space question (round-3 #2) is closed by schema + live data: core.company_source_ref.company_id references core.customer(id) (20260621150815:126-128) and plm.erp_customer.customer_id references core.customer(id) (20260715234500:43) — one id space — and 153 active promoted rows agree between both lookups on preview; the synthetic order resolved through them. (3) Re-pend gate on synthetic order 998877002: state set back to pending, writer run with --write --order 998877002 at THIS head → ordersCreated=1 ordersQuarantined=0 headers+0/~0 lines+0/~0 — the UPDATE path fired zero rows, the line fingerprint stayed 2 lines / max updated_at 2026-10-02 09:38:57.338646-04 byte-identical, and the state returned to created. (4) Dry run (no --write) on the same re-pended order: transaction rolled back (state stayed pending), summary printed, and no new failed sync_run row was recorded (the single pre-existing failed row predates this generation and carries the round-1 syntax-error message). Insert-path and fork-resolution proofs from the earlier generations remain valid: their code paths are unchanged by this generation except line_updates (covered by (3)) and the pre-flight (covered by (1))."
+    }
+  ],
+  "assumptions_resolved": [
+    "Round-3 governed review: slot 1 gemini-3.8-flash-high APPROVE at 77d00c80f (durable ref refs/db-review-verdicts/3853-3868-77d00c80fad4185fd305f374e3105b529c35ce09 34265b46d0f09fe4fc9a7277c298b0295714ece7), slot 2 deepseek-v4.1-flash REVISE (#1-#12; durable ref ...-slot2 eda1daa5168c164905ddf373bfd31a18415234ab) — this head batches every finding: #1/#2 closed with live and schema evidence, #3/#4/#5/#9/#10/#11/#12 fixed, #6/#8 declined with the in-repo reasons recorded in the generation-12 contract goal. Both slots are re-run at this head.",
+    "HANDOFF.d/2026-10-02T0019Z-edge-dev-zcode-coldlion-intake-phase-b-done.md stays retired in this pull request (the Handoff contract check demands it for a PR that closes #3853); its C2 gate procedure lives in plan_coldlion_order_intake.md §9 and the gate results in these evidence pairs.",
+    "The landed Phase B buildIntakeStageSql unterminated-final-SELECT defect remains reported for the Phase D owner; it is outside every generation of this change's allowed paths and cannot execute until Phase D's first dispatch."
+  ],
+  "stop_conditions_hit": []
+}

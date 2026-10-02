@@ -42,9 +42,9 @@ decision.
 | B1. Poller entry point + window/fetch/stage/detect (Phase B detail) | ✅ done 2026-10-01 | PR #3864 (merged via guarded lane): poller + staging upsert + novelty detection; `node --test tools/coldlion-order-intake-*.test.mjs` 33/33; `bash scripts/check-sql.sh` pass; C1 decode module + its 6 tests also landed (row C1 stays open until the staged ladder runs it live) |
 | C. Routing decode + canonical placeholder writer | ⬜ open | — |
 | C1. Routing decode step (post-poll join + quarantine) | ⬜ open | — |
-| C2. Canonical writer (placeholder create/claim + source refs) | ⬜ open | — |
+| C2. Canonical writer (placeholder create/claim + source refs) | ✅ done 2026-10-02 | PR #3868 (guarded lane): `tools/coldlion-landing/order-intake-write.mjs` + `lib/order-intake-write.mjs` — source-ref-only idempotency, `COLDLION-SO-<so>` placeholders, winner selection at both grains, per-component line refs, quarantine on customer miss/disagreement/claim-failure; preview gate per §650-653 passed (synthetic order, second `--write` run a no-op); live first write is owned by the staged dispatch ladder (B gates), not this row |
 | D. Hourly GitHub Actions workflow + failure alerting | ⬜ open | — |
-| E. Offline unit tests (flat `tools/*.test.mjs` names) | ⬜ open | — |
+| E. Offline unit tests (flat `tools/*.test.mjs` names) | ✅ done 2026-10-02 | PR #3868: all five suites green — `node --test tools/coldlion-order-intake-*.test.mjs` 61/61 at impl head (window-arithmetic 9, decode 10, stage 14, entry 5 via PR #3864; claim 23 new — poNumber padding shapes, winner selection + constancy + deterministic ordinal + item-fork resolution, source-ref-only idempotency, customer-PO multi-match never quarantines, version fan-out, idempotent second run, EP001, 1900-01-01, negative quantity, is_primary, placeholder key, argument refusals, summary parser); `bash scripts/check-sql.sh` pass |
 | F. Live proof: sample-week comparison vs the Google sheet | ⬜ open | — |
 
 A fresh session starts at the first `⬜ open` row in order (currently **A1**), after reading
