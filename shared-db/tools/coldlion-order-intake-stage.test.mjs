@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 
 import {
   buildIntakeStageSql,
+  buildIntakeFailureSql,
   buildIntakeObjectAssertionSql,
   INTAKE_REQUIRED_TABLES,
   INTAKE_REQUIRED_CONSTRAINTS,
@@ -183,7 +184,9 @@ test("novelty detection reads line_map's RETURNING, groups per order, and tests 
   assert.doesNotMatch(newOrders, /from coldlion\.intake_order_line/);
   assert.match(newOrders, /group by m\.sales_order_no/);
   // The LIKE behind the source_system equality is the semantic prefix test:
-  // collation-proof, served by the unique b-tree's narrowed coldlion range.
+  // collation-proof. The b-tree serves the source_system equality only — the
+  // LIKE prefix cannot ride it under a non-C collation (no text_pattern_ops
+  // index exists) and runs as a residual filter pending the Phase D EXPLAIN.
   // Byte-order ranges (>= prefix AND < successor, or < prefix || chr(1)) were
   // withdrawn in review — the first suppresses nothing, the second can silently
   // exclude real refs under punctuation-reordering collations.
@@ -211,10 +214,48 @@ test("one transaction per window; dry-run rolls back, live run commits; the seal
   assert.doesNotMatch(dry, /commit;/);
   assert.match(live, /commit;\s*$/);
   assert.doesNotMatch(live, /rollback;/);
+  // The final summary SELECT must be TERMINATED before the transaction end:
+  // `select ... commit` is a syntax error Postgres refuses at dispatch time,
+  // so an unterminated builder ships fine offline and fails the first real
+  // run. This is the twin of the C2 writer defect; the terminator is pinned
+  // here so the suite catches its absence. The writer's own suite does NOT
+  // pin its twin — its transaction test asserts commit;/rollback; placement
+  // only, which an unterminated final statement still satisfies (round-1
+  // mutation evidence: deleting the `;` from `as orders_left_pending;` leaves
+  // the claim suite 24/24 green) — that gap is recorded as a carried finding
+  // in this generation's completion evidence, not covered by this pin.
+  assert.match(dry, /as new_order_numbers;\s*\nrollback;/);
+  assert.match(live, /as new_order_numbers;\s*\ncommit;/);
   for (const sql of [dry, live]) {
     assert.doesNotMatch(sql, /window_ledger/);
     assert.doesNotMatch(sql, /recordFailure/);
   }
+});
+
+test("buildIntakeFailureSql terminates the statement before commit — the recovery path never meets the defect class (round-1 L-1 pin)", () => {
+  const sql = buildIntakeFailureSql({
+    runId: RUN,
+    window: WINDOW,
+    track: "trailing",
+    companyCode: "POP",
+    error: new Error("window fetch failed"),
+    startedAt: "2026-10-02T15:00:00.000Z",
+  });
+  assert.match(sql, /^begin;$/m);
+  const lines = sql.trimEnd().split("\n");
+  assert.equal(lines.at(-1), "commit;");
+  // The pg_notify SELECT — the statement immediately before commit — must end
+  // terminated on its own line, never `select pg_notify(...) commit`. This is
+  // the exact shape that would have killed the stage builder's first real
+  // dispatch.
+  assert.match(lines.at(-2), /\);\s*$/);
+  assert.match(lines.at(-2), /pg_notify\('coldlion_sync_alert'/);
+  // The failure recorder is a SIBLING of recordFailure() and must never touch
+  // the sealed-window machinery (plan §8): a poisoned ledger would break
+  // sealed-window resume, and the recovery path runs exactly when a window
+  // has just failed.
+  assert.doesNotMatch(sql, /window_ledger/);
+  assert.doesNotMatch(sql, /recordFailure/);
 });
 
 test("parseStageSummary reads runSql's ALIGNED psql output (header, rule, footer and all)", () => {
@@ -278,12 +319,14 @@ test("novelty counts INSERTS only: new_orders returns was_insert and every new c
   assert.match(counts, /from new_orders where was_insert\) as new_order_numbers/);
 });
 
-test("the line-ref novelty test carries the collation-proof LIKE beside the index range", () => {
+test("the line-ref novelty test carries the collation-proof LIKE beside the source_system equality", () => {
   const sql = build(POPULATED);
   const newOrders = sql.slice(sql.indexOf("new_orders as ("), sql.indexOf("counts as ("));
-  // The range narrows for the index; the LIKE is the semantic filter — a
-  // collation that orders ':' and ';' unexpectedly can never make the range
-  // WRONGLY include a foreign ref (round-2 L-3).
+  // The b-tree narrows to the source_system equality; the LIKE is the
+  // semantic filter and, under a non-C collation with no text_pattern_ops
+  // index, a residual one (generation-13 carried finding L-2) — a collation
+  // that orders ':' and ';' unexpectedly can never make the probe WRONGLY
+  // include a foreign ref (round-2 L-3).
   assert.match(newOrders, /r\.source_id like 'coldlion:so:' \|\| m\.sales_order_no::text \|\| ':%'/);
 });
 

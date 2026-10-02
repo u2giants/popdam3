@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 3853,
+  "outcome": "ready-for-merge",
+  "pr": 3878,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3853/13",
+  "contract_sha256": "65f6176c35b64d4f2542f395969c8f3562fcfce36ea3d15e63f79ac8026ee612",
+  "head_sha": "0a40b5d2839a8f6fa66bef80afcabd49f9003058",
+  "base_sha": "69d7b058d3bbb2995091f7dacb5c272d8cfbd2d5",
+  "files_changed": [
+    "tools/coldlion-landing/lib/order-intake-stage.mjs",
+    "tools/coldlion-order-intake-stage.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed (issue #1235 expected-count guard, verify-cost guard, #1684 EOL reference guard; 0 added migrations) — exit 0 at the implementation head 0a40b5d2839a8f6fa66bef80afcabd49f9003058."
+    },
+    {
+      "command": "node --test tools/coldlion-order-intake-*.test.mjs",
+      "exit_code": 0,
+      "evidence": "63/63 pass at the round-2 implementation head. The one-transaction-per-window test pins the terminator this generation fixes: assert.match(dry, /as new_order_numbers;\\s*\\nrollback;/) and assert.match(live, /as new_order_numbers;\\s*\\ncommit;/). Round-1 L-1 pin: buildIntakeFailureSql (previously imported by no test) has a dedicated test asserting its final pg_notify SELECT is terminated on its own line before commit and that it never touches the sealed-window machinery."
+    },
+    {
+      "command": "node --test tools/*.test.mjs in a clean clone (the edge-dev machine's shared .git/info/exclude trips tools/gitignore-tracked-contradiction.test.mjs in every local worktree; the clean clone runs exactly what CI runs)",
+      "exit_code": 0,
+      "evidence": "1017 tests, 1017 pass, 0 fail, exit 0 — run in a clean local clone (fresh clone of popcre/shared-db checked out at base 69d7b058d3bbb2995091f7dacb5c272d8cfbd2d5 with only this generation's two files applied, i.e. exactly the implementation head's tree). The round-0 slot-1 reviewer independently reproduced a green repo-wide suite in its own review sandbox."
+    }
+  ],
+  "assumptions_resolved": [
+    "The defect is exactly the one generation 12 deferred: its prohibited_actions record it verbatim ('Do not edit the landed Phase B staging module (order-intake-stage.mjs); its unterminated final SELECT is reported for the Phase D owner'). This generation is that Phase D fix: buildIntakeStageSql's final summary SELECT ended 'as new_order_numbers' with no statement terminator directly before the commit;/rollback; interpolation, so every generated transaction ended 'select ... commit' — a syntax error Postgres refuses. Fixed with the single missing ';' (committed byte verified), mirroring the C2 writer fix whose final statement ends 'as orders_left_pending;'.",
+    "CARRIED FINDING for the next generation (round-0 M-1/M-2 + round-1 M-2, recorded gen-12 style): the terminator class is pinned ONLY for this stager. (a) The writer's own terminator is NOT pinned: tools/coldlion-order-intake-claim.test.mjs asserts commit;/rollback; placement only. Round-0 mutation evidence (qwen-3.8-max): deleting the ';' from 'as orders_left_pending;' at order-intake-write.mjs:642 leaves the claim suite 24/24 and the repo-wide suite green. (b) The decode twin is NOT pinned either: buildDecodeSql's final SELECT ends 'as orders_decoded;' at order-intake-decode.mjs:122 (correctly terminated today), but tools/coldlion-order-intake-decode.test.mjs:83 pins only /^commit;$/m and :90 pins /as orders_decoded/ WITHOUT the semicolon — round-1 mutation evidence (qwen-3.8-max): deleting that ';' leaves the intake suite 63/63 green. The canonical-write and decode transactions are unprotected against the identical regression; both test files are outside this generation's allowed_paths. The stage suite's comment states the writer gap accurately as of this head.",
+    "CARRIED FINDING for the Phase D dispatch owner (round-0 L-2): the novelty probe's LIKE prefix ('coldlion:so:'||so||':%' on plm.production_order_line_source_ref) cannot ride the (source_system, source_id) btree under a non-C collation — no text_pattern_ops index exists in the repository and no collation is asserted. The LIKE-over-byte-range choice is CORRECT and must not be reopened; the COST claims were the loose part and are FIXED in this head: order-intake-stage.mjs:104-111 and stage.test.mjs:186-190, 322-327 now state the btree serves the source_system equality and the LIKE is a residual filter pending the Phase D EXPLAIN. Duty: EXPLAIN the probe on the real database at/after the first real dispatch; a fix would be a migration (orchestrator work).",
+    "CARRIED FINDING for the Phase D dispatch owner (round-0 L-3): the stager's pre-flight asserts tables and three constraints but omits its own conflict targets (the two staging identity uniques, intake_new_order unique, intake_window_state PK, sync_run PK) and its ~57 written columns, while the writer's pre-flight asserts both (and reuses INTAKE_LINE_SPEC/INTAKE_COMPONENT_SPEC). Fail-loud if absent, so Low; widening is behavior change this contract forbids.",
+    "Verdict history: round 0 at 8ead5839 — slot 1 (qwen-3.8-max) REVISE (durable ref refs/db-review-verdicts/3853-3878-8ead58397661e3b2eef38b5c15990975007a4bd4), slot 2 (muse-spark-1.3-contributor) APPROVE (…-slot2); round 1 at 4e63966cf — slot 1 REVISE (refs/db-review-verdicts/3853-3878-4e63966cf4800cdee7c561b9529c84bded04de58), slot 2 APPROVE (…-slot2). This round-2 head batches every round-1 correction: M-1 (false past-tense claim — now conditional), M-2 (decode terminator gap — recorded above), L-1 (carried-finding line refs — re-derived at THIS head), L-2 (three index-service comments — softened, see above), I-1 (checks attribution — corrected to round-0).",
+    "The staged dispatch ladder (dry-run, preview stage, one bounded production dispatch), cron enablement, and the F1 sample-week proof are all LATER work this generation explicitly must not and does not start.",
+    "The repo-wide node --test tools/*.test.mjs check runs in a clean local clone at the implementation head because the edge-dev machine's shared .git/info/exclude trips tools/gitignore-tracked-contradiction.test.mjs in every worktree of this repository on this machine; the clean clone runs exactly what CI runs.",
+    "Base is GitHub main 69d7b058d3bbb2995091f7dacb5c272d8cfbd2d5 (re-derived via gh api at dispatch, after 4feec0e); the branch was cut from it directly, so the merge base equals it."
+  ],
+  "stop_conditions_hit": []
+}

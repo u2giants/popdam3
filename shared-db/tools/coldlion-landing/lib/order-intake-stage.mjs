@@ -101,12 +101,17 @@ function rowValues(spec, row) {
  *
  * The line-ref novelty test is the collation-proof LIKE
  * (source_id like 'coldlion:so:<so>:%') behind the equality
- * source_system = 'coldlion', which the (source_system, source_id) unique
- * btree serves as a narrowed range before the LIKE filters it. A byte-order
- * range (>= prefix AND < successor) was tried and withdrawn in review: under a
- * collation that orders punctuation unexpectedly it can wrongly EXCLUDE a real
- * ref — a silent missed detection the LIKE cannot repair. Never reintroduce a
- * byte-successor range here without asserting the column's collation first.
+ * source_system = 'coldlion'. What the (source_system, source_id) unique
+ * btree serves here is the source_system equality; the LIKE prefix CANNOT
+ * ride that index under a non-C collation (no text_pattern_ops index exists
+ * in this repository and no collation is asserted), so it runs as a residual
+ * filter over the coldlion line refs — the Phase D dispatch owner owes this
+ * probe an EXPLAIN on the real database (generation-13 carried finding, L-2).
+ * A byte-order range (>= prefix AND < successor) was tried and withdrawn in
+ * review: under a collation that orders punctuation unexpectedly it can
+ * wrongly EXCLUDE a real ref — a silent missed detection the LIKE cannot
+ * repair. Never reintroduce a byte-successor range here without asserting
+ * the column's collation first.
  *
  * Returns SQL text. The final SELECT reports: lines inserted/updated, components
  * inserted/updated, the number of NEW sales orders detected, and their numbers
@@ -359,7 +364,7 @@ select
   (select components_inserted from counts) as components_inserted,
   (select components_updated from counts) as components_updated,
   (select new_orders from counts) as new_orders,
-  (select new_order_numbers from counts) as new_order_numbers
+  (select new_order_numbers from counts) as new_order_numbers;
 ${dryRun ? "rollback;" : "commit;"}
 `;
 }
