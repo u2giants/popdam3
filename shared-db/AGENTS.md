@@ -57,8 +57,24 @@ the map below.
   Production risk classes are accepted by the allocator-assigned AI reviewer's durable exact-head
   assessment, never by Albert. Full text: [`owner-rulings.md` §6.23](docs/owner-rulings.md).
 
-- **§0.0-B — STRUCTURE, not DATA (Albert Hazan, 2026-08-13).** This repo and its orchestrator
-  govern the *shape* of the database (schema, tables, columns, views, functions, triggers, RLS,
+- **§0.0-D — there is no orchestrator; structural work is claim-first (Albert Hazan,
+  2026-10-02, verbatim: "there is no longer an orchestrator").** No session is the orchestrator.
+  Never route work to one, open a HANDOVER issue and stop, resolve or open a marker, wait for
+  dispatch, or label tickets orchestrator / non-orchestrator. A session needing a SHAPE change
+  claims the exact objects on the existing issue and starts, doing the change itself: own
+  worktree and branch, migration version via the lane tool, pull request, the assigned AI
+  reviewer's APPROVE of the exact apply, and proof of the target before every write. Every
+  safety rule (exact-object claims, version reservation, review, guarded merge, serial
+  production lane, live proof) still binds. Where older text below says "the orchestrator",
+  read "the session doing the structural work"; marker and dispatch steps are historical.
+  Automation still carrying the old name is machine metadata, not an instruction: the issue
+  field `route: shared-db-orchestrator` (the lane tooling's structural route value), marker
+  reads inside reviewer assignment, the issue-orchestrator-label workflow, and the skill-drift
+  guard. Sessions never hand-apply or report that label. Retiring that automation is open on #3874.
+  **This ruling supersedes every older passage in this repo that says otherwise** (dated docs,
+  plans, handoffs, runbooks): such passages are historical records, not instructions.
+
+- **§0.0-B — STRUCTURE, not DATA (Albert Hazan, 2026-08-13).** This repo governs the *shape* of the database (schema, tables, columns, views, functions, triggers, RLS,
   grants, indexes, constraints, migrations). Changing the *contents* is done by the application
   session that owns the data. The one carve-out: curated Master Data stays gated. The test: *am I
   changing the shape of the database, or the contents of it?*
@@ -66,11 +82,11 @@ the map below.
 - **§0.0-A — read-only inspection is open (Albert Hazan, 2026-08-10).** Every application repo may
   inspect this database read-only, with no issue, no handoff, and no dispatch.
   [`owner-rulings.md`](docs/agents/owner-rulings.md)
-- **§0.0-C — the orchestrator gets the minimum (owner ruling 2026-08-21, #1366).** The
-  orchestrator keeps only work that changes the database's SHAPE (plus curated Master Data
+- **§0.0-C — structural work gets the minimum (owner ruling 2026-08-21, #1366; orchestrator role retired by §0.0-D).** The
+  structural lane keeps only work that changes the database's SHAPE (plus curated Master Data
   routing). Repository maintenance, proofs, documentation, tooling, and monitoring are not
-  orchestrator jobs. [`orchestrator.md`](docs/agents/orchestrator.md)
-- **§2.1-W — worktree-only.** Every session, the orchestrator included, works in its own
+  structural-lane jobs. [`orchestrator.md`](docs/agents/orchestrator.md)
+- **§2.1-W — worktree-only.** Every session works in its own
   `git worktree` cut from `origin/main`. The shared checkout is for reading and `git fetch` only.
   [`worktrees-and-handoffs.md`](docs/agents/worktrees-and-handoffs.md)
 
@@ -80,7 +96,7 @@ the map below.
 |---|---|---|
 | [`docs/agents/active-contracts-and-plans.md`](docs/agents/active-contracts-and-plans.md) | Before touching any area with an active plan or contract; historical MG classification | Historical item MG classification; Active contracts and implementation plans |
 | [`docs/agents/owner-rulings.md`](docs/agents/owner-rulings.md) | Deciding whether work belongs here; any consumer-repo schema question; data vs structure; secrets ownership; DB Data Admin; grid filters; Scraped Properties; Master Data editing | §0, §0.0-A, §0.0-B, §0.1, §0.1-A, §0.2, §0.3, §0.3-A, §0.4 |
-| [`docs/agents/orchestrator.md`](docs/agents/orchestrator.md) | Running, routing to, or handing over the orchestrator; admission of queue work; dispatch waiting instruction | §0.0-C, §11b, §11c, §11d |
+| [`docs/agents/orchestrator.md`](docs/agents/orchestrator.md) | Admission test for structural work and safety reference (orchestrator role retired, §0.0-D; marker/dispatch text historical) | §0.0-C, §11b, §11c, §11d |
 | [`docs/agents/worktrees-and-handoffs.md`](docs/agents/worktrees-and-handoffs.md) | Before any edit (worktree setup and retirement); writing or retiring a HANDOFF.d file; host/server boundary | §2.1-W, §2.1-W.1, §2.1-H, §2.1 |
 | [`docs/agents/anti-collision-summary.md`](docs/agents/anti-collision-summary.md) | Any database change: the five anti-collision rules, author lanes, extension tables | §4, §4.1, §4.2, §4.3 |
 | [`docs/agents/section-4-anti-collision-rules.md`](docs/agents/section-4-anti-collision-rules.md) | The long-form §4 rules and procedures | §4 long form |

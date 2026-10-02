@@ -1,5 +1,16 @@
 # AGENTS.md — §0.0-C admission test, §11b to §11d (orchestrator role, routing contract, admission)
 
+> **Historical / reference only.** The orchestrator role was retired by owner ruling
+> (Albert Hazan, 2026-10-02: "there is no longer an orchestrator"; AGENTS.md §0.0-D).
+> Structural work is claim-first. Still binding below: only the §0.0-C *test* (does it change
+> the database's SHAPE?) and the safety rules (exact-object claims, version reservation,
+> independent review, guarded merge, serial production lane). **Historical and NOT to be
+> followed:** §0.0-C's accept-and-dispatch and dispatch-waiting text, and ALL of §11b, §11c
+> and §11d (the role, marker routing, `check-orchestrator-marker.mjs --resolve`, starting as
+> or handing over to an orchestrator, queueing to wait for one). `route: shared-db-orchestrator`
+> survives only as the machine route value the lane tooling uses for structural work; it names
+> no session. Retiring that tooling dependency is open on #3874.
+
 > Moved verbatim from `AGENTS.md` by issue #3481 so that file stays a short router. Section numbers and headings are unchanged; a citation of "AGENTS.md §X" resolves here. Relative link targets were re-pointed from this folder; no rule text changed.
 
 ## 0.0-C The orchestrator admission test — what it may keep in its own context

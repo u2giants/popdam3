@@ -4,7 +4,7 @@
 
 ## 2.1-W WORKTREE-ONLY — no session works directly in the shared `shared-db` checkout (standing rule, added 2026-08-12, issue #513)
 
-**The rule.** In this repository, **every session — the orchestrator included — does its work in
+**The rule.** In this repository, **every session does its work in
 its own `git worktree` cut from `origin/main`.** The shared checkout (`C:\repos\shared-db` on the
 Windows boxes, and its equivalent elsewhere) is for reading and for `git fetch`. Nobody branches
 in it, commits in it, or leaves it checked out on a working branch.
@@ -110,7 +110,7 @@ the session that created it rather than on a stranger.
 retire it. That is the whole mechanism: the duty travels with the work, not with the calendar.
 
 **If the owning session is genuinely gone** and you are confident the work is done, any
-orchestrator may retire the file — but say so in the pull request body, with the evidence
+session may retire the file — but say so in the pull request body, with the evidence
 (closed issue, merged PR). Never delete another session's file silently.
 
 ## 2.1 Host/server boundary

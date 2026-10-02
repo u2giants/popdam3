@@ -80,7 +80,7 @@ The issue offered two options: the coordinator keeps the authoritative list of r
 and no sweep runs without checking it, **or** the paused agent marks its worktree visibly.
 
 The marker wins, for one reason: **the coordinator's list dies with the coordinator's session.**
-Orchestrator sessions are replaced constantly, hand over through issues and `HANDOFF.d/` files,
+Sessions are replaced constantly, hand over through issues and `HANDOFF.d/` files,
 and routinely run out of context mid-flight. A list held there is exactly the thing that goes
 missing. A file on disk next to the work does not.
 

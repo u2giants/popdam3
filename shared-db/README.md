@@ -34,8 +34,7 @@ All database schema changes for the shared Supabase project start in this repo.
 That includes DesignFlow PLM tables even when a consumer repo has Sequelize
 models, old inline startup migrations, or local docs that mention `models/db.js`.
 
-**This is a structure rule, not a data rule.** This repo and its orchestrator
-govern the *shape* of the database. The rows an application creates, edits, or
+**This is a structure rule, not a data rule.** This repo governs the *shape* of the database. The rows an application creates, edits, or
 deletes in the normal course of its work belong to the session working on that
 application — no issue, no dispatch, no migration. The one exception is curated
 Master Data (`core.licensor`, `core.property`, `core.character`, `core.customer`,

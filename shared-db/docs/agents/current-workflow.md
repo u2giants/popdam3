@@ -28,7 +28,7 @@ It documents existing authority; it does not activate a new release route.
 the repository session that owns the outcome. Use an isolated upstream worktree,
 the task gate, the applicable scoped evidence and independent code review, and
 the guarded merge path. A maintenance change does not claim database objects or
-wait for structural-orchestrator intake. A merged loader repair still requires
+wait for structural intake. A merged loader repair still requires
 its stated runtime acceptance; merged code is not automatically delivered work.
 
 **Documentation:** a change containing only prose, including standalone
@@ -39,8 +39,8 @@ instructions, scripts, configurations, workflows and migrations keep their
 engineering protections. Literal routing links have the existing narrow
 base-owned classifier; a Markdown extension alone does not exempt instructions.
 
-**Structural work:** resolve the live orchestrator marker before routing an
-ordinary shared-schema change. Preserve exact-object claims and migration-version
+**Structural work:** claim-first (AGENTS.md §0.0-D) — claim the exact objects on
+the existing issue and start; no orchestrator, marker, or dispatch. Preserve exact-object claims and migration-version
 reservation, independent review, qualified rehearsal, guarded merge, and the
 existing serial production lane. Do not infer a routing destination from an old
 handoff or invent a migration to test a workflow.

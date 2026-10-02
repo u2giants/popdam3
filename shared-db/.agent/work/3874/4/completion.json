@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "work_issue": 3874,
+  "outcome": "ready-for-merge",
+  "pr": 3875,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3874/4",
+  "contract_sha256": "8903aba70399793e63a7338545bfb06e3c6bc39d2fb38e0dce4a78b379d25f30",
+  "base_sha": "3efebc3f956c0bfcb5567b49c3422aa6a79d9c22",
+  "head_sha": "8689ed22bc7cebbdb75722d292c874cecab2faa8",
+  "files_changed": [
+    "AGENTS.md",
+    "README.md",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/current-workflow.md",
+    "docs/agents/orchestrator.md",
+    "docs/agents/owner-rulings.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/agents/standing-facts.md",
+    "docs/agents/worktrees-and-handoffs.md",
+    "docs/worktree-pause-protocol.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 4 supersedes generation 3 after third governed REVISE; routed docs swept, retirement banners added, supersession clause added; rebased on current main.",
+    "Automation still carrying the orchestrator name disclosed in AGENTS.md 0.0-D; retirement tracked open on #3874."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Live proof card: #3874."
+}
