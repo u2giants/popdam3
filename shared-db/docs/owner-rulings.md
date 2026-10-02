@@ -41,6 +41,7 @@
 | [6.20](#620-owner-ruling-the-peanuts-property-is-the-art-program-not-the-retailer-initiative-and-wildbrains-era-and-creative-group-are-two-axes-not-a-choice-albert-hazan-2026-09-07) | OWNER RULING — the Peanuts property is the ART PROGRAM, not the retailer initiative; and WildBrain's era and creative group are two axes, not a choice (Albert Hazan, 2026-09-07) |
 | [6.21](#621-owner-ruling-no-new-direct-database-logins-albert-hazan-2026-09-23) | OWNER RULING — no new direct database logins (Albert Hazan, 2026-09-23) |
 | [6.23](#623-owner-ruling-albert-is-not-a-technical-reviewer-production-risk-classes-are-accepted-by-the-ai-reviewer-albert-hazan-2026-09-30) | OWNER RULING — Albert is not a technical reviewer; production risk classes are accepted by the AI reviewer (Albert Hazan, 2026-09-30) |
+| [6.24](#624-owner-ruling-documentation-only-changes-skip-checks-albert-hazan-2026-10-02) | OWNER RULING — documentation-only changes skip checks (Albert Hazan, 2026-10-02) |
 
 ---
 
@@ -2055,3 +2056,19 @@ the source PR, and a written assessment of every flagged class
 main, ordered allowlist, preview or ephemeral evidence, hard blocks, production lock, target proof
 and post-apply verification. Never ask Albert a technical question, and never author or forge a
 comment in his name.
+
+### 6.24 OWNER RULING — documentation-only changes skip checks (Albert Hazan, 2026-10-02)
+
+Verbatim from Albert's chat (2026-10-02), answering "should documentation-only changes in the
+database repository be allowed to skip checks?": "yes, let doc-only changes skip checks." His
+standing rule: "if every changed file is prose, merge immediately; any code, test, script,
+workflow, or config file means normal checks."
+
+How it is honoured here: no `--admin` merge and no weakening of branch protection. A prose-only
+pull request goes through the merge queue like any other, and every required context reports
+success within seconds because the trusted base-only classifier
+(`scripts/lib/documents-only-change.mjs`, `Documents fast CI route`, `Documents-only merge
+authorization`) proves the exact base/head inventory is pure prose and the heavy jobs
+short-circuit under their unchanged check names. Anything not positively proven prose — code,
+tests, scripts, workflows, config, `.json`/`.yml`/`.sql`, and agent rulebooks such as `AGENTS.md`
+or skills — takes the full engineering path. `enforce_admins` stays on.
