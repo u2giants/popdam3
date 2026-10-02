@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "work_issue": 3887,
+  "generation": 2,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Repoint 8 user foreign keys on core.age_group, core.art_types, core.artist_types, plm.\"productUserAssignment\" and plm.sample_comments from app.users to dflow.users (#3882 child 2b), same names, columns and actions.",
+  "base_sha": "9299911e72ca293c99b491939c1279dcc770406b",
+  "dispatcher": "owner instruction 2026-10-02 (claim-first structural work); claim #3888. Generation 2 corrects generation 1 goal count (7 to 8) and the probe after review REVISE on 8817fd3c; published before the probe revision commit.",
+  "worker": "Claude chat c0f64531-7679-436c-be2c-65c829d345dd on al8960ofc",
+  "branch": "codex/users-fk-repoint-3882",
+  "worktree": "C:/repos/shared-db-worktrees/users-fk-repoint-3882",
+  "allowed_paths": [
+    "supabase/migrations/20261002155633_repoint_user_fks_to_dflow_users.sql",
+    ".github/live-proofs/3887.sql",
+    ".agent/work/3887/2/contract.json",
+    ".agent/work/3887/2/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261002155633_repoint_user_fks_to_dflow_users.sql",
+    ".github/live-proofs/3887.sql",
+    ".agent/work/3887/2/contract.json",
+    ".agent/work/3887/2/completion.json"
+  ],
+  "db_reads": [
+    "table dflow.users"
+  ],
+  "db_writes": [
+    "table core.age_group",
+    "table core.art_types",
+    "table core.artist_types",
+    "table plm.\"productUserAssignment\"",
+    "table plm.sample_comments"
+  ],
+  "prohibited_actions": [
+    "do not change columns, types or rows",
+    "do not touch app.users, plm.art_piece_attachment or app.\"RolePermissions\" (claim #3378)",
+    "do not edit any applied migration"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node scripts/check-live-proof-probe.mjs"
+  ],
+  "assumptions": [
+    "zero existing child rows orphan against dflow.users (live read 2026-10-02, production and preview)",
+    "claim #3888 locks the five tables"
+  ],
+  "stop_conditions": [
+    "stop if any current FK definition differs from the design",
+    "stop if the change would need a file outside allowed_paths"
+  ],
+  "evidence_parent": {
+    "work_issue": 3887,
+    "generation": 1,
+    "contract_sha256": "cab6a2901cfb2450ad9ac1e3fcab02caa6982878437d0affb23179c6c6b94c47"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "work_issue": 3887,
+  "outcome": "ready-for-merge",
+  "pr": 3889,
+  "migration_versions": [
+    "20261002155633"
+  ],
+  "contract_ref": "refs/db-contracts/3887/2",
+  "contract_sha256": "f40245b1e61c195a53a476279b356f699cf1f14b31601075fa794bd608990bd2",
+  "base_sha": "9299911e72ca293c99b491939c1279dcc770406b",
+  "head_sha": "12282e709953f3244120af4d896904990832449c",
+  "files_changed": [
+    ".github/live-proofs/3887.sql",
+    "supabase/migrations/20261002155633_repoint_user_fks_to_dflow_users.sql"
+  ],
+  "db_reads": [
+    "table dflow.users"
+  ],
+  "db_writes": [
+    "table core.age_group",
+    "table core.art_types",
+    "table core.artist_types",
+    "table plm.\"productUserAssignment\"",
+    "table plm.sample_comments"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "static checks passed"
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Live-proof probe present: .github/live-proofs/3887.sql; passed=true on preview mvpkijzfmfcxhnzqogzs, passed=false on production before apply."
+    }
+  ],
+  "assumptions_resolved": [
+    "live read 2026-10-02: 0 orphan rows against dflow.users on production and preview",
+    "fresh pre-apply production read 2026-10-02: all 8 originals reference app.users with ON UPDATE NO ACTION/ON DELETE NO ACTION (core) and ON UPDATE CASCADE/ON DELETE NO ACTION (plm), single-column, validated; matches the migration"
+  ],
+  "stop_conditions_hit": []
+}
