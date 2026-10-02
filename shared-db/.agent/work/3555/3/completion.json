@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "work_issue": 3555,
+  "outcome": "ready-for-merge",
+  "pr": 3657,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3555/3",
+  "contract_sha256": "c2c723400279a3386e08c96be7890e99edec80bf609dd200c214f79e280d2400",
+  "head_sha": "cf7e90797d4581508c508e6869b25688b52dd800",
+  "base_sha": "902b9f5967307e8fc18c868553cd8d59b8a0ced9",
+  "files_changed": [
+    ".agent/work/3555/3/completion.json",
+    ".agent/work/3555/3/contract.json",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/lib/reviewer-caller-env.mjs",
+    "scripts/lib/reviewer-capabilities.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs",
+    "scripts/test-fixtures/github-wire-fake.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/run-governed-review.test.mjs scripts/record-review-verdict.test.mjs",
+      "exit_code": 0,
+      "evidence": "854 pass, 0 fail (1 skipped) at merge 183188b4 after refreshing onto current main (test-file conflict resolved by keeping both sides)."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=321 sources=81 derived_digest=8916e65f9e63 at merge 183188b4."
+    },
+    {
+      "command": "node --test scripts/reviewer-wire-budget.test.mjs",
+      "exit_code": 0,
+      "evidence": "4 pass, 0 fail at merge 183188b4."
+    }
+  ],
+  "assumptions_resolved": [
+    "run-governed-review passes --prompt-file, --base and --assert-head to ai-stepfun review; ai-review-packet verify writes the source receipt (pinned by ai-devops tests/test-ai-stepfun.sh governed-receipt checks). No --governed-verdict flag was needed.",
+    "The implementation was drafted in PR #3554 before refs/db-contracts/3555/1 was published; #3554 was closed and the implementation commit here follows the published ref.",
+    "No database read, write, or production dispatch is claimed.",
+    "DeepSeek governed review (assignment 4010) returned REVISE at 8f9a8251 for an unenforced ai-stepfun subcommand, a some-instead-of-exact platform test, missing stepfun out-of-credit test rows, a stale comment, and head wording in this report; fixed at this implementation head under contract generation 2, which adds scripts/run-governed-review.test.mjs to allowed_paths.",
+    "Qwen governed review (replacement for Grok turn_limit_cancelled at 4d77847c) returned REVISE: missing AI_STEPFUN_CALLER, wire-fake preflight without stepfun, source-contract assertions, activation probe evidence, docs enumeration and wording, stale comments. Fixed at this implementation head under contract generation 3. Its verdict artifact was not recorded because the runner was given the wrong replacement sequence (4012 instead of the failed sequence 4011).",
+    "Rebased onto main c0708496 (StepFun/Ubuntu-only landing session, ai-devops #952): the pull request's own diff from merge base to head is byte-identical to the previously reviewed head 7003431cba77ea9ed712d6df24a4a78c132a937f (verified with scripts/lib/pr-content-equivalence.mjs prContentDigest, both equal 47370557353e4a3b501a7f2681568da917fa67f481ea6a2765ab2b143c5506de), so this is an evidence-only/merge-from-main refresh under the narrow #2758 equivalence rule; no new implementation review is required."
+  ],
+  "stop_conditions_hit": []
+}

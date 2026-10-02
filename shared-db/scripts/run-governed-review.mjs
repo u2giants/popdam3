@@ -373,11 +373,11 @@ export function wrapperSpawnPlan(resolved,args,platform=process.platform){
 // OUT OF CREDIT (owner requirement, 2026-09-24): a session whose reviewer failed
 // because the provider account ran out of credit must know that, and tell Albert in
 // the same reply. The ai-devops rotation wrappers exit 92 and print two stderr lines:
-//   AI_REVIEWER_OUT_OF_CREDIT provider=<grok|muse|qwen|gemini|deepseek> code=insufficient_quota
+//   AI_REVIEWER_OUT_OF_CREDIT provider=<grok|muse|qwen|gemini|deepseek|stepfun> code=insufficient_quota
 //   OUT OF CREDIT: <plain-English sentence naming the provider and where to add credit>
-export const OUT_OF_CREDIT_MACHINE_LINE=/^AI_REVIEWER_OUT_OF_CREDIT provider=(grok|muse|qwen|gemini|deepseek) code=insufficient_quota$/
+export const OUT_OF_CREDIT_MACHINE_LINE=/^AI_REVIEWER_OUT_OF_CREDIT provider=(grok|muse|qwen|gemini|deepseek|stepfun) code=insufficient_quota$/
 export const OUT_OF_CREDIT_HUMAN_LINE=/^OUT OF CREDIT: [ -~]{10,300}$/
-const OUT_OF_CREDIT_PROVIDER_NAMES=Object.freeze({grok:'xAI (Grok)',muse:'Meta (Muse)',qwen:'Alibaba Model Studio (Qwen)',gemini:'Google Gemini',deepseek:'DeepSeek'})
+const OUT_OF_CREDIT_PROVIDER_NAMES=Object.freeze({grok:'xAI (Grok)',muse:'Meta (Muse)',qwen:'Alibaba Model Studio (Qwen)',gemini:'Google Gemini',deepseek:'DeepSeek',stepfun:'StepFun (Step 5)'})
 // Raw provider billing text, from a wrapper that predates the contract above. It is
 // recognized but NEVER echoed: only the fixed sentence below crosses into the refusal.
 const RAW_BILLING_EXHAUSTION=/used all available credits|monthly spending limit|insufficient balance|arrearage|prepayment credits are depleted/i

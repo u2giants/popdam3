@@ -1094,6 +1094,18 @@ test('#2831: the runner refuses ai-muse review and passes ai-muse new through',(
   assert.deepEqual(wrapperVerdictContractArgs('ai-muse',['new','look at this'],head),['new','look at this'])
 })
 
+test('ai-stepfun is governed only through review (#3555)',()=>{
+  const head='c'.repeat(40)
+  for(const sub of ['ask','implement'])assert.throws(()=>wrapperVerdictContractArgs('ai-stepfun',[sub,'--prompt-file','brief.md'],head),/reviewer_cannot_emit_governed_verdict/)
+  assert.deepEqual(wrapperVerdictContractArgs('ai-stepfun',['review','--prompt-file','brief.md'],head),['review','--prompt-file','brief.md'])
+  // ai-stepfun is a governed wrapper, so it is also a source wrapper: the runner binds
+  // its --base and --assert-head to the trusted pull request source.
+  const source={mergeBase:'d'.repeat(40),headSha:head}
+  assert.deepEqual(wrapperSourceContractArgs('ai-stepfun',['review','--prompt-file','brief.md'],source),['review','--prompt-file','brief.md','--base',source.mergeBase,'--assert-head',head])
+  assert.throws(()=>wrapperSourceContractArgs('ai-stepfun',['review','--assert-head','e'.repeat(40)],source),/does not match the trusted pull request source/)
+  assert.equal(reviewCallerEnvironment('ai-stepfun',{CLAUDE_CODE_SESSION_ID:'s'}).AI_STEPFUN_CALLER,'claude')
+})
+
 // Owner requirement 2026-09-24: an out-of-credit reviewer failure is named, and the
 // wrapper's plain-English OUT OF CREDIT line reaches the REFUSED text verbatim.
 import { TERMINAL_FAILURE_CODES } from './manage-migration-author-lanes.mjs'
@@ -1103,6 +1115,7 @@ const OUT_OF_CREDIT_FIXTURES=[
   ['qwen','OUT OF CREDIT: the Alibaba Model Studio (Qwen) account has run out of credits or is in arrears - top up at https://modelstudio.console.alibabacloud.com'],
   ['gemini','OUT OF CREDIT: the Google Gemini account has run out of prepaid credits - add credits at https://aistudio.google.com'],
   ['deepseek','OUT OF CREDIT: the DeepSeek account has an insufficient balance - top up at https://platform.deepseek.com'],
+  ['stepfun','OUT OF CREDIT: the StepFun (Step 5) API account is out of credit - add credits at https://platform.stepfun.ai'],
 ]
 const outOfCreditRun=(stderr)=>{
   const events=[]
@@ -1128,7 +1141,7 @@ test('out of credit: every rotation provider carries its OUT OF CREDIT line verb
   }
 })
 test('out of credit: a machine line without a valid human line gets fixed text naming the provider',()=>{
-  for(const [provider,name] of [['grok','xAI (Grok)'],['muse','Meta (Muse)'],['qwen','Alibaba Model Studio (Qwen)'],['gemini','Google Gemini'],['deepseek','DeepSeek']]){
+  for(const [provider,name] of [['grok','xAI (Grok)'],['muse','Meta (Muse)'],['qwen','Alibaba Model Studio (Qwen)'],['gemini','Google Gemini'],['deepseek','DeepSeek'],['stepfun','StepFun (Step 5)']]){
     const reason=wrapperFailureReason({stderr:`AI_REVIEWER_OUT_OF_CREDIT provider=${provider} code=insufficient_quota\n`})
     assert.equal(reason,`insufficient_quota: OUT OF CREDIT: the ${name} reviewer account has run out of credits or hit its spending limit`)
   }

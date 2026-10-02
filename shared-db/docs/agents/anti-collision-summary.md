@@ -65,7 +65,7 @@ rules below are the operative summary.
      truncated-output failure. Never replace `REVISE` or reduce coverage: exhaust active providers
     not failed on the exact head, then fail closed with the exact blocker. The configured rotation is
     Grok 4.6, GLM 5.3, Qwen 3.8 Max, Muse Spark 1.3 Contributor,
-    Gemini 3.8 Flash High, and DeepSeek V4.1 Flash, minus the live orchestrator's own engine — exactly
+    Gemini 3.8 Flash High, DeepSeek V4.1 Flash, and StepFun Step 5 (Linux machines only), minus the live orchestrator's own engine — exactly
     `ACTIVE_REVIEWERS` in `scripts/manage-migration-author-lanes.mjs`. Gemini
     re-entered on 2026-09-06 (PR #2438) after a live re-qualification. Kimi K3
     was unpaused on 2026-09-07 (PR #2483) after a passing wrapper doctor; it
@@ -87,6 +87,12 @@ rules below are the operative summary.
     repository through read-only tools (ai-devops PR #730) and passed a live
     qualification and a live governed review. The text-only `deepseek-chat` row,
     RETIRED on 2026-09-01 (issue #2078), stays retired.
+    **StepFun Step 5 (`stepfun-step-5-preview`) is drawable as of 2026-09-25 on
+    Ubuntu/Linux only** (owner instruction): `ai-stepfun review` runs StepCode with
+    read-only tools inside bubblewrap over the sealed evidence packet (ai-devops PR
+    #849). StepCode has no Windows build and the sandbox is Linux-only, so on any
+    other OS `ai-review-preflight usable` reports it `unsupported-platform` and
+    the allocator skips it there like any other unusable provider.
     **Codex GPT-5.6 Sol is NOT in the rotation:** the owner retired it
     permanently on 2026-09-06 (issue #2485) once the other providers were
     working, so it sits in `RETIRED_REVIEWERS` and is not drawable. Its

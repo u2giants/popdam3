@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "work_issue": 3555,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add a drawable reviewer row stepfun-step-5-preview (ai-stepfun review: StepCode step/step-5-preview with read-only tools in bubblewrap over the sealed evidence packet, popcre/ai-devops PR #849) so the live pool is grok-4.6, qwen-3.8-max, muse-spark-1.3-contributor, gemini-3.8-flash-high, deepseek-v4.1-flash and stepfun-step-5-preview; StepFun is drawn only on Linux machines because non-Linux preflight reports it unsupported-platform",
+  "base_sha": "49b4389d7ef009e5e86b5c0728ab22c5cfac0e20",
+  "dispatcher": "Claude chat bfaba3a6-f938-46e5-b5ee-b6900bd4c10e on edge-dev3 (owner request in chat 2026-09-25)",
+  "worker": "claude",
+  "branch": "claude/stepfun-rotation",
+  "worktree": "/tmp/claude-1000/-home-ahazan-repos-ai-devops--claude-worktrees-stepfun-step5-ubuntu-reviewer-227894/bfaba3a6-f938-46e5-b5ee-b6900bd4c10e/scratchpad/shared-db",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/lib/reviewer-capabilities.mjs",
+    "scripts/run-governed-review.mjs",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3555/1/contract.json",
+    ".agent/work/3555/1/completion.json",
+    "scripts/run-governed-review.test.mjs",
+    ".agent/work/3555/2/contract.json",
+    ".agent/work/3555/2/completion.json",
+    "scripts/lib/reviewer-caller-env.mjs",
+    "scripts/test-fixtures/github-wire-fake.mjs",
+    ".agent/work/3555/3/contract.json",
+    ".agent/work/3555/3/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/lib/reviewer-capabilities.mjs",
+    "scripts/run-governed-review.mjs",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/agents/active-contracts-and-plans.md",
+    ".agent/work/3555/1/contract.json",
+    ".agent/work/3555/1/completion.json",
+    "scripts/run-governed-review.test.mjs",
+    ".agent/work/3555/2/contract.json",
+    ".agent/work/3555/2/completion.json",
+    "scripts/lib/reviewer-caller-env.mjs",
+    "scripts/test-fixtures/github-wire-fake.mjs",
+    ".agent/work/3555/3/contract.json",
+    ".agent/work/3555/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not add an allocator platform field; platform exclusion stays with ai-review-preflight usable",
+    "do not edit another session's handoff, worktree, branch, or claim"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs scripts/run-governed-review.test.mjs scripts/record-review-verdict.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node --test scripts/reviewer-wire-budget.test.mjs"
+  ],
+  "assumptions": [
+    "run-governed-review passes --prompt-file, --base and --assert-head to ai-stepfun review, and ai-review-packet verify writes the source receipt; no --governed-verdict flag is needed because ai-stepfun review already demands a head-bound VERDICT line",
+    "the implementation was drafted (PR #3554, now closed-over by this branch) before this contract was published; the implementation commit follows the published ref",
+    "generation 2 supersedes generation 1 only to add scripts/run-governed-review.test.mjs (DeepSeek REVISE at 8f9a8251 asked for stepfun out-of-credit and subcommand test rows); the generation-1 pair is removed so the pull request carries exactly one pair",
+    "generation 3 supersedes generation 2 to add scripts/lib/reviewer-caller-env.mjs (AI_STEPFUN_CALLER) and scripts/test-fixtures/github-wire-fake.mjs (fake preflight reports stepfun), per Qwen REVISE at 4d77847c; the generation-2 pair is removed"
+  ],
+  "stop_conditions": [
+    "stop if a test fails for a reason unrelated to the reviewer roster",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ],
+  "generation": 3
+}

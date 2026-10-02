@@ -9,7 +9,7 @@
 
 // Every wrapper the governed runner will launch. A roster row whose wrapper is not here
 // cannot produce a recordable governed verdict and is never drawn.
-export const GOVERNED_VERDICT_WRAPPERS = Object.freeze(['ai-claude-review','ai-codex-review','ai-deepseek-agent','ai-gemini','ai-glm','ai-grok-review','ai-kimi','ai-muse','ai-qwen'])
+export const GOVERNED_VERDICT_WRAPPERS = Object.freeze(['ai-claude-review','ai-codex-review','ai-deepseek-agent','ai-gemini','ai-glm','ai-grok-review','ai-kimi','ai-muse','ai-qwen','ai-stepfun'])
 
 // Wrappers that take the explicit `--governed-verdict <head>` contract flag.
 export const VERDICT_CONTRACT_FLAG_WRAPPERS = Object.freeze(['ai-gemini','ai-qwen','ai-deepseek-agent'])
@@ -20,7 +20,9 @@ export const VERDICT_CONTRACT_FLAG_WRAPPERS = Object.freeze(['ai-gemini','ai-qwe
 // head; only `new`/`ask` take the governed prompt as written. The runner enforces this
 // before any reviewer starts, so ai-muse's place in GOVERNED_VERDICT_WRAPPERS is a fact
 // the runner guarantees, not an operator choice.
-export const GOVERNED_SUBCOMMANDS = Object.freeze({'ai-muse':Object.freeze(['new','ask'])})
+// `ai-stepfun` (Ubuntu/Linux only) emits the governed `VERDICT: <decision> <head>` line only
+// from `review`; `ask` and `implement` carry no verdict contract (#3555).
+export const GOVERNED_SUBCOMMANDS = Object.freeze({'ai-muse':Object.freeze(['new','ask']),'ai-stepfun':Object.freeze(['review'])})
 
 export function wrapperBaseName(wrapper){
   return String(wrapper??'').split(/[\\/]/).pop().replace(/\.(cmd|bat|exe)$/i,'').toLowerCase()

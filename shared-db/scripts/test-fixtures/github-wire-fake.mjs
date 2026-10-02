@@ -102,7 +102,7 @@ cp.execFileSync=function(bin,args,opts){
   if(name==='git')return handleGit((args??[]).map(String),opts)
   if(name===nodeName)return orig.apply(this,arguments)
   if(name==='where'||name==='which'){log('local','where');return `C:\\fake\\${args[0]}.exe\r\n`}
-  if(name==='ai-review-preflight'){log('local','preflight');return ['grok','glm','kimi','qwen','muse','codex','deepseek','gemini'].map(provider=>JSON.stringify({provider,usable:true,status:'qualified',admission:{schema_version:1,provider,state:'unknown',quota_state:'unknown',reset_at:null,reason:'unscopable',credential_profile_scope:null,model_scope:null}})).join('\n')+'\n'}
+  if(name==='ai-review-preflight'){log('local','preflight');return ['grok','glm','kimi','qwen','muse','codex','deepseek','gemini','stepfun'].map(provider=>JSON.stringify({provider,usable:true,status:'qualified',admission:{schema_version:1,provider,state:'unknown',quota_state:'unknown',reset_at:null,reason:'unscopable',credential_profile_scope:null,model_scope:null}})).join('\n')+'\n'}
   log('other',name);fail(`fake: unsupported binary ${name}`)
 }
 syncBuiltinESMExports()

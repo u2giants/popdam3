@@ -337,6 +337,13 @@ export const REVIEWERS = Object.freeze([
   // durable refs record reviews made without repository access (#2078).
   { name:'deepseek-v4.1-flash', provider:'deepseek', wrapper:'ai-deepseek-agent', readsRepository:true,
     readsRepositoryVerified:{ date:'2026-09-23', evidence:'ai-devops/bin/ai-deepseek-agent --review (PR #730 plus dd46fa46, model deepseek-flash): read-only list_dir/read_file/grep over the exact-head review snapshot, secret and .git paths refused, bounded loop; ai-review-preflight check deepseek --live PASSED and the live review of merged commit e2e41104 cited tools/ci/runner-router.cjs and verify.yml line numbers and ended VERDICT: REVISE e2e41104735a0c3e1981dabccbdc9089f109d970' } },
+  // Appended 2026-09-25 (owner instruction "put stepfun into the reviewer rotation").
+  // UBUNTU/LINUX ONLY: StepCode has no Windows build and the wrapper needs bubblewrap
+  // (Linux only). The allocator stays platform-agnostic on purpose -- on any other OS `ai-review-preflight usable` reports
+  // stepfun `unsupported-platform` / usable:false, so allocatableReviewers() skips it
+  // on that machine exactly like any other unusable provider.
+  { name:'stepfun-step-5-preview', provider:'stepfun', wrapper:'ai-stepfun', readsRepository:true,
+    readsRepositoryVerified:{ date:'2026-09-25', evidence:'ai-devops/bin/ai-stepfun review (PR popcre/ai-devops#849, merged f1758c21): StepCode step/step-5-preview with only read/grep/find/ls under strict approval, inside bubblewrap (only /usr, /etc and its own read-only review copy mounted; empty home, /tmp, /run; cleared environment), over the shared sealed evidence packet (MANIFEST.md) re-verified after the run; live review of 94bf83c6 on 2026-09-25 cited bin/ai-stepfun line numbers and ended VERDICT: REVISE 94bf83c64889c2c29e229a2faa66d8ee183e911c; on edge-dev3 (Ubuntu) 2026-09-25 `ai-stepfun doctor --live` printed `OK step=0.1.1 model=step/step-5-preview live=verified` and `ai-review-preflight usable stepfun` returned {"provider":"stepfun","status":"installed-healthy","usable":true,"registry_state":"registered"}. A future retirement must add this name to RETIRED_REVIEWERS and keep the row' } },
 ])
 // Keep REVIEWERS as the historical evidence registry. Paused providers remain
 // readable forever, but only ACTIVE_REVIEWERS can receive new work.
@@ -3369,7 +3376,7 @@ export const REVIEWER_DOCTOR_TIMEOUT_MS = (()=>{
 })()
 
 // `ai-review-preflight usable` reconciles EVERY provider in one process (nine on
-// edge-dev). Spawned through the cmd.exe -> Git bash shim chain one pass measures
+// edge-dev when measured; ten since stepfun joined on 2026-09-25, still well inside the floor). Spawned through the cmd.exe -> Git bash shim chain one pass measures
 // ~39 s and has taken ~80 s under load, so sharing the single-doctor budget here
 // cut the run off before the later providers reported and refused the whole draw
 // with "cut off before reporting qwen". The single-doctor budget above stays

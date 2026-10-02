@@ -467,10 +467,12 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    The set grants permission only: live preflight, quarantine, orchestrator independence, per-PR exclusions and
    slot independence still decide who is usable. It creates no concurrency cap.
 
-   For new assignments, the machine-independent cursor rotates Grok 4.6 → GLM
-   5.3 → Qwen 3.8 Max → Muse Spark 1.3 Contributor → Gemini 3.8 Flash High →
-   DeepSeek V4.1 Flash → repeat,
-   skipping any reviewer whose engine matches the live orchestrator. GLM 5.3
+   For new assignments, the shared cursor (the sequence counter is shared; which
+   reviewer a draw lands on depends on what the drawing machine can run) rotates Grok 4.6 → GLM
+   5.3 → Qwen 3.8 Max → Muse Spark 1.3 Contributor → Gemini 3.8 Flash High → DeepSeek
+   V4.1 Flash → StepFun Step 5 → repeat,
+   skipping any reviewer whose engine matches the live orchestrator, and on a
+   non-Linux machine skipping StepFun (its preflight is `unsupported-platform`). GLM 5.3
    was restored on 2026-09-30 (owner instruction: "add GLM back into the
    reviewer rotation") after its 2026-09-18 weekly-usage pause. Kimi K3
    (paused 2026-09-22, account out of credit, issue #3423) is not drawable
@@ -525,6 +527,16 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    commit `e2e41104` returning `VERDICT: REVISE e2e41104735a0c3e1981dabccbdc9089f109d970`
    above a report citing specific lines.
 
+   **StepFun Step 5 (`stepfun-step-5-preview`) is ACTIVE as of 2026-09-25,
+   Ubuntu/Linux only** (owner instruction). `ai-stepfun review` (ai-devops PR
+   #849) runs StepCode `step/step-5-preview` with only read/grep/find/ls under
+   strict approval inside bubblewrap, over the shared sealed evidence packet, and
+   ends in a head-bound `VERDICT:` line; a live review of `94bf83c6` returned
+   `VERDICT: REVISE 94bf83c64889c2c29e229a2faa66d8ee183e911c` above a report
+   citing specific lines. The allocator has no platform field: on Windows,
+   `ai-review-preflight usable` reports stepfun `unsupported-platform`, so that
+   machine never draws it.
+
    **The text-only `deepseek-chat` row was RETIRED on 2026-09-01 (issue #2078)
    and stays retired.** At that time
    `ai-deepseek-agent` was a conversational API client with no filesystem, no
@@ -540,8 +552,10 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    evidence-packet checkout, Gemini via a disposable sandbox copy of
    the checkout under `--sandbox`, paused Kimi via a read-only agent profile, and
    DeepSeek V4.1 Flash via `ai-deepseek-agent --review` read-only repository
-   tools (`list_dir`, `read_file`, `grep`) confined to the checkout root. The
-   retired Codex reviewer was equipped the same way, via `codex exec --sandbox
+   tools (`list_dir`, `read_file`, `grep`) confined to the checkout root, and
+   StepFun Step 5 (Linux machines only) via `ai-stepfun review`: read/grep/find/ls
+   inside bubblewrap over a read-only disposable copy with the sealed evidence
+   packet. The retired Codex reviewer was equipped the same way, via `codex exec --sandbox
    read-only`, but is no longer drawable.
 
    No reviewer is overflow. **No reviewer is ever "busy" (owner ruling,
