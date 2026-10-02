@@ -123,7 +123,7 @@ defect):
 | `POEVA` | POE GA Norfolk | port of entry, Norfolk (code says VA, description says GA — as returned) |
 | `POE` | POE | bare port-of-entry code, destination unstated |
 | `DDPNJ` / `DDPMD` / `DDPPA` / `DDPOH` / `DDPNC` / `DDPCA` / `DDPGA` | DDP + state | delivered duty paid, trucked to the customer's state |
-| `MDDP` | MDDP | DDP variant; the expansion is Unknown (sheet pairs it with NINGBO) |
+| `MDDP` | MDDP | customer pays freight and arranges shipping; POP clears US customs and pays duty (Settled, Albert, 2026-10-02 — see [`shipping-terms-and-delivery-responsibility.md`](shipping-terms-and-delivery-responsibility.md)); the letter expansion is still unstated |
 | `DES001` | Deco Signs | drop-ship/destination code |
 | `ANT001` | ANTHONY'S WAREHOUSE | POP-side warehouse |
 | `WMFC` | Walmart Fulfillment Center | |
