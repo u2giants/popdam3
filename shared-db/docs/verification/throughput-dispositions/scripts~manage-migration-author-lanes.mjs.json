@@ -17,6 +17,13 @@
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
+      "site": "scripts/manage-migration-author-lanes.mjs:5665",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:0f8a2c79324240988308e792d82320141bbb022db29325638cdd7711b5f728c3:context-133b6f583d059a4c992af424ab97681d6f6cd097d863884637993294886b0b04",
+      "line_sha256": "0f8a2c79324240988308e792d82320141bbb022db29325638cdd7711b5f728c3",
+      "disposition": "excluded",
+      "reason": "Merge reconciliation 2026-10-02: call site present in the merged source after origin/main was brought into this branch; it carries no new throughput claim beyond the already-reviewed class of queue/ref coordination messages in this file."
+    },
+    {
       "site": "scripts/manage-migration-author-lanes.mjs:734",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:10203ad02cbf2b582359cb072ce142147e2970c7b9c0aee6318b80c1daf3c1f0:context-3731d41f0239cdc7269360bc4cafad17c6439504e1aa4a344ee0c9310d2f148a",
       "line_sha256": "10203ad02cbf2b582359cb072ce142147e2970c7b9c0aee6318b80c1daf3c1f0",
@@ -24,7 +31,7 @@
       "reason": "Excluded: validates local reviewer admission evidence before assignment; missing or malformed admission is not a database absence claim."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:7543",
+      "site": "scripts/manage-migration-author-lanes.mjs:7541",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7:context-339bdfbb6f15a84e7908a538253ad9fe7340bc445971020d3ee696abb9de29e3",
       "line_sha256": "1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7",
       "disposition": "excluded",
@@ -38,28 +45,28 @@
       "reason": "Merge reconciliation 2026-10-02: call site present in the merged source after origin/main was brought into this branch; it carries no new throughput claim beyond the already-reviewed class of queue/ref coordination messages in this file."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:8559",
+      "site": "scripts/manage-migration-author-lanes.mjs:8557",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816:context-3e40e794d9a179cfdf986694602a659828fb7945b64843afa299c1358177c7bd",
       "line_sha256": "1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:7158",
+      "site": "scripts/manage-migration-author-lanes.mjs:7156",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299:context-877f52c870097ec52d1135bc38fb02024fb4da38e3b304b6dad3d33829911185",
       "line_sha256": "24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:5117",
+      "site": "scripts/manage-migration-author-lanes.mjs:5099",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:2ddf8009d73172c32ef99c59ae68148190ba7a7791968f42cf31637301bea671:context-70b09cc6eb30a62fd92b7b804c5582bbcc67356d9ab412ccbe503051d2d16b30",
       "line_sha256": "2ddf8009d73172c32ef99c59ae68148190ba7a7791968f42cf31637301bea671",
       "disposition": "excluded",
       "reason": "Prose comment above durableVerdictBlocksReplacement, not executable logic. The word \"missing\" here names the unreadable-assignment-record case that the function immediately below treats as blocking, so this call site documents a fail-closed path rather than a silently missing one."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:9276",
+      "site": "scripts/manage-migration-author-lanes.mjs:9274",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:353e05215c33d52eeb934fee9fba3ee00cc84e87c32baf606fc691a7ffa50759:context-f3441d81b17137924476f7d7cfcef9a018545b00ec13bee197825c9df7fade78",
       "line_sha256": "353e05215c33d52eeb934fee9fba3ee00cc84e87c32baf606fc691a7ffa50759",
       "disposition": "excluded",
@@ -80,21 +87,21 @@
       "reason": "Prose comment explaining the #2078 reviewer-repository-access gate; the word matches the discovery pattern but the line is not a throughput call site and carries no derivation behavior."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:6679",
+      "site": "scripts/manage-migration-author-lanes.mjs:6677",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:4a05e72c7f4ab1a1b4582203940a8e38fb3e768e40420fbdd9de37f92b4d4749:context-58900ec10a412f0c8ed9c878e60f4710b07d05226a3c504cb472add6460bce5f",
       "line_sha256": "4a05e72c7f4ab1a1b4582203940a8e38fb3e768e40420fbdd9de37f92b4d4749",
       "disposition": "excluded",
       "reason": "Merge reconciliation 2026-10-02: call site present in the merged source after origin/main was brought into this branch; it carries no new throughput claim beyond the already-reviewed class of queue/ref coordination messages in this file."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:6473",
+      "site": "scripts/manage-migration-author-lanes.mjs:6471",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:503def9aef2f0e8e8abf283a5af3c9a92ad163f596e106465de933c9736e0284:context-b70dab2dbb4b2c17c46965019d049eb610acb652b25f77ea8043f9858b6f3044",
       "line_sha256": "503def9aef2f0e8e8abf283a5af3c9a92ad163f596e106465de933c9736e0284",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:8848",
+      "site": "scripts/manage-migration-author-lanes.mjs:8846",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:5817bcb0434eb2808241d5759a53f923c66e6974e409e08cc51cab006e033b8c:context-fc04746adb6e5aa9d404e901c516f4369d18e596a11506f05ef4a89aaad5ebff",
       "line_sha256": "5817bcb0434eb2808241d5759a53f923c66e6974e409e08cc51cab006e033b8c",
       "disposition": "excluded",
@@ -129,14 +136,14 @@
       "reason": "Classifies documentation paths from the authenticated Git snapshot; it does not report migration throughput or alter a refusal message."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:6506",
+      "site": "scripts/manage-migration-author-lanes.mjs:6504",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415:context-c0184e02790e05bbde8ba99e181fa9befb7d0d7abb60379bad7d9a503ea5aa38",
       "line_sha256": "8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:9275",
+      "site": "scripts/manage-migration-author-lanes.mjs:9273",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:a3035e88f0dd1717b214c9b0742c1efb752dda15ff0a8d6aed632ed9c44eb66b:context-8c23722446d9cfc50dca7a20aa36df966bc7b9ef480c356a259b5a1023428621",
       "line_sha256": "a3035e88f0dd1717b214c9b0742c1efb752dda15ff0a8d6aed632ed9c44eb66b",
       "disposition": "excluded",
@@ -150,21 +157,14 @@
       "reason": "Parses the literal \"<sha> missing\" line that git cat-file --batch prints for an absent object; the SHA is hydrated by fetch or the read throws. It says nothing about migration or database-object state."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:2975",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:a506dd54ce0a675ce62b60933700254ff523561f16a7abdd7e91a1615f095238:context-ad414d011e93f61d65e4ffdac7fb4b2b8e80efb751f681c377110e571b357a4f",
-      "line_sha256": "a506dd54ce0a675ce62b60933700254ff523561f16a7abdd7e91a1615f095238",
-      "disposition": "enriched",
-      "reason": "A missing required production-proof artifact file refuses outcome completion, so absent evidence cannot be read as successful application."
-    },
-    {
-      "site": "scripts/manage-migration-author-lanes.mjs:4937",
+      "site": "scripts/manage-migration-author-lanes.mjs:4919",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:b03846824daaafeb0f0c7f536b249b0207a114a30eb80de2001ea5b575c7d5c6:context-189f7004b93c9bcf9aa29d7e15785deb1d40a27ac1ae5516231d35c6b0778228",
       "line_sha256": "b03846824daaafeb0f0c7f536b249b0207a114a30eb80de2001ea5b575c7d5c6",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:4398",
+      "site": "scripts/manage-migration-author-lanes.mjs:4380",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:b3b03b389e25b1e34d3bf7a7e4aa2337b618cb6f9852fea602b4b370aeae090f:context-8e7615fc6a599852056c60ceb13f9e800b63b4855b66d467e8d3f8e3d2bc6ce9",
       "line_sha256": "b3b03b389e25b1e34d3bf7a7e4aa2337b618cb6f9852fea602b4b370aeae090f",
       "disposition": "excluded",
@@ -178,49 +178,49 @@
       "reason": "Prose in the #2152 Link-header parser comment: the word \"missing\" describes a missing < that makes parseLinkHeader throw. Documentation of fail-closed parsing, not a truth claim about a database object."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:8689",
+      "site": "scripts/manage-migration-author-lanes.mjs:8687",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:c2daf6668b46ae5bed2e1f77960c1bdd9d479d087d2b02cf384da4602a5b0420:context-73db2415d5f2832d756a475b0a2b59078a321e2e1dcfa1dbc97f9121563dbd7f",
       "line_sha256": "c2daf6668b46ae5bed2e1f77960c1bdd9d479d087d2b02cf384da4602a5b0420",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:8847",
+      "site": "scripts/manage-migration-author-lanes.mjs:8845",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:ca1264e6065617ade3865ccfe5fcd58d55b6eb058e3ea0e281d2c6d29dd80eba:context-88474a39cafb04011e26e6541ca41402540d31d5ab85400531ae73607851fab3",
       "line_sha256": "ca1264e6065617ade3865ccfe5fcd58d55b6eb058e3ea0e281d2c6d29dd80eba",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:5856",
+      "site": "scripts/manage-migration-author-lanes.mjs:5854",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:ce0ab3a91a6f988f7aa5002646c036fdcabab77a37713a33a87f8a8668d9e835:context-a09de158ee7ba27dd0ca2b33f30b41a2be117f758cc48b001b6a80670d984407",
       "line_sha256": "ce0ab3a91a6f988f7aa5002646c036fdcabab77a37713a33a87f8a8668d9e835",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:9228",
+      "site": "scripts/manage-migration-author-lanes.mjs:9226",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:edd9522c827b9793833f73e03172024d7b1bf2c0354e269ec0131cd4dc6a2c92:context-cfc38fb315faaf8a0ab3d03dcf39197702379711f31d007453aeac4f7ba7ea0f",
       "line_sha256": "edd9522c827b9793833f73e03172024d7b1bf2c0354e269ec0131cd4dc6a2c92",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:6763",
+      "site": "scripts/manage-migration-author-lanes.mjs:6761",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:f2b70e881056d343bb62e9487b82900f635636b8136d2773566a2308bb505e5d:context-9725fa43e7a419968d674ca500a43f26713d01d1c058cfd129ac9b047e0d5f9f",
       "line_sha256": "f2b70e881056d343bb62e9487b82900f635636b8136d2773566a2308bb505e5d",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:6814",
+      "site": "scripts/manage-migration-author-lanes.mjs:6812",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:f30023772b56725e26d2ee56709548ccdbe3ba11879aad96d6fe6f357c85079a:context-f5b6c65b1491bf8b012dbad2ab31d62fbbb766e2015836ef4cb28720b5f7280d",
       "line_sha256": "f30023772b56725e26d2ee56709548ccdbe3ba11879aad96d6fe6f357c85079a",
       "disposition": "excluded",
       "reason": "Fail-closed immutable reviewer-evidence validation; the word missing does not describe database or migration state."
     },
     {
-      "site": "scripts/manage-migration-author-lanes.mjs:6683",
+      "site": "scripts/manage-migration-author-lanes.mjs:6681",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:f70bb424f24c07066d4bd5b6b80e1bf9987558d410b0b712a65c761b414ab497:context-8ffd6b06dbae68529e8af8cbc2f21ca9305f714c5aa058f5654307e7f0604308",
       "line_sha256": "f70bb424f24c07066d4bd5b6b80e1bf9987558d410b0b712a65c761b414ab497",
       "disposition": "excluded",

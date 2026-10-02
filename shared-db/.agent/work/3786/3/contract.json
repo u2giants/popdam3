@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3786,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Let --complete-work/--complete-outcome open downloaded proof artifact zips on Linux by replacing tar extraction with a pure-Node zip reader",
+  "base_sha": "5d7940597e7343f42e6c906b72da263934754148",
+  "dispatcher": "Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3 (issue #3786)",
+  "worker": "claude",
+  "branch": "fix/complete-work-linux-proof",
+  "worktree": ".claude/worktrees/complete-work-linux",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/lib/zip-entries.mjs",
+    "scripts/lib/zip-entries.test.mjs",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3786/3/contract.json",
+    ".agent/work/3786/3/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/lib/zip-entries.mjs",
+    "scripts/lib/zip-entries.test.mjs",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3786/3/contract.json",
+    ".agent/work/3786/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not relax proof artifact entry-selection or digest rules"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/zip-entries.test.mjs",
+    "node --test scripts/manage-migration-author-lanes*.test.mjs"
+  ],
+  "assumptions": [
+    "GitHub Actions artifact zips use stored or deflate entries without zip64"
+  ],
+  "stop_conditions": [
+    "stop if the change needs a file outside allowed_paths"
+  ],
+  "generation": 3
+}

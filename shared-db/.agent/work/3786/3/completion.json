@@ -1,0 +1,32 @@
+{
+  "contract_sha256": "e78e5d4281ac88a1ca77ca0358b9f66a7a41ee6473fe200143b7272f8479f6b5",
+  "head_sha": "1cb6c602142b5eaf266c98332de939c8e3e42bc6",
+  "db_reads": [],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "evidence": "754 pass, 0 fail at merge implementation head.",
+      "command": "node --test scripts/lib/zip-entries.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0
+    }
+  ],
+  "schema_version": 1,
+  "base_sha": "de12c0cc43bb0bb5d610f4c1f9a3e01a2248ba8b",
+  "outcome": "ready-for-merge",
+  "pr": 3787,
+  "contract_ref": "refs/db-contracts/3786/3",
+  "files_changed": [
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "scripts/lib/zip-entries.mjs",
+    "scripts/lib/zip-entries.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs"
+  ],
+  "notes": "Generation 3 supersedes generation 2 after merging current main into the PR branch.",
+  "db_writes": [],
+  "migration_versions": [],
+  "assumptions_resolved": [
+    "Generation 3 expands allowed_paths for the merge reconciliation disposition and invalidator inventory files."
+  ],
+  "work_issue": 3786
+}

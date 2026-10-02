@@ -39,6 +39,7 @@
     "scripts/lib/reviewer-draw-readiness.mjs",
     "scripts/lib/work-dependencies.mjs",
     "scripts/lib/work-stage-evidence.mjs",
+    "scripts/lib/zip-entries.mjs",
     "scripts/manage-migration-author-lanes.mjs",
     "scripts/orchestrator-flow/classify-invalidation.mjs",
     "scripts/orchestrator-flow/evidence-bundle.mjs",

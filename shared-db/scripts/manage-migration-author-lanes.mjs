@@ -7,8 +7,8 @@ import { runGitHubCommand as sharedRunGitHubCommand, isTransientGitHubTransport,
 import { createTreeReader } from './lib/github-tree.mjs'
 import { reviewCallerEnvironment } from './lib/reviewer-caller-env.mjs'
 import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { readZipEntries } from './lib/zip-entries.mjs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gatherOpenPrObjects, normalizeObject, parseClaimBlock } from './check-dispatch-collision.mjs'
@@ -2953,30 +2953,12 @@ export const githubIo = {
     return matchesGeneratedTypesProof(proof,evidence)
   },
   readArtifactJson(repository,id,expectedFile){
-    const directory=mkdtempSync(path.join(tmpdir(),'shared-db-proof-')),archive=path.join(directory,'proof.zip')
-    try{
-      const bytes=gh(['api',`repos/${repository}/actions/artifacts/${Number(id)}/zip`],{encoding:null,maxBuffer:20*1024*1024})
-      writeFileSync(archive,bytes)
-      const entries=execFileSync('tar',['-tf',archive],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).split(/\r?\n/).filter(Boolean)
-      if(entries.length!==1||entries[0]!==expectedFile)throw new LaneError(`proof artifact must contain exactly ${expectedFile}`)
-      execFileSync('tar',['-xf',archive,'-C',directory],{stdio:'ignore'})
-      return JSON.parse(readFileSync(path.join(directory,expectedFile),'utf8'))
-    }finally{rmSync(directory,{recursive:true,force:true})}
+    const entries=readZipEntries(gh(['api',`repos/${repository}/actions/artifacts/${Number(id)}/zip`],{encoding:null,maxBuffer:20*1024*1024}))
+    return selectArtifactJson(entries,expectedFile)
   },
   readArtifactFiles(repository,id,expectedFiles){
-    const directory=mkdtempSync(path.join(tmpdir(),'shared-db-production-proof-')),archive=path.join(directory,'proof.zip')
-    try{
-      const bytes=gh(['api',`repos/${repository}/actions/artifacts/${Number(id)}/zip`],{encoding:null,maxBuffer:20*1024*1024})
-      writeFileSync(archive,bytes)
-      const entries=execFileSync('tar',['-tf',archive],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).split(/\r?\n/).filter(Boolean)
-      const result=new Map()
-      for(const expected of expectedFiles){
-        const entry=entries.find((value)=>value===expected||value.endsWith(`/${expected}`))
-        if(!entry)throw new LaneError(`production proof artifact is missing ${expected}`)
-        result.set(expected,execFileSync('tar',['-xOf',archive,entry],{encoding:'utf8',stdio:['ignore','pipe','pipe']}))
-      }
-      return result
-    }finally{rmSync(directory,{recursive:true,force:true})}
+    const entries=readZipEntries(gh(['api',`repos/${repository}/actions/artifacts/${Number(id)}/zip`],{encoding:null,maxBuffer:20*1024*1024}))
+    return selectArtifactFiles(entries,expectedFiles)
   },
   closeIssue(number) { gh(['issue','close',String(number),'--repo',REPO]) },
   closeClaim(number, reason) { gh(['issue', 'close', String(number), '--repo', REPO, '--comment', requireClaimCloseReason(reason)]) },
@@ -5670,6 +5652,22 @@ export function reapAbandonedReviewLeases(options={},now=new Date(),io=githubIo)
 // because production promotion re-runs check-exact-head-approval against the merged
 // source pull request. An unknown pull request or an unreadable merge commit is
 // kept, never guessed. Without --apply-recovery this is a read-only preview.
+// Artifact zip selection, shared by the proof readers (portable; no tar).
+export function selectArtifactJson(entries,expectedFile){
+  const names=[...entries.keys()]
+  if(names.length!==1||names[0]!==expectedFile)throw new LaneError(`proof artifact must contain exactly ${expectedFile}`)
+  return JSON.parse(entries.get(expectedFile).toString('utf8'))
+}
+export function selectArtifactFiles(entries,expectedFiles){
+  const names=[...entries.keys()],result=new Map()
+  for(const expected of expectedFiles){
+    const entry=names.find((value)=>value===expected||value.endsWith(`/${expected}`))
+    if(!entry)throw new LaneError(`production proof artifact is missing ${expected}`)
+    result.set(expected,entries.get(entry).toString('utf8'))
+  }
+  return result
+}
+
 export const REVIEW_ARCHIVED_VERDICT_REF_PREFIX='refs/db-review-archived-verdicts'
 export const REVIEW_VERDICT_ARCHIVE_BATCH=40
 const ARCHIVABLE_VERDICT_NAMESPACES=[`${REVIEW_VERDICT_REF_PREFIX}/`,`${REVIEW_VERDICT_REPLACEMENT_REF_PREFIX}/`]
