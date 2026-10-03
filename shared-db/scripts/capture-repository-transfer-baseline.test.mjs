@@ -65,7 +65,7 @@ function fakeWorld(overrides = {}) {
     'user/memberships/orgs/popcre': { state: 'active', role: 'admin' },
     'orgs/popcre/actions/permissions': { enabled_repositories: 'all', allowed_actions: 'all' },
   }
-  for (const ref of ['merge', 'preview', 'production', 'author-acquisition']) {
+  for (const ref of ['merge', 'preview', 'production', 'author-acquisition', 'promotion-freeze']) {
     routes[`repos/${SOURCE}/git/ref/db-coordination/${ref}`] = notFound
   }
   for (const status of ACTIVE_RUN_STATUSES) {

@@ -76,7 +76,8 @@ test('lane reads: a 404 is a free lane, anything else is a refusal', () => {
   assert.deepEqual(readHeldLanes('acme/widgets', { read: held }), ['refs/db-coordination/preview'])
   const broken = () => { throw new Error('HTTP 403: forbidden') }
   assert.throws(() => readHeldLanes('acme/widgets', { read: broken }), /could not be read/)
-  assert.equal(LANE_REFS.length, 4)
+  assert.equal(LANE_REFS.length, 5)
+  assert.ok(LANE_REFS.includes('refs/db-coordination/promotion-freeze'))
 })
 
 test('main tip preview gate: migration tips need the exact-SHA success first', () => {

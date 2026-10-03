@@ -336,7 +336,7 @@ test('issue 2075: the merge gate refuses input that carries no durable verdict l
 // Driven through the ADAPTER with the ref, commit and comment shapes GitHub
 // actually returns, because the gap was in what the adapter never read.
 const RETURN_HEAD = 'a'.repeat(40)
-function returnedSlotGithub({ redrawSequence = null, redrawReviewer = 'glm-5.3' } = {}) {
+function returnedSlotGithub({ redrawSequence = null, redrawReviewer = 'glm-5.3', livePr = null } = {}) {
   const issue = 1824, pr = 1931
   const assignment1 = '1'.repeat(40), assignment2 = '2'.repeat(40), redraw = '7'.repeat(40)
   const findingsBody = 'review findings', findingsRef = `https://github.com/u2giants/shared-db/pull/${pr}#issuecomment-1`
@@ -374,7 +374,7 @@ function returnedSlotGithub({ redrawSequence = null, redrawReviewer = 'glm-5.3' 
       if (endpoint.includes('/git/matching-refs/db-review-verdict-replacements')) return []
       if (/\/git\/commits\/[0-9a-f]{40}$/.test(endpoint)) return commits.get(endpoint.split('/').pop())
       if (endpoint.includes('/issues/comments/')) return { body: findingsBody }
-      if (/\/pulls\/\d+$/.test(endpoint)) return { head: { sha: RETURN_HEAD } }
+      if (/\/pulls\/\d+$/.test(endpoint)) return livePr ?? { head: { sha: RETURN_HEAD } }
       throw new Error(`unexpected endpoint ${endpoint}`)
     },
     pages: () => [],
@@ -402,6 +402,29 @@ test('a returned slot is answered only by an assignment drawn after the returned
 test('two durable approvals from the same reviewer never satisfy independent slots', () => {
   const input = gatherApprovalInput({ PR_NUMBER: '1931' }, returnedSlotGithub({ redrawSequence: 9, redrawReviewer: 'kimi-k3' }))
   assert.throws(() => evaluateExactHeadApproval(input), /review slots at exact head .* share reviewer kimi-k3/)
+  assert.equal(input.mergedAtHead, false, 'an open pull request is never merged at its head')
+})
+
+test('2026-10-02 ruling: a shared slot >= 2 reviewer is accepted only when the PR is merged at this exact head', () => {
+  const input = gatherApprovalInput({ PR_NUMBER: '1931' }, returnedSlotGithub({ redrawSequence: 9, redrawReviewer: 'kimi-k3' }))
+  assert.throws(() => evaluateExactHeadApproval({ ...input, mergedAtHead: false }), /share reviewer kimi-k3/)
+  assert.equal(evaluateExactHeadApproval({ ...input, mergedAtHead: true }).approved, true)
+})
+
+test('2026-10-02 ruling: gatherApprovalInput derives mergedAtHead from the live PR on the production path', () => {
+  const shared = { redrawSequence: 9, redrawReviewer: 'kimi-k3' }
+  const merged = gatherApprovalInput({ PR_NUMBER: '1931' }, returnedSlotGithub({ ...shared, livePr: { state: 'closed', merged: true, merged_at: '2026-10-02T00:00:00Z', head: { sha: RETURN_HEAD } } }))
+  assert.equal(merged.mergedAtHead, true)
+  assert.equal(evaluateExactHeadApproval(merged).approved, true)
+  for (const livePr of [
+    { state: 'open', merged_at: '2026-10-02T00:00:00Z', head: { sha: RETURN_HEAD } },
+    { state: 'closed', merged_at: null, head: { sha: RETURN_HEAD } },
+    { state: 'closed', merged_at: '2026-10-02T00:00:00Z', head: { sha: 'f'.repeat(40) } },
+  ]) {
+    const input = gatherApprovalInput({ PR_NUMBER: '1931', REQUESTED_SHA: RETURN_HEAD }, returnedSlotGithub({ ...shared, livePr }))
+    assert.equal(input.mergedAtHead, false)
+    assert.throws(() => evaluateExactHeadApproval(input), /share reviewer kimi-k3/)
+  }
 })
 
 // APPROVAL CARRY-FORWARD (#2758). Head A was approved; the PR then merged main and

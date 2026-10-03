@@ -1,0 +1,70 @@
+{
+  "schema_version": 2,
+  "work_issue": 3919,
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 3919,
+    "generation": 2,
+    "contract_sha256": "78d83487daf27606c4ce57ed8ad40604a7ac62c2bb2afb46729b681b3df44002"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Implement Albert Hazan's 2026-10-02 owner instructions (verbatim: \"assign someone to pause merges during production runs\"; \"if you can't then you'll have to be ok with using one reviewer twice\"). A: for review slot >= 2 on a MERGED pull request (verified merged-PR issue binding), when no independent reviewer remains, --assign-reviewer and --replace-failed-reviewer may draw a reviewer already holding another slot on that exact head, still excluding failed, unusable, preflight-excluded, independence-conflict and retired reviewers, deterministically; assertDurableReviewApproval accepts that shared reviewer only in that merged slot>=2 case. Open PRs keep strict slot independence. B: a bounded TTL-expiring create-only promotion merge freeze ref (--acquire-promotion-freeze / --release-promotion-freeze) that --acquire-merge and repository-maintenance authorization refuse under, naming holder and expiry; preview and production are never blocked; the production job's always() cleanup releases the freeze for its source PR. Ruling recorded in docs/owner-rulings.md and standing fact 14. Generation 3 answers governed review round 3 (qwen REVISE N1-N7): pin gatherApprovalInput deriving mergedAtHead from the live PR, require not-open in both merged predicates, judge carried prior heads strictly, register the freeze ref in the snapshot, merge-queue configuration and transfer-baseline lane lists, and name both approval gates in the ruling.",
+  "base_sha": "88e7cb551dfead6bf1765d18d35feadd427ce61d",
+  "dispatcher": "Claude chat c0f64531-7679-436c-be2c-65c829d345dd on al8960ofc",
+  "worker": "Claude chat c0f64531-7679-436c-be2c-65c829d345dd on al8960ofc",
+  "branch": "tooling/promotion-freeze-reviewer-reuse",
+  "worktree": "C:/repos/shared-db-worktrees/promotion-freeze-reuse",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "docs/owner-rulings.md",
+    "docs/agents/standing-facts.md",
+    "scripts/check-exact-head-approval.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    "scripts/orchestrator-snapshot.mjs",
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "scripts/capture-repository-transfer-baseline.mjs",
+    "scripts/capture-repository-transfer-baseline.test.mjs",
+    ".agent/work/3919/3/contract.json",
+    ".agent/work/3919/3/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "docs/owner-rulings.md",
+    "docs/agents/standing-facts.md",
+    "scripts/check-exact-head-approval.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    "scripts/orchestrator-snapshot.mjs",
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "scripts/capture-repository-transfer-baseline.mjs",
+    "scripts/capture-repository-transfer-baseline.test.mjs",
+    ".agent/work/3919/3/contract.json",
+    ".agent/work/3919/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration file and no database structure change",
+    "No weakening of slot independence for open pull requests",
+    "The freeze never blocks preview or production lanes",
+    "No branch-protection change, no forged or hand-edited review artifacts or refs"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node --test scripts/manage-migration-author-lanes.test.mjs scripts/prove-production-risk-acceptance.test.mjs scripts/check-merge-queue-workflows.test.mjs scripts/check-exact-head-approval.test.mjs scripts/configure-merge-queue.test.mjs scripts/orchestrator-snapshot.test.mjs scripts/capture-repository-transfer-baseline.test.mjs"
+  ],
+  "assumptions": [
+    "Merged state for reviewer reuse is proven by the existing mergedPrReviewTarget hook installed by SHARED_DB_MERGED_PR_ISSUE_BINDING / withMergedPrIssueBinding",
+    "Generation 3 edits were drafted in the uncommitted worktree before this contract was published; no generation-3 implementation commit exists before publication"
+  ],
+  "stop_conditions": [
+    "Stop if any required check fails at the implementation head",
+    "Stop on a coordination-mutex, contract or guarded-lane refusal that cannot be resolved with evidence"
+  ]
+}

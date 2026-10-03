@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "work_issue": 3919,
+  "outcome": "ready-for-merge",
+  "pr": 3922,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3919/3",
+  "contract_sha256": "17d5845367185351834c3b2e34cb96444f387afe0b691388be3dc34902e135a3",
+  "head_sha": "14930d816db9bde5fc1fe696895226e5428b8493",
+  "base_sha": "62d24e1688c46674403e504813b3e977e0357dc9",
+  "files_changed": [
+    ".github/workflows/shared-supabase-migrations.yml",
+    "docs/agents/standing-facts.md",
+    "docs/owner-rulings.md",
+    "scripts/capture-repository-transfer-baseline.mjs",
+    "scripts/capture-repository-transfer-baseline.test.mjs",
+    "scripts/check-exact-head-approval.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-snapshot.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed; 0 added migrations; exit 0 at the implementation head 14930d816db9bde5fc1fe696895226e5428b8493."
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/prove-production-risk-acceptance.test.mjs scripts/check-merge-queue-workflows.test.mjs scripts/check-exact-head-approval.test.mjs scripts/configure-merge-queue.test.mjs scripts/orchestrator-snapshot.test.mjs scripts/capture-repository-transfer-baseline.test.mjs",
+      "exit_code": 0,
+      "evidence": "941 tests, 941 pass, 0 fail at the implementation head 14930d816db9bde5fc1fe696895226e5428b8493; includes the gatherApprovalInput live-PR pin, the freeze ref in all three lane registries, and the --ttl-minutes-with-release refusal."
+    }
+  ],
+  "assumptions_resolved": [
+    "Merged state for reuse at draw time is proven by mergedPrReviewTarget, installed only by the verified merged-PR issue binding; the approval gates accept merged-at-head because a merged-PR verdict is recordable only through that binding.",
+    "Generations 2 and 3 answer governed review rounds 2 and 3 (qwen-3.8-max REVISE, H1: check-exact-head-approval.mjs also enforced slot independence and is what the automatic promotion re-proof runs).",
+    "Live GitHub proof (set and release a freeze; draw a reused reviewer for a merged PR slot) can only run from merged main; it is the open live-proof checklist item on issue #3919.",
+    "Governed review round 4 (deepseek REVISE R1): the read-side relaxations cite the write-side enforcement, recordReviewVerdict -> reviewTargetIsRecordable -> io.mergedPrReviewTarget, pinned by scripts/merged-pr-issue-binding.test.mjs."
+  ],
+  "stop_conditions_hit": []
+}

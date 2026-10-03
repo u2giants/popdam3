@@ -288,7 +288,7 @@ export function evaluateExactHeadApproval(input) {
     for (const assignment of latestBySlot.values()) {
       const reviewer = approvals.find((row) => row.assignment_sha === assignment.sha)?.reviewer
       if (!reviewer) throw new ApprovalCheckError(`review slot ${assignment.slot} has no verified reviewer identity`)
-      if (providers.has(reviewer)) throw new ApprovalCheckError(`review slots at exact head ${headSha} share reviewer ${reviewer}; independent approval refused`)
+      if (providers.has(reviewer) && input.mergedAtHead !== true) throw new ApprovalCheckError(`review slots at exact head ${headSha} share reviewer ${reviewer}; independent approval refused`)
       providers.add(reviewer)
     }
     return { approved: true, head_sha: headSha, pr: Number(pr), assignments: latestBySlot.size, approvals: new Set(approvals.map((row) => row.ref)).size, required_slots: requiredSlots }
@@ -423,7 +423,19 @@ export function gatherApprovalInput(env = process.env, deps = { json, pages }) {
   // later reviewer records cannot rewrite a lawful merge into a refusal.
   if (env.APPROVAL_AUDIT !== undefined && env.APPROVAL_AUDIT !== '' && env.APPROVAL_AUDIT !== MERGED_AUDIT_MODE) throw new ApprovalCheckError(`APPROVAL_AUDIT must be '${MERGED_AUDIT_MODE}' or unset; got '${env.APPROVAL_AUDIT}'`)
   if (env.APPROVAL_AUDIT === MERGED_AUDIT_MODE) return gatherMergedAuditInput(env, pr, readJson, readPages)
-  const headSha = String(env.REQUESTED_SHA || readJson(['api', `repos/${REPO}/pulls/${pr}`])?.head?.sha || '')
+  const livePr = readJson(['api', `repos/${REPO}/pulls/${pr}`])
+  const headSha = String(env.REQUESTED_SHA || livePr?.head?.sha || '')
+  // OWNER RULING 2026-10-02 (docs/owner-rulings.md §6.26, "using one reviewer
+  // twice"): only a pull request that is already MERGED at exactly this head may
+  // carry a slot >= 2 reviewer that also holds another slot. The allocator draws
+  // that state only through the verified merged-PR issue binding, and every verdict
+  // counted here was recorded through it: recordReviewVerdict refuses any verdict on a merged PR unless
+  // reviewTargetIsRecordable passes (scripts/manage-migration-author-lanes.mjs, the
+  // `if(!reviewTargetIsRecordable(live,{pr,issue,headSha},io))throw` line), which for a
+  // merged PR requires io.mergedPrReviewTarget(pr,issue) === true -- the verified
+  // merged-PR issue binding. Pinned by scripts/merged-pr-issue-binding.test.mjs.
+  // Open PRs stay strict. The predicate matches mergedPrLive in the lanes script.
+  const mergedAtHead = Boolean(livePr?.merged_at) && String(livePr?.state ?? '').toLowerCase() !== 'open' && /^[0-9a-f]{40}$/i.test(headSha) && String(livePr?.head?.sha ?? '').toLowerCase() === headSha.toLowerCase()
   const issueNumbers = new Set([pr])
   // Slot 2 assignments are suffixed `-slot<N>`, and a reviewer replaced after a
   // failure keeps its own ref under the replacement namespace, pinned to the SAME
@@ -528,7 +540,7 @@ export function gatherApprovalInput(env = process.env, deps = { json, pages }) {
   // carry their previous name too, so a migration renamed to a `.md` is still a
   // migration change. Unreadable input yields a list the classifier refuses.
   const changedFiles = changedPathsFromPullRequestFiles(readPages(`repos/${REPO}/pulls/${pr}/files?per_page=100`))
-  return { pr, headSha, evidence, assignments, returns, verdicts, changedFiles, priorHeads, mergeAudit: null }
+  return { pr, headSha, evidence, assignments, returns, verdicts, changedFiles, priorHeads, mergeAudit: null, mergedAtHead }
 }
 
 // A MERGE FROM MAIN DOES NOT VOID AN APPROVAL (orchestrator marker #2758, 2026-09-11).
@@ -575,7 +587,8 @@ export function evaluateApprovalWithRefresh(input, { contentPreservingRefresh })
   if (refusedPrior) throw new ApprovalCheckError(`${exactError.message}; an APPROVE cannot be carried forward because head ${refusedPrior.headSha}, whose pull request diff is identical to this head, carries a durable reviewer refusal`)
   for (const prior of equivalent) {
     try {
-      const result = evaluateExactHeadApproval({ ...input, headSha: prior.headSha, returns: prior.returns ?? [], verdicts: prior.verdicts })
+      // mergedAtHead describes the CURRENT head only; a carried prior head is judged strictly.
+      const result = evaluateExactHeadApproval({ ...input, headSha: prior.headSha, returns: prior.returns ?? [], verdicts: prior.verdicts, mergedAtHead: false })
       if (result.documents_only) continue
       return { ...result, head_sha: input.headSha, carried_from: prior.headSha, implementation_digest: digests.get(prior) }
     } catch (error) { if (!(error instanceof ApprovalCheckError)) throw error }

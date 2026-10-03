@@ -45,6 +45,8 @@ export const LANE_REFS = Object.freeze([
   'refs/db-coordination/preview',
   'refs/db-coordination/production',
   'refs/db-coordination/author-acquisition',
+  // Promotion merge freeze (owner instruction 2026-10-02, docs/owner-rulings.md §6.26).
+  'refs/db-coordination/promotion-freeze',
 ])
 
 export const ACTIVE_RUN_STATUSES = Object.freeze(['in_progress', 'queued', 'waiting', 'requested', 'pending'])

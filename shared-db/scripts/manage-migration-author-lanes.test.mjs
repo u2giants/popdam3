@@ -14,6 +14,8 @@ import { createHash } from 'node:crypto'
 import { REVIEW_VERDICT_REF_PREFIX, verdictRef } from './lib/review-verdict-artifact.mjs'
 import { OWN_START_ONLY_ACTIVITY, ENGINE_REVIEWER_EXCLUSION } from './manage-migration-author-lanes.mjs'
 import { assignWithMutexRetry } from './manage-migration-author-lanes.mjs'
+import { authorizeRepositoryMaintenanceStatus } from './manage-migration-author-lanes.mjs'
+import { mergedPrReviewerReuseAllowed, acquirePromotionFreeze, releasePromotionFreeze, readPromotionFreeze, PROMOTION_FREEZE_REF } from './manage-migration-author-lanes.mjs'
 import { SLOT_INDEPENDENCE_CONFLICT } from './manage-migration-author-lanes.mjs'
 import { canonicalReviewerAllowlist } from './manage-migration-author-lanes.mjs'
 import { parseAssignmentRef } from './manage-migration-author-lanes.mjs'
@@ -10891,4 +10893,165 @@ test('#3874 a route: claim-first issue is dispatched by the queue builder end to
   const result = buildDynamicQueues(issues, [], NOW)
   assert.equal(result.fullyAudited, true)
   assert.deepEqual(new Set(result.dispatchable), new Set([1, 2]))
+})
+
+// OWNER RULING 2026-10-02 (docs/owner-rulings.md): "if you can't then you'll have
+// to be ok with using one reviewer twice". Merged PR post-merge slot >= 2 only.
+function mergedReuseIo({merged}){
+  const io=reviewIo(),headSha='e'.repeat(40)
+  io.requiresExactReviewHeadSha=true
+  io.getPr=(number)=>({number:Number(number),state:merged?'closed':'open',merged_at:merged?'2026-10-02T00:00:00Z':null,...(merged?{merge_commit_sha:'c'.repeat(40)}:{}),head:{sha:headSha,ref:'codex/x'}})
+  if(merged)io.mergeCommitInMain=()=>true
+  if(merged)io.mergedPrReviewTarget=(pr,issue)=>Number(pr)===3902&&Number(issue)===3901
+  return {io,headSha}
+}
+function fillEverySlot(io,headSha){
+  const holders=[]
+  for(let slot=1;slot<=ACTIVE_REVIEWERS.length;slot+=1){
+    const row=assignNextReviewer({issue:3901,pr:3902,headSha,slot},io)
+    holders.push(row.reviewer)
+  }
+  return holders
+}
+
+test('2026-10-02 ruling: an OPEN pull request keeps strict slot independence',()=>{
+  const {io,headSha}=mergedReuseIo({merged:false})
+  const holders=fillEverySlot(io,headSha)
+  assert.equal(new Set(holders).size,holders.length)
+  assert.throws(()=>assignNextReviewer({issue:3901,pr:3902,headSha,slot:holders.length+1},io),/no independent reviewer is available for slot/)
+})
+
+test('2026-10-02 ruling: a MERGED pull request slot >= 2 reuses a reviewer when none is independent',()=>{
+  const {io,headSha}=mergedReuseIo({merged:true})
+  const holders=fillEverySlot(io,headSha)
+  assert.equal(new Set(holders).size,holders.length,'independent reviewers are still preferred while any remain')
+  const reused=assignNextReviewer({issue:3901,pr:3902,headSha,slot:holders.length+1},io)
+  assert.ok(holders.includes(reused.reviewer),'the reused reviewer already holds another slot on this head')
+  const again=mergedReuseIo({merged:true});fillEverySlot(again.io,again.headSha)
+  assert.equal(assignNextReviewer({issue:3901,pr:3902,headSha:again.headSha,slot:holders.length+1},again.io).reviewer,reused.reviewer,'deterministic choice')
+})
+
+test('2026-10-02 ruling: reuse requires a verified merged-PR binding and slot >= 2',()=>{
+  const {io}=mergedReuseIo({merged:true})
+  assert.equal(mergedPrReviewerReuseAllowed({issue:3901,pr:3902,headSha:'e'.repeat(40),slot:1},io),false)
+  assert.equal(mergedPrReviewerReuseAllowed({issue:3901,pr:3902,headSha:'e'.repeat(40),slot:2},io),true)
+  assert.equal(mergedPrReviewerReuseAllowed({issue:3999,pr:3902,headSha:'e'.repeat(40),slot:2},io),false,'binding names another issue')
+  assert.equal(mergedPrReviewerReuseAllowed({issue:3901,pr:3902,headSha:'f'.repeat(40),slot:2},io),false,'not the merged head')
+  delete io.mergedPrReviewTarget
+  assert.equal(mergedPrReviewerReuseAllowed({issue:3901,pr:3902,headSha:'e'.repeat(40),slot:2},io),false,'no binding, no reuse')
+})
+
+// OWNER INSTRUCTION 2026-10-02: "assign someone to pause merges during production runs".
+function freezeIo(){
+  const io=memoryIo(),messages=new Map();let n=0
+  io.makeOwnerCommit=(message)=>{const sha=(++n).toString(16).padStart(40,'0');messages.set(sha,message);return sha}
+  io.readCommitMessage=(sha)=>messages.get(sha)??null
+  io.openClaims=()=>[{number:1,body:body(['table core.x'],'1','2099-01-01T00:00:00Z')}]
+  io.getPr=(number)=>({number:Number(number),head:{sha:'abc',ref:'codex/1'},base:{sha:'main'}})
+  return io
+}
+
+test('promotion merge freeze blocks merges, never production, and expires by TTL',()=>{
+  const io=freezeIo(),now=new Date('2026-10-02T12:00:00Z')
+  assert.throws(()=>acquirePromotionFreeze({issue:1,pr:2,owner:'x',ttlMinutes:181,now},io),/between 1 and 180/)
+  const freeze=acquirePromotionFreeze({issue:3901,pr:3902,owner:'claude-session',ttlMinutes:90,now},io)
+  assert.equal(freeze.expiresAt,'2026-10-02T13:30:00.000Z')
+  assert.equal(io.refs.has(MUTEX_REF),false)
+  assert.throws(()=>acquirePromotionFreeze({issue:1,pr:2,owner:'other',ttlMinutes:10,now},io),/already set; promotion merge freeze held by "claude-session"/)
+  assert.throws(()=>acquireExclusive('merge',{owner:'a',pr:1,headSha:'abc',now},io),/merges are paused for a production run; promotion merge freeze held by "claude-session" for PR #3902 \(issue #3901\) until 2026-10-02T13:30:00.000Z/)
+  const production=acquireExclusive('production',{owner:'p',headSha:'main',now},io)
+  releaseOwnedRef(EXCLUSIVE_REFS.production,production.ownerSha,io)
+  assert.throws(()=>releasePromotionFreeze({owner:'someone-else',now},io),/refusing to release another holder's freeze/)
+  assert.ok(acquireExclusive('merge',{owner:'a',pr:1,headSha:'abc',now:new Date('2026-10-02T13:31:00Z')},io).ownerSha,'an expired freeze never wedges merges')
+  releaseOwnedRef(EXCLUSIVE_REFS.merge,io.refs.get(EXCLUSIVE_REFS.merge),io)
+  assert.equal(releasePromotionFreeze({pr:3902},io).released,true,'the production cleanup releases by source PR')
+  assert.equal(io.refs.has(PROMOTION_FREEZE_REF),false)
+  assert.equal(releasePromotionFreeze({pr:3902},io).released,false)
+})
+
+test('an expired promotion freeze is replaced by a new one',()=>{
+  const io=freezeIo()
+  acquirePromotionFreeze({issue:1,pr:2,owner:'old',ttlMinutes:5,now:new Date('2026-10-02T12:00:00Z')},io)
+  const next=acquirePromotionFreeze({issue:3,pr:4,owner:'new',ttlMinutes:5,now:new Date('2026-10-02T12:06:00Z')},io)
+  assert.equal(next.replacedExpired,true)
+  assert.equal(readPromotionFreeze(io,new Date('2026-10-02T12:07:00Z')).owner,'new')
+})
+
+test('2026-10-02 ruling: durable approval accepts a reused slot >= 2 reviewer only on a merged head',()=>{
+  const fixture=durableApprovalFixture()
+  const replacement2='3'.repeat(40),original=fixture.io.getCommit
+  fixture.io.getCommit=(sha)=>sha===replacement2?{message:`db-coordination reviewer-replacement sequence=7 reviewer=kimi-k3 issue=${fixture.issue} pr=${fixture.pr} head=${fixture.headSha} slot=2 failed-sequence=2 prior-sequence=6 failure-ref=${'9'.repeat(40)}`}:sha==='6'.repeat(40)?{...original(sha),message:original(sha).message.replace('muse-spark-1.3-contributor','kimi-k3')}:original(sha)
+  fixture.io.getPr=()=>({state:'open',merged_at:null,head:{sha:fixture.headSha}})
+  assert.throws(()=>assertDurableReviewApproval(fixture.issue,fixture.pr,fixture.headSha,fixture.io),/share reviewer kimi-k3; independent approval refused/)
+  fixture.io.getPr=()=>({state:'closed',merged_at:'2026-10-02T00:00:00Z',head:{sha:fixture.headSha}})
+  assert.equal(assertDurableReviewApproval(fixture.issue,fixture.pr,fixture.headSha,fixture.io).length,3)
+})
+
+test('2026-10-02 ruling: --replace-failed-reviewer reuses a slot holder only on a merged PR',()=>{
+  for(const merged of [false,true]){
+    const {io,headSha}=mergedReuseIo({merged})
+    const holders=fillEverySlot(io,headSha)
+    const last=holders.length,failed=assignNextReviewer({issue:3901,pr:3902,headSha,slot:last},io)
+    const request={issue:3901,pr:3902,headSha,slot:last,failedSequence:failed.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true}
+    if(!merged){assert.throws(()=>replaceFailedReviewer(request,io),/no other independent reviewer is available for slot/);continue}
+    const replacement=replaceFailedReviewer(request,io)
+    assert.notEqual(replacement.reviewer,failed.reviewer,'the reviewer that failed on this head is never redrawn')
+    assert.ok(holders.includes(replacement.reviewer),'the replacement reuses a reviewer holding another slot')
+  }
+})
+
+test('promotion merge freeze also blocks repository-maintenance authorization',()=>{
+  const io=freezeIo()
+  acquirePromotionFreeze({issue:3901,pr:3902,owner:'claude-session',ttlMinutes:180},io)
+  assert.throws(()=>authorizeRepositoryMaintenanceStatus({pr:5,headSha:'a'.repeat(40),description:'d',targetUrl:'https://example.test/x'},io),/merges are paused for a production run; promotion merge freeze held by "claude-session"/)
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
+test('2026-10-02 ruling: merged-head shared-reviewer acceptance does not depend on slot order',()=>{
+  const fixture=durableApprovalFixture()
+  const original=fixture.io.getCommit,swap=(m)=>m.replace(/reviewer=kimi-k3/,'reviewer=muse-spark-1.3-contributor').replace('"reviewer":"kimi-k3"','"reviewer":"muse-spark-1.3-contributor"')
+  fixture.io.getCommit=(sha)=>(sha==='1'.repeat(40)||sha==='4'.repeat(40))?{...original(sha),message:swap(original(sha).message)}:original(sha)
+  fixture.io.getPr=()=>({state:'open',merged_at:null,head:{sha:fixture.headSha}})
+  assert.throws(()=>assertDurableReviewApproval(fixture.issue,fixture.pr,fixture.headSha,fixture.io),/share reviewer muse-spark-1.3-contributor/)
+  fixture.io.getPr=()=>({state:'closed',merged_at:'2026-10-02T00:00:00Z',head:{sha:fixture.headSha}})
+  assert.equal(assertDurableReviewApproval(fixture.issue,fixture.pr,fixture.headSha,fixture.io).length,3)
+})
+
+test('an unreadable promotion freeze fails closed, cannot be overwritten, and names its remedy',()=>{
+  const io=freezeIo()
+  io.refs.set(PROMOTION_FREEZE_REF,io.makeOwnerCommit('db-coordination promotion-freeze-record pr=1 issue=2\n{"owner":"","expiresAt":"2026-10-02T00:00:00Z"}'))
+  assert.equal(readPromotionFreeze(io,new Date('2030-01-01T00:00:00Z')).unreadable,true,'an ownerless record is unreadable')
+  assert.throws(()=>acquireExclusive('merge',{owner:'a',pr:1,headSha:'abc',now:new Date('2030-01-01T00:00:00Z')},io),/is unreadable; clear it with --release-promotion-freeze --pr <n>/)
+  assert.throws(()=>acquirePromotionFreeze({issue:3,pr:4,owner:'x',ttlMinutes:5},io),/already set/)
+  io.refs.set(PROMOTION_FREEZE_REF,io.makeOwnerCommit('garbage'))
+  assert.equal(releasePromotionFreeze({pr:999},io).released,true,'any positive PR releases an unreadable record')
+  assert.equal(io.refs.has(PROMOTION_FREEZE_REF),false)
+})
+
+test('promotion freeze CLI acquires and releases through main()',()=>{
+  const io=freezeIo(),oldLog=console.log,oldError=console.error,out=[];console.log=(line)=>out.push(String(line));console.error=()=>{}
+  try{
+    assert.equal(main(['--acquire-promotion-freeze','--issue','3901','--pr','3902','--owner','claude-session','--ttl-minutes','60'],NOW,io),0)
+    assert.equal(JSON.parse(out.at(-1)).owner,'claude-session')
+    assert.ok(io.refs.has(PROMOTION_FREEZE_REF))
+    assert.notEqual(main(['--acquire-promotion-freeze','--issue','3901','--pr','3902','--owner','x','--ttl-minutes','181'],NOW,io),0)
+    assert.equal(main(['--release-promotion-freeze','--owner','claude-session'],NOW,io),0)
+    assert.equal(JSON.parse(out.at(-1)).released,true)
+    assert.equal(io.refs.has(PROMOTION_FREEZE_REF),false)
+  }finally{console.log=oldLog;console.error=oldError}
+})
+
+test('the production job releases the promotion freeze for its source PR on always(), after the lane release',()=>{
+  const workflow=readFileSync(fileURLToPath(new URL('../.github/workflows/shared-supabase-migrations.yml',import.meta.url)),'utf8')
+  const lane=workflow.indexOf('--release-production --owner-sha "$OWNER_SHA"'),freeze=workflow.indexOf('- name: Release the promotion merge freeze for this source PR')
+  assert.ok(lane>0&&freeze>lane,'freeze release follows the production lane release')
+  const step=workflow.slice(freeze,workflow.indexOf('\n      - name:',freeze+10))
+  assert.match(step,/if: always\(\) && inputs\.source_pr != ''/)
+  assert.match(step,/--release-promotion-freeze --pr "\$SOURCE_PR"/)
+  assert.doesNotMatch(workflow,/--acquire-production[\s\S]{0,400}promotion-freeze/,'acquiring production never consults the freeze')
+})
+
+test('--ttl-minutes is refused with --release-promotion-freeze',()=>{
+  const io=freezeIo(),oldLog=console.log,oldError=console.error;console.log=()=>{};console.error=()=>{}
+  try{assert.notEqual(main(['--release-promotion-freeze','--owner','x','--ttl-minutes','5'],NOW,io),0)}finally{console.log=oldLog;console.error=oldError}
 })
