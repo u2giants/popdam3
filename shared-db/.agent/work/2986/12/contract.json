@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 2986,
+  "generation": 12,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Consciously re-pin the two sandbox orphan reconciliation cases' expected ledger baselines to accept the legitimate third-party sandbox ledger row 20261002135053 (merged PR #3873, issue #3869; migration file on origin/main), so the sanctioned reconciliation dispatches for 20260904183000 and 20260904183100 stop refusing on baseline drift they did not create. Supersedes generation 11, whose contract declared a non-empty db_reads and was refused by the contract validator; the read-only ledger proof happened outside the change and is recorded on issue #2986.",
+  "allowed_paths": [
+    ".agent/work/2986/12/contract.json",
+    ".agent/work/2986/12/completion.json",
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py"
+  ],
+  "file_writes": [
+    ".agent/work/2986/12/contract.json",
+    ".agent/work/2986/12/completion.json",
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "base_sha": "0a9437f0ecf1f4cf68e44813ce69a48de2468c69",
+  "branch": "fix/2986-repin-third-party-row",
+  "worktree": "shared-db-wt-2986-repin",
+  "worker": "zcode",
+  "dispatcher": "successor dispatch continuation on issue #2986 (ZCode subagent, edge-dev)",
+  "assumptions": [
+    "the third-party row 20261002135053 is legitimate: migration file 20261002135053_coldlion_prod_order_sales_order_link.sql exists on origin/main via merged PR #3873 (issue #3869), and the live sandbox ledger row's statements match the merged file's subject (read-only proof recorded on issue #2986, outside this change)",
+    "the two sandbox orphan rows themselves keep the exact 2026-10-02 captured content; only the SURVIVOR baseline gains the third-party row",
+    "the pinned-world test fixture gains the same row so the pin stays tested"
+  ],
+  "required_checks": [
+    "python -B -m unittest scripts.test_preview_ledger_orphan_reconcile",
+    "python -B -m unittest scripts.test_sandbox_migration_preflight scripts.test_production_catalog_verification"
+  ],
+  "prohibited_actions": [
+    "no writes to production qsllyeztdwjgirsysgai or the preview branch, in this PR or afterwards",
+    "no migration file is created or edited",
+    "no reconciliation or migration dispatch happens from this PR's branch; dispatches use merged main only"
+  ],
+  "stop_conditions": [
+    "stop and report Blocked with the verbatim refusal line if the third-party row's legitimacy cannot be proven read-only",
+    "stop if any pinned orphan row's own content drifted; that is a different defect, not a re-pin"
+  ]
+}

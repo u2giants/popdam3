@@ -338,6 +338,11 @@ class SandboxNoReplacementTests(unittest.TestCase):
     OTHERS = [
         "20260904143518", "20260904172420", "20260905053422", "20260907121732",
         "20260909121403", "20260911214438", "20260917022233", "20260917035654",
+        # Legitimate third-party row added after the 2026-10-02 capture:
+        # migration 20261002135053_coldlion_prod_order_sales_order_link.sql,
+        # merged PR #3873 (issue #3869), file on main, statements verified
+        # read-only against the live sandbox ledger before this re-pin.
+        "20261002135053",
     ]
 
     def args(self, **over):
