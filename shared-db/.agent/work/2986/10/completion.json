@@ -1,0 +1,73 @@
+{
+ "schema_version": 1,
+ "work_issue": 2986,
+ "generation": 10,
+ "outcome": "ready-for-merge",
+ "pr": 3880,
+ "migration_versions": [],
+ "contract_ref": "refs/db-contracts/2986/10",
+ "contract_sha256": "dbfe9a25246131f3d430581013aad9856b9f8a67c0e77c5cca11a7fed95b0ae5",
+ "head_sha": "1e1e5ea0a31f6c0a04429d24d168bfcbd2844cd3",
+ "files_changed": [
+  ".github/workflows/designflow-sandbox-migrations.yml",
+  ".github/workflows/sandbox-ledger-orphan-reconciliation.yml",
+  "config/preview-ledger-orphan-reconciliations.json",
+  "config/production-verification-sidecar-registry.json",
+  "docs/verification/throughput-guard-truth-baseline-20260828.json",
+  "scripts/preview_ledger_orphan_reconcile.py",
+  "scripts/production-verification-sidecars/20260928182014.json",
+  "scripts/production_catalog_verification.py",
+  "scripts/sandbox_migration_preflight.py",
+  "scripts/test_preview_ledger_orphan_reconcile.py",
+  "scripts/test_preview_ledger_orphan_reconcile_postgres.py",
+  "scripts/test_production_catalog_verification.py",
+  "scripts/test_sandbox_migration_preflight.py"
+ ],
+ "db_reads": [],
+ "db_writes": [],
+ "checks": [
+  {
+   "command": "python -m unittest scripts.test_preview_ledger_orphan_reconcile scripts.test_sandbox_migration_preflight scripts.test_production_catalog_verification",
+   "exit_code": 0,
+   "evidence": "297+ tests pass at 340fbba3; the full offline glob python -m unittest scripts/test_*.py is 1383 tests OK."
+  },
+  {
+   "command": "node --test scripts/*.test.mjs",
+   "exit_code": 0,
+   "evidence": "2402 pass, 0 fail, 1 skip at the pre-fix head; throughput-guard suite re-run after the detector baseline digest regeneration: 71 pass, 0 fail."
+  },
+  {
+   "command": "node --test scripts/throughput-guard/check-production-verification-sidecars.test.mjs",
+   "exit_code": 0,
+   "evidence": "71/71 throughput-guard tests pass after the detector baseline digest regeneration."
+  },
+  {
+   "command": "node scripts/check-throughput-truth-audit.mjs",
+   "exit_code": 0,
+   "evidence": "truth audit OK; no catalogued line context changed."
+  },
+  {
+   "command": "node scripts/check-production-verification-sidecars.mjs",
+   "exit_code": 0,
+   "evidence": "sidecars OK (65, including the new 20260928182014 entry), baseline digest verified against the edited detector."
+  },
+  {
+   "command": "scripts/check-sql.sh",
+   "exit_code": 0,
+   "evidence": "static checks passed; no new dependency introduced."
+  },
+  {
+   "command": "PREVIEW_LEDGER_RECONCILE_POSTGRES_TEST=1 python -m pytest scripts/test_preview_ledger_orphan_reconcile_postgres.py",
+   "exit_code": 0,
+   "evidence": "5/5 pass against a disposable PostgreSQL 18.6, now including the EXECUTED conditioning proofs: the conditioned phrase file applies without dflow_prod (exactly 6 plm columns) and with the same bytes applies the guarded dflow_prod statements once the schema exists; the cutover file no-ops without the schema and adds both UUID columns with it; the sandbox DELETE rolls back on a mid-transaction row change."
+  }
+ ],
+ "assumptions_resolved": [
+  "The two sandbox orphan rows still match the 2026-10-02 live capture pinned in config; any drift refuses before any write.",
+  "Production and preview already hold 20260928182014, so the new sidecar never loads on those lanes; derive_targets on a phrase-only allowlist is empty (reproduced), which is why the sidecar is required for the sanctioned sandbox apply to verify green.",
+  "Generation 10 supersedes 9 solely to add the detector baseline path that the contract edit itself required; the published refs are immutable.",
+  "Review round 1 (claude-diff-review-20261002T160613) findings H1 and M2-M4 and L5-L8 are all addressed in this implementation commit."
+ ],
+ "stop_conditions_hit": [],
+ "base_sha": "39213fa8f0c611a9d5621f3c67b46f5f1b5d8a0a"
+}

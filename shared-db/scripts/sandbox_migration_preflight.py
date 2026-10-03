@@ -29,6 +29,7 @@ database: the catalog read goes through the Management API with
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -41,6 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from production_migration_guard import (  # noqa: E402
     GuardError,
+    assert_content_manifest,
     local_migrations,
     parse_remote_versions,
     strip_sql,
@@ -291,6 +293,11 @@ def main(argv: list[str] | None = None) -> int:
     coll.add_argument("--repo", type=Path, required=True)
     coll.add_argument("--allowlist", required=True)
     coll.add_argument("--project-ref", required=True)
+    cond = subs.add_parser("condition")
+    cond.add_argument("--repo", type=Path, required=True)
+    cond.add_argument("--allowlist", required=True)
+    cond.add_argument("--project-ref", required=True)
+    cond.add_argument("--evidence-out", type=Path, required=True)
     led = subs.add_parser("verify-ledger")
     led.add_argument("--before", type=Path, required=True)
     led.add_argument("--after", type=Path, required=True)
@@ -306,12 +313,382 @@ def main(argv: list[str] | None = None) -> int:
             print(f"SANDBOX ALLOWLIST OK: {', '.join(values)}")
         elif args.command == "collisions":
             collisions(args.repo, args.allowlist, args.project_ref, _token())
+        elif args.command == "condition":
+            condition(args.repo, args.allowlist, args.project_ref, _token(), args.evidence_out)
         else:
             verify_ledger(args.before, args.after, args.allowlist)
     except (Refusal, GuardError) as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
         return 2
     return 0
+
+# ---------------------------------------------------------------------------
+# THE SCHEMA-CONDITIONED BLOCK (issue #2986).
+#
+# The sandbox does not carry every schema production has (dflow_prod is absent
+# until the structural route creates it), so an allowlisted migration whose
+# statements target objects in an ABSENT schema would fail 42P01 mid-batch and
+# strand a half-applied file. Instead of blocking the version unconditionally —
+# which contradicts the successor route that must eventually apply it — the
+# bounded checkout (and ONLY the bounded checkout; the repository file is
+# immutable) gets each qualifying statement wrapped in a live schema-existence
+# guard:
+#
+#   do $sandbox_schema_guard_N$ begin
+#     if exists (select 1 from pg_namespace where nspname = 'dflow_prod') then
+#       <the original statement, byte for byte>
+#     end if;
+#   end $sandbox_schema_guard_N$;
+#
+# On the live sandbox the guarded statement runs exactly when its target schema
+# exists, in BOTH dry-run and apply, so a green dry-run and a succeeding apply
+# stay the same instrument. When every conditioned schema is present the file's
+# bytes are untouched. The preview and production lanes never call this code.
+# Only alter/comment/do statements may be conditioned; anything else that names
+# an absent conditioned schema is refused by name, so no statement is ever
+# silently dropped.
+# ---------------------------------------------------------------------------
+
+CONDITIONED_SCHEMAS = ("dflow_prod",)
+# System schemas (pg_catalog, information_schema, pg_*) never appear in
+# `live_schemas` because the read-only probe excludes them, so a qualified
+# reference to them inside a conditioned statement (an information_schema
+# lookup in a verification do-block, for example) never counts as a second
+# live schema and never disqualifies the statement.
+WRAPPABLE_HEADS = ("alter", "comment", "do")
+CONDITIONING_EVIDENCE_SCHEMA = "shared-db-sandbox-schema-conditioning/v1"
+
+
+def scan_text(statement: str) -> str:
+    """Statement text with comments blanked and everything else kept.
+
+    String literals, dollar-quoted bodies and quoted identifiers are KEPT on
+    purpose: a conditioned statement can reach its schema through a literal
+    (`'dflow_prod.t'::regclass`) or inside a do block, and the conditioner must
+    see those mentions. Only comments are removed, because a comment naming
+    another schema (migration header prose) says nothing about what the
+    statement touches.
+    """
+    out: list[str] = []
+    unterminated: str | None = None
+    i, n = 0, len(statement)
+    while i < n:
+        ch = statement[i]
+        if statement.startswith("--", i):
+            end = statement.find("\n", i)
+            i = n if end == -1 else end
+            out.append(" ")
+        elif statement.startswith("/*", i):
+            depth, i = 1, i + 2
+            while i < n and depth:
+                if statement.startswith("/*", i):
+                    depth, i = depth + 1, i + 2
+                elif statement.startswith("*/", i):
+                    depth, i = depth - 1, i + 2
+                else:
+                    i += 1
+            if depth:
+                unterminated = "block comment"
+            out.append(" ")
+        elif ch == "'":
+            j = i + 1
+            closed = False
+            while j < n:
+                if statement.startswith("''", j):
+                    j += 2
+                elif statement[j] == "'":
+                    j += 1
+                    closed = True
+                    break
+                else:
+                    j += 1
+            if not closed:
+                unterminated = "single-quoted literal"
+            out.append(statement[i:j])
+            i = j
+        elif ch == '"':
+            j = statement.find('"', i + 1)
+            if j == -1:
+                unterminated = "quoted identifier"
+                j = n
+            else:
+                j += 1
+            out.append(statement[i:j])
+            i = j
+        elif ch == "$":
+            m = re.match(r"\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$", statement[i:])
+            if m:
+                tag = m.group(0)
+                k = statement.find(tag, i + len(tag))
+                if k == -1:
+                    unterminated = "dollar-quoted body"
+                    k = n
+                else:
+                    k += len(tag)
+                out.append(statement[i:k])
+                i = k
+            else:
+                out.append(ch)
+                i += 1
+        else:
+            out.append(ch)
+            i += 1
+    if unterminated:
+        # Fail closed exactly like statement_spans: unlexable text is a
+        # refusal, never a silent consume-to-EOF that hides a mention.
+        raise Refusal(f"the sandbox conditioner cannot lex an unterminated {unterminated}")
+    return "".join(out)
+
+
+def statement_head(statement: str) -> str:
+    match = re.match(r"\s*([A-Za-z_][A-Za-z0-9_]*)", scan_text(statement))
+    return match.group(1).lower() if match else ""
+
+
+def statement_spans(raw: str) -> list[tuple[int, int, str]]:
+    """(start, end after the semicolon, statement text without the semicolon)."""
+    spans: list[tuple[int, int, str]] = []
+    start = 0
+    i, n = 0, len(raw)
+    state = "normal"
+    dollar = ""
+    while i < n:
+        c = raw[i]
+        nxt = raw[i + 1] if i + 1 < n else ""
+        if state == "normal":
+            if c == "'":
+                state = "single"
+            elif c == '"':
+                state = "double"
+            elif c == "-" and nxt == "-":
+                state = "line"
+                i += 1
+            elif c == "/" and nxt == "*":
+                state = "block"
+                i += 1
+            elif c == "$":
+                m = re.match(r"\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$", raw[i:])
+                if m:
+                    dollar = m.group(0)
+                    state = "dollar"
+                    i += len(dollar) - 1
+            elif c == ";":
+                statement = raw[start:i].strip()
+                if statement:
+                    # Anchor at the statement's first non-space character so the
+                    # whitespace that separates statements is never swallowed.
+                    spans.append((start + (len(raw[start:i]) - len(raw[start:i].lstrip())), i + 1, statement))
+                start = i + 1
+        elif state == "single":
+            if c == "'" and nxt == "'":
+                i += 1
+            elif c == "'":
+                state = "normal"
+        elif state == "double":
+            if c == '"' and nxt == '"':
+                i += 1
+            elif c == '"':
+                state = "normal"
+        elif state == "line":
+            if c == "\n":
+                state = "normal"
+        elif state == "block":
+            if c == "*" and nxt == "/":
+                state = "normal"
+                i += 1
+        elif state == "dollar" and raw.startswith(dollar, i):
+            state = "normal"
+            i += len(dollar) - 1
+        i += 1
+    if state not in {"normal", "line"}:
+        raise Refusal("the sandbox conditioner cannot lex the migration text")
+    tail = raw[start:].strip()
+    if tail:
+        spans.append((start + (len(raw[start:]) - len(raw[start:].lstrip())), len(raw), tail))
+    return spans
+
+
+def _mentions(text: str, name: str) -> bool:
+    return re.search(rf"\b{re.escape(name)}\b", text, re.I) is not None
+
+
+def wrap_guard(statement: str, schema: str, tag: str) -> str:
+    return (
+        f"do {tag} begin\n"
+        f"  if exists (select 1 from pg_namespace where nspname = '{schema}') then\n"
+        f"{statement};\n"
+        f"  end if;\n"
+        f"end {tag};"
+    )
+
+
+def condition_plan(raw: str, live_schemas: list[str], absent: list[str], version: str) -> list[tuple[int, int, str, str, str]]:
+    """Wrapped statements for one migration, or a named refusal.
+
+    Every statement that names an absent conditioned schema must be exactly one
+    of the wrappable heads, must name no other live schema (a mixed-schema
+    statement would skip its other target when the guard is false), and must
+    carry no dynamic SQL (`execute`), which no text scanner can bound.
+    """
+    wraps: list[tuple[int, int, str, str]] = []
+    for index, (start, end, statement) in enumerate(statement_spans(raw), start=1):
+        text = scan_text(statement)
+        targeted = [name for name in absent if _mentions(text, name)]
+        if not targeted:
+            continue
+        head = statement_head(statement)
+        label = f"{version} statement {index} ({head})"
+        others = sorted(name for name in live_schemas if name not in absent and name not in CONDITIONED_SCHEMAS and _mentions(text, name))
+        if others:
+            raise Refusal(f"{label} names the absent conditioned schema {targeted} and also live schema(s) {others}; mixed-schema statements are never conditioned")
+        if len(targeted) > 1:
+            raise Refusal(f"{label} names several conditioned schemas {targeted}; refusing rather than guessing the guard")
+        if re.search(r"\bexecute\b", text, re.I):
+            raise Refusal(f"{label} contains dynamic SQL, which no text scanner can bound; refusing to condition it")
+        if head in {"begin", "commit", "rollback", "savepoint", "start"}:
+            raise Refusal(f"{label} is transaction control that names an absent conditioned schema; refusing to condition it")
+        if head not in WRAPPABLE_HEADS:
+            raise Refusal(
+                f"{label} names absent schema {targeted[0]} and has head '{head}', which this lane does not condition; "
+                "bring the schema first or extend the reviewed wrappable heads"
+            )
+        tag = f"$sandbox_schema_guard_{index}$"
+        if tag in raw:
+            raise Refusal(f"{label} already contains the conditioner's dollar-quote tag {tag}")
+        wraps.append((start, end, statement, targeted[0], tag))
+    return wraps
+
+
+def apply_conditioning(raw: str, wraps: list[tuple[int, int, str, str, str]]) -> str:
+    out = raw
+    for start, end, statement, schema, tag in reversed(wraps):
+        out = out[:start] + wrap_guard(statement, schema, tag) + out[end:]
+    return out
+
+
+def update_conditioned_manifest_entries(repo: Path, adapted: dict[str, str]) -> None:
+    """Re-pin ONLY the conditioned versions, preserving prepare's other pins.
+
+    `prepare` pinned every file's digest; conditioning changes only the wrapped
+    files. Rewriting the whole manifest from disk would make the later
+    `assert-bounded` tautologically green for EVERY file, so the untouched
+    entries must keep the digests `prepare` wrote and only the conditioned
+    versions get their adapted digest. `assert_content_manifest` still compares
+    every entry afterwards and refuses any other divergence.
+    """
+    from production_migration_guard import MANIFEST_FILENAME
+
+    path = repo / "supabase" / MANIFEST_FILENAME
+    try:
+        stored = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise Refusal(f"the bounded checkout's content manifest is unreadable ({exc})") from exc
+    if not isinstance(stored, dict):
+        raise Refusal("the bounded checkout's content manifest is not a JSON object")
+    changed = 0
+    for version, digest in adapted.items():
+        if version not in stored:
+            raise Refusal(f"content manifest has no entry for conditioned version {version}; re-run prepare")
+        stored[version] = digest
+        changed += 1
+    if not changed:
+        return
+    path.write_text(json.dumps(stored, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+
+
+def condition(
+    repo: Path,
+    raw_allowlist: str,
+    project_ref: str,
+    token: str,
+    evidence_out: Path,
+    query=run_query,
+) -> None:
+    """Condition the bounded checkout's allowlisted migrations on live schemas."""
+    if project_ref != SANDBOX_PROJECT_REF:
+        raise Refusal(f"schema conditioning may touch only the sandbox bounded checkout, not {project_ref}")
+    migrations = local_migrations(repo)
+    allowlist = parse_sandbox_allowlist(raw_allowlist, migrations)
+    rows = query(
+        project_ref,
+        token,
+        "select nspname from pg_namespace where nspname not like 'pg\\_%' "
+        "and nspname not in ('pg_catalog','information_schema') order by 1",
+    )
+    if not isinstance(rows, list) or not rows or any(not isinstance(row, dict) or not isinstance(row.get("nspname"), str) for row in rows):
+        raise Refusal("the sandbox schema read did not return a usable namespace list")
+    live = sorted({row["nspname"] for row in rows})
+    absent = [name for name in CONDITIONED_SCHEMAS if name not in live]
+    files: list[dict] = []
+    adapted_digests: dict[str, str] = {}
+    if absent:
+        # Prove the checkout still carries prepare's verified bytes before any edit.
+        assert_content_manifest(repo)
+    for version in allowlist:
+        path = migrations[version]
+        raw = path.read_text(encoding="utf-8")
+        entry = {
+            "version": version,
+            "name": path.name,
+            "original_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+        }
+        if not absent:
+            entry.update({"unchanged": True, "wrapped_statements": []})
+            files.append(entry)
+            continue
+        wraps = condition_plan(raw, live, absent, version)
+        if wraps:
+            adapted = apply_conditioning(raw, wraps)
+            # The wrapped file must lex to exactly as many statements, with the
+            # wrapped statement text preserved byte for byte inside its guard.
+            respans = statement_spans(adapted)
+            if len(respans) != len(statement_spans(raw)):
+                raise Refusal(f"{version}: conditioned text did not re-lex to the same statement count")
+            for _start, _end, statement, _schema, _tag in wraps:
+                if statement not in adapted:
+                    raise Refusal(f"{version}: a wrapped statement lost its exact text")
+            path.write_text(adapted, encoding="utf-8")
+            adapted_digests[version] = hashlib.sha256(path.read_bytes()).hexdigest()
+            entry.update({
+                "unchanged": False,
+                "adapted_sha256": adapted_digests[version],
+                "wrapped_statements": [
+                    {"head": statement_head(statement), "guard_schema": schema, "text_sha256": hashlib.sha256(statement.encode("utf-8")).hexdigest()}
+                    for _start, _end, statement, schema, _tag in wraps
+                ],
+            })
+        else:
+            entry.update({"unchanged": True, "wrapped_statements": []})
+        files.append(entry)
+    if adapted_digests:
+        # Re-pin ONLY the conditioned entries; every untouched file keeps the
+        # digest prepare wrote, so the later assert-bounded still proves those
+        # bytes against prepare (issue #2986 review M3).
+        update_conditioned_manifest_entries(repo, adapted_digests)
+    evidence_out.write_text(
+        json.dumps(
+            {
+                "schema": CONDITIONING_EVIDENCE_SCHEMA,
+                "project_ref": project_ref,
+                "conditioned_schemas": list(CONDITIONED_SCHEMAS),
+                "absent": absent,
+                "live_schemas": live,
+                "files": files,
+            },
+            indent=1,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    if not absent:
+        print(f"SCHEMA CONDITIONING OK: every conditioned schema is present on {project_ref}; no bytes changed.")
+    elif not adapted_digests:
+        print(f"SCHEMA CONDITIONING OK: absent {absent}; no allowlisted statement targets them; no bytes changed.")
+    else:
+        wrapped = sum(len(entry["wrapped_statements"]) for entry in files)
+        print(f"SCHEMA CONDITIONING OK: absent {absent}; wrapped {wrapped} statement(s) in the bounded checkout only; conditioned manifest entries re-pinned, prepare's other pins preserved.")
+
 
 
 if __name__ == "__main__":

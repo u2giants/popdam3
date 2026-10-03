@@ -1,0 +1,13 @@
+{
+ "schema_version": 1,
+ "migration_version": "20260928182014",
+ "migration_sha256": "1acfa506fd0eea39961eed92d848847c0d0db91bbb4a345041c30c7c8a61cdf7",
+ "checks": [
+  {
+   "id": "hts_product_phrase_columns_contract",
+   "kind": "catalog_contract",
+   "contract": "hts_product_phrase_columns_v1",
+   "expected_count": 1
+  }
+ ]
+}

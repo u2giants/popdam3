@@ -3451,5 +3451,43 @@ class CatalogBehaviorSqlMutationCoverageTests(unittest.TestCase):
             build_behavior_sql([check])
 
 
+class HtsProductPhraseContractTests(unittest.TestCase):
+    """Issue #2986: the phrase migration's own post-apply evidence."""
+
+    VERSION = "20260928182014"
+
+    def migration(self):
+        return next((REPO / "supabase" / "migrations").glob(f"{self.VERSION}_*.sql"))
+
+    def test_phrase_contract_is_registered_and_schema_conditioned(self):
+        sql = CATALOG_CONTRACTS["hts_product_phrase_columns_v1"]
+        self.assertIn("table_schema = 'plm'", sql)
+        # The dflow_prod half is owed only where the schema exists, mirroring the
+        # sandbox conditioning lane; the plm half is owed everywhere.
+        self.assertIn("not exists (select 1 from pg_namespace where nspname = 'dflow_prod')", sql)
+        self.assertIn("table_schema = 'dflow_prod'", sql)
+        self.assertEqual(sql.count("'hts_product_phrase_at'"), 4)
+        self.assertEqual(sql.count("'RFQItem'"), 6)
+        self.assertIn("is_nullable = 'YES'", sql)
+        self.assertIn("column_default is null", sql)
+        self.assertNotRegex(sql.lower(), r";.*(insert|update|delete|drop table|create table|alter table)")
+
+    def test_phrase_sidecar_binds_the_contract_to_the_real_file(self):
+        checks = load_behavior_sidecars(REPO, {self.VERSION: self.migration()}, [self.VERSION])
+        self.assertEqual([check["id"] for check in checks], ["hts_product_phrase_columns_contract"])
+        self.assertEqual(checks[0]["kind"], "catalog_contract")
+        self.assertEqual(checks[0]["contract"], "hts_product_phrase_columns_v1")
+        self.assertEqual(checks[0]["expected_count"], 1)
+        sql = build_behavior_sql(checks)
+        self.assertIn("hts_product_phrase_columns_contract", sql)
+        self.assertIn("hts_product_phrase_columns_v1", CATALOG_CONTRACTS)
+
+    def test_phrase_migration_derives_no_lexer_target_so_the_sidecar_is_the_only_evidence(self):
+        # The quoted mixed-case identifiers are invisible to the statement lexer,
+        # so without the sidecar a phrase-only allowlist verifies NOTHING and
+        # enforcing mode refuses. This pin keeps that reason honest.
+        self.assertTrue(derive_targets({self.VERSION: self.migration()}, [self.VERSION]).is_empty())
+
+
 if __name__ == "__main__":
     unittest.main()

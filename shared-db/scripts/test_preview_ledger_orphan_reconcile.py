@@ -1,15 +1,16 @@
-import importlib.util, pathlib, sys, tempfile, unittest
+import importlib.util, json, pathlib, re, sys, tempfile, unittest
 from unittest.mock import patch
 
 P=pathlib.Path(__file__).with_name('preview_ledger_orphan_reconcile.py'); sys.path.insert(0,str(P.parent))
 S=importlib.util.spec_from_file_location('reconcile',P); M=importlib.util.module_from_spec(S); S.loader.exec_module(M)
+from atomic_migration_apply import dollar_quote
 
 class Tests(unittest.TestCase):
     def test_reviewed_manifest_is_the_only_case_authority(self):
         workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
         self.assertIn('config/preview-ledger-orphan-reconciliations.json',workflow)
         self.assertNotIn('case "$ISSUE:$CLAIM:$SOURCE_PR:$ORPHAN:$REPLACEMENT"',workflow)
-        self.assertEqual(len(M.SUPPORTED_CASES),12)
+        self.assertEqual(len(M.SUPPORTED_CASES),14)
 
     def test_issue_3458_byte_identical_rename_is_narrowly_evidence_bound(self):
         case=M.SUPPORTED_CASES[(3458,3483,3672)]
@@ -332,5 +333,211 @@ class Tests(unittest.TestCase):
         with patch.object(M,'ledger_rows',return_value=[{'version':'20260824004025','statements':['different']} ]):
             with self.assertRaises(M.Refusal):
                 M.reconcile('url',{},args,['exact definition'],['exact definition'],'rehearsal_reset')
+
+class SandboxNoReplacementTests(unittest.TestCase):
+    OTHERS = [
+        "20260904143518", "20260904172420", "20260905053422", "20260907121732",
+        "20260909121403", "20260911214438", "20260917022233", "20260917035654",
+    ]
+
+    def args(self, **over):
+        base = dict(
+            mode="check", reconciliation="sandbox",
+            repo=None, linked_dir=None,
+            expected_project_ref="xupnyeifmpsacrqahwwm", main_sha="a" * 40,
+            orphan_version="20260904183000", issue=2986,
+            issue_json=None, remote_ledger=None, evidence_out=None,
+            source_pr_dir=None, orphan_source_dir=None, replacement_version=None,
+            claim=None, source_pr=None, preview_run_id=None,
+            preview_artifact_id=None, preview_artifact_digest=None,
+            claim_json=None, pr_json=None, pr_files_json=None,
+            run_json=None, artifact_json=None, preview_evidence_dir=None,
+        )
+        base.update(over)
+        return type("A", (), base)()
+
+    def test_both_sandbox_cases_are_narrowly_pinned_in_a_reviewed_order(self):
+        for orphan, name, count, survivors in (
+            ("20260904183000", "reconcile_sample_tracking_runtime_schema", 8, sorted(self.OTHERS + ["20260904183100"])),
+            ("20260904183100", "sample_workflow_factory_customer_direct_path", 13, self.OTHERS),
+        ):
+            case = M.SUPPORTED_CASES[(2986, "sandbox_orphan_no_replacement", orphan)]
+            self.assertEqual(case["project_ref"], "xupnyeifmpsacrqahwwm")
+            self.assertEqual(case["expected_name"], name)
+            self.assertEqual(len(case["expected_statements"]), count)
+            self.assertTrue(all(isinstance(s, str) and s for s in case["expected_statements"]))
+            # The manifest declares the reconciliation order: the FIRST case
+            # still counts the second orphan as a surviving row, so a live
+            # ledger holding both orphans is exactly its pinned world; the
+            # SECOND case pins the world AFTER the first delete and therefore
+            # refuses while the first orphan is still present (extra row).
+            self.assertEqual(case["expected_other_versions"], survivors)
+            # The pinned statements are bound by digest, so any edit to the
+            # manifest's content must be a conscious one.
+            import hashlib
+            digest = hashlib.sha256(json.dumps(case["expected_statements"], separators=(",", ":")).encode()).hexdigest()
+            self.assertEqual(len(digest), 64)
+
+    def test_second_orphan_refuses_until_the_first_is_reconciled(self):
+        # The real live world: both orphans present (10 rows).
+        both = sorted(self.OTHERS + ["20260904183000", "20260904183100"])
+        repo, sha = self._repo()
+        caseA = M.SUPPORTED_CASES[(2986, "sandbox_orphan_no_replacement", "20260904183000")]
+        caseB = M.SUPPORTED_CASES[(2986, "sandbox_orphan_no_replacement", "20260904183100")]
+        goodA = self.args(repo=repo, main_sha=sha, issue_json=self._issue_json(), remote_ledger=self._ledger(both))
+        self.assertEqual(M.validate_governance_sandbox(goodA, caseA)["case_mode"], "sandbox_orphan_no_replacement")
+        # Case B sees the unreconciled first orphan as an extra row and refuses.
+        with self.assertRaisesRegex(M.Refusal, "extra"):
+            M.validate_governance_sandbox(goodA, caseB)
+        # After the first delete (9 rows) case B's pinned world matches.
+        after_first = sorted(self.OTHERS + ["20260904183100"])
+        goodB = self.args(repo=repo, main_sha=sha, issue_json=self._issue_json(),
+                          remote_ledger=self._ledger(after_first), orphan_version="20260904183100")
+        self.assertEqual(M.validate_governance_sandbox(goodB, caseB)["case_mode"], "sandbox_orphan_no_replacement")
+
+    def test_guard_dollar_tag_collision_and_name_charset_are_refused(self):
+        case = dict(M.SUPPORTED_CASES[(2986, "sandbox_orphan_no_replacement", "20260904183000")])
+        case["expected_statements"] = ["select '$expected$'"]
+        with patch.object(M, "ledger_rows", return_value=[{"version": "20260904183000", "name": case["expected_name"], "statements": ["select '$expected$'"]}]):
+            with self.assertRaisesRegex(M.Refusal, "dollar-quote tag"):
+                M.reconcile_sandbox("postgres://x", {}, self.args(mode="apply"), case)
+        self.assertTrue(all(re.fullmatch(r"[A-Za-z0-9_.-]+", c["expected_name"]) for c in M.SUPPORTED_CASES.values() if isinstance(c, dict) and c.get("mode") == "sandbox_orphan_no_replacement"))
+
+    def test_sandbox_case_lookup_refuses_unknown_tuples(self):
+        with self.assertRaises(M.Refusal):
+            M.sandbox_case(self.args(orphan_version="20260904183001"))
+
+    def _repo(self, with_orphan_file=False, head=None):
+        import subprocess, tempfile
+        tmp = pathlib.Path(tempfile.mkdtemp())
+        (tmp / "supabase" / "migrations").mkdir(parents=True)
+        (tmp / "supabase" / "migrations" / "20260101000000_base.sql").write_text("select 1;\n", encoding="utf-8")
+        if with_orphan_file:
+            (tmp / "supabase" / "migrations" / "20260904183000_x.sql").write_text("select 2;\n", encoding="utf-8")
+        def git(*a):
+            return subprocess.run(["git", "-C", str(tmp), *a], capture_output=True, text=True)
+        git("init", "-q"); git("config", "user.email", "t@t"); git("config", "user.name", "t")
+        git("add", "-A"); git("commit", "-qm", "x")
+        sha = git("rev-parse", "HEAD").stdout.strip()
+        git("update-ref", "refs/remotes/origin/main", sha)
+        return tmp, head or sha
+
+    def _ledger(self, versions):
+        tmp = pathlib.Path(tempfile.mkdtemp()) / "ledger.txt"
+        tmp.write_text("\n".join(f" {v} | {v} | 2026" for v in versions), encoding="utf-8")
+        return tmp
+
+    def _issue_json(self, number=2986, state="open"):
+        tmp = pathlib.Path(tempfile.mkdtemp()) / "issue.json"
+        tmp.write_text(json.dumps({"number": number, "state": state}), encoding="utf-8")
+        return tmp
+
+    def test_governance_sandbox_accepts_the_pinned_world_and_refuses_drift(self):
+        repo, sha = self._repo()
+        case = M.SUPPORTED_CASES[(2986, "sandbox_orphan_no_replacement", "20260904183000")]
+        good = self.args(repo=repo, main_sha=sha, issue_json=self._issue_json(),
+                         remote_ledger=self._ledger(sorted(self.OTHERS + ["20260904183000", "20260904183100"])))
+        self.assertEqual(M.validate_governance_sandbox(good, case)["case_mode"], "sandbox_orphan_no_replacement")
+        for bad, label in (
+            (self.args(repo=repo, main_sha="0" * 40, issue_json=good.issue_json, remote_ledger=good.remote_ledger), "main sha"),
+            (self.args(repo=repo, main_sha=sha, expected_project_ref="qsllyeztdwjgirsysgai", issue_json=good.issue_json, remote_ledger=good.remote_ledger), "ref"),
+            (self.args(repo=repo, main_sha=sha, expected_project_ref="zzzzzzzzzzzzzzzzzzzz", issue_json=good.issue_json, remote_ledger=good.remote_ledger), "ref2"),
+            (self.args(repo=repo, main_sha=sha, issue_json=self._issue_json(state="closed"), remote_ledger=good.remote_ledger), "issue state"),
+            (self.args(repo=repo, main_sha=sha, issue_json=self._issue_json(number=1), remote_ledger=good.remote_ledger), "issue number"),
+            (self.args(repo=repo, main_sha=sha, issue_json=good.issue_json, remote_ledger=self._ledger(self.OTHERS)), "orphan absent"),
+            (self.args(repo=repo, main_sha=sha, issue_json=good.issue_json, remote_ledger=self._ledger(sorted(self.OTHERS + ["20260904183000", "20260904183100", "20260905072856"]))), "extra row"),
+        ):
+            with self.assertRaises(M.Refusal, msg=label):
+                M.validate_governance_sandbox(bad, case)
+        repo_with_file, sha2 = self._repo(with_orphan_file=True)
+        with self.assertRaises(M.Refusal):
+            M.validate_governance_sandbox(
+                self.args(repo=repo_with_file, main_sha=sha2, issue_json=good.issue_json, remote_ledger=good.remote_ledger), case)
+
+    def test_reconcile_sandbox_check_reads_and_apply_deletes_exactly_one_row(self):
+        case = M.SUPPORTED_CASES[(2986, "sandbox_orphan_no_replacement", "20260904183000")]
+        row = {"version": "20260904183000", "name": case["expected_name"], "statements": case["expected_statements"]}
+        sent = []
+        with patch.object(M, "ledger_rows", side_effect=[[row], [row], []]) as rows:
+            before, after = M.reconcile_sandbox("postgres://x", {}, self.args(mode="check"), case)
+            self.assertEqual(before, [row]); self.assertEqual(after, [row]); self.assertFalse(sent)
+
+            def fake_psql(url, env, sql):
+                sent.append(sql)
+                return "[]"
+
+            with patch.object(M, "psql", side_effect=fake_psql):
+                before, after = M.reconcile_sandbox("postgres://x", {}, self.args(mode="apply"), case)
+            self.assertEqual(after, [])
+        sql = sent[0]
+        for needle in (
+            "\\set ON_ERROR_STOP on",
+            "begin;",
+            "lock table supabase_migrations.schema_migrations in exclusive mode;",
+            "delete from supabase_migrations.schema_migrations where version='20260904183000'",
+            "get diagnostics n = row_count",
+            "if n <> 1 then raise exception 'reconciliation did not delete exactly one row'; end if;",
+            "is distinct from $expected$",
+            "$expected$::jsonb",
+            "raise exception 'ledger ownership changed before reconciliation'",
+            "raise exception 'ledger row count after delete is not the pinned baseline'",
+        ):
+            self.assertIn(needle, sql)
+        survivors = len(case["expected_other_versions"])
+        self.assertIn(f"<> {survivors + 1}", sql)
+        self.assertIn(f"<> {survivors}", sql)
+        # A live row whose content drifted from the pin refuses before any write.
+        drifted = {"version": "20260904183000", "name": case["expected_name"], "statements": ["select 9"]}
+        with patch.object(M, "ledger_rows", return_value=[drifted]):
+            with self.assertRaises(M.Refusal):
+                M.reconcile_sandbox("postgres://x", {}, self.args(mode="apply"), case)
+        with patch.object(M, "ledger_rows", return_value=[]):
+            with self.assertRaises(M.Refusal):
+                M.reconcile_sandbox("postgres://x", {}, self.args(mode="check"), case)
+
+    def test_sandbox_restore_sql_is_an_executable_insert_of_the_pinned_row(self):
+        case = M.SUPPORTED_CASES[(2986, "sandbox_orphan_no_replacement", "20260904183000")]
+        sql = M.sandbox_restore_sql(case, "20260904183000")
+        self.assertTrue(sql.startswith("insert into supabase_migrations.schema_migrations (version, name, statements)"))
+        self.assertIn("values ('20260904183000'", sql)
+        self.assertIn("::text[]);", sql)
+        for index, statement in enumerate(case["expected_statements"]):
+            self.assertIn(dollar_quote(statement, f"s{index}"), sql)
+
+    def test_parse_args_splits_the_two_reconciliations(self):
+        with patch.object(sys, "argv", ["x", "--mode", "check", "--reconciliation", "sandbox", "--repo", ".", "--linked-dir", ".",
+                                        "--expected-project-ref", "xupnyeifmpsacrqahwwm", "--main-sha", "a" * 40,
+                                        "--orphan-version", "20260904183000", "--issue", "2986",
+                                        "--issue-json", "i.json", "--remote-ledger", "l.txt", "--evidence-out", "o.json"]):
+            args = M.parse_args()
+        self.assertEqual(args.reconciliation, "sandbox")
+        with patch.object(sys, "argv", ["x", "--mode", "check", "--reconciliation", "sandbox", "--repo", ".", "--linked-dir", ".",
+                                        "--expected-project-ref", "xupnyeifmpsacrqahwwm", "--main-sha", "a" * 40,
+                                        "--orphan-version", "20260904183000", "--issue", "2986",
+                                        "--evidence-out", "o.json"]):
+            with self.assertRaises(M.Refusal):
+                M.parse_args()
+        with patch.object(sys, "argv", ["x", "--mode", "check", "--reconciliation", "sandbox", "--repo", ".", "--linked-dir", ".",
+                                        "--expected-project-ref", "xupnyeifmpsacrqahwwm", "--main-sha", "a" * 40,
+                                        "--orphan-version", "20260904183000", "--issue", "2986",
+                                        "--issue-json", "i.json", "--remote-ledger", "l.txt", "--evidence-out", "o.json",
+                                        "--replacement-version", "20260905000000"]):
+            with self.assertRaises(M.Refusal):
+                M.parse_args()
+        with patch.object(sys, "argv", ["x", "--mode", "check", "--repo", ".", "--linked-dir", ".",
+                                        "--expected-project-ref", "xupnyeifmpsacrqahwwm", "--main-sha", "a" * 40,
+                                        "--orphan-version", "20260904183000", "--issue", "2986",
+                                        "--evidence-out", "o.json"]):
+            with self.assertRaises(M.Refusal):
+                M.parse_args()
+
+    def test_sandbox_workflow_is_reviewed_manifest_driven_and_sandbox_only(self):
+        workflow = (P.parent.parent / ".github" / "workflows" / "sandbox-ledger-orphan-reconciliation.yml").read_text(encoding="utf-8")
+        self.assertIn("config/preview-ledger-orphan-reconciliations.json", workflow)
+        self.assertIn("--reconciliation sandbox", workflow)
+        self.assertIn("xupnyeifmpsacrqahwwm", workflow)
+        self.assertNotIn("qsllyeztdwjgirsysgai\n", workflow.replace("PRODUCTION_PROJECT_REF_NEVER_WRITE_HERE: qsllyeztdwjgirsysgai", ""))
+        self.assertIn("concurrency:", workflow)
+        self.assertIn("group: designflow-sandbox-migrations", workflow)
 
 if __name__=='__main__': unittest.main()

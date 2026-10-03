@@ -10,7 +10,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from atomic_migration_apply import TX_RE, linked_connection, psql, split_sql
+from atomic_migration_apply import TX_RE, dollar_quote, linked_connection, psql, split_sql
 from production_migration_guard import parse_remote_versions
 
 
@@ -27,7 +27,36 @@ def load_supported_cases() -> dict:
     for raw in data["cases"]:
         case = dict(raw)
         try:
-            key = (int(case.pop("issue")), int(case.pop("claim")), int(case.pop("source_pr")))
+            issue = int(case.pop("issue"))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise Refusal("preview ledger reconciliation manifest has a malformed identity") from exc
+        if case.get("mode") == "sandbox_orphan_no_replacement":
+            # A sandbox orphan has no replacement file, no claim, and no source PR:
+            # its identity is the issue plus the exact orphan version, and the case
+            # pins the expected live ledger row (name + statements) plus the full
+            # expected remainder of the ledger, so the delete can be proven
+            # metadata-only against pinned content rather than a version list.
+            try:
+                key = (issue, case["mode"], case["orphan_version"])
+            except (KeyError, TypeError) as exc:
+                raise Refusal("sandbox ledger reconciliation manifest has a malformed identity") from exc
+            for field in ("project_ref", "expected_name", "expected_statements", "expected_other_versions"):
+                if field not in case:
+                    raise Refusal(f"sandbox reconciliation case does not carry the pinned field {field}")
+            if case["project_ref"] == "qsllyeztdwjgirsysgai" or not re.fullmatch(r"[a-z]{20}", case["project_ref"]):
+                raise Refusal("sandbox reconciliation case pins an invalid target ref")
+            if not isinstance(case["expected_statements"], list) or not case["expected_statements"]:
+                raise Refusal("sandbox reconciliation case must pin a non-empty statements array")
+            if not isinstance(case["expected_other_versions"], list) or not all(re.fullmatch(r"\d{14}", v) for v in case["expected_other_versions"]):
+                raise Refusal("sandbox reconciliation case must pin the expected remaining ledger versions")
+            if not re.fullmatch(r"[A-Za-z0-9_.-]+", case["expected_name"]):
+                raise Refusal("sandbox reconciliation case pins an expected_name outside the closed migration-name charset")
+            if key in result:
+                raise Refusal("preview ledger reconciliation manifest contains a duplicate identity")
+            result[key] = case
+            continue
+        try:
+            key = (issue, int(case.pop("claim")), int(case.pop("source_pr")))
         except (KeyError, TypeError, ValueError) as exc:
             raise Refusal("preview ledger reconciliation manifest has a malformed identity") from exc
         if "orphan_version" in case and "replacement_version" in case and case.get("mode") == "rehearsal_reset":
@@ -172,6 +201,110 @@ def ledger_rows(url: str, env: dict[str, str], old: str, replacement: str) -> li
     return value
 
 
+SANDBOX_ORPHAN_NO_REPLACEMENT = "sandbox_orphan_no_replacement"
+
+
+def sandbox_case(args) -> dict:
+    case = SUPPORTED_CASES.get((args.issue, SANDBOX_ORPHAN_NO_REPLACEMENT, args.orphan_version))
+    if not case:
+        raise Refusal("issue and orphan version are not an explicitly supported sandbox reconciliation case")
+    return case
+
+
+def validate_governance_sandbox(args, case: dict) -> dict:
+    """Prove a sandbox no-replacement reconciliation against its pinned case.
+
+    A sandbox orphan never had a migration file on any branch, so there is no
+    replacement file, no source pull request, and no preview run to bind. The
+    reviewed manifest pins the exact expected live ledger row (name and
+    statements) and the exact expected remainder of the ledger; every check
+    below refuses on any drift from those pins.
+    """
+    repo = args.repo.resolve()
+    if git(repo, "rev-parse", "HEAD") != args.main_sha or git(repo, "rev-parse", "origin/main") != args.main_sha:
+        raise Refusal("checkout is not exact current main")
+    if args.expected_project_ref != case["project_ref"]:
+        raise Refusal("target ref is not the pinned sandbox reconciliation case ref")
+    if args.orphan_version in {str(row) for row in case["expected_other_versions"]}:
+        raise Refusal("orphan version is also pinned as an expected surviving row")
+    if list((repo / "supabase/migrations").glob(f"{args.orphan_version}_*.sql")):
+        raise Refusal("sandbox reconciliation requires a version with no local migration file on current main")
+    issue = read_json(args.issue_json)
+    if issue.get("number") != args.issue or issue.get("state") != "open":
+        raise Refusal("work issue is not the exact open supported-case issue")
+    remote = parse_remote_versions(args.remote_ledger)
+    expected = set(case["expected_other_versions"]) | {args.orphan_version}
+    if remote != expected:
+        unexpected = sorted(remote - expected)
+        absent = sorted(expected - remote)
+        raise Refusal(f"remote ledger is not the pinned sandbox baseline; extra {unexpected}, absent {absent}")
+    return {
+        "case_mode": SANDBOX_ORPHAN_NO_REPLACEMENT,
+        "pinned_other_versions": case["expected_other_versions"],
+        "orphan_statement_count": len(case["expected_statements"]),
+    }
+
+
+def sandbox_restore_sql(case: dict, orphan_version: str) -> str:
+    """The exact statement that restores the deleted row, for the evidence record."""
+    values = ",\n  ".join(dollar_quote(statement, f"s{index}") for index, statement in enumerate(case["expected_statements"]))
+    name = case["expected_name"].replace("'", "''")
+    return (
+        "insert into supabase_migrations.schema_migrations (version, name, statements)\n"
+        f"values ('{orphan_version}', '{name}', array[\n  {values}\n]::text[]);"
+    )
+
+
+def reconcile_sandbox(url: str, env: dict[str, str], args, case: dict) -> tuple[list[dict], list[dict]]:
+    """Delete one pinned sandbox orphan row with the preview lane's DELETE semantics."""
+    before = ledger_rows(url, env, args.orphan_version, args.orphan_version)
+    if len(before) != 1 or str(before[0].get("version")) != args.orphan_version:
+        raise Refusal("sandbox ledger does not hold the orphan exactly once")
+    if before[0].get("name") != case["expected_name"] or before[0].get("statements") != case["expected_statements"]:
+        raise Refusal("orphan ledger row is not the pinned reviewed content")
+    if args.mode == "check":
+        return before, before
+    expected_json = json.dumps(case["expected_statements"], separators=(",", ":"))
+    for tag in ("$expected$", "$reconcile$"):
+        if tag in expected_json:
+            raise Refusal(f"pinned statements collide with the guard's dollar-quote tag {tag}; refuse rather than rebind")
+    expected_name = case["expected_name"].replace("'", "''")
+    survivors = len(case["expected_other_versions"])
+    sql = rf"""\set ON_ERROR_STOP on
+begin;
+lock table supabase_migrations.schema_migrations in exclusive mode;
+do $reconcile$
+declare n integer;
+begin
+  if (select count(*) from supabase_migrations.schema_migrations) <> {survivors + 1} then
+    raise exception 'ledger ownership changed before reconciliation';
+  end if;
+  if (select count(*) from supabase_migrations.schema_migrations where version='{args.orphan_version}') <> 1 then
+    raise exception 'ledger orphan is not present exactly once';
+  end if;
+  if (select name from supabase_migrations.schema_migrations where version='{args.orphan_version}') is distinct from '{expected_name}'::text
+     or (select to_jsonb(statements) from supabase_migrations.schema_migrations where version='{args.orphan_version}') is distinct from $expected${expected_json}$expected$::jsonb then
+    raise exception 'ledger row changed before reconciliation';
+  end if;
+  delete from supabase_migrations.schema_migrations where version='{args.orphan_version}';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'reconciliation did not delete exactly one row'; end if;
+  if (select count(*) from supabase_migrations.schema_migrations where version='{args.orphan_version}') <> 0 then
+    raise exception 'orphan still present after reconciliation';
+  end if;
+  if (select count(*) from supabase_migrations.schema_migrations) <> {survivors} then
+    raise exception 'ledger row count after delete is not the pinned baseline';
+  end if;
+end $reconcile$;
+commit;
+"""
+    psql(url, env, sql)
+    after = ledger_rows(url, env, args.orphan_version, args.orphan_version)
+    if after:
+        raise Refusal("post-reconciliation readback still shows the orphan row")
+    return before, after
+
+
 def reconcile(url: str, env: dict[str, str], args, expected_orphan: list[str], expected_replacement: list[str], case_mode: str) -> tuple[list[dict], list[dict]]:
     before = ledger_rows(url, env, args.orphan_version, args.replacement_version)
     by_version = {str(row.get("version")): row for row in before}
@@ -245,21 +378,61 @@ commit;
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--mode", choices=("check", "apply"), required=True)
+    p.add_argument("--reconciliation", choices=("preview", "sandbox"), default="preview",
+                   help="preview: the shared preview branch, bound to a replacement migration; "
+                        "sandbox: one pinned DesignFlow-sandbox orphan with no replacement file")
     p.add_argument("--repo", type=Path, required=True); p.add_argument("--linked-dir", type=Path, required=True)
-    p.add_argument("--source-pr-dir", type=Path, required=True); p.add_argument("--orphan-source-dir", type=Path, required=True)
+    p.add_argument("--source-pr-dir", type=Path); p.add_argument("--orphan-source-dir", type=Path)
     p.add_argument("--expected-project-ref", required=True); p.add_argument("--main-sha", required=True)
-    p.add_argument("--orphan-version", type=version, required=True); p.add_argument("--replacement-version", type=version, required=True)
-    p.add_argument("--issue", type=int, required=True); p.add_argument("--claim", type=int, required=True); p.add_argument("--source-pr", type=int, required=True)
-    p.add_argument("--preview-run-id", type=int, required=True); p.add_argument("--preview-artifact-id", type=int, required=True); p.add_argument("--preview-artifact-digest", required=True)
-    p.add_argument("--issue-json", type=Path, required=True); p.add_argument("--claim-json", type=Path, required=True); p.add_argument("--pr-json", type=Path, required=True); p.add_argument("--pr-files-json", type=Path, required=True)
-    p.add_argument("--run-json", type=Path, required=True); p.add_argument("--artifact-json", type=Path, required=True); p.add_argument("--preview-evidence-dir", type=Path, required=True)
+    p.add_argument("--orphan-version", type=version, required=True); p.add_argument("--replacement-version", type=version)
+    p.add_argument("--issue", type=int, required=True); p.add_argument("--claim", type=int); p.add_argument("--source-pr", type=int)
+    p.add_argument("--preview-run-id", type=int); p.add_argument("--preview-artifact-id", type=int); p.add_argument("--preview-artifact-digest")
+    p.add_argument("--issue-json", type=Path); p.add_argument("--claim-json", type=Path); p.add_argument("--pr-json", type=Path); p.add_argument("--pr-files-json", type=Path)
+    p.add_argument("--run-json", type=Path); p.add_argument("--artifact-json", type=Path); p.add_argument("--preview-evidence-dir", type=Path)
+    p.add_argument("--remote-ledger", type=Path)
     p.add_argument("--evidence-out", type=Path, required=True)
-    return p.parse_args()
+    args = p.parse_args()
+    if args.reconciliation == "preview":
+        for name in ("source_pr_dir", "orphan_source_dir", "replacement_version", "claim", "source_pr",
+                     "preview_run_id", "preview_artifact_id", "preview_artifact_digest", "issue_json",
+                     "claim_json", "pr_json", "pr_files_json", "run_json", "artifact_json", "preview_evidence_dir"):
+            if getattr(args, name) is None:
+                raise Refusal(f"preview reconciliation requires --{name.replace('_', '-')}")
+    else:
+        for name in ("issue_json", "remote_ledger"):
+            if getattr(args, name) is None:
+                raise Refusal(f"sandbox reconciliation requires --{name.replace('_', '-')}")
+        for name in ("source_pr_dir", "orphan_source_dir", "replacement_version", "claim", "source_pr",
+                     "preview_run_id", "preview_artifact_id", "preview_artifact_digest",
+                     "claim_json", "pr_json", "pr_files_json", "run_json", "artifact_json", "preview_evidence_dir"):
+            if getattr(args, name) is not None:
+                raise Refusal(f"sandbox reconciliation refuses the preview-only argument --{name.replace('_', '-')}")
+    return args
 
 
 def main() -> int:
     try:
         args = parse_args()
+        if args.reconciliation == "sandbox":
+            if not re.fullmatch(r"[a-z]{20}", args.expected_project_ref) or args.expected_project_ref == "qsllyeztdwjgirsysgai":
+                raise Refusal("reconciliation requires a configured non-production Supabase project ref")
+            case = sandbox_case(args)
+            # The restore statement is derived and refused BEFORE any write, so
+            # a dollar-quote collision in the pinned statements can never leave
+            # the row deleted with no executable evidence.
+            restore_sql = sandbox_restore_sql(case, args.orphan_version)
+            governance = validate_governance_sandbox(args, case)
+            url, env = linked_connection(args.linked_dir, args.expected_project_ref)
+            before, after = reconcile_sandbox(url, env, args, case)
+            args.evidence_out.write_text(json.dumps({
+                "schema": "shared-db-sandbox-ledger-orphan-reconciliation/v1",
+                "mode": args.mode, "project_ref": args.expected_project_ref, "main_sha": args.main_sha,
+                "issue": args.issue, "orphan_version": args.orphan_version,
+                "governance": governance, "before": before, "after": after,
+                "restore_sql": restore_sql,
+            }, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+            print(f"SANDBOX LEDGER RECONCILIATION {args.mode.upper()} OK: removed={args.orphan_version if args.mode == 'apply' else 'none'}")
+            return 0
         case = SUPPORTED_CASES.get(
             (args.issue, args.claim, args.source_pr, args.orphan_version, args.replacement_version),
             SUPPORTED_CASES.get((args.issue, args.claim, args.source_pr)),

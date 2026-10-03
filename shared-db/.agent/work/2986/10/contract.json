@@ -1,0 +1,73 @@
+{
+ "allowed_paths": [
+  ".github/workflows/designflow-sandbox-migrations.yml",
+  ".github/workflows/sandbox-ledger-orphan-reconciliation.yml",
+  "config/preview-ledger-orphan-reconciliations.json",
+  "config/production-verification-sidecar-registry.json",
+  "docs/verification/throughput-dispositions",
+  "docs/verification/throughput-guard-truth-baseline-20260828.json",
+  "scripts/preview_ledger_orphan_reconcile.py",
+  "scripts/production-verification-sidecars/20260928182014.json",
+  "scripts/production_catalog_verification.py",
+  "scripts/sandbox_migration_preflight.py",
+  "scripts/test_preview_ledger_orphan_reconcile.py",
+  "scripts/test_preview_ledger_orphan_reconcile_postgres.py",
+  "scripts/test_production_catalog_verification.py",
+  "scripts/test_sandbox_migration_preflight.py"
+ ],
+ "assumptions": [
+  "the two sandbox ledger orphans keep the exact live rows captured 2026-10-02 (pinned in config; any drift refuses)",
+  "production and preview have already applied 20260928182014, so the new sidecar never loads on those lanes again",
+  "ai-task-gates class shared-db recorded in the worktree",
+  "generation 10 exists only because adding the hts_product_phrase_columns_v1 contract to production_catalog_verification.py changes the detector source digest pinned by docs/verification/throughput-guard-truth-baseline-20260828.json; the baseline path was absent from generation 9's allowed_paths. No other field changed meaning.",
+  "the baseline regeneration updates detector_source_sha256 only; the historical marker inventory is unchanged and re-verified live by the guard itself",
+  "the contract's db_reads/db_writes stay empty per the repo-maintenance shape; the PR itself performs no database access (read-only live proofs happened outside the change, recorded on #2986)"
+ ],
+ "base_sha": "83357edf89b0704f56de5060c6dff93c1bb2ebfd",
+ "branch": "codex/2986-sandbox-repair-instrument",
+ "db_reads": [],
+ "db_writes": [],
+ "dispatcher": "successor dispatch on issue #2986 (ZCode subagent, edge-dev)",
+ "file_writes": [
+  ".github/workflows/designflow-sandbox-migrations.yml",
+  ".github/workflows/sandbox-ledger-orphan-reconciliation.yml",
+  "config/preview-ledger-orphan-reconciliations.json",
+  "config/production-verification-sidecar-registry.json",
+  "docs/verification/throughput-guard-truth-baseline-20260828.json",
+  "scripts/preview_ledger_orphan_reconcile.py",
+  "scripts/production-verification-sidecars/20260928182014.json",
+  "scripts/production_catalog_verification.py",
+  "scripts/sandbox_migration_preflight.py",
+  "scripts/test_preview_ledger_orphan_reconcile.py",
+  "scripts/test_production_catalog_verification.py",
+  "scripts/test_sandbox_migration_preflight.py"
+ ],
+ "generation": 10,
+ "goal": "Build the reviewer-converged sandbox repair instruments: reconciler sandbox orphan-with-no-replacement mode, schema-conditioned dflow_prod handling for the sandbox migration lane, phrase-migration catalog contract, and the workflow prose correction",
+ "prohibited_actions": [
+  "no writes to production qsllyeztdwjgirsysgai or the preview branch, in this PR or afterwards",
+  "no migration file is created or edited; 20260928182014's bytes stay untouched",
+  "no gate is weakened: SANDBOX_BLOCKED, collision preflight, ledger preflight, assert-bounded and verify-dry-run keep refusing at least everything they refuse today",
+  "no unconditional version blocklist entry is added",
+  "do not edit another session's handoff, worktree, branch, or claim"
+ ],
+ "required_checks": [
+  "node --test scripts/throughput-guard/check-production-verification-sidecars.test.mjs",
+  "node scripts/check-production-verification-sidecars.mjs",
+  "node scripts/check-throughput-truth-audit.mjs",
+  "python -m unittest scripts.test_preview_ledger_orphan_reconcile scripts.test_sandbox_migration_preflight scripts.test_production_catalog_verification",
+  "scripts/check-sql.sh"
+ ],
+ "route": "repo-maintenance",
+ "schema_version": 1,
+ "stop_conditions": [
+  "stop and report Blocked with the verbatim refusal line if the assigned reviewer still refuses after honest rounds",
+  "stop if reconciling would require anything but the pinned metadata-only DELETE",
+  "stop if the phrase apply cannot complete through the sanctioned lane without hand DDL",
+  "stop if any change is needed outside allowed_paths"
+ ],
+ "work_issue": 2986,
+ "work_type": "repo-maintenance",
+ "worker": "zcode",
+ "worktree": ".ai/worktrees/2986-sandbox-repair-instrument"
+}

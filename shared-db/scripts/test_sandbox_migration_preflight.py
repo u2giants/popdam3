@@ -1,6 +1,7 @@
 """Offline tests for the DesignFlow sandbox migration route (issue #3428)."""
 from __future__ import annotations
 
+import json
 import re
 import sys
 import tempfile
@@ -177,6 +178,210 @@ class WorkflowInvariantTests(unittest.TestCase):
             self.assertIn(needle, WORKFLOW)
         self.assertLess(WORKFLOW.index("Refuse a missing sandbox credential"), WORKFLOW.index("supabase link"))
 
+    def test_conditioning_step_sits_between_prepare_and_push_in_both_modes(self) -> None:
+        # Issue #2986. The absent-schema conditioning must run inside the bounded
+        # checkout only, before the dry-run, so the dry-run proves the exact bytes
+        # the apply will run. It is mode-independent by construction: the step is
+        # not guarded by an `if:` on inputs.mode.
+        self.assertLess(WORKFLOW.index("Build bounded checkout"), WORKFLOW.index("sandbox_migration_preflight.py condition"))
+        self.assertLess(WORKFLOW.index("sandbox_migration_preflight.py condition"), WORKFLOW.index("Bounded dry-run, then apply in apply mode"))
+        step = WORKFLOW.split("- name: Condition absent-schema statements", 1)[1].split("\n      - name:", 1)[0]
+        self.assertNotIn("if: inputs.mode", step)
+        self.assertIn('--evidence-out "$RUNNER_TEMP/sandbox-schema-conditioning.json"', step)
+        self.assertIn("sandbox-schema-conditioning.json", WORKFLOW.split("path: |", 1)[1])
+
+    def test_the_only_route_prose_names_both_sandbox_writers(self) -> None:
+        # The predecessor's manual-repair divergence is closed: the workflow no
+        # longer claims to be the only writer, and both writers share the serial
+        # group (issue #2986, reviewer M4).
+        self.assertNotIn("is the only route in this repository that can write to the sandbox", WORKFLOW)
+        self.assertIn("sandbox-ledger-orphan-reconciliation.yml", WORKFLOW)
+
+    def test_apply_binds_the_conditioning_evidence_digest(self) -> None:
+        step = WORKFLOW.split("- name: Apply only on the exact successful dry-run evidence", 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn("sandbox-schema-conditioning.json", step)
+        self.assertIn("PRIOR_DIGEST", step)
+        self.assertIn("dispatch a fresh dry-run", step)
+        self.assertLess(WORKFLOW.index("sandbox_migration_preflight.py condition"), WORKFLOW.index("- name: Apply only on the exact successful dry-run evidence"))
+
+    def test_sandbox_reconciliation_workflow_is_serial_fail_closed_and_dispatch_only(self) -> None:
+        reconcile = (ROOT / ".github" / "workflows" / "sandbox-ledger-orphan-reconciliation.yml").read_text(encoding="utf-8")
+        on_block = reconcile.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+        self.assertIn("workflow_dispatch:", on_block)
+        self.assertNotIn("pull_request", on_block)
+        self.assertNotIn("merge_group", on_block)
+        self.assertRegex(reconcile, r"concurrency:\n  group: designflow-sandbox-migrations\n  cancel-in-progress: false")
+        self.assertIn("environment: designflow-sandbox", reconcile)
+        self.assertIn("SANDBOX_PROJECT_REF: xupnyeifmpsacrqahwwm", reconcile)
+        self.assertNotIn("SUPABASE_DB_PASSWORD_PREVIEW", reconcile)
+        self.assertIn("preview_ledger_orphan_reconcile.py --mode check", reconcile)
+        self.assertIn("preview_ledger_orphan_reconcile.py --mode apply", reconcile)
+        self.assertIn("--reconciliation sandbox", reconcile)
+        self.assertIn("config/preview-ledger-orphan-reconciliations.json", reconcile)
+        self.assertIn("sandbox_orphan_no_replacement", reconcile)
+        self.assertIn("RECONCILE SANDBOX ORPHAN $ORPHAN", reconcile)
+        # The target ref is proven at the pooler URL before any psql write.
+        self.assertIn('! grep -F "$PRODUCTION_PROJECT_REF_NEVER_WRITE_HERE" supabase/.temp/pooler-url', reconcile)
+        self.assertIn('! grep -F "$PREVIEW_PROJECT_REF" supabase/.temp/pooler-url', reconcile)
+        # A no-replacement orphan must have no local file on the dispatch commit.
+        self.assertIn("sandbox no-replacement orphan must have no local migration file", reconcile)
+
+
+class ConditioningTests(unittest.TestCase):
+    LIVE_WITHOUT_DFLOW_PROD = [
+        "api", "app", "auth", "dflow", "extensions", "plm", "public", "storage",
+        "supabase_migrations",
+    ]
+
+    def _repo(self, name: str, sql: str) -> tuple[Path, Path]:
+        tmp = Path(tempfile.mkdtemp())
+        migrations = tmp / "supabase" / "migrations"
+        migrations.mkdir(parents=True)
+        path = migrations / name
+        path.write_text(sql, encoding="utf-8")
+        return tmp, path
+
+    def test_scan_text_fails_closed_on_unterminated_lexical_state(self) -> None:
+        for bad, why in (
+            ("select 'unterminated", "single-quoted literal"),
+            ('select "unterminated', "quoted identifier"),
+            ("do $tag$ begin select 1", "dollar-quoted body"),
+            ("/* never closed", "block comment"),
+        ):
+            with self.assertRaisesRegex(sp.Refusal, why):
+                sp.scan_text(bad)
+
+    def test_scan_text_blanks_comments_but_keeps_strings_and_dollar_bodies(self) -> None:
+        statement = (
+            "-- dflow_prod and plm in a comment only\n"
+            "do $v$ begin\n"
+            "  if to_regnamespace('dflow_prod') is null then raise exception 'plm'; end if;\n"
+            "end $v$"
+        )
+        text = sp.scan_text(statement)
+        self.assertNotIn("in a comment only", text)
+        self.assertIn("to_regnamespace('dflow_prod')", text)
+        self.assertIn("'plm'", text)
+
+    def test_statement_head_ignores_leading_comments(self) -> None:
+        self.assertEqual(sp.statement_head("-- prose\nalter table dflow_prod.t add column x int"), "alter")
+        self.assertEqual(sp.statement_head("DO $x$ begin perform 1; end $x$;"), "do")
+
+    def test_statement_spans_split_the_real_phrase_migration(self) -> None:
+        path = next((ROOT / "supabase" / "migrations").glob("20260928182014_*.sql"))
+        spans = sp.statement_spans(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(spans), 4)
+        self.assertTrue(all(sp.statement_head(statement) == "alter" for _s, _e, statement in spans))
+        self.assertIn('dflow_prod."itemHeader"', spans[2][2])
+        self.assertIn('dflow_prod."RFQItem"', spans[3][2])
+
+    def test_phrase_migration_wraps_exactly_its_two_dflow_prod_statements(self) -> None:
+        path = next((ROOT / "supabase" / "migrations").glob("20260928182014_*.sql"))
+        raw = path.read_text(encoding="utf-8")
+        wraps = sp.condition_plan(raw, self.LIVE_WITHOUT_DFLOW_PROD, ["dflow_prod"], "20260928182014")
+        self.assertEqual([sp.statement_head(statement) for _s, _e, statement, _g, _t in wraps], ["alter", "alter"])
+        adapted = sp.apply_conditioning(raw, wraps)
+        self.assertIn("if exists (select 1 from pg_namespace where nspname = 'dflow_prod')", adapted)
+        for _s, _e, statement, _g, _t in wraps:
+            self.assertIn(statement, adapted)
+        # The plm statements are byte-untouched, and the file re-lexes to the same count.
+        self.assertIn('alter table plm."itemHeader"', adapted)
+        self.assertEqual(len(sp.statement_spans(adapted)), 4)
+        self.assertNotIn("plm", [guard for _s, _e, _st, guard, _t in wraps])
+
+    def test_cutover_migration_conditions_alters_comments_and_its_do_block(self) -> None:
+        # 20260917013422 carries explicit begin/commit plus a verification do
+        # block; the pass-through controls stay untouched while everything that
+        # names dflow_prod is guarded, so this rehearsal lane reopens on a
+        # sandbox without dflow_prod instead of failing 42P01.
+        path = next((ROOT / "supabase" / "migrations").glob("20260917013422_*.sql"))
+        raw = path.read_text(encoding="utf-8")
+        wraps = sp.condition_plan(raw, self.LIVE_WITHOUT_DFLOW_PROD, ["dflow_prod"], "20260917013422")
+        heads = sorted(sp.statement_head(statement) for _s, _e, statement, _g, _t in wraps)
+        self.assertEqual(heads, ["alter", "alter", "comment", "comment", "do"])
+        adapted = sp.apply_conditioning(raw, wraps)
+        self.assertEqual(len(sp.statement_spans(adapted)), len(sp.statement_spans(raw)))
+        self.assertIn("begin;\n", adapted)
+        self.assertIn("\ncommit;", adapted)
+
+    def test_conditioning_refusals_are_named_and_fail_closed(self) -> None:
+        live = self.LIVE_WITHOUT_DFLOW_PROD
+        # A statement set whose second statement names BOTH dflow_prod (absent)
+        # and plm (live) must never be conditioned.
+        with self.assertRaisesRegex(sp.Refusal, "mixed-schema"):
+            sp.condition_plan(
+                "alter table dflow_prod.t add column if not exists x int;\n"
+                "update plm.y set z = 1 where to_regclass('dflow_prod.t') is not null;",
+                live, ["dflow_prod"], "20260928000000",
+            )
+        with self.assertRaisesRegex(sp.Refusal, "dynamic SQL"):
+            sp.condition_plan("do $d$ begin execute 'alter table dflow_prod.t add column x int'; end $d$;", live, ["dflow_prod"], "20260928000000")
+        with self.assertRaisesRegex(sp.Refusal, "does not condition"):
+            sp.condition_plan("create table dflow_prod.t (id int);", live, ["dflow_prod"], "20260928000000")
+        with self.assertRaisesRegex(sp.Refusal, "does not condition"):
+            sp.condition_plan("insert into dflow_prod.t (id) values (1);", live, ["dflow_prod"], "20260928000000")
+        # Transaction control that names the absent schema is refused, not wrapped.
+        with self.assertRaisesRegex(sp.Refusal, "transaction control"):
+            sp.condition_plan("begin 'dflow_prod';", live, ["dflow_prod"], "20260928000000")
+        # A comment-only mention never wraps anything.
+        self.assertEqual(sp.condition_plan("-- dflow_prod targets\nalter table plm.t add column x int;", live, ["dflow_prod"], "20260928000000"), [])
+
+    def test_condition_end_to_end_touches_only_the_bounded_checkout(self) -> None:
+        import production_migration_guard as guard
+
+        repo, path = self._repo("20260101000000_x.sql", "alter table dflow_prod.t add column x int;\n")
+        # A second, untouched bounded file proves the manifest stays pinned to
+        # prepare's digest for everything the conditioner did not rewrite.
+        untouched = repo / "supabase" / "migrations" / "20260102000000_keep.sql"
+        untouched.write_text("alter table plm.t add column y int;\n", encoding="utf-8")
+        guard.write_content_manifest(repo)
+        manifest = json.loads((repo / "supabase" / "migration-content-manifest.json").read_text(encoding="utf-8"))
+        prepare_digest_of_untouched = manifest["20260102000000"]
+        evidence = Path(tempfile.mkdtemp()) / "conditioning.json"
+        absent_query = lambda ref, token, sql: [{"nspname": name} for name in self.LIVE_WITHOUT_DFLOW_PROD]  # noqa: E731
+        present_query = lambda ref, token, sql: [{"nspname": name} for name in self.LIVE_WITHOUT_DFLOW_PROD + ["dflow_prod"]]  # noqa: E731
+        sp.condition(repo, "20260101000000", sp.SANDBOX_PROJECT_REF, "t", evidence, query=absent_query)
+        adapted = path.read_text(encoding="utf-8")
+        self.assertIn("pg_namespace", adapted)
+        self.assertIn("alter table dflow_prod.t add column x int", adapted)
+        data = json.loads(evidence.read_text(encoding="utf-8"))
+        self.assertEqual(data["absent"], ["dflow_prod"])
+        self.assertEqual(len(data["files"]), 1)
+        self.assertFalse(data["files"][0]["unchanged"])
+        self.assertNotEqual(data["files"][0]["original_sha256"], data["files"][0]["adapted_sha256"])
+        # The manifest verifies clean, and ONLY the conditioned entry moved:
+        # the untouched file still carries prepare's digest (review M3).
+        guard.assert_content_manifest(repo)
+        manifest = json.loads((repo / "supabase" / "migration-content-manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["20260102000000"], prepare_digest_of_untouched)
+        self.assertEqual(manifest["20260101000000"], data["files"][0]["adapted_sha256"])
+        # When the schema exists, the bytes stay identical.
+        path.write_text("alter table dflow_prod.t add column x int;\n", encoding="utf-8")
+        guard.write_content_manifest(repo)
+        before = path.read_bytes()
+        sp.condition(repo, "20260101000000", sp.SANDBOX_PROJECT_REF, "t", evidence, query=present_query)
+        self.assertEqual(path.read_bytes(), before)
+        data = json.loads(evidence.read_text(encoding="utf-8"))
+        self.assertEqual(data["absent"], [])
+        self.assertTrue(data["files"][0]["unchanged"])
+        # Refuses anything but the sandbox ref.
+        with self.assertRaises(sp.Refusal):
+            sp.condition(repo, "20260101000000", sp.PRODUCTION_PROJECT_REF, "t", evidence, query=absent_query)
+
+    def test_condition_refuses_when_the_manifest_does_not_match_the_bytes(self) -> None:
+        import production_migration_guard as guard
+
+        repo, path = self._repo("20260101000000_x.sql", "alter table dflow_prod.t add column x int;\n")
+        guard.write_content_manifest(repo)
+        path.write_text("alter table dflow_prod.t add column y int;\n", encoding="utf-8")
+        evidence = Path(tempfile.mkdtemp()) / "conditioning.json"
+        query = lambda ref, token, sql: [{"nspname": name} for name in self.LIVE_WITHOUT_DFLOW_PROD]  # noqa: E731
+        from production_migration_guard import GuardError
+
+        with self.assertRaises((sp.Refusal, GuardError)):
+            sp.condition(repo, "20260101000000", sp.SANDBOX_PROJECT_REF, "t", evidence, query=query)
+
 
 if __name__ == "__main__":
+
     unittest.main()

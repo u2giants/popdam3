@@ -1002,6 +1002,36 @@ POPDAM_FORWARD_RECOVERY_CONTRACT = _shape_contract(
     triggers=(('public.asset_tags','asset_tags_sync_assets_tags'),('public.asset_tags','asset_tags_dam_search_refresh'),('public.style_group_tags','style_group_tags_dam_search_refresh'),('public.asset_characters','asset_characters_dam_search_refresh')),
 )
 CATALOG_CONTRACTS = {
+    # Issue #2986 / #3400. 20260928182014 adds the same six nullable, no-default
+    # phrase columns to plm."itemHeader"/plm."RFQItem" and to their dflow_prod
+    # counterparts. The quoted mixed-case identifiers are invisible to the
+    # statement lexer, so without this contract a phrase-only allowlist verifies
+    # nothing. The dflow_prod half is schema-conditioned, mirroring the sandbox
+    # conditioning lane exactly: on any database that carries the schema the six
+    # columns must be there; on one that does not carry it (the DesignFlow
+    # sandbox until the structural route creates it) the plm half is the whole
+    # obligation.
+    "hts_product_phrase_columns_v1": """
+      (select count(*) from information_schema.columns
+         where table_schema = 'plm' and is_nullable = 'YES' and column_default is null
+           and (table_name, column_name, data_type) in (
+             ('itemHeader', 'hts_product_phrase', 'text'),
+             ('itemHeader', 'hts_product_phrase_source', 'text'),
+             ('itemHeader', 'hts_product_phrase_at', 'timestamp with time zone'),
+             ('RFQItem', 'hts_product_phrase', 'text'),
+             ('RFQItem', 'hts_product_phrase_source', 'text'),
+             ('RFQItem', 'hts_product_phrase_at', 'timestamp with time zone'))) = 6
+      and (not exists (select 1 from pg_namespace where nspname = 'dflow_prod')
+           or (select count(*) from information_schema.columns
+                 where table_schema = 'dflow_prod' and is_nullable = 'YES' and column_default is null
+                   and (table_name, column_name, data_type) in (
+                     ('itemHeader', 'hts_product_phrase', 'text'),
+                     ('itemHeader', 'hts_product_phrase_source', 'text'),
+                     ('itemHeader', 'hts_product_phrase_at', 'timestamp with time zone'),
+                     ('RFQItem', 'hts_product_phrase', 'text'),
+                     ('RFQItem', 'hts_product_phrase_source', 'text'),
+                     ('RFQItem', 'hts_product_phrase_at', 'timestamp with time zone'))) = 6)
+    """,
     "popsg_search_v2_bounded_paging_v1": """exists (select 1 from pg_proc p where p.oid=to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)') and p.prorettype='jsonb'::regtype and p.prosecdef and p.provolatile='s' and p.proconfig=array['search_path=pg_catalog, auth']::text[] and md5(p.prosrc)='4fdbef747897eb7d834b3b23858902ac' and not has_function_privilege('anon',p.oid,'EXECUTE') and has_function_privilege('authenticated',p.oid,'EXECUTE') and has_function_privilege('service_role',p.oid,'EXECUTE'))""",
     "popsg_search_v2_production_performance_v1": """exists (select 1 from pg_proc p where p.oid=to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)') and p.prorettype='jsonb'::regtype and p.prosecdef and p.provolatile='s' and p.proconfig=array['search_path=pg_catalog, auth']::text[] and md5(p.prosrc)='83b8190bca2ff2b7e08a5e87651785b3' and not has_function_privilege('anon',p.oid,'EXECUTE') and has_function_privilege('authenticated',p.oid,'EXECUTE') and has_function_privilege('service_role',p.oid,'EXECUTE'))""",
     "popsg_search_v2_default_timeout_v1": """exists (select 1 from pg_proc p where p.oid=to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)') and p.prorettype='jsonb'::regtype and p.prosecdef and p.provolatile='s' and p.proconfig=array['search_path=pg_catalog, auth','work_mem=64MB']::text[] and md5(p.prosrc)='719d560bf41d61c8441aa806eb9406fa' and not has_function_privilege('anon',p.oid,'EXECUTE') and has_function_privilege('authenticated',p.oid,'EXECUTE') and has_function_privilege('service_role',p.oid,'EXECUTE'))""",
