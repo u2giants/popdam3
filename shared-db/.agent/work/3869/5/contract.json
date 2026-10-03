@@ -1,0 +1,52 @@
+{
+  "schema_version": 2,
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 3869,
+    "generation": 4,
+    "contract_sha256": "7d30de347358870d8b9fc4b4d3754a4057d4669530ab622001eff1d6320f8fcb"
+  },
+  "work_issue": 3869,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Replace plm.v_prod_order_sales_order_link so production orders link only to sales orders of the same customer, with a -120..+240 day start-date window on the PO-reference path; applied to the DesignFlow sandbox (xupnyeifmpsacrqahwwm) only",
+  "base_sha": "a233e49a3c5a9c6bbba1c6ebbc51c81001db84f3",
+  "dispatcher": "claim-first structural session for issue #3869 (Claude chat fb5671db-a462-4888-b6d9-b75af80e91c5 on al8960ofc)",
+  "worker": "claude",
+  "branch": "db/3869-link-customer-match",
+  "worktree": "C:/repos/shared-db-worktrees/3869",
+  "allowed_paths": [
+    "supabase/migrations/20261002224215_coldlion_prod_order_sales_order_link_customer_match.sql",
+    "supabase/tests/plm_prod_order_sales_order_link_contracts.sql"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261002224215_coldlion_prod_order_sales_order_link_customer_match.sql",
+    "supabase/tests/plm_prod_order_sales_order_link_contracts.sql"
+  ],
+  "db_reads": [
+    "table coldlion.order_history_line",
+    "table coldlion.prod_history_line",
+    "table plm.ProdOrderHeader"
+  ],
+  "db_writes": [
+    "view plm.v_prod_order_sales_order_link"
+  ],
+  "prohibited_actions": [
+    "do not apply anything to shared production or shared preview from this session",
+    "do not alter any object other than the view",
+    "never put licensed ColdLion rows in GitHub, logs, or prompts"
+  ],
+  "required_checks": [
+    "BEGIN; migration; coverage and customer-match query; ROLLBACK against the DesignFlow sandbox",
+    "supabase/tests against an ephemeral database (CI)"
+  ],
+  "assumptions": [
+    "plm.ProdOrderHeader.customerCode is the PO customer and uses the same codes as ColdLion customer_code",
+    "the -120..+240 day window is where production-history-confirmed pairs fall (2,756 of 2,795)",
+    "generation 4 supersedes generation 3 only to add the supabase/tests contract after governed review",
+    "generation 5 supersedes generation 4 only for the allocator re-reservation of 20261002195008 as 20261002224215"
+  ],
+  "stop_conditions": [
+    "stop if a change outside allowed_paths is needed"
+  ]
+}

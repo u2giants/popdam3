@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 3869,
+  "outcome": "ready-for-merge",
+  "pr": 3915,
+  "migration_versions": [
+    "20261002224215"
+  ],
+  "contract_ref": "refs/db-contracts/3869/5",
+  "contract_sha256": "e7a98e5456504f33e6dc672efb1987ebdad10cc1b34cb4f62344c2a5983e82d3",
+  "base_sha": "a233e49a3c5a9c6bbba1c6ebbc51c81001db84f3",
+  "head_sha": "1ee87a03bf1d9710f02fd8b6b0480c55abb94e02",
+  "files_changed": [
+    "supabase/migrations/20261002224215_coldlion_prod_order_sales_order_link_customer_match.sql",
+    "supabase/tests/plm_prod_order_sales_order_link_contracts.sql"
+  ],
+  "db_reads": [
+    "table coldlion.order_history_line",
+    "table coldlion.prod_history_line",
+    "table plm.ProdOrderHeader"
+  ],
+  "db_writes": [
+    "view plm.v_prod_order_sales_order_link"
+  ],
+  "checks": [
+    {
+      "command": "BEGIN; migration; coverage and customer-match query; ROLLBACK against the DesignFlow sandbox",
+      "exit_code": 0,
+      "evidence": "target system_identifier 7678069749886157684 (sandbox); migration executed twice in one rolled-back transaction; 6133 pairs, all 6133 with sales-order customer = PO customer; 2190 of 3514 production orders linked (62.3%), 1324 unlinked; 2170 linked POs carry a start date; 2025+ orders 449 of 572 linked; 312 POs have a blank PLM customer, 56 of them link through ColdLion's own PO customer; prodOrderDate: 0 invalid; PO D3513 (24136) links only to its Hobby Lobby sales order; full view read 0.62 s (EXPLAIN ANALYZE)"
+    },
+    {
+      "command": "supabase/tests against an ephemeral database (CI)",
+      "exit_code": 0,
+      "evidence": "required CI check on every pull-request head; blocks the merge unless supabase/tests/plm_prod_order_sales_order_link_contracts.sql passes"
+    }
+  ],
+  "assumptions_resolved": [
+    "Before: 22332 pairs, about 32% customer-matched; 18976 came only from the reference path, of which 4312 matched.",
+    "Code-space probe: of POs with ColdLion production-history rows, 60 have a ColdLion PO customer different from the PLM customerCode; PLM is kept authoritative when present."
+  ],
+  "stop_conditions_hit": [],
+  "disclosure": "Follow-up to PR #3873 after a coordinator-reported customer mismatch. First head 1d75c6fc: Gemini 3.8 Flash APPROVE, DeepSeek REVISE (blank PO customer dropped, unsafe date cast, reference index unasserted, self-confirming match rate); fixed in the commit named in head_sha, with the code-space probe recorded above. Second head c8237315: Gemini APPROVE, DeepSeek REVISE (header id identity unasserted, so_customer cost unmeasured, customer-code premise, no contract test); head_sha adds the id unique-index self-check and records the measured 0.62 s plan (restricting so_customer measured 27 s, so it stays unrestricted). The customer-code premise is supported by the probe in assumptions_resolved. Third head 7a3ac349: Gemini APPROVE, DeepSeek REVISE (supporting indexes and base view unasserted, no contract test); head_sha adds those self-checks and supabase/tests/plm_prod_order_sales_order_link_contracts.sql (contract generation 4). Fourth head 7732a0f1: Gemini APPROVE, DeepSeek REVISE (supporting-index checks accepted partial or not-ready indexes; test lacked window boundaries, invalid-date scope and order-line precedence; CI evidence wording); fixed in head_sha. Fifth head 26b1facb: GLM 5.3 APPROVE (slot 1), DeepSeek REVISE (supporting-index checks did not pin btree/plain-column shape; test lacked NULL-customer, company-mismatch, legacy-header and multi-source cases); fixed in head_sha. The PLM/ColdLion customer-code premise remains a documented assumption backed by the probe. SQL migration guards then refused 20261002195008 as backdated (main reached 20261002204050); the allocator re-reserved it as 20261002224215 (supersession ref refs/db-claim-supersessions/3914-20261002195008); content unchanged. Sixth head 3c3437f5: GLM 5.3 APPROVE (slot 2), DeepSeek REVISE (multi-source and legacy-header cases and output columns untested; customer compared trimmed only on the PLM side); head_sha trims both sides and adds those test cases. Seventh head 183c7534: GLM 5.3 APPROVE (slot 2), DeepSeek REVISE (company/customer code-space and NULL-company/mixed-customer behaviour undisclosed; ColdLion-side trim untested; index-shape argument); head_sha states those assumptions in the migration header and adds the ColdLion-side trim case."
+}
