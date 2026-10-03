@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "work_issue": 2986,
+  "generation": 14,
+  "outcome": "ready-for-merge",
+  "pr": 3935,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2986/14",
+  "contract_sha256": "8a44559b6d0f7dc5bce16b9445f69b95a71cab75344283877d889f781ce09848",
+  "head_sha": "349d282a6ec833d4bf4f30e152199c624b1c7065",
+  "files_changed": [
+    ".github/workflows/designflow-sandbox-migrations.yml"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -B -m unittest scripts.test_sandbox_migration_preflight",
+      "exit_code": 0,
+      "evidence": "suite passes; the invariant test pins the after-capture step's placement, not its env, so no test change is required"
+    }
+  ],
+  "assumptions_resolved": [
+    "apply run 37102659147: the push and the catalog contract succeeded; only the tokenless after-capture failed",
+    "the fix is byte-identical in shape to the before-capture step's env + login"
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "975b0540467b877c914587ca5a77c9a00d23125f"
+}

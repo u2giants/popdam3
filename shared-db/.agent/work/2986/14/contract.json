@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 2986,
+  "generation": 14,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Fix the sandbox migration apply lane's post-apply ledger capture: the 'Capture sandbox migration record (after)' step runs `supabase migration list --linked` without SUPABASE_ACCESS_TOKEN, so the after-ledger file captures the CLI's error, verify-ledger parses zero versions, and every SUCCESSFUL apply ends the workflow red (live proof: apply run 37102659147 applied 20260928182014 \u2014 the push and the catalog contract both succeeded \u2014 yet the job concluded failure on this step). Add the token env and the matching `supabase login`, exactly like the before-capture step already does.",
+  "allowed_paths": [
+    ".agent/work/2986/14/contract.json",
+    ".agent/work/2986/14/completion.json",
+    ".github/workflows/designflow-sandbox-migrations.yml"
+  ],
+  "file_writes": [
+    ".agent/work/2986/14/contract.json",
+    ".agent/work/2986/14/completion.json",
+    ".github/workflows/designflow-sandbox-migrations.yml"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "base_sha": "975b0540467b877c914587ca5a77c9a00d23125f",
+  "branch": "fix/2986-apply-ledger-token",
+  "worktree": "shared-db-wt-2986-verifyfix",
+  "worker": "zcode",
+  "dispatcher": "successor dispatch continuation on issue #2986 (ZCode subagent, edge-dev)",
+  "assumptions": [
+    "the apply run 37102659147 log shows the write and the catalog contract succeeded; only the tokenless after-capture step failed",
+    "the before-capture step in the same workflow already uses exactly this env + login pattern"
+  ],
+  "required_checks": [
+    "python -B -m unittest scripts.test_sandbox_migration_preflight"
+  ],
+  "prohibited_actions": [
+    "no writes to production qsllyeztdwjgirsysgai or the preview branch",
+    "no migration file is created or edited",
+    "no re-dispatch of the apply for 20260928182014 from this PR; the version is already applied and live-verified"
+  ],
+  "stop_conditions": [
+    "stop if the workflow change cannot be proven minimal and identical in shape to the before-capture step"
+  ]
+}
