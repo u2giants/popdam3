@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "work_issue": 2986,
+  "generation": 13,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Second conscious re-pin of the two sandbox orphan reconciliation cases' expected ledger baselines: the #3869 lane applied one more legitimate migration to the sandbox (20261002224215_coldlion_prod_order_sales_order_link_customer_match.sql, merged on origin/main as 1ee87a03b) between generation 12's merge and the reconciliation dispatch, so the pinned baselines refuse until widened again. Same verified-legitimate class as 20261002135053 in generation 12.",
+  "allowed_paths": [
+    ".agent/work/2986/13/contract.json",
+    ".agent/work/2986/13/completion.json",
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py"
+  ],
+  "file_writes": [
+    ".agent/work/2986/13/contract.json",
+    ".agent/work/2986/13/completion.json",
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "base_sha": "40340973e79ec9e90982f769a1e9f28c5a105464",
+  "branch": "fix/2986-repin-row-224215",
+  "worktree": "shared-db-wt-2986-repin2",
+  "worker": "zcode",
+  "dispatcher": "successor dispatch continuation on issue #2986 (ZCode subagent, edge-dev)",
+  "assumptions": [
+    "20261002224215 is legitimate: the migration file exists on origin/main (commit 1ee87a03b, issue #3869 second change), and the live sandbox ledger row's single statement matches the merged file's derived-from header (read-only proof recorded on issue #2986, outside this change)",
+    "the two sandbox orphan rows themselves keep the exact 2026-10-02 captured content; only the SURVIVOR baseline gains the new row",
+    "the pinned-world test fixture gains the same row so the pin stays tested"
+  ],
+  "required_checks": [
+    "python -B -m unittest scripts.test_preview_ledger_orphan_reconcile"
+  ],
+  "prohibited_actions": [
+    "no writes to production qsllyeztdwjgirsysgai or the preview branch, in this PR or afterwards",
+    "no migration file is created or edited",
+    "no reconciliation or migration dispatch happens from this PR's branch; dispatches use merged main only"
+  ],
+  "stop_conditions": [
+    "stop and report Blocked with the verbatim refusal line if the new third-party row's legitimacy cannot be proven read-only",
+    "stop if any pinned orphan row's own content drifted; that is a different defect, not a re-pin"
+  ]
+}

@@ -343,7 +343,17 @@ class SandboxNoReplacementTests(unittest.TestCase):
         # merged PR #3873 (issue #3869), file on main, statements verified
         # read-only against the live sandbox ledger before this re-pin.
         "20261002135053",
+        # Second legitimate third-party row: 20261002224215_coldlion_prod_order_sales_order_link_customer_match.sql,
+        # merged on main (1ee87a03b, issue #3869 second change), applied to the sandbox before the
+        # reconciliation dispatch; statements verified read-only against the live ledger.
+        "20261002224215",
     ]
+    # Exact sha256 of each case's expected_statements JSON (compact separators).
+    # Any conscious re-pin of statement content must update these too.
+    PINNED_STATEMENT_DIGESTS = {
+        "20260904183000": "6c627b1d345739c82a8307b3c944ba8baa01cd8218a2d206e45f4bc1a5dcc264",
+        "20260904183100": "6261d04e224ace1677e8f759f3b6b8da9472f4b701ab0f05cd85fe2777771af1",
+    }
 
     def args(self, **over):
         base = dict(
@@ -381,10 +391,13 @@ class SandboxNoReplacementTests(unittest.TestCase):
             # manifest's content must be a conscious one.
             import hashlib
             digest = hashlib.sha256(json.dumps(case["expected_statements"], separators=(",", ":")).encode()).hexdigest()
-            self.assertEqual(len(digest), 64)
+            # qwen finding 2 on PR #3934: a length check asserts nothing; the
+            # digest is pinned exactly, so any edit to pinned statement bytes
+            # must consciously update PINNED_STATEMENT_DIGESTS as well.
+            self.assertEqual(digest, self.PINNED_STATEMENT_DIGESTS[orphan])
 
     def test_second_orphan_refuses_until_the_first_is_reconciled(self):
-        # The real live world: both orphans present (10 rows).
+        # The real live world: both orphans present (12 rows).
         both = sorted(self.OTHERS + ["20260904183000", "20260904183100"])
         repo, sha = self._repo()
         caseA = M.SUPPORTED_CASES[(2986, "sandbox_orphan_no_replacement", "20260904183000")]
@@ -394,7 +407,7 @@ class SandboxNoReplacementTests(unittest.TestCase):
         # Case B sees the unreconciled first orphan as an extra row and refuses.
         with self.assertRaisesRegex(M.Refusal, "extra"):
             M.validate_governance_sandbox(goodA, caseB)
-        # After the first delete (9 rows) case B's pinned world matches.
+        # After the first delete (11 rows) case B's pinned world matches.
         after_first = sorted(self.OTHERS + ["20260904183100"])
         goodB = self.args(repo=repo, main_sha=sha, issue_json=self._issue_json(),
                           remote_ledger=self._ledger(after_first), orphan_version="20260904183100")

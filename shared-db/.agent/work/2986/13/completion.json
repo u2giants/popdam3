@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "work_issue": 2986,
+  "generation": 13,
+  "outcome": "ready-for-merge",
+  "pr": 3934,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2986/13",
+  "contract_sha256": "5190016177e040f4d993dbfface91820db8b1b92873b1a48410bed27f9af3973",
+  "head_sha": "1a3bd60759dda2c852f99f37dbe6b4674544f951",
+  "files_changed": [
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -B -m unittest scripts.test_preview_ledger_orphan_reconcile",
+      "exit_code": 0,
+      "evidence": "39 tests OK after the re-pin and the two qwen-finding fixes"
+    },
+    {
+      "command": "python -B -m unittest scripts.test_sandbox_migration_preflight scripts.test_production_catalog_verification",
+      "exit_code": 0,
+      "evidence": "262 tests OK"
+    }
+  ],
+  "assumptions_resolved": [
+    "20261002224215 legitimacy proven read-only: file on origin/main (1ee87a03b), live statements match the derived-from header",
+    "both sandbox orphan rows' own pinned statements untouched"
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "40340973e79ec9e90982f769a1e9f28c5a105464"
+}
