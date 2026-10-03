@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 3910,
+  "outcome": "ready-for-merge",
+  "pr": 3932,
+  "migration_versions": [
+    "20261002224520"
+  ],
+  "contract_ref": "refs/db-contracts/3910/2",
+  "contract_sha256": "dfc902b90cd93b64a487265db0c361ffe93c22e39a97f06f6fc8cc0e0953c756",
+  "head_sha": "60dfae1502c768d194c56276a61286a54e66249b",
+  "base_sha": "0cf19993119fe26378ed7bc85e9f7facc66580ce",
+  "files_changed": [
+    ".github/live-proofs/3910.sql",
+    "supabase/migrations/20261002224520_item_master_import_no_churn_ep001_retirement.sql",
+    "supabase/tests/item_master_import_no_churn_contract.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function plm.import_item_master_data"
+  ],
+  "checks": [
+    {
+      "command": "database-contract-tests item_master_import_no_churn_contract.sql",
+      "exit_code": 0,
+      "evidence": "Passed in PR #3932 CI job 111085407013 (identical migration/test bytes; 60dfae1502c768d194c56276a61286a54e66249b adds only the read-only live-proof probe, which returned true against production after applying the migration in a rolled-back transaction)."
+    }
+  ],
+  "assumptions_resolved": [
+    "Grok and GLM APPROVE at 8e3e55be (same SQL).",
+    "Churn root cause: unconditional upserts/back-fill; post-apply live re-measure pending."
+  ],
+  "stop_conditions_hit": []
+}
