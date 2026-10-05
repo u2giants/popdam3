@@ -1,0 +1,25 @@
+{
+  "schema_version": 2, "work_issue": 3943, "generation": 2,
+  "evidence_parent": { "work_issue": 3943, "generation": 1, "contract_sha256": "5a672a4199a588f59949b0e3f92ea9dee30e77e57771ab1d79a746b53c0e84bd" },
+  "work_type": "repo-maintenance", "route": "repo-maintenance",
+  "goal": "Round 2 of the #3943 custody fix (both slot reviews returned REVISE/findings on generation 1): (1) comparison-operand literals in the concurrency group expression are NO LONGER redacted — the redactor scans true paired single-quoted literals and leaves verbatim any whose preceding text ends in == or !=, so retargeting inputs.target or github.event_name discriminators is refused (the merged-cross-target-queue outcome by retarget, both reviewers' blocking finding); (2) the scan is positional, not a regex alternation, so a skipped operand cannot shift a match start onto its closing quote; (3) the code comment states the true tolerated set and the fail-closed assumptions (single-line group form, single-quoted queue literals, escaped-apostrophe ordinal drift); (4) new refusal tests for both discriminator reproducers, and a sanity assertion in the rename-tolerance test.",
+  "base_sha": "7e3439e36d6be08db519521e3d56103e3beed0c9", "dispatcher": "ZCode chat sess_879e4038-46bc-4634-aa88-f479835a3610 on edge-dev", "worker": "ZCode chat sess_879e4038-46bc-4634-aa88-f479835a3610 on edge-dev",
+  "branch": "guard-concurrency-custody", "worktree": "C:/repos/shared-db/.ai/worktrees/coldlion-guard-fix",
+  "allowed_paths": [
+  ".agent/work/3943/2/completion.json",
+  ".agent/work/3943/2/contract.json",
+  "scripts/production_business_risk_gate.py",
+  "scripts/test_production_business_risk_gate.py"
+],
+  "file_writes": [
+  ".agent/work/3943/2/completion.json",
+  ".agent/work/3943/2/contract.json",
+  "scripts/production_business_risk_gate.py",
+  "scripts/test_production_business_risk_gate.py"
+],
+  "db_reads": [], "db_writes": [],
+  "prohibited_actions": ["No migration", "No cron", "No production dispatch", "No secrets", "No branch-protection change"],
+  "required_checks": ["bash scripts/check-sql.sh", "python -m pytest scripts/test_production_business_risk_gate.py -q"],
+  "assumptions": ["Tolerated set, stated truly: in-place renames of NON-operand (queue-position) single-quoted literals; and position-preserving same-count exchanges among them. Refused: any change to comparison operands, any structural change (github.* / inputs.* references, operators, branch shape), any literal drop or insertion, per-run queue keys. Fail-closed when assumptions break: folded or sequence-form group lines, double-quoted queue spellings, escaped apostrophes."],
+  "stop_conditions": ["Stop if the gate suite fails", "Stop on guarded-lane refusal", "Stop if review cannot reach two non-GLM APPROVE"]
+}

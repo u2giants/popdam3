@@ -1,0 +1,16 @@
+{
+  "schema_version": 1, "work_issue": 3943, "outcome": "ready-for-merge", "pr": 3945,
+  "migration_versions": [], "contract_ref": "refs/db-contracts/3943/2",
+  "contract_sha256": "cef7e45535d4a0cbbb72ffa5f94eb429e82f8c408ee1971514a5c12d91a47285",
+  "head_sha": "679ce84015bb0d79e7f1f04e6fcf30a50502ece9", "base_sha": "7e3439e36d6be08db519521e3d56103e3beed0c9", "files_changed": [
+  "scripts/production_business_risk_gate.py",
+  "scripts/test_production_business_risk_gate.py"
+],
+  "db_reads": [], "db_writes": [],
+  "checks": [
+    { "command": "bash scripts/check-sql.sh", "exit_code": 0, "evidence": "Static checks passed; 0 added migrations." },
+    { "command": "python -m pytest scripts/test_production_business_risk_gate.py -q", "exit_code": 0, "evidence": "209 passed, 347 subtests passed (2026-10-05 round 2): includes both new discriminator-refusal tests, the corrected rename-tolerance sanity, and all #3940/#3941 preservation tests." }
+  ],
+  "assumptions_resolved": ["Round-1 review findings all addressed: muse B1 == qwen H1 (operand literals now verbatim, positional scan cannot mis-anchor); muse N1/qwen H2 (comment and this pair state the true tolerated set); qwen M1 (both reproducers are now refusal tests); qwen L4 (sanity assertion added). Qwen M2/M3/L1 are documented as fail-closed assumptions in the code comment rather than code changes; qwen L3 (wire target-queue-identity into the runtime path) is recorded as the durable follow-up, out of this PR's scope."],
+  "stop_conditions_hit": []
+}

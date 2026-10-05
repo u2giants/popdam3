@@ -1067,17 +1067,57 @@ _WORKFLOW_CUSTODY_REWRITES = (
     # The freshness rule is the freshness script's own business.
     (re.compile(r"(scripts/check-main-tip-freshness\.mjs) --production\b"), r"\1"),
 )
-# Concurrency queue labels do not change which statements run. A PR head and
-# its merge commit routinely differ only here (e.g. a main-side queue rename
-# between cut and merge). Normalise the group expression so custody still
-# refuses any step, condition, or apply-command change. Applied only inside
-# the concurrency: block so a `group:` key in a run: | block or nested mapping
-# is never collapsed (issue #3941).
-_CONCURRENCY_GROUP_REWRITE = re.compile(r"^group: \$\{\{.*\}\}$")
+# Concurrency queue NAMES do not change which statements run. A PR head and its
+# merge commit routinely differ only in a queue rename (e.g. a main-side rename
+# between cut and merge), so the quoted string literals inside a concurrency
+# `group:` line are redacted — each replaced by its ORDINAL position, so an
+# in-place rename normalises to equality while a drop or an insertion of a
+# literal does not (#3940, #3941). A literal that is a COMPARISON OPERAND (its
+# immediately preceding text ends in `==` or `!=`) is NOT redacted: the
+# expression's discriminators — `github.event_name`, `inputs.target` — decide
+# which runs share a queue, so retargeting one is a serialization change, not a
+# rename (#3943, review round 2: `inputs.target == 'production'` -> `'preview'`
+# must refuse). Everything outside single-quoted literals is compared verbatim,
+# because the group expression IS a serialization property (#3943). Assumptions
+# that fail CLOSED when violated: the group is a single-line `group: …` form
+# (a folded `>-` or sequence form is compared verbatim, so a rename refuses
+# rather than passes); queue literals are single-quoted (double-quoted
+# spellings are verbatim, so their renames refuse); an escaped apostrophe
+# inside a literal desynchronises the ordinal counter from expression-literal
+# positions (both sides still compare structurally). Applied only to `group:`
+# lines inside the concurrency: block, so a `group:` key in a run: | block or
+# nested mapping is never touched (#3941).
 _WORKFLOW_CUSTODY_DROPPED_LINES = frozenset((
     # The production job's exact-tip equality, replaced by the freshness rule.
     'test "$(git rev-parse origin/main)" = "$REQUESTED_SHA"',
 ))
+
+
+def _redact_concurrency_queue_literals(line: str) -> str:
+    # Scans TRUE single-quoted literals (paired quotes, left to right) rather
+    # than a regex alternation: when an operand literal is skipped, the scan
+    # must resume AFTER its closing quote, or a regex would start a new match
+    # there and swallow the text between literals as if it were one.
+    out = []
+    ordinal = 0
+    i = 0
+    while i < len(line):
+        if line[i] != "'":
+            out.append(line[i])
+            i += 1
+            continue
+        end = line.find("'", i + 1)
+        if end == -1:
+            out.append(line[i:])
+            break
+        prefix = line[:i].rstrip()
+        if prefix.endswith("==") or prefix.endswith("!="):
+            out.append(line[i:end + 1])  # comparison operand: verbatim
+        else:
+            ordinal += 1
+            out.append(f"'<queue-name:{ordinal}>'")
+        i = end + 1
+    return "".join(out)
 
 
 def _workflow_custody_normal_form(text: str) -> list[str]:
@@ -1094,8 +1134,8 @@ def _workflow_custody_normal_form(text: str) -> list[str]:
             in_concurrency = (line == "concurrency:")
         for pattern, replacement in _WORKFLOW_CUSTODY_REWRITES:
             line = pattern.sub(replacement, line)
-        if in_concurrency and indent > 0:
-            line = _CONCURRENCY_GROUP_REWRITE.sub("group: <concurrency>", line)
+        if in_concurrency and indent > 0 and line.startswith("group:"):
+            line = _redact_concurrency_queue_literals(line)
         lines.append(line)
     return lines
 

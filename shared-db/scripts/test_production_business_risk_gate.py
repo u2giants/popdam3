@@ -4749,8 +4749,11 @@ class WorkflowCustodyConcurrencyTests(unittest.TestCase):
 
     def test_concurrency_group_normal_form_token(self):
         from production_business_risk_gate import _workflow_custody_normal_form
-        result = _workflow_custody_normal_form(self.REAL_CONCURRENCY)
-        self.assertIn("group: <concurrency>", result)
+        result = "\n".join(_workflow_custody_normal_form(self.REAL_CONCURRENCY))
+        self.assertIn("'<queue-name:1>'", result)
+        self.assertIn("github.ref", result,
+                      "the structure around the queue names is compared verbatim")
+        self.assertNotIn("shared-supabase-migrations-production", result)
 
     def test_condition_change_is_still_refused(self):
         from production_business_risk_gate import _workflow_custody_normal_form
@@ -4768,6 +4771,72 @@ class WorkflowCustodyConcurrencyTests(unittest.TestCase):
                 + "jobs:\n  run: supabase db push --skip-verify\n")
         self.assertNotEqual(_workflow_custody_normal_form(base),
                             _workflow_custody_normal_form(both))
+
+    def test_per_run_queue_is_refused(self):
+        """#3943: a group that stops serializing is a structural change."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        per_run = self.REAL_CONCURRENCY.replace(
+            "format('shared-supabase-migrations-{0}', github.ref)",
+            "format('any-queue-{0}', github.run_id)")
+        self.assertNotEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
+                            _workflow_custody_normal_form(per_run))
+
+    def test_merging_the_two_target_queues_is_refused(self):
+        """#3943: one shared queue for both targets is not a rename. Dropping a
+        literal shifts every later ordinal, and the structure loses a branch."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        merged = self.REAL_CONCURRENCY.replace(
+            "(inputs.target == 'production' && 'shared-supabase-migrations-production'"
+            " || 'shared-supabase-migrations-preview')",
+            "'shared-supabase-migrations-production'")
+        self.assertNotEqual(merged, self.REAL_CONCURRENCY)  # sanity
+        self.assertNotEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
+                            _workflow_custody_normal_form(merged))
+
+    def test_dropped_per_ref_branch_is_refused(self):
+        """#3943: removing the per-ref branch changes queue topology."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        dropped = self.REAL_CONCURRENCY.replace(
+            "(github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+            " && format('shared-supabase-migrations-{0}', github.ref)"
+            " || ", "")
+        self.assertNotEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
+                            _workflow_custody_normal_form(dropped))
+
+    def test_target_discriminator_rename_is_refused(self):
+        """#3943 round 2: retargeting the production discriminator is a
+        serialization change (production runs would join the preview queue),
+        reached without dropping any literal."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        retargeted = self.REAL_CONCURRENCY.replace(
+            "inputs.target == 'production'", "inputs.target == 'preview'")
+        self.assertNotEqual(retargeted, self.REAL_CONCURRENCY)  # sanity
+        self.assertNotEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
+                            _workflow_custody_normal_form(retargeted))
+
+    def test_event_name_discriminator_rename_is_refused(self):
+        """#3943 round 2: retargeting the event discriminator moves merge-queue
+        runs out of the per-ref branch (#2530); refused, not treated as a label."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        retargeted = self.REAL_CONCURRENCY.replace(
+            "github.event_name == 'merge_group'", "github.event_name == 'pull_request'")
+        self.assertNotEqual(retargeted, self.REAL_CONCURRENCY)  # sanity
+        self.assertNotEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
+                            _workflow_custody_normal_form(retargeted))
+
+    def test_queue_rename_still_normalises_in_place(self):
+        """#3940/#3941 tolerance kept: an in-place queue rename is custody-only."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        renamed = self.REAL_CONCURRENCY.replace(
+            "shared-supabase-migrations-production", "shared-supabase-migrations-prod2")
+        renamed = renamed.replace(
+            "shared-supabase-migrations-preview", "shared-supabase-migrations-staging")
+        renamed = renamed.replace(
+            "format('shared-supabase-migrations-{0}'",
+            "format('shared-supabase-migrations2-{0}'")
+        self.assertNotEqual(renamed, self.REAL_CONCURRENCY)  # sanity: they really differ
+        self.assertEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
+                         _workflow_custody_normal_form(renamed))
 
     def test_group_in_run_block_is_not_normalised(self):
         from production_business_risk_gate import _workflow_custody_normal_form
