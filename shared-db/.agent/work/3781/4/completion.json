@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 3781,
+  "generation": 4,
+  "outcome": "ready-for-merge",
+  "pr": 3937,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3781/4",
+  "contract_sha256": "5fa4ae40149b0e8c85d406bf1d1b944bcfe1044222df10b155e6f8e0bcde8532",
+  "base_sha": "9ef6da0f5fb82af645d81b72ada9a432b7dcab51",
+  "head_sha": "d1cd07c6dcb0ad4790593e4230d7b671489ee9e7",
+  "files_changed": [
+    ".github/workflows/shared-supabase-migrations.yml",
+    "docs/verification/step10-target-queue-design-20260928.md",
+    "scripts/target-queue-identity.mjs",
+    "scripts/target-queue-identity.test.mjs",
+    "scripts/test_production_migration_guard.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/target-queue-identity.test.mjs",
+      "exit_code": 0,
+      "evidence": "23 pass, 0 fail"
+    }
+  ],
+  "assumptions_resolved": [
+    "closed two-branch dispatch map; unknown target collapses to preview",
+    "exclusive locks and freeze interlocks unchanged"
+  ],
+  "stop_conditions_hit": []
+}

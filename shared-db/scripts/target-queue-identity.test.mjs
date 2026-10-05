@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import {
   PAIR_DECISIONS,
@@ -10,6 +11,7 @@ import {
   isDocumentationOnlyPath,
   mutationConcurrencyGroup,
   promotionManifestBinding,
+  dispatchConcurrencyGroup,
   pullRequestValidationConcurrencyGroup,
   resolveTargetIdentity,
 } from './target-queue-identity.mjs'
@@ -295,4 +297,28 @@ test('substantive main drift never reuses a promotion manifest', () => {
   })
   assert.equal(reuse.reusable, false)
   assert.match(reuse.reason, /substantive paths/)
+})
+
+// ---------------------------------------------------------------------------
+// Dispatch concurrency (workflow wiring, Step 10)
+// ---------------------------------------------------------------------------
+
+test('preview and production dispatch queues are distinct and enum-bound', () => {
+  assert.equal(dispatchConcurrencyGroup('preview'), 'shared-supabase-migrations-preview')
+  assert.equal(dispatchConcurrencyGroup('production'), 'shared-supabase-migrations-production')
+  assert.notEqual(dispatchConcurrencyGroup('preview'), dispatchConcurrencyGroup('production'))
+  assert.throws(() => dispatchConcurrencyGroup('preview-evil'), /closed enum/)
+  assert.throws(() => dispatchConcurrencyGroup(''), /closed enum/)
+})
+
+test('shared-supabase-migrations.yml wires closed target-qualified dispatch groups', () => {
+  const yaml = readFileSync(new URL('../.github/workflows/shared-supabase-migrations.yml', import.meta.url), 'utf8')
+  // Closed two-branch map: unknown/empty target collapses to the preview queue
+  // and can never mint a third queue name via API/CLI dispatch.
+  assert.match(yaml, /inputs\.target == 'production' && 'shared-supabase-migrations-production' \|\| 'shared-supabase-migrations-preview'/)
+  assert.doesNotMatch(yaml, /format\('shared-supabase-migrations-\{0\}', inputs\.target\)/)
+  assert.doesNotMatch(yaml, /\|\| 'shared-supabase-migrations' \}/)
+  assert.match(yaml, /github\.event_name == 'pull_request'/)
+  assert.match(yaml, /github\.event_name == 'merge_group'/)
+  assert.match(yaml, /target:\n[\s\S]*?type: choice\n[\s\S]*?options: \[preview, production\]/)
 })

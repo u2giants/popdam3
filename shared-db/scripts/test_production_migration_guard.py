@@ -2338,7 +2338,15 @@ class ApplyLaneTests(unittest.TestCase):
         self.assertIn("permissions:\n  contents: read", header)
         self.assertIn("issues: read", header)
         self.assertIn("github.event_name == 'pull_request'", header)
-        self.assertIn("|| 'shared-supabase-migrations'", header)
+        self.assertIn("github.event_name == 'merge_group'", header)
+        # Step 10 (#3781): dispatch queues are target-qualified from a CLOSED
+        # two-branch map so preview and production no longer share one
+        # workflow-wide queue, and unknown/empty target collapses to preview
+        # instead of minting a new queue via API/CLI dispatch.
+        self.assertIn("inputs.target == 'production' && 'shared-supabase-migrations-production'", header)
+        self.assertIn("|| 'shared-supabase-migrations-preview'", header)
+        self.assertNotIn("format('shared-supabase-migrations-{0}', inputs.target)", header)
+        self.assertNotIn("|| 'shared-supabase-migrations'", header)
         self.assertIn("cancel-in-progress: false", header)
 
     def test_derivation_override_is_recorded_and_rechecked_at_every_production_choke_point(self) -> None:

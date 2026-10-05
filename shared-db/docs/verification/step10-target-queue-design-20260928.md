@@ -54,11 +54,12 @@ release, per #3781.
 Revert this module and its tests. No workflow, lock, or production behaviour
 changed here. Never roll back applied migrations.
 
-## Follow-ups (not in this change)
+## Follow-ups (wired 2026-10-02)
 
-- Call `resolveTargetIdentity` / `mutationConcurrencyGroup` from
-  `shared-supabase-migrations.yml` concurrency once PR #3736 lands.
-- Point `acquireExclusive('production')` freshness at
-  `evaluateProductionFreshness`.
-- Implement the matrix as lock-manager assertions on accepted current main
-  after Step 8/9 file release.
+- `shared-supabase-migrations.yml` concurrency is now target-qualified for
+  `workflow_dispatch` (`shared-supabase-migrations-{preview|production}`).
+  PR / merge_group runs stay per-ref. Exclusive locks, freeze interlocks and
+  exact-head approval are unchanged.
+- Still open: point `acquireExclusive('production')` freshness at
+  `evaluateProductionFreshness`; land the matrix as lock-manager assertions once
+  `manage-migration-author-lanes.mjs` / `runner-lanes` release.

@@ -118,6 +118,20 @@ export function pullRequestValidationConcurrencyGroup(ref) {
   return `shared-supabase-migrations-pr-${ref}`
 }
 
+/**
+ * workflow_dispatch concurrency group for shared-supabase-migrations.yml.
+ * Derived only from the closed target enum (preview|production) — the same
+ * closed set the workflow `options:` already enforce — never from free-form
+ * input. Preview and production therefore occupy distinct queues while
+ * same-target dispatches still serialize.
+ */
+export function dispatchConcurrencyGroup(target) {
+  if (target !== 'preview' && target !== 'production') {
+    refuse(`dispatch target must be the closed enum preview|production, not ${JSON.stringify(target)}`)
+  }
+  return `shared-supabase-migrations-${target}`
+}
+
 // ---------------------------------------------------------------------------
 // Compatibility matrix
 // ---------------------------------------------------------------------------

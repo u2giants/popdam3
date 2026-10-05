@@ -1,0 +1,52 @@
+{
+  "schema_version": 2,
+  "work_issue": 3781,
+  "generation": 4,
+  "evidence_parent": {
+    "work_issue": 3781,
+    "generation": 3,
+    "contract_sha256": "681b2df78ecddb0293ac726c4995d05bf46efc89b0b0254d1bcae1ee9b0ea50a"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Step 10 wiring: closed two-branch target-qualified preview/production queues",
+  "base_sha": "9ef6da0f5fb82af645d81b72ada9a432b7dcab51",
+  "dispatcher": "MiMo session for issue #3781 Step 10",
+  "worker": "mimo",
+  "branch": "mimo/3781-step10-wiring",
+  "worktree": ".ai/worktrees/step10-wiring-mimo",
+  "allowed_paths": [
+    ".github/workflows/shared-supabase-migrations.yml",
+    "scripts/target-queue-identity.mjs",
+    "scripts/target-queue-identity.test.mjs",
+    "docs/verification/step10-target-queue-design-20260928.md",
+    "scripts/test_production_migration_guard.py"
+  ],
+  "file_writes": [
+    ".github/workflows/shared-supabase-migrations.yml",
+    "scripts/target-queue-identity.mjs",
+    "scripts/target-queue-identity.test.mjs",
+    "docs/verification/step10-target-queue-design-20260928.md",
+    "scripts/test_production_migration_guard.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not edit scripts/manage-migration-author-lanes.mjs or its tests (still owned by open PRs)",
+    "do not edit scripts/orchestrator-flow/runner-lanes.mjs (still contested)",
+    "do not remove or weaken object claims, exclusive production locks, exact-head approval, freeze interlock, or required checks",
+    "do not touch any migration or database object"
+  ],
+  "required_checks": [
+    "node --test scripts/target-queue-identity.test.mjs"
+  ],
+  "assumptions": [
+    "exclusive lock interlocks remain in the lane manager and are unchanged here",
+    "untrusted free-form target names stay refused by target-queue-identity"
+  ],
+  "stop_conditions": [
+    "stop if the concurrency change would let untrusted input choose a mutation group",
+    "stop if freeze or lock interlocks would be weakened",
+    "stop if a test fails outside this module and the one workflow concurrency line"
+  ]
+}
