@@ -1,0 +1,53 @@
+{
+  "head_sha": "1ae1a61035be1b97b641a644c01ce25dbcd0f47b",
+  "migration_versions": [
+    "20261005025111"
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "53fd0bea085b90f039ae4fa2a7005652867d5ce3",
+  "checks": [
+    {
+      "exit_code": 0,
+      "evidence": "Static checks passed at 1ae1a61035be1b97b641a644c01ce25dbcd0f47b",
+      "command": "bash scripts/check-sql.sh"
+    },
+    {
+      "command": "node tmp extraction proof via scripts/orchestrator-flow/admission.mjs inspectPrStructuralChange (exact match to claim #3838 objects)",
+      "evidence": "match true; EXACT MATCH OK — 17 objects, no extras, no missing",
+      "exit_code": 0
+    }
+  ],
+  "contract_ref": "refs/db-contracts/2176/5",
+  "pr": 3839,
+  "files_changed": [
+    ".github/live-proofs/2176.sql",
+    "HANDOFF.d/2026-10-04T2342Z-edge-dev-mimo-queue-resume.md",
+    "supabase/migrations/20261005025111_coldlion_unit6_consumer_contracts.sql",
+    "supabase/tests/coldlion_unit6_consumer_contracts.sql"
+  ],
+  "outcome": "ready-for-merge",
+  "schema_version": 1,
+  "db_writes": [
+    "schema coldlion",
+    "table plm.erp_season",
+    "table plm.erp_salesperson",
+    "function plm.import_coldlion_seasons",
+    "function plm.import_coldlion_salespersons",
+    "function plm.coldlion_merch_group_candidates",
+    "view plm.coldlion_item_header",
+    "view plm.coldlion_item_detail",
+    "view plm.coldlion_item_merch_group",
+    "view plm.coldlion_prod_history",
+    "view plm.coldlion_prepack_detail",
+    "view plm.coldlion_prod_detail",
+    "view plm.coldlion_sales_history",
+    "view pim.coldlion_item_image_metadata"
+  ],
+  "contract_sha256": "71d747b9b3f77fc9dd0b6241256732fdbc417d4d83cfaf2f833203c179d681b6",
+  "db_reads": [
+    "table coldlion.season",
+    "table coldlion.salesperson"
+  ],
+  "work_issue": 2176,
+  "assumptions_resolved": []
+}

@@ -1,0 +1,98 @@
+{
+  "schema_version": 2,
+  "generation": 5,
+  "work_issue": 2176,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Publish consumer-safe ColdLion promotion contracts (views/functions) for unit 6 of plan_coldlion_landing_schema_completion.md section 9 Step 8: extend the plm.erp_* path for customer/vendor/season/salesperson, expose read-only merch-group candidates, plm/pim contract views over item/prod/prepack/sales/image landing, and keep schema coldlion closed to application roles. Structure only; no row loads.",
+  "base_sha": "53fd0bea085b90f039ae4fa2a7005652867d5ce3",
+  "dispatcher": "MiMo shared-db orchestrator (marker #3837, claim #3838) on edge-dev; unit 6 consumer contracts after placement decision 2026-09-28 and closure of upstream landing units",
+  "worker": "MiMo subagent mimo/2176-unit6-author on edge-dev",
+  "branch": "feat/2176-consumer-contracts",
+  "worktree": "C:/repos/shared-db-wt-2176-unit6",
+  "allowed_paths": [
+    "supabase/migrations/20261005025111_coldlion_unit6_consumer_contracts.sql",
+    "supabase/tests/coldlion_unit6_consumer_contracts.sql",
+    ".github/live-proofs/2176.sql",
+    "HANDOFF.d/2026-10-04T2342Z-edge-dev-mimo-queue-resume.md",
+    ".agent/work/2176/5/contract.json",
+    ".agent/work/2176/5/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261005025111_coldlion_unit6_consumer_contracts.sql",
+    "supabase/tests/coldlion_unit6_consumer_contracts.sql",
+    ".github/live-proofs/2176.sql",
+    "HANDOFF.d/2026-10-04T2342Z-edge-dev-mimo-queue-resume.md",
+    ".agent/work/2176/5/contract.json",
+    ".agent/work/2176/5/completion.json"
+  ],
+  "db_reads": [
+    "table plm.erp_licensor",
+    "table plm.erp_property",
+    "table coldlion.customer",
+    "table coldlion.vendor",
+    "table coldlion.season",
+    "table coldlion.salesperson",
+    "table coldlion.merch_group_header",
+    "table coldlion.merch_group_detail",
+    "table coldlion.item_header",
+    "table coldlion.item_detail",
+    "table coldlion.item_merch_group",
+    "table coldlion.order_history_line",
+    "table coldlion.order_history_component",
+    "table coldlion.prod_history_line",
+    "table coldlion.prod_history_component",
+    "table coldlion.prepack_detail",
+    "table coldlion.prod_detail",
+    "table coldlion.item_image_metadata"
+  ],
+  "db_writes": [
+    "schema coldlion",
+    "table plm.erp_customer",
+    "table plm.erp_vendor",
+    "table plm.erp_season",
+    "table plm.erp_salesperson",
+    "function plm.import_coldlion_customers",
+    "function plm.import_coldlion_seasons",
+    "function plm.import_coldlion_salespersons",
+    "function plm.coldlion_merch_group_candidates",
+    "view plm.coldlion_item_header",
+    "view plm.coldlion_item_detail",
+    "view plm.coldlion_item_merch_group",
+    "view plm.coldlion_prod_history",
+    "view plm.coldlion_prepack_detail",
+    "view plm.coldlion_prod_detail",
+    "view plm.coldlion_sales_history",
+    "view pim.coldlion_item_image_metadata"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node tmp extraction proof via scripts/orchestrator-flow/admission.mjs inspectPrStructuralChange (exact match to claim #3838 objects)"
+  ],
+  "assumptions": [
+    "Claim #3838 reserved migration version 20260930172952; file name must keep that prefix",
+    "plm.import_coldlion_vendors does NOT exist live (dropped by 20260722213000) and must not be created; vendor promotion uses the guarded vendor importer path on main",
+    "plm.erp_season / plm.erp_salesperson / import_coldlion_seasons / import_coldlion_salespersons did not exist and are created additively as named in the claim",
+    "No named indexes, triggers, or policies are created because those objects are outside claim #3838 write set (index/trigger/policy keys would be undeclared writes)",
+    "comment on column is avoided because inspectPrStructuralChange emits a separate column object key that the claim does not hold",
+    "Existing plm.erp_customer / plm.erp_vendor / plm.import_coldlion_customers are touched by comment only so the live importer body is not rewritten",
+    "Sales history exposes approved per-design quantities only: no fulfilment inference from document-number presence and no source-document type claim",
+    "prod_detail.item_desc and prod_detail.merch_group_05_desc stay out of the consumer view per the landing owner-restriction comments"
+  ],
+  "prohibited_actions": [
+    "No row loads under this issue",
+    "Never invent or recreate plm.import_coldlion_vendors",
+    "No grants on coldlion.* landing tables to application roles",
+    "No automatic promotion into core.*",
+    "No preview push, no merge, no production action"
+  ],
+  "stop_conditions": [
+    "Stop if an extra database object beyond claim #3838 is required",
+    "Stop if inspectPrStructuralChange output does not exactly match the claim writes list"
+  ],
+  "evidence_parent": {
+    "contract_sha256": "f5bcf9d9964e18f7da3eb9b77be38b0657c66490ebfbda86903b6f36ec40f346",
+    "generation": 4,
+    "work_issue": 2176
+  }
+}
