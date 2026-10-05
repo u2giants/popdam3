@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "work_issue": 3941,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Treat concurrency-group-only workflow differences as custody-only so high-risk production promotion is not blocked by queue-label drift.",
+  "base_sha": "ec05fa0df6e28f88f9022c1a73c14cfab37d5798",
+  "dispatcher": "owner instruction to complete production promotion of #3234",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "fix/workflow-custody-concurrency",
+  "worktree": "C:/repos/shared-db-wt-custody-fix",
+  "allowed_paths": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/3941/1/contract.json",
+    ".agent/work/3941/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/3941/1/contract.json",
+    ".agent/work/3941/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not weaken refusal of step, condition, or apply-command workflow changes",
+    "do not touch migrations or database objects"
+  ],
+  "required_checks": [
+    "python -m unittest scripts.test_production_business_risk_gate.WorkflowCustodyConcurrencyTests"
+  ],
+  "assumptions": [
+    "concurrency group labels do not affect which migration statements execute"
+  ],
+  "stop_conditions": [
+    "stop if the rewrite would also match apply commands or job conditions",
+    "stop if a test fails",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ],
+  "evidence_parent": null
+} 
+ 

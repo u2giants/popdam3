@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 3941,
+  "outcome": "ready-for-merge",
+  "pr": 3940,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3941/1",
+  "contract_sha256": "2fa1d2e039b344c104974e508add6a2c4a7a1d86d359bea78ff4211baef89402",
+  "base_sha": "ec05fa0df6e28f88f9022c1a73c14cfab37d5798",
+  "head_sha": "2fd81dca09a62a31e4cf0023d28f541d8b46c725",
+  "files_changed": [
+    ".agent/work/3941/1/completion.json",
+    ".agent/work/3941/1/contract.json",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -m unittest scripts.test_production_business_risk_gate.WorkflowCustodyConcurrencyTests",
+      "exit_code": 0,
+      "evidence": "5 tests passed"
+    },
+    {
+      "command": "python -m unittest scripts.test_production_business_risk_gate.MainLineCustodyOnlyProducerDriftTests.test_workflow_group_only_drift_passes_at_gate_level",
+      "exit_code": 0,
+      "evidence": "1 gate-level test passed"
+    },
+    {
+      "command": "python -m unittest scripts.test_production_business_risk_gate",
+      "exit_code": 0,
+      "evidence": "203 tests passed in 122s (transcript: 203 ran, OK)"
+    }
+  ],
+  "assumptions_resolved": [
+    "concurrency group expressions are custody-only"
+  ],
+  "stop_conditions_hit": []
+}

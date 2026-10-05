@@ -1067,6 +1067,13 @@ _WORKFLOW_CUSTODY_REWRITES = (
     # The freshness rule is the freshness script's own business.
     (re.compile(r"(scripts/check-main-tip-freshness\.mjs) --production\b"), r"\1"),
 )
+# Concurrency queue labels do not change which statements run. A PR head and
+# its merge commit routinely differ only here (e.g. a main-side queue rename
+# between cut and merge). Normalise the group expression so custody still
+# refuses any step, condition, or apply-command change. Applied only inside
+# the concurrency: block so a `group:` key in a run: | block or nested mapping
+# is never collapsed (issue #3941).
+_CONCURRENCY_GROUP_REWRITE = re.compile(r"^group: \$\{\{.*\}\}$")
 _WORKFLOW_CUSTODY_DROPPED_LINES = frozenset((
     # The production job's exact-tip equality, replaced by the freshness rule.
     'test "$(git rev-parse origin/main)" = "$REQUESTED_SHA"',
@@ -1075,12 +1082,20 @@ _WORKFLOW_CUSTODY_DROPPED_LINES = frozenset((
 
 def _workflow_custody_normal_form(text: str) -> list[str]:
     lines = []
+    in_concurrency = False
     for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or line in _WORKFLOW_CUSTODY_DROPPED_LINES:
             continue
+        # Track YAML structure from indentation to bind the concurrency-group
+        # rewrite to the concurrency: block only (issue #3941).
+        indent = len(raw) - len(raw.lstrip())
+        if indent == 0:
+            in_concurrency = (line == "concurrency:")
         for pattern, replacement in _WORKFLOW_CUSTODY_REWRITES:
             line = pattern.sub(replacement, line)
+        if in_concurrency and indent > 0:
+            line = _CONCURRENCY_GROUP_REWRITE.sub("group: <concurrency>", line)
         lines.append(line)
     return lines
 
