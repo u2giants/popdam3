@@ -1,0 +1,16 @@
+{
+  "schema_version": 1, "work_issue": 3943, "outcome": "ready-for-merge", "pr": 3946,
+  "migration_versions": [], "contract_ref": "refs/db-contracts/3943/4",
+  "contract_sha256": "b8df62338a79d3eeea9f4c5e42733a479616c636d75652a83e0caa87c8273942",
+  "head_sha": "7ebed3e2136c0285caf215feed0e2f7c7d4a7900", "base_sha": "519a5626be16e108ff88210d8c135701b258dcd2", "files_changed": [
+  "scripts/production_business_risk_gate.py",
+  "scripts/test_production_business_risk_gate.py"
+],
+  "db_reads": [], "db_writes": [],
+  "checks": [
+    { "command": "bash scripts/check-sql.sh", "exit_code": 0, "evidence": "Static checks passed; 0 added migrations." },
+    { "command": "python -m pytest scripts/test_production_business_risk_gate.py -q", "exit_code": 0, "evidence": "217 passed, 347 subtests passed (2026-10-05 round 2): all prior suites unchanged and green plus the placeholder-skeleton token assertion, emptied-operand refusal, placeholder-drop refusal, rename-to-empty refusal, and the two gen-2-discriminating value-change tests." }
+  ],
+  "assumptions_resolved": ["Qwen round-1 findings addressed: F1 (placeholder skeleton preserved in the token — verified by the updated token assertion and the new drop test), F2 (empty literals verbatim — emptied-operand test), F3 (comment and this contract state the corrected premise and tolerated set), F4 (two value-only tests that fail against the operand-skip design), F5 (boundary tests: placeholder drop, rename-to-empty), F6 (word-anchored format() prefix)."],
+  "stop_conditions_hit": []
+}

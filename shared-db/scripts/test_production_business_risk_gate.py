@@ -4750,7 +4750,8 @@ class WorkflowCustodyConcurrencyTests(unittest.TestCase):
     def test_concurrency_group_normal_form_token(self):
         from production_business_risk_gate import _workflow_custody_normal_form
         result = "\n".join(_workflow_custody_normal_form(self.REAL_CONCURRENCY))
-        self.assertIn("'<queue-name:1>'", result)
+        self.assertIn("'<queue-name:1{0}>'", result,
+                      "the format() template keeps its placeholder skeleton — {0} is the granularity key")
         self.assertIn("github.ref", result,
                       "the structure around the queue names is compared verbatim")
         self.assertNotIn("shared-supabase-migrations-production", result)
@@ -4823,6 +4824,94 @@ class WorkflowCustodyConcurrencyTests(unittest.TestCase):
         self.assertNotEqual(retargeted, self.REAL_CONCURRENCY)  # sanity
         self.assertNotEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
                             _workflow_custody_normal_form(retargeted))
+
+    def test_reversed_comparison_operand_is_refused(self):
+        """Positive positions only: 'production' == inputs.target is not a
+        queue position, so changing it refuses (round-4 sibling)."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        changed = self.REAL_CONCURRENCY.replace(
+            "inputs.target == 'production'", "'production' == inputs.target")
+        self.assertNotEqual(changed, self.REAL_CONCURRENCY)  # sanity
+        self.assertNotEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
+                            _workflow_custody_normal_form(changed))
+
+    def test_contains_argument_is_refused(self):
+        """contains(inputs.target, 'pro') is not a queue position."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        changed = self.REAL_CONCURRENCY.replace(
+            "inputs.target == 'production'", "contains(inputs.target, 'production')")
+        self.assertNotEqual(changed, self.REAL_CONCURRENCY)  # sanity
+        self.assertNotEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
+                            _workflow_custody_normal_form(changed))
+
+    def test_escaped_apostrophe_second_segment_is_refused(self):
+        """An escaped-apostrophe segment is never a positive queue position,
+        so changing it refuses (round-5 sibling)."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        base = self.REAL_CONCURRENCY.replace(
+            "&& 'shared-supabase-migrations-production'",
+            "&& 'shared-supabase-migrations''-production'")
+        changed = base.replace(
+            "'shared-supabase-migrations''-production'",
+            "'shared-supabase-migrations''-production2'")
+        self.assertNotEqual(base, changed)  # sanity
+        self.assertNotEqual(_workflow_custody_normal_form(base),
+                            _workflow_custody_normal_form(changed))
+
+    def test_emptied_queue_operand_is_refused(self):
+        """F2: `&& ''` merges production into the preview queue; an empty
+        literal is verbatim, so the change refuses (not the recorded rename
+        residual)."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        emptied = self.REAL_CONCURRENCY.replace(
+            "&& 'shared-supabase-migrations-production'", "&& ''")
+        self.assertNotEqual(emptied, self.REAL_CONCURRENCY)  # sanity
+        self.assertNotEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
+                            _workflow_custody_normal_form(emptied))
+
+    def test_format_placeholder_drop_is_refused(self):
+        """F1: {0} is the queue's granularity key; the token preserves the
+        placeholder skeleton, so dropping it refuses."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        dropped = self.REAL_CONCURRENCY.replace(
+            "format('shared-supabase-migrations-{0}', github.ref)",
+            "format('shared-supabase-migrations', github.ref)")
+        self.assertNotEqual(dropped, self.REAL_CONCURRENCY)  # sanity
+        self.assertNotEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
+                            _workflow_custody_normal_form(dropped))
+
+    def test_rename_to_empty_is_refused(self):
+        """F5 boundary: the rename tolerance does not extend to emptiness."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        emptied = self.REAL_CONCURRENCY.replace(
+            "|| 'shared-supabase-migrations-preview')", "|| '')")
+        self.assertNotEqual(emptied, self.REAL_CONCURRENCY)  # sanity
+        self.assertNotEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
+                            _workflow_custody_normal_form(emptied))
+
+    def test_contains_argument_value_change_is_refused_and_was_tolerated_by_gen2(self):
+        """F4: both sides in the SAME spelling, only the literal VALUE changes —
+        the discriminator-retarget the spelling tests could not pin (a gen-2
+        regressions redacts both sides to equality and this test fails)."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        base = self.REAL_CONCURRENCY.replace(
+            "inputs.target == 'production'", "contains(inputs.target, 'production')")
+        changed = self.REAL_CONCURRENCY.replace(
+            "inputs.target == 'production'", "contains(inputs.target, 'preview')")
+        self.assertNotEqual(base, changed)  # sanity
+        self.assertNotEqual(_workflow_custody_normal_form(base),
+                            _workflow_custody_normal_form(changed))
+
+    def test_reversed_comparison_value_change_is_refused(self):
+        """F4 companion: same spelling both sides, value-only change."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        base = self.REAL_CONCURRENCY.replace(
+            "inputs.target == 'production'", "'production' == inputs.target")
+        changed = self.REAL_CONCURRENCY.replace(
+            "inputs.target == 'production'", "'preview' == inputs.target")
+        self.assertNotEqual(base, changed)  # sanity
+        self.assertNotEqual(_workflow_custody_normal_form(base),
+                            _workflow_custody_normal_form(changed))
 
     def test_queue_rename_still_normalises_in_place(self):
         """#3940/#3941 tolerance kept: an in-place queue rename is custody-only."""

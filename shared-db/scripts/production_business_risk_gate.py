@@ -1069,24 +1069,23 @@ _WORKFLOW_CUSTODY_REWRITES = (
 )
 # Concurrency queue NAMES do not change which statements run. A PR head and its
 # merge commit routinely differ only in a queue rename (e.g. a main-side rename
-# between cut and merge), so the quoted string literals inside a concurrency
-# `group:` line are redacted — each replaced by its ORDINAL position, so an
-# in-place rename normalises to equality while a drop or an insertion of a
-# literal does not (#3940, #3941). A literal that is a COMPARISON OPERAND (its
-# immediately preceding text ends in `==` or `!=`) is NOT redacted: the
-# expression's discriminators — `github.event_name`, `inputs.target` — decide
-# which runs share a queue, so retargeting one is a serialization change, not a
-# rename (#3943, review round 2: `inputs.target == 'production'` -> `'preview'`
-# must refuse). Everything outside single-quoted literals is compared verbatim,
-# because the group expression IS a serialization property (#3943). Assumptions
-# that fail CLOSED when violated: the group is a single-line `group: …` form
-# (a folded `>-` or sequence form is compared verbatim, so a rename refuses
-# rather than passes); queue literals are single-quoted (double-quoted
-# spellings are verbatim, so their renames refuse); an escaped apostrophe
-# inside a literal desynchronises the ordinal counter from expression-literal
-# positions (both sides still compare structurally). Applied only to `group:`
-# lines inside the concurrency: block, so a `group:` key in a run: | block or
-# nested mapping is never touched (#3941).
+# between cut and merge), so queue-name literals inside a concurrency `group:`
+# line are redacted — each replaced by its ORDINAL position, so an in-place
+# rename normalises to equality while a drop or an insertion does not
+# (#3940, #3941). A literal counts as a queue name ONLY in a POSITIVE queue
+# position, identified by construction: the first argument of `format(...)`, or
+# a direct operand of `&&` / `||`. Everything else — comparison operands in any
+# spelling (`==`, `!=`, reversed, inside `contains()`, indexed properties),
+# function arguments, plain scalars, escaped-apostrophe segments — is compared
+# VERBATIM, so changing any of them refuses (#3943 follow-up: the negative
+# operand-skip design admitted an unbounded family of sibling spellings; a
+# positive position list admits none). Assumptions that fail CLOSED when
+# violated: the group is a single-line `group: …` form (a folded `>-` or
+# sequence form is compared verbatim, so a rename refuses rather than passes);
+# queue literals are single-quoted (double-quoted spellings are verbatim, so
+# their renames refuse). Applied only to `group:` lines inside the
+# concurrency: block, so a `group:` key in a run: | block or nested mapping is
+# never touched (#3941).
 _WORKFLOW_CUSTODY_DROPPED_LINES = frozenset((
     # The production job's exact-tip equality, replaced by the freshness rule.
     'test "$(git rev-parse origin/main)" = "$REQUESTED_SHA"',
@@ -1094,10 +1093,16 @@ _WORKFLOW_CUSTODY_DROPPED_LINES = frozenset((
 
 
 def _redact_concurrency_queue_literals(line: str) -> str:
-    # Scans TRUE single-quoted literals (paired quotes, left to right) rather
-    # than a regex alternation: when an operand literal is skipped, the scan
-    # must resume AFTER its closing quote, or a regex would start a new match
-    # there and swallow the text between literals as if it were one.
+    # Scans TRUE single-quoted literals (paired quotes, left to right). A
+    # skipped literal resumes the scan AFTER its closing quote, so no match can
+    # anchor mid-expression. A literal is redacted ONLY when its preceding
+    # text (right-trimmed) ends in `format(` (word-anchored), `&&`, or `||` —
+    # the positive queue positions — AND the literal is non-empty. The redaction
+    # token PRESERVES the literal's {N} placeholder skeleton: the placeholder
+    # is the queue's granularity key (per-ref vs per-target), so dropping or
+    # adding one must refuse, not normalise. Empty literals are verbatim: an
+    # emptied queue operand merges queues, and verbatim comparison refuses it.
+    import re as _re
     out = []
     ordinal = 0
     i = 0
@@ -1111,11 +1116,18 @@ def _redact_concurrency_queue_literals(line: str) -> str:
             out.append(line[i:])
             break
         prefix = line[:i].rstrip()
-        if prefix.endswith("==") or prefix.endswith("!="):
-            out.append(line[i:end + 1])  # comparison operand: verbatim
-        else:
+        format_anchored = (
+            prefix.endswith("format(")
+            and (len(prefix) == 7 or not _re.match(r"\w", prefix[-8]))
+        )
+        literal = line[i:end + 1]
+        is_positive = format_anchored or prefix.endswith("&&") or prefix.endswith("||")
+        if is_positive and len(literal) > 2:
             ordinal += 1
-            out.append(f"'<queue-name:{ordinal}>'")
+            skeleton = "".join(sorted(set(_re.findall(r"\{\d+\}", literal))))
+            out.append(f"'<queue-name:{ordinal}{skeleton}>'")
+        else:
+            out.append(literal)  # not a non-empty positive queue position: verbatim
         i = end + 1
     return "".join(out)
 

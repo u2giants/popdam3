@@ -1,0 +1,25 @@
+{
+  "schema_version": 2, "work_issue": 3943, "generation": 4,
+  "evidence_parent": { "work_issue": 3943, "generation": 3, "contract_sha256": "1998d4c22f50dc349d9634ba0e6c1e01fa4c81459ab7bff85ce30b923ae51192" },
+  "work_type": "repo-maintenance", "route": "repo-maintenance",
+  "goal": "Round 2 of the positive-position custody fix (qwen's retained round-1 findings F1-F6): the redaction token PRESERVES the literal's {N} placeholder skeleton ({0} is the queue's granularity key — dropping or adding one now refuses); EMPTY literals are verbatim (emptying a queue operand merges queues and refuses); the format( prefix is word-anchored (no reformat(/myformat( accidental match); the comment states the corrected premise (queue NAMES in positive positions do not change which statements run — values and placeholders do); discriminating tests added: value-only changes under contains() and reversed comparison (fail against the operand-skip design, pin this one), placeholder-drop, emptied operand, rename-to-empty.",
+  "base_sha": "519a5626be16e108ff88210d8c135701b258dcd2", "dispatcher": "ZCode chat sess_879e4038-46bc-4634-aa88-f479835a3610 on edge-dev", "worker": "ZCode chat sess_879e4038-46bc-4634-aa88-f479835a3610 on edge-dev",
+  "branch": "guard-queue-position", "worktree": "C:/repos/shared-db/.ai/worktrees/coldlion-guard-fix",
+  "allowed_paths": [
+  ".agent/work/3943/4/completion.json",
+  ".agent/work/3943/4/contract.json",
+  "scripts/production_business_risk_gate.py",
+  "scripts/test_production_business_risk_gate.py"
+],
+  "file_writes": [
+  ".agent/work/3943/4/completion.json",
+  ".agent/work/3943/4/contract.json",
+  "scripts/production_business_risk_gate.py",
+  "scripts/test_production_business_risk_gate.py"
+],
+  "db_reads": [], "db_writes": [],
+  "prohibited_actions": ["No migration", "No cron", "No production dispatch", "No secrets", "No branch-protection change"],
+  "required_checks": ["bash scripts/check-sql.sh", "python -m pytest scripts/test_production_business_risk_gate.py -q"],
+  "assumptions": ["Tolerated set, corrected: in-place renames of NON-EMPTY literals in positive queue positions (format() first argument word-anchored, or direct && / || operands), preserving the {N} placeholder skeleton and count. Everything else — operand values in any spelling, placeholder changes, emptying, drops, insertions, structure — refuses."],
+  "stop_conditions": ["Stop if the gate suite fails", "Stop on guarded-lane refusal", "Stop if review cannot reach two non-GLM APPROVE"]
+}
