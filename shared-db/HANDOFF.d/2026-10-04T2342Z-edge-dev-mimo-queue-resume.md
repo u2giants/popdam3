@@ -1,10 +1,10 @@
 ---
 issue: 2176
 status: OPEN
-owner: mimo/queue-resume-3865
+owner: mimo/claim-first-queue-2026-10-04
 ---
 
-# Shared-db queue-resume handoff (marker #3865)
+# Shared-db claim-first queue handoff
 
 All times America/New_York (EST). Facts checked 7:42 PM EST, 2026-10-04.
 
@@ -19,7 +19,7 @@ None blocking technical work. Standing holds:
 
 Already settled — do NOT re-ask:
 
-- Orchestrator role is retired (§0.0-D, Albert 2026-10-02: "there is no longer an orchestrator"). Structural work is claim-first. Marker/dispatch text is historical.
+- **There is no orchestrator** (§0.0-D, Albert 2026-10-02: "there is no longer an orchestrator"). Structural work is claim-first: a session needing a SHAPE change claims the exact objects on the existing issue and starts. Do not open a marker, wait for dispatch, or label tickets orchestrator / non-orchestrator. Marker and dispatch automation is historical machine metadata only.
 - One-time deliberate `origin/main` merge into a ready PR is the supported §2758 path (Muse process opinion 2026-10-01).
 - Qwen is broken on edge-dev until ai-devops#1035; replace with `provider_unavailable` each time it is drawn.
 
@@ -29,11 +29,11 @@ Already settled — do NOT re-ask:
 
 ## 2. What we set out to do this session
 
-Resume the shared-db ordered queue from Albert: (1) #3825 risk-gate whitelist fix review+merge, (2) #2176/#3839 ColdLion unit 6 2-slot APPROVE+merge, (3) protected-file queue #3657 → #3808 → #3396 → #3787 → #3647 → DesignFlow.
+Work Albert's ordered queue: (1) #3825 risk-gate whitelist fix review+merge, (2) #2176/#3839 ColdLion unit 6 2-slot APPROVE+merge, (3) protected-file queue #3657 → #3808 → #3396 → #3787 → #3647 → DesignFlow.
 
 ## 3. Current state — what is true right now
 
-**Main tip `9ef6da0f5fb82af645d81b72ada9a432b7dcab51` at 7:42 PM EST 2026-10-04.** Max migration on main: **`20261002224520`**. Marker **#3865 OPEN** (`route_id: local_1fb4b887-9ae1-4217-8384-5ae8d76ce407`).
+**Main tip `9ef6da0f5fb82af645d81b72ada9a432b7dcab51` at 7:42 PM EST 2026-10-04.** Max migration on main: **`20261002224520`**.
 
 ### Done this session (6 PRs merged)
 
@@ -85,7 +85,7 @@ Also closed: #3647 (superseded by #3787), #3860 (stale handoff PR), #3862 (fixed
 
 ## 6. Exact next steps
 
-1. **#3839 slot 1**: reap leases (`node scripts/manage-migration-author-lanes.mjs --reap-abandoned-review-leases --apply-recovery`), then `--assign-reviewer --issue 2176 --pr 3839 --head-sha 103642e7da4f383b259602f018411c941aea5fe6 --review-slot 1 --admit-issue 2176`. If Muse doctor fails on the version pin, use `--skip-doctor true` on `run-governed-review` or replace the reviewer. Verify: 2-slot APPROVE + `gh pr view 3839` MERGED.
+1. **#3839 slot 1** (claim-first: claim the exact objects on issue #2176 / claim #3838, then draw the reviewer): reap leases (`node scripts/manage-migration-author-lanes.mjs --reap-abandoned-review-leases --apply-recovery`), then `--assign-reviewer --issue 2176 --pr 3839 --head-sha 103642e7da4f383b259602f018411c941aea5fe6 --review-slot 1 --admit-issue 2176`. If Muse doctor fails on the version pin, use `--skip-doctor true` on `run-governed-review` or replace the reviewer. Verify: 2-slot APPROVE + `gh pr view 3839` MERGED.
 2. **Protected-file queue remainder**: DesignFlow items (if any) one PR at a time on `manage-migration-author-lanes.mjs`.
 3. **Claim transfers** #2110/#3175/#2662 via the #3620 tool.
 
@@ -93,6 +93,7 @@ Also closed: #3647 (superseded by #3787), #3860 (stale handoff PR), #3862 (fixed
 
 ## 7. Constraints and gotchas in force
 
+- **Claim-first, no orchestrator** (§0.0-D). A session needing a SHAPE change claims the exact objects on the existing issue and starts: own worktree and branch, migration version via the lane tool, pull request, the assigned AI reviewer's APPROVE of the exact apply, and proof of the target before every write. Never open a marker, never wait for dispatch, never label tickets orchestrator / non-orchestrator.
 - Branch + PR + Guarded Merge; AI merges; never push to protected `main`.
 - Preview / production / merge are one-at-a-time lanes.
 - Never ask Albert to approve technical risk.
@@ -102,7 +103,6 @@ Also closed: #3647 (superseded by #3787), #3860 (stale handoff PR), #3862 (fixed
 - Times in EST (America/New_York).
 - Sign GitHub comments `Posted by MiMo chat ses_ffe5f07deb797fferq5MiQQA2y on edge-dev`.
 - Keep GitHub API calls bounded; reap leases when listing fails.
-- §0.0-D: no orchestrator; structural work is claim-first. Marker #3865 is this session's address only.
 
 ## 8. Access and environment
 
@@ -124,7 +124,7 @@ Also closed: #3647 (superseded by #3787), #3860 (stale handoff PR), #3862 (fixed
 
 ---
 
-# Part (b) — sub-agent work blocks
+# Part (b) — sub-agent / session work blocks
 
 ### Agent: general-19 / fix-risk-gate-alter-function-do-3821
 - **Asked to do:** Fix Muse REVISE H1/M1 (shadowable bare-name whitelist) on #3825.
@@ -133,9 +133,9 @@ Also closed: #3647 (superseded by #3787), #3860 (stale handoff PR), #3862 (fixed
 - **Worktree:** `risk-gate-3821-mimo` — finished (safe to clean).
 - **Deliberately did NOT do:** fix the three Muse Lows (function_bodies non-dollar skip; _IMMUTABLE_SAFE_CALLS pg_proc confirm; known migration_statements regex) — non-blocking.
 
-### Agent: mimo/queue-resume (this session, direct work)
-- **Asked to do:** Resume ordered queue; push hard to clear it.
-- **Actually did:** Merged 6 PRs (#3825, #3657, #3808, #3396, #3787, #3920). Closed #3647 superseded, #3860 stale. Fixed #3866 exclude-returns-empty. Opened marker #3865. Regenerated throughput dispositions on three PRs after main merges. Reaped 55+ abandoned review leases.
+### Agent: mimo/claim-first-queue (this session, direct work)
+- **Asked to do:** Work Albert's ordered queue; push hard to clear it.
+- **Actually did:** Merged 6 PRs (#3825, #3657, #3808, #3396, #3787, #3920). Closed #3647 superseded, #3860 stale. Fixed #3866 exclude-returns-empty. Regenerated throughput dispositions on three PRs after main merges. Reaped 55+ abandoned review leases.
 - **PR / branch:** PR **#3920** MERGED (`fix/3866-reviewer-release-evidence`).
 - **Worktree:** `fix-3866` — live (has the exclude fix; can clean after #3839).
 - **Deliberately did NOT do:** DesignFlow queue (after #3839); claim transfers #2110/#3175/#2662; Muse Lows on #3825.
