@@ -1,4 +1,5 @@
 import { getMgLookup } from "./coldlion.ts";
+import { getMg02Desc, getMg03Desc } from "./mg-lookup.ts";
 
 // ── MG01: Product Type ──────────────────────────────────────────
 const MG01: Record<string, string> = {
@@ -9,34 +10,6 @@ const MG01: Record<string, string> = {
   P: "Hard Storage", R: "Other Storage", S: "Stationery Org",
   T: "Desk Acc", U: "Other Workspace", V: "Floor Coverings",
   W: "Garden",
-};
-
-// ── MG02: Product Sub-Type ──────────────────────────────────────
-const MG02: Record<string, string> = {
-  A: "Canvas/Plain", B: "Fabric/Bank", C: "Chest/Ceramic/Calendar",
-  D: "Door/DIY/Dimensional", E: "LED", F: "Floating Frame/Framed",
-  G: "Glass/Greyboard", H: "Hamper/Hook/Hanging", J: "Object/Jewelry",
-  K: "Basket/Kitchen", M: "MDF/Mirror/Multi", N: "Soft/Phone Stand",
-  P: "Leaner/Lapdesk/Pencil Cup", R: "Print/Relief/Rug/Tray",
-  S: "Sign/Special Material/Shelf", T: "Plastic/Tower/Tool",
-  U: "Cube/Other Workspace", W: "Wall Clock/Word/Garden",
-  X: "Shadowbox", "3": "Lenticular/3D", "9": "Other",
-};
-
-// ── MG03: Product Sub-Sub-Type ──────────────────────────────────
-const MG03: Record<string, string> = {
-  "0": "None", "1": "Foil", "2": "Shaped", "8": "Other Embellishment",
-  "9": "Other", A: "Acrylic/Attachment", B: "Embroidery/Banner/Basic",
-  C: "Diecut/Coir Plain/Ceramic", D: "DIY/LED/Coir Emboss/Dry-Erase",
-  E: "LED/Coir Diecut", F: "Felt/Fabric/Printed Flat/Foam",
-  G: "Staggered/Greyboard", H: "Hi-Gloss/Holofoil/Handpaint",
-  I: "Denim", J: "Fabric/Jersey", K: "Sparkle", L: "Linen/Cotton",
-  M: "Metallic/MDF/Round MDF", N: "Specialty Fabric/Natural/Nonwoven",
-  P: "Handpaint/Matting/Plastic/PVC", Q: "Glitter/Sequins/Rhinestones",
-  R: "Specialty Fabric w Attachment/Rope/Rubber",
-  S: "Satin/Specialty Paper/Metal/Steel", T: "Metallic/Holofoil/TPE/Tapestry",
-  U: "Suede/PU Leather/Suitcase", W: "Gel Coat/Wall Hanger/Woven",
-  X: "Oxford/Shadowbox Printed", Y: "Physical Attachment/Shaped Frame",
 };
 
 // ── Size tables by MG01 group ───────────────────────────────────
@@ -151,8 +124,9 @@ export async function parseSku(filename: string): Promise<ParsedSku | null> {
 
   // Resolve MG names
   const mg01_name = MG01[mg01_code] ?? mg01_code;
-  const mg02_name = MG02[mg02_code] ?? mg02_code;
-  const mg03_name = MG03[mg03_code] ?? mg03_code;
+  // MG02 is scoped by MG01, and MG03 by MG01+MG02 — never a flat lookup.
+  const mg02_name = getMg02Desc(mg01_code, mg02_code) ?? mg02_code;
+  const mg03_name = getMg03Desc(mg01_code, mg02_code, mg03_code) ?? mg03_code;
 
   // Resolve size
   let size_name = size_code;
