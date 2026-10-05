@@ -9,11 +9,23 @@
 
 /** mgCategory derived from MG01 code (CSV column 1 ↔ column 2 mapping) */
 const MG01_CATEGORY: Record<string, string> = {
-  A: "Wall", B: "Wall", C: "Wall", D: "Wall", E: "Wall",
-  F: "Tabletop", G: "Tabletop", H: "Tabletop", J: "Tabletop", K: "Tabletop",
+  A: "Wall",
+  B: "Wall",
+  C: "Wall",
+  D: "Wall",
+  E: "Wall",
+  F: "Tabletop",
+  G: "Tabletop",
+  H: "Tabletop",
+  J: "Tabletop",
+  K: "Tabletop",
   M: "Clock",
-  N: "Storage", P: "Storage", R: "Storage",
-  S: "Workspace", T: "Workspace", U: "Workspace",
+  N: "Storage",
+  P: "Storage",
+  R: "Storage",
+  S: "Workspace",
+  T: "Workspace",
+  U: "Workspace",
   V: "Floor",
   W: "Garden",
 };
