@@ -32,17 +32,9 @@ When the user says **"wrap up"**, that means: update the relevant Markdown docs 
 
 ---
 
-## Multi-model AI note
+## AI tool notes
 
-There is no universal ignore-file standard across AI coding tools.
-
-`.claudeignore` works for Claude Code.
-
-When using any other AI tool, paste this file as your first message and follow the instructions in the "What to ignore" section.
-
-(`.cursorignore` exists with matching content. There is no `.copilotignore` — GitHub Copilot is not used in this repo.)
-
----
+Claude Code uses .claudeignore. Other tools follow **What to ignore** below. Do not bulk-load every .md file.
 
 ## Documentation map: what to read for each task
 
@@ -56,33 +48,15 @@ Always start with:
 - `AGENTS.md` (this file)
 - `HANDOFF.md` **if it exists** — unfinished/in-progress work; required reading before continuing anything.
 
-Active cross-app reference-data plan:
+Active plans (read STATUS first; do not re-derive completed steps):
 
-- `plan_master_data_designflow_reference_cutover.md` — compare and then converge Packaging Type, ColdLion MG04 Product Size, Creative Designer assignments, ColdLion-backed Factory/Vendor, and Depth across PopDAM Master Data and DesignFlow Item Details. Read its STATUS table first; do not re-derive or re-plan completed steps.
-
-Active OpenRouter batch-recovery plan:
-
-- `plan_openrouter_batch_restart_recovery.md` — make asynchronous Image Tagging batches survive Railway restarts without abandoning or duplicating normal work. Read its STATUS table first; do not re-derive or re-plan completed steps.
-
-Active AI model interaction reliability plan:
-
-- `plan_ai_model_interaction_reliability.md` — replace model-name capability guesses, premature structured-output failures, silent ERP skips, and split PDF-agent behavior with one tested capability-driven contract. Read its STATUS table first; do not re-derive or re-plan completed steps.
-
-Active hybrid-search rollout plan:
-
-- `plan_hybrid_search_rollout.md` — safely finish keyword + pgvector discovery: searchable tags/characters, incremental indexing, leased embeddings, authorization-safe results, ranked pagination, fallback, and gated rollout. Read its STATUS table first; do not re-derive or re-plan completed steps.
-
-Active Style-Group-scoped AI metadata plan:
-
-- `plan_style_group_scoped_ai_metadata.md` — separate shared product/SKU facts from file-specific visual facts, combine both scopes in search without copying rows, and replace primary-asset tag propagation with safe group metadata refresh. Read its STATUS table first; do not re-derive or re-plan completed steps.
-
-Active PopSG production-readiness plan:
-
-- `plan_popsg_production_readiness.md` — make PopSG a truthful, current, preview-accounted, comprehensively searchable/filterable library of the eligible creative files on the Style Guides NAS share. Read its STATUS table first; do not re-derive or re-plan completed steps.
-
-Active Master Data and OrderList loading-performance plan:
-
-- `plan_master_data_orderlist_loading_performance.md` — render the first 4,000 Master Data rows immediately, stop downloading unused view fields, and replace OrderList Find's multi-request position scan with one governed shared-db lookup. Read its STATUS table first; do not re-derive or re-plan completed steps.
+- plan_master_data_designflow_reference_cutover.md — converge shared Master Data vs DesignFlow Item Details
+- plan_openrouter_batch_restart_recovery.md — Image Tagging batches survive Railway restarts
+- plan_ai_model_interaction_reliability.md — capability-driven model contract (replaces name guessing)
+- plan_hybrid_search_rollout.md — keyword + pgvector discovery
+- plan_style_group_scoped_ai_metadata.md — product vs file-level AI metadata
+- plan_popsg_production_readiness.md — PopSG library truthfulness and search
+- plan_master_data_orderlist_loading_performance.md — first-paint and OrderList Find performance
 
 Then load additional docs only when relevant — do **not** ingest every `.md` file:
 
@@ -146,127 +120,17 @@ in the commit message for direct pushes.
 
 ## Shared-backend startup/shutdown hygiene
 
-Why this exists:
-`popdam3`, `poppim-web`, and `popcrm-web` all depend on the same Supabase backend.
-An unfinished migration or dirty canonical `u2giants/shared-db` checkout can block
-unrelated app commits or, worse, ship a database change without the right preview
-checks. Future AI sessions must keep shared-db work isolated and leave the
-workspace clean enough for the next vibe-coding session.
+All POP apps share one Supabase backend. Keep shared-db work isolated:
 
-Startup checklist:
+- Before editing, git status --short here and in canonical /worksp/shared-db if the task touches schema, RLS, RPCs, types, or cross-app contracts.
+- shared-db/ in this repo is a read-only mirror. No new migrations here — they belong in /worksp/shared-db on a named branch + PR.
+- Stop if /worksp/shared-db has untracked migrations or unrelated dirty files from another session.
+- Shutdown: no untracked migration left; unfinished shared-db work gets a durable handoff naming branch, migration, preview/prod status, and the next exact action.
+- Never paper over a credential failure with ad hoc SQL/API calls or embedded tokens. Fix the canonical credential path first; runbook: /worksp/shared-db/AGENTS.md → Supabase CLI and database credential runbook.
 
-1. Run `git status --short` in this repo before editing.
-2. If the task may touch shared Supabase schema, RLS, API views/RPCs, generated
-   database types, or cross-app data contracts, also run `git status --short` in
-   `/worksp/shared-db` before editing.
-3. Treat `shared-db/` inside this repo as a read-only mirror. Do not create or
-   edit migrations there; use canonical `/worksp/shared-db`.
-4. Do not create new database migrations in this repo's `supabase/migrations/`.
-   That folder is historical only. All shared Supabase schema/data migrations,
-   including DAM-only tables/functions/triggers/RPCs, belong in canonical
-   `/worksp/shared-db`.
-5. If `/worksp/shared-db` has untracked migrations or unrelated dirty files, stop
-   and report them before creating new database work. Do not mix another
-   session's shared-db changes into this app's commit.
-6. Before creating a shared-db migration, create/switch to a dedicated
-   `/worksp/shared-db` branch named for the database change. App repos commit to
-   `main`; shared-db uses branch + PR.
+## Multi-model AI usage in code
 
-Shutdown checklist:
-
-1. Run `git status --short` in this repo and, if touched or inspected for backend
-   work, in `/worksp/shared-db`.
-2. No untracked shared-db migration may remain. Every shared-db migration must be
-   committed on its own branch, stashed with a clear name, or removed if
-   abandoned.
-3. If shared-db work is incomplete, leave durable handoff text that names the
-   branch/stash, migration file, preview/prod apply status, and the next exact
-   action.
-4. Final reports must separate app commits from shared-db status so the owner can
-   keep vibe-coding without becoming the git janitor.
-
-Credential/auth failures are not a reason to invent alternate production paths:
-if Supabase CLI, database, GitHub, 1Password, or other deployment credentials
-fail, fix the canonical credential or tool login path first, verify it with the
-normal dry-run/status command, and update the relevant 1Password notes. Do not
-paper over the failure with ad hoc SQL/API calls, embedded tokens, copied browser
-sessions, or one-off host state. A failed env-var invocation can be a shell/tool
-usage bug, not a bad secret; prove the credential independently before rotating
-or declaring it broken. For the exact Supabase CLI, preview branch, production
-DB password, and pooler commands, use `/worksp/shared-db/AGENTS.md` section
-"Supabase CLI and database credential runbook."
-
----
-
-## Multi-model AI usage in code (where models are configured)
-
-This codebase uses multiple AI models in multiple places. Before changing any model reference, check ALL of:
-- `admin_config.AI_TASK_MODELS` (DB table, runtime-configurable)
-- `apps/worker/src/handlers/erp.ts` — ERP classification model
-- `apps/bridge-agent/src/pdf-text-sampler.ts` — PDF extraction cascade
-- `apps/windows-agent/src/pdf-text-sampler.ts` — same cascade on Windows side
-- `supabase/functions/ai-tag/` — legacy vision tagging (now Windows agent only)
-
-Changing a model in one place does not change it in others. Each consumer reads from a different config source.
-
-### Image Tagging / Vision Bake-Off contract
-
-All structured AI work uses the capability planner in
-`apps/worker/src/model-capabilities.ts` and bounded executor in
-`apps/worker/src/structured-output.ts`. Runtime routing comes from OpenRouter's
-account catalog plus `admin_config.AI_MODEL_CAPABILITY_OVERRIDES`, never a new
-model-name regular expression. Malformed output advances to the next supported
-method; authentication, billing, exhausted rate limits, invalid media, and
-content-policy failures stop immediately. ERP counts every attempted item as
-classified, failed, or unclassifiable.
-
-Production Image Tagging and the Vision Bake-Off intentionally use the same
-worker path: `apps/worker/src/handlers/ai-tagging-shared.ts`. The bake-off is a
-production-behavior evaluator, not a stricter tool-calling-only test. A model is
-eligible when it has image input and can return the `tag_asset` contract via one
-of: OpenRouter tool calling, `response_format` JSON schema/structured outputs,
-or `response_format: { "type": "json_object" }` with app-side validation.
-Required fields are `tags`, `ai_description`, `scene_description`, and `content_type`; malformed
-JSON gets one repair retry in JSON mode.
-
-The description fields are search metadata, not free-form captions.
-`ai_description` should be a concise, search-friendly sentence for designers and
-salespeople; `scene_description` should be a literal visual sentence. The
-canonical wording lives in `supabase/functions/_shared/tag-asset-contract.js`.
-Keep it compact because it is sent for every tagged asset.
-
-OpenRouter model IDs may route to different provider endpoints, so the same
-model can flip pass/fail per call. Three things follow, detailed in
-`docs/KNOWN_QUIRKS.md` #59/#60/#62 and `docs/MODEL_RULES.md`:
-
-- **Detecting which endpoint failed is NOT supported by OpenRouter's API.**
-  Bake-off rows store best-effort route evidence under
-  `ai_tag_bakeoff_results.raw_output._popdam_provider`, but the
-  `openrouter_metadata.attempts[]` / `endpoints.available` fields the code
-  parses are **undocumented and, per a 2026-07-14 investigation, appear to never
-  populate** (0/251 prod rows had the blob; docs list no such fields; couldn't
-  confirm live because the account data-policy blocks bare text calls). The API
-  only ever names the *serving* endpoint (response `model` + `/api/v1/generation`),
-  never the failed legs. Don't build features assuming the failed-leg list
-  exists. Do not add shared-db provider columns unless the app needs cross-run
-  filtering/reporting outside the bake-off UI.
-- **To force / diagnose an endpoint, pin it.** Set
-  `admin_config.AI_TASK_MODELS.vision_tagging_provider` to OpenRouter provider
-  slug(s); the worker sends `provider: { only: [...], allow_fallbacks: false }`
-  so a bad endpoint hard-fails instead of silently rerouting. This is the
-  reliable way to know which endpoint failed. Only Image Tagging reads it today.
-- **Exacto is the default routing mode.** Every OpenRouter call is sent with the
-  `:exacto` model variant (`withExactoRouting` in `openrouter.ts`), routing to
-  the endpoint with the best measured tool-calling accuracy. It's free and is the
-  primary mitigation for the flip-per-call problem — pin an explicit `:variant`
-  in a model slug to opt out. Applies to all OpenRouter paths. See #62.
-
-`GOOGLE_AI_API_KEY` is **live**: the Railway worker uses it for explicitly selected
-`google-direct/*:batch` Image Tagging models, and the on-prem bridge/windows agents
-use it for direct-Google PDF text extraction. Do not remove it, the `agent-api`
-passthrough, or the ApisTab "Google AI API Key" field. See `docs/KNOWN_QUIRKS.md` #63.
-
----
+Model locations, structured-output contract, Exacto routing, endpoint pinning, bake-off rules, and Google/DeepSeek keys are documented in [docs/MODEL_RULES.md](docs/MODEL_RULES.md). Quirks that look like bugs are in [docs/KNOWN_QUIRKS.md](docs/KNOWN_QUIRKS.md). Before changing any model reference, read those files — a model is configured in several places (dmin_config.AI_TASK_MODELS, worker handlers, bridge/windows samplers).
 
 ## Repository structure
 
@@ -547,69 +411,18 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 
 ## Deployment
 
-### Frontend (React app)
+Full runbooks: [docs/deployment.md](docs/deployment.md), [docs/POPDAM_HELPER.md](docs/POPDAM_HELPER.md), [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md).
 
-**Workflow:** `.github/workflows/publish-frontend.yml`
-**Triggers:** push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `Dockerfile.ci`, `nginx.conf`, `.github/workflows/publish-frontend.yml`; also `workflow_dispatch` for manual redeploys.
-**Steps:** `verify` job (`npm ci` + `npm run lint`) → `build-and-push` (`needs: verify`): npm ci → vite build → GHCR login with `GHCR_PAT` when present, otherwise the workflow `GITHUB_TOKEN` (`packages: write`) → Docker `build-push-action` with `Dockerfile.ci` → push to GHCR (`:latest`, `:sha-<short-sha>`, `:<short-sha>`) → POST Coolify API → Coolify pulls `:latest` and replaces container. The deploy is gated on `verify` via a native `needs` dependency (a lint failure blocks publish + deploy). `ci.yml` (bun lint/test/build) is the broad repo CI and runs in parallel; it is **not** the deploy gate.
-**GHCR package access:** `ghcr.io/u2giants/popdam-frontend` is a user-scoped package. The workflow prefers a repo secret `GHCR_PAT` with package write access because GitHub can reject `GITHUB_TOKEN` writes unless the package's **Manage Actions access** setting grants `u2giants/popdam3` write access. If both are missing, `docker/build-push-action` fails before Coolify is triggered.
-**Coolify pull access:** Coolify's helper container pulls private GHCR images using the Docker credential file mounted from the VPS (`/root/.docker/config.json`). A green GitHub workflow does not prove live deployment if Coolify cannot pull from GHCR. In that case Coolify records a failed deployment with registry `unauthorized`; restore the VPS GHCR login without putting token values in docs.
-**Stale-site check:** if the live header shows an old commit, check the latest `Publish Frontend Image` run first. If it failed before "Push image to GHCR" or "Deploy via Coolify", Coolify will keep running the previous successful image (for example, `8c0508d` stayed live because later runs failed before a newer GHCR `:latest` image was published). If the workflow is green but the site is old, inspect Coolify deployment logs and `docker ps` on the VPS; do not assume the GitHub deployment sidebar means the frontend is current.
-**Rollback:** In Coolify UI, select an older deployment and redeploy. The `:<sha>` tag is the immutable rollback target.
+| Component | How it ships | Notes |
+|---|---|---|
+| Frontend | push main → publish-frontend.yml → GHCR → Coolify | Gate is erify (lint). Green CI ≠ live site if Coolify cannot pull GHCR. |
+| Supabase edge functions | push main → deploy-supabase.yml | No supabase db push here — shared migrations go through canonical /worksp/shared-db. |
+| Railway worker | every push to main auto-deploys | No manual step. |
+| Bridge agent | publish-bridge-agent.yml → :stable | Bump pps/bridge-agent/package.json version in the same commit. |
+| Windows render agent | publish-windows-agent.yml → GitHub Release | Inkscape/ImageMagick/Ghostscript/Poppler/Tesseract — no Illustrator. |
+| POP DAM Helper | publish-popdam-helper.yml → GitHub Release | Installers stay **unsigned forever** (owner decision). Never cache the electron-builder NSIS toolchain. Helper OAuth/SeaDrive rules: docs/POPDAM_HELPER.md + docs/KNOWN_QUIRKS.md. |
 
-### Supabase edge functions
-
-**Workflow:** `.github/workflows/deploy-supabase.yml`
-**Triggers:** push to `main` touching `supabase/functions/**`
-**Steps:** deploy edge functions (if functions changed) → auto-generate and commit `src/integrations/supabase/types.ts`
-**Database rule:** this repo no longer runs `supabase db push`. All shared Supabase migrations go through canonical `/worksp/shared-db` branch + PR, using `shared-db/AGENTS.md` and the `Shared Supabase Migrations` workflow.
-
-### Railway Worker
-
-**Auto-deploys:** Railway watches the `main` branch. Every push to `main` triggers a Railway rebuild regardless of which files changed.
-**No manual step required.**
-
-### Bridge Agent
-
-**Workflow:** `.github/workflows/publish-bridge-agent.yml`
-**Triggers:** push to `main` touching `apps/bridge-agent/**`
-**Tags:** `:stable` (what NAS compose and self-update pull), `:v{version}`, `:latest`
-**Versioning:** Bump `apps/bridge-agent/package.json` version in same commit.
-
-### Windows Render Agent
-
-**No Adobe Illustrator.** An Illustrator-driven render was tried and abandoned: it never managed to open the `.ai` files. The agent renders with Inkscape, ImageMagick (`magick`), Ghostscript (`gswin64c`), Poppler (`pdftoppm`) and Tesseract (OCR). Any Windows machine with those tools and NAS access can host it.
-
-**Workflow:** `.github/workflows/publish-windows-agent.yml`
-**Distribution:** GitHub Release (`windows-agent-latest` tag)
-
-### POP DAM Helper (Electron)
-
-**Workflow:** `.github/workflows/publish-popdam-helper.yml` (parallel Windows + macOS jobs)
-**Distribution:** GitHub Release (`popdam-helper-latest` tag)
-**Code signing:** **permanently abandoned — installers stay unsigned forever** (user decision, 2026-06-25; the Apple Account-Holder cert + separate Windows OV/EV cert hurdle is too high). The macOS job reads `CSC_LINK`/`CSC_KEY_PASSWORD` (Developer ID `.p12`) + `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID` (notarization via `scripts/notarize.cjs`), but the secrets are intentionally left unset, so it ships an **unsigned** dmg (Gatekeeper right-click→Open) and skips notarization; Windows is unsigned (SmartScreen "More info → Run anyway"). These first-launch warnings are the accepted permanent UX — **not** pending work. Wiring is dormant only so a future maintainer could revive it. See `HANDOFF.md` §5.3.
-**Seafile/SeaDrive:** the Helper supervises (does not embed) the SeaDrive virtual-drive client for WFH designers; see `docs/SEAFILE_INTEGRATION.md`.
-**CI caching rule (learned the hard way):** the Windows job caches **only** `~\AppData\Local\electron\Cache` (the immutable Electron binary). **Never** add `~\AppData\Local\electron-builder\Cache` back — that dir is the NSIS toolchain that stamps the (un)installer, and caching it once shipped a corrupted uninstaller that failed 100% with "NSIS Error: Error launching installer" on uninstall (`docs/KNOWN_QUIRKS.md` #54, fixed 2026-06-25 commit `d7a1133`). Re-download the toolchain fresh every run.
-**Microsoft OAuth:** the "Continue with Microsoft" flow must **not** pass its own `state` to `/auth/v1/authorize` — Supabase GoTrue forwards a caller `state` to the provider verbatim and then can't match it on callback, failing with `bad_oauth_state` and dumping the user on the project Site URL (`crm.designflow.app`). GoTrue manages state itself; PKCE binds the flow. Fixed in `apps/popdam-helper/src/main/oauth.ts`, Helper v1.4.2 (2026-06-25).
-
-**Mac SeaDrive health checks:** never traverse a SeaDrive mount synchronously
-from Electron's main thread. SeaDrive metadata calls can block long enough for
-macOS to report **Application Not Responding**, especially immediately after a
-user selects the mount folder. UI/status callers use
-`getSeafileHealthAsync()` (Helper v1.4.13, commit `4301a34`); preserve its nested
-category/group discovery. See `docs/POPDAM_HELPER.md` and
-`docs/KNOWN_QUIRKS.md` #66.
-
-**Mounted does not mean file present:** Helper storage health validates the
-SeaDrive mount/library, not every deep asset placeholder. On macOS,
-`/Users/<user>/Library/CloudStorage/SeaDrive-<account>` is a valid File Provider
-root. After ~20 minutes, compare the exact path in Finder and Seafile web rather
-than waiting longer. Also preserve/report `seafileIssue` when Synology fallback
-fails; the current final `File not found locally` error can hide the primary
-SeaDrive reason. See `docs/KNOWN_QUIRKS.md` #67.
-**Checkout/check-in robustness (v1.4.3–1.4.8):** SeaDrive library location is **auto-discovered** (mounts vary per user/OS — `My Libraries`/`Shared with …`, bounded scan + cache); failures are never silent (failed checkout releases the orphaned lock + notifies; permanent upload failure pops a modal; missing Synology creds open Settings to the field); edits are tracked by an atomic-save-aware directory watcher driving an hourly reminder + a quit guard; a Photoshop UXP plugin (`resources/photoshop-plugin/`, Helper `POST /editor-event`) offers check-in on document close (Illustrator has no close event — intentionally unsupported). Full detail: `docs/POPDAM_HELPER.md`.
-
----
+Stale-site check: if the live header shows an old commit, inspect the latest Publish Frontend Image run and Coolify deploy logs. Rollback via an older Coolify deployment (:<sha> tags).
 
 ## Pending work
 
@@ -619,11 +432,7 @@ Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the
 |--------|------|-------------|
 | 🟡 open | **Seafile/SeaDrive Helper — Brazil pilot** | First slice (v1.4.1) + receipt verification (bridge agent v1.16.x) shipped and **active** (`CHECKIN_VERIFICATION_ENABLED = true`, 2026-06-09); Helper Microsoft OAuth + USA SMB/local check-in shipped in `1cc3fd3`; Supabase Auth callback `http://127.0.0.1:47380/auth/callback` allowed on 2026-06-24. Next: install Helper + SeaDrive on one Brazil Mac and validate checkout/check-in round-trip — watch the first real check-in go `verifying → complete`. See `HANDOFF.md`, `docs/SEAFILE_INTEGRATION.md`. |
 | 🟡 open | **PopSG production readiness (#107)** | Tracked in `plan_popsg_production_readiness.md` — read its STATUS table. As of 2026-09-18: previews classified, bridge 1.16.12, v2 search fast; blocked on shared-db #3282 (PDF claim timeout) and on the nightly crawl recovering after #3023. |
-| 🟢 done 2026-06-18 | **Frontend deploy GHCR package access** | `publish-frontend.yml` now uses `GHCR_PAT` when present, the repo secret is set, and GHCR publish succeeded for image tags `latest`, `sha-5482fb7`, and `5482fb7`. Coolify pull access also depends on the VPS Docker login at `/root/.docker/config.json`; see the 2026-06-18 critical incident and `docs/deployment.md`. |
 | 🟡 open | **Style Guide Sources archival readiness** | Let the licensing-PDF backfill finish, add crawl-regression guard before archiving, then build an explicit archived state for old style guides. See `HANDOFF.md` and `docs/POPSG.md`. |
-| 🟢 done external | **Seafile server direct-MS SSO** | Fixed 2026-06-08 in the separate `u2giants/seafile` repo. Keep this note only as context for the Brazil pilot. |
-| 🟢 shipped 2026-07-15 | **Two-level asset metadata** | Product-level `style_groups.item_description` (+ `dam.sku_human_description`) and file-level `assets.content_type`, folded into the DAM search rollup (shared-db PR #67). Frontend Content Type filter + item-description display; worker classifies `content_type`. Done. |
-| 🟡 mostly done 2026-07-15 | **Rich tech-pack/licensing PDF extraction (§5.15)** | Schema + worker + frontend all shipped and live (shared-db PRs #74 schema, #77 RPC access, #78 material facet). Backfill **Pass 1 complete** (246 PDFs — every tech-pack/licensing PDF with extracted text). `DEEPSEEK_API_KEY` set in Railway (verified). Remaining: **Pass 2** — on-prem text-extract the ~19k eligible PDFs that have no `pdf_text_samples.extracted_text` yet, then re-run the `rich-pdf-extract` op (idempotent). See `docs/RICH_PDF_EXTRACTION.md`, `HANDOFF.md` §5.15. |
 
 ## Critical incidents
 
