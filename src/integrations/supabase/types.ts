@@ -2753,6 +2753,11 @@ export type Database = {
           is_licensed: boolean | null
           item_description: string | null
           item_description_source: string | null
+          item_short_description: string | null
+          item_short_description_at: string | null
+          item_short_description_input: string | null
+          item_short_description_model: string | null
+          item_short_description_source: string | null
           latest_file_date: string | null
           licensor_code: string | null
           licensor_id: string | null
@@ -2804,6 +2809,11 @@ export type Database = {
           is_licensed?: boolean | null
           item_description?: string | null
           item_description_source?: string | null
+          item_short_description?: string | null
+          item_short_description_at?: string | null
+          item_short_description_input?: string | null
+          item_short_description_model?: string | null
+          item_short_description_source?: string | null
           latest_file_date?: string | null
           licensor_code?: string | null
           licensor_id?: string | null
@@ -2857,6 +2867,11 @@ export type Database = {
           is_licensed?: boolean | null
           item_description?: string | null
           item_description_source?: string | null
+          item_short_description?: string | null
+          item_short_description_at?: string | null
+          item_short_description_input?: string | null
+          item_short_description_model?: string | null
+          item_short_description_source?: string | null
           latest_file_date?: string | null
           licensor_code?: string | null
           licensor_id?: string | null
