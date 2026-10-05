@@ -1,0 +1,9 @@
+; PopDAM Windows Render Agent — installer preset (see docs/WINDOWS_AGENT_RUNBOOK.md §3 Option C)
+; Copy to popdam-agent.ini next to popdam-windows-agent-setup.exe, or pass /CONFIG=<path>.
+; Never commit a real pairing code. Delete the .ini after install.
+[agent]
+server_url=https://qsllyeztdwjgirsysgai.supabase.co
+pairing_code=XXXX-XXXX-XXXX-XXXX
+; Optional NAS mapping (the agent also receives NAS settings from admin_config)
+drive_letter=Z
+nas_unc=\\192.168.3.101\mac

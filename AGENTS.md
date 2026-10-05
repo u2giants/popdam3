@@ -477,7 +477,7 @@ Full entries live in [`docs/incident-log.md`](docs/incident-log.md) — read the
 | `docs/SEAFILE_INTEGRATION.md` | Seafile/SeaDrive transport for WFH designers (region model, libraries, SeaDrive client) |
 | `docs/ADMIN_OPERATIONS.md` | Admin UI operations reference |
 | `docs/API_CONTRACTS.md` | Edge function API contracts |
-| `docs/WINDOWS_AGENT_RUNBOOK.md` | Windows render agent operations |
+| `docs/WINDOWS_AGENT_RUNBOOK.md` | Windows render agent operations (incl. unattended install via `popdam-agent.ini`) |
 <!-- ansible-host-policy: managed rollout from u2giants/ansible -->
 ## Host / server changes — do NOT make them here
 
