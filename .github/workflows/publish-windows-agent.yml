@@ -168,6 +168,7 @@ jobs:
           cat > installer/setup.nsi << 'NSIS_EOF'
           !include "MUI2.nsh"
           !include "nsDialogs.nsh"
+          !include "FileFunc.nsh"
 
           Name "PopDAM Windows Render Agent"
           OutFile "popdam-windows-agent-setup.exe"
@@ -179,6 +180,8 @@ jobs:
           Var ServerUrl
           Var DriveLetter
           Var NasUNC
+          Var PresetFile
+          Var PresetLoaded
 
           Var ConfigDialog
           Var PairingInput
@@ -199,6 +202,37 @@ jobs:
           !insertmacro MUI_LANGUAGE "English"
 
           ; ══════════════════════════════════════════════════════
+          ; Preset config file (lets an AI or admin install unattended)
+          ;   popdam-agent-setup.exe /CONFIG=C:\path\popdam-agent.ini [/S]
+          ;   or place popdam-agent.ini next to the installer EXE.
+          ; [agent]
+          ; server_url=https://qsllyeztdwjgirsysgai.supabase.co
+          ; pairing_code=XXXX-XXXX-XXXX-XXXX
+          ; drive_letter=Z
+          ; nas_unc=\\server\share
+          ; A preset file rewrites agent-config.json (re-pairs the agent).
+          ; ══════════════════════════════════════════════════════
+
+          Function .onInit
+            StrCpy $ServerUrl "https://qsllyeztdwjgirsysgai.supabase.co"
+            StrCpy $PresetLoaded "0"
+            ${GetParameters} $0
+            ClearErrors
+            ${GetOptions} $0 "/CONFIG=" $PresetFile
+            IfErrors 0 +2
+              StrCpy $PresetFile "$EXEDIR\popdam-agent.ini"
+            IfFileExists "$PresetFile" 0 no_preset
+              StrCpy $PresetLoaded "1"
+              ReadINIStr $1 "$PresetFile" "agent" "server_url"
+              StrCmp $1 "" +2
+                StrCpy $ServerUrl $1
+              ReadINIStr $PairingCode "$PresetFile" "agent" "pairing_code"
+              ReadINIStr $DriveLetter "$PresetFile" "agent" "drive_letter"
+              ReadINIStr $NasUNC "$PresetFile" "agent" "nas_unc"
+            no_preset:
+          FunctionEnd
+
+          ; ══════════════════════════════════════════════════════
           ; Configuration Page
           ; ══════════════════════════════════════════════════════
 
@@ -208,12 +242,12 @@ jobs:
 
             ${NSD_CreateLabel} 0 0 100% 12u "PopDAM Server URL"
             Pop $0
-            ${NSD_CreateText} 0 12u 100% 13u "https://ryltkzzernhwnojzouyb.supabase.co"
+            ${NSD_CreateText} 0 12u 100% 13u "$ServerUrl"
             Pop $ServerInput
 
             ${NSD_CreateLabel} 0 30u 100% 12u "Pairing Code (from PopDAM Settings → Windows Agent → Pairing)"
             Pop $0
-            ${NSD_CreateText} 0 42u 100% 13u ""
+            ${NSD_CreateText} 0 42u 100% 13u "$PairingCode"
             Pop $PairingInput
             SendMessage $PairingInput ${EM_SETCUEBANNER} 1 "STR:XXXX-XXXX-XXXX-XXXX"
 
@@ -222,14 +256,14 @@ jobs:
 
             ${NSD_CreateLabel} 10u 76u 80u 12u "Drive Letter:"
             Pop $0
-            ${NSD_CreateText} 94u 74u 24u 13u ""
+            ${NSD_CreateText} 94u 74u 24u 13u "$DriveLetter"
             Pop $DriveInput
             ${NSD_CreateLabel} 120u 76u 14u 12u ":"
             Pop $0
 
             ${NSD_CreateLabel} 10u 93u 80u 12u "NAS UNC Path:"
             Pop $0
-            ${NSD_CreateText} 94u 91u 200u 13u ""
+            ${NSD_CreateText} 94u 91u 200u 13u "$NasUNC"
             Pop $NasUNCInput
             SendMessage $NasUNCInput ${EM_SETCUEBANNER} 1 "STR:\\server\share"
 
@@ -259,6 +293,13 @@ jobs:
 
           Section "Install"
             SetShellVarContext all
+            ; ── Silent installs skip the config page, so validate here ──
+            StrCmp $PairingCode "" 0 +3
+              MessageBox MB_OK|MB_ICONSTOP "Pairing code is required (set pairing_code in popdam-agent.ini)." /SD IDOK
+              Abort
+            StrCmp $ServerUrl "" 0 +3
+              MessageBox MB_OK|MB_ICONSTOP "Server URL is required." /SD IDOK
+              Abort
             ; ── Remove existing scheduled task if reinstalling (ignore if not found) ──
             nsExec::ExecToStack 'schtasks /delete /tn "PopDAM Windows Render Agent" /f'
             Pop $0
@@ -306,7 +347,9 @@ jobs:
 
             ; ── Write agent-config.json (persistent across reinstalls) ──
             ; Only write if not already present (preserve existing config on upgrade)
+            StrCmp $PresetLoaded "1" write_config
             IfFileExists "$APPDATA\PopDAM\agent-config.json" skip_config
+            write_config:
               FileOpen $0 "$APPDATA\PopDAM\agent-config.json" w
               FileWrite $0 '{$\r$\n'
               FileWrite $0 '  "server_url": "$ServerUrl",$\r$\n'
