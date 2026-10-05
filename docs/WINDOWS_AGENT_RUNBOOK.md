@@ -194,7 +194,7 @@ Get the checksum by downloading the release zip and running `sha256sum`. The age
 
 ## 9. Moving the agent to another machine (lessons from edge-alien → edge-dev, 2026-10-01)
 
-The agent was moved from **edge-alien** to **edge-dev** on 2026-10-01 so edge-alien could be reformatted. It is due to move back to edge-alien on a fresh Windows install. Every problem hit on the first move is listed here with the fix, so the move back is quick.
+The agent was moved from **edge-alien** to **edge-dev** on 2026-10-01 so edge-alien could be reformatted, and moved back to the freshly installed edge-alien on 2026-10-05 (see the end of this section). **The agent runs on edge-alien now.** Every problem hit on either move is listed here with the fix.
 
 ### Order that worked
 
@@ -236,12 +236,25 @@ Insert a row into `agent_pairings` (application row data, not a schema change) w
 - Don't run `install-scheduled-task.ps1` with Windows PowerShell 5.1.
 - Don't trust `admin_config` NAS credentials without testing them first with `net use`.
 
-### Moving back to edge-alien (fresh Windows)
+### Moving back to edge-alien (fresh Windows) — done 2026-10-05
 
-1. On edge-alien, install the tools: winget `Inkscape.Inkscape`, `ImageMagick.ImageMagick`, `oschwartz10612.Poppler` and `UB-Mannheim.TesseractOCR`, plus Ghostscript from Artifex. Also install Node and pwsh 7.
-2. Enable OpenSSH Server so the next session can reach it.
+The agent is back on edge-alien (0.16.4.165, same `agent_registrations.id` `d287e3f9-…`). edge-dev's task is stopped and **disabled**. The checklist was:
+
+1. Install the tools: winget `Inkscape.Inkscape`, `ImageMagick.ImageMagick`, `oschwartz10612.Poppler`, `UB-Mannheim.TesseractOCR`, `Microsoft.VCRedist.2015+.x64`, plus Ghostscript from Artifex. Also Git, Node and pwsh 7.
+2. Enable OpenSSH Server and add the `916-alien` public key (1Password) to `C:\ProgramData\ssh\administrators_authorized_keys`.
 3. On edge-dev, run `schtasks /end` and `/change /disable` for the task.
-4. Pair edge-alien, preferably with the release installer, so problem 5 doesn't happen. Then test the NAS and queue a test job (steps 2–5 of "Order that worked").
+4. Pair with the release installer, add `POPPLER_PATH` to the install-dir `.env`, restart the task, test the NAS and queue a test job.
+
+New problems hit on this move:
+
+| # | Problem | Cause | Do this next time |
+|---|---------|-------|-------------------|
+| 14 | `gswin64c.exe` exits with `0xC0000135` and prints nothing | A fresh Windows has no Visual C++ runtime (`vcruntime140.dll`) | `winget install Microsoft.VCRedist.2015+.x64` before or after Ghostscript. |
+| 15 | `Add-WindowsCapability` for OpenSSH Server fails with "Class not registered" | The DISM cmdlets don't work under pwsh 7 (Store install) | Elevated: `dism.exe /Online /Add-Capability /CapabilityName:OpenSSH.Server~~~~0.0.1.0`. It downloads ~250 MB and can take ~30 min. Leave sshd's default shell as `powershell.exe`; the Store pwsh can't be used as sshd's `DefaultShell`. |
+| 16 | The installer pre-filled the decommissioned Ohio URL (`ryltkzzernhwnojzouyb`) | Builds before commit `2e5718e1` had the old default | Check the Server URL field says `https://qsllyeztdwjgirsysgai.supabase.co`. Leave the optional **NAS Drive Mapping** fields blank: the agent maps Z:/Y: itself from `admin_config` with credentials, while the installer's launcher mapping runs `net use` without any. |
+| 17 | Claude couldn't fill in the installer's fields | The installer runs elevated, and Windows (UIPI) blocks a non-elevated session from driving elevated windows | Have the person at the console type them, or use Option C (`popdam-agent.ini`). Put the pairing code on the clipboard (`Set-Clipboard`) rather than in chat. |
+| 18 | `ssh-keygen -N '""'` created a key with a passphrase of two quote characters | pwsh 7.3+ passes `'""'` literally to native programs | Use `-N ''` in pwsh. |
+| 19 | 1Password CLI calls fail with "a vault query must be provided" | Service-account tokens (`OP_SERVICE_ACCOUNT_TOKEN`) need an explicit vault | Pass `--vault <id>` or use `op://<vault-id>/<item-id>/<field>` references (take both ids from `op item list --format json`). |
 
 ## 8. Compat-thumbnail audit (fix `.ai` warning-page thumbnails in bulk)
 
