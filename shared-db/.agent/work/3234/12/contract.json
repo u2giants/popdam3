@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "work_issue": 3234,
+  "generation": 12,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Production-safe idempotent drop of unique (company_code, prod_order_no, prod_line_seq) on coldlion.prod_detail with catalog fallback and sidecar. Generation 12 supersedes version 20261005005221 as 20261005044103 after main gained migration 20261005025111.",
+  "base_sha": "7a9f51a41d678f4e907b21c57c38657a6edba294",
+  "dispatcher": "owner instruction to complete production promotion; claim #3879",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "mimo/3234-prod-drop-constraint-fallback",
+  "worktree": "C:/repos/shared-db-wt-3234-prod-fix",
+  "allowed_paths": [
+    "supabase/migrations/20261005044103_coldlion_prod_detail_drop_line_seq_unique_prod.sql",
+    "scripts/production-verification-sidecars/20261005044103.json",
+    "config/production-verification-sidecar-registry.json",
+    ".github/live-proofs/3234.sql",
+    ".agent/work/3234/12/contract.json",
+    ".agent/work/3234/12/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261005044103_coldlion_prod_detail_drop_line_seq_unique_prod.sql",
+    "scripts/production-verification-sidecars/20261005044103.json",
+    "config/production-verification-sidecar-registry.json",
+    ".github/live-proofs/3234.sql",
+    ".agent/work/3234/12/contract.json",
+    ".agent/work/3234/12/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table coldlion.prod_detail"
+  ],
+  "prohibited_actions": [
+    "do not drop or alter PRIMARY KEY (company_code, pkey)",
+    "do not collapse rows that share prod_line_seq",
+    "do not change RLS grants"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 scripts/check_production_verification_sidecars.py --repo . --scan-version 20261005044103"
+  ],
+  "assumptions": [
+    "DROP CONSTRAINT IF EXISTS plus catalog fallback removes any UNIQUE on the three columns",
+    "Sidecar binds the migration blob hash and asserts zero UNIQUE constraints on prod_detail"
+  ],
+  "stop_conditions": [
+    "stop if the drop would require changing the primary key or RLS",
+    "stop if sidecar validation fails",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ],
+  "evidence_parent": {
+    "work_issue": 3234,
+    "generation": 11,
+    "contract_sha256": "ff4a1c4671036c16c2bb125d0d24f8aa4c666519b103289946922a929f8a0025"
+  }
+}

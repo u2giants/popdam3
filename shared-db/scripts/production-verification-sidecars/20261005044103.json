@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261005044103",
+  "migration_sha256": "0cbc4a08b2d52b0727d6e63a9c34eb91c5b8c535eb2a45792bdbc75381c33ebd",
+  "checks": [
+    {
+      "id": "coldlion_unit_5b_landing_v2_prod",
+      "kind": "catalog_contract",
+      "contract": "coldlion_unit_5b_landing_v2",
+      "expected_count": 1
+    }
+  ],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 28,
+      "line_end": 40,
+      "disposition": "no_durable_target",
+      "reason": "The DO block execute format only drops UNIQUE (company_code, prod_order_no, prod_line_seq) if that exact constraint still exists under a non-standard name. The static DROP CONSTRAINT IF EXISTS in the same migration already targets the auto-named constraint. After apply the durable catalog state is the absence of any unique on prod_detail involving prod_line_seq, asserted by catalog contract coldlion_unit_5b_landing_v2 (check id coldlion_unit_5b_landing_v2_prod) in this sidecar (pg_constraint check: no unique on coldlion.prod_detail; pkey and landing shape intact), by live proof .github/live-proofs/3234.sql, and by supabase/tests/coldlion_prepack_prod_detail_landing_contracts.sql. The execute creates, alters and drops no other object and writes no row."
+    }
+  ]
+}

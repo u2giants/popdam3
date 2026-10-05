@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 3234,
+  "outcome": "ready-for-merge",
+  "pr": 3883,
+  "migration_versions": [
+    "20261005044103"
+  ],
+  "contract_ref": "refs/db-contracts/3234/12",
+  "contract_sha256": "c29e828a4a22fe6b960932270b99cf3c42077fbb8f895cd6d6c44ba9f3f19392",
+  "base_sha": "7a9f51a41d678f4e907b21c57c38657a6edba294",
+  "head_sha": "546b09a5bb1a9c916d254af8a93361368c9cb417",
+  "files_changed": [
+    ".github/live-proofs/3234.sql",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/production-verification-sidecars/20261005044103.json",
+    "supabase/migrations/20261005044103_coldlion_prod_detail_drop_line_seq_unique_prod.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table coldlion.prod_detail"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards passed after supersession to 20261005044103: Guard B confirms no backdating against main's newest 20261005025111."
+    },
+    {
+      "command": "python3 scripts/check_production_verification_sidecars.py --repo . --scan-version 20261005044103",
+      "exit_code": 0,
+      "evidence": "Sidecar present for 20261005044103; markers covered; status OK."
+    }
+  ],
+  "assumptions_resolved": [
+    "catalog fallback plus named drop removes any UNIQUE on the three columns",
+    "sidecar asserts zero UNIQUE constraints on prod_detail after apply"
+  ],
+  "stop_conditions_hit": []
+}
