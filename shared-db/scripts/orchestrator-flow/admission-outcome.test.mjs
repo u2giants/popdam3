@@ -778,6 +778,45 @@ test('completion re-derives merge, application, generated types, and live assert
   assert.equal(findCompletionRecord(comments).outcome,'live_verified')
 })
 
+test('the completion CLI retains every proof check through a verified merged-PR binding',()=>{
+  const previous=process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING
+  process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING='7:41'
+  const head='c'.repeat(40),version='20260911120000'
+  try{
+    for(const failedProof of [null,'verifyProductionApply','verifyLiveAssertion']){
+      const {io,comments}=completionFixture()
+      const getPr=io.getPr
+      Object.assign(io,{
+        getPr:()=>({...getPr(),number:7,changed_files:3,head:{sha:head,ref:'codex/issue-41-outcome'},body:'Work issue #41'}),
+        closingIssuesForPr:()=>[],
+        getPrFiles:()=>['.agent/contract.json','.agent/completion.json','supabase/migrations/20260911120000_example.sql'].map(filename=>({filename,status:'added'})),
+        getFileAt:()=>JSON.stringify({work_issue:41,pr:7,migration_versions:[version]}),
+      })
+      const checks=[]
+      for(const name of ['prStructuralObjects','mergeCommitInMain','verifyProductionApply','applicationCommitInDefaultBranch','verifyLiveAssertion']){
+        const check=io[name]
+        io[name]=(...args)=>{checks.push(name);return name===failedProof?false:check(...args)}
+      }
+      const mutex=serializedIo(io),readRef=mutex.readRef
+      mutex.readRef=ref=>ref===`refs/db-claims/${version}`?'d'.repeat(40):readRef(ref)
+      const errors=[],oldError=console.error,oldLog=console.log
+      console.error=line=>errors.push(String(line));console.log=()=>{}
+      let result
+      try{result=managerMain(['--complete-outcome','41','--owner','test','--evidence',`https://github.com/${THIS_REPO}/issues/41#issuecomment-9`],new Date('2026-09-11T02:00:00Z'),mutex)}finally{console.error=oldError;console.log=oldLog}
+      assert.equal(result,failedProof?2:0,errors.join('\n'))
+      assert.equal(io.getIssue().state,failedProof?'open':'closed')
+      assert.equal(outcomeHistory(comments).state,failedProof?'production_applied':'live_verified')
+      assert.ok(checks.includes('verifyProductionApply'))
+      if(failedProof!=='verifyProductionApply')assert.ok(checks.includes('verifyLiveAssertion'))
+      if(!failedProof)assert.deepEqual(checks,['prStructuralObjects','mergeCommitInMain','verifyProductionApply','applicationCommitInDefaultBranch','verifyLiveAssertion'])
+      else assert.equal(findCompletionRecord(comments),null)
+    }
+  }finally{
+    if(previous===undefined)delete process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING
+    else process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING=previous
+  }
+})
+
 test('completion resumes after the live event when a later write lost its response',()=>{
   const {io,comments}=completionFixture()
   const normal=io.commentIssue;let failed=false

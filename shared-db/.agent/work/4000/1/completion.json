@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 4000,
+  "outcome": "ready-for-merge",
+  "pr": 4001,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4000/1",
+  "contract_sha256": "d13afefa4d0bca2a003b96c40611293f5bb1c03a78688650f9756b5f6b950ef4",
+  "base_sha": "e61e8e7fd3eb05aebd53d6262bf9279fdd7da0b3",
+  "head_sha": "62d66ebb24ab51983414260ddd76d49bf7075398",
+  "files_changed": [
+    ".agent/work/4000/1/completion.json",
+    ".agent/work/4000/1/contract.json",
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/merged-pr-issue-binding.test.mjs scripts/orchestrator-flow/admission-outcome.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/run-governed-review.test.mjs scripts/record-review-verdict.test.mjs",
+      "exit_code": 0,
+      "evidence": "976 passed, zero failed, one skipped at updated implementation; original CLI regression reproduced missing getIssue before repair; negative production/live proof cases remain closed"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors"
+    },
+    {
+      "command": "node --test scripts/check-repository-identity-conformance.test.mjs scripts/check-github-transport-conformance.test.mjs",
+      "exit_code": 0,
+      "evidence": "15 passed, zero failed; new test uses resolved repository identity without expanding any conformance exception"
+    }
+  ],
+  "assumptions_resolved": [
+    "Verified merged source binding and every completion proof remain mandatory",
+    "Adapter retains inherited behavior and copied own methods",
+    "Only this evidence pair follows implementation head"
+  ],
+  "stop_conditions_hit": []
+}

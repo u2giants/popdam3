@@ -153,7 +153,9 @@ export function withMergedPrIssueBinding(io, value, log = (line)=>console.error(
   const binding=parseMergedPrIssueBinding(value)
   const base=io.closingIssuesForPr.bind(io)
   let verified=null
-  const bound=Object.create(io)
+  // Command-specific adapters spread this interface; retain its own methods as
+  // well as inherited behavior so every completion proof remains callable.
+  const bound=Object.assign(Object.create(io),io)
   const apply=(linked)=>{
     if(linked.length){
       if(linked.length!==1||Number(linked[0]?.number)!==binding.issue)throw new LaneError(`merged PR issue binding refused: pull request #${binding.pr} already closes ${linked.map((item)=>`#${item?.number}`).join(',')}`)
