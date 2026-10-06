@@ -71,7 +71,7 @@ test('every documents-only decision that can waive a safeguard uses protected po
   const merge = readFileSync(fileURLToPath(new URL('../.github/workflows/guarded-migration-merge.yml', import.meta.url)), 'utf8').replace(/\r\n/g, '\n')
   assert.match(agent, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \|\| steps\.queue\.outputs\.pr_base_sha \}\}/)
   // The exemption is decided on merge_group too, after the queued PR is resolved.
-  assert.match(agent, /id: documents_only\n        if: github\.event_name == 'pull_request' \|\| github\.event_name == 'merge_group'/)
+  assert.match(agent, /id: documents_only\n        if: github\.event_name == 'merge_group' \|\| github\.event_name == 'workflow_dispatch'/)
   assert.ok(agent.indexOf('id: queue') < agent.indexOf('id: documents_only'))
   assert.match(agent, /node trusted-policy\/scripts\/check-documents-only-pull-request\.mjs/)
   assert.match(agent, /steps\.documents_only\.outputs\.value/)

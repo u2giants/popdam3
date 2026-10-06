@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "generation": 306,
+  "work_issue": 3536,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Remove redundant pull-request contract job while preserving exact PR manual replay, queue validation and offline tests.",
+  "base_sha": "cb94f985581b00dfe62deaf414a483bbe0f5e6bf",
+  "dispatcher": "Codex coordinator authorized complete overall plan",
+  "worker": "Codex contract subagent",
+  "branch": "codex/3536-ledger-contract-audit",
+  "worktree": "/tmp/shared-db-3536-ledger-contract",
+  "allowed_paths": [
+    ".github/workflows/pr-guards.yml",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/check-closeout-readiness.test.mjs",
+    ".agent/work/3536/301/contract.json",
+    ".agent/work/3536/301/completion.json",
+    ".agent/work/3536/305/contract.json",
+    ".agent/work/3536/305/completion.json",
+    ".agent/work/3536/306/contract.json",
+    ".agent/work/3536/306/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/pr-guards.yml",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/check-closeout-readiness.test.mjs",
+    ".agent/work/3536/301/contract.json",
+    ".agent/work/3536/301/completion.json",
+    ".agent/work/3536/305/contract.json",
+    ".agent/work/3536/305/completion.json",
+    ".agent/work/3536/306/contract.json",
+    ".agent/work/3536/306/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database writes or production actions",
+    "Do not change other PR Guards jobs",
+    "No branch-protection mutation"
+  ],
+  "required_checks": [
+    "node --test scripts/check-merge-queue-workflows.test.mjs scripts/check-closeout-readiness.test.mjs"
+  ],
+  "assumptions": [
+    "Agent work contract is not currently a protected required status",
+    "Manual replay must bind current exact PR base and head"
+  ],
+  "stop_conditions": [
+    "Stop on unreadable PR identity or lost contract capability"
+  ],
+  "evidence_parent": {
+    "work_issue": 3536,
+    "generation": 305,
+    "contract_sha256": "4cb10db2387f7fa26e7ffc188b000ae6746e0b209c851a753ad765b6f2251e5c"
+  }
+}
