@@ -38,6 +38,6 @@
   "not_laned": [
     { "context": "SQL migration guards", "workflow": "shared-supabase-migrations.yml", "reason": "Owned by parallel branch claude/2729-reroute-recovery; laning it here would collide. Needs Supabase CLI tooling review before arm64 lanes qualify." },
     { "context": "Cross-PR object collision, Domain ownership, Intake pointer guard, Handoff contract, Migration author lease, Migration guarded merge authorization, Cancelled work guard", "workflow": "various", "reason": "Required but short single-step guards; not in this step's queue-sensitive scope. They can be added to this registry later with the same lane contract." },
-    { "context": "Orchestrator marker guard, Agent work contract", "workflow": "orchestrator-marker-guard.yml, agent-work-contract.yml", "reason": "Advisory since the 2026-09-28 owner ruling (docs/agents/owner-rulings.md 0.5): still run and report, no longer required." }
+    { "context": "Agent work contract", "workflow": "agent-work-contract.yml", "reason": "The orchestrator marker guard was retired with the role (#3874). Advisory since the 2026-09-28 owner ruling (docs/agents/owner-rulings.md 0.5): still run and report, no longer required." }
   ]
 }

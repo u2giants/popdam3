@@ -26,7 +26,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assertUnambiguousClaimTitle, claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewerCapacityReport, reviewLeaseAgeHours, activityFingerprintForLease, probeSilentReviewer, reclaimSilentReviewer, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, assertDurableReviewApproval, buildDynamicQueues, claimBody, closedClaimAuthoredOnMain, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverExpiredClaimFromPr, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, releaseFailedReviewer, replaceFailedReviewer, failedReviewerReleaseCommand, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, doctorTimeoutFailingChecks, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, REVIEWER_PREFLIGHT_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, excludeReviewerForPr, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, reinstateReviewerExclusion, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, reviewerEmitsGovernedVerdict, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, readOrchestratorResolution, orchestratorEngineFromResolution, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, markLeaseReadFailure, isLeaseReadFailure, REVIEW_TARGET_SUPERSEDED, reapAbandonedReviewLeases, legacyLeaseTerminalReason, isCommandSizeFailure, archiveOldReviewVerdicts, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, reviewerStartWatchLeases, RETURNED_COPY_MARKER, returnedCopyProvenance, REPO } from './manage-migration-author-lanes.mjs'
+import { assertUnambiguousClaimTitle, claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewerCapacityReport, reviewLeaseAgeHours, activityFingerprintForLease, probeSilentReviewer, reclaimSilentReviewer, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, assertDurableReviewApproval, buildDynamicQueues, claimBody, closedClaimAuthoredOnMain, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverExpiredClaimFromPr, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, releaseFailedReviewer, replaceFailedReviewer, failedReviewerReleaseCommand, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, doctorTimeoutFailingChecks, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, REVIEWER_PREFLIGHT_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, excludeReviewerForPr, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, reinstateReviewerExclusion, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, reviewerEmitsGovernedVerdict, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, markLeaseReadFailure, isLeaseReadFailure, REVIEW_TARGET_SUPERSEDED, reapAbandonedReviewLeases, legacyLeaseTerminalReason, isCommandSizeFailure, archiveOldReviewVerdicts, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, reviewerStartWatchLeases, RETURNED_COPY_MARKER, returnedCopyProvenance, REPO } from './manage-migration-author-lanes.mjs'
 import { readDatabasePreviewClassificationFile, withDatabasePreviewClassificationFile, databasePreviewAdmission, buildDatabasePreviewFileSnapshot } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
@@ -1564,53 +1564,7 @@ test('the roster records, per reviewer, whether its wrapper reads the repository
 })
 
 // ---------------------------------------------------------------------------
-// Issue #2127: the marker resolver exits non-zero for answers it is CERTAIN of.
-// `--resolve` exits 3 for `state: none` and 1 for ambiguous/invalid/unsafe, so a
-// bare try/catch around execFileSync turned a correct answer into "could not be
-// resolved" and froze reviewer assignment repository-wide with zero markers open.
-//
-// `exitingResolver` reproduces the exact spawn failure shape execFileSync throws:
-// a non-zero status with the JSON still on `error.stdout`.
-const exitingResolver=(stdout,status)=>()=>{const error=new Error(`Command failed: node scripts/check-orchestrator-marker.mjs --resolve --json`);error.status=status;error.stdout=stdout;throw error}
-const NONE_JSON=JSON.stringify({state:'none',routing:null,message:'NO ACTIVE ORCHESTRATOR: zero open markers.'})
-const AMBIGUOUS_JSON=JSON.stringify({state:'ambiguous',routing:null,message:'AMBIGUOUS and UNSAFE: 2 open markers (#10, #11).'})
-
-test('zero open markers is an ANSWER, not a resolver failure (#2127)',()=>{
-  const resolved=readOrchestratorResolution(exitingResolver(NONE_JSON,3))
-  assert.equal(resolved.state,'none')
-  // The whole point of the fix: `state: none` excludes nothing, so it must not
-  // refuse, and it must never be described as an unresolvable/unreadable engine.
-  assert.equal(orchestratorEngineFromResolution(resolved),null)
-  assert.deepEqual(reviewersForOrchestrator(null).map((row)=>row.name),ACTIVE_REVIEWERS.map((row)=>row.name))
-})
-
-test('a genuinely broken resolver is still refused, and named as a run failure (#2127)',()=>{
-  // Nothing parseable on stdout -- a crash, a missing file, exit 2 UNKNOWN.
-  assert.throws(()=>readOrchestratorResolution(exitingResolver('',2)),(error)=>{
-    assert.ok(error instanceof LaneError)
-    assert.match(error.message,/resolver could not be run/)
-    return true
-  })
-  assert.throws(()=>readOrchestratorResolution(()=>{throw Object.assign(new Error('spawn ENOENT'),{stdout:undefined})}),/resolver could not be run/)
-  // Output that is present but not JSON is a fault too, and says so distinctly.
-  assert.throws(()=>readOrchestratorResolution(exitingResolver('<html>502 Bad Gateway</html>',1)),/resolver produced unreadable output/)
-  assert.throws(()=>readOrchestratorResolution(()=>JSON.stringify({routing:null})),/returned no state/)
-})
-
-test('two open markers still fail closed, and the refusal names ambiguity (#2127)',()=>{
-  const resolved=readOrchestratorResolution(exitingResolver(AMBIGUOUS_JSON,1))
-  assert.equal(resolved.state,'ambiguous')
-  assert.throws(()=>orchestratorEngineFromResolution(resolved),(error)=>{
-    assert.ok(error instanceof LaneError)
-    assert.match(error.message,/marker is ambiguous/)
-    assert.doesNotMatch(error.message,/could not be resolved/)
-    return true
-  })
-  for(const state of ['invalid','unsafe'])assert.throws(()=>orchestratorEngineFromResolution({state,routing:null}),new RegExp(`marker is ${state}`))
-  // A declared marker still excludes its own engine, unchanged.
-  assert.equal(orchestratorEngineFromResolution({state:'declared',routing:{engine:'Claude'}}),'claude')
-  assert.throws(()=>orchestratorEngineFromResolution({state:'declared',routing:{}}),/declares no engine/)
-})
+// Issue #2127's marker-resolver tests were retired with the orchestrator marker (#3874).
 
 test('with no orchestrator running the full rotation is drawable (#2127)',()=>{
   const io=reviewIo();io.resolveOrchestratorEngine=()=> null
@@ -1661,13 +1615,8 @@ test('a GLM-engine (ZCode) orchestrator never draws the glm reviewers (#3232)',(
     assert.ok(!drawable.some((row)=>row.name==='glm-5.2'),`glm-5.2 must not be drawable for a ${engine} orchestrator`)
     assert.deepEqual(drawable.map((row)=>row.name),REVIEWERS.filter((row)=>row.provider!=='glm').map((row)=>row.name))
   }
-  // The declared-marker path chains the same way: a marker declaring
-  // `engine: zcode` resolves to 'zcode', which excludes glm through the family.
-  const resolved=orchestratorEngineFromResolution({state:'declared',routing:{engine:'Zcode'}})
-  assert.equal(resolved,'zcode')
-  assert.ok(!reviewersForOrchestrator(resolved,REVIEWERS).some((row)=>row.provider==='glm'))
-  // A marker declaring no engine still refuses reviewer assignment, unchanged.
-  assert.throws(()=>orchestratorEngineFromResolution({state:'declared',routing:{}}),/declares no engine/)
+  // The declared author engine chains the same way: zcode excludes glm through the family (#3874).
+  assert.ok(!reviewersForOrchestrator('zcode',REVIEWERS).some((row)=>row.provider==='glm'))
 })
 
 test('a ZCode orchestrator walks a full draw cycle without ever drawing glm (#3232)',()=>{

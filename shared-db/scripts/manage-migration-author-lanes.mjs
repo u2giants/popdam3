@@ -20,6 +20,7 @@ import { MERGE_SELF_CONTEXT } from './lib/merge-self-context.mjs'
 import { selectPreviewArtifacts } from './orchestrator-flow/preview-artifact-selection.mjs'
 import { currentRepository, isThisRepositoryOrHistorical, isTrustedOperatorComment, repositoryCommentApiPath } from './lib/repository-identity.mjs'
 import { readRequiredCheckContexts } from './lib/required-check-readback.mjs'
+import { readSessionId, resolveSessionAuthority, sessionAuthorityRefusal } from './lib/session-authority.mjs'
 import { authorityReadEnv } from './lib/authority-token-read.mjs'
 
 // `Migration guarded merge authorization` is posted by the guarded merge ITSELF,
@@ -803,48 +804,9 @@ export function allocatableReviewers(io){
   }
 }
 
-// ---------------------------------------------------------------------------
-// Reading the orchestrator marker resolver (issue #2127)
-//
-// `check-orchestrator-marker.mjs --resolve --json` EXITS NON-ZERO FOR ANSWERS IT
-// IS CERTAIN OF: 3 for `state: none`, 1 for `ambiguous` / `invalid` / `unsafe`.
-// Only exit 2 (Unknown) and a crash mean "the question could not be answered",
-// and those print nothing parseable on stdout.
-//
-// This used to be one `execFileSync` inside a `try`, so ANY non-zero exit was
-// reported as `live orchestrator engine could not be resolved (Command failed:
-// ...)`. With zero open markers that froze reviewer assignment repository-wide
-// AND blamed a broken resolver for a resolver that had answered correctly.
-// Read stdout on the failure path FIRST; decide from `state`, never from status.
-export function readOrchestratorResolution(run){
-  let raw
-  try{raw=run()}
-  catch(error){
-    raw=error?.stdout??''
-    if(!String(raw).trim())throw new LaneError(`live orchestrator marker resolver could not be run (${error?.message??'no output'})`)
-  }
-  let parsed
-  try{parsed=JSON.parse(raw)}
-  catch(error){throw new LaneError(`live orchestrator marker resolver produced unreadable output (${error.message}); reviewer assignment refused`)}
-  if(!parsed||typeof parsed.state!=='string')throw new LaneError('live orchestrator marker resolver returned no state; reviewer assignment refused')
-  return parsed
-}
-
-// declared -> the engine to exclude. none -> null, exclude nothing.
-// ambiguous / invalid / unsafe -> refuse, and say which one it is.
-export function orchestratorEngineFromResolution(resolved){
-  if(resolved.state==='declared'){
-    const engine=resolved.routing?.engine
-    if(!engine)throw new LaneError('live orchestrator marker declares no engine; reviewer assignment refused')
-    return String(engine).toLowerCase()
-  }
-  if(resolved.state==='none')return null
-  throw new LaneError(`live orchestrator marker is ${resolved.state}; reviewer assignment refused until the marker state is resolved`)
-}
-
-function runOrchestratorResolver(){
-  return execFileSync(process.execPath,['scripts/check-orchestrator-marker.mjs','--resolve','--json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']})
-}
+// The orchestrator marker resolver (issue #2127) was retired with the role
+// (issue #3874); session authority lives in lib/session-authority.mjs.
+function readSessionIdOrUnknown(){const id=readSessionId();return typeof id==='string'?id:'unknown-session'}
 export const EXCLUSIVE_REFS = Object.freeze({
   preview: 'refs/db-coordination/preview',
   'preview-recovery': 'refs/db-coordination/preview',
@@ -3190,18 +3152,17 @@ export function flowCapacityFacts(claim,issue,now,io,queuedBehindFor=()=>null){
 function githubFlowAdapter(io,claimNumber=null,admissionOptions=null){
   const payload=(sha)=>{const message=io.getCommit(sha)?.message??'';const match=/^db-preview-(?:ready|outcome) ([\s\S]+)$/.exec(message);if(!match)throw new LaneError('preview coordination ref does not point to a recognized immutable payload');return JSON.parse(match[1])}
   return {
-    // Same defect as `resolveOrchestratorEngine` (issue #2127): every non-zero
-    // exit was reported as "could not be resolved", so a correct `state: none`
-    // answer was misreported as a broken resolver. A parseable answer of ANY
-    // state is an answer -- `live` is false for all of them except `declared`,
-    // which is what the mutation guards already require -- and only a resolver
-    // that produced nothing readable still throws.
+    // Claim-first session authority (issue #3874) replaces the retired
+    // sole-orchestrator marker. Same shape ({live, task, calling_task, state}),
+    // fail closed: an undeclared SHARED_DB_SESSION_ID, or a named claim whose
+    // lease owner is not this session, is never live.
     resolveMarker(){
-      const resolved=readOrchestratorResolution(()=>runOrchestratorResolver())
-      const calling=process.env.ORCHESTRATOR_ROUTE_ID??''
-      return {live:resolved.state==='declared',task:resolved.routing?.routeId??null,calling_task:calling,state:resolved.state}
+      if(claimNumber===null||claimNumber===undefined)return resolveSessionAuthority()
+      let owner=null
+      try{owner=parseAuthorLease(io.getIssue(Number(claimNumber))?.body??'').owner}catch{owner=null}
+      return resolveSessionAuthority({claimOwner:owner})
     },
-    actor:()=>process.env.ORCHESTRATOR_ROUTE_ID??'unknown-orchestrator',now:()=>new Date().toISOString(),
+    actor:()=>readSessionIdOrUnknown(),now:()=>new Date().toISOString(),
     appendEvent(event){io.commentIssue(event.work_issue,formatEventComment(event))},
     createRef(ref,digest,record){const kind=ref.startsWith('refs/db-preview-ready-outcomes/')?'outcome':'ready',sha=io.makeOwnerCommit(`db-preview-${kind} ${JSON.stringify({digest,record})}`);return io.createRef(ref,sha)},
     readRef(ref){const sha=io.refreshRef?.(ref)??io.readRef(ref);return sha?payload(sha):null},
@@ -3349,7 +3310,7 @@ export function terminalizeHistoricalPreviewReady({readyId,issue,runId,artifactI
   if(!/^[0-9a-f]{64}$/i.test(String(readyId??''))||!/^\d+$/.test(String(issue??''))||!/^\d+$/.test(String(runId??''))||!/^\d+$/.test(String(artifactId??''))||!/^sha256:[0-9a-f]{64}$/i.test(String(artifactDigest??''))||!/^[0-9a-f]{64}$/i.test(String(manifestDigest??'')))throw new LaneError('historical preview terminalization requires exact ready id, issue, run id, artifact id, artifact digest, and manifest digest')
   if(typeof io.orchestratorFlowAdapter!=='function'||typeof io.previewApplyRun!=='function')throw new LaneError('historical preview terminalization runtime adapter is unavailable')
   const flow=io.orchestratorFlowAdapter(),marker=flow.resolveMarker?.()
-  if(!marker?.live||marker.calling_task!==marker.task)throw new LaneError('matching live sole-orchestrator marker is required')
+  if(!marker?.live||marker.calling_task!==marker.task)throw new LaneError(sessionAuthorityRefusal(marker))
   const readyRef=`refs/db-preview-ready/${readyId}`,outcomeRef=`refs/db-preview-ready-outcomes/${readyId}`,stored=flow.readRef(readyRef),record=stored?.record
   let normalized;try{normalized=readyRecord(record??{})}catch{throw new LaneError('live historical preview-ready record does not exactly match the requested immutable identity')}
   if(stored?.digest!==sha256(canonicalJson(record??{}))||normalized.ready_id!==readyId||record?.ready_id!==readyId||Number(record?.issue)!==Number(issue)||record?.route!=='historical_rebind'||record?.manifest_digest!==manifestDigest||sha256(canonicalJson(record?.manifest??{}))!==manifestDigest)throw new LaneError('live historical preview-ready record does not exactly match the requested immutable identity')
@@ -6733,7 +6694,7 @@ export function transferClaimAuthor(options,now=new Date(),io=githubIo){
     if(!audit)throw new LaneError('exact abandonment audit proof is absent')
     if(!adopted){const observed=observedWorktreeState(request.oldWorktree,io);if(observed!==request.oldWorktreeState&&!(observed==='absent'&&request.oldWorktreeState==='remote'))throw new LaneError('old worktree state differs from explicit declaration')}
     const marker=io.orchestratorFlowAdapter().resolveMarker()
-    if(!marker?.live||marker.task!==request.authorizationChatId)throw new LaneError('operator adoption chat ID does not match live sole-orchestrator marker')
+    if(!marker?.live||marker.task!==request.authorizationChatId)throw new LaneError(`operator adoption chat ID does not match this declared session${marker?.live?'':`; ${sessionAuthorityRefusal(marker)}`}`)
     if(request.oldWorktreeState!=='clean')requireDereferenceableRecoveryArtifact(request.recoveryArtifact,io)
     const pr=io.getPr(request.pr)
     if(pr?.state!=='open'||pr.head?.sha!==request.headSha||pr.head?.ref!==request.branch)throw new LaneError('open PR head or branch changed')
@@ -8406,7 +8367,7 @@ export function assertAbandonmentEvidence(options, lease, blocker, io) {
   // it here would let a stale audit decide what the disk currently looks like.
   if(!options.worktreeState)throw new LaneError('acting on abandonment evidence requires an explicit --worktree-state')
   const marker=typeof io.orchestratorFlowAdapter==='function'?io.orchestratorFlowAdapter().resolveMarker():null
-  if(!marker?.live||marker.calling_task!==marker.task)throw new LaneError('acting on abandonment evidence requires a matching live sole-orchestrator marker')
+  if(!marker?.live||marker.calling_task!==marker.task)throw new LaneError(`acting on abandonment evidence: ${sessionAuthorityRefusal(marker)}`)
   return audit
 }
 

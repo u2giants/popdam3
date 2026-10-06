@@ -6,7 +6,7 @@ import path from 'node:path'
 import { coordinationEvent, formatEventComment } from './db-coordination-events.mjs'
 import { expectedOperatorAssociation } from './lib/repository-identity.mjs'
 import { buildOrchestratorSnapshot, verifyOrchestratorSnapshot } from './orchestrator-flow/orchestrator-snapshot.mjs'
-import { claimTitleIssues, fileEventStore, gatherLiveInput, gh, main, outcomeEventsFromComments, readyRequestCandidates, runSnapshotCycle, stalledOutcomes, stalledRequests } from './orchestrator-snapshot.mjs'
+import { claimTitleIssues, defaultIo, fileEventStore, gatherLiveInput, gh, main, outcomeEventsFromComments, readyRequestCandidates, runSnapshotCycle, stalledOutcomes, stalledRequests } from './orchestrator-snapshot.mjs'
 
 const NOW = '2026-09-15T12:00:00.000Z'
 const minutesAgo = (m) => new Date(Date.parse(NOW) - m * 60000).toISOString()
@@ -239,9 +239,16 @@ test('a corrupt last-report.json re-emits exactly once and is replaced atomicall
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
-test('refuses without the flag or a routable marker', () => {
+test('refuses without the flag', () => {
   const errors = []
   assert.equal(main([], { io: fakeIo(), stdout: () => {}, stderr: (l) => errors.push(l) }), 2)
-  assert.equal(main(['--orchestrator-snapshot'], { io: { ...fakeIo(), resolveMarker: () => ({ state: 'none', marker: null }) }, stdout: () => {}, stderr: (l) => errors.push(l) }), 2)
-  assert.match(errors[1], /REFUSED: no open routable orchestrator marker/)
+})
+
+test('#3874 with the orchestrator retired the CLI still reports, with marker: null', () => {
+  const out = []
+  const io = { ...fakeIo(), resolveMarker: defaultIo.resolveMarker }
+  assert.equal(main(['--orchestrator-snapshot'], { io, stdout: (l) => out.push(l), stderr: () => {} }), 0)
+  assert.equal(JSON.parse(out[0]).status, 'no-orchestrator')
+  const errors = []
+  assert.equal(main(['--orchestrator-snapshot'], { io: { ...fakeIo(), resolveMarker: () => { throw new Error('gh failed') } }, stdout: () => {}, stderr: (l) => errors.push(l) }), 2, 'a real read failure still refuses')
 })

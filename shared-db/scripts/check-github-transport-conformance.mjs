@@ -128,7 +128,7 @@ export function isWorkflowWrite(line) {
 /**
  * Heredoc BODIES are data, not commands.
  *
- * orchestrator-marker-guard.yml writes an alarm issue whose body tells a human
+ * The (now retired, #3874) orchestrator-marker-guard.yml wrote an alarm issue whose body tells a human
  * "check by hand: gh api …". That text is never executed. Flagging it would
  * force a maintainer either to mangle a genuinely useful instruction or to
  * switch the guard off, and a guard that cries wolf on prose is a guard people

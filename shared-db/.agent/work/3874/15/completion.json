@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "work_issue": 3874,
+  "outcome": "ready-for-merge",
+  "pr": 3930,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3874/15",
+  "contract_sha256": "7d9696c608f4ef1b547584f85b89edcdb271d2d05fa3ad77b71f5e3dfb241b44",
+  "base_sha": "a57774586a5ef16f249d3bc9c0fc6e480c1d8a0a",
+  "head_sha": "aab09102c87601742dbc51b127f4b5c4baab960f",
+  "files_changed": [
+    ".github/workflows/migration-ledger-drift.yml",
+    ".github/workflows/orchestrator-marker-guard.yml",
+    ".github/workflows/pr-guards.yml",
+    "AGENTS.md",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/throughput-dispositions/README.md",
+    "docs/verification/throughput-dispositions/scripts~check-orchestrator-marker.mjs.json",
+    "docs/verification/throughput-retired-identity-sites-3874.json",
+    "scripts/capture-repository-transfer-baseline.mjs",
+    "scripts/check-github-transport-conformance.mjs",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/check-orchestrator-marker.mjs",
+    "scripts/check-orchestrator-marker.test.mjs",
+    "scripts/check-repository-identity-conformance.mjs",
+    "scripts/claim-author-transfer.test.mjs",
+    "scripts/lib/orchestrator-admission.mjs",
+    "scripts/lib/orchestrator-admission.test.mjs",
+    "scripts/lib/orchestrator-routing.mjs",
+    "scripts/lib/session-authority.mjs",
+    "scripts/lib/session-authority.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/reconcile.mjs",
+    "scripts/orchestrator-flow/reconcile.test.mjs",
+    "scripts/orchestrator-flow/runner-lanes.json",
+    "scripts/orchestrator-snapshot.mjs",
+    "scripts/orchestrator-snapshot.test.mjs",
+    "scripts/production_business_risk_gate.py",
+    "scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "0 fail"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/*.test.mjs",
+      "exit_code": 0,
+      "evidence": "0 fail"
+    },
+    {
+      "command": "node --test scripts/lib/session-authority.test.mjs",
+      "exit_code": 0,
+      "evidence": "0 fail"
+    },
+    {
+      "command": "node --test scripts/orchestrator-snapshot.test.mjs",
+      "exit_code": 0,
+      "evidence": "0 fail"
+    },
+    {
+      "command": "node --test scripts/claim-author-transfer.test.mjs",
+      "exit_code": 0,
+      "evidence": "0 fail"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 15 approved earlier; refreshed from main by merge so the guarded merge sees the current tip; checks re-run.",
+    "Dated required-checks mirror left as recorded; retired context exempted in the emitter test and disclosed."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Live proof card: #3874."
+}

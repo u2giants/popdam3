@@ -29,7 +29,6 @@
  */
 
 import { createHash } from 'node:crypto'
-import { execFileSync } from 'node:child_process'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -365,22 +364,9 @@ export function captureOperational(gh, source, markerRunner) {
   }
 }
 
-/** Resolve the orchestrator marker through the sanctioned script. */
-export function defaultMarkerRunner(repo) {
-  const script = fileURLToPath(new URL('./check-orchestrator-marker.mjs', import.meta.url))
-  let stdout
-  let exitCode = 0
-  try {
-    stdout = execFileSync(process.execPath, [script, '--resolve', '--repo', repo, '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
-  } catch (error) {
-    stdout = String(error.stdout ?? '')
-    exitCode = error.status ?? 2
-  }
-  let parsed = null
-  try { parsed = JSON.parse(stdout) } catch { parsed = null }
-  if (exitCode === 3) return { state: 'none', marker: null, exitCode }
-  if (!parsed) return { state: 'unknown', marker: null, exitCode }
-  return { state: exitCode === 0 ? String(parsed.state ?? 'declared') : `refused-exit-${exitCode}`, marker: parsed.marker ?? null, exitCode }
+/** The orchestrator marker is retired (issue #3874): there is never one to record. */
+export function defaultMarkerRunner() {
+  return { state: 'none', marker: null, exitCode: 3 }
 }
 
 // ---------------------------------------------------------------------------

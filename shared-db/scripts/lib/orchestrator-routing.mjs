@@ -38,7 +38,8 @@
  * turned into the other. That collapse is the exact defect B1 was built for.
  */
 
-import { AUTHORIZATION_FIELD } from './orchestrator-admission.mjs'
+// Formerly imported from orchestrator-admission.mjs (retired with the role, #3874).
+export const AUTHORIZATION_FIELD = 'authorization'
 
 /**
  * The fixed session identifier for the sole shared-db orchestrator.

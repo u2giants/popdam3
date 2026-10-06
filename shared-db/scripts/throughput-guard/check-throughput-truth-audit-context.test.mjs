@@ -88,7 +88,11 @@ test('context migration preserves every historical identity hash verdict and rea
   const historicalMgRetirements = JSON.parse(fs.readFileSync(path.join(root, 'docs/verification/throughput-retired-identity-sites-3605.json'), 'utf8'));
   assert.equal(historicalMgRetirements.schema_version, 1);
   assert.equal(historicalMgRetirements.retired_by_issue, 3605);
-  assertHistoricalDispositions(historical, current, [...archive.sites, ...authorityRetirements.sites, ...historicalMgRetirements.sites]);
+  // #3874: the orchestrator marker resolver and admission module were deleted with the role.
+  const orchestratorRetirements = JSON.parse(fs.readFileSync(path.join(root, 'docs/verification/throughput-retired-identity-sites-3874.json'), 'utf8'));
+  assert.equal(orchestratorRetirements.schema_version, 1);
+  assert.equal(orchestratorRetirements.retired_by_issue, 3874);
+  assertHistoricalDispositions(historical, current, [...archive.sites, ...authorityRetirements.sites, ...historicalMgRetirements.sites, ...orchestratorRetirements.sites]);
 });
 
 test('historical identity retirement refuses unexplained loss and changed verdicts', () => {

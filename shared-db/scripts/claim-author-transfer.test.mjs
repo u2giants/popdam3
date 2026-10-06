@@ -69,7 +69,7 @@ test('takeover refuses stale evidence, missing authorization, collisions, and un
     [(io)=>{io.getPr=()=>({state:'open',head:{sha:'b'.repeat(40),ref:args.branch}})},/head or branch changed/],
     [(io)=>{io.prSources=()=>[{label:'PR #3391',branch:args.branch,objects:['table other.x'],versions:[VERSION]}]},/outside the claim/],
     [(io)=>{io.localClean=()=>false},/successor worktree/],
-    [(io)=>{io.orchestratorFlowAdapter=()=>({resolveMarker:()=>({live:false})})},/live sole-orchestrator marker/],
+    [(io)=>{io.orchestratorFlowAdapter=()=>({resolveMarker:()=>({live:false})})},/acting on abandonment evidence: claim-first session authority is required/],
     [(io)=>{io.openClaims=()=>[io.getIssue(3378),{number:1,body:claimBody({version:'20260923181755',objects:['table plm.art_piece_attachment'],owner:'other',branch:'other',worktree:'/tmp/other',expiresAt:new Date('2026-09-30T00:00:00Z')})}]},/object collision/],
     [(io)=>{io.refs.delete('refs/db-claims/'+VERSION)},/permanent version reservation/],
     [(io)=>{io.refs.set('refs/db-claims/'+VERSION,'not-a-commit')},/permanent version reservation/],

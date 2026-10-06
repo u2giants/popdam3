@@ -49,7 +49,7 @@ export function readyRecord(input){
   return {...record,ready_id,mode_sequence:MODE_SEQUENCE[record.route]}
 }
 
-function assertMarker(io){const marker=io.resolveMarker();if(!marker?.live||marker.calling_task!==marker.task)throw new ReconcileError('matching live sole-orchestrator marker is required')}
+function assertMarker(io){const marker=io.resolveMarker();if(!marker?.live||marker.calling_task!==marker.task)throw new ReconcileError(`claim-first session authority is required (${marker?.reason??'not declared'}); declare SHARED_DB_SESSION_ID as this session`)}
 // Ready IDENTITY, with the per-run phase removed. Refs written before mode_sequence
 // existed hash a record without it, so identity is the only comparison under which a
 // pre-change ref and a freshly prepared one for the SAME ready_id agree.

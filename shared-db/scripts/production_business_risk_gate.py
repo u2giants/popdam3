@@ -625,9 +625,10 @@ PREVIEW_PRODUCER_PATHS = (
     # Imported by the historical recovery proof for its bounded rate-limit
     # wait (#3735); it decides whether a failed read is retried.
     "scripts/github_rate_limit.py",
-    # Invoked by the manager before preview preparation to prove the live sole
-    # orchestrator identity. Its result gates whether preparation may proceed.
-    "scripts/check-orchestrator-marker.mjs",
+    # Imported by the manager before preview preparation to prove the declared
+    # claim-first session authority (#3874, replaced the retired orchestrator
+    # marker). Its result gates whether preparation may proceed.
+    "scripts/lib/session-authority.mjs",
     # Imported by the manager for append-only capacity and issue-flow events.
     # A different event vocabulary could forge or suppress the coordination
     # evidence that preview-stage authorization consumes.
@@ -1020,7 +1021,7 @@ PREVIEW_CUSTODY_ONLY_PATHS = frozenset((
     # Decides only whether a failed read is retried after a quota reset
     # (#3735); it never shapes the apply, ledgers or manifest.
     "scripts/github_rate_limit.py",
-    "scripts/check-orchestrator-marker.mjs",
+    "scripts/lib/session-authority.mjs",
     "scripts/db-coordination-events.mjs",
     "scripts/check-dispatch-collision.mjs",
     "scripts/check-pr-object-collisions.mjs",

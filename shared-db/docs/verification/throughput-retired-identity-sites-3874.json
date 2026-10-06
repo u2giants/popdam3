@@ -1,14 +1,24 @@
 {
   "schema_version": 1,
-  "source": "scripts/lib/orchestrator-admission.mjs",
+  "retired_by_issue": 3874,
   "sites": [
+    {
+      "site": "scripts/check-orchestrator-marker.mjs:70",
+      "semantic_key": "scripts/check-orchestrator-marker.mjs:91ab559bc6cf5e51cc5999a63bead7ae42f0701ca76d20ea516f59187538c0a0:context-dc22065048a25e11db8d58b36d270fb9210b5c70a3ff51f6d7f4bcd4289d7c99",
+      "line_sha256": "91ab559bc6cf5e51cc5999a63bead7ae42f0701ca76d20ea516f59187538c0a0",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/check-orchestrator-marker.mjs:91ab559bc6cf5e51cc5999a63bead7ae42f0701ca76d20ea516f59187538c0a0:1",
+      "state": "retired"
+    },
     {
       "site": "scripts/lib/orchestrator-admission.mjs:147",
       "semantic_key": "scripts/lib/orchestrator-admission.mjs:0f06679d47f437f9de9a51e6db390446cbe39075c2e8fa1a038690a0e78fc773:context-1324bf08e91b8e815ff027d31c6b8a6a280490cbbdd85020048515e09e29de8c",
       "line_sha256": "0f06679d47f437f9de9a51e6db390446cbe39075c2e8fa1a038690a0e78fc773",
       "disposition": "excluded",
       "reason": "Issue #2318. This is a refusal message about a missing orchestrator `authorization:` field, not a claim about a missing database object; it reports no throughput or verification state and is outside the truth-audit subject matter.",
-      "legacy_semantic_key": "scripts/lib/orchestrator-admission.mjs:0f06679d47f437f9de9a51e6db390446cbe39075c2e8fa1a038690a0e78fc773:1"
+      "legacy_semantic_key": "scripts/lib/orchestrator-admission.mjs:0f06679d47f437f9de9a51e6db390446cbe39075c2e8fa1a038690a0e78fc773:1",
+      "state": "retired"
     },
     {
       "site": "scripts/lib/orchestrator-admission.mjs:240",
@@ -16,7 +26,8 @@
       "line_sha256": "490dfba463a004c4b2ac1b81705f8d94f40939a4f557f1409d6c2b8632caf8f2",
       "disposition": "excluded",
       "reason": "Issue #2318. This is the grandfathering warning for a marker opened before admission took effect, naming a missing routing-block field; it makes no assertion about a database object being missing or not applied.",
-      "legacy_semantic_key": "scripts/lib/orchestrator-admission.mjs:490dfba463a004c4b2ac1b81705f8d94f40939a4f557f1409d6c2b8632caf8f2:1"
+      "legacy_semantic_key": "scripts/lib/orchestrator-admission.mjs:490dfba463a004c4b2ac1b81705f8d94f40939a4f557f1409d6c2b8632caf8f2:1",
+      "state": "retired"
     }
   ]
 }

@@ -26,6 +26,10 @@ const MIRROR = JSON.parse(readFileSync(new URL('../docs/verification/main-requir
 // scripts/update-required-checks.mjs from the live read-back; it now equals the
 // dated readback artifact below (16 contexts, strict false), so nothing is pending.
 const KNOWN_LIVE_ADDITIONS = []
+// Contexts still present in the dated mirror but no longer live-required and no
+// longer emitted: the orchestrator marker guard was retired with the role (#3874);
+// live branch protection already omitted it (made advisory 2026-09-28).
+const RETIRED_MIRROR_CONTEXTS = new Set(['Orchestrator marker guard'])
 
 // context -> emitter. kind 'check-run': the workflow job named `job` reports
 // the context on whatever commit it runs on, so merge_group coverage means the
@@ -42,7 +46,6 @@ const CONTEXT_MAP = {
   'Intake pointer guard': { workflow: 'pr-guards.yml', kind: 'check-run', job: 'Intake pointer guard' },
   'Migration author lease': { workflow: 'migration-author-lease.yml', kind: 'check-run', job: 'Migration author lease' },
   'Migration guarded merge authorization': { kind: 'commit-status' },
-  'Orchestrator marker guard': { workflow: 'pr-guards.yml', kind: 'check-run', job: 'Orchestrator marker guard' },
   'Promotion contract tests (offline)': { workflow: 'coldlion-promotion-contract-tests.yml', kind: 'check-run', job: 'Promotion contract tests (offline)' },
   'Queue-sensitive checks (aggregate)': { workflow: 'pr-guards.yml', kind: 'check-run', job: 'Queue-sensitive checks (aggregate)' },
   'SQL migration guards': { workflow: 'shared-supabase-migrations.yml', kind: 'check-run', job: 'SQL migration guards' },
@@ -54,7 +57,7 @@ const CONTEXT_MAP = {
 test('every mirrored or known-live required context has a mapped emitter', () => {
   const mirrored = MIRROR.contexts
   assert.ok(Array.isArray(mirrored) && mirrored.length > 0, 'the committed mirror carries no contexts; the required list is unknown')
-  for (const context of [...mirrored, ...KNOWN_LIVE_ADDITIONS]) {
+  for (const context of [...mirrored, ...KNOWN_LIVE_ADDITIONS].filter((name) => !RETIRED_MIRROR_CONTEXTS.has(name))) {
     assert.ok(CONTEXT_MAP[context], `no merge-group-capable emitter is mapped for required context "${context}"`)
   }
 })
