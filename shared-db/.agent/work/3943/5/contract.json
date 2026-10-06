@@ -1,0 +1,25 @@
+{
+  "schema_version": 2, "work_issue": 3943, "generation": 5,
+  "evidence_parent": { "work_issue": 3943, "generation": 4, "contract_sha256": "b8df62338a79d3eeea9f4c5e42733a479616c636d75652a83e0caa87c8273942" },
+  "work_type": "repo-maintenance", "route": "repo-maintenance",
+  "goal": "Distinctness-preserving custody tokens (#3943 recorded residual, 2026-10-05): the positive-position queue-literal redaction token now also carries a 4-hex SHA-256 digest of the literal ('<queue-name:{ordinal}:{digest4}:{skeleton}>'), so only byte-identical literals normalise equal — an in-place rename to the other queue's name (the preview/production collision) refuses instead of normalising equal; rename-tolerance tests inverted to refusal, identical-text and preview-to-production collision tests added.",
+  "base_sha": "60133e2682509f597dff7385e77ced77548bc7cd", "dispatcher": "ZCode chat subagent on edge-dev", "worker": "ZCode chat subagent on edge-dev",
+  "branch": "guard-distinct-tokens", "worktree": "C:/repos/shared-db/.ai/worktrees/guard-distinct-tokens",
+  "allowed_paths": [
+  ".agent/work/3943/5/completion.json",
+  ".agent/work/3943/5/contract.json",
+  "scripts/production_business_risk_gate.py",
+  "scripts/test_production_business_risk_gate.py"
+],
+  "file_writes": [
+  ".agent/work/3943/5/completion.json",
+  ".agent/work/3943/5/contract.json",
+  "scripts/production_business_risk_gate.py",
+  "scripts/test_production_business_risk_gate.py"
+],
+  "db_reads": [], "db_writes": [],
+  "prohibited_actions": ["No migration", "No cron", "No production dispatch", "No secrets", "No branch-protection change"],
+  "required_checks": ["bash scripts/check-sql.sh", "python -m pytest scripts/test_production_business_risk_gate.py -q"],
+  "assumptions": ["Tolerated set now: ONLY byte-identical positive-position literals normalise equal; every value change (rename, collision, placeholder, emptiness) refuses."],
+  "stop_conditions": ["Stop if the gate suite fails", "Stop on guarded-lane refusal", "Stop if review cannot reach two non-GLM APPROVE"]
+}

@@ -1067,12 +1067,16 @@ _WORKFLOW_CUSTODY_REWRITES = (
     # The freshness rule is the freshness script's own business.
     (re.compile(r"(scripts/check-main-tip-freshness\.mjs) --production\b"), r"\1"),
 )
-# Concurrency queue NAMES do not change which statements run. A PR head and its
-# merge commit routinely differ only in a queue rename (e.g. a main-side rename
-# between cut and merge), so queue-name literals inside a concurrency `group:`
-# line are redacted — each replaced by its ORDINAL position, so an in-place
-# rename normalises to equality while a drop or an insertion does not
-# (#3940, #3941). A literal counts as a queue name ONLY in a POSITIVE queue
+# Concurrency queue NAMES matter to distinctness (#3943 residual, 2026-10-05):
+# an in-place rename of one positive-position literal to the OTHER queue's name
+# merged the two queues while the old ordinal-only redaction normalised the
+# sides equal. Queue-name literals inside a concurrency `group:` line are
+# therefore redacted to their ORDINAL position plus a 4-hex SHA-256 digest of
+# the literal, so ONLY byte-identical literals normalise equal — every value
+# change (a rename, a collision with the other queue's name, a different
+# placeholder set, emptiness) refuses, while a drop or insertion still shifts
+# ordinals and refuses. A literal counts as a queue name ONLY in a POSITIVE
+# queue
 # position, identified by construction: the first argument of `format(...)`, or
 # a direct operand of `&&` / `||`. Everything else — comparison operands in any
 # spelling (`==`, `!=`, reversed, inside `contains()`, indexed properties),
@@ -1100,8 +1104,12 @@ def _redact_concurrency_queue_literals(line: str) -> str:
     # the positive queue positions — AND the literal is non-empty. The redaction
     # token PRESERVES the literal's {N} placeholder skeleton: the placeholder
     # is the queue's granularity key (per-ref vs per-target), so dropping or
-    # adding one must refuse, not normalise. Empty literals are verbatim: an
-    # emptied queue operand merges queues, and verbatim comparison refuses it.
+    # adding one must refuse, not normalise. The token also carries digest4, a
+    # 4-hex SHA-256 digest of the literal, so only byte-identical queue
+    # literals normalise equal — any value change (rename, collision with the
+    # other queue's name) changes the digest and refuses (#3943 residual).
+    # Empty literals are verbatim: an emptied queue operand merges queues, and
+    # verbatim comparison refuses it.
     import re as _re
     out = []
     ordinal = 0
@@ -1125,7 +1133,8 @@ def _redact_concurrency_queue_literals(line: str) -> str:
         if is_positive and len(literal) > 2:
             ordinal += 1
             skeleton = "".join(sorted(set(_re.findall(r"\{\d+\}", literal))))
-            out.append(f"'<queue-name:{ordinal}{skeleton}>'")
+            digest4 = hashlib.sha256(literal.encode()).hexdigest()[:4]
+            out.append(f"'<queue-name:{ordinal}:{digest4}:{skeleton}>'")
         else:
             out.append(literal)  # not a non-empty positive queue position: verbatim
         i = end + 1

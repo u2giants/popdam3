@@ -1,0 +1,16 @@
+{
+  "schema_version": 1, "work_issue": 3943, "outcome": "ready-for-merge", "pr": 3949,
+  "migration_versions": [], "contract_ref": "refs/db-contracts/3943/5",
+  "contract_sha256": "e4e72bb64f12924ca57ccaf840d49f6a0298d5ed55ac60bd3c4c006bf2e1dee2",
+  "head_sha": "0d8eabfb3e2ef123729f1ceefc81dfdc2e1da67c", "base_sha": "60133e2682509f597dff7385e77ced77548bc7cd", "files_changed": [
+  "scripts/production_business_risk_gate.py",
+  "scripts/test_production_business_risk_gate.py"
+],
+  "db_reads": [], "db_writes": [],
+  "checks": [
+    { "command": "bash scripts/check-sql.sh", "exit_code": 0, "evidence": "Static checks passed; 0 added migrations." },
+    { "command": "python -m pytest scripts/test_production_business_risk_gate.py -q", "exit_code": 0, "evidence": "220 passed, 347 subtests passed (2026-10-05 gen 5): the rename-tolerance tests (gate-level and unit) inverted to refusal, the token assertion updated to ordinal:digest4:skeleton, and three new tests — identical group text passes at gate level, identical concurrency text normalises equal, and the #3943 preview-to-production rename refuses." }
+  ],
+  "assumptions_resolved": ["Tolerated set now exactly: ONLY byte-identical positive-position literals normalise equal (digest4 of the literal in the token); every value change — rename, collision with the other queue's name, placeholder change, emptiness — refuses, verified by test."],
+  "stop_conditions_hit": []
+}

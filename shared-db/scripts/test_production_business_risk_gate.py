@@ -4694,8 +4694,10 @@ class MainLineCustodyOnlyProducerDriftTests(unittest.TestCase):
                    + "          # #3153: a comment\n")
         self.prove(self.api(workflows={"wf-ref": self.BASE_WORKFLOW, "wf-main": main_wf}))
 
-    def test_workflow_group_only_drift_passes_at_gate_level(self):
-        """#3941: a concurrency-group-only rename must not block production promotion."""
+    def test_workflow_group_only_drift_is_refused_at_gate_level(self):
+        """#3943 residual (2026-10-05): a concurrency-group-only rename now
+        REFUSES at gate level — only byte-identical queue literals normalise
+        equal, because a rename can collide with the other queue's name."""
         base_wf = (
             "concurrency:\n"
             "  group: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
@@ -4712,7 +4714,26 @@ class MainLineCustodyOnlyProducerDriftTests(unittest.TestCase):
         renamed_wf = base_wf.replace(
             "shared-supabase-migrations-preview", "shared-supabase-migrations-staging")
         self.assertNotEqual(base_wf, renamed_wf)  # sanity: they really differ
-        self.prove(self.api(workflows={"wf-ref": base_wf, "wf-main": renamed_wf}))
+        with self.assertRaisesRegex(
+                RiskGateError, "different .github/workflows/shared-supabase-migrations.yml"):
+            self.prove(self.api(workflows={"wf-ref": base_wf, "wf-main": renamed_wf}))
+
+    def test_workflow_group_identical_on_both_sides_passes_at_gate_level(self):
+        """Identical group text (no rename) still passes the gate."""
+        base_wf = (
+            "concurrency:\n"
+            "  group: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+            " && format('shared-supabase-migrations-{0}', github.ref)"
+            " || (inputs.target == 'production' && 'shared-supabase-migrations-production'"
+            " || 'shared-supabase-migrations-preview') }}\n"
+            "  cancel-in-progress: false\n"
+            "jobs:\n  preview:\n    steps:\n"
+            "      - run: |\n"
+            "          MAIN_SHA=\"$REQUESTED_SHA\" node scripts/check-main-tip-freshness.mjs\n"
+            f"          gh api 'repos/{REPOSITORY}/pulls?state=open' \\\n"
+            "          python scripts/atomic_migration_apply.py --apply\n"
+        )
+        self.prove(self.api(workflows={"wf-ref": base_wf, "wf-main": base_wf}))
 
     def test_workflow_step_change_is_refused_even_on_a_main_line_ref(self):
         for main_wf in (
@@ -4726,8 +4747,11 @@ class MainLineCustodyOnlyProducerDriftTests(unittest.TestCase):
 
 
 class WorkflowCustodyConcurrencyTests(unittest.TestCase):
-    """#3941: concurrency-group-only workflow differences are custody-only so
-    high-risk production promotion is not blocked by queue-label drift."""
+    """#3941/#3943: concurrency-group queue literals are redacted to
+    ordinal + literal digest tokens, so ONLY byte-identical literals normalise
+    equal; every value change (rename, collision, placeholder, emptiness)
+    refuses. The pre-2026-10-05 rename tolerance is retired: an in-place rename
+    could collide with the other queue's name and merge the two queues."""
 
     # The real expression from .github/workflows/shared-supabase-migrations.yml:137.
     REAL_CONCURRENCY = (
@@ -4739,19 +4763,43 @@ class WorkflowCustodyConcurrencyTests(unittest.TestCase):
         "  cancel-in-progress: false\n"
     )
 
-    def test_concurrency_group_expression_is_custody_only(self):
+    def test_concurrency_group_rename_is_refused(self):
+        """#3943 residual (2026-10-05): an in-place queue-literal rename no
+        longer normalises equal — the token carries a digest of the literal."""
         from production_business_risk_gate import _workflow_custody_normal_form
         renamed = self.REAL_CONCURRENCY.replace(
             "shared-supabase-migrations-preview", "shared-supabase-migrations-staging")
-        self.assertEqual(
+        self.assertNotEqual(renamed, self.REAL_CONCURRENCY)  # sanity
+        self.assertNotEqual(
             _workflow_custody_normal_form(self.REAL_CONCURRENCY),
             _workflow_custody_normal_form(renamed))
 
+    def test_concurrency_group_identical_text_normalises_equal(self):
+        """Identical concurrency-group text on both sides normalises equal."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        self.assertEqual(
+            _workflow_custody_normal_form(self.REAL_CONCURRENCY),
+            _workflow_custody_normal_form(self.REAL_CONCURRENCY))
+
+    def test_concurrency_group_preview_rename_to_production_name_is_refused(self):
+        """#3943 recorded residual: renaming the preview literal to the OTHER
+        queue's name kept the ordinal/skeleton but used to normalise equal,
+        silently merging the two queues. The digest makes it refuse."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        collided = self.REAL_CONCURRENCY.replace(
+            "shared-supabase-migrations-preview", "shared-supabase-migrations-production")
+        self.assertNotEqual(collided, self.REAL_CONCURRENCY)  # sanity
+        self.assertNotEqual(
+            _workflow_custody_normal_form(self.REAL_CONCURRENCY),
+            _workflow_custody_normal_form(collided))
+
     def test_concurrency_group_normal_form_token(self):
+        import re as _re
         from production_business_risk_gate import _workflow_custody_normal_form
         result = "\n".join(_workflow_custody_normal_form(self.REAL_CONCURRENCY))
-        self.assertIn("'<queue-name:1{0}>'", result,
-                      "the format() template keeps its placeholder skeleton — {0} is the granularity key")
+        self.assertRegex(
+            result, _re.escape("'<queue-name:1:") + r"[0-9a-f]{4}" + _re.escape(":{0}>'"),
+            "the token carries ordinal : digest4 : placeholder skeleton — {0} is the granularity key")
         self.assertIn("github.ref", result,
                       "the structure around the queue names is compared verbatim")
         self.assertNotIn("shared-supabase-migrations-production", result)
@@ -4913,8 +4961,10 @@ class WorkflowCustodyConcurrencyTests(unittest.TestCase):
         self.assertNotEqual(_workflow_custody_normal_form(base),
                             _workflow_custody_normal_form(changed))
 
-    def test_queue_rename_still_normalises_in_place(self):
-        """#3940/#3941 tolerance kept: an in-place queue rename is custody-only."""
+    def test_queue_rename_is_refused_in_place(self):
+        """#3940/#3941 rename tolerance RETIRED (#3943 residual, 2026-10-05):
+        an in-place queue rename changes the literal, hence the digest, so the
+        normal forms differ and the change refuses."""
         from production_business_risk_gate import _workflow_custody_normal_form
         renamed = self.REAL_CONCURRENCY.replace(
             "shared-supabase-migrations-production", "shared-supabase-migrations-prod2")
@@ -4924,8 +4974,8 @@ class WorkflowCustodyConcurrencyTests(unittest.TestCase):
             "format('shared-supabase-migrations-{0}'",
             "format('shared-supabase-migrations2-{0}'")
         self.assertNotEqual(renamed, self.REAL_CONCURRENCY)  # sanity: they really differ
-        self.assertEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
-                         _workflow_custody_normal_form(renamed))
+        self.assertNotEqual(_workflow_custody_normal_form(self.REAL_CONCURRENCY),
+                            _workflow_custody_normal_form(renamed))
 
     def test_group_in_run_block_is_not_normalised(self):
         from production_business_risk_gate import _workflow_custody_normal_form
