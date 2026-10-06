@@ -1,0 +1,48 @@
+{
+  "schema_version": 2,
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 3826,
+    "generation": 2,
+    "contract_sha256": "ad059e32dc2f035475897c1a3c2516685082de8fd94bf546c73c75ee006760ee"
+  },
+  "work_issue": 3826,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Extend the #3826 risk-gate tests with related-shape coverage for ALTER FUNCTION volatility (argmodes, empty parens, multi-type) and DO assertion blocks (custom dollar tags, control flow, WARNING, no trailing semicolon); no classifier logic change.",
+  "base_sha": "a0c7cdd5a77bcd7b79fd21a5ac4e51bef9900cb4",
+  "branch": "mimo/3826-risk-gate-closeout",
+  "worktree": "C:/repos/shared-db-wt-3826-clear",
+  "dispatcher": "MiMo chat unknown on edge-dev",
+  "worker": "MiMo chat unknown on edge-dev",
+  "allowed_paths": [
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/3826/3/contract.json",
+    ".agent/work/3826/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change database structure or data",
+    "Do not change classifier logic in scripts/production_business_risk_gate.py",
+    "Do not weaken real risk detection",
+    "Do not change workflows or reviewer/merge gates"
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts/test_production_business_risk_gate.py",
+    "python3 -m unittest scripts/test_production_business_risk_gate_preview_contents_mutations.py"
+  ],
+  "assumptions": [
+    "Related shapes (argmodes, custom dollar tags, control flow, WARNING) that already classify zero-risk need explicit test coverage",
+    "The no-paren ALTER FUNCTION form is fail-closed and should stay refused"
+  ],
+  "stop_conditions": [
+    "Stop if any required check or exact-head governed review refuses",
+    "Stop if the change would need to touch a file outside allowed_paths"
+  ],
+  "file_writes": [
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/3826/3/contract.json",
+    ".agent/work/3826/3/completion.json"
+  ]
+}

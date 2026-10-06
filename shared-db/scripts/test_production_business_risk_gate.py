@@ -3879,6 +3879,14 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             "alter function plm.wb_validate_normalized_row(text, jsonb) stable;",
             "alter function public.f(text) volatile;",
             "alter function plm.f(a bigint, b text[]) stable;",
+            # empty-paren no-arg form
+            "alter function public.f() stable;",
+            # argument modes are part of the identity signature
+            "alter function plm.f(out text) stable;",
+            "alter function plm.f(in text) stable;",
+            "alter function plm.f(variadic text[]) stable;",
+            # multiple positional types
+            "alter function plm.f(text, integer) stable;",
             # IMMUTABLE with a body that only computes on its arguments
             "create or replace function public.f(p_x int) returns integer"
             " language plpgsql immutable as $$ begin return abs(p_x); end $$;"
@@ -3897,6 +3905,8 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             "alter function plm.f(text) stable security definer;",
             "alter function plm.f(text) cost 100;",
             "alter function f(text) stable;",
+            # no-paren form for a no-arg function: fail-closed (not modelled)
+            "alter function public.f stable;",
             "alter function plm.f(text) depends on extension pg_trgm;",
             # IMMUTABLE with no body anyone can inspect: refused (M2)
             "ALTER FUNCTION public.f() IMMUTABLE;",
@@ -3939,6 +3949,19 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             # language plpgsql is fine
             "do language plpgsql $$ begin raise notice 'ok'; end $$;",
             "do language plpgsql as $$ begin raise exception 'x'; end $$;",
+            # related shapes: custom dollar tag, AS without language
+            "do $tag$ begin raise exception 'x'; end $tag$;",
+            "do as $$ begin raise exception 'x'; end $$;",
+            # control flow around the assertion
+            "do $$ begin if 1 = 1 then raise exception 'x'; end if; end $$;",
+            "do $$ begin while true loop raise exception 'x'; end loop; end $$;",
+            # catalog read + notice (no mismatch to raise on)
+            "do $$ declare n int; begin select count(*) into n from pg_class; "
+            "raise notice 'n=%', n; end $$;",
+            # RAISE WARNING is still an assertion
+            "do $$ begin raise warning 'x'; end $$;",
+            # no trailing semicolon after the closing dollar quote
+            "do $$ begin raise exception 'x'; end $$",
         ]
         refused = [
             # DML

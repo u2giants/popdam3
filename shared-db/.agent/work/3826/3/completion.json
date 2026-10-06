@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 3826,
+  "outcome": "ready-for-merge",
+  "pr": 3956,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3826/3",
+  "contract_sha256": "8c02770bf76404ae91b5b37117f2b2d21777811278b587d39115d6bef7c23533",
+  "base_sha": "a0c7cdd5a77bcd7b79fd21a5ac4e51bef9900cb4",
+  "head_sha": "44e872b0620dfb0f276cfabdf7d49bcf8504ed12",
+  "files_changed": [
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts/test_production_business_risk_gate.py",
+      "exit_code": 0,
+      "evidence": "Ran 221 tests OK on implementation head 44e872b0 after related-shape coverage added"
+    },
+    {
+      "command": "python3 -m unittest scripts/test_production_business_risk_gate_preview_contents_mutations.py",
+      "exit_code": 0,
+      "evidence": "Ran 12 tests OK on implementation head 44e872b0"
+    }
+  ],
+  "assumptions_resolved": [
+    "Related shapes (argmodes, custom dollar tags, control flow, WARNING, no trailing semicolon) classify zero-risk and now have explicit test coverage",
+    "The no-paren ALTER FUNCTION form is fail-closed (refused) and is now pinned by a test"
+  ],
+  "stop_conditions_hit": []
+}
