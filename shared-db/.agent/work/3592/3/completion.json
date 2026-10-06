@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 3592,
+  "outcome": "ready-for-merge",
+  "pr": 3593,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3592/3",
+  "contract_sha256": "6c43299bd03e6dffbee5bad4fa52b6dbb4b2502c5931ba899dd44be9f24c3cc1",
+  "head_sha": "98556eb6ddd22ab914cf10331a19098ba494277e",
+  "base_sha": "77bd99d72ccfd1a48328e778048d5862fc103c9e",
+  "files_changed": [
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/run-governed-review.test.mjs scripts/lib/reviewer-capabilities.test.mjs scripts/orchestrator-flow/reviewer-allocation.test.mjs scripts/reviewer-wire-budget.test.mjs",
+      "exit_code": 0,
+      "evidence": "884 tests passed, zero failed, at implementation head 98556eb6ddd22ab914cf10331a19098ba494277e."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=324 sources=80 derived_digest=d8c8a704437b at 98556eb6ddd22ab914cf10331a19098ba494277e."
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 3 supersedes the generation-2 pair; the obsolete branch was rebuilt on current main rather than rebased.",
+    "StepFun roster membership from #3657 unchanged; Grok remains active.",
+    "No database read, write, migration, or production dispatch was performed.",
+    "Rebased onto main after PR #3930 (same protected coordination source) merged; checks re-run at the rebased head."
+  ],
+  "stop_conditions_hit": []
+}

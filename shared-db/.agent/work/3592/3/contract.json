@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3592,
+  "generation": 3,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Takeover of stale PR #3593 (draft, conflicting since 2026-09-28): rebuild the reviewed generation-2 Grok-last reviewer preference on current main. Non-Grok eligible reviewers (GLM, Qwen, Muse, Gemini, DeepSeek, StepFun) rotate first; Grok stays active as fallback for slot 1, slot 2, merged-PR reuse and failed-reviewer replacement. StepFun membership from #3657 is kept unchanged.",
+  "base_sha": "cd265aa1f5e68d43f00b154c21564dedabb23604",
+  "dispatcher": "Claude chat eac6b686-2bdd-4fce-91fe-47ae8516cb81 on edge-dev3 (popcre/ai-devops#952)",
+  "worker": "Claude chat eac6b686-2bdd-4fce-91fe-47ae8516cb81 on edge-dev3",
+  "branch": "codex/grok-priority-3592",
+  "worktree": "/home/ahazan/repos/shared-db-3592-takeover",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    ".agent/work/3592/3/contract.json",
+    ".agent/work/3592/3/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    ".agent/work/3592/3/contract.json",
+    ".agent/work/3592/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch migrations or database objects",
+    "do not retire Grok or bypass eligibility, independence, exact-head, or verdict safeguards",
+    "do not change StepFun roster membership"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs scripts/run-governed-review.test.mjs scripts/lib/reviewer-capabilities.test.mjs scripts/orchestrator-flow/reviewer-allocation.test.mjs scripts/reviewer-wire-budget.test.mjs"
+  ],
+  "assumptions": [
+    "Generation 2 (refs/db-contracts/3592/2) was reviewed on an obsolete base 1240 commits behind main; generation 3 re-expresses the same policy on current main and needs a fresh exact-head review.",
+    "Disclosure: the takeover session drafted the port in an uncommitted working tree to measure conflict scope before publishing this generation; nothing was committed before publication."
+  ],
+  "stop_conditions": [
+    "stop if the policy requires a file outside allowed_paths",
+    "stop if a merge conductor or other session claims PR #3593"
+  ]
+}

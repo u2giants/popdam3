@@ -640,6 +640,25 @@ export function reviewerKnownNonReading(name, reviewers=REVIEWERS){
 // `PASS provider=codex sandbox=read-only reasoning=explicit command=codex`.
 export const OVERFLOW_REVIEWERS = Object.freeze([])
 export const ACTIVE_REVIEWERS = Object.freeze(REVIEWERS.filter((row)=>!RETIRED_REVIEWERS.includes(row.name)&&!QUARANTINED_REVIEWERS.includes(row.name)))
+// Owner instruction, 2026-09-27 (issue #3592): Grok is expensive, so rotate
+// among the other eligible reviewers first. Grok remains an eligible fallback.
+export const REVIEWER_FALLBACK_PROVIDERS = Object.freeze(['grok'])
+export function orderedReviewers(sequence,reviewers=ACTIVE_REVIEWERS){
+  if(!Number.isSafeInteger(sequence)||sequence<1)throw new LaneError('reviewer sequence must be a positive integer')
+  const rotate=(rows)=>rows.length?Array.from({length:rows.length},(_,offset)=>rows[(sequence-1+offset)%rows.length]):[]
+  return [...rotate(reviewers.filter((row)=>!REVIEWER_FALLBACK_PROVIDERS.includes(row.provider))),
+    ...rotate(reviewers.filter((row)=>REVIEWER_FALLBACK_PROVIDERS.includes(row.provider)))]
+}
+function drawOrder(sequence,io){
+  // The injected order exists only for historical safety fixtures. Production
+  // always uses the owner policy above; fixtures may reorder but never change
+  // membership, which keeps every admission and exhaustion check meaningful.
+  if(io===githubIo||!io?.reviewerOrder)return orderedReviewers(sequence)
+  const rows=io.reviewerOrder(sequence)
+  const names=ACTIVE_REVIEWERS.map((row)=>row.name).sort()
+  if(!Array.isArray(rows)||rows.length!==names.length||!rows.every((row)=>ACTIVE_REVIEWERS.includes(row))||JSON.stringify(rows.map((row)=>row.name).sort())!==JSON.stringify(names))throw new LaneError('injected reviewer order must be a permutation of the active roster')
+  return rows
+}
 
 export function canonicalReviewerAllowlist(value){
   if(value===undefined||value===null)return null
@@ -5879,8 +5898,8 @@ export function describeMovedAssignmentHead(request,recorded){
 export function pickReviewer(sequence,io){
   const {eligible}=allocatableReviewers(io)
   if(!eligible.length)throw new LaneError('no reviewer is independent from the live orchestrator engine')
-  const eligibleNames=new Set(eligible.map((row)=>row.name)),start=(sequence-1)%ACTIVE_REVIEWERS.length
-  const ordered=Array.from({length:ACTIVE_REVIEWERS.length},(_,offset)=>ACTIVE_REVIEWERS[(start+offset)%ACTIVE_REVIEWERS.length]).filter((row)=>eligibleNames.has(row.name))
+  const eligibleNames=new Set(eligible.map((row)=>row.name))
+  const ordered=orderedReviewers(sequence).filter((row)=>eligibleNames.has(row.name))
   return ordered[0]??OVERFLOW_REVIEWERS.find((row)=>eligibleNames.has(row.name))
 }
 
@@ -6367,22 +6386,19 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1,reviewerAllowlist=
       return {...current,slot:request.slot,wrapper:REVIEWERS.find((r)=>r.name===current.reviewer)?.wrapper}
     }
     const sequence=(current?.sequence??0)+1
-    // Ordinary path: round-robin over the active roster. The overflow provider
-    // is reached only when EVERY active reviewer is already holding live review
-    // work here and the overflow provider itself is free. The rotation position
-    // is derived from `sequence`, not from who was last assigned, so spending a
-    // sequence on the overflow provider does not move anyone's turn.
+    // Ordinary path: rotate within the preferred pool. Grok is considered after
+    // that pool for this exact assignment (#3592). The durable sequence remains
+    // monotone; a fallback draw advances the next preferred starting position by one.
     // Slot >=2 additionally excludes whoever slot 1 already holds for this
     // exact head, so the second reviewer is never the same provider as the
     // first -- on top of, never instead of, the ordinary busy exclusion.
     const busy=preflightBusy
-    const start=(sequence-1)%ACTIVE_REVIEWERS.length
     // Provider capacity is deliberately not a draw constraint for the exact
     // production protocol.  Lightweight historical fixtures may use short
     // heads, which cannot name a parallel lease and retain old serial rules.
     // #2831: a reviewer whose wrapper cannot emit a governed verdict is never drawn.
     const notTaken=(row)=>eligibleNames.has(row.name)&&reviewerEmitsGovernedVerdict(row.name)&&(concurrentLeases||!busy.has(row.name))&&!excludedProviders.has(row.name)&&!exclusions.has(row.name)
-    const rotation=Array.from({length:ACTIVE_REVIEWERS.length},(_,offset)=>ACTIVE_REVIEWERS[(start+offset)%ACTIVE_REVIEWERS.length])
+    const rotation=drawOrder(sequence,io)
     // Owner ruling 2026-10-02: when no independent reviewer is left for a merged
     // PR's post-merge slot >= 2, reuse one that already holds another slot on
     // this exact head. Every other exclusion still applies; same rotation order.
@@ -7291,8 +7307,8 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     if(!silenceReleasedSequences.has(request.failedSequence))failedNames.add(original.reviewer)
     for(const row of parsedReplacements){const name=bySequence.get(row.failedSequence);if(name&&!silenceReleasedSequences.has(row.failedSequence))failedNames.add(name)}
     let sequence=null, reviewer=null
-    for(let offset=0;offset<ACTIVE_REVIEWERS.length;offset+=1){
-      const candidateSequence=cursor.sequence+1+offset, candidate=ACTIVE_REVIEWERS[(candidateSequence-1)%ACTIVE_REVIEWERS.length]
+    for(const [offset,candidate] of drawOrder(cursor.sequence+1,io).entries()){
+      const candidateSequence=cursor.sequence+1+offset
       if(!eligibleNames.has(candidate.name)||!reviewerEmitsGovernedVerdict(candidate.name)||failedNames.has(candidate.name)||(!concurrentLeases&&preflightBusy.has(candidate.name))||excludedProviders.has(candidate.name)||preflightExclusions.has(candidate.name))continue
       sequence=candidateSequence;reviewer=candidate;break
     }
@@ -7300,8 +7316,8 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     // post-merge slot >= 2 -> reuse a reviewer holding another slot here. Failed,
     // ineligible, preflight-excluded and retired reviewers stay excluded.
     if(!reviewer&&mergedReuse()){
-      for(let offset=0;offset<ACTIVE_REVIEWERS.length;offset+=1){
-        const candidateSequence=cursor.sequence+1+offset, candidate=ACTIVE_REVIEWERS[(candidateSequence-1)%ACTIVE_REVIEWERS.length]
+      for(const [offset,candidate] of drawOrder(cursor.sequence+1,io).entries()){
+        const candidateSequence=cursor.sequence+1+offset
         if(!eligibleNames.has(candidate.name)||!reviewerEmitsGovernedVerdict(candidate.name)||failedNames.has(candidate.name)||(!concurrentLeases&&preflightBusy.has(candidate.name))||preflightExclusions.has(candidate.name))continue
         sequence=candidateSequence;reviewer=candidate;break
       }

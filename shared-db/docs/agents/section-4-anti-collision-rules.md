@@ -475,9 +475,11 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    slot independence still decide who is usable. It creates no concurrency cap.
 
    For new assignments, the shared cursor (the sequence counter is shared; which
-   reviewer a draw lands on depends on what the drawing machine can run) rotates Grok 4.6 → GLM
+   reviewer a draw lands on depends on what the drawing machine can run) rotates GLM
    5.3 → Qwen 3.8 Max → Muse Spark 1.3 Contributor → Gemini 3.8 Flash High → DeepSeek
-   V4.1 Flash → StepFun Step 5 → repeat,
+   V4.1 Flash → StepFun Step 5 → repeat, with Grok 4.6 kept active as the fallback drawn
+   only when none of those preferred reviewers can take the exact review (owner
+   preference 2026-09-27, #3592; applies to slot 2 and failed-reviewer replacements too),
    skipping any reviewer whose engine matches the live orchestrator, and on a
    non-Linux machine skipping StepFun (its preflight is `unsupported-platform`). GLM 5.3
    was restored on 2026-09-30 (owner instruction: "add GLM back into the
