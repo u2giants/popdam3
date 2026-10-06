@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 3967,
+  "outcome": "ready-for-merge",
+  "pr": 3968,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3967/1",
+  "contract_sha256": "78fb1b9cc5a4b3afb434bd07e3e96edf70ee3ee249251c0887461d1109506225",
+  "base_sha": "4a7dd6d7ea4ae2e7b7fd9b55d1db99790bdeb144",
+  "head_sha": "28902570a4a50180ac0ddbd2f29fea662ac2ea92",
+  "files_changed": [
+    ".gitattributes",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/production-verification-sidecars/20260928182014.json",
+    "tools/coldlion-landing/order-intake.mjs",
+    "tools/coldlion-order-intake-window-arithmetic.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static guards passed; no ledger source configured"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Final base-to-head diff has no whitespace errors"
+    },
+    {
+      "command": "canonical content and migration hash comparison against base",
+      "exit_code": 0,
+      "evidence": "Four changed tracked files are CRLF-to-LF only; published SQL artifact bytes are unchanged"
+    }
+  ],
+  "assumptions_resolved": [
+    "Sixteen published work-evidence JSON files and seven published SQL artifacts were exempted to preserve immutable bytes and keep the maintenance route truthful.",
+    "The final normalization touches four editable files; new source files of all five requested extensions remain LF-pinned."
+  ],
+  "stop_conditions_hit": []
+}

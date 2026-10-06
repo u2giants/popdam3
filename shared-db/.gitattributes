@@ -1,0 +1,17 @@
+*.mjs text eol=lf
+*.sql text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+
+# Published work evidence is immutable; changing its bytes would invalidate its record.
+.agent/work/** -text
+
+# These already-published SQL artifacts are byte-immutable; new SQL files still use LF.
+.github/live-proofs/3234.sql -text
+.github/live-proofs/3891.sql -text
+supabase/migrations/20261001122410_coldlion_prod_detail_order_index.sql -text
+supabase/migrations/20261002135053_coldlion_prod_order_sales_order_link.sql -text
+supabase/migrations/20261002161522_repoint_frozen_designflow_fks_to_dflow.sql -text
+supabase/migrations/20261005025111_coldlion_unit6_consumer_contracts.sql -text
+supabase/migrations/20261005044103_coldlion_prod_detail_drop_line_seq_unique_prod.sql -text
