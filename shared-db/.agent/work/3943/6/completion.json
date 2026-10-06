@@ -1,0 +1,16 @@
+{
+  "schema_version": 1, "work_issue": 3943, "outcome": "ready-for-merge", "pr": 3952,
+  "migration_versions": [], "contract_ref": "refs/db-contracts/3943/6",
+  "contract_sha256": "467942793bd485d1a8d5dc163d37057bd3a1d1be9a7075241e1d6473e9bed803",
+  "head_sha": "62b2fb266a198dbf448b511c0fcbc1b6176da71a", "base_sha": "907758e384762ea116192d25731581d30f5d5620", "files_changed": [
+  "scripts/production_business_risk_gate.py",
+  "scripts/test_production_business_risk_gate.py"
+],
+  "db_reads": [], "db_writes": [],
+  "checks": [
+    { "command": "bash scripts/check-sql.sh", "exit_code": 0, "evidence": "Static checks passed; 0 added migrations (re-proved at 62b2fb26, the head answering the review rounds: comment states the stronger ~2^64 second-preimage bound, review finding F5)." },
+    { "command": "python -m pytest scripts/test_production_business_risk_gate.py -q", "exit_code": 0, "evidence": "221 passed, 347 subtests passed (re-proved at 62b2fb26): token assertion ordinal:digest16:skeleton ([0-9a-f]{16}); test_demonstrated_collision_no_longer_matches reproduces the round-14 demonstrated 4-hex collision (both literals hash to d6b9) and asserts 'collision-62654' no longer normalises equal to the production queue literal under the 64-bit digest. The two prior heads' stepfun rounds (ffcb34c1, 5cd21bd8) returned REVISE finding NO defect — their own text: 'REJECT would be wrong, as there is no evidence the change is unsound' — because the disposable Windows snapshot's runner shell was unavailable; stepfun is durably excluded for this PR (terminal-unavailable) and this head is re-reviewed by readers that can execute." }
+  ],
+  "assumptions_resolved": ["Tolerated set unchanged: ONLY byte-identical positive-position literals normalise equal (digest16, 64 bits, of the literal in the token); any collision is ~2^32 birthday work and a forgery against the fixed production literal is a ~2^64 second preimage (stated in the code comment per review F5); the demonstrated 16-bit collision ('collision-62654' vs the production literal, round 14 report 2026-10-06T011858) is refused."],
+  "stop_conditions_hit": []
+}

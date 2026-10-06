@@ -1072,7 +1072,7 @@ _WORKFLOW_CUSTODY_REWRITES = (
 # an in-place rename of one positive-position literal to the OTHER queue's name
 # merged the two queues while the old ordinal-only redaction normalised the
 # sides equal. Queue-name literals inside a concurrency `group:` line are
-# therefore redacted to their ORDINAL position plus a 4-hex SHA-256 digest of
+# therefore redacted to their ORDINAL position plus a 16-hex SHA-256 digest of
 # the literal, so ONLY byte-identical literals normalise equal — every value
 # change (a rename, a collision with the other queue's name, a different
 # placeholder set, emptiness) refuses, while a drop or insertion still shifts
@@ -1105,10 +1105,19 @@ def _redact_concurrency_queue_literals(line: str) -> str:
     # the positive queue positions — AND the literal is non-empty. The redaction
     # token PRESERVES the literal's {N} placeholder skeleton: the placeholder
     # is the queue's granularity key (per-ref vs per-target), so dropping or
-    # adding one must refuse, not normalise. The token also carries digest4, a
-    # 4-hex SHA-256 digest of the literal, so only byte-identical queue
-    # literals normalise equal — any value change (rename, collision with the
-    # other queue's name) changes the digest and refuses (#3943 residual).
+    # adding one must refuse, not normalise. The token also carries digest16, a
+    # 16-hex (64-bit) SHA-256 digest of the literal, so only byte-identical
+    # queue literals normalise equal — any value change (rename, collision with
+    # the other queue's name) changes the digest and refuses (#3943 residual).
+    # Width rationale (#3943 follow-up): the previous 4-hex (16-bit) digest was
+    # DEMONSTRATED collidable — the literal 'collision-62654' produced the same
+    # 4-hex digest (d6b9) as the production queue literal
+    # 'shared-supabase-migrations-production' (plan-review round 14 report
+    # 2026-10-06T011858, .ai/reviews/ in worktree coldlion-intake-rot). 64
+    # bits makes finding any collision ~2^32 birthday work, and forging a
+    # match against the FIXED production literal a ~2^64 second preimage —
+    # both infeasible by accident or by hand — so a differing queue literal
+    # cannot normalise equal.
     # Empty literals are verbatim: an emptied queue operand merges queues, and
     # verbatim comparison refuses it.
     import re as _re
@@ -1134,8 +1143,8 @@ def _redact_concurrency_queue_literals(line: str) -> str:
         if is_positive and len(literal) > 2:
             ordinal += 1
             skeleton = "".join(sorted(set(_re.findall(r"\{\d+\}", literal))))
-            digest4 = hashlib.sha256(literal.encode()).hexdigest()[:4]
-            out.append(f"'<queue-name:{ordinal}:{digest4}:{skeleton}>'")
+            digest16 = hashlib.sha256(literal.encode()).hexdigest()[:16]
+            out.append(f"'<queue-name:{ordinal}:{digest16}:{skeleton}>'")
         else:
             out.append(literal)  # not a non-empty positive queue position: verbatim
         i = end + 1

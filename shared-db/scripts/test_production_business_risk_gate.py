@@ -4793,13 +4793,37 @@ class WorkflowCustodyConcurrencyTests(unittest.TestCase):
             _workflow_custody_normal_form(self.REAL_CONCURRENCY),
             _workflow_custody_normal_form(collided))
 
+    def test_demonstrated_collision_no_longer_matches(self):
+        """#3943 follow-up: the plan-review round 14 report (2026-10-06T011858,
+        .ai/reviews/ in worktree coldlion-intake-rot) DEMONSTRATED that the
+        retired 4-hex digest collided: 'collision-62654' hashed to the same
+        d6b9 prefix as the production queue literal, so an attacker-supplied
+        literal normalised equal under 16 bits. The 64-bit digest refuses it."""
+        from production_business_risk_gate import _workflow_custody_normal_form
+        production = "'shared-supabase-migrations-production'"
+        collision = "'collision-62654'"
+        # The demonstrated 16-bit collision, reproduced: same 4-hex prefix...
+        self.assertEqual(
+            hashlib.sha256(production.encode()).hexdigest()[:4],
+            hashlib.sha256(collision.encode()).hexdigest()[:4])
+        # ...and NOT the same 16-hex digest, so the widened token differs.
+        self.assertNotEqual(
+            hashlib.sha256(production.encode()).hexdigest()[:16],
+            hashlib.sha256(collision.encode()).hexdigest()[:16])
+        forged = self.REAL_CONCURRENCY.replace(
+            "&& 'shared-supabase-migrations-production'", "&& 'collision-62654'")
+        self.assertNotEqual(forged, self.REAL_CONCURRENCY)  # sanity
+        self.assertNotEqual(
+            _workflow_custody_normal_form(self.REAL_CONCURRENCY),
+            _workflow_custody_normal_form(forged))
+
     def test_concurrency_group_normal_form_token(self):
         import re as _re
         from production_business_risk_gate import _workflow_custody_normal_form
         result = "\n".join(_workflow_custody_normal_form(self.REAL_CONCURRENCY))
         self.assertRegex(
-            result, _re.escape("'<queue-name:1:") + r"[0-9a-f]{4}" + _re.escape(":{0}>'"),
-            "the token carries ordinal : digest4 : placeholder skeleton — {0} is the granularity key")
+            result, _re.escape("'<queue-name:1:") + r"[0-9a-f]{16}" + _re.escape(":{0}>'"),
+            "the token carries ordinal : digest16 : placeholder skeleton — {0} is the granularity key")
         self.assertIn("github.ref", result,
                       "the structure around the queue names is compared verbatim")
         self.assertNotIn("shared-supabase-migrations-production", result)

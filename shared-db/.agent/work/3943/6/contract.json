@@ -1,0 +1,25 @@
+{
+  "schema_version": 2, "work_issue": 3943, "generation": 6,
+  "evidence_parent": { "work_issue": 3943, "generation": 5, "contract_sha256": "e4e72bb64f12924ca57ccaf840d49f6a0298d5ed55ac60bd3c4c006bf2e1dee2" },
+  "work_type": "repo-maintenance", "route": "repo-maintenance",
+  "goal": "Custody token digest widened to 64 bits (#3943 follow-up, 2026-10-06): the plan-review round 14 report (2026-10-06T011858, .ai/reviews/ in worktree coldlion-intake-rot) DEMONSTRATED a 16-bit collision — the literal 'collision-62654' produced the same 4-hex digest (d6b9) as the production queue literal 'shared-supabase-migrations-production'. The redaction token's digest is widened from sha256[:4] to sha256[:16] (digest16, 64 bits — a forgery is ~2^32 birthday work, infeasible), expected tokens updated to 16-hex, and test_demonstrated_collision_no_longer_matches added refusing the exact demonstrated collision.",
+  "base_sha": "a57774586a5ef16f249d3bc9c0fc6e480c1d8a0a", "dispatcher": "ZCode chat subagent on edge-dev", "worker": "ZCode chat subagent on edge-dev",
+  "branch": "guard-digest-width", "worktree": "C:/repos/shared-db/.ai/worktrees/guard-digest-width",
+  "allowed_paths": [
+  ".agent/work/3943/6/completion.json",
+  ".agent/work/3943/6/contract.json",
+  "scripts/production_business_risk_gate.py",
+  "scripts/test_production_business_risk_gate.py"
+],
+  "file_writes": [
+  ".agent/work/3943/6/completion.json",
+  ".agent/work/3943/6/contract.json",
+  "scripts/production_business_risk_gate.py",
+  "scripts/test_production_business_risk_gate.py"
+],
+  "db_reads": [], "db_writes": [],
+  "prohibited_actions": ["No migration", "No cron", "No production dispatch", "No secrets", "No branch-protection change"],
+  "required_checks": ["bash scripts/check-sql.sh", "python -m pytest scripts/test_production_business_risk_gate.py -q"],
+  "assumptions": ["Tolerated set unchanged: ONLY byte-identical positive-position literals normalise equal; 64-bit digest makes a forgery 2^32 birthday work."],
+  "stop_conditions": ["Stop if the gate suite fails", "Stop on guarded-lane refusal", "Stop if review cannot reach two non-GLM APPROVE"]
+}
