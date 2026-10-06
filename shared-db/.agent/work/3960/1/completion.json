@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "work_issue": 3960,
+  "outcome": "ready-for-merge",
+  "pr": 3961,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3960/1",
+  "contract_sha256": "94c65b6bcbe665246ddf6fa21eb413514a922452d65f0d41d5ac870ac1824972",
+  "base_sha": "b6e37f4ce663ec74bb41c82ba08e45be88583650",
+  "head_sha": "fc3366552bd4212921feaf11f92a55adb2c31ede",
+  "files_changed": [
+  "scripts/run-governed-review.mjs",
+  "scripts/run-governed-review.test.mjs"
+],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"command": "node --test scripts/run-governed-review.test.mjs", "exit_code": 0, "evidence": "tests 102, pass 101, fail 0, skipped 1"}
+  ],
+  "assumptions_resolved": ["ai-review-preflight usable reports gemini quarantined/live-qualification-required when unqualified (verified on edge-dev3 2026-10-06)"],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,32 @@
+{
+  "schema_version": 2,
+  "work_issue": 3960,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "run-governed-review names the ai-gemini/ai-qwen live-qualification quarantine refusal as reviewer_quarantined (local_dependency_unavailable) with its requalify/replacement route instead of an unrecognized reason.",
+  "base_sha": "b6e37f4ce663ec74bb41c82ba08e45be88583650",
+  "dispatcher": "repo-maintenance; issue #3960",
+  "worker": "Claude chat 76ba63c4-cd20-4f5f-8641-938874336f10 on edge-dev3",
+  "branch": "fix/wrapper-quarantine-preflight",
+  "worktree": "/home/ahazan/repos/shared-db-wt-quarantine",
+  "allowed_paths": [
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs",
+    ".agent/work/3960/1/contract.json",
+    ".agent/work/3960/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs",
+    ".agent/work/3960/1/contract.json",
+    ".agent/work/3960/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": ["do not touch any database", "do not change allocator draw or verdict logic"],
+  "required_checks": ["node --test scripts/run-governed-review.test.mjs"],
+  "assumptions": ["ai-review-preflight usable already excludes quarantined providers before the draw"],
+  "stop_conditions": ["stop if the change would need a file outside allowed_paths"],
+  "evidence_parent": null
+}

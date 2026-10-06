@@ -242,6 +242,8 @@ test('wrapper failure preserves a safe cause without publishing a verdict or raw
     ['[API Error: 400 InternalError.Algo.DataInspectionFailed: private-value]',/provider_unavailable: content-filter/],
     ['provider-unavailable: private-value',/provider_unavailable/],
     ['timed-out private-value',/reported a timeout/],
+    ['ai-gemini: error: Gemini reviews are quarantined until live safety qualification is complete',/reviewer_quarantined:.*local_dependency_unavailable/],
+    ['ai-gemini: error: Gemini qualification no longer matches the exact wrapper, runtime, or model; quarantine restored',/reviewer_quarantined:.*requalify/],
     ['private-value',/reason was not recognized/],
   ]){
     let calls=0

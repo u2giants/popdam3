@@ -417,6 +417,11 @@ export function wrapperFailureReason(run){
   }
   if(/timed-out|timed out|deadline|time limit/i.test(stderr))reasons.push('the wrapper reported a timeout')
   if(/local_dependency_unavailable/i.test(stderr))reasons.push('a local reviewer dependency is unavailable')
+  // A live-qualified wrapper (ai-gemini, ai-qwen) refuses when its local runtime no
+  // longer matches the bytes its last live safety qualification proved -- for example
+  // the runtime updated itself between reviewer draw and run (PR #3727, 2026-10-06).
+  // That is an intended LOCAL quarantine, not a provider fault and not a verdict.
+  if(/reviews are quarantined until live safety qualification|qualification no longer matches the exact wrapper|quarantine restored/i.test(stderr))reasons.push('reviewer_quarantined: the local reviewer runtime is not live-qualified (local_dependency_unavailable); requalify it with ai-review-preflight, or replace this reviewer with --replace-failed-reviewer --failure-code local_dependency_unavailable')
   // A wrapper that finds the reviewed checkout changed during the turn refuses the
   // verdict. The writer is usually the calling session itself (a log redirected
   // into the checkout, or a parallel slot's output), not the reviewer.
