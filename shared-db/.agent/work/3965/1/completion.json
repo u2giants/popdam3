@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 3965,
+  "outcome": "ready-for-merge",
+  "pr": 3966,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3965/1",
+  "contract_sha256": "7514a6b35a9199671625955335c556c56b401e0e33bb75895c3ae35a4a003542",
+  "base_sha": "eb268bd2911717540c89c069552758d1495bbcc7",
+  "head_sha": "210048c227f200c266870e0f4c589a99cab2f5a1",
+  "files_changed": [
+    "tools/coldlion-sync-common-runsql.test.mjs",
+    "tools/coldlion-sync-common.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test tools/coldlion-sync-common-runsql.test.mjs",
+      "exit_code": 0,
+      "evidence": "25 passed, 0 failed"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static guards passed; no ledger source configured"
+    }
+  ],
+  "assumptions_resolved": [
+    "All five named sibling recorder guards were present and are pinned immediately before their durable record calls.",
+    "Decoded spaces and tabs in URI hosts now refuse before PGHOST is set."
+  ],
+  "stop_conditions_hit": []
+}

@@ -159,7 +159,6 @@ export function parsePgUri(uri) {
     const entry = entryRe.exec(rawEntry);
     if (!entry) throw new Error("malformed host authority in PostgreSQL URI: " + rawEntry);
     const host = entry[1] ?? entry[2];
-    if (/[\s@]/.test(host)) throw new Error("whitespace or @ in host entry: " + rawEntry);
     hostEntries.push({ host, port: entry[3] });
   }
   // A MIXED authority (some entries with ports, some without) is refused
@@ -173,6 +172,7 @@ export function parsePgUri(uri) {
   // extra failover hosts.
   env.PGHOST = hostEntries.map(h => {
     const decoded = decodeURIComponent(h.host);
+    if (/[\s@]/.test(decoded)) throw new Error("whitespace or @ in host entry: " + h.host);
     if (decoded.includes(",")) throw new Error("encoded comma in host name");
     return decoded;
   }).join(",");

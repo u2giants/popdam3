@@ -1,0 +1,32 @@
+{
+  "schema_version": 2,
+  "generation": 1,
+  "work_issue": 3965,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Close the two LOW findings from issue 3942: refuse decoded host whitespace and pin each sibling recorder's client-fault guard at its durable-record call site.",
+  "base_sha": "eb268bd2911717540c89c069552758d1495bbcc7",
+  "dispatcher": "ZCode chat 01a111ef-6947-73e3-ad86-653b1650b4e1 on edge-dev",
+  "worker": "ZCode chat 01a111ef-6947-73e3-ad86-653b1650b4e1 on edge-dev",
+  "branch": "codex/3965-uri-recorder-guards",
+  "worktree": "/home/ahazan/repos/.worktrees/shared-db-3965-uri-recorder-guards",
+  "evidence_parent": null,
+  "allowed_paths": [
+    ".agent/work/3965/1/contract.json",
+    ".agent/work/3965/1/completion.json",
+    "tools/coldlion-sync-common.mjs",
+    "tools/coldlion-sync-common-runsql.test.mjs"
+  ],
+  "file_writes": [
+    ".agent/work/3965/1/contract.json",
+    ".agent/work/3965/1/completion.json",
+    "tools/coldlion-sync-common.mjs",
+    "tools/coldlion-sync-common-runsql.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": ["No migration, database write, workflow schedule, or rotation-lane change."],
+  "required_checks": ["node --test tools/coldlion-sync-common-runsql.test.mjs", "bash scripts/check-sql.sh"],
+  "assumptions": ["All five named sibling recorders already contain a client-fault guard at the durable-record call site."],
+  "stop_conditions": ["Stop if a named guard is missing or a database-shape change becomes necessary."]
+}

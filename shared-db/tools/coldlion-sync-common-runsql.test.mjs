@@ -487,23 +487,27 @@ test("round-5 refusals: TLS handshake material, query-port cardinality, fragment
   assert.equal(parsePgUri("postgresql://u:p@h/db?port=6543").PGPORT, "6543");
 });
 
-test("a sibling durable recorder skips client faults entirely", async () => {
-  const mod = await import("./sync-merchgroup-headers.mjs");
-  const { CLIENT_URI_FAULT_CODE } = await import("./coldlion-sync-common.mjs");
-  const source = await (await import("node:fs")).readFileSync(new URL("./sync-merchgroup-headers.mjs", import.meta.url), "utf8");
-  assert.match(source, /if \(isClientSpawnFault\(error\) \|\| isClientUriFault\(error\)\)/,
-    "the merch-group durable recorder must guard client faults");
-  const fault = new Error("DATABASE_URL failed validation (fixture)");
-  fault.code = CLIENT_URI_FAULT_CODE;
-  assert.ok(!(await Promise.resolve(true)) || true);
-  // The behavioural half lives in the promote/landing tests; this pins the
-  // five sibling recorders' source contract (guard present at the record site).
+test("all five sibling durable recorders guard client faults at the record call", () => {
+  const siblings = [
+    "sync-coldlion-licensors-properties.mjs",
+    "run-coldlion-licensor-property-phase4.mjs",
+    "sync-merchgroup-headers.mjs",
+    "sync-coldlion-items.mjs",
+    "sync-clickup-tasks.mjs",
+  ];
+  const guardAtRecord = /if \(isClientSpawnFault\(error\) \|\| isClientUriFault\(error\)\) \{[\s\S]{0,400}?\} else(?: try \{)? runSql\(buildFailedSyncRunSql\(/;
+  for (const sibling of siblings) {
+    const source = readFileSync(new URL(`./${sibling}`, import.meta.url), "utf8");
+    assert.match(source, guardAtRecord, `${sibling} must guard immediately before its durable record call`);
+  }
 });
 
 test("host entries with whitespace or @ are refused", async () => {
   const { parsePgUri } = await import("./coldlion-sync-common.mjs");
   assert.throws(() => parsePgUri("postgresql://u:p@ host:5432/db"), /whitespace or @/);
   assert.throws(() => parsePgUri("postgresql://u:p@h@st/db"), /whitespace or @/);
+  assert.throws(() => parsePgUri("postgresql://u:p@h%20evil/db"), /whitespace or @/);
+  assert.throws(() => parsePgUri("postgresql://u:p@h%09evil/db"), /whitespace or @/);
 });
 
 test("the LANDING transport tags URI-validation faults and its recorders skip them", async () => {
