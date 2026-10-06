@@ -57,6 +57,7 @@
     "scripts/lib/reviewer-capabilities.mjs",
     "scripts/lib/reviewer-draw-readiness.mjs",
     "scripts/lib/session-authority.mjs",
+    "scripts/lib/sql-role-operations.mjs",
     "scripts/lib/work-dependencies.mjs",
     "scripts/lib/work-stage-evidence.mjs",
     "scripts/lib/zip-entries.mjs",

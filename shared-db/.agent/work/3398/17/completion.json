@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "work_issue": 3398,
+  "outcome": "ready-for-merge",
+  "pr": 3997,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3398/17",
+  "contract_sha256": "2670ce6a83dd5372a2398a4ee0b6c9d1723b396f3d92cbd3b3c2b18c0562a6be",
+  "base_sha": "c86be424f89162bbf9b450a02597616e5dcde298",
+  "head_sha": "685d355af6079131155d1791d26d8cff9939390e",
+  "files_changed": [
+    ".github/workflows/tools-offline-tests.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "scripts/check-dispatch-collision.mjs",
+    "scripts/check-dispatch-collision.test.mjs",
+    "scripts/check-pr-object-collisions.mjs",
+    "scripts/check-pr-object-collisions.test.mjs",
+    "scripts/lib/lanes/claims.mjs",
+    "scripts/lib/lanes/preview-admission.mjs",
+    "scripts/lib/sql-role-operations.mjs",
+    "scripts/lib/sql-role-operations.test.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "scripts/orchestrator-flow/admission.mjs",
+    "scripts/orchestrator-flow/evidence-bundle.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/sql-role-operations.test.mjs scripts/check-pr-object-collisions.test.mjs scripts/check-dispatch-collision.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/orchestrator-flow/admission-outcome.test.mjs",
+      "exit_code": 0,
+      "evidence": "1034 tests pass, zero failures; includes complete unsupported role tokens across membership and ownership literal/dynamic forms, implicit actors, quoted command words and unaccountable ownership objects; re-run against implementation 685d355af6079131155d1791d26d8cff9939390e"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=325 sources=91 derived_digest=6cd8ed349351; re-run against implementation 685d355af6079131155d1791d26d8cff9939390e"
+    },
+    {
+      "command": "node scripts/check-cancelled-work.mjs",
+      "exit_code": 0,
+      "evidence": "no cancelled instruction reintroduced, 2 rows checked; re-run against implementation 685d355af6079131155d1791d26d8cff9939390e"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "no whitespace defects; re-run against implementation 685d355af6079131155d1791d26d8cff9939390e"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed; no added migrations; re-run against implementation 685d355af6079131155d1791d26d8cff9939390e"
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "370 governed source files conform; re-run against implementation 685d355af6079131155d1791d26d8cff9939390e"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/evidence-bundle.test.mjs",
+      "exit_code": 0,
+      "evidence": "All six tests pass; global invalidator inventory includes the transitive role helper; re-run against implementation 685d355af6079131155d1791d26d8cff9939390e"
+    }
+  ],
+  "assumptions_resolved": [
+    "Open PR file inventory confirms integration paths have no active competing writes",
+    "Every checked-in migration remains accountable with the role helper",
+    "Supported claim parser and structural admission cover exact global roles and read dependencies",
+    "PostgreSQL REL_17_STABLE gram.y RoleSpec and kwlist.h confirm nonreserved words are valid role names; exact implicit actor identities remain unprovable and refuse",
+    "The implementation now contains current main e61e8e7f; the complete focused suite and global invalidation tests were re-proven against this merge base",
+    "Explicit membership grantors are exact role read dependencies, never exclusive writes; implicit grantors refuse, and independently shared grantors do not conflict",
+    "No ASCII prefix of an unsupported role identifier is reserved; literal and exact executed SQL consistently refuse",
+    "Quoted role text containing ALTER ROLE ALL does not trigger a phantom global mutation",
+    "Protected review checkout remained unchanged while corrections were implemented in a separate owned checkout",
+    "Membership whose two sides are implicit actors refuses rather than returning an empty clear reservation; nonmembership privilege fixtures retain their existing behavior",
+    "Current main af106caa2de7db697ecfaf5845d36a8328230446 merged cleanly; focused suite and policy checks re-proven after the outcome binding repair",
+    "Current main c86be424f89162bbf9b450a02597616e5dcde298 merged cleanly in a separate owned checkout; implementation diff is byte-identical to the Muse review target, excluding only .agent evidence"
+  ],
+  "stop_conditions_hit": []
+}

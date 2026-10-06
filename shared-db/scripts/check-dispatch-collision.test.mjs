@@ -911,3 +911,15 @@ test('reads and writes both normalise case, spacing and duplicates', () => {
   assert.deepEqual(parsed.writes, ['table core.a'])
   assert.deepEqual(parsed.reads, ['view api.b'])
 })
+
+
+test('role claims preserve quoted identity and ownership read/write dispatch conflicts', () => {
+  assert.equal(normalizeObject('ROLE "Two  Spaces"'), 'role "Two  Spaces"')
+  assert.equal(normalizeObject('role "lower"'), 'role lower')
+  assert.throws(() => normalizeObject('role core.worker'), /exact global role/)
+  const writer = {objects:['role "Worker"']}, reader = {objects:['function core.f'], reads:['role "Worker"']}
+  assert.equal(findDispatchConflicts(writer,[{label:'reader',...reader}]).overlapFound,true)
+  assert.equal(findDispatchConflicts(reader,[{label:'writer',...writer}]).overlapFound,true)
+  assert.equal(findDispatchConflicts(reader,[{label:'reader',objects:['function core.g'],reads:['role "Worker"']}]).overlapFound,false)
+  assert.equal(findDispatchConflicts(writer,[{label:'different',objects:['role worker']}]).overlapFound,false)
+})

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { currentRepository } from '../lib/repository-identity.mjs'
-import { canonicalIdentifier, dispatchObjectKeys, extractOperations, inventoryDdlVerbs } from '../check-pr-object-collisions.mjs'
+import { canonicalIdentifier, dispatchObjectKeys, roleReadKeys, extractOperations, inventoryDdlVerbs } from '../check-pr-object-collisions.mjs'
 
 export class AdmissionError extends Error {
   constructor(message, result = null) {
@@ -158,14 +158,16 @@ export function inspectPrStructuralChange(prFiles = []) {
     if(typeof file.patch!=='string')throw new AdmissionError(`migration ${name} patch is unreadable; structural admission refuses full-file evidence for a modified migration`)
     return file.patch.split(/\r?\n/).filter((line)=>line.startsWith('+')&&!line.startsWith('+++')).map((line)=>line.slice(1)).join('\n')
   })
+  const actualWrites = proposedSql.flatMap((sql) => dispatchObjectKeys(sql))
   const ddl=inventoryDdlVerbs(proposedSql)
   const rewrites=proposedSql.flatMap((sql)=>catalogFunctionRewrites(sql))
-  if(!ddl.length&&!rewrites.length)throw new AdmissionError('the pull request migration files contain no statement-leading schema DDL, so the actual change is not structural')
+  if(!ddl.length&&!rewrites.length&&!actualWrites.some((key) => key.startsWith('role ')))throw new AdmissionError('the pull request migration files contain no statement-leading schema DDL, so the actual change is not structural')
   const ambiguous=ddl.filter((row)=>!row.acknowledged)
   if(ambiguous.length)throw new AdmissionError(`the pull request contains unmodelled DDL (${ambiguous.map((row)=>row.verb).join(', ')}); structural admission fails closed`)
   const inspection={
+    reads:[...new Set(proposedSql.flatMap((sql) => roleReadKeys(sql)))].sort(),
     migrations:migrations.map((file) => file.filename ?? file.path),
-    objects:[...new Set([...proposedSql.flatMap((sql)=>dispatchObjectKeys(sql)),...rewrites])].sort(),
+    objects:[...new Set([...actualWrites,...rewrites])].sort(),
   }
   inspectedAliasProofs.set(inspection,provenLegacyTableAliases(proposedSql))
   return inspection

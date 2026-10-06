@@ -98,6 +98,7 @@
 //     lines (`create or\nreplace function`) is handled by whitespace
 //     normalisation, but a determined author can still hide DDL from it.
 
+import { extractRoleOperations, roleCollisionKeys } from './lib/sql-role-operations.mjs'
 import { execFileSync } from 'node:child_process'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { createTreeReader } from './lib/github-tree.mjs'
@@ -379,6 +380,7 @@ export function extractObjects(sql) {
       }
     }
   }
+  for (const key of roleCollisionKeys(sql)) found.add(key)
   return [...found].sort()
 }
 
@@ -775,7 +777,7 @@ export function extractOperations(sql) {
     'sequence', 'sequences', 'view', 'schema', 'index', 'if', 'as', 'only', 'exists', 'all'])
   const add = (op, sourceOffset = -1) => {
     if (!op.target) return
-    if (KEYWORDS.has(op.target)) return
+    if (op.kind !== 'role' && KEYWORDS.has(op.target)) return
     // PostgreSQL spells cleanup as plain `DROP TABLE`; there is no DROP TEMP
     // form. When the same migration created that name as a temporary table
     // earlier, the drop removes session-local scratch rather than a shared
@@ -855,6 +857,12 @@ export function extractOperations(sql) {
     seen.delete(`grant|${other}|${op.target}`)
   }
   for (const op of seen.values()) delete op.relationGuess
+  const roleResult = extractRoleOperations(sql)
+  for (const key of roleCollisionKeys(sql)) {
+    const target = key.slice(5)
+    const actions = roleResult.operations.filter((op) => op.target === target || op.from === target || op.to === target || op.members?.includes(target) || op.grantees?.includes(target))
+    for (const op of actions) add({ action: op.action, kind: 'role', target })
+  }
 
   return [...seen.values()].sort((a, b) =>
     `${a.kind} ${a.target} ${a.action}`.localeCompare(`${b.kind} ${b.target} ${b.action}`),
@@ -869,6 +877,11 @@ export function extractOperations(sql) {
  * to a target collides with any other write to it, so `alter table core.x` and
  * `create table core.x` must produce the identical key `table core.x`.
  */
+export function roleReadKeys(sql) {
+  const { operations, ownershipDependencies } = extractRoleOperations(sql)
+  return [...new Set([...ownershipDependencies.map((dep) => `role ${dep.role}`), ...operations.filter((op) => op.grantor).map((op) => `role ${op.grantor}`)])].sort()
+}
+
 export function dispatchObjectKeys(sql) {
   return [...new Set(extractOperations(sql).map((op) => `${op.kind} ${op.target}`))].sort()
 }
@@ -880,7 +893,7 @@ export function dispatchObjectKeys(sql) {
  * @returns {{checked: string[], notChecked: string[], alterModelled: boolean}}
  */
 export function describeDispatchCoverage() {
-  const checked = new Set(PATTERNS.map((p) => p.kind))
+  const checked = new Set([...PATTERNS.map((p) => p.kind), 'role'])
   for (const entry of DISPATCH_PATTERNS) for (const kind of entry.kinds) checked.add(kind)
   return {
     checked: [...checked].sort(),
@@ -954,7 +967,7 @@ export function inventoryDdlVerbs(sqlTexts) {
 }
 
 /** Statement forms the patterns above DO handle but whose noun is not a kind name. */
-const DISPATCH_MODELLED_EXTRA_FORMS = new Set(['alter default privileges'])
+const DISPATCH_MODELLED_EXTRA_FORMS = new Set(['alter default privileges', 'create user', 'alter user', 'drop user', 'create group', 'alter group', 'drop group'])
 
 /**
  * Statement forms this parser knowingly does NOT model, each with the reason.
@@ -981,12 +994,6 @@ export const DISPATCH_UNMODELLED_FORMS = {
   'create publication':
     'Database-global Supabase realtime plumbing, created once. Two agents creating ' +
     'the same publication is a hard error at apply time, not a silent overwrite.',
-  'alter role':
-    'Roles are cluster-global and managed by Supabase, not by this repo. A migration ' +
-    'touching one is already outside the object model this tool compares.',
-  'create role':
-    'Roles are cluster-global and provisioned by Supabase, not owned by this repo. ' +
-    'A migration creating one is outside the schema-object model compared here.',
   'create event': 'Event triggers are database-global, not schema objects.',
   'drop event':
     'Event triggers are database-global rather than schema objects, and the two in ' +
@@ -1015,9 +1022,11 @@ export function findCollisions(sources, primaryLabel) {
   /** @type {Map<string, Map<string, Set<string>>>} object -> label -> files */
   const index = new Map()
   const objectsBySource = {}
+  const readsBySource = new Map()
 
   for (const source of sources) {
     const seen = new Set()
+    const reads = new Map()
     for (const file of source.files ?? []) {
       for (const object of dispatchObjectKeys(file.sql)) {
         seen.add(object)
@@ -1026,10 +1035,26 @@ export function findCollisions(sources, primaryLabel) {
         if (!bySource.has(source.label)) bySource.set(source.label, new Set())
         bySource.get(source.label).add(file.path)
       }
+      for (const object of roleReadKeys(file.sql)) {
+        if (!reads.has(object)) reads.set(object, new Set())
+        reads.get(object).add(file.path)
+      }
     }
+    readsBySource.set(source.label, reads)
     objectsBySource[source.label] = [...seen].sort()
   }
 
+  // Readers never conflict with one another. Add a reader only where another
+  // source actually writes its role, preserving the existing write/read matrix.
+  for (const [label, reads] of readsBySource) {
+    for (const [object, files] of reads) {
+      const writers = index.get(object)
+      if (writers && [...writers.keys()].some((writer) => writer !== label)) {
+        if (!writers.has(label)) writers.set(label, new Set())
+        for (const file of files) writers.get(label).add(file)
+      }
+    }
+  }
   const collisions = []
   const bystanderCollisions = []
   for (const [object, bySource] of [...index.entries()].sort()) {

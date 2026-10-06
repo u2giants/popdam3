@@ -68,6 +68,7 @@
 // NO DATABASE CONTACT: reads GitHub metadata and committed .sql text only.
 // It needs no database credentials and must never be given any.
 
+import { normalizeRoleClaim } from './lib/sql-role-operations.mjs'
 import { execFileSync } from 'node:child_process'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { createTreeReader } from './lib/github-tree.mjs'
@@ -86,6 +87,7 @@ import {
   canonicalIdentifier,
   describeDispatchCoverage,
   dispatchObjectKeys,
+  roleReadKeys,
 } from './check-pr-object-collisions.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -172,6 +174,7 @@ export function parseClaimBlock(body) {
  * regardless of spacing or case.
  */
 export function normalizeObject(text) {
+  if (/^role\s/i.test(String(text).trim())) return normalizeRoleClaim(text)
   const compact = String(text).trim().replace(/\s+/g, ' ')
   const match = /^(materialized view|storage bucket|[a-z]+)\s+(.+)$/i.exec(compact)
   if (!match) return compact.toLowerCase()
@@ -215,13 +218,15 @@ export function normalizeObject(text) {
  */
 export function findDispatchConflicts(proposed, inFlight) {
   const wanted = new Set((proposed.objects ?? []).map(normalizeObject))
+  const wantedReads = new Set((proposed.reads ?? []).map(normalizeObject))
   const objectConflicts = []
   const versionConflicts = []
 
   for (const holder of inFlight) {
     const overlap = (holder.objects ?? [])
       .map(normalizeObject)
-      .filter((object) => wanted.has(object))
+      .filter((object) => wanted.has(object) || wantedReads.has(object))
+    overlap.push(...(holder.reads ?? []).map(normalizeObject).filter((object) => wanted.has(object)))
     if (overlap.length > 0) {
       objectConflicts.push({
         label: holder.label,
@@ -530,6 +535,7 @@ export function gatherClaims(repo) {
         label: `claim #${issue.number} "${issue.title}"`,
         url: issue.html_url,
         objects: parsed.objects,
+        ...(parsed.reads.length ? { reads: parsed.reads } : {}),
         versions: parsed.version ? [parsed.version] : [],
       }
     })
@@ -571,6 +577,7 @@ export function gatherOpenPrObjects(repo, io = defaultIo) {
     if (pr.changed_files >= 3000) throw new Unknown(`PR #${pr.number} reaches GitHub's 3000-file limit; refusing incomplete coverage`)
     if (files.length !== pr.changed_files) throw new Unknown(`PR #${pr.number} returned ${files.length} of ${pr.changed_files} changed files`)
     const objects = new Set()
+    const reads = new Set()
     const versions = new Set()
     for (const file of files) {
       if (!file.filename.startsWith(`${MIGRATIONS_DIR}/`)) continue
@@ -589,6 +596,7 @@ export function gatherOpenPrObjects(repo, io = defaultIo) {
         )
       }
       for (const object of dispatchObjectKeys(sql)) objects.add(object)
+      for (const object of roleReadKeys(sql)) reads.add(object)
     }
     if (objects.size === 0 && versions.size === 0) continue
     sources.push({
@@ -597,6 +605,7 @@ export function gatherOpenPrObjects(repo, io = defaultIo) {
       draft: Boolean(pr.draft),
       branch: pr.head?.ref ?? null,
       objects: [...objects].sort(),
+      ...(reads.size ? { reads: [...reads].filter((key) => !objects.has(key)).sort() } : {}),
       versions: [...versions].sort(),
     })
   }

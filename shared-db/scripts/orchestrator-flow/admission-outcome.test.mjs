@@ -1035,3 +1035,13 @@ test('a repaired timestamp incident does not block later ordinary race repair (#
     assert.equal(comments.length,before)
   }
 })
+
+
+test('structural admission accounts for exact roles and ownership dependencies', () => {
+  const file = (content) => [{filename:'supabase/migrations/20261006190000_role.sql',status:'added',content}]
+  const actual = inspectPrStructuralChange(file('CREATE ROLE "Worker"; ALTER FUNCTION core.f() OWNER TO "Worker";'))
+  assert.ok(actual.objects.includes('role "Worker"'))
+  assert.deepEqual(actual.reads,['role "Worker"'])
+  assert.deepEqual(inspectPrStructuralChange(file("DO $$ BEGIN EXECUTE 'CREATE ROLE worker'; END $$;")).objects,['role worker'])
+  assert.throws(() => inspectPrStructuralChange(file("DO $$ BEGIN EXECUTE format('CREATE ROLE %I', name); END $$;")), /dynamic role/)
+})

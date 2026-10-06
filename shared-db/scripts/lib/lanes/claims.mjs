@@ -7,7 +7,7 @@ import { validateImmutableArtifactReference } from './claim-maintenance.mjs'
 
 export class LaneError extends Error {}
 
-export const CLAIM_KINDS = new Set(['schema','table','column','view','materialized view','function','procedure','trigger','policy','type','domain','sequence','index','publication','storage bucket'])
+export const CLAIM_KINDS = new Set(['schema','table','column','view','materialized view','function','procedure','trigger','policy','type','domain','sequence','index','publication','storage bucket','role'])
 export function validateClaimObjects(objects) {
   const normalized = objects.map(normalizeObject)
   if (new Set(normalized).size !== normalized.length) throw new LaneError('duplicate object claims are not allowed')
@@ -24,7 +24,7 @@ export function validateClaimObjects(objects) {
     const ident = '(?:[a-z_][a-z0-9_$]*|"(?:[^"]|"")+")'
     const qualified = new RegExp(`^${ident}\\.${ident}$`)
     const namedOn = new RegExp(`^${ident} on ${ident}\\.${ident}$`)
-    if (kind === 'schema' || kind === 'publication' || kind === 'storage bucket') {
+    if (kind === 'schema' || kind === 'publication' || kind === 'storage bucket' || kind === 'role') {
       if (!new RegExp(`^${ident}$`).test(target)) throw new LaneError(`claim must name one exact ${kind}: ${object}`)
     } else if (kind === 'trigger' || kind === 'policy') {
       if (!namedOn.test(target)) throw new LaneError(`claim must use "${kind} name on schema.table": ${object}`)
