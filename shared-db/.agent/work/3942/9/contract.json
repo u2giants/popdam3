@@ -1,0 +1,79 @@
+{
+  "allowed_paths": [
+    ".agent/work/3942/8/completion.json",
+    ".agent/work/3942/8/contract.json",
+    ".github/workflows/coldlion-order-intake.yml",
+    "tools/coldlion-landing-masters.test.mjs",
+    "tools/coldlion-landing/lib/db.mjs",
+    "tools/coldlion-landing/lib/order-intake-run.mjs",
+    "tools/coldlion-landing/order-intake-write.mjs",
+    "tools/coldlion-order-intake-claim.test.mjs",
+    "tools/coldlion-order-intake-workflow.test.mjs",
+    "tools/coldlion-sync-common-runsql.test.mjs",
+    "tools/coldlion-sync-common.mjs",
+    "tools/promote-coldlion-source-owned.mjs",
+    "tools/coldlion-cycle-state-paging.private-artifact-test.mjs",
+    "tools/run-coldlion-licensor-property-phase4.mjs",
+    "tools/sync-clickup-tasks.mjs",
+    "tools/sync-coldlion-items.mjs",
+    "tools/sync-coldlion-licensors-properties.mjs",
+    "tools/sync-merchgroup-headers.mjs"
+  ],
+  "assumptions": [
+    "Transport hardening only",
+    "Base is main 60133e26 (post-#3946)",
+    "Sibling suite remains recorded evidence.",
+    "libpq probe record: eleven names positively validated by invalid-value probes (PGSSLMODE, PGSSLNEGOTIATION, PGREQUIREAUTH, PGLOADBALANCEHOSTS, PGCHANNELBINDING, PGSSLMINPROTOCOLVERSION, PGSSLMAXPROTOCOLVERSION, PGCONNECT_TIMEOUT, PGTARGETSESSIONATTRS, PGGSSENCMODE, PGSSLCERTMODE); PGKEEPALIVES/PGTCP_USER_TIMEOUT/PGSSLSNI not read (refused); the six handshake-material names probe-inconclusive (refused)."
+  ],
+  "base_sha": "60133e2682509f597dff7385e77ced77548bc7cd",
+  "branch": "coldlion-prereq",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "ZCode chat sess_879e4038-46bc-4634-aa88-f479835a3610 on edge-dev",
+  "evidence_parent": {
+    "work_issue": 3942,
+    "generation": 8,
+    "contract_sha256": "b89b762c68193e64f92d547f57a43cb0becab0d4263743861a5ba18c93443742"
+  },
+  "file_writes": [
+    ".agent/work/3942/8/completion.json",
+    ".agent/work/3942/8/contract.json",
+    "tools/coldlion-landing/lib/db.mjs",
+    "tools/coldlion-landing/lib/order-intake-run.mjs",
+    "tools/coldlion-landing/order-intake-write.mjs",
+    "tools/coldlion-order-intake-claim.test.mjs",
+    "tools/coldlion-sync-common-runsql.test.mjs",
+    "tools/coldlion-sync-common.mjs",
+    "tools/promote-coldlion-source-owned.mjs",
+    "tools/coldlion-cycle-state-paging.private-artifact-test.mjs",
+    "tools/run-coldlion-licensor-property-phase4.mjs",
+    "tools/sync-clickup-tasks.mjs",
+    "tools/sync-coldlion-items.mjs",
+    "tools/sync-coldlion-licensors-properties.mjs",
+    "tools/sync-merchgroup-headers.mjs"
+  ],
+  "generation": 9,
+  "goal": "Round 6 (qwen round-5 H1/M1-M3 + Lows): ALL previously-CRLF files restored to LF with every file restored to LF as at base (a dedicated follow-up PR will carry the .gitattributes EOL policy with the one-time repo-wide renormalization it requires, so other lanes files are not churned inside this transport PR); the URI-fault routing closed in the FIVE remaining sibling durable recorders (sync-coldlion-licensors-properties, run-coldlion-licensor-property-phase4, sync-merchgroup-headers, sync-coldlion-items, sync-clickup-tasks) — client faults print the tooling/config-fault line and skip the durable row; TLS handshake-material parameters (sslpassword, sslcert, sslkey, sslrootcert, sslcrl, sslcrldir) REFUSED (the invalid-value probe is inconclusive for handshake-time consumption — measured, all went straight to connection-refused — and a silently dropped passphrase/CRL is a security-relevant downgrade); query port validated (digits; comma lists only at matching host cardinality); URI fragments refused; SUPABASE_DB_URL deletion made case-insensitive inside the one sweep loop; proveTarget bridges runSql's url key so the proof and the connection read the same URL; new tests for all of it (1039 pass).",
+  "prohibited_actions": [
+    "No migration",
+    "No cron",
+    "No production dispatch",
+    "No secrets"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node --test tools/coldlion-landing-masters.test.mjs tools/coldlion-order-intake-*.test.mjs tools/coldlion-sync-common-runsql.test.mjs",
+    "node --test tools/*.test.mjs in a clean clone"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop if tests fail",
+    "Stop on guarded-lane refusal",
+    "Stop if review cannot reach two non-GLM APPROVE"
+  ],
+  "work_issue": 3942,
+  "work_type": "repo-maintenance",
+  "worker": "ZCode chat sess_879e4038-46bc-4634-aa88-f479835a3610 on edge-dev",
+  "worktree": "C:/repos/shared-db/.ai/worktrees/coldlion-intake-e"
+}

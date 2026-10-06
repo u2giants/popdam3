@@ -38,7 +38,7 @@ import {
   fetchPaged,
   readColdlionApiKey,
   runSql,
-  sqlDollarQuote,
+  sqlDollarQuote, isClientSpawnFault, isClientUriFault
 } from "./coldlion-sync-common.mjs";
 import { assertColdlionApplyTarget, describeAuthorizedTarget } from "./coldlion-production-authorization.mjs";
 
@@ -561,7 +561,11 @@ async function main() {
     }
   } catch (error) {
     if (apply) {
-      try { runSql(buildFailedSyncRunSql(SOURCE_NAME, stage, error?.message ?? String(error)), { linked }); }
+      if (isClientSpawnFault(error) || isClientUriFault(error)) {
+        process.stderr.write(`CLIENT TOOLING/CONFIG FAULT at stage ${stage}: ${error?.message ?? error}
+No durable failed ingest.sync_run row was recorded; this does NOT count toward the two-consecutive-failure circuit breaker.
+`);
+      } else try { runSql(buildFailedSyncRunSql(SOURCE_NAME, stage, error?.message ?? String(error)), { linked }); }
       catch (recErr) { process.stderr.write(`WARNING: could not record durable failure: ${recErr?.message ?? recErr}\n`); }
     }
     throw error;

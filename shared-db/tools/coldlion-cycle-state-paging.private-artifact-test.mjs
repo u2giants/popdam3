@@ -21,8 +21,9 @@
 // tools/coldlion-sync-common-runsql.test.mjs.
 
 import { test, before, after } from "node:test";
+import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
-import { copyFileSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -467,7 +468,7 @@ function usePath(dir) {
 }
 
 /** Run main() with stdout/stderr captured. */
-function runMain(argv) {
+function runMain(argv, opts = {}) {
   writeFileSync(logFile, "");
   const out = [];
   const err = [];
@@ -476,7 +477,7 @@ function runMain(argv) {
   process.stdout.write = (c) => (out.push(String(c)), true);
   process.stderr.write = (c) => (err.push(String(c)), true);
   try {
-    return { code: main(argv, process.env), out: out.join(""), err: err.join("") };
+    return { code: main(argv, process.env, opts), out: out.join(""), err: err.join("") };
   } finally {
     process.stdout.write = so;
     process.stderr.write = se;
@@ -484,6 +485,35 @@ function runMain(argv) {
 }
 
 /** Every SQL statement the fake CLI was actually asked to run. */
+
+/**
+ * Injectable runSql for the two failure-semantics tests below. The REAL spawn
+ * boundary is covered elsewhere (the spawn-fault tests use usePath(emptyDir);
+ * argv/env shape is pinned in coldlion-sync-common-runsql.test.mjs). What these
+ * two tests prove is which failures reach the DURABLE-record path, and that is
+ * a property of promote-coldlion-source-owned.mjs's control flow, not of psql.
+ */
+function injectedRunSql(sql) {
+  appendFileSync(logFile, JSON.stringify({ sql }) + "\n");
+  if (process.env.FAKE_SUPABASE_MODE === "race") {
+    // A FULL page (so the caller always asks for another) carrying a BRAND-NEW
+    // snapshot id on every call (so the bounded retry can never win).
+    const call = readFileSync(logFile, "utf8").trim().split("\n").length;
+    const size = Number(process.env.FAKE_PAGE_SIZE);
+    const rows = [];
+    for (let i = 0; i < size; i++) {
+      rows.push({
+        entityType: "property", company: "01", division: "D1", mgTypeCode: "T",
+        mgCode: "MG" + call + "_" + i, name: "P", resolution_status: "manually_matched",
+        present_this_cycle: true,
+      });
+    }
+    return JSON.stringify([{ jsonb_build_object: { ok: true, snapshot_run_id: "run-" + call, rows } }]);
+  }
+  // Default mode: a genuine database failure (a SQL error, not a spawn fault).
+  throw new Error('psql:script.sql:1: ERROR:  relation "coldlion.cycle_state" does not exist');
+}
+
 function sqlSent() {
   const raw = readFileSync(logFile, "utf8").trim();
   return raw ? raw.split("\n").map((l) => JSON.parse(l).sql) : [];
@@ -520,9 +550,9 @@ test("a client tooling fault exits 4 and records NOTHING — the breaker is unto
   assert.deepEqual(sqlSent(), [], "no SQL of any kind may be sent after a spawn fault");
 });
 
-test("a REAL database failure still records both durable rows — the guard is not too wide", () => {
-  usePath(stubDir); // the fake CLI runs and exits 1 with a SQL error on stderr
-  const { code, err } = runMain(["--apply"]);
+test("a REAL database failure still ATTEMPTS both durable records — the guard is not too wide", () => {
+  usePath(emptyDir); // nothing on PATH: the semantics come from the injected runSql, not the environment
+  const { code, err } = runMain(["--apply"], { runSqlImpl: injectedRunSql });
 
   assert.equal(code, 1, "a genuine SQL failure must still take the failure path");
   const sent = sqlSent();
@@ -552,13 +582,13 @@ test("the cycle-state-race exit code is distinct from every other outcome", () =
 });
 
 test("a persistent snapshot race exits 5 and records NOTHING — breaker untouched", () => {
-  // End to end through the REAL main() and the REAL spawn boundary. The fake CLI hands back a
-  // FULL page carrying a brand-new snapshot id on every single call, so the bounded retry can
+  // End to end through the REAL main(). The injected runSql hands back a FULL page
+  // carrying a brand-new snapshot id on every single call, so the bounded retry can
   // never win — the worst case for this guard.
-  usePath(stubDir);
+  usePath(emptyDir);
   process.env.FAKE_SUPABASE_MODE = "race";
   try {
-    const { code, err } = runMain(["--apply"]);
+    const { code, err } = runMain(["--apply"], { runSqlImpl: injectedRunSql });
 
     assert.equal(code, EXIT_CYCLE_STATE_RACE, "a benign overlap must not take the failure path");
     assert.notEqual(code, 1);
@@ -602,32 +632,27 @@ test("the two spawn paths share ONE ceiling constant, so they cannot drift apart
 });
 
 test("the PSQL path survives a payload larger than the 1 MiB default (it used to not)", () => {
-  // Behavioural, across the real spawn boundary: a fake `psql` emits > 1 MiB on stdout. Before
-  // the ceiling was added to this branch, this threw ENOBUFS.
-  const psqlDir = mkdtempSync(join(tmpdir(), "b14-psql-"));
+  // Behavioural, across the real spawnSync buffer boundary: the injected spawn still calls
+  // the REAL spawnSync (on a node -e emitter), so runSql's maxBuffer ceiling is what actually
+  // governs. Before the ceiling was added to this branch, this threw ENOBUFS. The fake is not
+  // a psql-named executable copy any more: runSql's psql argv now begins with flags, and a
+  // copied node.exe would abort on them before emitting anything.
+  const payloadDir = mkdtempSync(join(tmpdir(), "b14-psql-"));
   try {
     const big = `[{"jsonb_build_object":{"ok":true,"pad":"${"x".repeat(2 * 1024 * 1024)}"}}]`;
     assert.ok(big.length > 1024 * 1024, "the fixture must exceed the 1 MiB default");
-    const payloadFile = join(psqlDir, "payload.txt");
+    const payloadFile = join(payloadDir, "payload.txt");
     writeFileSync(payloadFile, big, "utf8");
-    writeFileSync(
-      join(psqlDir, "preload.cjs"),
-      `const fs=require("node:fs");fs.writeSync(1,fs.readFileSync(process.env.FAKE_PSQL_PAYLOAD));process.exit(0);`,
-      "utf8",
-    );
-    const exe = join(psqlDir, process.platform === "win32" ? "psql.exe" : "psql");
-    copyFileSync(process.execPath, exe);
-
-    usePath(psqlDir);
-    process.env.NODE_OPTIONS = `--require "${join(psqlDir, "preload.cjs").replace(/\\/g, "/")}"`;
-    process.env.FAKE_PSQL_PAYLOAD = payloadFile;
-    try {
-      const out = runSql("select 1;");
-      assert.equal(out.length, big.length, "the psql branch must return the payload, not ENOBUFS");
-    } finally {
-      delete process.env.FAKE_PSQL_PAYLOAD;
-    }
+    const out = runSql("select 1;", {
+      spawn: (cmd, args, opts) =>
+        spawnSync(
+          process.execPath,
+          ["-e", "process.stdout.write(require('node:fs').readFileSync(process.env.FAKE_PSQL_PAYLOAD,'utf8'))"],
+          { ...opts, env: { ...opts.env, FAKE_PSQL_PAYLOAD: payloadFile, NODE_OPTIONS: "" } },
+        ),
+    });
+    assert.equal(out.length, big.length, "the psql branch must return the payload, not ENOBUFS");
   } finally {
-    rmSync(psqlDir, { recursive: true, force: true });
+    rmSync(payloadDir, { recursive: true, force: true });
   }
 });

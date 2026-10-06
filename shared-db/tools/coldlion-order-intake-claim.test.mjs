@@ -234,7 +234,7 @@ test("a dry run records NOTHING anywhere: the failure recorder is write-mode onl
   // failure must not insert a failed sync_run row — that would be a write on
   // a dry run. The guard lives in the entry point's catch block.
   const entry = readFileSync(new URL("./coldlion-landing/order-intake-write.mjs", import.meta.url), "utf8");
-  assert.match(entry, /if \(options\.write && !isClientSpawnFault\(error\)\)/);
+  assert.match(entry, /if \(options\.write && !isClientSpawnFault\(error\) && !isClientUriFault\(error\)\)/);
 });
 
 test("EP001 exclusion: the claim path filters division_code again, defence in depth", () => {

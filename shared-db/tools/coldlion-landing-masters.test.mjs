@@ -304,6 +304,77 @@ test("landing runSql passes the script as a file, not stdin, so a large load can
   assert.equal(existsSync(seen.file), false, "temp script is removed after the run");
 });
 
+test("landing runSql passes the connection via PG* env, never as a process argument", () => {
+  let seen;
+  landingRunSql("select 1;", {
+    url: "postgresql://user:secret@host1:5432,host2:5433/mydb?sslmode=require&application_name=myapp",
+    spawn: (cmd, args, opts) => {
+      seen = { cmd, args, env: opts.env };
+      return { status: 0, stdout: "ok", stderr: "" };
+    },
+  });
+  assert.equal(seen.cmd, "psql");
+  // Byte-exact argv: any new flag AND any connection material both fail here
+  // (2026-10-05 review, L6 — substring scans alone would miss a reordered or
+  // widened vector).
+  assert.deepEqual(seen.args.filter((a) => !String(a).endsWith(".sql")), [
+    "--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--quiet", "-f",
+  ]);
+  for (const a of seen.args) {
+    assert.ok(!String(a).includes("secret"), "argv must not carry a password");
+    assert.ok(!String(a).includes("://"), "argv must not carry a connection URL");
+    assert.ok(!String(a).includes("host1"), "argv must not carry the host");
+  }
+  assert.equal(seen.env.PGHOST, "host1,host2");
+  assert.equal(seen.env.PGPORT, "5432,5433");
+  assert.equal(seen.env.PGDATABASE, "mydb");
+  assert.equal(seen.env.PGUSER, "user");
+  assert.equal(seen.env.PGPASSWORD, "secret");
+  assert.equal(seen.env.PGSSLMODE, "require");
+  assert.equal(seen.env.PGAPPNAME, "myapp");
+});
+
+test("landing runSql sweeps ambient PG* and floors an absent sslmode to require", () => {
+  const previous = { PGHOST: process.env.PGHOST, PGSSLMODE: process.env.PGSSLMODE, PGOPTIONS: process.env.PGOPTIONS };
+  process.env.PGHOST = "ambient-evil-host";
+  process.env.PGSSLMODE = "disable";
+  // A variable the parser never emits: deleting the sweep entirely must fail
+  // THIS assertion, not just the override ones (2026-10-05 review, M4).
+  process.env.PGOPTIONS = "-c statement_timeout=9999";
+  let seen;
+  try {
+    landingRunSql("select 1;", {
+      url: "postgresql://user:secret@host1:5432/mydb",
+      spawn: (cmd, args, opts) => {
+        seen = { env: opts.env };
+        return { status: 0, stdout: "ok", stderr: "" };
+      },
+    });
+  } finally {
+    for (const [k, v] of Object.entries(previous)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+  assert.equal(seen.env.PGHOST, "host1", "ambient PGHOST must never override the declared target");
+  assert.equal(seen.env.PGSSLMODE, "require", "absent sslmode floors to require; ambient disable is swept");
+  assert.equal(seen.env.PGOPTIONS, undefined, "ambient non-target PG* must not survive into the psql child");
+});
+
+test("landing runSql parses IPv6 PostgreSQL URIs into PG* env", () => {
+  let seen;
+  landingRunSql("select 1;", {
+    url: "postgresql://user:secret@[::1]:5432/mydb",
+    spawn: (cmd, args, opts) => {
+      seen = { env: opts.env };
+      return { status: 0, stdout: "ok", stderr: "" };
+    },
+  });
+  assert.equal(seen.env.PGHOST, "::1");
+  assert.equal(seen.env.PGPORT, "5432");
+  assert.equal(seen.env.PGDATABASE, "mydb");
+});
+
 test("landing runSql surfaces psql's real database error instead of a spawn fault", () => {
   assert.throws(
     () => landingRunSql("select 1;", {

@@ -41,7 +41,8 @@ import { readLinkedProjectRefSync, repoRootFrom } from "./check-supabase-link-st
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
-import { runSql, sqlDollarQuote } from "./coldlion-sync-common.mjs";
+import { runSql, sqlDollarQuote, isClientSpawnFault, isClientUriFault
+} from "./coldlion-sync-common.mjs";
 import { extractGoMapText, parseGoMap } from "./phase6-cli-result-parse.mjs";
 
 // =====================================================================================
@@ -706,7 +707,11 @@ async function main() {
   } catch (error) {
     if (run.apply) {
       try {
-        runSql(buildFailedSyncRunSql(stage, error?.message ?? String(error)), { linked: run.linked });
+        if (isClientSpawnFault(error) || isClientUriFault(error)) {
+          process.stderr.write(`CLIENT TOOLING/CONFIG FAULT at stage ${stage}: ${error?.message ?? error}
+No durable failed ingest.sync_run row was recorded.
+`);
+        } else runSql(buildFailedSyncRunSql(stage, error?.message ?? String(error)), { linked: run.linked });
       } catch (recErr) {
         process.stderr.write(`WARNING: could not record durable failure: ${recErr?.message ?? recErr}\n`);
       }

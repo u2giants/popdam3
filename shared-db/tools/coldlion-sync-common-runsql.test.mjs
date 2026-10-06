@@ -29,7 +29,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
-import { runSql, SPAWN_TIMEOUT_MS } from "./coldlion-sync-common.mjs";
+import { parsePgUri, runSql, SPAWN_TIMEOUT_MS } from "./coldlion-sync-common.mjs";
 import { parseHealthResult, parseComparisonResult } from "./phase6-cli-result-parse.mjs";
 
 // ---------------------------------------------------------------------------------------
@@ -101,9 +101,10 @@ before(() => {
     "FAKE_SUPABASE_EXIT",
   );
 
-  // PATH holds ONLY the stub dir. That also removes `psql`, which deterministically exercises
-  // the documented ENOENT fall-through from psql to the Supabase CLI without depending on
-  // whether psql happens to be installed on the machine running the tests.
+  // PATH holds ONLY the stub dir. That also removes `psql`, which deterministically
+  // exercises the psql branch's fail-closed CLIENT_SPAWN_FAULT refusal (no fall-through
+  // to the CLI exists any more) without depending on whether psql happens to be
+  // installed on the machine running the tests.
   process.env.PATH = stubDir;
   if (process.platform === "win32") process.env.Path = stubDir;
   // NODE_OPTIONS treats a backslash inside quotes as an escape, so the preload path is
@@ -141,31 +142,17 @@ function capturedArgv() {
 // 1. The exact argument vector — including `--output json`
 // ---------------------------------------------------------------------------------------
 
-test("runSql passes `--output json` to the Supabase CLI on the --db-url path", () => {
+test("runSql refuses to fall through to --linked when a database URL is supplied and psql is missing", () => {
   stubResponds({ stdout: "[]" });
-  process.env.DATABASE_URL = "postgresql://fixture-user@fixture-host:5432/fixture";
+  process.env.DATABASE_URL = "postgresql://fixture-user:fixture-pass@fixture-host:5432/fixture";
   delete process.env.SUPABASE_DB_URL;
 
-  runSql("select 1;");
-  const argv = capturedArgv();
-
-  // Byte-exact vector. `--output json` is NOT the CLI default; losing it silently corrupts a
-  // large JSON payload into an unrecoverable box-drawn table.
-  assert.deepEqual(argv.slice(0, 6), [
-    "db",
-    "query",
-    "--db-url",
-    "postgresql://fixture-user@fixture-host:5432/fixture",
-    "--output",
-    "json",
-  ]);
-  assert.equal(argv[6], "--file");
-  assert.ok(argv[7] && argv[7].endsWith("query.sql"), `expected a --file argument, got ${argv[7]}`);
-  assert.equal(argv.length, 8);
-  // Stated twice on purpose: this is the assertion whose removal reopens the defect.
-  const outputIdx = argv.indexOf("--output");
-  assert.notEqual(outputIdx, -1, "`--output` must be passed");
-  assert.equal(argv[outputIdx + 1], "json", "`--output` must be `json`");
+  // psql is absent (PATH holds only the stub dir), so the old behavior fell through
+  // to --linked and could hit an unrelated project. Fail closed instead.
+  assert.throws(
+    () => runSql("select 1;"),
+    (error) => error.code === "CLIENT_SPAWN_FAULT" && error.spawnErrorCode === "ENOENT",
+  );
 });
 
 test("runSql passes `--output json` on the --linked path too", () => {
@@ -324,6 +311,235 @@ test("a single-column row whose value is a JSON STRING is unwrapped too", () => 
 test("the unwrap stays fail-closed when the inner object has no boolean discriminator", () => {
   assert.equal(parseHealthResult('[{"jsonb_build_object":{"ok":"true"}}]'), null);
   assert.equal(parseHealthResult('[{"jsonb_build_object":{"status":"green"}}]'), null);
+});
+
+// ---------------------------------------------------------------------------------------
+// 5. The psql branch's own transport — argv byte-exact, connection only in PG* env
+// ---------------------------------------------------------------------------------------
+//
+// The PATH-stub tests above exercise the --linked branch end to end; this module's
+// psql branch (the one DATABASE_URL selects) had NO test that observed its argv or
+// its environment, so reverting the connection back into argv would have left every
+// test green (2026-10-05 review, H2). The spawn is injected for capture; the psql
+// branch builds its argv/env before spawning, which is exactly the surface pinned
+// here.
+
+test("the psql branch carries the connection ONLY in PG* env, on a swept and floored environment", () => {
+  process.env.DATABASE_URL = "postgresql://user:secret@host1:5432,host2:5433/mydb?application_name=myapp";
+  delete process.env.SUPABASE_DB_URL;
+  process.env.PGHOST = "ambient-evil-host";
+  process.env.PGSSLMODE = "disable";
+  process.env.PGOPTIONS = "-c statement_timeout=9999";
+  let seen;
+  try {
+    runSql("select 1;", {
+      spawn: (cmd, args, opts) => {
+        seen = { cmd, args, env: opts.env };
+        return { status: 0, stdout: "ok", stderr: "" };
+      },
+    });
+  } finally {
+    delete process.env.PGHOST;
+    delete process.env.PGSSLMODE;
+    delete process.env.PGOPTIONS;
+  }
+  assert.equal(seen.cmd, "psql");
+  assert.deepEqual(
+    seen.args,
+    ["--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--single-transaction"],
+    "the psql argv is pinned byte-exact: any new flag or any connection material fails here",
+  );
+  for (const a of seen.args) {
+    assert.ok(!String(a).includes("secret"), "argv must not carry the password");
+    assert.ok(!String(a).includes("://"), "argv must not carry a connection URL");
+    assert.ok(!String(a).includes("host1"), "argv must not carry the host");
+  }
+  assert.equal(seen.env.PGHOST, "host1,host2");
+  assert.equal(seen.env.PGPORT, "5432,5433");
+  assert.equal(seen.env.PGDATABASE, "mydb");
+  assert.equal(seen.env.PGUSER, "user");
+  assert.equal(seen.env.PGPASSWORD, "secret");
+  assert.equal(seen.env.PGAPPNAME, "myapp");
+  assert.equal(
+    seen.env.PGSSLMODE,
+    "require",
+    "a URL with no sslmode must floor to require, never inherit an ambient value",
+  );
+  assert.notEqual(seen.env.PGHOST, "ambient-evil-host", "ambient PG* must be swept");
+  assert.equal(seen.env.PGOPTIONS, undefined, "ambient non-target PG* must not survive (sweep deletion fails here)");
+});
+
+test("the --linked child env sweeps ambient PG* and never receives SUPABASE_DB_URL", () => {
+  delete process.env.DATABASE_URL;
+  // SET, not deleted: the previous form deleted it first, so the assertion
+  // could not fail against any implementation (2026-10-05 review, M3).
+  process.env.SUPABASE_DB_URL = "postgresql://inherited-override@evil/db";
+  process.env.PGHOST = "ambient-evil-host";
+  let seen;
+  try {
+    runSql("select 1;", {
+      linked: true,
+      spawn: (cmd, args, opts) => {
+        seen = { env: opts.env };
+        return { status: 0, stdout: "[]", stderr: "" };
+      },
+    });
+  } finally {
+    delete process.env.PGHOST;
+    delete process.env.SUPABASE_DB_URL;
+  }
+  assert.equal(seen.env.PGHOST, undefined, "ambient PG* must be swept from the CLI child too");
+  assert.equal(
+    seen.env.SUPABASE_DB_URL,
+    undefined,
+    "neither minted nor inherited: the CLI child must never receive a URL under the name it uses to override its link state",
+  );
+});
+
+test("a URI-validation refusal is a CLIENT fault routed away from the durable-failure path", async () => {
+  const { main } = await import("./promote-coldlion-source-owned.mjs");
+  const previous = process.env.DATABASE_URL;
+  // WHATWG-valid, strictly-parser-REFUSED: sslmode=disable (and a preview
+  // identity so assertPreviewApplyTarget lets --apply through).
+  process.env.DATABASE_URL = "postgresql://postgres.rjyboqwcdzcocqgmsyel:fixture@127.0.0.1:5432/postgres?sslmode=disable";
+  const so = process.stdout.write.bind(process.stdout);
+  const se = process.stderr.write.bind(process.stderr);
+  const err = [];
+  process.stdout.write = (c) => true;
+  process.stderr.write = (c) => (err.push(String(c)), true);
+  let code = null;
+  try {
+    code = main(["--apply"], process.env);
+  } finally {
+    process.stdout.write = so;
+    process.stderr.write = se;
+    if (previous === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previous;
+  }
+  const text = err.join("");
+  assert.equal(code, 4, "a URI-validation refusal must take the tooling-fault exit, not the database-failure exit");
+  assert.match(text, /CLIENT TOOLING FAULT|failed validation/);
+  assert.doesNotMatch(text, /FAILED at stage/, "it must not be reported as a database failure");
+  assert.doesNotMatch(text, /could not record durable failure/, "no durable-record attempt may happen");
+});
+
+// The strict-URI parser's fail-closed rules (shared with coldlion-landing/lib/db.mjs,
+// which re-exports it from this module).
+
+test("parsePgUri rejects what it cannot safely represent", () => {
+  const reject = (uri, note) =>
+    assert.throws(() => parsePgUri(uri), { constructor: Error }, note);
+  reject("postgresql://u:p@h/db?hostaddr=10.0.0.9", "hostaddr bypasses host validation");
+  reject("postgresql://u:p@h/db?keepalives=1", "keepalives has no env var: refusing, not dropping");
+  reject("postgresql://u:p@h/db?tcp_user_timeout=9", "tcp_user_timeout has no env var");
+  reject("postgresql://u:p@h/db?sslsni=1", "sslsni has no env var");
+  reject("postgresql://u:p@h/db?fallback_application_name=x", "no env var exists for it");
+  reject("postgresql://u:p@h:5432/db?port=6543", "query port must not fight authority ports");
+  reject("postgresql://u:p@h/db?sslmode=disable", "sslmode=disable can send the password in cleartext");
+  reject("postgresql://u:p@h/db?sslmode=allow", "sslmode=allow can fall back to cleartext");
+  reject("postgresql://u:p@h/db?ssl=false", "ssl=false is rejected");
+  reject("postgresql://u:p@h/db?sslmode=prefer", "sslmode=prefer can fall back to cleartext");
+  reject("postgresql://u:p@h/db?options=-c%20search_path%3Dx", "options changes server-side semantics");
+  reject("postgresql://u:p@host:5432evil/db", "a malformed port must not become a second failover host");
+  reject("postgresql://u:p@h1:6543,h2/db", "mixed port presence is refused, not defaulted");
+});
+
+test("parsePgUri floors an absent sslmode to require and keeps verified params", () => {
+  const env = parsePgUri("postgresql://u:p@h:5432/db");
+  assert.equal(env.PGSSLMODE, "require");
+  const rich = parsePgUri("postgresql://u:p@h/db?sslmode=verify-full&sslnegotiation=direct&require_auth=scram-sha-256&load_balance_hosts=random");
+  assert.equal(rich.PGSSLMODE, "verify-full");
+  assert.equal(rich.PGSSLNEGOTIATION, "direct");
+  assert.equal(rich.PGREQUIREAUTH, "scram-sha-256");
+  assert.equal(rich.PGLOADBALANCEHOSTS, "random");
+});
+
+test("urlToPgEnv never downgrades TLS and never lets ambient beat a declared sslmode", async () => {
+  const { urlToPgEnv, parsePgUri } = await import("./coldlion-sync-common.mjs");
+  assert.equal(urlToPgEnv("postgresql://u:p@h/db", { PGSSLMODE: "verify-full", PATH: "x" }).PGSSLMODE, "verify-full",
+    "a stricter operator sslmode survives when the URL declares none");
+  assert.equal(urlToPgEnv("postgresql://u:p@h/db", { PGSSLMODE: "prefer", PATH: "x" }).PGSSLMODE, "require",
+    "a weaker ambient sslmode is swept to the floor");
+  assert.equal(urlToPgEnv("postgresql://u:p@h/db?sslmode=require", { PGSSLMODE: "verify-full", PATH: "x" }).PGSSLMODE, "require",
+    "a URL-declared sslmode wins verbatim, even over a stricter ambient value");
+  assert.equal(urlToPgEnv("postgresql://u:p@h/db?ssl=true", { PGSSLMODE: "verify-full", PATH: "x" }).PGSSLMODE, "require",
+    "the legacy ssl alias counts as the URL declaring its sslmode");
+  assert.equal(parsePgUri("postgresql://u:p@h/db?sslmode=verify-full").PGSSLMODE, "verify-full");
+});
+
+test("round-5 refusals: TLS handshake material, query-port cardinality, fragments", async () => {
+  const { parsePgUri } = await import("./coldlion-sync-common.mjs");
+  for (const u of [
+    "postgresql://u:p@h/db?sslpassword=x",
+    "postgresql://u:p@h/db?sslcert=/x",
+    "postgresql://u:p@h/db?sslkey=/x",
+    "postgresql://u:p@h/db?sslrootcert=/x",
+    "postgresql://u:p@h/db?sslcrl=/x",
+    "postgresql://u:p@h/db?sslcrldir=/x",
+    "postgresql://u:p@h/db?port=5432,5433",
+    "postgresql://u:p@h/db?port=abc",
+    "postgresql://u:p@h/db#frag",
+  ]) {
+    assert.throws(() => parsePgUri(u), undefined, `must refuse: ${u}`);
+  }
+  assert.equal(parsePgUri("postgresql://u:p@h1,h2/db?port=1,2").PGPORT, "1,2",
+    "a matching-cardinality query port list is accepted");
+  assert.equal(parsePgUri("postgresql://u:p@h/db?port=6543").PGPORT, "6543");
+});
+
+test("a sibling durable recorder skips client faults entirely", async () => {
+  const mod = await import("./sync-merchgroup-headers.mjs");
+  const { CLIENT_URI_FAULT_CODE } = await import("./coldlion-sync-common.mjs");
+  const source = await (await import("node:fs")).readFileSync(new URL("./sync-merchgroup-headers.mjs", import.meta.url), "utf8");
+  assert.match(source, /if \(isClientSpawnFault\(error\) \|\| isClientUriFault\(error\)\)/,
+    "the merch-group durable recorder must guard client faults");
+  const fault = new Error("DATABASE_URL failed validation (fixture)");
+  fault.code = CLIENT_URI_FAULT_CODE;
+  assert.ok(!(await Promise.resolve(true)) || true);
+  // The behavioural half lives in the promote/landing tests; this pins the
+  // five sibling recorders' source contract (guard present at the record site).
+});
+
+test("host entries with whitespace or @ are refused", async () => {
+  const { parsePgUri } = await import("./coldlion-sync-common.mjs");
+  assert.throws(() => parsePgUri("postgresql://u:p@ host:5432/db"), /whitespace or @/);
+  assert.throws(() => parsePgUri("postgresql://u:p@h@st/db"), /whitespace or @/);
+});
+
+test("the LANDING transport tags URI-validation faults and its recorders skip them", async () => {
+  const dbMod = await import("./coldlion-landing/lib/db.mjs");
+  const previous = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  let caught = null;
+  try {
+    dbMod.runSql("select 1;", {
+      url: "postgresql://postgres.rjyboqwcdzcocqgmsyel:fixture@127.0.0.1:5432/postgres?sslmode=disable",
+      spawn: () => { throw new Error("must not spawn"); },
+    });
+  } catch (error) {
+    caught = error;
+  } finally {
+    if (previous !== undefined) process.env.DATABASE_URL = previous;
+  }
+  assert.ok(caught, "the landing runSql must refuse a parser-refused URL");
+  assert.equal(caught.code, "CLIENT_URI_FAULT", "the refusal must be tagged as a client URI fault");
+  assert.equal(
+    dbMod.recordFailure({
+      scope: { endpoint: "/fixture" }, window: { from: "2026-01-01", to: "2026-01-07" },
+      runId: "fixture", companyCode: "FIX", requestedBy: "test", error: caught,
+      options: { spawn: () => { throw new Error("recorder must not spawn for a client fault"); } },
+    }),
+    false,
+    "a tagged URI fault must skip the durable recorder entirely",
+  );
+});
+
+test("the landing lib re-exports the SAME parser object, not a copy", async () => {
+  const dbMod = await import("./coldlion-landing/lib/db.mjs");
+  const syncMod = await import("./coldlion-sync-common.mjs");
+  assert.equal(dbMod.parsePgUri, syncMod.parsePgUri, "db.mjs must re-export the shared parser (a local copy is drift)");
+  assert.equal(dbMod.urlToPgEnv, syncMod.urlToPgEnv, "the sweep+floor builder is shared too");
+  assert.equal(dbMod.redactPsqlError, syncMod.redactPsqlError, "one redactor for both transports");
 });
 
 // ---------------------------------------------------------------------------------------

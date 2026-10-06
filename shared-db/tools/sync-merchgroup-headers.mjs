@@ -11,7 +11,7 @@ import {
   fetchPaged,
   readColdlionApiKey,
   runSql,
-  sqlDollarQuote,
+  sqlDollarQuote, isClientSpawnFault, isClientUriFault
 } from "./coldlion-sync-common.mjs";
 
 export const DIVISIONS = ["CW001", "SP001", "EH001", "EP001"];
@@ -48,7 +48,11 @@ async function main() {
     }
   } catch (error) {
     if (apply) {
-      try { runSql(buildFailedSyncRunSql("merch_group_headers", stage, error.message), { linked }); }
+      if (isClientSpawnFault(error) || isClientUriFault(error)) {
+        process.stderr.write(`CLIENT TOOLING/CONFIG FAULT at stage ${stage}: ${error?.message ?? error}
+No durable failed ingest.sync_run row was recorded.
+`);
+      } else try { runSql(buildFailedSyncRunSql("merch_group_headers", stage, error.message), { linked }); }
       catch (recordError) { process.stderr.write(`WARNING: failed to record durable failure: ${recordError.message}\n`); }
     }
     throw error;

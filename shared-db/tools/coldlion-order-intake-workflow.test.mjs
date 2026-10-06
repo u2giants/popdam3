@@ -42,7 +42,17 @@ test("the writer step runs after decode in the same job, with the declared-targe
   const writer = step("Write canonical placeholder orders", null);
   assert.match(writer, /DATABASE_URL: \$\{\{ secrets\.SUPABASE_DB_URL_PRODUCTION \}\}/);
   assert.match(writer, /COLDLION_EXPECTED_PROJECT_REF: qsllyeztdwjgirsysgai/);
-  assert.match(writer, /COLDLION_API_KEY: \$\{\{ secrets\.COLDLION_API_KEY \}\}/);
+  // The writer never reads the API key — it must not receive it (round-7 hardening).
+  // Pinned on the WHOLE FILE, not just the writer's step slice: a job-level or
+  // defaults.run.env mapping would put the key in the writer's process env while
+  // staying outside the slice (2026-10-05 review, L5).
+  const mappings = workflow.match(/COLDLION_API_KEY:\s*\$\{\{\s*secrets\.COLDLION_API_KEY\s*\}\}/g) ?? [];
+  assert.equal(
+    mappings.length,
+    2,
+    "exactly the two fetch-side steps may map the COLDLION_API_KEY secret; the writer must never see it",
+  );
+  assert.doesNotMatch(writer, /COLDLION_API_KEY/);
   assert.match(writer, /GITHUB_STEP_SUMMARY/);
   assert.match(writer, /--limit "\$LIMIT"/);
 });

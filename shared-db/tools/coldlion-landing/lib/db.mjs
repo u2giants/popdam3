@@ -18,10 +18,20 @@ import {
   SPAWN_MAX_BUFFER_BYTES,
   SPAWN_TIMEOUT_MS,
   clientSpawnFaultError,
+  clientUriFaultError,
   isClientSpawnFault,
+  isClientUriFault,
+  parsePgUri,
+  redactPsqlError,
+  urlToPgEnv,
 } from "../../coldlion-sync-common.mjs";
 
-export { isClientSpawnFault };
+// ONE parser, ONE redactor serve both transports: they live in
+// coldlion-sync-common.mjs (the module the production feed actually runs
+// through) and are re-exported here for the landing loaders and their tests. A
+// second copy is how the production copy drifts while the tested copy stays
+// green (2026-10-05 review, H2/L2; L3).
+export { isClientSpawnFault, isClientUriFault, parsePgUri, redactPsqlError, urlToPgEnv };
 
 export function databaseUrl() {
   const url = process.env.DATABASE_URL ?? process.env.SUPABASE_DB_URL;
@@ -38,24 +48,40 @@ export function databaseUrl() {
 /**
  * Run SQL through psql. The SQL owns its own BEGIN/COMMIT.
  *
+ * Connection is passed via PG* environment variables (PGHOST/PGPORT/PGUSER/
+ * PGPASSWORD/PGDATABASE/PGSSLMODE) — NEVER as a process argument. The 2026-10-02
+ * incident leaked a production password because a connection URL was in argv and
+ * psql's error printed it.
+ *
  * The script is written to a private temp file and passed with `-f <file>`, NEVER piped on
  * stdin. A full master snapshot is a very large script; when psql stops reading early
  * (ON_ERROR_STOP on a real SQL error, a dropped connection) a stdin pipe makes spawnSync fail
  * with EPIPE, which discards psql's exit status and stderr -- the actual cause -- and leaves
  * only an opaque client fault (the 2026-09-12 and 2026-09-13 nightly failures).
  */
-export function runSql(sql, { url = databaseUrl(), spawn = spawnSync } = {}) {
+export function runSql(sql, { url = databaseUrl(), spawn = spawnSync, env = process.env } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "coldlion-landing-sql-"));
   const file = join(dir, "script.sql");
   let psql;
   try {
     writeFileSync(file, sql, { encoding: "utf8", mode: 0o600 });
-    psql = spawn("psql", [url, "--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--quiet", "-f", file], {
+    // Connection via PG* env (urlToPgEnv): never in argv, never in a service
+    // file. A URI that fails validation is a CLIENT configuration fault —
+    // tagged so the landing recorders route it to the tooling-fault channel
+    // exactly as the sync-common transport does (2026-10-05 review round 4).
+    let pgEnv;
+    try {
+      pgEnv = urlToPgEnv(url, env);
+    } catch (cause) {
+      throw clientUriFaultError(cause);
+    }
+    psql = spawn("psql", ["--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--quiet", "-f", file], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       maxBuffer: SPAWN_MAX_BUFFER_BYTES,
       timeout: SPAWN_TIMEOUT_MS,
       killSignal: "SIGKILL",
+      env: pgEnv,
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -67,14 +93,6 @@ export function runSql(sql, { url = databaseUrl(), spawn = spawnSync } = {}) {
     throw error;
   }
   return psql.stdout;
-}
-
-export function redactPsqlError(stderr) {
-  const first=String(stderr??"").split(/\r?\n/).find((line)=>/ERROR:|FATAL:|PANIC:/.test(line)) ?? "Database command failed";
-  return first.replace(/postgres(?:ql)?:\/\/\S+/gi,"[redacted-url]")
-    .replace(/'[^'\r\n]*'/g,"[redacted-value]")
-    .replace(/"[^"\r\n]*"/g,(match,offset,line)=>/(relation|column|constraint|table|schema|function|type)\s*$/i.test(line.slice(0,offset))?match:"[redacted-value]")
-    .slice(0,1000);
 }
 
 /** A single scalar-or-tabular read, returned as rows of trimmed strings. */
@@ -117,25 +135,38 @@ export function assertExpectedTarget({
   }
   const url = String(databaseUrl ?? "").trim();
   if (!url) throw new Error("DATABASE_URL is not set; refusing to write");
-  let parsed;
+  // ONE parser derives both the target proof and the connection: the strict
+  // parsePgUri that runSql actually connects with. Two parsers disagreed on
+  // userinfo containing an unencoded '@' (WHATWG splits at the LAST '@', the
+  // strict regex at the first) — a denial, not a bypass, but a proof built on
+  // a different parser than the connection proves the wrong thing
+  // (2026-10-05 review, L6).
+  let pg;
   try {
-    parsed = new URL(url);
-  } catch {
-    throw new Error("DATABASE_URL is not a parseable connection URL; refusing to write");
+    pg = parsePgUri(url);
+  } catch (cause) {
+    throw clientUriFaultError(cause);
   }
   // The project ref appears in the host of a direct connection and in the user of a
   // pooled one, so both spellings are accepted -- and nothing else is. The URL is
   // never printed; only the ref that was expected.
-  const hostParts = parsed.hostname.split(".");
-  const userParts = decodeURIComponent(parsed.username).split(/[.:]/);
+  const hostParts = String(pg.PGHOST ?? "").split(".");
+  const userParts = String(pg.PGUSER ?? "").split(/[.:]/);
   if (!hostParts.includes(ref) && !userParts.includes(ref)) {
     throw new Error(`the connection does not name project ${ref}; refusing to write`);
   }
-  return { expectedProjectRef: ref, host: parsed.host };
+  return { expectedProjectRef: ref, host: `${pg.PGHOST}:${pg.PGPORT ?? "5432"}` };
 }
 
 export function proveTarget(options = {}) {
-  const expected = assertExpectedTarget(options);
+  // The proof and the connection must read the SAME URL: runSql's options key
+  // is `url`, while assertExpectedTarget's is `databaseUrl` — bridging them
+  // here so proving one URL while connecting through another is impossible
+  // (round 5, L6).
+  const expected = assertExpectedTarget({
+    expectedProjectRef: options.expectedProjectRef,
+    databaseUrl: options.databaseUrl ?? options.url,
+  });
   const [row] = queryRows(
     `select current_database(),
             coalesce(inet_server_addr()::text, 'local'),
@@ -159,7 +190,7 @@ export function proveTarget(options = {}) {
  * healthy feed.
  */
 export function recordFailure({ scope, window, runId, companyCode, requestedBy, error, options = {} }) {
-  if (isClientSpawnFault(error)) return false;
+  if (isClientSpawnFault(error) || isClientUriFault(error)) return false;
   const message = String(error?.message ?? error).slice(0, 4000);
   const sql = `begin;
 insert into coldlion.sync_run
@@ -193,7 +224,7 @@ commit;`;
 
 /** Record and alert a terminal current-state master failure. Dry runs never call this. */
 export function masterFailureSql({ endpoint, companyCode, requestedBy, error }) {
-  if (isClientSpawnFault(error)) return false;
+  if (isClientSpawnFault(error) || isClientUriFault(error)) return false;
   const message = String(error?.message ?? error).slice(0, 4000);
   return `begin;
 insert into coldlion.sync_run

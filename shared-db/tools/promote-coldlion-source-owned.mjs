@@ -96,6 +96,7 @@ import { pathToFileURL } from "node:url";
 import {
   buildFailedSyncRunSql,
   isClientSpawnFault,
+  isClientUriFault,
   runSql,
   sqlDollarQuote,
 } from "./coldlion-sync-common.mjs";
@@ -583,7 +584,7 @@ function readLinkedProjectRef() {
 // Entry point
 // =====================================================================================
 
-export function main(argv = process.argv.slice(2), env = process.env) {
+export function main(argv = process.argv.slice(2), env = process.env, { runSqlImpl = runSql } = {}) {
   const auth = resolveProductionAuthorization(argv, env);
   if (!auth.requested) assertNoProductionEnv(env);
 
@@ -640,7 +641,7 @@ export function main(argv = process.argv.slice(2), env = process.env) {
 
   let stage = "read-cycle-state";
   try {
-    const cycle = readCycleState({ linked: mode.linked });
+    const cycle = readCycleState({ linked: mode.linked, runSqlImpl });
     if (!cycle) {
       process.stderr.write(
         "PROMOTION UNPARSEABLE: the cycle-state probe could not be parsed; failing closed with exit 2\n",
@@ -692,7 +693,7 @@ export function main(argv = process.argv.slice(2), env = process.env) {
     }
 
     stage = "promote";
-    const promoteOut = runSql(buildPromoteSql(plan, { isDrill }), { linked: mode.linked });
+    const promoteOut = runSqlImpl(buildPromoteSql(plan, { isDrill }), { linked: mode.linked });
     process.stdout.write(promoteOut);
 
     // Checked BEFORE the refusal heuristic below. The skip message contains no "refused"
@@ -743,7 +744,7 @@ export function main(argv = process.argv.slice(2), env = process.env) {
       return EXIT_CYCLE_STATE_RACE;
     }
 
-    if (isClientSpawnFault(error)) {
+    if (isClientSpawnFault(error) || isClientUriFault(error)) {
       process.stderr.write(
         `CLIENT TOOLING FAULT at stage ${stage}: ${error.message}\n` +
           `No durable failed ingest.sync_run row and no critical alert were recorded, so this ` +
@@ -757,14 +758,14 @@ export function main(argv = process.argv.slice(2), env = process.env) {
 
     // Durable, separate-transaction alert so the breaker trip survives the rollback.
     try {
-      runSql(buildPromotionAlertSql(stage, error?.message ?? String(error)), { linked: mode.linked });
+      runSqlImpl(buildPromotionAlertSql(stage, error?.message ?? String(error)), { linked: mode.linked });
     } catch (alertErr) {
       process.stderr.write(
         `WARNING: could not record the durable promotion alert: ${alertErr?.message ?? alertErr}\n`,
       );
     }
     try {
-      runSql(buildFailedSyncRunSql(SOURCE_NAME, stage, error?.message ?? String(error)), {
+      runSqlImpl(buildFailedSyncRunSql(SOURCE_NAME, stage, error?.message ?? String(error)), {
         linked: mode.linked,
       });
     } catch (recErr) {

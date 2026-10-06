@@ -1,0 +1,32 @@
+{
+  "schema_version": 1, "work_issue": 3942, "outcome": "ready-for-merge", "pr": 3938,
+  "migration_versions": [], "contract_ref": "refs/db-contracts/3942/9",
+  "contract_sha256": "1a80c0356efb138142c7dff819e70bd4fd9758d768afdfa2629806297dadd6ad",
+  "head_sha": "88bb550f476e627b26e68392c349936c40c54e83", "base_sha": "60133e2682509f597dff7385e77ced77548bc7cd", "files_changed": [
+  ".github/workflows/coldlion-order-intake.yml",
+  "tools/coldlion-landing-masters.test.mjs",
+  "tools/coldlion-landing/lib/db.mjs",
+  "tools/coldlion-landing/lib/order-intake-run.mjs",
+  "tools/coldlion-landing/order-intake-write.mjs",
+  "tools/coldlion-order-intake-claim.test.mjs",
+  "tools/coldlion-order-intake-workflow.test.mjs",
+  "tools/coldlion-sync-common-runsql.test.mjs",
+  "tools/coldlion-sync-common.mjs",
+  "tools/promote-coldlion-source-owned.mjs",
+  "tools/coldlion-cycle-state-paging.private-artifact-test.mjs",
+  "tools/run-coldlion-licensor-property-phase4.mjs",
+  "tools/sync-clickup-tasks.mjs",
+  "tools/sync-coldlion-items.mjs",
+  "tools/sync-coldlion-licensors-properties.mjs",
+  "tools/sync-merchgroup-headers.mjs"
+],
+  "db_reads": [], "db_writes": [],
+  "checks": [
+    { "command": "bash scripts/check-sql.sh", "exit_code": 0, "evidence": "Static checks passed; 0 added migrations." },
+    { "command": "node --test tools/coldlion-landing-masters.test.mjs tools/coldlion-order-intake-*.test.mjs tools/coldlion-sync-common-runsql.test.mjs", "exit_code": 0, "evidence": "137 pass, 0 fail (2026-10-05 round 6b)." },
+    { "command": "node --test tools/*.test.mjs in a clean clone", "exit_code": 0, "evidence": "1039 pass, 0 fail locally; CI re-proves." },
+    { "command": "node --test tools/coldlion-cycle-state-paging.private-artifact-test.mjs", "exit_code": 1, "evidence": "EVIDENCE ONLY: 20 pass, 2 pre-existing environmental failures identical on plain main." }
+  ],
+  "assumptions_resolved": ["Same round-6 content as gen 8 minus the .gitattributes: every formerly-CRLF file this PR touches is restored to LF as at base (diff vs main shows semantic lines only); the EOL policy attribute plus the one-time repo-wide renormalization it requires moves to its own dedicated follow-up PR so other lanes' files are not churned here. The gen-8 review-cycle refusals (snapshot digest races induced by the attribute re-smudging other files on Windows) are the concrete reason."],
+  "stop_conditions_hit": []
+}

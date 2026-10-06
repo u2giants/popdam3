@@ -28,7 +28,7 @@
 
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { isClientSpawnFault, proveTarget, queryRows, runSql } from "./lib/db.mjs";
+import { isClientSpawnFault, isClientUriFault, proveTarget, queryRows, runSql } from "./lib/db.mjs";
 import {
   buildWriteFailureSql,
   buildWriteSql,
@@ -100,7 +100,7 @@ async function main() {
     // A run WITHOUT --write records NOTHING anywhere (round-3 review #10):
     // its transaction already rolled back, and a post-rollback parse failure
     // inserting a failed sync_run row would be a write on a dry run.
-    if (options.write && !isClientSpawnFault(error)) {
+    if (options.write && !isClientSpawnFault(error) && !isClientUriFault(error)) {
       try {
         runSql(buildWriteFailureSql({ runId, error, startedAt }), {});
       } catch (recordError) {

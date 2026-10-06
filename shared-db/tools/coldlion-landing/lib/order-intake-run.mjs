@@ -10,7 +10,7 @@ import { fetchWindowScope, REQUEST_PAUSE_MS } from "./http.mjs";
 import { projectOrderHistoryWindow } from "./project-order-history.mjs";
 import { ORDER_HISTORY, PAGE_SIZE } from "./scopes.mjs";
 import { buildIntakeFailureSql, buildIntakeStageSql } from "./order-intake-stage.mjs";
-import { isClientSpawnFault, runSql } from "./db.mjs";
+import { isClientSpawnFault, isClientUriFault, runSql } from "./db.mjs";
 
 /**
  * Bound one window's projection to the first `maxOrders` DISTINCT sales orders
@@ -134,7 +134,7 @@ export async function stageIntakeWindow({
     // spawn fault (psql missing, EPIPE) says nothing about the data or the
     // database and must not be recorded as a database failure or raise the
     // coldlion_sync_alert (lib/db.mjs:162's exact rule).
-    if (!dryRun && !isClientSpawnFault(error)) {
+    if (!dryRun && !isClientSpawnFault(error) && !isClientUriFault(error)) {
       try {
         execute(buildIntakeFailureSql({ runId, window, track, companyCode, error, startedAt: startedAt.toISOString() }), {});
       } catch (recordError) {
