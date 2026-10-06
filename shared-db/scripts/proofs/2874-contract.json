@@ -1,0 +1,131 @@
+{
+  "work_issue": 2874,
+  "source_repository": "popcre/shared-db",
+  "application_repository": "popcre/designflow-backend",
+  "application_branch": "develop",
+  "project_ref": "qsllyeztdwjgirsysgai",
+  "schema": "dflow_prod",
+  "live_assertion": "dflow_prod exposes the current canonical assignment and workflow-action contract with trusted actor attribution, immutable history, handoff integrity, and both application-callable functions",
+  "catalog": {
+    "functions": [
+      {
+        "name": "current_designflow_user_id",
+        "owner": "postgres",
+        "volatility": "s",
+        "return_type": "integer",
+        "configuration": [
+          "search_path=pg_catalog, dflow_prod, auth"
+        ],
+        "default_count": 0,
+        "source_sha256": "4186a2c9f2d3d15d97a1fb96145ca333870c43988cbd833b38744f4975ccf936",
+        "argument_names": [],
+        "argument_types": [],
+        "security_definer": true,
+        "identity_arguments": ""
+      },
+      {
+        "name": "record_item_workflow_action",
+        "owner": "postgres",
+        "volatility": "v",
+        "return_type": "bigint",
+        "configuration": [
+          "search_path=pg_catalog, dflow_prod, auth"
+        ],
+        "default_count": 7,
+        "source_sha256": "72cebdd3737b54b0809fa31273ed2e6f5f35f1ee0681c922b51641a36acda75d",
+        "argument_names": [
+          "p_rfq_item_id",
+          "p_new_step_id",
+          "p_action_key",
+          "p_correlation_key",
+          "p_from_function_key",
+          "p_to_function_key",
+          "p_return_to_original_handoff",
+          "p_notification_type",
+          "p_notification_title",
+          "p_notification_message",
+          "p_routing_context"
+        ],
+        "argument_types": [
+          "integer",
+          "integer",
+          "text",
+          "uuid",
+          "text",
+          "text",
+          "boolean",
+          "text",
+          "text",
+          "text",
+          "jsonb"
+        ],
+        "security_definer": true,
+        "identity_arguments": "p_rfq_item_id integer, p_new_step_id integer, p_action_key text, p_correlation_key uuid, p_from_function_key text, p_to_function_key text, p_return_to_original_handoff boolean, p_notification_type text, p_notification_title text, p_notification_message text, p_routing_context jsonb"
+      },
+      {
+        "name": "reject_item_assignment_history_rewrite",
+        "owner": "postgres",
+        "volatility": "v",
+        "return_type": "trigger",
+        "configuration": [
+          "search_path=pg_catalog, dflow_prod"
+        ],
+        "default_count": 0,
+        "source_sha256": "0dc5007ad4850b0e69f81b6b436a59d921e4592a66857dddf719baca47148012",
+        "argument_names": [],
+        "argument_types": [],
+        "security_definer": false,
+        "identity_arguments": ""
+      },
+      {
+        "name": "reject_item_workflow_action_rewrite",
+        "owner": "postgres",
+        "volatility": "v",
+        "return_type": "trigger",
+        "configuration": [
+          "search_path=pg_catalog, dflow_prod"
+        ],
+        "default_count": 0,
+        "source_sha256": "c1618fcdf51e28706a2a88bb75c087255cc527f3f1f588d96f1800d3fd9d5a01",
+        "argument_names": [],
+        "argument_types": [],
+        "security_definer": false,
+        "identity_arguments": ""
+      },
+      {
+        "name": "set_item_user_assignment",
+        "owner": "postgres",
+        "volatility": "v",
+        "return_type": "bigint",
+        "configuration": [
+          "search_path=pg_catalog, dflow_prod, auth"
+        ],
+        "default_count": 1,
+        "source_sha256": "c60d7cf3dd96999e17031c172066fce04bc59c4d172e562676c97b05de05d0f1",
+        "argument_names": [
+          "p_rfq_item_id",
+          "p_function_key",
+          "p_user_id",
+          "p_active",
+          "p_assignment_context"
+        ],
+        "argument_types": [
+          "integer",
+          "text",
+          "integer",
+          "boolean",
+          "jsonb"
+        ],
+        "security_definer": true,
+        "identity_arguments": "p_rfq_item_id integer, p_function_key text, p_user_id integer, p_active boolean, p_assignment_context jsonb"
+      }
+    ],
+    "relation_count": 4,
+    "structure_sha256": "a4ff412de69582b5611d5f459b994cba33b73e4f57c6ceb165eaf0b9f8e89452",
+    "client_access_closed": true
+  },
+  "type_projection_functions": [
+    "record_item_workflow_action",
+    "set_item_user_assignment"
+  ]
+}

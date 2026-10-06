@@ -8,7 +8,12 @@ declare
 begin
   select count(*) into v_tables
   from information_schema.tables
-  where table_schema = 'dflow_prod' and table_type = 'BASE TABLE';
+  where table_schema = 'dflow_prod' and table_type = 'BASE TABLE'
+    -- Frozen Cloud SQL baseline only: later governed parity migrations add
+    -- their own tables and prove them in their own contract files.
+    and table_name not in (
+      'item_user_assignment', 'item_workflow_action'  -- #2874
+    );
   if v_tables <> 103 then
     raise exception 'expected 103 dflow_prod tables, found %', v_tables;
   end if;
@@ -17,7 +22,16 @@ begin
   from pg_class c
   join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'dflow_prod'
-    and c.relkind = 'S';
+    and c.relkind = 'S'
+    and not exists (
+      select 1 from pg_depend d
+       where d.objid = c.oid and d.deptype = 'i'
+         and d.refobjid in (
+           select t.oid from pg_class t
+            where t.relnamespace = n.oid
+              and t.relname in ('item_user_assignment', 'item_workflow_action')  -- #2874
+         )
+    );
   if v_sequences <> 97 then
     raise exception 'expected 97 dflow_prod sequences, found %', v_sequences;
   end if;
