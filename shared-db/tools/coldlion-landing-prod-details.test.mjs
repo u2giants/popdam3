@@ -485,7 +485,7 @@ function capture(action) {
 const PRODUCTION_REF = "qsllyeztdwjgirsysgai";
 const readWorkflow = (name) => readFileSync(fileURLToPath(new URL(`../.github/workflows/${name}`, import.meta.url)), "utf8");
 const sync = readWorkflow("coldlion-landing-sync.yml");
-const backfill = readWorkflow("coldlion-prod-detail-backfill.yml");
+const backfill = readWorkflow("coldlion-landing-sync.yml");
 
 test("the backfill workflow cannot be reached by a push, a pull request or a fork", () => {
   const on = backfill.slice(backfill.indexOf("\non:"), backfill.indexOf("\njobs:"));

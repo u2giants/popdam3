@@ -473,14 +473,14 @@ function readWorkflow(name) {
 }
 
 test("the backfill workflow cannot be reached by a push, a pull request or a fork", () => {
-  const workflow = readWorkflow("coldlion-prepack-backfill.yml");
+  const workflow = readWorkflow("coldlion-landing-sync.yml");
   const on = workflow.slice(workflow.indexOf("\non:"), workflow.indexOf("\njobs:"));
   assert.doesNotMatch(on, /pull_request|push:/);
   assert.match(on, /workflow_dispatch/);
 });
 
 test("every step that can write names the database it expects before it writes", () => {
-  for (const name of ["coldlion-prepack-backfill.yml", "coldlion-landing-sync.yml"]) {
+  for (const name of ["coldlion-landing-sync.yml"]) {
     const workflow = readWorkflow(name);
     const declarations = workflow.match(/COLDLION_EXPECTED_PROJECT_REF: (\S+)/g) ?? [];
     assert.ok(declarations.length >= 2, `${name} must declare its target beside every DATABASE_URL`);
@@ -492,7 +492,7 @@ test("every step that can write names the database it expects before it writes",
 });
 
 test("the workflows cannot start without the secrets they need", () => {
-  for (const name of ["coldlion-prepack-backfill.yml", "coldlion-landing-sync.yml"]) {
+  for (const name of ["coldlion-landing-sync.yml"]) {
     const workflow = readWorkflow(name);
     assert.match(workflow, /SUPABASE_DB_URL_PRODUCTION is not set/, `${name} must fail loudly, not empty`);
     assert.match(workflow, /COLDLION_API_KEY is not set/, `${name} must fail loudly, not empty`);
@@ -500,14 +500,14 @@ test("the workflows cannot start without the secrets they need", () => {
 });
 
 test("the offline contract tests run before anything touches the database", () => {
-  const backfill = readWorkflow("coldlion-prepack-backfill.yml");
+  const backfill = readWorkflow("coldlion-landing-sync.yml");
   assert.ok(backfill.indexOf("coldlion-landing-prepack.test.mjs") < backfill.indexOf("sync-prepack-detail.mjs"));
   const sync = readWorkflow("coldlion-landing-sync.yml");
   assert.ok(sync.indexOf("coldlion-landing-prepack.test.mjs") < sync.indexOf("sync-prepack-detail.mjs"));
 });
 
 test("the backfill shares the landing serialization group and stays inside a bounded timeout", () => {
-  const backfill = readWorkflow("coldlion-prepack-backfill.yml");
+  const backfill = readWorkflow("coldlion-landing-sync.yml");
   assert.match(backfill, /group: coldlion-landing-sync/);
   const timeout = /timeout-minutes: (\d+)/.exec(backfill);
   assert.ok(timeout && Number(timeout[1]) > 0 && Number(timeout[1]) <= 360);

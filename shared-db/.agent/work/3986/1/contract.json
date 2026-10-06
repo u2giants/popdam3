@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_issue": 3986,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Consolidate completed bounded ColdLion recovery into daily workflow and retire obsolete human evidence producer; preserve historical verifier and AI review gates",
+  "base_sha": "cb94f985581b00dfe62deaf414a483bbe0f5e6bf",
+  "dispatcher": "Codex coordinating session under parent 3536",
+  "worker": "codex",
+  "branch": "codex/3536-backfill-production-reviewers",
+  "worktree": "/tmp/shared-db-3536-backfill",
+  "allowed_paths": [
+    ".github/workflows/coldlion-landing-sync.yml",
+    ".github/workflows/coldlion-prepack-backfill.yml",
+    ".github/workflows/coldlion-prod-detail-backfill.yml",
+    ".github/workflows/production-owner-decision-evidence.yml",
+    "tools/coldlion-landing-prepack.test.mjs",
+    "tools/coldlion-landing-prod-details.test.mjs",
+    "scripts/ci-backfill-consolidation.test.mjs",
+    "docs/verification/ci-backfill-retirement-3986.md"
+  ],
+  "file_writes": [
+    ".github/workflows/coldlion-landing-sync.yml",
+    ".github/workflows/coldlion-prepack-backfill.yml",
+    ".github/workflows/coldlion-prod-detail-backfill.yml",
+    ".github/workflows/production-owner-decision-evidence.yml",
+    "tools/coldlion-landing-prepack.test.mjs",
+    "tools/coldlion-landing-prod-details.test.mjs",
+    "scripts/ci-backfill-consolidation.test.mjs",
+    "docs/verification/ci-backfill-retirement-3986.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database writes",
+    "No production dispatch",
+    "No branch protection changes",
+    "No human approval fallback"
+  ],
+  "required_checks": [
+    "node --test scripts/ci-backfill-consolidation.test.mjs tools/coldlion-landing-prepack.test.mjs tools/coldlion-landing-prod-details.test.mjs",
+    "python3 -m unittest scripts.test_production_owner_decision_evidence",
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "Prototype discarded before prospective implementation; preserved scratch design is not pre-contract evidence",
+    "Live pending counts zero; ongoing scheduled refresh and manual recovery preserved"
+  ],
+  "stop_conditions": [
+    "Capability loss",
+    "Scope outside allowed paths",
+    "Missing exact-head review"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 3986,
+  "outcome": "ready-for-merge",
+  "pr": 3988,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3986/1",
+  "contract_sha256": "9b1b6f36e41ea2071b949d3cd0ae35e98875106b1236e2dab6d1022cf422df51",
+  "head_sha": "6e4d385b60eb0c9619403751566f8d32be27f0aa",
+  "base_sha": "021378fd2707c2d7c278417f2bac8da65cc04e59",
+  "files_changed": [
+    ".github/workflows/coldlion-landing-sync.yml",
+    ".github/workflows/coldlion-prepack-backfill.yml",
+    ".github/workflows/coldlion-prod-detail-backfill.yml",
+    ".github/workflows/production-owner-decision-evidence.yml",
+    "docs/verification/ci-backfill-retirement-3986.md",
+    "scripts/ci-backfill-consolidation.test.mjs",
+    "tools/coldlion-landing-prepack.test.mjs",
+    "tools/coldlion-landing-prod-details.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/ci-backfill-consolidation.test.mjs tools/coldlion-landing-prepack.test.mjs tools/coldlion-landing-prod-details.test.mjs",
+      "exit_code": 0,
+      "evidence": "79 tests passed; re-proved on refreshed implementation 6e4d385b"
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_owner_decision_evidence",
+      "exit_code": 0,
+      "evidence": "24 tests passed; re-proved on refreshed implementation 6e4d385b"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed; no migrations; re-proved on refreshed implementation 6e4d385b"
+    }
+  ],
+  "assumptions_resolved": [
+    "Zero pending confirmed read-only at 2:26 PM EDT October 6, 2026",
+    "Manual recovery parameters/guarding and scheduled refresh preserved"
+  ],
+  "stop_conditions_hit": []
+}
