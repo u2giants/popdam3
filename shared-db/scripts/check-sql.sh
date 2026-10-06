@@ -377,6 +377,157 @@ check_ledger() {
   return 0
 }
 
+# Percent-decode a single URI component (user, password, dbname) per RFC 3986:
+# '+' is literal in userinfo/path (only %XX sequences are decoded).
+_pct_decode() {
+  local s="$1"
+  # Decode %XX sequences only; fail-closed on malformed ones.
+  local out="" i=0 len=${#s}
+  while (( i < len )); do
+    local c="${s:i:1}"
+    if [[ "$c" == "%" ]]; then
+      local hex="${s:i+1:2}"
+      if [[ "$hex" =~ ^[0-9A-Fa-f]{2}$ ]]; then
+        if [[ "$hex" == "00" ]]; then
+          echo "ERROR: NUL byte (percent-encoded %00) is refused in URI components" >&2
+          return 1
+        fi
+        printf -v c "\\x$hex"
+        (( i += 2 ))
+      else
+        echo "ERROR: malformed percent-encoding in URI component" >&2
+        return 1
+      fi
+    fi
+    out+="$c"
+    (( i += 1 ))
+  done
+  printf '%s' "$out"
+}
+
+# Parse a PostgreSQL URI into PG* environment variables — the URI is NEVER
+# placed in process argv (2026-10-02 leak class; same PG* transport as
+# tools/runSql after PR #3938). ALL ambient PG* values are swept first so
+# they cannot override the declared target. PGSSLMODE is the one exception:
+# a stricter ambient value survives when the URI declares none (never the
+# other way around — the sweep must not downgrade TLS). Fails closed on
+# shapes we cannot safely represent.
+pg_url_to_env() {
+  local url="$1"
+  # Save ambient PGSSLMODE before the sweep (PR #3938 pattern: a stricter
+  # operator-exported PGSSLMODE survives when the URL declares none).
+  local ambient_sslmode="${PGSSLMODE:-}"
+  # Sweep ALL ambient libpq PG* vars — including PGHOSTADDR (host bypass),
+  # PGOPTIONS (server GUC injection), PGSERVICE/PGSERVICEFILE (alternate
+  # target), PGPASSFILE (alternate credential source). They must never
+  # override the declared target (muse review 2026-10-06, H2). Use an
+  # explicit list to avoid over-matching non-libpq vars like PAGER (L10).
+  local _pg_var
+  for _pg_var in PGHOST PGHOSTADDR PGPORT PGDATABASE PGUSER PGPASSWORD \
+    PGPASSFILE PGSERVICE PGSERVICEFILE PGSYSCONFDIR PGOPTIONS PGAPPNAME \
+    PGSSLMODE PGSSLCERT PGSSLKEY PGSSLROOTCERT PGSSLCRL PGSSLPASSWORD \
+    PGSSLCERTMODE PGSSLMINPROTOCOLVERSION PGSSLMAXPROTOCOLVERSION \
+    PGCONNECT_TIMEOUT PGTARGETSESSIONATTRS PGCHANNELBINDING \
+    PGLOADBALANCEHOSTS PGGSSENCMODE PGSSLNEGOTIATION PGREQUIREAUTH \
+    PGCLIENTENCODING PGKRBSRVNAME PGREALM PGGSSLIB; do
+    unset "$_pg_var"
+  done
+  # Strip fragment (not representable in PG*).
+  url="${url%%#*}"
+  # Strip query string; recover sslmode if present.
+  local query=""
+  if [[ "$url" == *\?* ]]; then
+    query="${url#*\?}"
+    url="${url%%\?*}"
+  fi
+  # postgres(ql)://user:pass@host:port/dbname (host may be empty for unix sockets)
+  # BASH_REMATCH groups: 4=user 6=pass 7=host 9=port 11=dbname
+  local re='^(postgres(ql)?://)?(([^:/@]*)(:([^@/]*))?@)?([[][^]]+[]]|[^:/@]*)(:([0-9]+))?(/(.*))?$'
+  if [[ ! "$url" =~ $re ]]; then
+    echo "ERROR: not a PostgreSQL URI: $(printf '%s' "$url" | sed 's|[^/]*@|[redacted]@|')" >&2
+    return 1
+  fi
+  local user pass host port dbname
+  user="$(_pct_decode "${BASH_REMATCH[4]}")" || return 1
+  pass="$(_pct_decode "${BASH_REMATCH[6]}")" || return 1
+  host="${BASH_REMATCH[7]}"
+  port="${BASH_REMATCH[9]}"
+  dbname="$(_pct_decode "${BASH_REMATCH[11]}")" || return 1
+  # Strip IPv6 brackets for PGHOST (libpq wants bare form in PGHOST).
+  host="${host#\[}"
+  host="${host%\]}"
+  PGHOST="$host"
+  [[ -n "$port" ]] && PGPORT="$port"
+  [[ -n "$user" ]] && PGUSER="$user"
+  [[ -n "$pass" ]] && PGPASSWORD="$pass"
+  [[ -n "$dbname" ]] && PGDATABASE="$dbname"
+  # Query string: recover sslmode; refuse params that redirect the target
+  # or change server semantics (muse review 2026-10-06, M4/M6).
+  local url_declares_sslmode=0
+  if [[ -n "$query" ]]; then
+    local kv k v
+    local old_ifs="$IFS"
+    IFS='&'
+    # Use read -a to avoid globbing (muse review M5).
+    local -a _params
+    read -ra _params <<< "$query"
+    IFS="$old_ifs"
+    for kv in "${_params[@]}"; do
+      [[ -z "$kv" ]] && continue
+      k="$(_pct_decode "${kv%%=*}")" || return 1
+      v="$(_pct_decode "${kv#*=}")" || return 1
+      case "${k,,}" in
+        sslmode)
+          url_declares_sslmode=1
+          # Refuse weak TLS modes (muse review 2026-10-06 #2): disable/allow
+          # can end in cleartext; prefer silently falls back under MITM.
+          case "$v" in
+            disable|allow|prefer)
+              echo "ERROR: sslmode=$v is rejected (it can send credentials in cleartext)" >&2
+              return 1
+              ;;
+            require|verify-ca|verify-full)
+              PGSSLMODE="$v"
+              ;;
+            *)
+              echo "ERROR: unrecognized sslmode='$v' (accepted: require, verify-ca, verify-full)" >&2
+              return 1
+              ;;
+          esac
+          ;;
+        ssl)
+          # Legacy boolean alias (muse review M6): map true→require, refuse false.
+          url_declares_sslmode=1
+          if [[ "$v" == "true" || "$v" == "1" ]]; then
+            PGSSLMODE="require"
+          else
+            echo "ERROR: ssl=false/0 is rejected (would disable encryption)" >&2
+            return 1
+          fi
+          ;;
+        host|hostaddr|port|options|target_session_attrs|load_balance_hosts|user|password|dbname|service|passfile|sslcert|sslkey|sslrootcert|sslcrl|sslpassword|requiressl|gssencmode|krbsrvname|channel_binding|sslnegotiation|sslcertmode|require_auth)
+          echo "ERROR: PostgreSQL URI query parameter '$k' can redirect the target, change credentials, or alter TLS; refusing it" >&2
+          return 1
+          ;;
+        # Other query params (application_name, connect_timeout, etc.) are
+        # accepted and ignored — they do not redirect the target.
+      esac
+    done
+  fi
+  # TLS floor: URL-declared sslmode wins (with weak modes refused above);
+  # otherwise ambient survives only if stricter than 'require'. When neither
+  # URL nor ambient says anything, leave PGSSLMODE unset — libpq's default
+  # 'prefer' works against both TLS and plaintext servers, which is what the
+  # disposable-DB local-rehearsal flow needs (muse review 2026-10-06 #1).
+  if [[ "$url_declares_sslmode" -eq 0 && -n "$ambient_sslmode" ]]; then
+    case "$ambient_sslmode" in
+      verify-full|verify-ca|require) PGSSLMODE="$ambient_sslmode" ;;
+    esac
+  fi
+  export PGHOST ${PGPORT:+PGPORT} ${PGUSER:+PGUSER} ${PGPASSWORD:+PGPASSWORD} ${PGDATABASE:+PGDATABASE} PGSSLMODE
+  return 0
+}
+
 # Resolve a ledger to a file, either from a pre-fetched path or by querying the
 # database directly. Prints the path on stdout; empty means "not configured".
 resolve_ledger_file() {
@@ -397,10 +548,16 @@ resolve_ledger_file() {
       echo "NOPSQL:"
       return 0
     fi
+    # PG* env transport — the URL is NEVER passed in argv (2026-10-02 leak
+    # class; matches tools/runSql PG* approach after PR #3938).
+    if ! pg_url_to_env "$ledger_url"; then
+      echo "QUERYFAILED:"
+      return 0
+    fi
     out="$(mktemp)"
     # Read-only. `ON_ERROR_STOP` so a failed query is an empty file AND a
     # non-zero status, never a silently truncated ledger.
-    if psql "$ledger_url" --set ON_ERROR_STOP=1 -At \
+    if psql --set ON_ERROR_STOP=1 -At \
       -c 'select version from supabase_migrations.schema_migrations order by version' \
       > "$out"; then
       echo "$out"
@@ -533,8 +690,14 @@ grep -qF "enable row level security" "$migration_dir/20260621151155_api_rls_real
 
 if [[ -n "${DATABASE_URL:-}" ]]; then
   command -v psql >/dev/null
+  # PG* env transport — the URL is NEVER passed in argv (2026-10-02 leak class;
+  # matches tools/runSql PG* approach after PR #3938).
+  if ! pg_url_to_env "$DATABASE_URL"; then
+    echo "ERROR: DATABASE_URL could not be parsed into PG* environment variables." >&2
+    exit 1
+  fi
   for file in "${required_files[@]}"; do
-    psql "$DATABASE_URL" --set ON_ERROR_STOP=1 --single-transaction --file "$migration_dir/$file"
+    psql --set ON_ERROR_STOP=1 --single-transaction --file "$migration_dir/$file"
   done
 else
   echo "Static checks passed. Set DATABASE_URL to run migrations against a disposable database."

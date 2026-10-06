@@ -1110,3 +1110,229 @@ test('issue 3280 EOL guard still fails closed when the base cannot be fetched at
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// ---------------------------------------------------------------------------
+// PG* env transport (issue #3944): the connection URI must NEVER appear in
+// psql's process argv.  These tests stub psql on PATH and capture its argv +
+// environment to prove the URL stays out of argv and the PG* variables carry
+// the connection target instead.
+// ---------------------------------------------------------------------------
+
+function makePsqlStubDir() {
+  const dir = mkdtempSync(path.join(tmpdir(), 'psql-stub-'))
+  const capture = path.join(dir, 'capture.txt')
+  // A shell stub (works under Git Bash on Windows and plain bash on Linux)
+  // that records its argv and the PG* environment, then succeeds.
+  const stub = `#!/usr/bin/env bash
+{
+  echo "ARGV: $*"
+  echo "PGHOST=\${PGHOST:-}"
+  echo "PGPORT=\${PGPORT:-}"
+  echo "PGUSER=\${PGUSER:-}"
+  echo "PGPASSWORD=\${PGPASSWORD:-}"
+  echo "PGDATABASE=\${PGDATABASE:-}"
+  echo "PGSSLMODE=\${PGSSLMODE:-}"
+} > "${toBashPath(capture)}"
+exit 0
+`
+  writeFileSync(path.join(dir, 'psql'), stub, { mode: 0o755 })
+  return { dir, capture }
+}
+
+function runGuardsWithPsqlStub(migrationsDir, env) {
+  const { dir: stubDir, capture } = makePsqlStubDir()
+  try {
+    const childEnv = {
+      ...process.env,
+      CHECK_SQL_MIGRATIONS_ONLY: '1',
+      PATH: `${stubDir}${path.delimiter}${process.env.PATH}`,
+      ...env,
+    }
+    if (migrationsDir) childEnv.CHECK_SQL_MIGRATION_DIR = toBashPath(migrationsDir)
+    // Provide a fake base-versions file so Guard B2 scope is known and the
+    // ledger query path is exercised.
+    const baseFile = path.join(stubDir, 'base-versions.txt')
+    writeFileSync(baseFile, '20260101000000\n')
+    childEnv.CHECK_SQL_BASE_VERSIONS = toBashPath(baseFile)
+    childEnv.CHECK_SQL_MAIN_NEWEST = '20260101000000'
+
+    const result = spawnSync(bashCommand, ['scripts/check-sql.sh'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: childEnv,
+    })
+    const captured = existsSync(capture) ? readFileSync(capture, 'utf8') : ''
+    return { status: result.status, stderr: result.stderr ?? '', captured }
+  } finally {
+    rmSync(stubDir, { recursive: true, force: true })
+  }
+}
+
+test('pg_url_to_env: URL never appears in psql argv; PG* env carries the target', () => {
+  withFixture(
+    ['20260301120000_a.sql', '20260301130000_b.sql'],
+    (dir) => {
+      const secretUrl = 'postgresql://admin:s3cretpass@db.example.com:5432/ledgerdb'
+      const { captured, status, stderr } = runGuardsWithPsqlStub(dir, {
+        CHECK_SQL_PREVIEW_DB_URL: secretUrl,
+      })
+      assert.ok(captured.length > 0, `psql stub should have been invoked. stderr:\n${stderr}`)
+      // Split capture: ARGV line vs PG* env lines.
+      const argvLine = captured.split('\n').find(l => l.startsWith('ARGV:')) ?? ''
+      assert.ok(
+        !argvLine.includes('s3cretpass'),
+        `password must never appear in psql argv:\n${argvLine}`,
+      )
+      assert.ok(
+        !argvLine.includes('postgresql://'),
+        `connection URI must never appear in psql argv:\n${argvLine}`,
+      )
+      assert.ok(
+        !argvLine.includes('db.example.com'),
+        `host must not appear in psql argv (use PGHOST env):\n${argvLine}`,
+      )
+      // PG* env must carry the full connection target.
+      assert.match(captured, /PGHOST=db\.example\.com/)
+      assert.match(captured, /PGPORT=5432/)
+      assert.match(captured, /PGUSER=admin/)
+      assert.match(captured, /PGPASSWORD=s3cretpass/)
+      assert.match(captured, /PGDATABASE=ledgerdb/)
+    },
+  )
+})
+
+test('pg_url_to_env: DATABASE_URL migration path uses PG* env, not argv', () => {
+  const { dir: stubDir, capture } = makePsqlStubDir()
+  try {
+    // Build a minimal fixture with the four required files.
+    const migDir = path.join(stubDir, 'migrations')
+    mkdirSync(migDir, { recursive: true })
+    const required = [
+      '20260621150714_foundation.sql',
+      '20260621150815_app_core.sql',
+      '20260621151024_domain_tables.sql',
+      '20260621151155_api_rls_realtime.sql',
+    ]
+    writeFileSync(path.join(migDir, required[0]), 'create schema if not exists app;\n')
+    writeFileSync(path.join(migDir, required[1]), 'create table core.company (id int);\n')
+    writeFileSync(path.join(migDir, required[2]), 'create table pim.product (id int);\n')
+    writeFileSync(path.join(migDir, required[3]), [
+      'create or replace view api.pm_product_board as select 1;',
+      'enable row level security;',
+    ].join('\n'))
+
+    const baseFile = path.join(stubDir, 'base-versions.txt')
+    writeFileSync(baseFile, '20260101000000\n')
+
+    const childEnv = {
+      ...process.env,
+      PATH: `${stubDir}${path.delimiter}${process.env.PATH}`,
+      CHECK_SQL_MIGRATION_DIR: toBashPath(migDir),
+      CHECK_SQL_BASE_VERSIONS: toBashPath(baseFile),
+      CHECK_SQL_MAIN_NEWEST: '20260101000000',
+      DATABASE_URL: 'postgresql://migrator:hunter2@disposable-db.test:6543/testdb',
+    }
+    const result = spawnSync(bashCommand, ['scripts/check-sql.sh'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: childEnv,
+    })
+    const captured = existsSync(capture) ? readFileSync(capture, 'utf8') : ''
+    assert.ok(captured.length > 0, `psql stub should have been invoked. stderr:\n${result.stderr}`)
+    const argvLine = captured.split('\n').find(l => l.startsWith('ARGV:')) ?? ''
+    assert.ok(
+      !argvLine.includes('hunter2'),
+      `password must never appear in psql argv:\n${argvLine}`,
+    )
+    assert.ok(
+      !argvLine.includes('postgresql://'),
+      `connection URI must never appear in psql argv:\n${argvLine}`,
+    )
+    // PG* env carries the connection target.
+    assert.match(captured, /PGHOST=disposable-db\.test/)
+    assert.match(captured, /PGPORT=6543/)
+    assert.match(captured, /PGUSER=migrator/)
+    assert.match(captured, /PGPASSWORD=hunter2/)
+    assert.match(captured, /PGDATABASE=testdb/)
+  } finally {
+    rmSync(stubDir, { recursive: true, force: true })
+  }
+})
+
+test('pg_url_to_env: ambient PGHOST is swept before applying the URL target', () => {
+  withFixture(
+    ['20260401120000_a.sql', '20260401130000_b.sql'],
+    (dir) => {
+      const { captured } = runGuardsWithPsqlStub(dir, {
+        CHECK_SQL_PREVIEW_DB_URL: 'postgresql://u:p@realhost:5432/db',
+        PGHOST: 'attacker-host',
+        PGPORT: '9999',
+      })
+      assert.ok(captured.length > 0, 'psql stub should have been invoked')
+      // The URL-declared target must win — ambient PG* must not redirect.
+      assert.match(captured, /PGHOST=realhost/)
+      assert.match(captured, /PGPORT=5432/)
+      assert.ok(!captured.includes('attacker-host'), `ambient PGHOST leaked through:\n${captured}`)
+    },
+  )
+})
+
+test('pg_url_to_env: stricter ambient PGSSLMODE survives when URL declares none', () => {
+  withFixture(
+    ['20260501120000_a.sql', '20260501130000_b.sql'],
+    (dir) => {
+      const { captured } = runGuardsWithPsqlStub(dir, {
+        CHECK_SQL_PREVIEW_DB_URL: 'postgresql://u:p@host:5432/db',
+        PGSSLMODE: 'verify-full',
+      })
+      assert.ok(captured.length > 0, 'psql stub should have been invoked')
+      assert.match(captured, /PGSSLMODE=verify-full/)
+    },
+  )
+})
+
+test('pg_url_to_env: URL-declared sslmode wins over ambient', () => {
+  withFixture(
+    ['20260601120000_a.sql', '20260601130000_b.sql'],
+    (dir) => {
+      const { captured } = runGuardsWithPsqlStub(dir, {
+        CHECK_SQL_PREVIEW_DB_URL: 'postgresql://u:p@host:5432/db?sslmode=require',
+        PGSSLMODE: 'verify-full',
+      })
+      assert.ok(captured.length > 0, 'psql stub should have been invoked')
+      assert.match(captured, /PGSSLMODE=require/)
+    },
+  )
+})
+
+test('pg_url_to_env: uppercase sslmode retains the declared TLS setting', () => {
+  withFixture(['20260601120000_a.sql', '20260601130000_b.sql'], (dir) => {
+    const { captured } = runGuardsWithPsqlStub(dir, {
+      CHECK_SQL_PREVIEW_DB_URL: 'postgresql://u:p@host:5432/db?SSLMODE=verify-full',
+    })
+    assert.match(captured, /PGSSLMODE=verify-full/)
+  })
+})
+
+test('pg_url_to_env: bracketed IPv6 host reaches PGHOST without brackets', () => {
+  withFixture(['20260601120000_a.sql', '20260601130000_b.sql'], (dir) => {
+    const { captured } = runGuardsWithPsqlStub(dir, {
+      CHECK_SQL_PREVIEW_DB_URL: 'postgresql://u:p@[::1]:5432/db',
+    })
+    assert.match(captured, /PGHOST=::1/)
+  })
+})
+
+test('pg_url_to_env: percent-encoded password is decoded', () => {
+  withFixture(
+    ['20260701120000_a.sql', '20260701130000_b.sql'],
+    (dir) => {
+      const { captured } = runGuardsWithPsqlStub(dir, {
+        CHECK_SQL_PREVIEW_DB_URL: 'postgresql://user:p%40ss@host:5432/db',
+      })
+      assert.ok(captured.length > 0, 'psql stub should have been invoked')
+      // p%40ss decodes to p@ss
+      assert.match(captured, /PGPASSWORD=p@ss/)
+    },
+  )
+})

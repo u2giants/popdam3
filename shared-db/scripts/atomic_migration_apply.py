@@ -16,7 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, unquote, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "config" / "atomic-migration-allowlist.json"
@@ -31,6 +31,16 @@ EXPECTED_COLUMNS = {
     "statements": ({"ARRAY"}, "YES", {"_text"}),
     "name": ({"text", "character varying"}, "YES", {"text", "varchar"}),
 }
+LIBPQ_ENV_KEYS = frozenset({
+    "PGHOST", "PGHOSTADDR", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD",
+    "PGPASSFILE", "PGSERVICE", "PGSERVICEFILE", "PGSYSCONFDIR", "PGOPTIONS",
+    "PGAPPNAME", "PGSSLMODE", "PGSSLCERT", "PGSSLKEY", "PGSSLROOTCERT",
+    "PGSSLCRL", "PGSSLPASSWORD", "PGSSLCERTMODE", "PGSSLMINPROTOCOLVERSION",
+    "PGSSLMAXPROTOCOLVERSION", "PGCONNECT_TIMEOUT", "PGTARGETSESSIONATTRS",
+    "PGCHANNELBINDING", "PGLOADBALANCEHOSTS", "PGGSSENCMODE",
+    "PGSSLNEGOTIATION", "PGREQUIREAUTH", "PGCLIENTENCODING", "PGKRBSRVNAME",
+    "PGREALM", "PGGSSLIB",
+})
 
 
 class Refusal(RuntimeError):
@@ -186,13 +196,34 @@ def linked_connection(linked_dir: Path, expected_ref: str) -> tuple[str, dict[st
     parsed = urlparse(url)
     if parsed.scheme not in {"postgres", "postgresql"} or not parsed.hostname:
         raise Refusal("linked pooler-url is malformed")
-    if parsed.password:
+    if "#" in url:
+        raise Refusal("linked pooler-url contains an unsupported fragment")
+    if parsed.password is not None:
         raise Refusal("linked pooler-url unexpectedly contains a password")
     if not parsed.username or not parsed.username.endswith("." + expected_ref):
         raise Refusal("linked pooler-url user does not prove the expected project ref")
     if expected_ref not in url:
         raise Refusal("linked pooler-url does not contain the expected project ref")
-    env = os.environ.copy()
+    try:
+        host = unquote(parsed.hostname)
+        user = unquote(parsed.username or "")
+        database = unquote(parsed.path.removeprefix("/"))
+        port = parsed.port
+        params = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=True)
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise Refusal("linked pooler-url has invalid connection fields") from exc
+    if (not host or re.search(r"[\s@,]", host) or not user
+            or not user.endswith("." + expected_ref) or not database):
+        raise Refusal("linked pooler-url has invalid host, user, or database")
+    if any(key != "sslmode" for key, _ in params) or len(params) > 1:
+        raise Refusal("linked pooler-url has unsupported connection parameters")
+    sslmode = params[0][1] if params else "require"
+    if sslmode not in {"require", "verify-ca", "verify-full"}:
+        raise Refusal("linked pooler-url has an unsafe sslmode")
+    env = {key: value for key, value in os.environ.items() if key.upper() not in LIBPQ_ENV_KEYS}
+    env.update(PGHOST=host, PGUSER=user, PGDATABASE=database, PGSSLMODE=sslmode)
+    if port is not None:
+        env["PGPORT"] = str(port)
     env["PGPASSWORD"] = env["SUPABASE_DB_PASSWORD"]
     return url, env
 
@@ -218,7 +249,7 @@ def psql(url: str, env: dict[str, str], sql: str, *, capture: bool = True) -> st
     if shutil.which("psql") is None:
         raise Refusal("psql is not installed on this runner")
     result = subprocess.run(
-        ["psql", url, "-X", "-v", "ON_ERROR_STOP=1", "-At"],
+        ["psql", "-X", "-v", "ON_ERROR_STOP=1", "-At"],
         input=sql, text=True, env=env, capture_output=capture, check=False,
     )
     if result.returncode:
@@ -308,7 +339,7 @@ def main() -> int:
             handle.write(wrapper)
             temp_name = handle.name
         try:
-            result = subprocess.run(["psql", url, "-X", "-v", "ON_ERROR_STOP=1", "-f", temp_name], env=env, text=True, capture_output=True)
+            result = subprocess.run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-f", temp_name], env=env, text=True, capture_output=True)
             if result.returncode:
                 raise Refusal(
                     "atomic apply failed; PostgreSQL rolled back DDL and ledger together:\n"

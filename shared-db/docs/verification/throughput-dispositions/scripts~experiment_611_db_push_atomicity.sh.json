@@ -3,12 +3,20 @@
   "source": "scripts/experiment_611_db_push_atomicity.sh",
   "sites": [
     {
-      "site": "scripts/experiment_611_db_push_atomicity.sh:140",
+      "site": "scripts/experiment_611_db_push_atomicity.sh:151",
       "semantic_key": "scripts/experiment_611_db_push_atomicity.sh:03d91ac66d438482ddacf7ed63810b052889ef9fd2027e0574afd2cf824bc75d:context-8e52a0a3b0920b53881014d1b11eeb73e716b704ecc611404f68192cab35761d",
       "line_sha256": "03d91ac66d438482ddacf7ed63810b052889ef9fd2027e0574afd2cf824bc75d",
       "disposition": "excluded",
       "reason": "This discovered shell guard keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "legacy_semantic_key": "scripts/experiment_611_db_push_atomicity.sh:03d91ac66d438482ddacf7ed63810b052889ef9fd2027e0574afd2cf824bc75d:1"
+    },
+    {
+      "site": "scripts/experiment_611_db_push_atomicity.sh:91",
+      "semantic_key": "scripts/experiment_611_db_push_atomicity.sh:cc86f0efb09819546cab9d81a7308dac121090e90d02c34721bdac36200dae83:context-9c14a26eb00b2694e160f5e92a2ed6871980562623216b85a733e95ff18259cf",
+      "line_sha256": "cc86f0efb09819546cab9d81a7308dac121090e90d02c34721bdac36200dae83",
+      "disposition": "excluded",
+      "reason": "PG* env transport for supabase CLI: --db-url carries a keyword/value skeleton with non-secret connection parameters; only the password travels via PG* env (issue #3944).",
+      "legacy_semantic_key": "scripts/experiment_611_db_push_atomicity.sh:cc86f0efb09819546cab9d81a7308dac121090e90d02c34721bdac36200dae83:1"
     }
   ]
 }

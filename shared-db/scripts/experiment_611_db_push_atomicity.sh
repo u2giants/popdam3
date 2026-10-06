@@ -84,14 +84,31 @@ set -euo pipefail
 
 PGPORT="${PGPORT:-55432}"
 PGPASSWORD="${PGPASSWORD:-canary}"
-DB_URL="postgresql://postgres:${PGPASSWORD}@127.0.0.1:${PGPORT}/postgres"
+# PG* env transport for the Supabase CLI — the connection URI with password
+# is NEVER placed in process argv (2026-10-02 leak class; same PG* transport
+# as tools/runSql after PR #3938).  pgconn's ParseConfigLibpq reads PG* env;
+# --db-url carries a keyword/value skeleton with the non-secret connection
+# parameters spelled out explicitly (host, port, user, dbname) so a missing
+# PG* env default can never retarget a write (muse review 2026-10-06, H1).
+# Only the password travels via PG* env.
+PGHOST="127.0.0.1"
+PGUSER="postgres"
+PGDATABASE="postgres"
+export PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE
+DB_URL_SKELETON="host=${PGHOST} port=${PGPORT} user=${PGUSER} dbname=${PGDATABASE}"
 WORK="$(mktemp -d)"
 CONTAINER="issue611-canary"
 
 echo "== 1. Disposable database =="
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
-docker run -d --name "$CONTAINER" -e POSTGRES_PASSWORD="$PGPASSWORD" \
+# Password via env-file, never -e NAME=value (that places the secret in the
+# docker client's argv — same leak class as --db-url, issue #3944).
+ENVF="$(mktemp)"
+trap 'rm -f "$ENVF"' EXIT
+printf 'POSTGRES_PASSWORD=%s\n' "$PGPASSWORD" > "$ENVF"
+docker run -d --name "$CONTAINER" --env-file "$ENVF" \
   -p "${PGPORT}:5432" postgres:15 >/dev/null
+rm -f "$ENVF"
 until docker exec "$CONTAINER" pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
 
 # --- TLS. NOT optional, and NOT a fixture change. CLI 2.105.0 forces TLS on
@@ -129,7 +146,7 @@ psql() { docker exec -i "$CONTAINER" psql -U postgres -d postgres -v ON_ERROR_ST
 # defects at once.
 echo "== 1b. CLI preflight =="
 echo "supabase --version: $(supabase --version 2>&1 || true)"
-if ! PREFLIGHT="$(supabase migration list --db-url "$DB_URL" 2>&1)"; then
+if ! PREFLIGHT="$(supabase migration list --db-url "$DB_URL_SKELETON" 2>&1)"; then
   echo "$PREFLIGHT"
   echo
   echo "FATAL: the Supabase CLI could not talk to the throwaway database."
@@ -275,7 +292,7 @@ run_push() {  # takes no arguments -- which fixtures run is decided by the LEDGE
               # draft documented a `$1 = single version to leave pending`
               # parameter that was never read; it is removed rather than
               # implemented, so nobody can believe it is doing something.)
-  ( cd "$WORK" && supabase db push --db-url "$DB_URL" --include-all --yes 2>&1 ) || true
+  ( cd "$WORK" && supabase db push --db-url "$DB_URL_SKELETON" --include-all --yes 2>&1 ) || true
 }
 
 # Reset between questions: forget every fixture ledger row and drop every object

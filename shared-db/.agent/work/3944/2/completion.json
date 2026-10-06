@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 3944,
+  "outcome": "ready-for-merge",
+  "pr": 3958,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3944/2",
+  "contract_sha256": "b5ad742a146ce614e69fd617fe6a69e31e05d5cbce395d2d446a6954946244c7",
+  "base_sha": "a0c7cdd5a77bcd7b79fd21a5ac4e51bef9900cb4",
+  "head_sha": "12fd4425f9917975822a6c640431d32cb9c23948",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~experiment_611_db_push_atomicity.sh.json",
+    "scripts/atomic_migration_apply.py",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    "scripts/experiment_611_db_push_atomicity.sh",
+    "scripts/test_atomic_migration_apply.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-sql.test.mjs",
+      "exit_code": 0,
+      "evidence": "66 passed, 0 failed"
+    },
+    {
+      "command": "python3 -m unittest scripts/test_atomic_migration_apply.py",
+      "exit_code": 0,
+      "evidence": "15 passed, 0 failed"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static guards passed; no preview ledger URL configured"
+    }
+  ],
+  "assumptions_resolved": [
+    "All six requested argv leak sites now use PG* environment transport.",
+    "The Python linked pooler URL is target-checked, rejects unsupported fields, and sweeps ambient PG* values before setting connection variables."
+  ],
+  "stop_conditions_hit": []
+}

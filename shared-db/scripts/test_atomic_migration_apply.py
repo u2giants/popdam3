@@ -119,6 +119,39 @@ class AtomicMigrationApplyTests(unittest.TestCase):
         self.assertNotIn("example.invalid", str(caught.exception))
         self.assertIn("REDACTED", str(caught.exception))
 
+    def test_linked_connection_moves_target_to_pg_env_and_sweeps_ambient_target(self):
+        linked = self.root / "supabase" / ".temp"
+        linked.mkdir(parents=True)
+        (linked / "pooler-url").write_text(
+            "postgresql://postgres.preview-ref" + "@" + "pooler.example:6543/postgres?sslmode=verify-full",
+            encoding="utf-8",
+        )
+        with patch.dict(atomic.os.environ, {
+            "EXPECTED_PROJECT_REF": "preview-ref", "SUPABASE_DB_PASSWORD": "private-value",
+            "PGHOST": "wrong-host", "PGHOSTADDR": "wrong-address", "PGSSLMODE": "disable",
+            "PAGER": "cat",
+        }):
+            url, env = atomic.linked_connection(self.root, "preview-ref")
+        self.assertIn("pooler.example", url)
+        self.assertEqual(env["PGHOST"], "pooler.example")
+        self.assertEqual(env["PGPORT"], "6543")
+        self.assertEqual(env["PGUSER"], "postgres.preview-ref")
+        self.assertEqual(env["PGDATABASE"], "postgres")
+        self.assertEqual(env["PGSSLMODE"], "verify-full")
+        self.assertEqual(env["PGPASSWORD"], "private-value")
+        self.assertNotIn("PGHOSTADDR", env)
+        self.assertEqual(env["PAGER"], "cat")
+
+    def test_psql_argv_contains_no_connection_url(self):
+        url = "postgresql://postgres.preview-ref" + "@" + "pooler.example:6543/postgres"
+        completed = SimpleNamespace(returncode=0, stderr="", stdout="1\n")
+        with patch.object(atomic.shutil, "which", return_value="psql"), patch.object(
+            atomic.subprocess, "run", return_value=completed
+        ) as run:
+            self.assertEqual(atomic.psql(url, {"PGHOST": "pooler.example"}, "select 1;"), "1")
+        self.assertNotIn(url, run.call_args.args[0])
+        self.assertEqual(run.call_args.kwargs["env"]["PGHOST"], "pooler.example")
+
     def test_remote_validation_accepts_compatible_varchar_and_ignores_extra_columns(self):
         columns = {
             "version": {"data_type": "character varying", "udt_name": "varchar", "is_nullable": "NO"},
@@ -143,6 +176,7 @@ class AtomicMigrationApplyTests(unittest.TestCase):
         ), patch.object(atomic.subprocess, "run", return_value=completed) as run:
             self.assertEqual(atomic.main(), 0)
         command = run.call_args.args[0]
+        self.assertNotIn("postgresql://safe.invalid/db", command)
         self.assertIn("-f", command)
         wrapper_path = Path(command[command.index("-f") + 1])
         self.assertFalse(wrapper_path.exists())

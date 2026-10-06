@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "work_issue": 3944,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Complete the argv leak-class repair for all six specified call sites, including the CI-reachable atomic migration helper, while preserving target and TLS checks.",
+  "base_sha": "a0c7cdd5a77bcd7b79fd21a5ac4e51bef9900cb4",
+  "dispatcher": "ZCode chat 01a111ef-6947-73e3-ad86-653b1650b4e1 on edge-dev",
+  "worker": "ZCode chat 01a111ef-6947-73e3-ad86-653b1650b4e1 on edge-dev",
+  "branch": "mimo/3944-argv-leak",
+  "worktree": "/home/ahazan/repos/.worktrees/shared-db-3944-landing",
+  "evidence_parent": {
+    "work_issue": 3944,
+    "generation": 1,
+    "contract_sha256": "f0494152add9f03df6d0ffa59d58a55f79c9c34bd7f30b793b1cf0e8af0d720b"
+  },
+  "allowed_paths": [
+    ".agent/work/3944/2/contract.json",
+    ".agent/work/3944/2/completion.json",
+    "docs/verification/throughput-dispositions/scripts~experiment_611_db_push_atomicity.sh.json",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    "scripts/experiment_611_db_push_atomicity.sh",
+    "scripts/atomic_migration_apply.py",
+    "scripts/test_atomic_migration_apply.py"
+  ],
+  "file_writes": [
+    ".agent/work/3944/2/contract.json",
+    ".agent/work/3944/2/completion.json",
+    "docs/verification/throughput-dispositions/scripts~experiment_611_db_push_atomicity.sh.json",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    "scripts/experiment_611_db_push_atomicity.sh",
+    "scripts/atomic_migration_apply.py",
+    "scripts/test_atomic_migration_apply.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": ["No migration, database write, workflow schedule, or rotation-lane change."],
+  "required_checks": ["node --test scripts/check-sql.test.mjs", "python3 -m unittest scripts/test_atomic_migration_apply.py", "bash scripts/check-sql.sh"],
+  "assumptions": ["The linked pooler URL is password-free and target-validated before psql invocation."],
+  "stop_conditions": ["Stop on any failed guard or target ambiguity."]
+}
