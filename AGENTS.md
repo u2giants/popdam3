@@ -220,7 +220,8 @@ Files outside project-owned areas that were intentionally modified:
 | DB schema change | Canonical `/worksp/shared-db/supabase/migrations/` via shared-db branch + PR | This repo's `supabase/migrations/`; any existing migration file |
 | Fix style group rebuild | `apps/worker/src/handlers/style-groups.ts`, DB functions in canonical `/worksp/shared-db/supabase/migrations/` | `supabase/functions/bulk-job-runner/`; this repo's `supabase/migrations/` |
 | Fix style group asset_count drift | Canonical `/worksp/shared-db/supabase/migrations/`, `supabase/functions/_shared/` if function code changes | This repo's `supabase/migrations/` |
-| Fix ERP sync | `apps/worker/src/handlers/erp.ts`, `supabase/functions/_shared/mg-codes.ts`, `src/lib/mg-lookup.ts` | — |
+| Fix ERP sync | `apps/worker/src/handlers/erp.ts`, `supabase/functions/_shared/mg-codes.ts`, `supabase/functions/_shared/mg-lookup.ts` | — |
+| Fix SKU-derived MG01–MG03 names | `supabase/functions/_shared/sku-parser.ts`, `_shared/mg-lookup.ts` (current, hierarchical), `_shared/mg-legacy.ts` (pre-2025-05-14 flat lists) | `src/lib/mg-lookup.ts` is only a re-export |
 | Fix production PO sync | `supabase/functions/_shared/admin-handlers/prod-order-handlers.ts`, canonical `/worksp/shared-db/supabase/migrations/` for DB changes, `src/components/settings/ErpEnrichmentTab.tsx`, `src/components/library/StyleGroupDetailPanel.tsx` | This repo's `supabase/migrations/`; do not rely on copied browser JWTs as durable auth |
 | Fix bridge agent scan / ingest / move detection | `apps/bridge-agent/src/index.ts`, `apps/bridge-agent/src/scanner.ts`, `apps/bridge-agent/src/api-client.ts`, `supabase/functions/agent-api/index.ts`, `docs/WORKER_LOGIC.md`, `docs/API_CONTRACTS.md` | Do not treat `quick_hash` as unique; do not edit generated Supabase types |
 | Fix thumbnail generation | `apps/bridge-agent/src/thumbnailer.ts` | — |
@@ -324,6 +325,8 @@ apps/popdam-helper/.webpack/
 ---
 
 ## Intentional quirks
+
+- **MG01–MG03 letters mean different things by era (2026-10-06).** Items created before 2025-05-14 use the old flat per-division lists (MG01 = material, MG02 = product type, MG03 = finish; source: ColdLion exports in Albert's Dropbox `ai/old_merch`, now `_shared/mg-legacy.ts`). Newer items use the hierarchical list where MG02 depends on MG01 and MG03 on both. `parseSku` picks the era from ColdLion's item `createdTime`, falling back to the file date. Never resolve MG02/MG03 with a flat code table.
 
 Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
 
