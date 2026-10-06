@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "work_issue": 3541,
+  "generation": 9,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Make the scheduled Author Lane Abandonment Audit report author-capacity truth independently of historical preview-readiness failures, while preserving the existing preview-readiness checks in their own lane and fail-closing on unreadable capacity. This repairs issue #3541 live exit 3 without releasing any claim or weakening preview promotion.",
+  "base_sha": "43bef99420ce18982e4a6456edf25883a940b6ae",
+  "dispatcher": "successor session for issue #3541",
+  "worker": "Codex chat 01a111e8-4c90-7df0-9106-4547392130ce on edge-dev3",
+  "branch": "codex/3541-audit-20261006",
+  "worktree": "/home/ahazan/repos/.worktrees/shared-db-3541-audit-20261006",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/orchestrator-flow/reconcile.mjs",
+    "scripts/orchestrator-flow/reconcile.test.mjs",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    ".agent/work/3541/9/contract.json",
+    ".agent/work/3541/9/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/orchestrator-flow/reconcile.mjs",
+    "scripts/orchestrator-flow/reconcile.test.mjs",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    ".agent/work/3541/9/contract.json",
+    ".agent/work/3541/9/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change migrations, database objects, or application rows.",
+    "Do not change preview admission or production promotion checks.",
+    "Do not treat an unreadable capacity claim as a clean audit."
+  ],
+  "required_checks": [
+    "node --test scripts/orchestrator-flow/reconcile.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The abandonment audit is an author-capacity audit; preview readiness belongs to a separate domain and remains visible in full reconciliation.",
+    "The current scheduled audit reaches full reconciliation but exits 3 on unrelated preview errors while all 20 capacity facts are readable."
+  ],
+  "stop_conditions": [
+    "Stop if the capacity domain is unreadable.",
+    "Stop if review finds this weakens preview preparation, merge or production controls.",
+    "Stop if a required path falls outside allowed_paths."
+  ]
+}

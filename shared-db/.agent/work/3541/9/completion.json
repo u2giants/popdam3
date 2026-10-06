@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 3541,
+  "outcome": "ready-for-merge",
+  "pr": 3964,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3541/9",
+  "contract_sha256": "45fce927522c877372788fad1e33901b5f155be1e8b3fe0575c4b4c75063ef52",
+  "base_sha": "43bef99420ce18982e4a6456edf25883a940b6ae",
+  "head_sha": "2149071ffc05397972fc5a2a96db99047209c8ca",
+  "files_changed": [
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/orchestrator-flow/reconcile.mjs",
+    "scripts/orchestrator-flow/reconcile.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/orchestrator-flow/reconcile.test.mjs",
+      "exit_code": 0,
+      "evidence": "33 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "768 pass, 0 fail"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ],
+  "assumptions_resolved": [
+    "The 2026-10-06 local read showed 20 expired claims, zero unreadable author-capacity records, and 11 unrelated unreadable preview checks. The scoped audit exited 2 while full reconciliation remains unchanged."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Live scheduled proof remains on issue #3541. No claim has been relinquished by this code change."
+}

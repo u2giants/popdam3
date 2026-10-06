@@ -247,8 +247,19 @@ test('expiry and unreadability are different exit codes, and neither is clean',(
   assert.equal(run([{issue:1,preview_edge_satisfied:true}]),0)
   assert.equal(run([expiredRow()]),2,'a non-empty expired claim must be visible, not silent')
   assert.equal(run([{issue:1,capacity_error:'unreadable'}]),3,'an unreadable capacity row must be distinguishable from expiry')
-  assert.equal(run([{issue:1,preview_error:'unreadable'}]),3)
+  assert.equal(run([{issue:1,preview_error:'unreadable'}]),0,'preview readiness is outside the author-capacity audit')
+  assert.equal(run([expiredRow(),{issue:1,preview_error:'unreadable'}]),2,'preview failures do not conceal a readable expired author lane')
   assert.equal(run([expiredRow(),{issue:9,capacity_error:'unreadable'}]),3,'unreadable outranks expiry; the audit is not trusted to have seen everything')
+})
+
+test('scheduled abandonment audit requests capacity facts without preview reads',()=>{
+  let options=null
+  const io={
+    flowSnapshot:(_now,requested)=>{options=requested;return {issues:[expiredRow({preview_error:'historical preview evidence is unreadable'})]}},
+    orchestratorFlowAdapter:()=>({resolveMarker:()=>null}),
+  }
+  assert.equal(managerMain(['--abandonment-audit'],new Date(),io),2)
+  assert.deepEqual(options,{capacityOnly:true})
 })
 
 test('the audit fails closed on any result it does not recognise',()=>{
@@ -256,10 +267,14 @@ test('the audit fails closed on any result it does not recognise',()=>{
   // future schema, or a result that claims to have mutated, must never read as a
   // clean hour. Enumerated rather than tested through the CLI, because the CLI
   // cannot currently produce these and that is exactly why they need pinning.
-  const clean={schema_version:RECONCILE_SCHEMA_VERSION,mutating:false,capacity:{status:'REPORT_ONLY'},preview:{status:'REPORT_ONLY'},actions:[]}
+  const clean={schema_version:RECONCILE_SCHEMA_VERSION,audit_scope:'capacity',mutating:false,capacity:{status:'REPORT_ONLY'},preview:{status:'NOT_EVALUATED',issues:0,actions:0,unverifiable:0},actions:[]}
   assert.equal(abandonmentAuditExit(clean),0,'the control case must be clean, or the rest proves nothing')
   assert.equal(abandonmentAuditExit({...clean,schema_version:RECONCILE_SCHEMA_VERSION+1}),3)
   assert.equal(abandonmentAuditExit({...clean,mutating:true}),3)
+  assert.equal(abandonmentAuditExit({...clean,audit_scope:'preview'}),3)
+  assert.equal(abandonmentAuditExit({...clean,preview:{...clean.preview,status:'UNVERIFIABLE'}}),3)
+  assert.equal(abandonmentAuditExit({...clean,capacity:{status:'UNKNOWN'}}),3)
+  assert.equal(abandonmentAuditExit({...clean,actions:[{domain:'preview',action:'preview-unverifiable'}]}),3)
   assert.equal(abandonmentAuditExit(null),3)
   assert.equal(abandonmentAuditExit({}),3)
 })

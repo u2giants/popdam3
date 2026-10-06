@@ -88,9 +88,11 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    sole-orchestrator marker reads as gone and every mutation hook throws before
    the reconciler can reach it, so a regression fails loudly instead of writing.
    Its exit code is the answer — `0` no expired lane, `2` at least one expired
-   lane needs a decision, `3` unverifiable — the state could not be read and
-   nothing may be concluded from the run. `3` outranks `2`: an audit that could not read
-   everything is not trusted to have seen the expiry either. The same report
+   lane needs a decision, `3` unverifiable — author-capacity state could not be read and
+   nothing may be concluded from the run. `3` outranks `2` within that domain: an audit
+   that could not read every claim is not trusted to have seen the expiry either.
+   Preview readiness is NOT_EVALUATED here; it remains a separate full-reconciliation
+   gate for preview preparation and is never treated as passed by this audit. The same report
    runs hourly as the `Author Lane Abandonment Audit` workflow, which holds only
    `read` scopes and files no issue and no comment; the failing run and its job
    summary are the report. Never run `--reconcile-flow` from a scheduled job.

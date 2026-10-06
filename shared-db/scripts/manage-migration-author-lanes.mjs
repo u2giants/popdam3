@@ -1067,7 +1067,7 @@ export const githubIo = {
     return authorEngineFromEnv(process.env.SHARED_DB_AUTHOR_ENGINE)
   },
   orchestratorFlowAdapter(claimNumber,admissionOptions=null){ return githubFlowAdapter(this,claimNumber,admissionOptions) },
-  flowSnapshot(now=new Date()){
+  flowSnapshot(now=new Date(),{capacityOnly=false}={}){
     const claims=this.openClaims()
     // QUEUED-BEHIND IS COMPUTED ONCE, AND ONLY IF SOMETHING IS ACTUALLY EXPIRED.
     // It is the count the report exists to show -- how many tasks are waiting on
@@ -1094,7 +1094,7 @@ export const githubIo = {
       // means, instead of one legacy title silencing the whole instrument.
       let issue=null,identity_error=null
       try{issue=claimWorkIssue(claim)}catch(error){identity_error=error.message}
-      if(identity_error!==null)return {issue:null,claim:claim.number,capacity_error:`claim #${claim.number}: ${identity_error}`,preview_edge_satisfied:false,preview_error:`claim #${claim.number}: ${identity_error}`}
+      if(identity_error!==null)return {issue:null,claim:claim.number,capacity_error:`claim #${claim.number}: ${identity_error}`,preview_edge_satisfied:false,preview_error:capacityOnly?null:`claim #${claim.number}: ${identity_error}`}
       // THE TWO DOMAINS ARE DERIVED INDEPENDENTLY AND FAIL INDEPENDENTLY. A throw
       // while reading capacity evidence must not blank the preview answer, and a
       // preview edge that cannot be derived must not make capacity look unreadable.
@@ -1102,7 +1102,7 @@ export const githubIo = {
       let capacity=null,capacity_error=null
       try{capacity=flowCapacityFacts(claim,issue,now,this,queuedBehindFor)}catch(error){capacity_error=error.message}
       let preview_edge_satisfied=false,preview_error=null
-      try{deriveLivePreviewCandidate(issue,this);preview_edge_satisfied=true}catch(error){preview_error=error.message}
+      if(!capacityOnly)try{deriveLivePreviewCandidate(issue,this);preview_edge_satisfied=true}catch(error){preview_error=error.message}
       return {issue,claim:claim.number,...(capacity??{}),capacity_error,preview_edge_satisfied,preview_error}
     })}
   },
@@ -4397,7 +4397,7 @@ export function main(argv, now = new Date(), io = githubIo) {
       try{
         if(typeof io.orchestratorFlowAdapter!=='function')throw new LaneError('reconcile runtime adapter is unavailable')
         if(io.previewLedger===undefined)io={...io,previewLedger:()=>livePreviewLedger({workflowPreviewRef:process.env.PREVIEW_PROJECT_REF})}
-        const result=reconcileFlow(io.flowSnapshot(now),reportOnlyFlowIo(io.orchestratorFlowAdapter()))
+        const result=reconcileFlow(io.flowSnapshot(now,{capacityOnly:true}),reportOnlyFlowIo(io.orchestratorFlowAdapter()),{capacityOnly:true})
         console.log(JSON.stringify(result,null,2))
         return abandonmentAuditExit(result)
       }catch(error){

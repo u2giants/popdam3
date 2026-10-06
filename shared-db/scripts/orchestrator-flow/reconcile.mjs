@@ -242,13 +242,14 @@ export function reportOnlyFlowIo(io){
 // report-only result of the current schema is treated as unreadable, so a future
 // schema or a mutating result can never be mistaken for a clean run.
 export function abandonmentAuditExit(result){
-  if(result?.schema_version!==RECONCILE_SCHEMA_VERSION||result?.mutating!==false)return AUDIT_EXIT_UNVERIFIABLE
-  if([result.capacity?.status,result.preview?.status].includes('UNVERIFIABLE'))return AUDIT_EXIT_UNVERIFIABLE
+  if(result?.schema_version!==RECONCILE_SCHEMA_VERSION||result?.mutating!==false||result?.audit_scope!=='capacity')return AUDIT_EXIT_UNVERIFIABLE
+  if(result.capacity?.status!=='REPORT_ONLY'||result.preview?.status!=='NOT_EVALUATED'||result.preview?.issues!==0||result.preview?.actions!==0||result.preview?.unverifiable!==0)return AUDIT_EXIT_UNVERIFIABLE
+  if((result.actions??[]).some((action)=>action.domain===PREVIEW_DOMAIN))return AUDIT_EXIT_UNVERIFIABLE
   if((result.actions??[]).some((action)=>action.action==='expired-unconfirmed-report'))return AUDIT_EXIT_EXPIRED
   return AUDIT_EXIT_CLEAN
 }
 
-export function reconcileFlow(input,io){
+export function reconcileFlow(input,io,{capacityOnly=false}={}){
   const marker=io.resolveMarker(),mutating=Boolean(marker?.live&&marker.calling_task===marker.task),actions=[]
   const seen={[CAPACITY_DOMAIN]:new Set(),[PREVIEW_DOMAIN]:new Set()}
   let capacityUnverifiable=false,previewUnverifiable=false
@@ -265,12 +266,14 @@ export function reconcileFlow(input,io){
       if(issue.blocker?.durable&&!issue.blocker.resolved&&issue.capacity_state==='active')actions.push({issue:issue.issue,domain:CAPACITY_DOMAIN,action:'relinquish-capacity',mutates:mutating,result:mutating?io.relinquishCapacity(issue):null})
       if(issue.blocker?.resolved&&issue.capacity_state==='relinquished')actions.push({issue:issue.issue,domain:CAPACITY_DOMAIN,action:'resume-capacity',mutates:mutating,result:mutating?io.resumeCapacity(issue):null})
     }
-    seen[PREVIEW_DOMAIN].add(issue.issue)
-    if(issue.preview_error){
-      previewUnverifiable=true
-      actions.push({issue:issue.issue,domain:PREVIEW_DOMAIN,action:'preview-unverifiable',mutates:false,reason:issue.preview_error})
-    }else if(issue.preview_edge_satisfied){
-      actions.push({issue:issue.issue,domain:PREVIEW_DOMAIN,action:mutating?'persist-preview-ready':'report-preview-ready',mutates:mutating,result:mutating?io.persistReady(issue):null})
+    if(!capacityOnly){
+      seen[PREVIEW_DOMAIN].add(issue.issue)
+      if(issue.preview_error){
+        previewUnverifiable=true
+        actions.push({issue:issue.issue,domain:PREVIEW_DOMAIN,action:'preview-unverifiable',mutates:false,reason:issue.preview_error})
+      }else if(issue.preview_edge_satisfied){
+        actions.push({issue:issue.issue,domain:PREVIEW_DOMAIN,action:mutating?'persist-preview-ready':'report-preview-ready',mutates:mutating,result:mutating?io.persistReady(issue):null})
+      }
     }
   }
   const counts=(domain,unverifiable)=>({
@@ -279,11 +282,12 @@ export function reconcileFlow(input,io){
     unverifiable:actions.filter((action)=>action.domain===domain&&action.action.endsWith('-unverifiable')).length,
     status:domainStatus(unverifiable,mutating),
   })
-  const capacity=counts(CAPACITY_DOMAIN,capacityUnverifiable),preview=counts(PREVIEW_DOMAIN,previewUnverifiable)
+  const capacity=counts(CAPACITY_DOMAIN,capacityUnverifiable),preview=capacityOnly?{issues:0,actions:0,unverifiable:0,status:'NOT_EVALUATED'}:counts(PREVIEW_DOMAIN,previewUnverifiable)
   return {
     schema_version:RECONCILE_SCHEMA_VERSION,
     // Unchanged for every consumer that existed before this change.
-    status:capacityUnverifiable||previewUnverifiable?'UNVERIFIABLE':mutating?'RECONCILED':'REPORT_ONLY',
+    status:capacityUnverifiable||(!capacityOnly&&previewUnverifiable)?'UNVERIFIABLE':mutating?'RECONCILED':'REPORT_ONLY',
+    ...(capacityOnly?{audit_scope:'capacity'}:{}),
     mutating,capacity,preview,actions,
   }
 }
