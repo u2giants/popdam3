@@ -1,0 +1,338 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261006203846",
+  "migration_sha256": "08fdfbfd6a5a10ace41265d87d06df9fb13d0f2ddb20fbfd0e1a5fb55e714584",
+  "checks": [
+    {
+      "id": "legacy_properties_core_absent",
+      "kind": "catalog_absence",
+      "object": "core.properties_and_characters",
+      "expected_count": 1
+    },
+    {
+      "id": "legacy_properties_eight_columns",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dflow"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "properties_and_characters"
+        }
+      ],
+      "expected_count": 8
+    },
+    {
+      "id": "legacy_properties_id_shape",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dflow"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "properties_and_characters"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "id"
+        },
+        {
+          "column": "data_type",
+          "type": "text",
+          "equals": "integer"
+        },
+        {
+          "column": "is_nullable",
+          "type": "text",
+          "equals": "NO"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "legacy_properties_name_shape",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dflow"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "properties_and_characters"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "name"
+        },
+        {
+          "column": "data_type",
+          "type": "text",
+          "equals": "character varying"
+        },
+        {
+          "column": "is_nullable",
+          "type": "text",
+          "equals": "NO"
+        },
+        {
+          "column": "character_maximum_length",
+          "type": "integer",
+          "equals": 255
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "legacy_properties_type_shape",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dflow"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "properties_and_characters"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "type"
+        },
+        {
+          "column": "data_type",
+          "type": "text",
+          "equals": "character varying"
+        },
+        {
+          "column": "is_nullable",
+          "type": "text",
+          "equals": "NO"
+        },
+        {
+          "column": "character_maximum_length",
+          "type": "integer",
+          "equals": 50
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "legacy_properties_licensor_id_shape",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dflow"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "properties_and_characters"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "licensor_id"
+        },
+        {
+          "column": "data_type",
+          "type": "text",
+          "equals": "integer"
+        },
+        {
+          "column": "is_nullable",
+          "type": "text",
+          "equals": "NO"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "legacy_properties_source_licensed_property_id_shape",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dflow"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "properties_and_characters"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "source_licensed_property_id"
+        },
+        {
+          "column": "data_type",
+          "type": "text",
+          "equals": "character varying"
+        },
+        {
+          "column": "is_nullable",
+          "type": "text",
+          "equals": "YES"
+        },
+        {
+          "column": "character_maximum_length",
+          "type": "integer",
+          "equals": 100
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "legacy_properties_source_character_id_shape",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dflow"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "properties_and_characters"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "source_character_id"
+        },
+        {
+          "column": "data_type",
+          "type": "text",
+          "equals": "character varying"
+        },
+        {
+          "column": "is_nullable",
+          "type": "text",
+          "equals": "YES"
+        },
+        {
+          "column": "character_maximum_length",
+          "type": "integer",
+          "equals": 100
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "legacy_properties_created_at_shape",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dflow"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "properties_and_characters"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "created_at"
+        },
+        {
+          "column": "data_type",
+          "type": "text",
+          "equals": "timestamp with time zone"
+        },
+        {
+          "column": "is_nullable",
+          "type": "text",
+          "equals": "NO"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "legacy_properties_updated_at_shape",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dflow"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "properties_and_characters"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "updated_at"
+        },
+        {
+          "column": "data_type",
+          "type": "text",
+          "equals": "timestamp with time zone"
+        },
+        {
+          "column": "is_nullable",
+          "type": "text",
+          "equals": "NO"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "legacy_properties_primary_key",
+      "kind": "exact_row_count",
+      "relation": "information_schema.table_constraints",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dflow"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "properties_and_characters"
+        },
+        {
+          "column": "constraint_type",
+          "type": "text",
+          "equals": "PRIMARY KEY"
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}

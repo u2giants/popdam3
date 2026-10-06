@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "work_issue": 3890,
+  "outcome": "ready-for-merge",
+  "pr": 4009,
+  "migration_versions": [
+    "20261006203846"
+  ],
+  "contract_ref": "refs/db-contracts/3890/4",
+  "contract_sha256": "205e136c607b30b31b3df1fe2b65fae5de6ba64768aa0c12e89179ee57562f51",
+  "base_sha": "c86be424f89162bbf9b450a02597616e5dcde298",
+  "head_sha": "c4c5e8677a00465f53a629c7118f8b17f7b042f1",
+  "files_changed": [
+    ".github/live-proofs/3890.sql",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    "scripts/production-verification-sidecars/20261006203846.json",
+    "supabase/migrations/20261006203846_move_designflow_sandbox_properties_to_dflow.sql",
+    "config/production-verification-sidecar-registry.json"
+  ],
+  "db_reads": [
+    "table dflow.property_character_associations",
+    "table dflow.item_character_associations"
+  ],
+  "db_writes": [
+    "table core.properties_and_characters",
+    "table dflow.properties_and_characters"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed."
+    },
+    {
+      "command": "node --test scripts/check-sql.test.mjs",
+      "exit_code": 0,
+      "evidence": "67passed; exact removal-only bytes required, altered bytes/new unrelated runtime dependencies refused."
+    },
+    {
+      "command": "python3 /tmp/3890-sql-smoke.py",
+      "exit_code": 0,
+      "evidence": "PG17 isolated fixture proves sameOID rows index incomingFK sequence readeraccess; replaynoop; wrong/ambiguous/missing relations refuse."
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs --issue 3890",
+      "exit_code": 0,
+      "evidence": "Application return is backend; sandbox proof is the separate sandbox workflow and catalog assertion."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "Hash-bound typed sidecar registered for3890 and validated."
+    },
+    {
+      "command": "python3 -m unittest scripts.test_shared_db_live_proof",
+      "exit_code": 0,
+      "evidence": "All28probe tests passed; exact outputfield convention fixed."
+    }
+  ],
+  "assumptions_resolved": [
+    "Read-only sandbox source10122rows eightlegacycolumns targetabsent; sharedproduction correct dflow target/coreabsent. Hashboundtypedsidecar11checks passed."
+  ],
+  "stop_conditions_hit": []
+}

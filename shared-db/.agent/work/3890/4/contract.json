@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "work_issue": 3890,
+  "generation": 4,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Move only the legacy DesignFlow sandbox core.properties_and_characters table to dflow, preserving rows, column shapes, indexes, grants and inbound relationships; no-op on shared preview and production.",
+  "base_sha": "c86be424f89162bbf9b450a02597616e5dcde298",
+  "dispatcher": "Albert chat instruction: complete shared-db #3882 through to production, without the earlier one-child stop; existing exact-object claim acquired. Generation 2 adds a hash-bound typed catalog sidecar because schema movement inside a DO block is not statically derivable; no verifier code or gates change. Generation 3 repairs the EOL guard only for the exact hash-bound removal-only sandbox transition and its admitted proofs; all new runtime references remain refused. Generation4 registers the required typed catalog sidecar as a preview producer.",
+  "worker": "Codex chat 01a1126e-c598-7d60-8cf4-e14427127e20 on edge-dev3",
+  "branch": "codex/3890-sandbox-schema",
+  "worktree": "/tmp/shared-db-3890-sandbox",
+  "allowed_paths": [
+    "supabase/migrations/20261006203846_move_designflow_sandbox_properties_to_dflow.sql",
+    ".github/live-proofs/3890.sql",
+    "scripts/production-verification-sidecars/20261006203846.json",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    ".agent/work/3890/4/contract.json",
+    ".agent/work/3890/4/completion.json",
+    "config/production-verification-sidecar-registry.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261006203846_move_designflow_sandbox_properties_to_dflow.sql",
+    ".github/live-proofs/3890.sql",
+    "scripts/production-verification-sidecars/20261006203846.json",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    ".agent/work/3890/4/contract.json",
+    ".agent/work/3890/4/completion.json",
+    "config/production-verification-sidecar-registry.json"
+  ],
+  "db_reads": [
+    "table dflow.property_character_associations",
+    "table dflow.item_character_associations"
+  ],
+  "db_writes": [
+    "table core.properties_and_characters",
+    "table dflow.properties_and_characters"
+  ],
+  "prohibited_actions": [
+    "Do not change or delete application rows, columns, keys or privilege policies.",
+    "Do not alter shared schema beyond the exact admitted objects.",
+    "Do not edit applied migrations or perform manual production writes."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node scripts/check-live-proof-probe.mjs --issue 3890",
+    "node --test scripts/check-sql.test.mjs"
+  ],
+  "assumptions": [
+    "Read-only sandbox proof: source exists with 10122 rows, target absent; expected eight legacy columns; same connected child relationships.",
+    "Shared production target already has dflow.properties_and_characters; core counterpart absent."
+  ],
+  "stop_conditions": [
+    "Any unexpected source/target shape, orphan, permission or claim collision refuses mutation.",
+    "Unreviewed changes or target identity ambiguity stop before a write."
+  ],
+  "evidence_parent": {
+    "work_issue": 3890,
+    "generation": 3,
+    "contract_sha256": "fcf798e787427649a62b102d9ef4ca256e90607084ceecbe6c0b1e0c22805ea7"
+  }
+}

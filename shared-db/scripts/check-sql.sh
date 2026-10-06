@@ -55,6 +55,26 @@ const allowed = new Set([
   'supabase/migrations/20260827222039_eol_core_properties_and_characters.sql',
   'supabase/migrations/20260829004145_separate_property_and_character.sql',
 ])
+// #3890 removes the misplaced sandbox relation; it introduces no runtime
+// dependency. Accept only the exact reviewed transition bytes, plus its
+// exact non-runtime contract/catalog evidence. No other path is exempted.
+const sandboxTransition = 'supabase/migrations/20261006203846_move_designflow_sandbox_properties_to_dflow.sql'
+const sandboxEvidence = new Set([
+  '.agent/work/3890/1/contract.json', '.agent/work/3890/2/contract.json',
+  '.agent/work/3890/4/contract.json', '.agent/work/3890/4/completion.json',
+  '.github/live-proofs/3890.sql',
+  'scripts/production-verification-sidecars/20261006203846.json',
+])
+const transitionChunk = diff.split(/(?=^diff --git )/m).find(chunk => chunk.startsWith(`diff --git a/${sandboxTransition} b/${sandboxTransition}\n`))
+if (transitionChunk) {
+  const completeAddition = /^--- \/dev\/null$/m.test(transitionChunk)
+  const bytes = transitionChunk.split(/\r?\n/).filter(line => line.startsWith('+') && !line.startsWith('+++')).map(line => line.slice(1)).join('\n') + '\n'
+  const hash = require('node:crypto').createHash('sha256').update(bytes).digest('hex')
+  if (completeAddition && hash === '08fdfbfd6a5a10ace41265d87d06df9fb13d0f2ddb20fbfd0e1a5fb55e714584') {
+    allowed.add(sandboxTransition)
+    for (const file of sandboxEvidence) allowed.add(file)
+  }
+}
 const deltas = new Map()
 const maintenanceAllowed = new Set([
   'api.db_data_admin_licensor_property_tree',
