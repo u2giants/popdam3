@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 3990,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/307",
+  "contract_sha256": "c7bf02efd35a965227294b490b0e6d474541841200991fc077aaefc472e648fb",
+  "head_sha": "c47074f3a2574c002df15f28177ddb166301a180",
+  "base_sha": "e61e8e7fd3eb05aebd53d6262bf9279fdd7da0b3",
+  "files_changed": [
+    ".github/workflows/migration-ledger-drift.yml",
+    "scripts/report-ledger-drift-alarm.mjs",
+    "scripts/report-ledger-drift-alarm.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/report-ledger-drift-alarm.test.mjs scripts/report-ledger-drift-status.test.mjs",
+      "exit_code": 0,
+      "evidence": "Current immutable refreshed implementation reverified: producer/reporter/alarm tests pass; narrow exact reviewed-content equivalence eaa99cfa4e9fef62e3077c437f33d0aa498e352242e676ecc181341a8c6f88bc. No database or production writes."
+    }
+  ],
+  "assumptions_resolved": [
+    "No database write or promotion.",
+    "Automatic events succeed only after verified report and alarm readback.",
+    "Manual dispatch and unknown failures remain red; unchanged alarm does not create repeated comments."
+  ],
+  "stop_conditions_hit": []
+}

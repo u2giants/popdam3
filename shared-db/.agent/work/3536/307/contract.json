@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "generation": 307,
+  "work_issue": 3536,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Automatic verified drift reports use the durable same alarm; unreadable checks and publication failures remain failing; manual drift exit unchanged.",
+  "base_sha": "cb94f985581b00dfe62deaf414a483bbe0f5e6bf",
+  "dispatcher": "Codex coordinator authorized full plan",
+  "worker": "Codex ledger subagent",
+  "branch": "codex/3536-ledger-scheduled-report",
+  "worktree": "/tmp/shared-db-3536-ledger-report",
+  "allowed_paths": [
+    ".github/workflows/migration-ledger-drift.yml",
+    "scripts/report-ledger-drift-alarm.mjs",
+    "scripts/report-ledger-drift-alarm.test.mjs",
+    ".agent/work/3536/302/contract.json",
+    ".agent/work/3536/302/completion.json",
+    ".agent/work/3536/303/contract.json",
+    ".agent/work/3536/303/completion.json",
+    ".agent/work/3536/304/contract.json",
+    ".agent/work/3536/304/completion.json",
+    ".agent/work/3536/307/contract.json",
+    ".agent/work/3536/307/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/migration-ledger-drift.yml",
+    "scripts/report-ledger-drift-alarm.mjs",
+    "scripts/report-ledger-drift-alarm.test.mjs",
+    ".agent/work/3536/302/contract.json",
+    ".agent/work/3536/302/completion.json",
+    ".agent/work/3536/303/contract.json",
+    ".agent/work/3536/303/completion.json",
+    ".agent/work/3536/304/contract.json",
+    ".agent/work/3536/304/completion.json",
+    ".agent/work/3536/307/contract.json",
+    ".agent/work/3536/307/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database writes",
+    "No production promotion",
+    "Do not close production drift alarm",
+    "No detector CLI exit changes"
+  ],
+  "required_checks": [
+    "node --test scripts/report-ledger-drift-alarm.test.mjs scripts/report-ledger-drift-status.test.mjs"
+  ],
+  "assumptions": [
+    "Verified detection is successful monitoring only after durable alarm publication/readback",
+    "Manual dispatch retains drift exit1"
+  ],
+  "stop_conditions": [
+    "Unverifiable ledger or alarm remains failing"
+  ],
+  "evidence_parent": {
+    "work_issue": 3536,
+    "generation": 304,
+    "contract_sha256": "c56b35d0441103b9b7298e79cf7970a4b8607c39c0a384dffa3d02162b5638be"
+  }
+}
