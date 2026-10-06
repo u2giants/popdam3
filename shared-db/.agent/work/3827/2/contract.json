@@ -1,0 +1,46 @@
+{
+  "schema_version": 2,
+  "work_issue": 3827,
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 3827,
+    "generation": 1,
+    "contract_sha256": "fe3cb7300ffe11ca324e68ed8eaa76ac0bfd42c08e72bcbfe10ed6b9ab6546b9"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add a regression test asserting every #3827 verdict-deadlock refusal (prior-assignment eligibility, cursor eligibility, replacement-with-verdict, release-with-verdict) names the ai-review-preflight clear (or requalify) remedy and the no-delete/no-forge guarantee. The message-only fix landed in PR #3828 under generation 1; this proves it stays named.",
+  "base_sha": "a0c7cdd5a77bcd7b79fd21a5ac4e51bef9900cb4",
+  "dispatcher": "MiMo chat unknown on edge-dev, task for issue #3827",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "mimo/3827-remedy-tests",
+  "worktree": "C:/repos/shared-db-wt-3827-clear",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3827/2/contract.json",
+    ".agent/work/3827/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3827/2/contract.json",
+    ".agent/work/3827/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change database structure or data",
+    "Do not change production code in scripts/manage-migration-author-lanes.mjs",
+    "Do not implement issues #3817 or #3829"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "assumptions": [
+    "The message-only fix from PR #3828 (generation 1) is already on main and correct; only the regression test is missing",
+    "Existing test phrases match without $ anchors, so appending remedy text does not break them"
+  ],
+  "stop_conditions": [
+    "Stop if any required check or exact-head governed review refuses",
+    "Stop if the change would need to touch a file outside allowed_paths"
+  ]
+}

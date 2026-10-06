@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 3827,
+  "outcome": "ready-for-merge",
+  "pr": 3959,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3827/2",
+  "contract_sha256": "95a2dc06a75a75d58817094463d386435f3c7a3b3047d7a1fbadbc3af007dbfc",
+  "base_sha": "b6e37f4ce663ec74bb41c82ba08e45be88583650",
+  "head_sha": "168d0dbabf15367294c5164ea5863d76f3b647d6",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "769 tests pass, 0 fail on implementation head 20d0209f6 after merge from main b6e37f4c, including the #3827 every-verdict-deadlock-refusal test"
+    }
+  ],
+  "assumptions_resolved": [
+    "The message-only fix from PR #3828 is confirmed on origin/main at all four error sites (lines 6326, 6373, 6977, 7222 of manage-migration-author-lanes.mjs)",
+    "Existing test phrases match without $ anchors; the new test was verified against the live error strings"
+  ],
+  "stop_conditions_hit": []
+}

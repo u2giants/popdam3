@@ -7223,6 +7223,77 @@ test('a verdict from a reviewer that DOES read the repository still forbids repl
   assert.throws(()=>replaceFailedReviewer(replacementRequest,io),/existing verdict for the exact head forbids reviewer replacement/)
 })
 
+test('#3827 every verdict-deadlock refusal names the quarantine-clear remedy',()=>{
+  // PR #3757: a quarantined reviewer that already wrote a substantive exact-head
+  // verdict deadlocked all three routes. Assign said "record a governed
+  // replacement", replacement and release both refused because the verdict
+  // exists, and none of them named the one action that unsticks the slot:
+  // clear the quarantine so the existing verdict counts again. These refusals
+  // must never delete or forge refs; they must say what to run instead.
+  const remedy=/ai-review-preflight clear \(or requalify\)/
+  const noForge=/must never delete or forge refs/
+  // 1. Prior-assignment eligibility: quarantined (not retired) holder of a
+  //    durable assignment for this exact head.
+  {
+    const name=ACTIVE_REVIEWERS[0].name
+    const io=reviewIo()
+    io.getPr=()=>({state:'open',head:{sha:failedReview.headSha}})
+    io.reviewerUsability=(reviewers)=>new Map(reviewers.map((row)=>[row.provider,{...usableAdmission(row),status:row.name===name?'quarantined':'ready',failure_class:row.name===name?'live-qualification-required':null,usable:row.name!==name}]))
+    const sha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=1 reviewer=${name} issue=${failedReview.issue} pr=${failedReview.pr} head=${failedReview.headSha}`)
+    io.refs.set(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${failedReview.issue}-${failedReview.pr}-${failedReview.headSha}`,sha)
+    io.refs.set(reviewActiveRef(name),sha)
+    io.refs.set(REVIEW_CURSOR_REF,sha)
+    assert.throws(()=>assignNextReviewer(failedReview,io),(error)=>{
+      assert.match(error.message,/belongs to a retired, quarantined or orchestrator-conflicting reviewer/)
+      assert.match(error.message,remedy)
+      assert.match(error.message,noForge)
+      assert.ok(error.message.includes(name),'the refusal must name the stuck reviewer so the operator knows which provider to clear')
+      return true
+    })
+  }
+  // 2. Cursor eligibility: a non-eligible holder named by the cursor, no prior
+  //    assignment ref for this tuple. Uses a retired roster name so the refusal
+  //    is the shared "belongs to a retired, quarantined or ..." message; the
+  //    prior-assignment branch above covers the quarantined-active case.
+  {
+    const name='codex-gpt-5.6-sol'
+    const io=reviewIo()
+    const historical=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=64 reviewer=${name} issue=${failedReview.issue} pr=${failedReview.pr} head=${failedReview.headSha}`)
+    io.refs.set(REVIEW_CURSOR_REF,historical)
+    assert.throws(()=>assignNextReviewer(failedReview,io),(error)=>{
+      assert.match(error.message,/belongs to a retired, quarantined or orchestrator-conflicting reviewer/)
+      assert.match(error.message,remedy)
+      assert.match(error.message,noForge)
+      assert.ok(error.message.includes(name),'the refusal must name the stuck reviewer so the operator knows which provider to clear')
+      return true
+    })
+    assert.equal([...io.refs.keys()].some((ref)=>ref.startsWith(REVIEW_ASSIGNMENT_REF_PREFIX)),false)
+  }
+  // 3. Replacement refuses while a substantive exact-head verdict exists.
+  {
+    const io=failedReviewIo()
+    const assignmentRef=`${REVIEW_ASSIGNMENT_REF_PREFIX}/${failedReview.issue}-${failedReview.pr}-${failedReview.headSha}`
+    io.refs.set(`${REVIEW_VERDICT_REF_PREFIX}/${failedReview.issue}-${failedReview.pr}-${failedReview.headSha}`,io.refs.get(assignmentRef))
+    assert.throws(()=>replaceFailedReviewer(replacementRequest,io),(error)=>{
+      assert.match(error.message,/an existing verdict for the exact head forbids reviewer replacement/)
+      assert.match(error.message,remedy)
+      assert.match(error.message,/do not delete, forge, or replace it/)
+      return true
+    })
+  }
+  // 4. Release refuses while a substantive exact-head verdict exists.
+  {
+    const io=failedReviewIo()
+    giveVerdict(io,{issue:failedReview.issue,pr:failedReview.pr,headSha:failedReview.headSha})
+    assert.throws(()=>releaseFailedReviewer(replacementRequest,io),(error)=>{
+      assert.match(error.message,/an existing verdict for the exact head forbids reviewer release/)
+      assert.match(error.message,remedy)
+      assert.match(error.message,/do not delete, forge, or replace it/)
+      return true
+    })
+  }
+})
+
 // #2079 ROUND 3 -- FAIL-CLOSED ATTRIBUTION ON THE REPLACEMENT PATH.
 //
 // Replacement is the "un-review this head" direction. It may discard a durable
