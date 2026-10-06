@@ -59,5 +59,9 @@ test('AGENTS.md documents the same route and the same boundary', () => {
 test('the lane machinery still keeps non-structural exits untouched', () => {
   // Shape work stays structural: the route is a ROUTE, never a work type, and
   // the non-structural exit table keeps guarding every non-structural type.
-  assert.ok(!laneScript.includes("'self-service-additive': '"), 'the route never appears as a NON_STRUCTURAL_EXITS key')
+  // NON_STRUCTURAL_EXITS lives in scripts/lib/lanes/queue-routing.mjs since the
+  // split (#3726), so this negative guard reads the entrypoint AND every module.
+  const laneDir = new URL('./lib/lanes/', import.meta.url)
+  const laneSources = [laneScript, ...readdirSync(laneDir).filter((f) => f.endsWith('.mjs')).map((f) => readFileSync(new URL(f, laneDir), 'utf8'))]
+  for (const text of laneSources) assert.ok(!text.includes("'self-service-additive': '"), 'the route never appears as a NON_STRUCTURAL_EXITS key')
 })

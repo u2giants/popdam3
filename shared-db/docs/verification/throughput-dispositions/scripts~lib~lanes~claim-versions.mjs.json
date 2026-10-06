@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/claim-versions.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/lanes/claim-versions.mjs:15",
+      "semantic_key": "scripts/lib/lanes/claim-versions.mjs:503def9aef2f0e8e8abf283a5af3c9a92ad163f596e106465de933c9736e0284:context-8a3bbf54de484a08fb31f0c71f138a67dc717ad3df52ebd50da35747f426b069",
+      "line_sha256": "503def9aef2f0e8e8abf283a5af3c9a92ad163f596e106465de933c9736e0284",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

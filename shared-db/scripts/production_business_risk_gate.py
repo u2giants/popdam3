@@ -608,6 +608,28 @@ PREVIEW_PRODUCER_PATHS = (
     # Runs FIRST in the preview job, to acquire the lane, before any evidence
     # byte exists. Unpinned, it was a complete forgery path.
     "scripts/manage-migration-author-lanes.mjs",
+    # The manager's cohesive modules, split out of it without behavior change.
+    # They are statically imported and run inside the same process, so each is
+    # pinned exactly like the manager itself.
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/lib/lanes/claim-maintenance.mjs",
+    "scripts/lib/lanes/claim-versions.mjs",
+    "scripts/lib/lanes/claims.mjs",
+    "scripts/lib/lanes/cli-train.mjs",
+    "scripts/lib/lanes/constants.mjs",
+    "scripts/lib/lanes/exclusive-locks.mjs",
+    "scripts/lib/lanes/github-wire.mjs",
+    "scripts/lib/lanes/holds-and-refs.mjs",
+    "scripts/lib/lanes/preview-admission.mjs",
+    "scripts/lib/lanes/queue-routing.mjs",
+    "scripts/lib/lanes/retirement.mjs",
+    "scripts/lib/lanes/review-approval.mjs",
+    "scripts/lib/lanes/review-assignment.mjs",
+    "scripts/lib/lanes/review-leases.mjs",
+    "scripts/lib/lanes/review-records.mjs",
+    "scripts/lib/lanes/review-replacement.mjs",
+    "scripts/lib/lanes/reviewer-doctor.mjs",
+    "scripts/lib/lanes/reviewer-roster.mjs",
     # Decides whether the dispatched main tip is still current (#2047). It runs
     # before any evidence byte is written, and its answer is what permits the
     # rehearsal to proceed at all. Unpinned, a doctored copy could accept ANY
@@ -1014,6 +1036,25 @@ def independent_sidecar_paths(
 # comparison, so the zero-comparison refusal still holds.
 PREVIEW_CUSTODY_ONLY_PATHS = frozenset((
     "scripts/manage-migration-author-lanes.mjs",
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/lib/lanes/claim-maintenance.mjs",
+    "scripts/lib/lanes/claim-versions.mjs",
+    "scripts/lib/lanes/claims.mjs",
+    "scripts/lib/lanes/cli-train.mjs",
+    "scripts/lib/lanes/constants.mjs",
+    "scripts/lib/lanes/exclusive-locks.mjs",
+    "scripts/lib/lanes/github-wire.mjs",
+    "scripts/lib/lanes/holds-and-refs.mjs",
+    "scripts/lib/lanes/preview-admission.mjs",
+    "scripts/lib/lanes/queue-routing.mjs",
+    "scripts/lib/lanes/retirement.mjs",
+    "scripts/lib/lanes/review-approval.mjs",
+    "scripts/lib/lanes/review-assignment.mjs",
+    "scripts/lib/lanes/review-leases.mjs",
+    "scripts/lib/lanes/review-records.mjs",
+    "scripts/lib/lanes/review-replacement.mjs",
+    "scripts/lib/lanes/reviewer-doctor.mjs",
+    "scripts/lib/lanes/reviewer-roster.mjs",
     "scripts/check-main-tip-freshness.mjs",
     "scripts/lib/pr-content-equivalence.mjs",
     "scripts/lib/repository-identity.mjs",

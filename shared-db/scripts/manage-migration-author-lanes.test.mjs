@@ -22,7 +22,7 @@ import { parseAssignmentRef } from './manage-migration-author-lanes.mjs'
 import { setScopeStatus, wrongOwnerMessage } from './manage-migration-author-lanes.mjs'
 import { readyRecord, persistInitialReady } from './orchestrator-flow/reconcile.mjs'
 import { canonicalJson, sha256 } from './orchestrator-flow/evidence-bundle.mjs'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -576,8 +576,11 @@ test('legacy claims never hit a lane cap and always protect objects', () => {
   const state = assertLaneAvailable(many, ['table core.d'], NOW)
   assert.equal(state.active.length, 500)
   assert.throws(() => assertLaneAvailable(many, ['table core.t499'], NOW), /collision with claim #500/)
-  const source = readFileSync(new URL('./manage-migration-author-lanes.mjs', import.meta.url), 'utf8')
-  assert.doesNotMatch(source, /MAX_AUTHOR_LANES|active-author leases are occupied|would exceed active-author capacity/, 'a lane cap must never be reintroduced')
+  // assertLaneAvailable lives in scripts/lib/lanes/claims.mjs since the split
+  // (#3726), so the guard reads the entrypoint AND every lane module.
+  const laneDir = new URL('./lib/lanes/', import.meta.url)
+  const sources = [readFileSync(new URL('./manage-migration-author-lanes.mjs', import.meta.url), 'utf8'), ...readdirSync(laneDir).filter((f) => f.endsWith('.mjs')).map((f) => readFileSync(new URL(f, laneDir), 'utf8'))]
+  for (const source of sources) assert.doesNotMatch(source, /MAX_AUTHOR_LANES|active-author leases are occupied|would exceed active-author capacity/, 'a lane cap must never be reintroduced')
   assert.throws(() => assertLaneAvailable([legacy(1,'table core.a')], ['TABLE core.a'], NOW), /collision/)
   assert.equal(parseAuthorLease(legacy(1,'table core.a').body, NOW).legacy, true)
 })

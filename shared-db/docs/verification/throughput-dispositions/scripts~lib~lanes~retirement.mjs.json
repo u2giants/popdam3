@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/retirement.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/lanes/retirement.mjs:101",
+      "semantic_key": "scripts/lib/lanes/retirement.mjs:05273e5eb60dddc0c2ee25ac82b3006b17f7580a27d12233ef85b71a56789b8c:context-52f7675d3f51e87915b3a454bea831e0bede4df141831b186df192ec6ed885fc",
+      "line_sha256": "05273e5eb60dddc0c2ee25ac82b3006b17f7580a27d12233ef85b71a56789b8c",
+      "disposition": "excluded",
+      "reason": "Issue #2301 Step 3 retirement-record validation message; it names a missing required field in a tombstone payload and makes no claim about whether a migration was applied to the database."
+    },
+    {
+      "site": "scripts/lib/lanes/retirement.mjs:127",
+      "semantic_key": "scripts/lib/lanes/retirement.mjs:1dbfccc8144ea14ddb358bfd7811a43b49a4390207d11c6e6c8453a6628a391e:context-72d5a6326b485ee2c4b1135b92b505956e4b67fd89455adce3e472857b06b547",
+      "line_sha256": "1dbfccc8144ea14ddb358bfd7811a43b49a4390207d11c6e6c8453a6628a391e",
+      "disposition": "excluded",
+      "reason": "Merge reconciliation 2026-10-02: call site present in the merged source after origin/main was brought into this branch; it carries no new throughput claim beyond the already-reviewed class of queue/ref coordination messages in this file."
+    }
+  ]
+}

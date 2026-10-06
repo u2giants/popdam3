@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/review-leases.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/lanes/review-leases.mjs:254",
+      "semantic_key": "scripts/lib/lanes/review-leases.mjs:0f8a2c79324240988308e792d82320141bbb022db29325638cdd7711b5f728c3:context-9a59cbdab49c2102958837837b9af1641018fb2093fcc1665921ff2dfc74767b",
+      "line_sha256": "0f8a2c79324240988308e792d82320141bbb022db29325638cdd7711b5f728c3",
+      "disposition": "excluded",
+      "reason": "Merge reconciliation 2026-10-02: call site present in the merged source after origin/main was brought into this branch; it carries no new throughput claim beyond the already-reviewed class of queue/ref coordination messages in this file."
+    },
+    {
+      "site": "scripts/lib/lanes/review-leases.mjs:393",
+      "semantic_key": "scripts/lib/lanes/review-leases.mjs:ce0ab3a91a6f988f7aa5002646c036fdcabab77a37713a33a87f8a8668d9e835:context-b169d16fd3ed56ed8d19da9ed21b9876344fceae36a4d57b8d94cb7a6ab6e4e1",
+      "line_sha256": "ce0ab3a91a6f988f7aa5002646c036fdcabab77a37713a33a87f8a8668d9e835",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

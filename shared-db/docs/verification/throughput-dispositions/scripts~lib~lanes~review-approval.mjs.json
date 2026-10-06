@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/review-approval.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/lanes/review-approval.mjs:196",
+      "semantic_key": "scripts/lib/lanes/review-approval.mjs:2ddf8009d73172c32ef99c59ae68148190ba7a7791968f42cf31637301bea671:context-9f53e3cd412a752f39547a77075357692df1ff4f9c110940d908b7b02a7782f5",
+      "line_sha256": "2ddf8009d73172c32ef99c59ae68148190ba7a7791968f42cf31637301bea671",
+      "disposition": "excluded",
+      "reason": "Prose comment above durableVerdictBlocksReplacement, not executable logic. The word \"missing\" here names the unreadable-assignment-record case that the function immediately below treats as blocking, so this call site documents a fail-closed path rather than a silently missing one."
+    },
+    {
+      "site": "scripts/lib/lanes/review-approval.mjs:24",
+      "semantic_key": "scripts/lib/lanes/review-approval.mjs:b03846824daaafeb0f0c7f536b249b0207a114a30eb80de2001ea5b575c7d5c6:context-f6a37767a31b4850c0402485554443a35aec3afe971e36bc0b748279ddc46e47",
+      "line_sha256": "b03846824daaafeb0f0c7f536b249b0207a114a30eb80de2001ea5b575c7d5c6",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

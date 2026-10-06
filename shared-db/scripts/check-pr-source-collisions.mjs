@@ -5,7 +5,33 @@ import { pathToFileURL } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
-export const PROTECTED_SOURCE_PATHS=new Set(['scripts/manage-migration-author-lanes.mjs'])
+// PER-MODULE PROTECTION. The lane manager was split into cohesive modules under
+// scripts/lib/lanes/ so unrelated tooling changes stop colliding on one file.
+// Each module is protected on its own: two pull requests collide only when they
+// edit the SAME file, never merely the same family. Protecting the family as a
+// whole would serialize every split-out change again and undo the split.
+export const PROTECTED_SOURCE_PATHS=new Set([
+  'scripts/manage-migration-author-lanes.mjs',
+  'scripts/lib/lanes/admission.mjs',
+  'scripts/lib/lanes/claim-maintenance.mjs',
+  'scripts/lib/lanes/claim-versions.mjs',
+  'scripts/lib/lanes/claims.mjs',
+  'scripts/lib/lanes/cli-train.mjs',
+  'scripts/lib/lanes/constants.mjs',
+  'scripts/lib/lanes/exclusive-locks.mjs',
+  'scripts/lib/lanes/github-wire.mjs',
+  'scripts/lib/lanes/holds-and-refs.mjs',
+  'scripts/lib/lanes/preview-admission.mjs',
+  'scripts/lib/lanes/queue-routing.mjs',
+  'scripts/lib/lanes/retirement.mjs',
+  'scripts/lib/lanes/review-approval.mjs',
+  'scripts/lib/lanes/review-assignment.mjs',
+  'scripts/lib/lanes/review-leases.mjs',
+  'scripts/lib/lanes/review-records.mjs',
+  'scripts/lib/lanes/review-replacement.mjs',
+  'scripts/lib/lanes/reviewer-doctor.mjs',
+  'scripts/lib/lanes/reviewer-roster.mjs',
+])
 
 // THE STALE-PLACE RULE (issue #3273)
 // ----------------------------------

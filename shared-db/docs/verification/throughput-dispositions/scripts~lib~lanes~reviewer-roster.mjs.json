@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/reviewer-roster.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/lanes/reviewer-roster.mjs:492",
+      "semantic_key": "scripts/lib/lanes/reviewer-roster.mjs:10203ad02cbf2b582359cb072ce142147e2970c7b9c0aee6318b80c1daf3c1f0:context-6a7ef0d137d6d1efab14f63de69c0e1a70821311566fb8cd826d0c6f9679eca2",
+      "line_sha256": "10203ad02cbf2b582359cb072ce142147e2970c7b9c0aee6318b80c1daf3c1f0",
+      "disposition": "excluded",
+      "reason": "Excluded: validates local reviewer admission evidence before assignment; missing or malformed admission is not a database absence claim."
+    },
+    {
+      "site": "scripts/lib/lanes/reviewer-roster.mjs:317",
+      "semantic_key": "scripts/lib/lanes/reviewer-roster.mjs:435a6abb51443c34755210b1f1927ce87702403e85b83c894a9d0ee9a1b367f8:context-c4ae2ab43534c7f473af12502c602d0c1fbf7646ec131654fbc43169586430c6",
+      "line_sha256": "435a6abb51443c34755210b1f1927ce87702403e85b83c894a9d0ee9a1b367f8",
+      "disposition": "excluded",
+      "reason": "Prose comment explaining the #2078 reviewer-repository-access gate; the word matches the discovery pattern but the line is not a throughput call site and carries no derivation behavior."
+    },
+    {
+      "site": "scripts/lib/lanes/reviewer-roster.mjs:87",
+      "semantic_key": "scripts/lib/lanes/reviewer-roster.mjs:5e9dde58d52bd6377401f124646bbbce9f22481f574b3352dabbd71f754e2d73:context-88aebf5b7b689a9a851eef8de738f7f51105bdfeb6a2daf44fa61587e170ad1b",
+      "line_sha256": "5e9dde58d52bd6377401f124646bbbce9f22481f574b3352dabbd71f754e2d73",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

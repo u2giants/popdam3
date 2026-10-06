@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/review-replacement.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/lanes/review-replacement.mjs:22",
+      "semantic_key": "scripts/lib/lanes/review-replacement.mjs:f30023772b56725e26d2ee56709548ccdbe3ba11879aad96d6fe6f357c85079a:context-4ae354304adcc3c35ac45e23aff6786c84fd84a8cb4a56bc61f12b4005c6535e",
+      "line_sha256": "f30023772b56725e26d2ee56709548ccdbe3ba11879aad96d6fe6f357c85079a",
+      "disposition": "excluded",
+      "reason": "Fail-closed immutable reviewer-evidence validation; the word missing does not describe database or migration state."
+    }
+  ]
+}

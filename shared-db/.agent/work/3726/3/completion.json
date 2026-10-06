@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "work_issue": 3726,
+  "outcome": "ready-for-merge",
+  "pr": 3727,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3726/3",
+  "contract_sha256": "65935081eccae261855537aa05eda60b8c61f7e7a64cf26eb6844af36448a5c1",
+  "head_sha": "86d166c64d5b4d2abc08171f516cfd339c319362",
+  "base_sha": "a0c7cdd5a77bcd7b79fd21a5ac4e51bef9900cb4",
+  "files_changed": [
+    ".github/workflows/pr-guards.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~claim-maintenance.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~claim-versions.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~claims.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~github-wire.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~queue-routing.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~retirement.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-approval.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-leases.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-records.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-replacement.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~reviewer-roster.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "scripts/check-lane-route-sync.test.mjs",
+    "scripts/check-pr-source-collisions.mjs",
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/lib/lanes/claim-maintenance.mjs",
+    "scripts/lib/lanes/claim-versions.mjs",
+    "scripts/lib/lanes/claims.mjs",
+    "scripts/lib/lanes/cli-train.mjs",
+    "scripts/lib/lanes/constants.mjs",
+    "scripts/lib/lanes/exclusive-locks.mjs",
+    "scripts/lib/lanes/github-wire.mjs",
+    "scripts/lib/lanes/holds-and-refs.mjs",
+    "scripts/lib/lanes/preview-admission.mjs",
+    "scripts/lib/lanes/queue-routing.mjs",
+    "scripts/lib/lanes/retirement.mjs",
+    "scripts/lib/lanes/review-approval.mjs",
+    "scripts/lib/lanes/review-assignment.mjs",
+    "scripts/lib/lanes/review-leases.mjs",
+    "scripts/lib/lanes/review-records.mjs",
+    "scripts/lib/lanes/review-replacement.mjs",
+    "scripts/lib/lanes/reviewer-doctor.mjs",
+    "scripts/lib/lanes/reviewer-roster.mjs",
+    "scripts/manage-migration-author-lanes-surface.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/production_business_risk_gate.py",
+    "scripts/route-lane-manager-patch.mjs",
+    "scripts/route-lane-manager-patch.test.mjs",
+    "scripts/test-fixtures/manage-migration-author-lanes-surface.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "768 passed, 0 failed; lane-cap guard now scans entrypoint and all lane modules (appending MAX_AUTHOR_LANES to claims.mjs makes it fail)"
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes-surface.test.mjs scripts/route-lane-manager-patch.test.mjs scripts/check-pr-source-collisions.test.mjs",
+      "exit_code": 0,
+      "evidence": "all pass; 317 main exports present with same kind, each module export identical to the entrypoint binding"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=324 sources=91"
+    }
+  ],
+  "assumptions_resolved": [
+    "all 477 top-level declarations of main's lane manager appear byte-identical in the split files (export keyword added on formerly module-private ones); every exported function has identical source text"
+  ],
+  "stop_conditions_hit": [],
+  "disclosure": "Generation 2 implementation was prepared in the working directory before refs/db-contracts/3726/2 was published and committed after. Generation 3 was published before the guard fix was written. Generation 2 hit its stop condition 'a source-text guard would lose sight of code it inspects' (lane-cap guard in manage-migration-author-lanes.test.mjs and NON_STRUCTURAL_EXITS route guard in check-lane-route-sync.test.mjs read only the entrypoint) but recorded none; governed review found it, and generation 3 resolves it by widening both guards to every lane module."
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/claim-maintenance.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/lanes/claim-maintenance.mjs:292",
+      "semantic_key": "scripts/lib/lanes/claim-maintenance.mjs:5817bcb0434eb2808241d5759a53f923c66e6974e409e08cc51cab006e033b8c:context-171335cf23d6153198cb0ddab98796df2539e54528c859da63e327b6062f2b4f",
+      "line_sha256": "5817bcb0434eb2808241d5759a53f923c66e6974e409e08cc51cab006e033b8c",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/lib/lanes/claim-maintenance.mjs:291",
+      "semantic_key": "scripts/lib/lanes/claim-maintenance.mjs:ca1264e6065617ade3865ccfe5fcd58d55b6eb058e3ea0e281d2c6d29dd80eba:context-372f13399ff640dc20f2e9c4363ef3ea5d138a5007cc8574374cec808e0ec104",
+      "line_sha256": "ca1264e6065617ade3865ccfe5fcd58d55b6eb058e3ea0e281d2c6d29dd80eba",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

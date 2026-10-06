@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/queue-routing.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/lanes/queue-routing.mjs:235",
+      "semantic_key": "scripts/lib/lanes/queue-routing.mjs:0e07ee8b2dc087b08a5cd35719cdeb898914870a912d78c14cfbe935033973de:context-0562a1140771d0a2929e16e209bb6d71b20797f43df174dd11e42f8aedfd649f",
+      "line_sha256": "0e07ee8b2dc087b08a5cd35719cdeb898914870a912d78c14cfbe935033973de",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "site": "scripts/lib/lanes/queue-routing.mjs:438",
+      "semantic_key": "scripts/lib/lanes/queue-routing.mjs:fc5dbd3411165633fff781b72e2e50b072c8134f5ea05a3a39f2ae78125cbc07:context-5b69dc6901024ef8d707e0f18db9316c5a8129fb95ff8487ffb8d1aa4ef25dce",
+      "line_sha256": "fc5dbd3411165633fff781b72e2e50b072c8134f5ea05a3a39f2ae78125cbc07",
+      "disposition": "enriched",
+      "reason": "The queue explicitly excludes an issue missing the required admission fields, so it cannot advertise work that the claim gate must refuse."
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/github-wire.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/lanes/github-wire.mjs:113",
+      "semantic_key": "scripts/lib/lanes/github-wire.mjs:a4160001fb75e95c53d5c85febd70b521db233cd2b3aeb35c9e57c17f6dda06c:context-800783e13cdde358e341d460faa5fbd955c152b03890f54c387995b27ffde362",
+      "line_sha256": "a4160001fb75e95c53d5c85febd70b521db233cd2b3aeb35c9e57c17f6dda06c",
+      "disposition": "excluded",
+      "reason": "Parses the literal \"<sha> missing\" line that git cat-file --batch prints for an absent object; the SHA is hydrated by fetch or the read throws. It says nothing about migration or database-object state."
+    },
+    {
+      "site": "scripts/lib/lanes/github-wire.mjs:188",
+      "semantic_key": "scripts/lib/lanes/github-wire.mjs:bd6893288739c13faca686313ddfeb5815322cf43df464f561e8f6e2e223c478:context-5b1415dc216a0a58fb91ca94ffb27ce9979fdfabc320b12aa5943b2316c2a9ae",
+      "line_sha256": "bd6893288739c13faca686313ddfeb5815322cf43df464f561e8f6e2e223c478",
+      "disposition": "excluded",
+      "reason": "Prose in the #2152 Link-header parser comment: the word \"missing\" describes a missing < that makes parseLinkHeader throw. Documentation of fail-closed parsing, not a truth claim about a database object."
+    }
+  ]
+}

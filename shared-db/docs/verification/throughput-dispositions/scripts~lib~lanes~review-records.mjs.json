@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/review-records.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/lanes/review-records.mjs:601",
+      "semantic_key": "scripts/lib/lanes/review-records.mjs:b3b03b389e25b1e34d3bf7a7e4aa2337b618cb6f9852fea602b4b370aeae090f:context-22651f99f3fe728f70a5d3e734af98e880a5dbd43f9873a520a8fc5504b35c73",
+      "line_sha256": "b3b03b389e25b1e34d3bf7a7e4aa2337b618cb6f9852fea602b4b370aeae090f",
+      "disposition": "excluded",
+      "reason": "Prose comment added by the #2076 reviewer-exclusion return path; the wording matches the discovery pattern but the line is not a throughput call site and carries no derivation behavior."
+    }
+  ]
+}
