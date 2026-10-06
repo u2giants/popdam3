@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "work_issue": 3972,
+  "outcome": "ready-for-merge",
+  "pr": 3985,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3972/2",
+  "contract_sha256": "9971a0749d4ad59ea7c572f35b6e32e8f7dacd04d72da48630b8d6039ab9eb03",
+  "head_sha": "123f2bdd90652a316df8a8432706604ee5662e2e",
+  "base_sha": "021378fd2707c2d7c278417f2bac8da65cc04e59",
+  "files_changed": [
+    "scripts/claim-author-transfer.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/claim-author-transfer.test.mjs",
+      "exit_code": 0,
+      "evidence": "17 passed against refreshed main; exact quarantine recovery and refusal coverage."
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "368 files scanned, every GitHub call conforms against refreshed main."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Both worktree and origin/main comparison whitespace checks passed against refreshed main."
+    }
+  ],
+  "assumptions_resolved": [
+    "Live #3739 has the exact expired relinquished/absent state replayed against current code; current code refused before adoption.",
+    "Existing exact-head, abandonment, immutable recovery, permanent reservation, collision and session authority guards remain intact."
+  ],
+  "stop_conditions_hit": []
+}

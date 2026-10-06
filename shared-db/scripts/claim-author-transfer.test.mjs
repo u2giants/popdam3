@@ -64,6 +64,50 @@ test('guarded adoption retains claim, version, objects and PR, records operator 
   assert.equal(transferClaimAuthor(args,NOW,io).idempotent,true)
 })
 
+function quarantine(io,overrides={}){
+  io.issues.get(3378).body=claimBody({version:VERSION,objects:['table plm.art_piece_attachment'],owner:args.oldOwner,branch:args.branch,
+    worktree:args.worktree,expiresAt:new Date('2026-09-26T00:00:00Z'),capacityState:'relinquished',blockedOn:'issue:#900',worktreeState:'remote',...overrides})
+}
+
+test('exact quarantined successor adoption restores active capacity and removes quarantine metadata',()=>{
+  const io=fixture();quarantine(io,{recoveryArtifact:ARTIFACT})
+  const result=transferClaimAuthor(args,NOW,io),after=parseAuthorLease(io.issues.get(3378).body,NOW)
+  assert.equal(after.capacityState,'active');assert.equal(after.active,true);assert.equal(after.capacityActive,true)
+  assert.equal(after.blockedOn,null);assert.equal(after.worktreeState,null);assert.equal(after.recoveryArtifact,null)
+  assert.equal(after.owner,args.newOwner);assert.equal(after.worktree,args.targetWorktree)
+  assert.equal(after.version,VERSION);assert.deepEqual(after.objects,['table plm.art_piece_attachment'])
+  assert.equal(io.refs.get('refs/db-claims/'+VERSION),RESERVATION)
+  assert.equal(transferClaimAuthor(args,NOW,io).sha,result.sha)
+})
+
+test('quarantined adoption refuses mismatched metadata and unexpired or legacy leases without changing the claim',()=>{
+  for(const [overrides,pattern] of [
+    [{blockedOn:'issue:#901'},/exact abandonment blocker/],
+    [{worktreeState:'absent'},/exact abandonment blocker/],
+    [{recoveryArtifact:'artifact:'+'e'.repeat(40)},/exact abandonment blocker/],
+    [{expiresAt:new Date('2026-09-29T00:00:00Z')},/exact expired old-author lease/],
+  ]){
+    const io=fixture();quarantine(io,overrides);const before=io.issues.get(3378).body
+    assert.throws(()=>transferClaimAuthor(args,NOW,io),pattern);assert.equal(io.issues.get(3378).body,before)
+    assert.equal([...io.refs.keys()].some(ref=>ref.startsWith('refs/db-claim-author-transfers/')),false)
+  }
+  const io=fixture();quarantine(io);io.issues.get(3378).body=io.issues.get(3378).body.replace('worktree_state: remote\n','')
+  const before=io.issues.get(3378).body
+  assert.throws(()=>transferClaimAuthor(args,NOW,io),/exact expired old-author lease/);assert.equal(io.issues.get(3378).body,before)
+})
+
+test('quarantined adoption retains exact evidence and collision checks',()=>{
+  for(const [change,pattern] of [
+    [io=>{io.issues.get(900).body=io.issues.get(900).body.replace('head_sha: '+HEAD,'head_sha: '+'b'.repeat(40))},/names head/],
+    [io=>{io.verifyArtifact=()=>null},/cannot be dereferenced/],
+    [io=>{io.localClean=()=>false},/successor worktree/],
+    [io=>{io.prSources=()=>[{label:'PR #3391',branch:args.branch,objects:['table other.x'],versions:[VERSION]}]},/outside the claim/],
+  ]){
+    const io=fixture();quarantine(io);change(io);const before=io.issues.get(3378).body
+    assert.throws(()=>transferClaimAuthor(args,NOW,io),pattern);assert.equal(io.issues.get(3378).body,before)
+  }
+})
+
 test('takeover refuses stale evidence, missing authorization, collisions, and unclean successor before changing claim',()=>{
   const cases=[
     [(io)=>{io.getPr=()=>({state:'open',head:{sha:'b'.repeat(40),ref:args.branch}})},/head or branch changed/],

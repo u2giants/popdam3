@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "work_issue": 3972,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Restore guarded successor adoption of quarantined author leases with exact abandonment evidence and active-capacity readback",
+  "base_sha": "4e703ccdcbe5bfbe16c302a4d44ea0a1ab721c87",
+  "dispatcher": "Codex chat 01a1126f-6efb-7a22-8034-4471909f2c86",
+  "worker": "codex",
+  "branch": "codex/3972-guarded-successor-recovery",
+  "worktree": "/home/ahazan/.codex/worktrees/77d7/shared-db",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/claim-author-transfer.test.mjs",
+    ".agent/work/3972/1/contract.json",
+    ".agent/work/3972/1/completion.json",
+    ".agent/work/3972/2/contract.json",
+    ".agent/work/3972/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/claim-author-transfer.test.mjs",
+    ".agent/work/3972/1/contract.json",
+    ".agent/work/3972/1/completion.json",
+    ".agent/work/3972/2/contract.json",
+    ".agent/work/3972/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database writes",
+    "No direct claim edits",
+    "No removal of abandonment, recovery, collision or exact-head checks"
+  ],
+  "required_checks": [
+    "node --test scripts/claim-author-transfer.test.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The exact quarantined claim remains protected",
+    "Current-chat instruction authorizes guarded adoption"
+  ],
+  "stop_conditions": [
+    "Exact abandonment identity cannot be proven",
+    "Another session owns the same maintenance repair"
+  ],
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 3972,
+    "generation": 1,
+    "contract_sha256": "a3d0a74420d608c1d9e96702ae609fbed4ce947b4105db73ee41308624cdb6d0"
+  }
+}

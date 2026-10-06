@@ -2281,7 +2281,9 @@ export function transferClaimAuthor(options,now=new Date(),io=githubIo){
     const claim=io.getIssue(request.claim),lease=parseAuthorLease(claim?.body??'',now)
     if(claim?.state!=='open'||workstreamKey(claim.title)!==`#${request.issue}`)throw new LaneError('claim is not open for the exact work issue')
     const adopted=allowAdopted&&lease.owner===request.newOwner&&lease.worktree===request.targetWorktree
-    if(lease.legacy||(!adopted&&(lease.owner!==request.oldOwner||lease.worktree!==request.oldWorktree||lease.capacityState!=='expired-unconfirmed'))||lease.branch!==request.branch)throw new LaneError('claim is not the exact expired old-author lease')
+    const quarantined=lease.capacityState==='relinquished'&&!lease.active&&!lease.relinquishmentMetadataLegacy
+    if(lease.legacy||(!adopted&&(lease.owner!==request.oldOwner||lease.worktree!==request.oldWorktree||(lease.capacityState!=='expired-unconfirmed'&&!quarantined)))||lease.branch!==request.branch)throw new LaneError('claim is not the exact expired old-author lease')
+    if(!adopted&&quarantined&&(lease.blockedOn!==proofOptions.blockedOn||lease.worktreeState!==request.oldWorktreeState||(lease.recoveryArtifact&&lease.recoveryArtifact!==request.recoveryArtifact)))throw new LaneError('quarantined claim does not match the exact abandonment blocker, worktree state or recovery artifact')
     assertClaimNotRetired(lease.version,'transferred',io)
     const issue=io.getIssue(request.issue)
     renewalIssueScope(issue,lease,[request.issue],{allowClaimSuperset:true})
@@ -2331,10 +2333,10 @@ export function transferClaimAuthor(options,now=new Date(),io=githubIo){
     }
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     beforeBody=fresh.claim.body
-    const newBody=replaceLeaseAuthor(fresh.claim.body,request.newOwner,request.targetWorktree,new Date(now.valueOf()+request.leaseHours*3600000))
+    const newBody=replaceLeaseAuthor(replaceCapacityState(fresh.claim.body,'active'),request.newOwner,request.targetWorktree,new Date(now.valueOf()+request.leaseHours*3600000))
     bodyChanged=true;io.updateIssue(request.claim,{body:newBody})
     const after=io.getIssue(request.claim),newLease=parseAuthorLease(after?.body??'',now)
-    if(after?.body!==newBody||newLease.owner!==request.newOwner||newLease.worktree!==request.targetWorktree||newLease.version!==fresh.lease.version||newLease.branch!==request.branch||JSON.stringify(newLease.objects)!==JSON.stringify(fresh.lease.objects))throw new LaneError('author transfer claim readback failed')
+    if(after?.body!==newBody||newLease.owner!==request.newOwner||newLease.worktree!==request.targetWorktree||newLease.version!==fresh.lease.version||newLease.branch!==request.branch||JSON.stringify(newLease.objects)!==JSON.stringify(fresh.lease.objects)||!newLease.active||!newLease.capacityActive||newLease.capacityState!=='active')throw new LaneError('author transfer claim readback failed')
     if(io.readRef(`refs/db-claims/${fresh.lease.version}`)!==fresh.reservationSha||!io.getCommit(fresh.reservationSha))throw new LaneError('permanent version reservation changed after adoption')
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     return {claim:request.claim,version:fresh.lease.version,owner:request.newOwner,worktree:request.targetWorktree,ref,sha:transferSha,idempotent:false}
