@@ -982,7 +982,7 @@ async function handleIngest(
   const derived = await deriveMetadataFromPath(relativePath, db);
 
   // SKU parsing from filename
-  const parsed = await parseSku(filename);
+  const parsed = await parseSku(filename, { fileDate: fileCreatedAt || modifiedAt });
   const skuFields: Record<string, unknown> = parsed
     ? {
       sku: parsed.sku,

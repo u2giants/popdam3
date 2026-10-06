@@ -84,3 +84,28 @@ async function fetchMgLookup(
     throw new Error(`ColdLion API fetch failed for ${mgTypeCode}/${divisionCode}: ${message}`);
   }
 }
+
+export type ColdLionItemInfo = { createdTime: string; divisionCode: string };
+const itemCache = new Map<string, ColdLionItemInfo | null>();
+
+/**
+ * Creation date and division of one ColdLion item, or null when ColdLion has no
+ * such item. Throws on API failure so callers never mistake an outage for "new".
+ */
+export async function getColdLionItemInfo(itemNo: string): Promise<ColdLionItemInfo | null> {
+  const key = itemNo.toUpperCase();
+  if (itemCache.has(key)) return itemCache.get(key)!;
+  const apiKey = await getApiKey();
+  const url = `${COLDLION_BASE}/items?companyCode=${COMPANY}&itemNo=${encodeURIComponent(key)}`;
+  const res = await fetch(url, {
+    headers: { "X-API-Key": apiKey },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(`ColdLion API items/${key} returned ${res.status}`);
+  const data = await res.json();
+  const items = Array.isArray(data) ? data : (data.content ?? data.value ?? []);
+  const hit = items.find((i: { itemNo?: string }) => i.itemNo?.toUpperCase() === key);
+  const info = hit ? { createdTime: String(hit.createdTime), divisionCode: String(hit.divisionCode) } : null;
+  itemCache.set(key, info);
+  return info;
+}

@@ -34,7 +34,7 @@ export async function handleReprocessAssetMetadata(body: Record<string, unknown>
 
   const { data: assets, error: fetchErr } = await db
     .from("assets")
-    .select("id, relative_path, filename, is_licensed, workflow_status, licensor_id, property_id, sku")
+    .select("id, relative_path, filename, is_licensed, workflow_status, licensor_id, property_id, sku, file_created_at")
     .eq("is_deleted", false)
     .range(offset, offset + BATCH_SIZE - 1)
     // UUID order uses the primary-key index. created_at had no usable index and
@@ -46,7 +46,7 @@ export async function handleReprocessAssetMetadata(body: Record<string, unknown>
     return json({ ok: true, done: true, updated: 0, total: 0, nextOffset: null });
   }
 
-  const parsedAssets = await Promise.all(assets.map(async (asset) => ({ asset, parsed: await parseSku(asset.filename) })));
+  const parsedAssets = await Promise.all(assets.map(async (asset) => ({ asset, parsed: await parseSku(asset.filename, { fileDate: asset.file_created_at }) })));
   let licensingMaps;
   try {
     licensingMaps = await loadAuthoritativeLicensingMaps(

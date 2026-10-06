@@ -1,5 +1,6 @@
-import { getMgLookup } from "./coldlion.ts";
+import { getColdLionItemInfo, getMgLookup } from "./coldlion.ts";
 import { getMg02Desc, getMg03Desc } from "./mg-lookup.ts";
+import { getLegacyMgDesc, MG_REWORK_CUTOFF } from "./mg-legacy.ts";
 
 // ── MG01: Product Type ──────────────────────────────────────────
 const MG01: Record<string, string> = {
@@ -106,7 +107,23 @@ export interface ParsedSku {
   is_licensed: boolean;
 }
 
-export async function parseSku(filename: string): Promise<ParsedSku | null> {
+/**
+ * True when the item predates the May 2025 MerchGroup rework. ColdLion's item
+ * creation date is authoritative; the file date is only a fallback for SKUs
+ * ColdLion does not know.
+ */
+async function isLegacyItem(sku: string, fileDate?: string | null): Promise<{ legacy: boolean; division: string | null }> {
+  let info = null;
+  try {
+    info = await getColdLionItemInfo(sku);
+  } catch (e) {
+    console.warn(`ColdLion item lookup failed for ${sku}:`, e);
+  }
+  if (info) return { legacy: info.createdTime.slice(0, 10) < MG_REWORK_CUTOFF, division: info.divisionCode };
+  return { legacy: !!fileDate && fileDate.slice(0, 10) < MG_REWORK_CUTOFF, division: null };
+}
+
+export async function parseSku(filename: string, opts: { fileDate?: string | null } = {}): Promise<ParsedSku | null> {
   const base = filename.replace(/\.[^.]+$/, "")
     .split(/[\s_]/)[0].toUpperCase();
 
@@ -122,11 +139,20 @@ export async function parseSku(filename: string): Promise<ParsedSku | null> {
 
   const [, size_code, licensor_code, property_code, sku_sequence] = m;
 
-  // Resolve MG names
-  const mg01_name = MG01[mg01_code] ?? mg01_code;
-  // MG02 is scoped by MG01, and MG03 by MG01+MG02 — never a flat lookup.
-  const mg02_name = getMg02Desc(mg01_code, mg02_code) ?? mg02_code;
-  const mg03_name = getMg03Desc(mg01_code, mg02_code, mg03_code) ?? mg03_code;
+  // Resolve MG names. Pre-rework items use the old flat per-division lists;
+  // current items scope MG02 by MG01, and MG03 by MG01+MG02.
+  const era = await isLegacyItem(base, opts.fileDate);
+  let mg01_name: string, mg02_name: string, mg03_name: string;
+  if (era.legacy) {
+    const div = era.division === "EH001" || (!era.division && licensor_code === "ZZ") ? "EH001" : "CW001";
+    mg01_name = getLegacyMgDesc(div, "01", mg01_code) ?? mg01_code;
+    mg02_name = getLegacyMgDesc(div, "02", mg02_code) ?? mg02_code;
+    mg03_name = getLegacyMgDesc(div, "03", mg03_code) ?? mg03_code;
+  } else {
+    mg01_name = MG01[mg01_code] ?? mg01_code;
+    mg02_name = getMg02Desc(mg01_code, mg02_code) ?? mg02_code;
+    mg03_name = getMg03Desc(mg01_code, mg02_code, mg03_code) ?? mg03_code;
+  }
 
   // Resolve size
   let size_name = size_code;
