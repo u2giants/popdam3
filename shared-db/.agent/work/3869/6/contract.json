@@ -1,0 +1,52 @@
+{
+  "schema_version": 2,
+  "generation": 6,
+  "evidence_parent": {
+    "work_issue": 3869,
+    "generation": 5,
+    "contract_sha256": "e7a98e5456504f33e6dc672efb1987ebdad10cc1b34cb4f62344c2a5983e82d3"
+  },
+  "work_issue": 3869,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Replace plm.v_prod_order_sales_order_link to match on ColdLion's own numbers: prod_history_line pairs authoritative; ColdLion D-number fallback (prod_history_line.prod_reference_no to order_history_line.prod_reference_no, same customer) only for a PO with no direct pair; MOD011 read as MOD010 (Burlington); applied to the DesignFlow sandbox (xupnyeifmpsacrqahwwm) only",
+  "base_sha": "4a7dd6d7ea4ae2e7b7fd9b55d1db99790bdeb144",
+  "dispatcher": "claim-first structural session for issue #3869, claim #3969 (Claude chat a7c97172-ca8e-47de-8a22-b80bda259ce7 on edge-dev3)",
+  "worker": "claude",
+  "branch": "db/3869-coldlion-dnumber-match",
+  "worktree": "/home/ahazan/repos/shared-db-po-link-dnum",
+  "allowed_paths": [
+    "supabase/migrations/20261006164244_coldlion_prod_order_sales_order_link_coldlion_dnumber.sql",
+    "supabase/tests/plm_prod_order_sales_order_link_contracts.sql"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261006164244_coldlion_prod_order_sales_order_link_coldlion_dnumber.sql",
+    "supabase/tests/plm_prod_order_sales_order_link_contracts.sql"
+  ],
+  "db_reads": [
+    "table coldlion.order_history_line",
+    "table coldlion.prod_history_line",
+    "table plm.ProdOrderHeader"
+  ],
+  "db_writes": [
+    "view plm.v_prod_order_sales_order_link"
+  ],
+  "prohibited_actions": [
+    "do not apply anything to shared production or shared preview from this session",
+    "do not alter any object other than the view",
+    "never put licensed ColdLion rows in GitHub, logs, or prompts"
+  ],
+  "required_checks": [
+    "BEGIN; migration twice; coverage query; ROLLBACK against the DesignFlow sandbox",
+    "supabase/tests against an ephemeral database (CI)"
+  ],
+  "assumptions": [
+    "Owner decision (Albert Hazan, chat, 2026-10-06): \"yes, switch matching to ColdLion's numbers\" and \"yes, MOD010 and MOD011 are the same customer: Burlington.\"",
+    "D-numbers are not reused and one production PO has one customer (owner fact), so the fallback carries no date guard",
+    "No existing alias mechanism covers ColdLion customer codes, so MOD011->MOD010 is written in the view",
+    "generation 6 supersedes generation 5 for the ColdLion-number rule"
+  ],
+  "stop_conditions": [
+    "stop if a change outside allowed_paths is needed"
+  ]
+}

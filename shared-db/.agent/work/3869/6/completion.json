@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 3869,
+  "outcome": "ready-for-merge",
+  "pr": 3970,
+  "migration_versions": [
+    "20261006164244"
+  ],
+  "contract_ref": "refs/db-contracts/3869/6",
+  "contract_sha256": "b3ac31ddbfdf2bbef7ce9c1f4167c58bc582af07c8c2304657250b6964495f6f",
+  "base_sha": "4a7dd6d7ea4ae2e7b7fd9b55d1db99790bdeb144",
+  "head_sha": "0a8fe7214d4d66f92f6b649aae51b849286220b4",
+  "files_changed": [
+    "supabase/migrations/20261006164244_coldlion_prod_order_sales_order_link_coldlion_dnumber.sql",
+    "supabase/tests/plm_prod_order_sales_order_link_contracts.sql"
+  ],
+  "db_reads": [
+    "table coldlion.order_history_line",
+    "table coldlion.prod_history_line",
+    "table plm.ProdOrderHeader"
+  ],
+  "db_writes": [
+    "view plm.v_prod_order_sales_order_link"
+  ],
+  "checks": [
+    {
+      "command": "BEGIN; migration twice; coverage query; ROLLBACK against the DesignFlow sandbox",
+      "exit_code": 0,
+      "evidence": "target system_identifier 7678069749886157684 (sandbox); migration executed twice in one rolled-back transaction; before 6133 pairs / 2190 of 3514 POs linked / 2025+ 449 of 572; after 6468 pairs / 2297 POs linked / 2025+ 425 of 572; PO 24136 -> SO 7127941 (prod_history_line); PO 24137 -> SO 7127899 (order_history_line+prod_history_line); fallback-only 3112 pairs across 321 POs; full view read 0.79 s (EXPLAIN ANALYZE); contract test passed on the sandbox column shape in a rolled-back transaction"
+    },
+    {
+      "command": "supabase/tests against an ephemeral database (CI)",
+      "exit_code": 0,
+      "evidence": "required CI check on every pull-request head; blocks the merge unless supabase/tests/plm_prod_order_sales_order_link_contracts.sql passes"
+    }
+  ],
+  "assumptions_resolved": [
+    "2025+ linked POs fall 449 -> 425: those POs have no ColdLion production history, and the PLM-reference path was removed by owner decision",
+    "No ColdLion customer-code alias mechanism exists (core.customer_alias holds names, plm.erp_customer empty), so MOD011->MOD010 is written in the view"
+  ],
+  "stop_conditions_hit": [],
+  "disclosure": "Third change on #3869 after the owner decision of 2026-10-06 to match on ColdLion's numbers. First head of PR #3970."
+}
