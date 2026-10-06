@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "work_issue": 3991,
+  "outcome": "ready-for-merge",
+  "pr": 3983,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3991/1",
+  "contract_sha256": "cdc9d25d9c3f51b2fa5a03c2ccfca7ad93fcec3f6b290f5ff0f15bdd88949962",
+  "base_sha": "cb94f985581b00dfe62deaf414a483bbe0f5e6bf",
+  "head_sha": "5ee77058ae39343aeb69b69615d19743979fb14c",
+  "files_changed": [
+    ".github/live-proofs/3973.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "static checks passed with no migration added"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean patch"
+    },
+    {
+      "command": "read-only probe on preview and production",
+      "exit_code": 0,
+      "evidence": "both targets returned exactly one row with passed=true"
+    }
+  ],
+  "assumptions_resolved": [
+    "PostgreSQL pg_get_indexdef(index,4,true) omits DESC; both target catalogs store fourth indoption value 3"
+  ],
+  "stop_conditions_hit": []
+}

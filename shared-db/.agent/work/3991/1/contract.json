@@ -1,0 +1,41 @@
+{
+  "schema_version": 2,
+  "work_issue": 3991,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Fix the read-only sync_run index proof by checking catalog sort flags separately from the per-column definition.",
+  "base_sha": "cb94f985581b00dfe62deaf414a483bbe0f5e6bf",
+  "dispatcher": "ZCode chat 01a111ef-6947-73e3-ad86-653b1650b4e1 on edge-dev; maintenance issue #3991 linked to structural issue #3973",
+  "worker": "Codex chat 01a111ef-6947-73e3-ad86-653b1650b4e1 on edge-dev",
+  "branch": "codex/3973-live-proof-repair",
+  "worktree": "/home/ahazan/repos/.worktrees/shared-db-3973-live-proof-repair",
+  "allowed_paths": [
+    ".github/live-proofs/3973.sql",
+    ".agent/work/3991/1/contract.json",
+    ".agent/work/3991/1/completion.json"
+  ],
+  "file_writes": [
+    ".github/live-proofs/3973.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not create or alter a migration",
+    "Do not write to preview or production",
+    "Do not change the already-promoted index or any access policy"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check",
+    "read-only probe on preview and production"
+  ],
+  "assumptions": [
+    "Production apply run 37509167220 passed post-apply catalog verification",
+    "Read-only catalog queries proved indoption[3] is 3 and pg_get_indexdef(...,4,true) is started_at in both preview and production"
+  ],
+  "stop_conditions": [
+    "Stop if live probe remains false or any guarded review fails"
+  ],
+  "evidence_parent": null
+}
