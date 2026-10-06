@@ -25,6 +25,9 @@
 
 export const SESSION_ID_ENV = 'SHARED_DB_SESSION_ID'
 const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@-]{2,119}$/
+// Existing claim labels name the same exact chat, never an arbitrary alias.
+// Anchor the whole established label; UUID substrings or extra owners cannot match.
+const CHAT_OWNER_PATTERN = /^(?:Codex|Claude) chat ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}) on [A-Za-z0-9][A-Za-z0-9._-]{0,119}$/
 
 export function readSessionId(env = process.env) {
   const raw = env?.[SESSION_ID_ENV]
@@ -45,7 +48,8 @@ export function resolveSessionAuthority({ env = process.env, claimOwner } = {}) 
   if (claimOwner !== undefined) {
     const owner = String(claimOwner ?? '').trim()
     if (!owner) return { live: false, state: 'unsafe', task: null, calling_task: id, reason: 'the named claim has no readable lease owner' }
-    if (owner !== id) return { live: false, state: 'claim-owner-mismatch', task: owner, calling_task: id, reason: `claim lease owner ${owner} is not this session (${id})` }
+    const ownerSession = CHAT_OWNER_PATTERN.exec(owner)?.[1] ?? owner
+    if (ownerSession !== id) return { live: false, state: 'claim-owner-mismatch', task: owner, calling_task: id, reason: `claim lease owner ${owner} is not this session (${id})` }
   }
   return { live: true, state: 'declared', task: id, calling_task: id, reason: null }
 }

@@ -1,0 +1,48 @@
+{
+  "schema_version": 2,
+  "work_issue": 3972,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Restore exact declared-session ownership verification for established human-readable chat claim labels without transferring or weakening a claim",
+  "base_sha": "f4e7cd25705dcef16120eaf1bcf4a83bc9f1fd6a",
+  "dispatcher": "Codex chat 01a1126f-6efb-7a22-8034-4471909f2c86",
+  "worker": "codex",
+  "branch": "codex/3972-guarded-successor-recovery",
+  "worktree": "/home/ahazan/.codex/worktrees/77d7/shared-db",
+  "allowed_paths": [
+    "scripts/lib/session-authority.mjs",
+    "scripts/lib/session-authority.test.mjs",
+    ".agent/work/3972/3/contract.json",
+    ".agent/work/3972/3/completion.json"
+  ],
+  "file_writes": [
+    "scripts/lib/session-authority.mjs",
+    "scripts/lib/session-authority.test.mjs",
+    ".agent/work/3972/3/contract.json",
+    ".agent/work/3972/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database writes",
+    "No direct claim edits",
+    "No removal of abandonment, recovery, collision or exact-head checks"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/session-authority.test.mjs scripts/orchestrator-flow/reconcile.test.mjs scripts/claim-author-transfer.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The live adopted #2874 claim owner is the established Codex chat UUID on edge-dev3 label, while the machine session ID is that exact UUID."
+  ],
+  "stop_conditions": [
+    "Refuse malformed, unset, ambiguous or different-session owner identities",
+    "Do not change claims, versions, objects, target proofs, author-engine exclusion, locks or production gates"
+  ],
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 3972,
+    "generation": 2,
+    "contract_sha256": "9971a0749d4ad59ea7c572f35b6e32e8f7dacd04d72da48630b8d6039ab9eb03"
+  }
+}

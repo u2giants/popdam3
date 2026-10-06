@@ -48,3 +48,31 @@ test('#3874 the refusal names the variable and the reason', () => {
   assert.match(message, /not set/)
   assert.equal(readSessionId({}), null)
 })
+
+// Real #2874 adoption owner: retain the owner label and exact-object lock,
+// while checking its exact declared chat identity through the production path.
+const ownChat='01a1126f-6efb-7a22-8034-4471909f2c86';
+const foreignChat='01a111e8-4c90-7df0-9106-4547392130ce';
+test('#3972 established full chat owner labels match only their exact UUID',()=>{
+  for(const engine of ['Codex','Claude']){
+    const owner=`${engine} chat ${ownChat} on edge-dev3`;
+    const authority=resolveSessionAuthority({env:env(ownChat),claimOwner:owner});
+    assert.equal(authority.live,true);assert.equal(authority.task,ownChat);assert.equal(authority.calling_task,ownChat);
+    const foreign=resolveSessionAuthority({env:env(foreignChat),claimOwner:owner});
+    assert.equal(foreign.live,false);assert.equal(foreign.state,'claim-owner-mismatch');
+  }
+});
+test('#3972 labels cannot authorize by substring, malformed UUID or ambiguous suffix',()=>{
+  for(const owner of [`prefix Codex chat ${ownChat} on edge-dev3`,`Codex chat ${ownChat} on edge-dev3 extra`,
+    `Codex chat ${ownChat} on edge dev3`,`Codex chat ${ownChat} on edge-dev3\nowner: ${foreignChat}`,
+    `Unknown chat ${ownChat} on edge-dev3`,`Codex chat ${ownChat.slice(0,-1)} on edge-dev3`,
+    `Codex chat ${ownChat} on -host`,`Codex chat ${ownChat} on edge-dev3;other`,
+    `Codex chat ${foreignChat} on edge-dev3`,`Codex chat ${ownChat} on edge-dev3 on edge-dev4`]){
+    const authority=resolveSessionAuthority({env:env(ownChat),claimOwner:owner});assert.equal(authority.live,false);
+  }
+});
+test('#3972 a valid owner label never supplies missing or malformed caller authority',()=>{
+  const owner=`Codex chat ${ownChat} on edge-dev3`;
+  for(const session of [undefined,'','bad id',owner])assert.equal(resolveSessionAuthority({env:env(session),claimOwner:owner}).live,false);
+  assert.equal(resolveSessionAuthority({env:env('other-session'),claimOwner:owner}).live,false);
+});

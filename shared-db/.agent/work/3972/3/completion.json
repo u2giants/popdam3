@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 3972,
+  "outcome": "ready-for-merge",
+  "pr": 4020,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3972/3",
+  "contract_sha256": "e4778f4b0d2a66bf25c41a3ba9af1ae50d6055c1cb00f58a5a76ba6d1966e603",
+  "db_reads": [],
+  "db_writes": [],
+  "head_sha": "6b5c58a562a0716e4c8c940b4195eacf66b1464b",
+  "files_changed": [
+    "scripts/lib/session-authority.mjs",
+    "scripts/lib/session-authority.test.mjs"
+  ],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/session-authority.test.mjs scripts/orchestrator-flow/reconcile.test.mjs scripts/claim-author-transfer.test.mjs",
+      "exit_code": 0,
+      "evidence": "58 tests passed again after refreshing onto protected main fd62f194fb9ca8fed3513d589a26c5ed9384f60d; exact repair code unchanged."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Reproduced live supported preview-preparation refusal without any dispatch or database write. The exact chat UUID is present in the complete adopted owner label. No claim body, object, reservation or lock is changed."
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "fd62f194fb9ca8fed3513d589a26c5ed9384f60d"
+}
