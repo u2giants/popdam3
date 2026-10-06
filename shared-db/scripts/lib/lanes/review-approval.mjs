@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process'
 import { REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_RETURN_REF_PREFIX } from './constants.mjs'
 import { parseAssignmentRef, parseReviewCursor, readReviewReturns, readReviewVerdicts } from './review-records.mjs'
 import { LaneError } from './claims.mjs'
+import { reviewTargetIsRecordable } from './admission.mjs'
 import { reviewSlotSuffix } from './review-leases.mjs'
 import { reviewerKnownNonReading } from './reviewer-roster.mjs'
 import { githubIo, listDurableVerdictRefs, main } from '../../manage-migration-author-lanes.mjs'
@@ -402,11 +403,11 @@ export function assertReviewLeaseStillStale(row,states,io){
   if(!row)return
   const state=states?.get(`${row.assignment.issue}:${row.assignment.pr}`)
   const verdict=hasVerdictForHead(row.assignment.issue,row.assignment.pr,row.assignment.headSha,io,leaseVerdictOptions(row.assignment,{fresh:true}))
-  if(state?.pr?.state==='open'&&state?.pr?.head?.sha===row.assignment.headSha&&!verdict)throw new LaneError(`reviewer ${row.assignment.reviewer} lease became live after mutex acquisition`)
+  if(reviewTargetIsRecordable(state?.pr,{pr:row.assignment.pr,issue:row.assignment.issue,headSha:row.assignment.headSha},io)&&!verdict)throw new LaneError(`reviewer ${row.assignment.reviewer} lease became live after mutex acquisition`)
 }
 
 export function isReviewAssignmentLive(assignment,states,io){
   const state=states?.get(`${assignment.issue}:${assignment.pr}`),pr=state?.pr??io.getPr(assignment.pr)
   const verdict=hasVerdictForHead(assignment.issue,assignment.pr,assignment.headSha,io,leaseVerdictOptions(assignment))
-  return pr?.state==='open'&&pr?.head?.sha===assignment.headSha&&!verdict
+  return reviewTargetIsRecordable(pr,{pr:assignment.pr,issue:assignment.issue,headSha:assignment.headSha},io)&&!verdict
 }

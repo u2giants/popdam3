@@ -3,6 +3,7 @@
 import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, parseVerdictRef } from '../../lib/review-verdict-artifact.mjs'
 import { REVIEW_ACTIVE_CUTOVER_REF, REVIEW_ACTIVE_PARALLEL_REF_PREFIX, REVIEW_LEASE_SUSPECT_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, SILENCE_CONFIRM_HOURS, SILENCE_MIN_AGE_HOURS, isLeaseReadFailure, isReviewRefListingRefusal, leaseReadFailureError, reviewStartMarkerPresent } from './constants.mjs'
 import { LaneError } from './claims.mjs'
+import { reviewTargetIsRecordable } from './admission.mjs'
 import { ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, REVIEWERS, allocatableReviewers } from './reviewer-roster.mjs'
 import { parseReviewLease, resolveAssignmentLeaseRef, reviewActiveRef, reviewLeaseIdentity, reviewLeaseRefForAssignment } from './review-records.mjs'
 import { hasVerdictForHead, leaseVerdictOptions } from './review-approval.mjs'
@@ -84,8 +85,8 @@ export function findBusyReviewers(io,requested=[],{keepUnreadableLeases=false}={
     try{
       const state=states?.get(`${assignment.issue}:${assignment.pr}`)
       prRow=state?.pr??io.getPr(assignment.pr)
+      if(!reviewTargetIsRecordable(prRow,{pr:assignment.pr,issue:assignment.issue,headSha:assignment.headSha},io)){stale.push({ref,sha,assignment});continue}
     }catch(error){throw leaseReadFailureError({read:'lease PR read',ref,kind:'transient',cause:error?.message??String(error)})}
-    if(prRow?.state!=='open'||prRow?.head?.sha!==assignment.headSha){stale.push({ref,sha,assignment});continue}
     let verdict
     try{verdict=hasVerdictForHead(assignment.issue,assignment.pr,assignment.headSha,io,leaseVerdictOptions(assignment))}catch(error){
       // #2987. The verdict namespace at its row ceiling is determinate: no retry

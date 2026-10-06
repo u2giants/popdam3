@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "work_issue": 3981,
+  "outcome": "ready-for-merge",
+  "pr": 3982,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3981/1",
+  "contract_sha256": "2dbb95e0f6b1581becd8bff58a44b398a54b2b6313be570223613f5c1b9ea979",
+  "base_sha": "cb94f985581b00dfe62deaf414a483bbe0f5e6bf",
+  "head_sha": "5dbecd75dd16184779c29ec3a1ba33bdd1b147d5",
+  "files_changed": [
+    "scripts/lib/lanes/review-approval.mjs",
+    "scripts/lib/lanes/review-leases.mjs",
+    "scripts/merged-review-lease-liveness.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/merged-review-lease-liveness.test.mjs",
+      "exit_code": 0,
+      "evidence": "8 passing regression tests"
+    },
+    {
+      "command": "node --test scripts/merged-pr-issue-binding.test.mjs",
+      "exit_code": 0,
+      "evidence": "9 passing binding tests"
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "769 passing allocator tests"
+    }
+  ],
+  "assumptions_resolved": [
+    "Existing verified binding controls merged target admission"
+  ],
+  "stop_conditions_hit": []
+}

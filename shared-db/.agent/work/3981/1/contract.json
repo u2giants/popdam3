@@ -1,0 +1,45 @@
+{
+  "schema_version": 2,
+  "work_issue": 3981,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Preserve verified exact-head merged production reviewer leases across assignment restore and reviewer start",
+  "base_sha": "cb94f985581b00dfe62deaf414a483bbe0f5e6bf",
+  "dispatcher": "Codex implementing production blocker repair for issue 3882",
+  "worker": "codex-01a1126e-c598-7d60-8cf4-e14427127e20",
+  "branch": "codex/3882-production",
+  "worktree": "/home/ahazan/.codex/worktrees/3829/shared-db",
+  "allowed_paths": [
+    "scripts/lib/lanes/review-approval.mjs",
+    "scripts/lib/lanes/review-leases.mjs",
+    "scripts/merged-review-lease-liveness.test.mjs",
+    ".agent/work/3981/1/contract.json",
+    ".agent/work/3981/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/lib/lanes/review-approval.mjs",
+    "scripts/lib/lanes/review-leases.mjs",
+    "scripts/merged-review-lease-liveness.test.mjs",
+    ".agent/work/3981/1/contract.json",
+    ".agent/work/3981/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not alter database objects or migration files",
+    "do not permit unbound closed PR review targets"
+  ],
+  "required_checks": [
+    "node --test scripts/merged-review-lease-liveness.test.mjs",
+    "node --test scripts/merged-pr-issue-binding.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "assumptions": [
+    "existing verified merged PR issue binding remains the authorization boundary"
+  ],
+  "stop_conditions": [
+    "stop on material reviewer refusal or unexpected ownership"
+  ],
+  "generation": 1,
+  "evidence_parent": null
+}
