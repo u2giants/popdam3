@@ -51,6 +51,21 @@ check_eol_combined_table_references() {
   node - "$diff_file" <<'NODE'
 const fs = require('node:fs')
 const diff = fs.readFileSync(process.argv[2], 'utf8')
+// #3907: these exact new assets only inspect catalog metadata for the
+// already-reviewed legacy dflow catalog. This is a byte-bound addition,
+// never an exemption for arbitrary proofs, runtime references, or later edits.
+const proofHashes = {
+  'scripts/proofs/3882-contract.json': '22ee55499288d95abf3b1e01314232f514a1011725085cdfe6a053f5b1c01419',
+  'scripts/proofs/3882-production.sql': 'f221936cb0c8dbb405589297906ad8d933796faa09c40003633bf96d0ce29030',
+  'scripts/proofs/3882-sandbox.sql': 'e76702725e5c283b0da7f95cd4da96b8b7df764db756f68d385bf6775788c90d',
+}
+const exactProofAdditions = new Set()
+for (const block of diff.split(/(?=^diff --git )/m)) {
+  const filename = block.match(/^diff --git a\/.+ b\/(.+)$/m)?.[1]
+  if (!proofHashes[filename] || !/^new file mode /m.test(block)) continue
+  const content = block.split(/\r?\n/).filter(line => line.startsWith('+') && !line.startsWith('+++')).map(line => line.slice(1)).join('\n') + '\n'
+  if (require('node:crypto').createHash('sha256').update(content).digest('hex') === proofHashes[filename]) exactProofAdditions.add(filename)
+}
 const allowed = new Set([
   'supabase/migrations/20260827222039_eol_core_properties_and_characters.sql',
   'supabase/migrations/20260829004145_separate_property_and_character.sql',
@@ -105,7 +120,7 @@ for (const line of diff.split(/\r?\n/)) {
     maintenance.set(current, { declared: new Set(), completed: new Set(), active: null, tag: null })
     continue
   }
-  if (allowed.has(current) || current === 'scripts/check-sql.sh') continue
+  if (allowed.has(current) || exactProofAdditions.has(current) || current === 'scripts/check-sql.sh') continue
   if (current.endsWith('.md')) continue
   if (current.startsWith('supabase/tests/') || /\.test\.[cm]?js$/.test(current)) continue
   if (line.startsWith('+') && !line.startsWith('+++')) {

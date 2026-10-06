@@ -1,0 +1,72 @@
+{
+  "schema_version": 2,
+  "work_issue": 3907,
+  "generation": 4,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Repoint the last three mapped user foreign keys from app.users to dflow.users, preserving names, columns, actions and validation; alter no rows or column types. Provide bounded read-only catalog observations for backend-owned acceptance of the parent and its existing children; keep database credentials in this repository.",
+  "base_sha": "c86be424f89162bbf9b450a02597616e5dcde298",
+  "dispatcher": "Albert chat instruction: complete shared-db #3882 through to production, without the earlier one-child stop; existing exact-object claim acquired.",
+  "worker": "Codex chat 01a1126e-c598-7d60-8cf4-e14427127e20 on edge-dev3",
+  "branch": "codex/3907-user-links",
+  "worktree": "/tmp/shared-db-3907-user-links",
+  "allowed_paths": [
+    "supabase/migrations/20261006221530_repoint_remaining_designflow_user_fks.sql",
+    ".github/live-proofs/3907.sql",
+    ".agent/work/3907/4/contract.json",
+    ".agent/work/3907/4/completion.json",
+    ".github/workflows/shared-db-3882-observation.yml",
+    "scripts/proofs/shared-db-3882-observation.mjs",
+    "scripts/proofs/shared-db-3882-observation.test.mjs",
+    "scripts/proofs/3882-contract.json",
+    "scripts/proofs/3882-production.sql",
+    "scripts/proofs/3882-sandbox.sql",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261006221530_repoint_remaining_designflow_user_fks.sql",
+    ".github/live-proofs/3907.sql",
+    ".agent/work/3907/4/contract.json",
+    ".agent/work/3907/4/completion.json",
+    ".github/workflows/shared-db-3882-observation.yml",
+    "scripts/proofs/shared-db-3882-observation.mjs",
+    "scripts/proofs/shared-db-3882-observation.test.mjs",
+    "scripts/proofs/3882-contract.json",
+    "scripts/proofs/3882-production.sql",
+    "scripts/proofs/3882-sandbox.sql",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs"
+  ],
+  "db_reads": [
+    "table dflow.users"
+  ],
+  "db_writes": [
+    "table app.\"RolePermissions\"",
+    "table plm.art_piece_attachment"
+  ],
+  "prohibited_actions": [
+    "Do not change or delete application rows, columns, keys or privilege policies.",
+    "Do not alter shared schema beyond the exact admitted objects.",
+    "Do not edit applied migrations or perform manual production writes."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node scripts/check-live-proof-probe.mjs --issue 3907",
+    "node --test scripts/proofs/shared-db-3882-observation.test.mjs",
+    "node --test scripts/check-sql.test.mjs",
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "Original definitions are validated single-column NO ACTION foreign keys; all existing child rows must match dflow.users before swapping."
+  ],
+  "stop_conditions": [
+    "Any unexpected source/target shape, orphan, permission or claim collision refuses mutation.",
+    "Unreviewed changes or target identity ambiguity stop before a write."
+  ],
+  "evidence_parent": {
+    "work_issue": 3907,
+    "generation": 3,
+    "contract_sha256": "62e87e1d2bb919688490170d50390a643c4d831cb9bceb958d7e1ab503f532fd"
+  }
+}

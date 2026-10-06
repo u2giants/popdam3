@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "work_issue": 3907,
+  "outcome": "ready-for-merge",
+  "pr": 4008,
+  "migration_versions": [
+    "20261006221530"
+  ],
+  "contract_ref": "refs/db-contracts/3907/4",
+  "contract_sha256": "9ebba188910ab8d293c4ea7ffa3a948bfdfd2574cadaed0e3aec9d48144cb996",
+  "base_sha": "f4e7cd25705dcef16120eaf1bcf4a83bc9f1fd6a",
+  "head_sha": "f63a87739afde63e111f1db12427f4d041ed6f28",
+  "files_changed": [
+    ".github/live-proofs/3907.sql",
+    ".github/workflows/shared-db-3882-observation.yml",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    "scripts/proofs/3882-contract.json",
+    "scripts/proofs/3882-production.sql",
+    "scripts/proofs/3882-sandbox.sql",
+    "scripts/proofs/shared-db-3882-observation.mjs",
+    "scripts/proofs/shared-db-3882-observation.test.mjs",
+    "supabase/migrations/20261006221530_repoint_remaining_designflow_user_fks.sql"
+  ],
+  "db_reads": [
+    "table dflow.users"
+  ],
+  "db_writes": [
+    "table app.\"RolePermissions\"",
+    "table plm.art_piece_attachment"
+  ],
+  "checks": [
+    {
+      "command": "node scripts/check-live-proof-probe.mjs --issue 3907",
+      "exit_code": 0,
+      "evidence": "Application return is backend; enforcing production probe included."
+    },
+    {
+      "command": "python3 /tmp/3907-sql-smoke.py",
+      "exit_code": 0,
+      "evidence": "PostgreSQL17 isolated fixture passed: preserving rows/access, enforcing mapped-only users, atomically refusing missing parents or wrong original actions."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Passes actual committed diff; three exact new catalog-only proof assets hash-bound; no arbitrary/runtime exception."
+    },
+    {
+      "command": "node --test scripts/check-sql.test.mjs",
+      "exit_code": 0,
+      "evidence": "68 guards passed after current-main merge; both independent exact-byte allowance regression tests retained."
+    },
+    {
+      "command": "node --test scripts/proofs/shared-db-3882-observation.test.mjs",
+      "exit_code": 0,
+      "evidence": "Four bounded read-only observer tests passed; producer SQL bytes unchanged, existing backendpins remain exact."
+    }
+  ],
+  "assumptions_resolved": [
+    "Fresh production read October6 at4:48PMEDT: allthree originals validated single-column NOACTION, nondeferred, zero missing mapped parents.",
+    "Manager safely superseded unapplied version20261006203938 with20261006221530 after main advanced; old reservation remains immutable. Producer asserts both freshly reserved migration versions. All guards,72 Node tests, and isolated PostgreSQL17 success/atomic-refusal tests re-proved."
+  ],
+  "stop_conditions_hit": []
+}

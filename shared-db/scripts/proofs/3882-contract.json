@@ -1,0 +1,43 @@
+{
+  "source_repository": "popcre/shared-db",
+  "application_repository": "popcre/designflow-backend",
+  "application_branch": "develop",
+  "production_project_ref": "qsllyeztdwjgirsysgai",
+  "sandbox_project_ref": "xupnyeifmpsacrqahwwm",
+  "issues": {
+    "3882": {
+      "live_assertion": "the 14 named foreign keys on dflow.art_piece, dflow.properties_and_characters, dflow.property_character_associations and dflow.item_character_associations reference core.\"merchGroup\", plm.\"divisionCode\", plm.\"SeasonCode\", core.\"licenseList\" and plm.\"itemHeader\" and are validated in production",
+      "environment": "production"
+    },
+    "3887": {
+      "live_assertion": "the user foreign keys on core.age_group, core.art_types, core.artist_types, plm.\"productUserAssignment\" and plm.sample_comments reference dflow.users and are validated in production",
+      "environment": "production"
+    },
+    "3890": {
+      "live_assertion": "on DesignFlow sandbox xupnyeifmpsacrqahwwm, dflow.properties_and_characters exists with 10,122+ rows and core.properties_and_characters does not; shared production unchanged",
+      "environment": "sandbox"
+    },
+    "3907": {
+      "live_assertion": "the user foreign keys on app.\"RolePermissions\" and plm.art_piece_attachment reference dflow.users and are validated in production",
+      "environment": "production"
+    },
+    "4010": {
+      "live_assertion": "production dflow.artists art_source_id references core.merchGroup(mg_id), artist_type_id references core.artist_types(id), and divisioncode_id references plm.divisionCode(divCode_id), with original names/actions and validation preserved",
+      "environment": "production"
+    }
+  },
+  "tables": {
+    "art_piece": "dflow",
+    "art_piece_attachment": "plm",
+    "properties_and_characters": "dflow",
+    "property_character_associations": "dflow",
+    "item_character_associations": "dflow",
+    "FactoryTime": "plm",
+    "itemHeader": "plm",
+    "itemDetail": "plm",
+    "RFQItem": "plm",
+    "user_notification": "app",
+    "ProdOrderHeader": "plm",
+    "RolePermissions": "app"
+  }
+}
