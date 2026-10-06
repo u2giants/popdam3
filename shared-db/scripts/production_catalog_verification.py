@@ -4760,5 +4760,12 @@ and (select count(*) from (values
 and exists (select 1 from pg_constraint c join pg_attribute a on a.attrelid=c.conrelid and a.attname='id' where c.conrelid=to_regclass('dflow.properties_and_characters') and c.contype='p' and c.conkey=array[a.attnum])
 """
 
+# #4015: information_schema.table_constraints hides constraints from a
+# SELECT-only verification role. Indexed pg_catalog proves the actual validated
+# id key without requiring ownership or write privileges.
+CATALOG_CONTRACTS["designflow_legacy_properties_id_primary_key_v1"] = """
+exists (select 1 from pg_constraint c join pg_attribute a on a.attrelid=c.conrelid and a.attname='id' and a.attnum>0 and not a.attisdropped where c.conrelid=to_regclass('dflow.properties_and_characters') and c.contype='p' and c.convalidated and c.conkey=array[a.attnum])
+"""
+
 if __name__ == "__main__":
     raise SystemExit(main())

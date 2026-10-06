@@ -313,25 +313,8 @@
     },
     {
       "id": "legacy_properties_primary_key",
-      "kind": "exact_row_count",
-      "relation": "information_schema.table_constraints",
-      "filters": [
-        {
-          "column": "table_schema",
-          "type": "text",
-          "equals": "dflow"
-        },
-        {
-          "column": "table_name",
-          "type": "text",
-          "equals": "properties_and_characters"
-        },
-        {
-          "column": "constraint_type",
-          "type": "text",
-          "equals": "PRIMARY KEY"
-        }
-      ],
+      "kind": "catalog_contract",
+      "contract": "designflow_legacy_properties_id_primary_key_v1",
       "expected_count": 1
     },
     {

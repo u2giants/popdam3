@@ -3501,11 +3501,10 @@ class LegacyPropertiesSchemaMoveContractTests(unittest.TestCase):
         migrations, checks = self.checks()
         self.assertEqual(len(checks), 12)
         named = [c for c in checks if c["kind"] == "catalog_contract"]
-        self.assertEqual(len(named), 1)
-        self.assertEqual(named[0]["contract"], "designflow_legacy_properties_dflow_shape_v1")
-        self.assertEqual(named[0]["expected_count"], 1)
+        self.assertEqual({c["contract"] for c in named}, {"designflow_legacy_properties_dflow_shape_v1", "designflow_legacy_properties_id_primary_key_v1"})
+        self.assertTrue(all(c["expected_count"] == 1 for c in named))
         self.assertTrue(derive_targets(migrations, [self.VERSION]).is_empty())
-        expression = CATALOG_CONTRACTS[named[0]["contract"]]
+        expression = CATALOG_CONTRACTS["designflow_legacy_properties_dflow_shape_v1"]
         for text in ["relkind='r'", "dflow.properties_and_characters", "character varying(255)", "character varying(50)", "character varying(100)", "timestamp with time zone", "c.contype='p'", "c.conkey=array[a.attnum]"]:
             self.assertIn(text, expression)
 
@@ -3523,15 +3522,24 @@ class LegacyPropertiesSchemaMoveContractTests(unittest.TestCase):
         self.assertEqual(len(absence), 1)
         self.assertIn("core", json.dumps(absence))
 
+    def test_primary_key_check_preserves_its_identity_and_proves_validated_id_key(self):
+        _, checks = self.checks()
+        pk = next(c for c in checks if c["id"] == "legacy_properties_primary_key")
+        self.assertEqual(pk["kind"], "catalog_contract")
+        expression = CATALOG_CONTRACTS[pk["contract"]]
+        for clause in ["pg_constraint", "pg_attribute", "a.attname='id'", "c.contype='p'", "c.convalidated", "c.conkey=array[a.attnum]"]:
+            self.assertIn(clause, expression)
+        self.assertNotIn("information_schema", expression)
+
     def test_full_enforcing_entrypoint_accepts_only_all_matching_checks(self):
         from production_catalog_verification import verify
         _, checks = self.checks()
-        for missing, wrong, expected in [(False, False, 0), (True, False, 1), (False, True, 1)]:
+        for index, mode, expected in [(-1, "pass", 0)] + [(i, mode, 1) for i in range(len(checks)) for mode in ("missing", "wrong")]:
             rows = [{"id": c["id"], "actual_count": c["expected_count"], "expected_count": c["expected_count"]} for c in checks]
-            if missing:
-                rows.pop()
-            if wrong:
-                rows[-1]["actual_count"] = 0
+            if mode == "missing":
+                rows.pop(index)
+            if mode == "wrong":
+                rows[index]["actual_count"] = 0
             with tempfile.TemporaryDirectory() as tmp, mock.patch("production_catalog_verification.run_query", return_value=[{"report": {"behavior_checks": rows}}]), mock.patch("sys.stdout", new=io.StringIO()):
                 result = verify(REPO, self.VERSION, Path(tmp), "synthetic-project", "synthetic-token", True)
                 self.assertEqual(result, expected)

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "work_issue": 4015,
+  "outcome": "ready-for-merge",
+  "pr": 4021,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4015/3",
+  "contract_sha256": "7f2963038a453489b65fedcb193f3608679a7dbef812fc0c5e3008f7cc5f328e",
+  "base_sha": "fd62f194fb9ca8fed3513d589a26c5ed9384f60d",
+  "head_sha": "4b8d9624406fd3a1e807435dc49402d777fa5daa",
+  "files_changed": [
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261006203846.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_production_catalog_verification.py",
+      "exit_code": 0,
+      "evidence": "235 tests passed; each of all12 missing or mismatching checks independently refuses."
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-production-verification-sidecars.test.mjs",
+      "exit_code": 0,
+      "evidence": "Baseline verifier tests passed."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "All67 sidecars verified, mandatory historical inventory unchanged and actual source digest regenerated."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static and EOL guards pass actual committed diff."
+    },
+    {
+      "command": "PostgreSQL17 isolated schema contract smoke",
+      "exit_code": 0,
+      "evidence": "SELECT-only reader reproduces old false negative; all12 checks pass; absent, wrong-column and composite primary keys refuse."
+    }
+  ],
+  "assumptions_resolved": [
+    "All12 check identities/counts retained. Actual sandbox read-only enforcing entrypoint returns0 and all12 results match. No migration bytes or grants changed."
+  ],
+  "stop_conditions_hit": []
+}
