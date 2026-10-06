@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "work_issue": 4015,
+  "generation": 2,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add the missing strict named catalog contract for the already-applied, hash-bound 3890 schema-only move. Preserve all11 assertions and refuse incorrect shape/key/source presence. No migration bytes or database changes.",
+  "base_sha": "432994be78e0237d56361f0b0f284e5b7a55efc6",
+  "dispatcher": "Albert authorized completing3882 through production; capability failure in protected sandbox apply requires repair.",
+  "worker": "Codex chat01a1126e-c598-7d60-8cf4-e14427127e20 onedge-dev3",
+  "branch": "codex/4015-catalog-contract",
+  "worktree": "/tmp/shared-db-4015-catalog-contract",
+  "allowed_paths": [
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20261006203846.json",
+    ".agent/work/4015/2/contract.json",
+    ".agent/work/4015/2/completion.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json"
+  ],
+  "file_writes": [
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20261006203846.json",
+    ".agent/work/4015/2/contract.json",
+    ".agent/work/4015/2/completion.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not edit applied migration bytes, reduce any check, change grants, or perform database writes."
+  ],
+  "required_checks": [
+    "python3 -m unittest discover -s scripts -p test_production_catalog_verification.py",
+    "node --test scripts/throughput-guard/check-production-verification-sidecars.test.mjs"
+  ],
+  "assumptions": [
+    "Original sandboxapply succeeded and ledgerdelta is verified; its enforcement failed only because the strict named schema relocation contract was absent."
+  ],
+  "stop_conditions": [
+    "Unexpected catalog shape, unreviewed code, or unavailable runtime evidence stops completion."
+  ],
+  "evidence_parent": {
+    "work_issue": 4015,
+    "generation": 1,
+    "contract_sha256": "795bc25a7b63b990dcd08535022f79198ad0f0675085734e072092752fcf7877"
+  }
+}

@@ -4746,5 +4746,19 @@ CATALOG_CONTRACTS["wb_validate_normalized_row_stable_v1"] = (
 )
 
 
+
+# #4015 / #3890. Exact schema-only relocation: both production and sandbox
+# must carry the same legacy eight-column integer shape. No row/access assertion
+# is replaced by this contract; the eleven original checks remain hash-bound.
+CATALOG_CONTRACTS["designflow_legacy_properties_dflow_shape_v1"] = """
+exists (select 1 from pg_class where oid=to_regclass('dflow.properties_and_characters') and relkind='r')
+and (select count(*) from pg_attribute where attrelid=to_regclass('dflow.properties_and_characters') and attnum>0 and not attisdropped)=8
+and (select count(*) from (values
+ ('id','integer',true),('name','character varying(255)',true),('type','character varying(50)',true),('licensor_id','integer',true),
+ ('source_licensed_property_id','character varying(100)',false),('source_character_id','character varying(100)',false),('created_at','timestamp with time zone',true),('updated_at','timestamp with time zone',true)
+) expected(name,type,not_null) join pg_attribute a on a.attrelid=to_regclass('dflow.properties_and_characters') and a.attname=expected.name and a.attnum>0 and not a.attisdropped and format_type(a.atttypid,a.atttypmod)=expected.type and a.attnotnull=expected.not_null)=8
+and exists (select 1 from pg_constraint c join pg_attribute a on a.attrelid=c.conrelid and a.attname='id' where c.conrelid=to_regclass('dflow.properties_and_characters') and c.contype='p' and c.conkey=array[a.attnum])
+"""
+
 if __name__ == "__main__":
     raise SystemExit(main())

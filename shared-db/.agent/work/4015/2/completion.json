@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "work_issue": 4015,
+  "outcome": "ready-for-merge",
+  "pr": 4016,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4015/2",
+  "contract_sha256": "2666c0a1cfff8fbfec8fcbcc9c9a51cef81cf8a099f578f065f5470f8a7ccf4a",
+  "base_sha": "432994be78e0237d56361f0b0f284e5b7a55efc6",
+  "head_sha": "2c7a7ce7f455e32f6023b599b1b782c66f8d8d03",
+  "files_changed": [
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261006203846.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_production_catalog_verification.py",
+      "exit_code": 0,
+      "evidence": "234 tests passed; exact applied migration column names cross-checked; original source-absence check retained."
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-production-verification-sidecars.test.mjs",
+      "exit_code": 0,
+      "evidence": "Baseline verifier tests passed."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "All67 sidecars verified, mandatory historical inventory unchanged and actual source digest regenerated."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static and EOL guards pass actual committed diff."
+    },
+    {
+      "command": "PostgreSQL17 isolated schema contract smoke",
+      "exit_code": 0,
+      "evidence": "Exact real shape passes; wrong column/type/nullability/primary key independently refuse."
+    }
+  ],
+  "assumptions_resolved": [
+    "All11 original assertions retained; source absence remains independently enforced; migration bytes unchanged."
+  ],
+  "stop_conditions_hit": []
+}

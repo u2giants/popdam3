@@ -3489,5 +3489,55 @@ class HtsProductPhraseContractTests(unittest.TestCase):
         self.assertTrue(derive_targets({self.VERSION: self.migration()}, [self.VERSION]).is_empty())
 
 
+
+class LegacyPropertiesSchemaMoveContractTests(unittest.TestCase):
+    VERSION = "20261006203846"
+
+    def checks(self):
+        migrations = {p.name[:14]: p for p in (REPO / "supabase" / "migrations").glob("*.sql")}
+        return migrations, load_behavior_sidecars(REPO, migrations, [self.VERSION])
+
+    def test_real_schema_move_keeps_every_existing_check_and_adds_exact_contract(self):
+        migrations, checks = self.checks()
+        self.assertEqual(len(checks), 12)
+        named = [c for c in checks if c["kind"] == "catalog_contract"]
+        self.assertEqual(len(named), 1)
+        self.assertEqual(named[0]["contract"], "designflow_legacy_properties_dflow_shape_v1")
+        self.assertEqual(named[0]["expected_count"], 1)
+        self.assertTrue(derive_targets(migrations, [self.VERSION]).is_empty())
+        expression = CATALOG_CONTRACTS[named[0]["contract"]]
+        for text in ["relkind='r'", "dflow.properties_and_characters", "character varying(255)", "character varying(50)", "character varying(100)", "timestamp with time zone", "c.contype='p'", "c.conkey=array[a.attnum]"]:
+            self.assertIn(text, expression)
+
+    def test_contract_column_names_match_the_applied_migration(self):
+        import re
+        migrations, checks = self.checks()
+        expression = CATALOG_CONTRACTS["designflow_legacy_properties_dflow_shape_v1"]
+        actual = re.findall(r"\('([^']+)'\s*,\s*'[^']+'\s*,\s*(?:true|false)\)", expression)
+        expected = ["id", "name", "type", "licensor_id", "source_licensed_property_id", "source_character_id", "created_at", "updated_at"]
+        self.assertEqual(actual, expected)
+        migration = migrations[self.VERSION].read_text()
+        for name in expected:
+            self.assertIn(name, migration)
+        absence = [c for c in checks if c["kind"] == "catalog_absence"]
+        self.assertEqual(len(absence), 1)
+        self.assertIn("core", json.dumps(absence))
+
+    def test_full_enforcing_entrypoint_accepts_only_all_matching_checks(self):
+        from production_catalog_verification import verify
+        _, checks = self.checks()
+        for missing, wrong, expected in [(False, False, 0), (True, False, 1), (False, True, 1)]:
+            rows = [{"id": c["id"], "actual_count": c["expected_count"], "expected_count": c["expected_count"]} for c in checks]
+            if missing:
+                rows.pop()
+            if wrong:
+                rows[-1]["actual_count"] = 0
+            with tempfile.TemporaryDirectory() as tmp, mock.patch("production_catalog_verification.run_query", return_value=[{"report": {"behavior_checks": rows}}]), mock.patch("sys.stdout", new=io.StringIO()):
+                result = verify(REPO, self.VERSION, Path(tmp), "synthetic-project", "synthetic-token", True)
+                self.assertEqual(result, expected)
+                payload = json.loads((Path(tmp) / "production-catalog-verification.json").read_text())
+                self.assertEqual(len(payload["behavior_checks"]), 12)
+                self.assertEqual(payload["errors"], [])
+
 if __name__ == "__main__":
     unittest.main()
