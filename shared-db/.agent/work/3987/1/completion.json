@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "work_issue": 3987,
+  "outcome": "ready-for-merge",
+  "pr": 3989,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3987/1",
+  "contract_sha256": "e9dc79052b6837bf34dff3d8636b71c634b416cdbbeb8e64e9ae16acd646e15a",
+  "head_sha": "ecb8f445630ffd3ead686dcb2557f5864f8b0208",
+  "base_sha": "021378fd2707c2d7c278417f2bac8da65cc04e59",
+  "files_changed": [
+    "scripts/check-required-checks-preflight.mjs",
+    "scripts/check-required-checks-preflight.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-required-checks-preflight.test.mjs scripts/orchestrator-flow/runner-lanes.test.mjs scripts/check-merge-queue-workflows.test.mjs",
+      "exit_code": 0,
+      "evidence": "61 passed, 0 failed, 0 skipped at refreshed implementation head ecb8f445630ffd3ead686dcb2557f5864f8b0208"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=325 sources=91 derived_digest=6cd8ed349351"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors in both working-tree check and origin/main...implementation diff."
+    }
+  ],
+  "assumptions_resolved": [
+    "Stage A preserves all workflows, required contexts, database and settings.",
+    "Full all-attempt listing includes pending reroutes; exact-head and producer filtering precedes newest-attempt selection.",
+    "Prospective immutable contract was published before implementation after discarded prototype.",
+    "Supported refresh helper made implementation commit then refused to restamp custom checks; all custom checks were manually re-executed. Non-evidence PR diff byte-identical to Muse-reviewed6fa79195; sha25607028b66c300d4e1fea9059bab48c9ad37b91a086b8883ad504ec2312f535d63. Current base 021378fd2707c2d7c278417f2bac8da65cc04e59."
+  ],
+  "stop_conditions_hit": []
+}

@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { resolveRepositoryIdentity } from './lib/repository-identity.mjs'
 import { readEffectiveRequiredChecks, computeRevision, probeAuthorityReadPermissions } from './lib/required-check-authority.mjs'
+import { aggregateVerdict, loadRegistry } from './orchestrator-flow/runner-lanes.mjs'
 import { MERGE_SELF_CONTEXT as SELF_CONTEXT } from './lib/merge-self-context.mjs'
 export { SELF_CONTEXT }
 export class PreflightError extends Error {}
@@ -91,6 +92,28 @@ export function evaluatePreflight({ authority, statuses = [], checkRuns = [], sh
     if (missing.length) parts.push(`never reported: ${missing.join(', ')}`)
     throw new PreflightError(`required status checks are not satisfied on the reviewed head — ${parts.join('; ')}. No retry can clear this, so the merge lane was not taken.`)
   }
+  // The old runner aggregate was a separate waiting job. Keep the same exact-once
+  // proof in this protected-main preflight, both before and under the merge lock.
+  // Preserve the registry identity for dispatch/reroute consumers; never accept a
+  // different app or head's lane result as evidence for this reviewed head.
+  const registry = loadRegistry()
+  if (registry.queue_sensitive_jobs.some((job) => required.some((item) => item.context === job.context))) {
+    // filter=all includes queued reroutes; choose the newest attempt per name
+    // only after exact-head and producer partitioning, as the old aggregate did.
+    const laneStates = observedStates({ checkRuns, appId: GITHUB_ACTIONS_APP_ID, sha })
+    const accounting = aggregateVerdict(registry, [...laneStates].map(([name, state]) => ({
+      name, status: state === 'pending' ? 'in_progress' : 'completed', conclusion: state,
+    })))
+    if (accounting.verdict !== 'pass') {
+      const absent = accounting.unreported ?? []
+      const failed = (accounting.refusals ?? []).filter((reason) => !absent.includes(reason))
+      const parts = []
+      if (failed.length) parts.push(`failing: ${failed.join(', ')}`)
+      if (accounting.pending?.length) parts.push(`still running: ${accounting.pending.join(', ')}`)
+      if (absent.length) parts.push(`never reported: ${absent.join(', ')}`)
+      throw new PreflightError(`runner lane accounting refused: ${parts.join('; ')}`)
+    }
+  }
   const requiredNames = new Set(authority.checks.map((item) => item.context))
   const advisory = [...observedStates({ statuses, checkRuns, sha })].filter(([name, state]) => !requiredNames.has(name) && name !== SELF_CHECK_RUN && !REPORTED_SUCCESS.has(state))
   return { required: required.length, mode: authority.mode, revision: authority.revision, advisory, shadow: advisory.length ? 'old all-reported rule would refuse advisory results; effective required results pass' : 'no advisory disagreement' }
@@ -149,10 +172,17 @@ export function gatherPreflightInput(env = process.env, deps = {}) {
   }
   const before = authorityRead()
   const combined = read(['api', '--paginate', '--slurp', `repos/${repo}/commits/${sha}/status?per_page=100`])
-  const runs = read(['api', '--paginate', '--slurp', `repos/${repo}/commits/${sha}/check-runs?per_page=100`])
+  const runs = read(['api', '--paginate', '--slurp', `repos/${repo}/commits/${sha}/check-runs?per_page=100&filter=all`])
   const statuses = collectPages(combined, 'statuses'), checkRuns = collectPages(runs, 'check_runs')
   requireWholePage('commit statuses', reportedTotal(combined), statuses)
   requireWholePage('check runs', reportedTotal(runs), checkRuns)
+  const checkPages = Array.isArray(runs) ? runs : [runs]
+  const count = reportedTotal(runs), runIds = new Set()
+  if (checkRuns.length !== count || checkPages.some((page) => page.total_count !== count)) throw new PreflightError('check-run listing changed during pagination; refusing an unstable read')
+  for (const run of checkRuns) {
+    if (!Number.isSafeInteger(run?.id) || run.id <= 0 || typeof run.name !== 'string' || !run.name || runIds.has(run.id)) throw new PreflightError('check-run listing has an invalid or repeated run identity; refusing an unstable read')
+    runIds.add(run.id)
+  }
   const authority = authorityRead()
   if (before.revision !== authority.revision || before.base_sha !== authority.base_sha) throw new PreflightError('effective settings or protected branch changed during the read; authorization must be recomputed')
   return { authority, statuses, checkRuns, sha }

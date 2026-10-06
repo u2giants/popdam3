@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { evaluatePreflight, gatherPreflightInput, observedStates, collectPages, requireWholePage, waitForPreflight, PreflightError, SELF_CONTEXT, GITHUB_ACTIONS_APP_ID } from './check-required-checks-preflight.mjs'
+import { evaluatePreflight, gatherPreflightInput, observedStates, isWaitableRefusal, collectPages, requireWholePage, waitForPreflight, PreflightError, SELF_CONTEXT, GITHUB_ACTIONS_APP_ID } from './check-required-checks-preflight.mjs'
 import { readEffectiveRequiredChecks, computeRevision, RequiredCheckAuthorityError } from './lib/required-check-authority.mjs'
 const sha = 'a'.repeat(40)
 function makeAuthority(overrides = {}) {
@@ -71,7 +71,7 @@ function liveRead({ mutateAfter = false, deny = false, truncate = false } = {}) 
       return { data: { repository: { databaseId: 1, nameWithOwner: 'popcre/shared-db', ref: { name: 'main', target: { oid: sha }, branchProtectionRule: { id: 'BPR_1', requiresStatusChecks: true, requiresStrictStatusChecks: false, requiredStatusCheckContexts: ['required'], requiredStatusChecks: [{ context: 'required', app: { databaseId: 15368 } }] } } } } }
     }
     if (args.some((arg) => arg.includes('/rules/branches/'))) return [mutateAfter && reads > 1 ? [{ type: 'required_status_checks', ruleset_id: 2, ruleset_source: 'popcre', ruleset_source_type: 'Organization', parameters: { required_status_checks: [{ context: 'new', integration_id: 7 }] } }] : []]
-    if (args.some((arg) => arg.includes('/check-runs'))) return [{ total_count: truncate ? 2 : 1, check_runs: [ok()] }]
+    if (args.some((arg) => arg.includes('/check-runs'))) return [{ total_count: truncate ? 2 : 1, check_runs: [ok('required', { id: 1 })] }]
     return [{ total_count: 0, statuses: [] }]
   }
 }
@@ -187,4 +187,78 @@ test('app-bound requirement: known-wrong-app status is excluded entirely', () =>
   assert.equal(evaluate({ statuses: [{ context: 'required', state: 'failure', id: 1, app: { id: 7 } }] }).required, 1)
   // But a status with NO app field (REST reality) that is red must still surface.
   assert.throws(() => evaluate({ statuses: [{ context: 'required', state: 'failure', id: 1 }] }), /failing/)
+})
+
+test('protected merge preflight preserves exact-once runner lane accounting after aggregate retirement', () => {
+  const T = 'Tools offline tests', P = 'Promotion contract tests (offline)'
+  const laneAuthority = makeAuthority({ checks: [T, P, SELF_CONTEXT].map((context) => ({ context, app_id: GITHUB_ACTIONS_APP_ID })) })
+  const run = (checkRuns) => evaluatePreflight({ authority: laneAuthority, sha, checkRuns })
+  assert.equal(run([ok(T), ok(P)]).required, 2)
+  // A late default and its replacement both green must still refuse.
+  assert.throws(() => run([ok(T), ok(P), ok(`${T} [lane ubuntu-24.04]`)]), /runner lane accounting refused:.*duplicate assertion/)
+  assert.throws(() => run([ok(T), ok(P), ok(`${T} [lane ubuntu-24.04]`, { conclusion: 'failure' })]), /runner lane accounting refused:.*failed assertion/)
+  assert.throws(() => run([ok(T), ok(P), ok(`${T} [lane ubuntu-24.04]`, { status: 'queued' })]), /runner lane accounting refused:.*still running/)
+  assert.throws(() => run([ok(T), ok(P), ok(`${T} [lane windows-latest]`)]), /unregistered lane/)
+  for (const conclusion of ['neutral', 'skipped', 'cancelled']) {
+    // An ignored duplicate cannot masquerade as a second successful assertion.
+    assert.equal(run([ok(T), ok(P), ok(`${T} [lane ubuntu-24.04]`, { conclusion })]).required, 2)
+  }
+  // Neither unrelated head nor foreign app can create or hide a counted result.
+  assert.equal(run([ok(T), ok(P), ok(`${T} [lane ubuntu-24.04]`, { head_sha: 'b'.repeat(40) }), ok(`${T} [lane ubuntu-24.04]`, { app: { id: 7 } })]).required, 2)
+  assert.throws(() => run([ok(T), ok(P, { head_sha: 'b'.repeat(40) })]), /never reported/)
+  assert.throws(() => run([ok(T), ok(P, { app: { id: 7 } })]), /never reported/)
+})
+
+test('a required registered lane cannot remove the other assertion from merge accounting', () => {
+  const laneAuthority = makeAuthority({ checks: [{ context: 'Tools offline tests', app_id: GITHUB_ACTIONS_APP_ID }, { context: SELF_CONTEXT, app_id: GITHUB_ACTIONS_APP_ID }] })
+  assert.throws(() => evaluatePreflight({ authority: laneAuthority, sha, checkRuns: [ok('Tools offline tests')] }), /runner lane accounting refused:.*no run reported/)
+})
+
+
+test('lane accounting pending/absent results use the existing bounded waiter; failed/duplicate results cannot wait away', () => {
+  const laneAuthority = makeAuthority({ checks: [{ context: 'Tools offline tests', app_id: GITHUB_ACTIONS_APP_ID }, { context: SELF_CONTEXT, app_id: GITHUB_ACTIONS_APP_ID }] })
+  const attempt = (runs) => {
+    try { evaluatePreflight({ authority: laneAuthority, sha, checkRuns: runs }); assert.fail('expected refusal') }
+    catch (error) { assert.ok(error instanceof PreflightError); return isWaitableRefusal(error.message) }
+  }
+  assert.equal(attempt([ok('Tools offline tests')]), true)
+  assert.equal(attempt([ok('Tools offline tests'), ok('Promotion contract tests (offline)', { status: 'queued' })]), true)
+  assert.equal(attempt([ok('Tools offline tests'), ok('Promotion contract tests (offline)', { conclusion: 'failure' })]), false)
+  assert.equal(attempt([ok('Tools offline tests'), ok('Promotion contract tests (offline)'), ok('Tools offline tests [lane ubuntu-24.04]')]), false)
+})
+
+
+test('all-attempt listing includes queued replacements and newest-name normalization preserves rerun semantics', () => {
+  const T = 'Tools offline tests', P = 'Promotion contract tests (offline)'
+  const source = liveRead()
+  const rows = [ok(T, { id: 1 }), ok(P, { id: 2 }), ok(`${T} [lane ubuntu-24.04]`, { id: 3, status: 'queued' })]
+  const json = (args) => {
+    if (args.some((arg) => arg.includes('/check-runs'))) {
+      assert.ok(args.some((arg) => arg.includes('&filter=all')), 'queued replacements must remain visible')
+      return [{ total_count: 3, check_runs: rows.slice(0, 2) }, { total_count: 3, check_runs: rows.slice(2) }]
+    }
+    const payload = source(args)
+    if (args.includes('graphql')) {
+      const rule = payload.data.repository.ref.branchProtectionRule
+      rule.requiredStatusCheckContexts = [T, P]
+      rule.requiredStatusChecks = [T, P].map((context) => ({ context, app: { databaseId: GITHUB_ACTIONS_APP_ID } }))
+    }
+    return payload
+  }
+  const input = gatherPreflightInput({ REQUESTED_SHA: sha }, { repo: 'popcre/shared-db', json })
+  assert.throws(() => evaluatePreflight(input), /runner lane accounting refused:.*still running/)
+  const required = makeAuthority({ checks: [T, P, SELF_CONTEXT].map((context) => ({ context, app_id: GITHUB_ACTIONS_APP_ID })) })
+  assert.equal(evaluatePreflight({ authority: required, sha, checkRuns: [ok(T, { id: 1, conclusion: 'failure' }), ok(T, { id: 4 }), ok(P, { id: 2 })] }).required, 2)
+  assert.throws(() => evaluatePreflight({ authority: required, sha, checkRuns: [ok(T, { id: 1 }), ok(T, { id: 4, status: 'queued' }), ok(P, { id: 2 })] }), /still running/)
+})
+
+test('all-attempt pagination refuses changing totals, repeated ids and missing identities', () => {
+  for (const pages of [
+    [{ total_count: 1, check_runs: [ok('required', { id: 1 })] }, { total_count: 2, check_runs: [] }],
+    [{ total_count: 2, check_runs: [ok('required', { id: 1 }), ok('required', { id: 1 })] }],
+    [{ total_count: 1, check_runs: [ok()] }],
+  ]) {
+    const source = liveRead()
+    assert.throws(() => gatherPreflightInput({ REQUESTED_SHA: sha }, { repo: 'popcre/shared-db', json: (args) => args.some((arg) => arg.includes('/check-runs')) ? pages : source(args) }), /unstable read/)
+  }
 })

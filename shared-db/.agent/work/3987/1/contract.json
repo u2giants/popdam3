@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 3987,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Stage A: preserve exact-once runner lane accounting in protected-main merge preflight before retirement of redundant queue checks",
+  "base_sha": "cb94f985581b00dfe62deaf414a483bbe0f5e6bf",
+  "dispatcher": "Codex coordinating parent #3536",
+  "worker": "codex",
+  "branch": "codex/3536-queue-hygiene",
+  "worktree": "/tmp/shared-db-queue-hygiene",
+  "allowed_paths": [
+    "scripts/check-required-checks-preflight.mjs",
+    "scripts/check-required-checks-preflight.test.mjs"
+  ],
+  "file_writes": [
+    "scripts/check-required-checks-preflight.mjs",
+    "scripts/check-required-checks-preflight.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not change required_status_checks.strict; it is false by owner ruling in issue #1286",
+    "do not touch any migration or database object",
+    "do not edit another session's handoff, worktree, branch, or claim"
+  ],
+  "required_checks": [
+    "node --test scripts/check-required-checks-preflight.test.mjs scripts/orchestrator-flow/runner-lanes.test.mjs scripts/check-merge-queue-workflows.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Live queue inactive; stage A preserves all workflow triggers and live settings"
+  ],
+  "stop_conditions": [
+    "Any unrelated file or database scope required",
+    "Assigned review refuses exact head"
+  ]
+}
