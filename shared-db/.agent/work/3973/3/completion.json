@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "work_issue": 3973,
+  "outcome": "ready-for-merge",
+  "pr": 3977,
+  "migration_versions": [
+    "20261006170117"
+  ],
+  "contract_ref": "refs/db-contracts/3973/3",
+  "contract_sha256": "e3dcf15ebfaf151ac1347ee7f7c93c9a347f6abf951526913d335b23092d6fe3",
+  "base_sha": "e2f3f2d750725ed8e1f6f6b2c2299dab182e8b0c",
+  "head_sha": "f00d7c5d71a5bf18d244d2df035e9046e8e9e9f4",
+  "files_changed": [
+    ".github/live-proofs/3973.sql",
+    "supabase/migrations/20261006170117_sync_run_lookup_index.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table ingest.sync_run",
+    "index ingest.sync_run_source_name_source_system_status_started_at_idx"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "static checks passed; live ledger remains workflow-gated"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "no whitespace defects"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "static checks passed after live-proof hardening; live ledger remains workflow-gated"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "static checks passed on refreshed current main; live ledger remains workflow-gated"
+    }
+  ],
+  "assumptions_resolved": [
+    "Claim #3976 reserved version 20261006170117 and both exact objects"
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,50 @@
+{
+  "schema_version": 2,
+  "work_issue": 3973,
+  "generation": 3,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Add one ingest.sync_run index for ColdLion failure and snapshot lookups and prove it live.",
+  "base_sha": "e2f3f2d750725ed8e1f6f6b2c2299dab182e8b0c",
+  "dispatcher": "ZCode chat 01a111ef-6947-73e3-ad86-653b1650b4e1 on edge-dev; claim #3976",
+  "worker": "Codex chat 01a111ef-6947-73e3-ad86-653b1650b4e1 on edge-dev",
+  "branch": "codex/3973-sync-run-index",
+  "worktree": "/home/ahazan/repos/.worktrees/shared-db-3973-sync-run-index",
+  "allowed_paths": [
+    "supabase/migrations/20261006170117_sync_run_lookup_index.sql",
+    ".github/live-proofs/3973.sql",
+    ".agent/work/3973/3/contract.json",
+    ".agent/work/3973/3/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261006170117_sync_run_lookup_index.sql",
+    ".github/live-proofs/3973.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table ingest.sync_run",
+    "index ingest.sync_run_source_name_source_system_status_started_at_idx"
+  ],
+  "prohibited_actions": [
+    "Do not alter table columns, rows, or existing indexes",
+    "Do not run manual production apply",
+    "Do not touch the ColdLion rotation lane"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Claim #3976 reserved version 20261006170117 and exact objects",
+    "Preview and production catalog proof are post-merge workflow outcomes tracked on the open work issue",
+    "Current main moved to e2f3f2d7 before the final exact-head reviews; source is rebuilt on that base"
+  ],
+  "stop_conditions": [
+    "Stop on claim, target, review, merge, preview, or production gate refusal"
+  ],
+  "evidence_parent": {
+    "work_issue": 3973,
+    "generation": 2,
+    "contract_sha256": "99af2c8a23215d1e9ef474875a2e43507e0398cec6d2e95722a918f89ca7e4da"
+  }
+}
