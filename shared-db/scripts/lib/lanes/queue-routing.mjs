@@ -1,5 +1,6 @@
 // Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
+import { reviewTargetIsRecordable } from './admission.mjs'
 import { SERVICE_CLASSES, CHANGE_TYPES, evaluateAdmission, parseImpactBlock } from '../../orchestrator-flow/admission.mjs'
 import { OUTCOME_STATES } from '../../orchestrator-flow/outcome-lifecycle.mjs'
 import { conflicts } from '../../lib/hold-reason.mjs'
@@ -60,7 +61,7 @@ export const SLOT_INDEPENDENCE_CONFLICT = 'slot_independence_conflict'
 // `--release-failed-reviewer` must accept it, or the recovery path dead-ends
 // (release refuses the code, replace tells the operator to release first).
 export const TERMINAL_FAILURE_CODES = Object.freeze(['insufficient_quota','provider_unavailable','local_dependency_unavailable','wrapper_terminal_failure','turn_limit_cancelled','reviewer_cannot_read_repository','reviewer_cannot_emit_governed_verdict',REVIEW_TARGET_SUPERSEDED,'silent_worker_observed'])
-export function reviewTargetSuperseded(prRow,headSha){return Boolean(prRow?.state)&&(String(prRow.state).toLowerCase()!=='open'||(/^[0-9a-f]{40}$/i.test(String(prRow?.head?.sha??''))&&String(prRow.head.sha).toLowerCase()!==String(headSha).toLowerCase()))}
+export function reviewTargetSuperseded(prRow,headSha,request={},io={}){if(reviewTargetIsRecordable(prRow,{pr:request.pr,issue:request.issue,headSha},io))return false;return Boolean(prRow?.state)&&(String(prRow.state).toLowerCase()!=='open'||(/^[0-9a-f]{40}$/i.test(String(prRow?.head?.sha??''))&&String(prRow.head.sha).toLowerCase()!==String(headSha).toLowerCase()))}
 
 export const QUEUE_STATUSES = new Set(['ready','blocked','owner-decision'])
 export const QUEUE_WORK_TYPES = new Set(['structural','curated-master-data','application-data','source-data','repo-maintenance','documentation','security-settings'])

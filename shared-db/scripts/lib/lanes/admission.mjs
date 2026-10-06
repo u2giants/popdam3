@@ -197,7 +197,9 @@ export function reviewTargetIsRecordable(live,{pr,issue,headSha},io=githubIo){
   if(String(live?.head?.sha??'').toLowerCase()!==String(headSha).toLowerCase())return false
   const state=String(live?.state??'').toLowerCase()
   if(state==='open')return true
-  if(!live?.merged_at||typeof io?.mergedPrReviewTarget!=='function')return false
+  // REST uses merged_at; the bounded GraphQL lease snapshot uses merged.
+  // Both still require the independently verified full-PR issue binding.
+  if(!(live?.merged_at||live?.merged===true)||typeof io?.mergedPrReviewTarget!=='function')return false
   return io.mergedPrReviewTarget(pr,issue)===true
 }
 

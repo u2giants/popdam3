@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "work_issue": 3981,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Complete merged review startup repair using actual GraphQL projection and guard residual duplicate-start and superseded-release paths",
+  "base_sha": "67555e9e25e2fac5dda27be02de13c3534c84cf7",
+  "dispatcher": "Continuation of #3981 runtime acceptance after PR #3982; original reviewer startup still refuses because the production GraphQL projection carries merged=true rather than merged_at",
+  "worker": "codex-01a1126e-c598-7d60-8cf4-e14427127e20",
+  "branch": "codex/3882-release",
+  "worktree": "/tmp/shared-db-3882-release",
+  "allowed_paths": [
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/lib/lanes/queue-routing.mjs",
+    "scripts/lib/lanes/review-leases.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/merged-pr-issue-binding.test.mjs",
+    "scripts/merged-review-lease-liveness.test.mjs",
+    ".agent/work/3981/2/contract.json",
+    ".agent/work/3981/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/lib/lanes/queue-routing.mjs",
+    "scripts/lib/lanes/review-leases.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/merged-pr-issue-binding.test.mjs",
+    "scripts/merged-review-lease-liveness.test.mjs",
+    ".agent/work/3981/2/contract.json",
+    ".agent/work/3981/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not alter database objects or migration files",
+    "do not permit unbound closed PR review targets"
+  ],
+  "required_checks": [
+    "node --test scripts/merged-review-lease-liveness.test.mjs",
+    "node --test scripts/merged-pr-issue-binding.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/run-governed-review.test.mjs"
+  ],
+  "assumptions": [
+    "existing verified merged PR issue binding remains the authorization boundary"
+  ],
+  "stop_conditions": [
+    "stop on material reviewer refusal or unexpected ownership"
+  ],
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 3981,
+    "generation": 1,
+    "contract_sha256": "2dbb95e0f6b1581becd8bff58a44b398a54b2b6313be570223613f5c1b9ea979"
+  }
+}

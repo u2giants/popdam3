@@ -11,6 +11,10 @@ test('verdict recording accepts a merged PR only through the same verified bindi
   assert.equal(reviewTargetIsRecordable(merged,{pr:2726,issue:2506,headSha:HEAD},io),false,'no binding, no merged verdict')
   const bound=withMergedPrIssueBinding(io,'2726:2506',()=>{})
   assert.equal(reviewTargetIsRecordable(merged,{pr:2726,issue:2506,headSha:HEAD},bound),true)
+  const projected={state:'merged',merged:true,head:{sha:HEAD}}
+  assert.equal(reviewTargetIsRecordable(projected,{pr:2726,issue:2506,headSha:HEAD},bound),true,'the production GraphQL projection is recordable through the same binding')
+  assert.equal(reviewTargetIsRecordable(projected,{pr:2726,issue:2506,headSha:HEAD},io),false,'merged flag without binding is insufficient')
+  assert.equal(reviewTargetIsRecordable({...projected,merged:false},{pr:2726,issue:2506,headSha:HEAD},bound),false)
   assert.equal(reviewTargetIsRecordable(merged,{pr:2726,issue:2507,headSha:HEAD},bound),false,'a different issue refuses')
   assert.equal(reviewTargetIsRecordable(merged,{pr:2727,issue:2506,headSha:HEAD},bound),false,'a different PR refuses')
   assert.equal(reviewTargetIsRecordable({...merged,head:{sha:'1'.repeat(40)}},{pr:2726,issue:2506,headSha:HEAD},bound),false,'a different head refuses')

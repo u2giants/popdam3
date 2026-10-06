@@ -23,9 +23,9 @@ import { orderedReviewers } from './reviewer-roster.mjs'
 // hold two, still treats a listed name as taken.
 //
 // A reviewer is busy when it holds a durable assignment whose work is still
-// live: the PR is open, its head is still the head that reviewer was given, and
-// no verdict has landed for that head. Anything else -- a merged or closed PR, a
-// head that moved on, a recorded verdict -- frees the provider.
+// live: the PR is open or is merged with a verified issue binding, its head is
+// still the head that reviewer was given, and no verdict has landed for its slot.
+// An unbound closed PR, a moved head, or its own verdict frees the provider.
 //
 // NULL MEANS UNREADABLE, AND EVERY CALLER FAILS CLOSED ON IT. If the refs cannot
 // be listed this returns null; the draw, release, replacement, reap, capacity

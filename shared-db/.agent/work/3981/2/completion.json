@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "work_issue": 3981,
+  "outcome": "ready-for-merge",
+  "pr": 3996,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3981/2",
+  "contract_sha256": "9634a63c9857fd046822144d3066f48cf6079c6ec8aa92f5cf0693d0eeef3874",
+  "base_sha": "2d1d103dc96caf9f78b421c78a25a85ed7aa456a",
+  "head_sha": "ff0cd7f496db06ee0b0612da399fe70de99f9367",
+  "files_changed": [
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/lib/lanes/queue-routing.mjs",
+    "scripts/lib/lanes/review-leases.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/merged-pr-issue-binding.test.mjs",
+    "scripts/merged-review-lease-liveness.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/merged-review-lease-liveness.test.mjs",
+      "exit_code": 0,
+      "evidence": "11 pass on refreshed implementation ff0cd7f496db06ee0b0612da399fe70de99f9367"
+    },
+    {
+      "command": "node --test scripts/merged-pr-issue-binding.test.mjs",
+      "exit_code": 0,
+      "evidence": "9 pass on refreshed implementation ff0cd7f496db06ee0b0612da399fe70de99f9367"
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "769 pass on refreshed implementation ff0cd7f496db06ee0b0612da399fe70de99f9367"
+    },
+    {
+      "command": "node --test scripts/run-governed-review.test.mjs",
+      "exit_code": 0,
+      "evidence": "101 pass on refreshed implementation ff0cd7f496db06ee0b0612da399fe70de99f9367"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Passed on refreshed implementation ff0cd7f496db06ee0b0612da399fe70de99f9367"
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "Passed on refreshed implementation ff0cd7f496db06ee0b0612da399fe70de99f9367"
+    }
+  ],
+  "assumptions_resolved": [
+    "Actual bounded GraphQL PR representation is covered by regression tests",
+    "Verified merged binding remains mandatory",
+    "Completed own slots cannot start; sibling verdicts do not release the pending slot"
+  ],
+  "stop_conditions_hit": []
+}
