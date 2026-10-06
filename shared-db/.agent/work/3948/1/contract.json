@@ -1,0 +1,48 @@
+{
+  "schema_version": 2,
+  "work_issue": 3948,
+  "generation": 1,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Production-path successor of 20261001122410: idempotent CREATE INDEX IF NOT EXISTS prod_detail_company_code_prod_order_no_idx on coldlion.prod_detail (company_code, prod_order_no) under version 20261006004845, so it takes workflow preview-apply and automatic production promotion.",
+  "base_sha": "60133e2682509f597dff7385e77ced77548bc7cd",
+  "dispatcher": "claim-first; claim #3950",
+  "worker": "Claude chat 697b6747-440e-42e7-add9-88c9644d267c on edge-dev3",
+  "branch": "claude/3948-prod-detail-order-index-successor",
+  "worktree": "/home/ahazan/repos/shared-db-wt-3948",
+  "allowed_paths": [
+    "supabase/migrations/20261006004845_coldlion_prod_detail_order_index_prod.sql",
+    ".github/live-proofs/3948.sql",
+    ".agent/work/3948/1/contract.json",
+    ".agent/work/3948/1/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261006004845_coldlion_prod_detail_order_index_prod.sql",
+    ".github/live-proofs/3948.sql",
+    ".agent/work/3948/1/contract.json",
+    ".agent/work/3948/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table coldlion.prod_detail",
+    "index coldlion.prod_detail_company_code_prod_order_no_idx"
+  ],
+  "prohibited_actions": [
+    "do not create a unique index or constraint",
+    "do not change grants, RLS or rows",
+    "do not run a manual production write"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 scripts/check_production_verification_sidecars.py --repo . --scan-version 20261006004845"
+  ],
+  "assumptions": [
+    "the index already exists on preview so the successor is a no-op there",
+    "production lacks the index and version 20261001122410"
+  ],
+  "stop_conditions": [
+    "stop if the change would need a file outside allowed_paths",
+    "stop if the index definition on preview differs from (company_code, prod_order_no)"
+  ],
+  "evidence_parent": null
+}

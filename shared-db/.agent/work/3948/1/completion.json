@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 3948,
+  "outcome": "ready-for-merge",
+  "pr": 3951,
+  "migration_versions": [
+    "20261006004845"
+  ],
+  "contract_ref": "refs/db-contracts/3948/1",
+  "contract_sha256": "f9bb9cc8e904a622e8480649c22545df074b2a35188605922b916d74b49ce4df",
+  "base_sha": "60133e2682509f597dff7385e77ced77548bc7cd",
+  "head_sha": "3518736c417b2c8f9370a7058f3e8a036f29f911",
+  "files_changed": [
+    ".github/live-proofs/3948.sql",
+    "supabase/migrations/20261006004845_coldlion_prod_detail_order_index_prod.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table coldlion.prod_detail",
+    "index coldlion.prod_detail_company_code_prod_order_no_idx"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed for 20261006004845."
+    },
+    {
+      "command": "python3 scripts/check_production_verification_sidecars.py --repo . --scan-version 20261006004845",
+      "exit_code": 0,
+      "evidence": "status OK; no dynamic markers, no sidecar required."
+    }
+  ],
+  "assumptions_resolved": [
+    "production lacks the index and 20261001122410 (verified read-only on qsllyeztdwjgirsysgai)"
+  ],
+  "stop_conditions_hit": []
+}
