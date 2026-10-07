@@ -608,6 +608,11 @@ PREVIEW_PRODUCER_PATHS = (
     # Runs FIRST in the preview job, to acquire the lane, before any evidence
     # byte exists. Unpinned, it was a complete forgery path.
     "scripts/manage-migration-author-lanes.mjs",
+    # Existing normal canonical validators now used by authenticated nonclosing routing.
+    "scripts/agent-work-contract-git-evidence.mjs",
+    "scripts/agent-work-contract.mjs",
+    "scripts/refresh-code-pr-branch.mjs",
+    "scripts/run-governed-review.mjs",
     # The manager's cohesive modules, split out of it without behavior change.
     # They are statically imported and run inside the same process, so each is
     # pinned exactly like the manager itself.

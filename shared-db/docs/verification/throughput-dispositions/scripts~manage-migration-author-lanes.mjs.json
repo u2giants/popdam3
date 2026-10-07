@@ -92,6 +92,13 @@
       "line_sha256": "f70bb424f24c07066d4bd5b6b80e1bf9987558d410b0b712a65c761b414ab497",
       "disposition": "excluded",
       "reason": "Merge reconciliation 2026-10-02: call site present in the merged source after origin/main was brought into this branch; it carries no new throughput claim beyond the already-reviewed class of queue/ref coordination messages in this file."
+    },
+    {
+      "site": "scripts/manage-migration-author-lanes.mjs:292",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:4acbed99c8d10620f341b76c814ff4abe161db23788800c69dcf87e0136ff722:context-d951ec4fb0b6a6caf8ddff94b62a36cf6ced08cd197377b6a2e215cbbb2d728f",
+      "line_sha256": "4acbed99c8d10620f341b76c814ff4abe161db23788800c69dcf87e0136ff722",
+      "disposition": "excluded",
+      "reason": "Fail-closed trusted signed attribution refusal for authenticated nonclosing repository-maintenance binding; this is admission evidence, not a throughput delivery assertion."
     }
   ]
 }

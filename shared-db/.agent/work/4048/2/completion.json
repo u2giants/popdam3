@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "work_issue": 4048,
+  "outcome": "ready-for-merge",
+  "pr": 4049,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4048/2",
+  "contract_sha256": "821ec052f262f71c63abcff2bf0a26583eacd1b4db9ddb9e00b5e35e1b7df23b",
+  "head_sha": "a3f6cb60ed6b5d03622979ad2bde1323ac0d4e28",
+  "base_sha": "82d1b625477ac362e7c3c4792132dfcb68788dcb",
+  "files_changed": [
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/production_business_risk_gate.py",
+    "scripts/queue-hygiene-report.test.mjs",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/run-governed-review.test.mjs scripts/agent-work-contract-git-evidence.test.mjs",
+      "exit_code": 0,
+      "evidence": "Fresh exact declared command executed at refreshed source a3f6cb60ed6b5d03622979ad2bde1323ac0d4e28, actual main82d1; all exited0. Captured /tmp/3536-4048-refreshed-check-0.txt"
+    },
+    {
+      "command": "node --test scripts/reviewer-wire-budget.test.mjs scripts/orchestrator-flow/evidence-bundle.test.mjs scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "Fresh exact declared command executed at refreshed source a3f6cb60ed6b5d03622979ad2bde1323ac0d4e28, actual main82d1; all exited0. Captured /tmp/3536-4048-refreshed-check-1.txt"
+    },
+    {
+      "command": "node --test scripts/queue-hygiene-report.test.mjs",
+      "exit_code": 0,
+      "evidence": "Fresh exact declared command executed at refreshed source a3f6cb60ed6b5d03622979ad2bde1323ac0d4e28, actual main82d1; all exited0. Captured /tmp/3536-4048-refreshed-check-2.txt"
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes-surface.test.mjs",
+      "exit_code": 0,
+      "evidence": "Fresh exact declared command executed at refreshed source a3f6cb60ed6b5d03622979ad2bde1323ac0d4e28, actual main82d1; all exited0. Captured /tmp/3536-4048-refreshed-check-3.txt"
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_*.py",
+      "exit_code": 0,
+      "evidence": "Fresh exact declared command executed at refreshed source a3f6cb60ed6b5d03622979ad2bde1323ac0d4e28, actual main82d1; all exited0. Captured /tmp/3536-4048-refreshed-check-4.txt"
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_business_risk_gate.ProductionBusinessRiskGateTests.test_preview_producer_paths_cover_the_whole_executed_closure",
+      "exit_code": 0,
+      "evidence": "Fresh exact declared command executed at refreshed source a3f6cb60ed6b5d03622979ad2bde1323ac0d4e28, actual main82d1; all exited0. Captured /tmp/3536-4048-refreshed-check-5.txt"
+    }
+  ],
+  "assumptions_resolved": [
+    "Zero closing fallback uses exact canonical published evidence and normal Git validators; structural closing routing unchanged",
+    "Immutable SHA fetch supplies objects without destination refspec or worktree mutation",
+    "Existing 13 catalogue rows preserved; one new actual fail-closed attribution refusal registered",
+    "All six checks passed; no provider invocation or production operation",
+    "Current main82d1 incorporated as canonical upstream merge; zero overlap all seven authored source files, no implementation round or provider budget reset. Original5692 assignment unpaid and preserved."
+  ],
+  "stop_conditions_hit": []
+}

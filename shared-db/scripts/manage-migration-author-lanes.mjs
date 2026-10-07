@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { createStageEvidenceVerifier } from './lib/work-stage-evidence.mjs'
 import { resolveEvidencePair, isEvidencePath } from './lib/agent-evidence-paths.mjs'
+import { contractHash, validateContract, validateCompletionReport, validatePullRequestCompletion, reconcileReportWithContract } from './agent-work-contract.mjs'
+import { verifyGitEvidence, gitIo, readPublishedContractFromGit } from './agent-work-contract-git-evidence.mjs'
 
 import { execFileSync } from 'node:child_process'
 import { runGitHubCommand as sharedRunGitHubCommand, isTransientGitHubTransport, hostQuotaLatch } from './lib/github-transport.mjs'
@@ -275,6 +277,43 @@ export function buildDatabasePreviewFileSnapshot(files,base,head,readContent){
     const selected=newSide??oldSide
     return {path,status,...(previousPath!==path?{previous_path:previousPath}:{}),mode:selected.mode,blob_sha:selected.blob_sha,sha256:selected.sha256,base:oldSide?{mode:oldSide.mode,type:oldSide.type,blob_sha:oldSide.blob_sha,sha256:oldSide.sha256}:null,head:newSide?{mode:newSide.mode,type:newSide.type,blob_sha:newSide.blob_sha,sha256:newSide.sha256}:null,impact}
   }).sort((a,b)=>a.path.localeCompare(b.path))
+}
+
+// #4048: a partial maintenance PR must retain its authentic work issue without
+// pretending to close that unfinished parent. Refs only selects the proof;
+// immutable canonical evidence and normal Git validation supply authority.
+export function verifyNonclosingMaintenanceBinding({pr,headSha,files,issue=null},io,git=gitIo){
+  const refuse=(reason)=>{throw new LaneError(`nonclosing maintenance binding refused: ${reason}`)}
+  const live=io.getPr(pr),main=io.mainSha?.()
+  if(!live||Number(live.number)!==pr||live.state!=='open'||live.head?.sha!==headSha||
+    live.head?.repo?.full_name!==REPO||live.base?.repo?.full_name!==REPO||live.base?.ref!=='main'||
+    !/^[0-9a-f]{40}$/.test(main??'')||live.base.sha!==main||!live.head?.ref)refuse('exact live PR, head, repository or protected main changed')
+  if(!isTrustedOperatorComment({author:live.user?.login,author_association:live.author_association},REPO)||
+    !/^Posted by [A-Za-z][A-Za-z0-9 -]* chat [A-Za-z0-9-]+ on [A-Za-z0-9_.-]+\s*$/m.test(live.body??''))refuse('trusted signed attribution missing')
+  const refs=[...String(live.body??'').matchAll(/\bRefs\s+#([1-9]\d*)\b/gi)].map(m=>Number(m[1]))
+  if(refs.length!==1||issue!==null&&Number(issue)!==refs[0])refuse('exactly one consistent Refs work issue is required')
+  if(!Array.isArray(files)||!files.length)refuse('complete actual file inventory unavailable')
+  const pair=resolveEvidencePair(files.map(f=>f.filename),{readFile:path=>io.getFileAt(path,headSha)})
+  if(pair.state!=='current'||pair.key==='legacy')refuse('one current keyed canonical evidence pair is required')
+  let contract,report
+  try{
+    contract=validateContract(JSON.parse(io.getFileAt(pair.contract,headSha)))
+    report=JSON.parse(io.getFileAt(pair.completion,headSha))
+    validateCompletionReport(report,{validateCompletionRecord})
+    const reconciliation=reconcileReportWithContract(report,contract)
+    if(!reconciliation.satisfied)throw new LaneError(reconciliation.problems.join("; "))
+    validatePullRequestCompletion(report,{pr,headSha})
+  }catch(error){refuse(`canonical evidence validation failed (${error.message})`)}
+  if(contract.work_issue!==refs[0]||report.work_issue!==refs[0]||pair.key!==`${refs[0]}/${contract.generation}`||
+    contract.branch!==live.head.ref||contract.work_type!=='repo-maintenance'||contract.route!=='repo-maintenance'||
+    contract.db_reads.length||contract.db_writes.length)refuse('canonical work issue, branch, route or no-database scope disagrees')
+  if(typeof io.prepareNonclosingEvidenceGit!=='function')refuse('exact source Git reader unavailable')
+  io.prepareNonclosingEvidenceGit(headSha,main)
+  try{verifyGitEvidence({contract,report,prBaseSha:main,prHeadSha:headSha},git)}
+  catch(error){refuse(`published contract or exact Git proof failed (${error.message})`)}
+  const work=io.getIssue(refs[0])
+  if(Number(work?.number)!==refs[0])refuse('authentic work issue unavailable')
+  return {issue:refs[0],work,headSha,contractRef:report.contract_ref,contractHash:contractHash(contract)}
 }
 
 export const githubIo = {
@@ -603,6 +642,8 @@ export const githubIo = {
   // merges, so the lane must still be able to find that PR once it is closed.
   // `openPulls()` cannot see it; this looks the branch up across every state.
   branchPulls(branch) { return ghPaginated(`repos/${REPO}/pulls?state=all&head=${REPO.split('/')[0]}:${encodeURIComponent(branch)}&per_page=100`) },
+  verifyNonclosingMaintenanceBinding(request){return verifyNonclosingMaintenanceBinding(request,this)},
+  prepareNonclosingEvidenceGit(head,base){execFileSync('git',['fetch','--no-tags','--quiet','origin',head,base],{stdio:['ignore','pipe','pipe']})},
   getPr(number) { return ghJson(['api', `repos/${REPO}/pulls/${number}`]) },
   getPrFiles(number) { return ghPaginated(`repos/${REPO}/pulls/${number}/files?per_page=100`) },
   databasePreviewFileSnapshot(pr,baseSha,headSha){

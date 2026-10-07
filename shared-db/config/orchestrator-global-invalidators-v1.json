@@ -10,6 +10,7 @@
     "config/atomic-migration-allowlist.json",
     "config/production-risk-policy-activation.json",
     "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/agent-work-contract-git-evidence.mjs",
     "scripts/agent-work-contract.mjs",
     "scripts/check-dispatch-collision.mjs",
     "scripts/check-main-tip-freshness.mjs",

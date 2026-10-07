@@ -11190,3 +11190,64 @@ test('preview admission refuses an unclaimed role owner dependency and accepts a
   const candidate = deriveLivePreviewCandidate(1769,fixture.io)
   assert.equal(candidate.pr,1809)
 })
+
+// #4048: use actual Git commits, a local immutable contract remote and all normal
+// validators. Refs and a mocked successful proof alone must not grant authority.
+import {verifyNonclosingMaintenanceBinding} from './manage-migration-author-lanes.mjs'
+import {contractHash as bindingContractHash} from './agent-work-contract.mjs'
+import {readPublishedContractFromGit as bindingPublishedContract} from './agent-work-contract-git-evidence.mjs'
+function nonclosingGitFixture(){
+  const dir=mkdtempSync(path.join(tmpdir(),'nonclosing-binding-')),remote=path.join(dir,'remote.git')
+  const git=(...args)=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()
+  const put=(name,text)=>{const file=path.join(dir,name);mkdirSync(path.dirname(file),{recursive:true});writeFileSync(file,text)}
+  git('init','-b','main');git('config','user.name','Controlled fixture');git('config','user.email','fixture@example.invalid')
+  put('app.txt','before\n');git('add','app.txt');git('commit','-m','base');const base=git('rev-parse','HEAD')
+  execFileSync('git',['init','--bare',remote],{stdio:'ignore'});git('remote','add','origin',remote);git('checkout','-b','feature')
+  const contract={schema_version:2,generation:1,work_issue:41,work_type:'repo-maintenance',route:'repo-maintenance',goal:'Controlled nonclosing canonical proof',base_sha:base,dispatcher:'fixture',worker:'fixture',branch:'feature',worktree:dir,allowed_paths:['app.txt'],file_writes:['app.txt'],db_reads:[],db_writes:[],prohibited_actions:[],required_checks:['fixture'],assumptions:[],stop_conditions:['Stop on unknown'],evidence_parent:null}
+  const ref='refs/db-contracts/41/1',publication=git('commit-tree',`${base}^{tree}`,'-p',base,'-m',`Work contract published\n\n${JSON.stringify(contract)}`)
+  git('update-ref',ref,publication);git('push','origin',ref)
+  put('app.txt','genuine source\n');git('add','app.txt');git('commit','-m','source');const implementation=git('rev-parse','HEAD')
+  const report={schema_version:1,work_issue:41,outcome:'ready-for-merge',pr:7,migration_versions:[],contract_ref:ref,contract_sha256:bindingContractHash(contract),head_sha:implementation,base_sha:base,files_changed:['app.txt'],db_reads:[],db_writes:[],checks:[{command:'fixture',exit_code:0,evidence:'Actual controlled fixture source operation'}],assumptions_resolved:[],stop_conditions_hit:[]}
+  put('.agent/work/41/1/contract.json',JSON.stringify(contract));put('.agent/work/41/1/completion.json',JSON.stringify(report));git('add','.agent');git('commit','-m','own canonical pair');const head=git('rev-parse','HEAD')
+  git('push','origin',`${base}:refs/heads/main`,`${head}:refs/heads/feature`)
+  const live={number:7,state:'open',user:{login:'u2giants'},author_association:OPERATOR_ASSOCIATION,body:'Refs #41\n\nPosted by Codex chat fixture on fixture',head:{sha:head,ref:'feature',repo:{full_name:THIS_REPO}},base:{sha:base,ref:'main',repo:{full_name:THIS_REPO}}}
+  const work={number:41,state:'open',body:'```db-work-scope\nstatus: ready\nwork_type: repo-maintenance\nroute: repo-maintenance\nchange_type: reviewer-tooling\npriority: 100\nreads: []\nwrites: []\n```'}
+  const files=[{filename:'app.txt',status:'modified'},{filename:'.agent/work/41/1/contract.json',status:'added'},{filename:'.agent/work/41/1/completion.json',status:'added'}]
+  const proofGit={isAncestor:(a,b)=>{try{git('merge-base','--is-ancestor',a,b);return true}catch{return false}},mergeBase:(a,b)=>git('merge-base',a,b),changedFiles:(a,b)=>git('diff','--name-only',a,b).split('\n').filter(Boolean),readPublishedContract:ref=>bindingPublishedContract(ref,(command,args,options)=>execFileSync(command,args,{...options,cwd:dir}))}
+  const io={getPr:()=>live,mainSha:()=>base,getPrFiles:()=>files,closingIssuesForPr:()=>[],getFileAt:(name,sha)=>git('show',`${sha}:${name}`),getIssue:()=>work,prepareNonclosingEvidenceGit:(a,b)=>git('fetch','--quiet','origin',a,b)}
+  io.verifyNonclosingMaintenanceBinding=request=>verifyNonclosingMaintenanceBinding(request,io,proofGit)
+  return {dir,git,put,contract,report,live,work,files,io,proofGit,head,base,close:()=>rmSync(dir,{recursive:true,force:true})}
+}
+test('nonclosing maintenance binding proves canonical live direct and snapshot routes through real Git',()=>{
+  const f=nonclosingGitFixture()
+  try{
+    assert.equal(derivePrOperationRoute(7,f.io,{headSha:f.head,issue:41}).route,'repo-maintenance')
+    assert.equal(derivePrOperationRoute(7,f.io,{headSha:f.head,issue:41,snapshot:{pr:{state:'open',head:{sha:f.head}},files:f.files,linkedIssues:[]}}).issue,41)
+  }finally{f.close()}
+})
+test('nonclosing maintenance binding refuses metadata and canonical mismatches without body-only authority',()=>{
+  const f=nonclosingGitFixture(),check=()=>derivePrOperationRoute(7,f.io,{headSha:f.head,issue:41})
+  try{
+    for(const body of ['Refs #41','Refs #41\nRefs #41\nPosted by Codex chat fixture on fixture','Refs #42\nPosted by Codex chat fixture on fixture']){const old=f.live.body;f.live.body=body;assert.throws(check,/refused/);f.live.body=old}
+    for(const [target,key,value] of [[f.live.user,'login','untrusted'],[f.live.head,'ref','other'],[f.live.head.repo,'full_name','other/repo'],[f.live.base,'ref','develop'],[f.live.base,'sha','a'.repeat(40)]]){const old=target[key];target[key]=value;assert.throws(check,/refused/);target[key]=old}
+    const original=f.io.getFileAt
+    for(const change of [r=>r.pr=8,r=>r.work_issue=42,r=>r.head_sha='a'.repeat(40),r=>r.base_sha='a'.repeat(40),r=>r.contract_ref='refs/db-contracts/41/2',r=>r.contract_sha256='a'.repeat(64),r=>r.checks=[],r=>r.stop_conditions_hit=['unknown']]){
+      f.io.getFileAt=(name,sha)=>{const text=original(name,sha);if(!name.endsWith('/completion.json'))return text;const r=JSON.parse(text);change(r);return JSON.stringify(r)}
+      assert.throws(check,/refused/);f.io.getFileAt=original
+    }
+    f.io.getFileAt=(name,sha)=>{const text=original(name,sha);if(!name.endsWith('/contract.json'))return text;const c=JSON.parse(text);c.goal='forged';return JSON.stringify(c)};assert.throws(check,/refused/);f.io.getFileAt=original
+    const published=f.proofGit.readPublishedContract;f.proofGit.readPublishedContract=()=>{throw new Error('unknown published ref')};assert.throws(check,/refused/);f.proofGit.readPublishedContract=published
+    const prepare=f.io.prepareNonclosingEvidenceGit;delete f.io.prepareNonclosingEvidenceGit;assert.throws(check,/reader unavailable/);f.io.prepareNonclosingEvidenceGit=prepare
+    f.work.state='closed';assert.throws(check,/not deterministic ready/);f.work.state='open'
+    const body=f.work.body;f.work.body=body.replace('status: ready','status: blocked');assert.throws(check,/not deterministic ready/);f.work.body=body
+    f.work.number=42;assert.throws(check,/refused/);f.work.number=41
+    const saved=f.files.splice(1,1);assert.throws(check,/refused/);f.files.splice(1,0,...saved)
+    f.files.push({filename:'.agent/work/42/1/contract.json',status:'added'},{filename:'.agent/work/42/1/completion.json',status:'added'});assert.throws(check,/refused/)
+  }finally{f.close()}
+})
+test('nonclosing maintenance fallback never changes structural, unknown or multiple-closing routing',()=>{
+  const head='a'.repeat(40),base={getPr:()=>({state:'open',head:{sha:head}}),closingIssuesForPr:()=>[],verifyNonclosingMaintenanceBinding:()=>{throw new Error('must never call nonclosing proof')}}
+  for(const file of [{filename:'supabase/migrations/20260101000000_x.sql',status:'added'},{filename:'docs/new.md',status:'renamed',previous_filename:'docs/old.md'},{filename:'app.txt',status:'changed'},{filename:'app.txt',status:'copied'}])assert.throws(()=>derivePrOperationRoute(7,{...base,getPrFiles:()=>[file]},{headSha:head}),/must close exactly one/)
+  assert.throws(()=>derivePrOperationRoute(7,{...base,getPrFiles:()=>[{filename:'app.txt',status:'modified'}],closingIssuesForPr:()=>[{number:41},{number:42}]},{headSha:head}),/must close exactly one/)
+  assert.equal(derivePrOperationRoute(7,{...base,getPrFiles:()=>[{filename:'supabase/migrations/20260101000000_x.sql',status:'added'}],closingIssuesForPr:()=>[{number:41}]},{headSha:head,issue:41}).route,'structural')
+})

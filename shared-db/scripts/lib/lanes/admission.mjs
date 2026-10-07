@@ -236,11 +236,6 @@ export function derivePrOperationRoute(pr, io = githubIo, { headSha = null, issu
       paths.push(file.previous_filename)
     }
   }
-  const linked=snapshot?.linkedIssues??io.closingIssuesForPr(Number(pr))
-  if(!Array.isArray(linked)||linked.length!==1)throw new LaneError(`pull request must close exactly one work issue; found ${Array.isArray(linked)?linked.length:'an unreadable set'}`)
-  const linkedNumber=Number(linked[0]?.number)
-  if(!Number.isInteger(linkedNumber)||linkedNumber<1)throw new LaneError('pull request linked work issue identity is unreadable')
-  if(issue!==null&&Number(issue)!==linkedNumber)throw new LaneError(`operation issue #${issue} does not match pull request #${pr} linked issue #${linkedNumber}`)
   // A verified rename supplies both paths. Copies, CHANGED/UNCHANGED, future
   // enum values, and renames without a readable prior path stay structural.
   // Either migration-side path also stays structural below.
@@ -250,9 +245,20 @@ export function derivePrOperationRoute(pr, io = githubIo, { headSha = null, issu
     if(status==='renamed')return typeof file.previous_filename!=='string'||!file.previous_filename.trim()
     return file.previous_filename!==undefined||!completeCurrentPathStatuses.has(status)
   })||paths.some((value)=>MIGRATION_PATH.test(String(value).replace(/\\/g,'/')))
+  const linked=snapshot?.linkedIssues??io.closingIssuesForPr(Number(pr))
+  if(!Array.isArray(linked)||linked.length>1)throw new LaneError(`pull request must close exactly one work issue; found ${Array.isArray(linked)?linked.length:'an unreadable set'}`)
+  let nonclosing=null
+  if(linked.length===0){
+    if(structural||files.some(file=>file.status==='renamed'||file.previous_filename!==undefined)||typeof io.verifyNonclosingMaintenanceBinding!=='function')throw new LaneError('pull request must close exactly one work issue; found 0')
+    nonclosing=io.verifyNonclosingMaintenanceBinding({pr:Number(pr),headSha:livePr.head.sha,files,issue})
+    if(nonclosing?.headSha!==livePr.head.sha||!Number.isInteger(nonclosing?.issue)||nonclosing.issue<1)throw new LaneError('nonclosing maintenance binding is unreadable')
+  }
+  const linkedNumber=nonclosing?.issue??Number(linked[0]?.number)
+  if(!Number.isInteger(linkedNumber)||linkedNumber<1)throw new LaneError('pull request linked work issue identity is unreadable')
+  if(issue!==null&&Number(issue)!==linkedNumber)throw new LaneError(`operation issue #${issue} does not match pull request #${pr} linked issue #${linkedNumber}`)
   if(structural)return {route:'structural',issue:linkedNumber,pr:Number(pr),headSha:livePr.head.sha}
 
-  const work=snapshot?.linkedIssues?.[0]??io.getIssue(linkedNumber),scope=parseQueueScope(work?.body??'')
+  const work=nonclosing?.work??snapshot?.linkedIssues?.[0]??io.getIssue(linkedNumber),scope=parseQueueScope(work?.body??'')
   if(String(work?.state??'open').toLowerCase()!=='open'||scope?.status!=='ready'||scope?.workType!=='repo-maintenance'||scope?.route!=='repo-maintenance'||scope?.writes?.length)throw new LaneError(`pull request #${pr} is not deterministic ready repository-maintenance work with no database objects`)
   let changeType=scope.changeType,legacy=false
   if(changeType===null){
