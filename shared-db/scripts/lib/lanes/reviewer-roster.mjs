@@ -291,7 +291,15 @@ export const REVIEWERS = Object.freeze([
 // retirement: restoring Kimi is a one-line deletion from this list once the
 // account has credit AND `AI_KIMI_CALLER=claude ai-kimi doctor` passes. Its
 // REVIEWERS row stays so every durable verdict it recorded still authorizes.
-export const RETIRED_REVIEWERS = Object.freeze(['glm-5.2', 'muse-spark-1.2-contributor', 'deepseek-chat', 'codex-gpt-5.6-sol', 'kimi-k3'])
+//
+// PAUSED 2026-10-07 (owner instruction, chat: "go", after asking to take Grok
+// out of the reviewer pool temporarily): 'grok-4.6'. No provider fault is
+// alleged; Grok was already fallback-only for cost (issue #3592). The live pool
+// is DeepSeek, Gemini, GLM, Muse, Qwen and StepFun. This is a PAUSE, not a
+// retirement: restoring Grok is a one-line deletion from this list after one
+// live well-formed review. Its REVIEWERS row stays so every durable verdict it
+// recorded still authorizes.
+export const RETIRED_REVIEWERS = Object.freeze(['glm-5.2', 'muse-spark-1.2-contributor', 'deepseek-chat', 'codex-gpt-5.6-sol', 'kimi-k3', 'grok-4.6'])
 
 // Not retired -- quarantined pending a passing live qualification. Kept separate
 // from RETIRED_REVIEWERS on purpose: retirement is a permanent disposition,
