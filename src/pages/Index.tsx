@@ -1,7 +1,8 @@
+import { ShieldOff } from "lucide-react";
 import { useState, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStyleGroups, useStyleGroupAssetCount, useStyleGroupCount, useUngroupedCount, useTotalAssetCount, type StyleGroup } from "@/hooks/useStyleGroups";
-import { useAssets, useFilterOptions, useFilterCounts, useVisibilityDate, usePathFacets, useProductMaterials } from "@/hooks/useAssets";
+import { isDamAccessDenied, useAssets, useFilterOptions, useFilterCounts, useVisibilityDate, usePathFacets, useProductMaterials } from "@/hooks/useAssets";
 import { useDamCustomerFacets } from "@/hooks/useDamCustomers";
 import { defaultFilters, countActiveFilters, hasActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode, type LibraryMode } from "@/types/assets";
 import type { Asset, CardStyle } from "@/types/assets";
@@ -72,11 +73,11 @@ export default function LibraryPage() {
   // ── Data queries ────────────────────────────────────────────────
   const isGroupsMode = libraryMode === "groups";
   const { data: visibilityDate } = useVisibilityDate();
-  const { data: sgData, isLoading: sgLoading } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate);
+  const { data: sgData, isLoading: sgLoading, error: sgError } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate);
   const { data: totalGroupCount } = useStyleGroupCount(filters, visibilityDate);
   const { data: ungroupedCount } = useUngroupedCount();
   const { data: totalAssets } = useTotalAssetCount();
-  const { data: assetData, isLoading: assetLoading } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize, !isGroupsMode);
+  const { data: assetData, isLoading: assetLoading, error: assetError } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize, !isGroupsMode);
   const { licensors, properties } = useFilterOptions(filters.licensorId);
   const { data: facetCounts } = useFilterCounts(filters);
   const { data: pathFacets } = usePathFacets(filters.customer);
@@ -235,7 +236,13 @@ export default function LibraryPage() {
         )}
 
         <div className="flex flex-1 flex-col overflow-auto min-w-[400px]">
-          {isGroupsMode ? (
+          {isDamAccessDenied(isGroupsMode ? sgError : assetError) ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <ShieldOff className="mb-4 h-12 w-12 text-muted-foreground/30" />
+              <p className="font-medium">You don't have PopDAM access yet</p>
+              <p className="mt-1 text-sm text-muted-foreground">Ask an administrator to grant you access to PopDAM.</p>
+            </div>
+          ) : isGroupsMode ? (
             viewMode === "grid" ? (
               <StyleGroupGrid
                 groups={groups}
