@@ -14,6 +14,8 @@ import { redirectToAuthentik } from "@/lib/authentik";
 import { toast } from "sonner";
 
 const SHOW_AUTHENTIK_SSO = false;
+// Google sign-in is hidden for now (owner request 2026-10-07); flip to re-enable.
+const SHOW_GOOGLE_SSO = false;
 
 function getAuthRedirectUrl() {
   return `${window.location.origin}/`;
@@ -172,6 +174,7 @@ export default function LoginPage() {
             )}
 
             {/* Google OAuth */}
+            {SHOW_GOOGLE_SSO && (
             <Button
               variant="outline"
               className="w-full"
@@ -199,6 +202,7 @@ export default function LoginPage() {
               </svg>
               Continue with Google
             </Button>
+            )}
 
             {/* Microsoft OAuth */}
             <Button
