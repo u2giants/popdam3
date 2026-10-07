@@ -69,7 +69,7 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v8.5 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
+## Addendum v8.6 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
 
 Review scope: ONLY this addendum. Steps 1-9 above already ran and were reported on #213 (5:15 PM
 EDT); nothing here touches the DB. Owner of this addendum and its residuals: this Claude session.
@@ -89,17 +89,17 @@ restarted.
 
 Inputs (exact):
 - Source: op://vibe_coding/3onekcbg3dxnazpnt36d4yzfcq/7g7toqbbme6aybbs5hfzvvwoaa. Already
-  validated: sha256[:12]=3c48237f28e9 (== admin_config), GET v1beta/models -> 200. Re-validated
+  validated: sha256[:12]=NEW (== admin_config), GET v1beta/models -> 200. Re-validated
   (GET v1beta/models -> 200) twice more: immediately before step 2 from 1Password, and after step 2
   from Railway's read-back value, piped as the header via `curl -H @-` (stdin only; never on disk
   or argv).
 - Target: Railway project 8645c5fe-ae60-413e-8464-508456c65365, env production, service popdam3
   (f777713f-d0f8-4f9b-9685-37c9090c98ef), variable GOOGLE_AI_API_KEY; all commands pass -p/-e/-s.
-  Expected current fingerprint 3c1804c42ed1 (dead, API_KEY_INVALID).
+  Expected current fingerprint OLD (dead, API_KEY_INVALID).
 - Scope: one Railway variable; 1Password item dykqfttarudsxhzrlsktyupq2y only (this session's
   empty placeholder).
-- Full digests: NEW = 3c48237f28e90a9bc34ddca4d6da9ae932beb25840767f8644bdf5b22616f0c1,
-  OLD = 3c1804c42ed14699cf6afbbdc5d029157dbd1d0ce3c457b5a24b77263ba2beb1.
+- Full digests: NEW = NEW0a9bc34ddca4d6da9ae932beb25840767f8644bdf5b22616f0c1,
+  OLD = OLD4699cf6afbbdc5d029157dbd1d0ce3c457b5a24b77263ba2beb1.
 - F = `railway variables --json` piped into python printing only the FULL sha256 hex digest of
   GOOGLE_AI_API_KEY; every comparison in this addendum uses full 64-hex digests (the 12-char
   prefixes quoted here are labels only; step 1a records the full old digest, and the full new
@@ -109,18 +109,22 @@ Inputs (exact):
 
 Steps:
 1. Preconditions, all read-only, run back-to-back immediately before step 2:
-   a. F == 3c1804c42ed1 (else stop: someone changed it).
+   a. F == OLD (else stop: someone changed it). And the live DB key digest == NEW: read-only
+      `select value#>>'{}' from admin_config where key='GOOGLE_AI_API_KEY'` via
+      psql "postgresql://postgres.qsllyeztdwjgirsysgai@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
+      (live Virginia project; never the default MCP project), piped into sha256sum only. Else stop.
    b. `railway deployment list --json`: the newest deployment (any status) is SUCCESS and is the
       only non-REMOVED one; record it as D0. If anything is BUILDING/DEPLOYING/FAILED, wait up to
       20 min for that to settle, else stop.
-   c. Restart safety (KNOWN_QUIRKS #74): admin_config BULK_OPERATIONS has no op running/queued/
+   c. Restart safety (KNOWN_QUIRKS #74): admin_config BULK_OPERATIONS (same explicit qsllyeztdwjgirsysgai connection;
+      WORKER_HEARTBEAT in step 4 also read there) has no op running/queued/
       pending/starting, no batch_job phase submitting/ambiguous_submission, and no interrupted op
       eligible for auto-resume (transient reason + attempts under cap). 5:37 PM EDT check: none.
    d. No backup of the old value is taken (it is dead and there is no rollback to it); only its
       full sha256 digest is recorded.
 2. op_run pipes $K to `railway variable set GOOGLE_AI_API_KEY --stdin -p .. -e production -s
    popdam3` (normal deploy-triggering set — one restart, same as every push to main).
-   Reconcile by F regardless of exit code: 3c48237f28e9 = applied; 3c1804c42ed1 = not applied,
+   Reconcile by F regardless of exit code: NEW = applied; OLD = not applied,
    before any retry, reconcile deployments: if a deployment was created after the step-2 start,
    re-read F: continue from step 3 with no retry ONLY if F == NEW; if F == OLD the deployment is
    unrelated and the set did not land, so treat as not applied (below); other = stop; otherwise retry once,
@@ -129,7 +133,7 @@ Steps:
    overwrite it), record on #213.
 3. Identify the deployment: D1 = the deployment created after the step-2 start time. Bounded wait
    15 min for D1 SUCCESS and D0 REMOVED. If a further deployment (another session's push) appears,
-   take the newest one as D1 and re-assert F == 3c48237f28e9; every check below uses that ID. If
+   take the newest one as D1 and re-assert F == NEW; every check below uses that ID. If
    that unrelated deployment fails, do NOT roll back the key (the key is not the cause): stop,
    record on #213 with the deployment ID, and leave the valid new key in place.
 4. Health of D1: exactly one non-REMOVED deployment (D1, SUCCESS); `railway logs D1 --lines 200`
@@ -142,16 +146,24 @@ Steps:
 5. No key rollback on deployment failure: the worker reads GOOGLE_AI_API_KEY lazily
    (google-ai-key.ts, only on a direct-Gemini batch with an admin_config miss), so the new value
    cannot cause a startup failure, and the old value is dead anyway. If the step-2 deployment
-   fails step 3/4: read its logs, redeploy once (with check 1c first), and if it still fails record
+   fails step 3/4: read its logs, redeploy once (with check 1c and the gate first) using exactly
+   `railway redeploy -y --json -p 8645c5fe-ae60-413e-8464-508456c65365 -e production -s popdam3`
+   (redeploys the service's latest deployment, which after re-running step 1b must be the failed
+   step-2 deployment; if it is not, stop), and if it still fails record
    Blocked on #213 with the deployment ID and log excerpt. No secret-bearing file exists to keep.
 6. 1Password: edit item dykqfttarudsxhzrlsktyupq2y into a documented POINTER (coordinator
    instruction): title "Google AI (Gemini) API Key - PopDAM Railway worker env fallback (production,
-   same key as admin_config)"; keep its 8 tags; remove the empty concealed field so it holds no
+   same key as admin_config)"; keep its 8 tags; first prove the concealed field empty via op_run (its sha256 must equal
+   e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, the empty-string digest; else
+   stop), then remove that empty concealed field so it holds no
    secret and cannot diverge (single source of truth = main-key field); notes keep the full context
    (purpose, consumer, Railway IDs, NEW digest, install date, how to rotate both together) plus the
    main-key op:// ref. Not a duplicate: it stores no value. Lookup "gemini"/"google" before editing
    to confirm no other item covers it; verify with item_get (no reveal). On
    failure retry once; the item holds no secret, so a failed edit is cosmetic and recorded on #213.
+   The worker's env-fallback runtime path (google-ai-key.ts:29-45) stays unproved by design:
+   exercising it requires emptying the production DB key; it is left as the same-issue live-proof
+   checklist item below, per the standing rule.
 7. Post evidence on #213 (EDT times, signed), keeping unchecked, owned by this session:
    "- [ ] live proof: worker env-fallback branch (runs only on admin_config miss)".
 Cleanup: nothing secret is written to disk (new key moves by stdin pipes only; no old-key backup;
