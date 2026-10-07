@@ -173,20 +173,22 @@ export default function SettingsPanel({ onBack, focusSection }: Props): React.Re
       await window.popdam.saveConfig({ ...config, rootMappings });
 
       if (synologyUser && synologyPass) {
-        await window.popdam.saveSynologyCredentials({ username: synologyUser, password: synologyPass });
+        const credRes = await window.popdam.saveSynologyCredentials({ username: synologyUser, password: synologyPass });
+        if (!credRes.ok) throw new Error(credRes.error ?? "Could not save Synology credentials");
         setHasCreds(true);
         setSynologyUser("");
         setSynologyPass("");
       }
       if (seafileToken.trim()) {
-        await window.popdam.saveSeafileToken(seafileToken.trim());
+        const tokRes = await window.popdam.saveSeafileToken(seafileToken.trim());
+        if (!tokRes.ok) throw new Error(tokRes.error ?? "Could not save Seafile token");
         setSeafileToken("");
       }
       await refreshStorageHealth();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }

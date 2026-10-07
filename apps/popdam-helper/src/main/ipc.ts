@@ -55,7 +55,7 @@ export function registerIpcHandlers(): void {
       const saved = saveConfig(updates);
       return { ok: true, data: saved };
     } catch (e: unknown) {
-      return { ok: false, error: String(e) };
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
   });
 
@@ -191,9 +191,13 @@ export function registerIpcHandlers(): void {
     _event,
     { username, password }: { username: string; password: string },
   ) => {
-    await storeToken("synology_username", username);
-    await storeToken("synology_password", password);
-    return { ok: true };
+    try {
+      await storeToken("synology_username", username);
+      await storeToken("synology_password", password);
+      return { ok: true };
+    } catch (e: unknown) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
   });
 
   ipcMain.handle("has-synology-credentials", async () => {
