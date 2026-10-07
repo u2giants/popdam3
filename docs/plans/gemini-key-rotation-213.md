@@ -68,3 +68,29 @@ argv, never printed):
    evidence + Railway residual on #213.
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
+
+## Addendum v7 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
+
+Coordinator decision: reuse today's new key for the Railway worker env fallback.
+
+Inputs (exact):
+- Source: op://vibe_coding/3onekcbg3dxnazpnt36d4yzfcq/7g7toqbbme6aybbs5hfzvvwoaa
+  (field gemini_popdam_shared_supabase). Pre-check done: sha256[:12]=3c48237f28e9 (== admin_config
+  fingerprint after rotation), GET v1beta/models with x-goog-api-key -> 200.
+- Target: Railway project popdam (8645c5fe-ae60-413e-8464-508456c65365), env production
+  (70aef28e-b9f8-4aa6-b902-c9a06aec08d5), service popdam3 (f777713f-d0f8-4f9b-9685-37c9090c98ef),
+  variable GOOGLE_AI_API_KEY. Current value fingerprint 3c1804c42ed1 (dead, API_KEY_INVALID).
+- Only that one variable changes. No other variable, service, DB row, or code changes.
+
+Steps:
+1. Via 1Password op_run (value only in env, piped to stdin, never argv/printed):
+   printf '%s' "$K" | railway variable set GOOGLE_AI_API_KEY --stdin -s popdam3 -e production
+   (this triggers a redeploy of the same image/commit).
+2. Verify: railway variables --kv | GOOGLE_AI_API_KEY value sha256[:12] == 3c48237f28e9.
+3. Wait for the new deployment status SUCCESS; check deploy logs for worker startup and no crash
+   loop; worker heartbeat/poll log lines present.
+4. Rollback: the old value is dead, so rollback = redeploy the previous deployment if the new one
+   fails to start (railway redeploy of prior deployment); the env value itself is not restored.
+5. Update 1Password item dykqfttarudsxhzrlsktyupq2y: drop PLACEHOLDER from title, notes point to the
+   main-key op:// ref; leave its own concealed field empty or remove it (single source of truth).
+6. Post evidence on #213, signed.
