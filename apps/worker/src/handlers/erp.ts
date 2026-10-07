@@ -163,21 +163,27 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
           .limit(1),
       ]);
 
-      const { data: assetRows } = await client
+      const { data: assetRows, error: assetUpdateErr } = await client
         .from("assets")
         .update(updates)
         .eq("sku", erpItem.style_number)
         .eq("division_code", erpItem.division_code)
         .eq("is_deleted", false)
         .select("id");
+      if (assetUpdateErr) {
+        return { ok: false, done: false, error: `assets update failed for ${erpItem.style_number}: ${assetUpdateErr.message}` };
+      }
       assetsUpdated += assetRows?.length ?? 0;
 
-      const { data: groupRows } = await client
+      const { data: groupRows, error: groupUpdateErr } = await client
         .from("style_groups")
         .update(updates)
         .eq("sku", erpItem.style_number)
         .eq("division_code", erpItem.division_code)
         .select("id");
+      if (groupUpdateErr) {
+        return { ok: false, done: false, error: `style_groups update failed for ${erpItem.style_number}: ${groupUpdateErr.message}` };
+      }
       groupsUpdated += groupRows?.length ?? 0;
 
       const representative = currentAssets?.[0] ?? currentGroups?.[0] ?? null;
