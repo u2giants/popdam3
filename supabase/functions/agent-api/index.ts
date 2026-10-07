@@ -2096,7 +2096,11 @@ const UPDATE_STATUS_STRING_FIELDS: Record<string, number> = {
   failed_at: 40,
 };
 const UPDATE_STATUS_VALUES = new Set([
-  "updating", "restarting", "completed", "failed", "rolled_back",
+  "updating",
+  "restarting",
+  "completed",
+  "failed",
+  "rolled_back",
 ]);
 
 function sanitizeUpdateStatus(
@@ -2109,7 +2113,10 @@ function sanitizeUpdateStatus(
     if (typeof v !== "string") return `${field} must be a string`;
     // error text is truncated rather than rejected so failure reports still land
     if (v.length > maxLen) {
-      if (field === "error") { out[field] = v.slice(0, maxLen); continue; }
+      if (field === "error") {
+        out[field] = v.slice(0, maxLen);
+        continue;
+      }
       return `${field} exceeds ${maxLen} characters`;
     }
     out[field] = v;
