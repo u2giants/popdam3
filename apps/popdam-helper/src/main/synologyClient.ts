@@ -47,7 +47,12 @@ export async function login(config: SynologyConfig): Promise<string> {
 
   const sid = json.data?.sid;
   if (!sid) throw new Error("Synology login failed: missing sid");
-  await storeToken(SID_KEY, sid);
+  try {
+    await storeToken(SID_KEY, sid);
+  } catch (e) {
+    // SID caching is an optimisation only; the fresh sid is still returned.
+    log.warn(`Could not cache Synology session: ${e instanceof Error ? e.message : String(e)}`);
+  }
   return sid;
 }
 

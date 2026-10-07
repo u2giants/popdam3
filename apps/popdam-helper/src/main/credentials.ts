@@ -12,29 +12,68 @@
 
 import { safeStorage, app } from "electron";
 import { join } from "path";
-import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, renameSync, existsSync } from "fs";
 import { log } from "./logger";
 
 const STORE_PATH = join(app.getPath("userData"), "credentials.enc.json");
 
+/** Thrown when credentials cannot be saved; callers surface the message to the UI. */
+export class CredentialStoreError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CredentialStoreError";
+  }
+}
+
 function loadStore(): Record<string, string> {
+  if (!existsSync(STORE_PATH)) return {};
+  let raw: string;
   try {
-    const raw = readFileSync(STORE_PATH, "utf-8");
-    return JSON.parse(raw);
-  } catch {
+    raw = readFileSync(STORE_PATH, "utf-8");
+  } catch (e) {
+    log.error(`Credential store could not be read: ${e instanceof Error ? e.message : String(e)}`);
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+    throw new Error("not a JSON object");
+  } catch (e) {
+    // Keep the unreadable file for diagnosis instead of silently overwriting it.
+    const backup = `${STORE_PATH}.corrupt-${Date.now()}`;
+    try {
+      renameSync(STORE_PATH, backup);
+    } catch {
+      /* best effort */
+    }
+    log.error(
+      `Credential store was corrupt (${e instanceof Error ? e.message : String(e)}); moved to ${backup}. Saved sign-ins must be re-entered.`,
+    );
     return {};
   }
 }
 
+/** Atomic write: temp file in the same directory, then rename over the target. */
 function saveStore(store: Record<string, string>): void {
   mkdirSync(app.getPath("userData"), { recursive: true });
-  writeFileSync(STORE_PATH, JSON.stringify(store), "utf-8");
+  const tmp = `${STORE_PATH}.${process.pid}.tmp`;
+  try {
+    writeFileSync(tmp, JSON.stringify(store), { encoding: "utf-8", mode: 0o600 });
+    renameSync(tmp, STORE_PATH);
+  } catch (e) {
+    throw new CredentialStoreError(
+      `Could not save credentials to disk: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
 }
 
 export function storeToken(account: string, token: string): void {
   if (!safeStorage.isEncryptionAvailable()) {
-    log.warn("safeStorage encryption not available — skipping credential store");
-    return;
+    log.error(`safeStorage encryption not available — cannot store "${account}"`);
+    throw new CredentialStoreError(
+      "Secure credential storage is not available on this computer, so your sign-in cannot be saved. " +
+        "On Linux, install/unlock a keyring (Secret Service); otherwise restart the Helper and try again.",
+    );
   }
   const store = loadStore();
   store[account] = safeStorage.encryptString(token).toString("base64");
