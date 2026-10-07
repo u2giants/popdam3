@@ -23,6 +23,8 @@ test('request is bounded read-only on the one fixed production target',async()=>
  let calls=0;
  const fetchImpl=async(url,options)=>{calls++;assert.equal(url,QUERY_URL);assert.equal(options.redirect,'error');assert.deepEqual(JSON.parse(options.body),{query:'SELECT fixture',read_only:true});return new Response(JSON.stringify(rows()),{status:200});};
  assert.deepEqual(await queryCatalog('SELECT fixture','fixture-only',{fetchImpl}),rows());assert.equal(calls,1);
+ assert.deepEqual(await queryCatalog('SELECT fixture','fixture-only',{fetchImpl:async()=>new Response(JSON.stringify(rows()),{status:201})}),rows());
+ await assert.rejects(queryCatalog('SELECT fixture','fixture-only',{fetchImpl:async()=>new Response('[{"catalog":{},"catalog":{}}]',{status:201})}),fail);
  await assert.rejects(queryCatalog('SELECT fixture','bad\nkey',{fetchImpl}),fail);assert.equal(calls,1);
  for(const response of [new Response('{}',{status:403}),new Response('[{"catalog":{},"catalog":{}}]',{status:200}),new Response(JSON.stringify([{catalog:{}}]),{status:200})])await assert.rejects(queryCatalog('SELECT fixture','fixture-only',{fetchImpl:async()=>response}),fail);
  await assert.rejects(queryCatalog('SELECT fixture','fixture-only',{fetchImpl:()=>new Promise(()=>{}),timeoutMs:5}),fail);

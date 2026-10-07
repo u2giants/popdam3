@@ -65,6 +65,10 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # #2874: merged PR3707 has an immutable production-risk REVISE; preview
+    # applied the original. Claim3704 was atomically reissued, retaining this
+    # file and preview ledger. Only complete replay-safe 20261006235109 may apply.
+    "20261006211240",
     # #3911: PR #3913 merged-stranded original. Preview applied it, but its
     # production risk sign-off review recorded a durable refusal on the merged
     # head. Never apply it; promote only forward replacement 20261002222102.
@@ -252,6 +256,7 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261006211240": "merged-stranded: PR3707 head72f7383311ce293d3e5f714aca2c3f954ac8fa12 carries durable DeepSeek slot3 REVISE 84d6eda318f36dae6aa800d002e439dd3d64ee4b; preview applied it in run37544787251; production inspection at7:49PM EDT October6 proved it unapplied; retain source and preview ledger, never apply this version; claim3704 reissued through immutable retirement05d88f65c84653806fe75f99665f70c817d510d9 to complete replay-safe replacement20261006235109 under issue2874",
     "20261002204050": "merged-stranded: PR 3913 head a564ec1b2b9a424679fa1b42749351e00ba48332 carries a durable reviewer refusal on its production risk sign-off, so it can never be automatically promoted; preview applied it (run 37069288545); retain historical file and preview ledger, never apply, use re-runnable forward replacement 20261002222102 under issue 3911 (claim 3912 reissued)",
     "20260911212849": "issue 2478 original already superseded through claim 2745; retain its SQL and permanent reservation, never apply this original; use the fresh governed SKU-helper reissue",
     "20260917112129": "issue 2478 preview-only reissue has no qualifying original migration-content manifest; retain original SQL and preview ledger, never apply this version to production; use the fresh governed claim-2745 reissue with new exact-head review and rehearsal",

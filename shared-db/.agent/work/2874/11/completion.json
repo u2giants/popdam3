@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "work_issue": 2874,
+  "outcome": "ready-for-merge",
+  "pr": 4023,
+  "migration_versions": [
+    "20261006235109"
+  ],
+  "contract_ref": "refs/db-contracts/2874/11",
+  "contract_sha256": "a49ff3e5c47e9f950e62be5772e8bc6a85b23fe6817a9948efbbb6d8fb615bec",
+  "db_reads": [
+    "table dflow_prod.users",
+    "table dflow_prod.RFQItem",
+    "table dflow_prod.RFQStep",
+    "function dflow.current_designflow_user_id",
+    "function dflow.set_item_user_assignment",
+    "function dflow.record_item_workflow_action"
+  ],
+  "db_writes": [
+    "column dflow_prod.item_workflow_action.actor_identity_source",
+    "column dflow_prod.item_workflow_action.source_action_id",
+    "column dflow_prod.user_notification.workflow_action_id",
+    "function dflow_prod.current_designflow_user_id",
+    "function dflow_prod.record_item_workflow_action",
+    "function dflow_prod.reject_item_assignment_history_rewrite",
+    "function dflow_prod.reject_item_workflow_action_rewrite",
+    "function dflow_prod.set_item_user_assignment",
+    "index dflow_prod.item_user_assignment_active_lookup",
+    "index dflow_prod.item_user_assignment_assigned_by_user_id_idx",
+    "index dflow_prod.item_user_assignment_one_active",
+    "index dflow_prod.item_user_assignment_user_id_idx",
+    "index dflow_prod.item_workflow_action_actor_user_id_idx",
+    "index dflow_prod.item_workflow_action_admin_review",
+    "index dflow_prod.item_workflow_action_fallback_recipient_idx",
+    "index dflow_prod.item_workflow_action_item_time",
+    "index dflow_prod.item_workflow_action_new_step_id_idx",
+    "index dflow_prod.item_workflow_action_one_return_per_source",
+    "index dflow_prod.item_workflow_action_open_handoff_lookup",
+    "index dflow_prod.item_workflow_action_prior_step_id_idx",
+    "index dflow_prod.user_notification_action_recipient",
+    "index dflow_prod.user_notification_idempotency_key",
+    "sequence dflow_prod.item_user_assignment_id_seq",
+    "sequence dflow_prod.item_workflow_action_id_seq",
+    "table dflow_prod.item_user_assignment",
+    "table dflow_prod.item_workflow_action",
+    "table dflow_prod.user_notification",
+    "trigger item_user_assignment_immutable on dflow_prod.item_user_assignment",
+    "trigger item_workflow_action_immutable on dflow_prod.item_workflow_action",
+    "view dflow_prod.item_workflow_handoff"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "StaticSQL guards exit0, including GuardB2 against all704 read-only production ledger versions captured at the inspection: tip20261006170117. New235109 is strictly later; no production write or fabricated ledger entry occurred."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Exit0; checked final owned source and SQL/JSON whitespace."
+    },
+    {
+      "command": "Database Contract Tests on isolated ephemeral database",
+      "exit_code": 0,
+      "evidence": "Full existing workflow actual-session/refusal SQL contracts pass on direct fresh and original-plus-repeat shapes, using the existing fixture admin connection solely to establish actual session identities. Synthetic writes roll back. Committed replay/drift tests pass on fresh shape."
+    },
+    {
+      "command": "node --test scripts/proofs/shared-db-2870-observation.test.mjs scripts/proofs/shared-db-2874-observation.test.mjs",
+      "exit_code": 0,
+      "evidence": "All18 existing/new observer tests pass, zero failures/skips. RealHTTP201 acceptance and malformed201 refusal are exercised; existing2810 producer remains unchanged."
+    },
+    {
+      "command": "Old migration then new migration replay twice on isolated PostgreSQL with unchanged exact catalog fingerprints",
+      "exit_code": 0,
+      "evidence": "On isolated codex_2875_exact, original workflow migration followed by the strengthened successor and repeat successor each committed successfully. Full actual-session workflow/refusal contracts pass after repeat. Canonical four-relation fingerprint and five stored body hashes remain unchanged."
+    },
+    {
+      "command": "New migration directly on isolated production-shaped pre-2874 baseline with full workflow and access-refusal contracts",
+      "exit_code": 0,
+      "evidence": "Fresh isolated codex_2874_reissue_closed restored the pre2874 schema-only baseline; strengthened235109 applied directly. Full actual-session workflow/refusal contracts and repeated/negative replay suite pass."
+    },
+    {
+      "command": "node --test scripts/proofs/shared-db-2874-observation.test.mjs (HTTP201 positive and malformed refusal)",
+      "exit_code": 0,
+      "evidence": "All18 existing/new observer tests pass, zero failures/skips. RealHTTP201 acceptance and malformed201 refusal are exercised; existing2810 producer remains unchanged."
+    },
+    {
+      "command": "supabase/tests/dflow_prod_workflow_reissue_contracts.sql: repeated replay succeeds; missing notification FK and extra assignment constraint each produce the exact reissue refusal and roll back",
+      "exit_code": 0,
+      "evidence": "Committed SQL suite: two positive replays; dropped notification FK, extra assignment constraint, renamed users.status and BYDEFAULT identity each cause exactP0001 refusal; rollback restores valid shape; deliberate anon sequence grant is revoked and verified; final replay succeeds."
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_migration_guard: original version refused alone and with successor; classified retired whether present or absent; only complete successor remains promotable",
+      "exit_code": 0,
+      "evidence": "All293 production-guard tests pass, also included in the full1415-test suite. Original21240 refuses alone/with235109 and is retired whether ledger-present or absent; successor-only allowlist accepts."
+    },
+    {
+      "command": "PYTHONPATH=scripts python3 -m unittest discover -s scripts -p test_*.py: full offline suite",
+      "exit_code": 0,
+      "evidence": "Full offline Python suite: Ran1415 tests in13.725s, OK(skipped=19). Existing environment-dependent skips are retained. The post-batch retired inventory now includes original21240; the prior sole CI failure is reproduced and corrected."
+    },
+    {
+      "command": "Supabase pinned PostgreSQL: exact seven dependency columns and three auth signatures; identity type/name/ownership; public/client sequence denial; deliberate dependency rename and identity drift refusal",
+      "exit_code": 0,
+      "evidence": "Pinned Supabase postgres17.6.1.171, actual postgres connection: exact seven dependency columns, three auth signatures, two ALWAYS bigint identities with exact internal sequence ownership/settings and closed effective client ACLs pass. Wrong dependency/identity cases refuse; temporary client counter grant is removed. No case or fingerprint was relaxed."
+    }
+  ],
+  "assumptions_resolved": [
+    "Atomic merged-stranded retirement preserved original21240; explicit production guard retires/refuses it and admits only complete replacement235109.",
+    "Production metadata inspection confirmed critical dependency types/nullability/identity, auth zero-argument STABLE invoker signatures and no postgres default grants for global/dflow_prod scope. Effective null table/sequence ACLs are owner-only, never implicit PUBLIC table grants.",
+    "Current claim3704 was expanded from the exact issue to both explicitly named identity sequences. Public/client sequence revokes preserve the already-closed boundary; no application runtime grant is introduced.",
+    "Full1415-test Python suite passes with19 existing environment skips; all focused real-database contracts and18 observer tests pass. Full remote CI, independent source reviews, exact-merged-main production risk assessment, automatic application and Uma-owned app acceptance remain required.",
+    "DispatchObjectKeys now derives all30 exact declared writes: each sequence revoke is a separate explicit statement. Committed replay/refusal contracts passed again after this equivalent spelling change; no scope guard was bypassed or modified."
+  ],
+  "stop_conditions_hit": [],
+  "head_sha": "be67e8464795ed3b358a7d44821c59ea14683d45",
+  "base_sha": "93b58ea6f6afa4b50c40e5f89629cf659ec66357",
+  "files_changed": [
+    "scripts/production_migration_guard.py",
+    "scripts/proofs/shared-db-2874-observation.test.mjs",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20261006235109_dflow_prod_backend_workflow_parity.sql",
+    "supabase/tests/dflow_prod_workflow_reissue_contracts.sql"
+  ]
+}

@@ -274,6 +274,7 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(
             HARD_BLOCKED,
             {
+                "20261006211240",
                 "20261002204050",
                 "20260911212849",
                 "20260917112129",
@@ -358,6 +359,14 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(parse_allowlist("20261002222102"), ["20261002222102"])
         for applied in (set(), {"20261002204050"}):
             self.assertEqual(classify_pending_version("20261002204050", applied, REPO)["kind"], "retired")
+
+    def test_workflow_parity_refused_original_is_retired(self) -> None:
+        for allowlist in ("20261006211240", "20261006211240,20261006235109"):
+            with self.subTest(allowlist=allowlist), self.assertRaisesRegex(GuardError, "20261006211240"):
+                parse_allowlist(allowlist)
+        self.assertEqual(parse_allowlist("20261006235109"), ["20261006235109"])
+        for applied in (set(), {"20261006211240"}):
+            self.assertEqual(classify_pending_version("20261006211240", applied, REPO)["kind"], "retired")
 
     def test_character_alias_mismatched_original_is_retired(self) -> None:
         for allowlist in ("20260906222338", "20260906222338,20260911152203"):
