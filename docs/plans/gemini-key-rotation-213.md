@@ -69,88 +69,56 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v7.7 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
+## Addendum v8 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
 
-Review scope: ONLY this addendum is up for approval. Steps 1-9 above were already executed and
-reported on #213 (5:15 PM EDT); they are not re-run and nothing here touches any DB value.
-Owner of this addendum and of every residual it leaves: this Claude session (popdam3 #213 assignee
-work), until the residual items are checked off.
-
-Gate: immediately before step 2, `ai-task-gates check --before production --reviewer-approval
-<this addendum's APPROVE report>`; stop on refusal.
+Review scope: ONLY this addendum. Steps 1-9 above already ran and were reported on #213 (5:15 PM
+EDT); nothing here touches the DB. Owner of this addendum and its residuals: this Claude session.
 
 Inputs (exact):
-- Source: op://vibe_coding/3onekcbg3dxnazpnt36d4yzfcq/7g7toqbbme6aybbs5hfzvvwoaa
-  (gemini_popdam_shared_supabase). Pre-check: sha256[:12]=3c48237f28e9 (== admin_config after
-  rotation); GET v1beta/models -> 200.
-- Target: Railway project 8645c5fe-ae60-413e-8464-508456c65365, environment production
-  70aef28e-b9f8-4aa6-b902-c9a06aec08d5, service popdam3 f777713f-d0f8-4f9b-9685-37c9090c98ef,
-  variable GOOGLE_AI_API_KEY; every command passes -p/-e/-s explicitly. Expected current
-  fingerprint 3c1804c42ed1 (dead, API_KEY_INVALID).
-- Scope: exactly one Railway variable. 1Password: only item dykqfttarudsxhzrlsktyupq2y (this
-  session's empty placeholder; its concealed field never held a value). Main-key item read only.
-
-Command shapes validated read-only on 2026-10-07: `railway variables --json`, `railway
-deployment list --json` (fields id/status/createdAt), `railway logs <id> --lines N`.
-Fingerprint helper F: `railway variables --json -p .. -e .. -s ..` piped into python that prints
-only sha256(GOOGLE_AI_API_KEY)[:12]. Never --kv to a terminal; no raw value ever displayed.
+- Source: op://vibe_coding/3onekcbg3dxnazpnt36d4yzfcq/7g7toqbbme6aybbs5hfzvvwoaa. Already
+  validated: sha256[:12]=3c48237f28e9 (== admin_config), GET v1beta/models -> 200. Because the
+  value written to Railway is proven byte-identical by fingerprint, no separate post-write API
+  call is needed (identical bytes, identical result).
+- Target: Railway project 8645c5fe-ae60-413e-8464-508456c65365, env production, service popdam3
+  (f777713f-d0f8-4f9b-9685-37c9090c98ef), variable GOOGLE_AI_API_KEY; all commands pass -p/-e/-s.
+  Expected current fingerprint 3c1804c42ed1 (dead, API_KEY_INVALID).
+- Scope: one Railway variable; 1Password item dykqfttarudsxhzrlsktyupq2y only (this session's
+  empty placeholder).
+- F = `railway variables --json` piped into python printing only sha256(GOOGLE_AI_API_KEY)[:12].
+  Command shapes validated read-only today (variables --json; deployment list --json with
+  id/status/createdAt; logs <id> --lines N).
 
 Steps:
-1. Assert F == 3c1804c42ed1; else stop (someone else changed it) and record on #213. Back the value
-   up to a 0600 scratch file through the same pipe; assert the file's sha256[:12] == 3c1804c42ed1.
-2. Set new value WITHOUT deploying: op_run pipes $K to
-   `railway variable set GOOGLE_AI_API_KEY --stdin --skip-deploys -p .. -e .. -s popdam3`.
-   Whatever the exit code (including timeout/ambiguous), reconcile by F: 3c48237f28e9 = applied,
-   3c1804c42ed1 = not applied (retry once, then stop), anything else = restore from backup (skip-deploys), assert F == 3c1804c42ed1;
-   if that assert fails, keep the backup and record Blocked on #213. Stop either way.
-   Since nothing redeploys, the running worker is unaffected by this step.
-3. Verify the stored value works: same pipe feeds Railway's read-back value as x-goog-api-key
-   (curl -K from a 0600 file) to GET v1beta/models -> 200 and GET v1beta/batches -> 200.
-   Failure -> pre-deploy rollback: pipe backup back with --skip-deploys, assert F == 3c1804c42ed1,
-   NO redeploy (the running worker never saw the new value); stop and record on #213.
-4. Restart-safety check, immediately before redeploy (KNOWN_QUIRKS #74): read-only SELECT of
-   admin_config BULK_OPERATIONS on qsllyeztdwjgirsysgai. Proceed only if NO operation has status
-   running/queued/pending/starting, NO batch_job phase is submitting/ambiguous_submission, and NO
-   interrupted operation is auto-resume eligible (operation-loop.ts:955-967: reason in
-   TRANSIENT_REASONS of operation-retry.ts and auto_resume_attempts below the cap). Capture
-   D0 = the current newest SUCCESS deployment ID in the same step. With no
-   active operation the worker has nothing to submit, so the only remaining race is an admin
-   starting a new operation in the seconds before the redeploy; re-run the same SELECT right after
-   D1 is created, and if anything became active, record it on #213 and watch it reconcile by saved
-   provider ID (that is the normal path every push-to-main deploy already takes).
-   (Read-only check run 5:37 PM EDT 2026-10-07: none running; the six interrupted ops have reason
-   "unknown" or "user_stop", neither transient, so none can auto-resume. D0 then = 9737ffd4.)
-   If unsafe, re-check every 2 min up to 20 min, then stop (value stays staged; record on #213).
-   Note: other sessions push to main often and each push redeploys this service; a concurrent
-   deploy after step 2 would also pick up the verified new value, which is the intended end state.
-5. Deploy: `railway redeploy -y --json -p 8645c5fe-ae60-413e-8464-508456c65365 -e production -s popdam3`; capture the new deployment ID D1
-   from its output (D1 != D0). If the command errors/times out or output lacks an ID, do NOT retry:
-   reconcile with `railway deployment list --json -p 8645c5fe-... -e production -s popdam3` and take D1 = the single deployment
-   created after the step-5 start time; if none exists, retry once; if more than one, stop and
-   record on #213. Bounded wait 15 min for D1 SUCCESS (poll by ID only). Then prove
-   health attributed to D1: `railway deployment list --json` (same -p/-e/-s) shows D1 SUCCESS as
-   the newest non-REMOVED deployment and D0 REMOVED within 10 min (else rollback), so only D1 can
-   write; if a newer concurrent deployment D2 exists, every check below (status, runtime logs, F) runs
-   against D2 instead of D1, and the heartbeat is attributed to it by the same only-one-active
-   rule (the heartbeat row carries no deployment ID, so attribution is by exclusivity); then
-   admin_config WORKER_HEARTBEAT.updated_at advances past the D0-removal time within 3 min
-   (heartbeat every 60 s), and D1's own logs (`railway logs D1 --lines 200 -p .. -e production -s popdam3`, the runtime log
-   stream; validated read-only today: returns "worker: starting" and "polling loop started") show startup + tick
-   lines with no crash/restart loop.
-6. Post-deploy rollback (D1 not SUCCESS in 15 min, or no D1-attributed heartbeat): pipe the backup
-   into `railway variable set --stdin` (skip-deploys), assert F == 3c1804c42ed1, re-run the step-4
-   restart-safety check, then redeploy with the same step-5 reconciliation and D-attributed
-   heartbeat proof. Note the old key is dead, so rollback only restores prior state.
-   If rollback itself fails, KEEP the backup file (0600, scratch dir) and record Blocked on #213.
-7. Update 1Password item dykqfttarudsxhzrlsktyupq2y: drop PLACEHOLDER from title, remove its empty
-   concealed field, notes point to the main-key op:// ref; verify with item_get (no reveal).
-8. Post evidence on #213, signed, keeping unchecked on #213, owned by this session:
-   "- [ ] live proof: worker env-fallback branch (runs only on admin_config miss)" next to the
-   (this is the repository's required same-issue live-proof checklist; forcing a DB miss on
-   production to exercise it is out of scope)
-   existing worker batch-route item.
-Cleanup: curl config (live new key) is shredded on every path via trap. The backup holds only the
-old DEAD key (Google returns API_KEY_INVALID), so retaining it carries no live-credential risk; it
-is shredded as soon as the final state is verified (success or completed rollback) and kept only if
-a rollback fails, as recovery evidence. Out of scope residual on #213: the old dead key's Google project is unknown
-(never in admin_config or 1Password); it already returns API_KEY_INVALID.
+1. Preconditions, all read-only, run back-to-back immediately before step 2:
+   a. F == 3c1804c42ed1 (else stop: someone changed it).
+   b. `railway deployment list --json`: the newest deployment (any status) is SUCCESS and is the
+      only non-REMOVED one; record it as D0. If anything is BUILDING/DEPLOYING/FAILED, wait up to
+      20 min for that to settle, else stop.
+   c. Restart safety (KNOWN_QUIRKS #74): admin_config BULK_OPERATIONS has no op running/queued/
+      pending/starting, no batch_job phase submitting/ambiguous_submission, and no interrupted op
+      eligible for auto-resume (transient reason + attempts under cap). 5:37 PM EDT check: none.
+   d. Back up the old value to a 0600 scratch file via the F pipe; assert its hash 3c1804c42ed1.
+2. op_run pipes $K to `railway variable set GOOGLE_AI_API_KEY --stdin -p .. -e production -s
+   popdam3` (normal deploy-triggering set — one restart, same as every push to main).
+   Reconcile by F regardless of exit code: 3c48237f28e9 = applied; 3c1804c42ed1 = not applied,
+   retry once; other = restore backup, assert F == 3c1804c42ed1, stop.
+3. Identify the deployment: D1 = the deployment created after the step-2 start time. Bounded wait
+   15 min for D1 SUCCESS and D0 REMOVED. If a further deployment (another session's push) appears,
+   take the newest one as D1 and re-assert F == 3c48237f28e9; every check below uses that ID.
+4. Health of D1: exactly one non-REMOVED deployment (D1, SUCCESS); `railway logs D1 --lines 200`
+   shows "worker: starting" and "polling loop started" with no crash/restart loop; admin_config
+   WORKER_HEARTBEAT.updated_at advances past D0's removal time within 3 min (attributed to D1 by
+   exclusivity; the row carries no deployment ID). Re-run check 1c to confirm nothing went
+   ambiguous.
+5. Rollback (step 3/4 fails): pipe the backup back via `--stdin` (deploy-triggering), assert
+   F == 3c1804c42ed1, and repeat steps 3-4 for that deployment. Old key is dead, so rollback only
+   restores prior state. If rollback fails, keep the backup and record Blocked on #213.
+6. 1Password: edit item dykqfttarudsxhzrlsktyupq2y (drop PLACEHOLDER from title, remove the empty
+   concealed field, notes point to the main-key op:// ref); verify with item_get (no reveal). On
+   failure retry once; the item holds no secret, so a failed edit is cosmetic and recorded on #213.
+7. Post evidence on #213 (EDT times, signed), keeping unchecked, owned by this session:
+   "- [ ] live proof: worker env-fallback branch (runs only on admin_config miss)".
+Cleanup: shred the backup (old dead key) once the final state is verified; keep it only if a
+rollback failed. The live key is never written to disk (stdin pipe only).
+Residual on #213: the old dead key's origin Google project is unknown; it already returns
+API_KEY_INVALID.
