@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {queryFreshRecoveryCatalog} from './query-completed-claim-catalog.mjs';
+import {RECOVERY_SQL,expectedRecoveryCatalog} from './lib/lanes/completed-claim-recovery.mjs';
+import {QUERY_URL} from './proofs/shared-db-2870-observation.mjs';
+const rows=[{catalog:expectedRecoveryCatalog,observed_at:'2026-10-07T22:00:00Z'}];
+const response=x=>new Response(JSON.stringify(x),{status:200});
+test('fixed endpoint only observes catalog/ledger in read-only mode',async()=>{let sent;const got=await queryFreshRecoveryCatalog('opaque-token',{fetchImpl:async(url,o)=>{assert.equal(url,QUERY_URL);sent=o;return response(rows)}});assert.equal(got.project_ref,'qsllyeztdwjgirsysgai');assert.equal(got.observed_at,rows[0].observed_at);assert.deepEqual(JSON.parse(sent.body),{query:RECOVERY_SQL,read_only:true});assert.equal(sent.redirect,'error');assert.match(RECOVERY_SQL,/clock_timestamp\(\)/)});
+for(const [name,value] of [['missing installed version',[{...rows[0],catalog:{...expectedRecoveryCatalog,installed:false}}]],['duplicate result',[...rows,...rows]],['extra field',[{...rows[0],secret:'unexpected'}]],['wrong nullable',[{...rows[0],catalog:{...expectedRecoveryCatalog,columns:[]}}]],['invalid timestamp',[{...rows[0],observed_at:'bad'}]]])test(`catalog refuses ${name}`,async()=>assert.rejects(queryFreshRecoveryCatalog('opaque-token',{fetchImpl:async()=>response(value)}),/CATALOG_REFUSED/));
+test('redirect and provider refusal never disclose token',async()=>{await assert.rejects(queryFreshRecoveryCatalog('opaque-token',{fetchImpl:async()=>({status:302,redirected:true})}),/CATALOG_REFUSED/);await assert.rejects(queryFreshRecoveryCatalog('opaque-token',{fetchImpl:async()=>{throw Error('opaque-token')}}),e=>e.message==='COMPLETED_CLAIM_CATALOG_REFUSED')});
+test('missing/multiline credential refuses before network',async()=>{for(const token of ['',undefined,'a\nb'])await assert.rejects(queryFreshRecoveryCatalog(token,{fetchImpl:async()=>{assert.fail('network called')}}),/CATALOG_REFUSED/)});

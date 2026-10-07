@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import {hostname} from 'node:os'
+import {parseStrictJson} from './proofs/shared-db-2870-observation.mjs'
+import {recoveryCodeUnchangedAt} from './lib/claim-recovery-dependencies.mjs'
+import {recoverCompletedForeignClaim,recoveryDigest,RECOVERY_CODE_PATHS} from './lib/lanes/completed-claim-recovery.mjs'
 import { createStageEvidenceVerifier } from './lib/work-stage-evidence.mjs'
 import { resolveEvidencePair, isEvidencePath } from './lib/agent-evidence-paths.mjs'
 import { contractHash, validateContract, validateCompletionReport, validatePullRequestCompletion, reconcileReportWithContract } from './agent-work-contract.mjs'
@@ -4283,6 +4287,10 @@ function parseArgs(argv) {
     else if (a === '--archive-threshold') out.archiveThreshold = Number(argv[++i])
     else if (a === '--reviewer-preflight') out.reviewerPreflight = true
     else if (a === '--cleanup-stale') out.cleanup = true
+    else if (a === '--recover-completed-claim') out.recoverCompletedClaim = Number(next(i++))
+    else if (a === '--recovery-review-issue') out.recoveryReviewIssue = Number(next(i++))
+    else if (a === '--recovery-review-pr') out.recoveryReviewPr = Number(next(i++))
+    else if (a === '--recovery-review-head') out.recoveryReviewHead = next(i++)
     else if (a === '--release-claim') out.releaseClaim = next(i), i++
     // #2301 Step 3. --retire is a MODIFIER on --release-claim, never a primary
     // operation of its own: retirement is a kind of release, and making it a
@@ -4341,7 +4349,7 @@ export function main(argv, now = new Date(), io = githubIo) {
   try {
     const o = parseArgs(argv)
     if(String(process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING??'').trim())io=withMergedPrIssueBinding(io,process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING)
-    const primaryKeys=['proposeTrain','validateTrain','authorizeTrain','dispatchTrain','closeTrain','verifyTrainDispatch','authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','abandonmentAudit','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','recoverSplit','expandClaim','expandClaimFromIssue','renewClaim','recoverExpiredClaim','relinquishAuthorLease','resumeAuthorLease','repairResumedClaim','reissueMergedClaim','reversionClaim','rebindClaimWorktree','transferClaimAuthor','replaceFailedReviewer','releaseFailedReviewer','probeSilentReviewer','reclaimSilentReviewer','reapAbandonedReviewLeases','archiveOldReviewVerdicts','reviewerCapacity','reviewerStartWatchLeases','excludeReviewer','reinstateReviewerExclusion','reviewerPreflight','deliveryPreflight','assignReviewer','activateReviewCutover','acquireExclusive','releaseExclusive','acquirePromotionFreeze','releasePromotionFreeze','claim','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','setScopeStatus','releaseClaim','releaseDuplicateClaim','cleanup','audit']
+    const primaryKeys=['proposeTrain','validateTrain','authorizeTrain','dispatchTrain','closeTrain','verifyTrainDispatch','authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','abandonmentAudit','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','recoverSplit','expandClaim','expandClaimFromIssue','renewClaim','recoverExpiredClaim','relinquishAuthorLease','resumeAuthorLease','repairResumedClaim','reissueMergedClaim','reversionClaim','rebindClaimWorktree','transferClaimAuthor','replaceFailedReviewer','releaseFailedReviewer','probeSilentReviewer','reclaimSilentReviewer','reapAbandonedReviewLeases','archiveOldReviewVerdicts','reviewerCapacity','reviewerStartWatchLeases','excludeReviewer','reinstateReviewerExclusion','reviewerPreflight','deliveryPreflight','assignReviewer','activateReviewCutover','acquireExclusive','releaseExclusive','acquirePromotionFreeze','releasePromotionFreeze','claim','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','setScopeStatus','recoverCompletedClaim','releaseClaim','releaseDuplicateClaim','cleanup','audit']
     const selectedPrimary=primaryKeys.filter((key)=>Object.prototype.hasOwnProperty.call(o,key))
     const hasAdmission=Object.prototype.hasOwnProperty.call(o,'admitIssue')
     if(selectedPrimary.length>1)throw new LaneError(`choose exactly one primary operation; received ${selectedPrimary.join(', ')}`)
@@ -4693,6 +4701,46 @@ export function main(argv, now = new Date(), io = githubIo) {
       console.log(JSON.stringify(published, null, 2))
       console.error(`Completion recorded on #${o.issue} as ${published.outcome}. You may now close the issue.`)
       return 0
+    }
+    if(o.recoverCompletedClaim){
+      if(!o.reportFile)throw new LaneError('--recover-completed-claim requires --report-file <reviewed manifest>')
+      const manifest=parseStrictJson(readFileSync(o.reportFile,'utf8'))
+      if(manifest.claim!==o.recoverCompletedClaim)throw new LaneError('recovery command claim differs from manifest')
+      const result=withAuthorMutex('claim-release',io,o,(ownerSha)=>recoverCompletedForeignClaim(manifest,{now,reviewIssue:o.recoveryReviewIssue,reviewPr:o.recoveryReviewPr,reviewHeadSha:o.recoveryReviewHead},{...io,
+        repository:REPO,
+        assertMutex:()=>requireOwnedRef(MUTEX_REF,ownerSha,io),
+        clock:()=>new Date(),
+        machineName:()=>hostname(),
+        recoveryCodeUnchanged(toolSha,mainSha){
+          return recoveryCodeUnchangedAt({toolSha,mainSha,extraPaths:RECOVERY_CODE_PATHS,readOnlyGit:args=>execFileSync('git',args,{encoding:'utf8',stdio:['ignore','pipe','pipe']})})
+        },
+        sessionAuthority:()=>io.orchestratorFlowAdapter().resolveMarker(),
+        recoverySnapshot(sha){
+          if(execFileSync('git',['cat-file','-t',sha],{encoding:'utf8'}).trim()!=='commit')return null
+          const names=execFileSync('git',['ls-tree','-r','--name-only',sha],{encoding:'utf8'}).trim().split('\n')
+          if(names.sort().join('|')!=='catalog.json|pending.patch|pending.sql')return null
+          return Object.fromEntries(names.map(name=>[name,execFileSync('git',['show',`${sha}:${name}`],{encoding:'utf8'})]))
+        },
+        foreignSnapshot(worktree,path){
+          const status=execFileSync('git',['-C',worktree,'status','--porcelain','--untracked-files=all'],{encoding:'utf8'}).split('\n').filter(Boolean)
+          return {changedPaths:status.filter(x=>!x.startsWith('??')).map(x=>x.slice(3)),untracked:status.filter(x=>x.startsWith('??')),sql:readFileSync(`${worktree}/${path}`,'utf8'),patch:execFileSync('git',['-C',worktree,'diff','--binary','--',path],{encoding:'utf8'})}
+        },
+        sourceMigration(sha,path){return execFileSync('git',['show',`${sha}:${path}`],{encoding:'utf8'})},
+        reviewedManifestMatches({reviewIssue,reviewPr,reviewHeadSha,manifest}){
+          const scope=parseQueueScope(io.getIssue(reviewIssue)?.body??'')
+          if(scope?.workType!=='repo-maintenance')return false
+          const linked=io.closingIssuesForPr(reviewPr)
+          if(linked.length!==1||Number(linked[0].number)!==reviewIssue)return false
+          const pr=io.getPr(reviewPr)
+          if(pr.head?.sha!==reviewHeadSha)return false
+          assertDurableReviewApproval(reviewIssue,reviewPr,reviewHeadSha,io)
+          const record=io.getFileAt(`config/completed-claim-recovery/${manifest.claim}.json`,reviewHeadSha)
+          return recoveryDigest(JSON.stringify(parseStrictJson(record)))===recoveryDigest(JSON.stringify(manifest))
+        },
+        freshRecoveryCatalog(){return JSON.parse(execFileSync(process.execPath,['scripts/query-completed-claim-catalog.mjs'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}))},
+        readRecoveryReceipt(sha){const message=io.getCommit(sha)?.message??'';const prefix='db-coordination completed-foreign-claim-release ';if(!message.startsWith(prefix))throw new LaneError('invalid recovery receipt');return JSON.parse(message.slice(prefix.length))},
+      }))
+      console.log(JSON.stringify(result,null,2));return 0
     }
     if (o.releaseClaim) {
       if (!o.confirmFinished || !o.owner) throw new LaneError('--release-claim requires exact --owner and --confirm-finished')
