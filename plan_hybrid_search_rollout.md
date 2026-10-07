@@ -50,7 +50,7 @@ PopDAM is POP Creations’ internal digital-asset manager for licensed consumer-
 - Database: the shared Supabase project `qsllyeztdwjgirsysgai`; all structural changes are canonical shared-db migrations.
 - Runtime feature/config state: `public.admin_config`, managed through authenticated application workflows rather than ad-hoc production SQL.
 
-Read `AGENTS.md`, `CLAUDE.md`, this plan’s STATUS table, `fix_search.md` §§1–2, `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md`, `docs/configuration.md`, and the current `/worksp/shared-db/AGENTS.md` before execution. Re-read downstream phases before each context cut because these files and production state can drift.
+Read `AGENTS.md`, `CLAUDE.md`, this plan’s STATUS table, `docs/archive/fix_search.md` §§1–2, `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md`, `docs/configuration.md`, and the current `/worksp/shared-db/AGENTS.md` before execution. Re-read downstream phases before each context cut because these files and production state can drift.
 
 ## 3. What triggered this work
 
@@ -85,7 +85,7 @@ Reproduction of today’s business gap must be performed in Step 1 against live 
 ### NOT in this plan
 
 - Image/CLIP embeddings, image-to-image similarity, a second vector column/table, GPU/API selection, or “find visually similar.” Write a separate costed proposal only; implementation requires Albert’s explicit approval.
-- AI-tag confidence, review queues, high-resolution image retries, prompt consolidation, character facets, or group-tag propagation policy redesign from later sections of `fix_search.md`.
+- AI-tag confidence, review queues, high-resolution image retries, prompt consolidation, character facets, or group-tag propagation policy redesign from later sections of `docs/archive/fix_search.md`.
 - Changing the `gte-small` model or vector dimension without a separate compatibility/migration decision.
 - Collecting click telemetry during the initial launch. Step 10 is optional and may begin only after Albert approves retention and scope.
 - Direct production SQL, Dashboard edits, app-repo migrations, or a live server edit.
@@ -105,7 +105,7 @@ These are repository observations from 2026-08-24, not proof of current producti
 - `src/lib/dam-search.ts:12-25` reads and parses `admin_config.SEARCH_MODE`, accepting only `keyword` or `hybrid` and defaulting to keyword.
 - `src/lib/dam-search.ts:27-65` calls `dam-search-ai` in hybrid mode and silently falls back to the keyword callback on edge-function failure.
 - `src/hooks/useAssets.ts:100-143` and `src/hooks/useStyleGroups.ts:124-167` route searches through `fetchSearchIds` and preserve keyword RPC fallback behavior.
-- `src/hooks/useAssets.ts:267-283` and `src/hooks/useStyleGroups.ts:256-283` already skip database column ordering/ranging in relevance mode, then call `sortByRank(...).slice(...)`. The old `fix_search.md` §1d claim that relevance is currently discarded is stale.
+- `src/hooks/useAssets.ts:267-283` and `src/hooks/useStyleGroups.ts:256-283` already skip database column ordering/ranging in relevance mode, then call `sortByRank(...).slice(...)`. The old `docs/archive/fix_search.md` §1d claim that relevance is currently discarded is stale.
 - Both hooks use `FULL_TEXT_SEARCH_LIMIT = 500` (`src/hooks/useAssets.ts:10`, `src/hooks/useStyleGroups.ts:52`), so client-side relevance pagination has a hard 500-result ceiling.
 - `src/test/dam-search.test.ts:10-48` covers edge-result mapping, rank ordering, keyword default, and keyword routing, but not the complete fallback/security/pagination contract.
 - `apps/worker/src/operation-loop.ts:46-84`, `:96-125`, `:275-303`, and `:320-350` define operation lanes, progress, result text, and dispatch. The main loop at `:595-850` already supports stop, revision-safe persistence, restart recovery, and failure kill switches.
@@ -371,7 +371,7 @@ This phase is not required to close the safe hybrid-search launch. Before starti
 ### Step 11 — Documentation, landing, and retirement
 
 1. Keep this STATUS table current after every executed step; never let “current state” describe the pre-change system.
-2. Correct `fix_search.md` §§1–2, especially stale §1d; do not mark unrelated recommendations complete.
+2. Correct `docs/archive/fix_search.md` §§1–2, especially stale §1d; do not mark unrelated recommendations complete.
 3. Update `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md`, `docs/configuration.md`, and `docs/architecture.md` with the final implemented contract, configuration defaults, status/error semantics, rollback, and deployed path.
 4. Update canonical shared-db docs required by its rulebook. Do not duplicate companywide rules into PopDAM.
 5. Run focused and full checks, inspect owned diff, stage only owned files, commit directly to PopDAM `main`, and push `origin main` then `github main`. Resolve non-fast-forward only with the documented safe `git rebase --autostash` procedure after fresh status/stash snapshots.

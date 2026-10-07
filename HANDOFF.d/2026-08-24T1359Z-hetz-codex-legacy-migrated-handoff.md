@@ -6,7 +6,7 @@ Read `AGENTS.md` first. This file is self-contained — a developer with **zero 
 
 > **AI-tagging statement timeout remediated (2026-07-14):** the definitive
 > diagnosis and implementation contract are in
-> [`fix_statement_timeout.md`](fix_statement_timeout.md). Shared-db PR
+> [`fix_statement_timeout.md`](../docs/archive/fix_statement_timeout.md). Shared-db PR
 > [#64](https://github.com/u2giants/shared-db/pull/64) merged as `fadebce`;
 > migrations `20260714180000` and `20260714180100` are present in both preview
 > and production ledgers. Preview used a rollback-only 120k-asset fixture:
@@ -769,7 +769,7 @@ credential prefix. Full detail: `docs/MCP_SERVERS.md` (2026-07-14 note) and the
 ## 9. AI Tagging — image resolution sent to vision models (2026-07-14)
 
 Sibling workstream to §8. Full detail lives in
-[`HANDOFF_ai_tag_image_resolution.md`](HANDOFF_ai_tag_image_resolution.md).
+[`HANDOFF_ai_tag_image_resolution.md`](../docs/archive/HANDOFF_ai_tag_image_resolution.md).
 
 Short version: every vision call sends the **800px q85 thumbnail**; `fit:"inside"`
 caps only the longest edge, so wide/tall art (banners, style guides, tech packs)
