@@ -69,7 +69,7 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v7.5 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
+## Addendum v7.6 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
 
 Review scope: ONLY this addendum is up for approval. Steps 1-9 above were already executed and
 reported on #213 (5:15 PM EDT); they are not re-run and nothing here touches any DB value.
@@ -90,6 +90,8 @@ Inputs (exact):
 - Scope: exactly one Railway variable. 1Password: only item dykqfttarudsxhzrlsktyupq2y (this
   session's empty placeholder; its concealed field never held a value). Main-key item read only.
 
+Command shapes validated read-only on 2026-10-07: `railway variables --json`, `railway
+deployment list --json` (fields id/status/createdAt), `railway logs <id> --lines N`.
 Fingerprint helper F: `railway variables --json -p .. -e .. -s ..` piped into python that prints
 only sha256(GOOGLE_AI_API_KEY)[:12]. Never --kv to a terminal; no raw value ever displayed.
 
@@ -107,19 +109,27 @@ Steps:
    Failure -> pre-deploy rollback: pipe backup back with --skip-deploys, assert F == 3c1804c42ed1,
    NO redeploy (the running worker never saw the new value); stop and record on #213.
 4. Restart-safety check, immediately before redeploy (KNOWN_QUIRKS #74): read-only SELECT of
-   admin_config BULK_OPERATIONS on qsllyeztdwjgirsysgai; proceed only if no batch job phase is
-   "submitting" or "ambiguous_submission". Record latest deployment ID D0. If unsafe, re-check
-   every 2 min up to 20 min, then stop (value stays staged, harmless; record on #213).
-   Residual: seconds between this read and the redeploy; the worker's saved-provider-ID resume
-   design (#74) covers every phase except a submission in that window.
-5. Deploy: `railway redeploy -y --json -p .. -e .. -s popdam3`; capture the new deployment ID D1
+   admin_config BULK_OPERATIONS on qsllyeztdwjgirsysgai. Proceed only if NO operation has status
+   running/queued/pending/starting AND no batch_job phase is submitting/ambiguous_submission. With no
+   active operation the worker has nothing to submit, so the only remaining race is an admin
+   starting a new operation in the seconds before the redeploy; re-run the same SELECT right after
+   D1 is created, and if anything became active, record it on #213 and watch it reconcile by saved
+   provider ID (that is the normal path every push-to-main deploy already takes).
+   (Read-only check run 21:37 UTC: every operation idle/completed/interrupted/failed; none active.)
+   If unsafe, re-check every 2 min up to 20 min, then stop (value stays staged; record on #213).
+   Note: other sessions push to main often and each push redeploys this service; a concurrent
+   deploy after step 2 would also pick up the verified new value, which is the intended end state.
+5. Deploy: `railway redeploy -y --json -p 8645c5fe-ae60-413e-8464-508456c65365 -e production -s popdam3`; capture the new deployment ID D1
    from its output (D1 != D0). If the command errors/times out or output lacks an ID, do NOT retry:
-   reconcile with `railway deployment list --json -s popdam3` and take D1 = the single deployment
+   reconcile with `railway deployment list --json -p 8645c5fe-... -e production -s popdam3` and take D1 = the single deployment
    created after the step-5 start time; if none exists, retry once; if more than one, stop and
    record on #213. Bounded wait 15 min for D1 SUCCESS (poll by ID only). Then prove
-   health attributed to D1: D0 reaches REMOVED/inactive (so only D1 can write), then
+   health attributed to D1: `railway deployment list --json` (same -p/-e/-s) shows D1 SUCCESS as
+   the newest non-REMOVED deployment and D0 REMOVED within 10 min (else rollback), so only D1 can
+   write; if a newer concurrent deployment D2 exists, verify D2 instead and fingerprint F again; then
    admin_config WORKER_HEARTBEAT.updated_at advances past the D0-removal time within 3 min
-   (heartbeat every 60 s), and D1's own logs (railway logs --deployment D1) show startup + tick
+   (heartbeat every 60 s), and D1's own logs (`railway logs D1 --lines 200 -p .. -e production -s popdam3`, the runtime log
+   stream; validated read-only today: returns "worker: starting" and "polling loop started") show startup + tick
    lines with no crash/restart loop.
 6. Post-deploy rollback (D1 not SUCCESS in 15 min, or no D1-attributed heartbeat): pipe the backup
    into `railway variable set --stdin` (skip-deploys), assert F == 3c1804c42ed1, re-run the step-4
