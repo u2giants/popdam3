@@ -1,0 +1,16 @@
+# Root build context (Dockerfile, Dockerfile.ci, apps/bridge-agent/Dockerfile).
+# Keep dist/ — Dockerfile.ci copies the prebuilt dist into nginx.
+.git
+.github
+**/node_modules
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+*.local
+shared-db
+.claude
+coverage
+playwright-report
+test-results
