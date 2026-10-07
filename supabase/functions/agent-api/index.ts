@@ -3550,8 +3550,8 @@ async function handleCompleteStyleGuidePdfText(body: Record<string, unknown>) {
   const results = Array.isArray(body.results) ? body.results as Record<string, unknown>[] : [];
   if (results.length === 0 || results.length > 10) return err("results must contain 1 to 10 items", 400);
 
-  let accepted = 0;
-  let refused = 0;
+  // Validate every item before committing any, so a bad item N cannot leave
+  // items 1..N-1 committed behind a 400 response.
   for (const result of results) {
     const fileId = optionalString(result, "style_guide_file_id");
     const identity = optionalString(result, "content_identity");
@@ -3562,6 +3562,15 @@ async function handleCompleteStyleGuidePdfText(body: Record<string, unknown>) {
     }
     const terminalReason = optionalString(result, "terminal_reason");
     if (status !== "extracted" && !terminalReason) return err("terminal_reason is required for failed or skipped results", 400);
+  }
+
+  let accepted = 0;
+  let refused = 0;
+  for (const result of results) {
+    const fileId = optionalString(result, "style_guide_file_id")!;
+    const identity = optionalString(result, "content_identity")!;
+    const status = optionalString(result, "status")!;
+    const terminalReason = optionalString(result, "terminal_reason");
     const { data, error } = await db.rpc("complete_style_guide_pdf_text_v2", {
       p_style_guide_file_id: fileId,
       p_content_identity: identity,
@@ -3579,7 +3588,7 @@ async function handleCompleteStyleGuidePdfText(body: Record<string, unknown>) {
   const { data: configRow } = await db.from("admin_config")
     .select("value").eq("key", "POPSG_PDF_BACKFILL").maybeSingle();
   const config = (configRow?.value as Record<string, unknown>) || {};
-  await db.from("admin_config").upsert({
+  const { error: sgCfgErr } = await db.from("admin_config").upsert({
     key: "POPSG_PDF_BACKFILL",
     value: {
       ...config,
@@ -3589,6 +3598,7 @@ async function handleCompleteStyleGuidePdfText(body: Record<string, unknown>) {
     },
     updated_at: new Date().toISOString(),
   });
+  if (sgCfgErr) return err(`POPSG_PDF_BACKFILL progress update failed: ${sgCfgErr.message}`, 500);
   return json({ ok: true, accepted, refused });
 }
 
@@ -3702,12 +3712,14 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
 
   // 3. Update assets.thumbnail_url where currently NULL
   const thumbnailUpdates = results.filter((r) => r.asset_thumbnail_url && r.asset_id);
-  for (const r of thumbnailUpdates) {
-    await db.from("assets")
+  const thumbResults = await Promise.all(thumbnailUpdates.map((r) =>
+    db.from("assets")
       .update({ thumbnail_url: r.asset_thumbnail_url as string, thumbnail_error: null })
       .eq("id", r.asset_id as string)
-      .is("thumbnail_url", null);
-  }
+      .is("thumbnail_url", null)
+  ));
+  const thumbErr = thumbResults.find((res) => res.error)?.error;
+  if (thumbErr) return err(`assets thumbnail update failed: ${thumbErr.message}`, 500);
 
   // 4. Increment processed count in admin_config
   const { data: bfRow } = await db.from("admin_config")
@@ -3745,7 +3757,8 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
     newBf.live_current_step = "completed";
   }
 
-  await db.from("admin_config").upsert({ key: "PDF_BACKFILL", value: newBf, updated_at: nowIso });
+  const { error: bfCfgErr } = await db.from("admin_config").upsert({ key: "PDF_BACKFILL", value: newBf, updated_at: nowIso });
+  if (bfCfgErr) return err(`PDF_BACKFILL progress update failed: ${bfCfgErr.message}`, 500);
 
   console.log(`[complete-pdf-backfill-batch] committed ${results.length} results, remaining=${remaining}`);
   return json({ ok: true, remaining });
