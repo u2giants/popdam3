@@ -3533,7 +3533,9 @@ class LegacyPropertiesSchemaMoveContractTests(unittest.TestCase):
 
     def test_full_enforcing_entrypoint_accepts_only_all_matching_checks(self):
         from production_catalog_verification import verify
-        _, checks = self.checks()
+        migrations, _ = self.checks()
+        eligible_version = "20261007000937"
+        checks = load_behavior_sidecars(REPO, migrations, [eligible_version])
         for index, mode, expected in [(-1, "pass", 0)] + [(i, mode, 1) for i in range(len(checks)) for mode in ("missing", "wrong")]:
             rows = [{"id": c["id"], "actual_count": c["expected_count"], "expected_count": c["expected_count"]} for c in checks]
             if mode == "missing":
@@ -3541,11 +3543,29 @@ class LegacyPropertiesSchemaMoveContractTests(unittest.TestCase):
             if mode == "wrong":
                 rows[index]["actual_count"] = 0
             with tempfile.TemporaryDirectory() as tmp, mock.patch("production_catalog_verification.run_query", return_value=[{"report": {"behavior_checks": rows}}]), mock.patch("sys.stdout", new=io.StringIO()):
-                result = verify(REPO, self.VERSION, Path(tmp), "synthetic-project", "synthetic-token", True)
+                result = verify(REPO, eligible_version, Path(tmp), "synthetic-project", "synthetic-token", True)
                 self.assertEqual(result, expected)
                 payload = json.loads((Path(tmp) / "production-catalog-verification.json").read_text())
                 self.assertEqual(len(payload["behavior_checks"]), 12)
                 self.assertEqual(payload["errors"], [])
+
+    def test_retired_original_refuses_before_any_catalog_query(self):
+        from production_catalog_verification import verify
+        from production_migration_guard import GuardError
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("production_catalog_verification.run_query") as query:
+            with self.assertRaisesRegex(GuardError, "general production lane blocks"):
+                verify(REPO, self.VERSION, Path(tmp), "synthetic-project", "synthetic-token", True)
+            query.assert_not_called()
+
+    def test_forward_preserves_all_original_conditions_and_unique_check_ids(self):
+        migrations, original = self.checks()
+        forward = load_behavior_sidecars(REPO, migrations, ["20261007000937"])
+        self.assertEqual(len(forward), 12)
+        self.assertEqual({c["id"] for c in original} & {c["id"] for c in forward}, set())
+        def conditions(checks):
+            return [{k: v for k, v in c.items() if k not in ("id", "migration_version", "version", "migration_sha256")} for c in checks]
+        self.assertEqual(conditions(original), conditions(forward))
+
 
 if __name__ == "__main__":
     unittest.main()

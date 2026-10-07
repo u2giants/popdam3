@@ -73,21 +73,29 @@ const allowed = new Set([
 // #3890 removes the misplaced sandbox relation; it introduces no runtime
 // dependency. Accept only the exact reviewed transition bytes, plus its
 // exact non-runtime contract/catalog evidence. No other path is exempted.
-const sandboxTransition = 'supabase/migrations/20261006203846_move_designflow_sandbox_properties_to_dflow.sql'
+const sandboxTransitions = new Map([
+  ['supabase/migrations/20261006203846_move_designflow_sandbox_properties_to_dflow.sql', '08fdfbfd6a5a10ace41265d87d06df9fb13d0f2ddb20fbfd0e1a5fb55e714584'],
+  ['supabase/migrations/20261007000937_reissue_designflow_legacy_namespace_transition.sql', 'bf59f9fd5b81458ae61d0214799ec1809e3d1220e7b2cdc4e2c0fd967f827a8d'],
+])
 const sandboxEvidence = new Set([
   '.agent/work/3890/1/contract.json', '.agent/work/3890/2/contract.json',
   '.agent/work/3890/4/contract.json', '.agent/work/3890/4/completion.json',
+  '.agent/work/3890/6/contract.json', '.agent/work/3890/6/completion.json',
+  '.agent/work/3890/9/contract.json', '.agent/work/3890/9/completion.json',
   '.github/live-proofs/3890.sql',
   'scripts/production-verification-sidecars/20261006203846.json',
+  'scripts/production-verification-sidecars/20261007000937.json',
 ])
-const transitionChunk = diff.split(/(?=^diff --git )/m).find(chunk => chunk.startsWith(`diff --git a/${sandboxTransition} b/${sandboxTransition}\n`))
-if (transitionChunk) {
-  const completeAddition = /^--- \/dev\/null$/m.test(transitionChunk)
-  const bytes = transitionChunk.split(/\r?\n/).filter(line => line.startsWith('+') && !line.startsWith('+++')).map(line => line.slice(1)).join('\n') + '\n'
-  const hash = require('node:crypto').createHash('sha256').update(bytes).digest('hex')
-  if (completeAddition && hash === '08fdfbfd6a5a10ace41265d87d06df9fb13d0f2ddb20fbfd0e1a5fb55e714584') {
-    allowed.add(sandboxTransition)
-    for (const file of sandboxEvidence) allowed.add(file)
+for (const [sandboxTransition, transitionHash] of sandboxTransitions) {
+  const transitionChunk = diff.split(/(?=^diff --git )/m).find(chunk => chunk.startsWith(`diff --git a/${sandboxTransition} b/${sandboxTransition}\n`))
+  if (transitionChunk) {
+    const completeAddition = /^new file mode 100644$/m.test(transitionChunk) && /^--- \/dev\/null$/m.test(transitionChunk)
+    const bytes = transitionChunk.split(/\r?\n/).filter(line => line.startsWith('+') && !line.startsWith('+++')).map(line => line.slice(1)).join('\n') + '\n'
+    const hash = require('node:crypto').createHash('sha256').update(bytes).digest('hex')
+    if (completeAddition && hash === transitionHash) {
+      allowed.add(sandboxTransition)
+      for (const file of sandboxEvidence) allowed.add(file)
+    }
   }
 }
 const deltas = new Map()

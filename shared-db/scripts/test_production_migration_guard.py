@@ -274,6 +274,7 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(
             HARD_BLOCKED,
             {
+                "20261006203846",
                 "20261006211240",
                 "20261002204050",
                 "20260911212849",
@@ -4392,6 +4393,18 @@ class AbandonmentDocumentationAgreementTests(unittest.TestCase):
                 text,
                 f"{name} tells an operator to open the record without its fence",
             )
+
+
+
+class DesignFlowNamespaceStrandedOriginalTests(unittest.TestCase):
+    def test_stranded_original_is_blocked_even_when_remote_records_it(self):
+        for remote in (set(), {"20261006203846"}):
+            with self.assertRaisesRegex(GuardError, "general production lane blocks"):
+                parse_allowlist("20261006203846", remote)
+        self.assertIn("20261007000937", production_migration_guard.RETIRED_VERSION_REASONS["20261006203846"])
+
+    def test_forward_version_remains_eligible_without_stranded_dependency(self):
+        self.assertEqual(parse_allowlist("20261007000937"), ["20261007000937"])
 
 
 if __name__ == "__main__":

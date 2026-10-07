@@ -1,0 +1,84 @@
+{
+  "schema_version": 2,
+  "work_issue": 3890,
+  "generation": 9,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Reissue the unchanged guarded legacy namespace transition under reserved version20261007000937 because original203846 preview producer registry differs from its authoring merge and cannot authorize production. Preserve applied original bytes and preview/Sandbox ledgers, hard-block the stranded original, retain all12 checks, and use the authoritative merge-first rehearsal route. Actual Sandbox/preview/production already have the correct destination, so replacement validates and no-ops there. Align the full-suite governed retirement inventory and production-enforcing fixture with the eligible forward version, while keeping historical sidecar inspection tests and explicit original refusal. No runtime policy is weakened. Integrate the independently merged current-main2874 retirement and3781 lock policy without removing either policy or any tests. Resolve only the overlapping retirement-set/reason/test context; own executable SQL and all12conditions remain unchanged.",
+  "base_sha": "5df3dc4798d8aedbbf72ea2faead8a5f4ac134be",
+  "dispatcher": "Albert authorized completing3882 through production without stopping. Actual automatic qualification37549451859 refused original producer provenance; standard immutable merged-claim reissue bcd3a241723246bafe102ec7921d30c2c78dc103 reserved replacement20261007000937. No gate or evidence tolerance is weakened.",
+  "worker": "Codex chat 01a1126e-c598-7d60-8cf4-e14427127e20 on edge-dev3",
+  "branch": "codex/3890-production-forward",
+  "worktree": "/tmp/shared-db-3890-production-forward",
+  "allowed_paths": [
+    "supabase/migrations/20261007000937_reissue_designflow_legacy_namespace_transition.sql",
+    "scripts/production-verification-sidecars/20261007000937.json",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    ".github/live-proofs/3890.sql",
+    ".agent/work/3890/6/contract.json",
+    ".agent/work/3890/6/completion.json",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/test_post_batch_app_verification.py",
+    ".agent/work/3890/9/contract.json",
+    ".agent/work/3890/9/completion.json",
+    ".agent/work/3890/8/contract.json",
+    ".agent/work/3890/8/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261007000937_reissue_designflow_legacy_namespace_transition.sql",
+    "scripts/production-verification-sidecars/20261007000937.json",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    ".github/live-proofs/3890.sql",
+    ".agent/work/3890/6/contract.json",
+    ".agent/work/3890/6/completion.json",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/test_post_batch_app_verification.py",
+    ".agent/work/3890/9/contract.json",
+    ".agent/work/3890/9/completion.json",
+    ".agent/work/3890/8/contract.json",
+    ".agent/work/3890/8/completion.json"
+  ],
+  "db_reads": [
+    "table dflow.property_character_associations",
+    "table dflow.item_character_associations"
+  ],
+  "db_writes": [
+    "table core.properties_and_characters",
+    "table dflow.properties_and_characters"
+  ],
+  "prohibited_actions": [
+    "Do not change or delete application rows, columns, keys or privilege policies.",
+    "Do not alter shared schema beyond the exact admitted objects.",
+    "Do not edit applied migrations or perform manual production writes."
+  ],
+  "required_checks": [
+    "python3 -m unittest discover -s scripts -p test_production_migration_guard.py",
+    "python3 -m unittest discover -s scripts -p test_production_catalog_verification.py",
+    "node --test scripts/check-sql.test.mjs scripts/throughput-guard/check-production-verification-sidecars.test.mjs",
+    "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+    "bash scripts/check-sql.sh",
+    "Isolated PostgreSQL17 move-preservation, replay-noop, ambiguous/wrong-shape refusal, and all12 read-only checks.",
+    "python3 -m unittest scripts/test_*.py"
+  ],
+  "assumptions": [
+    "Actual production at 8:10 PM EDT targetexists/core sourceabsent and original203846 ledgerabsent; actualSandbox retains originalapply and all12 checks pass. No replacement write has occurred.",
+    "Section4 normalorder explicitly merges first, then applies preview at mergedmain; premerge preview would strand a sidecar-registry-changing migration."
+  ],
+  "stop_conditions": [
+    "Any unexpected source/target shape, orphan, permission or claim collision refuses mutation.",
+    "Unreviewed changes or target identity ambiguity stop before a write."
+  ],
+  "evidence_parent": {
+    "work_issue": 3890,
+    "generation": 8,
+    "contract_sha256": "de743c600d74ccd6b5150601bb70b422333312a8e23d5662e99d0d463b34f93c"
+  }
+}

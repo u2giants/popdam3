@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "work_issue": 3890,
+  "outcome": "ready-for-merge",
+  "pr": 4024,
+  "migration_versions": [
+    "20261007000937"
+  ],
+  "contract_ref": "refs/db-contracts/3890/9",
+  "contract_sha256": "ad6b210073dc19ce63337c9d4f582413a64b9bcb01ebf9a566f74a099f87bd00",
+  "base_sha": "5df3dc4798d8aedbbf72ea2faead8a5f4ac134be",
+  "head_sha": "61952692d66f0a43fbfb4e972dfe8134a219ca5c",
+  "files_changed": [
+    ".github/live-proofs/3890.sql",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    "scripts/production-verification-sidecars/20261007000937.json",
+    "scripts/production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20261007000937_reissue_designflow_legacy_namespace_transition.sql"
+  ],
+  "db_reads": [
+    "table dflow.property_character_associations",
+    "table dflow.item_character_associations"
+  ],
+  "db_writes": [
+    "table core.properties_and_characters",
+    "table dflow.properties_and_characters"
+  ],
+  "checks": [
+    {
+      "command": "node --test scripts/check-sql.test.mjs scripts/throughput-guard/check-production-verification-sidecars.test.mjs",
+      "exit_code": 0,
+      "evidence": "75 passed, unique replacement IDs retain all12 conditions and byte-bound guard refuses altered transitions."
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_production_migration_guard.py",
+      "exit_code": 0,
+      "evidence": "294 passed; retired original refuses with or without remote ledger."
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_production_catalog_verification.py",
+      "exit_code": 0,
+      "evidence": "235 passed."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Committed SQL static checks passed."
+    },
+    {
+      "command": "python3 /tmp/3890-forward-sql-smoke.py",
+      "exit_code": 0,
+      "evidence": "PG17 exact table identity, two rows, index, incoming FK, sequence and reader access retained; replay no-op; ambiguous/missing/wrong shape refuses."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "Registered replacement unique identifiers, exact migration hash and all12 typed conditions validated."
+    },
+    {
+      "command": "Isolated PostgreSQL17 move-preservation, replay-noop, ambiguous/wrong-shape refusal, and all12 read-only checks.",
+      "exit_code": 0,
+      "evidence": "Move/replay preservation fixture passes; SELECT-only role all12 checks pass and missing/wrong/composite primary keys refuse."
+    },
+    {
+      "command": "python3 -m unittest scripts/test_*.py",
+      "exit_code": 0,
+      "evidence": "1419tests pass;19 existing environment-dependent skips. Current-main2874 retirement and policy retained, original3890 refusal retained, forward all12missing/wrong checks remain exhaustive."
+    }
+  ],
+  "assumptions_resolved": [
+    "Fresh production precondition retains correct destination, no original ledger entry; original Sandbox apply and all12 enforcing checks remain preserved. The first replacement preview will occur only after merged main."
+  ],
+  "stop_conditions_hit": []
+}
