@@ -69,10 +69,22 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v8.1 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
+## Addendum v8.2 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
 
 Review scope: ONLY this addendum. Steps 1-9 above already ran and were reported on #213 (5:15 PM
 EDT); nothing here touches the DB. Owner of this addendum and its residuals: this Claude session.
+
+Gate (fresh, for this addendum only): immediately before step 2 run
+`ai-task-gates check --before production --reviewer-approval <this addendum's APPROVE report>`;
+stop on refusal. The gate recorded for steps 1-9 is not reused.
+
+Restart race (accepted residual, stated plainly): the worker has no maintenance fence, so an
+operation could be started/queued by an admin in the seconds between check 1c and shutdown. This is
+the identical exposure of every push-to-main deploy of this service (several today, e.g. 5:32 PM
+and 5:36 PM EDT); the #74 saved-provider-ID design covers every phase except a pre-ID submission in
+that window. Mitigation: check 1c runs last, immediately before step 2, and is re-run after D1 is
+healthy; any op found submitting/ambiguous is reported on #213 and reconciled per #74, not
+restarted.
 
 Inputs (exact):
 - Source: op://vibe_coding/3onekcbg3dxnazpnt36d4yzfcq/7g7toqbbme6aybbs5hfzvvwoaa. Already
@@ -115,15 +127,18 @@ Steps:
    WORKER_HEARTBEAT.updated_at advances past D0's removal time within 3 min (attributed to D1 by
    exclusivity; the row carries no deployment ID). Re-run check 1c to confirm nothing went
    ambiguous.
-5. Rollback (only when the deployment created by step 2 itself fails step 3/4): pipe the backup back via `--stdin` (deploy-triggering), assert
-   F == 3c1804c42ed1, and repeat steps 3-4 for that deployment. Old key is dead, so rollback only
-   restores prior state. If rollback fails, keep the backup and record Blocked on #213.
+5. No key rollback on deployment failure: the worker reads GOOGLE_AI_API_KEY lazily
+   (google-ai-key.ts, only on a direct-Gemini batch with an admin_config miss), so the new value
+   cannot cause a startup failure, and the old value is dead anyway. If the step-2 deployment
+   fails step 3/4: read its logs, redeploy once (with check 1c first), and if it still fails record
+   Blocked on #213 with the deployment ID and log excerpt. The backup is kept until the final state
+   is verified, purely as recovery evidence.
 6. 1Password: edit item dykqfttarudsxhzrlsktyupq2y (drop PLACEHOLDER from title, remove the empty
    concealed field, notes point to the main-key op:// ref); verify with item_get (no reveal). On
    failure retry once; the item holds no secret, so a failed edit is cosmetic and recorded on #213.
 7. Post evidence on #213 (EDT times, signed), keeping unchecked, owned by this session:
    "- [ ] live proof: worker env-fallback branch (runs only on admin_config miss)".
-Cleanup: shred the backup (old dead key) once the final state is verified; keep it only if a
-rollback failed. The live key is never written to disk (stdin pipe only).
+Cleanup: shred the backup (old dead key) once the final state is verified; keep it only if the
+deployment ended Blocked. The live key is never written to disk (stdin pipe only).
 Residual on #213: the old dead key's origin Google project is unknown; it already returns
 API_KEY_INVALID.
