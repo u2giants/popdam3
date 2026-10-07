@@ -33,6 +33,7 @@ const ASSERTIONS = {
   3418: "In production, only the current unexpired submission-lease holder presenting its exact receipt and current revision can reset an unbound provider submission after PopDAM verifies provider origin and parses a nonempty JSON validation error with HTTP 400 or 422; timeout, disconnect, unreadable or plain-text error, other 4xx, 5xx, expired or ambiguous lease, bound provider ID, wrong holder, wrong receipt, or wrong revision cannot reset or remint a receipt for another caller. PopDAM owns the later no-duplicate-POST live retry proof.",
   "3418-retry": "In production, PopDAM's own fixture operation proves the retry path of public.reset_bulk_operation_submission_lease: the current unexpired holder presenting its exact receipt and current revision resets an unbound submission once, no receipt is returned or reminted, the consumed receipt cannot reset again, and only a later fresh-revision claim mints a new receipt; a wrong holder with the right receipt, an expired lease, and an ambiguous lease are each refused with SQLSTATE 55000 and leave the operation unchanged. Every fixture is created and removed by the proof; no other operation is written.",
   3457: "On production, public.search_dam_documents has the 8-arg signature with p_min_semantic_score real default null, the 7-arg signature is dropped, execute is granted to authenticated and service_role only, a semantic floor is applied only inside the semantic leg before blend, and null floor preserves prior blended-rank behaviour exactly.",
+  4037: "production app.handle_new_auth_user() inserts app.app_access(profile_id,'dam') for new users whose email ends in @popcre.com, keeping existing behaviour",
   2934: "From the application's production service-role connection, read-only: public.deactivate_stale_sg_files no longer exists, and the application's stale-file deactivation path (public.preview_stale_sg_files guard ahead of public.reconcile_stale_sg_files_batch) is still exposed and its read-only guard call succeeds.",
 };
 
@@ -43,7 +44,7 @@ function fail(message) {
   throw new ProofFailure(message);
 }
 
-async function call(path, { method = "GET", body, accept = "application/json" } = {}) {
+async function call(path, { method = "GET", body, accept = "application/json", profile } = {}) {
   const started = Date.now();
   const response = await fetch(`${url}${path}`, {
     method,
@@ -52,6 +53,7 @@ async function call(path, { method = "GET", body, accept = "application/json" } 
       Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
       Accept: accept,
+      ...(profile ? { "Accept-Profile": profile } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -487,7 +489,39 @@ async function proveLeaseRetry() {
   }
 }
 
-const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor };
+// 4037: the signup hook change was applied to production at this instant
+// (popcre/shared-db run 37669223667). Read-only and observational: no account is
+// created. Every app.profile at the popcre.com domain created after it must
+// carry app.app_access 'dam'; with none yet, the proof waits (NOT YET APPLIED).
+export const SIGNUP_GRANT_APPLIED_AT = "2026-10-07T18:50:40Z";
+const POPCRE_ADDRESS = /^[^@]+@popcre\.com$/;
+
+// Pure: profiles created after the apply, each with its access rows.
+export function evaluateSignupGrant4037(profiles, accessRows) {
+  if (!Array.isArray(profiles) || !Array.isArray(accessRows)) fail("signup grant read did not return rows");
+  const employees = profiles.filter((p) => POPCRE_ADDRESS.test(String(p?.email ?? "").toLowerCase())
+    && Date.parse(p.created_at) > Date.parse(SIGNUP_GRANT_APPLIED_AT));
+  if (!employees.length) throw new NotYetApplied(`no popcre.com sign-up since ${SIGNUP_GRANT_APPLIED_AT} to observe`);
+  const has = (id, app) => accessRows.some((r) => r.profile_id === id && r.app === app);
+  for (const p of employees) {
+    if (!has(p.id, "dam")) fail(`profile ${p.id} signed up at ${p.created_at} without app_access dam`);
+    if (!has(p.id, "crm")) fail(`profile ${p.id} lost the existing crm grant`);
+  }
+  return employees.length;
+}
+
+async function proveSignupGrant() {
+  const since = encodeURIComponent(SIGNUP_GRANT_APPLIED_AT);
+  const profiles = await call(`/rest/v1/profile?select=id,email,created_at&email=ilike.*%40popcre.com&created_at=gt.${since}`, { profile: "app" });
+  const ids = (profiles.json || []).map((p) => p.id);
+  const access = ids.length
+    ? await call(`/rest/v1/app_access?select=profile_id,app&profile_id=in.(${ids.join(",")})`, { profile: "app" })
+    : { json: [], elapsedMs: 0 };
+  const observed = evaluateSignupGrant4037(profiles.json, access.json);
+  return { call: "GET app.profile + app.app_access for popcre.com sign-ups after the apply (read-only)", elapsed_ms: profiles.elapsedMs + access.elapsedMs, applied_at: SIGNUP_GRANT_APPLIED_AT, employee_signups_observed: observed, all_have_dam: true };
+}
+
+const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant };
 
 async function main() {
   if (url !== EXPECTED_URL) fail("SUPABASE_URL is not the production project");

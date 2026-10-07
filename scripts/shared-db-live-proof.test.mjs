@@ -98,3 +98,19 @@ test("3418-retry fixtures sort after every real running operation", () => {
   assert.equal(fixtureState().status, "running");
   assert.ok(Date.parse(fixtureState().updated_at) > Date.parse("2900-01-01"));
 });
+
+test("4037 waits when no popcre.com sign-up happened after the apply", async () => {
+  const { evaluateSignupGrant4037 } = await import("./shared-db-live-proof.mjs");
+  assert.throws(() => evaluateSignupGrant4037([{ id: "a", email: "x@popcre.com", created_at: "2026-10-01T00:00:00Z" }, { id: "b", email: "y@example.com", created_at: "2026-10-08T00:00:00Z" }], []), NotYetApplied);
+});
+
+test("4037 passes when every post-apply employee sign-up has dam and crm", async () => {
+  const { evaluateSignupGrant4037 } = await import("./shared-db-live-proof.mjs");
+  const n = evaluateSignupGrant4037([{ id: "a", email: "New@PopCre.com", created_at: "2026-10-08T00:00:00Z" }], [{ profile_id: "a", app: "crm" }, { profile_id: "a", app: "dam" }]);
+  assert.equal(n, 1);
+});
+
+test("4037 fails when a post-apply employee sign-up lacks dam", async () => {
+  const { evaluateSignupGrant4037 } = await import("./shared-db-live-proof.mjs");
+  assert.throws(() => evaluateSignupGrant4037([{ id: "a", email: "n@popcre.com", created_at: "2026-10-08T00:00:00Z" }], [{ profile_id: "a", app: "crm" }]), ProofFailure);
+});
