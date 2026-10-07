@@ -69,28 +69,44 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v7 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
+## Addendum v7.1 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
 
 Coordinator decision: reuse today's new key for the Railway worker env fallback.
 
 Inputs (exact):
 - Source: op://vibe_coding/3onekcbg3dxnazpnt36d4yzfcq/7g7toqbbme6aybbs5hfzvvwoaa
-  (field gemini_popdam_shared_supabase). Pre-check done: sha256[:12]=3c48237f28e9 (== admin_config
-  fingerprint after rotation), GET v1beta/models with x-goog-api-key -> 200.
-- Target: Railway project popdam (8645c5fe-ae60-413e-8464-508456c65365), env production
-  (70aef28e-b9f8-4aa6-b902-c9a06aec08d5), service popdam3 (f777713f-d0f8-4f9b-9685-37c9090c98ef),
-  variable GOOGLE_AI_API_KEY. Current value fingerprint 3c1804c42ed1 (dead, API_KEY_INVALID).
-- Only that one variable changes. No other variable, service, DB row, or code changes.
+  (field gemini_popdam_shared_supabase). Pre-check: sha256[:12]=3c48237f28e9 (== admin_config
+  fingerprint after rotation); GET v1beta/models with x-goog-api-key -> 200.
+- Target: Railway project popdam id 8645c5fe-ae60-413e-8464-508456c65365, environment production id
+  70aef28e-b9f8-4aa6-b902-c9a06aec08d5, service popdam3 id f777713f-d0f8-4f9b-9685-37c9090c98ef,
+  variable GOOGLE_AI_API_KEY. The CLI runs from a scratch directory linked with
+  `railway link -p 8645c5fe-... -e production -s popdam3`, and every command also passes
+  `-s popdam3 -e production`. Current value fingerprint 3c1804c42ed1 (dead, API_KEY_INVALID).
+- Scope: exactly one Railway variable changes. No other Railway variable/service, no DB row, no code.
+  The only 1Password change is to item dykqfttarudsxhzrlsktyupq2y, created by this session today as
+  an empty placeholder (its concealed field has never held a value, so there is nothing to back up).
+  The main-key item 3onekcbg3dxnazpnt36d4yzfcq is read only.
 
 Steps:
-1. Via 1Password op_run (value only in env, piped to stdin, never argv/printed):
+0. Backup: write the current Railway value to a 0600 scratch file (read with `railway variables
+   --json` piped straight into python that writes the file and prints only its sha256[:12];
+   nothing raw is displayed). Shredded at the end after success.
+1. Via 1Password op_run (value only in env, piped to stdin, never argv or printed):
    printf '%s' "$K" | railway variable set GOOGLE_AI_API_KEY --stdin -s popdam3 -e production
-   (this triggers a redeploy of the same image/commit).
-2. Verify: railway variables --kv | GOOGLE_AI_API_KEY value sha256[:12] == 3c48237f28e9.
-3. Wait for the new deployment status SUCCESS; check deploy logs for worker startup and no crash
-   loop; worker heartbeat/poll log lines present.
-4. Rollback: the old value is dead, so rollback = redeploy the previous deployment if the new one
-   fails to start (railway redeploy of prior deployment); the env value itself is not restored.
-5. Update 1Password item dykqfttarudsxhzrlsktyupq2y: drop PLACEHOLDER from title, notes point to the
-   main-key op:// ref; leave its own concealed field empty or remove it (single source of truth).
-6. Post evidence on #213, signed.
+   (triggers a redeploy of the current commit).
+2. Verify storage: `railway variables --json` piped into python that prints only
+   sha256(value)[:12] for GOOGLE_AI_API_KEY; must equal 3c48237f28e9. Never use --kv to a terminal.
+3. Verify value works from Railway's copy: the same pipeline feeds the read-back value as an
+   x-goog-api-key header (curl -K from a 0600 file) to GET v1beta/models -> 200.
+4. Verify worker: new deployment status SUCCESS; deploy logs show worker startup, no crash loop,
+   poll/heartbeat lines.
+   Known limit: the fallback branch in apps/worker/src/google-ai-key.ts runs only when
+   admin_config.GOOGLE_AI_API_KEY is empty/unreadable; deliberately emptying the production DB key
+   to exercise it is out of scope. Step 3 proves the installed fallback value itself is valid.
+5. Rollback (if the new deployment fails to start or logs show a new crash): restore the previous
+   value from the step-0 backup via stdin `railway variable set ... --stdin` (this triggers a fresh
+   deploy with the old env), confirm SUCCESS, and record Blocked on #213.
+6. Update 1Password item dykqfttarudsxhzrlsktyupq2y: drop PLACEHOLDER from title, remove its empty
+   concealed field, notes point to the main-key op:// ref as single source of truth; verify with
+   item_get (no reveal).
+7. Post evidence on #213, signed.
