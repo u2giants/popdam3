@@ -157,10 +157,7 @@ export function InvitationSection() {
       });
       if (error) throw error;
       if (fnData?.ok === false) {
-        toast.error(fnData.error || "Failed to send invite", {
-          description: fnData.rawBody ? `Brevo response: ${fnData.rawBody}` : undefined,
-          duration: 10000,
-        });
+        toast.error(fnData.error || "Failed to send invite", { duration: 10000 });
       } else if (fnData?.warning) {
         toast.warning(`Invite sent to ${invEmail} — but with a warning`, {
           description: fnData.warning,
