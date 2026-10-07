@@ -69,7 +69,7 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v8.6 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
+## Addendum v8.7 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
 
 Review scope: ONLY this addendum. Steps 1-9 above already ran and were reported on #213 (5:15 PM
 EDT); nothing here touches the DB. Owner of this addendum and its residuals: this Claude session.
@@ -112,7 +112,9 @@ Steps:
    a. F == OLD (else stop: someone changed it). And the live DB key digest == NEW: read-only
       `select value#>>'{}' from admin_config where key='GOOGLE_AI_API_KEY'` via
       psql "postgresql://postgres.qsllyeztdwjgirsysgai@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
-      (live Virginia project; never the default MCP project), piped into sha256sum only. Else stop.
+      (live Virginia project; never the default MCP project), run with `psql -At` (unaligned, tuples only) and piped through
+      `python3 -c "import sys,hashlib;print(hashlib.sha256(sys.stdin.read().rstrip('\n').encode()).hexdigest())"`
+      so exactly the raw key bytes are hashed. Else stop.
    b. `railway deployment list --json`: the newest deployment (any status) is SUCCESS and is the
       only non-REMOVED one; record it as D0. If anything is BUILDING/DEPLOYING/FAILED, wait up to
       20 min for that to settle, else stop.
@@ -122,7 +124,7 @@ Steps:
       eligible for auto-resume (transient reason + attempts under cap). 5:37 PM EDT check: none.
    d. No backup of the old value is taken (it is dead and there is no rollback to it); only its
       full sha256 digest is recorded.
-2. op_run pipes $K to `railway variable set GOOGLE_AI_API_KEY --stdin -p .. -e production -s
+2. op_run pipes $K to `railway variable set GOOGLE_AI_API_KEY --stdin -p 8645c5fe-ae60-413e-8464-508456c65365 -e production -s
    popdam3` (normal deploy-triggering set — one restart, same as every push to main).
    Reconcile by F regardless of exit code: NEW = applied; OLD = not applied,
    before any retry, reconcile deployments: if a deployment was created after the step-2 start,
@@ -131,14 +133,18 @@ Steps:
    and if still old stop (nothing changed, no deploy) and record Blocked on #213;
    any other digest = stop and investigate (a concurrent change may be legitimate; never
    overwrite it), record on #213.
-3. Identify the deployment: D1 = the deployment created after the step-2 start time. Bounded wait
+3. Identify the deployment: D1 = the deployment created after the step-2 start time. If F == NEW
+   but no such deployment exists within 3 min (the set did not trigger one), run the gate and the
+   step-5 redeploy command once (after check 1c), then take its returned ID as D1. Bounded wait
    15 min for D1 SUCCESS and D0 REMOVED. If a further deployment (another session's push) appears,
    take the newest one as D1 and re-assert F == NEW; every check below uses that ID. If
    that unrelated deployment fails, do NOT roll back the key (the key is not the cause): stop,
    record on #213 with the deployment ID, and leave the valid new key in place.
 4. Health of D1: exactly one non-REMOVED deployment (D1, SUCCESS); `railway logs D1 --lines 200`
    shows "worker: starting" and "polling loop started" with no crash/restart loop; admin_config
-   WORKER_HEARTBEAT.updated_at advances past D0's removal time within 3 min (attributed to D1 by
+   WORKER_HEARTBEAT.updated_at advances past the time this session first observed D0 as
+   REMOVED (deployment list exposes only id/status/createdAt, so the observation time is used)
+   within 3 min (attributed to D1 by
    exclusivity; the row carries no deployment ID). Re-run check 1c to confirm nothing went
    ambiguous.
 4b. Final assertion after health (and after any step-5 redeploy): F == NEW and the Railway
@@ -158,14 +164,17 @@ Steps:
    stop), then remove that empty concealed field so it holds no
    secret and cannot diverge (single source of truth = main-key field); notes keep the full context
    (purpose, consumer, Railway IDs, NEW digest, install date, how to rotate both together) plus the
-   main-key op:// ref. Not a duplicate: it stores no value. Lookup "gemini"/"google" before editing
-   to confirm no other item covers it; verify with item_get (no reveal). On
+   main-key op:// ref. Not a duplicate: it stores no value. Resolve the vault ID with vault_list (vibe_coding =
+   pimcaogmxxzoafh7lsluj6uxkq today), then item_lookup "gemini", "google", "GOOGLE_AI", "railway
+   worker" and confirm only this item and the main-key item match before editing; verify with item_get (no reveal). On
    failure retry once; the item holds no secret, so a failed edit is cosmetic and recorded on #213.
    The worker's env-fallback runtime path (google-ai-key.ts:29-45) stays unproved by design:
    exercising it requires emptying the production DB key; it is left as the same-issue live-proof
    checklist item below, per the standing rule.
 7. Post evidence on #213 (EDT times, signed), keeping unchecked, owned by this session:
    "- [ ] live proof: worker env-fallback branch (runs only on admin_config miss)".
+Failure-path evidence: these commands cannot be dry-run against production; each failure branch
+is defined above with a stop + #213 record, and the read-only shapes were exercised today.
 Cleanup: nothing secret is written to disk (new key moves by stdin pipes only; no old-key backup;
 API checks pass the header via stdin).
 Residual on #213: the old dead key's origin Google project is unknown; it already returns
