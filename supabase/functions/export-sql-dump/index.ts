@@ -30,7 +30,6 @@ const corsHeaders = {
 
 // Tables in dependency order (parents first)
 const TABLES_IN_ORDER = [
-  "admin_config",
   "licensors",
   "properties",
   "characters",
@@ -81,7 +80,8 @@ function escapeSQL(val: unknown): string {
         if (v === null) return "NULL";
         return `"${String(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
       });
-      return `'{${elements.join(",")}}'`;
+      const literal = `{${elements.join(",")}}`;
+      return `'${literal.replace(/'/g, "''")}'`;
     }
     const json = JSON.stringify(val);
     return `'${json.replace(/'/g, "''")}'::jsonb`;

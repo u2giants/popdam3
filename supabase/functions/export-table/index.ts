@@ -22,7 +22,6 @@ const ALLOWED_TABLES = [
   "licensors",
   "properties",
   "characters",
-  "admin_config",
   "invitations",
   "processing_queue",
   "render_queue",
