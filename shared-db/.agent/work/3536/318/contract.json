@@ -1,0 +1,48 @@
+{
+  "schema_version": 2,
+  "generation": 318,
+  "work_issue": 3536,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Repair actual completion-validation CLI circular module evaluation while preserving every completion/contract validator; prove spawned success and refusals before the audit deliveries resume.",
+  "base_sha": "3a732fcb16c7c7eeb33e569533d8489912419bbe",
+  "dispatcher": "Codex root coordinating full-plan user authorization",
+  "worker": "codex",
+  "branch": "codex/3536-completion-cli",
+  "worktree": "/tmp/shared-db-3536-completion-cli",
+  "file_writes": [
+    "scripts/agent-work-contract.mjs",
+    "scripts/agent-work-contract.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database or settings write",
+    "Do not bypass completion validators or exact review",
+    "Do not modify frozen queue own implementation or relabel it to reset paid starts"
+  ],
+  "required_checks": [
+    "node --test scripts/agent-work-contract.test.mjs scripts/agent-work-contract-git-evidence.test.mjs scripts/lib/work-dependencies.test.mjs scripts/lib/work-stage-evidence.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Root authorized a separate actual CLI repair on the same parent, not an exported-main workaround",
+    "Ledger confirms no overlapping CLI ownership",
+    "Immutable318 absence verified before publication"
+  ],
+  "stop_conditions": [
+    "Stop if static module ordering changes validator results or creates evaluation failures",
+    "Stop if actual spawned CLI success/refusal cannot be proven",
+    "Stop on source conflict or assigned reviewer refusal"
+  ],
+  "evidence_parent": {
+    "work_issue": 3536,
+    "generation": 317,
+    "contract_sha256": "68a7fa3879e275b0b83704e995f4b8117da92db45c0b60ffd908ec81a8da53dd"
+  },
+  "allowed_paths": [
+    "scripts/agent-work-contract.mjs",
+    "scripts/agent-work-contract.test.mjs"
+  ]
+}

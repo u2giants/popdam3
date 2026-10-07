@@ -47,6 +47,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { currentRepository } from './lib/repository-identity.mjs'
 import { requirePositiveInt, validateGenerationLineage, verifyPredecessorBinding } from './lib/evidence-generation-lineage.mjs'
+import { validateCompletionRecord } from './lib/work-dependencies.mjs'
 
 export const REPO = currentRepository(process.env.SHARED_DB_REPO)
 export const CONTRACT_REF_PREFIX = 'refs/db-contracts'
@@ -505,7 +506,6 @@ export async function main(argv, io = {}) {
     if (!options.reportFile || !options.contractFile) { error('--validate-completion requires --report-file and --contract-file'); return 2 }
     const report = readJson(options.reportFile, '--report-file')
     const contract = readJson(options.contractFile, '--contract-file')
-    const { validateCompletionRecord } = await import('./lib/work-dependencies.mjs')
     validateCompletionReport(report, { validateCompletionRecord })
     if (options.expectedPr !== null || options.expectedHeadSha !== null) {
       validatePullRequestCompletion(report, { pr: options.expectedPr, headSha: options.expectedHeadSha })

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "generation": 318,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 4030,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/318",
+  "contract_sha256": "e84cacbd64e89aac879ff8d522d3de2b2ee4a121232448710e53e5b3bfe233c6",
+  "head_sha": "a15aa7caf980d0a12abcf8e95c0e58e13961e733",
+  "base_sha": "3a732fcb16c7c7eeb33e569533d8489912419bbe",
+  "files_changed": [
+    "scripts/agent-work-contract.mjs",
+    "scripts/agent-work-contract.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/agent-work-contract.test.mjs scripts/agent-work-contract-git-evidence.test.mjs scripts/lib/work-dependencies.test.mjs scripts/lib/work-stage-evidence.test.mjs",
+      "exit_code": 0,
+      "evidence": "127 tests passed; actual spawned CLI valid acceptance and fail-closed refusals."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Passed, unchanged validators and truth accounting."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Passed, unchanged validators and truth accounting."
+    }
+  ],
+  "assumptions_resolved": [
+    "Direct CLI cycle reproduced with exit13; static module graph resolves before main.",
+    "Actual normal CLI validates queue completion, without preloading or exported-main invocation."
+  ],
+  "stop_conditions_hit": []
+}

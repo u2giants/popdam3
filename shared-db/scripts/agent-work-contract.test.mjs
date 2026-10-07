@@ -1,5 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   ContractError, CONTRACT_SCHEMA_VERSION, CONTRACT_REF_PREFIX,
   validateContract, assertSafePath, canonicalize, contractHash, contractRef,
@@ -276,6 +281,53 @@ test('reading a contract that was never published is an error, not an empty cont
 })
 
 // --- CLI -------------------------------------------------------------------
+
+function runCompletionCli(overrides = {}, expectedPr = 7) {
+  const directory = mkdtempSync(join(tmpdir(), 'agent-contract-cli-'))
+  const contractFile = join(directory, 'contract.json')
+  const reportFile = join(directory, 'completion.json')
+  const head = 'a'.repeat(40)
+  const input = report({ outcome: 'ready-for-merge', head_sha: head, merge_sha: undefined, ...overrides })
+  try {
+    writeFileSync(contractFile, JSON.stringify(contract()))
+    writeFileSync(reportFile, JSON.stringify(input))
+    return spawnSync(process.execPath, [
+      fileURLToPath(new URL('./agent-work-contract.mjs', import.meta.url)),
+      '--validate-completion', '--contract-file', contractFile,
+      '--report-file', reportFile, '--expected-pr', String(expectedPr),
+      '--expected-head-sha', head,
+    ], { encoding: 'utf8', timeout: 10000 })
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+
+test('actual completion CLI succeeds without a circular top-level-await exit', () => {
+  const result = runCompletionCli()
+  assert.equal(result.error, undefined)
+  assert.equal(result.signal, null)
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, /Completion report satisfies its contract/)
+  assert.doesNotMatch(result.stderr, /unsettled top-level await/)
+})
+
+test('actual completion CLI still refuses failed required checks', () => {
+  const result = runCompletionCli({ checks: [{ command: 'node --test scripts/*.test.mjs', exit_code: 1, evidence: 'failed' }] })
+  assert.equal(result.status, 1, result.stderr)
+  assert.match(result.stderr, /Completion report does NOT satisfy its contract/)
+})
+
+test('actual completion CLI still refuses a mismatched pull request', () => {
+  const result = runCompletionCli({}, 8)
+  assert.equal(result.status, 1, result.stderr)
+  assert.match(result.stderr, /pull request|PR|pr/)
+})
+
+test('actual completion CLI still refuses a malformed completion schema', () => {
+  const result = runCompletionCli({ schema_version: 0 })
+  assert.equal(result.status, 1, result.stderr)
+  assert.match(result.stderr, /schema_version/)
+})
 
 test('parseArgs refuses two modes and unknown arguments', () => {
   assert.throws(() => parseArgs(['--validate-contract', '--publish-contract']), /exactly one mode/)
