@@ -69,7 +69,7 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v8.7 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
+## Addendum v8.8 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
 
 Review scope: ONLY this addendum. Steps 1-9 above already ran and were reported on #213 (5:15 PM
 EDT); nothing here touches the DB. Owner of this addendum and its residuals: this Claude session.
@@ -154,8 +154,10 @@ Steps:
    cannot cause a startup failure, and the old value is dead anyway. If the step-2 deployment
    fails step 3/4: read its logs, redeploy once (with check 1c and the gate first) using exactly
    `railway redeploy -y --json -p 8645c5fe-ae60-413e-8464-508456c65365 -e production -s popdam3`
-   (redeploys the service's latest deployment, which after re-running step 1b must be the failed
-   step-2 deployment; if it is not, stop), and if it still fails record
+   (redeploys the service's latest deployment). Identity check first, replacing step 1b here:
+   `railway deployment list --json` must show the newest deployment == the failed step-2
+   deployment D1 (FAILED/CRASHED allowed) with no newer deployment; if a newer one exists, stop.
+   F must still == NEW. and if it still fails record
    Blocked on #213 with the deployment ID and log excerpt. No secret-bearing file exists to keep.
 6. 1Password: edit item dykqfttarudsxhzrlsktyupq2y into a documented POINTER (coordinator
    instruction): title "Google AI (Gemini) API Key - PopDAM Railway worker env fallback (production,
