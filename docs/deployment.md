@@ -26,7 +26,6 @@ Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by
 | Publish Bridge Agent | `publish-bridge-agent.yml` | Push to `main` touching `apps/bridge-agent/**` or `packages/path-filters/**`; also tags matching `bridge-v*` | Builds and pushes Docker image `ghcr.io/u2giants/popdam-bridge` to GHCR with tags `:latest`, `:stable`, `:v{version}`, `:<sha>`; upserts `BRIDGE_LATEST_BUILD` in `admin_config` via Supabase PostgREST |
 | Publish Windows Agent | `publish-windows-agent.yml` | Push to `main` touching `apps/windows-agent/**` or `packages/path-filters/**` | Builds TypeScript, bundles Node.js runtime, creates NSIS installer and zip artifact, creates versioned GitHub Release and updates `windows-agent-latest` release, POSTs `notify-build` to `agent-api` |
 | Publish PopDAM Helper | `publish-popdam-helper.yml` | Push to `main` touching `apps/popdam-helper/**`; also `workflow_dispatch` | Builds Electron app for Windows (x64 NSIS installer) and macOS (arm64 + x64 DMG) in parallel, publishes all artifacts to GitHub Release `popdam-helper-latest` |
-| Deploy PopSG Supabase (Edge Functions) | `deploy-popsg-supabase.yml` | `workflow_dispatch` only | Intentionally fails with an explanation. `supabase-popsg/` is dead code; PopSG runs from the main PopDAM Supabase project. |
 
 **CI path filters:** `publish-frontend.yml` does not trigger on changes to `docs/**` or top-level `.md` files. `deploy-supabase.yml` does not trigger on frontend source changes.
 

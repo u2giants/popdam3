@@ -1,7 +1,0 @@
-project_id = "eeueczxhezfhyrhdmidg"
-
-[functions.agent-api]
-verify_jwt = false
-
-[functions.admin-api]
-verify_jwt = false

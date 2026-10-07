@@ -187,7 +187,7 @@ At runtime, `src/lib/app-mode.ts` detects the active mode from the hostname and 
 
 PopSG-specific pages are in `src/pages/popsg/`. The router in `src/App.tsx` guards them with `IS_POPSG`. To preview PopSG locally: add `?mode=popsg` to the URL (persisted in `sessionStorage` for the tab).
 
-The `supabase-popsg/` directory in the repo root is dead code from an earlier architecture where PopSG had its own Supabase project. It is never deployed from.
+PopSG once had its own Supabase project (`eeueczxhezfhyrhdmidg`); that `supabase-popsg/` folder and its deploy workflow were deleted (#221).
 
 ---
 

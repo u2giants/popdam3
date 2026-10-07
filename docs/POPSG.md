@@ -17,7 +17,7 @@ PopSG is the licensor-facing side of the Designflow platform. Where PopDAM is a 
 | Main table | `assets` | `style_guide_files` |
 | Agent job | Thumbnail render + AI tag | Style guide crawl |
 
-> **`supabase-popsg/` is dead code.** It was a separate Supabase project (`eeueczxhezfhyrhdmidg`) that predates consolidation. The directory still exists in the repo but its edge functions are not deployed and its workflow (`deploy-popsg-supabase.yml`) is not used. Do not edit or deploy from it.
+> PopSG's old separate Supabase project (`eeueczxhezfhyrhdmidg`) is abandoned; its `supabase-popsg/` folder and workflow were deleted (#221).
 
 ---
 
