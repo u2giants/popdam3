@@ -29,6 +29,21 @@ function shutdown(signal: string) {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
+// Timeout wrappers (withDependencyTimeout) abandon still-running work, so a
+// late rejection or throw from that work must not kill the polling loop.
+process.on("unhandledRejection", (reason) => {
+  logger.error("worker: unhandled promise rejection (loop kept alive)", {
+    error: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+});
+process.on("uncaughtException", (err) => {
+  logger.error("worker: uncaught exception (loop kept alive)", {
+    error: err.message,
+    stack: err.stack,
+  });
+});
+
 async function main() {
   logger.info("worker: starting", {
     supabase_url: config.supabaseUrl,
