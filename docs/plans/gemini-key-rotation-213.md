@@ -69,7 +69,7 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v8.4 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
+## Addendum v8.5 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
 
 Review scope: ONLY this addendum. Steps 1-9 above already ran and were reported on #213 (5:15 PM
 EDT); nothing here touches the DB. Owner of this addendum and its residuals: this Claude session.
@@ -91,7 +91,8 @@ Inputs (exact):
 - Source: op://vibe_coding/3onekcbg3dxnazpnt36d4yzfcq/7g7toqbbme6aybbs5hfzvvwoaa. Already
   validated: sha256[:12]=3c48237f28e9 (== admin_config), GET v1beta/models -> 200. Re-validated
   (GET v1beta/models -> 200) twice more: immediately before step 2 from 1Password, and after step 2
-  from Railway's read-back value (curl -K from a 0600 file shredded by trap).
+  from Railway's read-back value, piped as the header via `curl -H @-` (stdin only; never on disk
+  or argv).
 - Target: Railway project 8645c5fe-ae60-413e-8464-508456c65365, env production, service popdam3
   (f777713f-d0f8-4f9b-9685-37c9090c98ef), variable GOOGLE_AI_API_KEY; all commands pass -p/-e/-s.
   Expected current fingerprint 3c1804c42ed1 (dead, API_KEY_INVALID).
@@ -121,7 +122,8 @@ Steps:
    popdam3` (normal deploy-triggering set — one restart, same as every push to main).
    Reconcile by F regardless of exit code: 3c48237f28e9 = applied; 3c1804c42ed1 = not applied,
    before any retry, reconcile deployments: if a deployment was created after the step-2 start,
-   the set landed late — re-read F and continue from step 3 with no retry; otherwise retry once,
+   re-read F: continue from step 3 with no retry ONLY if F == NEW; if F == OLD the deployment is
+   unrelated and the set did not land, so treat as not applied (below); other = stop; otherwise retry once,
    and if still old stop (nothing changed, no deploy) and record Blocked on #213;
    any other digest = stop and investigate (a concurrent change may be legitimate; never
    overwrite it), record on #213.
@@ -135,16 +137,24 @@ Steps:
    WORKER_HEARTBEAT.updated_at advances past D0's removal time within 3 min (attributed to D1 by
    exclusivity; the row carries no deployment ID). Re-run check 1c to confirm nothing went
    ambiguous.
+4b. Final assertion after health (and after any step-5 redeploy): F == NEW and the Railway
+   read-back value -> GET v1beta/models 200. Any mismatch = stop and record on #213.
 5. No key rollback on deployment failure: the worker reads GOOGLE_AI_API_KEY lazily
    (google-ai-key.ts, only on a direct-Gemini batch with an admin_config miss), so the new value
    cannot cause a startup failure, and the old value is dead anyway. If the step-2 deployment
    fails step 3/4: read its logs, redeploy once (with check 1c first), and if it still fails record
    Blocked on #213 with the deployment ID and log excerpt. No secret-bearing file exists to keep.
-6. 1Password: edit item dykqfttarudsxhzrlsktyupq2y (drop PLACEHOLDER from title, remove the empty
-   concealed field, notes point to the main-key op:// ref); verify with item_get (no reveal). On
+6. 1Password: edit item dykqfttarudsxhzrlsktyupq2y into a documented POINTER (coordinator
+   instruction): title "Google AI (Gemini) API Key - PopDAM Railway worker env fallback (production,
+   same key as admin_config)"; keep its 8 tags; remove the empty concealed field so it holds no
+   secret and cannot diverge (single source of truth = main-key field); notes keep the full context
+   (purpose, consumer, Railway IDs, NEW digest, install date, how to rotate both together) plus the
+   main-key op:// ref. Not a duplicate: it stores no value. Lookup "gemini"/"google" before editing
+   to confirm no other item covers it; verify with item_get (no reveal). On
    failure retry once; the item holds no secret, so a failed edit is cosmetic and recorded on #213.
 7. Post evidence on #213 (EDT times, signed), keeping unchecked, owned by this session:
    "- [ ] live proof: worker env-fallback branch (runs only on admin_config miss)".
-Cleanup: nothing secret is written to disk (new key moves by stdin pipe only; no old-key backup).
+Cleanup: nothing secret is written to disk (new key moves by stdin pipes only; no old-key backup;
+API checks pass the header via stdin).
 Residual on #213: the old dead key's origin Google project is unknown; it already returns
 API_KEY_INVALID.
