@@ -69,7 +69,7 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v8.9 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
+## Addendum v8.10 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
 
 Review scope: ONLY this addendum. Steps 1-9 above already ran and were reported on #213 (5:15 PM
 EDT); nothing here touches the DB. Owner of this addendum and its residuals: this Claude session.
@@ -120,7 +120,7 @@ Steps:
       20 min for that to settle, else stop.
    c. Restart safety (KNOWN_QUIRKS #74): admin_config BULK_OPERATIONS (same explicit qsllyeztdwjgirsysgai connection;
       WORKER_HEARTBEAT in step 4 also read there) has no op running/queued/
-      pending/starting, no batch_job phase submitting/ambiguous_submission, and no interrupted op
+      pending/starting, no external_job.phase (types.ts:48; BULK_JOBS.md) submitting/ambiguous_submission, and no interrupted op
       eligible for auto-resume (transient reason + attempts under cap). 5:37 PM EDT check: none.
    d. No backup of the old value is taken (it is dead and there is no rollback to it); only its
       full sha256 digest is recorded.
@@ -169,10 +169,13 @@ Steps:
    main-key op:// ref. Not a duplicate: it stores no value. Resolve the vault ID with vault_list (vibe_coding =
    pimcaogmxxzoafh7lsluj6uxkq today), then item_lookup "gemini", "google", "GOOGLE_AI", "railway
    worker" and confirm only this item and the main-key item match before editing; verify with item_get (no reveal). Serialized
-   access: one 1Password call at a time from this session only, no parallel vault writes; before
-   editing record the item's updatedAt, and immediately before the edit re-read it — if updatedAt
-   changed, re-read and merge instead of overwriting. After the edit, item_get (no reveal) must show
-   the exact new title, 8 tags, notes, and no concealed field. On failure retry once; if it still
+   access: one 1Password call at a time from this session. This item was created by this session
+   today and has no other writer (1Password offers no compare-and-swap). Before: save the full
+   item_get JSON (no reveal) as snapshot S. Dry-run: compute the intended post-edit item from S
+   (only title, notes, and removal of the one empty concealed field differ) and record it. Re-read
+   immediately before the edit; if anything differs from S, stop and merge. After: item_get must
+   equal the dry-run expectation exactly (every untouched field, tags, category identical); on any
+   mismatch restore S's title/notes/tags via item_edit and verify. On failure retry once; if it still
    fails, #213 stays Blocked (owned by this session) until the pointer is verified.
    The worker's env-fallback runtime path (google-ai-key.ts:29-45) stays unproved by design:
    exercising it requires emptying the production DB key; it is left as the same-issue live-proof
