@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -28,7 +29,9 @@ import StylesPage from "./pages/StylesPage";
 import OrdersPage from "./pages/OrdersPage";
 import SellThroughExportPage from "./pages/SellThroughExportPage";
 import { IS_POPSG } from "@/lib/app-mode";
-import PropertyReconciliationVisualPage from "@/features/popsg-property-reconciliation/PropertyReconciliationVisualPage";
+const PropertyReconciliationVisualPage = lazy(
+  () => import("@/features/popsg-property-reconciliation/PropertyReconciliationVisualPage"),
+);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,7 +59,7 @@ const App = () => (
               <Route path="/privacy" element={<PrivacyPolicyPage />} />
               <Route path="/terms" element={<TermsOfServicePage />} />
               {import.meta.env.DEV && (
-                <Route path="/__visual/property-reconciliation" element={<PropertyReconciliationVisualPage />} />
+                <Route path="/__visual/property-reconciliation" element={<Suspense fallback={null}><PropertyReconciliationVisualPage /></Suspense>} />
               )}
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/library" element={IS_POPSG ? <PopSGLibraryPage /> : <Index />} />

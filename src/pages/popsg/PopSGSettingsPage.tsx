@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,13 +21,19 @@ import { useAgentStatus } from "@/hooks/useAgentStatus";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePersistentOperation } from "@/hooks/usePersistentOperation";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
-import { PropertyReconciliationPanel } from "@/features/popsg-property-reconciliation/PropertyReconciliationPanel";
 import {
   WindowsAgentStatus,
   AgentRemoteControls,
   AgentLogTail,
 } from "@/components/settings/WindowsAgentTab";
 import { UsersSection, InvitationSection } from "@/components/settings/UsersTab";
+
+// Lazy: the panel carries a large generated fixture; keep it out of the main bundle (#191).
+const PropertyReconciliationPanel = lazy(() =>
+  import("@/features/popsg-property-reconciliation/PropertyReconciliationPanel").then((m) => ({
+    default: m.PropertyReconciliationPanel,
+  })),
+);
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -1315,7 +1321,9 @@ export default function PopSGSettingsPage() {
         {/* ── File Tags tab ── */}
         <TabsContent value="file-tags" className="space-y-5">
           <PopSGTaggingCard />
-          <PropertyReconciliationPanel role={isAdmin ? "administrator" : "viewer"} />
+          <Suspense fallback={<div className="text-sm text-muted-foreground">Loading property reconciliation…</div>}>
+            <PropertyReconciliationPanel role={isAdmin ? "administrator" : "viewer"} />
+          </Suspense>
         </TabsContent>
 
         {/* ── Render Agent tab ── */}
