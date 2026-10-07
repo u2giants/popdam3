@@ -1,0 +1,609 @@
+{
+  "work_issue": 2875,
+  "source_repository": "popcre/shared-db",
+  "application_repository": "popcre/designflow-backend",
+  "application_branch": "develop",
+  "project_ref": "qsllyeztdwjgirsysgai",
+  "schema": "dflow_prod",
+  "live_assertion": "dflow_prod contains the complete current Tracking sample surface and all six application-callable functions with canonical constraints, triggers, idempotency, immutability, and refusal behavior",
+  "catalog": {
+    "functions": [
+      {
+        "name": "pack_sample_reservation",
+        "return_set": false,
+        "return_type": "dflow_prod.sample_reservation",
+        "default_count": 0,
+        "argument_names": [
+          "p_reservation_id",
+          "p_box_id",
+          "p_sample_shipment_id",
+          "p_origin_location_id",
+          "p_destination_type",
+          "p_destination_id",
+          "p_route_leg",
+          "p_actor_user",
+          "p_actor_role",
+          "p_idempotency_key",
+          "p_request_hash"
+        ],
+        "argument_types": [
+          "uuid",
+          "integer",
+          "bigint",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text"
+        ]
+      },
+      {
+        "name": "post_sample_approval_event",
+        "return_set": false,
+        "return_type": "dflow_prod.sample_approval_event",
+        "default_count": 4,
+        "argument_names": [
+          "p_sample_id",
+          "p_approval_type",
+          "p_approval_state",
+          "p_qc_required",
+          "p_actor_user",
+          "p_actor_role",
+          "p_idempotency_key",
+          "p_request_hash",
+          "p_sample_attachment_id",
+          "p_destination_type",
+          "p_destination_id",
+          "p_reason"
+        ],
+        "argument_types": [
+          "integer",
+          "text",
+          "text",
+          "boolean",
+          "text",
+          "text",
+          "text",
+          "text",
+          "integer",
+          "text",
+          "text",
+          "text"
+        ]
+      },
+      {
+        "name": "post_sample_movement",
+        "return_set": false,
+        "return_type": "dflow_prod.sample_movement",
+        "default_count": 8,
+        "argument_names": [
+          "p_sample_id",
+          "p_quantity",
+          "p_from_type",
+          "p_from_id",
+          "p_to_type",
+          "p_to_id",
+          "p_action",
+          "p_actor_user",
+          "p_actor_role",
+          "p_idempotency_key",
+          "p_request_hash",
+          "p_box_id",
+          "p_shipment_line_id",
+          "p_actor_factory_id",
+          "p_discrepancy_code",
+          "p_discrepancy_details",
+          "p_reversal_of",
+          "p_from_label",
+          "p_to_label"
+        ],
+        "argument_types": [
+          "integer",
+          "integer",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "integer",
+          "bigint",
+          "integer",
+          "text",
+          "text",
+          "bigint",
+          "text",
+          "text"
+        ]
+      },
+      {
+        "name": "post_sample_piece_split",
+        "return_set": true,
+        "return_type": "dflow_prod.sample_piece_lineage",
+        "default_count": 0,
+        "argument_names": [
+          "p_parent_sample_id",
+          "p_children",
+          "p_source_location_type",
+          "p_source_location_id",
+          "p_split_reason",
+          "p_actor_user",
+          "p_actor_role",
+          "p_idempotency_key",
+          "p_request_hash"
+        ],
+        "argument_types": [
+          "integer",
+          "jsonb",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text"
+        ]
+      },
+      {
+        "name": "post_sample_remote_request_event",
+        "return_set": false,
+        "return_type": "dflow_prod.sample_remote_request_history",
+        "default_count": 2,
+        "argument_names": [
+          "p_item_id",
+          "p_to_state",
+          "p_actor_user",
+          "p_actor_role",
+          "p_idempotency_key",
+          "p_request_hash",
+          "p_note",
+          "p_event_payload"
+        ],
+        "argument_types": [
+          "uuid",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "jsonb"
+        ]
+      },
+      {
+        "name": "reserve_sample_remote_request_item",
+        "return_set": false,
+        "return_type": "dflow_prod.sample_reservation",
+        "default_count": 0,
+        "argument_names": [
+          "p_item_id",
+          "p_actor_user",
+          "p_actor_role",
+          "p_idempotency_key",
+          "p_request_hash"
+        ],
+        "argument_types": [
+          "uuid",
+          "text",
+          "text",
+          "text",
+          "text"
+        ]
+      }
+    ],
+    "return_relations": [
+      {
+        "name": "sample_approval_event",
+        "columns": [
+          [
+            "sample_approval_event_id",
+            "bigint",
+            false
+          ],
+          [
+            "sample_id_fk",
+            "integer",
+            false
+          ],
+          [
+            "sample_attachment_id",
+            "integer",
+            true
+          ],
+          [
+            "approval_type",
+            "text",
+            false
+          ],
+          [
+            "approval_state",
+            "text",
+            false
+          ],
+          [
+            "qc_required",
+            "boolean",
+            false
+          ],
+          [
+            "destination_type",
+            "text",
+            true
+          ],
+          [
+            "destination_id",
+            "text",
+            true
+          ],
+          [
+            "reason",
+            "text",
+            true
+          ],
+          [
+            "actor_user",
+            "text",
+            false
+          ],
+          [
+            "actor_role",
+            "text",
+            false
+          ],
+          [
+            "idempotency_key",
+            "text",
+            false
+          ],
+          [
+            "request_hash",
+            "text",
+            false
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            false
+          ]
+        ]
+      },
+      {
+        "name": "sample_movement",
+        "columns": [
+          [
+            "movement_id",
+            "bigint",
+            false
+          ],
+          [
+            "sample_id_fk",
+            "integer",
+            false
+          ],
+          [
+            "quantity",
+            "integer",
+            false
+          ],
+          [
+            "from_location_type",
+            "text",
+            false
+          ],
+          [
+            "from_location_id",
+            "text",
+            false
+          ],
+          [
+            "from_location_label",
+            "text",
+            true
+          ],
+          [
+            "to_location_type",
+            "text",
+            false
+          ],
+          [
+            "to_location_id",
+            "text",
+            false
+          ],
+          [
+            "to_location_label",
+            "text",
+            true
+          ],
+          [
+            "box_id_fk",
+            "integer",
+            true
+          ],
+          [
+            "shipment_line_id",
+            "bigint",
+            true
+          ],
+          [
+            "lifecycle_action",
+            "text",
+            false
+          ],
+          [
+            "prior_status",
+            "text",
+            true
+          ],
+          [
+            "resulting_status",
+            "text",
+            true
+          ],
+          [
+            "discrepancy_code",
+            "text",
+            true
+          ],
+          [
+            "discrepancy_details",
+            "text",
+            true
+          ],
+          [
+            "actor_user",
+            "text",
+            false
+          ],
+          [
+            "actor_role",
+            "text",
+            false
+          ],
+          [
+            "actor_factory_id",
+            "integer",
+            true
+          ],
+          [
+            "occurred_at",
+            "timestamp with time zone",
+            false
+          ],
+          [
+            "idempotency_key",
+            "text",
+            false
+          ],
+          [
+            "request_hash",
+            "text",
+            false
+          ],
+          [
+            "reversal_of_movement_id",
+            "bigint",
+            true
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            false
+          ],
+          [
+            "sample_shipment_id",
+            "bigint",
+            true
+          ]
+        ]
+      },
+      {
+        "name": "sample_piece_lineage",
+        "columns": [
+          [
+            "sample_piece_lineage_id",
+            "bigint",
+            false
+          ],
+          [
+            "sample_id_fk",
+            "integer",
+            false
+          ],
+          [
+            "parent_sample_id_fk",
+            "integer",
+            false
+          ],
+          [
+            "root_sample_id_fk",
+            "integer",
+            false
+          ],
+          [
+            "piece_quantity",
+            "integer",
+            false
+          ],
+          [
+            "split_reason",
+            "text",
+            false
+          ],
+          [
+            "split_by_user",
+            "text",
+            false
+          ],
+          [
+            "split_by_role",
+            "text",
+            false
+          ],
+          [
+            "idempotency_key",
+            "text",
+            false
+          ],
+          [
+            "request_hash",
+            "text",
+            false
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            false
+          ]
+        ]
+      },
+      {
+        "name": "sample_remote_request_history",
+        "columns": [
+          [
+            "sample_remote_request_history_id",
+            "bigint",
+            false
+          ],
+          [
+            "sample_remote_request_item_id",
+            "uuid",
+            false
+          ],
+          [
+            "from_state",
+            "text",
+            true
+          ],
+          [
+            "to_state",
+            "text",
+            false
+          ],
+          [
+            "actor_user",
+            "text",
+            false
+          ],
+          [
+            "actor_role",
+            "text",
+            false
+          ],
+          [
+            "note",
+            "text",
+            true
+          ],
+          [
+            "event_payload",
+            "jsonb",
+            false
+          ],
+          [
+            "idempotency_key",
+            "text",
+            false
+          ],
+          [
+            "request_hash",
+            "text",
+            false
+          ],
+          [
+            "occurred_at",
+            "timestamp with time zone",
+            false
+          ]
+        ]
+      },
+      {
+        "name": "sample_reservation",
+        "columns": [
+          [
+            "sample_reservation_id",
+            "uuid",
+            false
+          ],
+          [
+            "sample_remote_request_item_id",
+            "uuid",
+            false
+          ],
+          [
+            "sample_id_fk",
+            "integer",
+            false
+          ],
+          [
+            "reservation_state",
+            "text",
+            false
+          ],
+          [
+            "open_sample_id",
+            "integer",
+            true
+          ],
+          [
+            "packed_box_id",
+            "integer",
+            true
+          ],
+          [
+            "packed_shipment_line_id",
+            "bigint",
+            true
+          ],
+          [
+            "reserved_by_user",
+            "text",
+            false
+          ],
+          [
+            "packed_by_user",
+            "text",
+            true
+          ],
+          [
+            "idempotency_key",
+            "text",
+            false
+          ],
+          [
+            "request_hash",
+            "text",
+            false
+          ],
+          [
+            "reserved_at",
+            "timestamp with time zone",
+            false
+          ],
+          [
+            "packed_at",
+            "timestamp with time zone",
+            true
+          ]
+        ]
+      }
+    ],
+    "fingerprint_count": 707,
+    "definitions_sha256": "5d1f38c896e78045a74de3c8d50a18c9463a2dd8531b3ad5662dc6b783e0cd85",
+    "client_access_closed": true
+  },
+  "type_projection_functions": [
+    "pack_sample_reservation",
+    "post_sample_approval_event",
+    "post_sample_movement",
+    "post_sample_piece_split",
+    "post_sample_remote_request_event",
+    "reserve_sample_remote_request_item"
+  ]
+}

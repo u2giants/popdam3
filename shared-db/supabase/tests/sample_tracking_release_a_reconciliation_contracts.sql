@@ -30,7 +30,9 @@ BEGIN
     RAISE EXCEPTION 'Release A reconciliation functions are incomplete';
   END IF;
   IF (SELECT count(*) FROM pg_trigger
-      WHERE NOT tgisinternal AND tgname IN (
+      WHERE NOT tgisinternal
+        AND tgrelid IN (SELECT c.oid FROM pg_class c WHERE c.relnamespace = 'dflow'::regnamespace)
+        AND tgname IN (
         'sample_path_revision_validate','sample_workflow_path_revision_required',
         'sample_path_revision_apply','sample_path_revision_immutable',
         'sample_shipment_line_header_route')) <> 5 THEN
@@ -99,7 +101,9 @@ BEGIN
     RAISE EXCEPTION 'Release A 0-of-3 repair did not recreate relations: %',v_missing;
   END IF;
   IF (SELECT count(*) FROM pg_trigger
-      WHERE NOT tgisinternal AND tgname IN (
+      WHERE NOT tgisinternal
+        AND tgrelid IN (SELECT c.oid FROM pg_class c WHERE c.relnamespace = 'dflow'::regnamespace)
+        AND tgname IN (
         'sample_path_revision_validate','sample_workflow_path_revision_required',
         'sample_path_revision_apply','sample_path_revision_immutable',
         'sample_shipment_line_header_route')) <> 5 THEN
