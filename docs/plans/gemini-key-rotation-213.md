@@ -69,14 +69,15 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v8.2 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
+## Addendum v8.3 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
 
 Review scope: ONLY this addendum. Steps 1-9 above already ran and were reported on #213 (5:15 PM
 EDT); nothing here touches the DB. Owner of this addendum and its residuals: this Claude session.
 
-Gate (fresh, for this addendum only): immediately before step 2 run
+Gate (fresh, for this addendum only): immediately before EACH production mutation (the step-2
+variable set, and the single step-5 redeploy if it happens) run
 `ai-task-gates check --before production --reviewer-approval <this addendum's APPROVE report>`;
-stop on refusal. The gate recorded for steps 1-9 is not reused.
+stop on refusal. There is no other production mutation in this addendum. The gate recorded for steps 1-9 is not reused.
 
 Restart race (accepted residual, stated plainly): the worker has no maintenance fence, so an
 operation could be started/queued by an admin in the seconds between check 1c and shutdown. This is
@@ -96,7 +97,10 @@ Inputs (exact):
   Expected current fingerprint 3c1804c42ed1 (dead, API_KEY_INVALID).
 - Scope: one Railway variable; 1Password item dykqfttarudsxhzrlsktyupq2y only (this session's
   empty placeholder).
-- F = `railway variables --json` piped into python printing only sha256(GOOGLE_AI_API_KEY)[:12].
+- F = `railway variables --json` piped into python printing only the FULL sha256 hex digest of
+  GOOGLE_AI_API_KEY; every comparison in this addendum uses full 64-hex digests (the 12-char
+  prefixes quoted here are labels only; step 1a records the full old digest, and the full new
+  digest is computed from the 1Password field via op_run before step 2).
   Command shapes validated read-only today (variables --json; deployment list --json with
   id/status/createdAt; logs <id> --lines N).
 
@@ -109,14 +113,14 @@ Steps:
    c. Restart safety (KNOWN_QUIRKS #74): admin_config BULK_OPERATIONS has no op running/queued/
       pending/starting, no batch_job phase submitting/ambiguous_submission, and no interrupted op
       eligible for auto-resume (transient reason + attempts under cap). 5:37 PM EDT check: none.
-   d. Back up the old RAW value (not its hash) to a 0600 scratch file: `railway variables --json`
-      piped into python that writes the GOOGLE_AI_API_KEY string itself to the file and prints only
-      sha256(file contents)[:12], which must equal 3c1804c42ed1.
+   d. No backup of the old value is taken (it is dead and there is no rollback to it); only its
+      full sha256 digest is recorded.
 2. op_run pipes $K to `railway variable set GOOGLE_AI_API_KEY --stdin -p .. -e production -s
    popdam3` (normal deploy-triggering set — one restart, same as every push to main).
    Reconcile by F regardless of exit code: 3c48237f28e9 = applied; 3c1804c42ed1 = not applied,
-   retry once, and if still 3c1804c42ed1 stop (nothing changed, no deploy) and record Blocked on
-   #213; other = restore backup, assert F == 3c1804c42ed1, stop.
+   retry once, and if still old stop (nothing changed, no deploy) and record Blocked on #213;
+   any other digest = stop and investigate (a concurrent change may be legitimate; never
+   overwrite it), record on #213.
 3. Identify the deployment: D1 = the deployment created after the step-2 start time. Bounded wait
    15 min for D1 SUCCESS and D0 REMOVED. If a further deployment (another session's push) appears,
    take the newest one as D1 and re-assert F == 3c48237f28e9; every check below uses that ID. If
@@ -131,14 +135,12 @@ Steps:
    (google-ai-key.ts, only on a direct-Gemini batch with an admin_config miss), so the new value
    cannot cause a startup failure, and the old value is dead anyway. If the step-2 deployment
    fails step 3/4: read its logs, redeploy once (with check 1c first), and if it still fails record
-   Blocked on #213 with the deployment ID and log excerpt. The backup is kept until the final state
-   is verified, purely as recovery evidence.
+   Blocked on #213 with the deployment ID and log excerpt. No secret-bearing file exists to keep.
 6. 1Password: edit item dykqfttarudsxhzrlsktyupq2y (drop PLACEHOLDER from title, remove the empty
    concealed field, notes point to the main-key op:// ref); verify with item_get (no reveal). On
    failure retry once; the item holds no secret, so a failed edit is cosmetic and recorded on #213.
 7. Post evidence on #213 (EDT times, signed), keeping unchecked, owned by this session:
    "- [ ] live proof: worker env-fallback branch (runs only on admin_config miss)".
-Cleanup: shred the backup (old dead key) once the final state is verified; keep it only if the
-deployment ended Blocked. The live key is never written to disk (stdin pipe only).
+Cleanup: nothing secret is written to disk (new key moves by stdin pipe only; no old-key backup).
 Residual on #213: the old dead key's origin Google project is unknown; it already returns
 API_KEY_INVALID.
