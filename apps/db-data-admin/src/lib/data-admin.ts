@@ -54,6 +54,22 @@ export async function loadRows(client: ApiClient, kind: EntityKind, query: Query
   return { rows: payload.rows ?? [], nextCursor: payload.next_cursor ?? null }
 }
 
+// Guards cursor-paginated loops: stops on a repeated cursor or a runaway page count
+// instead of looping forever when the server misbehaves.
+export const MAX_PAGINATION_PAGES = 1000
+export function createCursorGuard(label: string, maxPages = MAX_PAGINATION_PAGES) {
+  const seen = new Set<string>()
+  let pages = 0
+  return (cursor: string | null) => {
+    pages += 1
+    if (cursor === null) return null
+    if (seen.has(cursor)) throw new Error(`${label}: server repeated a page cursor; loading stopped.`)
+    if (pages >= maxPages) throw new Error(`${label}: more than ${maxPages} pages; loading stopped.`)
+    seen.add(cursor)
+    return cursor
+  }
+}
+
 export async function loadAllRows(client: ApiClient, kind: EntityKind, query: QueryState, limit = 5000) {
   const rows: AdminRow[] = []
   let cursor: string | null = null
@@ -187,6 +203,7 @@ export type LoadedTree = {
 export async function loadLicensorTree(client: ApiClient, params: { includeInactive?: boolean } = {}) {
   const licensors: LicensorNode[] = []
   let cursor: string | null = null
+  const guard = createCursorGuard('Licensor tree')
   let snapshot: TreeSnapshot | undefined
   let reconciliation: TreeReconciliation | undefined
   let orphanProperties: PropertyNode[] = []
@@ -203,7 +220,7 @@ export async function loadLicensorTree(client: ApiClient, params: { includeInact
     if (!reconciliation && payload.reconciliation) reconciliation = payload.reconciliation
     if (payload.orphan_properties) orphanProperties = payload.orphan_properties
     licensors.push(...(payload.licensors ?? []))
-    cursor = payload.next_cursor ?? null
+    cursor = guard(payload.next_cursor ?? null)
   } while (cursor)
   return {
     snapshot: snapshot as TreeSnapshot,
@@ -288,6 +305,7 @@ export function presentScrapedProperty(row: ScrapedPropertyRow): ScrapedProperty
 export async function loadScrapedProperties(client: ApiClient) {
   const rows: ScrapedPropertyRow[] = []
   let cursor: string | null = null
+  const guard = createCursorGuard('Scraped properties')
   do {
     const { data, error } = await client.rpc('db_data_admin_scraped_properties', {
       p_search: null,
@@ -297,7 +315,7 @@ export async function loadScrapedProperties(client: ApiClient) {
     if (error) throw error
     const payload = (data ?? {}) as { rows?: ScrapedPropertyRow[]; next_cursor?: string | null }
     rows.push(...(payload.rows ?? []).map(row => presentScrapedProperty({ ...row, id: row.row_key })))
-    cursor = payload.next_cursor ?? null
+    cursor = guard(payload.next_cursor ?? null)
   } while (cursor)
   return rows
 }
@@ -356,6 +374,7 @@ export type ScrapedInventoryRow = AdminRow & {
 export async function loadScrapedInventory(client: ApiClient, entityKind: ScrapedInventoryKind) {
   const rows: ScrapedInventoryRow[] = []
   let cursor: string | null = null
+  const guard = createCursorGuard('Scraped inventory')
   do {
     const { data, error } = await client.rpc('db_data_admin_scraped_source_inventory', {
       p_entity_kind: entityKind,
@@ -374,7 +393,7 @@ export async function loadScrapedInventory(client: ApiClient, entityKind: Scrape
         is_unmapped_creative: isUnmapped,
       }
     }))
-    cursor = payload.next_cursor ?? null
+    cursor = guard(payload.next_cursor ?? null)
   } while (cursor)
   return rows
 }

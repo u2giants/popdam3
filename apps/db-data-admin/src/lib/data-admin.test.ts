@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { executeMerge, initialQuery, loadAllRows, loadGridState, previewMerge, saveGridState, searchMergeCandidates, setPropertyStatus, toRpcParams, updateRecord } from './data-admin'
+import { createCursorGuard, executeMerge, initialQuery, loadAllRows, loadGridState, previewMerge, saveGridState, searchMergeCandidates, setPropertyStatus, toRpcParams, updateRecord } from './data-admin'
 
 describe('DB Data Admin query contracts', () => {
   it('maps the customer-only channel without changing the vendor signature', () => {
@@ -85,5 +85,24 @@ describe('setPropertyStatus', () => {
     const rpc = vi.fn().mockResolvedValue({ data: { success: false, code: 'stale_token' }, error: null })
     await setPropertyStatus({ rpc } as never, 'p-avengers', 'inactive', { expectedUpdatedAt: '', reason: 'Licence lapsed' })
     expect(rpc.mock.calls[0][1].p_expected_updated_at).toBeNull()
+  })
+})
+
+describe('createCursorGuard', () => {
+  it('passes new cursors and null through', () => {
+    const guard = createCursorGuard('Test')
+    expect(guard('a')).toBe('a')
+    expect(guard('b')).toBe('b')
+    expect(guard(null)).toBeNull()
+  })
+  it('stops on a repeated cursor', () => {
+    const guard = createCursorGuard('Test')
+    guard('a')
+    expect(() => guard('a')).toThrow(/repeated/)
+  })
+  it('stops past the page cap', () => {
+    const guard = createCursorGuard('Test', 3)
+    guard('a'); guard('b')
+    expect(() => guard('c')).toThrow(/more than 3 pages/)
   })
 })
