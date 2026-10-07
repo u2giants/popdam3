@@ -1,0 +1,8 @@
+# Pinned SSH host keys for the Synology NASes used by scripts/nas-ssh.sh.
+# Verified 2026-10-07: ssh-keyscan output matched the keys already trusted in
+# the hetz operator's ~/.ssh/known_hosts. If a NAS is rebuilt, re-verify the
+# new key out-of-band before replacing a line here (issue #244).
+100.107.131.35 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII7oz8/F/nbaaH/MyaFcjH5BK5b9qhE0t8W2aj8Q5+sA
+100.107.131.35 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGD7mvbrBdh2MdDlhHG6xvK4pMDpR5JJ1LSA9sOkYwCeMSfEapMIXnOk/YSZjlCDcP/ps91PyySjjojEhIerrno=
+[100.107.131.36]:1904 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSnYP96zeqCpwvFvTTPidhxGDr9JnyD2dkAJKzwwgyU
+[100.107.131.36]:1904 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGF8DUUozut/cMf1zQGPisqfoExuBcRVq3qELBGiqmzaOVseRc5r1VsM16EG+l6FxVxMPnBVNTbodFpjoxxGTxA=

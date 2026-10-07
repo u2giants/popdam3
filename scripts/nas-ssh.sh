@@ -15,9 +15,16 @@ if [[ -z "${SYNOLOGY_SSH_HOST:-}" || -z "${SYNOLOGY_SSH_USER:-}" || -z "${SYNOLO
   exit 1
 fi
 
+# Host keys are pinned in scripts/nas_known_hosts (issue #244); an unknown or
+# changed key aborts the connection instead of being silently trusted.
+KNOWN_HOSTS="$ROOT/scripts/nas_known_hosts"
+
 ssh \
   -i "$SYNOLOGY_SSH_KEY" \
-  -o StrictHostKeyChecking=no \
+  -p "${SYNOLOGY_SSH_PORT:-22}" \
+  -o StrictHostKeyChecking=yes \
+  -o UserKnownHostsFile="$KNOWN_HOSTS" \
+  -o GlobalKnownHostsFile=/dev/null \
   -o ConnectTimeout=10 \
   "${SYNOLOGY_SSH_USER}@${SYNOLOGY_SSH_HOST}" \
   "$@"
