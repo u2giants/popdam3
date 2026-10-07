@@ -10,6 +10,8 @@
 // input that could rename a database, same-target concurrent mutation, and
 // promotion-manifest drift all refuse.
 
+import { isDocumentationPath, isProductionInertPath } from './check-main-tip-freshness.mjs'
+
 export class TargetQueueError extends Error {
   constructor(message) {
     super(message)
@@ -246,17 +248,17 @@ export function evaluatePairCompatibility(left, right, plan) {
 // Production freshness (unified policy)
 // ---------------------------------------------------------------------------
 //
-// Workflow tip checks and acquireExclusive('production') currently demand
-// current main independently. Both must call one policy. Documentation-only
-// drift on the allowlist may reuse a promotion; substantive/unknown drift never
-// reuses a promotion manifest.
+// Workflow tip checks and acquireExclusive('production') must call one policy.
+// The path classifier is the carefully reviewed production-inert rule that
+// `check-main-tip-freshness.mjs` owns (`isProductionInertPath`): documentation
+// by extension, plus `.agent/` evidence pairs and test-only scripts that no
+// production step executes. Production-inert drift may reuse a promotion;
+// substantive/unknown drift never reuses a promotion manifest. Importing the
+// classifier from there keeps one source of truth for both gates.
 
+/** Thin wrapper kept for callers that ask the documentation-only question. */
 export function isDocumentationOnlyPath(path) {
-  if (typeof path !== 'string' || path.length === 0) return false
-  if (path.includes('\n') || path.includes('\0')) return false
-  const lower = path.toLowerCase()
-  if (lower.startsWith('.github/')) return false
-  return lower.endsWith('.md') || lower.endsWith('.markdown')
+  return isDocumentationPath(path)
 }
 
 /**
@@ -281,7 +283,7 @@ export function evaluateProductionFreshness(state) {
   if (changedPaths.length === 0) {
     refuse('main moved with an empty changed-path list; refusing rather than guessing')
   }
-  const substantive = changedPaths.filter((p) => !isDocumentationOnlyPath(p))
+  const substantive = changedPaths.filter((p) => !isProductionInertPath(p))
   if (substantive.length > 0) {
     return {
       fresh: false,
@@ -293,7 +295,7 @@ export function evaluateProductionFreshness(state) {
   return {
     fresh: true,
     reuseManifest: true,
-    reason: 'main moved only with documentation allowlist paths',
+    reason: 'main moved only with production-inert paths (documentation, .agent evidence or test files)',
   }
 }
 

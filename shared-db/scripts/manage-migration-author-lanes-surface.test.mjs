@@ -20,7 +20,7 @@ test('entrypoint still exports every pre-split public name with the same kind', 
 })
 
 test('every public module binding is re-exported by the entrypoint as the identical object', async () => {
-  const files = readdirSync(lanesDir).filter((file) => file.endsWith('.mjs')).sort()
+  const files = readdirSync(lanesDir).filter((file) => file.endsWith('.mjs') && !file.endsWith('.test.mjs')).sort()
   assert.ok(files.length > 0, 'no lane modules found')
   const owners = new Map()
   for (const file of files) {

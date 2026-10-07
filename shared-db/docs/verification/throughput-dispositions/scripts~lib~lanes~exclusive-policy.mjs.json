@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/exclusive-policy.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/lanes/exclusive-policy.mjs:12",
+      "semantic_key": "scripts/lib/lanes/exclusive-policy.mjs:011fca9f9c571e40ca786cbbfd42c1c53042def26e758c223b950cd000f11000:context-0764661fff106a1d0578f0ddf7af7dbad26bbc2de341a34809f13033090c8b40",
+      "line_sha256": "011fca9f9c571e40ca786cbbfd42c1c53042def26e758c223b950cd000f11000",
+      "disposition": "excluded",
+      "reason": "Comment or refusal-string match in pure lock-policy module; no live database apply or throughput accounting is performed at this site.",
+      "legacy_semantic_key": "scripts/lib/lanes/exclusive-policy.mjs:011fca9f9c571e40ca786cbbfd42c1c53042def26e758c223b950cd000f11000:1"
+    },
+    {
+      "site": "scripts/lib/lanes/exclusive-policy.mjs:126",
+      "semantic_key": "scripts/lib/lanes/exclusive-policy.mjs:76ed69821aa1a86eb0c4e50fccab9e4945d1399709b02d1cae9e0a9bbefc3b1b:context-5a349b8a6b68c4937270e1983d2861abde87b4ee0e37b26b14554d5aa39f7037",
+      "line_sha256": "76ed69821aa1a86eb0c4e50fccab9e4945d1399709b02d1cae9e0a9bbefc3b1b",
+      "disposition": "excluded",
+      "reason": "Comment or refusal-string match in pure lock-policy module; no live database apply or throughput accounting is performed at this site.",
+      "legacy_semantic_key": "scripts/lib/lanes/exclusive-policy.mjs:76ed69821aa1a86eb0c4e50fccab9e4945d1399709b02d1cae9e0a9bbefc3b1b:1"
+    },
+    {
+      "site": "scripts/lib/lanes/exclusive-policy.mjs:153",
+      "semantic_key": "scripts/lib/lanes/exclusive-policy.mjs:88092ed344879f502232f85bce7baa4879ed9806a62c2db216144578d28eac9c:context-610e66b1f54cf0da9790593ff39c338d5d921d5313b52cb7451559c6d66efa9e",
+      "line_sha256": "88092ed344879f502232f85bce7baa4879ed9806a62c2db216144578d28eac9c",
+      "disposition": "excluded",
+      "reason": "Comment or refusal-string match in pure lock-policy module; no live database apply or throughput accounting is performed at this site.",
+      "legacy_semantic_key": "scripts/lib/lanes/exclusive-policy.mjs:88092ed344879f502232f85bce7baa4879ed9806a62c2db216144578d28eac9c:1"
+    },
+    {
+      "site": "scripts/lib/lanes/exclusive-policy.mjs:158",
+      "semantic_key": "scripts/lib/lanes/exclusive-policy.mjs:8925c996a902e5cebfe6676afd83812ecccb266ac9f9654ca9ad26cfb1999f59:context-dbebe9a84197372de75c90dd65848f1812965ae08b17d9e1085f32a8e5c70ada",
+      "line_sha256": "8925c996a902e5cebfe6676afd83812ecccb266ac9f9654ca9ad26cfb1999f59",
+      "disposition": "excluded",
+      "reason": "Comment or refusal-string match in pure lock-policy module; no live database apply or throughput accounting is performed at this site.",
+      "legacy_semantic_key": "scripts/lib/lanes/exclusive-policy.mjs:8925c996a902e5cebfe6676afd83812ecccb266ac9f9654ca9ad26cfb1999f59:1"
+    },
+    {
+      "site": "scripts/lib/lanes/exclusive-policy.mjs:149",
+      "semantic_key": "scripts/lib/lanes/exclusive-policy.mjs:a8c94eefb76563187236ba3bb45563be020324388f3b92979012363b0aea6b47:context-00bb3a33b3627948cd10d6f2e972f693e2c7f3d201997bcb12faecb3bc61ba92",
+      "line_sha256": "a8c94eefb76563187236ba3bb45563be020324388f3b92979012363b0aea6b47",
+      "disposition": "excluded",
+      "reason": "Comment or refusal-string match in pure lock-policy module; no live database apply or throughput accounting is performed at this site.",
+      "legacy_semantic_key": "scripts/lib/lanes/exclusive-policy.mjs:a8c94eefb76563187236ba3bb45563be020324388f3b92979012363b0aea6b47:1"
+    },
+    {
+      "site": "scripts/lib/lanes/exclusive-policy.mjs:110",
+      "semantic_key": "scripts/lib/lanes/exclusive-policy.mjs:aef821febf77fed3384cd63832c78b24ca6e4677d2d084abd803a23eeb0953fc:context-102abdab1446617246cb8124204d8481cb4aa32557172cb8168c231853cbce85",
+      "line_sha256": "aef821febf77fed3384cd63832c78b24ca6e4677d2d084abd803a23eeb0953fc",
+      "disposition": "excluded",
+      "reason": "Comment or refusal-string match in pure lock-policy module; no live database apply or throughput accounting is performed at this site.",
+      "legacy_semantic_key": "scripts/lib/lanes/exclusive-policy.mjs:aef821febf77fed3384cd63832c78b24ca6e4677d2d084abd803a23eeb0953fc:1"
+    }
+  ]
+}

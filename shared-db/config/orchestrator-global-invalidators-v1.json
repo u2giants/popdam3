@@ -26,7 +26,6 @@
     "scripts/lib/github-transport.mjs",
     "scripts/lib/github-tree.mjs",
     "scripts/lib/hold-reason.mjs",
-    "scripts/lib/merge-self-context.mjs",
     "scripts/lib/lanes/admission.mjs",
     "scripts/lib/lanes/claim-maintenance.mjs",
     "scripts/lib/lanes/claim-versions.mjs",
@@ -34,6 +33,7 @@
     "scripts/lib/lanes/cli-train.mjs",
     "scripts/lib/lanes/constants.mjs",
     "scripts/lib/lanes/exclusive-locks.mjs",
+    "scripts/lib/lanes/exclusive-policy.mjs",
     "scripts/lib/lanes/github-wire.mjs",
     "scripts/lib/lanes/holds-and-refs.mjs",
     "scripts/lib/lanes/preview-admission.mjs",
@@ -46,6 +46,7 @@
     "scripts/lib/lanes/review-replacement.mjs",
     "scripts/lib/lanes/reviewer-doctor.mjs",
     "scripts/lib/lanes/reviewer-roster.mjs",
+    "scripts/lib/merge-self-context.mjs",
     "scripts/lib/open-pr-files.mjs",
     "scripts/lib/pr-content-equivalence.mjs",
     "scripts/lib/repository-identity.mjs",
@@ -75,6 +76,7 @@
     "scripts/production_business_risk_gate.py",
     "scripts/production_catalog_verification.py",
     "scripts/repository_identity.py",
+    "scripts/target-queue-identity.mjs",
     "scripts/throughput-guard/ledger-lib.mjs"
   ]
 }

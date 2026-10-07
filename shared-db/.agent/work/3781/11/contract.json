@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "work_issue": 3781,
+  "generation": 11,
+  "evidence_parent": {
+    "work_issue": 3781,
+    "generation": 10,
+    "contract_sha256": "07f767dabe566502a1f3c1036ff9363e9acc95c1668332958cdf9f096ab1ea6d"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Step 10 PR 4018 complete policy slice including throughput disposition catalogue",
+  "base_sha": "fd62f194fb9ca8fed3513d589a26c5ed9384f60d",
+  "dispatcher": "MiMo session for issue #3781 Step 10",
+  "worker": "mimo",
+  "branch": "mimo/3781-step10-locks",
+  "worktree": ".ai/worktrees/step10-locks-mimo",
+  "allowed_paths": [
+    "HANDOFF.d/2026-10-06T1639Z-edge-dev-mimo-step10-queues-wrapup.md",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/step10-lock-manager-proof-20261006.md",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~exclusive-policy.mjs.json",
+    "scripts/lib/lanes/exclusive-locks.mjs",
+    "scripts/lib/lanes/exclusive-policy.mjs",
+    "scripts/lib/lanes/exclusive-policy.test.mjs",
+    "scripts/manage-migration-author-lanes-surface.test.mjs",
+    "scripts/target-queue-identity.mjs",
+    "scripts/target-queue-identity.test.mjs"
+  ],
+  "file_writes": [
+    "HANDOFF.d/2026-10-06T1639Z-edge-dev-mimo-step10-queues-wrapup.md",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/step10-lock-manager-proof-20261006.md",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~exclusive-policy.mjs.json",
+    "scripts/lib/lanes/exclusive-locks.mjs",
+    "scripts/lib/lanes/exclusive-policy.mjs",
+    "scripts/lib/lanes/exclusive-policy.test.mjs",
+    "scripts/manage-migration-author-lanes-surface.test.mjs",
+    "scripts/target-queue-identity.mjs",
+    "scripts/target-queue-identity.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not edit scripts/manage-migration-author-lanes.mjs or its tests",
+    "do not mark #3781 complete"
+  ],
+  "required_checks": [
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "node --test scripts/lib/lanes/exclusive-policy.test.mjs",
+    "node --test scripts/orchestrator-flow/evidence-bundle.test.mjs"
+  ],
+  "assumptions": [
+    "house-pattern Closes #3781 with reopen note",
+    "policy-level proof only"
+  ],
+  "stop_conditions": [
+    "stop if freeze or lock interlocks would be weakened"
+  ]
+}

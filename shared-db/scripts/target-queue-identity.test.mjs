@@ -227,6 +227,42 @@ test('empty changed-path list after main moved refuses rather than guesses', () 
   )
 })
 
+test('production-inert drift (test-only and .agent evidence) still allows reuse', () => {
+  const inertDrift = evaluateProductionFreshness({
+    dispatchMainSha: 'a'.repeat(40),
+    currentMainSha: 'b'.repeat(40),
+    changedPaths: [
+      'scripts/lib/lanes/exclusive-policy.test.mjs',
+      'scripts/test_production_business_risk_gate_source_identity_mutations.py',
+      '.agent/work/3781/5/contract.json',
+      'docs/plan.md',
+    ],
+  })
+  assert.equal(inertDrift.fresh, true)
+  assert.equal(inertDrift.reuseManifest, true)
+  assert.match(inertDrift.reason, /production-inert/)
+})
+
+test('substantive production drift (non-test scripts, SQL, workflows) never allows reuse', () => {
+  for (const path of [
+    'scripts/check-main-tip-freshness.mjs',
+    'scripts/production_business_risk_gate.py',
+    'supabase/migrations/20260929000001_x.sql',
+    '.github/workflows/shared-supabase-migrations.yml',
+    'supabase/config.toml',
+    'config/db-data-admin-property-source-coverage.json',
+  ]) {
+    const result = evaluateProductionFreshness({
+      dispatchMainSha: 'a'.repeat(40),
+      currentMainSha: 'b'.repeat(40),
+      changedPaths: [path],
+    })
+    assert.equal(result.fresh, false, path)
+    assert.equal(result.reuseManifest, false, path)
+    assert.ok(result.reason.includes(path), result.reason)
+  }
+})
+
 // ---------------------------------------------------------------------------
 // Promotion manifest binding
 // ---------------------------------------------------------------------------

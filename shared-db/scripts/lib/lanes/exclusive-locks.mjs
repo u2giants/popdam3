@@ -4,6 +4,33 @@ import { parseLeaseMessage, assertLease } from '../../lib/exclusive-lease.mjs'
 import { EXCLUSIVE_REFS } from './queue-routing.mjs'
 import { LaneError } from './claims.mjs'
 import { githubIo } from '../../manage-migration-author-lanes.mjs'
+import {
+  EXCLUSIVE_LOCK_ORDER,
+  assertExclusiveAcquisitionPolicy,
+  assertExclusivePairCompatibility,
+  assertProductionFreshnessForExclusive,
+  compatibilityMatrixCases,
+  defaultCompatibilityPlan,
+  pairKindForExclusiveKind,
+} from './exclusive-policy.mjs'
+
+// Pure lock-manager policy (Step 10, issue #3781). Re-exported here so callers
+// of the exclusive-lock surface get the compatibility-matrix assertions without
+// importing the policy module directly. `assertExclusiveAcquisitionPolicy` is
+// the entry point: production freshness under the unified production-inert
+// rule, promotion-freeze blocking of merge, and pair compatibility against
+// every held exclusive kind (including the merge/production cross-ref
+// interlocks). The existing `readExclusiveLease` / `assertExclusive` fencing
+// below is unchanged and still required immediately before every write.
+export {
+  EXCLUSIVE_LOCK_ORDER,
+  assertExclusiveAcquisitionPolicy,
+  assertExclusivePairCompatibility,
+  assertProductionFreshnessForExclusive,
+  compatibilityMatrixCases,
+  defaultCompatibilityPlan,
+  pairKindForExclusiveKind,
+}
 
 // --- FENCED STAGE OPERATIONS (Step 6, issue #1366) -------------------------
 //

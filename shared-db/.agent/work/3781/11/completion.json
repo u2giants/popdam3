@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3781,
+  "generation": 11,
+  "outcome": "ready-for-merge",
+  "pr": 4018,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3781/11",
+  "contract_sha256": "d869fd4f4199dd6cb0aab2b5bc7f7477519e53947ed51835852e9b39b2254eee",
+  "base_sha": "fd62f194fb9ca8fed3513d589a26c5ed9384f60d",
+  "head_sha": "3119983e68d3299938fe2842c672150bdab0d37f",
+  "files_changed": [
+    "HANDOFF.d/2026-10-06T1639Z-edge-dev-mimo-step10-queues-wrapup.md",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/step10-lock-manager-proof-20261006.md",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~exclusive-policy.mjs.json",
+    "scripts/lib/lanes/exclusive-locks.mjs",
+    "scripts/lib/lanes/exclusive-policy.mjs",
+    "scripts/lib/lanes/exclusive-policy.test.mjs",
+    "scripts/manage-migration-author-lanes-surface.test.mjs",
+    "scripts/target-queue-identity.mjs",
+    "scripts/target-queue-identity.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/lib/lanes/exclusive-policy.test.mjs",
+      "exit_code": 0,
+      "evidence": "47 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/evidence-bundle.test.mjs",
+      "exit_code": 0,
+      "evidence": "6 pass, 0 fail"
+    }
+  ],
+  "assumptions_resolved": [
+    "throughput disposition catalogue covers exclusive-policy call sites"
+  ],
+  "stop_conditions_hit": []
+}
