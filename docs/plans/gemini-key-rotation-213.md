@@ -69,7 +69,7 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v7.2 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
+## Addendum v7.3 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
 
 Review scope: ONLY this addendum is up for approval. Steps 1-9 above were already executed and
 reported on #213 (5:15 PM EDT); they are not re-run and nothing in this addendum restores any DB value.
@@ -94,6 +94,11 @@ Inputs (exact):
   The main-key item 3onekcbg3dxnazpnt36d4yzfcq is read only.
 
 Steps:
+-1. Restart-safety precheck (KNOWN_QUIRKS #74): read-only SELECT of admin_config key
+   BULK_OPERATIONS on the live project qsllyeztdwjgirsysgai. Proceed only if no operation's batch job
+   state has phase "submitting" or "ambiguous_submission" (pending/prepared/applying/completed are
+   resume-safe by saved provider ID). Also record the current latest deployment ID (D0). If unsafe,
+   re-check every 2 minutes up to 20 minutes, then stop and record Blocked on #213.
 0. Backup: write the current Railway value to a 0600 scratch file (read with `railway variables
    --json` piped straight into python that writes the file and prints only its sha256[:12];
    nothing raw is displayed). Shredded at the end after success.
@@ -106,18 +111,21 @@ Steps:
    x-goog-api-key header (curl -K from a 0600 file) to (a) GET v1beta/models -> 200 and
    (b) GET v1beta/batches (the list/poll surface the worker's batch status path uses, gemini-batch.ts)
    -> 200. Submitting a real batch is out of scope (no direct-Gemini model is selected).
-4. Verify worker: new deployment status SUCCESS; deploy logs show worker startup, no crash loop,
+4. Verify worker: the deployment created after step 1 (ID != D0, created after the step-1 time)
+   reaches status SUCCESS; deploy logs show worker startup, no crash loop,
    poll/heartbeat lines.
    Known limit: the fallback branch in apps/worker/src/google-ai-key.ts runs only when
    admin_config.GOOGLE_AI_API_KEY is empty/unreadable; deliberately emptying the production DB key
    to exercise it is out of scope. Step 3 proves the installed fallback value itself is valid.
-5. Rollback (if the new deployment fails to start or logs show a new crash): restore the previous
+5. Rollback (if step 2 or 3 fails, or the new deployment fails to start, or logs show a new crash): restore the previous
    value from the step-0 backup via stdin `railway variable set ... --stdin` (this triggers a fresh
    deploy with the old env), confirm SUCCESS, and record Blocked on #213.
 6. Update 1Password item dykqfttarudsxhzrlsktyupq2y: drop PLACEHOLDER from title, remove its empty
    concealed field, notes point to the main-key op:// ref as single source of truth; verify with
    item_get (no reveal).
-7. Post evidence on #213, signed.
+7. Post evidence on #213, signed, and keep on #213 the unchecked item
+   "- [ ] live proof: worker env-fallback branch (runs only on admin_config miss) — untested by design"
+   alongside the existing worker batch-route item.
 Cleanup (success OR failure, via shell trap): shred -u every 0600 scratch file (backup, curl -K
 config). Out of scope, recorded as residual on #213: the old dead fallback key's Google project is
 unknown (value never in admin_config or 1Password); it already returns API_KEY_INVALID, so it
