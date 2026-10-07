@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "work_issue": 4037,
+  "generation": 1,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Production-path successor of 20261007143431 (merged in PR #4033, never promoted): the same idempotent CREATE OR REPLACE of app.handle_new_auth_user() granting app.app_access 'dam' to new popcre.com-domain signups, under reissued version 20261007171252, carrying the PR-owned evidence pair so the post-merge production-risk-assessment slot can be recorded and the automatic production workflow can apply it.",
+  "base_sha": "d241515e9454b663d8f2d49258820e089f15863a",
+  "dispatcher": "claim-first; claim #4038 reissued from 20261007143431",
+  "worker": "Claude chat 2fb93947-859a-452a-a3df-1968a14e266e on hetz",
+  "branch": "claude/4037-dam-access-successor",
+  "worktree": "/worksp/shared-db-wt-damaccess2",
+  "allowed_paths": [
+    "supabase/migrations/20261007171252_popdam_dam_access_on_signup_prod.sql",
+    "supabase/tests/popdam_dam_access_on_signup.sql",
+    ".github/live-proofs/4037.sql",
+    ".agent/work/4037/1/contract.json",
+    ".agent/work/4037/1/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261007171252_popdam_dam_access_on_signup_prod.sql",
+    ".github/live-proofs/4037.sql",
+    ".agent/work/4037/1/contract.json",
+    ".agent/work/4037/1/completion.json"
+  ],
+  "db_reads": [
+    "table app.app_access"
+  ],
+  "db_writes": [
+    "function app.handle_new_auth_user"
+  ],
+  "prohibited_actions": [
+    "do not change rows, tables, grants or RLS",
+    "do not edit the merged migration 20261007143431",
+    "do not run a manual production write"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "production holds the 20260715184500 body of app.handle_new_auth_user and lacks 20261007143431",
+    "preview already holds the 20261007143431 body, so the successor is a same-body replace there"
+  ],
+  "stop_conditions": [
+    "stop if the change would need a file outside allowed_paths",
+    "stop if the function body would differ from 20261007143431"
+  ],
+  "evidence_parent": null
+}

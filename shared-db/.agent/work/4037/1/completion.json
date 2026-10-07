@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 4037,
+  "outcome": "ready-for-merge",
+  "pr": 4042,
+  "migration_versions": [
+    "20261007171252"
+  ],
+  "contract_ref": "refs/db-contracts/4037/1",
+  "contract_sha256": "855063f58ad5c1255da019d9254ff13a115e1dba8c66b798c5dd9bfb166ae93b",
+  "base_sha": "d241515e9454b663d8f2d49258820e089f15863a",
+  "head_sha": "8d8ae24b0a5bfedf950571fb8c2db4b12a5893ba",
+  "files_changed": [
+    ".github/live-proofs/4037.sql",
+    "supabase/migrations/20261007171252_popdam_dam_access_on_signup_prod.sql"
+  ],
+  "db_reads": [
+    "table app.app_access"
+  ],
+  "db_writes": [
+    "function app.handle_new_auth_user"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed for 20261007171252."
+    }
+  ],
+  "assumptions_resolved": [
+    "the successor body is byte-identical to 20261007143431 apart from two header comment lines (diff checked)"
+  ],
+  "stop_conditions_hit": []
+}
