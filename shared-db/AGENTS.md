@@ -12,6 +12,7 @@
 
 - [current-workflow.md](docs/agents/current-workflow.md)
 - [plan_shared_db_workflow_refactor.md](plan_shared_db_workflow_refactor.md)
+- [plan_narrow_promotion_freezes.md](plan_narrow_promotion_freezes.md)
 
 ## Task declaration
 
