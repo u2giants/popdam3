@@ -1,0 +1,46 @@
+{
+  "schema_version": 2,
+  "generation": 320,
+  "work_issue": 3536,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Repair protected guarded collision invocation target binding without relaxing collision validation; prove exact open canonical pull identity before binding only collision GITHUB_SHA to reviewed head.",
+  "base_sha": "0f0768f775bf7d5bf5159d8469adcb5566048551",
+  "dispatcher": "Codex root coordinating full-plan user authorization",
+  "worker": "codex",
+  "branch": "codex/3536-guarded-collision",
+  "worktree": "/tmp/shared-db-3536-guarded-collision",
+  "file_writes": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "scripts/check-merge-queue-workflows.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database or settings write",
+    "Do not bypass completion validators or exact review",
+    "Do not modify frozen queue own implementation or relabel it to reset paid starts"
+  ],
+  "required_checks": [
+    "node --test scripts/check-merge-queue-workflows.test.mjs scripts/check-required-checks-preflight.test.mjs scripts/check-pr-object-collisions.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Root approved separate protected workflow repair after actual3998 guard refusal; frozenqueue source unchanged.",
+    "Ledger reserves319 ownquota classification and confirms320 no overlap."
+  ],
+  "stop_conditions": [
+    "Stop if canonical exact head/base/open validation weakened",
+    "Stop on source conflict or review refusal"
+  ],
+  "evidence_parent": {
+    "work_issue": 3536,
+    "generation": 318,
+    "contract_sha256": "e84cacbd64e89aac879ff8d522d3de2b2ee4a121232448710e53e5b3bfe233c6"
+  },
+  "allowed_paths": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "scripts/check-merge-queue-workflows.test.mjs"
+  ]
+}

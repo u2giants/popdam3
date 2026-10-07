@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "generation": 320,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 4031,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/320",
+  "contract_sha256": "c2af4af58be5f412eafc62b0089034e5b10b7af6aa06ae1fd31a1afe35b4b040",
+  "head_sha": "3232d0f0089e7167733d97a440b451411e3b5f72",
+  "base_sha": "0f0768f775bf7d5bf5159d8469adcb5566048551",
+  "files_changed": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "scripts/check-merge-queue-workflows.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-merge-queue-workflows.test.mjs scripts/check-required-checks-preflight.test.mjs scripts/check-pr-object-collisions.test.mjs",
+      "exit_code": 0,
+      "evidence": "102 combined tests passed including 9 extracted actual workflow-shell cases."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Passed; validators and truth authority preserved."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Passed; validators and truth authority preserved."
+    }
+  ],
+  "assumptions_resolved": [
+    "Actual protected3998run37617677195refusedmainworkflowSHA versusfrozenPRhead; nocollisionchecking occurred.",
+    "Full trusted open canonical PR identity and exact requestedhead are proven immediately before command; only collisionenvheadbound.",
+    "Noqueueownsourcechange, settingswrite, reviewbudgetreset, or checker weakening."
+  ],
+  "stop_conditions_hit": []
+}

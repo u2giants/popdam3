@@ -16,10 +16,77 @@
 // mirrored context has no mapped merge-group-capable emitter.
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { readdirSync, readFileSync } from 'node:fs'
 import { emittedJobNames, jobBlockByName, jobBlocks, jobEvents, stepBlock } from './lib/workflow-jobs.mjs'
 
 const readWorkflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+
+function guardedCollisionWire(pr, { fetchFails = false } = {}) {
+  const workflow = readWorkflow('guarded-migration-merge.yml')
+  const block = /          collision_pr="\$\(node[\s\S]*?          GITHUB_SHA="\$REQUESTED_SHA" node scripts\/check-pr-object-collisions\.mjs/.exec(workflow)?.[0]
+  assert.ok(block, 'the actual guarded identity read and collision command must exist')
+  const script = `set -euo pipefail
+node() {
+  if [ "$1" = "$GITHUB_WORKSPACE/scripts/gh-read.mjs" ]; then
+    [ "$2" = api ] && [ "$3" = "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" ]
+    [ "$FETCH_FAILS" = 0 ] || return 1
+    printf '%s' "$FIXTURE_JSON"
+  elif [ "$1" = scripts/check-pr-object-collisions.mjs ]; then
+    printf 'collision-head=%s\\n' "$GITHUB_SHA"
+  else
+    command node "$@"
+  fi
+}
+${block}
+printf 'workflow-head=%s\\n' "$GITHUB_SHA"
+`
+  return spawnSync('bash', ['-c', script], {
+    encoding: 'utf8', timeout: 10000,
+    env: { ...process.env, PR_NUMBER: '7', REQUESTED_SHA: 'a'.repeat(40), GITHUB_SHA: 'b'.repeat(40),
+      GITHUB_REPOSITORY: 'popcre/shared-db', GITHUB_WORKSPACE: '/synthetic',
+      FIXTURE_JSON: JSON.stringify(pr), FETCH_FAILS: fetchFails ? '1' : '0' },
+  })
+}
+
+const guardedCollisionPull = () => ({ number: 7, state: 'open', head: { sha: 'a'.repeat(40), repo: { full_name: 'popcre/shared-db' } }, base: { ref: 'main', repo: { full_name: 'popcre/shared-db' } } })
+
+test('actual protected guarded collision wire binds the validated PR head only to collision checking', () => {
+  const result = guardedCollisionWire(guardedCollisionPull())
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, new RegExp(`collision-head=${'a'.repeat(40)}`))
+  assert.match(result.stdout, new RegExp(`workflow-head=${'b'.repeat(40)}`))
+  const workflow = readWorkflow('guarded-migration-merge.yml')
+  const locked = workflow.slice(workflow.indexOf('      - name: Re-prove the head and merge while the lock is held'))
+  assert.ok(locked.indexOf('check-main-tip-freshness.mjs --contains') < locked.indexOf('collision_pr='))
+  assert.ok(locked.indexOf('headRefOid') < locked.indexOf('collision_pr='))
+  assert.ok(locked.indexOf('GITHUB_SHA="$REQUESTED_SHA" node scripts/check-pr-object-collisions.mjs') < locked.indexOf("-f state=success"))
+})
+
+for (const [label, mutate] of [
+  ['moved head', pr => { pr.head.sha = 'c'.repeat(40) }],
+  ['closed PR', pr => { pr.state = 'closed' }],
+  ['wrong PR', pr => { pr.number = 8 }],
+  ['foreign head repository', pr => { pr.head.repo.full_name = 'foreign/shared-db' }],
+  ['foreign base repository', pr => { pr.base.repo.full_name = 'foreign/shared-db' }],
+  ['wrong base branch', pr => { pr.base.ref = 'develop' }],
+  ['unknown head repository', pr => { pr.head.repo = null }],
+]) {
+  test(`actual protected guarded collision wire refuses ${label} before checking or authorizing`, () => {
+    const pr = guardedCollisionPull()
+    mutate(pr)
+    const result = guardedCollisionWire(pr)
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /not the exact open canonical pull request/)
+    assert.doesNotMatch(result.stdout, /collision-head=/)
+  })
+}
+
+test('actual protected guarded collision wire refuses an unreadable PR before checking or authorizing', () => {
+  const result = guardedCollisionWire(guardedCollisionPull(), { fetchFails: true })
+  assert.equal(result.status, 1)
+  assert.doesNotMatch(result.stdout, /collision-head=/)
+})
 const MIRROR = JSON.parse(readFileSync(new URL('../docs/verification/main-required-status-checks.json', import.meta.url), 'utf8'))
 
 // Live on main but not yet in the committed mirror. The mirror is rewritten by
