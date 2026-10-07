@@ -124,41 +124,46 @@ async function authenticateAgent(
 
 // ── Route: register ─────────────────────────────────────────────────
 
-async function handleRegister(body: Record<string, unknown>) {
+// Security (#210): register is no longer an anonymous upsert. A new agent
+// must obtain its key through the admin-issued pairing-code flow (`pair`).
+// `register` only lets an already-registered agent (proven by its current
+// x-agent-key) refresh its own row; it can never create a row, change its
+// key, or take over another agent's name.
+async function handleRegister(req: Request, body: Record<string, unknown>) {
   const agentName = requireString(body, "agent_name");
   const agentType = requireString(body, "agent_type");
-  const agentKey = requireString(body, "agent_key");
 
   if (!["bridge", "windows-render"].includes(agentType)) {
     return err("agent_type must be 'bridge' or 'windows-render'");
   }
 
-  const encoder = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest(
-    "SHA-256",
-    encoder.encode(agentKey),
-  );
-  const hashHex = Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const auth = await authenticateAgent(req, body, "register");
+  if (auth instanceof Response) return auth;
+
+  if (auth.agentType !== agentType) {
+    return err("agent_type does not match the registered agent", 403);
+  }
 
   const db = serviceClient();
-  const { data, error } = await db
+  const update: Record<string, unknown> = { last_heartbeat: new Date().toISOString() };
+  if (agentName !== auth.agentName) {
+    const { data: clash, error: clashErr } = await db
+      .from("agent_registrations")
+      .select("id")
+      .eq("agent_name", agentName)
+      .maybeSingle();
+    if (clashErr) return err(clashErr.message, 500);
+    if (clash) return err("agent_name is already registered to another agent", 409);
+    update.agent_name = agentName;
+  }
+
+  const { error } = await db
     .from("agent_registrations")
-    .upsert(
-      {
-        agent_name: agentName,
-        agent_type: agentType,
-        agent_key_hash: hashHex,
-        last_heartbeat: new Date().toISOString(),
-      },
-      { onConflict: "agent_name" },
-    )
-    .select("id")
-    .single();
+    .update(update)
+    .eq("id", auth.agentId);
 
   if (error) return err(error.message, 500);
-  return json({ ok: true, agent_id: data.id });
+  return json({ ok: true, agent_id: auth.agentId });
 }
 
 // ── Route: heartbeat ────────────────────────────────────────────────
@@ -2189,40 +2194,83 @@ async function handlePair(body: Record<string, unknown>) {
   // Use the agent name from the pairing code or the request
   const finalName = agentName !== "agent" ? agentName : (pairing.agent_name || pairing.agent_type);
 
-  // Register the agent
-  const { data: agentData, error: regError } = await db
+  // Security (#212): claim the code atomically BEFORE touching registrations.
+  // Only one concurrent request can flip pending -> consumed.
+  const { data: claimed, error: claimErr } = await db
+    .from("agent_pairings")
+    .update({ status: "consumed", consumed_at: new Date().toISOString() })
+    .eq("id", pairing.id)
+    .eq("status", "pending")
+    .select("id");
+
+  if (claimErr) return err("Failed to claim pairing code — please retry", 500);
+  if (!claimed || claimed.length !== 1) {
+    logAuth401("pairing_code_already_consumed", "pair", body, {
+      pairing_id: pairing.id,
+      agent_name: finalName,
+    });
+    return err("Invalid or expired pairing code", 401);
+  }
+
+  // Put the code back if registration fails, so a legit retry still works.
+  const releaseClaim = () =>
+    db.from("agent_pairings")
+      .update({ status: "pending", consumed_at: null })
+      .eq("id", pairing.id)
+      .eq("status", "consumed")
+      .is("agent_registration_id", null);
+
+  // Never let a pairing code overwrite an agent of a different type. Codes are
+  // admin-issued and single-use, so re-keying an existing agent of the SAME
+  // type (the admin repair / re-pair flow) stays allowed, updated in place.
+  const { data: existing, error: existErr } = await db
     .from("agent_registrations")
-    .upsert(
-      {
+    .select("id, agent_type")
+    .eq("agent_name", finalName)
+    .maybeSingle();
+  if (existErr) {
+    await releaseClaim();
+    return err(existErr.message, 500);
+  }
+  if (existing && existing.agent_type !== pairing.agent_type) {
+    await releaseClaim();
+    return err("agent_name is already registered to a different agent type", 409);
+  }
+
+  let agentData: { id: string };
+  if (existing) {
+    const { error: updErr } = await db
+      .from("agent_registrations")
+      .update({ agent_key_hash: hashHex, last_heartbeat: new Date().toISOString() })
+      .eq("id", existing.id);
+    if (updErr) {
+      await releaseClaim();
+      return err(updErr.message, 500);
+    }
+    agentData = { id: existing.id };
+  } else {
+    const { data: inserted, error: insErr } = await db
+      .from("agent_registrations")
+      .insert({
         agent_name: finalName,
         agent_type: pairing.agent_type,
         agent_key_hash: hashHex,
         last_heartbeat: new Date().toISOString(),
-      },
-      { onConflict: "agent_name", ignoreDuplicates: false },
-    )
-    .select("id")
-    .single();
-
-  if (regError) return err(regError.message, 500);
-
-  // Mark pairing code as consumed (atomically with status check)
-  const { error: consumeErr } = await db
-    .from("agent_pairings")
-    .update({
-      status: "consumed",
-      consumed_at: new Date().toISOString(),
-      consumed_by_agent_id: agentData.id,
-      agent_registration_id: agentData.id,
-    })
-    .eq("id", pairing.id)
-    .eq("status", "pending"); // optimistic lock
-
-  if (consumeErr) {
-    // Rollback agent registration
-    await db.from("agent_registrations").delete().eq("id", agentData.id);
-    return err("Failed to finalize pairing — please retry", 500);
+      })
+      .select("id")
+      .single();
+    if (insErr || !inserted) {
+      await releaseClaim();
+      return err(insErr?.message || "Failed to register agent", insErr?.code === "23505" ? 409 : 500);
+    }
+    agentData = inserted;
   }
+
+  // Link the consumed code to the registration (audit; the claim is already done)
+  await db
+    .from("agent_pairings")
+    .update({ consumed_by_agent_id: agentData.id, agent_registration_id: agentData.id })
+    .eq("id", pairing.id);
 
   return json({
     ok: true,
@@ -4402,9 +4450,9 @@ corsServe(async (req: Request) => {
   const action = (body.action as string) || route;
 
   try {
-    // Register doesn't require existing auth
+    // Register requires the agent's current x-agent-key (checked inside, #210)
     if (action === "register") {
-      return await handleRegister(body);
+      return await handleRegister(req, body);
     }
 
     // Bootstrap / pair don't require x-agent-key (unauthenticated pairing routes)
