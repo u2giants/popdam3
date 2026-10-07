@@ -269,6 +269,19 @@ async function handleStartCheckout(req: Request): Promise<Response> {
   const resolvedAssetId = tok.asset_id ?? asset_id;
   if (!resolvedAssetId) return err("asset_id required");
 
+  // Atomically claim the token: only one concurrent request can flip
+  // consumed_at from NULL, so the token is strictly single-use.
+  const { data: claimed, error: claimErr } = await db
+    .from("helper_tokens")
+    .update({ consumed_at: new Date().toISOString() })
+    .eq("id", token)
+    .eq("user_id", userId)
+    .eq("action", "checkout")
+    .is("consumed_at", null)
+    .select("id");
+  if (claimErr) return err(`Failed to consume token: ${claimErr.message}`, 500);
+  if (!claimed || claimed.length === 0) return err("Token already used", 401);
+
   // Load asset
   const { data: asset } = await db
     .from("assets")
@@ -289,11 +302,7 @@ async function handleStartCheckout(req: Request): Promise<Response> {
     return err("Asset is checked out by another user", 409);
   }
   if (existing && existing.user_id === userId) {
-    // Already checked out by this user — mark token consumed and return existing checkout
-    await db
-      .from("helper_tokens")
-      .update({ consumed_at: new Date().toISOString() })
-      .eq("id", token);
+    // Already checked out by this user — token already consumed above; return existing checkout
     return json({ ok: true, checkout_id: existing.id, already_open: true, asset });
   }
 
@@ -317,10 +326,10 @@ async function handleStartCheckout(req: Request): Promise<Response> {
     return err(`Failed to create checkout: ${coErr.message}`, 500);
   }
 
-  // Consume token and link it to the checkout
+  // Link the (already consumed) token to the checkout
   await db
     .from("helper_tokens")
-    .update({ consumed_at: new Date().toISOString(), checkout_id: checkout.id })
+    .update({ checkout_id: checkout.id })
     .eq("id", token);
 
   // Load root mappings from the same source as /config so Synology fallback and
