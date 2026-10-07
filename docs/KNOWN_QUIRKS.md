@@ -16,6 +16,19 @@ This document explains intentional code decisions that may appear like bugs or b
 
 ---
 
+## Search needs the newer "dam" access row, not just the legacy "popdam" entry
+
+Signing in and browsing are gated by the legacy `public.app_access` row
+(`app='popdam'`). Search (`search_assets_full_text` -> `require_dam_access()`)
+instead requires `app.has_app_access('dam')`: an `app.app_access` row with
+`app='dam'`, or the administrator role. A user missing that row can browse but
+every search returns 403 "DAM access is required" and the UI shows "No assets
+found". On 2026-10-07 all 25 employees were granted the row by hand
+(u2giants/popdam3#185, `docs/access-records/`). New employees do not get it
+automatically yet. Check the 403 in the API logs before debugging search code.
+When you test with `execute_sql`, run any write in its own call: a later
+`begin ... rollback` in the same call undoes it.
+
 ## 1. Hardcoded Supabase URL and Anon Key
 
 **File**: `src/lib/external-supabase.ts`
