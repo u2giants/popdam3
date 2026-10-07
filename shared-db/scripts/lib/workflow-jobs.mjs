@@ -49,10 +49,16 @@ export function jobBlockByName(text, name) {
 // `if:` (every workflow event). Any `if:` other than the event-list form is
 // returned as the raw string so a caller can refuse it rather than guess.
 export function jobEvents(block) {
-  const line = /^ {4}if: (.+)$/m.exec(block)?.[1]?.trim()
+  let line = /^ {4}if: (.+)$/m.exec(block)?.[1]?.trim()
   if (line === undefined) return null
   // `always()` gates on predecessor results, never on the event: every event.
   if (/^(?:\$\{\{\s*)?always\(\)(?:\s*\}\})?$/.test(line)) return null
+  // `!cancelled()` (runner router, scripts/ci/runner-route.mjs) also gates on
+  // predecessor results only: a bare one admits every event, and a conjunction
+  // admits exactly the events of its event clause.
+  if (/^\$\{\{\s*!cancelled\(\)\s*\}\}$/.test(line)) return null
+  const routed = /^\$\{\{ !cancelled\(\) && (.+) \}\}$/.exec(line)
+  if (routed) line = routed[1]
   const list = /^contains\(fromJSON\('(\[[^']*\])'\), github\.event_name\)$/.exec(line)
   return list ? JSON.parse(list[1]) : line
 }

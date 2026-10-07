@@ -197,7 +197,7 @@ test('the job-level event check fails when a required job drops merge_group or p
   const text = readWorkflow('pr-guards.yml')
   for (const [event] of [['merge_group'], ['pull_request']]) {
     const broken = text.replace(
-      /(^ {4}name: Cancelled work guard\n {4}if: contains\(fromJSON\('\[)([^\]]*)(\]'\), github\.event_name\)$)/m,
+      /(^ {4}name: Cancelled work guard\n {4}needs: route\n {4}if: \$\{\{ !cancelled\(\) && contains\(fromJSON\('\[)([^\]]*)(\]'\), github\.event_name\) \}\}$)/m,
       (_, head, list, tail) => head + list.split(', ').filter((item) => item !== `"${event}"`).join(', ') + tail,
     )
     assert.notEqual(broken, text, 'the negative fixture did not change the file')

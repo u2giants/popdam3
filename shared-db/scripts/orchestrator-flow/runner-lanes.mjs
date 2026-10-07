@@ -148,7 +148,8 @@ export function workflowLaneConformance(registry, rawWorkflowText, job) {
   const guard = /case "\$LANE" in\n\s+(.*)\) ;;\n\s+\*\) echo "::error::Unregistered runner lane: \$LANE"; exit 1 ;;/.exec(workflowText)
   if (!guard || JSON.stringify(guard[1].split('|')) !== JSON.stringify(["''", ...labels])) problems.push('lane guard step does not refuse values outside the registry')
   if (!workflowText.includes(`LANE: \${{ inputs.lane }}`)) problems.push('lane guard step does not read the lane input')
-  if (!workflowText.includes(`runs-on: \${{ inputs.lane || 'ubuntu-latest' }}`)) problems.push('runs-on does not select the lane input with ubuntu-latest default')
+  // The default lane is chosen by the runner router (scripts/ci/runner-route.mjs) with a literal ubuntu-latest fallback.
+  if (!workflowText.includes(`runs-on: \${{ inputs.lane || fromJSON(needs.route.outputs.runs_on || '"ubuntu-latest"') }}`)) problems.push('runs-on does not select the lane input with the routed ubuntu-latest default')
   if (!workflowText.includes(`name: \${{ inputs.lane && format('${job.context} [lane {0}]', inputs.lane) || '${job.context}' }}`)) problems.push('job name does not keep the stable default context and lane-suffixed replacement name')
   return problems
 }
