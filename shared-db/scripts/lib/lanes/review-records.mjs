@@ -433,14 +433,21 @@ export function parseReviewLease(commit){
   // `slot === null` means "not stated". Liveness callers map that ambiguity to
   // the slot-0 sentinel so no sibling verdict can reclaim the lease; the lease
   // remains busy until its slot identity is repaired or otherwise resolved.
+  //
+  // #3947. The replacement form also carries `failed-sequence=` -- the cursor
+  // sequence of the assignment it replaces, which is exactly the tail of this
+  // assignment's own verdict ref (`replacementSequence`). Lease liveness needs
+  // it so a verdict left on a superseded predecessor is not read as "this
+  // assignment already judged". Captured, never guessed: a cursor/legacy lease
+  // states no failed-sequence and owns the UNSEALED verdict ref (null).
   const leaseMatch=/^db-coordination reviewer-lease generation=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40}) sequence=(\d+)$/i.exec(message)
   const cursorMatch=leaseMatch?null:/^db-coordination reviewer-cursor sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))?(?: allowlist=[a-z0-9.,-]+)?$/i.exec(message)
-  const replacementMatch=(leaseMatch||cursorMatch)?null:/^db-coordination reviewer-(?:failure-)?replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))?(?: allowlist=[a-z0-9.,-]+)? /i.exec(message)
+  const replacementMatch=(leaseMatch||cursorMatch)?null:/^db-coordination reviewer-(?:failure-)?replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))?(?: allowlist=[a-z0-9.,-]+)? failed-sequence=(\d+)/i.exec(message)
   const match=leaseMatch??cursorMatch??replacementMatch
   if(!match)throw new LaneError('active reviewer lease is malformed')
   const cursorForm=!leaseMatch
   const slot=leaseMatch?1:(match[6]?Number(match[6]):(cursorMatch?1:null))
-  const lease={generation:Number(match[1]),reviewer:match[2],issue:Number(match[3]),pr:Number(match[4]),headSha:match[5],sequence:Number(cursorForm?match[1]:match[6]),slot}
+  const lease={generation:Number(match[1]),reviewer:match[2],issue:Number(match[3]),pr:Number(match[4]),headSha:match[5],sequence:Number(cursorForm?match[1]:match[6]),slot,...(replacementMatch&&match[7]!=null?{failedSequence:Number(match[7])}:{})}
   if(!Number.isSafeInteger(lease.generation)||lease.generation<1||!Number.isSafeInteger(lease.sequence)||lease.sequence<1||!REVIEWERS.some((row)=>row.name===lease.reviewer))throw new LaneError('active reviewer lease is malformed')
   if(lease.slot!==null&&(!Number.isSafeInteger(lease.slot)||lease.slot<1))throw new LaneError('active reviewer lease is malformed')
   return lease

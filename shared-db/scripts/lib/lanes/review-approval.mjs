@@ -179,10 +179,23 @@ export function hasVerdictForHead(issue,pr,headSha,io,options={}){
   // verdict change", not "did some sibling slot finish" -- must pass its own
   // slot so a sibling slot's unrelated, already-existing verdict cannot be
   // mistaken for this slot's own state changing.
+  //
+  // #3947. `options.replacementSequence` further narrows the match to ONE
+  // assignment's own verdict ref. Omitted, the coarse head/slot answer is
+  // unchanged. `null` matches only an original assignment's verdict; a number
+  // matches only that replacement's. A verdict on a superseded predecessor must
+  // never be read as "this assignment already judged" -- that is what marked a
+  // freshly drawn replacement's lease stale and blocked the governed review the
+  // merge gate demands.
   const slot=options.slot==null?null:Number(options.slot)
+  const rsFilter=options.replacementSequence===undefined?undefined:options.replacementSequence===null?null:Number(options.replacementSequence)
   return listDurableVerdictRefs(io,options).some((row)=>{
     const named=parseVerdictRef(row.ref)
-    return Boolean(named)&&named.issue===Number(issue)&&named.pr===Number(pr)&&named.headSha===head&&(slot===null||named.slot===slot)
+    if(!named||named.issue!==Number(issue)||named.pr!==Number(pr)||named.headSha!==head)return false
+    if(slot!==null&&named.slot!==slot)return false
+    if(rsFilter===undefined)return true
+    if(rsFilter===null)return named.replacementSequence===null
+    return named.replacementSequence===rsFilter
   })
 }
 
@@ -198,22 +211,46 @@ export function hasVerdictForHead(issue,pr,headSha,io,options={}){
 // unreadable assignment record, a name outside the roster -- blocks. Replacement
 // is the "un-review this head" direction, so ambiguity must never open it. Comment
 // text is not consulted anywhere in here.
+//
+// #3947. A VERDICT ON AN ASSIGNMENT A LATER RETURN HAS SUPERSEDED IS HISTORY,
+// NOT THE AUTHORIZATION OF RECORD. The merge gate already refuses to let such a
+// verdict satisfy the slot ("nor by a record the returned one had already
+// superseded") and demands a strictly newer live assignment. Replacement is the
+// only command that can draw that assignment, so a verdict left on the
+// superseded predecessor must not forbid the very redraw the gate demands --
+// otherwise no supported command can ever unstick the slot. The same ordering
+// rule the gate uses is applied here: the owning assignment is superseded when a
+// return for the same slot carries a cursor sequence at least as large as its
+// own. Anything unreadable still fails closed and blocks.
+function owningAssignmentSupersededByReturn({issue,pr,headSha,slot,sequence},io){
+  let returns
+  try{returns=readReviewReturns(issue,pr,headSha,io)}catch{return true}
+  const sameSlot=returns.filter((row)=>row.slot===Number(slot))
+  if(!sameSlot.length)return false
+  if(!Number.isInteger(Number(sequence)))return true
+  return sameSlot.some((row)=>{
+    let seq=row.sequence
+    if(seq==null){try{seq=Number(parseReviewCursor(io.getCommit(row.assignmentSha))?.sequence)}catch{return true}}
+    return Number.isInteger(Number(seq))&&Number(seq)>=Number(sequence)
+  })
+}
 export function durableVerdictBlocksReplacement(ref,io){
   const named=parseVerdictRef(ref)
   if(!named)return true
   const owningRef=named.replacementSequence===null
     ?`${REVIEW_ASSIGNMENT_REF_PREFIX}/${named.issue}-${named.pr}-${named.headSha}${reviewSlotSuffix(named.slot)}`
     :`${REVIEW_REPLACEMENT_REF_PREFIX}/${named.issue}-${named.pr}-${named.headSha}${reviewSlotSuffix(named.slot)}-${named.replacementSequence}`
-  let reviewer=null
+  let reviewer=null,sequence=null
   try{
     const sha=io.readRef(owningRef)
-    if(sha)reviewer=parseReviewCursor(io.getCommit(sha))?.reviewer??null
+    if(sha){const cursor=parseReviewCursor(io.getCommit(sha));reviewer=cursor?.reviewer??null;sequence=cursor?.sequence??null}
   }catch{return true}
   if(!reviewer)return true
   // NOT `reviewerReadsRepository(reviewer)`: that returns false for an unknown
   // name, which would PERMIT replacement on an artifact nobody can attribute.
   // Only a roster row explicitly marked non-reading may be discarded.
-  return !reviewerKnownNonReading(reviewer)
+  if(reviewerKnownNonReading(reviewer))return false
+  return !owningAssignmentSupersededByReturn({issue:named.issue,pr:named.pr,headSha:named.headSha,slot:named.slot,sequence},io)
 }
 export function headVerdictBlocksReplacement(issue,pr,headSha,io,options={}){
   const head=String(headSha??'').toLowerCase()
@@ -394,9 +431,19 @@ export function assertExactDurableReviewApproval(issue,pr,headSha,io){
 // that genuinely does not state a slot stays BUSY: a sibling verdict must never
 // reclaim an ambiguous live lease. Slot 0 cannot be written and matches no
 // verdict, so it is the fail-closed liveness sentinel.
+//
+// #3947. A lease belongs to ONE assignment's verdict ref, too. An original
+// assignment owns the untailed verdict ref; a replacement owns the ref tailed
+// with the failed-sequence it replaces (`replacementSequence`, which
+// `parseReviewLease` reads out of the message's `failed-sequence=` token).
+// Passing that identity through is what stops a verdict left on a superseded
+// predecessor from being read as "this assignment already judged" -- the reading
+// that marked a freshly drawn replacement's lease stale and refused the governed
+// review the merge gate demands.
 export function leaseVerdictOptions(record,extra={}){
   const slot=record?.slot
-  return {...extra,slot:slot==null?0:Number(slot)}
+  const replacementSequence=record?.replacementSequence??record?.failedSequence
+  return {...extra,slot:slot==null?0:Number(slot),replacementSequence:replacementSequence==null?null:Number(replacementSequence)}
 }
 
 export function assertReviewLeaseStillStale(row,states,io){

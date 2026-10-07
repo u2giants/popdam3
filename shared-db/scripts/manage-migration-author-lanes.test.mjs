@@ -2189,7 +2189,7 @@ test('released slot-2 replacement with slot-1 approval and a reinstated reviewer
 
 test('replacement retry releases its lease after an exact-head verdict',()=>{
   const io=failedReviewIo(),first=replaceFailedReviewer(replacementRequest,io),ref=reviewActiveRef(first.reviewer)
-  giveVerdict(io,{issue:failedReview.issue,pr:failedReview.pr,headSha:failedReview.headSha})
+  giveVerdict(io,{issue:failedReview.issue,pr:failedReview.pr,headSha:failedReview.headSha,replacementSequence:first.replacementSequence})
   assert.deepEqual(replaceFailedReviewer(replacementRequest,io),first)
   assert.equal(io.refs.has(ref),false)
   assert.equal(assignNextReviewer(failedReview,io).reviewer,first.reviewer)
@@ -3250,6 +3250,55 @@ test('reviewer replacement rejects a substantive exact-head verdict',()=>{
   // A REPLACEMENT verdict artifact for the same head counts too.
   const stateIo=failedReviewIo();giveVerdict(stateIo,{issue:failedReview.issue,pr:failedReview.pr,headSha:failedReview.headSha,replacementSequence:1})
   assert.throws(()=>replaceFailedReviewer(replacementRequest,stateIo),/existing verdict/)
+})
+
+test('#3947 a verdict on a return-superseded assignment must not deadlock the redraw the merge gate demands',()=>{
+  // Live shape (PR #3957 / issue #3947, head f8b8b321, slot 6): the original
+  // slot holder was replaced twice; the second replacement (muse) then recorded
+  // a durable APPROVE; a third replacement (gemini) had ALREADY been drawn to
+  // supersede muse before that verdict landed, and gemini was later returned
+  // (terminal-unavailable). The merge gate needs a live assignment whose cursor
+  // sequence is strictly newer than the return, and it names
+  // --replace-failed-reviewer with the returned replacement's failed-sequence
+  // as the way to draw it. That command refused because muse's verdict sat on
+  // the predecessor -- the very record the return had already superseded -- so
+  // no supported command could ever unstick the slot. The verdict is history
+  // (never deleted or forged); it must not forbid the redraw.
+  const io=withAtomicRefs(reviewIo()),request={issue:3947,pr:3957,headSha:'f8b8b32139380911c315001238e63a149af5fda9'}
+  io.getPr=(number)=>({number:Number(number),state:'open',head:{sha:request.headSha,ref:'codex/x'}})
+  const fail={failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true}
+  const original=assignNextReviewer(request,io)
+  const second=replaceFailedReviewer({...request,failedSequence:original.sequence,...fail},io)
+  const museLike=replaceFailedReviewer({...request,failedSequence:second.sequence,...fail},io)
+  // The race: gemini is drawn to supersede muse BEFORE muse's verdict lands.
+  const geminiLike=replaceFailedReviewer({...request,failedSequence:museLike.sequence,...fail},io)
+  giveVerdict(io,{issue:request.issue,pr:request.pr,headSha:request.headSha,replacementSequence:second.sequence})
+  const excluded=excludeReviewerForPr({issue:request.issue,pr:request.pr,reviewer:geminiLike.reviewer,reason:'terminal-unavailable',evidenceSha:geminiLike.replacementSha},io)
+  assert.equal(excluded.returned.length,1)
+  const returned=parseReviewReturn(io.getCommit(excluded.returned[0].sha))
+  assert.equal(returned.sequence,geminiLike.sequence)
+  assert.equal(returned.replacementSequence,museLike.sequence)
+  // The deadlock half that is NOT fixed on purpose: assign still answers from
+  // the superseded replacement, so it cannot satisfy the gate either.
+  assert.equal(assignNextReviewer(request,io).sequence,museLike.sequence)
+  assert.equal(headVerdictBlocksReplacement(request.issue,request.pr,request.headSha,io,{slot:1}),false,
+    'a verdict whose owning assignment a later return superseded is history, not the authorization of record')
+  const redrawn=replaceFailedReviewer({...request,failedSequence:museLike.sequence,...fail},io)
+  assert.ok(redrawn.sequence>geminiLike.sequence,'the redraw must spend a sequence strictly newer than the return')
+  assert.notEqual(redrawn.reviewer,museLike.reviewer)
+  assert.notEqual(redrawn.reviewer,geminiLike.reviewer)
+  assert.ok(io.refs.has(redrawn.assignmentRef),'the redraw must record a live assignment')
+  assert.equal(io.refs.get(redrawn.assignmentRef),redrawn.replacementSha)
+  // SECOND LAYER (lease liveness): the redrawn assignment's lease must not be
+  // marked stale by the predecessor's verdict. That is what produced
+  // "no held reviewer lease matches this review" and blocked the governed
+  // review the merge gate demands. `findBusyReviewers` only holds a reviewer
+  // when its own assignment is still unjudged.
+  assert.ok(findBusyReviewers(io).has(redrawn.reviewer),'the redrawn lease must stay live; a superseded predecessor verdict is not this assignment judgment')
+  assert.ok(!findBusyReviewers(io).stale.some((row)=>row.assignment.reviewer===redrawn.reviewer))
+  // The superseded predecessor's verdict survives byte-for-byte; nothing is
+  // deleted or forged to unstick the slot.
+  assert.ok(io.refs.has(`refs/db-review-verdict-replacements/${request.issue}-${request.pr}-${request.headSha}-${second.sequence}`))
 })
 
 test('reviewer replacement retry rejects mismatched failure sequence and missing evidence',()=>{
@@ -6141,7 +6190,7 @@ test('a replacement lease STATES its slot even for slot 1, so its own verdict st
   assert.match(io.getCommit(leaseSha).message,/ slot=1 /,'a slot-1 replacement message must state its slot')
   assert.equal(parseReviewLease(io.getCommit(leaseSha)).slot,1)
   assert.ok(findBusyReviewers(io).has(replacement.reviewer))
-  giveVerdict(io,{issue:request.issue,pr:request.pr,headSha:request.headSha,slot:1})
+  giveVerdict(io,{issue:request.issue,pr:request.pr,headSha:request.headSha,slot:1,replacementSequence:replacement.replacementSequence})
   assert.ok(!findBusyReviewers(io).has(replacement.reviewer),"its own slot's verdict must still free it")
 })
 
