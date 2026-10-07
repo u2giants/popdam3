@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { verifyProductionEvidence } from '../lib/production-catalog-recovery.mjs'
 import { readFileSync } from 'node:fs'
 import { coordinationEvent, formatEventComment, parseEventComment } from '../db-coordination-events.mjs'
 import { currentRepository, isTrustedOperatorComment } from '../lib/repository-identity.mjs'
@@ -32,6 +33,7 @@ export function parseOutcomeEvidence(body = '', { requiredStage = 'complete' } =
   const known = new Set([
     'schema_version', 'work_issue', 'merge_pr', 'merge_sha', 'application_repository',
     'production_evidence', 'production_commit_sha', 'production_artifact_id', 'production_artifact_digest',
+    'production_recovery_evidence', 'production_recovery_commit_sha', 'production_recovery_artifact_id', 'production_recovery_artifact_digest',
     'application_commit_sha', 'generated_types_evidence', 'generated_types_artifact_id', 'generated_types_artifact_digest', 'generated_types_output_digest', 'live_assertion',
     'live_evidence', 'live_artifact_id', 'live_artifact_digest', 'environment', 'verified_at',
   ])
@@ -44,6 +46,10 @@ export function parseOutcomeEvidence(body = '', { requiredStage = 'complete' } =
   if (!SHA.test(record.production_commit_sha ?? '')) throw new OutcomeError('db-outcome-evidence must name the exact production_commit_sha')
   if (!Number.isInteger(record.production_artifact_id) || record.production_artifact_id <= 0) throw new OutcomeError('db-outcome-evidence must name the production apply artifact id')
   if (typeof record.production_artifact_digest !== 'string' || !/^sha256:[0-9a-f]{64}$/i.test(record.production_artifact_digest)) throw new OutcomeError('db-outcome-evidence must name the production apply artifact sha256 digest')
+  const recoveryFields=['production_recovery_evidence','production_recovery_commit_sha','production_recovery_artifact_id','production_recovery_artifact_digest']
+  if(recoveryFields.some(key=>Object.hasOwn(record,key))){
+    if(recoveryFields.some(key=>!Object.hasOwn(record,key))||typeof record.production_recovery_evidence!=='string'||!EVIDENCE_REF.test(record.production_recovery_evidence)||!SHA.test(record.production_recovery_commit_sha??'')||!Number.isSafeInteger(record.production_recovery_artifact_id)||record.production_recovery_artifact_id<=0||!/^sha256:[0-9a-f]{64}$/i.test(record.production_recovery_artifact_digest??''))throw new OutcomeError('db-outcome-evidence must completely pin production catalog recovery')
+  }
   if (!REPOSITORY.test(record.application_repository ?? '')) throw new OutcomeError('db-outcome-evidence must name application_repository as owner/repo')
   if (requiredStage === 'database-applied') {
     if (typeof record.live_assertion !== 'string' || !record.live_assertion.trim()) throw new OutcomeError('db-outcome-evidence must repeat the live assertion')
@@ -357,7 +363,7 @@ export function verifyOutcomeAcceptance({ issue, evidenceRef }, io) {
   const pr = io.getPr(evidence.merge_pr)
   if (!pr?.merged_at || !sameSha(evidence.merge_sha, pr.merge_commit_sha ?? '')) throw new OutcomeError('merge evidence does not match GitHub')
   if (!io.mergeCommitInMain(evidence.merge_sha)) throw new OutcomeError('merge commit is not in current shared-db main history')
-  if (!io.verifyProductionApply(evidence)) throw new OutcomeError('production application could not be re-derived from exact run and artifact evidence')
+  if (!verifyProductionEvidence(evidence, io)) throw new OutcomeError('production application could not be re-derived from exact run and artifact evidence')
   if (!io.applicationCommitInDefaultBranch(evidence.application_repository, evidence.application_commit_sha)) {
     throw new OutcomeError('application commit is not in the application default branch history')
   }

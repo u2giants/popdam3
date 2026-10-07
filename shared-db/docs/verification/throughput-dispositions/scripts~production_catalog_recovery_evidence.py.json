@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source": "scripts/production_catalog_recovery_evidence.py",
+  "sites": [
+    {
+      "site": "scripts/production_catalog_recovery_evidence.py:71",
+      "semantic_key": "scripts/production_catalog_recovery_evidence.py:54e6e19bb9d59e327bf4ea2bfaedd47615afb62c2b8af0a4e685535056c3c170:context-9c48ed1ab04b18ce45f361e71250cef03065e40eb3a86a29d0ebffaffd95d5d0",
+      "legacy_semantic_key": "scripts/production_catalog_recovery_evidence.py:54e6e19bb9d59e327bf4ea2bfaedd47615afb62c2b8af0a4e685535056c3c170:1",
+      "line_sha256": "54e6e19bb9d59e327bf4ea2bfaedd47615afb62c2b8af0a4e685535056c3c170",
+      "disposition": "excluded",
+      "reason": "This verification-only recovery diagnostic refuses incomplete immutable apply evidence or absent hash-bound named catalog contracts. It preserves fail-closed validation and does not classify throughput readiness."
+    },
+    {
+      "site": "scripts/production_catalog_recovery_evidence.py:49",
+      "semantic_key": "scripts/production_catalog_recovery_evidence.py:683d15b06114ab78a96901d3d1a6e5f856dc53c7cf6421929d34a1d80e660f4b:context-0587b2dc19048101d48dd87ca6b2737de9677b4ea32203598540b8ec2640e236",
+      "legacy_semantic_key": "scripts/production_catalog_recovery_evidence.py:683d15b06114ab78a96901d3d1a6e5f856dc53c7cf6421929d34a1d80e660f4b:1",
+      "line_sha256": "683d15b06114ab78a96901d3d1a6e5f856dc53c7cf6421929d34a1d80e660f4b",
+      "disposition": "excluded",
+      "reason": "This verification-only recovery diagnostic refuses incomplete immutable apply evidence or absent hash-bound named catalog contracts. It preserves fail-closed validation and does not classify throughput readiness."
+    }
+  ]
+}

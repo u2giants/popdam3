@@ -49,6 +49,7 @@
     "scripts/lib/merge-self-context.mjs",
     "scripts/lib/open-pr-files.mjs",
     "scripts/lib/pr-content-equivalence.mjs",
+    "scripts/lib/production-catalog-recovery.mjs",
     "scripts/lib/repository-identity.mjs",
     "scripts/lib/required-check-authority.mjs",
     "scripts/lib/required-check-readback.mjs",

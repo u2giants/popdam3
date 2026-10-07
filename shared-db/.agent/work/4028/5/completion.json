@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "work_issue": 4028,
+  "outcome": "ready-for-merge",
+  "contract_ref": "refs/db-contracts/4028/5",
+  "contract_sha256": "3c6e7d9fdb4dbaf98d3a1fced111c8a8959cc3459a7492ee783cf184045a4ced",
+  "base_sha": "9ee3981f6c80aacdf176ee4ca18262b6d6807a3d",
+  "head_sha": "ccd182332e6572a4a06d56ac05b70951497a489a",
+  "files_changed": [
+    ".github/workflows/production-catalog-verification-recovery.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/throughput-dispositions/scripts~production_catalog_recovery_evidence.py.json",
+    "scripts/lib/production-catalog-recovery.mjs",
+    "scripts/lib/production-catalog-recovery.test.mjs",
+    "scripts/lib/work-stage-evidence.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "scripts/orchestrator-flow/outcome-lifecycle.mjs",
+    "scripts/production_catalog_recovery_evidence.py",
+    "scripts/test_production_catalog_recovery_evidence.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts/test_production_catalog_recovery_evidence.py",
+      "exit_code": 0,
+      "evidence": "6 Python adversarial methods passed; strengthened binder passes actual retained original apply and successful recovery evidence; full1436 Python tests passed22skips."
+    },
+    {
+      "command": "node --test scripts/lib/production-catalog-recovery.test.mjs scripts/orchestrator-flow/admission-outcome.test.mjs",
+      "exit_code": 0,
+      "evidence": "Full3245 Node tests passed3244/one existing skip, including all recovery adapter, outcome schema, stage consumers and abnormal-step refusals."
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "771 lane tests retained in full3245 suite; manager source byte-identical to main."
+    },
+    {
+      "command": "node --test scripts/check-throughput-truth-audit.test.mjs scripts/orchestrator-flow/evidence-bundle.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual current truth audit passes333call-sites/93sources; all throughput-guard subdirectory tests passed and import-invalidation closure retained."
+    }
+  ],
+  "assumptions_resolved": [
+    "Original failed apply remains failed; only a fresh reviewed successful verification-only recovery with immutable exact binding may establish production application. No production apply, row or schema mutation, grants or infrastructure write.",
+    "Muse source APPROVE at1357ba35 preserved. Its low hardening finding now rejects abnormal extra step conclusions in both producers/verifiers. Hosted stale diagnostic semantic context repaired from current exact discovery. A new exact-head approval remains required."
+  ],
+  "stop_conditions_hit": [],
+  "pr": 4029,
+  "migration_versions": []
+}

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { verifyProductionEvidence } from './production-catalog-recovery.mjs'
 import { isTrustedOperatorComment } from './repository-identity.mjs'
 import { findCompletionRecord, isSuccessful } from './work-dependencies.mjs'
 import { parseOutcomeEvidence } from '../orchestrator-flow/outcome-lifecycle.mjs'
@@ -113,7 +114,7 @@ function currentEvidence(event, io) {
   const inspection = io.prStructuralInspection(event.pr, event.merge_sha)
   if (!Array.isArray(scope.writes) || !structuralWritesMatch(inspection, [...scope.writes].sort())) throw new Error('stage PR objects do not match the admitted writes')
   if (evidence.application_repository !== scope.applicationReturnTo || evidence.live_assertion !== scope.liveAssertion) throw new Error('outcome evidence does not match the declared acceptance contract')
-  if (io.verifyProductionApply(evidence) !== true) throw new Error('production application evidence did not verify')
+  if (verifyProductionEvidence(evidence, io) !== true) throw new Error('production application evidence did not verify')
   if (event.stage !== 'database-applied') {
     if (io.applicationCommitInDefaultBranch(evidence.application_repository, evidence.application_commit_sha) !== true || io.verifyLiveAssertion(evidence) !== true) throw new Error('live application evidence did not verify')
     if (scope.generatedTypes === 'required' && io.verifyGeneratedTypes(evidence) !== true) throw new Error('required generated types did not verify')

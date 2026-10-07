@@ -1,0 +1,78 @@
+{
+  "schema_version": 2,
+  "work_issue": 4028,
+  "generation": 5,
+  "work_type": "repository-maintenance",
+  "route": "repository-maintenance",
+  "goal": "Bind successful read-only catalog recovery to the exact original failed-after-apply run, immutable artifact, SQL hashes, exclusive applied ledger delta and production target. Preserve the successful-run route unchanged; accept only an original failure exclusively at Post-apply catalog verification plus a successful exact-input verification-only recovery. No database mutation or production retry. Implement the shared composite verifier through existing outcome/stage consumers, keeping the unrelated protected lane-manager source byte-identical to main.",
+  "base_sha": "9ee3981f6c80aacdf176ee4ca18262b6d6807a3d",
+  "dispatcher": "Albert authorized completion of3882 through production. Specific verification software defect repair4028 supports original structural acceptance3907 without moving its live-proof obligation.",
+  "worker": "Codex chat 01a1126e-c598-7d60-8cf4-e14427127e20 on edge-dev3",
+  "branch": "codex/3907-catalog-evidence",
+  "worktree": "/tmp/shared-db-3907-catalog-evidence",
+  "allowed_paths": [
+    ".github/workflows/production-catalog-verification-recovery.yml",
+    "scripts/production_catalog_recovery_evidence.py",
+    "scripts/test_production_catalog_recovery_evidence.py",
+    "scripts/lib/production-catalog-recovery.mjs",
+    "scripts/lib/production-catalog-recovery.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/orchestrator-flow/outcome-lifecycle.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    ".agent/work/4028/5/contract.json",
+    ".agent/work/4028/5/completion.json",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/throughput-dispositions/scripts~production_catalog_recovery_evidence.py.json",
+    ".agent/work/4028/2/contract.json",
+    ".agent/work/4028/2/completion.json",
+    "scripts/lib/work-stage-evidence.mjs",
+    ".agent/work/4028/4/contract.json",
+    ".agent/work/4028/4/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/production-catalog-verification-recovery.yml",
+    "scripts/production_catalog_recovery_evidence.py",
+    "scripts/test_production_catalog_recovery_evidence.py",
+    "scripts/lib/production-catalog-recovery.mjs",
+    "scripts/lib/production-catalog-recovery.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/orchestrator-flow/outcome-lifecycle.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    ".agent/work/4028/5/contract.json",
+    ".agent/work/4028/5/completion.json",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/throughput-dispositions/scripts~production_catalog_recovery_evidence.py.json",
+    ".agent/work/4028/2/contract.json",
+    ".agent/work/4028/2/completion.json",
+    "scripts/lib/work-stage-evidence.mjs",
+    ".agent/work/4028/4/contract.json",
+    ".agent/work/4028/4/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change or delete application rows, columns, keys or privilege policies.",
+    "Do not alter shared schema beyond the exact admitted objects.",
+    "Do not edit applied migrations or perform manual production writes."
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts/test_production_catalog_recovery_evidence.py",
+    "node --test scripts/lib/production-catalog-recovery.test.mjs scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/check-throughput-truth-audit.test.mjs scripts/orchestrator-flow/evidence-bundle.test.mjs"
+  ],
+  "assumptions": [
+    "Existing supported read-only recovery succeeded37573657457; strict completion currently only recognizes wholly successful apply runs. Recovery must independently prove the exact catalog and original bounded apply, never relabel original failure or replay a production write.",
+    "The manager import closure requires the new recovery verifier as a global invalidator; fail-closed diagnostic sites require their own reviewed semantic dispositions. Both original capabilities are preserved.",
+    "Muse approved exact generation4 source. Hosted CI found stale semantic context for one reviewed missing-contract diagnostic after final stricter validation; refreshing only that catalogue preserves the fail-closed checks and requires a new exact-head approval."
+  ],
+  "stop_conditions": [
+    "Any unexpected source/target shape, orphan, permission or claim collision refuses mutation.",
+    "Unreviewed changes or target identity ambiguity stop before a write."
+  ],
+  "evidence_parent": {
+    "work_issue": 4028,
+    "generation": 4,
+    "contract_sha256": "a7d83edd7cf46acaa80b629bcc4ee4cba3dd40de0fcf7a55de4b8292d6c576a3"
+  }
+}
