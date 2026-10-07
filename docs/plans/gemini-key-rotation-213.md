@@ -69,7 +69,7 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v8.3 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
+## Addendum v8.4 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
 
 Review scope: ONLY this addendum. Steps 1-9 above already ran and were reported on #213 (5:15 PM
 EDT); nothing here touches the DB. Owner of this addendum and its residuals: this Claude session.
@@ -89,14 +89,16 @@ restarted.
 
 Inputs (exact):
 - Source: op://vibe_coding/3onekcbg3dxnazpnt36d4yzfcq/7g7toqbbme6aybbs5hfzvvwoaa. Already
-  validated: sha256[:12]=3c48237f28e9 (== admin_config), GET v1beta/models -> 200. Because the
-  value written to Railway is proven byte-identical by fingerprint, no separate post-write API
-  call is needed (identical bytes, identical result).
+  validated: sha256[:12]=3c48237f28e9 (== admin_config), GET v1beta/models -> 200. Re-validated
+  (GET v1beta/models -> 200) twice more: immediately before step 2 from 1Password, and after step 2
+  from Railway's read-back value (curl -K from a 0600 file shredded by trap).
 - Target: Railway project 8645c5fe-ae60-413e-8464-508456c65365, env production, service popdam3
   (f777713f-d0f8-4f9b-9685-37c9090c98ef), variable GOOGLE_AI_API_KEY; all commands pass -p/-e/-s.
   Expected current fingerprint 3c1804c42ed1 (dead, API_KEY_INVALID).
 - Scope: one Railway variable; 1Password item dykqfttarudsxhzrlsktyupq2y only (this session's
   empty placeholder).
+- Full digests: NEW = 3c48237f28e90a9bc34ddca4d6da9ae932beb25840767f8644bdf5b22616f0c1,
+  OLD = 3c1804c42ed14699cf6afbbdc5d029157dbd1d0ce3c457b5a24b77263ba2beb1.
 - F = `railway variables --json` piped into python printing only the FULL sha256 hex digest of
   GOOGLE_AI_API_KEY; every comparison in this addendum uses full 64-hex digests (the 12-char
   prefixes quoted here are labels only; step 1a records the full old digest, and the full new
@@ -118,7 +120,9 @@ Steps:
 2. op_run pipes $K to `railway variable set GOOGLE_AI_API_KEY --stdin -p .. -e production -s
    popdam3` (normal deploy-triggering set — one restart, same as every push to main).
    Reconcile by F regardless of exit code: 3c48237f28e9 = applied; 3c1804c42ed1 = not applied,
-   retry once, and if still old stop (nothing changed, no deploy) and record Blocked on #213;
+   before any retry, reconcile deployments: if a deployment was created after the step-2 start,
+   the set landed late — re-read F and continue from step 3 with no retry; otherwise retry once,
+   and if still old stop (nothing changed, no deploy) and record Blocked on #213;
    any other digest = stop and investigate (a concurrent change may be legitimate; never
    overwrite it), record on #213.
 3. Identify the deployment: D1 = the deployment created after the step-2 start time. Bounded wait
