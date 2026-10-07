@@ -85,6 +85,13 @@ async function resolveAssetSearch(
   return { ids, fallback };
 }
 
+/** True when the database refused the request because the user lacks DAM access (403 / 42501). */
+export function isDamAccessDenied(error: unknown): boolean {
+  const err = error as { code?: string; message?: string } | null | undefined;
+  if (!err) return false;
+  return err.code === "42501" || (err.message ?? "").includes("DAM access is required");
+}
+
 function shouldFallbackFromFullTextRpc(error: unknown) {
   const err = error as { code?: string; message?: string; details?: string };
   const text = `${err.message ?? ""} ${err.details ?? ""}`.toLowerCase();
