@@ -69,7 +69,7 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v7.6 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
+## Addendum v7.7 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
 
 Review scope: ONLY this addendum is up for approval. Steps 1-9 above were already executed and
 reported on #213 (5:15 PM EDT); they are not re-run and nothing here touches any DB value.
@@ -110,12 +110,16 @@ Steps:
    NO redeploy (the running worker never saw the new value); stop and record on #213.
 4. Restart-safety check, immediately before redeploy (KNOWN_QUIRKS #74): read-only SELECT of
    admin_config BULK_OPERATIONS on qsllyeztdwjgirsysgai. Proceed only if NO operation has status
-   running/queued/pending/starting AND no batch_job phase is submitting/ambiguous_submission. With no
+   running/queued/pending/starting, NO batch_job phase is submitting/ambiguous_submission, and NO
+   interrupted operation is auto-resume eligible (operation-loop.ts:955-967: reason in
+   TRANSIENT_REASONS of operation-retry.ts and auto_resume_attempts below the cap). Capture
+   D0 = the current newest SUCCESS deployment ID in the same step. With no
    active operation the worker has nothing to submit, so the only remaining race is an admin
    starting a new operation in the seconds before the redeploy; re-run the same SELECT right after
    D1 is created, and if anything became active, record it on #213 and watch it reconcile by saved
    provider ID (that is the normal path every push-to-main deploy already takes).
-   (Read-only check run 21:37 UTC: every operation idle/completed/interrupted/failed; none active.)
+   (Read-only check run 5:37 PM EDT 2026-10-07: none running; the six interrupted ops have reason
+   "unknown" or "user_stop", neither transient, so none can auto-resume. D0 then = 9737ffd4.)
    If unsafe, re-check every 2 min up to 20 min, then stop (value stays staged; record on #213).
    Note: other sessions push to main often and each push redeploys this service; a concurrent
    deploy after step 2 would also pick up the verified new value, which is the intended end state.
@@ -126,7 +130,9 @@ Steps:
    record on #213. Bounded wait 15 min for D1 SUCCESS (poll by ID only). Then prove
    health attributed to D1: `railway deployment list --json` (same -p/-e/-s) shows D1 SUCCESS as
    the newest non-REMOVED deployment and D0 REMOVED within 10 min (else rollback), so only D1 can
-   write; if a newer concurrent deployment D2 exists, verify D2 instead and fingerprint F again; then
+   write; if a newer concurrent deployment D2 exists, every check below (status, runtime logs, F) runs
+   against D2 instead of D1, and the heartbeat is attributed to it by the same only-one-active
+   rule (the heartbeat row carries no deployment ID, so attribution is by exclusivity); then
    admin_config WORKER_HEARTBEAT.updated_at advances past the D0-removal time within 3 min
    (heartbeat every 60 s), and D1's own logs (`railway logs D1 --lines 200 -p .. -e production -s popdam3`, the runtime log
    stream; validated read-only today: returns "worker: starting" and "polling loop started") show startup + tick
@@ -140,7 +146,11 @@ Steps:
    concealed field, notes point to the main-key op:// ref; verify with item_get (no reveal).
 8. Post evidence on #213, signed, keeping unchecked on #213, owned by this session:
    "- [ ] live proof: worker env-fallback branch (runs only on admin_config miss)" next to the
+   (this is the repository's required same-issue live-proof checklist; forcing a DB miss on
+   production to exercise it is out of scope)
    existing worker batch-route item.
-Cleanup: on success only, shred -u the backup and curl config files; curl config is shredded on
-every path (trap). Out of scope residual on #213: the old dead key's Google project is unknown
+Cleanup: curl config (live new key) is shredded on every path via trap. The backup holds only the
+old DEAD key (Google returns API_KEY_INVALID), so retaining it carries no live-credential risk; it
+is shredded as soon as the final state is verified (success or completed rollback) and kept only if
+a rollback fails, as recovery evidence. Out of scope residual on #213: the old dead key's Google project is unknown
 (never in admin_config or 1Password); it already returns API_KEY_INVALID.
