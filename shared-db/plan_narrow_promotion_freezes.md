@@ -5,14 +5,15 @@
 | Step | Status | Evidence / gate |
 |---|---|---|
 | Initial independent design review | HISTORICAL APPROVE | Gemini sequence 5638 at 610e80cd; heavier original proposal superseded |
-| Muse review/debate | CONCURRENCE | Three completed persistent turns approve evidence-first sequence, not feature readiness |
+| Muse review/debate | COMPLETE — October 7, 2026 | Five completed persistent turns; final exact-source APPROVE 2f9e29990a66d8c6c8af563d16264f13c9a72a21, [retained outcome](https://github.com/popcre/shared-db/pull/4040#issuecomment-6042904088); gated proposal only |
+| Investigation publication | COMPLETE — October 7, 2026 | PR #4040 merged at 1:22:13 PM EDT as e682fd77de6f9420cedc00862596e5f8b825f40b; issue #4039 closed |
 | 0. Measurements, bindings and separate cleanup | OPEN / NOT AUTHORIZED | §9.0 |
 | 1. Benefit and binding gate | OPEN | §9.1; insufficient evidence holds feature |
 | 2. Minimal strict-mode implementation | CONDITIONAL / NOT STARTED | §9.2; no new subsystem by default |
 | 3. Full caller and concurrency integration | CONDITIONAL / NOT STARTED | §9.3 |
 | 4. Review, rollout and live acceptance | CONDITIONAL / NOT STARTED | §9.4; live proof stays on #4039 |
 
-**Fresh-session starting point:** verify retained Muse outcome, live publication/ownership and this STATUS. Do not start code without later authorization. After authorization execute evidence-first phases; a failed gate stops downstream phases. Register successor owner on #4039 and use [handoff](HANDOFF.d/2026-10-07T1545Z-edge-dev3-codex-narrow-promotion-freezes.md). Current default remains the existing global freeze.
+**Fresh-session starting point:** this investigation/review workstream is closed; do not redo its reviews or publication. No code work is currently authorized. If Albert later requests implementation, re-prove current scope/ownership, reopen existing #4039 through the supported repository-maintenance route, register the new named owner, and start §9.0. Failed gates stop downstream phases. Current default remains the existing global freeze. The completed publication handoff is retired; [report](docs/investigations/narrow-promotion-freezes.md) and its durable issue/PR record carry continuation context.
 
 ## 1. Ultimate goal
 
@@ -180,7 +181,7 @@ This owner-requested review/debate is done when actual persistent Muse turns, su
 
 Future implementation done requires approved gate record, separately authorized scope, exact-head assigned review, tests/CI, normal merge, activated-code identity, real prose canary and complete original application acceptance with measured cleanup. HOLD if sample or bindings are insufficient. Risks are classifier mistakes, incomplete records, stale runtime/live authority, prior groups, same-PR cleanup replacement, preview/ledger drift and mutex starvation; each maps to a named test or stop gate.
 
-Future implementing workstream owns bindings, observation ledgers, benefit choice and code/live acceptance; existing coordination-IO maintainer/Step 10 owner must reconcile scope; allocator-assigned reviewer judges technical sufficiency and actual exact-head change. Register one named successor on #4039, not generic unowned work. This Codex workstream owns publication and handoff until completed. No business question currently open.
+Future implementing workstream owns bindings, observation ledgers, benefit choice and code/live acceptance; existing coordination-IO maintainer/Step 10 owner must reconcile scope; allocator-assigned reviewer judges technical sufficiency and actual exact-head change. Register one named successor on #4039, not generic unowned work. Investigation publication is complete; no active publication handoff remains. No business question currently open.
 
 ## Self-audit
 
