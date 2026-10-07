@@ -58,13 +58,18 @@ export function parseDeepLink(url: string): ParsedLink | null {
   }
 }
 
+/** Redact secret query params (e.g. checkout token) so they never reach logs. */
+export function redactDeepLink(url: string): string {
+  return url.replace(/([?&](?:token|access_token)=)[^&#]*/gi, "$1[REDACTED]");
+}
+
 export async function handleDeepLink(url: string): Promise<void> {
-  log.info("Deep link received:", url);
+  log.info("Deep link received:", redactDeepLink(url));
   showWindow();
 
   const link = parseDeepLink(url);
   if (!link) {
-    log.warn("Unrecognized deep link:", url);
+    log.warn("Unrecognized deep link:", redactDeepLink(url));
     return;
   }
 
