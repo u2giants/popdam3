@@ -34,12 +34,6 @@ Use this exact shape for every new quirk:
 **Why:** On 2026-07-08, live production `rebuild_style_groups_batch` still used the old loose regex (`^[A-Za-z]{1,6}[0-9]` without an end anchor), so searching Style Groups for `3fz` returned one bogus category group with 2,234 assets. A preview-verified shared-db migration `20260708150000_dam_strict_style_group_sku_regex.sql` updates the DB rebuild RPC, and `supabase/functions/_shared/style-grouping.ts` matches it.
 **Do not change because:** Tightening back to "starts with letters" or length ≥ 10 drops valid digit-leading/short SKUs; loosening back to prefix matching collapses category folders into giant bogus groups. If grouping looks wrong, compare app extractor and DB RPC first, then rebuild style groups after the migration is live.
 
-## `supabase-popsg/` directory is dead code
-
-**Looks like:** A separate Supabase project for PopSG with its own functions and workflow.
-**Actually:** PopSG was originally on a separate project (`eeueczxhezfhyrhdmidg`). It was consolidated into the PopDAM project. The directory was never cleaned up.
-**Do not change because:** `deploy-popsg-supabase.yml` is intentionally blocked; deploying from `supabase-popsg/` would target the old abandoned project.
-
 ## `.ai` "no PDF compatibility" ≠ empty — these files STILL contain real artwork (corrected 2026-07-03)
 
 **Looks like:** An `.ai` saved without "Create PDF Compatible File" is an empty placeholder containing "only Adobe's boilerplate warning" — junk that is safe to delete/hide. (The ".ai Sentinel Cleanup" feature and an earlier version of this quirk both assumed this. **It is wrong.**)

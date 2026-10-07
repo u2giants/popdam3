@@ -28,7 +28,6 @@ apps/*/package-lock.json
 packages/path-filters/package-lock.json
 
 # Dead code; PopSG runs from the main Supabase project
-supabase-popsg/
 
 # Lovable platform memory
 .lovable/

@@ -268,13 +268,9 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 ---
 
-## 24. `supabase-popsg/` Directory Is Dead Code
+## 24. (Removed) `supabase-popsg/` Directory
 
-**What it looks like**: A separate `supabase-popsg/` directory with its own functions and workflow.
-
-**Why it's dead**: PopSG was originally deployed on a separate Supabase project (`eeueczxhezfhyrhdmidg`). It was later consolidated into the PopDAM project (`qsllyeztdwjgirsysgai`; previously `ryltkzzernhwnojzouyb` before the Virginia move). The directory was never cleaned up.
-
-**What breaks if you deploy from it**: The `deploy-popsg-supabase.yml` workflow targets the old abandoned project — deploying would update a project that no client connects to.
+The dead `supabase-popsg/` folder and `deploy-popsg-supabase.yml` were deleted in #221. PopSG runs on the main PopDAM project (`qsllyeztdwjgirsysgai`).
 
 ---
 

@@ -172,7 +172,6 @@ popdam3/
 - `apps/*/dist/`, `apps/popdam-helper/out/` — app build/package output
 - `node_modules/`, `apps/*/node_modules/`
 - `.lovable/` — Lovable platform memory (ignore)
-- `supabase-popsg/` — dead code directory for an abandoned separate Supabase project
 
 **Project-owned source:** `src/`, `supabase/functions/`, `apps/*/src/`, `packages/path-filters/src/`.
 **Docs and runbooks:** root `*.md`, `docs/`, `SELFHOST.md`, `HANDOFF.md`.
@@ -197,7 +196,6 @@ packages/path-filters/src/
 **Before touching anything outside these paths, ask why.** The main risk areas:
 - `src/integrations/supabase/client.ts` — re-exports from `external-supabase.ts`; Lovable overwrites this periodically (quirk #2)
 - `src/integrations/supabase/types.ts` — auto-generated; edit will be overwritten on next deploy
-- `supabase-popsg/` — dead code directory, do not edit or deploy from it
 
 ---
 
@@ -312,7 +310,6 @@ package-lock.json
 bun.lock
 bun.lockb
 apps/*/package-lock.json
-supabase-popsg/         # dead code, never deploy from here
 .lovable/               # Lovable platform memory
 worksp_symlink.md       # harness bookkeeping
 server                  # untracked symlink into the Coolify deploy dir — not part of the build
@@ -333,7 +330,6 @@ Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read
 - Dual-mode (PopDAM / PopSG) via hostname detection
 - `asset_count` on `style_groups` is a cached field, not computed on read
 - Style-group SKU extraction must skip category folders but accept digit-leading SKUs
-- `supabase-popsg/` directory is dead code
 - `.ai` "no PDF compatibility" ≠ empty — these files STILL contain real artwork (corrected 2026-07-03)
 - Style Group IDs change every night (`rebuild-style-groups`) — pin cohorts by SKU (2026-09-23)
 - Muse Spark 1.3 Contributor reports its capacity limit as 404 `model_not_found` — cap and retry, never switch models (2026-09-23)
