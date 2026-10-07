@@ -69,64 +69,60 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v7.3 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
+## Addendum v7.4 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
 
 Review scope: ONLY this addendum is up for approval. Steps 1-9 above were already executed and
-reported on #213 (5:15 PM EDT); they are not re-run and nothing in this addendum restores any DB value.
+reported on #213 (5:15 PM EDT); they are not re-run and nothing here touches any DB value.
+Owner of this addendum and of every residual it leaves: this Claude session (popdam3 #213 assignee
+work), until the residual items are checked off.
 
-Gate: immediately before step 1, run `ai-task-gates check --before production --reviewer-approval
+Gate: immediately before step 2, `ai-task-gates check --before production --reviewer-approval
 <this addendum's APPROVE report>`; stop on refusal.
-
-Coordinator decision: reuse today's new key for the Railway worker env fallback.
 
 Inputs (exact):
 - Source: op://vibe_coding/3onekcbg3dxnazpnt36d4yzfcq/7g7toqbbme6aybbs5hfzvvwoaa
-  (field gemini_popdam_shared_supabase). Pre-check: sha256[:12]=3c48237f28e9 (== admin_config
-  fingerprint after rotation); GET v1beta/models with x-goog-api-key -> 200.
-- Target: Railway project popdam id 8645c5fe-ae60-413e-8464-508456c65365, environment production id
-  70aef28e-b9f8-4aa6-b902-c9a06aec08d5, service popdam3 id f777713f-d0f8-4f9b-9685-37c9090c98ef,
-  variable GOOGLE_AI_API_KEY. The CLI runs from a scratch directory linked with
-  `railway link -p 8645c5fe-... -e production -s popdam3`, and every command also passes
-  `-s popdam3 -e production`. Current value fingerprint 3c1804c42ed1 (dead, API_KEY_INVALID).
-- Scope: exactly one Railway variable changes. No other Railway variable/service, no DB row, no code.
-  The only 1Password change is to item dykqfttarudsxhzrlsktyupq2y, created by this session today as
-  an empty placeholder (its concealed field has never held a value, so there is nothing to back up).
-  The main-key item 3onekcbg3dxnazpnt36d4yzfcq is read only.
+  (gemini_popdam_shared_supabase). Pre-check: sha256[:12]=3c48237f28e9 (== admin_config after
+  rotation); GET v1beta/models -> 200.
+- Target: Railway project 8645c5fe-ae60-413e-8464-508456c65365, environment production
+  70aef28e-b9f8-4aa6-b902-c9a06aec08d5, service popdam3 f777713f-d0f8-4f9b-9685-37c9090c98ef,
+  variable GOOGLE_AI_API_KEY; every command passes -p/-e/-s explicitly. Expected current
+  fingerprint 3c1804c42ed1 (dead, API_KEY_INVALID).
+- Scope: exactly one Railway variable. 1Password: only item dykqfttarudsxhzrlsktyupq2y (this
+  session's empty placeholder; its concealed field never held a value). Main-key item read only.
+
+Fingerprint helper F: `railway variables --json -p .. -e .. -s ..` piped into python that prints
+only sha256(GOOGLE_AI_API_KEY)[:12]. Never --kv to a terminal; no raw value ever displayed.
 
 Steps:
--1. Restart-safety precheck (KNOWN_QUIRKS #74): read-only SELECT of admin_config key
-   BULK_OPERATIONS on the live project qsllyeztdwjgirsysgai. Proceed only if no operation's batch job
-   state has phase "submitting" or "ambiguous_submission" (pending/prepared/applying/completed are
-   resume-safe by saved provider ID). Also record the current latest deployment ID (D0). If unsafe,
-   re-check every 2 minutes up to 20 minutes, then stop and record Blocked on #213.
-0. Backup: write the current Railway value to a 0600 scratch file (read with `railway variables
-   --json` piped straight into python that writes the file and prints only its sha256[:12];
-   nothing raw is displayed). Shredded at the end after success.
-1. Via 1Password op_run (value only in env, piped to stdin, never argv or printed):
-   printf '%s' "$K" | railway variable set GOOGLE_AI_API_KEY --stdin -s popdam3 -e production
-   (triggers a redeploy of the current commit).
-2. Verify storage: `railway variables --json` piped into python that prints only
-   sha256(value)[:12] for GOOGLE_AI_API_KEY; must equal 3c48237f28e9. Never use --kv to a terminal.
-3. Verify value works from Railway's copy: the same pipeline feeds the read-back value as an
-   x-goog-api-key header (curl -K from a 0600 file) to (a) GET v1beta/models -> 200 and
-   (b) GET v1beta/batches (the list/poll surface the worker's batch status path uses, gemini-batch.ts)
-   -> 200. Submitting a real batch is out of scope (no direct-Gemini model is selected).
-4. Verify worker: the deployment created after step 1 (ID != D0, created after the step-1 time)
-   reaches status SUCCESS; deploy logs show worker startup, no crash loop,
-   poll/heartbeat lines.
-   Known limit: the fallback branch in apps/worker/src/google-ai-key.ts runs only when
-   admin_config.GOOGLE_AI_API_KEY is empty/unreadable; deliberately emptying the production DB key
-   to exercise it is out of scope. Step 3 proves the installed fallback value itself is valid.
-5. Rollback (if step 2 or 3 fails, or the new deployment fails to start, or logs show a new crash): restore the previous
-   value from the step-0 backup via stdin `railway variable set ... --stdin` (this triggers a fresh
-   deploy with the old env), confirm SUCCESS, and record Blocked on #213.
-6. Update 1Password item dykqfttarudsxhzrlsktyupq2y: drop PLACEHOLDER from title, remove its empty
-   concealed field, notes point to the main-key op:// ref as single source of truth; verify with
-   item_get (no reveal).
-7. Post evidence on #213, signed, and keep on #213 the unchecked item
-   "- [ ] live proof: worker env-fallback branch (runs only on admin_config miss) — untested by design"
-   alongside the existing worker batch-route item.
-Cleanup (success OR failure, via shell trap): shred -u every 0600 scratch file (backup, curl -K
-config). Out of scope, recorded as residual on #213: the old dead fallback key's Google project is
-unknown (value never in admin_config or 1Password); it already returns API_KEY_INVALID, so it
-cannot be used, and auditing its origin project needs console access to that unknown project.
+1. Assert F == 3c1804c42ed1; else stop (someone else changed it) and record on #213. Back the value
+   up to a 0600 scratch file through the same pipe; assert the file's sha256[:12] == 3c1804c42ed1.
+2. Set new value WITHOUT deploying: op_run pipes $K to
+   `railway variable set GOOGLE_AI_API_KEY --stdin --skip-deploys -p .. -e .. -s popdam3`.
+   Whatever the exit code (including timeout/ambiguous), reconcile by F: 3c48237f28e9 = applied,
+   3c1804c42ed1 = not applied (retry once, then stop), anything else = restore from backup and stop.
+   Since nothing redeploys, the running worker is unaffected by this step.
+3. Verify the stored value works: same pipe feeds Railway's read-back value as x-goog-api-key
+   (curl -K from a 0600 file) to GET v1beta/models -> 200 and GET v1beta/batches -> 200.
+   Failure -> rollback (step 6).
+4. Restart-safety check, immediately before redeploy (KNOWN_QUIRKS #74): read-only SELECT of
+   admin_config BULK_OPERATIONS on qsllyeztdwjgirsysgai; proceed only if no batch job phase is
+   "submitting" or "ambiguous_submission". Record latest deployment ID D0. If unsafe, re-check
+   every 2 min up to 20 min, then stop (value stays staged, harmless; record on #213).
+   Residual: seconds between this read and the redeploy; the worker's saved-provider-ID resume
+   design (#74) covers every phase except a submission in that window.
+5. Deploy: `railway redeploy -y --json -p .. -e .. -s popdam3`; capture the new deployment ID D1
+   from its output (D1 != D0). Bounded wait 15 min for D1 SUCCESS (poll by ID only). Then prove
+   health: admin_config WORKER_HEARTBEAT.updated_at advances past the D1 creation time within 3 min
+   (heartbeat every 60 s), and D1 logs show no crash/restart loop.
+6. Rollback (step 3 fails, D1 not SUCCESS in 15 min, or no fresh heartbeat): pipe the backup into
+   `railway variable set --stdin` (skip-deploys), assert F == 3c1804c42ed1, then redeploy and
+   re-verify heartbeat. Note the old key is dead, so rollback only restores prior state.
+   If rollback itself fails, KEEP the backup file (0600, scratch dir) and record Blocked on #213.
+7. Update 1Password item dykqfttarudsxhzrlsktyupq2y: drop PLACEHOLDER from title, remove its empty
+   concealed field, notes point to the main-key op:// ref; verify with item_get (no reveal).
+8. Post evidence on #213, signed, keeping unchecked on #213, owned by this session:
+   "- [ ] live proof: worker env-fallback branch (runs only on admin_config miss)" next to the
+   existing worker batch-route item.
+Cleanup: on success only, shred -u the backup and curl config files; curl config is shredded on
+every path (trap). Out of scope residual on #213: the old dead key's Google project is unknown
+(never in admin_config or 1Password); it already returns API_KEY_INVALID.
