@@ -1,5 +1,12 @@
 # Plan — move DesignFlow PLM production off Cloud SQL onto Supabase, group by group
 
+> **SUPERSEDED (Albert Hazan, 2026-10-06, from his chat, verbatim: "yes, go with Uma's approach.").**
+> The owner chose Uma's two-step plan (2 October 2026) over this group-by-group plan: step 1 moves all
+> four DesignFlow database services at once from Cloud SQL `designflow` into production Supabase
+> `dflow_prod` (single schema, short write pause, no dual-write, 30-minute rollback window); step 2
+> later turns on multi-schema after the sample-cluster home is decided. Do not start any wave below.
+> Live route: issue #770. This file is kept as the table-grouping reference only.
+
 Owner request (Albert Hazan, 2026-10-02): group the Cloud SQL tables by which ones are linked and
 must move together, then move them piecemeal and re-point DesignFlow production, instead of one
 all-at-once cutover.
