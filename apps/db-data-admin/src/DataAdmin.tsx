@@ -66,6 +66,17 @@ const baseColumns: ColumnRegular[] = [
   { prop: 'updated_at', name: 'Updated', size: 175, sortable: true },
 ]
 
+// A corrupt or non-object saved view is discarded instead of breaking the page.
+function readCachedView(kind: string): Partial<QueryState> {
+  try {
+    const cached = localStorage.getItem(`db-data-admin:${kind}`)
+    const parsed: unknown = cached ? JSON.parse(cached) : null
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as Partial<QueryState>
+  } catch { /* fall through */ }
+  try { localStorage.removeItem(`db-data-admin:${kind}`) } catch { /* storage unavailable */ }
+  return {}
+}
+
 export function DataAdmin({ client, email, environmentLabel, onSignOut }: Props) {
   const [kind, setKind] = useState<EntityKind>('customer')
   const [section, setSection] = useState<'entity' | 'scraped-property' | 'property-match' | 'product-depth' | 'property-status'>('entity')
@@ -91,21 +102,30 @@ export function DataAdmin({ client, email, environmentLabel, onSignOut }: Props)
   const [inlineMessage, setInlineMessage] = useState<string | null>(null)
   const [undoStack, setUndoStack] = useState<UndoStep[]>([])
   const version = useRef(0)
+  const fetchRequestId = useRef(0)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const filterTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchRows = useCallback(async (append = false, override?: QueryState) => {
+    // Only the newest request may write state, so a slow response for a previous
+    // tab (e.g. customers) never lands in the next tab's grid (e.g. vendors).
+    const requestId = ++fetchRequestId.current
     setLoading(true); setError(null)
     try {
       const result = dataMode === 'client' && !append ? await loadAllRows(client, kind, override ?? query) : await loadRows(client, kind, override ?? query)
+      if (requestId !== fetchRequestId.current) return
       setRows(current => append ? [...current, ...result.rows] : result.rows)
       setNextCursor(result.nextCursor)
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Data could not be loaded.') }
-    finally { setLoading(false) }
+    } catch (cause) {
+      if (requestId !== fetchRequestId.current) return
+      setError(cause instanceof Error ? cause.message : 'Data could not be loaded.')
+    } finally { if (requestId === fetchRequestId.current) setLoading(false) }
   }, [client, dataMode, kind, query])
 
   useEffect(() => {
     let active = true
+    // Invalidates any in-flight fetch from the previous tab.
+    fetchRequestId.current += 1
     // Resets every tab-scoped piece of state before the new tab loads. React's
     // preferred alternative is remounting via a `key`, which this screen cannot
     // use yet because the cursor/grid-state refs must survive a tab switch.
@@ -115,9 +135,8 @@ export function DataAdmin({ client, email, environmentLabel, onSignOut }: Props)
       try {
         const allowedChannels = await probeAccess(client)
         if (active) setChannels(allowedChannels)
-        const cached = localStorage.getItem(`db-data-admin:${kind}`)
         const remote = await loadGridState(client, kind)
-        const restored = { ...initialQuery, ...(cached ? JSON.parse(cached) : {}), ...(remote?.state ?? {}) }
+        const restored = { ...initialQuery, ...readCachedView(kind), ...(remote?.state ?? {}) }
         version.current = remote?.version ?? 0
         if (active) { setQuery(restored); await fetchRows(false, restored) }
       } catch (cause) {
@@ -136,7 +155,7 @@ export function DataAdmin({ client, email, environmentLabel, onSignOut }: Props)
     const next = { ...query, ...patch, cursor: null }
     setQuery(next); localStorage.setItem(`db-data-admin:${kind}`, JSON.stringify(next))
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => void saveGridState(client, kind, next, version.current).then(result => { version.current = result?.version ?? version.current + 1 }).catch(() => setError('Your saved view changed elsewhere. Reload to use the newest version.')), 500)
+    saveTimer.current = setTimeout(() => void saveGridState(client, kind, next, version.current).then(result => { version.current = result?.version ?? version.current + 1 }).catch((cause: unknown) => setError(cause instanceof Error && /conflict/i.test(cause.message) ? 'Your saved view changed elsewhere. Reload to use the newest version.' : 'Your view could not be saved. Try again.')), 500)
   }
 
   const updateFilter = useCallback((prop: string, value: string) => setFilters(current => {
