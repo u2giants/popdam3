@@ -201,14 +201,19 @@ begin
   -- B6. DCP Vault identity rule: an excluded decision recorded on one retained copy
   --     of a dcpvault:% identity omits every copy of that identity, so no sibling
   --     copy can surface with mapping_state 'excluded'.
+  --     #3947 hides the Lucasfilm display twin of a Disney dcpvault identity, so
+  --     only the Disney survivor is listed; the Lucasfilm capture row remains.
   insert into plm.dcp_property (source_system, source_id, display_name)
   values ('disney_dcpvault', v_dcp, v_dcp || ' copy A');
   insert into plm.lucasfilm_dcp_property (source_system, source_id, display_name)
   values ('lucasfilm_dcpvault', v_dcp, v_dcp || ' copy B');
+  if not exists (select 1 from plm.lucasfilm_dcp_property where source_id = v_dcp) then
+    raise exception 'B6: Lucasfilm capture row was removed; display dedupe must not delete captures';
+  end if;
   v_result := api.db_data_admin_scraped_source_inventory('property', v_dcp, null, 1000);
   if (select count(*) from jsonb_array_elements(v_result -> 'rows') r
-       where r ->> 'source_id' = v_dcp) < 2 then
-    raise exception 'B6 (non-vacuity): both dcpvault copies must be listed before the decision: %', v_result;
+       where r ->> 'source_id' = v_dcp) < 1 then
+    raise exception 'B6 (non-vacuity): the Disney survivor must be listed before the decision: %', v_result;
   end if;
   insert into plm.dcp_opa_property_resolution (source_system, source_table, source_property_id,
     decision_version, approval_status, evidence_reference, evidence_sha256, decision_reason,

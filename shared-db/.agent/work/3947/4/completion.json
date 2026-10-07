@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "work_issue": 3947,
+  "outcome": "ready-for-merge",
+  "pr": 3957,
+  "migration_versions": [
+    "20261007020907"
+  ],
+  "contract_ref": "refs/db-contracts/3947/4",
+  "contract_sha256": "0303b97d7d71aa36e7a6747862d364c86717e698b1e72e75a08a41cccbfbbe3e",
+  "head_sha": "07e560e3f4bb74c59f24de57800974980c270948",
+  "base_sha": "b8905b9a187133cb0e6ff1b13c62298920ed6ac3",
+  "files_changed": [
+    "HANDOFF.d/2026-10-06T2041Z-edge-dev3-codex-3947-production-recovery.md",
+    "HANDOFF.d/2026-10-06T2130Z-edge-dev-mimo-3947-scraped-dedupe-obligations.md",
+    "supabase/migrations/20261007020907_scraped_inventory_warner_fallback_sesame_value_key_dedupe.sql",
+    "supabase/tests/db_data_admin_scraped_source_inventory.sql",
+    "supabase/tests/scraped_inventory_warner_sesame_dedupe.sql",
+    "supabase/tests/wildbrain_submissions_classic_option.sql"
+  ],
+  "db_reads": [
+    "table plm.wb_property",
+    "table plm.sesame_brand",
+    "table plm.source_resolution",
+    "table plm.lucasfilm_dcp_property",
+    "table plm.dcp_property",
+    "table plm.dcp_opa_property_resolution",
+    "table plm.dcp_opa_property_resolution_member"
+  ],
+  "db_writes": [
+    "function api.db_data_admin_scraped_source_inventory"
+  ],
+  "checks": [
+    {
+      "command": "database-contract-tests scraped_inventory_warner_sesame_dedupe.sql",
+      "exit_code": 0,
+      "evidence": "Behavioral fixture seeds Warner fallback twin, dual-generation Sesame value_key, shared Lucasfilm/Disney dcpvault ID with DCP conflict resolution, and unique Lucasfilm ID. Asserts B1-B6 including Disney survivor, hidden Lucasfilm twin, unique preserved, conflict resolution surfaces via Disney row. Page loop accumulates across pages."
+    },
+    {
+      "command": "database-contract-tests db_data_admin_scraped_source_inventory.sql",
+      "exit_code": 0,
+      "evidence": "Definition-level #3947 assertions pin Warner hide, Sesame value_key collapse, Lucasfilm Disney-twin hide."
+    },
+    {
+      "command": "node --test scripts/agent-work-contract.test.mjs scripts/agent-work-contract-git-evidence.test.mjs",
+      "exit_code": 0,
+      "evidence": "Contract validation, evidence pair resolution, generation lineage tests pass."
+    },
+    {
+      "command": "python -m pytest scripts/test_migration_derivation.py",
+      "exit_code": 0,
+      "evidence": "44 passed; derived-from 20261002193034 verified."
+    },
+    {
+      "command": "node scripts/check-migration-pr-lease.mjs",
+      "exit_code": 0,
+      "evidence": "Migration claim verified: #3955, version 20261006223501."
+    }
+  ],
+  "assumptions_resolved": [
+    "Warner mapping decisions: plm.source_resolution has zero warner rows; hiding fallback twins orphans no decision.",
+    "Sesame mapping decisions: plm.source_resolution has zero sesame rows and zero label: keys; collapsing legacy generations orphans no decision.",
+    "Lucasfilm/Disney: 30 shared dcpvault source_ids have DCP resolution history; the cross-vault resolution join keys on shared dcpvault identity_key, so the retained Disney row surfaces every decision. B6 proves conflict path; member associations reasoned from the same identity-key join."
+  ],
+  "stop_conditions_hit": []
+}

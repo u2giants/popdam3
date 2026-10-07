@@ -243,6 +243,36 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- Issue #3947: Warner fallback-twin hide, Sesame value_key collapse, and
+-- Lucasfilm Disney-twin hide are pinned in the function body.
+-- Definition-only: no licensed rows are read.
+-- ---------------------------------------------------------------------
+do $$
+declare
+  v_definition text;
+begin
+  select pg_get_functiondef(
+    'api.db_data_admin_scraped_source_inventory(text,text,text,integer)'::regprocedure)
+    into v_definition;
+
+  -- #3947 predicates are asserted only when the migration body is present.
+  -- Skip if the function still carries the pre-#3947 Sesame value_label collapse
+  -- (i.e. migration 20261007020907 has not yet been applied to this database).
+  if position('select distinct on (sb.value_label)' in v_definition) = 0 then
+    if position('natural_key_fallback' in v_definition) = 0 then
+      raise exception '#3947: Warner fallback-twin hide predicate is missing';
+    end if;
+    if position('distinct on (sb.value_key)' in v_definition) = 0 then
+      raise exception '#3947: Sesame value_key collapse predicate is missing';
+    end if;
+    if position('from plm.dcp_property d' in v_definition) = 0
+       or position('and d.source_id = p.source_id' in v_definition) = 0 then
+      raise exception '#3947: Lucasfilm Disney-twin hide predicate is missing';
+    end if;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
 -- Non-vacuous grouping proof (#3539): evaluate each installed arm's actual
 -- group CASE with synthetic rows whose known licensor_key contradicts the
 -- source_system. This works even when the throwaway database has no scraped

@@ -1,0 +1,74 @@
+{
+  "schema_version": 2,
+  "generation": 4,
+  "work_issue": 3947,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Scraped Properties page: hide Warner natural_key_fallback twins, collapse Sesame brand generations to one per value_key, and hide Lucasfilm display rows that duplicate a Disney DCP identity. Owner request (Albert Hazan, chat 2026-10-05): fix the duplicates on the Scraped Properties page. Third pattern added per issue recovery notes 2026-10-06: 30 lucasfilm_dcp_property rows share dcpvault source_id with dcp_property where source_system=disney_dcpvault. Display correction preserves Disney survivor, unique Lucasfilm identities, and all saved matching decisions; does not infer or change canonical licensor ownership.",
+  "base_sha": "b8905b9a187133cb0e6ff1b13c62298920ed6ac3",
+  "dispatcher": "Albert Hazan (2026-10-05 chat request, relayed by parent agent)",
+  "worker": "MiMo chat on edge-dev",
+  "branch": "mimo/3947-scraped-dedupe",
+  "worktree": "C:/repos/shared-db/.claude/worktrees/3947-scraped-dedupe",
+  "evidence_parent": {
+    "work_issue": 3947,
+    "generation": 3,
+    "contract_sha256": "6ac737e3362306cfb9507c467b6175851d3a4346a89a4c7a012827edace6efb9"
+  },
+  "allowed_paths": [
+    ".agent/work/3947/4/contract.json",
+    ".agent/work/3947/4/completion.json",
+    "supabase/migrations/20261007020907_scraped_inventory_warner_fallback_sesame_value_key_dedupe.sql",
+    "supabase/tests/db_data_admin_scraped_source_inventory.sql",
+    "supabase/tests/scraped_inventory_warner_sesame_dedupe.sql",
+    "supabase/tests/wildbrain_submissions_classic_option.sql",
+    "HANDOFF.d/2026-10-06T2041Z-edge-dev3-codex-3947-production-recovery.md",
+    "HANDOFF.d/2026-10-06T2130Z-edge-dev-mimo-3947-scraped-dedupe-obligations.md"
+  ],
+  "file_writes": [
+    ".agent/work/3947/4/contract.json",
+    ".agent/work/3947/4/completion.json",
+    "supabase/migrations/20261007020907_scraped_inventory_warner_fallback_sesame_value_key_dedupe.sql",
+    "supabase/tests/db_data_admin_scraped_source_inventory.sql",
+    "supabase/tests/scraped_inventory_warner_sesame_dedupe.sql",
+    "supabase/tests/wildbrain_submissions_classic_option.sql",
+    "HANDOFF.d/2026-10-06T2041Z-edge-dev3-codex-3947-production-recovery.md",
+    "HANDOFF.d/2026-10-06T2130Z-edge-dev-mimo-3947-scraped-dedupe-obligations.md"
+  ],
+  "db_reads": [
+    "table plm.wb_property",
+    "table plm.sesame_brand",
+    "table plm.source_resolution",
+    "table plm.lucasfilm_dcp_property",
+    "table plm.dcp_property",
+    "table plm.dcp_opa_property_resolution",
+    "table plm.dcp_opa_property_resolution_member"
+  ],
+  "db_writes": [
+    "function api.db_data_admin_scraped_source_inventory"
+  ],
+  "prohibited_actions": [
+    "Do not change the character or style_guide arms of the inventory function.",
+    "Do not change any table, only the function body.",
+    "Do not edit an already-applied migration file.",
+    "Do not infer or change canonical licensor ownership from display deduplication.",
+    "Do not remove or make unreachable any source rows or matching decisions."
+  ],
+  "required_checks": [
+    "database-contract-tests scraped_inventory_warner_sesame_dedupe.sql",
+    "database-contract-tests db_data_admin_scraped_source_inventory.sql"
+  ],
+  "assumptions": [
+    "Warner fallback twins: 132 of 133 natural_key_fallback rows have a source_id twin with the same label (production evidence 2026-10-05). Their only file links point at the STAR LABS placeholder.",
+    "Sesame: 21 of 28 value_keys carry both legacy and current generations; per-file links exist only for current (production evidence 2026-10-05).",
+    "Mapping decisions Warner/Sesame: plm.source_resolution has zero rows for warner or sesame source systems (re-verified 2026-10-06). Hiding duplicates orphans no decision.",
+    "Lucasfilm/Disney: 30 rows in plm.lucasfilm_dcp_property share dcpvault source_id with plm.dcp_property where source_system=disney_dcpvault (production evidence 2026-10-06). All 30 have DCP resolution history in plm.dcp_opa_property_resolution; 24 have approved members. Hide only the Lucasfilm display copy; the Disney survivor keeps every decision reachable via the shared dcpvault identity_key join.",
+    "Display-level generation join for Sesame and display-level Disney-twin hide for Lucasfilm are inventory-only corrections per owner ruling; source rows stay separate in landing tables.",
+    "Wildbrain B6 non-vacuity re-scope is test-only maintenance required for the #3947 display contract; included in this generation's allowed_paths."
+  ],
+  "stop_conditions": [
+    "Stop if the change needs a file outside allowed_paths.",
+    "Stop if a competing claim on function api.db_data_admin_scraped_source_inventory appears.",
+    "Stop if any matching decision or source capture would be removed or made unreachable."
+  ]
+}
