@@ -20,6 +20,11 @@ const STORE_KEY = "SEADRIVE_LATEST";
 const DOWNLOAD_PAGE = "https://www.seafile.com/en/download/";
 const CHECK_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // weekly
 const SPACES_PREFIX = "seadrive";
+const PAGE_FETCH_TIMEOUT_MS = 30_000;
+const INSTALLER_FETCH_TIMEOUT_MS = 10 * 60 * 1000;
+// In-process retry floor so a failed attempt (which never writes checked_at)
+// does not re-launch on every worker tick.
+const RETRY_COOLDOWN_MS = 60 * 60 * 1000;
 
 interface SeaDriveLatest {
   version: string;
@@ -88,7 +93,7 @@ async function mirrorOne(
   ext: string,
   version: string,
 ): Promise<string> {
-  const res = await fetch(sourceUrl);
+  const res = await fetch(sourceUrl, { signal: AbortSignal.timeout(INSTALLER_FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`download ${sourceUrl} failed (${res.status})`);
   const body = Buffer.from(await res.arrayBuffer());
   const objectKey = `${SPACES_PREFIX}/seadrive-${version}.${ext}`;
@@ -107,9 +112,22 @@ async function mirrorOne(
 
 /**
  * Run at most weekly. Returns silently on any error — this is best-effort and
- * must never disrupt the bulk-operation loop.
+ * must never disrupt the bulk-operation loop. Only one run may be in flight at
+ * a time: callers that stop waiting (operation-loop's dependency timeout) do
+ * not cancel the run, so later ticks must not start a duplicate download.
  */
-export async function maybeMirrorSeaDrive(): Promise<void> {
+let inFlight: Promise<void> | null = null;
+let nextAttemptAt = 0;
+
+export function maybeMirrorSeaDrive(): Promise<void> {
+  if (inFlight) return Promise.resolve();
+  if (Date.now() < nextAttemptAt) return Promise.resolve();
+  nextAttemptAt = Date.now() + RETRY_COOLDOWN_MS;
+  inFlight = runMirror().finally(() => { inFlight = null; });
+  return inFlight;
+}
+
+async function runMirror(): Promise<void> {
   try {
     const existingMap = await readConfig<SeaDriveLatest>([STORE_KEY]);
     const existing = existingMap[STORE_KEY];
@@ -118,7 +136,7 @@ export async function maybeMirrorSeaDrive(): Promise<void> {
       if (age >= 0 && age < CHECK_INTERVAL_MS) return; // throttled
     }
 
-    const pageRes = await fetch(DOWNLOAD_PAGE);
+    const pageRes = await fetch(DOWNLOAD_PAGE, { signal: AbortSignal.timeout(PAGE_FETCH_TIMEOUT_MS) });
     if (!pageRes.ok) {
       logger.warn("seadrive-mirror: download page fetch failed", { status: pageRes.status });
       return;
