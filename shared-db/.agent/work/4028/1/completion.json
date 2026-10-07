@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 4028,
+  "outcome": "ready-for-merge",
+  "contract_ref": "refs/db-contracts/4028/1",
+  "contract_sha256": "2b7e6e8008138469610cebe38f0e9c87973fa8e561bfa7c0a8902c887d14713e",
+  "base_sha": "807e9c4094a9474274f9308fbe5e276473c4959c",
+  "head_sha": "62f144aa8244140ecd46932e0769cbc05f192956",
+  "files_changed": [
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/check_production_verification_sidecars.py",
+    "scripts/production-verification-sidecars/20261007002113.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_designflow_fk_catalog_contracts.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts/test_designflow_fk_catalog_contracts.py scripts/test_check_production_verification_sidecars.py scripts/test_production_catalog_verification.py",
+      "exit_code": 0,
+      "evidence": "Actually executed focused262 tests including owned PG17 mutation probes; full1430 tests22skips (19existing plus3opt-in fixture tests independently run); allguards/historybaseline inventory retained."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "Actually executed focused262 tests including owned PG17 mutation probes; full1430 tests22skips (19existing plus3opt-in fixture tests independently run); allguards/historybaseline inventory retained."
+    },
+    {
+      "command": "python3 -m unittest scripts/test_*.py",
+      "exit_code": 0,
+      "evidence": "Actually executed focused262 tests including owned PG17 mutation probes; full1430 tests22skips (19existing plus3opt-in fixture tests independently run); allguards/historybaseline inventory retained."
+    }
+  ],
+  "assumptions_resolved": [
+    "Actual new enforcing verifier read-only run on production passed exact user relationships; no application rows or schema were changed. Existing failedproductionapply artifact and immutable SQL/ledgers retained. Code repair adds strict definitions, not acceptance bypass. Artist definition exists for its subsequent source sidecar.",
+    "No production recovery is authorized by this completion. It needs fresh exact-input AI review and existing supported preview/recovery workflow. Failed run cannot be claimed as success."
+  ],
+  "stop_conditions_hit": [],
+  "pr": 4027,
+  "migration_versions": []
+}

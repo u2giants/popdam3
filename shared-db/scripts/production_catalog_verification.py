@@ -1001,7 +1001,43 @@ POPDAM_FORWARD_RECOVERY_CONTRACT = _shape_contract(
     policies=(('public.style_group_tags','Authenticated read style_group_tags'),('public.style_group_tags','Admin manage style_group_tags')),
     triggers=(('public.asset_tags','asset_tags_sync_assets_tags'),('public.asset_tags','asset_tags_dam_search_refresh'),('public.style_group_tags','style_group_tags_dam_search_refresh'),('public.asset_characters','asset_characters_dam_search_refresh')),
 )
+def designflow_fk_contract(expected: tuple[tuple[str, str, str, str, str], ...]) -> str:
+    """Closed, verifier-owned exact foreign-key inventory; no external inputs."""
+    values = ",".join("(" + ",".join("'" + value.replace("'", "''") + "'" for value in row) + ")" for row in expected)
+    return """
+      not exists (select 1 from (values """ + values + """) expected(child_relation, constraint_name, child_column, parent_relation, parent_column)
+      where not exists (select 1 from pg_constraint c
+        join pg_attribute child on child.attrelid=c.conrelid and child.attname=expected.child_column
+        join pg_attribute parent on parent.attrelid=c.confrelid and parent.attname=expected.parent_column
+        where c.conrelid=to_regclass(expected.child_relation)
+          and c.conname=expected.constraint_name and c.contype='f'
+          and c.confrelid=to_regclass(expected.parent_relation)
+          and c.conkey=array[child.attnum] and c.confkey=array[parent.attnum]
+          and not child.attisdropped and not parent.attisdropped
+          and child.atttypid=parent.atttypid and child.atttypmod=parent.atttypmod
+          and c.convalidated and not c.condeferrable and not c.condeferred
+          and c.confmatchtype='s' and c.confupdtype='a' and c.confdeltype='a'
+          and exists (select 1 from pg_constraint parent_key
+            where parent_key.conrelid=c.confrelid and parent_key.contype in ('p','u')
+              and parent_key.convalidated and not parent_key.condeferrable
+              and parent_key.conkey=array[parent.attnum])))
+    """
+
+
 CATALOG_CONTRACTS = {
+    # #3907/#4010: guarded ALTER statements inside DO blocks are opaque to the
+    # statement-head lexer. Hash-bound sidecars require these exact inventories.
+    "designflow_remaining_user_fks_v1": designflow_fk_contract((
+        ('app."RolePermissions"', 'RolePermissions_UserId_fkey', 'UserId', 'dflow.users', 'id'),
+        ('plm.art_piece_attachment', 'art_piece_attachment_created_by_fkey', 'created_by', 'dflow.users', 'id'),
+        ('plm.art_piece_attachment', 'art_piece_attachment_updated_by_fkey', 'updated_by', 'dflow.users', 'id'),
+    )),
+    "designflow_artist_parent_fks_v1": designflow_fk_contract((
+        ('dflow.artists', 'artists_art_source_id_fkey', 'art_source_id', 'core."merchGroup"', 'mg_id'),
+        ('dflow.artists', 'artists_artist_type_id_fkey', 'artist_type_id', 'core.artist_types', 'id'),
+        ('dflow.artists', 'artists_divisioncode_id_fkey', 'divisioncode_id', 'plm."divisionCode"', 'divCode_id'),
+    )),
+
     # Issue #2986 / #3400. 20260928182014 adds the same six nullable, no-default
     # phrase columns to plm."itemHeader"/plm."RFQItem" and to their dflow_prod
     # counterparts. The quoted mixed-case identifiers are invisible to the

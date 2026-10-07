@@ -1,0 +1,59 @@
+{
+  "schema_version": 2,
+  "work_issue": 4028,
+  "generation": 1,
+  "work_type": "repository-maintenance",
+  "route": "repository-maintenance",
+  "goal": "Repair enforcing verification of guarded static foreign-key DDL. User002113 applied correctly but catalog verifier derived no targets. Add strict named catalog contracts for the user and future artist families, hash-bound user sidecar/registry, fail-before-apply offline detection for newly scanned opaque static DDL, exact mutation tests and reviewed detector baseline digest. Preserve immutable SQL, already-applied ledgers, every existing verification gate and historical inventory. No database mutation in this maintenance PR; production recovery requires its own exact-input review and existing supported route.",
+  "base_sha": "807e9c4094a9474274f9308fbe5e276473c4959c",
+  "dispatcher": "Albert authorized completion of3882 through production. Specific verification software defect repair4028 supports original structural acceptance3907 without moving its live-proof obligation.",
+  "worker": "Codex chat 01a1126e-c598-7d60-8cf4-e14427127e20 on edge-dev3",
+  "branch": "codex/3907-verifier-recovery",
+  "worktree": "/tmp/shared-db-3907-verifier-recovery",
+  "allowed_paths": [
+    "scripts/production_catalog_verification.py",
+    "scripts/check_production_verification_sidecars.py",
+    "scripts/test_check_production_verification_sidecars.py",
+    "scripts/test_designflow_fk_catalog_contracts.py",
+    "scripts/production-verification-sidecars/20261007002113.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    ".agent/work/4028/1/contract.json",
+    ".agent/work/4028/1/completion.json",
+    ".agent/work/3907/11/contract.json",
+    ".agent/work/3907/11/completion.json"
+  ],
+  "file_writes": [
+    "scripts/production_catalog_verification.py",
+    "scripts/check_production_verification_sidecars.py",
+    "scripts/test_check_production_verification_sidecars.py",
+    "scripts/test_designflow_fk_catalog_contracts.py",
+    "scripts/production-verification-sidecars/20261007002113.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    ".agent/work/4028/1/contract.json",
+    ".agent/work/4028/1/completion.json",
+    ".agent/work/3907/11/contract.json",
+    ".agent/work/3907/11/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change or delete application rows, columns, keys or privilege policies.",
+    "Do not alter shared schema beyond the exact admitted objects.",
+    "Do not edit applied migrations or perform manual production writes."
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts/test_designflow_fk_catalog_contracts.py scripts/test_check_production_verification_sidecars.py scripts/test_production_catalog_verification.py",
+    "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+    "python3 -m unittest scripts/test_*.py"
+  ],
+  "assumptions": [
+    "Failed automatic run37567955052 applied user002113 successfully before catalog verification refused empty derived targets. Fresh read-only production confirms allthree desired validated relationships, zero mapped/recoveryorphans and recorded version. Failed artifacts/history are preserved and are not accepted as success."
+  ],
+  "stop_conditions": [
+    "Any unexpected source/target shape, orphan, permission or claim collision refuses mutation.",
+    "Unreviewed changes or target identity ambiguity stop before a write."
+  ],
+  "evidence_parent": null
+}

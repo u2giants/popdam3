@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261007002113",
+  "migration_sha256": "551213d8b94f655842207b503d59db78c4465c470558a108b4132ff2f526fc20",
+  "checks": [
+    {
+      "id": "remaining_designflow_user_fks_exact",
+      "kind": "catalog_contract",
+      "contract": "designflow_remaining_user_fks_v1",
+      "expected_count": 1
+    }
+  ]
+}
