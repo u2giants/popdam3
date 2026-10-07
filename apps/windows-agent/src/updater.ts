@@ -27,6 +27,7 @@ import { Readable } from "node:stream";
 import { createHash } from "node:crypto";
 import { execSync, spawn } from "node:child_process";
 import path from "node:path";
+import { assertTrustedDownloadUrl, assertTrustedFinalUrl, normalizeChecksum } from "./update-guard";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -256,12 +257,17 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
   const zipPath = path.join(installDir, "dist-update.zip");
 
   try {
+    // 0. Fail closed: pinned HTTPS release URL + mandatory checksum (#230)
+    assertTrustedDownloadUrl(info.download_url);
+    const expectedChecksum = normalizeChecksum(info.checksum_sha256);
+
     // 1. Download dist.zip
     logger.info("Downloading update...", { url: info.download_url });
     const res = await fetch(info.download_url);
     if (!res.ok || !res.body) {
       throw new Error(`Download failed: ${res.status} ${res.statusText}`);
     }
+    if (res.url) assertTrustedFinalUrl(res.url);
 
     const ws = createWriteStream(zipPath);
     const nodeStream = Readable.fromWeb(res.body as import("stream/web").ReadableStream);
@@ -270,18 +276,16 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
     const zipSize = statSync(zipPath).size;
     logger.info("Download complete", { size: `${(zipSize / 1024).toFixed(0)} KB` });
 
-    // 2. Verify checksum (if provided)
-    if (info.checksum_sha256) {
-      logger.info("Verifying checksum...");
-      const fileBuffer = await readFile(zipPath);
-      const hash = createHash("sha256").update(fileBuffer).digest("hex");
-      if (hash !== info.checksum_sha256) {
-        throw new Error(
-          `Checksum mismatch: expected ${info.checksum_sha256}, got ${hash}`
-        );
-      }
-      logger.info("Checksum verified");
+    // 2. Verify checksum (mandatory)
+    logger.info("Verifying checksum...");
+    const fileBuffer = await readFile(zipPath);
+    const hash = createHash("sha256").update(fileBuffer).digest("hex");
+    if (hash !== expectedChecksum) {
+      throw new Error(
+        `Checksum mismatch: expected ${expectedChecksum}, got ${hash}`
+      );
     }
+    logger.info("Checksum verified");
 
     // 3. Extract to dist.new/
     logger.info("Extracting update...");
