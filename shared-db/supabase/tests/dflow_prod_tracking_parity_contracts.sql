@@ -877,12 +877,18 @@ begin
   where c.relnamespace = 'dflow_prod'::regnamespace and c.relkind in ('r', 'v', 'm', 'p', 'f')
     and c.relname like 'sample%'
     and c.relname not in (select name from t2875_rel)
-    and c.relname not in (select name from t2875_prior_rel);
+    and c.relname not in (select name from t2875_prior_rel)
+    -- Separately proved by dflow_prod_notice_factory_time_parity_contracts.sql.
+    and c.relname not in ('sample_shipment_notice', 'sample_shipment_notice_recipient');
   if v_extra is not null then raise exception '#2875 unexpected dflow_prod sample relations: %', v_extra; end if;
   select string_agg(distinct p.proname, ', ') into v_extra
   from pg_proc p
   where p.pronamespace = 'dflow_prod'::regnamespace and p.proname like '%sample%'
-    and p.proname not in (select name from t2875_fn);
+    and p.proname not in (select name from t2875_fn)
+    -- Only the three exact canonical #3737 functions are outside #2875.
+    and p.proname not in ('claim_sample_shipment_notice',
+      'prevent_sample_shipment_notice_snapshot_mutation',
+      'prevent_sample_shipment_notice_recipient_snapshot_mutation');
   if v_extra is not null then raise exception '#2875 unexpected dflow_prod sample functions: %', v_extra; end if;
   select string_agg(x.item, ', ' order by x.item) into v_extra
   from (

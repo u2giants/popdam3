@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "work_issue": 3737,
+  "outcome": "ready-for-merge",
+  "pr": 4045,
+  "migration_versions": [
+    "20261007173858"
+  ],
+  "contract_ref": "refs/db-contracts/3737/3",
+  "contract_sha256": "197fa064a2e7d4d3e82149bc3b86d7d5240ecef5d348a10daf2b646216c730b3",
+  "head_sha": "8f89fee22540a8eeba3736b1f0faff0df0846ecc",
+  "base_sha": "537d27dadc78ae70f537096a7835d91cceb7478c",
+  "files_changed": [
+    ".github/workflows/shared-db-3737-observation.yml",
+    "scripts/proofs/3737-catalog.sql",
+    "scripts/proofs/3737-contract.json",
+    "scripts/proofs/shared-db-3737-observation.mjs",
+    "scripts/proofs/shared-db-3737-observation.test.mjs",
+    "supabase/tests/dflow_prod_notice_factory_time_parity_contracts.sql",
+    "supabase/migrations/20261007173858_dflow_prod_tracking_notice_factory_time_parity.sql",
+    ".agent/work/3737/3/contract.json",
+    "supabase/tests/dflow_prod_contract.sql",
+    "supabase/tests/dflow_prod_tracking_parity_contracts.sql"
+  ],
+  "db_reads": [
+    "table dflow_prod.sample_shipment",
+    "table dflow_prod.users"
+  ],
+  "db_writes": [
+    "column dflow_prod.\"FactoryTime\".description",
+    "column dflow_prod.\"FactoryTime\".name",
+    "column dflow_prod.\"FactoryTime\".product_subtype",
+    "column dflow_prod.\"FactoryTime\".resampling_days",
+    "column dflow_prod.\"FactoryTime\".tags",
+    "column dflow_prod.\"FactoryTime\".updated_by",
+    "column dflow_prod.product_type_factory_time.previous_factory_time_id",
+    "function dflow_prod.claim_sample_shipment_notice",
+    "function dflow_prod.prevent_sample_shipment_notice_recipient_snapshot_mutation",
+    "function dflow_prod.prevent_sample_shipment_notice_snapshot_mutation",
+    "index dflow_prod.factory_time_name_ci_key",
+    "index dflow_prod.product_type_factory_time_factory_time_id_idx",
+    "sequence dflow_prod.product_type_factory_time_id_seq",
+    "sequence dflow_prod.sample_shipment_notice_recipi_sample_shipment_notice_recipi_seq",
+    "sequence dflow_prod.sample_shipment_notice_sample_shipment_notice_id_seq",
+    "table dflow_prod.\"FactoryTime\"",
+    "table dflow_prod.product_type_factory_time",
+    "table dflow_prod.sample_shipment_notice",
+    "table dflow_prod.sample_shipment_notice_recipient",
+    "trigger sample_shipment_notice_recipient_snapshot_immutable on dflow_prod.sample_shipment_notice_recipient",
+    "trigger sample_shipment_notice_snapshot_immutable on dflow_prod.sample_shipment_notice"
+  ],
+  "checks": [
+    {
+      "command": "node --test scripts/proofs/shared-db-3737-observation.test.mjs",
+      "exit_code": 0,
+      "evidence": "Six observer tests passed on current source."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Whitespace check passed."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "SQL static guards passed; live ledger guardB2 explicitly unrun pending target ledger; remains required preview/delivery proof."
+    },
+    {
+      "command": "Canonical SQL behavior and existing-function/effective-sequence refusal proofs after actual2875 source",
+      "exit_code": 0,
+      "evidence": "Isolated PostgreSQL17 applied canonical successor after immutable2875 source; behavior BEGIN/DO/ROLLBACK passed; both existing trigger-function refusals and PUBLIC/inherited sequence privilege refusals passed with full rollback."
+    },
+    {
+      "command": "Actual merged Tracking model and authenticated relay tests",
+      "exit_code": 0,
+      "evidence": "19 tests passed on actual Tracking develop42a765ee98c6fafb65afa5132d0559214f944a15; PR82 merged and deployment verified."
+    },
+    {
+      "command": "PostgreSQL17 predecessor2875 +3737 full parity contracts",
+      "exit_code": 0,
+      "evidence": "Both full SQL contracts passed; frozen baseline table/sequence counts passed before unrelated missing public style-tracker view in schema-only local fixture. Complete ephemeral CI remains mandatory."
+    }
+  ],
+  "assumptions_resolved": [
+    "Fresh claim4044 and version20261007173858 reserved after actual2875 live_verified.",
+    "Source-only readiness; allocator reviews, required CI, guarded merge, automatic production and Tracking live/generated types remain pending."
+  ],
+  "stop_conditions_hit": []
+}

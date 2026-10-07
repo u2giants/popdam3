@@ -1,0 +1,96 @@
+{
+  "schema_version": 2,
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 3737,
+    "generation": 2,
+    "contract_sha256": "3c45af998bf35d55601cb72d95bd0886ad7bc2ee1bee132d2e24b6403008beb7"
+  },
+  "work_issue": 3737,
+  "work_type": "structural",
+  "route": "shared-db-orchestrator",
+  "goal": "Deliver canonical Tracking shipment-notice and FactoryTime parity into dflow_prod with no legacy-schema references or client grants, and prove actual Tracking acceptance.",
+  "base_sha": "537d27dadc78ae70f537096a7835d91cceb7478c",
+  "dispatcher": "Codex parent chat 01a1126f-6efb-7a22-8034-4471909f2c86",
+  "worker": "codex",
+  "branch": "codex/3737-parallel-recovery",
+  "worktree": "/home/ahazan/.codex/worktrees/3737-parallel-recovery/shared-db",
+  "allowed_paths": [
+    ".github/workflows/shared-db-3737-observation.yml",
+    "scripts/proofs/3737-catalog.sql",
+    "scripts/proofs/3737-contract.json",
+    "scripts/proofs/shared-db-3737-observation.mjs",
+    "scripts/proofs/shared-db-3737-observation.test.mjs",
+    "supabase/tests/dflow_prod_notice_factory_time_parity_contracts.sql",
+    "supabase/migrations/20261007173858_dflow_prod_tracking_notice_factory_time_parity.sql",
+    ".agent/work/3737/3/contract.json",
+    ".agent/work/3737/3/completion.json",
+    "supabase/tests/dflow_prod_contract.sql",
+    "supabase/tests/dflow_prod_tracking_parity_contracts.sql"
+  ],
+  "file_writes": [
+    ".github/workflows/shared-db-3737-observation.yml",
+    "scripts/proofs/3737-catalog.sql",
+    "scripts/proofs/3737-contract.json",
+    "scripts/proofs/shared-db-3737-observation.mjs",
+    "scripts/proofs/shared-db-3737-observation.test.mjs",
+    "supabase/tests/dflow_prod_notice_factory_time_parity_contracts.sql",
+    "supabase/migrations/20261007173858_dflow_prod_tracking_notice_factory_time_parity.sql",
+    ".agent/work/3737/3/contract.json",
+    ".agent/work/3737/3/completion.json",
+    "supabase/tests/dflow_prod_contract.sql",
+    "supabase/tests/dflow_prod_tracking_parity_contracts.sql"
+  ],
+  "db_reads": [
+    "table dflow_prod.sample_shipment",
+    "table dflow_prod.users"
+  ],
+  "db_writes": [
+    "column dflow_prod.\"FactoryTime\".description",
+    "column dflow_prod.\"FactoryTime\".name",
+    "column dflow_prod.\"FactoryTime\".product_subtype",
+    "column dflow_prod.\"FactoryTime\".resampling_days",
+    "column dflow_prod.\"FactoryTime\".tags",
+    "column dflow_prod.\"FactoryTime\".updated_by",
+    "column dflow_prod.product_type_factory_time.previous_factory_time_id",
+    "function dflow_prod.claim_sample_shipment_notice",
+    "function dflow_prod.prevent_sample_shipment_notice_recipient_snapshot_mutation",
+    "function dflow_prod.prevent_sample_shipment_notice_snapshot_mutation",
+    "index dflow_prod.factory_time_name_ci_key",
+    "index dflow_prod.product_type_factory_time_factory_time_id_idx",
+    "sequence dflow_prod.product_type_factory_time_id_seq",
+    "sequence dflow_prod.sample_shipment_notice_recipi_sample_shipment_notice_recipi_seq",
+    "sequence dflow_prod.sample_shipment_notice_sample_shipment_notice_id_seq",
+    "table dflow_prod.\"FactoryTime\"",
+    "table dflow_prod.product_type_factory_time",
+    "table dflow_prod.sample_shipment_notice",
+    "table dflow_prod.sample_shipment_notice_recipient",
+    "trigger sample_shipment_notice_recipient_snapshot_immutable on dflow_prod.sample_shipment_notice_recipient",
+    "trigger sample_shipment_notice_snapshot_immutable on dflow_prod.sample_shipment_notice"
+  ],
+  "prohibited_actions": [
+    "No application row copies, naming invented for existing FactoryTime rows, or runtime client grants.",
+    "No claim3738/version20260928182644 reuse or predecessor ownership.",
+    "No manual production SQL; parent retains schema, merge and production decisions.",
+    "No source changes outside exact scope or other agent worktrees."
+  ],
+  "required_checks": [
+    "node --test scripts/proofs/shared-db-3737-observation.test.mjs",
+    "git diff --check",
+    "bash scripts/check-sql.sh",
+    "Canonical SQL behavior and existing-function/effective-sequence refusal proofs after actual2875 source",
+    "Actual merged Tracking model and authenticated relay tests"
+  ],
+  "assumptions": [
+    "Dependency2875 immutable live_verified completed before fresh claim4044.",
+    "Tracking PR82 merged; exact producer pins remain unchanged.",
+    "Canonical target FactoryTime has zero rows; absence and effective client privileges enforced by migration.",
+    "Required source checks are pre-draw completed proofs; assigned review/CI, guarded production and final live generated-types acceptance remain delivery gates on same issue.",
+    "Generation3 preserves frozen predecessor baseline checks by excluding only three separately proved3737 tables/their identity sequences and three3737 shipment-notice functions; all other unexpected objects remain refused and full3737 SQL contract proves the additions."
+  ],
+  "stop_conditions": [
+    "Actual target, dependency, claim ownership, object collision or scope validation fails.",
+    "Assigned reviewer refusal or required check failure.",
+    "Any genuinely new schema or privilege requirement, unexpected existing target object, or populated unnamed FactoryTime."
+  ]
+}

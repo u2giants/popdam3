@@ -1,0 +1,328 @@
+{
+  "work_issue": 3737,
+  "source_repository": "popcre/shared-db",
+  "application_repository": "popcre/designflow-tracking",
+  "application_branch": "develop",
+  "project_ref": "qsllyeztdwjgirsysgai",
+  "schema": "dflow_prod",
+  "live_assertion": "dflow_prod contains the canonical shipment-notice outbox (two tables, immutability triggers, claim function) and the canonical factory-time template surface (FactoryTime template columns/constraints/index and product_type_factory_time), with no dflow or plm references and no client grants",
+  "catalog": {
+    "functions": [
+      {
+        "name": "claim_sample_shipment_notice",
+        "owner": "postgres",
+        "return_set": true,
+        "volatility": "v",
+        "return_type": "record",
+        "output_names": [
+          "notice_id",
+          "subject",
+          "body_html",
+          "provider_idempotency_key",
+          "recipient_emails"
+        ],
+        "output_types": [
+          "bigint",
+          "text",
+          "text",
+          "uuid",
+          "text[]"
+        ],
+        "configuration": [
+          "search_path=dflow_prod, pg_catalog"
+        ],
+        "default_count": 0,
+        "source_sha256": "30d908fe80fa357e2a34c16adbd96a051cd559cb191429d07c15cccfd295622d",
+        "argument_names": [
+          "p_notice_id",
+          "notice_id",
+          "subject",
+          "body_html",
+          "provider_idempotency_key",
+          "recipient_emails"
+        ],
+        "argument_types": [
+          "bigint"
+        ],
+        "security_definer": true,
+        "identity_arguments": "p_notice_id bigint"
+      },
+      {
+        "name": "prevent_sample_shipment_notice_recipient_snapshot_mutation",
+        "owner": "postgres",
+        "return_set": false,
+        "volatility": "v",
+        "return_type": "trigger",
+        "output_names": null,
+        "output_types": null,
+        "configuration": null,
+        "default_count": 0,
+        "source_sha256": "b2a3445aa499dc070b6a04eb3e2ac6f4ecd700e1be2ecc8e78d63219bd433d80",
+        "argument_names": [],
+        "argument_types": [],
+        "security_definer": false,
+        "identity_arguments": ""
+      },
+      {
+        "name": "prevent_sample_shipment_notice_snapshot_mutation",
+        "owner": "postgres",
+        "return_set": false,
+        "volatility": "v",
+        "return_type": "trigger",
+        "output_names": null,
+        "output_types": null,
+        "configuration": null,
+        "default_count": 0,
+        "source_sha256": "5760a769573db38d9a6ec23189000f99ab41a8135e938812b3e2711900eee7b1",
+        "argument_names": [],
+        "argument_types": [],
+        "security_definer": false,
+        "identity_arguments": ""
+      }
+    ],
+    "relation_count": 4,
+    "return_relations": [
+      {
+        "name": "FactoryTime",
+        "columns": [
+          [
+            "id",
+            "integer",
+            false
+          ],
+          [
+            "product_category",
+            "character varying(100)",
+            true
+          ],
+          [
+            "product_subtype",
+            "character varying(200)",
+            true
+          ],
+          [
+            "sampling_days",
+            "integer",
+            true
+          ],
+          [
+            "resampling_days",
+            "integer",
+            true
+          ],
+          [
+            "mass_production_days",
+            "integer",
+            true
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            false
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            false
+          ],
+          [
+            "name",
+            "text",
+            false
+          ],
+          [
+            "description",
+            "text",
+            true
+          ],
+          [
+            "tags",
+            "text[]",
+            false
+          ],
+          [
+            "updated_by",
+            "text",
+            true
+          ]
+        ]
+      },
+      {
+        "name": "product_type_factory_time",
+        "columns": [
+          [
+            "id",
+            "bigint",
+            false
+          ],
+          [
+            "mg_category",
+            "text",
+            false
+          ],
+          [
+            "mg01_code",
+            "text",
+            false
+          ],
+          [
+            "mg02_code",
+            "text",
+            false
+          ],
+          [
+            "factory_time_id",
+            "integer",
+            false
+          ],
+          [
+            "assigned_by",
+            "text",
+            false
+          ],
+          [
+            "assigned_at",
+            "timestamp with time zone",
+            false
+          ],
+          [
+            "previous_factory_time_id",
+            "integer",
+            true
+          ]
+        ]
+      },
+      {
+        "name": "sample_shipment_notice",
+        "columns": [
+          [
+            "sample_shipment_notice_id",
+            "bigint",
+            false
+          ],
+          [
+            "sample_shipment_id_fk",
+            "bigint",
+            false
+          ],
+          [
+            "state",
+            "text",
+            false
+          ],
+          [
+            "subject",
+            "text",
+            false
+          ],
+          [
+            "body_html",
+            "text",
+            false
+          ],
+          [
+            "body_text",
+            "text",
+            true
+          ],
+          [
+            "provider_idempotency_key",
+            "uuid",
+            false
+          ],
+          [
+            "attempt_count",
+            "integer",
+            false
+          ],
+          [
+            "last_attempt_at",
+            "timestamp with time zone",
+            true
+          ],
+          [
+            "next_attempt_at",
+            "timestamp with time zone",
+            true
+          ],
+          [
+            "sent_at",
+            "timestamp with time zone",
+            true
+          ],
+          [
+            "provider_message_id",
+            "text",
+            true
+          ],
+          [
+            "last_error",
+            "text",
+            true
+          ],
+          [
+            "created_by_user_id",
+            "integer",
+            false
+          ],
+          [
+            "created_by_user",
+            "text",
+            false
+          ],
+          [
+            "created_at",
+            "timestamp with time zone",
+            false
+          ],
+          [
+            "updated_at",
+            "timestamp with time zone",
+            false
+          ]
+        ]
+      },
+      {
+        "name": "sample_shipment_notice_recipient",
+        "columns": [
+          [
+            "sample_shipment_notice_recipient_id",
+            "bigint",
+            false
+          ],
+          [
+            "sample_shipment_notice_id_fk",
+            "bigint",
+            false
+          ],
+          [
+            "user_id_fk",
+            "integer",
+            false
+          ],
+          [
+            "recipient_function",
+            "text",
+            false
+          ],
+          [
+            "recipient_name_snapshot",
+            "text",
+            false
+          ],
+          [
+            "recipient_email_snapshot",
+            "text",
+            false
+          ]
+        ]
+      }
+    ],
+    "structure_sha256": "fe93e88a49429071f63c1218566044add10546c166ca98a09f9f4ccba0428d99",
+    "client_access_closed": true,
+    "sequence_access_closed": true
+  },
+  "type_projection_functions": [
+    "claim_sample_shipment_notice"
+  ]
+}
