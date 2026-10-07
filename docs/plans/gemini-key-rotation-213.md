@@ -69,7 +69,7 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v8.10 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
+## Addendum v8.11 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
 
 Review scope: ONLY this addendum. Steps 1-9 above already ran and were reported on #213 (5:15 PM
 EDT); nothing here touches the DB. Owner of this addendum and its residuals: this Claude session.
@@ -98,8 +98,8 @@ Inputs (exact):
   Expected current fingerprint OLD (dead, API_KEY_INVALID).
 - Scope: one Railway variable; 1Password item dykqfttarudsxhzrlsktyupq2y only (this session's
   empty placeholder).
-- Full digests: NEW = NEW0a9bc34ddca4d6da9ae932beb25840767f8644bdf5b22616f0c1,
-  OLD = OLD4699cf6afbbdc5d029157dbd1d0ce3c457b5a24b77263ba2beb1.
+- Full digests: NEW = 3c48237f28e90a9bc34ddca4d6da9ae932beb25840767f8644bdf5b22616f0c1,
+  OLD = 3c1804c42ed14699cf6afbbdc5d029157dbd1d0ce3c457b5a24b77263ba2beb1.
 - F = `railway variables --json` piped into python printing only the FULL sha256 hex digest of
   GOOGLE_AI_API_KEY; every comparison in this addendum uses full 64-hex digests (the 12-char
   prefixes quoted here are labels only; step 1a records the full old digest, and the full new
@@ -174,12 +174,18 @@ Steps:
    item_get JSON (no reveal) as snapshot S. Dry-run: compute the intended post-edit item from S
    (only title, notes, and removal of the one empty concealed field differ) and record it. Re-read
    immediately before the edit; if anything differs from S, stop and merge. After: item_get must
-   equal the dry-run expectation exactly (every untouched field, tags, category identical); on any
-   mismatch restore S's title/notes/tags via item_edit and verify. On failure retry once; if it still
+   equal the dry-run expectation on every content property (title, category, tags, notes, field
+   ids/titles/types/sections, websites), ignoring only system metadata (updatedAt, version); on any
+   mismatch restore S fully via item_edit (title, notes, tags, and re-create the empty concealed
+   field GOOGLE_AI_API_KEY with empty value) and verify against S the same way. On failure retry once; if it still
    fails, #213 stays Blocked (owned by this session) until the pointer is verified.
-   The worker's env-fallback runtime path (google-ai-key.ts:29-45) stays unproved by design:
-   exercising it requires emptying the production DB key; it is left as the same-issue live-proof
-   checklist item below, per the standing rule.
+   Fallback-branch proof without touching production: in this worktree's apps/worker, run a one-off
+   tsx script calling the real resolveGoogleAiApiKey(loadFromDb = () => { throw new Error("forced
+   miss") }, envKey = <Railway read-back value via stdin>) — the exact branch the worker takes on a
+   DB miss — assert its result's digest == NEW, then use that returned value (header via stdin) for
+   GET v1beta/models and GET v1beta/batches -> 200. The script is not committed. In-production
+   exercise (emptying the live DB key) stays out of scope and remains the same-issue live-proof
+   checklist item below.
 7. Post evidence on #213 (EDT times, signed), keeping unchecked, owned by this session:
    "- [ ] live proof: worker env-fallback branch (runs only on admin_config miss)".
 Failure-path evidence: these commands cannot be dry-run against production; each failure branch
