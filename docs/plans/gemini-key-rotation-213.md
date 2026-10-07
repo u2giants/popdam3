@@ -69,7 +69,7 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v8 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
+## Addendum v8.1 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07, simplified)
 
 Review scope: ONLY this addendum. Steps 1-9 above already ran and were reported on #213 (5:15 PM
 EDT); nothing here touches the DB. Owner of this addendum and its residuals: this Claude session.
@@ -97,20 +97,25 @@ Steps:
    c. Restart safety (KNOWN_QUIRKS #74): admin_config BULK_OPERATIONS has no op running/queued/
       pending/starting, no batch_job phase submitting/ambiguous_submission, and no interrupted op
       eligible for auto-resume (transient reason + attempts under cap). 5:37 PM EDT check: none.
-   d. Back up the old value to a 0600 scratch file via the F pipe; assert its hash 3c1804c42ed1.
+   d. Back up the old RAW value (not its hash) to a 0600 scratch file: `railway variables --json`
+      piped into python that writes the GOOGLE_AI_API_KEY string itself to the file and prints only
+      sha256(file contents)[:12], which must equal 3c1804c42ed1.
 2. op_run pipes $K to `railway variable set GOOGLE_AI_API_KEY --stdin -p .. -e production -s
    popdam3` (normal deploy-triggering set — one restart, same as every push to main).
    Reconcile by F regardless of exit code: 3c48237f28e9 = applied; 3c1804c42ed1 = not applied,
-   retry once; other = restore backup, assert F == 3c1804c42ed1, stop.
+   retry once, and if still 3c1804c42ed1 stop (nothing changed, no deploy) and record Blocked on
+   #213; other = restore backup, assert F == 3c1804c42ed1, stop.
 3. Identify the deployment: D1 = the deployment created after the step-2 start time. Bounded wait
    15 min for D1 SUCCESS and D0 REMOVED. If a further deployment (another session's push) appears,
-   take the newest one as D1 and re-assert F == 3c48237f28e9; every check below uses that ID.
+   take the newest one as D1 and re-assert F == 3c48237f28e9; every check below uses that ID. If
+   that unrelated deployment fails, do NOT roll back the key (the key is not the cause): stop,
+   record on #213 with the deployment ID, and leave the valid new key in place.
 4. Health of D1: exactly one non-REMOVED deployment (D1, SUCCESS); `railway logs D1 --lines 200`
    shows "worker: starting" and "polling loop started" with no crash/restart loop; admin_config
    WORKER_HEARTBEAT.updated_at advances past D0's removal time within 3 min (attributed to D1 by
    exclusivity; the row carries no deployment ID). Re-run check 1c to confirm nothing went
    ambiguous.
-5. Rollback (step 3/4 fails): pipe the backup back via `--stdin` (deploy-triggering), assert
+5. Rollback (only when the deployment created by step 2 itself fails step 3/4): pipe the backup back via `--stdin` (deploy-triggering), assert
    F == 3c1804c42ed1, and repeat steps 3-4 for that deployment. Old key is dead, so rollback only
    restores prior state. If rollback fails, keep the backup and record Blocked on #213.
 6. 1Password: edit item dykqfttarudsxhzrlsktyupq2y (drop PLACEHOLDER from title, remove the empty
