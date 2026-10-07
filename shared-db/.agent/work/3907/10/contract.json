@@ -1,0 +1,72 @@
+{
+  "schema_version": 2,
+  "work_issue": 3907,
+  "generation": 10,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Forward reissue the three remaining user relationships under20261007002113. Preserve original applied SQL and preview history, permanently retire221530. Validate exact names/columns/actions/validated/nondeferrable/parent types and no orphans for every relationship; accept only the historical app.users parent or the exact desired dflow.users parent. Change only those still referencing app.users; preserve already-correct relationships byte-for-byte in the catalog. This makes first forward rehearsal safe on preview which already applied the original while production still has original parents. Guarded merge first, then merged-main preview and automatic production; no manual writes. Align the governed retirement inventory test with original221530 permanent refusal, without changing its runtime gate. Bind parent acceptance to both actual reserved forward versions: user20261007002113 and artist20261007002731, with the existing Backend SQL/hash2445311d068db94270d5eed44fff46cdbb176a46bd1cd986446c711913954f17. No assertion is removed or loosened; artistassertion remains false until actual artist apply. This avoids conflicting parent-proof edits during serial merge/promotion of independently authored releases. Refresh onto the actual merged namespace release PR4024/main2ca0994, preserving its forward registry, SQL guard and retirement; no new runtime SQL or database scope. Obtain fresh source reviews because the combined supporting files changed.",
+  "base_sha": "2ca0994bcf056ba12f56e2130cf5a7a47e41ad7d",
+  "dispatcher": "Albert authorized completing3882 through production without stopping. Standard merged-stranded claim4004 reissue retirement a7894b3e9d8dc96a5a10700a9018eaa1e4175b53 reserved20261007002113.",
+  "worker": "Codex chat 01a1126e-c598-7d60-8cf4-e14427127e20 on edge-dev3",
+  "branch": "codex/3907-production-forward",
+  "worktree": "/tmp/shared-db-3907-production-forward",
+  "allowed_paths": [
+    "supabase/migrations/20261007002113_reissue_remaining_designflow_user_fks.sql",
+    ".github/live-proofs/3907.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/proofs/3882-production.sql",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    "scripts/test_post_batch_app_verification.py",
+    ".agent/work/3907/10/contract.json",
+    ".agent/work/3907/10/completion.json",
+    ".agent/work/3907/9/contract.json",
+    ".agent/work/3907/9/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261007002113_reissue_remaining_designflow_user_fks.sql",
+    ".github/live-proofs/3907.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/proofs/3882-production.sql",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    "scripts/test_post_batch_app_verification.py",
+    ".agent/work/3907/10/contract.json",
+    ".agent/work/3907/10/completion.json",
+    ".agent/work/3907/9/contract.json",
+    ".agent/work/3907/9/completion.json"
+  ],
+  "db_reads": [
+    "table dflow.users"
+  ],
+  "db_writes": [
+    "table app.\"RolePermissions\"",
+    "table plm.art_piece_attachment"
+  ],
+  "prohibited_actions": [
+    "Do not change or delete application rows, columns, keys or privilege policies.",
+    "Do not alter shared schema beyond the exact admitted objects.",
+    "Do not edit applied migrations or perform manual production writes."
+  ],
+  "required_checks": [
+    "python3 -m unittest discover -s scripts -p test_production_migration_guard.py",
+    "node --test scripts/check-sql.test.mjs scripts/proofs/shared-db-3882-observation.test.mjs",
+    "bash scripts/check-sql.sh",
+    "PostgreSQL17 exact constraint semantics, orphan/wrong-parent refusal and replay-noop and mixed already-correct state.",
+    "python3 -m unittest scripts/test_*.py"
+  ],
+  "assumptions": [
+    "Production read-only observation October6 at10:01PM EDT retains all three original app.users parents, matching mapped parent types/uniqueness and zero mapped/recovery orphans. The forward user version is absent. Production will be refreshed again before post-merge assessment. Namespace PR4024 merged at10:35PM EDT; no user or artist apply occurred."
+  ],
+  "stop_conditions": [
+    "Any unexpected source/target shape, orphan, permission or claim collision refuses mutation.",
+    "Unreviewed changes or target identity ambiguity stop before a write."
+  ],
+  "evidence_parent": {
+    "work_issue": 3907,
+    "generation": 9,
+    "contract_sha256": "fb7f1c0375c267b01f02376820fa39a92741a8fe47eafc35e39a650c26debdfc"
+  }
+}

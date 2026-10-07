@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "work_issue": 3907,
+  "outcome": "ready-for-merge",
+  "pr": 4025,
+  "migration_versions": [
+    "20261007002113"
+  ],
+  "contract_ref": "refs/db-contracts/3907/10",
+  "contract_sha256": "418d7767257cc3509fa6b507d9d05ab745bc54c812da383712123abe72a86a0e",
+  "base_sha": "2ca0994bcf056ba12f56e2130cf5a7a47e41ad7d",
+  "head_sha": "f934963bfe6b46f3d7cd89ae7313f28095811040",
+  "files_changed": [
+    ".github/live-proofs/3907.sql",
+    "scripts/check-sql.sh",
+    "scripts/production_migration_guard.py",
+    "scripts/proofs/3882-production.sql",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20261007002113_reissue_remaining_designflow_user_fks.sql"
+  ],
+  "db_reads": [
+    "table dflow.users"
+  ],
+  "db_writes": [
+    "table app.\"RolePermissions\"",
+    "table plm.art_piece_attachment"
+  ],
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_production_migration_guard.py",
+      "exit_code": 0,
+      "evidence": "Dedicated fresh guard run: 297 passed, no failures. Full combined Python suite also passed."
+    },
+    {
+      "command": "node --test scripts/check-sql.test.mjs scripts/proofs/shared-db-3882-observation.test.mjs",
+      "exit_code": 0,
+      "evidence": "Fresh combined current-main run: 73 passed, no failures or skips."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Fresh combined current-main static SQL and verification guards passed."
+    },
+    {
+      "command": "PostgreSQL17 exact constraint semantics, orphan/wrong-parent refusal and replay-noop and mixed already-correct state.",
+      "exit_code": 0,
+      "evidence": "Fresh PostgreSQL17 fixture: original/mixed states converge; mapped-only users accepted, orphans rejected, row/read access preserved; mapped constraint OIDs survive replay; missing mapped parent and unexpected original action refuse before changes."
+    },
+    {
+      "command": "python3 -m unittest scripts/test_*.py",
+      "exit_code": 0,
+      "evidence": "Fresh combined current-main run: 1421 tests, 19 existing environment skips; all exercised checks passed."
+    }
+  ],
+  "assumptions_resolved": [
+    "Namespace PR4024 merged into protected main2ca0994; its approved forward sidecars and permanent original retirement are inherited unchanged. User runtime SQL/version/object scope is unchanged. All required checks re-proved against this actual combined main. Fresh assigned reviews will bind the new source head; no approval carry was assumed.",
+    "Parent proof SQL remains digest2445311d matching Backend and reserved artist version02731. No future assertion was removed, loosened or claimed passed. No user or artist apply occurred."
+  ],
+  "stop_conditions_hit": []
+}

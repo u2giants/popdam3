@@ -252,6 +252,8 @@ HARD_BLOCKED = {
     # Superseded by the governed two-transaction recovery beginning at
     # prerequisite 20260825041343.
     "20260825031841",
+    # #3907: original preview producer differs from authoring merge; immutable forward reissue only.
+    "20261006221530",
 }
 
 # One authority for versions that must never be applied. The post-batch
@@ -283,6 +285,7 @@ RETIRED_VERSION_REASONS = {
     "20260825025154": "preview-only historical #1427 accelerator; its later version cannot precede the earlier production-pending contract, and 20260825031841 supersedes both",
     "20260903200951": "unpromotable producer provenance (original apply run 33754529571 was a pre-merge branch rehearsal whose producer files differ from PR 2199 merge commit 477ef03cd516c79188d81b6c21260575a43a9239) and preview already holds the version after orphan reconciliation run 33821298999, so no qualifying evidence can ever be produced; replaced byte-for-byte by 20260905024139 under issue 2349",
     "20260825031841": "preview-only historical #1471 forward; production timed out and rolled back because its full reconciliation remained one statement; use prerequisite 20260825041343 and its governed dependent recovery",
+    "20261006221530": "Original preview37542145935 at fd62f194fb9ca8fed3513d589a26c5ed9384f60d differs in session-authority producer from authoring merge74e4ee847d3e960af5cfbcddfe2e0ae9aaafb248. Qualification37550480001 refused before production dispatch. Preserve original migration and preview history; governed replacement20261007002113 under issue3907 claim4004 only.",
 }
 RETIRED_VERSIONS = frozenset(RETIRED_VERSION_REASONS)
 HELD_VERSIONS = frozenset({"20260802170000", "20260802171000"})
