@@ -45,6 +45,18 @@ function normalizeDrive(s: string): string {
 }
 
 /**
+ * PowerShell script that maps the share. Every value (including the password)
+ * is read from environment variables so nothing secret lands in argv.
+ */
+export function buildSmbMappingScript(useDrive: boolean, useCreds: boolean): string {
+  const parts = ["$ErrorActionPreference='Stop'", "$p=@{RemotePath=$env:POPDAM_NAS_UNC}"];
+  if (useDrive) parts.push("$p.LocalPath=$env:POPDAM_NAS_DRIVE", "$p.Persistent=$false");
+  if (useCreds) parts.push("$p.UserName=$env:POPDAM_NAS_USER", "$p.Password=$env:POPDAM_NAS_PASS");
+  parts.push("New-SmbMapping @p | Out-Null");
+  return parts.join("; ");
+}
+
+/**
  * Ensure the NAS share is mapped and accessible.
  *
  * @param mountPath  - If set (e.g. "Z:" or "Z"), map the UNC share to this drive letter.
@@ -109,30 +121,27 @@ export async function ensureNasMapped(
     }
   }
 
-  // 3. Map the share
+  // 3. Map the share.
+  // The password must never appear on a process command line (readable by any
+  // local user via WMI / Task Manager). `net use` and `cmdkey` both take it in
+  // argv, so map via PowerShell New-SmbMapping and pass every value through the
+  // child's environment instead.
   try {
-    const args: string[] = ["use"];
-
-    if (driveLetter) {
-      // net use Z: \\host\share /user:USERNAME PASSWORD /persistent:no
-      args.push(driveLetter, uncPath);
-    } else {
-      // net use \\host\share /user:USERNAME PASSWORD
-      args.push(uncPath);
-    }
-
-    if (username) {
-      args.push(`/user:${username}`, password || "");
-    }
-
-    if (driveLetter) {
-      args.push("/persistent:no");
-    }
-
-    const { stderr } = await execFileAsync("net", args, {
-      timeout: 15_000,
-      windowsHide: true,
-    });
+    const { stderr } = await execFileAsync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", buildSmbMappingScript(!!driveLetter, !!username)],
+      {
+        timeout: 15_000,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          POPDAM_NAS_UNC: uncPath,
+          POPDAM_NAS_DRIVE: driveLetter || "",
+          POPDAM_NAS_USER: username || "",
+          POPDAM_NAS_PASS: password || "",
+        },
+      },
+    );
 
     if (stderr && stderr.toLowerCase().includes("error")) {
       logger.warn("net use stderr", { stderr: redactSecret(stderr.trim(), password) });
