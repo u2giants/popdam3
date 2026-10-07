@@ -69,7 +69,7 @@ argv, never printed):
 
 All GitHub posts end with: Posted by Claude chat <CLAUDE_CODE_SESSION_ID> on hetz.
 
-## Addendum v7.4 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
+## Addendum v7.5 — Railway worker GOOGLE_AI_API_KEY fallback (2026-10-07)
 
 Review scope: ONLY this addendum is up for approval. Steps 1-9 above were already executed and
 reported on #213 (5:15 PM EDT); they are not re-run and nothing here touches any DB value.
@@ -99,11 +99,13 @@ Steps:
 2. Set new value WITHOUT deploying: op_run pipes $K to
    `railway variable set GOOGLE_AI_API_KEY --stdin --skip-deploys -p .. -e .. -s popdam3`.
    Whatever the exit code (including timeout/ambiguous), reconcile by F: 3c48237f28e9 = applied,
-   3c1804c42ed1 = not applied (retry once, then stop), anything else = restore from backup and stop.
+   3c1804c42ed1 = not applied (retry once, then stop), anything else = restore from backup (skip-deploys), assert F == 3c1804c42ed1;
+   if that assert fails, keep the backup and record Blocked on #213. Stop either way.
    Since nothing redeploys, the running worker is unaffected by this step.
 3. Verify the stored value works: same pipe feeds Railway's read-back value as x-goog-api-key
    (curl -K from a 0600 file) to GET v1beta/models -> 200 and GET v1beta/batches -> 200.
-   Failure -> rollback (step 6).
+   Failure -> pre-deploy rollback: pipe backup back with --skip-deploys, assert F == 3c1804c42ed1,
+   NO redeploy (the running worker never saw the new value); stop and record on #213.
 4. Restart-safety check, immediately before redeploy (KNOWN_QUIRKS #74): read-only SELECT of
    admin_config BULK_OPERATIONS on qsllyeztdwjgirsysgai; proceed only if no batch job phase is
    "submitting" or "ambiguous_submission". Record latest deployment ID D0. If unsafe, re-check
@@ -111,12 +113,18 @@ Steps:
    Residual: seconds between this read and the redeploy; the worker's saved-provider-ID resume
    design (#74) covers every phase except a submission in that window.
 5. Deploy: `railway redeploy -y --json -p .. -e .. -s popdam3`; capture the new deployment ID D1
-   from its output (D1 != D0). Bounded wait 15 min for D1 SUCCESS (poll by ID only). Then prove
-   health: admin_config WORKER_HEARTBEAT.updated_at advances past the D1 creation time within 3 min
-   (heartbeat every 60 s), and D1 logs show no crash/restart loop.
-6. Rollback (step 3 fails, D1 not SUCCESS in 15 min, or no fresh heartbeat): pipe the backup into
-   `railway variable set --stdin` (skip-deploys), assert F == 3c1804c42ed1, then redeploy and
-   re-verify heartbeat. Note the old key is dead, so rollback only restores prior state.
+   from its output (D1 != D0). If the command errors/times out or output lacks an ID, do NOT retry:
+   reconcile with `railway deployment list --json -s popdam3` and take D1 = the single deployment
+   created after the step-5 start time; if none exists, retry once; if more than one, stop and
+   record on #213. Bounded wait 15 min for D1 SUCCESS (poll by ID only). Then prove
+   health attributed to D1: D0 reaches REMOVED/inactive (so only D1 can write), then
+   admin_config WORKER_HEARTBEAT.updated_at advances past the D0-removal time within 3 min
+   (heartbeat every 60 s), and D1's own logs (railway logs --deployment D1) show startup + tick
+   lines with no crash/restart loop.
+6. Post-deploy rollback (D1 not SUCCESS in 15 min, or no D1-attributed heartbeat): pipe the backup
+   into `railway variable set --stdin` (skip-deploys), assert F == 3c1804c42ed1, re-run the step-4
+   restart-safety check, then redeploy with the same step-5 reconciliation and D-attributed
+   heartbeat proof. Note the old key is dead, so rollback only restores prior state.
    If rollback itself fails, KEEP the backup file (0600, scratch dir) and record Blocked on #213.
 7. Update 1Password item dykqfttarudsxhzrlsktyupq2y: drop PLACEHOLDER from title, remove its empty
    concealed field, notes point to the main-key op:// ref; verify with item_get (no reveal).
