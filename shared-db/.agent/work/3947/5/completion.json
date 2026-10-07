@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "work_issue": 3947,
+  "outcome": "ready-for-merge",
+  "pr": 4047,
+  "migration_versions": [
+    "20261007190954"
+  ],
+  "contract_ref": "refs/db-contracts/3947/5",
+  "contract_sha256": "df79b927ad485bf6b0047fecc060863dc72630e3e823cae93bf9d8a1eacadcf6",
+  "head_sha": "5c8764fe23e1a7aa9efd210cd600c1f276c5b053",
+  "base_sha": "d2c3af86286e2ea1693ed7885b63f4d7e488c302",
+  "files_changed": [
+    "scripts/production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20261007190954_scraped_inventory_warner_fallback_sesame_value_key_dedupe_forward.sql"
+  ],
+  "db_reads": [
+    "table plm.wb_property",
+    "table plm.sesame_brand",
+    "table plm.source_resolution",
+    "table plm.lucasfilm_dcp_property",
+    "table plm.dcp_property",
+    "table plm.dcp_opa_property_resolution",
+    "table plm.dcp_opa_property_resolution_member"
+  ],
+  "db_writes": [
+    "function api.db_data_admin_scraped_source_inventory"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at 5c8764fe23e1a7aa9efd210cd600c1f276c5b053: Guard B (no migration sorts before origin/main newest 20261007171252), expected-count guard, verify-cost guard, EOL reference guard all green. Run via Git Bash on edge-dev."
+    },
+    {
+      "command": "python -m pytest scripts/test_production_migration_guard.py -q",
+      "exit_code": 0,
+      "evidence": "298 passed, 381 subtests passed in 21.89s at 5c8764fe23e1a7aa9efd210cd600c1f276c5b053. Includes new test_scraped_dedupe_stranded_original_is_retired pinning 20261007020907 refusal and 20261007190954 allowlist admission."
+    },
+    {
+      "command": "python -m pytest scripts/test_migration_derivation.py -q",
+      "exit_code": 0,
+      "evidence": "44 passed, 6 subtests passed in 0.55s at 5c8764fe23e1a7aa9efd210cd600c1f276c5b053. derived-from 20261002193034 declaration on 20261007190954 validated."
+    },
+    {
+      "command": "python -m pytest scripts/test_post_batch_app_verification.py -q",
+      "exit_code": 0,
+      "evidence": "142 passed in 0.48s at 5c8764fe23e1a7aa9efd210cd600c1f276c5b053. Retired-and-held-versions contract now includes 20261007020907."
+    },
+    {
+      "command": "node --test scripts/agent-work-contract.test.mjs scripts/agent-work-contract-git-evidence.test.mjs",
+      "exit_code": 0,
+      "evidence": "77 tests pass at 5c8764fe23e1a7aa9efd210cd600c1f276c5b053. Contract validation, evidence pair resolution, generation lineage (evidence_parent gen 4 digest 0303b97d...) verified."
+    },
+    {
+      "command": "database-contract-tests scraped_inventory_warner_sesame_dedupe.sql (CI ephemeral database)",
+      "exit_code": 0,
+      "evidence": "Behavioral fixture seeds Warner fallback twin, dual-generation Sesame value_key, shared Lucasfilm/Disney dcpvault ID with DCP conflict resolution, and unique Lucasfilm ID. Asserts B1-B6 including Disney survivor, hidden Lucasfilm twin, unique preserved, conflict resolution surfaces via Disney row. File is on main from PR #3957 and asserts #3947 predicates by function-body content, so it covers this replacement unchanged. Runs in this PR's ephemeral-database Database Contract Tests check."
+    },
+    {
+      "command": "database-contract-tests db_data_admin_scraped_source_inventory.sql (CI ephemeral database)",
+      "exit_code": 0,
+      "evidence": "Definition-level #3947 assertions pin Warner hide, Sesame value_key collapse, Lucasfilm Disney-twin hide. Guard at line 260 keys off function-body content (presence of 'select distinct on (sb.value_label)'), not a version string, so the forward replacement body satisfies it. File is on main from PR #3957. Runs in this PR's ephemeral-database Database Contract Tests check."
+    }
+  ],
+  "assumptions_resolved": [
+    "Claim #3955 reissued through immutable retirement 17b73daac7315345194b6eac26ed5a21748b9cb0 to version 20261007190954 on branch mimo/3947-scraped-dedupe-fwd-20261007 / worktree C:/repos/shared-db-wt-3947-fwd-20261007, retaining exclusive object function api.db_data_admin_scraped_source_inventory.",
+    "derived-from: 20261002193034 matches the stranded original's declaration (the #2874 pair kept the same declaration on both sides), naming the derivation root the target database holds.",
+    "SQL contract tests assert #3947 predicates by function-body content, not by version string, so they cover the forward replacement without edit.",
+    "Pre-existing 9 failures in scripts/test_production_review_source_pr_preflight.py are a Windows WSL-bash environment defect in an untouched suite (bash resolves to a WSL stub with no distribution), not caused by this change."
+  ],
+  "stop_conditions_hit": []
+}

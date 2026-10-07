@@ -75,6 +75,12 @@ HARD_BLOCKED = {
     # production risk sign-off review recorded a durable refusal on the merged
     # head. Never apply it; promote only forward replacement 20261002222102.
     "20261002204050",
+    # #3947: PR #3957 merged-stranded original. Preview applied it, but its
+    # merged head f8b8b321 carries two immutable DeepSeek REVISE verdicts
+    # (slots 12 and 13) and no disregard path exists for readsRepository:true
+    # verdicts, so it can never be promoted. Never apply it; promote only
+    # forward replacement 20261007190954.
+    "20261007020907",
     # Issue #2478: retain both historical files and any applied preview ledger.
     # Only a fresh governed claim-2745 reissue may promote these definitions.
     "20260911212849",
@@ -263,6 +269,7 @@ RETIRED_VERSION_REASONS = {
     "20261006203846": "unpromotable original preview provenance: apply37534728189 at b8905b9a187133cb0e6ff1b13c62298920ed6ac3 used a different production-verification-sidecar registry than source PR4009 merge432994be78e0237d56361f0b0f284e5b7a55efc6; automatic qualification37549451859 refused. Preserve original SQL and preview/Sandbox ledgers; production never recorded it. Use governed forward reissue20261007000937 under issue3890, claim4003.",
     "20261006211240": "merged-stranded: PR3707 head72f7383311ce293d3e5f714aca2c3f954ac8fa12 carries durable DeepSeek slot3 REVISE 84d6eda318f36dae6aa800d002e439dd3d64ee4b; preview applied it in run37544787251; production inspection at7:49PM EDT October6 proved it unapplied; retain source and preview ledger, never apply this version; claim3704 reissued through immutable retirement05d88f65c84653806fe75f99665f70c817d510d9 to complete replay-safe replacement20261006235109 under issue2874",
     "20261002204050": "merged-stranded: PR 3913 head a564ec1b2b9a424679fa1b42749351e00ba48332 carries a durable reviewer refusal on its production risk sign-off, so it can never be automatically promoted; preview applied it (run 37069288545); retain historical file and preview ledger, never apply, use re-runnable forward replacement 20261002222102 under issue 3911 (claim 3912 reissued)",
+    "20261007020907": "merged-stranded: PR 3957 head f8b8b32139380911c315001238e63a149af5fda9 carries two immutable DeepSeek REVISE verdicts (slots 12 and 13, findings 6a7732994f46b7aff8240a16d99d34fa61df77947313fdcaa2159fb1159221fe and 4fd0d7c22ac09262a0bbcab93431916f953768ec06c3d02ba226b366176da2a6) and no disregard path exists for readsRepository:true verdicts, so it can never clear production risk sign-off; preview applied it; retain historical file and preview ledger, never apply this version, use re-runnable forward replacement 20261007190954 under issue 3947 (claim 3955 reissued through immutable retirement 17b73daac7315345194b6eac26ed5a21748b9cb0)",
     "20260911212849": "issue 2478 original already superseded through claim 2745; retain its SQL and permanent reservation, never apply this original; use the fresh governed SKU-helper reissue",
     "20260917112129": "issue 2478 preview-only reissue has no qualifying original migration-content manifest; retain original SQL and preview ledger, never apply this version to production; use the fresh governed claim-2745 reissue with new exact-head review and rehearsal",
     "20260906222338": "preview run 34066470075 applied SHA256 67dc237a6968ad1a63a8d446e7bd0b1a2cb6efc52a9685dc9c5eb753008f204e, while final reviewed PR2415/main holds cb7bf087c6fd2eb2c21faaee786bdf8103ca8cf9f7bed37af0da2367f8c9d438 under the same timestamp; retain historical file and preview ledger, never apply the mismatched original, use complete forward replacement 20260911152203 under issue2741",

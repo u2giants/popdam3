@@ -1,0 +1,78 @@
+{
+  "schema_version": 2,
+  "generation": 5,
+  "work_issue": 3947,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Forward replacement 20261007190954 for merged-stranded 20261007020907 (PR #3957 head f8b8b321 carries two immutable DeepSeek REVISE verdicts, slots 12 and 13, readsRepository:true, and no disregard path exists): re-apply the same Scraped Properties display-dedupe behavior (Warner fallback-twin hide, Sesame value_key collapse, Lucasfilm/Disney display dedupe) as a NEW reserved version, made re-runnable over preview's existing function (CREATE OR REPLACE); retire 20261007020907 in the production guard; leave the PR ready for fresh governed reviews under the #3911 forward-replacement precedent.",
+  "base_sha": "d2c3af86286e2ea1693ed7885b63f4d7e488c302",
+  "dispatcher": "Albert Hazan (2026-10-05 chat request, relayed by parent agent); claim #3955 reissued to this generation",
+  "worker": "MiMo chat unknown on edge-dev",
+  "branch": "mimo/3947-scraped-dedupe-fwd-20261007",
+  "worktree": "C:/repos/shared-db-wt-3947-fwd-20261007",
+  "evidence_parent": {
+    "work_issue": 3947,
+    "generation": 4,
+    "contract_sha256": "0303b97d7d71aa36e7a6747862d364c86717e698b1e72e75a08a41cccbfbbe3e"
+  },
+  "allowed_paths": [
+    ".agent/work/3947/5/contract.json",
+    ".agent/work/3947/5/completion.json",
+    "supabase/migrations/20261007190954_scraped_inventory_warner_fallback_sesame_value_key_dedupe_forward.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py"
+  ],
+  "file_writes": [
+    ".agent/work/3947/5/contract.json",
+    ".agent/work/3947/5/completion.json",
+    "supabase/migrations/20261007190954_scraped_inventory_warner_fallback_sesame_value_key_dedupe_forward.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py"
+  ],
+  "db_reads": [
+    "table plm.wb_property",
+    "table plm.sesame_brand",
+    "table plm.source_resolution",
+    "table plm.lucasfilm_dcp_property",
+    "table plm.dcp_property",
+    "table plm.dcp_opa_property_resolution",
+    "table plm.dcp_opa_property_resolution_member"
+  ],
+  "db_writes": [
+    "function api.db_data_admin_scraped_source_inventory"
+  ],
+  "prohibited_actions": [
+    "Do not change the character or style_guide arms of the inventory function.",
+    "Do not change any table, only the function body.",
+    "Do not edit an already-applied migration file.",
+    "Do not infer or change canonical licensor ownership from display deduplication.",
+    "Do not remove or make unreachable any source rows or matching decisions.",
+    "Never apply 20261007020907 to production.",
+    "No manual production command.",
+    "Do not merge this PR and do not run governed reviews (next agents)."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python -m pytest scripts/test_production_migration_guard.py -q",
+    "python -m pytest scripts/test_migration_derivation.py -q",
+    "python -m pytest scripts/test_post_batch_app_verification.py -q",
+    "node --test scripts/agent-work-contract.test.mjs scripts/agent-work-contract-git-evidence.test.mjs",
+    "database-contract-tests scraped_inventory_warner_sesame_dedupe.sql (CI ephemeral database)",
+    "database-contract-tests db_data_admin_scraped_source_inventory.sql (CI ephemeral database)"
+  ],
+  "assumptions": [
+    "Generation 5 is a forward replacement under the #3911 precedent (production_migration_guard.py merged-stranded handling), not a repair of the pinned PR #3957 head.",
+    "The executable body is the 20261007020907 body; CREATE OR REPLACE makes it safe on preview (which already applied 20261007020907) and on production (which never will).",
+    "derived-from: 20261002193034 matches the stranded original's declaration, naming the derivation root the target database holds (the #2874 pair kept the same declaration on both sides).",
+    "The SQL contract tests assert #3947 predicates by function-body content, not by version string, so they already cover this replacement without edit.",
+    "Claim #3955 was reissued through immutable retirement 17b73daac7315345194b6eac26ed5a21748b9cb0 to version 20261007190954 on this branch and worktree, retaining exclusive object function api.db_data_admin_scraped_source_inventory."
+  ],
+  "stop_conditions": [
+    "Stop if the change needs a file outside allowed_paths.",
+    "Stop if a competing claim on function api.db_data_admin_scraped_source_inventory appears.",
+    "Stop if any matching decision or source capture would be removed or made unreachable.",
+    "Stop if the replacement body would differ from 20261007020907 in any arm other than the header comments."
+  ]
+}
