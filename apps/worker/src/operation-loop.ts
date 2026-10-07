@@ -922,6 +922,7 @@ export async function tick(): Promise<void> {
   }
 
   const allOps = (configRow?.value as Record<string, OpState>) || {};
+  const originalOps: Record<string, OpState> = { ...allOps };
 
   // Stale lock detection
   const staleUpdates: Record<string, OpState> = {};
@@ -941,8 +942,14 @@ export async function tick(): Promise<void> {
   }
 
   // Persist stale lock changes
+  // Revision-guarded: a newer save (e.g. a user Stop) must not be clobbered.
   for (const [key, op] of Object.entries(staleUpdates)) {
-    await persistOpState(key, op);
+    const original = originalOps[key];
+    const saved = await persistOpState(key, op, { expectedRevision: original?.state_revision ?? 0 });
+    if (!saved) {
+      logger.info("tick: stale-run save refused; state changed underneath", { opKey: key });
+      allOps[key] = original;
+    }
   }
 
   // Auto-resume interrupted ops (e.g. after a deploy killed the previous worker).
@@ -981,7 +988,12 @@ export async function tick(): Promise<void> {
     }
   }
   for (const [key, op] of Object.entries(autoResumeUpdates)) {
-    await persistOpState(key, op);
+    const original = originalOps[key];
+    const saved = await persistOpState(key, op, { expectedRevision: original?.state_revision ?? 0 });
+    if (!saved) {
+      logger.info("tick: auto-resume save refused; state changed underneath", { opKey: key });
+      allOps[key] = original;
+    }
   }
 
   // Promote queued ops into empty lanes
@@ -1009,16 +1021,21 @@ export async function tick(): Promise<void> {
     if (hasConflict) continue;
 
     logger.info("tick: promoting queued op", { opKey: nextOpKey, lane });
-    allOps[nextOpKey] = {
+    const promoted: OpState = {
       ...nextOp,
       status: "running",
       started_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    runningEntries.push([nextOpKey, allOps[nextOpKey]]);
+    const saved = await persistOpState(nextOpKey, promoted, { expectedRevision: nextOp.state_revision ?? 0 });
+    if (!saved) {
+      logger.info("tick: queue promotion refused; state changed underneath", { opKey: nextOpKey });
+      continue;
+    }
+    allOps[nextOpKey] = promoted;
+    runningEntries.push([nextOpKey, promoted]);
     runningKeys.add(nextOpKey);
     activeLanes.add(lane);
-    await persistOpState(nextOpKey, allOps[nextOpKey]);
   }
 
   if (runningEntries.length === 0) {
@@ -1065,13 +1082,15 @@ export async function tick(): Promise<void> {
   while (true) {
     // Periodic interrupt check (every 10 batches)
     if (batchCount > 0 && batchCount % INTERRUPT_CHECK_EVERY === 0) {
-      const { data: freshConfig } = await client
+      const { data: freshConfig, error: freshErr } = await client
         .from("admin_config")
         .select("value")
         .eq("key", CONFIG_KEY)
         .maybeSingle();
-      const freshOps = (freshConfig?.value as Record<string, OpState>) || {};
-      if (freshOps[opKey]?.status !== "running") {
+      if (freshErr) {
+        // A failed read is not a Stop; keep going and re-check next interval.
+        logger.warn("tick: stop-check read failed; continuing", { opKey, error: freshErr.message });
+      } else if (((freshConfig?.value as Record<string, OpState>) || {})[opKey]?.status !== "running") {
         logger.info("tick: op stopped by user", { opKey, batches: batchCount });
         return;
       }
