@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261007043037",
+  "migration_sha256": "f0be72a2334f0222fa1c76cbc013de19f83bc1e9c62cbd78399f7de71878f120",
+  "checks": [
+    {
+      "id": "designflow_artist_parent_fks_exact",
+      "kind": "catalog_contract",
+      "contract": "designflow_artist_parent_fks_v1",
+      "expected_count": 1
+    }
+  ]
+}

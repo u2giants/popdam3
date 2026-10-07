@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "work_issue": 4010,
+  "generation": 10,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Deliver exactly three guarded artist-parent FK repairs in reserved unapplied20261007043037. Integrate reviewed catalog-recovery maintenance main3be17d95 without changing the already reviewed migration SQL, sidecar, mapped parent definitions, proof assertions, parent SQL/hash or other main evidence. Final six-file runtime diff must remain byte-identical to generation9 excluding only owned .agent evidence. Guarded merge requires current main and exact approval or the existing enforced narrow ancestor PR-content equivalence; never widen it. Then obtain assigned exact merged-main production risk review, first merged-main preview apply, automatic production and actual Backend default-develop live proof. No row copies, permissions, schema cutover or manual production apply.",
+  "base_sha": "3be17d95a695c30db1a4cfc42ce744a4227f8ea9",
+  "dispatcher": "Albert chat instruction: complete shared-db #3882 through to production, without the earlier one-child stop; existing exact-object claim acquired.",
+  "worker": "Codex chat 01a1126e-c598-7d60-8cf4-e14427127e20 on edge-dev3",
+  "branch": "codex/4010-artists",
+  "worktree": "/tmp/shared-db-4010-artists",
+  "allowed_paths": [
+    "supabase/migrations/20261007043037_repoint_designflow_artist_parent_fks.sql",
+    ".github/live-proofs/4010.sql",
+    "scripts/proofs/3882-production.sql",
+    "scripts/check-sql.sh",
+    "scripts/production-verification-sidecars/20261007043037.json",
+    "config/production-verification-sidecar-registry.json",
+    ".agent/work/4010/9/contract.json",
+    ".agent/work/4010/9/completion.json",
+    ".agent/work/4010/10/contract.json",
+    ".agent/work/4010/10/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261007043037_repoint_designflow_artist_parent_fks.sql",
+    ".github/live-proofs/4010.sql",
+    "scripts/proofs/3882-production.sql",
+    "scripts/check-sql.sh",
+    "scripts/production-verification-sidecars/20261007043037.json",
+    "config/production-verification-sidecar-registry.json",
+    ".agent/work/4010/9/contract.json",
+    ".agent/work/4010/9/completion.json",
+    ".agent/work/4010/10/contract.json",
+    ".agent/work/4010/10/completion.json"
+  ],
+  "db_reads": [
+    "table core.merchGroup",
+    "table core.artist_types",
+    "table plm.divisionCode"
+  ],
+  "db_writes": [
+    "table dflow.artists"
+  ],
+  "prohibited_actions": [
+    "Do not change or delete application rows, columns, keys or privilege policies.",
+    "Do not alter shared schema beyond the exact admitted objects.",
+    "Do not edit applied migrations or perform manual production writes."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node scripts/check-live-proof-probe.mjs --issue 4010",
+    "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+    "node --test scripts/check-sql.test.mjs"
+  ],
+  "assumptions": [
+    "Generation9 source dc8b0d6088d99228dbf00998a69227871c0452fa has two exact approvals and final runtime6-file diff. Read-only user catalog recovery37576252319 succeeded with reviewed strict binding before this main refresh. Runtime artist migration SHA f0be72a2334f0222fa1c76cbc013de19f83bc1e9c62cbd78399f7de71878f120 and parent proof SHA59b2c915cf2a8d0e9d0687c8a988accc03fc9b2a9b20dd579a055db86f4c2dbd remain fixed."
+  ],
+  "stop_conditions": [
+    "Any unexpected source/target shape, orphan, permission or claim collision refuses mutation.",
+    "Unreviewed changes or target identity ambiguity stop before a write."
+  ],
+  "evidence_parent": {
+    "work_issue": 4010,
+    "generation": 9,
+    "contract_sha256": "0c2e19c0c9766817949fbfa4a7970e3edbd76a2c3890694ac932b370055430c3"
+  }
+}

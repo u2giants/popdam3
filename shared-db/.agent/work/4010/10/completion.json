@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "work_issue": 4010,
+  "outcome": "ready-for-merge",
+  "pr": 4013,
+  "migration_versions": [
+    "20261007043037"
+  ],
+  "contract_ref": "refs/db-contracts/4010/10",
+  "contract_sha256": "1f0bde7527b0d6731e91efed4fe8d83062065519d55a0b56ab12662500cad1bb",
+  "base_sha": "b15019b18dec0b7c9e91bf931a290df8f932104b",
+  "head_sha": "17341f3a0bf5cc841af516beda6e4562b9cac86d",
+  "files_changed": [
+    ".github/live-proofs/4010.sql",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/check-sql.sh",
+    "scripts/production-verification-sidecars/20261007043037.json",
+    "scripts/proofs/3882-production.sql",
+    "supabase/migrations/20261007043037_repoint_designflow_artist_parent_fks.sql"
+  ],
+  "db_reads": [
+    "table core.merchGroup",
+    "table core.artist_types",
+    "table plm.divisionCode"
+  ],
+  "db_writes": [
+    "table dflow.artists"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Actually executed integrated semantic source: static SQL, declared exact sidecars, full1430 Python22existing/opt-in skips;69SQL and86focused Node tests. Owned isolated PG17 enforces mapped parents and reader/row preservation, refuses each absent parent and wrong original action atomically; exact artist FK catalog rejects original parents and passes after immutable SQL. Pure manager version substitution independently byte-compared."
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs --issue 4010",
+      "exit_code": 0,
+      "evidence": "Actually executed integrated semantic source: static SQL, declared exact sidecars, full1430 Python22existing/opt-in skips;69SQL and86focused Node tests. Owned isolated PG17 enforces mapped parents and reader/row preservation, refuses each absent parent and wrong original action atomically; exact artist FK catalog rejects original parents and passes after immutable SQL. Pure manager version substitution independently byte-compared."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "Actually executed integrated semantic source: static SQL, declared exact sidecars, full1430 Python22existing/opt-in skips;69SQL and86focused Node tests. Owned isolated PG17 enforces mapped parents and reader/row preservation, refuses each absent parent and wrong original action atomically; exact artist FK catalog rejects original parents and passes after immutable SQL. Pure manager version substitution independently byte-compared."
+    },
+    {
+      "command": "node --test scripts/check-sql.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actually executed integrated semantic source: static SQL, declared exact sidecars, full1430 Python22existing/opt-in skips;69SQL and86focused Node tests. Owned isolated PG17 enforces mapped parents and reader/row preservation, refuses each absent parent and wrong original action atomically; exact artist FK catalog rejects original parents and passes after immutable SQL. Pure manager version substitution independently byte-compared."
+    }
+  ],
+  "assumptions_resolved": [
+    "Current baseb15019b18dec0b7c9e91bf931a290df8f932104b includes reviewed maintenance4029 and documentation4011. Final six-file runtime diff is byte-identical to approved generation9 source dc8b0d6088d99228dbf00998a69227871c0452fa. Existing enforced isContentPreservingRefresh proves equivalence with implementation digeste1eaeb9e892e9542ed2b50f400eab9b5088a308f9e10c383ccda7b01f723a7c0. No equivalence rule changed.",
+    "User strict catalog recovery37576252319 succeeded with bound original-apply evidence. Fresh1:12AM EDT read-only production confirms artist original shape/types/uniqueparents/zeroorphans;043037 absent. Immutable SQL and common parent proof hashes unchanged.",
+    "Owner plan4011 routes cutover through770. This readiness work copies no rows, starts no piecemeal wave, activates no multi-schema production, and changes no dflow_prod. Existing single-schema application production routing remains unchanged."
+  ],
+  "stop_conditions_hit": []
+}
