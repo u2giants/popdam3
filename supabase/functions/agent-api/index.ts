@@ -2080,12 +2080,69 @@ async function handleClearCheckpoint() {
 
 // ── Route: report-update-status ──────────────────────────────────────
 
-async function handleReportUpdateStatus(body: Record<string, unknown>) {
+// Whitelisted fields sent by the bridge and windows-agent self-updaters.
+// Anything else in the body is dropped; agent_id comes from the authenticated key.
+const UPDATE_STATUS_STRING_FIELDS: Record<string, number> = {
+  status: 32,
+  error: 2000,
+  old_version: 64,
+  new_version: 64,
+  current_digest: 200,
+  latest_digest: 200,
+  checked_tag: 128,
+  container_id: 128,
+  checked_at: 40,
+  started_at: 40,
+  failed_at: 40,
+};
+const UPDATE_STATUS_VALUES = new Set([
+  "updating", "restarting", "completed", "failed", "rolled_back",
+]);
+
+function sanitizeUpdateStatus(
+  body: Record<string, unknown>,
+): Record<string, unknown> | string {
+  const out: Record<string, unknown> = {};
+  for (const [field, maxLen] of Object.entries(UPDATE_STATUS_STRING_FIELDS)) {
+    const v = body[field];
+    if (v === undefined || v === null) continue;
+    if (typeof v !== "string") return `${field} must be a string`;
+    // error text is truncated rather than rejected so failure reports still land
+    if (v.length > maxLen) {
+      if (field === "error") { out[field] = v.slice(0, maxLen); continue; }
+      return `${field} exceeds ${maxLen} characters`;
+    }
+    out[field] = v;
+  }
+  if (out.status !== undefined && !UPDATE_STATUS_VALUES.has(out.status as string)) {
+    return "status is not a recognised update status";
+  }
+  for (const f of ["checked_at", "started_at", "failed_at"]) {
+    if (out[f] !== undefined && Number.isNaN(Date.parse(out[f] as string))) {
+      return `${f} must be an ISO timestamp`;
+    }
+  }
+  if (body.update_available !== undefined && body.update_available !== null) {
+    if (typeof body.update_available !== "boolean") return "update_available must be a boolean";
+    out.update_available = body.update_available;
+  }
+  return out;
+}
+
+async function handleReportUpdateStatus(
+  body: Record<string, unknown>,
+  agentId: string,
+  agentType: string,
+) {
+  const fields = sanitizeUpdateStatus(body);
+  if (typeof fields === "string") return err(fields, 400);
   const db = serviceClient();
   const { error } = await db.from("admin_config").upsert({
     key: "AGENT_UPDATE_STATUS",
     value: {
-      ...body,
+      ...fields,
+      agent_id: agentId,
+      agent_type: agentType,
       reported_at: new Date().toISOString(),
     },
     updated_at: new Date().toISOString(),
@@ -4426,11 +4483,6 @@ corsServe(async (req: Request) => {
       return await handleGetLatestBuild(body, "");
     }
 
-    // report-update-status is best-effort telemetry — allow without auth so updates complete
-    if (action === "report-update-status") {
-      return await handleReportUpdateStatus(body);
-    }
-
     // All other routes require agent authentication
     const authResult = await authenticateAgent(req, body, action);
     if (authResult instanceof Response) return authResult;
@@ -4439,6 +4491,8 @@ corsServe(async (req: Request) => {
     switch (action) {
       case "heartbeat":
         return await handleHeartbeat(body, agentId, agentType, agentName);
+      case "report-update-status":
+        return await handleReportUpdateStatus(body, agentId, agentType);
       case "ingest":
         return await handleIngest(body, agentId);
       case "update-asset":
@@ -4481,7 +4535,7 @@ corsServe(async (req: Request) => {
         return await handleGetCheckpoint(agentId);
       case "clear-checkpoint":
         return await handleClearCheckpoint();
-      // report-update-status and get-latest-build handled above (before auth)
+      // get-latest-build handled above (before auth)
       case "claim-tiff-scan":
         return await handleClaimTiffScan(body, agentId);
       case "report-tiff-scan":
