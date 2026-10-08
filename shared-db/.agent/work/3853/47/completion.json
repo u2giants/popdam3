@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 3853,
+  "outcome": "ready-for-merge",
+  "pr": 4019,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3853/47",
+  "contract_sha256": "7a0accac3b8959f9cfd1bd5d8c7527b9ab29acf8e6a1196179726f655504507b",
+  "head_sha": "f353ecfac69512372803c6f633e092d1b603e231",
+  "base_sha": "d241515e9454b663d8f2d49258820e089f15863a",
+  "files_changed": [
+    ".github/workflows/coldlion-order-intake.yml",
+    "HANDOFF.d/2026-10-02T2140Z-edge-dev-zcode-coldlion-intake-rotation-pending.md",
+    "HANDOFF.d/2026-10-06T2035Z-edge-dev-zcode-coldlion-intake-f1-sheet-side.md",
+    "tools/coldlion-landing/order-intake-write.mjs",
+    "tools/coldlion-landing/order-intake.mjs",
+    "tools/coldlion-order-intake-workflow.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test tools/coldlion-order-intake-*.test.mjs",
+      "exit_code": 0,
+      "evidence": "68/68 pass. New exact-head review round. Operational residuals owned by the D1 follow-up. Git evidence validates."
+    }
+  ],
+  "assumptions_resolved": [
+    "New review round after DeepSeek REVISE on pre-merge-unmeasurable residuals.",
+    "F1 PASSED; plan B0 allows cron enablement; closes #3853 with the live-proof checklist."
+  ],
+  "stop_conditions_hit": []
+}

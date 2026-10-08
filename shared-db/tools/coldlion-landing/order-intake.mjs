@@ -8,25 +8,27 @@
 //
 // This entry point POLLS, STAGES, DETECTS, and then runs the C1 decode step
 // (buildDecodeSql) as its own transaction in the same process — so a future
-// writer bug can never block staging. The CANONICAL WRITER is Phase C2
-// (order-intake-write.mjs, not yet built): it is a separate script, so this
-// entry point never writes canonical rows.
+// writer bug can never block staging. The CANONICAL WRITER is the separate
+// script order-intake-write.mjs (Phase C2, merged): this entry point never
+// writes canonical rows.
 //
 //   --dry-run            write NOTHING anywhere — not even failure records
 //                        (it still READS: the declared-target proof connects
 //                        read-only and the vendor fetch needs the API key, so
 //                        the B1 gate-1 laptop rehearsal needs credentials but
 //                        leaves no trace in any database)
-//   --limit <n>          stop the scan after n NEW orders have been staged, so
-//                        the first enablement is a bounded event (plan B0)
+//   --limit <n>          stop the scan after n TOTAL orders have been staged
+//                        (new detections are a subset), so an enablement
+//                        dispatch stays a bounded event (plan B0)
 //   --claim-only         stage and decode, write no canonical rows. Every run
 //                        of THIS entry point is claim-only by construction (the
-//                        writer is C2); the flag fixes the B0 dispatch
-//                        vocabulary now and is what the writer step will gate on
-//                        when it lands — it is echoed in the run banner.
+//                        writer is the separate C2 script); the flag fixes the
+//                        B0 dispatch vocabulary and is what the workflow's
+//                        writer step gates on — it is echoed in the run banner.
 //   --today <YYYY-MM-DD> override the scan date (offline rehearsal / tests)
 //
-// The scheduled trigger stays DISABLED until Phase F's live proof passes (B0).
+// Phase F's sample-week live proof PASSED 2026-10-06; the hourly schedule is
+// enabled per plan B0 (workflow coldlion-order-intake.yml).
 
 import { pathToFileURL } from "node:url";
 import { COMPANY_CODE } from "./lib/scopes.mjs";
@@ -175,10 +177,10 @@ async function main() {
     );
   };
 
-  // B0's bounded enablement: the scan stops as soon as n NEW orders have been
-  // staged (counted at INSERT only — a re-observed order is not a new
-  // detection), even mid-track. Staging is idempotent by identity + source
-  // hash, so the next unbounded run loses nothing.
+  // B0's bounded enablement: the scan stops as soon as n TOTAL orders have
+  // been staged (new detections are a subset of that budget), even mid-track.
+  // Staging is idempotent by identity + source hash, so the next unbounded
+  // run loses nothing.
   const limitReachedNow = () => options.limit !== null && summary.stagedOrders >= options.limit;
 
   // Trailing re-read first: the closed weeks most likely to have absorbed late

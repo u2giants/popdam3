@@ -57,15 +57,62 @@ test("the writer step runs after decode in the same job, with the declared-targe
   assert.match(writer, /--limit "\$LIMIT"/);
 });
 
-test("the workflow is never triggered by a branch and the schedule stays disabled", () => {
-  // Comment-only lines are stripped so the deliberately disabled (commented
-  // out) schedule does not count as an active trigger.
+test("the workflow is never triggered by a branch; schedule and dispatch only", () => {
+  // Comment-only lines are stripped so a commented-out trigger never counts.
+  // F1 passed 2026-10-06: the hourly schedule is now an ACTIVE trigger.
   const active = workflow
     .split("\n")
     .filter((line) => !line.trimStart().startsWith("#"))
     .join("\n");
-  assert.match(active, /workflow_dispatch:/);
-  assert.doesNotMatch(active, /pull_request/);
-  assert.doesNotMatch(active, /push:/);
-  assert.doesNotMatch(active, /schedule:/);
+  // Exactly one `on:` declaration. A second key would be a YAML duplicate the
+  // runner may merge — and it could add push/workflow_call without failing a
+  // first-block-only check.
+  const onHeaders = [...active.matchAll(/^on:\s*$/gm)];
+  assert.equal(onHeaders.length, 1, "exactly one on: declaration is required");
+  // Everything from `on:` to the next top-level key is the trigger surface.
+  const afterOn = active.slice((onHeaders[0].index ?? 0) + 3);
+  const onBlock = afterOn.match(/^((?:[ \t]+.*\n|\n)*)/m)?.[1] ?? "";
+  assert.match(onBlock, /workflow_dispatch:/);
+  assert.match(onBlock, /schedule:/);
+  assert.match(onBlock, /cron:\s*'0 \* \* \* \*'/);
+  // Top-level trigger keys only (exactly two spaces of indent under `on:`).
+  // Normalize quoted keys and `key :` spacing so `"push":` / `push :` cannot
+  // hide from the allowlist.
+  const triggerKeys = [...onBlock.matchAll(/^ {2}([^\s:]+)\s*:/gm)]
+    .map((m) => m[1].replace(/^['"]|['"]$/g, ""))
+    .sort();
+  assert.deepEqual(
+    triggerKeys,
+    ["schedule", "workflow_dispatch"],
+    "only schedule and workflow_dispatch may trigger this production-writing workflow",
+  );
+  assert.doesNotMatch(active, /\bpull_request\b/);
+  assert.doesNotMatch(onBlock, /(^|\s)push\s*:/);
+  assert.doesNotMatch(onBlock, /workflow_call|workflow_run|repository_dispatch/);
+});
+
+test("scheduled runs do not inject --limit (oldest-first budget would starve new orders)", () => {
+  // --limit is a TOTAL-staged budget consumed oldest-first (trailing closed
+  // weeks before the forward track). A fixed schedule ceiling would spend
+  // the budget on already-staged history and skip NEW forward-track orders
+  // until an unbounded run. Bootstrap already ran with --limit 5 (B0) and
+  // F1 passed; schedule must therefore pass through github.event.inputs.limit
+  // (empty on schedule → unbounded), never a hard-coded ceiling.
+  const limitMaps = [...workflow.matchAll(/LIMIT:\s*\$\{\{([^}]+)\}\}/g)].map((m) => m[1].trim());
+  assert.equal(limitMaps.length, 2, "exactly the intake and writer steps map LIMIT");
+  for (const expr of limitMaps) {
+    assert.equal(
+      expr,
+      "github.event.inputs.limit",
+      `schedule must not inject a limit (got: ${expr})`,
+    );
+    assert.doesNotMatch(expr, /schedule\s*&&/);
+  }
+  // A literal --limit N in a run: command would also spend the total-staged
+  // budget on history. Comments may mention --limit 5 as history; only the
+  // executable run blocks are checked.
+  const runBlocks = [...workflow.matchAll(/^\s*run:\s*\|?([\s\S]*?)(?=\n\s{0,2}\S|\n*$)/gm)].map((m) => m[1]);
+  for (const block of runBlocks) {
+    assert.doesNotMatch(block, /--limit\s+\d+/, "run blocks must not hard-code --limit");
+  }
 });

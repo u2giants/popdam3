@@ -1,0 +1,53 @@
+{
+  "schema_version": 2,
+  "work_issue": 3853,
+  "generation": 47,
+  "evidence_parent": {
+    "work_issue": 3853,
+    "generation": 46,
+    "contract_sha256": "b52d0de9004265836c18eced1a5672381f01869b21a6d6fba567be255677a57f"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Generation 47 is a new exact-head review round after DeepSeek's repeated REVISE on pre-merge-unmeasurable operational residuals (hourly scan duration and LIKE-prefix EXPLAIN), which the D1 follow-up owns by definition. Implementation bytes are unchanged from generation 46: hourly ColdLion cron after F1; trigger surface schedule+dispatch only; schedule free of --limit; both #3853 handoffs retired; alerting and kill-switch documented; stale comments fixed. Evidence convention: completion.head_sha is the implementation commit; this pair follows it (#2708); git evidence validates. Closes #3853 with the AGENTS.md live-proof checklist on the issue for the D1 gate. Generations 1-46 stay published and immutable.",
+  "base_sha": "d241515e9454b663d8f2d49258820e089f15863a",
+  "dispatcher": "MiMo chat ses_ffe5eec58ec33ffein1XsJ0A3W on edge-dev (coordinator for issue #3853)",
+  "worker": "MiMo chat ses_ffe5eec58ec33ffein1XsJ0A3W on edge-dev",
+  "branch": "coldlion-cron-3853",
+  "worktree": "C:/repos/shared-db/.ai/worktrees/coldlion-cron-3853",
+  "allowed_paths": [
+    ".github/workflows/coldlion-order-intake.yml",
+    "tools/coldlion-order-intake-workflow.test.mjs",
+    "tools/coldlion-landing/order-intake.mjs",
+    "tools/coldlion-landing/order-intake-write.mjs",
+    "HANDOFF.d/2026-10-02T2140Z-edge-dev-zcode-coldlion-intake-rotation-pending.md",
+    "HANDOFF.d/2026-10-06T2035Z-edge-dev-zcode-coldlion-intake-f1-sheet-side.md",
+    ".agent/work/3853/47/contract.json",
+    ".agent/work/3853/47/completion.json"
+  ],
+  "file_writes": [
+    ".agent/work/3853/47/contract.json",
+    ".agent/work/3853/47/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database write, no migration file, and no schema change: non-orchestrator tools-code work only",
+    "Never change the workflow trigger surface or re-enable any pull_request/push trigger",
+    "Never inject --limit into the scheduled invocation or hard-code --limit in a run block",
+    "Do not tick plan STATUS row D until two consecutive green scheduled runs are recorded",
+    "No broad staging: only the named files plus this evidence pair may be committed"
+  ],
+  "required_checks": [
+    "node --test tools/coldlion-order-intake-*.test.mjs"
+  ],
+  "assumptions": [
+    "Operational residuals cannot be measured before the cron runs; the D1 follow-up owns them",
+    "The live-proof checklist on #3853 is the durable tracker for the two-green-run D1 gate",
+    "Base is GitHub main d241515e9454b663d8f2d49258820e089f15863a"
+  ],
+  "stop_conditions": [
+    "Stop and report if the offline intake tests fail at the implementation head",
+    "Stop on any coordination-mutex or guarded-lane refusal this session cannot resolve with evidence"
+  ]
+}

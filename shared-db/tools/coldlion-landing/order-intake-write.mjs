@@ -5,10 +5,9 @@
 // only intake step that writes plm.production_order(_line) and their source
 // refs.
 //
-// The scheduled trigger stays DISABLED until Phase F's live proof passes, and
-// the first enablement is a bounded event (plan B0): --limit bounds the
-// orders this run may claim, and the staged dispatch ladder (preview dry-run
-// → preview dispatch → ONE bounded production dispatch) owns every
+// Phase F's sample-week live proof PASSED 2026-10-06 and the hourly schedule
+// is enabled per plan B0. Enablement stays a bounded event: --limit bounds the
+// orders this run may claim, and the staged dispatch ladder owns every
 // enablement step — nothing here enables or dispatches anything.
 //
 //   --write          commit the canonical writes. WITHOUT it the identical
