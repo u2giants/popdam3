@@ -23,12 +23,19 @@ export function canonicalItems(client: DB) {
 export async function canonicalItemIdMap(client: DB, items: CanonicalItemIdentity[]): Promise<Map<string, string>> {
   const sourceIds = [...new Set(items.map((item) => item.source_id).filter(Boolean))];
   if (sourceIds.length === 0) return new Map();
-  const { data, error } = await client.schema("plm").from("item")
-    .select("id, source_system, item_number, raw")
+  // plm is not an exposed Data API schema; api.pim_item_picker is the shared
+  // contract carrying the true plm.item UUID (shared-db #2753).
+  const { data, error } = await client.schema("api").from("pim_item_picker")
+    .select("item_id, source_system, item_number, division_code")
     .eq("source_system", "coldlion")
     .in("item_number", sourceIds);
   if (error) throw new Error(`Failed to resolve canonical item IDs: ${error.message}`);
-  return uniqueCanonicalItemIds(data ?? []);
+  return uniqueCanonicalItemIds((data ?? []).map((row) => ({
+    id: row.item_id,
+    source_system: row.source_system,
+    item_number: row.item_number,
+    raw: { divisionCode: row.division_code },
+  })));
 }
 
 /**
