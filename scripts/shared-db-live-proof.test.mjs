@@ -114,3 +114,10 @@ test("4037 fails when a post-apply employee sign-up lacks dam", async () => {
   const { evaluateSignupGrant4037 } = await import("./shared-db-live-proof.mjs");
   assert.throws(() => evaluateSignupGrant4037([{ id: "a", email: "n@popcre.com", created_at: "2026-10-08T00:00:00Z" }], [{ profile_id: "a", app: "crm" }]), ProofFailure);
 });
+
+test("4064 passes only when every concurrent increment landed", async () => {
+  const { evaluateCounters4064 } = await import("./shared-db-live-proof.mjs");
+  assert.equal(evaluateCounters4064({ processed: 10, stats: { proof: 10 }, marker: "live-proof-4064" }), true);
+  assert.throws(() => evaluateCounters4064({ processed: 9, stats: { proof: 10 }, marker: "live-proof-4064" }), ProofFailure);
+  assert.throws(() => evaluateCounters4064({ processed: 10, stats: { proof: 7 }, marker: "live-proof-4064" }), ProofFailure);
+});

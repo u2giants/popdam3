@@ -33,6 +33,7 @@ const ASSERTIONS = {
   3418: "In production, only the current unexpired submission-lease holder presenting its exact receipt and current revision can reset an unbound provider submission after PopDAM verifies provider origin and parses a nonempty JSON validation error with HTTP 400 or 422; timeout, disconnect, unreadable or plain-text error, other 4xx, 5xx, expired or ambiguous lease, bound provider ID, wrong holder, wrong receipt, or wrong revision cannot reset or remint a receipt for another caller. PopDAM owns the later no-duplicate-POST live retry proof.",
   "3418-retry": "In production, PopDAM's own fixture operation proves the retry path of public.reset_bulk_operation_submission_lease: the current unexpired holder presenting its exact receipt and current revision resets an unbound submission once, no receipt is returned or reminted, the consumed receipt cannot reset again, and only a later fresh-revision claim mints a new receipt; a wrong holder with the right receipt, an expired lease, and an ambiguous lease are each refused with SQLSTATE 55000 and leave the operation unchanged. Every fixture is created and removed by the proof; no other operation is written.",
   3457: "On production, public.search_dam_documents has the 8-arg signature with p_min_semantic_score real default null, the 7-arg signature is dropped, execute is granted to authenticated and service_role only, a semantic floor is applied only inside the semantic leg before blend, and null floor preserves prior blended-rank behaviour exactly.",
+  4064: "production public.admin_config_apply_counters(text,jsonb,jsonb) exists, is executable by service_role and not by anon/authenticated, and atomically increments admin_config JSON counters",
   4037: "production app.handle_new_auth_user() inserts app.app_access(profile_id,'dam') for new users whose email ends in @popcre.com, keeping existing behaviour",
   2934: "From the application's production service-role connection, read-only: public.deactivate_stale_sg_files no longer exists, and the application's stale-file deactivation path (public.preview_stale_sg_files guard ahead of public.reconcile_stale_sg_files_batch) is still exposed and its read-only guard call succeeds.",
 };
@@ -521,7 +522,47 @@ async function proveSignupGrant() {
   return { call: "GET app.profile + app.app_access for popcre.com sign-ups after the apply (read-only)", elapsed_ms: profiles.elapsedMs + access.elapsedMs, applied_at: SIGNUP_GRANT_APPLIED_AT, employee_signups_observed: observed, all_have_dam: true };
 }
 
-const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant };
+// 4064: concurrent increments on a throwaway admin_config fixture key must all
+// land (u2giants/popdam3#218). The fixture row is created by the proof and removed.
+export const COUNTER_PROOF_CALLS = 10;
+export function evaluateCounters4064(value, calls = COUNTER_PROOF_CALLS) {
+  if (!value || typeof value !== "object") fail("fixture admin_config row has no JSON object value");
+  if (value.processed !== calls) fail(`processed is ${value.processed}, expected ${calls}: increments were lost`);
+  if (value.stats?.proof !== calls) fail(`stats.proof is ${value.stats?.proof}, expected ${calls}: nested increments were lost`);
+  if (value.marker !== "live-proof-4064") fail("p_set was not merged");
+  return true;
+}
+
+async function proveCounters() {
+  const fixtureKey = `ZZ_LIVE_PROOF_4064_${randomUUID()}`;
+  const started = Date.now();
+  const remove = () => call(`/rest/v1/admin_config?key=eq.${encodeURIComponent(fixtureKey)}`, { method: "DELETE" });
+  try {
+    const results = await Promise.allSettled(Array.from({ length: COUNTER_PROOF_CALLS }, () =>
+      rawPost("/rest/v1/rpc/admin_config_apply_counters", {
+        p_key: fixtureKey,
+        p_increments: { processed: 1, stats: { proof: 1 } },
+        p_set: { marker: "live-proof-4064" },
+      })));
+    const statuses = results.map((r) => (r.status === "fulfilled" ? r.value.status : "rejected"));
+    if (statuses.includes(404)) throw new NotYetApplied("public.admin_config_apply_counters is not exposed on production");
+    if (statuses.some((st) => st !== 200)) fail(`concurrent calls returned ${statuses.join(",")}`);
+    const row = await call(`/rest/v1/admin_config?select=value&key=eq.${encodeURIComponent(fixtureKey)}`);
+    evaluateCounters4064(row.json?.[0]?.value);
+    return {
+      call: `${COUNTER_PROOF_CALLS} concurrent public.admin_config_apply_counters calls on a fixture key, then read back`,
+      elapsed_ms: Date.now() - started,
+      concurrent_calls: COUNTER_PROOF_CALLS,
+      processed_observed: COUNTER_PROOF_CALLS,
+      fixtures_removed: true,
+      not_proven: "grants (anon/authenticated denied) not checked here: no anon key available; covered by shared-db contract test and .github/live-proofs/4064.sql",
+    };
+  } finally {
+    await remove();
+  }
+}
+
+const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant, 4064: proveCounters };
 
 async function main() {
   if (url !== EXPECTED_URL) fail("SUPABASE_URL is not the production project");

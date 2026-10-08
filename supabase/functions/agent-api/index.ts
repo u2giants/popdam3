@@ -3536,10 +3536,11 @@ async function handleClaimStyleGuidePdfText(agentId: string, agentType: string) 
   if (error) return err(`claim_style_guide_pdf_text failed: ${error.message}`, 500);
   const jobs = (data ?? []) as unknown[];
   if (jobs.length === 0) {
-    await db.from("admin_config").upsert({
-      key: "POPSG_PDF_BACKFILL",
-      value: { ...sg, status: "completed", completed_at: new Date().toISOString() },
-      updated_at: new Date().toISOString(),
+    // Set-only atomic merge: never write back the stale counters read above.
+    await db.rpc("admin_config_apply_counters", {
+      p_key: "POPSG_PDF_BACKFILL",
+      p_increments: {},
+      p_set: { status: "completed", completed_at: new Date().toISOString() },
     });
   }
   return json({ ok: true, jobs, status: jobs.length ? "running" : "completed" });
@@ -3585,18 +3586,12 @@ async function handleCompleteStyleGuidePdfText(body: Record<string, unknown>) {
     else refused++;
   }
 
-  const { data: configRow } = await db.from("admin_config")
-    .select("value").eq("key", "POPSG_PDF_BACKFILL").maybeSingle();
-  const config = (configRow?.value as Record<string, unknown>) || {};
-  const { error: sgCfgErr } = await db.from("admin_config").upsert({
-    key: "POPSG_PDF_BACKFILL",
-    value: {
-      ...config,
-      processed: ((config.processed as number) ?? 0) + accepted,
-      refused: ((config.refused as number) ?? 0) + refused,
-      last_batch_at: new Date().toISOString(),
-    },
-    updated_at: new Date().toISOString(),
+  // Atomic increment in the database (shared-db#4064): concurrent agents no longer
+  // overwrite each other's counts (u2giants/popdam3#218).
+  const { error: sgCfgErr } = await db.rpc("admin_config_apply_counters", {
+    p_key: "POPSG_PDF_BACKFILL",
+    p_increments: { processed: accepted, refused },
+    p_set: { last_batch_at: new Date().toISOString() },
   });
   if (sgCfgErr) return err(`POPSG_PDF_BACKFILL progress update failed: ${sgCfgErr.message}`, 500);
   return json({ ok: true, accepted, refused });
@@ -3721,12 +3716,8 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
   const thumbErr = thumbResults.find((res) => res.error)?.error;
   if (thumbErr) return err(`assets thumbnail update failed: ${thumbErr.message}`, 500);
 
-  // 4. Increment processed count in admin_config
-  const { data: bfRow } = await db.from("admin_config")
-    .select("value").eq("key", "PDF_BACKFILL").maybeSingle();
-  const bf = (bfRow?.value as Record<string, unknown>) || {};
-  const newProcessed = ((bf.processed as number) ?? 0) + committedCount;
-  const total = (bf.total as number) ?? 0;
+  // 4. Increment processed count in admin_config — atomically in the database
+  // (shared-db#4064), so concurrent agents no longer lose counts (u2giants/popdam3#218).
   const nowIso = new Date().toISOString();
 
   // Count remaining after the inserts above, then use that as the authoritative
@@ -3735,29 +3726,26 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
   const { data: countRow2 } = await db.rpc("count_pdf_backfill_remaining");
   const remaining = (countRow2 as number) ?? 0;
 
-  // Accumulate per-method outcome tallies + files-used added for the UI summary.
-  const stats: Record<string, number> = { ...((bf.stats as Record<string, number>) ?? {}) };
+  // Per-method outcome tallies (deltas for this batch) for the UI summary.
+  const statsDelta: Record<string, number> = {};
   for (const r of results) {
     const method = (r.extraction_method as string) || "unknown";
-    stats[method] = (stats[method] ?? 0) + 1;
+    statsDelta[method] = (statsDelta[method] ?? 0) + 1;
   }
 
-  const newBf: Record<string, unknown> = {
-    ...bf,
-    processed: newProcessed,
-    last_batch_at: nowIso,
-    stats,
-    files_used_added: ((bf.files_used_added as number) ?? 0) + filesUsedAdded,
-    remaining,
-  };
+  const bfSet: Record<string, unknown> = { last_batch_at: nowIso, remaining };
   if (isPdfBackfillComplete(remaining)) {
-    newBf.status = "completed";
-    newBf.completed_at = nowIso;
-    newBf.live_current_file = null;
-    newBf.live_current_step = "completed";
+    bfSet.status = "completed";
+    bfSet.completed_at = nowIso;
+    bfSet.live_current_file = null;
+    bfSet.live_current_step = "completed";
   }
 
-  const { error: bfCfgErr } = await db.from("admin_config").upsert({ key: "PDF_BACKFILL", value: newBf, updated_at: nowIso });
+  const { error: bfCfgErr } = await db.rpc("admin_config_apply_counters", {
+    p_key: "PDF_BACKFILL",
+    p_increments: { processed: committedCount, files_used_added: filesUsedAdded, stats: statsDelta },
+    p_set: bfSet,
+  });
   if (bfCfgErr) return err(`PDF_BACKFILL progress update failed: ${bfCfgErr.message}`, 500);
 
   console.log(`[complete-pdf-backfill-batch] committed ${results.length} results, remaining=${remaining}`);
@@ -3773,14 +3761,12 @@ async function handlePdfBackfillProgress(body: Record<string, unknown>) {
   const currentFile = optionalString(body, "current_file") ?? null;
   const currentStep = optionalString(body, "current_step") ?? null;
 
-  const { data: bfRow } = await db.from("admin_config")
-    .select("value").eq("key", "PDF_BACKFILL").maybeSingle();
-  const bf = (bfRow?.value as Record<string, unknown>) || {};
-
-  await db.from("admin_config").upsert({
-    key: "PDF_BACKFILL",
-    value: {
-      ...bf,
+  // Set-only atomic merge: a whole-object write here would clobber counters that
+  // concurrent batch completions just incremented (u2giants/popdam3#218).
+  await db.rpc("admin_config_apply_counters", {
+    p_key: "PDF_BACKFILL",
+    p_increments: {},
+    p_set: {
       live_processed: processed,
       live_total: total,
       live_current_file: currentFile,
@@ -3788,7 +3774,6 @@ async function handlePdfBackfillProgress(body: Record<string, unknown>) {
       live_remaining: Math.max(0, total - processed),
       live_updated_at: new Date().toISOString(),
     },
-    updated_at: new Date().toISOString(),
   });
 
   return json({ ok: true });
