@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 3806,
+  "outcome": "ready-for-merge",
+  "pr": 4096,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3806/3",
+  "contract_sha256": "593ab14e21357d723e0a022d3d38b95741184d0d672c42c96795584c500538ba",
+  "head_sha": "b07a30adcb2022d0a9d696dedeead1ad99ed0c71",
+  "base_sha": "da868f95c56c07c3aa0d54f1f7476bdb03f676cf",
+  "files_changed": [
+    ".github/workflows/review-verdict-auto-archive.yml"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "779 pass, 0 fail"
+    }
+  ],
+  "assumptions_resolved": [
+    "Workflow checkout depth only; no logic change."
+  ],
+  "notes": "Evidence pair generation 3 follows the implementation commit.",
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "work_issue": 3806,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add --archive-threshold N to --archive-old-review-verdicts (skip below threshold) and an hourly review-verdict-auto-archive.yml workflow that archives at threshold 800 and fails if more than 900 remain; ceiling and archive-not-delete semantics unchanged",
+  "base_sha": "da868f95c56c07c3aa0d54f1f7476bdb03f676cf",
+  "dispatcher": "Claude chat 6dd08f1b-53ec-4f47-bf1f-6ce0e6589a25 on edge-dev3",
+  "worker": "claude",
+  "branch": "claude/3806-archive-full-history",
+  "worktree": "/home/ahazan/repos/shared-db-3806-history",
+  "allowed_paths": [
+    ".github/workflows/review-verdict-auto-archive.yml",
+    ".agent/work/3806/3/contract.json",
+    ".agent/work/3806/3/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/review-verdict-auto-archive.yml",
+    ".agent/work/3806/3/contract.json",
+    ".agent/work/3806/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not raise the REVIEW_REF_ROW_LIMIT ceiling or weaken its refusal (#2152)",
+    "never delete a verdict; archive only by atomic move (#2987)",
+    "do not edit another session's handoff, worktree, branch, or claim"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "assumptions": [
+    "the hourly job checks out with fetch-depth 1, so mergeTouchesMigrations cannot read merge commits and keeps every merged verdict as merge-commit-unreadable; a full-history checkout lets the #3806 rule act"
+  ],
+  "stop_conditions": [
+    "stop if a test fails for a reason unrelated to verdict archival or archive-mirror reads",
+    "stop if the change would need to touch a file outside allowed_paths"
+  ],
+  "generation": 3
+}
