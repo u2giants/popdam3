@@ -161,6 +161,12 @@ test("the empty window keeps the where-false line_map branch and a syntactically
   const row = groups[0].trim().slice(1, -1);
   assert.equal(splitTopLevel(row).length, aliases.length);
   assert.match(row, /^null::bigint, null::integer, null::text, null::text,/);
+  // Non-text component columns must be typed nulls. Bare `null` in the VALUES
+  // list resolves to text and fails numeric component columns (line_price etc.)
+  // on insert — scheduled run 37748611709 failed live on exactly that.
+  assert.match(row, /null::numeric/);
+  assert.match(row, /null::boolean/);
+  assert.match(row, /null::timestamptz/);
 });
 
 test("components bind to their parent line through the projection's lineLocalId", () => {

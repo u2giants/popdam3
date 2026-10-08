@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "work_issue": 3853,
+  "generation": 50,
+  "evidence_parent": {
+    "work_issue": 3853,
+    "generation": 49,
+    "contract_sha256": "316acda601bd0d3d5ef13176df44225514425db9a95ee5038392ae332f40b2e6"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "D1 live-proof blockers after DeepSeek REVISE on generation 49: typed SQL NULLs in values.mjs (scheduled run 37748611709: column line_price is of type numeric but expression is of type text), typed empty-window component placeholder (review H-1), and intake cron offset 0 * * * * to 7 * * * * (top-of-hour schedules dropped under load).",
+  "base_sha": "ebb22513ce923ff149c47bab2ecc098fb4c53a7a",
+  "dispatcher": "MiMo chat ses_ffe5eec58ec33ffein1XsJ0A3W on edge-dev (coordinator for issue #3853)",
+  "worker": "MiMo chat ses_ffe5eec58ec33ffein1XsJ0A3W on edge-dev",
+  "branch": "coldlion-intake-null-cast-3853",
+  "worktree": "C:/repos/shared-db/.ai/worktrees/coldlion-cron-3853",
+  "allowed_paths": [
+    "tools/coldlion-landing/lib/values.mjs",
+    "tools/coldlion-landing/lib/order-intake-stage.mjs",
+    "tools/coldlion-order-intake-values.test.mjs",
+    "tools/coldlion-order-intake-stage.test.mjs",
+    "tools/coldlion-landing-prod-details.test.mjs",
+    ".github/workflows/coldlion-order-intake.yml",
+    "tools/coldlion-order-intake-workflow.test.mjs",
+    ".agent/work/3853/50/contract.json",
+    ".agent/work/3853/50/completion.json"
+  ],
+  "file_writes": [
+    "tools/coldlion-landing/lib/values.mjs",
+    "tools/coldlion-landing/lib/order-intake-stage.mjs",
+    "tools/coldlion-order-intake-values.test.mjs",
+    "tools/coldlion-order-intake-stage.test.mjs",
+    "tools/coldlion-landing-prod-details.test.mjs",
+    ".github/workflows/coldlion-order-intake.yml",
+    "tools/coldlion-order-intake-workflow.test.mjs",
+    ".agent/work/3853/50/contract.json",
+    ".agent/work/3853/50/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration and no database structure change",
+    "Never add pull_request or push triggers",
+    "Never enable any additional cron",
+    "Do not tick plan STATUS row D until two consecutive green scheduled runs are recorded"
+  ],
+  "required_checks": [
+    "node --test tools/coldlion-order-intake-*.test.mjs",
+    "node --test tools/coldlion-landing-history.test.mjs tools/coldlion-landing-masters.test.mjs tools/coldlion-landing-prepack.test.mjs tools/coldlion-landing-prod-details.test.mjs"
+  ],
+  "assumptions": [
+    "Untyped NULL in a VALUES list resolves to text and fails typed columns; typed nulls fix the class for intake (including the empty-window placeholder) and sealed loaders",
+    "Top-of-hour crons are dropped under load on this repo; offset minutes fire reliably",
+    "Column types named by the typed nulls are the specs already in this repo (INTAKE_LINE_SPEC / INTAKE_COMPONENT_SPEC / loader specs); line_price is numeric per the live error text itself",
+    "prod_order_no is bigint in coldlion.prod_detail, so sqlNumber(null) in that predicate is a NULL comparison just like the old bare null"
+  ],
+  "stop_conditions": [
+    "Stop and report if the offline tests fail at the implementation head",
+    "Stop on any coordination-mutex or guarded-lane refusal this session cannot resolve with evidence"
+  ]
+}

@@ -148,7 +148,7 @@ test("an empty response is a legitimate zero-row key, not a failure", () => {
   assert.deepEqual(result.rows, []);
   assert.equal(result.zeroRow, true);
   const sql = buildProdDetailLoadSql({ run: runFor({ rowsFetched: 0, zeroRow: true }), rows: [] });
-  assert.match(sql, /,\s*200,\s*null,\s*0\);/, "the run still records zero rows fetched");
+  assert.match(sql, /,\s*200,\s*null::numeric,\s*0\);/, "the run still records zero rows fetched");
   assert.match(sql, /zeroRow=1/);
 });
 

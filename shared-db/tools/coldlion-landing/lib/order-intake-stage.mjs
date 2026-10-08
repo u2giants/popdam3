@@ -230,7 +230,7 @@ export function buildIntakeStageSql({
     // An empty window still needs a syntactically valid VALUES row: the alias list
     // below names 4 join keys + every component column, so the placeholder row
     // must carry exactly as many NULLs (it joins to nothing and inserts nothing).
-    : `(null::bigint, null::integer, null::text, null::text, ${INTAKE_COMPONENT_SPEC.map(() => "null").join(", ")})`;
+    : `(null::bigint, null::integer, null::text, null::text, ${INTAKE_COMPONENT_SPEC.map(([, emit]) => T[emit](null)).join(", ")})`;
 
   const componentSelect = INTAKE_COMPONENT_SPEC.map(([column]) => `v.${column}`).join(", ");
 

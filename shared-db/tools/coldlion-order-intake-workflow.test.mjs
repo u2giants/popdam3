@@ -74,7 +74,7 @@ test("the workflow is never triggered by a branch; schedule and dispatch only", 
   const onBlock = afterOn.match(/^((?:[ \t]+.*\n|\n)*)/m)?.[1] ?? "";
   assert.match(onBlock, /workflow_dispatch:/);
   assert.match(onBlock, /schedule:/);
-  assert.match(onBlock, /cron:\s*'0 \* \* \* \*'/);
+  assert.match(onBlock, /cron:\s*'7 \* \* \* \*'/);
   // Top-level trigger keys only (exactly two spaces of indent under `on:`).
   // Normalize quoted keys and `key :` spacing so `"push":` / `push :` cannot
   // hide from the allowlist.

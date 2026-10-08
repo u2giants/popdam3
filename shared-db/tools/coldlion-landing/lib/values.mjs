@@ -97,8 +97,15 @@ export function sqlText(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
+// Untyped NULL in a VALUES list is inferred as text, so a window whose numeric
+// (or boolean/date/timestamp) column is entirely null fails the INSERT against
+// the real typed column — observed live on scheduled run 37748611709
+// ("column \"line_price\" is of type numeric but expression is of type text").
+// These emitters therefore type their nulls. sqlText keeps a bare null: text is
+// the VALUES default and matches every text column it feeds.
+
 export function sqlNumber(value) {
-  if (value === null || value === undefined) return "null";
+  if (value === null || value === undefined) return "null::numeric";
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error("refusing to emit a non-finite number as SQL");
   }
@@ -106,16 +113,16 @@ export function sqlNumber(value) {
 }
 
 export function sqlBool(value) {
-  if (value === null || value === undefined) return "null";
+  if (value === null || value === undefined) return "null::boolean";
   return value ? "true" : "false";
 }
 
 export function sqlDate(value) {
-  return value === null || value === undefined ? "null" : `date ${sqlText(value)}`;
+  return value === null || value === undefined ? "null::date" : `date ${sqlText(value)}`;
 }
 
 export function sqlTimestamp(value) {
-  return value === null || value === undefined ? "null" : `timestamptz ${sqlText(value)}`;
+  return value === null || value === undefined ? "null::timestamptz" : `timestamptz ${sqlText(value)}`;
 }
 
 export function sqlUuid(value) {

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 3853,
+  "outcome": "ready-for-merge",
+  "pr": 4093,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3853/50",
+  "contract_sha256": "fffa08d11c248a4b1c4ef04014c785513cd05cc3208e1b5dadbb49849d60e807",
+  "head_sha": "fd7addce056116f06228dfb3511e370876cbb328",
+  "base_sha": "ebb22513ce923ff149c47bab2ecc098fb4c53a7a",
+  "files_changed": [
+    ".github/workflows/coldlion-order-intake.yml",
+    "tools/coldlion-landing-prod-details.test.mjs",
+    "tools/coldlion-landing/lib/order-intake-stage.mjs",
+    "tools/coldlion-landing/lib/values.mjs",
+    "tools/coldlion-order-intake-stage.test.mjs",
+    "tools/coldlion-order-intake-values.test.mjs",
+    "tools/coldlion-order-intake-workflow.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test tools/coldlion-order-intake-*.test.mjs",
+      "exit_code": 0,
+      "evidence": "73/73 pass including the typed empty-window placeholder assertion"
+    },
+    {
+      "command": "node --test tools/coldlion-landing-history.test.mjs tools/coldlion-landing-masters.test.mjs tools/coldlion-landing-prepack.test.mjs tools/coldlion-landing-prod-details.test.mjs",
+      "exit_code": 0,
+      "evidence": "180/180 pass"
+    }
+  ],
+  "assumptions_resolved": [
+    "Scheduled run 37748611709 failed on line_price text vs numeric from untyped VALUES nulls",
+    "DeepSeek review H-1 on 9d2847fcd: empty-window placeholder still bare-null; now routed through T[emit](null)",
+    "Top-of-hour cron 0 * * * * fired once then dropped 09:00-12:00 UTC while offset schedules kept firing"
+  ],
+  "stop_conditions_hit": []
+}
