@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 4084,
+  "outcome": "ready-for-merge",
+  "pr": 4086,
+  "migration_versions": [
+    "20261008041231"
+  ],
+  "contract_ref": "refs/db-contracts/4084/1",
+  "contract_sha256": "3b17ae8cb0b81f663451c8c67eff1da7edd3f9aa75c2bec16975f10aee0f58bb",
+  "base_sha": "c77eea5b2266689c490cc7e0c3bbdf653ea43a4d",
+  "head_sha": "13e2091ff02d043a8e8ee249d83acb80280a2f40",
+  "files_changed": [
+    ".github/live-proofs/4084.sql",
+    "supabase/migrations/20261008041231_assets_sku_division_index.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table public.assets",
+    "index public.idx_assets_sku_division_active"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "static checks passed; live ledger remains workflow-gated"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "no whitespace defects"
+    }
+  ],
+  "assumptions_resolved": [
+    "Claim #4085 reserved version 20261008041231 and both exact objects"
+  ],
+  "stop_conditions_hit": []
+}

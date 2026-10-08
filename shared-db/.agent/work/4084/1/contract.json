@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "work_issue": 4084,
+  "generation": 1,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Add one partial public.assets (sku, division_code) index for PopDAM ERP apply lookups and prove it live.",
+  "base_sha": "c77eea5b2266689c490cc7e0c3bbdf653ea43a4d",
+  "dispatcher": "Claude chat 807923b7-e0c0-4386-9ddc-b43ce32dc0b7 on hetz; claim #4085",
+  "worker": "Claude chat 807923b7-e0c0-4386-9ddc-b43ce32dc0b7 on hetz",
+  "branch": "claude/270-assets-sku-index",
+  "worktree": "/worksp/shared-db-wt-assets-sku",
+  "allowed_paths": [
+    "supabase/migrations/20261008041231_assets_sku_division_index.sql",
+    ".github/live-proofs/4084.sql",
+    ".agent/work/4084/1/contract.json",
+    ".agent/work/4084/1/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261008041231_assets_sku_division_index.sql",
+    ".github/live-proofs/4084.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table public.assets",
+    "index public.idx_assets_sku_division_active"
+  ],
+  "prohibited_actions": [
+    "Do not alter table columns, rows, policies, or existing indexes",
+    "Do not run manual production apply"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Claim #4085 reserved version 20261008041231 and exact objects",
+    "Preview and production catalog proof are post-merge workflow outcomes tracked on the open work issue"
+  ],
+  "stop_conditions": [
+    "Stop on claim, target, review, merge, preview, or production gate refusal"
+  ],
+  "evidence_parent": null
+}
