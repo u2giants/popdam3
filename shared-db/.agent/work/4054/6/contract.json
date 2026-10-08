@@ -1,0 +1,45 @@
+{
+  "schema_version": 2,
+  "generation": 6,
+  "work_issue": 4054,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add the exact regular recovery manifest config/completed-claim-recovery/3733.json for the merged completed-claim recovery tool so claim #3733 can be released by the reviewed administrative command. Also add a written PREVIEW_RUNTIME_DATA_EXEMPTIONS entry for config/completed-claim-recovery (never read by the preview job) as required by the allocator review REVISE on generation 4. Register the new exemption in the test's PHRASE_VERIFIED_EXEMPTIONS.",
+  "base_sha": "28d5f562f6e2aadad0e042b4511e297929cf54ef",
+  "dispatcher": "Claude successor session for #2873/#4054",
+  "worker": "claude",
+  "branch": "claude/3733-recovery-manifest",
+  "worktree": ".ai/worktrees/claude-4056",
+  "allowed_paths": [
+    "config/completed-claim-recovery/3733.json",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "file_writes": [
+    "config/completed-claim-recovery/3733.json",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "no database or production write",
+    "do not edit another session's worktree, branch or claim",
+    "do not run --recover-completed-claim before allocator APPROVE and merge"
+  ],
+  "required_checks": [
+    "node --test scripts/completed-claim-recovery.test.mjs",
+    "python3 -m unittest scripts.test_production_business_risk_gate"
+  ],
+  "assumptions": [
+    "PR #4072 merged at 28d5f562 is the reviewed tool"
+  ],
+  "stop_conditions": [
+    "stop if foreign pending bytes, claim body or preservation digests differ from the manifest"
+  ],
+  "evidence_parent": {
+    "work_issue": 4054,
+    "generation": 5,
+    "contract_sha256": "661559693364821062ea3f47db8b9ce19530ad16a9215b4a0f005265606a7d1e"
+  }
+}

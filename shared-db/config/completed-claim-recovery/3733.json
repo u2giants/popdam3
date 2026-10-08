@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "claim": 3733,
+  "work_issue": 3400,
+  "old_owner": "Claude chat 626c9036-7381-4131-aeee-6e29883153c6 on edge-dev3",
+  "actor": "18b2dac6-a966-4cdc-901a-822bf0d088e9",
+  "claim_body_sha256": "6700596e1bbd1b5e86e584ded457c8ab88a38430da26e80b473cadfd8f435e0d",
+  "source_pr": 3734,
+  "source_head_sha": "41ba011a6accf01b0c654f252d7657df460ebb85",
+  "merge_sha": "1a58e94a5f2ec04e109d3d34a6ecdeb1da8d8cd9",
+  "main_sha": "28d5f562f6e2aadad0e042b4511e297929cf54ef",
+  "preservation_commit_sha": "efb3c3e90fa5ac11cc6f28c559dd370071e544b5",
+  "pending_sql_sha256": "2f69e7aac826da127795159149045322945131637afdd3527edba717dc4159d3",
+  "pending_patch_sha256": "bcba04118b8caa4edfae1083de5cfdb5405e189f698717f4b74d8a15f339cf05",
+  "catalog_sha256": "6fa4ad9dcf8334fe56045c1ed25837495538bfc088d0207f4c3dfda37fecc3e5",
+  "tool_commit_sha": "28d5f562f6e2aadad0e042b4511e297929cf54ef",
+  "preservation_base_sha": "36d26a393ec311b416023fd21a543310165e6ca2"
+}

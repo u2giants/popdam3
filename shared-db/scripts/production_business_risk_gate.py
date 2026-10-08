@@ -757,6 +757,14 @@ PREVIEW_RUNTIME_DATA_EXEMPTIONS = {
         "source would make the production-risk test depend on which commands had "
         "previously run on that machine without protecting committed evidence."
     ),
+    "config/completed-claim-recovery": (
+        "Never read by the preview job. Read only by the administrative "
+        "--recover-completed-claim command of the claim lane manager, which "
+        "fetches the manifest at its allocator-reviewed pull request head and "
+        "re-proves every value before releasing a completed foreign claim. It "
+        "changes claim ownership records, never database bytes, so pinning it "
+        "as a preview producer input would protect nothing the preview applies."
+    ),
     "config/blocker-ledger": (
         "Never read by the preview job. Read only by the offline throughput "
         "diagnosis and reporting tools. The "

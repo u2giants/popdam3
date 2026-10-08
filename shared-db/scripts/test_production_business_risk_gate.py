@@ -2001,6 +2001,8 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     # either words it with the phrase or writes it a test.
     PHRASE_VERIFIED_EXEMPTIONS = frozenset({
         "config/blocker-ledger",
+        # #4054: read only by the administrative completed-claim recovery command.
+        "config/completed-claim-recovery",
         "supabase/tests",
         "supabase/ci-bootstrap",
         "config/production-risk-policy-activation.json",

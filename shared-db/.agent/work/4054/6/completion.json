@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 4054,
+  "outcome": "ready-for-merge",
+  "pr": 4070,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4054/6",
+  "contract_sha256": "14ee8339c92c3c5d1906497661a80a05d6ba1d1d712d532e1f7476ec2cec9d0e",
+  "head_sha": "48b77ca9e0ae4954c81bd2952cabfab79eafa92e",
+  "base_sha": "28d5f562f6e2aadad0e042b4511e297929cf54ef",
+  "files_changed": [
+    "config/completed-claim-recovery/3733.json",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/completed-claim-recovery.test.mjs",
+      "exit_code": 0,
+      "evidence": "executed at 48b77ca9e0ae4954c81bd2952cabfab79eafa92e"
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_business_risk_gate",
+      "exit_code": 0,
+      "evidence": "executed at 48b77ca9e0ae4954c81bd2952cabfab79eafa92e with GITHUB_REPOSITORY=popcre/shared-db"
+    }
+  ],
+  "assumptions_resolved": [
+    "PR #4072 merged at 28d5f562 is the reviewed tool: confirmed"
+  ],
+  "stop_conditions_hit": []
+}
