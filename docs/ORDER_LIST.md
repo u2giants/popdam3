@@ -3,8 +3,10 @@
 Active loading/Find-performance work is tracked in [`../plan_master_data_orderlist_loading_performance.md`](../plan_master_data_orderlist_loading_performance.md). Read its STATUS table first; do not re-derive or re-plan completed steps.
 
 PopDAM's replacement for the legacy Google Sheet `OrderList`. Signed-in PopDAM
-staff can view, search, filter, sort, edit and create order lines, with product
-facts read from PopDAM Master Data instead of copied onto every order row.
+staff can view, search, filter, sort, edit and create order lines. Linked product
+descriptions come from Item Master (`plm.item.description`, then item name),
+never the older style-tracker description. Existing licensing/vendor/customer
+columns still use their separately named Master Data sources.
 
 PopSG never exposes this page: both the route and the nav item are behind
 `!IS_POPSG`, and `src/test/order-list-routing.test.ts` fails if that changes.

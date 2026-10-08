@@ -37,7 +37,7 @@ export function MasterDataLinkCell({ row, onRelink }: Props) {
     : typeMismatch
       ? "The linked item belongs to the other Master Data catalog."
       : linked
-        ? row.master_data_description ?? ""
+        ? row.item_description ?? row.item_name ?? ""
         : notApplicable
           ? "This line has no Style # to match."
           : "No Master Data row matched this Style # exactly.";
