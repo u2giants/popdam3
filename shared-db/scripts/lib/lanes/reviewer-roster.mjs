@@ -292,14 +292,14 @@ export const REVIEWERS = Object.freeze([
 // account has credit AND `AI_KIMI_CALLER=claude ai-kimi doctor` passes. Its
 // REVIEWERS row stays so every durable verdict it recorded still authorizes.
 //
-// PAUSED 2026-10-07 (owner instruction, chat: "go", after asking to take Grok
-// out of the reviewer pool temporarily): 'grok-4.6'. No provider fault is
-// alleged; Grok was already fallback-only for cost (issue #3592). The live pool
-// is DeepSeek, Gemini, GLM, Muse, Qwen and StepFun. This is a PAUSE, not a
-// retirement: restoring Grok is a one-line deletion from this list after one
-// live well-formed review. Its REVIEWERS row stays so every durable verdict it
-// recorded still authorizes.
-export const RETIRED_REVIEWERS = Object.freeze(['glm-5.2', 'muse-spark-1.2-contributor', 'deepseek-chat', 'codex-gpt-5.6-sol', 'kimi-k3', 'grok-4.6'])
+// PAUSED 2026-10-07 then RESTORED 2026-10-08 (owner instruction, chat: "put
+// Grok back in the rotation"): 'grok-4.6' was briefly listed here (PR #4051)
+// and is deleted again. Re-entry proof, 2026-10-08 on edge-dev3: `ai-grok-review
+// doctor --live` returned `live probe : OK` on the subscription login (no paid
+// API key), and a live review session ended with a well-formed `VERDICT:
+// APPROVE <head>` line. Its REVIEWERS row never moved, so no in-flight sequence
+// is reassigned; Grok is again the cost fallback (#3592) behind the others.
+export const RETIRED_REVIEWERS = Object.freeze(['glm-5.2', 'muse-spark-1.2-contributor', 'deepseek-chat', 'codex-gpt-5.6-sol', 'kimi-k3'])
 
 // Not retired -- quarantined pending a passing live qualification. Kept separate
 // from RETIRED_REVIEWERS on purpose: retirement is a permanent disposition,
