@@ -290,6 +290,7 @@ class GuardTests(unittest.TestCase):
                 "20261006211240",
                 "20261002204050",
                 "20261007020907",
+                "20261007190954",
                 "20260911212849",
                 "20260917112129",
                 "20260906222338",
@@ -384,12 +385,41 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(classify_pending_version("20261006211240", applied, REPO)["kind"], "retired")
 
     def test_scraped_dedupe_stranded_original_is_retired(self) -> None:
-        for allowlist in ("20261007020907", "20261007020907,20261007190954"):
+        for allowlist in ("20261007020907", "20261007020907,20261008001142"):
             with self.subTest(allowlist=allowlist), self.assertRaisesRegex(GuardError, "20261007020907"):
                 parse_allowlist(allowlist)
-        self.assertEqual(parse_allowlist("20261007190954"), ["20261007190954"])
+        self.assertEqual(parse_allowlist("20261008001142"), ["20261008001142"])
         for applied in (set(), {"20261007020907"}):
             self.assertEqual(classify_pending_version("20261007020907", applied, REPO)["kind"], "retired")
+
+    def test_scraped_dedupe_first_forward_replacement_is_retired(self) -> None:
+        for allowlist in ("20261007190954", "20261007190954,20261008001142"):
+            with self.subTest(allowlist=allowlist), self.assertRaisesRegex(GuardError, "20261007190954"):
+                parse_allowlist(allowlist)
+        self.assertEqual(parse_allowlist("20261008001142"), ["20261008001142"])
+        for applied in (set(), {"20261007190954"}):
+            self.assertEqual(classify_pending_version("20261007190954", applied, REPO)["kind"], "retired")
+
+    def test_scraped_dedupe_forward_replacements_share_executable_body(self) -> None:
+        migrations = REPO / "supabase" / "migrations"
+
+        def executable(version: str) -> str:
+            (path,) = migrations.glob(f"{version}_*.sql")
+            lines = path.read_text(encoding="utf-8").splitlines()
+            start = next(i for i, line in enumerate(lines) if line.strip() and not line.lstrip().startswith("--"))
+            # Everything after the leading comment header, byte for byte
+            # (comments and blank lines included), must match.
+            return "\n".join(lines[start:])
+
+        body = executable("20261008001142")
+        self.assertEqual(body, executable("20261007190954"))
+        self.assertEqual(body, executable("20261007020907"))
+        lowered = " ".join(body.lower().split()).replace("( ", "(").replace(" )", ")")
+        self.assertIn("create or replace function api.db_data_admin_scraped_source_inventory(p_entity_kind text, p_search text default null, p_cursor text default null, p_page_size integer default null)", lowered)
+        self.assertIn("returns jsonb", lowered)
+        self.assertIn("language plpgsql stable security definer", lowered)
+        self.assertIn("security definer", lowered)
+        self.assertIn("set search_path to 'app', 'public'", lowered)
 
     def test_character_alias_mismatched_original_is_retired(self) -> None:
         for allowlist in ("20260906222338", "20260906222338,20260911152203"):
