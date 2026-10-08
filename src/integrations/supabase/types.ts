@@ -4057,6 +4057,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_config_apply_counters: {
+        Args: { p_increments?: Json; p_key: string; p_set?: Json }
+        Returns: Json
+      }
       advise_dam_search_query_indexes: {
         Args: { p_query: string }
         Returns: {
