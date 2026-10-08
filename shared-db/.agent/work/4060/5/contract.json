@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "work_issue": 4060,
+  "generation": 5,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Deliver a case-insensitive, whitespace-insensitive unique index on dflow.users email to production through the governed lane",
+  "base_sha": "da868f95c56c07c3aa0d54f1f7476bdb03f676cf",
+  "branch": "db/4060-email-index-evidence-reissue",
+  "worktree": "/home/ahazan/repos/shared-db-4060-reissue",
+  "dispatcher": "Claude chat 6dd08f1b-53ec-4f47-bf1f-6ce0e6589a25 on edge-dev3",
+  "worker": "claude",
+  "evidence_parent": {
+    "work_issue": 4060,
+    "generation": 4,
+    "contract_sha256": "01e7f945d158648aba02c152333c25671c7d87acec3e53f85848cfd6c495f489"
+  },
+  "allowed_paths": [
+    "supabase/migrations/20261008160444_dflow_users_email_ci_unique_reissue.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    ".agent/work/4060/5/contract.json",
+    ".agent/work/4060/5/completion.json",
+    ".agent/work/4060/3/contract.json",
+    ".agent/work/4060/3/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261008160444_dflow_users_email_ci_unique_reissue.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    ".agent/work/4060/5/contract.json",
+    ".agent/work/4060/5/completion.json",
+    ".agent/work/4060/3/contract.json",
+    ".agent/work/4060/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "index dflow.users_email_lower_uidx",
+    "table dflow.users"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check",
+    "python3 -m unittest discover -s scripts -p test_*.py",
+    "Database Contract Tests on isolated ephemeral database",
+    "Old migration then new migration replay on isolated PostgreSQL is a no-op on the second"
+  ],
+  "prohibited_actions": [
+    "Do not copy, change or delete application rows",
+    "Do not change grants or RLS",
+    "Do not write production or dispatch production manually",
+    "Never reuse or apply retired version 20261007232712 to production"
+  ],
+  "stop_conditions": [
+    "stop if admission inspector objects differ from the issue writes",
+    "stop if any database write outside the governed preview lane is required",
+    "stop if case-insensitive duplicate emails appear in production"
+  ],
+  "assumptions": [
+    "Generation 4 supersedes generation 3 because main gained 20261008004417 (backdated-version guard, Muse REVISE on 1b89b7e). The lane tool superseded the claim version to 20261008160444 and committed the mechanical file rename 8296ff4d before this contract was published; scope and objects are unchanged from generations 1-3, and the remaining reference edits follow publication.",
+    "Source PR4063 merged at b56a62c03a69543553263d56ca35c89ed34f8e48 without a PR-owned evidence pair, so the post-merge production-risk review cannot bind; claim4062 reissued through retirement589067baf4bdabe95b09dcedbe1e3f87106ee3f5 to 20261008160444.",
+    "Preview applied 20261007232712 in run37706126189; production has neither version. The reissue uses IF NOT EXISTS so it is a no-op on preview and creates the index on production.",
+    "Read-only production check 2026-10-07: dflow.users 52 rows, 0 duplicate lower(btrim(email)) groups.",
+    "Generation 5 supersedes generation 4 because main gained 20261008043049 (backdated-version guard); the lane tool re-reserved 20261008011444 as 20261008160444 (pure rename, same SQL)."
+  ]
+}

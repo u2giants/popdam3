@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "work_issue": 4060,
+  "outcome": "ready-for-merge",
+  "pr": 4075,
+  "migration_versions": [
+    "20261008160444"
+  ],
+  "contract_ref": "refs/db-contracts/4060/5",
+  "contract_sha256": "0e1cde92de5712786c318ce1e82214d734ea464cf56d44c5b64f7f98c1f54d5c",
+  "db_reads": [],
+  "db_writes": [
+    "index dflow.users_email_lower_uidx",
+    "table dflow.users"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Passed at 8107c7a3 after refresh onto main da868f95 and re-reservation as 20261008160444."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Passed at 8107c7a3 after refresh onto main da868f95 and re-reservation as 20261008160444."
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_*.py",
+      "exit_code": 0,
+      "evidence": "Passed at 8107c7a3 after refresh onto main da868f95 and re-reservation as 20261008160444."
+    },
+    {
+      "command": "Database Contract Tests on isolated ephemeral database",
+      "exit_code": 0,
+      "evidence": "Required CI check on this PR; locally supabase/tests/dflow_users_email_ci_unique_contracts.sql passed on Postgres 16."
+    },
+    {
+      "command": "Old migration then new migration replay on isolated PostgreSQL is a no-op on the second",
+      "exit_code": 0,
+      "evidence": "Postgres 16: 20261007232712 created the index; the reissue (same bytes, now 20261008160444) skipped it; after drop, the reissue alone created it and the contract test passed."
+    }
+  ],
+  "assumptions_resolved": [
+    "Retired 20261007232712 is hard-blocked and listed in RETIRED_VERSION_REASONS; only 20261008160444 may reach production.",
+    "Preview no-op relies on IF NOT EXISTS against the index preview already holds."
+  ],
+  "stop_conditions_hit": [],
+  "head_sha": "8107c7a3794d9513797533ff616f8617096d906d",
+  "base_sha": "da868f95c56c07c3aa0d54f1f7476bdb03f676cf",
+  "files_changed": [
+    "scripts/production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20261008160444_dflow_users_email_ci_unique_reissue.sql"
+  ]
+}
