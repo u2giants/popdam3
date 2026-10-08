@@ -802,6 +802,22 @@ insert into t2875_expected values
   ('view', 'sample_receipt_discrepancy', '647cc3134efc38a6bc337ff2b80980c2'),
   ('view', 'sample_visit_plan', '0dadcc8f2dcf641dc2308b40a65abb50');
 
+-- #2873: the designflow_prod_<service>_grants roles legitimately hold privileges on these
+-- objects. Parity is about the canonical definition, so the fingerprint drops only those
+-- ACL entries. A GRANT materializes a previously NULL ACL into the owner default, which
+-- is indistinguishable from an explicit owner-only ACL, so t2875_bad() accepts an object
+-- when either reading ('-' or the explicit default) matches its canonical fingerprint.
+create function pg_temp.t2875_acl(p_acl aclitem[], p_default aclitem[]) returns text
+language sql stable as $acl$
+  select case when p_acl is null then '-'
+              when cardinality(f.a) = 0 then '-'
+              when f.a = coalesce(p_default, '{}'::aclitem[])
+                   and current_setting('t2875.acl_mode', true) = 'collapse' then '-'
+              else f.a::text end
+  from (select array(select x from unnest(p_acl) with ordinality u(x, o)
+                     where x::text !~ '^designflow_prod_[a-z_]+_grants=' order by o) a) f
+$acl$;
+
 create temporary view t2875_all as
 with rel as (
   select n.nspname s, c.oid, c.relname, c.relkind
@@ -814,7 +830,7 @@ with rel as (
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname in ('dflow', 'dflow_prod') and p.proname in (select name from t2875_fn)
 )
-select s::text s, 'relation'::text k, relname::text nm, relkind::text || ' acl=' || coalesce((select relacl::text from pg_class where oid = rel.oid), '-')
+select s::text s, 'relation'::text k, relname::text nm, relkind::text || ' acl=' || (select pg_temp.t2875_acl(relacl, acldefault('r', relowner)) from pg_class where oid = rel.oid)
        || ' rls=' || (select relrowsecurity::text from pg_class where oid = rel.oid)
        || ' opts=' || coalesce((select reloptions::text from pg_class where oid = rel.oid), '-')
        || ' cmt=' || coalesce(obj_description(oid, 'pg_class'), '-') d
@@ -822,7 +838,7 @@ from rel where relname in (select name from t2875_rel)
 union all
 select r.s, 'column', r.relname || '.' || a.attname,
        format_type(a.atttypid, a.atttypmod) || ' nn=' || a.attnotnull || ' id=' || a.attidentity::text || ' gen=' || a.attgenerated::text
-       || ' def=' || coalesce(pg_get_expr(d.adbin, d.adrelid), '-') || ' acl=' || coalesce(a.attacl::text, '-')
+       || ' def=' || coalesce(pg_get_expr(d.adbin, d.adrelid), '-') || ' acl=' || pg_temp.t2875_acl(a.attacl, null)
        || ' cmt=' || coalesce(col_description(r.oid, a.attnum), '-')
 from rel r join pg_attribute a on a.attrelid = r.oid and a.attnum > 0 and not a.attisdropped
 left join pg_attrdef d on d.adrelid = r.oid and d.adnum = a.attnum
@@ -844,7 +860,7 @@ select r.s, 'view', r.relname, pg_get_viewdef(r.oid)
 from rel r where r.relkind = 'v'
 union all
 select f.s, 'function', f.proname || '(' || pg_get_function_identity_arguments(f.oid) || ')',
-       pg_get_functiondef(f.oid) || ' acl=' || coalesce((select proacl::text from pg_proc where oid = f.oid), '-')
+       pg_get_functiondef(f.oid) || ' acl=' || (select pg_temp.t2875_acl(proacl, acldefault('f', proowner)) from pg_proc where oid = f.oid)
        || ' cmt=' || coalesce(obj_description(f.oid, 'pg_proc'), '-')
 from fn f;
 
@@ -853,6 +869,25 @@ select * from t2875_all
 where k in ('relation', 'view', 'function')
    or split_part(nm, '.', 1) in (select name from t2875_rel)
    or nm in (select item from t2875_delta);
+
+create function pg_temp.t2875_bad() returns table(k text, nm text)
+language plpgsql as $bad$
+begin
+  drop table if exists pg_temp.t2875_bad_collapse, pg_temp.t2875_bad_explicit;
+  perform set_config('t2875.acl_mode', 'collapse', true);
+  create temporary table t2875_bad_collapse as
+    select e.k, e.nm from t2875_expected e
+    left join t2875_def a on a.s = 'dflow_prod' and a.k = e.k and a.nm = e.nm
+    where a.d is null or md5(a.d) <> e.h;
+  perform set_config('t2875.acl_mode', 'explicit', true);
+  create temporary table t2875_bad_explicit as
+    select e.k, e.nm from t2875_expected e
+    left join t2875_def a on a.s = 'dflow_prod' and a.k = e.k and a.nm = e.nm
+    where a.d is null or md5(a.d) <> e.h;
+  return query select c.k, c.nm from t2875_bad_collapse c
+               intersect select x.k, x.nm from t2875_bad_explicit x;
+end
+$bad$;
 
 do $test$
 declare
@@ -920,9 +955,7 @@ begin
   select count(*) into v_count from t2875_expected;
   if v_count <> 707 then raise exception '#2875 expected 707 canonical fingerprints, found %', v_count; end if;
   select string_agg(e.k || ' ' || e.nm, ', ' order by e.k, e.nm) into v_missing
-  from t2875_expected e
-  left join t2875_def a on a.s = 'dflow_prod' and a.k = e.k and a.nm = e.nm
-  where a.d is null or md5(a.d) <> e.h;
+  from pg_temp.t2875_bad() e;
   if v_missing is not null then
     raise exception '#2875 dflow_prod differs from canonical dflow (missing or different): %', v_missing;
   end if;
@@ -949,10 +982,7 @@ begin
   begin
     create or replace function dflow_prod.sample_movement_guard() returns trigger
       language plpgsql as $neg$ begin return new; end $neg$;
-    select count(*) into v_count
-    from t2875_expected e
-    left join t2875_def a on a.s = 'dflow_prod' and a.k = e.k and a.nm = e.nm
-    where a.d is null or md5(a.d) <> e.h;
+    select count(*) into v_count from pg_temp.t2875_bad();
     if v_count <> 1 then
       raise exception '#2875 negative control: tampered guard produced % mismatches, expected 1', v_count;
     end if;

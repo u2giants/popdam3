@@ -1,0 +1,47 @@
+{
+  "work_issue": 2873,
+  "source_repository": "popcre/shared-db",
+  "application_repository": "popcre/designflow-backend",
+  "application_branch": "develop",
+  "project_ref": "qsllyeztdwjgirsysgai",
+  "schema": "dflow_prod",
+  "live_assertion": "dflow_prod has four NOLOGIN designflow_prod_<service>_grants roles holding exactly the published per-service matrix and four password-less LOGIN designflow_prod_<service>_runtime identities holding only that membership, with no CREATE, TRUNCATE, dflow, plm, hts_rag, client-role or admin access",
+  "catalog": {
+    "role_count": 8,
+    "no_defaults": true,
+    "roles_exact": true,
+    "matrix_exact": true,
+    "no_ownership": true,
+    "passwordless": true,
+    "schema_exact": true,
+    "matrix_entries": 427,
+    "global_no_create": true,
+    "no_grant_options": true,
+    "inherited_helpers": [
+      {
+        "signature": "dflow_prod.get_child_id(character varying,character varying,character varying,character varying,character varying,integer)",
+        "body_sha256": "98ac731aa0c0a59bf36dec630a5e2b8b01d8f9005a7420709518e8af9ab71de2",
+        "configuration": null,
+        "security_definer": false
+      },
+      {
+        "signature": "dflow_prod.get_parent_id(character varying,character varying,integer)",
+        "body_sha256": "556e839f397cddf686b535d24591cd92f6aad0f950427ee6d65307f6a923893c",
+        "configuration": null,
+        "security_definer": false
+      },
+      {
+        "signature": "dflow_prod.reject_sample_movement_mutation()",
+        "body_sha256": "16bbeebcc255f13f25e40eee5dd994d53082f8181f5335ecd7316f334aaade51",
+        "configuration": null,
+        "security_definer": false
+      }
+    ],
+    "memberships_exact": true,
+    "global_no_truncate": true,
+    "client_schema_closed": true,
+    "forbidden_schemas_closed": true,
+    "effective_relations_exact": true,
+    "effective_function_extras_exact": true
+  }
+}
