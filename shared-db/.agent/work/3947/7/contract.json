@@ -1,0 +1,73 @@
+{
+  "schema_version": 2,
+  "generation": 7,
+  "work_issue": 3947,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Third forward replacement 20261008005647 for 20261008001142 (PR #4061 merged without a PR-owned evidence pair, so the merged-PR issue binding refuses the production-risk fence review): re-issue the byte-identical Scraped Properties display-dedupe function body as a NEW reserved version with generation-6 evidence, retire 20261008001142 in the production guard, then review, merge, and promote through the automatic workflow.",
+  "base_sha": "886566602d1e71254bf408d2b2845b3f615fb0f0",
+  "dispatcher": "Albert Hazan (2026-10-05 chat request; 2026-10-07 \"let DeepSeek review it\"), relayed by parent agent; claim #3955 reissued to this generation",
+  "worker": "Claude chat 71d87adc-0ef7-4bf6-a6e5-659fa72a19e4 on edge-dev3",
+  "branch": "claude/3947-fwd3",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/resume-3947-fwd3",
+  "evidence_parent": {
+    "work_issue": 3947,
+    "generation": 6,
+    "contract_sha256": "bb44311db6c5084c70833b8575bfa0de6cfdd23ca259bd95122c8d75ec2a6f42"
+  },
+  "allowed_paths": [
+    ".agent/work/3947/7/contract.json",
+    ".agent/work/3947/7/completion.json",
+    "supabase/migrations/20261008005647_scraped_inventory_warner_fallback_sesame_value_key_dedupe_forward_3.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py"
+  ],
+  "file_writes": [
+    ".agent/work/3947/7/contract.json",
+    ".agent/work/3947/7/completion.json",
+    "supabase/migrations/20261008005647_scraped_inventory_warner_fallback_sesame_value_key_dedupe_forward_3.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py"
+  ],
+  "db_reads": [
+    "table plm.wb_property",
+    "table plm.sesame_brand",
+    "table plm.source_resolution",
+    "table plm.lucasfilm_dcp_property",
+    "table plm.dcp_property",
+    "table plm.dcp_opa_property_resolution",
+    "table plm.dcp_opa_property_resolution_member"
+  ],
+  "db_writes": [
+    "function api.db_data_admin_scraped_source_inventory"
+  ],
+  "prohibited_actions": [
+    "Do not change the character or style_guide arms of the inventory function.",
+    "Do not change any table, only the function body.",
+    "Do not edit an already-applied migration file.",
+    "Do not infer or change canonical licensor ownership from display deduplication.",
+    "Do not remove or make unreachable any source rows or matching decisions.",
+    "No manual production command.",
+    "Never apply 20261007020907, 20261007190954 or 20261008001142 to production."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 -m unittest scripts.test_production_migration_guard scripts.test_post_batch_app_verification scripts.test_migration_derivation",
+    "database-contract-tests scraped_inventory_warner_sesame_dedupe.sql (CI ephemeral database)",
+    "database-contract-tests db_data_admin_scraped_source_inventory.sql (CI ephemeral database)"
+  ],
+  "assumptions": [
+    "Generation 6 is a forward replacement under the #3911 precedent; 20261008001142 was never applied anywhere.",
+    "The executable body is byte-identical to 20261008001142, 20261007190954 and 20261007020907, enforced by test_scraped_dedupe_forward_replacements_share_executable_body.",
+    "derived-from: 20261002193034 is unchanged from the replaced versions.",
+    "Claim #3955 was reissued through immutable retirement 4961d63a426d2c4ecdaae75a95b1e3e3469cc403 to version 20261008005647 on this branch and worktree.",
+    "Re-reserved 20261008003511 as 20261008005647 (supersession 5ff3a8832a2b3661ab3e06ba7f411413728c3eee) after main gained 20261008004417; generation 6 evidence is replaced by this generation."
+  ],
+  "stop_conditions": [
+    "Stop if the change needs a file outside allowed_paths.",
+    "Stop if a competing claim on function api.db_data_admin_scraped_source_inventory appears.",
+    "Stop if the replacement body would differ from 20261008001142 in any line after the header comments."
+  ]
+}

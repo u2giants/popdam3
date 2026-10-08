@@ -291,6 +291,7 @@ class GuardTests(unittest.TestCase):
                 "20261002204050",
                 "20261007020907",
                 "20261007190954",
+                "20261008001142",
                 "20260911212849",
                 "20260917112129",
                 "20260906222338",
@@ -385,20 +386,27 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(classify_pending_version("20261006211240", applied, REPO)["kind"], "retired")
 
     def test_scraped_dedupe_stranded_original_is_retired(self) -> None:
-        for allowlist in ("20261007020907", "20261007020907,20261008001142"):
+        for allowlist in ("20261007020907", "20261007020907,20261008005647"):
             with self.subTest(allowlist=allowlist), self.assertRaisesRegex(GuardError, "20261007020907"):
                 parse_allowlist(allowlist)
-        self.assertEqual(parse_allowlist("20261008001142"), ["20261008001142"])
+        self.assertEqual(parse_allowlist("20261008005647"), ["20261008005647"])
         for applied in (set(), {"20261007020907"}):
             self.assertEqual(classify_pending_version("20261007020907", applied, REPO)["kind"], "retired")
 
     def test_scraped_dedupe_first_forward_replacement_is_retired(self) -> None:
-        for allowlist in ("20261007190954", "20261007190954,20261008001142"):
+        for allowlist in ("20261007190954", "20261007190954,20261008005647"):
             with self.subTest(allowlist=allowlist), self.assertRaisesRegex(GuardError, "20261007190954"):
                 parse_allowlist(allowlist)
-        self.assertEqual(parse_allowlist("20261008001142"), ["20261008001142"])
+        self.assertEqual(parse_allowlist("20261008005647"), ["20261008005647"])
         for applied in (set(), {"20261007190954"}):
             self.assertEqual(classify_pending_version("20261007190954", applied, REPO)["kind"], "retired")
+
+    def test_scraped_dedupe_second_forward_replacement_is_retired(self) -> None:
+        for allowlist in ("20261008001142", "20261008001142,20261008005647"):
+            with self.subTest(allowlist=allowlist), self.assertRaisesRegex(GuardError, "20261008001142"):
+                parse_allowlist(allowlist)
+        for applied in (set(), {"20261008001142"}):
+            self.assertEqual(classify_pending_version("20261008001142", applied, REPO)["kind"], "retired")
 
     def test_scraped_dedupe_forward_replacements_share_executable_body(self) -> None:
         migrations = REPO / "supabase" / "migrations"
@@ -411,7 +419,8 @@ class GuardTests(unittest.TestCase):
             # (comments and blank lines included), must match.
             return "\n".join(lines[start:])
 
-        body = executable("20261008001142")
+        body = executable("20261008005647")
+        self.assertEqual(body, executable("20261008001142"))
         self.assertEqual(body, executable("20261007190954"))
         self.assertEqual(body, executable("20261007020907"))
         lowered = " ".join(body.lower().split()).replace("( ", "(").replace(" )", ")")
