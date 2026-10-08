@@ -202,7 +202,17 @@ export function terminalizeHistoricalPreviewReady({readyId,issue,runId,artifactI
   const evidence=io.previewApplyRun(String(runId)),run=evidence?.run,artifacts=evidence?.artifacts,logs=String(evidence?.logs??'')
   if(String(run?.id)!==String(runId)||run?.path!=='.github/workflows/shared-supabase-migrations.yml'||run?.event!=='workflow_dispatch'||run?.status!=='completed'||run?.conclusion!=='success'||run?.run_attempt!==1||run?.head_sha!==record.route_context)throw new LaneError('historical recovery run does not exactly match the successful immutable preview-ready dispatch')
   const rows=Array.isArray(artifacts?.artifacts)?artifacts.artifacts:[],artifact=rows.find((row)=>String(row.id)===String(artifactId))
-  if(Number(artifacts?.total_count)!==1||rows.length!==1||!artifact||artifact.expired!==false||artifact.digest!==artifactDigest||artifact.name!==`preview-migration-apply-${record.route_context}`||String(artifact.workflow_run?.id)!==String(runId)||artifact.workflow_run?.head_sha!==run.head_sha)throw new LaneError('historical recovery artifact does not exactly match the requested immutable evidence')
+  const previewName=`preview-migration-apply-${record.route_context}`
+  const automaticName='automatic-production-apply-review-evidence'
+  // A successful preview also launches automatic qualification. That job may
+  // emit its own review artifact before the risk gate refuses production. It
+  // does not change the exact preview artifact or the no-write ledger proof.
+  const names=rows.map((row)=>row?.name),extra=rows.find((row)=>row?.name===automaticName)
+  const sameRun=(row)=>row?.expired===false&&String(row.workflow_run?.id)===String(runId)&&row.workflow_run?.head_sha===run.head_sha
+  const previewValid=artifact?.name===previewName&&Number.isSafeInteger(artifact.id)&&artifact.id>0&&artifact.digest===artifactDigest&&sameRun(artifact)
+  const automaticValid=rows.length===1||extra?.name===automaticName&&Number.isSafeInteger(extra.id)&&extra.id>0&&extra.id!==artifact?.id&&/^sha256:[0-9a-f]{64}$/.test(String(extra.digest??''))&&sameRun(extra)
+  const artifactSetValid=Number(artifacts?.total_count)===rows.length&&rows.length>=1&&rows.length<=2&&new Set(names).size===rows.length&&rows.every((row)=>row===artifact||row===extra)
+  if(!previewValid||!automaticValid||!artifactSetValid)throw new LaneError('historical recovery artifact does not exactly match the requested immutable evidence')
   const exactLogValue=(label,value)=>new RegExp(`(?:^|\\n)[^\\n]*${label}:\\s*${String(value).replace(/[.*+?^${}()|[\\]\\]/g,'\\$&')}(?:\\s|$)`).test(logs)
   if(!exactLogValue('ORIGINAL_RUN_MAP',record.manifest.historical_preview_original_run_map)||!exactLogValue('SOURCE_PR',record.manifest.historical_preview_source_pr)||!exactLogValue('MAIN_SHA',record.manifest.commit_sha)||!exactLogValue('PREVIEW_ALLOWLIST',record.manifest.preview_allowlist))throw new LaneError('historical recovery logs do not match the stored preview-ready manifest')
   const ledgerLines=logs.split(/\r?\n/).flatMap((line)=>{const fields=line.replace(/^\ufeff/,'').split('\t');if(fields.length<3||fields[1]!=='Report the preview ledger delta')return[];return[fields.slice(2).join('\t').replace(/^\d{4}-\d{2}-\d{2}T\S+Z\s*/,'')]})

@@ -6818,6 +6818,54 @@ test('the GitHub-backed CLI terminalizes the exact no-write historical recovery 
   assert.equal(JSON.parse(printed[0]).ref,ref)
 })
 
+test('historical recovery accepts its exact preview artifact alongside automatic review evidence',()=>{
+  const fixture=historicalTerminalIo(),preview=fixture.evidence.artifacts.artifacts[0]
+  fixture.evidence.artifacts.artifacts.push({
+    id:preview.id+1,name:'automatic-production-apply-review-evidence',
+    digest:`sha256:${'a'.repeat(64)}`,expired:false,
+    workflow_run:{id:Number(fixture.runId),head_sha:fixture.record.route_context},
+  })
+  fixture.evidence.artifacts.total_count=2
+  const log=console.log;console.log=()=>{}
+  try{assert.equal(main(historicalTerminalArgs(fixture),NOW,fixture.io),0)}finally{console.log=log}
+  const outcome=fixture.refs.get(`refs/db-preview-ready-outcomes/${fixture.record.ready_id}`)
+  assert.equal(outcome.record.proof.artifact_id,fixture.artifactId)
+  assert.equal(outcome.record.proof.artifact_digest,fixture.artifactDigest)
+})
+
+test('historical recovery refuses unknown, duplicate, expired, or cross-run extra artifacts',()=>{
+  const mutations=[
+    (extra)=>{extra.name='unexpected-artifact'},
+    (extra,preview)=>{extra.name=preview.name},
+    (extra)=>{extra.expired=true},
+    (extra)=>{extra.workflow_run.id++},
+    (extra)=>{extra.workflow_run.head_sha='f'.repeat(40)},
+    (extra)=>{extra.digest='not-a-digest'},
+    (extra,preview)=>{extra.id=preview.id},
+    (extra)=>{delete extra.id},
+  ]
+  const error=console.error;console.error=()=>{}
+  try{for(const mutate of mutations){
+    const fixture=historicalTerminalIo(),preview=fixture.evidence.artifacts.artifacts[0]
+    const extra={id:preview.id+1,name:'automatic-production-apply-review-evidence',digest:`sha256:${'a'.repeat(64)}`,expired:false,workflow_run:{id:Number(fixture.runId),head_sha:fixture.record.route_context}}
+    mutate(extra,preview)
+    fixture.evidence.artifacts.artifacts.push(extra)
+    fixture.evidence.artifacts.total_count=2
+    assert.equal(main(historicalTerminalArgs(fixture),NOW,fixture.io),2)
+    assert.equal(fixture.refs.has(`refs/db-preview-ready-outcomes/${fixture.record.ready_id}`),false)
+  }}finally{console.error=error}
+  for(const broken of ['missing-page','third-artifact']){
+    const fixture=historicalTerminalIo(),preview=fixture.evidence.artifacts.artifacts[0]
+    fixture.evidence.artifacts.artifacts.push({id:preview.id+1,name:'automatic-production-apply-review-evidence',digest:`sha256:${'a'.repeat(64)}`,expired:false,workflow_run:{id:Number(fixture.runId),head_sha:fixture.record.route_context}})
+    fixture.evidence.artifacts.total_count=2
+    if(broken==='missing-page')fixture.evidence.artifacts.total_count=3
+    else fixture.evidence.artifacts.artifacts.push({id:preview.id+2,name:'unexpected-artifact',expired:false,workflow_run:{id:Number(fixture.runId),head_sha:fixture.record.route_context}})
+    const error=console.error;console.error=()=>{}
+    try{assert.equal(main(historicalTerminalArgs(fixture),NOW,fixture.io),2)}finally{console.error=error}
+    assert.equal(fixture.refs.has(`refs/db-preview-ready-outcomes/${fixture.record.ready_id}`),false)
+  }
+})
+
 test('historical recovery terminalization fails closed on every mismatched live proof',()=>{
   const cases=[
     (f,a)=>{a[1]='f'.repeat(64)},

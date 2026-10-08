@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "work_issue": 3621,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Allow the historical preview-ready terminalizer to select its exact preview artifact when the same successful run also emitted the normal automatic production review-evidence artifact; keep all manifest, target, no-ledger-delta and artifact identity refusals.",
+  "base_sha": "f79e47b6b9e8ad2d19892ce4d8af3a527e9c8fb6",
+  "dispatcher": "MiMo chat ses_ffe5eecd82dedffe7RhHlWNjmi on edge-dev",
+  "worker": "MiMo chat ses_ffe5eecd82dedffe7RhHlWNjmi on edge-dev",
+  "branch": "codex/3621-terminalizer",
+  "worktree": "C:/repos/shared-db/.ai/worktrees/3622-clear-mimo",
+  "allowed_paths": [
+    "scripts/lib/lanes/preview-admission.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3621/2/contract.json",
+    ".agent/work/3621/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/lib/lanes/preview-admission.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/3621/2/contract.json",
+    ".agent/work/3621/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not apply a migration or change production or preview database data",
+    "Do not accept unknown, duplicate, expired, or cross-run artifacts",
+    "Do not relax the exact historical manifest, marker, log, or unchanged-ledger proof"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Successful historical preview rebind run 36388097766 emitted both the exact preview artifact and normal automatic review evidence under the same run and main SHA.",
+    "The terminalizer currently refuses any artifact count other than one, preventing a valid outcome record."
+  ],
+  "stop_conditions": [
+    "Stop if a mismatched or unknown artifact would be accepted",
+    "Stop if the governed review or required checks refuse"
+  ],
+  "evidence_parent": {
+    "work_issue": 3621,
+    "generation": 1,
+    "contract_sha256": "aaab4ea0ca4eafd4df3bbf664c1ccddf5d570e870da322d19be6a05d19e9e254"
+  }
+}
