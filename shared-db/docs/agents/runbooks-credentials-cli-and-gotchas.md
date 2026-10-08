@@ -329,3 +329,13 @@ These bit the CRM production cutover (2026-06-21). PM/PIM will hit the same ones
   ... to authenticated` alongside its policy; see
   `20260715220500_grant_crm_write_dml_to_authenticated.sql` and
   `docs/app-migration-notes/popcrm-web-20260716.md`.
+- **Admin-only read RPCs cannot be live-proven with the read-only role (#3947, #4081,
+  2026-10-08).** `api.db_data_admin_*` list functions refuse the read-only inspection role.
+  The working proof method: one production transaction, `set local role authenticated` with
+  the JWT claims of an active administrator, page the function to the end, assert, then
+  `ROLLBACK`. No writes; record the method on the issue with the result.
+- **A migration without its work-record file cannot promote (#3947, 2026-10-08).**
+  Migration `20261008001142` merged but automatic promotion refused it because the
+  matching `.agent/work/<issue>/...` work record was absent from the merged change; it had
+  to be re-delivered as `20261008005647` (PR #4074) with the record included. Check the
+  work-record pair is in the PR before merging, not after.
