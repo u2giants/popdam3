@@ -191,12 +191,12 @@ export type MasterDataDisplay = {
 };
 
 /**
- * Current Master Data wins. Only when the line has no live link do we fall back
+ * Item Master supplies the current product description. Only when the line has no live description do we fall back
  * to the immutable import snapshot, and the caller must label that fallback --
  * a snapshot value must never be shown as if it were current product truth.
  */
 export function masterDataDescription(row: OrderListRow): MasterDataDisplay {
-  const live = row.master_data_description ?? row.item_description ?? row.item_name;
+  const live = row.item_description ?? row.item_name;
   if (row.item_id && live) return { value: live, isSnapshot: false };
   return { value: row.snapshot_description ?? "", isSnapshot: true };
 }

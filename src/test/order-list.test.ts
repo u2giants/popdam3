@@ -127,9 +127,13 @@ describe("OrderList SKU normalization", () => {
 });
 
 describe("OrderList Master Data display", () => {
-  it("shows live Master Data when the line is linked", () => {
-    expect(masterDataDescription(row())).toEqual({ value: "Current description", isSnapshot: false });
+  it("uses Item Master even when the old tracker description differs", () => {
+    expect(masterDataDescription(row({ item_description: "Item Master description" }))).toEqual({ value: "Item Master description", isSnapshot: false });
     expect(masterDataLicenseStatus(row())).toEqual({ value: "Approved", isSnapshot: false });
+  });
+
+  it("does not substitute an old tracker description for missing Item Master details", () => {
+    expect(masterDataDescription(row({ item_description: null, item_name: null }))).toEqual({ value: "Description at import", isSnapshot: true });
   });
 
   it("falls back to the import snapshot and names the fallback when unlinked", () => {

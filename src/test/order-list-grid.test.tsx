@@ -17,6 +17,7 @@ function row(overrides: Partial<OrderListRow>): OrderListRow {
     source_style_type: "licensed",
     master_data_match_status: "matched",
     item_id: "item-1",
+    item_description: "Current description",
     master_data_description: "Current description",
     master_data_license_status: "Approved",
     snapshot_description: "Description at import",
