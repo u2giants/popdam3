@@ -39,7 +39,9 @@ export function proveCompletedClaimRecovery(manifest,{now=new Date(),reviewIssue
  const pr=io.getPr(m.source_pr);if(pr?.state!=='closed'||!pr.merged_at||pr.head?.sha!==m.source_head_sha||pr.head?.ref!==lease.branch||pr.merge_commit_sha!==m.merge_sha)refuse('exact merged source PR required');
  const actualMain=io.mainSha();
  const contains=sha=>{const x=io.compareCommits(sha,actualMain);return x?.behind_by===0&&['identical','ahead'].includes(x.status)};
- if(!SHA.test(actualMain??'')||![m.main_sha,m.merge_sha,m.tool_commit_sha,m.preservation_base_sha].every(contains))refuse('fresh main must descend from manifest, source merge and reviewed tool');
+ if(!SHA.test(actualMain??'')||![m.main_sha,m.merge_sha,m.tool_commit_sha].every(contains))refuse('fresh main must descend from manifest, source merge and reviewed tool');
+ // The registered base was published on the claim's source branch after the merge; it is not on main.
+ const published=io.compareCommits(m.preservation_base_sha,lease.branch);if(published?.behind_by!==0||!['identical','ahead'].includes(published?.status))refuse('registered preservation base must be published on the claim source branch');
  if(!io.recoveryCodeUnchanged(m.tool_commit_sha,actualMain))refuse('registered recovery code/profile must match reviewed merged tool bytes');
  const files=io.getPrFiles(m.source_pr);if(files.filter(x=>/^supabase\/migrations\//.test(x.filename)).length!==1||!files.some(x=>x.filename===RECOVERY_PROFILE.path&&x.status==='added'))refuse('exact source migration required');
  if(io.branchPulls(lease.branch).some(x=>x.state==='open'))refuse('source branch has open PR');
@@ -71,6 +73,6 @@ export function recoverCompletedForeignClaim(manifest,options,io){
  if(lastPr?.state!=='closed'||!lastPr.merged_at||lastPr.head?.sha!==manifest.source_head_sha||lastPr.merge_commit_sha!==manifest.merge_sha)refuse('merged source changed after proof');
  const foreign=io.foreignSnapshot(parseAuthorLease(lastClaim.body,options.now).worktree,RECOVERY_PROFILE.path);
  if(foreign?.changedPaths?.join('|')!==RECOVERY_PROFILE.path||foreign?.untracked?.length||recoveryDigest(foreign?.sql??'')!==manifest.pending_sql_sha256||recoveryDigest(foreign?.patch??'')!==manifest.pending_patch_sha256)refuse('foreign pending bytes changed after proof');
- io.assertMutex();io.closeClaim(manifest.claim,`Completed foreign claim released by reviewed administrative recovery; source migration is merged and installed. Immutable receipt ${ref} at ${sha}. Application acceptance was not changed. Recovery actor ${manifest.actor}; previous owner ${manifest.old_owner}.\n\nPosted by Codex chat ${manifest.actor} on ${io.machineName()}`);
+ io.assertMutex();io.closeClaim(manifest.claim,`Completed foreign claim released by reviewed administrative recovery; source migration is merged and installed. Immutable receipt ${ref} at ${sha}. Application acceptance was not changed. Recovery actor ${manifest.actor}; previous owner ${manifest.old_owner}.\n\nPosted by ${io.signatureEngine()} chat ${manifest.actor} on ${io.machineName()}`);
  return {claim:manifest.claim,released:true,ref,sha,current_main_sha:closureMain,receipt};
 }

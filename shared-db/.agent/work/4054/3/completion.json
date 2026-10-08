@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_issue": 4054,
+  "outcome": "ready-for-merge",
+  "pr": 4072,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4054/3",
+  "contract_sha256": "46efb2befa8182ad0f6f59bf97b1190980315c79627e4cd7d34fb7b04f7e4e55",
+  "head_sha": "3efb6fb86e4f7a739fbba6124194938f3099ec79",
+  "base_sha": "b56a62c03a69543553263d56ca35c89ed34f8e48",
+  "files_changed": [
+    "docs/completed-foreign-claim-recovery.md",
+    "scripts/completed-claim-recovery.test.mjs",
+    "scripts/lib/lanes/completed-claim-recovery.mjs",
+    "scripts/manage-migration-author-lanes.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/completed-claim-recovery.test.mjs scripts/completed-claim-recovery-catalog.test.mjs scripts/claim-recovery-dependencies.test.mjs",
+      "exit_code": 0,
+      "evidence": "43 pass 0 fail at 3efb6fb86e4f7a739fbba6124194938f3099ec79"
+    }
+  ],
+  "assumptions_resolved": [
+    "36d26a39 reachable from origin/claude/3400-hts-phrase, not from main: confirmed via compare (diverged, behind_by 1)"
+  ],
+  "stop_conditions_hit": []
+}

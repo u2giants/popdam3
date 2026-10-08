@@ -1,0 +1,46 @@
+{
+  "schema_version": 2,
+  "generation": 3,
+  "work_issue": 4054,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Fix merged completed-claim recovery: the registered preservation base 36d26a39 lives only on the published source branch claude/3400-hts-phrase and is not an ancestor of main, so runtime always refuses. Require the base to be contained in the claim's published source branch instead of main (main containment stays for manifest main, source merge and tool). Also sign the closure comment with the declared SHARED_DB_AUTHOR_ENGINE instead of a hard-coded Codex label.",
+  "base_sha": "b56a62c03a69543553263d56ca35c89ed34f8e48",
+  "dispatcher": "Claude successor session for #2873/#4054",
+  "worker": "claude",
+  "branch": "claude/4054-preservation-base-branch",
+  "worktree": ".ai/worktrees/claude-4056",
+  "allowed_paths": [
+    "scripts/lib/lanes/completed-claim-recovery.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/completed-claim-recovery.test.mjs",
+    "docs/completed-foreign-claim-recovery.md"
+  ],
+  "file_writes": [
+    "scripts/lib/lanes/completed-claim-recovery.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/completed-claim-recovery.test.mjs",
+    "docs/completed-foreign-claim-recovery.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "no database or production write",
+    "do not weaken any other recovery guard",
+    "do not edit another session's worktree, branch or claim"
+  ],
+  "required_checks": [
+    "node --test scripts/completed-claim-recovery.test.mjs scripts/completed-claim-recovery-catalog.test.mjs scripts/claim-recovery-dependencies.test.mjs"
+  ],
+  "assumptions": [
+    "36d26a39 is reachable from origin/claude/3400-hts-phrase and not from main (verified)"
+  ],
+  "stop_conditions": [
+    "stop if the fix would need paths outside allowed_paths"
+  ],
+  "evidence_parent": {
+    "work_issue": 4054,
+    "generation": 2,
+    "contract_sha256": "9871579047f74f379dffd6b02d6adae0d547f35aa8b816a403168fd43d0ef691"
+  }
+}

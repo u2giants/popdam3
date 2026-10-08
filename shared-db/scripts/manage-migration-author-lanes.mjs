@@ -4711,6 +4711,7 @@ export function main(argv, now = new Date(), io = githubIo) {
         assertMutex:()=>requireOwnedRef(MUTEX_REF,ownerSha,io),
         clock:()=>new Date(),
         machineName:()=>hostname(),
+        signatureEngine:()=>{const e=authorEngineFromEnv(process.env.SHARED_DB_AUTHOR_ENGINE);return e.charAt(0).toUpperCase()+e.slice(1)},
         recoveryCodeUnchanged(toolSha,mainSha){
           return recoveryCodeUnchangedAt({toolSha,mainSha,extraPaths:RECOVERY_CODE_PATHS,readOnlyGit:args=>execFileSync('git',args,{encoding:'utf8',stdio:['ignore','pipe','pipe']})})
         },
