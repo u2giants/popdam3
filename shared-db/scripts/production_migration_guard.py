@@ -95,8 +95,12 @@ HARD_BLOCKED = {
     # #2873: PR #4077 merged-stranded original. Preview applied it, but its
     # merged head ff27e2ed carries a durable DeepSeek slot-3 REVISE on its
     # production-risk sign-off. Never apply it; promote only re-runnable
-    # forward replacement 20261008022846.
+    # forward replacement 20261008025618 (20261008022846 is itself retired).
     "20261008014009",
+    # #2873: PR #4079 merged first forward replacement. Its post-check refuses
+    # Supabase's implicit creator membership, so it rolled back on preview and
+    # never applied anywhere. Promote only 20261008025618.
+    "20261008022846",
     # Issue #2478: retain both historical files and any applied preview ledger.
     # Only a fresh governed claim-2745 reissue may promote these definitions.
     "20260911212849",
@@ -285,6 +289,7 @@ RETIRED_VERSION_REASONS = {
     "20261006203846": "unpromotable original preview provenance: apply37534728189 at b8905b9a187133cb0e6ff1b13c62298920ed6ac3 used a different production-verification-sidecar registry than source PR4009 merge432994be78e0237d56361f0b0f284e5b7a55efc6; automatic qualification37549451859 refused. Preserve original SQL and preview/Sandbox ledgers; production never recorded it. Use governed forward reissue20261007000937 under issue3890, claim4003.",
     "20261006211240": "merged-stranded: PR3707 head72f7383311ce293d3e5f714aca2c3f954ac8fa12 carries durable DeepSeek slot3 REVISE 84d6eda318f36dae6aa800d002e439dd3d64ee4b; preview applied it in run37544787251; production inspection at7:49PM EDT October6 proved it unapplied; retain source and preview ledger, never apply this version; claim3704 reissued through immutable retirement05d88f65c84653806fe75f99665f70c817d510d9 to complete replay-safe replacement20261006235109 under issue2874",
     "20261002204050": "merged-stranded: PR 3913 head a564ec1b2b9a424679fa1b42749351e00ba48332 carries a durable reviewer refusal on its production risk sign-off, so it can never be automatically promoted; preview applied it (run 37069288545); retain historical file and preview ledger, never apply, use re-runnable forward replacement 20261002222102 under issue 3911 (claim 3912 reissued)",
+    "20261008022846": "merged, never applied: PR 4079 (merge fdb81f025a5087973b417c6d82e5c5fc4732a70a) post-check refused Supabase's PostgreSQL 16+ implicit creator membership (member postgres, ADMIN only) and rolled back on preview run 37720079597; never apply this version, use re-runnable second forward replacement 20261008025618 under issue 2873 (claim 4076 reissued through immutable retirement 26340ebe642f255ced25fc32ddeea3508ce0344c)",
     "20261008014009": "merged-stranded: PR 4077 (merge 66123f6024e64746abcd946076911197ce86a8c1, head ff27e2ed7e312f347154a01b665faae3900bf04a) carries a durable DeepSeek slot-3 REVISE (sequence 5830) on its production-risk sign-off that a merged head cannot answer; preview applied it (run 37717030043); retain historical file and preview ledger, never apply this version, use re-runnable forward replacement 20261008022846 under issue 2873 (claim 4076 reissued through immutable retirement d4076b1cee9c5ad320799b0b070510f956eb1bc7)",
     "20261008001142": "merged-stranded: PR 4061 (merge c493cfdd005a2668f1409a1bdb0b8f888a09855f, head 2573f194d9b1bbe6fbfc653b3394c8ea6275c0b2) carries no PR-owned agent work contract evidence pair, so the merged-PR issue binding refuses and the required production-risk fence review can never be recorded; never applied to preview or production; retain historical file, never apply this version, use re-runnable third forward replacement 20261008005647 under issue 3947 (claim 3955 reissued through immutable retirement 4961d63a426d2c4ecdaae75a95b1e3e3469cc403)",
     "20261007190954": "merged-stranded: PR 4047 head e35c1ecde901b55e7ed3a343da685d5f2c4c7a37 carries a durable StepFun REVISE verdict (slot 3, findings comment 6048262075) recorded by a reviewer whose host could not read the repository; a merged head cannot take a new commit to answer it, so it can never clear production risk sign-off; retain historical file and any preview ledger, never apply this version, use re-runnable second forward replacement 20261008001142 under issue 3947 (claim 3955 reissued through immutable retirement 82aa37fb83c98fbcb35db26dd1931d3ac8b5a3bd)",

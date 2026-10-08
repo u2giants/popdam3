@@ -293,6 +293,7 @@ class GuardTests(unittest.TestCase):
                 "20261007190954",
                 "20261008001142",
                 "20261008014009",
+                "20261008022846",
                 "20260911212849",
                 "20260917112129",
                 "20260906222338",
@@ -410,12 +411,13 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(classify_pending_version("20261008001142", applied, REPO)["kind"], "retired")
 
     def test_service_identities_stranded_original_is_retired(self) -> None:
-        for allowlist in ("20261008014009", "20261008014009,20261008022846"):
-            with self.subTest(allowlist=allowlist), self.assertRaisesRegex(GuardError, "20261008014009"):
+        for allowlist in ("20261008014009", "20261008014009,20261008025618", "20261008022846"):
+            with self.subTest(allowlist=allowlist), self.assertRaisesRegex(GuardError, "2026100801400|20261008022846"):
                 parse_allowlist(allowlist)
-        self.assertEqual(parse_allowlist("20261008022846"), ["20261008022846"])
-        for applied in (set(), {"20261008014009"}):
-            self.assertEqual(classify_pending_version("20261008014009", applied, REPO)["kind"], "retired")
+        self.assertEqual(parse_allowlist("20261008025618"), ["20261008025618"])
+        for version in ("20261008014009", "20261008022846"):
+            for applied in (set(), {version}):
+                self.assertEqual(classify_pending_version(version, applied, REPO)["kind"], "retired")
 
     def test_scraped_dedupe_forward_replacements_share_executable_body(self) -> None:
         migrations = REPO / "supabase" / "migrations"
