@@ -1,6 +1,9 @@
 import test from 'node:test'
+import { readFileSync, mkdtempSync, rmSync, chmodSync, linkSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import assert from 'node:assert/strict'
-import { evaluatePreflight, gatherPreflightInput, observedStates, isWaitableRefusal, collectPages, requireWholePage, waitForPreflight, PreflightError, SELF_CONTEXT, GITHUB_ACTIONS_APP_ID } from './check-required-checks-preflight.mjs'
+import { authorityScratchPath, captureAuthorityFile, readScratchAuthorityToken, cleanupAuthorityFile, RETAINED_QUEUE_CHECKS, validateRetirement, evaluatePreflight, gatherPreflightInput, observedStates, isWaitableRefusal, collectPages, requireWholePage, waitForPreflight, PreflightError, SELF_CONTEXT, GITHUB_ACTIONS_APP_ID } from './check-required-checks-preflight.mjs'
 import { readEffectiveRequiredChecks, computeRevision, RequiredCheckAuthorityError } from './lib/required-check-authority.mjs'
 const sha = 'a'.repeat(40)
 function makeAuthority(overrides = {}) {
@@ -62,7 +65,7 @@ test('latest attempt wins within producer; same-time contradictory results refus
   assert.throws(() => evaluate({ checkRuns: [ok(), ok('required', { conclusion: 'failure' })] }), /ambiguous/)
   assert.equal(observedStates({ statuses: [{ context: 'x', state: 'success', id: 1 }] }).get('x'), 'success')
 })
-function liveRead({ mutateAfter = false, deny = false, truncate = false } = {}) {
+function liveRead({ mutateAfter = false, mutateAfterRead = 1, deny = false, truncate = false } = {}) {
   let reads = 0
   return (args) => {
     if (args.includes('graphql')) {
@@ -70,7 +73,7 @@ function liveRead({ mutateAfter = false, deny = false, truncate = false } = {}) 
       reads++
       return { data: { repository: { databaseId: 1, nameWithOwner: 'popcre/shared-db', ref: { name: 'main', target: { oid: sha }, branchProtectionRule: { id: 'BPR_1', requiresStatusChecks: true, requiresStrictStatusChecks: false, requiredStatusCheckContexts: ['required'], requiredStatusChecks: [{ context: 'required', app: { databaseId: 15368 } }] } } } } }
     }
-    if (args.some((arg) => arg.includes('/rules/branches/'))) return [mutateAfter && reads > 1 ? [{ type: 'required_status_checks', ruleset_id: 2, ruleset_source: 'popcre', ruleset_source_type: 'Organization', parameters: { required_status_checks: [{ context: 'new', integration_id: 7 }] } }] : []]
+    if (args.some((arg) => arg.includes('/rules/branches/'))) return [mutateAfter && reads > mutateAfterRead ? [{ type: 'required_status_checks', ruleset_id: 2, ruleset_source: 'popcre', ruleset_source_type: 'Organization', parameters: { required_status_checks: [{ context: 'new', integration_id: 7 }] } }] : []]
     if (args.some((arg) => arg.includes('/check-runs'))) return [{ total_count: truncate ? 2 : 1, check_runs: [ok('required', { id: 1 })] }]
     return [{ total_count: 0, statuses: [] }]
   }
@@ -261,4 +264,63 @@ test('all-attempt pagination refuses changing totals, repeated ids and missing i
     const source = liveRead()
     assert.throws(() => gatherPreflightInput({ REQUESTED_SHA: sha }, { repo: 'popcre/shared-db', json: (args) => args.some((arg) => arg.includes('/check-runs')) ? pages : source(args) }), /unstable read/)
   }
+})
+
+function retirementFixture(phase = '14') {
+  const checks = RETAINED_QUEUE_CHECKS.filter(c => !['Merge queue gate','Queue-sensitive checks (aggregate)'].includes(c.context))
+  const authority = makeAuthority({base_sha:'b'.repeat(40),checks,sources:{classic:{requiresStrictStatusChecks:false},rulesets:[]}})
+  const contract = {...JSON.parse(readFileSync(new URL('../docs/examples/agent-work-contract-zero-database.json',import.meta.url))),work_issue:3987,generation:5,base_sha:sha}
+  const r = {phase,pr:{number:3998,state:'open',head:{sha,repo:{full_name:'popcre/shared-db'}},base:{ref:'main',repo:{full_name:'popcre/shared-db'}}},
+    issue:{number:3987,state:'open'},scope:{workType:'repo-maintenance',route:'repo-maintenance',status:'ready'},links:[{number:3987}],contract,
+    receipt:{id:200,context:SELF_CONTEXT,state:'success',creator:{login:'github-actions[bot]'},description:'Exclusive merge lock held and exact head revalidated',url:`https://api.github.com/repos/popcre/shared-db/statuses/${sha}`},
+    runId:10,runAttempt:2,sourceSha:authority.base_sha,run:{id:10,run_attempt:2,event:'workflow_dispatch',head_branch:'main',head_sha:authority.base_sha,workflow_id:11,check_suite_id:12},
+    workflow:{id:11,path:'.github/workflows/guarded-migration-merge.yml'},suite:{id:12,head_sha:authority.base_sha,app:{id:GITHUB_ACTIONS_APP_ID}}}
+  return {authority,retirement:r,sha,statuses:[{...r.receipt}],checkRuns:RETAINED_QUEUE_CHECKS.filter(c=>c.context!==SELF_CONTEXT).map((c,i)=>ok(c.context,{id:i+1}))}
+}
+test('retained13 and protected genuine14 pass without changing live12 authority',()=>{
+  const f=retirementFixture();assert.equal(evaluatePreflight(f).required,14)
+  f.retirement.phase='13';f.statuses=[];assert.equal(evaluatePreflight(f).required,13)
+  assert.equal(f.authority.checks.length,12)
+})
+for (const [name,mutate] of Object.entries({
+  closed:f=>f.retirement.pr.state='closed',otherPR:f=>f.retirement.pr.number=4002,wrongHead:f=>f.retirement.pr.head.sha='c'.repeat(40),
+  notAdmitted:f=>f.retirement.scope.status='blocked',duplicateStatus:f=>f.statuses.push({...f.statuses[0],state:'failure'}),wrongIssue:f=>f.retirement.issue.number=3536,wrongGeneration:f=>f.retirement.contract.generation=4,
+  wrongApp:f=>f.retirement.suite.app.id=99,wrongRun:f=>f.retirement.run.id=20,wrongAttempt:f=>f.retirement.run.run_attempt=1,
+  wrongEvent:f=>f.retirement.run.event='pull_request',wrongSource:f=>f.retirement.run.head_sha=sha,wrongWorkflow:f=>f.retirement.workflow.path='other.yml',
+  wrongCreator:f=>f.statuses[0].creator={login:'u2giants'},wrongReceipt:f=>f.retirement.receipt.id=199,
+  replay:f=>f.statuses.push({...f.statuses[0],id:201,state:'failure'}),skipped:f=>f.checkRuns[0].conclusion='skipped',
+  missing:f=>f.checkRuns.pop(),failure:f=>f.checkRuns[0].conclusion='failure',policyDrift:f=>{f.authority.checks.pop();f.authority.revision=computeRevision(f.authority)},
+  strict:f=>{f.authority.sources.classic.requiresStrictStatusChecks=true;f.authority.revision=computeRevision(f.authority)},
+  selfCheckFailure:f=>f.checkRuns.push(ok(SELF_CONTEXT,{id:999,conclusion:'failure'})),selfCheckWrongApp:f=>f.checkRuns.push(ok(SELF_CONTEXT,{id:999,app:{id:99}})),
+})) test(`retained14 refuses ${name} before mutation`,()=>{const f=retirementFixture();mutate(f);assert.throws(()=>evaluatePreflight(f),PreflightError)})
+
+function scratchFixture() {
+  const dir=mkdtempSync(path.join(os.tmpdir(),'guarded-authority-test-'))
+  const env={RUNNER_TEMP:dir,GITHUB_RUN_ID:'10',GITHUB_RUN_ATTEMPT:'2',GITHUB_OUTPUT:path.join(dir,'output'),AUTHORITY_TOKEN:'test-only-token'}
+  env.AUTHORITY_FILE_IDENTITY=captureAuthorityFile(env)
+  delete env.AUTHORITY_TOKEN
+  return {dir,env,file:authorityScratchPath(env)}
+}
+test('protected scratch token is run-bound, exclusive and cleaned by exact ownership',()=>{
+  const f=scratchFixture();try {
+    assert.equal(readScratchAuthorityToken(f.env),'test-only-token')
+    assert.throws(()=>captureAuthorityFile({...f.env,AUTHORITY_TOKEN:'second'}))
+    cleanupAuthorityFile(f.env);assert.throws(()=>readFileSync(f.file))
+  }finally{rmSync(f.dir,{recursive:true,force:true})}
+})
+for(const[name,mutate]of Object.entries({
+  permissions:f=>chmodSync(f.file,0o644),hardlink:f=>linkSync(f.file,path.join(f.dir,'link')),
+  symlink:f=>{unlinkSync(f.file);symlinkSync(f.env.GITHUB_OUTPUT,f.file)},wrongIdentity:f=>f.env.AUTHORITY_FILE_IDENTITY='1:2:3',
+  missing:f=>unlinkSync(f.file),wrongRun:f=>f.env.GITHUB_RUN_ID='11',wrongAttempt:f=>f.env.GITHUB_RUN_ATTEMPT='3',
+  malformed:f=>writeFileSync(f.file,'{"token":"test-only-secret-broken'),
+  empty:f=>writeFileSync(f.file,''),replacement:f=>{unlinkSync(f.file);writeFileSync(f.file,'{}',{mode:0o600})},
+}))test(`protected scratch refuses ${name} read and cleanup`,()=>{const f=scratchFixture();try{mutate(f);assert.throws(()=>readScratchAuthorityToken(f.env));assert.throws(()=>cleanupAuthorityFile(f.env))}finally{rmSync(f.dir,{recursive:true,force:true})}})
+test('authority scratch parse refusal never exposes malformed token content',()=>{const f=scratchFixture();try{writeFileSync(f.file,'{"token":"private-fixture-secret');assert.throws(()=>readScratchAuthorityToken(f.env),e=>!e.message.includes('private-fixture-secret'))}finally{rmSync(f.dir,{recursive:true,force:true})}})
+
+test('scratch refuses writable parent and does not delete a collided foreign path',()=>{
+  const f=scratchFixture();try{chmodSync(f.dir,0o777);assert.throws(()=>readScratchAuthorityToken(f.env));assert.throws(()=>cleanupAuthorityFile(f.env));assert.ok(readFileSync(f.file).length)}finally{chmodSync(f.dir,0o700);rmSync(f.dir,{recursive:true,force:true})}
+})
+
+test('independent final authority read refuses drift after the prior authority proof',()=>{
+  assert.throws(()=>gatherPreflightInput({REQUESTED_SHA:sha},{repo:'popcre/shared-db',json:liveRead({mutateAfter:true,mutateAfterRead:2})}),/authority changed while binding/)
 })

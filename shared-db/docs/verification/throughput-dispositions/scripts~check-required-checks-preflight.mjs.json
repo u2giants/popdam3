@@ -3,36 +3,36 @@
   "source": "scripts/check-required-checks-preflight.mjs",
   "sites": [
     {
-      "site": "scripts/check-required-checks-preflight.mjs:77",
-      "semantic_key": "scripts/check-required-checks-preflight.mjs:0d141019a72b69f8225d7df5215ce11cff762ca4c472d9d30696085299472978:context-c88e88729b70399bbe8263ffdb7e32fa926f25fbfb643704f125ee215baacbfc",
+      "site": "scripts/check-required-checks-preflight.mjs:83",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:0d141019a72b69f8225d7df5215ce11cff762ca4c472d9d30696085299472978:context-ac6b1342be839c0c9a734258cb686cd7a9d105af7e2c7e4e6092ec378564936b",
+      "legacy_semantic_key": "scripts/check-required-checks-preflight.mjs:0d141019a72b69f8225d7df5215ce11cff762ca4c472d9d30696085299472978:1",
       "line_sha256": "0d141019a72b69f8225d7df5215ce11cff762ca4c472d9d30696085299472978",
       "disposition": "excluded",
-      "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth.",
-      "legacy_semantic_key": "scripts/check-required-checks-preflight.mjs:0d141019a72b69f8225d7df5215ce11cff762ca4c472d9d30696085299472978:1"
+      "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:91",
-      "semantic_key": "scripts/check-required-checks-preflight.mjs:2c084b9a524275e902a773b0f2fa6aae9ad96c6c9472f904974ec790c2d53fdd:context-e624dc5613416f763194a917ae71fbfbfed700c6a3cf660df0714f5efa864201",
+      "site": "scripts/check-required-checks-preflight.mjs:97",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:2c084b9a524275e902a773b0f2fa6aae9ad96c6c9472f904974ec790c2d53fdd:context-974e7f30e085420fbc002a929765cf1aac5051ac56884bba2dbdf8a2301509c9",
+      "legacy_semantic_key": "scripts/check-required-checks-preflight.mjs:2c084b9a524275e902a773b0f2fa6aae9ad96c6c9472f904974ec790c2d53fdd:1",
       "line_sha256": "2c084b9a524275e902a773b0f2fa6aae9ad96c6c9472f904974ec790c2d53fdd",
       "disposition": "excluded",
-      "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth.",
-      "legacy_semantic_key": "scripts/check-required-checks-preflight.mjs:2c084b9a524275e902a773b0f2fa6aae9ad96c6c9472f904974ec790c2d53fdd:1"
+      "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:87",
-      "semantic_key": "scripts/check-required-checks-preflight.mjs:4e36f9dd9d86ba07fb9c02011e7ed171640aa46e485741db2ab58465256b42b6:context-d6d268b98f9d37b6a99a238ae056d4a7fede545e4430b8aaae9e6f873810af96",
+      "site": "scripts/check-required-checks-preflight.mjs:93",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:4e36f9dd9d86ba07fb9c02011e7ed171640aa46e485741db2ab58465256b42b6:context-2c9da29926322d5d31878139df88854ed497be48f2e5eb227e8e801fc1498a4a",
+      "legacy_semantic_key": "scripts/check-required-checks-preflight.mjs:4e36f9dd9d86ba07fb9c02011e7ed171640aa46e485741db2ab58465256b42b6:1",
       "line_sha256": "4e36f9dd9d86ba07fb9c02011e7ed171640aa46e485741db2ab58465256b42b6",
       "disposition": "excluded",
-      "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth.",
-      "legacy_semantic_key": "scripts/check-required-checks-preflight.mjs:4e36f9dd9d86ba07fb9c02011e7ed171640aa46e485741db2ab58465256b42b6:1"
+      "reason": "This site reports which required status checks are absent, pending, or failing on a reviewed head; it makes no claim about migration application truth."
     },
     {
-      "site": "scripts/check-required-checks-preflight.mjs:82",
-      "semantic_key": "scripts/check-required-checks-preflight.mjs:778a3203abf0a4740464bb7492984eac907bfe945708f4f65224e9bc709e30d5:context-4d470ea1748b46f0388d66411bf835d78466706fe6b79cb5b9c45e3e4308a64e",
+      "site": "scripts/check-required-checks-preflight.mjs:88",
+      "semantic_key": "scripts/check-required-checks-preflight.mjs:778a3203abf0a4740464bb7492984eac907bfe945708f4f65224e9bc709e30d5:context-439b953ce8d0933281b5265593581219aebd857ce0b187009772ae4204864c96",
+      "legacy_semantic_key": "scripts/check-required-checks-preflight.mjs:778a3203abf0a4740464bb7492984eac907bfe945708f4f65224e9bc709e30d5:1",
       "line_sha256": "778a3203abf0a4740464bb7492984eac907bfe945708f4f65224e9bc709e30d5",
       "disposition": "excluded",
-      "reason": "Site after PR-local discovery change; existing refusal wording outside no-behavior-change work.",
-      "legacy_semantic_key": "scripts/check-required-checks-preflight.mjs:778a3203abf0a4740464bb7492984eac907bfe945708f4f65224e9bc709e30d5:1"
+      "reason": "Site after PR-local discovery change; existing refusal wording outside no-behavior-change work."
     }
   ]
 }

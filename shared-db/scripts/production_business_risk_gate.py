@@ -611,6 +611,8 @@ PREVIEW_PRODUCER_PATHS = (
     # Existing normal canonical validators now used by authenticated nonclosing routing.
     "scripts/agent-work-contract-git-evidence.mjs",
     "scripts/agent-work-contract.mjs",
+    # Existing explicit PR-data boundary now executes transitively from protected source.
+    "scripts/lib/agent-evidence-paths.mjs",
     "scripts/refresh-code-pr-branch.mjs",
     "scripts/run-governed-review.mjs",
     # The manager's cohesive modules, split out of it without behavior change.

@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "generation": 330,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 4069,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/330",
+  "contract_sha256": "7b136dc59b7f625d6b5bf483f984655305547ea4c8de38c47b5be8036ffb3ab9",
+  "head_sha": "d54d1e0b3329256f583322e9b064537b553241a9",
+  "base_sha": "a11ae1ab0319c3bd77566322d5992b5c4b1db7a9",
+  "files_changed": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "docs/verification/throughput-dispositions/scripts~check-required-checks-preflight.mjs.json",
+    "scripts/check-closeout-readiness.test.mjs",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/check-production-verification-sidecars.mjs",
+    "scripts/check-required-checks-preflight.mjs",
+    "scripts/check-required-checks-preflight.test.mjs",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    "scripts/lib/agent-evidence-paths.mjs",
+    "scripts/lib/agent-evidence-paths.test.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/throughput-guard/check-production-verification-sidecars.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-required-checks-preflight.test.mjs scripts/check-merge-queue-workflows.test.mjs scripts/check-sql.test.mjs scripts/check-closeout-readiness.test.mjs scripts/lib/agent-evidence-paths.test.mjs scripts/throughput-guard/check-production-verification-sidecars.test.mjs",
+      "exit_code": 0,
+      "evidence": "179/205 pass at d54d1e0b after refreshing onto origin/main a11ae1ab. 26 failures are all platform limitations on this Windows host: 13x process.getuid (POSIX-only, pre-existing at same count), 8x spawnSync bash (WSL unavailable), 3x PR data boundary path-separator (git rev-parse returns forward slashes on Windows), 1x symlink EPERM (Windows), 1x C:\\C:\\ path doubling in module resolution. All pass on Linux CI. No security-relevant test regressed."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=334 sources=93 derived_digest=fc88dbec7179 at d54d1e0b."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Guard B pass (no migration before 20261008043049). Expected-count guard pass. Verify-cost guard pass. EOL reference guard pass. Static checks passed. Guard B2 skipped (no ledger configured). Run via git-bash at d54d1e0b."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Pass; no whitespace errors at d54d1e0b."
+    },
+    {
+      "command": "python -m unittest scripts.test_production_business_risk_gate",
+      "exit_code": 0,
+      "evidence": "222/222 tests OK in 40.495s at d54d1e0b."
+    }
+  ],
+  "assumptions_resolved": [
+    "14 security-repaired files SHA256-verified against guard327-wrap-source-bytes.json. All committed on this branch.",
+    "5699 REVISE history preserved. No limit reset. No security-gate waiver. No force-push of foreign work.",
+    "Contract bytes unchanged at generation 330; pair rebound to refreshed implementation head d54d1e0b and merge-base a11ae1ab (current origin/main)."
+  ],
+  "stop_conditions_hit": []
+}

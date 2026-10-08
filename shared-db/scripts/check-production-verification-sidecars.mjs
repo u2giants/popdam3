@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import { validatePrDataRoot } from './lib/agent-evidence-paths.mjs';
 
 export const MANDATORY_VERSIONS = [
   '20260621151155','20260701154948','20260710135600','20260710135700',
@@ -39,11 +40,14 @@ export function changedMigrationVersions(base, gitText) {
   return [...new Set([...migrations,...deletedSidecars])];
 }
 export function verifyHistoricalInventory(baseline,live){const liveByPath=new Map(live.matched_paths.map(row=>[row.path,row]));const historical=baseline.matched_paths.map(row=>liveByPath.get(row.path));if(live.total_migration_files<baseline.total_migration_files||historical.some((row,index)=>!row||row.version!==baseline.matched_paths[index].version||row.marker_count!==baseline.matched_paths[index].marker_count)||baseline.matched_count!==baseline.matched_paths.length)throw new Error('UNVERIFIABLE: reviewed historical baseline no longer matches the current detector')}
-export function verifyBaseline(root){const baseline=JSON.parse(fs.readFileSync(path.join(root,'docs/verification/throughput-guard-truth-baseline-20260828.json'),'utf8'));const detector=path.join(root,'scripts/production_catalog_verification.py');const digest=crypto.createHash('sha256').update(fs.readFileSync(detector,'utf8').replace(/\r\n/g,'\n')).digest('hex');if(baseline.detector_source_sha256!==digest)throw new Error('UNVERIFIABLE: detector source changed without regenerating the reviewed baseline');const code=`import json,sys\nfrom pathlib import Path\nroot=Path(sys.argv[1]);sys.path.insert(0,str(root/'scripts'))\nfrom production_catalog_verification import dynamic_execution_marker_lines as d\nfiles=sorted((root/'supabase/migrations').glob('*.sql'));rows=[]\nfor p in files:\n m=d(p.read_text(encoding='utf-8'))\n if m: rows.append({'version':p.name.split('_',1)[0],'path':p.relative_to(root).as_posix(),'marker_count':len(m)})\nprint(json.dumps({'total_migration_files':len(files),'matched_paths':rows}))`;const live=JSON.parse(execFileSync(process.platform==='win32'?'python':'python3',['-c',code,root],{encoding:'utf8'}));verifyHistoricalInventory(baseline,live);if(JSON.stringify(baseline.enforced_versions)!==JSON.stringify(MANDATORY_VERSIONS))throw new Error('UNVERIFIABLE: reviewed enforced-version set differs from the mandatory scan');}
+export function verifyBaseline(root, dataRoot=root){const baseline=JSON.parse(fs.readFileSync(path.join(root,'docs/verification/throughput-guard-truth-baseline-20260828.json'),'utf8'));const detector=path.join(root,'scripts/production_catalog_verification.py');const digest=crypto.createHash('sha256').update(fs.readFileSync(detector,'utf8').replace(/\r\n/g,'\n')).digest('hex');if(baseline.detector_source_sha256!==digest)throw new Error('UNVERIFIABLE: detector source changed without regenerating the reviewed baseline');const code=`import json,sys\nfrom pathlib import Path\nroot=Path(sys.argv[1]);data=Path(sys.argv[2]);sys.path.insert(0,str(root/'scripts'))\nfrom production_catalog_verification import dynamic_execution_marker_lines as d\nfiles=sorted((data/'supabase/migrations').glob('*.sql'));rows=[]\nfor p in files:\n m=d(p.read_text(encoding='utf-8'))\n if m: rows.append({'version':p.name.split('_',1)[0],'path':p.relative_to(data).as_posix(),'marker_count':len(m)})\nprint(json.dumps({'total_migration_files':len(files),'matched_paths':rows}))`;const live=JSON.parse(execFileSync(process.platform==='win32'?'python':'python3',['-I','-B','-c',code,root,dataRoot],{encoding:'utf8'}));verifyHistoricalInventory(baseline,live);if(JSON.stringify(baseline.enforced_versions)!==JSON.stringify(MANDATORY_VERSIONS))throw new Error('UNVERIFIABLE: reviewed enforced-version set differs from the mandatory scan');}
 
 export function run(argv = process.argv.slice(2), deps = {}) {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  verifyBaseline(root);
+  const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const dataIndex=argv.indexOf('--data-root');
+  const value=name=>{const i=argv.indexOf(name);return i<0?null:argv[i+1]};
+  const root=dataIndex<0?sourceRoot:validatePrDataRoot({root:value('--data-root'),headSha:value('--head-sha'),sourceRoot,sourceSha:value('--source-sha')});
+  verifyBaseline(sourceRoot,root);
   const baseIndex = argv.indexOf('--base');
   let base = baseIndex >= 0 ? argv[baseIndex + 1] : null;
   const gitText = deps.gitText ?? (args => execFileSync('git', args, { cwd: root, encoding: 'utf8' }));
@@ -63,7 +67,7 @@ export function run(argv = process.argv.slice(2), deps = {}) {
   // is a SHA resolves directly; only an origin/<branch> name can be fetched.
   base = resolveBase({ candidateRefs: [base], git: tryGit, fetchRef: tryGit });
   const versions = [...new Set([...MANDATORY_VERSIONS, ...changedMigrationVersions(base, gitText)])];
-  const args = [path.join(root, 'scripts/check_production_verification_sidecars.py'), '--repo', root];
+  const args = ['-I','-B',path.join(sourceRoot, 'scripts/check_production_verification_sidecars.py'), '--repo', root];
   for (const version of versions) args.push('--scan-version', version);
   const invoke = deps.invoke ?? ((command, values) => execFileSync(command, values, { cwd: root, stdio: 'inherit' }));
   invoke(process.platform === 'win32' ? 'python' : 'python3', args);

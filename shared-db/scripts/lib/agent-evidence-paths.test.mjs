@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { acceptableEvidencePairs, EvidencePathError, evidencePaths, isEvidencePath, LEGACY_PAIR, resolveEvidencePair } from './agent-evidence-paths.mjs'
+import { validatePrDataRoot, acceptableEvidencePairs, EvidencePathError, evidencePaths, isEvidencePath, LEGACY_PAIR, resolveEvidencePair } from './agent-evidence-paths.mjs'
 
 test('canonical task identifiers reject numeric aliases and precision loss', () => {
   for (const bad of ['01', '1e2', ' 1', '+1', true, 9007199254740992, '9007199254740993']) {
@@ -73,3 +73,32 @@ test('#3380: a schema_version 2 contract accepts only its keyed pair, never the 
   const v1 = acceptableEvidencePairs({ schema_version: 1, work_issue: 42, generation: 2 })
   assert.equal(v1.length, 2)
 })
+
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync, symlinkSync } from 'node:fs'
+import path from 'node:path'
+import { tmpdir } from 'node:os'
+function boundaryFixture() {
+  const directory=mkdtempSync(path.join(tmpdir(),'pr-data-boundary-'))
+  const git=(cwd,args)=>execFileSync('git',args,{cwd,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()
+  const roots={}
+  for(const kind of ['data','source']) {
+    const root=path.join(directory,kind);mkdirSync(root)
+    git(root,['init','-q']);git(root,['config','user.name','Test']);git(root,['config','user.email','test@example.invalid'])
+    writeFileSync(path.join(root,'safe.json'),'{}');git(root,['add','safe.json']);git(root,['commit','-qm','fixture'])
+    roots[kind]=root;roots[kind+'Sha']=git(root,['rev-parse','HEAD'])
+  }
+  return {directory,git,options:{root:roots.data,headSha:roots.dataSha,sourceRoot:roots.source,sourceSha:roots.sourceSha},...roots}
+}
+test('explicit PR data identity accepts real data without executing malicious tracked scripts',()=>{
+ const f=boundaryFixture()
+ try {writeFileSync(path.join(f.data,'malicious.js'),'throw new Error("must never execute")');f.git(f.data,['add','malicious.js']);f.git(f.data,['commit','-qm','untrusted script data']);f.options.headSha=f.git(f.data,['rev-parse','HEAD']);assert.equal(validatePrDataRoot(f.options,{}),f.data)} finally {rmSync(f.directory,{recursive:true,force:true})}
+})
+for (const [label,mutate] of [
+ ['wrong head',f=>f.options.headSha='a'.repeat(40)],
+ ['source drift',f=>writeFileSync(path.join(f.source,'safe.json'),'changed')],
+ ['tracked symlink',f=>{symlinkSync('/etc/passwd',path.join(f.data,'escape'));f.git(f.data,['add','escape']);f.git(f.data,['commit','-qm','linked data']);f.options.headSha=f.git(f.data,['rev-parse','HEAD'])}],
+ ['unsafe Git hook',f=>f.git(f.data,['config','core.hooksPath','/unsafe'])],
+ ['same root',f=>{f.options.sourceRoot=f.data;f.options.sourceSha=f.options.headSha}],
+]) test('PR data boundary refuses '+label,()=>{const f=boundaryFixture();try{mutate(f);assert.throws(()=>validatePrDataRoot(f.options,{}),EvidencePathError)}finally{rmSync(f.directory,{recursive:true,force:true})}})
+for(const key of ['NODE_OPTIONS','BASH_ENV','PYTHONPATH','LD_PRELOAD','GIT_EXTERNAL_DIFF','GIT_CONFIG_PARAMETERS','GIT_CONFIG_GLOBAL']) test('PR data boundary refuses '+key+' injection',()=>{const f=boundaryFixture();try{assert.throws(()=>validatePrDataRoot(f.options,{[key]:'untrusted'}),EvidencePathError)}finally{rmSync(f.directory,{recursive:true,force:true})}})

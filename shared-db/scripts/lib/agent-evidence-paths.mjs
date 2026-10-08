@@ -30,6 +30,63 @@
 // nothing else. Every validity rule still lives in
 // `scripts/agent-work-contract-git-evidence.mjs`.
 
+import { execFileSync } from 'node:child_process'
+import { lstatSync, realpathSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// Host toolchain (setup-python, node, etc.) may set loader/interpreter vars for
+// its own binaries. PR-data validation and any PR-data child must not inherit
+// them. Callers that pass an explicit env still get the strict refusal below;
+// the process.env default is sanitized so runner Python keeps working while PR
+// data still cannot smuggle loaders.
+const PR_DATA_UNSAFE_ENV = ['NODE_OPTIONS','NODE_PATH','BASH_ENV','ENV','LD_PRELOAD','LD_LIBRARY_PATH','PYTHONPATH','PYTHONHOME','GIT_EXTERNAL_DIFF']
+
+export function sanitizePrDataEnv(env = process.env) {
+  const cleaned = { ...env }
+  for (const name of PR_DATA_UNSAFE_ENV) delete cleaned[name]
+  delete cleaned.GIT_CONFIG_PARAMETERS
+  if (cleaned.GIT_CONFIG_COUNT && cleaned.GIT_CONFIG_COUNT !== '0') delete cleaned.GIT_CONFIG_COUNT
+  for (const name of ['GIT_CONFIG_GLOBAL','GIT_CONFIG_SYSTEM']) {
+    if (cleaned[name] && cleaned[name] !== '/dev/null') delete cleaned[name]
+  }
+  return cleaned
+}
+
+// Existing evidence paths now also bind the PR checkout as data, never executable
+// source. Callers must carry explicit immutable identities; ambient overrides do
+// not select a data root.
+export function validatePrDataRoot({ root, headSha, sourceRoot, sourceSha }, env = sanitizePrDataEnv(process.env)) {
+  const fail = (message) => { throw new EvidencePathError(`PR data boundary: ${message}`) }
+  for (const name of PR_DATA_UNSAFE_ENV) if (env[name]) fail(`unsafe ${name}`)
+  if (env.GIT_CONFIG_PARAMETERS || env.GIT_CONFIG_COUNT && env.GIT_CONFIG_COUNT !== '0') fail('unsafe injected Git configuration')
+  for (const name of ['GIT_CONFIG_GLOBAL','GIT_CONFIG_SYSTEM']) if (env[name] && env[name] !== '/dev/null') fail(`unsafe ${name}`)
+  if (![headSha, sourceSha].every(value => /^[0-9a-f]{40}$/.test(value ?? ''))) fail('immutable head and source identities required')
+  const checked = value => {
+    if (typeof value !== 'string' || !path.isAbsolute(value) || realpathSync(value) !== path.resolve(value) || lstatSync(value).isSymbolicLink()) fail('canonical absolute directory required')
+    return path.resolve(value)
+  }
+  const data = checked(root), source = checked(sourceRoot)
+  if (data === source || source.startsWith(`${data}${path.sep}`) && path.basename(source) !== 'trusted-policy') fail('source/data directory ambiguity')
+  const git = (cwd, args) => execFileSync('git', ['-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false',...args], { cwd, encoding:'utf8', stdio:['ignore','pipe','pipe'] }).trim()
+  for (const [directory, sha] of [[data,headSha],[source,sourceSha]]) {
+    if (git(directory,['rev-parse','--show-toplevel']) !== directory || git(directory,['rev-parse','HEAD']) !== sha) fail('checkout root or immutable head mismatch')
+    const config = git(directory,['config','--local','--list'])
+    if (/^(core\.(hooksPath|fsmonitor)|filter\.|diff\..*\.(command|textconv)|include\.|includeif\.)/im.test(config)) fail('unsafe repository configuration')
+  }
+  if (git(source,['status','--porcelain'])) fail('protected source checkout dirty')
+  const entries = git(data,['ls-files','--stage','-z']).split('\0').filter(Boolean)
+  for (const entry of entries) {
+    const match = /^(\d+) [0-9a-f]+ \d+\t([\s\S]+)$/.exec(entry)
+    if (!match || !['100644','100755'].includes(match[1])) fail('linked or nonregular tracked data')
+    const file = path.resolve(data,match[2])
+    if (!file.startsWith(`${data}${path.sep}`) || realpathSync(file) !== file) fail('data path escape')
+    const stat = lstatSync(file)
+    if (!stat.isFile() || stat.nlink !== 1) fail('linked or nonregular data file')
+  }
+  return data
+}
+
 export const LEGACY_CONTRACT_PATH = '.agent/contract.json'
 export const LEGACY_COMPLETION_PATH = '.agent/completion.json'
 export const LEGACY_PAIR = Object.freeze([LEGACY_COMPLETION_PATH, LEGACY_CONTRACT_PATH])
@@ -115,4 +172,12 @@ export function acceptableEvidencePairs(contract) {
     pairs.push(LEGACY_PAIR)
   }
   return pairs
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    const args = process.argv.slice(2)
+    if (args.length !== 8 || args[0] !== '--data-root' || args[2] !== '--head-sha' || args[4] !== '--source-root' || args[6] !== '--source-sha') throw new EvidencePathError('explicit data/source roots and immutable heads required')
+    console.log(validatePrDataRoot({root:args[1],headSha:args[3],sourceRoot:args[5],sourceSha:args[7]}))
+  } catch (error) { console.error(error.message); process.exit(2) }
 }

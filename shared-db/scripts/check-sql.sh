@@ -2,6 +2,16 @@
 set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source_dir="$root_dir"
+if [[ "$#" -gt 0 ]]; then
+  [[ "$#" = 6 && "$1" = --data-root && "$3" = --head-sha && "$5" = --source-sha ]] || { echo 'Explicit data root/head/source identity required' >&2; exit 2; }
+  root_dir="$(node "$source_dir/scripts/lib/agent-evidence-paths.mjs" --data-root "$2" --head-sha "$4" --source-root "$source_dir" --source-sha "$6")"
+  # Guard seams cannot override a security-bound actual PR data inventory.
+  for boundary_var in CHECK_SQL_MIGRATION_DIR CHECK_SQL_MAIN_NEWEST CHECK_SQL_MIGRATIONS_ONLY CHECK_SQL_EOL_DIFF_FILE; do
+    [[ -z "${!boundary_var:-}" ]] || { echo 'Data boundary forbids test overrides' >&2; exit 2; }
+  done
+  cd "$root_dir"
+fi
 # CHECK_SQL_MIGRATION_DIR / CHECK_SQL_MAIN_NEWEST / CHECK_SQL_MIGRATIONS_ONLY are
 # test seams only, used by scripts/check-sql.test.mjs to drive the migration
 # guards against a throwaway fixture directory. CI and a developer's plain
@@ -298,7 +308,7 @@ else
       continue
     fi
     if [[ "$version" < "$main_newest_version" ]]; then
-      if node scripts/historical-migration-restorations.mjs --allows-backdated "supabase/migrations/$name"; then
+      if node "$source_dir/scripts/historical-migration-restorations.mjs" --allows-backdated "supabase/migrations/$name"; then
         echo "Guard B historical restoration: exact governed version $version is allowed to sort before main."
         continue
       fi
@@ -694,8 +704,8 @@ if [[ "$guard_b2_ran" -eq 0 && "$guard_b2_failed" -eq 0 ]]; then
   fi
 fi
 
-node "$root_dir/scripts/check-expected-count-patterns.mjs" "$migration_dir" "$added_versions_file"
-node "$root_dir/scripts/check-migration-verify-cost.mjs" "$migration_dir" "$added_versions_file"
+node "$source_dir/scripts/check-expected-count-patterns.mjs" "$migration_dir" "$added_versions_file"
+node "$source_dir/scripts/check-migration-verify-cost.mjs" "$migration_dir" "$added_versions_file"
 
 rm -f "$added_versions_file" "$migration_names_file"
 

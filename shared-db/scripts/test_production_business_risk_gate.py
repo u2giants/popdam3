@@ -1615,7 +1615,11 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         spawned = re.search(r"\b(?:execFileSync|execSync|spawnSync|spawn|execFile)\b", line)
         if not interpreted and not spawned:
             return []
-        return [m.rstrip(".") for m in re.findall(rf"({roots}/[A-Za-z0-9_.-]+)", line)]
+        paths = [m.rstrip(".") for m in re.findall(rf"({roots}/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)", line)]
+        for value in paths:
+            if any(part in (".", "..") for part in value.split("/")):
+                raise ValueError("executed source path traversal refused")
+        return list(dict.fromkeys(paths))
 
     @staticmethod
     def local_imports(root, body):
@@ -1657,6 +1661,8 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             seen.add(rel)
             path = root / rel
             if not path.is_file():
+                if rel not in self.PREVIEW_JOB_EXCLUSIONS:
+                    raise ValueError(f"executed source file missing: {rel}")
                 continue
             body = path.read_text(encoding="utf-8", errors="ignore")
             queue.extend(self.local_imports(root, body))
@@ -1670,6 +1676,14 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             if rel not in seen:
                 seen.add(rel)
         return seen
+
+    def test_nested_executed_source_paths_are_complete_deduplicated_and_traversal_refuses(self):
+        self.assertEqual(self.scripts_invoked_on('node "$SOURCE/scripts/lib/agent-evidence-paths.mjs" scripts/lib/agent-evidence-paths.mjs', "scripts"), ["scripts/lib/agent-evidence-paths.mjs"])
+        with self.assertRaisesRegex(ValueError, "traversal"):
+            self.scripts_invoked_on('node scripts/lib/../../foreign.mjs', "scripts")
+        with mock.patch.object(self, "preview_job_text", return_value="node scripts/lib/definitely_missing.mjs"):
+            with self.assertRaisesRegex(ValueError, "source file missing"):
+                self.executed_closure()
 
     def test_preview_producer_paths_cover_the_whole_executed_closure(self):
         """The list must not be able to fall silently behind reality.

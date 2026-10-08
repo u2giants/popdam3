@@ -24,15 +24,15 @@ const readWorkflow = (name) => readFileSync(new URL(`../.github/workflows/${name
 
 function guardedCollisionWire(pr, { fetchFails = false } = {}) {
   const workflow = readWorkflow('guarded-migration-merge.yml')
-  const block = /          collision_pr="\$\(node[\s\S]*?          GITHUB_SHA="\$REQUESTED_SHA" node scripts\/check-pr-object-collisions\.mjs/.exec(workflow)?.[0]
+  const block = /          collision_pr="\$\(node[\s\S]*?          GITHUB_SHA="\$REQUESTED_SHA" node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/check-pr-object-collisions\.mjs"/.exec(workflow)?.[0]
   assert.ok(block, 'the actual guarded identity read and collision command must exist')
   const script = `set -euo pipefail
 node() {
-  if [ "$1" = "$GITHUB_WORKSPACE/scripts/gh-read.mjs" ]; then
+  if [ "$1" = "$GITHUB_WORKSPACE/trusted-policy/scripts/gh-read.mjs" ]; then
     [ "$2" = api ] && [ "$3" = "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" ]
     [ "$FETCH_FAILS" = 0 ] || return 1
     printf '%s' "$FIXTURE_JSON"
-  elif [ "$1" = scripts/check-pr-object-collisions.mjs ]; then
+  elif [ "$1" = "$GITHUB_WORKSPACE/trusted-policy/scripts/check-pr-object-collisions.mjs" ]; then
     printf 'collision-head=%s\\n' "$GITHUB_SHA"
   else
     command node "$@"
@@ -60,7 +60,7 @@ test('actual protected guarded collision wire binds the validated PR head only t
   const locked = workflow.slice(workflow.indexOf('      - name: Re-prove the head and merge while the lock is held'))
   assert.ok(locked.indexOf('check-main-tip-freshness.mjs --contains') < locked.indexOf('collision_pr='))
   assert.ok(locked.indexOf('headRefOid') < locked.indexOf('collision_pr='))
-  assert.ok(locked.indexOf('GITHUB_SHA="$REQUESTED_SHA" node scripts/check-pr-object-collisions.mjs') < locked.indexOf("-f state=success"))
+  assert.ok(locked.indexOf('GITHUB_SHA="$REQUESTED_SHA" node "$GITHUB_WORKSPACE/trusted-policy/scripts/check-pr-object-collisions.mjs"') < locked.indexOf("-f state=success"))
 })
 
 for (const [label, mutate] of [
@@ -384,10 +384,10 @@ test('both authority reads precede every pull-request script and run from protec
     assert.match(step, /node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/check-required-checks-preflight\.mjs"/)
   }
   assert.match(protectedClassifier, /working-directory: trusted-policy/)
-  assert.match(protectedClassifier, /node scripts\/check-self-service-additive-lane\.mjs --pr/)
+  assert.match(protectedClassifier, /node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/check-self-service-additive-lane\.mjs" --pr/)
   assert.match(protectedQuota, /working-directory: trusted-policy/)
   assert.match(protectedLock, /working-directory: trusted-policy/)
-  assert.match(protectedLock, /node scripts\/manage-migration-author-lanes\.mjs --acquire-merge/)
+  assert.match(protectedLock, /node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/manage-migration-author-lanes\.mjs" --acquire-merge/)
   // #3669: the lock's "main moved independently" re-check needs the merge base
   // of the head and the main tip, so protected main must carry full history and
   // both commits must be fetched before acquisition.
@@ -395,7 +395,7 @@ test('both authority reads precede every pull-request script and run from protec
   assert.match(trustedCheckout, /path: trusted-policy[\s\S]*fetch-depth: 0/, 'a shallow trusted-policy checkout has no merge base, so main moving independently is always refused')
   assert.doesNotMatch(trustedCheckout, /fetch-depth: 1/)
   assert.match(protectedLock, /HEAD_SHA: \$\{\{ inputs\.head_sha \}\}/)
-  assert.match(protectedLock, /git fetch --no-tags --quiet origin main "\$HEAD_SHA"\n\s*node scripts\/manage-migration-author-lanes\.mjs --acquire-merge/, 'the head and main tip must be fetched immediately before acquisition')
+  assert.match(protectedLock, /git fetch --no-tags --quiet origin main "\$HEAD_SHA"\n\s*node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/manage-migration-author-lanes\.mjs" --acquire-merge/, 'the head and main tip must be fetched immediately before acquisition')
   assert.match(preflight, /GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS: '900'/)
   assert.match(preflight, /id: trusted_preflight/)
   assert.match(preflight, /echo "sha=\$\(git rev-parse HEAD\)" >> "\$GITHUB_OUTPUT"/)
@@ -405,7 +405,7 @@ test('both authority reads precede every pull-request script and run from protec
   assert.match(release, /TRUSTED_MAIN_SHA: \$\{\{ steps\.trusted_preflight\.outputs\.sha \}\}/)
   assert.match(release, /test "\$\(git rev-parse HEAD\)" = "\$TRUSTED_MAIN_SHA"/)
   assert.match(release, /NODE_OPTIONS: ''/)
-  assert.match(release, /node scripts\/manage-migration-author-lanes\.mjs --release-merge/)
+  assert.match(release, /node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/manage-migration-author-lanes\.mjs" --release-merge/)
   assert.doesNotMatch(outside, /^\s*AUTHORITY_TOKEN:/m, 'head code outside the protected reads must not receive the authority token')
 })
 
@@ -584,4 +584,36 @@ test('manual replay runs base-owned evaluators against exact head evidence', asy
     assert.match(job,/node trusted-policy\/scripts\/agent-work-contract-git-evidence\.mjs/)
     assert.match(job,/--config-file trusted-policy\/config\/agent-work-contract-activation\.json/)
   } finally {rmSync(cwd,{recursive:true,force:true})}
+})
+
+test('retained14 runs before every mutation without widening authority secret environments',()=>{
+  const workflow=readWorkflow('guarded-migration-merge.yml')
+  const guarded=stepBlock(workflow,'Re-prove the head and merge while the lock is held')
+  assert.match(guarded,/AUTHORITY_FILE_IDENTITY:/)
+  assert.doesNotMatch(guarded,/secrets\.SYNC_TOKEN|AUTHORITY_TOKEN:/)
+  assert.match(workflow,/--capture-authority-file/)
+  assert.match(workflow,/Remove this run's protected authority scratch file[\s\S]*if: always\(\)[\s\S]*--cleanup-authority-file/)
+  const lines=guarded.split('\n')
+  const calls=lines.map((line,i)=>({line,i})).filter(({line})=>/^\s*(?:if )?gh pr merge /.test(line))
+  assert.equal(calls.length,3)
+  for(const {i}of calls)assert.equal(lines[i-1].trim(),'prove_retained_all14')
+  assert.match(guarded,/\[ "\$PR_NUMBER" = 3998 \] \|\| return 0/)
+  assert.match(guarded,/QUEUE_RETIREMENT_PHASE=14 PREFLIGHT_WAIT_SECONDS=0/)
+  assert.match(guarded,/git\/ref\/db-coordination\/merge/)
+  assert.match(guarded,/matching-refs\/db-coordination\/promotion-freeze/)
+  assert.equal((workflow.match(/export QUEUE_RETIREMENT_PHASE=13/g)??[]).length,2)
+})
+
+test('all job executable scripts use protected source before any credential and while scratch exists',()=>{
+ const workflow=readWorkflow('guarded-migration-merge.yml')
+ assert.doesNotMatch(workflow,/\b(?:node|bash|python3?) scripts\//)
+ assert.doesNotMatch(workflow,/node "\$GITHUB_WORKSPACE\/scripts\//)
+ const binding=workflow.indexOf('Bind protected executable source and PR data before credentials')
+ const firstAuthority=workflow.indexOf('AUTHORITY_TOKEN:')
+ assert.ok(binding>=0&&binding<firstAuthority)
+ assert.match(workflow,/--data-root "\$GITHUB_WORKSPACE" --head-sha/)
+ for(const name of ['NODE_OPTIONS','BASH_ENV','PYTHONPATH','LD_PRELOAD','GIT_EXTERNAL_DIFF']) assert.match(workflow,new RegExp(name+": ''"))
+ assert.match(workflow,/GIT_CONFIG_GLOBAL: \/dev\/null/)
+ assert.match(workflow,/check-sql\.sh" --data-root/)
+ assert.match(workflow,/check-production-verification-sidecars\.mjs" --base origin\/main --data-root/)
 })

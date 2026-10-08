@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "generation": 330,
+  "work_issue": 3536,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Restore security-repaired guard/throughput sources from recovered 65bb3c9b evidence for PR 4069, carry the take-over branch fixes, and bind a correct generation-328 evidence pair to the implementation head. No database write, no limit reset, no security-gate waiver.",
+  "base_sha": "85e46b22106be636d53c32b6622363c65e929ddf",
+  "dispatcher": "MiMo session ses_ffe5ee78bb1a0ffePq0RSujvZS",
+  "worker": "mimo",
+  "branch": "mimo/3536-guard-4050-takeover",
+  "worktree": "C:\\repos\\shared-db-wt-3536-guard",
+  "file_writes": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "scripts/check-required-checks-preflight.mjs",
+    "scripts/check-required-checks-preflight.test.mjs",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~check-required-checks-preflight.mjs.json",
+    "scripts/check-closeout-readiness.test.mjs",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    "scripts/check-production-verification-sidecars.mjs",
+    "scripts/throughput-guard/check-production-verification-sidecars.test.mjs",
+    "scripts/lib/agent-evidence-paths.mjs",
+    "scripts/lib/agent-evidence-paths.test.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database or settings write",
+    "Do not bypass completion validators or exact review",
+    "Do not reset limits or waive security gates",
+    "Do not force-push or rewrite foreign work"
+  ],
+  "required_checks": [
+    "node --test scripts/check-required-checks-preflight.test.mjs scripts/check-merge-queue-workflows.test.mjs scripts/check-sql.test.mjs scripts/check-closeout-readiness.test.mjs scripts/lib/agent-evidence-paths.test.mjs scripts/throughput-guard/check-production-verification-sidecars.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "bash scripts/check-sql.sh",
+    "git diff --check",
+    "python -m unittest scripts.test_production_business_risk_gate"
+  ],
+  "assumptions": [
+    "Security-repaired content from commit 65bb3c9b recovered from edge-dev3 bundle guard327-unpublished-wrap.bundle and SHA256-verified 14/14 against guard327-wrap-source-bytes.json.",
+    "5699 REVISE history preserved; no limit reset; no security-gate waiver.",
+    "Generation 328 supersedes the mis-bound 327 pair on this branch; published ref 327 remains immutable history.",
+    "scripts/manage-migration-author-lanes.test.mjs is an additional take-over fix on this branch and is in scope."
+  ],
+  "stop_conditions": [
+    "Stop if canonical exact head/base/open validation weakened",
+    "Stop on source conflict or review refusal"
+  ],
+  "evidence_parent": {
+    "work_issue": 3536,
+    "generation": 327,
+    "contract_sha256": "dd960b8abec6ee79f3953559f2dd3a763ede01b7b814afb5fade1667ba51f17c"
+  },
+  "allowed_paths": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "scripts/check-required-checks-preflight.mjs",
+    "scripts/check-required-checks-preflight.test.mjs",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~check-required-checks-preflight.mjs.json",
+    "scripts/check-closeout-readiness.test.mjs",
+    "scripts/check-sql.sh",
+    "scripts/check-sql.test.mjs",
+    "scripts/check-production-verification-sidecars.mjs",
+    "scripts/throughput-guard/check-production-verification-sidecars.test.mjs",
+    "scripts/lib/agent-evidence-paths.mjs",
+    "scripts/lib/agent-evidence-paths.test.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/production_business_risk_gate.py"
+  ]
+}

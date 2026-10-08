@@ -1394,3 +1394,27 @@ test('3890 forward transition admits exact new bytes only, preserving retired-re
     ]) assert.notEqual(run(chunks).status, 0)
   })
 })
+
+import { execFileSync } from 'node:child_process'
+test('protected SQL source validates actual PR SQL and never executes PR helper scripts',()=>{
+ const directory=mkdtempSync(path.join(process.env.TMPDIR??'/tmp','protected-sql-data-'))
+ const source=path.join(directory,'source'),data=path.join(directory,'data'),marker=path.join(directory,'executed')
+ const git=(root,args)=>execFileSync('git',args,{cwd:root,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()
+ const init=root=>{mkdirSync(root,{recursive:true});git(root,['init','-q']);git(root,['config','user.name','Test']);git(root,['config','user.email','test@example.invalid'])}
+ try {
+  init(source);cpSync(path.join(repoRoot,'scripts'),path.join(source,'scripts'),{recursive:true});git(source,['add','scripts']);git(source,['commit','-qm','trusted source']);const sourceSha=git(source,['rev-parse','HEAD'])
+  init(data);mkdirSync(path.join(data,'supabase/migrations'),{recursive:true});writeFileSync(path.join(data,'supabase/migrations/20260101000000_initial.sql'),'select 1;');for(const name of ['20260621150714_foundation.sql','20260621150815_app_core.sql','20260621151024_domain_tables.sql','20260621151155_api_rls_realtime.sql'])cpSync(path.join(repoRoot,'supabase/migrations',name),path.join(data,'supabase/migrations',name));git(data,['add','.']);git(data,['commit','-qm','base']);git(data,['update-ref','refs/remotes/origin/main','HEAD'])
+  mkdirSync(path.join(data,'scripts'));for(const name of ['check-expected-count-patterns.mjs','check-migration-verify-cost.mjs','historical-migration-restorations.mjs'])writeFileSync(path.join(data,'scripts',name),`require('node:fs').writeFileSync(${JSON.stringify(marker)},'executed')`)
+  writeFileSync(path.join(data,'supabase/migrations/20271101000000_bad.sql'),"select (v_expected_counts ->> 'rows')::integer;\n");git(data,['add','.']);git(data,['commit','-qm','bad PR data'])
+  const result=spawnSync(bashCommand,[path.join(source,'scripts/check-sql.sh'),'--data-root',data,'--head-sha',git(data,['rev-parse','HEAD']),'--source-sha',sourceSha],{cwd:data,encoding:'utf8',env:{...process.env,GITHUB_BASE_REF:'main',DATABASE_URL:''}})
+  assert.notEqual(result.status,0,result.stdout+result.stderr)
+  assert.match(result.stdout+result.stderr,/expected_counts text is cast directly to an integer/)
+  assert.equal(existsSync(marker),false,'PR executable was run')
+  writeFileSync(path.join(data,'supabase/migrations/20271101000000_bad.sql'),'select 1;\n');git(data,['add','.']);git(data,['commit','-qm','valid PR SQL'])
+  const valid=spawnSync(bashCommand,[path.join(source,'scripts/check-sql.sh'),'--data-root',data,'--head-sha',git(data,['rev-parse','HEAD']),'--source-sha',sourceSha],{cwd:data,encoding:'utf8',env:{...process.env,GITHUB_BASE_REF:'main',DATABASE_URL:''}})
+  assert.equal(valid.status,0,valid.stdout+valid.stderr)
+  assert.equal(existsSync(marker),false,'PR executable was run for valid data')
+  assert.equal(git(source,['status','--porcelain']),'','protected source was mutated')
+  assert.equal(git(source,['rev-parse','HEAD']),sourceSha)
+ } finally {rmSync(directory,{recursive:true,force:true})}
+})
