@@ -1,0 +1,88 @@
+{
+  "schema_version": 2,
+  "generation": 21,
+  "work_issue": 2662,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Close the remaining caller-free portion of issue #2662 by removing authenticated SELECT from six definer-semantics views while preserving service-role access and each view definition.",
+  "base_sha": "4cbdd26ad0120e33f838df57e34470e0de49e58f",
+  "dispatcher": "Codex coordinator chat 01a11d57-118f-7f50-9c36-432c72e819d9 on edge-dev3",
+  "worker": "Codex delegated views lane in chat 01a11d57-118f-7f50-9c36-432c72e819d9 on edge-dev3",
+  "branch": "codex/2662-six-views-01a0bc14",
+  "worktree": "2662-coordinate-adoption",
+  "allowed_paths": [
+    ".agent/work/2662/21/completion.json",
+    ".agent/work/2662/21/contract.json",
+    ".github/live-proofs/2662.sql",
+    "supabase/migrations/20261008211322_revoke_authenticated_from_unused_definer_views.sql",
+    "supabase/tests/issue_2662_unused_view_grants_contracts.sql",
+    "supabase/tests/app_serving_status_contracts.sql",
+    "supabase/tests/opa_property_studio_resolution_contracts.sql",
+    "supabase/tests/source_capture_inventory_contracts.sql",
+    "supabase/tests/sega_landing_contracts.sql",
+    "supabase/tests/wildbrain_landing_contracts.sql",
+    ".agent/work/2662/19/contract.json",
+    ".agent/work/2662/19/completion.json"
+  ],
+  "file_writes": [
+    ".agent/work/2662/21/completion.json",
+    ".agent/work/2662/21/contract.json",
+    ".github/live-proofs/2662.sql",
+    "supabase/migrations/20261008211322_revoke_authenticated_from_unused_definer_views.sql",
+    "supabase/tests/issue_2662_unused_view_grants_contracts.sql",
+    "supabase/tests/app_serving_status_contracts.sql",
+    "supabase/tests/opa_property_studio_resolution_contracts.sql",
+    "supabase/tests/source_capture_inventory_contracts.sql",
+    "supabase/tests/sega_landing_contracts.sql",
+    "supabase/tests/wildbrain_landing_contracts.sql",
+    ".agent/work/2662/19/contract.json",
+    ".agent/work/2662/19/completion.json"
+  ],
+  "db_reads": [
+    "catalog pg_class",
+    "catalog pg_namespace",
+    "catalog information_schema.role_table_grants"
+  ],
+  "db_writes": [
+    "view api.crm_factory_picker_list",
+    "view api.opa_disney_property",
+    "view api.opa_lucasfilm_property",
+    "view api.opa_marvel_property",
+    "view api.pm_factory_list",
+    "view api.source_capture_inventory",
+    "table api.crm_factory_picker_list",
+    "table api.opa_disney_property",
+    "table api.opa_lucasfilm_property",
+    "table api.opa_marvel_property",
+    "table api.pm_factory_list",
+    "table api.source_capture_inventory"
+  ],
+  "prohibited_actions": [
+    "Do not alter any view definition, columns, comments, ownership, or underlying row-security policy.",
+    "Do not revoke from service_role or postgres and do not grant a replacement broad role.",
+    "Do not touch any object or file outside this contract.",
+    "Do not apply preview or production, merge, or dispatch production from this worker."
+  ],
+  "required_checks": [
+    "git diff --check",
+    "bash scripts/check-sql.sh",
+    "python3 -m unittest scripts.test_shared_db_live_proof -q"
+  ],
+  "assumptions": [
+    "Guarded operator adoption refs/db-claim-author-transfers/3294-20260928052136-8371f0c56459c2551334 records current coordinator owner; claim #3294 supersession reserves 20261008211322 and old versions remain permanently unavailable.",
+    "Current upstream main is integrated while the operational SQL stays exactly six authenticated SELECT revokes.",
+    "Actual caller and production grant premises must be freshly checked before any apply; earlier zero-caller evidence is historical.",
+    "Independent exact-head reviews, CI, preview, guarded merge and automatic production remain required; delegated worker controls no shared stage."
+  ],
+  "stop_conditions": [
+    "Stop if any claimed view no longer grants SELECT to authenticated before the migration, because the live premise has changed.",
+    "Stop if any claimed view lacks service_role SELECT before or after the migration.",
+    "Stop if implementation requires changing a view definition or an object outside the six exact claims.",
+    "Stop on any gate refusal; never weaken a guard."
+  ],
+  "evidence_parent": {
+    "work_issue": 2662,
+    "generation": 20,
+    "contract_sha256": "030c32faed175d83679f56deab73e2c2441f3d0cea191f8c7d80d2410142084f"
+  }
+}

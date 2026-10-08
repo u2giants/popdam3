@@ -1998,7 +1998,7 @@ begin
     raise exception 'I5 FAILED: the view output columns changed shape: %', v_cols;
   end if;
   if has_table_privilege('anon', 'api.source_capture_inventory', 'SELECT')
-     or not has_table_privilege('authenticated', 'api.source_capture_inventory', 'SELECT')
+     or has_table_privilege('authenticated', 'api.source_capture_inventory', 'SELECT')
      or not has_table_privilege('service_role', 'api.source_capture_inventory', 'SELECT') then
     raise exception 'I5 FAILED: the view read grants changed';
   end if;

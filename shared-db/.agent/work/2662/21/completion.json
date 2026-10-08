@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "work_issue": 2662,
+  "outcome": "ready-for-merge",
+  "pr": 3304,
+  "migration_versions": [
+    "20261008211322"
+  ],
+  "contract_ref": "refs/db-contracts/2662/21",
+  "contract_sha256": "89fffbfe4f15be73d5168bbecc0eb1ffe33da03b3f13111616fa194c4dae32ba",
+  "head_sha": "3f2edb84800a0bcab62559f9273fb6d0dac468ce",
+  "files_changed": [
+    ".github/live-proofs/2662.sql",
+    "supabase/migrations/20261008211322_revoke_authenticated_from_unused_definer_views.sql",
+    "supabase/tests/app_serving_status_contracts.sql",
+    "supabase/tests/issue_2662_unused_view_grants_contracts.sql",
+    "supabase/tests/opa_property_studio_resolution_contracts.sql",
+    "supabase/tests/sega_landing_contracts.sql",
+    "supabase/tests/source_capture_inventory_contracts.sql",
+    "supabase/tests/wildbrain_landing_contracts.sql"
+  ],
+  "db_reads": [
+    "catalog pg_class",
+    "catalog pg_namespace",
+    "catalog information_schema.role_table_grants"
+  ],
+  "db_writes": [
+    "view api.crm_factory_picker_list",
+    "view api.opa_disney_property",
+    "view api.opa_lucasfilm_property",
+    "view api.opa_marvel_property",
+    "view api.pm_factory_list",
+    "view api.source_capture_inventory",
+    "table api.crm_factory_picker_list",
+    "table api.opa_disney_property",
+    "table api.opa_lucasfilm_property",
+    "table api.opa_marvel_property",
+    "table api.pm_factory_list",
+    "table api.source_capture_inventory"
+  ],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Current upstream integration and scoped source changes passed whitespace validation."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards passed. Live-ledger Guard B2 and full exact-head database matrix remain required in CI; no live database credentials loaded."
+    },
+    {
+      "command": "python3 -m unittest scripts.test_shared_db_live_proof -q",
+      "exit_code": 0,
+      "evidence": "28 tests passed on refreshed proof shape."
+    },
+    {
+      "command": "supabase/tests/issue_2662_unused_view_grants_contracts.sql in disposable PostgreSQL16 fixture",
+      "exit_code": 0,
+      "evidence": "ISSUE_2662_UNUSED_VIEW_GRANTS_OK: 42 role-claim authenticated denials, six service-role reads, four unchanged sibling reads; no business rows emitted."
+    },
+    {
+      "command": "independent ACL/definition snapshot and live proof in disposable PostgreSQL16 fixture",
+      "exit_code": 0,
+      "evidence": "SNAPSHOT_PRESERVATION_OK proves definition/owner/options unchanged, ACL changes affect exactly six relations. Live proof returned passed=true. Owned disposable fixture removed."
+    },
+    {
+      "command": "Fresh remote-default application caller source search",
+      "exit_code": 0,
+      "evidence": "Fresh depth-one source snapshots have zero six-view executable callers (mirrored shared-db, dependency/build outputs, SQL/docs and generated database.types declarations excluded): popcrm-web f454f81c3a65fc32be99f5c40e88750b21f75b00; poppim-web cc5a39938f684c90409e16768bdbb18c6e843412; designflow-backend b3af428b0b239198ec83e51cd12e5ea2094f35c6; designflow-frontend e5d2a9d8f73096e14cd361cd065654095085c4d6; popdam3 d3495830957c3450e1bddf36a691f4bd6097f0f3. CRM/PIM generated declarations mention picker relations but make no runtime calls."
+    }
+  ],
+  "assumptions_resolved": [
+    "Guarded adoption transfer sha418f6c88459450e0624a1c911bd9205c9e2ab1ce retains claim3294, supersession reserves20261008211322; retired versions permanently unavailable.",
+    "Origin/main4cbdd26ad0120e33f838df57e34470e0de49e58f merged cleanly. Operational migration SQL remains exactly six authenticated SELECT revokes.",
+    "Previous19 pair retained in immutable refs, original commits and private snapshots; cancelled original pair additions from final PR diff so exactly one current evidence pair remains.",
+    "Fresh independent exact-head reviews, full database CI, production grant/caller premises, preview, guarded merge, automatic production and application acceptance remain coordinator responsibilities; local fixture is not production proof.",
+    "Coordinator independently re-proved production target and read-only identity, all six exact views exist, authenticated SELECT true and service_role SELECT true for each; this is pre-apply grant premise evidence, not delivery proof."
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "4cbdd26ad0120e33f838df57e34470e0de49e58f"
+}

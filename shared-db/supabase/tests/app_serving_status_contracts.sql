@@ -3,7 +3,7 @@
 --
 -- Proves, as real authenticated app users (SET LOCAL role + JWT sub):
 --   * every new view exists, uses its intended security mode, and is granted
---     to authenticated;
+--     to authenticated, except the two unused server-only vendor views (#2662);
 --   * the effective-visibility rule: global active/potential AND per-app
 --     extension status active (missing ext row defaults to active);
 --   * per-app-inactive rows are hidden from that app's picker only;
@@ -66,8 +66,9 @@ begin
     ), false) then
       raise exception '% must be a protected security-barrier serving view', v_view;
     end if;
-    if not has_table_privilege('authenticated', v_view::regclass, 'select') then
-      raise exception 'authenticated must have select on %', v_view;
+    if has_table_privilege('authenticated', v_view::regclass, 'select')
+       is distinct from (v_view not in ('api.crm_factory_picker_list', 'api.pm_factory_list')) then
+      raise exception 'unexpected authenticated SELECT on %', v_view;
     end if;
   end loop;
 
@@ -187,7 +188,7 @@ begin
 
   -- CRM vendor picker.
   perform set_config('request.jwt.claim.sub', v_crm_auth::text, true);
-  perform set_config('role', 'authenticated', true);
+  perform set_config('role', 'service_role', true);
 
   if exists (select 1 from api.crm_factory_picker_list where id = v_factory_hidden) then
     raise exception 'CRM-inactive vendor must be hidden from the CRM picker';
@@ -200,7 +201,7 @@ begin
 
   -- PM vendor picker.
   perform set_config('request.jwt.claim.sub', v_pm_auth::text, true);
-  perform set_config('role', 'authenticated', true);
+  perform set_config('role', 'service_role', true);
 
   if exists (select 1 from api.pm_factory_list where id = v_factory_hidden) then
     raise exception 'PM-inactive vendor must be hidden from the PM picker';
