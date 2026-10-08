@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "work_issue": 3175,
+  "outcome": "ready-for-merge",
+  "pr": 3309,
+  "migration_versions": [
+    "20261008211251"
+  ],
+  "contract_ref": "refs/db-contracts/3175/10",
+  "contract_sha256": "cb5ff0b55d7b9774e2d289f8786a72a609d0208288313f1530da692e584d3893",
+  "head_sha": "5d3d196288d0c5f006e13a2ec18ab3f3ab3bbae9",
+  "files_changed": [
+    ".github/live-proofs/3175.sql",
+    "supabase/migrations/20261008211251_retire_designflow_taxonomy_health_lane.sql",
+    "supabase/tests/taxonomy_retired_designflow_lane_contracts.sql"
+  ],
+  "db_reads": [
+    "table ingest.sync_run"
+  ],
+  "db_writes": [
+    "function plm.check_taxonomy_sync_health",
+    "function plm.record_taxonomy_parallel_observation"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed; base newest20261008160444. Live-ledger B2 not configured locally and remains required in CI."
+    },
+    {
+      "command": "node --test tools/check-coldlion-designflow-sync-health.test.mjs tools/compare-coldlion-designflow-daily.test.mjs tools/evaluate-coldlion-licensor-property-cutover-readiness.test.mjs",
+      "exit_code": 0,
+      "evidence": "19 passed, 0 failed."
+    },
+    {
+      "command": "Compare source migration bytes against previous exact PR head c3872094229504bc397b6a35b436df1deb06c93a",
+      "exit_code": 0,
+      "evidence": "SQL migration bytes unchanged; sha256=825e15dc94e638b28efe891be6b2e33f97dffafc4bb6b28edc04a379cb81cb75"
+    },
+    {
+      "command": "node scripts/check-migration-pr-lease.mjs",
+      "exit_code": 0,
+      "evidence": "Live PR3309 check: Migration claim verified: #3307, version20261008211251. Fresh exact pushed-head hosted check remains required."
+    },
+    {
+      "command": "focused rollback SQL regression contracts",
+      "exit_code": 0,
+      "evidence": "Disposable postgres16, original observation/sync/alert definitions, unchanged priorACL fixture, exact migration and focused taxonomy_retired_designflow_lane_contracts.sql succeeded; terminal DO then ROLLBACK. No shared database used."
+    }
+  ],
+  "assumptions_resolved": [
+    "Guarded adoption and supersession complete; generation7 remains unchanged.",
+    "Current main merged without conflicts; runtime and rollback SQL unchanged.",
+    "Live proof ledger reservation updated; detector body hashes retained.",
+    "Fresh hosted rollback SQL, live-ledger B2, exact-head lease CI and two governed reviews still required; no stage or live proof claimed.",
+    "Generation10 is the only current PR evidence pair. Predecessor refs and source commits retain all former immutable evidence."
+  ],
+  "stop_conditions_hit": [],
+  "base_sha": "4cbdd26ad0120e33f838df57e34470e0de49e58f"
+}

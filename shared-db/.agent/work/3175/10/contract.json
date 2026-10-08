@@ -1,0 +1,59 @@
+{
+  "allowed_paths": [
+    "supabase/migrations/20261008211251_retire_designflow_taxonomy_health_lane.sql",
+    "supabase/tests/taxonomy_retired_designflow_lane_contracts.sql",
+    ".github/live-proofs/3175.sql",
+    ".agent/work/3175/10/contract.json",
+    ".agent/work/3175/10/completion.json"
+  ],
+  "assumptions": [
+    "Claim #3307 was guardedly adopted by codex-01a11d57-coordinate-3175 with exact branch and target worktree retained.",
+    "Guarded supersession reserved migration20261008211251; former versions remain permanently reserved.",
+    "Current upstream detector definitions still derive from20260905043023; SQL bodies remain byte-identical after refresh.",
+    "DesignFlow runtime source is retired; historical source references and all existing detector safeguards remain binding.",
+    "Only generation10 evidence pair will remain in final PR diff; published predecessor refs and source commit history preserve generations7/8/9 unchanged."
+  ],
+  "base_sha": "4cbdd26ad0120e33f838df57e34470e0de49e58f",
+  "branch": "codex/3175-retired-taxonomy-916",
+  "db_reads": [
+    "table ingest.sync_run"
+  ],
+  "db_writes": [
+    "function plm.check_taxonomy_sync_health",
+    "function plm.record_taxonomy_parallel_observation"
+  ],
+  "dispatcher": "Codex coordinating chat 01a11d57-118f-7f50-9c36-432c72e819d9",
+  "file_writes": [
+    "supabase/migrations/20261008211251_retire_designflow_taxonomy_health_lane.sql",
+    "supabase/tests/taxonomy_retired_designflow_lane_contracts.sql",
+    ".github/live-proofs/3175.sql",
+    ".agent/work/3175/10/contract.json",
+    ".agent/work/3175/10/completion.json"
+  ],
+  "generation": 10,
+  "goal": "Retire only the DesignFlow runtime freshness/status leg in both taxonomy detectors while preserving ColdLion checks, historical source-reference invariants, live-hash refusal, append-only evidence and ACLs.",
+  "prohibited_actions": [
+    "No direct database apply, promotion, merge, issue closure, or changed columns.",
+    "No weakened ColdLion, live-hash, baseline, history, or execution restrictions."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node scripts/check-migration-pr-lease.mjs",
+    "focused rollback SQL regression contracts"
+  ],
+  "route": "claim-first",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Unexpected live definition divergence or claim collision.",
+    "Any required change outside admitted function objects or allowed paths."
+  ],
+  "work_issue": 3175,
+  "work_type": "structural",
+  "worker": "Codex subagent chat 01a11d57-8ede-7483-8d13-d9dd718113ad",
+  "worktree": "/home/ahazan/.codex/worktrees/3175-coordinate-adoption/shared-db",
+  "evidence_parent": {
+    "work_issue": 3175,
+    "generation": 9,
+    "contract_sha256": "a7b4634cc2fcacc33cd629a8ef479184b460c7a30f143cc82aedefb1624e121f"
+  }
+}
