@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 4088,
+  "outcome": "ready-for-merge",
+  "pr": 4087,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4088/1",
+  "contract_sha256": "a78b120f92a5b40548a67daced330717df6da507bde1002efdbd3b97a06ebac0",
+  "head_sha": "0b124db966cfd7dbf9425a21b48b1e26af3b9a75",
+  "base_sha": "2198af258e451ad23be2c2a1d8a194f58d98045c",
+  "files_changed": [
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/shared-db-2873-observation.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/proofs/shared-db-2873-observation.test.mjs",
+      "exit_code": 0,
+      "evidence": "8 pass at 0b124db966cfd7dbf9425a21b48b1e26af3b9a75"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean at 0b124db966cfd7dbf9425a21b48b1e26af3b9a75"
+    }
+  ],
+  "assumptions_resolved": [
+    "Read-only production run of the patched catalog SQL: every flag true, matrix_entries 427"
+  ],
+  "stop_conditions_hit": []
+}

@@ -69,3 +69,12 @@ test('implicit creator membership exemption is exact in migration and observer',
  assert.equal((o.match(/'postgres'::regrole/g)||[]).length,1);
  assert.ok(o.includes("when 'v' then 'view'"),'observer must distinguish views from tables');
 });
+
+// #2873: every role inherits TRUNCATE on pg_net's net tables from Supabase's PUBLIC grant
+// (owner-accepted 2026-09-23). Only that inherited PUBLIC grant on schema net is exempt.
+test('global_no_truncate exempts only PUBLIC-inherited TRUNCATE in schema net',async()=>{
+ const o=(await readFile(new URL('./2873-catalog.sql',import.meta.url),'utf8')).replace(/\s+/g,' ');
+ const clause="AND NOT (n.nspname='net' AND EXISTS(SELECT 1 FROM aclexplode(c.relacl) pa WHERE pa.grantee=0 AND pa.privilege_type='TRUNCATE') AND NOT EXISTS(SELECT 1 FROM aclexplode(c.relacl) da WHERE da.grantee IN(SELECT oid FROM roles)))";
+ assert.equal(o.split(clause).length-1,1);
+ assert.equal((o.match(/nspname='net'/g)||[]).length,1);
+});

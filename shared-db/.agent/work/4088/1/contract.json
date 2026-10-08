@@ -1,0 +1,43 @@
+{
+  "schema_version": 2,
+  "generation": 1,
+  "work_issue": 4088,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Observer fix: global_no_truncate counted TRUNCATE that every role inherits from Supabase's PUBLIC grant on pg_net's net.http_request_queue and net._http_response (the settled 2026-09-23 pg_net exception), so the central #2873 observation refused on correct production. Exempt only TRUNCATE inherited via PUBLIC on schema net; direct grants stay covered by matrix_exact.",
+  "base_sha": "2198af258e451ad23be2c2a1d8a194f58d98045c",
+  "dispatcher": "Claude successor chat 18b2dac6-a966-4cdc-901a-822bf0d088e9",
+  "worker": "claude",
+  "branch": "claude/2873-observer-pgnet",
+  "worktree": "/home/ahazan/repos/shared-db/.ai/worktrees/claude-2873-obs",
+  "allowed_paths": [
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/shared-db-2873-observation.test.mjs",
+    ".agent/work/4088/1/contract.json",
+    ".agent/work/4088/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/shared-db-2873-observation.test.mjs",
+    ".agent/work/4088/1/contract.json",
+    ".agent/work/4088/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database or production write",
+    "No change to any migration or grant"
+  ],
+  "required_checks": [
+    "node --test scripts/proofs/shared-db-2873-observation.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "pg_net PUBLIC exposure is the owner-accepted exception (docs/security/pg-net-direct-login-rule.md)"
+  ],
+  "stop_conditions": [
+    "Claim collision, scope validation, assigned reviewer refusal or required check failure.",
+    "Any new privilege requirement beyond the published matrix."
+  ],
+  "evidence_parent": null
+}
