@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "work_issue": 4064,
+  "generation": 2,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Add public.admin_config_apply_counters(text,jsonb,jsonb): atomic row-locked increment/merge of admin_config JSON values so PopDAM agent-api stops losing PDF_BACKFILL / POPSG_PDF_BACKFILL progress counts (u2giants/popdam3#218). Service-role only, SECURITY INVOKER.",
+  "base_sha": "28d5f562f6e2aadad0e042b4511e297929cf54ef",
+  "dispatcher": "claim-first; claim #4065 (version superseded 20261007233337 -> 20261008004417 by the lane tool)",
+  "worker": "Claude chat 807923b7-e0c0-4386-9ddc-b43ce32dc0b7 on hetz",
+  "branch": "popdam-218-admin-config-atomic-increment",
+  "worktree": "/worksp/shared-db/.wt-218",
+  "allowed_paths": [
+    "supabase/migrations/20261008004417_admin_config_apply_counters.sql",
+    "supabase/tests/admin_config_apply_counters_contracts.sql",
+    ".github/live-proofs/4064.sql",
+    ".agent/work/4064/2/contract.json",
+    ".agent/work/4064/2/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261008004417_admin_config_apply_counters.sql",
+    "supabase/tests/admin_config_apply_counters_contracts.sql",
+    ".github/live-proofs/4064.sql",
+    ".agent/work/4064/2/contract.json",
+    ".agent/work/4064/2/completion.json"
+  ],
+  "db_reads": [
+    "table public.admin_config"
+  ],
+  "db_writes": [
+    "function public.admin_config_apply_counters"
+  ],
+  "prohibited_actions": [
+    "do not change admin_config rows, columns, policies or grants",
+    "do not grant execute to anon or authenticated",
+    "do not run a manual production write"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "public.admin_config has a unique key column usable by ON CONFLICT (key)",
+    "the function does not yet exist in preview or production"
+  ],
+  "stop_conditions": [
+    "stop if the change would need a file outside allowed_paths",
+    "stop if the function needs SECURITY DEFINER"
+  ],
+  "evidence_parent": {
+    "work_issue": 4064,
+    "generation": 1,
+    "contract_sha256": "c3ac8cede224a567d56965e5e79eee616a8f293fb8e8b32420c349f86f6bbf5a"
+  }
+}

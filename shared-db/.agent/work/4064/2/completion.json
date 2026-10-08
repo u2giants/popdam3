@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "work_issue": 4064,
+  "outcome": "ready-for-merge",
+  "pr": 4066,
+  "migration_versions": [
+    "20261008004417"
+  ],
+  "contract_ref": "refs/db-contracts/4064/2",
+  "contract_sha256": "dc3a5292e8496c18ba19b760b4d404b6e69ff55e50eb915332f98948e728b8f9",
+  "base_sha": "28d5f562f6e2aadad0e042b4511e297929cf54ef",
+  "head_sha": "4c59baf0a9e51b5c0f60836fef455c333cfd03f1",
+  "files_changed": [
+    ".github/live-proofs/4064.sql",
+    "supabase/migrations/20261008004417_admin_config_apply_counters.sql",
+    "supabase/tests/admin_config_apply_counters_contracts.sql"
+  ],
+  "db_reads": [
+    "table public.admin_config"
+  ],
+  "db_writes": [
+    "function public.admin_config_apply_counters"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed for 20261008004417."
+    },
+    {
+      "command": "psql -f migration; psql -f supabase/tests/admin_config_apply_counters_contracts.sql; psql -c <.github/live-proofs/4064.sql> (disposable postgres:16 with public.admin_config(key text primary key, value jsonb not null, updated_at, updated_by))",
+      "exit_code": 0,
+      "evidence": "migration applied; contract test passed (incl. wrong-kind stored members, NULL args, exact refusal messages); live-proof query returned t"
+    },
+    {
+      "command": "50 concurrent psql sessions each calling admin_config_apply_counters('K','{\"processed\":1,\"stats\":{\"x\":1}}','{}') on disposable postgres:16",
+      "exit_code": 0,
+      "evidence": "final value {\"stats\": {\"x\": 50}, \"processed\": 50}; no client errors"
+    }
+  ],
+  "assumptions_resolved": [
+    "admin_config.key is the primary key (now asserted by the migration preflight)",
+    "head_sha is the implementation commit; the evidence commit follows it alone, per docs/agents/agent-work-contract-repo-maintenance-evidence.md step 4"
+  ],
+  "stop_conditions_hit": []
+}
