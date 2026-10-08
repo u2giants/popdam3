@@ -4,6 +4,40 @@ import { isThisRepositoryOrHistorical } from './repository-identity.mjs'
 export const REVIEW_VERDICT_REF_PREFIX = 'refs/db-review-verdicts'
 export const REVIEW_VERDICT_REPLACEMENT_REF_PREFIX = 'refs/db-review-verdict-replacements'
 export const REVIEW_VERDICTS = new Set(['APPROVE', 'REVISE', 'REJECT'])
+// Issue #3806. An archived verdict is the SAME commit moved, never rewritten, to
+// refs/db-review-archived-verdicts/<original ref without refs/>, so its original
+// name is recovered exactly by stripping the archive prefix. Readers that judge a
+// closed pull request (production promotion re-proof, risk acceptance, claim
+// retirement) read the archive mirror for their exact narrow prefix, so archiving
+// a merged migration pull request's verdict never hides it from them.
+export const REVIEW_ARCHIVED_VERDICT_REF_PREFIX = 'refs/db-review-archived-verdicts'
+const MIRRORED_VERDICT_PREFIXES = [REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX]
+export function archivedVerdictMirrorPrefix(prefix) {
+  const value = String(prefix ?? '')
+  if (!MIRRORED_VERDICT_PREFIXES.some((root) => value === root || value.startsWith(`${root}/`))) return null
+  return `${REVIEW_ARCHIVED_VERDICT_REF_PREFIX}/${value.slice('refs/'.length)}`
+}
+export function originalVerdictRefFromArchive(ref) {
+  const value = String(ref ?? ''), root = `${REVIEW_ARCHIVED_VERDICT_REF_PREFIX}/`
+  if (!value.startsWith(root)) return null
+  const original = `refs/${value.slice(root.length)}`
+  return parseVerdictRef(original) ? original : null
+}
+// Union of live and archived rows under their ORIGINAL names. The same name live
+// and archived with one object is one record; with two different objects it is an
+// ambiguous audit trail and is refused loudly, never resolved by guessing.
+export function mergeArchivedVerdictRows(liveRows, archivedRows, refOf = (row) => row.ref, shaOf = (row) => row.sha, rename = (row, ref) => ({ ...row, ref })) {
+  const byRef = new Map()
+  for (const row of liveRows ?? []) byRef.set(refOf(row), row)
+  for (const row of archivedRows ?? []) {
+    const original = originalVerdictRefFromArchive(refOf(row))
+    if (!original) throw new Error(`archived verdict ref ${refOf(row)} has no recoverable original name`)
+    const existing = byRef.get(original)
+    if (existing) { if (shaOf(existing) !== shaOf(row)) throw new Error(`verdict ${original} exists live and archived with different objects; refusing an ambiguous reviewer audit`); continue }
+    byRef.set(original, rename(row, original))
+  }
+  return [...byRef.values()]
+}
 const VALIDATED_VERDICT = Symbol('validated-review-verdict')
 
 export function reviewSlotSuffix(slot = 1) { return Number(slot) === 1 ? '' : `-slot${Number(slot)}` }

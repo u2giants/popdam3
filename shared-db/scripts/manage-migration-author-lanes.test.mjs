@@ -26,7 +26,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assertUnambiguousClaimTitle, claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewerCapacityReport, reviewLeaseAgeHours, activityFingerprintForLease, probeSilentReviewer, reclaimSilentReviewer, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, assertDurableReviewApproval, buildDynamicQueues, claimBody, closedClaimAuthoredOnMain, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverExpiredClaimFromPr, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, releaseFailedReviewer, replaceFailedReviewer, failedReviewerReleaseCommand, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, doctorTimeoutFailingChecks, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, REVIEWER_PREFLIGHT_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, excludeReviewerForPr, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, reinstateReviewerExclusion, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, reviewerEmitsGovernedVerdict, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, markLeaseReadFailure, isLeaseReadFailure, REVIEW_TARGET_SUPERSEDED, reapAbandonedReviewLeases, legacyLeaseTerminalReason, isCommandSizeFailure, archiveOldReviewVerdicts, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, reviewerStartWatchLeases, RETURNED_COPY_MARKER, returnedCopyProvenance, REPO } from './manage-migration-author-lanes.mjs'
+import { assertUnambiguousClaimTitle, claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewerCapacityReport, reviewLeaseAgeHours, activityFingerprintForLease, probeSilentReviewer, reclaimSilentReviewer, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, assertDurableReviewApproval, buildDynamicQueues, claimBody, closedClaimAuthoredOnMain, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverExpiredClaimFromPr, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, releaseFailedReviewer, replaceFailedReviewer, failedReviewerReleaseCommand, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, doctorTimeoutFailingChecks, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, REVIEWER_PREFLIGHT_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, excludeReviewerForPr, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, reinstateReviewerExclusion, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, reviewerEmitsGovernedVerdict, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, markLeaseReadFailure, isLeaseReadFailure, REVIEW_TARGET_SUPERSEDED, reapAbandonedReviewLeases, withArchivedVerdictMirror, legacyLeaseTerminalReason, isCommandSizeFailure, archiveOldReviewVerdicts, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, reviewerStartWatchLeases, RETURNED_COPY_MARKER, returnedCopyProvenance, REPO } from './manage-migration-author-lanes.mjs'
 import { readDatabasePreviewClassificationFile, withDatabasePreviewClassificationFile, databasePreviewAdmission, buildDatabasePreviewFileSnapshot } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
@@ -9386,10 +9386,10 @@ function verdictArchiveIo(){
   const {io,lease,prs}=abandonedLeaseIo()
   io.listReviewRefsPaged=(prefix)=>[...io.refs.entries()].filter(([ref])=>ref.startsWith(prefix)).map(([ref,sha])=>({ref,sha}))
   const merges=new Map()
-  io.readPullStates=()=>new Map([...prs].map(([pr,row])=>[pr,{state:row.state==='open'?'open':'closed',merged:Boolean(row.merged),mergeCommitSha:row.mergeCommitSha??null}]))
+  io.readPullStates=()=>new Map([...prs].map(([pr,row])=>[pr,{state:row.state==='open'?'open':'closed',merged:Boolean(row.merged),mergeCommitSha:row.mergeCommitSha??null,mergedAt:row.mergedAt??null}]))
   io.openPulls=()=>[...prs.values()].filter((row)=>row.state==='open')
   io.mergeTouchesMigrations=(sha)=>merges.has(sha)?merges.get(sha):null
-  const pull=(pr,{state='closed',merged=false,migration}={})=>{const mergeCommitSha=merged?pr.toString(16).padStart(40,'9'):null;if(merged&&migration!==undefined)merges.set(mergeCommitSha,migration);prs.set(pr,{number:pr,state,merged,mergeCommitSha,head:{sha:'f'.repeat(40)}})}
+  const pull=(pr,{state='closed',merged=false,migration,mergedAt=merged?'2026-09-14T12:00:00Z':null}={})=>{const mergeCommitSha=merged?pr.toString(16).padStart(40,'9'):null;if(merged&&migration!==undefined)merges.set(mergeCommitSha,migration);prs.set(pr,{number:pr,state,merged,mergedAt,mergeCommitSha,head:{sha:'f'.repeat(40)}})}
   return {io,lease,prs,pull}
 }
 
@@ -9407,7 +9407,7 @@ test('#2987 verdict archive previews, then moves only verdicts nothing can still
   const preview=archiveOldReviewVerdicts({},new Date('2026-09-15T00:00:00Z'),io)
   assert.equal(preview.applied,false);assert.equal(preview.total,7);assert.equal(preview.candidates,2)
   assert.deepEqual(preview.archiveReasons,{'pr-closed-unmerged':1,'merged-no-migration':1})
-  assert.deepEqual(preview.kept,{'pr-open':1,'merged-migration-kept-for-promotion':1,'merge-commit-unreadable':1,'active-lease':1,'pr-unknown':1})
+  assert.deepEqual(preview.kept,{'pr-open':1,'merged-migration-recent':1,'merge-commit-unreadable':1,'active-lease':1,'pr-unknown':1})
   assert.deepEqual(io.refs,before,'preview must not mutate')
   const applied=archiveOldReviewVerdicts({applyRecovery:true},new Date('2026-09-15T00:00:00Z'),io)
   assert.equal(applied.archived,2);assert.equal(applied.remaining,5)
@@ -9415,7 +9415,39 @@ test('#2987 verdict archive previews, then moves only verdicts nothing can still
   for(const ref of [open,migration,unreadable,leased,unknown])assert.equal(io.refs.get(ref),before.get(ref))
   assert.ok(archivedVerdictRef(unmerged).startsWith(`${REVIEW_ARCHIVED_VERDICT_REF_PREFIX}/db-review-verdicts/`))
   assert.equal(io.refs.has(MUTEX_REF),false,'mutex is released')
-  assert.equal(archiveOldReviewVerdicts({applyRecovery:true},new Date(),io).candidates,0)
+  // #3806: once merged 72 hours, the merged migration verdict is archived too
+  // (its promotion-time readers read the archive mirror); nothing else moves.
+  const later=archiveOldReviewVerdicts({applyRecovery:true},new Date('2026-09-17T12:00:01Z'),io)
+  assert.deepEqual(later.archiveReasons,{'merged-migration-archive-readable':1});assert.equal(later.archived,1)
+  assert.equal(io.refs.has(migration),false);assert.equal(io.refs.get(archivedVerdictRef(migration)),before.get(migration))
+  for(const ref of [open,unreadable,leased,unknown])assert.equal(io.refs.get(ref),before.get(ref))
+  assert.equal(archiveOldReviewVerdicts({applyRecovery:true},new Date('2026-09-20T00:00:00Z'),io).candidates,0)
+})
+
+test('#3806 a merged migration verdict without a readable merge time is kept, never guessed',()=>{
+  const {io,pull}=verdictArchiveIo()
+  pull(31,{merged:true,migration:true,mergedAt:null});const kept=giveVerdict(io,{issue:9,pr:31,headSha:'b'.repeat(40)})
+  const result=archiveOldReviewVerdicts({applyRecovery:true},new Date('2026-12-01T00:00:00Z'),io)
+  assert.equal(result.candidates,0);assert.deepEqual(result.kept,{'merged-migration-merge-time-unknown':1});assert.ok(io.refs.has(kept))
+})
+
+test('#3806 archived verdicts stay visible to closed-PR approval readers under their original names',()=>{
+  const live={ref:'refs/db-review-verdicts/1-2-'+'c'.repeat(40),sha:'1'.repeat(40)}
+  const archived={ref:'refs/db-review-archived-verdicts/db-review-verdicts/1-2-'+'d'.repeat(40)+'-slot2',sha:'2'.repeat(40)}
+  const refs=new Map([[live.ref,live.sha],[archived.ref,archived.sha]])
+  const base={listRefs:(prefix)=>[...refs].filter(([ref])=>ref.startsWith(prefix)).map(([ref,sha])=>({ref,sha})),marker(){return this===view}}
+  const view=withArchivedVerdictMirror(base)
+  assert.deepEqual(view.listRefs('refs/db-review-verdicts/1-2-').map((row)=>row.ref).sort(),[live.ref,'refs/db-review-verdicts/1-2-'+'d'.repeat(40)+'-slot2'].sort())
+  assert.deepEqual(view.listRefs('refs/db-review-assignments/1-2-'),[],'non-verdict listings are untouched')
+  assert.equal(view.marker(),true,'other io methods keep working through the view')
+  refs.set('refs/db-review-archived-verdicts/db-review-verdicts/1-2-'+'c'.repeat(40),'3'.repeat(40))
+  assert.throws(()=>view.listRefs('refs/db-review-verdicts/1-2-'),/exists live and archived with different objects/)
+  refs.set('refs/db-review-archived-verdicts/db-review-verdicts/1-2-'+'c'.repeat(40),live.sha)
+  assert.equal(view.listRefs('refs/db-review-verdicts/1-2-').length,2,'one object live and archived is one record')
+  base.listRefs=((read)=>(prefix)=>prefix.includes('archived')?null:read(prefix))(base.listRefs)
+  assert.throws(()=>withArchivedVerdictMirror(base).listRefs('refs/db-review-verdicts/1-2-'),/archived verdict mirror .* is unreadable/)
+  const liveNull=withArchivedVerdictMirror({listRefs:(prefix)=>prefix.includes('archived')?[]:null})
+  assert.throws(()=>liveNull.listRefs('refs/db-review-verdicts/1-2-'),/verdict listing .* is unreadable/,'an unreadable live listing is never masked by a readable archive')
 })
 
 test('#3806 scheduled verdict archive acts only above its threshold and refuses a bad threshold',()=>{
@@ -9451,7 +9483,7 @@ test('#2987 verdict archive keeps a closed PR that merged with migrations before
   const {io,prs,pull}=verdictArchiveIo()
   pull(32);const ref=giveVerdict(io,{issue:1,pr:32,headSha:'c'.repeat(40)})
   const create=io.createRef.bind(io)
-  io.createRef=(target,sha)=>{if(target===MUTEX_REF)pull(32,{merged:true,migration:true});return create(target,sha)}
+  io.createRef=(target,sha)=>{if(target===MUTEX_REF)pull(32,{merged:true,migration:true,mergedAt:new Date().toISOString()});return create(target,sha)}
   const result=archiveOldReviewVerdicts({applyRecovery:true},new Date(),io)
   assert.equal(result.candidates,1,'the preview saw a closed unmerged PR')
   assert.equal(result.archived,0);assert.equal(result.skippedChanged,1);assert.ok(io.refs.has(ref),'promotion evidence is kept')

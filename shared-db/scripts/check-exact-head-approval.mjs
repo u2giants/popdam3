@@ -68,7 +68,7 @@ import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { REPO, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_RETURN_REF_PREFIX, parseAssignmentRef, parseReviewCursor, parseReviewReturn, reviewReturnRef, reviewerReadsRepository, selectNewestCommitStatus } from './manage-migration-author-lanes.mjs'
 import { approvalLine, evidenceTiedToHead, refusalLine, trustedVerdictEvidence, unambiguouslyTiedToHead } from './lib/review-verdict.mjs'
-import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, isValidatedVerdictArtifact, parseVerdictCommit, parseVerdictRef, validateVerdictArtifact } from './lib/review-verdict-artifact.mjs'
+import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, archivedVerdictMirrorPrefix, mergeArchivedVerdictRows, isValidatedVerdictArtifact, parseVerdictCommit, parseVerdictRef, validateVerdictArtifact } from './lib/review-verdict-artifact.mjs'
 import { changedPathsFromPullRequestFiles, classifyChangedPaths, classifyLightweightMergePullRequestFiles } from './lib/documents-only-change.mjs'
 import { isContentPreservingRefresh } from './lib/pr-content-equivalence.mjs'
 import { resolveBaseRef, gitProbe } from './lib/resolve-base-ref.mjs'
@@ -471,10 +471,24 @@ export function gatherApprovalInput(env = process.env, deps = { json, pages }) {
   // is trusted is the commit, checked back against the name it is stored under,
   // because a ref name is a label and this answer decides whether bytes merge.
   const allReturnRows = (() => { const rows = readJson(['api', `repos/${REPO}/git/matching-refs/${REVIEW_RETURN_REF_PREFIX.replace(/^refs\//, '')}/`]); return Array.isArray(rows) ? rows : [] })()
-  const allVerdictRows = [REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX].flatMap((prefix) => {
+  const liveVerdictRows = [REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX].flatMap((prefix) => {
     const rows = readJson(['api', `repos/${REPO}/git/matching-refs/${prefix.replace(/^refs\//, '')}/`])
     return Array.isArray(rows) ? rows : []
   })
+  // Issue #3806. A merged pull request's verdicts may have been archived (moved,
+  // never rewritten) to refs/db-review-archived-verdicts/. Production promotion
+  // re-proves a merged source pull request here, so for a closed pull request the
+  // archive mirror is read for each exact `<issue>-<pr>-` prefix and its rows count
+  // under their original names. An open pull request is never archived, so the live
+  // gate spends no extra request. An unreadable mirror refuses; it is never skipped.
+  const archivedVerdictRows = String(livePr?.state ?? '').toLowerCase() === 'open' ? [] : [...issueNumbers].flatMap((issue) => [REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX].flatMap((prefix) => {
+    const mirror = archivedVerdictMirrorPrefix(`${prefix}/${issue}-${pr}-`)
+    const rows = readJson(['api', `repos/${REPO}/git/matching-refs/${mirror.replace(/^refs\//, '')}`])
+    if (!Array.isArray(rows)) throw new ApprovalCheckError(`archived verdict mirror ${mirror} is unreadable; refusing an incomplete reviewer audit`)
+    return rows
+  }))
+  let allVerdictRows
+  try { allVerdictRows = mergeArchivedVerdictRows(liveVerdictRows, archivedVerdictRows, (row) => row.ref, (row) => row.object?.sha) } catch (error) { throw new ApprovalCheckError(error.message) }
   const recordsAt = (recordHead) => {
   const headSha = recordHead
   const returnRows = allReturnRows

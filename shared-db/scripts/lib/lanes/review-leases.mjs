@@ -1,6 +1,6 @@
 // Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
-import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, parseVerdictRef } from '../../lib/review-verdict-artifact.mjs'
+import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, parseVerdictRef } from '../../lib/review-verdict-artifact.mjs'
 import { REVIEW_ACTIVE_CUTOVER_REF, REVIEW_ACTIVE_PARALLEL_REF_PREFIX, REVIEW_LEASE_SUSPECT_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, SILENCE_CONFIRM_HOURS, SILENCE_MIN_AGE_HOURS, isLeaseReadFailure, isReviewRefListingRefusal, leaseReadFailureError, reviewStartMarkerPresent } from './constants.mjs'
 import { LaneError } from './claims.mjs'
 import { reviewTargetIsRecordable } from './admission.mjs'
@@ -240,7 +240,9 @@ export function abandonedLeases(io){
 // (the merge gate and #2758 carry-forward read prior-head verdicts), every pull
 // request an active reviewer lease names, and every merged migration pull request
 // because production promotion re-runs check-exact-head-approval against the merged
-// source pull request. An unknown pull request or an unreadable merge commit is
+// source pull request -- kept only until it has been merged 72 hours; after that it is
+// archived too, because every promotion-time reader also reads the archive mirror
+// for its exact prefix (#3806). An unknown pull request or an unreadable merge commit is
 // kept, never guessed. Without --apply-recovery this is a read-only preview.
 // Artifact zip selection, shared by the proof readers (portable; no tar).
 export function selectArtifactJson(entries,expectedFile){
@@ -258,14 +260,15 @@ export function selectArtifactFiles(entries,expectedFiles){
   return result
 }
 
-export const REVIEW_ARCHIVED_VERDICT_REF_PREFIX='refs/db-review-archived-verdicts'
+export { REVIEW_ARCHIVED_VERDICT_REF_PREFIX }
 export const REVIEW_VERDICT_ARCHIVE_BATCH=40
 export const ARCHIVABLE_VERDICT_NAMESPACES=[`${REVIEW_VERDICT_REF_PREFIX}/`,`${REVIEW_VERDICT_REPLACEMENT_REF_PREFIX}/`]
 export function archivedVerdictRef(ref){
   if(!ARCHIVABLE_VERDICT_NAMESPACES.some((prefix)=>String(ref).startsWith(prefix)))throw new LaneError(`${ref} is not a durable reviewer verdict ref`)
   return `${REVIEW_ARCHIVED_VERDICT_REF_PREFIX}/${String(ref).slice('refs/'.length)}`
 }
-export function classifyVerdictForArchive(ref,{pulls,leasedPrs,touchesMigrations}){
+export const MERGED_MIGRATION_ARCHIVE_MIN_HOURS=72
+export function classifyVerdictForArchive(ref,{pulls,leasedPrs,touchesMigrations,now=Date.now()}){
   const named=parseVerdictRef(ref)
   if(!named)return {archive:false,reason:'unparseable-ref'}
   if(leasedPrs.has(named.pr))return {archive:false,reason:'active-lease'}
@@ -275,7 +278,16 @@ export function classifyVerdictForArchive(ref,{pulls,leasedPrs,touchesMigrations
   if(!pull.merged)return {archive:true,reason:'pr-closed-unmerged'}
   const touches=pull.mergeCommitSha?touchesMigrations(pull.mergeCommitSha):null
   if(touches===false)return {archive:true,reason:'merged-no-migration'}
-  if(touches===true)return {archive:false,reason:'merged-migration-kept-for-promotion'}
+  // Issue #3806: a merged migration pull request's verdict is archivable once it has
+  // been merged for MERGED_MIGRATION_ARCHIVE_MIN_HOURS. Every reader that can still ask
+  // for it (check-exact-head-approval for a merged PR, assertDurableReviewApproval with
+  // includeArchived) reads the archive mirror, so moving it hides nothing.
+  if(touches===true){
+    const mergedAt=Date.parse(String(pull.mergedAt??''))
+    if(!Number.isFinite(mergedAt))return {archive:false,reason:'merged-migration-merge-time-unknown'}
+    if((now-mergedAt)/3600000<MERGED_MIGRATION_ARCHIVE_MIN_HOURS)return {archive:false,reason:'merged-migration-recent'}
+    return {archive:true,reason:'merged-migration-archive-readable'}
+  }
   return {archive:false,reason:'merge-commit-unreadable'}
 }
 export function readArchivableVerdictRows(io){
@@ -300,7 +312,7 @@ export function activeLeasePulls(io){
   }
   return prs
 }
-export function verdictArchiveScan(io,pulls){
+export function verdictArchiveScan(io,pulls,now=Date.now()){
   const leasedPrs=activeLeasePulls(io)
   const memo=new Map()
   const touchesMigrations=(sha)=>{
@@ -309,7 +321,7 @@ export function verdictArchiveScan(io,pulls){
   }
   const rows=readArchivableVerdictRows(io),candidates=[],kept={}
   for(const row of rows){
-    const verdict=classifyVerdictForArchive(row.ref,{pulls,leasedPrs,touchesMigrations})
+    const verdict=classifyVerdictForArchive(row.ref,{pulls,leasedPrs,touchesMigrations,now})
     if(verdict.archive)candidates.push({ref:row.ref,sha:row.sha,archiveRef:archivedVerdictRef(row.ref),reason:verdict.reason})
     else kept[verdict.reason]=(kept[verdict.reason]??0)+1
   }

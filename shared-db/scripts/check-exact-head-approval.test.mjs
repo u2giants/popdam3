@@ -156,6 +156,7 @@ function githubLike({ refs, comments = [], reviews = [] }) {
       if (endpoint.includes('/git/matching-refs/db-review-verdict')) return []
       if (endpoint.includes('/git/matching-refs/db-review-returns')) return []
       if (/\/pulls\/\d+$/.test(endpoint)) return { head: { sha: NEW } }
+      if (endpoint.includes('/git/matching-refs/db-review-archived-verdicts/')) return []
       throw new Error(`unexpected endpoint ${endpoint}`)
     },
     pages: (endpoint) => (endpoint.includes('/reviews') ? reviews : comments),
@@ -375,6 +376,7 @@ function returnedSlotGithub({ redrawSequence = null, redrawReviewer = 'glm-5.3',
       if (/\/git\/commits\/[0-9a-f]{40}$/.test(endpoint)) return commits.get(endpoint.split('/').pop())
       if (endpoint.includes('/issues/comments/')) return { body: findingsBody }
       if (/\/pulls\/\d+$/.test(endpoint)) return livePr ?? { head: { sha: RETURN_HEAD } }
+      if (endpoint.includes('/git/matching-refs/db-review-archived-verdicts/')) return []
       throw new Error(`unexpected endpoint ${endpoint}`)
     },
     pages: () => [],
@@ -673,6 +675,7 @@ function nonReadingVerdictGithub({ reviewer = 'deepseek-chat', verdict = 'APPROV
       if (/\/git\/commits\/[0-9a-f]{40}$/.test(endpoint)) return commits.get(endpoint.split('/').pop())
       if (endpoint.includes('/issues/comments/')) return { body: findingsBody }
       if (/\/pulls\/\d+$/.test(endpoint)) return { head: { sha: NONREAD_HEAD } }
+      if (endpoint.includes('/git/matching-refs/db-review-archived-verdicts/')) return []
       throw new Error(`unexpected endpoint ${endpoint}`)
     },
     pages: () => [],
@@ -846,6 +849,7 @@ function documentsOnlyGithub({ files = [], recorded = null } = {}) {
       if (/\/git\/commits\/[0-9a-f]{40}$/.test(endpoint)) return commits.get(endpoint.split('/').pop())
       if (endpoint.includes('/issues/comments/')) return { body: findingsBody }
       if (/\/pulls\/\d+$/.test(endpoint)) return { head: { sha: DOC_HEAD } }
+      if (endpoint.includes('/git/matching-refs/db-review-archived-verdicts/')) return []
       throw new Error(`unexpected endpoint ${endpoint}`)
     },
     // The files endpoint is a DISTINCT page read from the comment and review

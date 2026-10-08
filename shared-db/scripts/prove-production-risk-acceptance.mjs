@@ -66,7 +66,7 @@ export function parseRiskAssessment(body, { mainSha, allowlist, sourcePr, risks 
 
 export function proveRiskAcceptance({ issue, pr, headSha, mainSha, allowlist, risks }, io = githubIo, approval = assertDurableReviewApproval) {
   let verdicts
-  try { verdicts = approval(Number(issue), Number(pr), String(headSha).toLowerCase(), io) }
+  try { verdicts = approval(Number(issue), Number(pr), String(headSha).toLowerCase(), io, { includeArchived: true }) }
   catch (error) { throw new RiskAcceptanceError(`no durable allocator-assigned exact-head APPROVE for PR #${pr} at ${headSha}: ${error.message}`) }
   const approvals = (verdicts ?? []).filter((row) => row.verdict === 'APPROVE' && String(row.head_sha ?? '').toLowerCase() === String(headSha).toLowerCase())
   const failures = []

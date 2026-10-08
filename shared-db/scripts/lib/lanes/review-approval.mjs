@@ -1,7 +1,7 @@
 // Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { verdictOpensLine as sharedVerdictOpensLine, evidenceTiedToHead as sharedEvidenceTiedToHead, isApprovalFor as sharedIsApprovalFor, isVerdictFor as sharedIsVerdictFor, anyVerdictFor as sharedAnyVerdictFor } from '../../lib/review-verdict.mjs'
-import { parseVerdictRef, REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX } from '../../lib/review-verdict-artifact.mjs'
+import { parseVerdictRef, REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, archivedVerdictMirrorPrefix, mergeArchivedVerdictRows } from '../../lib/review-verdict-artifact.mjs'
 import { execFileSync } from 'node:child_process'
 import { REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_RETURN_REF_PREFIX } from './constants.mjs'
 import { parseAssignmentRef, parseReviewCursor, readReviewReturns, readReviewVerdicts } from './review-records.mjs'
@@ -300,7 +300,27 @@ export function resolveLaneApprovalBase(pr,head,io){
   return{ok:true,fetch:merge,firstParentOf:merge,currentMain}
 }
 
-export function assertDurableReviewApproval(issue,pr,headSha,io=githubIo){
+// Issue #3806. A view of `io` whose narrow verdict listings (every listRefs call
+// under refs/db-review-verdicts or refs/db-review-verdict-replacements) also return
+// the archived copies under their original names. Every other read is untouched.
+// Only callers that may judge a CLOSED pull request opt in, so open-PR gates spend
+// no extra request; archived verdicts only ever belong to closed pull requests.
+export function withArchivedVerdictMirror(io){
+  if(typeof io?.listRefs!=='function')throw new LaneError('archived verdict mirror requires a ref listing reader')
+  const view=Object.create(io)
+  view.listRefs=function(prefix){
+    const live=io.listRefs(prefix)
+    const mirror=archivedVerdictMirrorPrefix(prefix)
+    if(!mirror)return live
+    if(!Array.isArray(live))throw new LaneError(`verdict listing ${prefix} is unreadable; refusing an incomplete reviewer audit`)
+    const archived=io.listRefs(mirror)
+    if(!Array.isArray(archived))throw new LaneError(`archived verdict mirror ${mirror} is unreadable; refusing an incomplete reviewer audit`)
+    try{return mergeArchivedVerdictRows(live,archived)}catch(error){throw new LaneError(error.message)}
+  }
+  return view
+}
+export function assertDurableReviewApproval(issue,pr,headSha,io=githubIo,{includeArchived=false}={}){
+  if(includeArchived)io=withArchivedVerdictMirror(io)
   const head=String(headSha).toLowerCase()
   try{return assertExactDurableReviewApproval(issue,pr,head,io)}catch(exactError){
     if(!(exactError instanceof LaneError)||typeof io.contentPreservingRefresh!=='function')throw exactError

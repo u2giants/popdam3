@@ -66,8 +66,8 @@ import { leaseHoldText, holdFacts, namedHold, urgentHoldReason, urgentHoldDetail
 export { leaseHoldText, holdFacts, namedHold, urgentHoldReason, urgentHoldDetail, acquireRef, readRefAfterWrite, readPrAfterPush, acquireMutex, requireOwnedRef, recoverStaleAuthorMutex, releaseOwnedRef, releaseMutexOnExit, releaseRefOnExit, releaseRefOverGit }
 import { parseReviewCursor, sameVerdictRecord, recordReviewVerdict, nonVerdictReviewerReplacementCommand, nonReadingReviewerReplacementCommand, readReviewVerdicts, reviewActiveRef, parseReviewLease, parseReviewExclusion, REVIEW_EXCLUSION_GENERATION_LIMIT, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATIONS, countDoctorPassLines, parseReviewReinstatement, parseReviewReturn, parseAssignmentRef, reviewReturnRef, readReviewReturns, retiredVerdictRef, reviewReturnsHeldBy, reviewLeaseRefForAssignment, activeLeaseRecordForAssignment, activeLeaseRecordForJob, reviewLeaseRefCandidates, leaseMatchesAssignment, leaseRefHoldsAssignment, resolveAssignmentLeaseRef, reviewerExclusions, retireVerdictsOrphanedByReturn, outstandingRetirements, reviewExclusionGenerationRows, liveExclusionGeneration } from './lib/lanes/review-records.mjs'
 export { parseReviewCursor, sameVerdictRecord, recordReviewVerdict, nonVerdictReviewerReplacementCommand, nonReadingReviewerReplacementCommand, readReviewVerdicts, reviewActiveRef, parseReviewLease, parseReviewExclusion, REVIEW_EXCLUSION_GENERATION_LIMIT, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATIONS, countDoctorPassLines, parseReviewReinstatement, parseReviewReturn, parseAssignmentRef, reviewReturnRef, readReviewReturns, retiredVerdictRef, reviewReturnsHeldBy }
-import { findPrReviewAssignments, verdictOpensLine, evidenceTiedToHead, isApprovalFor, isVerdictFor, anyVerdictFor, gateAuthorizes, DURABLE_VERDICT_REF_NAMESPACE, hasVerdictForHead, headVerdictBlocksReplacement, mergedReviewComparisonBase, resolveLaneApprovalBase, assertDurableReviewApproval, MUTEX_RELEASE_READBACK_DELAYS_MS, readDurableVerdictRefs, leaseVerdictOptions, assertReviewLeaseStillStale, isReviewAssignmentLive, mergedPrReviewerReuseAllowed } from './lib/lanes/review-approval.mjs'
-export { findPrReviewAssignments, verdictOpensLine, evidenceTiedToHead, isApprovalFor, isVerdictFor, anyVerdictFor, gateAuthorizes, DURABLE_VERDICT_REF_NAMESPACE, hasVerdictForHead, headVerdictBlocksReplacement, mergedReviewComparisonBase, resolveLaneApprovalBase, assertDurableReviewApproval, mergedPrReviewerReuseAllowed }
+import { findPrReviewAssignments, verdictOpensLine, evidenceTiedToHead, isApprovalFor, isVerdictFor, anyVerdictFor, gateAuthorizes, withArchivedVerdictMirror, DURABLE_VERDICT_REF_NAMESPACE, hasVerdictForHead, headVerdictBlocksReplacement, mergedReviewComparisonBase, resolveLaneApprovalBase, assertDurableReviewApproval, MUTEX_RELEASE_READBACK_DELAYS_MS, readDurableVerdictRefs, leaseVerdictOptions, assertReviewLeaseStillStale, isReviewAssignmentLive, mergedPrReviewerReuseAllowed } from './lib/lanes/review-approval.mjs'
+export { findPrReviewAssignments, verdictOpensLine, evidenceTiedToHead, isApprovalFor, isVerdictFor, anyVerdictFor, gateAuthorizes, withArchivedVerdictMirror, DURABLE_VERDICT_REF_NAMESPACE, hasVerdictForHead, headVerdictBlocksReplacement, mergedReviewComparisonBase, resolveLaneApprovalBase, assertDurableReviewApproval, mergedPrReviewerReuseAllowed }
 import { findBusyReviewers, reviewLeaseAgeHours, OWN_START_ONLY_ACTIVITY, REVIEW_REAP_REQUEST_LIMIT, REVIEW_REAP_BATCH, legacyLeaseTerminalReason, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, REVIEW_VERDICT_ARCHIVE_BATCH, archivedVerdictRef, classifyVerdictForArchive, describeMovedAssignmentHead, pickReviewer, reviewSlotSuffix, inReviewReplacementNamespace, newestActivityTimestamp, silenceProbeRef, silenceReleaseRef, parseSilenceProbe, resolveSilentLease, abandonedLeases, verdictArchiveScan, readPullStateMap, countReasons, reviewerCapacityReportOperation, reviewerStartWatchLeasesOperation, selectArtifactFiles, selectArtifactJson } from './lib/lanes/review-leases.mjs'
 export { findBusyReviewers, reviewLeaseAgeHours, OWN_START_ONLY_ACTIVITY, REVIEW_REAP_REQUEST_LIMIT, REVIEW_REAP_BATCH, legacyLeaseTerminalReason, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, REVIEW_VERDICT_ARCHIVE_BATCH, archivedVerdictRef, classifyVerdictForArchive, describeMovedAssignmentHead, pickReviewer, reviewSlotSuffix, inReviewReplacementNamespace, selectArtifactFiles, selectArtifactJson }
 import { projectReviewPr, projectReviewerOperationRouteSnapshot, completeReviewerOperationRouteSnapshot, reconcileReviewerOperationRouteFiles, reviewStateGraphqlFields, MUTEX_RETRY_WAIT_MS, assignWithMutexRetry, resolvePeerSlots, MERGE_ANCESTRY_MEMO, reviewEligibilityCause, reviewerQueueRef, parseReviewerQueueTicket, reviewerQueueTicketExpired, liveReviewerQueue, finishReviewerQueueTurn } from './lib/lanes/review-assignment.mjs'
@@ -634,7 +634,7 @@ export const githubIo = {
   prSources() { return gatherOpenPrObjects(REPO) },
   openPulls() { return ghPaginated(`repos/${REPO}/pulls?state=open&per_page=100`) },
   // #2987 verdict archive: every pull request's state in one paginated listing.
-  readPullStates() { return new Map(ghPaginated(`repos/${REPO}/pulls?state=all&per_page=100`).map((row)=>[Number(row.number),{state:row.state,merged:Boolean(row.merged_at),mergeCommitSha:row.merged_at?row.merge_commit_sha??null:null}])) },
+  readPullStates() { return new Map(ghPaginated(`repos/${REPO}/pulls?state=all&per_page=100`).map((row)=>[Number(row.number),{state:row.state,merged:Boolean(row.merged_at),mergeCommitSha:row.merged_at?row.merge_commit_sha??null:null,mergedAt:row.merged_at??null}])) },
   // true/false from the local object store; null (kept, never guessed) when the
   // commit is absent or unreadable here.
   mergeTouchesMigrations(sha) {
@@ -704,7 +704,8 @@ export const githubIo = {
     const byName=new Map(checks.map((row)=>[row.name,String(row.state).toUpperCase()]))
     const failed=pendingRequiredContexts(protectedContexts,byName)
     if(failed.length)throw new LaneError(`required full CI is not successful on the current head: ${failed.join(', ')}`)
-    assertDurableReviewApproval(issue,pr,head,this)
+    // #3806: the post-merge rehearsal route judges a merged PR whose verdict may be archived.
+    assertDurableReviewApproval(issue,pr,head,this,{includeArchived:true})
     const states=dependencies.length?this.dependencyStates(dependencies):{},closure=classifyDependencies(issue,dependencies,states)
     if(!closure.satisfied)throw new LaneError(`migration dependency closure is incomplete: ${closure.blocked.map((row)=>`#${row.number}`).join(', ')}`)
     return {full_ci_success:true,review_approved:true,dependency_closure_complete:true}
@@ -1763,7 +1764,7 @@ function reapAbandonedReviewLeasesOperation(options,now,io){
 export function reapAbandonedReviewLeases(options={},now=new Date(),io=githubIo){return withReviewRequestBudget(()=>reapAbandonedReviewLeasesOperation(options,now,io),REVIEW_REAP_REQUEST_LIMIT,'reap-abandoned-review-leases')}
 export function archiveOldReviewVerdicts(options={},now=new Date(),io=githubIo){
   const pulls=readPullStateMap(io)
-  const scan=verdictArchiveScan(io,pulls)
+  const scan=verdictArchiveScan(io,pulls,new Date(now).getTime())
   const report={generatedAt:new Date(now).toISOString(),limit:REVIEW_REF_ROW_LIMIT,total:scan.total,candidates:scan.candidates.length,archiveReasons:countReasons(scan.candidates),kept:scan.kept}
   // Issue #3806: a scheduled run passes archiveThreshold so it archives only once the
   // namespace has grown past it, well before the REVIEW_REF_ROW_LIMIT refusal.
@@ -1784,7 +1785,7 @@ export function archiveOldReviewVerdicts(options={},now=new Date(),io=githubIo){
     // migrations before it, and its verdict is then promotion evidence (#2992 review).
     const reopened=new Set((typeof io.openPulls==='function'?io.openPulls():[]).map((row)=>Number(row.number)))
     const fresh=new Map([...readPullStateMap(io)].map(([pr,row])=>[pr,reopened.has(pr)?{...row,state:'open'}:row]))
-    const confirmed=new Map(verdictArchiveScan(io,fresh).candidates.map((row)=>[row.ref,row]))
+    const confirmed=new Map(verdictArchiveScan(io,fresh,new Date(now).getTime()).candidates.map((row)=>[row.ref,row]))
     const move=scan.candidates.filter((row)=>confirmed.get(row.ref)?.sha===row.sha)
     const archived=[]
     for(let index=0;index<move.length;index+=REVIEW_VERDICT_ARCHIVE_BATCH){
@@ -4734,7 +4735,7 @@ export function main(argv, now = new Date(), io = githubIo) {
           if(linked.length!==1||Number(linked[0].number)!==reviewIssue)return false
           const pr=io.getPr(reviewPr)
           if(pr.head?.sha!==reviewHeadSha)return false
-          assertDurableReviewApproval(reviewIssue,reviewPr,reviewHeadSha,io)
+          assertDurableReviewApproval(reviewIssue,reviewPr,reviewHeadSha,io,{includeArchived:true})
           const record=io.getFileAt(`config/completed-claim-recovery/${manifest.claim}.json`,reviewHeadSha)
           return recoveryDigest(JSON.stringify(parseStrictJson(record)))===recoveryDigest(JSON.stringify(manifest))
         },
@@ -4796,9 +4797,11 @@ export function main(argv, now = new Date(), io = githubIo) {
             let resolved
             try{resolved=typeof io.verifyArtifact==='function'?io.verifyArtifact(preservation):null}catch(error){throw new LaneError(`preservation artifact verification is ambiguous: ${error.message}`)}
             if(!resolved)throw new LaneError(`preservation artifact ${preservation} cannot be dereferenced`)
-            const verdicts=assertDurableReviewApproval(claimWorkIssue(claim),o.pr,record.head_sha,io)
+            const verdicts=assertDurableReviewApproval(claimWorkIssue(claim),o.pr,record.head_sha,io,{includeArchived:true})
             const approve=(verdicts??[]).find((row)=>row.verdict==='APPROVE')
-            const approveSha=approve?String(io.readRef(approve.ref)??'').toLowerCase():''
+            // #3806: the validated verdict object itself, never a re-read of its live name,
+            // which an archived verdict no longer has.
+            const approveSha=approve?String(approve.sha??'').toLowerCase():''
             if(!/^[0-9a-f]{40}$/.test(approveSha))throw new LaneError(`no dereferenceable durable APPROVE verdict for pull request #${o.pr} at ${record.head_sha}`)
             record.preservation=preservation
             record.review_approval=`artifact:${approveSha}`

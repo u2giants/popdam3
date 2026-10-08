@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 3806,
+  "outcome": "ready-for-merge",
+  "pr": 4078,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3806/2",
+  "contract_sha256": "2cb4d5a80f8de9a0a0bd2e44a0098d4005219e3b23f225c8303a44adc651ee00",
+  "head_sha": "7f563aac297b43bc54345fe60c61f53ad0fb7a78",
+  "base_sha": "8bc51f3a484862cf8a7f97fa4f378bc95fbd4569",
+  "files_changed": [
+    "scripts/check-exact-head-approval.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    "scripts/lib/lanes/review-approval.mjs",
+    "scripts/lib/lanes/review-leases.mjs",
+    "scripts/lib/review-verdict-artifact.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/prove-production-risk-acceptance.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "779 pass, 0 fail at 7f563aac on main 8bc51f3a"
+    },
+    {
+      "command": "node --test scripts/check-exact-head-approval.test.mjs",
+      "exit_code": 0,
+      "evidence": "95 pass, 0 fail at 7f563aac on main 8bc51f3a"
+    },
+    {
+      "command": "node --test scripts/prove-production-risk-acceptance.test.mjs",
+      "exit_code": 0,
+      "evidence": "3 pass, 0 fail at 7f563aac on main 8bc51f3a"
+    }
+  ],
+  "assumptions_resolved": [
+    "Ceiling and refusal unchanged (#2152); archive remains an atomic move, never a delete (#2987); open-PR gates read no archive."
+  ],
+  "notes": "Evidence pair generation 2 follows the implementation commit.",
+  "stop_conditions_hit": []
+}
