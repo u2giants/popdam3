@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "work_issue": 4081,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Hide the two remaining Scraped Properties repeat kinds left after #3947 (display-level only): a warner_product_catalogue row whose source_id has a warner_art_assets source_id twin, and Lucasfilm DCP rows whose source_ids differ only in hyphen runs (from each other or from a Disney DCP identity).",
+  "base_sha": "766768289ba92156d287ea988c4c9486a40eb358",
+  "dispatcher": "Albert Hazan (chat 2026-10-07: \"yes,have a subagent clean those up too\"), relayed by parent agent",
+  "worker": "Claude chat 71d87adc-0ef7-4bf6-a6e5-659fa72a19e4 on edge-dev3",
+  "branch": "claude/scraped-dupes-followup",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/scraped-dupes-followup",
+  "allowed_paths": [
+    ".agent/work/4081/2/contract.json",
+    ".agent/work/4081/2/completion.json",
+    "supabase/migrations/20261008043049_scraped_inventory_warner_catalogue_starwars_slug_dedupe.sql",
+    "supabase/tests/scraped_inventory_warner_catalogue_starwars_slug_dedupe.sql"
+  ],
+  "file_writes": [
+    ".agent/work/4081/2/contract.json",
+    ".agent/work/4081/2/completion.json",
+    "supabase/migrations/20261008043049_scraped_inventory_warner_catalogue_starwars_slug_dedupe.sql",
+    "supabase/tests/scraped_inventory_warner_catalogue_starwars_slug_dedupe.sql"
+  ],
+  "db_reads": [
+    "table plm.wb_property",
+    "table plm.lucasfilm_dcp_property",
+    "table plm.dcp_property",
+    "table plm.dcp_opa_property_resolution",
+    "table plm.dcp_opa_property_resolution_member"
+  ],
+  "db_writes": [
+    "function api.db_data_admin_scraped_source_inventory"
+  ],
+  "prohibited_actions": [
+    "Do not change the character or style_guide arms of the inventory function.",
+    "Do not change any table, only the function body.",
+    "Do not edit an already-applied migration file.",
+    "Do not infer or change canonical licensor ownership from display deduplication.",
+    "Do not delete or modify any source row, capture, resolution, member or matching decision.",
+    "No manual production command."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 -m unittest scripts.test_production_migration_guard scripts.test_post_batch_app_verification scripts.test_migration_derivation",
+    "database-contract-tests scraped_inventory_warner_catalogue_starwars_slug_dedupe.sql (CI ephemeral database)",
+    "database-contract-tests scraped_inventory_warner_sesame_dedupe.sql (CI ephemeral database)"
+  ],
+  "assumptions": [
+    "The art-assets (Creative) Warner row survives; the product-catalogue copy with the same source_id is hidden.",
+    "For Star Wars spellings the Disney identity survives when one matches after collapsing hyphen runs, otherwise the first spelling under collate C (the triple-hyphen form).",
+    "Every hidden Lucasfilm spelling keeps its stored approved resolution; its title stays visible through the survivor.",
+    "Re-reserved 20261008035132 as 20261008043049 (supersession 00e46af9a44099c00346ba2c047658f251f05eca) after main gained 20261008041231; generation 1 evidence is replaced by this generation."
+  ],
+  "stop_conditions": [
+    "Stop if the change needs a file outside allowed_paths.",
+    "Stop if a competing claim on function api.db_data_admin_scraped_source_inventory appears."
+  ],
+  "evidence_parent": {
+    "work_issue": 4081,
+    "generation": 1,
+    "contract_sha256": "7cecbdf527cd25d7ddf0f3c1fe852bf728d7331771cfee46fd7e59857fff3f28"
+  }
+}

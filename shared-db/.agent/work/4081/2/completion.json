@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_issue": 4081,
+  "outcome": "ready-for-merge",
+  "pr": 4083,
+  "migration_versions": [
+    "20261008043049"
+  ],
+  "contract_ref": "refs/db-contracts/4081/2",
+  "contract_sha256": "307050eb00583e06a78e72c6c1a9057e3d52d1de7b626a28e30a56eefb093b70",
+  "head_sha": "696f03ebb44bfc90b5c3cab3311abe21fd4bb8a5",
+  "base_sha": "766768289ba92156d287ea988c4c9486a40eb358",
+  "files_changed": [
+    ".agent/work/4081/2/contract.json",
+    "supabase/migrations/20261008043049_scraped_inventory_warner_catalogue_starwars_slug_dedupe.sql",
+    "supabase/tests/scraped_inventory_warner_catalogue_starwars_slug_dedupe.sql"
+  ],
+  "db_reads": [
+    "table plm.wb_property",
+    "table plm.lucasfilm_dcp_property",
+    "table plm.dcp_property",
+    "table plm.dcp_opa_property_resolution",
+    "table plm.dcp_opa_property_resolution_member"
+  ],
+  "db_writes": [
+    "function api.db_data_admin_scraped_source_inventory"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed on edge-dev3."
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_migration_guard scripts.test_post_batch_app_verification scripts.test_migration_derivation",
+      "exit_code": 0,
+      "evidence": "Ran 488 tests OK on edge-dev3."
+    },
+    {
+      "command": "database-contract-tests scraped_inventory_warner_catalogue_starwars_slug_dedupe.sql (CI ephemeral database)",
+      "exit_code": 0,
+      "evidence": "Behavioral C1-C8; runs in this PR's Database Contract Tests check."
+    },
+    {
+      "command": "database-contract-tests scraped_inventory_warner_sesame_dedupe.sql (CI ephemeral database)",
+      "exit_code": 0,
+      "evidence": "#3947 behavioral B1-B6 regression; runs in this PR's Database Contract Tests check."
+    }
+  ],
+  "assumptions_resolved": [
+    "Survivor choices as stated in the contract; read-only production evidence: 159 shared Warner source_ids, 9 Star Wars titles with 19 Lucasfilm spellings, each with an approved resolution."
+  ],
+  "stop_conditions_hit": []
+}
