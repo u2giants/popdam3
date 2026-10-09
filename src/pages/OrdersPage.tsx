@@ -33,6 +33,7 @@ import {
 import { IS_NON_PRODUCTION_DATABASE, POPDAM_SUPABASE_PROJECT_REF } from "@/lib/app-mode";
 import { supabase } from "@/integrations/supabase/client";
 import { buildOrderListEdit, ORDER_LIST_COLUMNS } from "@/lib/order-list";
+import { navigateToOrderListMatch } from "@/lib/order-list-find-navigation";
 import type { OrderListRow, OrderListSavedView } from "@/types/order-list";
 
 export default function OrdersPage() {
@@ -157,9 +158,7 @@ export default function OrdersPage() {
           return;
         }
         setHighlightedRowId(match.rowId);
-        const pageSize = api.paginationGetPageSize();
-        api.paginationGoToPage(Math.floor(match.index / pageSize));
-        window.requestAnimationFrame(() => api.ensureIndexVisible(match.index, "middle"));
+        navigateToOrderListMatch(api, match.index);
       } catch (error) {
         if (cancelled) return;
         toast.error((error as Error).message);
