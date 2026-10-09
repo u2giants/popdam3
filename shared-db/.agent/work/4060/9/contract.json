@@ -1,0 +1,81 @@
+{
+  "schema_version": 2,
+  "work_issue": 4060,
+  "generation": 9,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Deliver a case-insensitive, whitespace-insensitive unique index on dflow.users email to production through the governed lane",
+  "base_sha": "118561faaad54fd6bc477641e7a97bbf4c9db143",
+  "branch": "codex/4060-email-forward",
+  "worktree": "/home/ahazan/.codex/worktrees/4060-email-forward/shared-db",
+  "dispatcher": "codex-01a11d57-coordinate-4060",
+  "worker": "codex",
+  "evidence_parent": {
+    "work_issue": 4060,
+    "generation": 8,
+    "contract_sha256": "ca59f5dc9a70947ee27b0ceba8ed4e0762127eeeea361effa47eb37d07537eae"
+  },
+  "allowed_paths": [
+    "supabase/migrations/20261009040550_dflow_users_email_ci_unique_forward.sql",
+    "supabase/tests/dflow_users_email_ci_unique_contracts.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_dflow_users_email_ci_unique_forward.py",
+    ".github/workflows/shared-db-4060-observation.yml",
+    ".agent/work/4060/9/contract.json",
+    ".agent/work/4060/9/completion.json",
+    ".agent/work/4060/8/contract.json",
+    ".agent/work/4060/8/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261009040550_dflow_users_email_ci_unique_forward.sql",
+    "supabase/tests/dflow_users_email_ci_unique_contracts.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_dflow_users_email_ci_unique_forward.py",
+    ".github/workflows/shared-db-4060-observation.yml",
+    ".agent/work/4060/9/contract.json",
+    ".agent/work/4060/9/completion.json",
+    ".agent/work/4060/8/contract.json",
+    ".agent/work/4060/8/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "index dflow.users_email_lower_uidx",
+    "table dflow.users"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check",
+    "python3 -m unittest test_production_migration_guard test_post_batch_app_verification test_production_catalog_verification",
+    "PG16 isolated full source positive and negative regression tests",
+    "PG16 existing hosted-service adapter full regression tests",
+    "Canonical derive_targets exact email index and users table proof"
+  ],
+  "prohibited_actions": [
+    "Do not copy, change or delete application rows",
+    "Do not change grants or RLS",
+    "Do not write production or dispatch production manually",
+    "Never reuse or apply retired version 20261007232712 to production"
+  ],
+  "stop_conditions": [
+    "stop if admission inspector objects differ from the issue writes",
+    "stop if any database write outside the governed preview lane is required",
+    "stop if case-insensitive duplicate emails appear in production"
+  ],
+  "assumptions": [
+    "Fresh claim4117 on original4060 reserves version20261009040550. Old SQL source retained unchanged, old versions never applied.",
+    "Production acceptance and exact current-main risk approval remain required through governed producer and backend140 relay.",
+    "Historical preview may have exact existing index from20261007232712: skip CREATE only after full exact builtin index invariant verification. Every mismatch refuses, absent path plain CREATE; users/index identity preserved.",
+    "Root verified preview email builtinvarchar255(defaultcollation), exact expression lower(btrim((email)::text)) and matching nonblank predicate. Allow ONLY builtintext or builtinvarchar, with exact expression/predicate signatures conditioned on actual emailtype; no regex/cast stripping/name-only fallback. Other types refuse.",
+    "Real PG16 varchar255 historical preview replay and text positive/mismatched normalization negative tests required.",
+    "Prospective generation9 batches StepFun preserved nonauthorizing findings6074496967 with root canonicalderive_targets defect; gen8 historical Muse approval does not authorize new source. Source PR4119 remainsdraft until fresh governed review.",
+    "Normal merge currentmain118561faaad54fd6bc477641e7a97bbf4c9db143 preserves foreign4105 producer files; no sourceoverlap. Gen8owned unmergedpair may be cancelled, allimmutable publishedcontracts/ancestorheads/history preserved.",
+    "Genuine top-level CREATE UNIQUE INDEX IF NOT EXISTS between full exact preDO/postDO indexcatalog guards; postguard rejects wrongdefinition races; no cataloglexer/noop weakening. Existing index OID/definition/comment retained; no COMMENT write.",
+    "Explicit builtin default deterministic emailcollation before any rows/creation; indexreltablespace0 required in pre/post/SQLcontract. Unsupportedtypes/collations/tablespaces refuse. Constraintname IS DISTINCT FROM and livepg_attribute filters failclosed.",
+    "Existing 4060 producer workflow PG16 service fixture only: fixedlocalhost/proof_admin/nonsecretport; add regressionstep on existingservice, no newservice/prodcredentials. AllnegativeSQLtests hostedthroughfixtureport env, notskipped.",
+    "PG16 varchar255 absentapply/behavior/rollback, realDROP recovery, exacttargetsderivation and wrongpostguard interleaving tests mandatory; boundedseqscan52rows accepted, PGversion deparse failclosed, performanceunasserted."
+  ]
+}

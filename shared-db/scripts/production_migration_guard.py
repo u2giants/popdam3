@@ -67,8 +67,9 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 HARD_BLOCKED = {
     # #4060: merged PR4063 carries no PR-owned evidence pair, so its production
     # risk review cannot bind. Preview applied it. Claim4062 was reissued; only
-    # forward replacement 20261008160444 may apply.
+    # forward replacement 20261009040550 may apply.
     "20261007232712",
+    "20261008160444",
     # #3890: preserve applied historical ledgers; only the governed forward release may promote.
     "20261006203846",
     # #2874: merged PR3707 has an immutable production-risk REVISE; preview
@@ -290,7 +291,8 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
-    "20261007232712": "merged-stranded: PR4063 head e42418b1b9dfcb271f81c06a058cb53567302de3 merged without a PR-owned evidence pair, so the post-merge production-risk review cannot bind; preview applied it in run37706126189; production never applied it; retain source and preview ledger, never apply this version; claim4062 reissued through immutable retirement589067baf4bdabe95b09dcedbe1e3f87106ee3f5 to replacement20261008011444 under issue4060",
+    "20261008160444": "merged-stranded: PR4075 head38b6ade1b79f1c2fac869783b03ea23cc0df17ce has immutable production-risk REVISE; audit4116 and retirementd3fa4a2e7573abb5904b10f8e713a8b04880357e preserve source, never apply; claim4117 reserves canonical replacement20261009040550 under issue4060",
+    "20261007232712": "merged-stranded: PR4063 head e42418b1b9dfcb271f81c06a058cb53567302de3 merged without a PR-owned evidence pair, so the post-merge production-risk review cannot bind; preview applied it in run37706126189; production never applied it; retain source and preview ledger, never apply this version; claim4062 reissued through immutable retirement589067baf4bdabe95b09dcedbe1e3f87106ee3f5 to never-applied20261008160444, now retired by audit4116 / d3fa4a2e7573abb5904b10f8e713a8b04880357e; canonical forward replacement20261009040550 under issue4060",
     "20261006203846": "unpromotable original preview provenance: apply37534728189 at b8905b9a187133cb0e6ff1b13c62298920ed6ac3 used a different production-verification-sidecar registry than source PR4009 merge432994be78e0237d56361f0b0f284e5b7a55efc6; automatic qualification37549451859 refused. Preserve original SQL and preview/Sandbox ledgers; production never recorded it. Use governed forward reissue20261007000937 under issue3890, claim4003.",
     "20261006211240": "merged-stranded: PR3707 head72f7383311ce293d3e5f714aca2c3f954ac8fa12 carries durable DeepSeek slot3 REVISE 84d6eda318f36dae6aa800d002e439dd3d64ee4b; preview applied it in run37544787251; production inspection at7:49PM EDT October6 proved it unapplied; retain source and preview ledger, never apply this version; claim3704 reissued through immutable retirement05d88f65c84653806fe75f99665f70c817d510d9 to complete replay-safe replacement20261006235109 under issue2874",
     "20261002204050": "merged-stranded: PR 3913 head a564ec1b2b9a424679fa1b42749351e00ba48332 carries a durable reviewer refusal on its production risk sign-off, so it can never be automatically promoted; preview applied it (run 37069288545); retain historical file and preview ledger, never apply, use re-runnable forward replacement 20261002222102 under issue 3911 (claim 3912 reissued)",

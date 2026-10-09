@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "work_issue": 4060,
+  "outcome": "ready-for-merge",
+  "pr": 4119,
+  "migration_versions": [
+    "20261009040550"
+  ],
+  "contract_ref": "refs/db-contracts/4060/9",
+  "contract_sha256": "39e64b220722b72813e1be8965f6b7d2a2031f9fdcc51c9b816dde25e7878afa",
+  "head_sha": "436b9b257ab3a73071ab8a830920796d16666f12",
+  "base_sha": "118561faaad54fd6bc477641e7a97bbf4c9db143",
+  "files_changed": [
+    ".github/workflows/shared-db-4060-observation.yml",
+    "scripts/production_migration_guard.py",
+    "scripts/test_dflow_users_email_ci_unique_forward.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20261009040550_dflow_users_email_ci_unique_forward.sql",
+    "supabase/tests/dflow_users_email_ci_unique_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "index dflow.users_email_lower_uidx",
+    "table dflow.users"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "SQL static checks passed against118561 newest20261008212538; liveledger guard NOT_EVALUATED. No shared database/credential access."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "git diff --check exit0, no whitespace errors."
+    },
+    {
+      "command": "python3 -m unittest test_production_migration_guard test_post_batch_app_verification test_production_catalog_verification",
+      "exit_code": 0,
+      "evidence": "PYTHONPATH=scripts python3 -m unittest test_production_migration_guard test_post_batch_app_verification test_production_catalog_verification:682 tests OK (445guard/app+237catalog). Durable guard-app-catalog.log."
+    },
+    {
+      "command": "PG16 isolated full source positive and negative regression tests",
+      "exit_code": 0,
+      "evidence": "python3 /tmp/4060-gen9-6n3djggn/run-hosted-adapter.py: owned localhostPG16 identical existingservice adapter, producer11PASS then source19PASS ZEROskips(17realSQL+2sourceassertions); separate root-owned rerun11+19PASS zero skips. Actual two-connection wrongindex race rejected by postguard, rows preserved; controlled intransaction race rolled back. Varchar255 absentapply/behavior+DROP recovery, collations/tablespace/domain/expression/opclass/options/INCLUDE/missingconstraintnegative proved. No GitHub hosted execution claim: CI still pending root push. Fixtures removed."
+    },
+    {
+      "command": "PG16 existing hosted-service adapter full regression tests",
+      "exit_code": 0,
+      "evidence": "python3 /tmp/4060-gen9-6n3djggn/run-hosted-adapter.py: owned localhostPG16 identical existingservice adapter, producer11PASS then source19PASS ZEROskips(17realSQL+2sourceassertions); separate root-owned rerun11+19PASS zero skips. Actual two-connection wrongindex race rejected by postguard, rows preserved; controlled intransaction race rolled back. Varchar255 absentapply/behavior+DROP recovery, collations/tablespace/domain/expression/opclass/options/INCLUDE/missingconstraintnegative proved. No GitHub hosted execution claim: CI still pending root push. Fixtures removed."
+    },
+    {
+      "command": "Canonical derive_targets exact email index and users table proof",
+      "exit_code": 0,
+      "evidence": "derive_targets actual20261009040550SQL returns indexes=[('dflow.users_email_lower_uidx','dflow.users')], tables=['dflow.users']; dedicated SourceDeliveryContractTests assertion passed. Genuine top-levelCREATE, no lexer/noop weakening."
+    }
+  ],
+  "assumptions_resolved": [
+    "Audit4116/retirementd3fa4a2e7573abb5904b10f8e713a8b04880357e preceded fresh4117/rootowner/version20261009040550; original4075 immutable REVISE retained, historical SQL/gen5 unchanged.",
+    "Gen9 prospectively published before behavior/workflow edits; ownedunmergedgen8pair removed only after immutable preservation. 138e/d5d5/79ae andgen6/7/8refs remain historical ancestors. Gen9contract excluded from implementation commit; exact ownpair follows truthful7source implementation.",
+    "Ordinary merge currentmain118561 before source finalization preserves disjoint4105 producer/newhandoff bytes. Measured current authoringbase118561; contractbase118561 is ancestor of realimplementationhead.",
+    "StepFun6074496967 nonauthorizing findings preserved; B1varcharabsent andB2hosted testwiring addressed, M1defaultdeterministiccollation/M2tablespace0/M3ISDISTINCTFROM/L1droppedattribute/L2realDROP test corrected. Fullsource fresh review mandatory; historical Museapproval not authorization of newbytes.",
+    "Rootcataloglexer defect repaired with genuine top-levelCREATEIFNOTEXISTS+full exactpre/postvalidation, no tools/noop weakening. ExistingexactOID/definition/comment/users retained; absentCREATEfullcatalog matches; wrong pre/raced wrong post refuses.",
+    "Root independently reran producer11+source19=30 checks on new owned real PG16 fixture with zero skips and removed container; this supports localsource proof, not GitHub hostedCI/production evidence. Actual hosted service step will run allsourcePGnegatives from explicitfixtureport/containerbinding; live stage unchanged.",
+    "Bounded unindexed duplicate preflight accepted at observed52rows; PGmajor deparse changes failclosed; no application index-performance assertion. No grants/RLS/data rewrite or historical COMMENTmutation.",
+    "Source preparation ready; existingPR4119 stilldraft andfresh reviews/CI/current-mainrisk/previewqualification/producerbackend finalpins/productionapplicationacceptance remain root-gated. Outcome neverclaims merge/live delivery."
+  ],
+  "stop_conditions_hit": []
+}

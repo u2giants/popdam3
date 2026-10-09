@@ -276,6 +276,18 @@ class GuardTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(GuardError):
                 parse_allowlist(value)
 
+    def test_4060_forward_retirement_names_actual_replacement_and_preserves_risk_revise(self):
+        versions = ("20261007232712", "20261008160444")
+        for version in versions:
+            with self.subTest(version=version):
+                self.assertIn(version, HARD_BLOCKED)
+                self.assertIn("20261009040550", production_migration_guard.RETIRED_VERSION_REASONS[version])
+        reason = production_migration_guard.RETIRED_VERSION_REASONS["20261008160444"]
+        self.assertIn("production-risk REVISE", reason)
+        self.assertIn("d3fa4a2e7573abb5904b10f8e713a8b04880357e", reason)
+        self.assertNotIn("20261009040550", HARD_BLOCKED)
+        self.assertTrue((REPO / "supabase/migrations/20261009040550_dflow_users_email_ci_unique_forward.sql").is_file())
+
     def test_the_block_list_matches_the_governed_retirements(self) -> None:
         # Three kinds, deliberately together. 20260726190000/20260726200000 are the
         # already-applied Master Data pair. 20260729120000 is the third kind:
@@ -287,6 +299,7 @@ class GuardTests(unittest.TestCase):
             HARD_BLOCKED,
             {
                 "20261007232712",
+                "20261008160444",
                 "20261006203846",
                 "20261006211240",
                 "20261002204050",
