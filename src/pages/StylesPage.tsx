@@ -1,5 +1,5 @@
 import { VendorStatisticsPanel } from "@/components/orders/VendorStatisticsPanel";
-import { workflowCellValue, mergeComputedLicenseStatus } from "@/lib/master-data-workflow";
+import { workflowCellValue, mergeComputedLicenseStatus, normalizeWorkflowEditValue } from "@/lib/master-data-workflow";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CellValueChangedEvent, ColDef, ColumnState, DefaultMenuItem, GetContextMenuItemsParams, GridReadyEvent, MenuItemDef } from "ag-grid-community";
@@ -451,7 +451,7 @@ function statusFor(row: StyleRow | undefined, column: SheetColumn) {
 
 function buildUpdate(row: StyleRow, column: SheetColumn, value: unknown): Partial<StyleRow> & { row_data: RowData } {
   if (column.typedField === "license_status") throw new Error("License Status is calculated from the current workflow and cannot be edited.");
-  const nextValue = value === "" ? null : column.yesNo ? String(value).toLowerCase() === "yes" : column.typedField === "discontinued" ? ["true", "yes", "1"].includes(String(value).toLowerCase()) : String(value);
+  const nextValue = normalizeWorkflowEditValue(value, column);
   if (column.optionKind === "customer") {
     const rowData = { ...(row.row_data ?? {}) };
     delete rowData[column.letter];

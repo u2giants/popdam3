@@ -7,6 +7,16 @@ export const WORKFLOW_KEYS = new Set([
   "production_approval", "professional_photos", "test_report", "contractual_samples_reorder",
   "default_vendor_sales", "discontinued",
 ]);
+export function normalizeWorkflowEditValue(
+  value: unknown,
+  column: { yesNo?: boolean; typedField?: string },
+): string | boolean | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (column.yesNo) return String(value).toLowerCase() === "yes";
+  if (column.typedField === "discontinued") return ["true", "yes", "1"].includes(String(value).toLowerCase());
+  return String(value);
+}
+
 export function workflowCellValue(
   row: { row_data?: Record<string, unknown> | null; [key: string]: unknown },
   column: { letter: string; typedField?: string; legacyKey?: string },

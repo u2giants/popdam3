@@ -2,16 +2,19 @@
 
 ## STATUS
 
-Active coordinated delivery, refreshed October 9, 2026, 9:20 AM EDT.
-Backend PR4118 merged at 8:59 AM EDT (199231f3); approved migration bytes unchanged.
-Merged-main bounded preview dry-run 37935574311 passed. Preview apply37935940313 failed safely when Supabase CLI split the SQL-standard
-BEGIN ATOMIC function at an internal semicolon. Tooling issue4135/PR4136 uses the
-existing exact-version/SHA atomic installer, retaining migration bytes and all
-workflow guards. Production application and initial input load are not yet proved.
+Active coordinated delivery, refreshed October 9, 2026, 10:40 AM EDT.
+Backend PR4118 merged (199231f3); approved migration bytes unchanged.
+Atomic installer repair PR4136 merged (d7f3bd82). Fresh official preview dry-run
+37944560543 and apply37944888633 passed and native automatic production dispatch
+qualified. Production installation and initial input load await direct proof.
+Hosted preview rollback acceptance passed: existing authenticated administrator,
+viewer and anonymous access checks; current Master milestones and explicit clears;
+tracking atomic patches; positive sample depth then NULL; parent case accounting.
+No fixture data remained after the final ROLLBACK.
 
 | Step | Status | Evidence / gate |
 |---|---|---|
-| 1. Governed backend delivery | partial | merged PR4118; preview dry-run passed; atomic installation repair4135 in progress |
+| 1. Governed backend delivery | partial | merged PR4118/4136; repaired native preview and authenticated rollback acceptance passed |
 | 2. Auxiliary source load | partial | offline guarded loader and tests; no live import |
 | 3. App types and query boundary | partial | bounded 50/100-row hooks; closed-input and auth tests pass |
 | 4. PO Tracking and component details | partial | panels implemented; role/dirty-draft/unknown tests pass |
@@ -565,3 +568,16 @@ pass. This is local proof; hosted acceptance remains pending governed review/mer
 Import rehearsal October9,2026,10:07AM EDT: actual current loader loaded8257 depth,38 suffix and3147 tracking rows through real psycopg in isolated PostgreSQL15, network none and private Unix socket. Guarded unchanged-row fingerprint recovery removed exactly those counts; all3 auxiliary tables and3147 fixture headers empty afterward. Rehearsal exposed and corrected the canonical header validation column to production_order_number. Source digest unchanged. Loader15 unit tests pass, including failed parent-directory fsync rollback. Recovery file and parent are private and both fsynced before commit. Hosted import remains pending exact-head approval and native backend acceptance.
 
 Application review recovery October9,2026,10:10AM EDT: failed DeepSeek snapshot acceptance was generated Python bytecode only, not a tracked source change. Added the standard generated-bytecode ignores for the new Python utility/tests; native snapshot source validation remains intact. Gemini's supported existing-account doorway now passes live qualification; that fixture approval is not application approval. Final corrected-head application review still required.
+
+Approval-date clearing correction October 9, 2026, 10:40 AM EDT: actual AG Grid
+DateString editor returns NULL when cleared. Workflow normalization now preserves
+nullish/blank clears instead of persisting the literal string "null"; nonblank
+coercion unchanged. Three meaningful behavior tests pass, focused lint has no
+errors and build passes. The actual application TypeScript check reports only
+untouched baseline files. Prior full application/initial-load review approved
+3fb244897729ba6839a95a2cc9c054d2144997ad, report
+.ai/reviews/deepseek-final-check-20261009T141427-1918842-29399.md.
+A fresh independent exact-current-head review must verify this correction and
+retain coverage of the unchanged exact production row-data action above before
+shipment or initial load. The initial source digest, counts, loader, target and
+transaction/recovery guards are unchanged. No production data has been loaded.
