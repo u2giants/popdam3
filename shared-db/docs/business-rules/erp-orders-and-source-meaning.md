@@ -272,7 +272,7 @@ Two technical constraints on the poll design:
   `modUser` (when and by whom it was last changed). A probe of the 2026-10-05..11 start-date
   window returned them populated on 33 of 33 rows. They are **order-level**: every line of one
   `salesOrderNo` carries the same pair. Format is `YYYY-MM-DD HH:MM:SS.mmm` with no time zone
-  stated (presumed ColdLion server local time — **Unknown** until ColdLion confirms). Example
+  stated; they are New York time, EST/EDT (Settled, Albert, 2026-10-09). Example
   shape: an order with a 2026-10-05 start date was entered 2026-03-25 and last changed
   2026-08-26 — confirming orders are entered months ahead of their start date.
   What this changes: `modTime` lets a re-read tell a changed order from an unchanged one
@@ -293,6 +293,11 @@ Two technical constraints on the poll design:
   records showed the expected one-week creation pattern; customer start/cancel dates match 100%
   only because the PO copies them from the sales order. **Unknown** until ColdLion explains what
   `createdTime` records; do not use it as the customer-order entry date or for SO↔PO matching.
+  **Confirmed mismatch (JamieLynn, 2026-10-09):** for sales order 7127837 the ColdLion screen
+  shows CreatedTime 2026-05-05 4:25 PM, while the API returns 2026-08-06 15:35:53 on all 12
+  lines (each already carrying a pick ticket and an invoice). The screen value is the true
+  entry date; the API value comes from some later record. Asked ColdLion to expose the
+  screen's CreatedTime. **Times are New York time (EST/EDT) — Settled, Albert, 2026-10-09.**
   *Historical (2026-09-17):* a probe then found 63 fields and no created/entry timestamp; that
   statement is superseded by the above.
 - **The window filter keys on the ERP start date — verified live 2026-09-17.** Windows in
