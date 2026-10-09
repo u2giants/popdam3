@@ -1,12 +1,12 @@
 ---
 issue: 281
-status: BLOCKED
+status: OPEN
 owner: codex/sheets-full-integration
 ---
 
 # Native Sheets integration — current session record
 
-Snapshot: October9,2026,4:02 AM EDT. This is unfinished delivery, not a
+Snapshot: October9,2026,4:18 AM EDT. This is unfinished delivery, not a
 completion report. Start with the reciprocal
 [implementation plan](../plan_orderlist_sheets_full_integration.md), its STATUS,
 and fresh GitHub/current main/promotion state. Never inherit stale gates.
@@ -46,11 +46,11 @@ Google POs remain separate #277, not a new leftover-proof issue.
 
 Backend /worksp/shared-db-orderlist-integration branch
 codex/orderlist-sheets-integration is clean/pushed HEAD
-b968c32d410ee60739f328b056e93165eee0b570, PR4118, claim4112 owner
+7ceed18caceda2af997d7a8df0e41f0d2dbc6588, PR4118, claim4112 owner
 codex/orderlist-sheets-integration expiry11:53 AM EDT. Current migration
 supabase/migrations/20261009073649_popdam_orderlist_sheets_integration.sql
 sha256bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590.
-Full CI37900560564SUCCESS. Current exact head is NOT independently approved;
+Full current-head CI37903481114SUCCESS. Current exact head is NOT independently approved;
 historical a891 approvals must not be reused. No preview/production apply.
 
 Checker prerequisite /worksp/shared-db-orderlist-verifier branch
@@ -62,15 +62,13 @@ Muse exact-head APPROVE lifecycle report
 Durable ref refs/db-review-verdict-replacements/4130-4131-c54b1651fa66816c165a6c8261997639eacfb107-5996,
 SHA2dde4402576368c7304d9cc51b49a33c5bc60ba5. Full CI37899000642SUCCESS;
 239 catalog unit tests and72 throughput tests pass. Ship/wait gates passed.
-Guarded merge37900141743 refused foreign promotion freeze, not source failure.
+Guarded merge37900141743 first refused the foreign hold. After natural expiry, guarded run37903109404SUCCESS merged prerequisite4131 as d63eb35dd5f074d462051409cf6aa3ac75bab070.
 
 Foreign freeze refs/db-coordination/promotion-freeze:
 owner claude:promotion-20261008212538, PR4110/issue4106, acquired3:37:57 AM EDT,
 expires4:07:57 AM EDT. Owner activity beyond renewal unverified. Do NOT release
 another owner's record. Expired hold is allowed by native guard; refresh state
-before dispatch. No queued4131 merge at this snapshot. Event-aware waiter
-exec80033 watches PR4131 until about4:12 AM EDT; use it while alive. It does not
-dispatch a new workflow itself. Shared merge concurrency has only one pending
+before dispatch. The prerequisite is actually merged. Historical waiter80033 timed out with an older state; actual current PR and successful guarded-run proof are authoritative. Current first-review allocator exec78232 waits the supported five-minute mutex retry, started4:16 AM EDT. Source is frozen for assignment/review. Fresh evidence bundle/preflight and brief live in scratch/current-*; preflight note https://github.com/popcre/shared-db/issues/4111#issuecomment-6077141579. Shared merge concurrency has only one pending
 slot: do not cancel another owner's queued work.
 
 App /worksp/popdam-sheets-integration branch codex/sheets-full-integration HEAD
@@ -139,12 +137,12 @@ index. Owned Docker codex-orderlist-integration-01a11d67 fixture integration_v15
 
 ## 6. Exact next steps and gates
 
-1. Refresh current foreign freeze and shared merge queue. Once absent/expired,
+1. COMPLETED: checker4131 merged through guarded run37903109404. Historical dispatch recipe below records recovery, not a pending action. Refresh current foreign freeze and shared merge queue before future actions. Once absent/expired,
    check ship gate with actual Muse lifecycle report in checker worktree and
    dispatch guarded-migration-merge.yml via gh workflow run --repo
    popcre/shared-db -f pull_request=4131 -f head_sha=c54b1651fa66816c165a6c8261997639eacfb107.
    Gate: actual PR merged, not merely successful checks.
-2. Fetch/normal merge origin/main into backend own branch. Preserve checker
+2. COMPLETED: normal merged d63eb35d main into backend7ceed18c, resolved only own baseline,239catalog tests/sidecars/chronology/full CI pass. Future main movement still requires freshness checks. Fetch/normal merge origin/main into backend own branch. Preserve checker
    strengthened routineattrs/relkind/tests and rederive only owned catalog
    baseline from actual migration inventory. If chronology requires another
    migration version use official --reversion-active-claim, never manual rename.
@@ -199,9 +197,8 @@ required and protect strongeractions; do not weaken them.
 
 ## 9. Risks/open questions/self-audit
 
-Delivery frozen externally until Claude's hold clears/expires; owneractivity
-beyond3:37AMEDTunverified. Source/backendship/review/liveproof allstillopen.
-No background execution is promised. Nativecalendardateforecasts may differ
+Historical foreign hold expired naturally and checker merge completed; current reviewer allocator is waiting a supported mutex retry. Backendship/review/source/app/liveproof allstillopen.
+No background execution is promised. Production/preview freshly read ledgers718/746versions, static chronology gates pass. Current first reviewer is not yet assigned; do not claim a provider review is running. Global queue audit fails unrelated historic issues; this issue has no declared dependencies and its own collision/lease/freshness gates passed, no global-pass claim or repair. Nativecalendardateforecasts may differ
 from historicwhole-columnANDbug; rowwise honeststatus is locked. Current
 manualworkflow edits retain sourceauthority.Threehelddivisionlines(#275) and
 12referencedmissingPOs(#277) are not solved by fabricateddata. Risk of main

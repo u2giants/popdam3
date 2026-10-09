@@ -6,7 +6,7 @@ Every delivery step remains open: preparation is not application acceptance.
 
 | Step | Status | Evidence / gate |
 |---|---|---|
-| 1. Governed backend delivery | open | shared-db#4111, PR4118; reviewed historical sources are not the current approval |
+| 1. Governed backend delivery | partial | prerequisite PR4131 merged d63eb35d; current backend7ceed18c CI37903481114SUCCESS; integration itself not merged/applied |
 | 2. Auxiliary source load | open | exact 11442-row guarded transaction; no load has occurred |
 | 3. App types and query boundary | open | bounded hooks and validation tests specified below |
 | 4. PO Tracking and component details | open | admin/viewer component and preview write tests |
@@ -76,23 +76,21 @@ changes; replacing the Google intake refresh or its owning session's files.
 ## 5. Current state of the code
 
 Backend source is committed/pushed at
-`b968c32d410ee60739f328b056e93165eee0b570`, based on main
-`04fbc5382dafa48cd8db754c84d734f59c51be2e`, PR4118/issue4111/claim4112.
+`7ceed18caceda2af997d7a8df0e41f0d2dbc6588`, based on main
+`d63eb35dd5f074d462051409cf6aa3ac75bab070`, PR4118/issue4111/claim4112.
 Its reserved migration is `20261009073649_popdam_orderlist_sheets_integration.sql`.
 Migration bytes still hash to
 `bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590`.
 No preview or production apply has occurred. Historical approvals at a891…
-are not approvals of b968…. New reviews follow the checker prerequisite merge.
+are not approvals of7ceed…. New independent reviews are being assigned at4:18 AM EDT.
 
 Checker prerequisite is shared-db PR4131/issue4130, own worktree
 `/worksp/shared-db-orderlist-verifier`, head
 `c54b1651fa66816c165a6c8261997639eacfb107`. Its independent APPROVE is
 `refs/db-review-verdict-replacements/4130-4131-c54b1651fa66816c165a6c8261997639eacfb107-5996`.
-All its checks pass. Foreign production freeze owned by
-`claude:promotion-20261008212538`, PR4110/issue4106, acquired3:37:57 AM EDT,
-expires4:07:57 AM EDT, prevented its merge. Do not release another owner's hold.
+It merged as d63eb35dd5f074d462051409cf6aa3ac75bab070 after guarded run37903109404SUCCESS. The foreign hold expired naturally; this session did not release it. Recheck current promotion state before stronger actions.
 
-App dependent code is untouched. Only docs/ORDER_LIST.md and docs/MASTER_DATA.md
+App dependent code is untouched. Own plan/HANDOFF/AGENTS/topic documentation is committed; docs/ORDER_LIST.md and docs/MASTER_DATA.md
 have local prose edits, explicitly saying delivery is in progress. Main Orders
 code:src/pages/OrdersPage.tsx, src/hooks/useOrderList.ts,
 src/components/orders/OrderListGrid.tsx and MasterDataLinkCell.tsx,
@@ -430,8 +428,7 @@ Backend source behavior SQL is
 supabase/tests/dam_order_sheets_integration.sql in the canonical repository;
 run its actual CI entry, catalog239-test suite and full Schema CI. The checker
 prerequisite's239 catalog tests and72 throughput tests already passed, but
-fresh merged-head evidence is still required. Current backend exact-head CI
-37900560564 passed before checker merge; later heads require new proof.
+fresh merged-head evidence is still required. Current backend exact-head CI37903481114 passed at7ceed18c after checker merge; later heads require new proof.
 
 ## 11. Constraints, standing rules, and gotchas in force
 
