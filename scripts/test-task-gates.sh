@@ -21,7 +21,16 @@ fixture="$TMP/popdam3"; git -C "$TMP" init --quiet popdam3; git -C "$fixture" co
 mkdir -p "$fixture/.ai-devops"; cp "$ROOT/.ai-devops/task-gates.json" "$fixture/.ai-devops/task-gates.json"; git -C "$fixture" add .ai-devops/task-gates.json; git -C "$fixture" commit --quiet -m baseline
 ( cd "$fixture"; ai-task-gates start --class code --base HEAD >/dev/null; mkdir -p supabase/migrations; printf '%s\n' '-- fixture' > supabase/migrations/fixture.sql )
 assert_blocked(){ local label="$1"; shift; local output rc; set +e; output="$(cd "$fixture" && ai-task-gates check --before ship "$@" 2>&1)"; rc=$?; set -e; if [ "$rc" -eq 3 ]; then pass "$label"; else fail "$label (exit $rc: $output)"; fi; }
-assert_blocked 'shared-db scope escalation refuses shipping'; assert_blocked 'acknowledgement cannot bypass protected database work' --acknowledge 'fixture acknowledgement'; assert_blocked 'unregistered reviewer approval cannot bypass protected database work' --reviewer-approval "$TMP/unregistered-review.md"
+assert_blocked 'shared-db scope escalation refuses shipping'
+assert_blocked 'acknowledgement cannot bypass protected database work' --acknowledge 'fixture acknowledgement'
+# CI pins an accepted older engine; local installs also exercise the current API.
+# Both must reject structural work through their supported authority argument.
+gate_help="$(ai-task-gates --help)"
+case "$gate_help" in
+  *--reviewer-approval*) assert_blocked 'unregistered reviewer approval cannot bypass protected database work' --reviewer-approval "$TMP/unregistered-review.md" ;;
+  *--owner-request*) assert_blocked 'owner request cannot bypass protected database work' --owner-request 'fixture owner request' ;;
+  *) fail 'task-gate engine advertises no supported authority argument' ;;
+esac
 ( cd "$fixture"; rm -rf supabase; mkdir -p tools; printf '%s\n' 'export const fixture = true;' > tools/fixture.ts; ai-task-gates start --class code --base HEAD >/dev/null; ai-task-gates check --before ship >/dev/null ); pass 'valid code flow proceeds to shipping checks'
 cp "$fixture/.ai-devops/task-gates.json" "$TMP/policy.backup.json"; rm -f "$fixture/.ai-devops/task-gates.json"; printf '%s\n' 'fixtures/task-gates/governed-data/fixture.json' > "$TMP/rollback-path"; without_policy="$(cd "$fixture" && ai-task-gates explain --json --paths-from "$TMP/rollback-path" | jq -r '.observed_class')"; cp "$TMP/policy.backup.json" "$fixture/.ai-devops/task-gates.json"; with_policy="$(cd "$fixture" && ai-task-gates explain --json --paths-from "$TMP/rollback-path" | jq -r '.observed_class')"
 if [ "$without_policy" = code ] && [ "$with_policy" = shared-db ] && cmp -s "$TMP/policy.backup.json" "$fixture/.ai-devops/task-gates.json"; then pass 'rollback removes database escalation and byte-exact restore reinstates it'; else fail "rollback positive control or policy restore failed (without $without_policy, with $with_policy)"; fi
