@@ -4,6 +4,7 @@ import {
   BASELINE_EVIDENCE,
   createGeneratedTypesProof,
   createLiveProof,
+  selectAuthenticatedReadHeaders,
   shouldBlockSupabaseRequest,
   validateBaselineEvidence,
   validateBuildBinding,
@@ -79,6 +80,23 @@ test("browser write guard denies every production REST mutation except listed re
     { path: "/rest/v1/dam_order_list", method: "DELETE" },
   ]) assert.equal(shouldBlockSupabaseRequest({ host, ...request }), true);
   assert.equal(shouldBlockSupabaseRequest({ host: "auth.example.test", path: "/auth/v1/token", method: "POST" }), false);
+});
+
+test("filtered API reads forward only bearer, API key, and accepted schema headers", () => {
+  assert.deepEqual(selectAuthenticatedReadHeaders({
+    authorization: "Bearer protected-token",
+    apikey: "anon-key",
+    accept: "application/json",
+    "accept-profile": "unexpected",
+    ":authority": "qsllyeztdwjgirsysgai.supabase.co",
+    cookie: "session=private",
+    range: "0-499",
+  }), {
+    authorization: "Bearer protected-token",
+    apikey: "anon-key",
+    accept: "application/json",
+    "accept-profile": "api",
+  });
 });
 
 test("generated production types must contain the expected RPC arguments and API/tracking fields", () => {

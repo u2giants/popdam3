@@ -12,6 +12,7 @@ import {
   FRONTEND_BUILD_PATHS,
   PRODUCTION_ORIGIN,
   PRODUCTION_PROJECT,
+  selectAuthenticatedReadHeaders,
   shouldBlockSupabaseRequest,
   validateBaselineEvidence,
   validateBuildBinding,
@@ -139,10 +140,8 @@ async function fetchOrderListCandidate(session, filters, label) {
   const { page, api } = session;
   const event = [...api.events].reverse().find((entry) => entry.endpoint === "dam_order_list");
   if (!event) throw new Error(`${label}: no authenticated OrderList request is available`);
-  const headers = await event.request.allHeaders();
-  delete headers.range;
-  delete headers.prefer;
-  headers["accept-profile"] = "api";
+  const requestHeaders = await event.request.allHeaders();
+  const headers = selectAuthenticatedReadHeaders(requestHeaders);
   const params = new URLSearchParams({
     select: "order_line_id,production_order_number,item_id,item_description,item_name,master_data_license_status,snapshot_license_status,snapshot_description",
     limit: "1",
@@ -277,7 +276,9 @@ async function checkOrderList(role, session) {
   const snapshotGridRow = await navigateToExistingOrderRow(page, api, snapshot, role, `${role} unlinked snapshot row`);
   const snapshotCell = snapshotGridRow.locator('.ag-cell[col-id="master_data_description"]');
   assert(await revealHorizontally(page, snapshotCell), `${role} reveals unlinked snapshot description`);
-  assert((await snapshotCell.innerText()).includes("at import"), `${role} unlinked historical description is marked at import`);
+  const snapshotText = (await snapshotCell.innerText()).trim();
+  assert(snapshotText.toLowerCase().includes("at import"), `${role} unlinked historical description is marked at import`);
+  assert(snapshotText.replace(/at import/i, "").trim() === snapshot.snapshot_description, `${role} unlinked snapshot description matches the same API row`);
   return resultRows;
 }
 

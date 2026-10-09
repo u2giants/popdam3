@@ -44,6 +44,16 @@ export function shouldBlockSupabaseRequest({ host, path, method }) {
   return ["POST", "PUT", "PATCH", "DELETE"].includes(verb);
 }
 
+export function selectAuthenticatedReadHeaders(source = {}) {
+  const headers = {};
+  for (const name of ["authorization", "apikey", "accept"]) {
+    const value = source[name];
+    if (typeof value === "string" && value.length > 0) headers[name] = value;
+  }
+  headers["accept-profile"] = "api";
+  return headers;
+}
+
 function property(type, name) {
   if (!type || !ts.isTypeLiteralNode(type)) return undefined;
   return type.members.find((member) => ts.isPropertySignature(member) && memberName(member.name) === name);
