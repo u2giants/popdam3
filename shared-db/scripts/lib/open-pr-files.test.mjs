@@ -74,23 +74,26 @@ test('source collisions are unchanged, and timelines are read only for overlappi
 
   const gh = fakeGitHub()
   const timelinesRead = []
+  const staleReads = { detail: [], commits: [], comments: [], checkRuns: [] }
   const env = { GITHUB_REPOSITORY: REPO, PR_NUMBER: '10' }
-  // The stale-place rule (#3273) added four more per-overlapping-PR reads to
-  // `gather`. They are stubbed here so this test still exercises ONLY the
-  // snapshot/timeline economy it is about, and so it never reaches the network.
-  // Stubbing them inert (no detail, no commits, no comments, no check runs)
-  // also asserts the fail-closed contract: with no signals, nothing is skipped
-  // and the collision list must match the legacy algorithm exactly.
+  // The stale-place signals (issue #3273) follow the same quota rule as
+  // timelines: read only for an overlapping pull request, never for a
+  // bystander. These fakes answer "recent, green, no nudge", so no
+  // predecessor ever yields and the collision answer is unchanged.
   const input = gatherSourceInputs(env, {
     load: (repo, number) => loadOpenPullFiles(repo, number, { env: {}, read: gh.read }),
     timeline: (_repo, number) => (timelinesRead.push(number), TIMELINES[number]),
-    detail: () => ({}),
-    commits: () => [],
-    comments: () => [],
-    checkRuns: () => [],
+    detail: (_repo, number) => (staleReads.detail.push(number), { created_at: '2026-09-09T10:00:00Z', mergeable: true, mergeable_state: 'clean', head: { sha: 'h7' } }),
+    commits: (_repo, number) => (staleReads.commits.push(number), []),
+    comments: (_repo, number) => (staleReads.comments.push(number), []),
+    checkRuns: (_repo, sha) => (staleReads.checkRuns.push(sha), []),
   })
   assert.deepEqual(openProtectedCollisions(input.current, input.others), legacy)
   assert.deepEqual(timelinesRead.sort((a, b) => a - b), [7, 10], 'only the overlapping PR and the current PR')
+  assert.deepEqual(staleReads.detail, [7], 'stale-place detail is read only for the overlapping PR')
+  assert.deepEqual(staleReads.commits, [7])
+  assert.deepEqual(staleReads.comments, [7])
+  assert.deepEqual(staleReads.checkRuns, ['h7'], 'check runs are read at the overlapping PR head')
 })
 
 test('no overlap reads no timeline at all and still reports no collision', () => {
