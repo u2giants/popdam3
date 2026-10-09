@@ -283,6 +283,16 @@ Two technical constraints on the poll design:
   inside the window; the window is now capped at 7 days inclusive), so these fields cannot be
   queried by; they are read from rows already fetched. Novelty by `salesOrderNo` remains the
   detection rule; the timestamps are added evidence, not a replacement.
+  **Caveat — `createdTime` is not reliably the original customer-order entry date (measured
+  2026-10-09, 3,818 sales-order ↔ production-PO linked pairs).** Albert: a production PO is
+  written off the customer PO, so the two should fall within about a week of each other.
+  Measured: sales-order `createdTime` falls a median 59 days (mean 64) *after* the production
+  PO's order date, and within 7 days for only 3% of pairs. It instead lands on the **same day
+  the production PO is received** for 52% of pairs (within 1 day for 59%), which suggests the
+  ColdLion sales-order record is re-created or split when goods arrive. No date pair on the two
+  records showed the expected one-week creation pattern; customer start/cancel dates match 100%
+  only because the PO copies them from the sales order. **Unknown** until ColdLion explains what
+  `createdTime` records; do not use it as the customer-order entry date or for SO↔PO matching.
   *Historical (2026-09-17):* a probe then found 63 fields and no created/entry timestamp; that
   statement is superseded by the above.
 - **The window filter keys on the ERP start date — verified live 2026-09-17.** Windows in
