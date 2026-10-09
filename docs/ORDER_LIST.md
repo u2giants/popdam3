@@ -292,7 +292,7 @@ and remains necessary when a new order arrives before its item does.
 
 ## Native Sheets integration delivery (2026-10-09, issue #281)
 
-**Status: backend installed, source inputs loaded, and PRs #282–#289 merged. Current release `9883315` is live; publish `37986360726` and CI `37985400880` passed. The served bundle SHA-256 is `574bdff6df39c7533993996c591b04c8133e62e82b3e25626f29a5258c8c46fb`; focused administrator/viewer refresh checks passed. Native workflow `37987001226` passed 90 checks across both roles (checks-label manifest SHA-256 `708b9395e8e6e054372a7c9b7a7bb73b03f0ce3448df2acec338b447586eb0e1`), with verified schema, type and live artifacts. Shared-db #4111 and PopDAM #275 are closed. The #275 administrator/viewer UI proof passed 53 checks; report `coldlion-owner-link-proof.json`, SHA-256 `fd33979beb4abe88c0a5eb969b58ec7b679ebffda9f227d63b1bfb9b6d7a219f`. The 3 target Find IDs matched indexes 2,000, 2,558 and 7,785; 500-row reads at offsets 2,000, 2,500 and 7,500 displayed all 6 canonical descriptions. There were zero write attempts and browser errors; issue evidence is comment 6089001259. Only #281 documentation closeout remains. Earlier failures and prior-release acceptances below are historical.**
+**Status: backend installed, source inputs loaded, and PRs #282–#289 merged. Current release `9883315` is live; publish `37986360726` and CI `37985400880` passed. The served bundle SHA-256 is `574bdff6df39c7533993996c591b04c8133e62e82b3e25626f29a5258c8c46fb`; focused administrator/viewer refresh checks passed. Native workflow `37987001226` passed 90 checks across both roles (checks-label manifest SHA-256 `708b9395e8e6e054372a7c9b7a7bb73b03f0ce3448df2acec338b447586eb0e1`), with verified schema, type and live artifacts. Shared-db #4111 and PopDAM #275 are closed. The #275 administrator/viewer UI proof passed 53 checks; report `coldlion-owner-link-proof.json`, SHA-256 `fd33979beb4abe88c0a5eb969b58ec7b679ebffda9f227d63b1bfb9b6d7a219f`. The 3 target Find IDs matched indexes 2,000, 2,558 and 7,785; 500-row reads at offsets 2,000, 2,500 and 7,500 displayed all 6 canonical descriptions. There were zero write attempts and browser errors; issue evidence is comment 6089001259. #281 is closed after reviewed documentation landed. Earlier failures and prior-release acceptances below are historical.**
 Application acceptance stays on
 [u2giants/popdam3#281](https://github.com/u2giants/popdam3/issues/281); the
 shared backend contract is [popcre/shared-db#4111](https://github.com/popcre/shared-db/issues/4111).
@@ -373,7 +373,7 @@ cross-workbook connections. The authority rules belong in the companywide
 [ERP orders and source meaning](https://github.com/popcre/shared-db/blob/main/docs/business-rules/erp-orders-and-source-meaning.md)
 topic; this document records the DAM implementation and acceptance boundary.
 
-The earlier `f901017` read, Find, loading/retry, screenshot and controls results are historical. Native runs `37978352705` and `37981872323` failed and produced no canonical artifacts; those failures are preserved. Native workflow `37987001226` passed on live `9883315`; its 90-check evidence and verified artifacts are summarized above. Shared-db #4111 and PopDAM #275 are closed; only #281 documentation closeout remains open.
+The earlier `f901017` read, Find, loading/retry, screenshot and controls results are historical. Native runs `37978352705` and `37981872323` failed and produced no canonical artifacts; those failures are preserved. Native workflow `37987001226` passed on live `9883315`; its 90-check evidence and verified artifacts are summarized above. Shared-db #4111 and PopDAM #275 are closed; #281 is closed after reviewed documentation landed.
 
 Required serving behavior:
 
@@ -447,7 +447,7 @@ other 59 auxiliary holds remain excluded. No source rows are guessed or merged.
 Backend application, catalog checks, preview rollback tests, and auxiliary
 production load are complete. Prior release `f901017` results are historical.
 Live `9883315` focused checks and native workflow `37987001226` passed; shared-db
-#4111 is closed. Current follow-up is #281 documentation closeout. Keep #277's conflicting-order
+#4111 is closed. #281 is closed after reviewed documentation landed. Keep #277's conflicting-order
 and malformed-row choices separate.
 
-Execution plan: [native Sheets integration](../plan_orderlist_sheets_full_integration.md), with current STATUS and its own session handoff.
+Execution plan: [native Sheets integration](../plan_orderlist_sheets_full_integration.md), with current STATUS. The completed session handoff was retired after successor review.

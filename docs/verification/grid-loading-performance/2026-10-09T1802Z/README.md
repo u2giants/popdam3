@@ -81,8 +81,7 @@ six canonical descriptions visible; zero write attempts or browser errors. Repor
 `fd33979beb4abe88c0a5eb969b58ec7b679ebffda9f227d63b1bfb9b6d7a219f`, is recorded
 in [#275 completion comment](https://github.com/u2giants/popdam3/issues/275#issuecomment-6089001259), and #275 is closed. The post-link cohort is 23 lines
 across 7 Items; missing Master tracker facts remain honestly Unknown, without
-creating tracker or Item Master records. Only #281 documentation closeout
-remains open.
+creating tracker or Item Master records. #281 is closed after reviewed documentation landed.
 
 ## Retained sanitized measurements
 

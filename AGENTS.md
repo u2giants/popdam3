@@ -57,7 +57,7 @@ Active plans (read STATUS first; do not re-derive completed steps):
 - plan_style_group_scoped_ai_metadata.md — product vs file-level AI metadata
 - plan_popsg_production_readiness.md — PopSG library truthfulness and search
 - plan_master_data_orderlist_loading_performance.md — first-paint and OrderList Find performance
-- plan_orderlist_sheets_full_integration.md — native Sheets integration; read STATUS and its own HANDOFF.d link first
+- plan_orderlist_sheets_full_integration.md — completed native Sheets integration; read STATUS for verified delivery and separate held source decisions; its completed session handoff is retired.
 
 Then load additional docs only when relevant — do **not** ingest every `.md` file:
 
@@ -411,12 +411,14 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 
 ## Deployment
 
+Application changes use a dedicated feature branch and pull request targeting protected `main`. Never push application changes directly to `main`; pass the required reviews/checks and merge through the normal protected path. `main` remains the release branch. Verify the GitHub remote before pushing.
+
 Full runbooks: [docs/deployment.md](docs/deployment.md), [docs/POPDAM_HELPER.md](docs/POPDAM_HELPER.md), [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md).
 
 | Component | How it ships | Notes |
 |---|---|---|
-| Frontend | push main → publish-frontend.yml → GHCR → Coolify | Gate is erify (lint). Green CI ≠ live site if Coolify cannot pull GHCR. |
-| Supabase edge functions | push main → deploy-supabase.yml | No supabase db push here — shared migrations go through canonical /worksp/shared-db. |
+| Frontend | merge PR to main → publish-frontend.yml → GHCR → Coolify | Gate is erify (lint). Green CI ≠ live site if Coolify cannot pull GHCR. |
+| Supabase edge functions | merge PR to main → deploy-supabase.yml | No supabase db push here — shared migrations go through canonical /worksp/shared-db. |
 | Railway worker | every push to main auto-deploys | No manual step. |
 | Bridge agent | publish-bridge-agent.yml → :stable | Bump pps/bridge-agent/package.json version in the same commit. |
 | Windows render agent | publish-windows-agent.yml → GitHub Release | Inkscape/ImageMagick/Ghostscript/Poppler/Tesseract — no Illustrator. |

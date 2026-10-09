@@ -1,10 +1,12 @@
 # Master Data and OrderList loading-performance implementation plan
 
-Tracking: [PopDAM #121](https://github.com/u2giants/popdam3/issues/121) · completed database lane: [popcre/shared-db #2664](https://github.com/popcre/shared-db/issues/2664); #2665 was a closed duplicate · handoff: [HANDOFF.d/2026-09-10T0209Z-hetz-codex-grid-loading-performance-plan.md](HANDOFF.d/2026-09-10T0209Z-hetz-codex-grid-loading-performance-plan.md)
+Historical tracking (closed): [PopDAM #121](https://github.com/u2giants/popdam3/issues/121) · completed database lane: [popcre/shared-db #2664](https://github.com/popcre/shared-db/issues/2664); #2665 was a closed duplicate · handoff: [HANDOFF.d/2026-09-10T0209Z-hetz-codex-grid-loading-performance-plan.md](HANDOFF.d/2026-09-10T0209Z-hetz-codex-grid-loading-performance-plan.md)
 
 ## STATUS — read this first
 
-Fresh sessions resume at **Step 6**. Steps 1–5 are historical completed work; do not restart them. The editor-safe repair is live; focused edit/refresh checks and native workflow proof passed. Remaining Step 6 work is documentation/issue closeout; #275 is closed after its role-based UI check passed. Recheck current evidence and downstream gates before continuing. Any new shared-db structure must use its existing claim-first route and assigned AI-reviewer gates; never request human approval.
+The linked September handoff belongs to another session and is retained as historical ownership evidence. Issue #121 is closed; this session does not reopen or edit that handoff or its predecessor. Current integration acceptance is on closed #281; the completed current session handoff is retired.
+
+**Complete:** all six steps have passed their acceptance gates. The editor-safe repair is live; focused edit/refresh checks and native workflow proof passed. Reviewed documentation landed in PR #290, and application integration #281, matching #275 and shared outcome #4111 are closed. Steps below are retained execution history; do not restart them. Any new shared-db structure must use its own claim-first route and current AI-reviewer gates; never request human approval.
 
 | Step | Status | Date | Evidence |
 |---|---|---|---|
@@ -13,7 +15,7 @@ Fresh sessions resume at **Step 6**. Steps 1–5 are historical completed work; 
 | 3. Stop downloading unused Master Data fields | ✅ complete — production acceptance | 2026-09-11 | Explicit projection is visible in the signed-in production request shape and excludes the confirmed-unused view metadata; evidence: `docs/verification/grid-loading-performance/2026-09-11T1856Z/README.md`. |
 | 4. Add the governed OrderList Find-position RPC | ✅ complete — production | 2026-09-11 | Canonical shared-db #2664, PR #2748 merged `9da98edefecc7104d709762e53fd1efb421cc9dc`; production migration `20260911081204` and signed-in RPC acceptance passed. #2665 was a duplicate. |
 | 5. Replace the OrderList multi-request scan with the RPC | ✅ complete — deployed | 2026-09-11 | PopDAM `dc7e4c0fcf4d31f5726bcdb0a4e33e3b29a31acb` calls the RPC once with normalized filters/sort and retains only missing-function deployment-skew fallback; focused tests pass. |
-| 6. Ship and verify production behavior and performance | 🔄 native proof passed; closeout pending | 2026-10-09 | PR #289 is live as `9883315`; publish `37986360726` and CI `37985400880` passed. Focused acceptance passed both roles; admin edit-preservation/cancel passed with zero writes. Native workflow `37987001226` passed 90 checks across both roles and generated verified type/live artifacts. Shared-db #4111 is closed; #275 is closed after 53 administrator/viewer UI checks (report `coldlion-owner-link-proof.json`, SHA-256 `fd33979beb4abe88c0a5eb969b58ec7b679ebffda9f227d63b1bfb9b6d7a219f`). The 23 linked lines across 7 Items with missing tracker facts remain Unknown; only #281 documentation closeout remains. |
+| 6. Ship and verify production behavior and performance | ✅ complete — live proof and documentation | 2026-10-09 | PR #289 is live as `9883315`; publish `37986360726` and CI `37985400880` passed. Focused acceptance passed both roles; admin edit-preservation/cancel passed with zero writes. Native workflow `37987001226` passed 90 checks across both roles and generated verified type/live artifacts. Shared-db #4111 is closed; #275 is closed after 53 administrator/viewer UI checks (report `coldlion-owner-link-proof.json`, SHA-256 `fd33979beb4abe88c0a5eb969b58ec7b679ebffda9f227d63b1bfb9b6d7a219f`). The 23 linked lines across 7 Items with missing tracker facts remain Unknown; #281 is closed after reviewed documentation landed. |
 
 ## 1. The ultimate goal
 
@@ -67,7 +69,7 @@ That historical symptom was perceived waiting, not missing or incorrect data. Th
 
 ## 5. Implementation baseline and current release
 
-The following source snapshots describe the plan-creation baseline, not current `main`. Steps 1–5 were deployed as `f901017`; their read/timing/retry results are historical. Fresh sessions resume at Step 6 for #281 documentation/issue closeout; native proof on live release `9883315` and the separate 53-check role-based UI proof for #275 have passed, and #275 is closed.
+The following source snapshots describe the plan-creation baseline, not current `main`. Steps 1–5 were deployed as `f901017`; their read/timing/retry results are historical. Step 6 is complete with #281 closed after reviewed documentation; native proof on live release `9883315` and the separate 53-check role-based UI proof for #275 have passed, and #275 is closed.
 
 ### Master Data baseline before Step 2
 
@@ -146,7 +148,7 @@ Dependencies: none. This baseline must precede performance edits.
 
 #### Step 2 — render the first 4,000 Master Data rows immediately
 
-PR #287 was deployed as `f901017`; its production timing/retry results are historical. PR #289's editor-safe repair is live as `9883315` and passed focused checks in both roles. Native workflow proof passed; Step 6 remains open for #281 documentation/issue closeout; #275 is closed after its role-based UI proof.
+PR #287 was deployed as `f901017`; its production timing/retry results are historical. PR #289's editor-safe repair is live as `9883315` and passed focused checks in both roles. Native workflow proof passed; Step 6 is complete; #281 is closed after reviewed documentation; #275 is closed after its role-based UI proof.
 
 1. Refactor `src/pages/StylesPage.tsx` into a page fetcher that returns one ordered page plus `hasNextPage`, with four non-overlapping 1,000-row ranges. Schedule `License.Style` ranges sequentially, completing each range's computed-status RPC before requesting the next; retain parallel requests for `Generic.Style`. Keep `source_row_number DESC` in every range.
 2. Replace `useQuery(["style-rows", active.name])` with `useInfiniteQuery` keyed by active sheet. Flatten `data.pages` with `useMemo`; do not resort client-side and do not duplicate rows.
@@ -278,7 +280,7 @@ Dependencies: Steps 2–5.
 
 - For local app development, create a dedicated worktree from current upstream and use the repository lockfile; do not assume `/worksp/popdam` is the active checkout.
 - Canonical DB repository: `popcre/shared-db`. Do not work directly in a shared checkout; create an isolated worktree after claiming exact objects on the active issue.
-- The original performance tracking issue is PopDAM #121. For the current integration's remaining acceptance, use existing PopDAM #281. Shared-db #2664 is complete and #2665 is a closed duplicate; never reopen them for this work.
+- The original performance tracking issue is PopDAM #121. The current integration's completed acceptance is recorded on closed PopDAM #281. Shared-db #2664 is complete and #2665 is a closed duplicate; never reopen them for this work.
 - Supabase CLI access, project refs and database passwords are documented in `/worksp/shared-db/AGENTS.md`. Tokens/passwords are in 1Password vault `vibe_coding`, including `Supabase CLI Personal Access Token`, `Supabase DB Password - shared POP database`, and the current preview password item. Never put values in argv, chat, docs or commits; follow the repo's protected injection commands.
 - Production frontend is `https://dam.designflow.app`. Use an existing dedicated signed-in test account from the approved 1Password item referenced by the app's auth/QA documentation; do not inspect personal browser state.
 - The planned shared-db production migration is complete. No additional production mutation is authorized by this plan. Any new schema work starts from a fresh claim-first shared-db issue and current AI-reviewer gates.
@@ -311,7 +313,7 @@ Dependencies: Steps 2–5.
 
 ### Historical production gate — complete
 
-The exact `public.find_dam_order_list_row` migration has been applied and verified in production through the governed shared-db lane. Do not reactivate its old approval text or request another owner decision. Native proof artifacts on live release `9883315` passed; Step 6 remains open for #281 documentation/issue closeout; #275 is closed after role-based UI proof.
+The exact `public.find_dam_order_list_row` migration has been applied and verified in production through the governed shared-db lane. Do not reactivate its old approval text or request another owner decision. Native proof artifacts on live release `9883315` passed; Step 6 is complete; #281 is closed after reviewed documentation; #275 is closed after role-based UI proof.
 
 ### Already settled — do not re-ask
 
