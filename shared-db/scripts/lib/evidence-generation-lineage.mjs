@@ -12,7 +12,9 @@
 //   * A committed generation is immutable. Mutation of a recorded pair is refused.
 //   * A successor generation names its predecessor explicitly (`evidence_parent`).
 //   * The current pair is resolved from contract identity and the changed-file
-//     set, never from filename ordering.
+//     set, never from filename ordering. The pair↔generation binding is
+//     enforced: a schema_version 2 contract must use its keyed pair, and the
+//     legacy paths are only the schema_version 1 generation-1 root pair.
 //   * v1 pairs (no `evidence_parent`, schema_version 1) remain readable as
 //     historical records. They do not claim a verified predecessor binding.
 //   * Unused reserved generations are skipped, never reused.
@@ -153,10 +155,13 @@ export function bindPredecessor(parentContract) {
  *
  * Rules:
  *   * Exactly one complete pair may claim the issue among the changed files.
- *   * A keyed pair must match the contract's issue and generation. The legacy
- *     pair remains readable for schema v1, whose path predates keys.
+ *   * The pair must be the contract's own (issue + generation), or the legacy
+ *     pair when the contract is a schema_version 1 generation-1 root.
  *   * A higher generation number in an unrelated path is not "more current".
  *   * Partial and multi-pair lists are refused.
+ *   * Pair↔generation binding is enforced even for v1: a schema_version 1
+ *     contract at generation > 1 may not keep its evidence at the fixed legacy
+ *     paths while its immutable ref names a higher generation (#3380).
  */
 export function resolveCurrentPair(changedFiles, contract) {
   const resolved = resolveEvidencePair(changedFiles)
@@ -174,8 +179,13 @@ export function resolveCurrentPair(changedFiles, contract) {
   if (resolved.key !== expected.key && resolved.key !== 'legacy') {
     throw new EvidenceLineageError(`the current pair is ${resolved.key} but the contract declares ${expected.key}; filename order never decides currency`)
   }
-  if (resolved.key === 'legacy' && lineage.schema_version !== 1) {
-    throw new EvidenceLineageError('a schema_version 2 contract must use its keyed pair, not the legacy paths')
+  if (resolved.key === 'legacy') {
+    if (lineage.schema_version !== 1) {
+      throw new EvidenceLineageError('a schema_version 2 contract must use its keyed pair, not the legacy paths')
+    }
+    if (lineage.generation !== 1) {
+      throw new EvidenceLineageError(`a schema_version 1 generation ${lineage.generation} contract must use its keyed pair ${expected.key}; the legacy paths are only the generation-1 v1 root pair`)
+    }
   }
   return Object.freeze({
     key: resolved.key,

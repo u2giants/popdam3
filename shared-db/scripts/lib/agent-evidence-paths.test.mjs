@@ -51,9 +51,9 @@ test('#2708: resolution names the exact pair, or fails closed on more than one',
   assert.equal(conflicted.contract, null)
 })
 
-test('#2708: the legacy pair stays acceptable so open pull requests need not all rewrite at once', () => {
-  const pairs = acceptableEvidencePairs({ work_issue: 42, generation: 2 })
-  assert.deepEqual(pairs[0], ['.agent/work/42/2/completion.json', '.agent/work/42/2/contract.json'])
+test('#2708: the legacy pair stays acceptable for a generation-1 root so open pull requests need not all rewrite at once', () => {
+  const pairs = acceptableEvidencePairs({ work_issue: 42, generation: 1 })
+  assert.deepEqual(pairs[0], ['.agent/work/42/1/completion.json', '.agent/work/42/1/contract.json'])
   assert.deepEqual(pairs.at(-1), [...LEGACY_PAIR])
   assert.deepEqual(acceptableEvidencePairs({}), [[...LEGACY_PAIR]])
 })
@@ -69,9 +69,16 @@ test('#3380: a schema_version 2 contract accepts only its keyed pair, never the 
   assert.equal(v2Root.length, 1)
   assert.deepEqual(v2Root[0], ['.agent/work/42/1/completion.json', '.agent/work/42/1/contract.json'])
 
-  // v1 keeps both, so open pull requests need not rewrite at once.
+  // A v1 generation-1 root keeps both, so open pull requests need not rewrite
+  // at once.
+  const v1Root = acceptableEvidencePairs({ schema_version: 1, work_issue: 42, generation: 1 })
+  assert.equal(v1Root.length, 2)
+
+  // Pair↔generation binding holds even for v1: a schema_version 1 contract at
+  // generation > 1 is NOT given the legacy paths (#3380).
   const v1 = acceptableEvidencePairs({ schema_version: 1, work_issue: 42, generation: 2 })
-  assert.equal(v1.length, 2)
+  assert.equal(v1.length, 1)
+  assert.deepEqual(v1[0], ['.agent/work/42/2/completion.json', '.agent/work/42/2/contract.json'])
 })
 
 import { execFileSync } from 'node:child_process'

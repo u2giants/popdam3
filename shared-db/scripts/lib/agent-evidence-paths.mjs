@@ -152,23 +152,29 @@ export function resolveEvidencePair(changedFiles) {
 
 /**
  * The pair a checked-in contract declares it should live at. A pull request may
- * use the keyed path for its own issue/generation, or the legacy pair; it may
- * never write another pull request's keyed path.
+ * use the keyed path for its own issue/generation, or the legacy pair when the
+ * contract is a schema_version 1 generation-1 root; it may never write another
+ * pull request's keyed path.
  *
  * A schema_version 2 contract must use its keyed pair only (the same rule
- * resolveCurrentPair enforces). The legacy pair stays acceptable for v1 so open
- * pull requests need not all rewrite at once.
+ * resolveCurrentPair enforces). The legacy pair stays acceptable for a v1
+ * generation-1 root so open pull requests need not all rewrite at once. A
+ * schema_version 1 contract at generation > 1 is NOT given the legacy paths:
+ * pair↔generation binding is enforced even for v1 (#3380).
  */
 export function acceptableEvidencePairs(contract) {
   const pairs = []
+  let generation = 1
   try {
     const keyed = evidencePaths(contract?.work_issue, contract?.generation ?? 1)
+    generation = Number(contract?.generation ?? 1)
     pairs.push(Object.freeze([keyed.completion, keyed.contract].sort()))
   } catch {
     // A contract with no usable work_issue fails its own validation elsewhere;
     // it does not get a keyed path here.
+    generation = Number(contract?.generation ?? 1)
   }
-  if (contract?.schema_version !== 2) {
+  if (contract?.schema_version !== 2 && Number.isInteger(generation) && generation === 1) {
     pairs.push(LEGACY_PAIR)
   }
   return pairs

@@ -170,6 +170,14 @@ test('legacy pair is authentic for v1 and refused for v2', () => {
     () => resolveCurrentPair(['.agent/contract.json', '.agent/completion.json'], v2),
     /must use its keyed pair/,
   )
+
+  // Pair↔generation binding holds even for v1: a schema_version 1 contract at
+  // generation > 1 may not keep its evidence at the fixed legacy paths — the
+  // legacy paths are only the generation-1 v1 root pair (#3380).
+  assert.throws(
+    () => resolveCurrentPair(['.agent/contract.json', '.agent/completion.json'], v1Root({ generation: 2 })),
+    /legacy paths are only the generation-1 v1 root pair/,
+  )
 })
 
 test('committed-record mutation is refused', () => {
