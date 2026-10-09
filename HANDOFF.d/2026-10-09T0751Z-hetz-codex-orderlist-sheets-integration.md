@@ -128,7 +128,7 @@ fallback, absent keys keep prior state. Importhistory separate. Assortment
 physical parent counted once; component unknown stays unknown. Licensing RPC
 returns TABLE(iduuid,license_statustext), bounded1000 IDs. Tracking reader caps
 200headers, materialized before component lookup. Vendor activity14months.
-Backend exact catalog checker proves268column/type tuples,12routineattributes,
+Backend exact catalog checker proves244column/type tuples,12routineattributes,
 security/grants/signatures, not just routine existence. Scale actual60k lines,
 4k headers/30kitems:200PO~415ms, filtered200PO~311ms, vendorstats~5ms,
 licensing sort500~2168ms using real existing indexes, no synthetic production
@@ -262,3 +262,5 @@ shipment after structural delivery. No unrelated doc rewrite. Self-audit
 rechecked: reciprocal13-sectionplan/10-sectionhandoff, exact states/gates/
 rejected paths/access/owner choices intact; no requested live delivery marked
 complete. Same-issue live-proof checkboxes remain open, not a new ticket.
+
+Catalog inventory correction: re-derived current named contract contains244 unique relation/column/type tuples, replacing the earlier268 count; verifier bytes and approvals unchanged.
