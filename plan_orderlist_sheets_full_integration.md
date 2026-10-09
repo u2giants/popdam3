@@ -2,23 +2,33 @@
 
 ## STATUS
 
-No delivery outcome is accepted: preparation and partial progress are not application acceptance.
+Active coordinated delivery, refreshed October 9, 2026, 9:20 AM EDT.
+Backend PR4118 merged at 8:59 AM EDT (199231f3); approved migration bytes unchanged.
+Merged-main bounded preview dry-run 37935574311 passed. Preview apply37935940313 failed safely when Supabase CLI split the SQL-standard
+BEGIN ATOMIC function at an internal semicolon. Tooling issue4135/PR4136 uses the
+existing exact-version/SHA atomic installer, retaining migration bytes and all
+workflow guards. Production application and initial input load are not yet proved.
 
 | Step | Status | Evidence / gate |
 |---|---|---|
-| 1. Governed backend delivery | partial | prerequisite PR4131 merged d63eb35d; current backend7ceed18c CI37903481114 + guard37903481396attempt2SUCCESS; Muse/Gemini APPROVE; foreign freeze blocks integration merge/apply |
-| 2. Auxiliary source load | open | exact 11442-row guarded transaction; no load has occurred |
-| 3. App types and query boundary | open | bounded hooks and validation tests specified below |
-| 4. PO Tracking and component details | open | admin/viewer component and preview write tests |
-| 5. Sample Settings | open | positive/clear depth and nonblank suffix tests |
-| 6. OrderList read-through and refresh | open | Find/saved-view/unknown-source regression tests |
-| 7. Master Data licensing and reverse statistics | open | bounded status batch and readonly-column tests |
-| 8. Review, shipment and authenticated live proof | open | fresh served SHA and administrator/viewer screenshots |
-| 9. Canonical documentation and closeout | open | native inventory, company rule and same-issue acceptance |
+| 1. Governed backend delivery | partial | merged PR4118; preview dry-run passed; atomic installation repair4135 in progress |
+| 2. Auxiliary source load | partial | offline guarded loader and tests; no live import |
+| 3. App types and query boundary | partial | bounded 50/100-row hooks; closed-input and auth tests pass |
+| 4. PO Tracking and component details | partial | panels implemented; role/dirty-draft/unknown tests pass |
+| 5. Sample Settings | partial | positive/clear depth and nonblank suffix panels/tests |
+| 6. OrderList read-through and refresh | partial | source-qualified fields and visible refresh tests |
+| 7. Master Data licensing and reverse statistics | partial | 1000-row ID-mapped status calls; readonly licensing/statistics |
+| 8. Review, shipment and authenticated live proof | open | local visual checks active; final exact-head review and live delivery remain |
+| 9. Canonical documentation and closeout | open | company rules and same-issue acceptance require final live evidence |
 
-A fresh session starts at step 1, refreshing GitHub and the foreign promotion
-freeze; it must not infer that local preparation is deployed. Context is in
-[the session handoff](HANDOFF.d/2026-10-09T0751Z-hetz-codex-orderlist-sheets-integration.md).
+Preparation is not acceptance. Root owns final verification and shipment; three
+spawned Luna agents own bounded implementation and independent checks. The owner
+requested coordination and continued work until completion. Local suite passed
+78 files /491 tests plus one existing skipped test; build passed. Focused lint has
+no errors. Full TypeScript check retains unrelated baseline errors; no integration
+file errors remain. Local synthetic visual checks covered all new screens and
+existing OrderList/Master Data grids; these are not hosted live acceptance.
+All steps require their documented live success checks before acceptance.
 
 ## 1. The ultimate goal — what we are trying to achieve
 
@@ -82,7 +92,7 @@ Its reserved migration is `20261009073649_popdam_orderlist_sheets_integration.sq
 Migration bytes still hash to
 `bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590`.
 No preview or production apply has occurred. Historical approvals at a891…
-are not approvals of7ceed…. Muse and Gemini independently approved7ceed18c, recorded in source-bound refs. All required checks pass as verified4:38 AM EDT. The integration is still unmerged/unapplied because another session owns a new promotion freeze.
+are not approvals of7ceed…. Muse and Gemini independently approved7ceed18c, recorded in source-bound refs. All required checks pass as verified4:38 AM EDT. The backend merged at 8:59 AM EDT October9. The previous freeze cleared; current deployment status is recorded in STATUS above.
 
 Checker prerequisite is shared-db PR4131/issue4130, own worktree
 `/worksp/shared-db-orderlist-verifier`, head
@@ -90,7 +100,7 @@ Checker prerequisite is shared-db PR4131/issue4130, own worktree
 `refs/db-review-verdict-replacements/4130-4131-c54b1651fa66816c165a6c8261997639eacfb107-5996`.
 It merged as d63eb35dd5f074d462051409cf6aa3ac75bab070 after guarded run37903109404SUCCESS. The foreign hold expired naturally; this session did not release it. Recheck current promotion state before stronger actions.
 
-App dependent code is untouched. Own plan/HANDOFF/AGENTS/topic documentation is committed; docs/ORDER_LIST.md and docs/MASTER_DATA.md
+App dependent screens, hooks, validation and integration changes are implemented; see STATUS for validation and deployment. Own plan/HANDOFF/AGENTS/topic documentation is committed; docs/ORDER_LIST.md and docs/MASTER_DATA.md
 have local prose edits, explicitly saying delivery is in progress. Main Orders
 code:src/pages/OrdersPage.tsx, src/hooks/useOrderList.ts,
 src/components/orders/OrderListGrid.tsx and MasterDataLinkCell.tsx,
@@ -527,3 +537,27 @@ external-input adversarial named tests YES; locked/open decisions YES;
 out-of-scope YES; named tests YES; identifiers/locations YES; secret values
 absent YES; commit/push/CI/live DoD YES; reciprocal handoff YES. Re-evaluate
 this audit whenever a later delivery changes the current state.
+
+### Exact production row-data action for independent review
+
+The app task is redeclared production before the stronger database gate. The
+review must cover the existing native frontend delivery and this one-time load:
+project qsllyeztdwjgirsysgai, session pooler aws-1-us-east-1.pooler.supabase.com:5432,
+postgres.qsllyeztdwjgirsysgai / postgres, TLS required; unchanged source SHA
+13bc64585bb5ec26e977fa948e6c59dfcf1b489e463fbe5e6151016ebd36fb4d.
+Insert exactly8257 sample-depth rows,38 suffix rows,3147 auxiliary tracking rows
+into only dam.orderlist_sample_depth,dam.orderlist_customer_settings,
+dam.order_tracking_ext. Source71 held tracking rows remain excluded. Lock and
+assert empty destinations, revalidate PO UUID/number pairs and live connection,
+COPY within one transaction, assert exact counts, retain private complete-row
+fingerprint recovery. No schema/permissions/curated products/canonical headers
+or canonical header dates change. Omitted/unknown values remain NULL. Production
+load cannot start until the native schema qualification/apply/catalog proof passes
+and assigned exact-head independent APPROVE plus ai-task-gates database check pass.
+Rollback is a separate reviewer-gated operation restricted to these exact inserted
+identities and unchanged full-row fingerprints; never erase later user edits.
+
+Installer repair validation October9,2026,9:42 AM EDT: unchanged migration
+installed by the repaired helper in isolated PostgreSQL15, exact ledger_row=1
+and73 statements. All25 helper unit tests and10 real PostgreSQL transaction tests
+pass. This is local proof; hosted acceptance remains pending governed review/merge.

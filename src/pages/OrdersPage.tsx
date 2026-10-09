@@ -1,3 +1,5 @@
+import { POTrackingPanel } from "@/components/orders/POTrackingPanel";
+import { OrderSampleSettings } from "@/components/orders/OrderSampleSettings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CellValueChangedEvent, IDatasource } from "ag-grid-community";
 import type { AgGridReact } from "ag-grid-react";
@@ -38,6 +40,7 @@ export default function OrdersPage() {
   const gridRef = useRef<AgGridReact<OrderListRow>>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  const [activeTab, setActiveTab] = useState<"orders" | "tracking" | "settings">("orders");
   const [search, setSearch] = useState("");
   const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
   const [editor, setEditor] = useState<{ mode: OrderEditorMode; row: OrderListRow | null } | null>(null);
@@ -59,6 +62,19 @@ export default function OrdersPage() {
   const refreshRows = useCallback(() => {
     gridRef.current?.api?.refreshInfiniteCache();
   }, []);
+
+  useEffect(() => {
+    if (!authReady) return;
+    let debounce: ReturnType<typeof setTimeout> | undefined;
+    const refreshVisible = () => { if (document.visibilityState === "visible" && activeTab === "orders") refreshRows(); };
+    const channel = supabase.channel("orderlist-current-master-workflow").on("postgres_changes", { event: "*", schema: "public", table: "style_tracker_rows" }, () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(refreshVisible, 500);
+    }).subscribe();
+    const timer = setInterval(refreshVisible, 30_000);
+    window.addEventListener("focus", refreshVisible);
+    return () => { clearTimeout(debounce); clearInterval(timer); window.removeEventListener("focus", refreshVisible); void supabase.removeChannel(channel); };
+  }, [authReady, activeTab, refreshRows]);
 
   const updateOrder = useUpdateOrder(refreshRows);
   const createOrder = useCreateOrder(refreshRows);
@@ -286,6 +302,14 @@ export default function OrdersPage() {
           Connected to a non-production database ({POPDAM_SUPABASE_PROJECT_REF}). Edits here do not touch production.
         </div>
       )}
+      <nav aria-label="Order views" className="flex gap-2 border-b p-3">
+        <Button variant={activeTab === "orders" ? "default" : "outline"} onClick={() => setActiveTab("orders")}>OrderList</Button>
+        <Button variant={activeTab === "tracking" ? "default" : "outline"} onClick={() => setActiveTab("tracking")}>PO Tracking</Button>
+        <Button variant={activeTab === "settings" ? "default" : "outline"} onClick={() => setActiveTab("settings")}>Sample Settings</Button>
+      </nav>
+      {activeTab === "tracking" && <div className="min-h-0 flex-1 overflow-auto p-3"><POTrackingPanel onRowsChanged={refreshRows} /></div>}
+      {activeTab === "settings" && <div className="min-h-0 flex-1 overflow-auto p-3"><OrderSampleSettings onRowsChanged={refreshRows} /></div>}
+      <div className={activeTab === "orders" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
         <h1 className="mr-2 text-base font-semibold">OrderList</h1>
 
@@ -362,6 +386,8 @@ export default function OrdersPage() {
             onSelectionChanged={setSelectedRows}
           />
         </div>
+      </div>
+
       </div>
 
       {editor && (

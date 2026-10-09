@@ -1,8 +1,14 @@
 ---
 issue: 281
-status: BLOCKED
+status: ACTIVE
 owner: codex/sheets-full-integration
 ---
+
+Current continuation: October 9, 2026, 9:20 AM EDT. Backend PR4118 merged;
+preview dry-run37935574311 passed, apply37935940313 queued. App implementation
+and guarded loader are prepared; three Luna agents verify their assigned subsets.
+Root owns remaining rollout/import/review/shipment/live proof. The older blocked
+snapshot below is historical and superseded by the implementation plan STATUS.
 
 # Native Sheets integration — current session record
 

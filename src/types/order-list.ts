@@ -98,6 +98,20 @@ export type OrderListRow = {
   snapshot_style_type: string | null;
   snapshot_source_row: string | null;
 
+  // Current workflow and auxiliary integration; import snapshots stay separate.
+  product_workflow_source?: "master_data" | "at_import" | "unavailable" | "ambiguous";
+  master_data_sample_vendor?: string | null;
+  sample_depth_inches?: number | null;
+  cases_error?: string | null;
+  assortment_parent_quantity?: number | null;
+  assortment_parent_cases?: number | null;
+  assortment_parent_key?: string | null;
+  sample_depth_raw?: string | null;
+  sample_depth_source_row?: number | null;
+  snapshot_test_report?: string | null;
+  snapshot_professional_photos?: string | null;
+  snapshot_contractual_sample_reorder?: boolean | null;
+
   // Diagnostics
   item_link_missing: boolean | null;
   item_link_type_mismatch: boolean | null;
