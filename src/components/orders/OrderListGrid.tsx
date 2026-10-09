@@ -90,7 +90,9 @@ function masterDataRenderer(field: keyof OrderListRow) {
         ? masterDataDescription(row)
         : field === "master_data_license_status"
           ? masterDataLicenseStatus(row)
-          : { value: (row[field] ?? "") as string, isSnapshot: !row.item_id };
+          : ["test_report", "professional_photos", "contractual_sample_reorder"].includes(field)
+            ? { value: row[field] == null ? "Unknown" : typeof row[field] === "boolean" ? (row[field] ? "Yes" : "No") : String(row[field]), isSnapshot: row.product_workflow_source === "at_import" }
+            : { value: (row[field] ?? "") as string, isSnapshot: !row.item_id };
     if (!display.value) return null;
     return (
       <span className={display.isSnapshot ? "text-amber-600 dark:text-amber-400" : undefined}>
@@ -148,9 +150,9 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
           hide: column.hide,
           pinned: column.pinned,
           sort: column.field === "order_date" ? "desc" : undefined,
-          sortable: true,
+          sortable: column.queryable !== false,
           resizable: true,
-          filter: filterFor(column),
+          filter: column.queryable === false ? false : filterFor(column),
           valueFormatter: valueFormatterFor(column),
           editable: Boolean(column.editable),
           headerTooltip: `${sourceLabel}. ${column.editable ? "Double-click to edit." : "Read-only."}`,

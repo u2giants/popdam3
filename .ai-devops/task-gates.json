@@ -27,6 +27,14 @@
       "class": "reviewer-safety"
     },
     {
+      "glob": "scripts/load-orderlist-integration-inputs.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-load-orderlist-integration-inputs.py",
+      "class": "reviewer-safety"
+    },
+    {
       "glob": "scripts/refresh-google-orderlist-rows.py",
       "class": "reviewer-safety"
     },

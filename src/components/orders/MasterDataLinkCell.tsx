@@ -31,13 +31,14 @@ export function MasterDataLinkCell({ row, onRelink }: Props) {
 
   const Icon = linked && !typeMismatch ? CheckCircle2 : notApplicable ? MinusCircle : AlertTriangle;
 
-  const label = typeMismatch ? "Wrong catalog" : matchStatusLabel(status);
+  const workflowUnknown = linked && ["unavailable", "ambiguous"].includes(row.product_workflow_source ?? "");
+  const label = typeMismatch ? "Wrong catalog" : workflowUnknown ? "Item linked; workflow unknown" : matchStatusLabel(status);
   const detail = ambiguous
     ? "Master Data holds more than one row for this Style # in this catalog. Pick the right one."
     : typeMismatch
       ? "The linked item belongs to the other Master Data catalog."
       : linked
-        ? row.item_description ?? row.item_name ?? ""
+        ? workflowUnknown ? "Item Master is linked. Current Master Data workflow is missing or conflicting." : row.item_description ?? row.item_name ?? ""
         : notApplicable
           ? "This line has no Style # to match."
           : "No Master Data row matched this Style # exactly.";

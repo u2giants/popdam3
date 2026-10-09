@@ -202,8 +202,8 @@ export function masterDataDescription(row: OrderListRow): MasterDataDisplay {
 }
 
 export function masterDataLicenseStatus(row: OrderListRow): MasterDataDisplay {
-  if (row.item_id && row.master_data_license_status) {
-    return { value: row.master_data_license_status, isSnapshot: false };
+  if (row.item_id) {
+    return { value: row.master_data_license_status ?? "Unknown", isSnapshot: false };
   }
   return { value: row.snapshot_license_status ?? "", isSnapshot: true };
 }
@@ -457,6 +457,8 @@ export type OrderListColumn = {
   source?: "input" | "automatic" | "helper";
   hide?: boolean;
   pinned?: "left";
+  /** New output fields are outside the bounded Find/filter contract. */
+  queryable?: boolean;
 };
 
 /**
@@ -512,9 +514,9 @@ export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
   { field: "seal_container_date", header: "Seal Container", kind: "order", type: "date", width: 150, hide: true },
   { field: "vendor_delivery_date", header: "Vendor Delivery", kind: "order", type: "date", width: 155, hide: true },
   { field: "booking_state", header: "Booking", kind: "order", type: "text", width: 140, hide: true },
-  { field: "test_report", header: "Test Report", kind: "line", type: "text", width: 150, hide: true },
-  { field: "professional_photos", header: "Professional Photos", kind: "line", type: "text", width: 175, hide: true },
-  { field: "contractual_sample_reorder", header: "Contractual Sample Reorder", kind: "line", type: "boolean", width: 210, hide: true },
+  { field: "test_report", header: "Test Report (Master Data)", kind: "masterData", type: "text", width: 150, hide: true },
+  { field: "professional_photos", header: "Professional Photos (Master Data)", kind: "masterData", type: "text", width: 175, hide: true },
+  { field: "contractual_sample_reorder", header: "Contractual Sample Reorder (Master Data)", kind: "masterData", type: "boolean", width: 210, hide: true },
   { field: "line_status", header: "Line Status", kind: "line", type: "text", width: 140, hide: true },
   { field: "master_data_default_vendor", header: "Default Vendor (Master Data)", kind: "masterData", type: "text", width: 195, hide: true },
   { field: "master_data_customer", header: "Customer (Master Data)", kind: "masterData", type: "text", width: 190, hide: true },
@@ -528,6 +530,18 @@ export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
   { field: "coldlion_source_id", header: "Coldlion Source ID", kind: "diagnostic", type: "text", width: 220, hide: true },
   { field: "order_void_reason", header: "Order Void Reason", kind: "order", type: "text", width: 180, hide: true },
   { field: "line_void_reason", header: "Line Void Reason", kind: "line", type: "text", width: 180, hide: true },
+  { field: "product_workflow_source", header: "Workflow Source", kind: "diagnostic", type: "text", hide: true, queryable: false, width: 190 },
+  { field: "master_data_sample_vendor", header: "Sample Vendor (Master Data)", kind: "diagnostic", type: "text", hide: true, queryable: false, width: 190 },
+  { field: "sample_depth_inches", header: "Sample Depth (in)", kind: "diagnostic", type: "number", hide: true, queryable: false, width: 190 },
+  { field: "cases_error", header: "Cases Error", kind: "diagnostic", type: "text", hide: true, queryable: false, width: 190 },
+  { field: "assortment_parent_quantity", header: "Assortment Parent Quantity", kind: "diagnostic", type: "number", hide: true, queryable: false, width: 190 },
+  { field: "assortment_parent_cases", header: "Assortment Parent Cases", kind: "diagnostic", type: "number", hide: true, queryable: false, width: 190 },
+  { field: "assortment_parent_key", header: "Assortment Parent", kind: "diagnostic", type: "text", hide: true, queryable: false, width: 190 },
+  { field: "sample_depth_raw", header: "Sample Depth (at import)", kind: "diagnostic", type: "text", hide: true, queryable: false, width: 190 },
+  { field: "sample_depth_source_row", header: "Sample Depth Source Row", kind: "diagnostic", type: "number", hide: true, queryable: false, width: 190 },
+  { field: "snapshot_test_report", header: "Test Report (at import)", kind: "diagnostic", type: "text", hide: true, queryable: false, width: 190 },
+  { field: "snapshot_professional_photos", header: "Photos (at import)", kind: "diagnostic", type: "text", hide: true, queryable: false, width: 190 },
+  { field: "snapshot_contractual_sample_reorder", header: "Reorder (at import)", kind: "diagnostic", type: "boolean", hide: true, queryable: false, width: 190 },
 ];
 
 export function isMasterDataColumn(column: OrderListColumn) {

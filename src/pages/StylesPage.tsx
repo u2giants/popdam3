@@ -1,3 +1,5 @@
+import { VendorStatisticsPanel } from "@/components/orders/VendorStatisticsPanel";
+import { workflowCellValue, mergeComputedLicenseStatus, normalizeWorkflowEditValue } from "@/lib/master-data-workflow";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CellValueChangedEvent, ColDef, ColumnState, DefaultMenuItem, GetContextMenuItemsParams, GridReadyEvent, MenuItemDef } from "ag-grid-community";
@@ -288,6 +290,7 @@ const licensedColumns: SheetColumn[] = [
 ];
 
 const genericColumns: SheetColumn[] = [
+  { letter: "LICENSE_STATUS", header: "License Status", typedField: "license_status", width: 155, hide: true },
   { letter: "B", header: "Style # / SKU", width: 150, pinned: "left", typedField: "sku", legacyKey: "style_sku", linkKind: "sku" },
   { letter: "PKG", header: "Packaging Type", width: 175, legacyKey: "packaging_type", optionKind: "packagingType" },
   { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
@@ -353,8 +356,7 @@ const darkGridTheme = themeQuartz.withPart(iconSetMaterial).withParams({
 
 function valueFor(row: StyleRow | undefined, column: SheetColumn) {
   if (!row) return "";
-  const typed = column.typedField ? row[column.typedField] : null;
-  return typed ?? row.row_data?.[column.letter] ?? (column.legacyKey ? row.row_data?.[column.legacyKey] : "") ?? "";
+  return workflowCellValue(row, column);
 }
 
 function yesNoValue(value: unknown) {
@@ -422,7 +424,7 @@ function hasFieldMatch(row: StyleRow, field: FieldKey) {
 function hasManualResolution(row: StyleRow, fieldKey: FieldKey) {
   const manualByField = row.match_notes?.manual_resolutions;
   if (manualByField && typeof manualByField === "object" && !Array.isArray(manualByField)) {
-    if (Object.hasOwn(manualByField, fieldKey)) return true;
+    if (Object.prototype.hasOwnProperty.call(manualByField, fieldKey)) return true;
   }
   return manualResolutionField(row) === fieldKey;
 }
@@ -447,13 +449,14 @@ function statusFor(row: StyleRow | undefined, column: SheetColumn) {
   return "unmatched";
 }
 
-function buildUpdate(row: StyleRow, column: SheetColumn, value: unknown) {
-  const nextValue = value === "" ? null : column.yesNo ? String(value).toLowerCase() === "yes" : column.typedField === "discontinued" ? ["true", "yes", "1"].includes(String(value).toLowerCase()) : String(value);
+function buildUpdate(row: StyleRow, column: SheetColumn, value: unknown): Partial<StyleRow> & { row_data: RowData } {
+  if (column.typedField === "license_status") throw new Error("License Status is calculated from the current workflow and cannot be edited.");
+  const nextValue = normalizeWorkflowEditValue(value, column);
   if (column.optionKind === "customer") {
     const rowData = { ...(row.row_data ?? {}) };
     delete rowData[column.letter];
     if (column.legacyKey) delete rowData[column.legacyKey];
-    return { row_data: rowData, customer_id: nextValue, customer: null };
+    return { row_data: rowData, customer_id: nextValue == null ? null : String(nextValue), customer: null };
   }
   const rowData = { ...(row.row_data ?? {}), [column.letter]: nextValue };
   if (column.legacyKey) rowData[column.legacyKey] = nextValue;
@@ -522,7 +525,11 @@ async function fetchRowsPage(sourceSheet: string, pageOffset: number) {
       .order("source_row_number", { ascending: false })
       .range(from, from + MASTER_DATA_FETCH_BATCH_SIZE - 1);
     if (error) throw error;
-    return (data ?? []) as StyleRow[];
+    const rows = (data ?? []) as StyleRow[];
+    if (!rows.length) return rows;
+    const { data: statuses, error: statusError } = await (supabase as any).rpc("get_dam_style_tracker_license_status", { p_row_ids: rows.map((row) => row.id) });
+    if (statusError) throw statusError;
+    return mergeComputedLicenseStatus(rows, statuses ?? []);
   };
 
   // PostgREST caps responses at 1,000 rows. A query page is four ordered
@@ -1171,6 +1178,7 @@ export default function StylesPage() {
   const gridRef = useRef<AgGridReact<StyleRow>>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [activeSheet, setActiveSheet] = useState<(typeof configs)[number]["name"]>("License.Style");
+  const [showVendorStatistics, setShowVendorStatistics] = useState(false);
   const [quickFilter, setQuickFilter] = useState("");
   const normalizedGridSearch = quickFilter.trim().toLocaleLowerCase();
   const [showAllPageRows, setShowAllPageRows] = useState(false);
@@ -1685,7 +1693,7 @@ export default function StylesPage() {
         width: column.width ?? 140,
         pinned: column.pinned,
         hide: column.hide,
-        editable: true,
+        editable: isAdmin && column.typedField !== "license_status",
         cellEditor:
           column.date
             ? "agDateStringCellEditor"
@@ -1763,7 +1771,7 @@ export default function StylesPage() {
             }
           : undefined,
         valueSetter: (params) => {
-          if (!params.data) return false;
+          if (!params.data || !isAdmin || column.typedField === "license_status") return false;
           if (column.typedField === "description") {
             const validationError = validateDescriptionSelection(params.newValue, descriptionOptions);
             if (validationError) {
@@ -1800,7 +1808,7 @@ export default function StylesPage() {
         },
       })),
     ],
-    [active, customerOptionById, customerOptionsQuery.data, descriptionOptions, designerOptionKeys, designerOptionsQuery.data, factoryOptionsQuery.data, licensorOptionsQuery.data, packagingTypeOptionKeys, packagingTypeOptionsQuery.data],
+    [active, isAdmin, customerOptionById, customerOptionsQuery.data, descriptionOptions, designerOptionKeys, designerOptionsQuery.data, factoryOptionsQuery.data, licensorOptionsQuery.data, packagingTypeOptionKeys, packagingTypeOptionsQuery.data],
   );
 
   const totalRows = countQuery.data ?? rows.length;
@@ -1832,6 +1840,7 @@ export default function StylesPage() {
   const applyAiBulkEdit = async (plan: GridAiPlan) => {
     const selectedRows = gridRef.current?.api.getSelectedRows() ?? [];
     const column = active.columns.find((item) => item.letter === plan.field);
+    if (column?.typedField === "license_status") throw new Error("License Status is calculated and cannot be edited.");
     if (!column || !selectedRows.length) throw new Error("Select rows and an editable column first.");
     let value = plan.value;
     if (column.optionKind === "customer") {
@@ -1865,7 +1874,7 @@ export default function StylesPage() {
             <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-muted">
               <Table2 className="h-4 w-4 text-primary" />
             </div>
-            {isAdmin && <GridAiHelperDialog pageName="Master Data" selectedRowCount={selectedRowCount} fields={active.columns.map((column) => ({ key: column.letter, label: column.header }))} onApply={applyAiBulkEdit} />}
+            {isAdmin && <GridAiHelperDialog pageName="Master Data" selectedRowCount={selectedRowCount} fields={active.columns.filter((column) => column.typedField !== "license_status").map((column) => ({ key: column.letter, label: column.header }))} onApply={applyAiBulkEdit} />}
             <div className="min-w-0">
               <h1 className="text-lg font-semibold leading-tight text-foreground">Master Data</h1>
               <p className="text-xs text-muted-foreground">
@@ -1979,19 +1988,21 @@ export default function StylesPage() {
               key={sheet.name}
               type="button"
               onClick={() => {
+                setShowVendorStatistics(false);
                 setActiveSheet(sheet.name);
                 setSelectedReviewKey(null);
               }}
               className={cn(
                 "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-                activeSheet === sheet.name ? "border-primary bg-primary text-primary-foreground" : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground",
+                !showVendorStatistics && activeSheet === sheet.name ? "border-primary bg-primary text-primary-foreground" : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
               {sheet.label}
             </button>
           ))}
+          <button type="button" onClick={() => setShowVendorStatistics(true)} className="rounded-md border px-3 py-1.5 text-xs font-medium">Vendor Statistics</button>
         </div>
-        {isAdmin && (
+        {isAdmin && !showVendorStatistics && (
           <div className="mt-3 max-h-52 overflow-hidden border-t border-border pt-3">
             <div className="grid gap-3 xl:grid-cols-[minmax(220px,340px)_1fr] xl:items-start">
               <div className="min-w-0">
@@ -2106,7 +2117,8 @@ export default function StylesPage() {
           </div>
         )}
       </div>
-      <div className="min-h-0 flex-1 p-3">
+      {showVendorStatistics && <div className="min-h-0 flex-1 overflow-auto p-3"><VendorStatisticsPanel /></div>}
+      <div className={showVendorStatistics ? "hidden" : "min-h-0 flex-1 p-3"}>
         <div className="relative h-full min-h-0 overflow-hidden rounded-md border border-border bg-card">
           <AgGridReact
             ref={gridRef}
@@ -2150,7 +2162,7 @@ export default function StylesPage() {
             sideBar={{ toolPanels: [{ id: "columns", labelDefault: "Columns", labelKey: "columns", iconKey: "columns", toolPanel: "agColumnsToolPanel" }], hiddenByDefault: true }}
             pagination
             paginationPageSize={MASTER_DATA_DEFAULT_PAGE_SIZE}
-            paginationPageSizeSelector={MASTER_DATA_PAGE_SIZE_OPTIONS}
+            paginationPageSizeSelector={[...MASTER_DATA_PAGE_SIZE_OPTIONS]}
             stopEditingWhenCellsLoseFocus
           />
           <Button

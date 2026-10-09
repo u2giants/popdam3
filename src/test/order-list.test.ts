@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ORDER_LIST_COLUMNS,
+  ORDER_LIST_SEARCH_COLUMNS,
   ORDER_LIST_DEFAULT_PAGE_SIZE,
   ORDER_LIST_PAGE_SIZE_OPTIONS,
   buildOrderListFilters,
@@ -142,6 +143,15 @@ describe("OrderList Master Data display", () => {
     expect(masterDataLicenseStatus(unlinked)).toEqual({ value: "Pending", isSnapshot: true });
   });
 
+  it("shows Unknown for linked rows missing current licensing and never uses their import approval", () => {
+    const linkedUnknown = row({
+      item_id: "item-current",
+      master_data_license_status: null,
+      snapshot_license_status: "Approved at import",
+    });
+    expect(masterDataLicenseStatus(linkedUnknown)).toEqual({ value: "Unknown", isSnapshot: false });
+  });
+
   it("labels every match status in plain words", () => {
     expect(matchStatusLabel("matched")).toBe("Linked");
     expect(matchStatusLabel("ambiguous")).toBe("Ambiguous");
@@ -272,6 +282,27 @@ describe("OrderList columns", () => {
   it("declares no duplicate columns", () => {
     const fields = ORDER_LIST_COLUMNS.map((column) => column.field);
     expect(new Set(fields).size).toBe(fields.length);
+  });
+
+  it("keeps all 12 integration outputs readonly and outside Find/filter/sort fields", () => {
+    const integrationFields = [
+      "product_workflow_source",
+      "master_data_sample_vendor",
+      "sample_depth_inches",
+      "cases_error",
+      "assortment_parent_quantity",
+      "assortment_parent_cases",
+      "assortment_parent_key",
+      "sample_depth_raw",
+      "sample_depth_source_row",
+      "snapshot_test_report",
+      "snapshot_professional_photos",
+      "snapshot_contractual_sample_reorder",
+    ] as const;
+    const columns = integrationFields.map((field) => ORDER_LIST_COLUMNS.find((column) => column.field === field));
+    expect(columns).toHaveLength(12);
+    expect(columns.every((column) => column?.queryable === false && column.editable !== true)).toBe(true);
+    expect(integrationFields.some((field) => ORDER_LIST_SEARCH_COLUMNS.includes(field as any))).toBe(false);
   });
 });
 
