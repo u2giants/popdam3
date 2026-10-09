@@ -26,7 +26,14 @@ def catalog():
             "insert_triggers": [{"internal": True, "type": 5, "function_schema": "pg_catalog",
                                  "function": "RI_FKey_check_ins", "constraint_type": "f", "constraint_table": 100,
                                  "referenced_table": 101, "key_columns": ["app_profile_id"]}],
-            "checks": 0, "unsafe_indexes": 0, "rules": 0, "ledger_present": True, "duplicate_groups": 0}
+            "checks": [{"name": name, "table_oid": 100, "validated": True, "no_inherit": False,
+                        "key_columns": [column], "expression": expr, "definition": "CHECK (" + expr + ")", "dependencies_safe": True}
+                       for name, (column, expr) in p.CHECKS.items()],
+            "profile_index": {"table_oid":100,"kind":"i","unique":True,"valid":True,"ready":True,"live":True,"immediate":True,
+                              "primary":False,"exclusion":False,"nulls_not_distinct":False,"method":"btree","builtin_method":True,
+                              "keys":1,"attributes":1,"key_columns":["app_profile_id"],"expression":None,"predicate":"(app_profile_id IS NOT NULL)",
+                              "definition":p.PROFILE_INDEX_DEFINITION,"opclass_exact":True,"collation_exact":True,"options":[0],
+                              "storage_options":None,"tablespace":0,"dependencies_safe":True}, "unsafe_indexes": 0, "rules": 0, "ledger_present": True, "duplicate_groups": 0}
 
 
 class Sql(str):
@@ -127,6 +134,8 @@ class ProofTests(unittest.TestCase):
         insert = next((q, v) for q, v in c.calls if q.startswith("INSERT"))
         self.assertIn("OVERRIDING SYSTEM VALUE", insert[0])
         self.assertIn(-406001, insert[1])
+        for name in p.NULL_GUARD_COLUMNS:
+            self.assertIsNone(insert[1][[a["name"] for a in c.metadata["columns"]].index(name)])
         self.assertLess(statements.index("LOCK TABLE ONLY dflow.users IN SHARE MODE"), statements.index(insert[0]))
         self.assertNotIn("@", str(result))
 
@@ -161,6 +170,19 @@ class ProofTests(unittest.TestCase):
                 self.assertNotIn(p.DUPLICATES, [q for q, _ in c.calls])
                 self.assertNotIn(p.SNAPSHOT, [q for q, _ in c.calls])
                 self.assertEqual(c.rollbacks, 1)
+
+    def test_exact_safeguard_metadata_mutations_refuse_before_reads(self):
+        mutations = [lambda m: m["checks"].pop(), lambda m: m["checks"].append(copy.deepcopy(m["checks"][0]))]
+        for key, value in [("name","unknown"),("table_oid",99),("validated",False),("no_inherit",True),("key_columns",["email"]),("expression","true"),("definition","CHECK (true)"),("dependencies_safe",False)]:
+            mutations.append(lambda m,k=key,v=value:m["checks"][0].update({k:v}))
+        for key, value in [("table_oid",99),("kind","I"),("unique",False),("valid",False),("ready",False),("live",False),("immediate",False),("primary",True),("exclusion",True),("nulls_not_distinct",True),("method","hash"),("builtin_method",False),("keys",2),("attributes",2),("key_columns",["email"]),("expression","custom()"),("predicate","true"),("definition","wrong"),("opclass_exact",False),("collation_exact",False),("options",[1]),("storage_options",["fillfactor=80"]),("tablespace",99),("dependencies_safe",False)]:
+            mutations.append(lambda m,k=key,v=value:m["profile_index"].update({k:v}))
+        for mutate in mutations:
+            with self.subTest(mutation=mutations.index(mutate)):
+                c=Connection(); mutate(c.metadata)
+                with self.assertRaises(p.Refusal): p.prove(c,sql)
+                self.assertEqual(c.inserts,0)
+                self.assertNotIn(p.SNAPSHOT,[q for q,_ in c.calls])
 
     def test_value_checks_run_only_after_catalog_and_refuse_bad_ledger_duplicates(self):
         for key, value in [("ledger_present", False), ("duplicate_groups", 1)]:
@@ -247,9 +269,10 @@ class PostgreSQLTests(unittest.TestCase):
             cursor.execute("CREATE ROLE postgres LOGIN NOSUPERUSER BYPASSRLS; CREATE SCHEMA dflow AUTHORIZATION postgres; CREATE SCHEMA app AUTHORIZATION postgres; CREATE SCHEMA supabase_migrations AUTHORIZATION postgres; SET ROLE postgres; CREATE TABLE app.profile(id uuid PRIMARY KEY); CREATE TABLE supabase_migrations.schema_migrations(version text PRIMARY KEY); INSERT INTO supabase_migrations.schema_migrations VALUES ('20261009064439')")
             columns = []
             for name in sorted(p.EXPECTED_COLUMNS):
-                kind = "integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY" if name == "id" else "uuid REFERENCES app.profile(id)" if name == "app_profile_id" else "varchar(255)"
+                kind = "integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY" if name == "id" else "uuid REFERENCES app.profile(id)" if name == "app_profile_id" else "text" if name in p.NULL_GUARD_COLUMNS else "varchar(255)"
                 columns.append(real_sql.SQL("{} " + kind).format(real_sql.Identifier(name)))
             cursor.execute(real_sql.SQL("CREATE TABLE dflow.users ({})").format(real_sql.SQL(",").join(columns)))
+            cursor.execute("ALTER TABLE dflow.users ADD CONSTRAINT users_office_location_check CHECK (office_location IS NULL OR office_location=ANY(ARRAY['ningbo'::text,'nyc'::text])), ADD CONSTRAINT users_preferred_language_check CHECK (preferred_language IS NULL OR preferred_language=ANY(ARRAY['en'::text,'zh-CN'::text])); CREATE UNIQUE INDEX users_app_profile_id_uidx ON dflow.users(app_profile_id) WHERE app_profile_id IS NOT NULL")
             cursor.execute("INSERT INTO dflow.users(id,email) OVERRIDING SYSTEM VALUE VALUES(1,'First@Example.test'),(2,'second@example.test'); CREATE UNIQUE INDEX users_email_lower_uidx ON dflow.users(lower(btrim(email))) WHERE nullif(btrim(email),'') IS NOT NULL")
 
     def test_exact_after_fk_guard_and_real_unique_violation_leave_users_sequence_unchanged(self):
@@ -283,6 +306,76 @@ class PostgreSQLTests(unittest.TestCase):
             finally:
                 with self.connect("proof_admin") as connection, connection.cursor() as cursor:
                     cursor.execute("DROP TABLE dflow.probe_child")
+
+    def test_real_unknown_check_and_external_check_refuse_without_execution(self):
+        variants = ["CHECK (office_location IS NULL)", "CHECK (dflow.forbidden_check(office_location))"]
+        with self.connect("proof_admin") as connection, connection.cursor() as cursor:
+            cursor.execute("CREATE FUNCTION dflow.forbidden_check(text) RETURNS boolean LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'forbidden check executed'; END$$")
+        try:
+            for definition in variants:
+                with self.connect("proof_admin") as connection, connection.cursor() as cursor:
+                    cursor.execute("ALTER TABLE dflow.users ADD CONSTRAINT hostile " + definition + " NOT VALID")
+                try:
+                    with self.connect("postgres") as connection:
+                        with self.assertRaises(p.Refusal): p.prove(connection,self.sql)
+                finally:
+                    with self.connect("proof_admin") as connection, connection.cursor() as cursor: cursor.execute("ALTER TABLE dflow.users DROP CONSTRAINT hostile")
+        finally:
+            with self.connect("proof_admin") as connection, connection.cursor() as cursor: cursor.execute("DROP FUNCTION dflow.forbidden_check(text)")
+
+    def test_real_changed_known_check_and_custom_operator_refuse(self):
+        with self.connect("proof_admin") as connection, connection.cursor() as cursor:
+            cursor.execute("CREATE FUNCTION dflow.forbidden_equal(text,text) RETURNS boolean LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'external operator executed'; END$$; CREATE OPERATOR dflow.= (LEFTARG=text,RIGHTARG=text,FUNCTION=dflow.forbidden_equal)")
+        variants = ["CHECK (office_location IS NULL OR office_location=ANY(ARRAY['nyc'::text,'ningbo'::text]))",
+                    "CHECK (office_location IS NULL OR office_location OPERATOR(dflow.=) ANY(ARRAY['ningbo'::text,'nyc'::text]))"]
+        try:
+            for definition in variants:
+                with self.connect("proof_admin") as connection, connection.cursor() as cursor:
+                    cursor.execute("ALTER TABLE dflow.users DROP CONSTRAINT users_office_location_check; ALTER TABLE dflow.users ADD CONSTRAINT users_office_location_check " + definition + " NOT VALID")
+                try:
+                    with self.connect("postgres") as connection:
+                        with self.assertRaises(p.Refusal): p.prove(connection,self.sql)
+                finally:
+                    with self.connect("proof_admin") as connection, connection.cursor() as cursor:
+                        cursor.execute("ALTER TABLE dflow.users DROP CONSTRAINT users_office_location_check; ALTER TABLE dflow.users ADD CONSTRAINT users_office_location_check CHECK (office_location IS NULL OR office_location=ANY(ARRAY['ningbo'::text,'nyc'::text]))")
+        finally:
+            with self.connect("proof_admin") as connection, connection.cursor() as cursor:
+                cursor.execute("DROP OPERATOR dflow.= (text,text); DROP FUNCTION dflow.forbidden_equal(text,text)")
+
+    def test_real_unknown_partial_index_remains_refused(self):
+        with self.connect("proof_admin") as connection, connection.cursor() as cursor:
+            cursor.execute("CREATE INDEX unknown_partial ON dflow.users(email) WHERE email IS NOT NULL")
+        try:
+            with self.connect("postgres") as connection:
+                with self.assertRaises(p.Refusal): p.prove(connection,self.sql)
+        finally:
+            with self.connect("proof_admin") as connection, connection.cursor() as cursor: cursor.execute("DROP INDEX dflow.unknown_partial")
+
+    def test_real_profile_index_hostile_variants_refuse(self):
+        with self.connect("proof_admin") as connection, connection.cursor() as cursor:
+            cursor.execute("CREATE OPERATOR CLASS dflow.custom_uuid FOR TYPE uuid USING btree AS OPERATOR 1 < (uuid,uuid), OPERATOR 2 <= (uuid,uuid), OPERATOR 3 = (uuid,uuid), OPERATOR 4 >= (uuid,uuid), OPERATOR 5 > (uuid,uuid), FUNCTION 1 uuid_cmp(uuid,uuid)")
+            self.addCleanup(self.drop_custom_uuid_opclass)
+        definitions = [
+            "CREATE UNIQUE INDEX users_app_profile_id_uidx ON dflow.users(app_profile_id dflow.custom_uuid) WHERE app_profile_id IS NOT NULL",
+            "CREATE UNIQUE INDEX users_app_profile_id_uidx ON dflow.users(app_profile_id) INCLUDE(email) WHERE app_profile_id IS NOT NULL",
+            "CREATE INDEX users_app_profile_id_uidx ON dflow.users(app_profile_id) WHERE app_profile_id IS NOT NULL",
+            "CREATE UNIQUE INDEX users_app_profile_id_uidx ON dflow.users(app_profile_id) WHERE app_profile_id IS NULL",
+            "CREATE UNIQUE INDEX users_app_profile_id_uidx ON dflow.users(email) WHERE email IS NOT NULL",
+            "CREATE UNIQUE INDEX users_app_profile_id_uidx ON dflow.users(app_profile_id DESC) WHERE app_profile_id IS NOT NULL",
+            "CREATE UNIQUE INDEX users_app_profile_id_uidx ON dflow.users(app_profile_id) WITH(fillfactor=80) WHERE app_profile_id IS NOT NULL"]
+        for definition in definitions:
+            with self.connect("proof_admin") as connection, connection.cursor() as cursor:
+                cursor.execute("DROP INDEX dflow.users_app_profile_id_uidx"); cursor.execute(definition)
+            try:
+                with self.connect("postgres") as connection:
+                    with self.assertRaises(p.Refusal): p.prove(connection,self.sql)
+            finally:
+                with self.connect("proof_admin") as connection, connection.cursor() as cursor:
+                    cursor.execute("DROP INDEX dflow.users_app_profile_id_uidx; " + p.PROFILE_INDEX_DEFINITION)
+
+    def drop_custom_uuid_opclass(self):
+        with self.connect("proof_admin") as connection, connection.cursor() as cursor:
+            cursor.execute("DROP OPERATOR CLASS dflow.custom_uuid USING btree")
 
     def test_external_before_trigger_refuses_without_executing(self):
         with self.connect("proof_admin") as connection, connection.cursor() as cursor:

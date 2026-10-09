@@ -44,6 +44,33 @@ DUPLICATES = "SELECT count(*) FROM (SELECT lower(btrim(email)) FROM ONLY dflow.u
 LEDGER = "SELECT count(*) = 1 FROM ONLY supabase_migrations.schema_migrations WHERE version = '20261009064439'"
 INDEX_DEFINITION = "CREATE UNIQUE INDEX users_email_lower_uidx ON dflow.users USING btree (lower(btrim((email)::text))) WHERE (NULLIF(btrim((email)::text), ''::text) IS NOT NULL)"
 
+CHECKS = {
+    "users_office_location_check": ("office_location", "((office_location IS NULL) OR (office_location = ANY (ARRAY['ningbo'::text, 'nyc'::text])))"),
+    "users_preferred_language_check": ("preferred_language", "((preferred_language IS NULL) OR (preferred_language = ANY (ARRAY['en'::text, 'zh-CN'::text])))"),
+}
+PROFILE_INDEX_DEFINITION = "CREATE UNIQUE INDEX users_app_profile_id_uidx ON dflow.users USING btree (app_profile_id) WHERE (app_profile_id IS NOT NULL)"
+NULL_GUARD_COLUMNS = {"office_location", "preferred_language", "app_profile_id"}
+
+def validate_existing_safeguards(c):
+    checks = c.get("checks")
+    require(isinstance(checks, list) and len(checks) == 2
+            and {ck.get("name") for ck in checks} == set(CHECKS))
+    for ck in checks:
+        column, expression = CHECKS[ck["name"]]
+        require(ck.get("table_oid") == c["table_oid"] and ck.get("validated") is True
+                and ck.get("no_inherit") is False and ck.get("key_columns") == [column]
+                and ck.get("expression") == expression and ck.get("definition") == "CHECK (" + expression + ")"
+                and ck.get("dependencies_safe") is True)
+    i = c.get("profile_index")
+    require(isinstance(i, dict) and i.get("table_oid") == c["table_oid"] and i.get("kind") == "i"
+            and all(i.get(k) is True for k in ["unique", "valid", "ready", "live", "immediate", "builtin_method", "opclass_exact", "collation_exact", "dependencies_safe"])
+            and all(i.get(k) is False for k in ["primary", "exclusion", "nulls_not_distinct"])
+            and i.get("method") == "btree" and i.get("keys") == 1 and i.get("attributes") == 1
+            and i.get("key_columns") == ["app_profile_id"] and i.get("expression") is None
+            and i.get("predicate") == "(app_profile_id IS NOT NULL)" and i.get("definition") == PROFILE_INDEX_DEFINITION
+            and i.get("options") == [0] and i.get("storage_options") is None and i.get("tablespace") == 0)
+
+
 def validate_catalog(c):
     require(isinstance(c, dict) and c.get("table_kind") == "r" and c.get("table_am") == "heap" and c.get("ledger_heap") is True and c.get("inheritance_edges") == 0 and isinstance(c.get("table_oid"), int))
     i = c.get("index")
@@ -78,7 +105,8 @@ def validate_catalog(c):
                 and t.get("constraint_type") == "f" and t.get("constraint_table") == c["table_oid"]
                 and isinstance(c.get("profile_oid"), int) and t.get("referenced_table") == c["profile_oid"]
                 and t.get("key_columns") == ["app_profile_id"])
-    require(c.get("rules") == 0 and c.get("checks") == 0 and c.get("unsafe_indexes") == 0)
+    validate_existing_safeguards(c)
+    require(c.get("rules") == 0 and c.get("unsafe_indexes") == 0)
     return columns
 
 
@@ -137,6 +165,7 @@ def prove(connection, sql_module):
             require(cursor.fetchone() == (True,))
             names = [a["name"] for a in columns]
             values = [{"id": -406001, "name": "issue-4060-rollback-proof", "email": variant}.get(n) for n in names]
+            require(all(values[names.index(n)] is None for n in NULL_GUARD_COLUMNS))
             statement = sql_module.SQL("INSERT INTO dflow.users ({}) OVERRIDING SYSTEM VALUE VALUES ({})").format(
                 sql_module.SQL(", ").join(map(sql_module.Identifier, names)),
                 sql_module.SQL(", ").join(sql_module.Placeholder() for _ in names))

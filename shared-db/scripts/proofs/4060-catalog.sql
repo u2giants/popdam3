@@ -37,12 +37,32 @@ SELECT json_build_object(
     LEFT JOIN pg_constraint fk ON fk.oid = t.tgconstraint
     WHERE t.tgrelid = c.oid AND t.tgenabled <> 'D' AND (t.tgtype & 4) <> 0),
   'profile_oid', to_regclass('app.profile')::oid::bigint,
-  'checks', (SELECT count(*) FROM pg_constraint WHERE conrelid = c.oid AND contype = 'c'),
+  'checks', (SELECT json_agg(json_build_object(
+    'name', ck.conname, 'table_oid', ck.conrelid::bigint,
+    'validated', ck.convalidated, 'no_inherit', ck.connoinherit,
+    'definition', pg_get_constraintdef(ck.oid), 'expression', pg_get_expr(ck.conbin,ck.conrelid),
+    'key_columns', (SELECT array_agg(a.attname ORDER BY k.ord) FROM unnest(ck.conkey) WITH ORDINALITY k(num,ord) JOIN pg_attribute a ON a.attrelid=ck.conrelid AND a.attnum=k.num AND NOT a.attisdropped),
+    -- Builtin pinned operators/types have no dependency entries. Any external
+    -- operator, function, type or collation creates a dependency and refuses.
+    'dependencies_safe', NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_constraint'::regclass AND d.objid=ck.oid AND NOT (d.refclassid='pg_class'::regclass AND d.refobjid=c.oid AND (d.refobjsubid=0 OR d.refobjsubid=ANY(ck.conkey))))) ORDER BY ck.conname)
+    FROM pg_constraint ck WHERE ck.conrelid=c.oid AND ck.contype='c'),
+  'profile_index', (SELECT json_build_object(
+    'table_oid', pi.indrelid::bigint, 'kind', pc.relkind,
+    'unique', pi.indisunique, 'valid', pi.indisvalid, 'ready', pi.indisready, 'live', pi.indislive,
+    'immediate', pi.indimmediate, 'primary', pi.indisprimary, 'exclusion', pi.indisexclusion, 'nulls_not_distinct', pi.indnullsnotdistinct,
+    'method', pa.amname, 'builtin_method', pa.amhandler='pg_catalog.bthandler'::regproc,
+    'keys', pi.indnkeyatts, 'attributes', pi.indnatts,
+    'key_columns', (SELECT array_agg(a.attname ORDER BY k.ord) FROM unnest(pi.indkey::smallint[]) WITH ORDINALITY k(num,ord) JOIN pg_attribute a ON a.attrelid=pi.indrelid AND a.attnum=k.num AND NOT a.attisdropped),
+    'expression', pg_get_expr(pi.indexprs,pi.indrelid), 'predicate', pg_get_expr(pi.indpred,pi.indrelid), 'definition', pg_get_indexdef(pi.indexrelid),
+    'opclass_exact', pi.indclass[0]=(SELECT o.oid FROM pg_opclass o JOIN pg_namespace n ON n.oid=o.opcnamespace WHERE n.nspname='pg_catalog' AND o.opcname='uuid_ops' AND o.opcdefault AND o.opcmethod=pa.oid),
+    'collation_exact', pi.indcollation[0]=0, 'options', pi.indoption::smallint[], 'storage_options',pc.reloptions,'tablespace',pc.reltablespace::bigint,
+    'dependencies_safe', NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=pc.oid AND NOT (d.refclassid='pg_class'::regclass AND d.refobjid=c.oid AND d.refobjsubid=(SELECT a.attnum FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attname='app_profile_id' AND NOT a.attisdropped))))
+    FROM pg_index pi JOIN pg_class pc ON pc.oid=pi.indexrelid JOIN pg_am pa ON pa.oid=pc.relam WHERE pi.indexrelid=to_regclass('dflow.users_app_profile_id_uidx')),
   'unsafe_indexes', (SELECT count(*) FROM pg_index other JOIN pg_class ic ON ic.oid = other.indexrelid
     JOIN pg_am am ON am.oid = ic.relam
     WHERE other.indrelid = c.oid AND (
       am.amname <> 'btree' OR am.amhandler <> 'pg_catalog.bthandler'::regproc OR other.indisexclusion OR
-      (other.indexrelid <> to_regclass('dflow.users_email_lower_uidx')
+      (other.indexrelid NOT IN (to_regclass('dflow.users_email_lower_uidx'),to_regclass('dflow.users_app_profile_id_uidx'))
         AND (other.indexprs IS NOT NULL OR other.indpred IS NOT NULL)) OR
       EXISTS(SELECT 1 FROM unnest(other.indclass::oid[]) op(oid)
         JOIN pg_opclass oc ON oc.oid = op.oid JOIN pg_namespace ns ON ns.oid = oc.opcnamespace

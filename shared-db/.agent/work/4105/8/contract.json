@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "work_issue": 4105,
+  "generation": 8,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Repair fixed duplicate-only rollback proof to recognize the exact existing null-safe office/language checks and builtin UUID partial index while refusing unknown or unsafe metadata before insertion.",
+  "base_sha": "2259589896e53a58ece4118806986f6962f37db2",
+  "dispatcher": "Codex coordinator chat01a11d57-118f-7f50-9c36-432c72e819d9",
+  "worker": "Codex delegated contributor; coordinator retains security and shipment decisions",
+  "branch": "codex/4105-existing-safeguards",
+  "worktree": "/home/ahazan/.codex/worktrees/4105-existing-safeguards/shared-db",
+  "allowed_paths": [
+    "scripts/proofs/4060-catalog.sql",
+    "scripts/proofs/shared-db-4060-observation.py",
+    "scripts/proofs/test_shared_db_4060_observation.py",
+    ".agent/work/4105/8/contract.json",
+    ".agent/work/4105/8/completion.json"
+  ],
+  "file_writes": [
+    "scripts/proofs/4060-catalog.sql",
+    "scripts/proofs/shared-db-4060-observation.py",
+    "scripts/proofs/test_shared_db_4060_observation.py",
+    ".agent/work/4105/8/contract.json",
+    ".agent/work/4105/8/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "required_checks": [
+    "python3 -m unittest discover -s scripts/proofs -p test_shared_db_4060_observation.py",
+    "PostgreSQL16 owned ephemeral integration tests, including exact live-like schema and hostile check/profile-index cases, zero skips",
+    "git diff --check"
+  ],
+  "prohibited_actions": [
+    "No migration,index,schema,grant,RLS,role or application data change",
+    "No credentials,production execution,review allocation,merge or promotion by worker",
+    "Never relax existing read-only runners or publish private prototype/recovery artifacts",
+    "No fabricated historical pre-work ordering or backdating"
+  ],
+  "stop_conditions": [
+    "Stop if source targets differ from existing4060 assertion",
+    "Stop publication if prospective contract is refused",
+    "Stop live proof on unsafe trigger/rule/check/index/default/catalog or wrong exact constraint"
+  ],
+  "assumptions": [
+    "Actual run37984266621 failed on main225958/application42ec; generic log cannot prove which runtime step failed. Fresh metadata proves existing catalog necessarily refuses checks=2/unsafe_indexes=1.",
+    "Exact two checks validate office_location NULL or ANY[ningbo,nyc], preferred_language NULL or ANY[en,zh-CN]; candidate provides all three affected fields NULL. Exact users_app_profile_id_uidx is builtin unique btree UUID key with IS NOT NULL predicate. No blanket numeric allowance; validate exact metadata and builtin dependencies before any values or insert.",
+    "Keep original source4129/headccb6671111dc873852d8dbcae274239123f80659/version20261009064439 contract, workflow, CA, installed migration and all historical evidence immutable. No runtime execution, reviewer allocation, merge or credential access by contributor.",
+    "Root publishes prospective generation8 before source edits; contributor follows protected root repair-plan.md. All actual production execution requires fresh exact independent approvals and matching backend pins; Uma owns DesignFlow merge."
+  ],
+  "evidence_parent": {
+    "work_issue": 4105,
+    "generation": 7,
+    "contract_sha256": "de49be8742cee0ef5007bffc2b7bd86527eab2b2db3eafb0944a1ae5f19d05a8"
+  }
+}

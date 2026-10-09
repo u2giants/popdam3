@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 4105,
+  "outcome": "ready-for-merge",
+  "pr": 4151,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4105/8",
+  "contract_sha256": "2ec0253ffc46bcc0a5ecc348ed4dc5bc60a8e098407a1ec7682a5a8514d08ee9",
+  "head_sha": "bb2d74452d57fab2d7acf180a95b45ac32e3936d",
+  "base_sha": "2259589896e53a58ece4118806986f6962f37db2",
+  "files_changed": [
+    "scripts/proofs/4060-catalog.sql",
+    "scripts/proofs/shared-db-4060-observation.py",
+    "scripts/proofs/test_shared_db_4060_observation.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s scripts/proofs -p test_shared_db_4060_observation.py",
+      "exit_code": 0,
+      "evidence": "16 producer tests passed, including8 real ownedPostgreSQL16, zero skips. Protected gen8-implemented/producer-final-tests.log. Coordinator independently repeated8unit tests."
+    },
+    {
+      "command": "PostgreSQL16 owned ephemeral integration tests, including exact live-like schema and hostile check/profile-index cases, zero skips",
+      "exit_code": 0,
+      "evidence": "16producer +20 unchanged source apply/refusal tests passed in ownedPG16/psycopg3.2.13 using existing hosted-service adapter, zero skips; containers removed; logs private gen8-implemented. Actual extended production metadata read-only validated separately by coordinator, no live insertion claim."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Exactly three source paths; catalog/producer hash matches actual read-only metadata validation; no whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Prospective generation8 published before implementation; immutable generation7/source4129/producer4132 and old failed run retained.",
+    "Only exact two validated builtin-safe existing checks and exact builtin UUID profile partial index admitted; unknown/external dependencies/metadata remain refused before insertion.",
+    "No database structure/data, migration, credential, workflow, CA or source contract changed. Contributor had no runtime/merge/reviewer/production authority.",
+    "Actual source PR4151 and implementation commit recorded; final application acceptance and maintenance closure remain incomplete until strict original-archive proof."
+  ],
+  "stop_conditions_hit": []
+}
