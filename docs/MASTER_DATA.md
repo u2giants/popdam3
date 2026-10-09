@@ -57,10 +57,15 @@ Verified populated counts from the 2026-08-28 production refresh:
 - `Generic.Style`: 3,207 rows
 - Total: 15,734 rows
 
-The replacement clears prior imported rows, audit history, and manual value
-resolutions for these tabs in one transaction, inserts both tabs, and rebuilds
-`plm.style_tracker_item_bridge`. Saved user views are preferences and are not
-part of the imported workbook data, so they are preserved.
+The historical 2026-08-28 replacement cleared prior imported rows, audit history,
+and manual value resolutions, then rebuilt `plm.style_tracker_item_bridge`.
+Current refreshes use `scripts/refresh-style-tracker-rows.py`, whose reviewed
+[execution package](verification/google-sheet-refresh-20261008.md) preserves
+provable row identities, relevant canonical relationships, existing audit history,
+manual resolutions, and saved views while making source fields equal Google.
+Ambiguous identities are replaced without guessing. Refreshed rows are stamped
+as system updates, and changed source cells are recorded in audit history.
+Recovery preimages and source/database fingerprints are mandatory.
 
 The 2026-08-28 refresh used workbook SHA-256
 `14f771331f2de0ffea7b2ac8e23ff3f9cb1332c7d2bc93ff51352e8a66708874`.

@@ -17,7 +17,7 @@ both imported tabs in one transaction. The source is workbook
 `5513f7a43a27235a74168a0cd532994c1c77b93265619e9848e9e2a6dba1b0cd`.
 The reviewed count is 12,737 Licensed and 3,249 Generic rows (15,986 total).
 The current database contains 15,742 rows. One existing nonblank normalized style number
-are absent from the authoritative sheet. Existing source row positions have shifted; the reviewed identity matcher
+is absent from the authoritative sheet. Existing source row positions have shifted; the reviewed identity matcher
 preserves 15,721 existing IDs and replaces 21 missing or unprovable identities.
 The first comparison incorrectly counted blank identifiers as absent because a
 TSV null marker had not been normalized. The corrected count is one style. The corrected package uses identity-preserving synchronization, described below.
@@ -39,7 +39,9 @@ replica must equal all source fields for every row, with no extras.
 Customer links survive only if source customer text is unchanged. Existing
 bridge relationships survive only while their corresponding source business
 field is unchanged. The existing bridge refresh computes relationships for new
-or changed source values. Audit history remains attached to retained identities;
+or changed source values. All refreshed identities receive system update timestamps; changed cells and
+new rows receive system-authored audit entries. Previous editor provenance is
+retained in the recovery preimages. Audit history remains attached to retained identities;
 deleted identities detach their audit references. Manual value resolutions and
 saved views are retained. No OrderList or canonical Item Master rows, curated
 lookup rows, or database structures are written. This differs deliberately from

@@ -196,7 +196,8 @@ def main():
                 relationships = {'sku':('erp_item_id','style_group_id','plm_item_id'),
                                  'customer':('company_id',),
                                  'designer':('creative_designer_id',),
-                                 'default_vendor':('factory_id',)}
+                                 'default_vendor':('factory_id',),
+                                 'licensor':('public_licensor_id','core_licensor_id')}
                 patch = {}
                 for field, columns_for_field in relationships.items():
                     if normalize(source[field]) == normalize(old[field]):
