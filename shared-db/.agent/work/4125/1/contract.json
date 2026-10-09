@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "work_issue": 4125,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "mergedPrReviewTarget trusts a real GitHub closing link the same way closingIssuesForPr already does, so a merged PR that closed its issue can record a post-merge review verdict without a PR-owned evidence pair",
+  "base_sha": "b34e636db0322384344fbcbef210514ef9a6d659",
+  "dispatcher": "Claude chat unknown on edge-dev",
+  "worker": "claude",
+  "branch": "claude/4125-merged-target-closing-link",
+  "worktree": "C:/repos/shared-db-worktrees/wt-4125-binding",
+  "allowed_paths": [
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/merged-pr-issue-binding.test.mjs",
+    ".agent/work/4125/1/contract.json",
+    ".agent/work/4125/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/merged-pr-issue-binding.test.mjs",
+    ".agent/work/4125/1/contract.json",
+    ".agent/work/4125/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "required_checks": [
+    "node --test scripts/merged-pr-issue-binding.test.mjs",
+    "node --test scripts/record-review-verdict.test.mjs scripts/check-exact-head-approval.test.mjs"
+  ],
+  "prohibited_actions": [
+    "No migration, schema, grant, RLS, role or application data change",
+    "No credentials, production execution, review allocation, merge or promotion by worker",
+    "Never weaken the evidence-pair verification path when no real closing link exists",
+    "Never fabricate or backdate evidence"
+  ],
+  "stop_conditions": [
+    "Stop if existing tests regress",
+    "Stop if the fix would weaken the no-link verification path"
+  ],
+  "assumptions": [
+    "A real GitHub closing link is authoritative evidence that a PR closes its issue, and closingIssuesForPr already trusts it without verification",
+    "mergedPrReviewTarget should be consistent with closingIssuesForPr and readReviewerOperationRoute for real closing links",
+    "When no real closing link exists, full verification (evidence pair, completion record, claims) must still run unchanged"
+  ],
+  "evidence_parent": null
+} 
