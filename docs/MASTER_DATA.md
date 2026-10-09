@@ -305,12 +305,62 @@ Verified during the 2026-08-02 RFQ Group rollout:
 
 ## OrderList integration delivery (2026-10-09)
 
-The application integration is implemented, but preview/production rollout,
-source loading, and authenticated visual acceptance remain pending on the
-existing [application issue #281](https://github.com/u2giants/popdam3/issues/281)
-and [backend issue #4111](https://github.com/popcre/shared-db/issues/4111).
-No deployment or live acceptance is claimed here. The current implementation
-and all remaining gates are recorded in
+The backend is installed and the application integration merged in PR #282
+(`3000b7e04bd6864bc9bef699abc6b84e02f64661`). The subsequent OrderList Find
+repair merged as PR #283 at `709450766d9ddf2e7944db1aaa916a188e3cac75`
+(reviewed source head `9e4a005aba239253fd9ab2c7435b755a2cf9e37e`). Full CI run
+`37958015493` passed 80 files / 496 tests plus one existing skip; the build
+passed. Frontend publish run `37958305346` succeeded. Production serves token
+`7094507`, asset `index-U3ZqunIC.js`, bundle SHA-256
+`9fd6875ad97cbc7cdf44e033a54d3d26b88532058a8c8a3fe6f55014a508ae8e`, and image
+digest `60d6eb3237d360f1fb90d8b7b5884ae8de92e6c1871c636d606772f766b6ace5`.
+Styles Find repair PR #284 merged at
+`f02b9de2e60a317aaf5136c77957b1639b9274b1` (1:11 PM EDT); exact-head GLM
+review approved it (report
+`glm-final-check-20261009T165439-2485646-28136.md`). CI run `37964251577` passed 81 files / 497 tests plus one
+existing skip. Publish run `37964512337` succeeded at 1:15 PM EDT. Production
+serves token `f02b9de`, asset `assets/index-BGe0FYew.js` (SHA-256
+`b48e4cafceb7113365782c2398707e029f2332ce5fe900ff349a2d4af6c9d2c6`), and image
+digest `12b5c868d41aa25a8cfbab0f8e38e1037f2e0c519fd52911fd120063eb9dc87a`.
+The administrator fixture capture passed; report `fixtures-f02b9de.json` has
+SHA-256 `2e1f46649dfe71e95b75f1f6e296145b38b986411b14e40518383e60c5a1782a`.
+PR #285, the deployed-app/production-types proof workflow, merged at
+`783f7357a1e407bc3a26859ddb82fa5561220f99` (1:33 PM EDT). Exact-head StepFun
+APPROVE is recorded for source `c8f02dc44e8b27a058ec538e10bcd28f0f478110` in
+`stepfun-final-check-20261009T172314-2599466-16163.md`. CI run `37966825066`
+passed 497 tests plus one existing skip and 19 observer tests. The merged
+`.github/workflows/orderlist-integration-live-proof.yml` has four existing-
+account GitHub proof secrets configured via protected stdin; no accounts were
+created. It has not run while the separate Master Data loading repair is
+pending.
+Production backend run
+`37951612832` passed with the unchanged migration SHA-256
+`bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590`, bounded
+catalog verification (56 checks), and 9 behavior checks. The guarded auxiliary
+source load completed with 8,257 sample-depth, 38 suffix, and 3,147 tracking
+rows; a separate read-only production count check matched. Historical
+pre-PR #284 administrator/viewer same-row acceptance passed 93 checks (47/46);
+report
+`acceptance-report-7094507-attempt2.json` SHA-256
+`0fccf979a10fc39fa61ea9cbb12eef45ac03c824388510518a4f0dd1b68dac73`. Find
+passed for both roles: current at offset 0 and far rows at offsets 10,380 and
+6,839 matched exact Find IDs, bounded GET pages, and visible rows. The Find
+diagnostic SHA-256 is
+`86b3cb643eb5740f7ae3c6e680b53d35d533c746a3d532f0407b4d0c01378977`.
+Original controls passed for both roles; their report SHA-256 is
+`0b87513183fa5435225623a76fcd00db99144b28af961f3d01c4b4c56752464d`.
+Current administrator/viewer acceptance on token `f02b9de` reached 88 of 93
+checks before the viewer License/Styles row timed out. Both roles hit PostgreSQL
+`57014` on the initial normal GET for one of four ranges, leaving the grid
+blank; exact-ID Find reached its target after loading. This is not a current
+acceptance pass, and no replacement screenshots have been captured. PR #285's
+exact-head StepFun APPROVE and CI passed, but its proof workflow has not run
+while Master Data loading repair is pending. Root is
+tracking the final gate on the existing
+[application issue #281](https://github.com/u2giants/popdam3/issues/281). The
+backend contract remains on [issue #4111](https://github.com/popcre/shared-db/issues/4111).
+Do not close the integration until screenshot and type-artifact checks pass.
+Current implementation and remaining gates are recorded in
 [ORDER_LIST.md](ORDER_LIST.md#native-sheets-integration-delivery-2026-10-09-issue-281).
 
 Master Data's named current workflow fields remain the source used by linked
@@ -332,8 +382,12 @@ VendorStatistics is a separate read-only Master Data screen showing purchase
 header totals, closed/open totals, latest sent PO and 14-month activity, with
 100-row pages.
 
-Keep the source exceptions on their existing issues: three unresolved ColdLion
-division choices remain on [#275](https://github.com/u2giants/popdam3/issues/275),
-and twelve missing canonical PO references remain on [#277](https://github.com/u2giants/popdam3/issues/277).
-No Master Data row, canonical Item Master record, or existing PO date is
-manufactured or changed to conceal those exceptions.
+Keep source exceptions on their existing issues: three unresolved ColdLion
+division choices remain on [#275](https://github.com/u2giants/popdam3/issues/275).
+Issue [#277](https://github.com/u2giants/popdam3/issues/277) holds business
+decisions for 12 conflicting orders (79 source rows) and 58 malformed/incomplete
+rows. A private identity-only comparison confirmed that all 12 conflicting
+order identities match 12 of the 71 auxiliary tracking holds; the other 59
+holds remain separate and excluded. Issue #277 does not own those other missing-
+reference holds. No Master Data row, canonical Item Master record, or existing
+PO date is manufactured or changed to conceal those exceptions.

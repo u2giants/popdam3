@@ -2,36 +2,95 @@
 
 ## STATUS
 
-Active coordinated delivery, refreshed October 9, 2026, 10:40 AM EDT.
-Backend PR4118 merged (199231f3); approved migration bytes unchanged.
-Atomic installer repair PR4136 merged (d7f3bd82). Fresh official preview dry-run
-37944560543 and apply37944888633 passed and native automatic production dispatch
-qualified. Production installation and initial input load await direct proof.
-Hosted preview rollback acceptance passed: existing authenticated administrator,
-viewer and anonymous access checks; current Master milestones and explicit clears;
-tracking atomic patches; positive sample depth then NULL; parent case accounting.
-No fixture data remained after the final ROLLBACK.
+Delivery status refreshed October 9, 2026. Backend PR #4118 and atomic installer
+repair PR #4136 are merged. Production backend run `37951612832` passed with the
+unchanged migration SHA-256
+`bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590`, bounded
+catalog verification (56 checks), and 9 behavior checks. The hosted-preview
+rollback acceptance also passed for administrator, viewer, and anonymous access,
+tracking patches, milestone updates/clears, sample-depth clear/history, and parent
+case accounting; its fixture changes were rolled back.
+
+The guarded auxiliary import loaded exactly 8,257 sample-depth rows, 38 customer
+suffix rows, and 3,147 tracking rows (11,442 total) from source SHA-256
+`13bc64585bb5ec26e977fa948e6c59dfcf1b489e463fbe5e6151016ebd36fb4d`. A separate
+read-only production count check matched all three counts. The import retained
+71 held tracking exceptions and excluded three duplicate rows; it did not
+write canonical headers, existing header dates, Item Master, or Master Data.
+Application PR #282 is merged at
+`3000b7e04bd6864bc9bef699abc6b84e02f64661`.
+The subsequent OrderList Find repair merged as PR #283 at
+`709450766d9ddf2e7944db1aaa916a188e3cac75` (reviewed source head
+`9e4a005aba239253fd9ab2c7435b755a2cf9e37e`). Full CI run `37958015493`
+passed 80 files / 496 tests plus one existing skip; the build passed. Frontend
+publish run `37958305346` succeeded. Production serves build token `7094507`,
+asset `index-U3ZqunIC.js`, bundle SHA-256
+`9fd6875ad97cbc7cdf44e033a54d3d26b88532058a8c8a3fe6f55014a508ae8e`, and image
+digest `60d6eb3237d360f1fb90d8b7b5884ae8de92e6c1871c636d606772f766b6ace5`.
+Canonical business-rule and source-inventory documentation merged in PR #4139
+at `3cfd231a92023ebed1beb7ced5e5ba336e652960`.
+
+**Historical pre-PR #284 read acceptance:** administrator/viewer same-row checks
+passed 93 checks (47/46) on build token `7094507`. Protected report
+`acceptance-report-7094507-attempt2.json` has SHA-256
+`0fccf979a10fc39fa61ea9cbb12eef45ac03c824388510518a4f0dd1b68dac73`.
+Find diagnostics passed for both roles: current at offset 0 and far rows at
+offsets 10,380 and 6,839 returned by exact-ID Find, bounded GET pages (at most
+500 rows), and visible DOM rows. Report
+`orderlist-find-final-diagnostic-attempt6-7094507.json` has SHA-256
+`86b3cb643eb5740f7ae3c6e680b53d35d533c746a3d532f0407b4d0c01378977`.
+Original OrderList controls passed for both roles; report
+`existing-capabilities-attempt7-7094507.json` has SHA-256
+`0b87513183fa5435225623a76fcd00db99144b28af961f3d01c4b4c56752464d`.
+Styles Find repair PR #284 merged at `f02b9de2e60a317aaf5136c77957b1639b9274b1`
+at 1:11 PM EDT; exact-head GLM review approved it (report
+`glm-final-check-20261009T165439-2485646-28136.md`). CI run `37964251577` passed
+81 files / 497 tests plus one existing skip. Frontend publish run `37964512337`
+succeeded at 1:15 PM EDT. Production serves token `f02b9de`, asset
+`assets/index-BGe0FYew.js` (SHA-256
+`b48e4cafceb7113365782c2398707e029f2332ce5fe900ff349a2d4af6c9d2c6`), and image
+digest `12b5c868d41aa25a8cfbab0f8e38e1037f2e0c519fd52911fd120063eb9dc87a`.
+The fresh administrator fixture capture passed; report `fixtures-f02b9de.json`
+has SHA-256 `2e1f46649dfe71e95b75f1f6e296145b38b986411b14e40518383e60c5a1782a`.
+PR #285, the deployed-app/production-types proof workflow, merged at
+`783f7357a1e407bc3a26859ddb82fa5561220f99` (1:33 PM EDT). Its exact-head
+StepFun review approved source `c8f02dc44e8b27a058ec538e10bcd28f0f478110`;
+report `stepfun-final-check-20261009T172314-2599466-16163.md` is in the proof
+worktree. CI run `37966825066` passed 497 tests plus one existing skip and 19
+observer tests. The merged
+`.github/workflows/orderlist-integration-live-proof.yml` has four existing-
+account GitHub proof secrets configured via protected stdin; no accounts were
+created. It has not run and is waiting on the separate Master Data loading
+repair.
+
+On the current live token `f02b9de`, the administrator/viewer read acceptance
+reached 88 of 93 checks before the viewer License/Styles row timed out. Both
+roles hit PostgreSQL `57014` on the initial normal GET for one of four ranges,
+which left the grid blank; exact-ID Find reached its target after loading. This
+is not a current acceptance pass. Replacement screenshots remain pending.
+Keep the handoff until the loading repair is complete, the proof workflow has
+run, and full acceptance and screenshots pass.
 
 | Step | Status | Evidence / gate |
 |---|---|---|
-| 1. Governed backend delivery | partial | merged PR4118/4136; repaired native preview and authenticated rollback acceptance passed |
-| 2. Auxiliary source load | partial | offline guarded loader and tests; no live import |
-| 3. App types and query boundary | partial | bounded 50/100-row hooks; closed-input and auth tests pass |
-| 4. PO Tracking and component details | partial | panels implemented; role/dirty-draft/unknown tests pass |
-| 5. Sample Settings | partial | positive/clear depth and nonblank suffix panels/tests |
-| 6. OrderList read-through and refresh | partial | source-qualified fields and visible refresh tests |
-| 7. Master Data licensing and reverse statistics | partial | 1000-row ID-mapped status calls; readonly licensing/statistics |
-| 8. Review, shipment and authenticated live proof | open | local visual checks active; final exact-head review and live delivery remain |
-| 9. Canonical documentation and closeout | open | company rules and same-issue acceptance require final live evidence |
+| 1. Governed backend delivery | complete | PRs #4118/#4136 merged; production run `37951612832` passed with exact SQL hash, bounded catalog and behavior checks; preview rollback acceptance passed |
+| 2. Auxiliary source load | complete | guarded source SHA verified; exact 8,257/38/3,147 rows loaded; separate read-only counts matched |
+| 3. App types and query boundary | implemented; local verification passed | merged in app PR #282; bounded hooks and validated writes; final visual/original-capability gate remains open |
+| 4. PO Tracking and component details | implemented; local verification passed | merged in app PR #282; preview rollback and screen tests cover tracking behavior; final visual/original-capability gate remains open |
+| 5. Sample Settings | implemented; local verification passed | merged in app PR #282; preview rollback and tests cover positive/NULL depth and suffix behavior; final visual/original-capability gate remains open |
+| 6. OrderList read-through and refresh | implemented; local verification passed | merged in app PR #282; source-qualified current facts and bounded refresh; final visual/original-capability gate remains open |
+| 7. Master Data licensing and reverse statistics | implemented; local verification passed | merged in app PR #282; ID-mapped readonly licensing and statistics; final visual/original-capability gate remains open |
+| 8. Authenticated production read acceptance | historical 7094507 checks passed; current f02b9de proof incomplete | Current run reached 88/93 before viewer License/Styles timeout; both roles hit `57014` on one initial range GET; Find reached its exact target after load; screenshots remain open |
+| 9. Documentation and closeout | in progress | PR #285 and exact-head StepFun review/CI passed; four existing-account proof secrets configured, but workflow has not run while Master Data loading repair is pending; retain handoff |
 
-Preparation is not acceptance. Root owns final verification and shipment; three
-spawned Luna agents own bounded implementation and independent checks. The owner
-requested coordination and continued work until completion. Local suite passed
-78 files /491 tests plus one existing skipped test; build passed. Focused lint has
-no errors. Full TypeScript check retains unrelated baseline errors; no integration
-file errors remain. Local synthetic visual checks covered all new screens and
-existing OrderList/Master Data grids; these are not hosted live acceptance.
-All steps require their documented live success checks before acceptance.
+PR #284 remains the live frontend token `f02b9de`. PR #285 merged with exact-head
+StepFun APPROVE and CI run `37966825066` passed 497 tests plus one existing skip
+and 19 observer tests. Four existing-account workflow proof secrets are
+configured; the workflow is waiting for the separate Master Data loading repair.
+Current acceptance on `f02b9de` reached 88/93 before a viewer License/Styles row
+timeout; both roles hit `57014` on one initial range GET, leaving a blank grid.
+Exact-ID Find reached the target after loading. Current full proof and screenshots
+remain open; the earlier 7094507 93-check result is historical only.
 
 ## 1. The ultimate goal — what we are trying to achieve
 
@@ -88,60 +147,26 @@ changes; replacing the Google intake refresh or its owning session's files.
 
 ## 5. Current state of the code
 
-Backend source is committed/pushed at
-`7ceed18caceda2af997d7a8df0e41f0d2dbc6588`, based on main
-`d63eb35dd5f074d462051409cf6aa3ac75bab070`, PR4118/issue4111/claim4112.
-Its reserved migration is `20261009073649_popdam_orderlist_sheets_integration.sql`.
-Migration bytes still hash to
-`bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590`.
-No preview or production apply has occurred. Historical approvals at a891…
-are not approvals of7ceed…. Muse and Gemini independently approved7ceed18c, recorded in source-bound refs. All required checks pass as verified4:38 AM EDT. The backend merged at 8:59 AM EDT October9. The previous freeze cleared; current deployment status is recorded in STATUS above.
+The backend migration `20261009073649_popdam_orderlist_sheets_integration.sql`
+is merged and applied. Its production run, migration hash, catalog proof and
+behavior checks are recorded in STATUS. The exact initial source payload was
+loaded once through the guarded app-owned loader; the read-only production
+counts match the expected 8,257 sample-depth, 38 suffix and 3,147 tracking rows.
+The 71 held tracking exceptions and three duplicate rows remain excluded, and no
+canonical PO header/date, Item Master or Master Data row was written.
+Private identity-only comparison confirmed that all 12 PO identities in #277's
+held conflicting-order set match 12 of the 71 auxiliary tracking holds; the
+other 59 held tracking rows remain separate. Issue #277 describes 12 conflicting
+orders (79 source rows) and 58 malformed/incomplete rows, not ownership of all
+missing-reference holds.
 
-Checker prerequisite is shared-db PR4131/issue4130, own worktree
-`/worksp/shared-db-orderlist-verifier`, head
-`c54b1651fa66816c165a6c8261997639eacfb107`. Its independent APPROVE is
-`refs/db-review-verdict-replacements/4130-4131-c54b1651fa66816c165a6c8261997639eacfb107-5996`.
-It merged as d63eb35dd5f074d462051409cf6aa3ac75bab070 after guarded run37903109404SUCCESS. The foreign hold expired naturally; this session did not release it. Recheck current promotion state before stronger actions.
-
-App dependent screens, hooks, validation and integration changes are implemented; see STATUS for validation and deployment. Own plan/HANDOFF/AGENTS/topic documentation is committed; docs/ORDER_LIST.md and docs/MASTER_DATA.md
-have local prose edits, explicitly saying delivery is in progress. Main Orders
-code:src/pages/OrdersPage.tsx, src/hooks/useOrderList.ts,
-src/components/orders/OrderListGrid.tsx and MasterDataLinkCell.tsx,
-src/lib/order-list.ts and src/types/order-list.ts. Master Data lives in
-src/pages/StylesPage.tsx:fetchRowsPage near516, valueFor near354,
-updateCell near1365, column definitions near1688 and bulk edits near1832.
-
-Canonical business-rule/native-inventory prose is prepared, uncommitted, in
-`/worksp/shared-db-orderlist-rules`, branch
-`codex/orderlist-integration-business-rules`, touching only
-`docs/business-rules/erp-orders-and-source-meaning.md` and
-`docs/app-migration-notes/popdam-order-list.md`. Ship it after structural delivery
-so it does not repeatedly move main under reviews. App docs link to those rules.
-
-### Current continuation gate — October9,2026,4:38 AM EDT
-
-Backend7ceed18c is clean/published and source-frozen. Actual approvals:
-refs/db-review-verdicts/4111-4118-7ceed18caceda2af997d7a8df0e41f0d2dbc6588
-SHA02213a918f46e4df4f16ae19aa00d36b2f82a43f (Muse), and same ref with
--slot2 SHAbfa71294ce87b8c4fb678477e2e6ad6342ef92d3 (Gemini).
-Lifecycle reports are under the backend .ai/reviews, Muse
-muse-orderlist-sheets-integration-4111-20261009T082353Z-941459-14504.md,
-Gemini gemini-orderlist-sheets-integration-4111-7ceed18-20261009T082846Z-946663.md.
-Current full CI37903481114SUCCESS and guard37903481396attempt2SUCCESS.
-The first guard attempt stalled after test594 despite local905/905PASS; normal
-cancellation and rerun of only that job restored the same capability without
-source changes, timeout increase or skipped tests. Current main24396f91267de7d8c3dbea1f50499f1dc5f64f52
-passes native source-equivalence freshness; source need not be changed merely
-for unrelated main movement. Re-prove it before merge.
-
-New foreign freeze owner codex-01a11d57-coordinate-4060 forPR4129/issue4060,
-acquired4:21:36 AM EDT, expires5:21:36 AM EDT. It is actively rehearsing in
-run37905840200, verified4:36 AM EDT. Do not release another owner's hold.
-No integration merge dispatch is currently queued. No integration preview or
-production apply, auxiliary load or dependent app source code exists. Native
-waiter74955 is stopped on external handover; no background execution promised.
-Recheck release/expiry plus every exact-head gate before resuming step1. The
-old Claude hold/prerequisite merge is history, not the current blocker.
+The application changes are merged in PRs #282–#285, and PR #284 remains live
+as frontend token `f02b9de`. Current acceptance reached 88/93 before the viewer
+License/Styles timeout; both roles hit `57014` on an initial range GET. Find
+reached its exact target after loading. PR #285's exact-head StepFun APPROVE and
+CI passed, but its proof workflow has not run while Master Data loading repair
+is pending. Replacement screenshots and final acceptance remain open; retain
+the session handoff.
 
 ## 6. Key findings and root cause
 
@@ -166,8 +191,9 @@ New auxiliary tables are dam.orderlist_sample_depth,
 dam.orderlist_customer_settings and dam.order_tracking_ext. They are ordinary
 application inputs, not curated Item Master. Readonly API views expose sample
 and suffix settings. Three admin-only RPCs own writes. The initial frozen
-payload is11442 rows:8257 depths,38 suffixes,3147 exact-matched tracking rows.
-Source71 missing POs and3 duplicate tracking rows are excluded. Existing header
+payload is 11,442 rows: 8,257 depths, 38 suffixes, and 3,147 exact-matched
+tracking rows. Seventy-one held tracking exceptions and three duplicate tracking
+rows are excluded. Existing header
 dates and canonical identities are preserved by initial seeding.
 
 The private recovery folder is
@@ -256,8 +282,9 @@ spacing/labels follow existing app components; do not redesign the navigation.
    counts8257/38/3147 before commit as one transaction. An unsafe/mismatched
    source or changed database state aborts atomically. Retain held exceptions
    rather than guessing. Gate:guarded commit verified11442 rows, recovery/source
-   hashes match,71 holds/3 duplicates retained, and no canonical header/Item
-   Master/Master Data row was written. Root owns this database action.
+   hashes match, 71 held tracking exceptions and three duplicates remain
+   excluded, and no canonical header, Item Master or Master Data row was written.
+   Root owns this database action.
 
 ### Phase B — app implementation (context cut: after local/preview verification)
 
@@ -426,8 +453,10 @@ spacing/labels follow existing app components; do not redesign the navigation.
    from historical formula evidence. Record backend apply/catalog proofs,
    exact source-load counts/hash, app review/CI/served SHA and live evidence on
    the existing issues4111 and281. Close only when all requested integrations
-   work live; retain #275 division choices and #277 missing canonical POs as
-   separate explicitly held exceptions. Delete this session's handoff only
+   work live; retain #275 division choices and #277's 12 conflicting orders and
+   58 malformed/incomplete source rows as separate held exceptions. The 12 PO
+   identities in its conflicting-order set match 12 of the 71 auxiliary tracking
+   holds; the other 59 holds remain separate. Delete this session's handoff only
    after its work is actually complete. Gate: every STATUS done row cites
    re-derivable evidence; no acceptance gap or unowned unfinished delivery.
 
@@ -518,8 +547,10 @@ No one calls local preparation deployed. Principal risks: foreign merge freeze,
 concurrent main movement, reviewer quota, historical Google missing PO rows,
 ambiguous division styles and unavailable current Master workflow for20 linked
 ColdLion lines. Three division choices belong to Albert on #275 and do not
-block honest Unknown behavior. Missing canonical POs remain #277's separate
-owner; do not rewrite their source-refresh script. Recovery: revert app via
+block honest Unknown behavior. Issue #277 retains 12 conflicting orders (79
+source rows) and 58 malformed/incomplete rows; those 12 order identities match
+12 of the 71 auxiliary tracking holds. Keep those decisions separate and do not rewrite
+its source-refresh script. Recovery: revert app via
 normal GitHub supported deployment; auxiliary import rollback removes only
 exact reviewed newly inserted auxiliary identities in a guarded transaction;
 backend shape reversal needs a fresh shared-db governed migration, never
@@ -541,43 +572,38 @@ out-of-scope YES; named tests YES; identifiers/locations YES; secret values
 absent YES; commit/push/CI/live DoD YES; reciprocal handoff YES. Re-evaluate
 this audit whenever a later delivery changes the current state.
 
-### Exact production row-data action for independent review
+### Production delivery evidence
 
-The app task is redeclared production before the stronger database gate. The
-review must cover the existing native frontend delivery and this one-time load:
-project qsllyeztdwjgirsysgai, session pooler aws-1-us-east-1.pooler.supabase.com:5432,
-postgres.qsllyeztdwjgirsysgai / postgres, TLS required; unchanged source SHA
-13bc64585bb5ec26e977fa948e6c59dfcf1b489e463fbe5e6151016ebd36fb4d.
-Insert exactly8257 sample-depth rows,38 suffix rows,3147 auxiliary tracking rows
-into only dam.orderlist_sample_depth,dam.orderlist_customer_settings,
-dam.order_tracking_ext. Source71 held tracking rows remain excluded. Lock and
-assert empty destinations, revalidate PO UUID/number pairs and live connection,
-COPY within one transaction, assert exact counts, retain private complete-row
-fingerprint recovery. No schema/permissions/curated products/canonical headers
-or canonical header dates change. Omitted/unknown values remain NULL. Production
-load cannot start until the native schema qualification/apply/catalog proof passes
-and assigned exact-head independent APPROVE plus ai-task-gates database check pass.
-Rollback is a separate reviewer-gated operation restricted to these exact inserted
-identities and unchanged full-row fingerprints; never erase later user edits.
+Production migration and initial auxiliary row load are complete. The migration
+run, exact migration/source hashes, row counts, catalog and behavior checks are
+recorded in STATUS. The load inserted only the three application-owned auxiliary
+tables in one guarded transaction; a later read-only check matched all three
+counts. The 71 held source rows and three duplicates remain excluded. No schema,
+permissions, canonical PO headers/dates, curated products, Item Master or Master
+Data rows were changed. Recovery remains restricted to exact inserted identities
+and unchanged full-row fingerprints; it must never erase later user edits.
 
-Installer repair validation October9,2026,9:42 AM EDT: unchanged migration
-installed by the repaired helper in isolated PostgreSQL15, exact ledger_row=1
-and73 statements. All25 helper unit tests and10 real PostgreSQL transaction tests
-pass. This is local proof; hosted acceptance remains pending governed review/merge.
+Installer repair rehearsal: unchanged migration installed by the repaired helper
+in isolated PostgreSQL 15; all 25 helper unit tests and 10 real PostgreSQL
+transaction tests passed. The later governed production run and catalog proof
+are recorded in STATUS.
 
-Import rehearsal October9,2026,10:07AM EDT: actual current loader loaded8257 depth,38 suffix and3147 tracking rows through real psycopg in isolated PostgreSQL15, network none and private Unix socket. Guarded unchanged-row fingerprint recovery removed exactly those counts; all3 auxiliary tables and3147 fixture headers empty afterward. Rehearsal exposed and corrected the canonical header validation column to production_order_number. Source digest unchanged. Loader15 unit tests pass, including failed parent-directory fsync rollback. Recovery file and parent are private and both fsynced before commit. Hosted import remains pending exact-head approval and native backend acceptance.
+Import rehearsal: the current loader copied 8,257 depth, 38 suffix and 3,147
+tracking rows into isolated PostgreSQL 15, then guarded rollback removed exactly
+those rows. The rehearsal corrected canonical header validation to use
+`production_order_number`; the source digest remained unchanged. Loader tests
+include failed parent-directory fsync rollback. The subsequent hosted load is
+complete as recorded in STATUS.
 
-Application review recovery October9,2026,10:10AM EDT: failed DeepSeek snapshot acceptance was generated Python bytecode only, not a tracked source change. Added the standard generated-bytecode ignores for the new Python utility/tests; native snapshot source validation remains intact. Gemini's supported existing-account doorway now passes live qualification; that fixture approval is not application approval. Final corrected-head application review still required.
+The application integration merged in PR #282 at
+`3000b7e04bd6864bc9bef699abc6b84e02f64661`; PR #285 added the deployed-app
+proof workflow and its exact-head StepFun review/CI passed. Its workflow has not
+run while the separate Master Data loading repair is pending. Current read
+acceptance on `f02b9de` reached 88/93 before the viewer License/Styles row timed
+out; both roles hit `57014` on one initial range GET, while exact-ID Find reached
+its target after loading. Final acceptance and replacement screenshots remain
+open. No production edits are needed for these checks.
 
-Approval-date clearing correction October 9, 2026, 10:40 AM EDT: actual AG Grid
-DateString editor returns NULL when cleared. Workflow normalization now preserves
-nullish/blank clears instead of persisting the literal string "null"; nonblank
-coercion unchanged. Three meaningful behavior tests pass, focused lint has no
-errors and build passes. The actual application TypeScript check reports only
-untouched baseline files. Prior full application/initial-load review approved
-3fb244897729ba6839a95a2cc9c054d2144997ad, report
-.ai/reviews/deepseek-final-check-20261009T141427-1918842-29399.md.
-A fresh independent exact-current-head review must verify this correction and
-retain coverage of the unchanged exact production row-data action above before
-shipment or initial load. The initial source digest, counts, loader, target and
-transaction/recovery guards are unchanged. No production data has been loaded.
+The approval-date clearing correction preserves a real NULL when AG Grid's date
+editor is cleared, while keeping nonblank behavior unchanged. Its behavior tests,
+focused lint, build, and review are included in the merged application delivery.

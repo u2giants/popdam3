@@ -26,8 +26,32 @@ Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by
 | Publish Bridge Agent | `publish-bridge-agent.yml` | Push to `main` touching `apps/bridge-agent/**` or `packages/path-filters/**`; also tags matching `bridge-v*` | Builds and pushes Docker image `ghcr.io/u2giants/popdam-bridge` to GHCR with tags `:latest`, `:stable`, `:v{version}`, `:<sha>`; upserts `BRIDGE_LATEST_BUILD` in `admin_config` via Supabase PostgREST |
 | Publish Windows Agent | `publish-windows-agent.yml` | Push to `main` touching `apps/windows-agent/**` or `packages/path-filters/**` | Builds TypeScript, bundles Node.js runtime, creates NSIS installer and zip artifact, creates versioned GitHub Release and updates `windows-agent-latest` release, POSTs `notify-build` to `agent-api` |
 | Publish PopDAM Helper | `publish-popdam-helper.yml` | Push to `main` touching `apps/popdam-helper/**`; also `workflow_dispatch` | Builds Electron app for Windows (x64 NSIS installer) and macOS (arm64 + x64 DMG) in parallel, publishes all artifacts to GitHub Release `popdam-helper-latest` |
+| OrderList Integration Live Proof | `orderlist-integration-live-proof.yml` | Manual `workflow_dispatch` on `main` only; requires the full deployed frontend commit SHA | Confirms the deployed source binding, verifies production types, performs read-only production acceptance as existing administrator and viewer accounts, and publishes generated-type and live-proof artifacts. It does not create accounts, change permissions, or write customer/application rows. |
 
 **CI path filters:** `publish-frontend.yml` does not trigger on changes to `docs/**` or top-level `.md` files. `deploy-supabase.yml` does not trigger on frontend source changes.
+
+### OrderList Integration Live Proof
+
+The proof workflow checks the full SHA of the frontend already served in
+production, validates the production project, generates the real production
+TypeScript schema, and runs read-only administrator and viewer acceptance. It
+publishes the generated schema, its verification record, and the live proof
+record as GitHub Actions artifacts. Dispatch it on `main` only after its normal
+merge/deployment gates; it verifies a deployment and does not deploy one.
+
+The workflow uses four existing GitHub secrets. Their 1Password item references
+are recorded here for secure maintenance; secret values must never be added to
+this document, logs, arguments, or commits.
+
+| GitHub secret | Existing 1Password item reference |
+|---|---|
+| `POPDAM_TEST_USER` | `op://vibe_coding/7s5uzpbjenka4fpvrqogh44bre` — `username` |
+| `POPDAM_TEST_PASSWORD` | `op://vibe_coding/7s5uzpbjenka4fpvrqogh44bre` — `password` |
+| `POPDAM_VIEWER_TEST_USER` | `op://vibe_coding/mbspkosvp2rf25qxhqufipxqca` — `username` |
+| `POPDAM_VIEWER_TEST_PASSWORD` | `op://vibe_coding/mbspkosvp2rf25qxhqufipxqca` — `password` |
+
+Use those existing accounts only. Transfer values through protected stdin when
+maintaining GitHub secrets; do not create accounts or change their permissions.
 
 ### Frontend GHCR Package Access
 
