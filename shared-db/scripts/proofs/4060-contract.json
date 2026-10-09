@@ -5,7 +5,7 @@
   "application_branch": "develop",
   "project_ref": "qsllyeztdwjgirsysgai",
   "source_pr": 4119,
-  "source_head": "79ae57f95ef048abaa8a1e9c23234d2dacdd6835",
+  "source_head": "5ee308b12737e7f366a34b6bef6fbe3f822b512e",
   "migration_version": "20261009040550",
   "table": "dflow.users",
   "index": "dflow.users_email_lower_uidx",

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 4105,
+  "outcome": "ready-for-merge",
+  "pr": 4124,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4105/6",
+  "contract_sha256": "bc39752579125b9525180a486962e50cd7d0eecabf860b7873d354892595ebfd",
+  "head_sha": "3a44462756bf3627ad018bb4d43584f43a892fb4",
+  "base_sha": "bb03f7a54e90a7989347c40596249595b328d9fd",
+  "files_changed": [
+    "scripts/proofs/4060-contract.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s scripts/proofs -p test_shared_db_4060_observation.py",
+      "exit_code": 0,
+      "evidence": "All11 tests passed including four owned PostgreSQL16 cases; zero skipped in full service run."
+    },
+    {
+      "command": "PostgreSQL16 owned ephemeral integration test",
+      "exit_code": 0,
+      "evidence": "Owned isolated PostgreSQL16/Python3.12.14/psycopg3.2.13 full11PASS0skip. Terminal log /tmp/taxonomy-producer-gen6-z1jk3pgo/pg16-tests.log; container stopped/removed with receipts."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Only one source_head field changes; diff check passed. All workflow/executable/catalog/CA/testfixture hashes unchanged from merged4119 source."
+    }
+  ],
+  "assumptions_resolved": [
+    "Prospectivegen6 published before JSON edit; exactfutureprivateJSON SHA dff2342f3ecb3f5e4b768e8495b05629b3e34f423046ba6fa7fedd09c47efbd8 matches implementation.",
+    "ActualPR4124/basebb03 and implementation3a444 pins finalmergedsource4119 head5ee308b12737e7f366a34b6bef6fbe3f822b512e; fixedversion20261009040550.",
+    "Publishedgen5pair remains byteimmutable onmain; currentdiff adds onlyexactgen6pair.",
+    "No credentials, liveprobe, reviewerallocation, merge, risk or production by worker. Root owns these gates."
+  ],
+  "stop_conditions_hit": []
+}
