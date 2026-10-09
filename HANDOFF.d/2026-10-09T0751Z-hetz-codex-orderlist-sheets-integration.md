@@ -1,12 +1,12 @@
 ---
 issue: 281
-status: OPEN
+status: BLOCKED
 owner: codex/sheets-full-integration
 ---
 
 # Native Sheets integration — current session record
 
-Snapshot: October9,2026,4:18 AM EDT. This is unfinished delivery, not a
+Snapshot: October9,2026,4:38 AM EDT. This is unfinished delivery, not a
 completion report. Start with the reciprocal
 [implementation plan](../plan_orderlist_sheets_full_integration.md), its STATUS,
 and fresh GitHub/current main/promotion state. Never inherit stale gates.
@@ -50,8 +50,7 @@ codex/orderlist-sheets-integration is clean/pushed HEAD
 codex/orderlist-sheets-integration expiry11:53 AM EDT. Current migration
 supabase/migrations/20261009073649_popdam_orderlist_sheets_integration.sql
 sha256bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590.
-Full current-head CI37903481114SUCCESS. Current exact head is NOT independently approved;
-historical a891 approvals must not be reused. No preview/production apply.
+Full current-head CI37903481114SUCCESS. Current exact head is independently approved by Muse and Gemini; historical a891 approvals remain historical. No integration preview/production apply.
 
 Checker prerequisite /worksp/shared-db-orderlist-verifier branch
 codex/orderlist-verification-prerequisite HEAD
@@ -68,13 +67,13 @@ Foreign freeze refs/db-coordination/promotion-freeze:
 owner claude:promotion-20261008212538, PR4110/issue4106, acquired3:37:57 AM EDT,
 expires4:07:57 AM EDT. Owner activity beyond renewal unverified. Do NOT release
 another owner's record. Expired hold is allowed by native guard; refresh state
-before dispatch. The prerequisite is actually merged. Historical waiter80033 timed out with an older state; actual current PR and successful guarded-run proof are authoritative. Current first-review allocator exec78232 waits the supported five-minute mutex retry, started4:16 AM EDT. Source is frozen for assignment/review. Fresh evidence bundle/preflight and brief live in scratch/current-*; preflight note https://github.com/popcre/shared-db/issues/4111#issuecomment-6077141579. Shared merge concurrency has only one pending
+before dispatch. The prerequisite is actually merged. Historical waiter80033 timed out with an older state; actual current PR and successful guarded-run proof are authoritative. Allocator retry completed. Muse6003/slot1 and Gemini6004/slot2 finished with durable APPROVE; source frozen at7ceed18c. Fresh evidence bundle/preflight and brief live in scratch/current-*; preflight note https://github.com/popcre/shared-db/issues/4111#issuecomment-6077141579. Shared merge concurrency has only one pending
 slot: do not cancel another owner's queued work.
 
 App /worksp/popdam-sheets-integration branch codex/sheets-full-integration HEAD
 91282b607ada (resolve full SHA), npm ci installed, declared reviewer-safety.
 Dependent app code entirely untouched: required backend merge has not happened.
-Own dirty prose only: AGENTS.md plan registration, docs/ORDER_LIST.md,
+Own committed/published prose only: AGENTS.md plan registration, docs/ORDER_LIST.md,
 docs/MASTER_DATA.md, plan_orderlist_sheets_full_integration.md and this handoff.
 Plan13sections includes concrete remaining UI/API/validation/test/live gates.
 Canonical rules /worksp/shared-db-orderlist-rules branch
@@ -197,8 +196,8 @@ required and protect strongeractions; do not weaken them.
 
 ## 9. Risks/open questions/self-audit
 
-Historical foreign hold expired naturally and checker merge completed; current reviewer allocator is waiting a supported mutex retry. Backendship/review/source/app/liveproof allstillopen.
-No background execution is promised. Production/preview freshly read ledgers718/746versions, static chronology gates pass. Current first reviewer is not yet assigned; do not claim a provider review is running. Global queue audit fails unrelated historic issues; this issue has no declared dependencies and its own collision/lease/freshness gates passed, no global-pass claim or repair. Nativecalendardateforecasts may differ
+Historical foreign hold expired naturally and checker merge completed; a new foreign hold now blocks our actual integration merge. Actual integration merge/apply/source/app/liveproof allstillopen.
+No background execution is promised. Production/preview freshly read ledgers718/746versions, static chronology gates pass. Both current reviews completed; no provider review remains running. Global queue audit fails unrelated historic issues; this issue has no declared dependencies and its own collision/lease/freshness gates passed, no global-pass claim or repair. Nativecalendardateforecasts may differ
 from historicwhole-columnANDbug; rowwise honeststatus is locked. Current
 manualworkflow edits retain sourceauthority.Threehelddivisionlines(#275) and
 12referencedmissingPOs(#277) are not solved by fabricateddata. Risk of main
@@ -206,3 +205,60 @@ moving requiresfresh exactheadreview/bundle/reservation. Full deliverablelist
 is planSTATUS, allopenuntilactualgateproof. Selfaudit: all10sections present;
 reciprocalplan; freshsession has goal/state/deadends/nextgates/access/owner
 questions; secretvalues absent; rootpointer untouched. PASSED4:02AMEDT.
+
+
+### Current handover gate and proof —4:38 AM EDT
+
+This section supersedes older snapshot/wait/assignment statements above.
+Muse6003 source-bound durable APPROVE:
+refs/db-review-verdicts/4111-4118-7ceed18caceda2af997d7a8df0e41f0d2dbc6588,
+SHA02213a918f46e4df4f16ae19aa00d36b2f82a43f;
+Gemini6004/slot2 APPROVE same ref with-slot2,
+SHAbfa71294ce87b8c4fb678477e2e6ad6342ef92d3. Lifecycle reports:
+.ai/reviews/muse-orderlist-sheets-integration-4111-20261009T082353Z-941459-14504.md;
+.ai/reviews/gemini-orderlist-sheets-integration-4111-7ceed18-20261009T082846Z-946663.md.
+All required current-head checks pass. Full database CI37903481114SUCCESS;
+PRguards37903481396attempt2SUCCESS. Original guards stalled after test594,
+although905/905same local tests passed in23.7s. Normal cancel/re-run only the
+owned job restored the original check; same head, same protections, no code
+change or timeout increase. Main24396f91267de7d8c3dbea1f50499f1dc5f64f52
+passes native independent-content freshness at4:34 AM EDT. Do not merge/rebase
+just to advance an unrelated main tip: re-prove actual content equivalence.
+
+New valid foreign freeze: owner codex-01a11d57-coordinate-4060, PR4129/issue4060,
+acquired4:21:36 AM EDT, expires5:21:36 AM EDT; SHAe939b1b1aaf4c22d6575f1b920634fbd49d59d78.
+Owner is actively rehearsing in Shared Supabase Migrations37905840200,
+preview job started4:36:02 AM EDT. No integration merge is queued; DO NOT
+release/bypass foreign ownership. Root remains assigned to issue281/4111,
+blocked on this run's supported release/expiry. No background work promised.
+Stop native waiter74955 before handing over; both review processes finished.
+
+Next exact action: refresh this freeze plus shared merge queue/current PR4118
+head/checks/approval refs/claim4112; run ship gate with actual Muse lifecycle
+report; when foreign hold absent/expired dispatch guarded-migration-merge.yml
+forPR4118/head7ceed18caceda2af997d7a8df0e41f0d2dbc6588. Prove actual merge,
+then plan1 merged-mainpreview/automaticpromotion, plan2 guardedauxload,
+plan3–9screens/review/shipment/live/docs. Source/source-payload/initial capture
+counts are frozen historical evidence, not a current canonical-PO inventory.
+Fresh target/PO UUID+number/count checks remain compulsory before row load.
+Prepared source digest/8257+38+3147 counts reverified4:38 AM EDT, mode600.
+Production/preview ledgers718/746 last read4:15 AM EDT; another owner's current
+rehearsal may change preview, so refresh before any gate/write. No current
+integration version is applied; no curated rows/header dates/identities changed.
+
+Repository state: backend and checker clean; app own documentation published
+on codex/sheets-full-integration (update final SHA with Git); canonical rules
+worktree keeps exactly two known own uncommitted prose files. Do not delete
+any worktree, branch, private recovery or backup under this blocked state.
+No delegated agents exist. Checker4130 is closed with delivery note
+https://github.com/popcre/shared-db/issues/4130#issuecomment-6077289294.
+
+Secrets sweep: owned app diff scanned for JWT/provider/GitHub credentials,
+none found; existing credential references only, no new vault value. Private
+source/browser recovery remains protected and outsideGit. Docs pass: this
+plan/HANDOFF/registered topic notes now reflect current delivery/unknowns;
+canonical two-file authority/native inventory prose remains explicitly pending
+shipment after structural delivery. No unrelated doc rewrite. Self-audit
+rechecked: reciprocal13-sectionplan/10-sectionhandoff, exact states/gates/
+rejected paths/access/owner choices intact; no requested live delivery marked
+complete. Same-issue live-proof checkboxes remain open, not a new ticket.

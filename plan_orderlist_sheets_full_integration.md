@@ -2,11 +2,11 @@
 
 ## STATUS
 
-Every delivery step remains open: preparation is not application acceptance.
+No delivery outcome is accepted: preparation and partial progress are not application acceptance.
 
 | Step | Status | Evidence / gate |
 |---|---|---|
-| 1. Governed backend delivery | partial | prerequisite PR4131 merged d63eb35d; current backend7ceed18c CI37903481114SUCCESS; integration itself not merged/applied |
+| 1. Governed backend delivery | partial | prerequisite PR4131 merged d63eb35d; current backend7ceed18c CI37903481114 + guard37903481396attempt2SUCCESS; Muse/Gemini APPROVE; foreign freeze blocks integration merge/apply |
 | 2. Auxiliary source load | open | exact 11442-row guarded transaction; no load has occurred |
 | 3. App types and query boundary | open | bounded hooks and validation tests specified below |
 | 4. PO Tracking and component details | open | admin/viewer component and preview write tests |
@@ -82,7 +82,7 @@ Its reserved migration is `20261009073649_popdam_orderlist_sheets_integration.sq
 Migration bytes still hash to
 `bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590`.
 No preview or production apply has occurred. Historical approvals at a891…
-are not approvals of7ceed…. New independent reviews are being assigned at4:18 AM EDT.
+are not approvals of7ceed…. Muse and Gemini independently approved7ceed18c, recorded in source-bound refs. All required checks pass as verified4:38 AM EDT. The integration is still unmerged/unapplied because another session owns a new promotion freeze.
 
 Checker prerequisite is shared-db PR4131/issue4130, own worktree
 `/worksp/shared-db-orderlist-verifier`, head
@@ -104,6 +104,31 @@ Canonical business-rule/native-inventory prose is prepared, uncommitted, in
 `docs/business-rules/erp-orders-and-source-meaning.md` and
 `docs/app-migration-notes/popdam-order-list.md`. Ship it after structural delivery
 so it does not repeatedly move main under reviews. App docs link to those rules.
+
+### Current continuation gate — October9,2026,4:38 AM EDT
+
+Backend7ceed18c is clean/published and source-frozen. Actual approvals:
+refs/db-review-verdicts/4111-4118-7ceed18caceda2af997d7a8df0e41f0d2dbc6588
+SHA02213a918f46e4df4f16ae19aa00d36b2f82a43f (Muse), and same ref with
+-slot2 SHAbfa71294ce87b8c4fb678477e2e6ad6342ef92d3 (Gemini).
+Lifecycle reports are under the backend .ai/reviews, Muse
+muse-orderlist-sheets-integration-4111-20261009T082353Z-941459-14504.md,
+Gemini gemini-orderlist-sheets-integration-4111-7ceed18-20261009T082846Z-946663.md.
+Current full CI37903481114SUCCESS and guard37903481396attempt2SUCCESS.
+The first guard attempt stalled after test594 despite local905/905PASS; normal
+cancellation and rerun of only that job restored the same capability without
+source changes, timeout increase or skipped tests. Current main24396f91267de7d8c3dbea1f50499f1dc5f64f52
+passes native source-equivalence freshness; source need not be changed merely
+for unrelated main movement. Re-prove it before merge.
+
+New foreign freeze owner codex-01a11d57-coordinate-4060 forPR4129/issue4060,
+acquired4:21:36 AM EDT, expires5:21:36 AM EDT. It is actively rehearsing in
+run37905840200, verified4:36 AM EDT. Do not release another owner's hold.
+No integration merge dispatch is currently queued. No integration preview or
+production apply, auxiliary load or dependent app source code exists. Native
+waiter74955 is stopped on external handover; no background execution promised.
+Recheck release/expiry plus every exact-head gate before resuming step1. The
+old Claude hold/prerequisite merge is history, not the current blocker.
 
 ## 6. Key findings and root cause
 
