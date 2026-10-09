@@ -22,6 +22,8 @@ The rule:
 
 1. **A customer PO and a sales order are the same thing.** "Customer PO" is the customer's
    name for it; "sales order" is POP's.
+   Production orders link to them by the customer PO number, never the sales-order number
+   (Albert, 2026-10-09; see [`erp-orders-and-source-meaning.md`](erp-orders-and-source-meaning.md)).
 2. **There are two separate sets of shipping terms.** The production PO POP issues to a
    factory carries its own terms; the sales order from the customer carries its own terms.
    They are not interchangeable and one must not be read as the other.

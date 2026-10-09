@@ -248,6 +248,18 @@ customer order is regularly fulfilled by multiple production POs, and the revers
   quantities where one sales line is produced across factories); they never merge headers.
 - A fully claimed placeholder is retired as evidence, never deleted.
 
+**Production orders link to sales orders by customer PO number, never by sales-order number
+(Settled, Albert, 2026-10-09).** Albert, verbatim: "so we should always be using the
+customer's purchase order field and never sales order number." The key is the customer's
+purchase-order number: on the production side `customerPONo` (`/prodtracking`) /
+`custPONumber` (`prodHistory`); on the sales side `poNumber` (`/orderHistory`). Compare
+within the same customer (MOD010 and MOD011 are one customer, Burlington — Albert,
+2026-10-09) and normalize per join rule 1 (trim, strip leading zeros). The `salesOrderNo`
+the ERP records on production rows is **not** a match key. Example: D3515 (production order
+24136, Hobby Lobby) carries customer PO 9212870; that is the link Albert's records show.
+Implementation: `plm.v_prod_order_sales_order_link` (shared-db #3869). This supersedes
+rule 3 above as a *matching* rule; rule 3 remains only a way to find rows.
+
 Also recorded: the API exposes a **`POST /order`** insert-sales-order endpoint, unused by us.
 JamieLynn's manual entry stays manual under the 2026-09-17 ruling; this only notes that the
 lever exists.

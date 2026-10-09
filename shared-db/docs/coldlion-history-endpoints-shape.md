@@ -51,7 +51,9 @@ row uniqueness (§4.3).
 | Grain | one row per production-order line **× prepack component** | one row per sales-order line **× prepack component** |
 | Fields | 132 | 59 |
 | Key | `prodOrderNo` (+ `prodReferenceNo`) | `salesOrderNo` (+ `poNumber`) |
-| Links to the other | `salesOrderNo` | `salesOrderNo` |
+| Links to the other | `custPONumber` (customer PO) — see matching rule below | `poNumber` (customer PO) |
+
+> **Matching rule (Settled, Albert, 2026-10-09):** link production to sales by the customer PO number (`customerPONo`/`custPONumber` = `poNumber`, same customer), **never** by `salesOrderNo`. See [`business-rules/erp-orders-and-source-meaning.md`](business-rules/erp-orders-and-source-meaning.md).
 
 Both carry `itemNo`, `itemDesc`, `divisionCode`, merch-group codes and their descriptions, so
 they tie to the item and taxonomy data already in `core.*`.

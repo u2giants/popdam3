@@ -223,6 +223,8 @@ Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,
 | `/prodHistory` | **Purchase history** — orders we placed with factories, one row per production-order line × prepack component (133 fields incl. `prodLineSeq`). **Not paged; 7-day window cap.** See [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | companyCode *(req)*, fromDate *(req)*, toDate *(req)*, prodOrderNo, stageCode |
 | `/orderHistory` | **Sales history** — orders customers placed with us, one row per sales-order line × prepack component (59 fields). **Not paged; 7-day window cap.** See [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | companyCode *(req)*, fromDate *(req)*, toDate *(req)*, divisionCode, salesOrderNo |
 
+> **Matching rule (Settled, Albert, 2026-10-09):** link production to sales by the customer PO number (`customerPONo`/`custPONumber` = `poNumber`, same customer), **never** by `salesOrderNo`. See [`business-rules/erp-orders-and-source-meaning.md`](business-rules/erp-orders-and-source-meaning.md).
+
 > **There is no Licensor or Property list endpoint.** Verified live 2026-09-07:
 > `/licensors`, `/properties`, `/royalty` and similar all return **404**. Licensors and
 > Properties are merchandise-group values and come from `/merchGroupDetails` with
