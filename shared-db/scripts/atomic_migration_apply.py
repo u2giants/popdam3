@@ -73,6 +73,8 @@ def read_policy() -> dict[str, dict[str, object]]:
         validate_version(version)
         if not isinstance(entry, dict):
             raise Refusal(f"atomic policy entry {version} is not an object")
+        if "strip_outer_transaction" in entry and not isinstance(entry["strip_outer_transaction"], bool):
+            raise Refusal(f"atomic policy transaction flag is invalid for {version}")
     return migrations
 
 
@@ -110,45 +112,245 @@ def validate_policy_bindings(migrations_dir: Path) -> None:
 
 
 def split_sql(raw: str) -> list[str]:
-    """Split PostgreSQL statements while preserving their exact text."""
+    """Split statements, keeping SQL-standard atomic function bodies intact."""
     out: list[str] = []
     start = 0
     i = 0
     state = "normal"
     dollar = ""
+    block_comment_depth = 0
+    single_escape = False
+    prefix_words: list[str] = []
+    create_routine = False
+    previous_word = ""
+    atomic_depth = 0
+    case_depth = 0
+    routine_body_closed = False
+
+    def reset_statement() -> None:
+        nonlocal prefix_words, create_routine, previous_word, atomic_depth, case_depth, routine_body_closed
+        prefix_words = []
+        create_routine = False
+        previous_word = ""
+        atomic_depth = 0
+        case_depth = 0
+        routine_body_closed = False
+
     while i < len(raw):
         c = raw[i]
         n = raw[i + 1] if i + 1 < len(raw) else ""
         if state == "normal":
-            if c == "'": state = "single"
-            elif c == '"': state = "double"
-            elif c == "-" and n == "-": state = "line"; i += 1
-            elif c == "/" and n == "*": state = "block"; i += 1
+            if routine_body_closed:
+                if c.isspace():
+                    i += 1
+                    continue
+                if c == "-" and n == "-":
+                    state = "line"
+                    i += 2
+                    continue
+                if c == "/" and n == "*":
+                    state = "block"
+                    block_comment_depth = 1
+                    i += 2
+                    continue
+                if c != ";":
+                    raise Refusal("unexpected tokens after SQL-standard atomic routine body")
+            if c == "'":
+                state = "single"
+                single_escape = i > 0 and raw[i - 1] in "eE" and (
+                    i == 1 or not (raw[i - 2].isalnum() or raw[i - 2] in "_$")
+                )
+                previous_word = ""
+            elif c == '"':
+                state = "double"
+                previous_word = ""
+            elif c == "-" and n == "-":
+                state = "line"
+                i += 1
+            elif c == "/" and n == "*":
+                state = "block"
+                block_comment_depth = 1
+                i += 1
             elif c == "$":
                 m = re.match(r"\$[A-Za-z_][A-Za-z_0-9]*\$|\$\$", raw[i:])
-                if m: dollar = m.group(0); state = "dollar"; i += len(dollar) - 1
-            elif c == ";":
+                if m:
+                    dollar = m.group(0)
+                    state = "dollar"
+                    previous_word = ""
+                    i += len(dollar) - 1
+                else:
+                    previous_word = ""
+            elif c.isalpha() or c == "_":
+                end = i + 1
+                while end < len(raw) and (raw[end].isalnum() or raw[end] in "_$"):
+                    end += 1
+                word = raw[i:end].upper()
+                if len(prefix_words) < 4:
+                    prefix_words.append(word)
+                    if prefix_words[:2] in (["CREATE", "FUNCTION"], ["CREATE", "PROCEDURE"]):
+                        create_routine = True
+                    elif prefix_words[:4] in (
+                        ["CREATE", "OR", "REPLACE", "FUNCTION"],
+                        ["CREATE", "OR", "REPLACE", "PROCEDURE"],
+                    ):
+                        create_routine = True
+
+                if create_routine:
+                    if atomic_depth == 0 and previous_word == "BEGIN" and word == "ATOMIC":
+                        atomic_depth = 1
+                    elif atomic_depth > 0:
+                        if previous_word == "BEGIN" and word == "ATOMIC":
+                            atomic_depth += 1
+                        elif word == "CASE":
+                            case_depth += 1
+                        elif word == "END":
+                            if case_depth:
+                                case_depth -= 1
+                            else:
+                                atomic_depth -= 1
+                                if atomic_depth == 0:
+                                    create_routine = False
+                                    routine_body_closed = True
+                previous_word = word
+                i = end
+                continue
+            elif c == ";" and atomic_depth == 0:
                 statement = raw[start:i].strip()
                 if statement: out.append(statement)
                 start = i + 1
+                reset_statement()
+            elif not c.isspace():
+                previous_word = ""
         elif state == "single":
-            if c == "'" and n == "'": i += 1
-            elif c == "'": state = "normal"
+            if single_escape and c == "\\" and n:
+                i += 1
+            elif c == "'" and n == "'":
+                i += 1
+            elif c == "'":
+                state = "normal"
         elif state == "double":
-            if c == '"' and n == '"': i += 1
-            elif c == '"': state = "normal"
+            if c == '"' and n == '"':
+                i += 1
+            elif c == '"':
+                state = "normal"
         elif state == "line":
             if c == "\n": state = "normal"
         elif state == "block":
-            if c == "*" and n == "/": state = "normal"; i += 1
+            if c == "/" and n == "*":
+                block_comment_depth += 1
+                i += 1
+            elif c == "*" and n == "/":
+                block_comment_depth -= 1
+                i += 1
+                if block_comment_depth == 0:
+                    state = "normal"
         elif state == "dollar" and raw.startswith(dollar, i):
-            state = "normal"; i += len(dollar) - 1
+            state = "normal"
+            i += len(dollar) - 1
         i += 1
     if state not in {"normal", "line"}:
         raise Refusal(f"unterminated SQL lexical state: {state}")
+    if atomic_depth:
+        raise Refusal("unterminated SQL-standard atomic routine body")
     tail = raw[start:].strip()
     if tail: out.append(tail)
     return out
+
+
+def control_tokens(statement: str) -> list[str]:
+    """Return significant tokens, treating quoted text as opaque non-keywords."""
+    tokens: list[str] = []
+    i = 0
+    state = "normal"
+    dollar = ""
+    comment_depth = 0
+    single_escape = False
+    while i < len(statement):
+        c = statement[i]
+        n = statement[i + 1] if i + 1 < len(statement) else ""
+        if state == "normal":
+            if c.isspace():
+                i += 1
+                continue
+            if c == "-" and n == "-":
+                state = "line"
+                i += 2
+                continue
+            if c == "/" and n == "*":
+                state = "block"
+                comment_depth = 1
+                i += 2
+                continue
+            if c == "'":
+                tokens.append("<literal>")
+                state = "single"
+                single_escape = i > 0 and statement[i - 1] in "eE" and (
+                    i == 1 or not (statement[i - 2].isalnum() or statement[i - 2] in "_$")
+                )
+                i += 1
+                continue
+            if c == '"':
+                tokens.append("<identifier>")
+                state = "double"
+                i += 1
+                continue
+            if c == "$":
+                match = re.match(r"\$[A-Za-z_][A-Za-z_0-9]*\$|\$\$", statement[i:])
+                if match:
+                    tokens.append("<literal>")
+                    dollar = match.group(0)
+                    state = "dollar"
+                    i += len(dollar)
+                    continue
+            if c.isalpha() or c == "_":
+                end = i + 1
+                while end < len(statement) and (statement[end].isalnum() or statement[end] in "_$"):
+                    end += 1
+                tokens.append(statement[i:end].upper())
+                i = end
+                continue
+            tokens.append(c)
+            i += 1
+        elif state == "single":
+            if single_escape and c == "\\" and n:
+                i += 2
+            elif c == "'" and n == "'":
+                i += 2
+            elif c == "'":
+                state = "normal"
+                i += 1
+            else:
+                i += 1
+        elif state == "double":
+            if c == '"' and n == '"':
+                i += 2
+            elif c == '"':
+                state = "normal"
+                i += 1
+            else:
+                i += 1
+        elif state == "line":
+            if c == "\n":
+                state = "normal"
+            i += 1
+        elif state == "block":
+            if c == "/" and n == "*":
+                comment_depth += 1
+                i += 2
+            elif c == "*" and n == "/":
+                comment_depth -= 1
+                i += 2
+                if comment_depth == 0:
+                    state = "normal"
+            else:
+                i += 1
+        elif state == "dollar":
+            if statement.startswith(dollar, i):
+                state = "normal"
+                i += len(dollar)
+            else:
+                i += 1
+    return tokens
 
 
 def dollar_quote(value: str, seed: str) -> str:
@@ -178,7 +380,14 @@ def load_candidate(migrations_dir: Path, version: str, target: str) -> tuple[Pat
     statements = split_sql(raw)
     if not statements:
         raise Refusal("migration is empty")
-    controls = [s for s in statements if TX_RE.match(re.sub(r"(?s)^\s*(?:--[^\n]*\n|/\*.*?\*/\s*)*", "", s))]
+    if entry.get("strip_outer_transaction", False):
+        if len(statements) < 3 or control_tokens(statements[0]) != ["BEGIN"] or control_tokens(statements[-1]) != ["COMMIT"]:
+            raise Refusal("opted-in migration must have one exact outer BEGIN and COMMIT")
+        statements = statements[1:-1]
+        if not statements:
+            raise Refusal("opted-in migration has no body statements")
+        raw = ";\n".join(statements) + ";\n"
+    controls = [s for s in statements if TX_RE.match(" ".join(control_tokens(s)))]
     if controls:
         raise Refusal("migration contains forbidden transaction-control statements")
     return path, match.group(2), raw, statements

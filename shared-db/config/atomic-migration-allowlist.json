@@ -14,6 +14,14 @@
         "preview",
         "production"
       ]
+    },
+    "20261009073649": {
+      "sha256": "bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590",
+      "targets": [
+        "preview",
+        "production"
+      ],
+      "strip_outer_transaction": true
     }
   }
 }

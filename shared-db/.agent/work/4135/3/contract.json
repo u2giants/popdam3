@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "work_issue": 4135,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Restore the existing guarded atomic rehearsal for the unchanged exact OrderList migration after Supabase CLI splits a bound SQL-standard body; preserve SQL-standard function-body statement boundaries while refusing every top-level transaction control; for the pinned migration only, opt in to replacing its exact outer BEGIN/COMMIT envelope with the existing DDL-plus-ledger atomic wrapper",
+  "base_sha": "f37609f311a7406c5a7f6644d4996ddab58ed464",
+  "dispatcher": "Codex chat 01a11d67-cd73-7ce0-9cb6-6fde00882486 on hetz",
+  "worker": "codex",
+  "branch": "codex/orderlist-atomic-rehearsal",
+  "worktree": "/worksp/shared-db-orderlist-atomic",
+  "allowed_paths": [
+    "config/atomic-migration-allowlist.json",
+    "scripts/test_atomic_migration_apply.py",
+    "scripts/atomic_migration_apply.py",
+    "scripts/test_atomic_migration_apply_postgres.py"
+  ],
+  "file_writes": [
+    "config/atomic-migration-allowlist.json",
+    "scripts/test_atomic_migration_apply.py",
+    "scripts/atomic_migration_apply.py",
+    "scripts/test_atomic_migration_apply_postgres.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change migration SQL bytes or workflows; only fix native atomic SQL statement lexical boundaries",
+    "Do not change existing policy entries or add an unbounded authorization",
+    "No database or row writes and no manual production execution",
+    "Reject every transaction control inside the migration body; only explicitly opted-in exact outer BEGIN/COMMIT may be stripped after source-hash proof; never alter hash/target/bounded-version/ledger gates",
+    "Do not infer acceptance from a refusal-only test; real function body and outer wrapper must execute successfully atomically"
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts.test_atomic_migration_apply",
+    "python3 -m unittest scripts.test_atomic_migration_apply_postgres",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Migration20261009073649 hash remains bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590",
+    "The existing atomic installation lane retains target/allowlist/locks/reviews/ledger verification",
+    "New policy flag must be boolean and default absent/false for every existing policy entry",
+    "Opt-in source must start with only BEGIN and end with only COMMIT; no transaction options, unmatched wrappers, internal controls or multiple envelopes accepted",
+    "Execution body and ledger statements exclude only the approved outer wrapper; one native transaction includes all DDL and the exact ledger row"
+  ],
+  "stop_conditions": [
+    "Migration source hash differs",
+    "Existing policy or tests regress",
+    "Repair needs scope outside declared paths"
+  ],
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 4135,
+    "generation": 2,
+    "contract_sha256": "67974da9723a39b00f41f5c85b05d78715d9ac14a04fc0becd8e891eb0ffef07"
+  }
+}

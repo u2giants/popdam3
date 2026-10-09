@@ -30,18 +30,21 @@ class AtomicMigrationPostgresTests(unittest.TestCase):
         database = os.environ.get("PGDATABASE", "postgres")
         return f"postgresql://{user}@{host}:{port}/{database}"
 
-    def run_main(self, version, sql):
+    def run_main(self, version, sql, strip_outer_transaction=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             migration = root / f"{version}_main_path.sql"
             migration.write_text(sql, encoding="utf-8")
             policy = root / "policy.json"
+            entry = {
+                "sha256": hashlib.sha256(migration.read_bytes()).hexdigest(),
+                "targets": ["preview"],
+            }
+            if strip_outer_transaction:
+                entry["strip_outer_transaction"] = True
             policy.write_text(json.dumps({
                 "schema_version": 1,
-                "migrations": {version: {
-                    "sha256": hashlib.sha256(migration.read_bytes()).hexdigest(),
-                    "targets": ["preview"],
-                }},
+                "migrations": {version: entry},
             }), encoding="utf-8")
             argv = [
                 "atomic_migration_apply.py", "--migrations-dir", str(root),
@@ -72,6 +75,68 @@ class AtomicMigrationPostgresTests(unittest.TestCase):
         version = "29990201000013"
         self.assertEqual(self.run_main(version, "create table atomic_test.main_ddl_fail(id definitely_not_a_type);"), 2)
         self.assertEqual(self.psql(f"select count(*) from supabase_migrations.schema_migrations where version='{version}';").stdout.strip(), "0")
+
+    def test_real_main_path_sql_atomic_function_commits_with_ledger(self):
+        version = "29990201000014"
+        sql = """create function atomic_test.sql_atomic(v integer)
+returns integer language sql begin atomic
+  select v + 1;
+end;"""
+        self.assertEqual(self.run_main(version, sql), 0)
+        out = self.psql(
+            "select atomic_test.sql_atomic(6)||'|'||count(*)||'|'||"
+            "max(cardinality(statements)) from supabase_migrations.schema_migrations "
+            f"where version='{version}';"
+        ).stdout.strip()
+        self.assertEqual(out, "7|1|1")
+
+    def test_real_main_path_sql_atomic_function_rolls_back_with_later_ddl_failure(self):
+        version = "29990201000015"
+        sql = """create function atomic_test.sql_atomic_rollback(v integer)
+returns integer language sql begin atomic
+  select v + 1;
+end;
+create table atomic_test.atomic_rollback_fail(id definitely_not_a_type);"""
+        self.assertEqual(self.run_main(version, sql), 2)
+        out = self.psql(
+            "select (to_regprocedure('atomic_test.sql_atomic_rollback(integer)') is null)::int"
+            "||'|'||count(*) from supabase_migrations.schema_migrations "
+            f"where version='{version}';"
+        ).stdout.strip()
+        self.assertEqual(out, "1|0")
+
+    def test_real_main_path_opted_outer_sql_atomic_commits_function_and_ledger(self):
+        version = "29990201000016"
+        sql = """begin;
+create function atomic_test.opted_sql_atomic(v integer)
+returns integer language sql begin atomic
+  select v + 1;
+end;
+commit;"""
+        self.assertEqual(self.run_main(version, sql, strip_outer_transaction=True), 0)
+        out = self.psql(
+            "select atomic_test.opted_sql_atomic(6)||'|'||count(*)||'|'||"
+            "max(cardinality(statements)) from supabase_migrations.schema_migrations "
+            f"where version='{version}';"
+        ).stdout.strip()
+        self.assertEqual(out, "7|1|1")
+
+    def test_real_main_path_opted_outer_rollback_keeps_ddl_and_ledger_atomic(self):
+        version = "29990201000017"
+        sql = """begin;
+create function atomic_test.opted_sql_atomic_rollback(v integer)
+returns integer language sql begin atomic
+  select v + 1;
+end;
+create table atomic_test.opted_outer_rollback_fail(id definitely_not_a_type);
+commit;"""
+        self.assertEqual(self.run_main(version, sql, strip_outer_transaction=True), 2)
+        out = self.psql(
+            "select (to_regprocedure('atomic_test.opted_sql_atomic_rollback(integer)') is null)::int"
+            "||'|'||count(*) from supabase_migrations.schema_migrations "
+            f"where version='{version}';"
+        ).stdout.strip()
+        self.assertEqual(out, "1|0")
 
     def test_success_commits_ddl_and_ledger_and_rerun_refuses(self):
         wrapper = atomic.build_wrapper("29990201000001", "success", "create table atomic_test.success(id int);", ["create table atomic_test.success(id int)"])
