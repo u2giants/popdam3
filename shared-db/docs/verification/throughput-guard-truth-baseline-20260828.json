@@ -2,8 +2,8 @@
   "detector_schema_version": 1,
   "detector_source_sha256": "912adf0922fc8dec92857bda959b3c1a0c731066141d735e13fc459cb82320f4",
   "command": "node scripts/check-production-verification-sidecars.mjs",
-  "total_migration_files": 769,
-  "matched_count": 105,
+  "total_migration_files": 771,
+  "matched_count": 106,
   "matched_paths": [
     {
       "version": "20260621150815",
@@ -529,6 +529,11 @@
       "version": "20261005044103",
       "path": "supabase/migrations/20261005044103_coldlion_prod_detail_drop_line_seq_unique_prod.sql",
       "marker_count": 1
+    },
+    {
+      "version": "20261009073649",
+      "path": "supabase/migrations/20261009073649_popdam_orderlist_sheets_integration.sql",
+      "marker_count": 2
     }
   ],
   "enforced_versions": [

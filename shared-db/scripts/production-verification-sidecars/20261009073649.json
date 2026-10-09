@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261009073649",
+  "migration_sha256": "bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590",
+  "checks": [
+    {
+      "id": "order_tracking_ext_serving_column",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dam"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "order_tracking_ext"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "order_id"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "orderlist_sample_depth_serving_column",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dam"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "orderlist_sample_depth"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "depth_inches"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "orderlist_customer_settings_serving_column",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dam"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "orderlist_customer_settings"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "suffix"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "dam_order_list_assortment_parent_cases",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "api"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "dam_order_list"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "assortment_parent_cases"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "dam_order_tracking_unknown_case_groups",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "dam"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "dam_order_tracking"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "unknown_case_groups"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "dam_order_vendor_statistics_activity_status",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "api"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "dam_order_vendor_statistics"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "activity_status"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "dam_order_sample_depth_depth_inches",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "api"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "dam_order_sample_depth"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "depth_inches"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "dam_order_customer_settings_suffix",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "api"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "dam_order_customer_settings"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "suffix"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "dam_order_sheets_exact_shape_and_signatures",
+      "kind": "catalog_contract",
+      "contract": "dam_order_sheets_integration_v1",
+      "expected_count": 1
+    }
+  ],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 247,
+      "line_end": 247,
+      "disposition": "no_durable_target",
+      "reason": "Parameterized UPDATE inside a runtime administrator-only RPC, limited to a closed static field/type allowlist. It creates no dynamic catalog target; all DDL is static and catalog-verified."
+    },
+    {
+      "line_start": 250,
+      "line_end": 250,
+      "disposition": "no_durable_target",
+      "reason": "Parameterized UPDATE inside a runtime administrator-only RPC, limited to a closed static field/type allowlist. It creates no dynamic catalog target; all DDL is static and catalog-verified."
+    }
+  ]
+}

@@ -1,5 +1,8 @@
 -- =====================================================================================
--- PopDAM OrderList — "input fields only" write contract (issue #1772).
+-- PopDAM OrderList create/update/grid — "input fields only" write contract (#1772).
+-- The separate administrator PO Tracking RPC has its own allowlist (#4111);
+-- these assertions still forbid tracking/derived values through create_dam_order
+-- and update_dam_order, whose original restrictions are unchanged.
 --
 -- Covers migration 20260831045020_popdam_orderlist_input_only_write_contract.sql.
 --
