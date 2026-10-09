@@ -69,15 +69,22 @@ function fixture(overrides={}){
   const state={
     pr:{number:2726,merged_at:'2026-09-11T22:49:13Z',merge_commit_sha:'e'.repeat(40),head:{sha:HEAD,ref:'codex/issue-2506-production-performance-2714'},body:'Repairs #2506.\n\nWork issue #2506; active claim #2722; orchestrator #2714.'},
     completion:{work_issue:2506,pr:2726,migration_versions:['20260911213429']},
+    contract:{schema_version:1,work_type:'structural',route:'shared-db-orchestrator',work_issue:2506,generation:1,goal:'bind the merged pull request',base_sha:'e'.repeat(40),dispatcher:'d',worker:'w',branch:'codex/x',worktree:'worktrees/x',allowed_paths:['supabase/**'],file_writes:['supabase/migrations/20260911213429_popsg_search.sql'],db_reads:[],db_writes:['supabase/migrations/20260911213429_popsg_search.sql'],prohibited_actions:['no production'],required_checks:['node --test'],assumptions:[],stop_conditions:['stop on scope change']},
     files:[{filename:'.agent/contract.json',status:'added'},{filename:'.agent/completion.json',status:'added'},{filename:'supabase/migrations/20260911213429_popsg_search.sql',status:'added'}],
     linked:[],
-    refs:new Set(['refs/db-claims/20260911213429']),
+    refs:new Set(['refs/db-claims/20260911213429','refs/db-contracts/2506/2']),
     ...overrides,
   }
   const io={
     getPr:()=>state.pr?{changed_files:state.files.length,...state.pr}:state.pr,
     getIssue:(n)=>({number:n,state:state.issueState??'open'}),
-    getFileAt:(file,ref)=>{assert.equal(file,state.completionPath??'.agent/completion.json');assert.equal(ref,HEAD);return typeof state.completion==='string'?state.completion:JSON.stringify(state.completion)},
+    getFileAt:(file,ref)=>{
+      assert.equal(ref,HEAD)
+      if(file===(state.completionPath??'.agent/completion.json'))return typeof state.completion==='string'?state.completion:JSON.stringify(state.completion)
+      if(file===(state.contractPath??'.agent/contract.json'))return typeof state.contract==='string'?state.contract:JSON.stringify(state.contract)
+      throw new Error(`unexpected getFileAt ${file}`)
+    },
+    getCommit:()=>({message:`db-agent-contract issue=2506 generation=2 sha256=0000000000000000000000000000000000000000000000000000000000000000\n\n${JSON.stringify(state.contract)}`}),
     getPrFiles:()=>state.files,
     readRef:(ref)=>state.refs.has(ref)?'a'.repeat(40):null,
     closingIssuesForPr:(n)=>{state.closingCalls=(state.closingCalls??0)+1;return state.linked},
@@ -153,11 +160,33 @@ test('reviewer assignment snapshot accepts the same verified binding and nothing
 
 test('scoped merged evidence uses only the complete PR-owned pair at the exact head',()=>{
   const key='2506/2',path=`.agent/work/${key}`
-  const f=fixture({completionPath:`${path}/completion.json`,completion:{work_issue:2506,pr:2726,migration_versions:['20260911213429'],contract_ref:`refs/db-contracts/${key}`}})
+  const f=fixture({completionPath:`${path}/completion.json`,contractPath:`${path}/contract.json`,completion:{work_issue:2506,pr:2726,migration_versions:['20260911213429'],contract_ref:`refs/db-contracts/${key}`}})
   f.state.files=f.state.files.map(file=>({...file,filename:file.filename.replace('.agent/',`${path}/`)}))
   assert.equal(verifyMergedPrIssueBinding({pr:2726,issue:2506},f.io).issue,2506)
   f.state.completion.contract_ref='refs/db-contracts/2506/1'
   assert.throws(()=>verifyMergedPrIssueBinding({pr:2726,issue:2506},f.io),/contract_ref does not match/)
+})
+
+// #3380: the binding reads real evidence. A malformed lineage record, an
+// unpublished keyed contract ref, or a contract that differs from the immutable
+// published record all refuse instead of binding.
+test('a contract with invalid lineage, an unpublished ref, or a mutated published record refuses the binding (#3380)',()=>{
+  const bad=fixture({contract:{schema_version:99,work_issue:2506}})
+  assert.throws(()=>verifyMergedPrIssueBinding({pr:2726,issue:2506},bad.io),/contract lineage .* is invalid/)
+  const unreadable=fixture({contract:'not json'})
+  assert.throws(()=>verifyMergedPrIssueBinding({pr:2726,issue:2506},unreadable.io),/contract.* unreadable/)
+  const key='2506/2',path=`.agent/work/${key}`
+  const keyed=()=>{
+    const f=fixture({completionPath:`${path}/completion.json`,contractPath:`${path}/contract.json`,completion:{work_issue:2506,pr:2726,migration_versions:['20260911213429'],contract_ref:`refs/db-contracts/${key}`}})
+    f.state.files=f.state.files.map(file=>({...file,filename:file.filename.replace('.agent/',`${path}/`)}))
+    return f
+  }
+  const unpublished=keyed()
+  unpublished.state.refs.delete(`refs/db-contracts/${key}`)
+  assert.throws(()=>verifyMergedPrIssueBinding({pr:2726,issue:2506},unpublished.io),/contract ref .* is not published/)
+  const mutated=keyed()
+  mutated.io.getCommit=()=>({message:`db-agent-contract issue=2506 generation=2 sha256=1111111111111111111111111111111111111111111111111111111111111111\n\n${JSON.stringify({...mutated.state.contract,goal:'changed after publication'})}`})
+  assert.throws(()=>verifyMergedPrIssueBinding({pr:2726,issue:2506},mutated.io),/is immutable/)
 })
 
 test('inherited, partial, ambiguous, foreign and removed evidence never bind',()=>{
