@@ -98,3 +98,18 @@ inserted lines. The refresh now saves an original snapshot only when the
 source snapshot actually changes; rerunning the same source performs no writes.
 Current apply must always repeat the per-ref identity and typed-value checks,
 including dates, before any database gate; do not infer safety from totals.
+
+
+## Mechanical identity refusal and writer routing
+
+Before any planned write, the current script refuses a pre-existing Google line
+whose normalized SKU or parent order would change. A moved physical sheet row
+cannot silently acquire another business line's history. Legitimate SKU changes,
+placeholder assignments, or cancellation renames require a separately reviewed
+identity reconciliation; this completed import's earlier 133 parent changes/two
+SKU changes were explicitly audited and approved before the stricter reusable
+routine was shipped. Same-identity field updates and new lines remain supported.
+The three application row writers are explicitly classified reviewer-safety in
+`.ai-devops/task-gates.json`; independent review and full rulebook treatment
+cannot disappear through an otherwise ordinary scripts-only edit. All production
+operations still require their internal assigned-reviewer database gate.

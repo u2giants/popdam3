@@ -49,4 +49,17 @@ class RefreshBoundaryTests(unittest.TestCase):
   old={'sku':'a','metadata':{'order_list_snapshot':snapshot}}
   actual=s.merged_payload(old,{'sku':'a'},{'order_list_snapshot':snapshot},s.m.LINE_COLUMNS)
   self.assertEqual(actual['metadata'],old['metadata'])
+ def test_sheet_row_cannot_silently_replace_style_identity(self):
+  from types import SimpleNamespace
+  line=SimpleNamespace(payload={'sku':'changed'},source_id='order:row:2')
+  with self.assertRaises(ValueError):s.assert_existing_identity({'sku':'original','production_order_id':'parent'},line,'parent')
+ def test_sheet_row_cannot_silently_move_to_a_different_order(self):
+  from types import SimpleNamespace
+  line=SimpleNamespace(payload={'sku':'same'},source_id='order:row:2')
+  with self.assertRaises(ValueError):s.assert_existing_identity({'sku':'same','production_order_id':'original'},line,'different')
+ def test_unchanged_logical_identity_and_new_lines_remain_supported(self):
+  from types import SimpleNamespace
+  line=SimpleNamespace(payload={'sku':' SAME '},source_id='order:row:2')
+  s.assert_existing_identity({'sku':'same','production_order_id':'parent'},line,'parent')
+  s.assert_existing_identity(None,line,None)
 unittest.main()

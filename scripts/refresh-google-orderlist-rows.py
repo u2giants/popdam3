@@ -115,6 +115,13 @@ def overlap_key(row):
     return normalized(fields[0]),normalized(fields[1]),str(quantity.normalize())
 
 
+def assert_existing_identity(old, line, expected_parent):
+    """Physical sheet positions are not authority to replace real line identity."""
+    if old and (normalized(old.get('sku')) != normalized(line.payload.get('sku'))
+                or old['production_order_id'] != expected_parent):
+        raise ValueError('Existing Google source identity changed; reviewed reconciliation required: '+line.source_id)
+
+
 def prove(conn):
     if (conn.info.host!='aws-1-us-east-1.pooler.supabase.com' or
         conn.info.user!='postgres.'+TARGET or conn.info.port!=5432 or
@@ -180,6 +187,7 @@ def main():
             old=lines.get(lrefs.get(line.source_id))
             if old and old['id'] in cold_refs:
                 held.append({'source_id':line.source_id,'reason':'shared_coldlion_line'});continue
+            assert_existing_identity(old,line,orefs.get(line.order_source_id))
             if old is None and overlap_key(line.payload) in cold_index:
                 held.append({'source_id':line.source_id,'reason':'new_cross_source_overlap','coldlion_ids':cold_index[overlap_key(line.payload)]});continue
             desired_lines[line.source_id]={'order_source_id':line.order_source_id,'payload':merged_payload(old,line.payload,line.metadata,m.LINE_COLUMNS)}

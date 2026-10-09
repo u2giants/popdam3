@@ -3,6 +3,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT; cd "$ROOT"; export AI_TASK_GATES_DIR="$TMP/state"; failures=0; passes=0
 pass(){ passes=$((passes + 1)); printf 'PASS: %s\n' "$1"; }; fail(){ printf 'FAIL: %s\n' "$1" >&2; failures=$((failures + 1)); }
 expect_class(){ local path="$1" expected="$2" label="$3" actual; printf '%s\n' "$path" > "$TMP/paths"; actual="$(ai-task-gates explain --json --paths-from "$TMP/paths" | jq -r '.observed_class')"; if [ "$actual" = "$expected" ]; then pass "$label"; else fail "$label (expected $expected, got $actual)"; fi; }
+expect_class scripts/refresh-style-tracker-rows.py reviewer-safety 'Master row writer receives protected review'
+expect_class scripts/refresh-google-orderlist-rows.py reviewer-safety 'Order row writer receives protected review'
+expect_class scripts/repair-style-tracker-overflow-dates.py reviewer-safety 'Source fidelity row repair receives protected review'
 expect_class README.md prose 'ordinary documentation uses the prose fast path'
 expect_class src/App.tsx ui-live-workflow 'browser behavior requires authenticated visual proof'
 expect_class AGENTS.md reviewer-safety 'agent rulebook receives protected full treatment'
