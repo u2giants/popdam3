@@ -561,3 +561,7 @@ Installer repair validation October9,2026,9:42 AM EDT: unchanged migration
 installed by the repaired helper in isolated PostgreSQL15, exact ledger_row=1
 and73 statements. All25 helper unit tests and10 real PostgreSQL transaction tests
 pass. This is local proof; hosted acceptance remains pending governed review/merge.
+
+Import rehearsal October9,2026,10:07AM EDT: actual current loader loaded8257 depth,38 suffix and3147 tracking rows through real psycopg in isolated PostgreSQL15, network none and private Unix socket. Guarded unchanged-row fingerprint recovery removed exactly those counts; all3 auxiliary tables and3147 fixture headers empty afterward. Rehearsal exposed and corrected the canonical header validation column to production_order_number. Source digest unchanged. Loader15 unit tests pass, including failed parent-directory fsync rollback. Recovery file and parent are private and both fsynced before commit. Hosted import remains pending exact-head approval and native backend acceptance.
+
+Application review recovery October9,2026,10:10AM EDT: failed DeepSeek snapshot acceptance was generated Python bytecode only, not a tracked source change. Added the standard generated-bytecode ignores for the new Python utility/tests; native snapshot source validation remains intact. Gemini's supported existing-account doorway now passes live qualification; that fixture approval is not application approval. Final corrected-head application review still required.

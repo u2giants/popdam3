@@ -46,3 +46,7 @@ oc_logs.txt
 
 # Private operational evidence (licensed filenames/paths, candidate exports)
 .private/
+
+# Generated Python bytecode from project-owned import utilities/tests
+__pycache__/
+*.py[cod]
