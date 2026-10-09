@@ -192,7 +192,7 @@ the business-rules topic named above; this plan is the build order for it.
 
 ### 6. Key findings and root cause (all live-verified 2026-09-17)
 
-1. `/orderHistory` returns 63 fields; **no created/entry timestamp exists** — only `startDate`,
+1. *(Historical — superseded 2026-10-09: ColdLion added `createdTime`/`createdUser`/`modTime`/`modUser`, order-level; see `docs/business-rules/erp-orders-and-source-meaning.md`.)* `/orderHistory` returns 63 fields; **no created/entry timestamp exists** — only `startDate`,
    `cancelDate`, `invoiceDateString`. Detection must be `salesOrderNo` novelty, not a date cursor.
 2. **The `fromDate`/`toDate` window filter keys on the ERP start date** (proven: November and
    December 2026 windows return live rows today; every row's `startDate` falls inside its

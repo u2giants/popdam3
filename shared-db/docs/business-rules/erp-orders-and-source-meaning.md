@@ -254,13 +254,25 @@ lever exists.
 
 Two technical constraints on the poll design:
 
-- **The feed carries no created/entry timestamp — verified live 2026-09-17.** A direct probe of
-  `/orderHistory` for the open week 2026-09-11..17 returned the full 63-field payload (the
-  2026-08-19 census said 59; the 2026-08-31/09-01 additions raised it). The only date-valued
-  fields are `startDate`, `cancelDate`, and `invoiceDateString` — none is a record-creation
-  date. The rolling re-read must be the checkpoint, not a per-row created date. Detect new
-  orders as `salesOrderNo` values not seen before, deduplicate by the landed identity plus
-  source hash, and re-read a trailing window so late corrections land as new versions.
+- **The feed now carries order entry and last-change timestamps — verified live 2026-10-09.**
+  ColdLion added four fields to `/orderHistory` (63 → 67 fields): `createdTime` and
+  `createdUser` (when and by whom the sales order was entered in ColdLion), and `modTime` and
+  `modUser` (when and by whom it was last changed). A probe of the 2026-10-05..11 start-date
+  window returned them populated on 33 of 33 rows. They are **order-level**: every line of one
+  `salesOrderNo` carries the same pair. Format is `YYYY-MM-DD HH:MM:SS.mmm` with no time zone
+  stated (presumed ColdLion server local time — **Unknown** until ColdLion confirms). Example
+  shape: an order with a 2026-10-05 start date was entered 2026-03-25 and last changed
+  2026-08-26 — confirming orders are entered months ahead of their start date.
+  What this changes: `modTime` lets a re-read tell a changed order from an unchanged one
+  directly, and `createdTime` gives the true entry date for new-order detection and for
+  "entered before/after" comparisons against production orders (`/prodtracking` and
+  `/proddetails` already carry their own `createdTime`). What it does not change: the
+  `fromDate`/`toDate` filter still keys on the start date (re-verified 2026-10-09: all rows
+  inside the window; the window is now capped at 7 days inclusive), so these fields cannot be
+  queried by; they are read from rows already fetched. Novelty by `salesOrderNo` remains the
+  detection rule; the timestamps are added evidence, not a replacement.
+  *Historical (2026-09-17):* a probe then found 63 fields and no created/entry timestamp; that
+  statement is superseded by the above.
 - **The window filter keys on the ERP start date — verified live 2026-09-17.** Windows in
   October, November and December 2026 return live rows today (a November window held 42 rows,
   a December window 117), and every returned row's `startDate` falls inside its requested
