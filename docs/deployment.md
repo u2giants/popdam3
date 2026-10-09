@@ -4,11 +4,11 @@
 
 Every production change follows this path:
 
-1. Developer commits and pushes to `main` on both `origin` (harness proxy) and `github` (direct GitHub remote).
+1. Develop on a feature branch from the GitHub source repository `origin`, open a pull request, and let required checks pass before merging through the normal protected path. Do not push application changes directly to `main`.
 2. GitHub Actions evaluates path filters and runs the relevant workflow(s).
 3. For frontend changes: `publish-frontend.yml` builds the React app, builds a Docker image with `Dockerfile.ci`, pushes it to GHCR as `ghcr.io/u2giants/popdam-frontend:latest`, `:sha-<short-sha>`, and `:<short-sha>` using `GHCR_PAT` when present, otherwise the workflow `GITHUB_TOKEN`, then calls the Coolify deploy API.
 4. Coolify receives the webhook, pulls `:latest` from GHCR, and replaces the running container. No SSH is involved.
-5. For Supabase edge-function changes: `deploy-supabase.yml` deploys all edge functions, then auto-generates and commits `src/integrations/supabase/types.ts`. Database migrations are not run from this repo; they go through canonical `u2giants/shared-db`.
+5. For Supabase edge-function changes: `deploy-supabase.yml` deploys all edge functions, then auto-generates and commits `src/integrations/supabase/types.ts`. Shared database structure changes are authored in canonical `popcre/shared-db` on a feature branch and pull request, then applied through its governed workflow; they are never run from this repository.
 6. For Railway worker changes: Railway detects the push to `main` and triggers its own rebuild automatically — no GitHub Actions step required. GitHub's green `popdam / production` deployment badge is Railway worker status, not proof that the frontend has deployed.
 
 Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by the same container. Traefik on the VPS routes both hostnames to `popdam-frontend`.
@@ -63,6 +63,25 @@ On 2026-06-10, production stayed on commit `8c0508d` because later frontend work
 
 Future sessions should:
 If the live header shows an old commit, compare it to the latest successful `Publish Frontend Image` run, not only the GitHub Deployments sidebar. A green `popdam / production` deployment can be Railway worker status. If frontend image push fails with `permission_denied: write_package`, verify that the `ghcr.io/u2giants/popdam-frontend` package exists, that repository `u2giants/popdam3` has package Actions access, or that repo secret `GHCR_PAT` is a valid package-write token.
+
+### Latest verified OrderList refresh deployment
+
+PR #289 merge `9883315c7d64b9ed274cc92ae3c1d0c73cc6597b` is live. Publish run
+`37986360726` succeeded at 4:25 PM EDT; production returned HTTP 200 with token
+`9883315`, served asset `/assets/index-B2s-PtZY.js` (SHA-256
+`574bdff6df39c7533993996c591b04c8133e62e82b3e25626f29a5258c8c46fb`), and
+`APP_DATE=2026-10-09T16:20:46-04:00`. The container is healthy, OCI revision
+matches the merge, and Coolify deployment `btf5t1we2eh3alydmt6wxcoi` completed.
+Focused administrator/viewer edit and refresh checks passed without production
+business-row writes. Native workflow `37987001226` passed 90 checks across both
+roles (checks SHA-256
+`708b9395e8e6e054372a7c9b7a7bb73b03f0ce3448df2acec338b447586eb0e1`). The
+schema SHA-256 `fc9041a48038b8604e94a8e0169d06d049214eba57dd609dd296f95823738954`
+matched; type artifact `11643178561` SHA-256
+`7fdbb47c64e182e3893d104ef3105a751e6a5666efe857d9d640943d306229a7` and live
+artifact `11642863862` SHA-256
+`54f02a6384171d797ce11ba7ef306dbc39e7d9e41a24c71c3f12b1672332ed59` passed.
+Shared-db #4111 and PopDAM #275 are closed. The #275 UI proof passed 53 administrator/viewer checks; report `coldlion-owner-link-proof.json` SHA-256 `fd33979beb4abe88c0a5eb969b58ec7b679ebffda9f227d63b1bfb9b6d7a219f`, with evidence in [#275 completion comment](https://github.com/u2giants/popdam3/issues/275#issuecomment-6089001259). Only PopDAM #281 documentation/closeout remains open. The post-link cohort has 23 lines across 7 Items; missing current Master tracker facts remain Unknown, with no records created.
 
 ### Frontend Deploy Verification Checklist
 
@@ -150,7 +169,7 @@ Coolify then pulls `ghcr.io/u2giants/popdam-frontend:latest` and replaces the ru
 
 **Supabase project:** `qsllyeztdwjgirsysgai` (popdam-prod, Virginia), supplied via GitHub secret `EXTERNAL_SUPABASE_PROJECT_ID`. The previous Ohio project was `ryltkzzernhwnojzouyb`.
 
-**Migrations:** This repo no longer runs database migrations. New shared Supabase schema/data changes must be authored in canonical `u2giants/shared-db` under `supabase/migrations/`, tested through the `Shared Supabase Migrations` workflow, and merged via the shared-db branch + PR process. The local `supabase/migrations/` folder is historical only.
+**Migrations:** This repo no longer runs database migrations. New shared Supabase schema/data changes must be authored in canonical `popcre/shared-db` under `supabase/migrations/`, tested through the `Shared Supabase Migrations` workflow, and merged via the shared-db feature-branch + PR process. The local `supabase/migrations/` folder is historical only.
 
 **Edge functions:** When `supabase/functions/**` files change, the workflow deploys all subdirectories under `supabase/functions/` except `_shared`, using `supabase functions deploy <name> --no-verify-jwt`. The loop records failures and exits non-zero after attempting all deploys, so a broken function no longer produces a green workflow.
 
@@ -166,7 +185,7 @@ Coolify then pulls `ghcr.io/u2giants/popdam-frontend:latest` and replaces the ru
 
 There is no staging environment. There is one production environment.
 
-All changes go directly to `main` and are deployed immediately to production. There are no feature branches, no PR-based workflows, and no staging → production promotion step.
+Application changes are merged to `main` through feature branches and pull requests after required checks; production workflows run from the merged source. There is no staging environment or manual staging-to-production promotion step.
 
 Railway auto-deploys on every push to `main` regardless of which files changed (Railway does not support path filters). This means every push to `main` triggers a Railway worker rebuild, even if `apps/worker/` was not touched.
 

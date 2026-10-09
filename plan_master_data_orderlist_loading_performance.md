@@ -1,19 +1,19 @@
 # Master Data and OrderList loading-performance implementation plan
 
-Tracking: [PopDAM #121](https://github.com/u2giants/popdam3/issues/121) · database lane: [shared-db #2665](https://github.com/u2giants/shared-db/issues/2665) · handoff: [HANDOFF.d/2026-09-10T0209Z-hetz-codex-grid-loading-performance-plan.md](HANDOFF.d/2026-09-10T0209Z-hetz-codex-grid-loading-performance-plan.md)
+Tracking: [PopDAM #121](https://github.com/u2giants/popdam3/issues/121) · completed database lane: [popcre/shared-db #2664](https://github.com/popcre/shared-db/issues/2664); #2665 was a closed duplicate · handoff: [HANDOFF.d/2026-09-10T0209Z-hetz-codex-grid-loading-performance-plan.md](HANDOFF.d/2026-09-10T0209Z-hetz-codex-grid-loading-performance-plan.md)
 
 ## STATUS — read this first
 
-Fresh sessions start at **Step 1**. Re-read the downstream phase before starting each phase because the shared-db queue and production state may have changed.
+Fresh sessions resume at **Step 6**. Steps 1–5 are historical completed work; do not restart them. The editor-safe repair is live; focused edit/refresh checks and native workflow proof passed. Remaining Step 6 work is documentation/issue closeout; #275 is closed after its role-based UI check passed. Recheck current evidence and downstream gates before continuing. Any new shared-db structure must use its existing claim-first route and assigned AI-reviewer gates; never request human approval.
 
 | Step | Status | Date | Evidence |
 |---|---|---|---|
 | 1. Record baselines and exact payload contract | ✅ complete — production acceptance | 2026-09-11 | Signed-in production evidence: `docs/verification/grid-loading-performance/2026-09-11T1856Z/README.md`; Generic and Licensed bounded waves and final counts recorded, with the one retried transient Licensed request retained. |
-| 2. Render the first 4,000 Master Data rows immediately | 🔄 measured Licensed correction in progress | 2026-10-09 | Deployed `f02b9de` parallel Licensed load reproduced HTTP 500 `57014` at offset 1,000 after 8,932 ms with no first-wave render. Controlled sequential scheduling completed four real Licensed GET/status-RPC pairs and rendered 4,000 rows in 13,312 ms; Generic succeeded and rendered sooner in parallel. Evidence: `docs/verification/grid-loading-performance/2026-10-09T1802Z/README.md`. The implementation and 12 regression tests are prepared separately at `37577e9f3f41948041826a97bd636440621d42b0`; they are absent from this documentation-only branch. Next: complete its independent release review, merge and deploy it, then obtain updated live acceptance. |
+| 2. Render the first 4,000 Master Data rows immediately | ✅ deployed and observed | 2026-10-09 | Historical PR #287 release `f901017`: first visible rows, final counts, and retry behavior were observed; this evidence is retained as the baseline for unchanged loading behavior. |
 | 3. Stop downloading unused Master Data fields | ✅ complete — production acceptance | 2026-09-11 | Explicit projection is visible in the signed-in production request shape and excludes the confirmed-unused view metadata; evidence: `docs/verification/grid-loading-performance/2026-09-11T1856Z/README.md`. |
 | 4. Add the governed OrderList Find-position RPC | ✅ complete — production | 2026-09-11 | Canonical shared-db #2664, PR #2748 merged `9da98edefecc7104d709762e53fd1efb421cc9dc`; production migration `20260911081204` and signed-in RPC acceptance passed. #2665 was a duplicate. |
 | 5. Replace the OrderList multi-request scan with the RPC | ✅ complete — deployed | 2026-09-11 | PopDAM `dc7e4c0fcf4d31f5726bcdb0a4e33e3b29a31acb` calls the RPC once with normalized filters/sort and retains only missing-function deployment-skew fallback; focused tests pass. |
-| 6. Ship and verify production behavior and performance | 🔄 reopened for measured Licensed loading correction | 2026-10-09 | Previous whole-flow acceptance remains in `docs/verification/grid-loading-performance/2026-09-11T1856Z/README.md`. New baseline/controlled schedule comparison is `docs/verification/grid-loading-performance/2026-10-09T1802Z/README.md`; the separate implementation at `37577e9f3f41948041826a97bd636440621d42b0` has not shipped or passed live acceptance yet. |
+| 6. Ship and verify production behavior and performance | 🔄 native proof passed; closeout pending | 2026-10-09 | PR #289 is live as `9883315`; publish `37986360726` and CI `37985400880` passed. Focused acceptance passed both roles; admin edit-preservation/cancel passed with zero writes. Native workflow `37987001226` passed 90 checks across both roles and generated verified type/live artifacts. Shared-db #4111 is closed; #275 is closed after 53 administrator/viewer UI checks (report `coldlion-owner-link-proof.json`, SHA-256 `fd33979beb4abe88c0a5eb969b58ec7b679ebffda9f227d63b1bfb9b6d7a219f`). The 23 linked lines across 7 Items with missing tracker facts remain Unknown; only #281 documentation closeout remains. |
 
 ## 1. The ultimate goal
 
@@ -25,8 +25,8 @@ If a step conflicts with this goal, the goal wins — stop and flag it.
 
 PopDAM is POP Creations' internal digital asset manager. Its Master Data page mirrors the legacy Google style tracker; its OrderList page replaces the legacy Google OrderList while reading linked product truth from Master Data.
 
-- Application repository: `u2giants/popdam3`, local checkout `/worksp/popdam`, direct-to-`main` workflow.
-- Shared database repository: `u2giants/shared-db`, canonical checkout `/worksp/shared-db`, branch → preview → PR → AI merge workflow controlled by the single orchestrator.
+- Application repository: `u2giants/popdam3`; changes use a feature branch and pull request, then merge through the normal protected path.
+- Shared database repository: canonical `popcre/shared-db`. Claim exact objects on the active issue before authoring; use an isolated worktree, branch/PR, preview and promotion gates. Do not depend on a single orchestrator chat or marker.
 - Frontend: React, TypeScript, Vite, TanStack Query and AG Grid 35.3.1.
 - Backend: shared hosted Supabase/PostgreSQL project. Production project is `qsllyeztdwjgirsysgai`; never use retired Ohio project `ryltkzzernhwnojzouyb`.
 - Production pages: `https://dam.designflow.app/styles` and `https://dam.designflow.app/orders`. PopSG must continue to hide OrderList.
@@ -34,13 +34,13 @@ PopDAM is POP Creations' internal digital asset manager. Its Master Data page mi
 
 ## 3. What triggered this work
 
-On 2026-09-09 the page Find behavior was changed at PopDAM commit `629670862af0204d6640393c03e31c81baf1b8f4`: Find now navigates to and highlights matches while preserving surrounding rows. Albert then asked whether initial data could load faster and selected three improvements for one plan:
+Historical trigger (2026-09-09): page Find behavior changed at PopDAM commit `629670862af0204d6640393c03e31c81baf1b8f4` to navigate to and highlight matches while preserving surrounding rows. Albert then asked whether initial data could load faster and selected three improvements for one plan:
 
 1. render the first 4,000 Master Data rows immediately;
 2. stop, or defer, downloading unused Master Data database fields;
 3. implement a small governed database lookup for OrderList Find.
 
-The current symptom is perceived waiting, not missing or incorrect data. Reproduce on production by opening `/styles` with a cold browser cache and recording the time until the first usable rows and until the full active tab is searchable/filterable. For OrderList, type a term matching a row late in the current sort and inspect the number of network requests before the grid scrolls to the match.
+That historical symptom was perceived waiting, not missing or incorrect data. The production implementation now renders the first wave and continues loading; prior-release `f901017` timing and retry evidence is recorded above. Native proof passed on live release `9883315`; remaining Step 6 work is documentation/issue closeout; #275 is closed after role-based UI proof.
 
 ## 4. Scope — in and out
 
@@ -63,15 +63,15 @@ The current symptom is perceived waiting, not missing or incorrect data. Reprodu
 - Putting an OrderList exact-count request on the visible row-loading path, increasing statement timeouts, caching stale results, or hiding failures.
 - Editing `src/integrations/supabase/types.ts`; it is generated.
 - Adding migrations under PopDAM's historical `supabase/migrations/` or editing PopDAM's read-only `shared-db/` mirror.
-- Any production database write without Albert's explicit approval for the exact migration after preview proof.
+- No production database write without the assigned AI reviewer's explicit APPROVE on exact inputs and all required gates. Never ask a human for approval.
 
-## 5. Current state of the code
+## 5. Implementation baseline and current release
 
-Everything described here is committed, pushed and deployed on PopDAM `main` at `62967086`; this plan itself begins with no implementation work completed.
+The following source snapshots describe the plan-creation baseline, not current `main`. Steps 1–5 were deployed as `f901017`; their read/timing/retry results are historical. Fresh sessions resume at Step 6 for #281 documentation/issue closeout; native proof on live release `9883315` and the separate 53-check role-based UI proof for #275 have passed, and #275 is closed.
 
-### Master Data
+### Master Data baseline before Step 2
 
-- `src/pages/StylesPage.tsx:481-505`, `fetchRows(sourceSheet)`, reads `public.style_tracker_rows_with_bridge` with `.select("*")`.
+- Before PR #287, `src/pages/StylesPage.tsx:481-505`, `fetchRows(sourceSheet)`, read `public.style_tracker_rows_with_bridge` with `.select("*")`.
 - Each PostgREST range is 1,000 rows. Four ranges run concurrently, but `fetchRows` does not resolve until every wave has completed; TanStack Query therefore gives AG Grid no `rowData` until the full active tab is downloaded.
 - Production documentation records 12,527 Licensed and 3,207 Generic rows (`docs/MASTER_DATA.md:52-56`). The first Licensed load therefore waits for four waves rather than displaying the first 4,000 rows after wave one.
 - `src/lib/master-data-loading.ts` owns `MASTER_DATA_FETCH_BATCH_SIZE = 1000` and the full-batch continuation rule.
@@ -79,7 +79,7 @@ Everything described here is committed, pushed and deployed on PopDAM `main` at 
 - The view currently returns fields not present in `StyleRow` and not consumed by this page: `source_workbook_id`, `imported_at`, `created_at`, `updated_at`, `updated_by`, `bridge_id`, `match_confidence`, `last_matched_at`, `canonical_description`, `canonical_licensor_name`, `canonical_factory_name`, `style_group_sku`, and `erp_style_number`. Verify this list again against the current view and code before Step 3; do not delete a field based only on this snapshot.
 - Fields that look large or expensive but are required must stay: `row_data` drives flexible sheet columns and saves; `match_notes` drives per-field resolution state; `rfq_groups` is displayed and opens history; canonical customer/designer fields drive display and filtering; all IDs in `StyleRow` drive matching indicators and writes.
 
-### OrderList
+### OrderList baseline before Step 5
 
 - `src/components/orders/OrderListGrid.tsx` uses AG Grid's infinite row model and 500-row database blocks. Keep it.
 - `src/hooks/useOrderList.ts:74-96`, `applyOrderListShape`, applies allowlisted filter models, full-text Find clause, and stable sorting.
@@ -87,7 +87,7 @@ Everything described here is committed, pushed and deployed on PopDAM `main` at 
 - `src/hooks/useOrderList.ts:172-205`, `findOrderListRow`, first fetches one matching full row, then scans the filtered-but-unsearched list's IDs in 1,000-row ranges, six requests at a time, until it discovers the matching row's index. At current volume this can issue roughly 25 ID-range requests.
 - `src/pages/OrdersPage.tsx`, the search effect, calls `findOrderListRow`, changes pagination, scrolls to the returned index and highlights the returned ID. Preserve that customer-visible behavior and race cancellation.
 - `src/lib/order-list.ts:33-43` is the locked list of searchable columns; `buildOrderListFilters` and `buildOrderListSort` define the filter/sort semantics the RPC must match.
-- Shared-db issue `#2665` is already open with label `db-work`, type `structural`, route `shared-db-orchestrator`, write claim `public.find_dam_order_list_row`, and read claim `api.dam_order_list`.
+- Historical baseline: shared-db #2664 owned the completed Find-position migration. #2665 was a duplicate and is closed; do not restart Step 4 or reopen that issue. Any future structural change requires a fresh issue and claim-first ownership.
 
 ## 6. Key findings and root cause
 
@@ -96,7 +96,7 @@ Everything described here is committed, pushed and deployed on PopDAM `main` at 
 3. **Do not defer required row fields per cell.** Lazy cell-level fetches would add request storms, inconsistent Find/filter coverage and editing races. The useful split is first 4,000 rows versus remaining rows, not visible columns versus hidden columns.
 4. **OrderList's normal opening path is already bounded.** The slow opportunity is Find positioning, not initial rows. Loading the whole 53 MB view would reverse a deliberate production optimization.
 5. **The OrderList index belongs in the database.** PostgreSQL already owns the full filtered and sorted set and can calculate `row_number()` once. The browser should receive one `order_line_id` and zero-based `row_index`, not the ID of every preceding row.
-6. **The RPC is a structural shared-database contract.** It must be authored in `u2giants/shared-db` and land before dependent PopDAM code. App-side SQL, Dashboard SQL and direct production DDL are forbidden.
+6. **The RPC is a structural shared-database contract.** It must be authored in canonical `popcre/shared-db` and land before dependent PopDAM code. App-side SQL, Dashboard SQL and direct production DDL are forbidden.
 
 ## 7. Approaches considered and rejected
 
@@ -146,7 +146,7 @@ Dependencies: none. This baseline must precede performance edits.
 
 #### Step 2 — render the first 4,000 Master Data rows immediately
 
-The revised steps below describe the proposed correction, not current `main` behavior. Code and tests are prepared in the separate application commit `37577e9f3f41948041826a97bd636440621d42b0`; this documentation branch carries only the measured contract. Complete that application release before Step 6 live acceptance.
+PR #287 was deployed as `f901017`; its production timing/retry results are historical. PR #289's editor-safe repair is live as `9883315` and passed focused checks in both roles. Native workflow proof passed; Step 6 remains open for #281 documentation/issue closeout; #275 is closed after its role-based UI proof.
 
 1. Refactor `src/pages/StylesPage.tsx` into a page fetcher that returns one ordered page plus `hasNextPage`, with four non-overlapping 1,000-row ranges. Schedule `License.Style` ranges sequentially, completing each range's computed-status RPC before requesting the next; retain parallel requests for `Generic.Style`. Keep `source_row_number DESC` in every range.
 2. Replace `useQuery(["style-rows", active.name])` with `useInfiniteQuery` keyed by active sheet. Flatten `data.pages` with `useMemo`; do not resort client-side and do not duplicate rows.
@@ -172,26 +172,19 @@ Dependencies: Step 1. Can be developed in parallel with shared-db Step 4.
 Dependencies: Step 1; normally land with Step 2 because both touch `StylesPage.tsx`.  
 **You'll know it worked when:** network requests contain an explicit `select=` projection with no confirmed-unused fields; every Master Data behavior test passes; Licensed and Generic render/edit correctly; and the saved evidence contains before/after payload sizes.
 
-### Phase B — governed OrderList database lookup (Step 4)
+### Phase B — governed OrderList database lookup (Step 4, complete)
 
-#### Step 4 — add and land `public.find_dam_order_list_row`
+Shared-db PR #2748 merged migration `20260911081204` under issue #2664; the
+production catalog and signed-in RPC acceptance passed. Shared-db #2665 was a
+duplicate and is closed. Do not reopen either issue or repeat this phase. The
+RPC is authenticated-only, invoker-secure, bounded, and returns the matching
+`order_line_id` plus zero-based index under the app's existing filter, search,
+and stable-sort semantics. Any future structural change starts from a new
+shared-db issue, exact-object claim, isolated worktree, branch/PR, and current
+preview/promotion review gates.
 
-1. Do not author this from `/worksp/popdam`. Shared-db issue `#2665` is already queued. The active shared-db orchestrator must resolve its current marker, claim the exact object and dispatch the work into an isolated worktree.
-2. In `/worksp/shared-db`, read its live `AGENTS.md`, issue #2665 and existing `plan_popdam_order_list.md`. Check current migration-author claims and collisions before work.
-3. Add one new, uniquely timestamped migration above the current maximum. Never edit an applied migration.
-4. Create `public.find_dam_order_list_row(p_search text, p_filters jsonb default '[]'::jsonb, p_sorts jsonb default '[]'::jsonb)` returning `table(order_line_id uuid, row_index bigint)` (zero-based). If repository conventions require parameter-name or schema adjustment, preserve this behavioral contract and document the exact final signature before app work.
-5. Validate input shapes and allowlists before query construction. Filters must support the exact operators emitted by `buildOrderListFilters`: `eq`, `neq`, `ilike`, `not.ilike`, `gt`, `gte`, `lt`, `lte`, `is null`, and `not.is null`, including combined range conditions. Sorts accept only exposed OrderList columns and `asc`/`desc`; append `order_line_id ASC`; keep nulls last.
-6. Search exactly `ORDER_LIST_SEARCH_COLUMNS`: production order number, order status, customer PO, SKU, vendor, customer, container booking group, MBL and snapshot description. Treat `%`, `_`, backslash and punctuation exactly as the existing escaped literal substring search; blank input returns zero rows.
-7. Build the filtered set from `api.dam_order_list`, calculate `row_number() over (requested stable order) - 1`, then return the lowest-index row matching the search. Return no row when unmatched.
-8. Keep function security invoker (the default), set a safe search path per repo conventions, grant execute only to `authenticated` and `service_role` if operationally required, and revoke anon/public. Do not use SECURITY DEFINER to bypass the view's underlying RLS.
-9. Add or extend shared-db SQL contract tests covering: default sort; custom ascending/descending and multi-sort; stable ties; nulls last; text/number/date/blank/not-blank/range filters; multiple conditions; literal wildcard characters; blank search; no match; exact search-column scope; malformed/unknown input rejection; authenticated success; anon/public refusal; and low-privilege visibility.
-10. Run focused SQL/static checks, preview dry-run, prove preview ref immediately before apply, apply preview, run behavior tests and capture `EXPLAIN (ANALYZE, BUFFERS)` with safe fixtures. Obtain independent review required by shared-db, open PR, merge it, and record merge SHA. Do not write dependent PopDAM code before this contract lands.
-11. Production apply is a separate explicit owner gate. Present preview evidence and the exact migration/object/action to Albert in one request. After approval, use the shared-db bounded production promotion workflow; prove production ref immediately before apply and verify grants, signature, behavior and ledger.
-
-Dependencies: Step 1 baseline only. Runs independently of Steps 2–3, but must complete before Step 5.  
-**You'll know it worked when:** shared-db SQL tests and CI pass; preview returns the same ID/index as the old algorithm across the fixture matrix; the query is bounded and materially cheaper than the ID scan; PR is merged; and, after exact approval, production catalog/behavior/ledger show the migration applied.
-
-**Natural context cut point:** shared-db orchestration should be its own session. Update this STATUS table and handoff after merge/preview and again after production promotion. Re-read Steps 5–6 before app integration.
+Historical dependency: Step 1 baseline. This phase preceded Step 5 and is
+complete.
 
 ### Phase C — OrderList integration and landing (Steps 5–6)
 
@@ -215,7 +208,7 @@ Dependencies: Step 4 production contract.
 5. Perform signed-in production read-only/customer-safe QA on Licensed, Generic and OrderList: cold load, tab switch mid-load, cached return, Find before/after completion, column filter, saved view, edit-cancel path, default/custom sort and late OrderList Find. Do not save production edits solely for testing.
 6. Repeat Step 1 traces using the same browser/network conditions after the measured Licensed fix ships. Keep Licensed ranges sequential and Generic ranges parallel; prove the first visible rows, the completed four-range page, actual loaded-count/error/retry text, unchanged final counts/order, confirmed-unused fields absent, and OrderList Find behavior. Record actual timings rather than inventing a fixed percentage target; the single controlled comparison in the 2026-10-09 evidence is not a deployed-repair result or a reliability percentile.
 7. If any acceptance fails, fix forward or revert the exact app commit. Database rollback is a new forward migration revoking/dropping the new function only if no deployed app depends on it; never edit/remove the applied migration.
-8. Close PopDAM #121 only after production acceptance. Close shared-db #2665 per orchestrator rules only after its structure is merged/applied/verified. Delete this plan's handoff file when every obligation it describes is proven complete; keep or update the plan as durable history according to repo convention.
+8. Close the currently assigned application issue only after its acceptance gates. Shared-db #2664 is complete and #2665 is a closed duplicate; never reopen them for this delivery. Retire the handoff when no work remains; preserve this plan as durable history.
 
 Dependencies: Steps 2–5.  
 **You'll know it worked when:** all acceptance artifacts, CI run IDs, shared-db merge/apply evidence, PopDAM commit and live screenshots/traces are linked from the STATUS table; both issues are correctly closed; and no unfinished handoff remains.
@@ -268,9 +261,9 @@ Dependencies: Steps 2–5.
 ## 11. Constraints, standing rules and gotchas
 
 - Preserve concurrent work: inspect status, stage owned paths only, fetch/rebase rather than force-push, never broad reset/clean/stash.
-- PopDAM changes go directly to `main`. Shared-db uses the one orchestrator, isolated worktree, branch and PR; the AI merges after gates.
+- PopDAM changes use a feature branch and pull request, then merge through the normal protected path. Shared-db work is claim-first on a new/active issue, in an isolated worktree and governed branch/PR/preview lane.
 - Every shared-db write requires immediate target proof. Production project is Virginia `qsllyeztdwjgirsysgai`; never the retired Ohio project.
-- Albert's explicit approval is required for the exact production migration apply. Preview work and PR/merge do not imply production authority.
+- The migration in this completed plan is already applied. For any future production structural change, follow the live shared-db AI-reviewer gate and immediate target proof; never request human approval.
 - Never increase statement timeouts, suppress errors, weaken RLS, use SECURITY DEFINER to bypass callers, or replace complete behavior with partial silent results.
 - Master Data must remain editable by every signed-in user; do not narrow its policy.
 - Do not add browser-side direct database SQL, migrations in PopDAM, or changes to generated types.
@@ -283,13 +276,13 @@ Dependencies: Steps 2–5.
 
 ## 12. Access and environment
 
-- Local app checkout: `/worksp/popdam`; install with existing lockfile, run `npm run dev -- --host 127.0.0.1`, tests with `npm test -- --run`, build with `npm run build`.
-- Canonical DB checkout: `/worksp/shared-db`. Do not work directly in its shared checkout; the orchestrator creates an isolated worktree.
-- GitHub CLI is authenticated for `u2giants`; verify before mutation. Tracking issues already exist: PopDAM #121 and shared-db #2665.
+- For local app development, create a dedicated worktree from current upstream and use the repository lockfile; do not assume `/worksp/popdam` is the active checkout.
+- Canonical DB repository: `popcre/shared-db`. Do not work directly in a shared checkout; create an isolated worktree after claiming exact objects on the active issue.
+- The original performance tracking issue is PopDAM #121. For the current integration's remaining acceptance, use existing PopDAM #281. Shared-db #2664 is complete and #2665 is a closed duplicate; never reopen them for this work.
 - Supabase CLI access, project refs and database passwords are documented in `/worksp/shared-db/AGENTS.md`. Tokens/passwords are in 1Password vault `vibe_coding`, including `Supabase CLI Personal Access Token`, `Supabase DB Password - shared POP database`, and the current preview password item. Never put values in argv, chat, docs or commits; follow the repo's protected injection commands.
 - Production frontend is `https://dam.designflow.app`. Use an existing dedicated signed-in test account from the approved 1Password item referenced by the app's auth/QA documentation; do not inspect personal browser state.
-- Production infrastructure and database are read-only by default. The only planned production mutation is the exact new shared-db migration after Albert approves it in the current implementation chat.
-- At plan creation, PopDAM `main` is `62967086`; implementation must fetch and re-check current heads, open issues, orchestrator marker and schema because these drift.
+- The planned shared-db production migration is complete. No additional production mutation is authorized by this plan. Any new schema work starts from a fresh claim-first shared-db issue and current AI-reviewer gates.
+- The `62967086` baseline is historical. Before future source changes, check current heads and issue state; structural database changes additionally require claim-first object ownership in canonical shared-db.
 
 ## 13. Definition of done, risks and open questions
 
@@ -299,12 +292,12 @@ Dependencies: Steps 2–5.
 - [ ] Licensed/Generic final counts and ordering match production truth; no duplicates or omissions.
 - [ ] Explicit Master Data projection excludes every confirmed-unused field and retains every required behavior.
 - [ ] Before/after traces demonstrate actual first-use and payload improvement.
-- [ ] Shared-db RPC is validated, allowlisted, invoker-secure, tested, preview-proven, reviewed, merged, explicitly production-approved, applied and ledger/catalog/behavior verified.
+- [ ] Shared-db RPC is validated, allowlisted, invoker-secure, tested, preview-proven, reviewed, merged, applied under the governed AI-reviewer lane and ledger/catalog/behavior verified.
 - [ ] OrderList Find uses one position RPC, respects current filters/sort/search scope, and highlights the correct row with surrounding rows.
 - [ ] Required PopDAM/shared-db tests, lint/build and CI pass.
 - [ ] Docs and this STATUS table are current with artifact-backed evidence.
 - [ ] PopDAM commit is pushed/deployed and exact live frontend build is verified; signed-in visual QA passes.
-- [ ] PopDAM #121 and shared-db #2665 are closed only after their acceptance gates; handoff is retired when nothing remains.
+- [ ] Close only the currently assigned issue after its own acceptance gates; the duplicate shared-db #2665 is already closed and must not be reopened. Retire the handoff when no work remains.
 
 ### Risks and rollback
 
@@ -316,16 +309,16 @@ Dependencies: Steps 2–5.
 - **Deployment skew:** app may deploy before PostgREST sees the RPC. Sequence database production first; retain only the narrowly classified temporary missing-function fallback.
 - **Rollback:** frontend can revert `main` normally. Applied migrations are immutable; database rollback is a reviewed forward migration and only after dependency inspection.
 
-### Owner decision required
+### Historical production gate — complete
 
-Albert must explicitly approve applying the exact `public.find_dam_order_list_row` migration to production after preview evidence is ready. Recommendation: approve when shared-db tests, low-privilege permission proof, query plan and result-parity evidence all pass. This blocks Step 5 production integration and Step 6 closure, not Master Data Steps 1–3.
+The exact `public.find_dam_order_list_row` migration has been applied and verified in production through the governed shared-db lane. Do not reactivate its old approval text or request another owner decision. Native proof artifacts on live release `9883315` passed; Step 6 remains open for #281 documentation/issue closeout; #275 is closed after role-based UI proof.
 
 ### Already settled — do not re-ask
 
 - 2026-09-10: implement all three improvements under this one plan.
 - 2026-09-10: show the first 4,000 Master Data rows, then background-load the rest.
 - 2026-09-10: preserve full data and existing features; do not turn performance work into filtering or capability loss.
-- 2026-09-10: route the OrderList lookup through governed shared-db; issue #2665 is already filed.
+- 2026-09-10: route the OrderList lookup through governed shared-db; completed through #2664. Issue #2665 was a duplicate and is closed.
 
 ## Mandatory self-audit — PASSED
 
