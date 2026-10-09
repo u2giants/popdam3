@@ -291,3 +291,18 @@ Verified during the 2026-08-02 RFQ Group rollout:
 - ✅ Per-user saved grid views are implemented and durable in canonical
   shared-db migration `20260710135600_reconcile_style_tracker_tables.sql`.
 - Move the temporary Master Data tables/RPCs into a cleaner PLM bridge namespace or replace them when PLM lands in the shared Supabase project.
+
+
+## OrderList integration delivery (2026-10-09)
+
+The full native Sheets integration is being delivered on
+[u2giants/popdam3#281](https://github.com/u2giants/popdam3/issues/281), with the
+backend tracked on [popcre/shared-db#4111](https://github.com/popcre/shared-db/issues/4111).
+It is not yet deployed. See [ORDER_LIST.md](ORDER_LIST.md#native-sheets-integration-delivery-2026-10-09-issue-281)
+for verified native connections, the serving contract and remaining acceptance.
+Master Data operational inputs remain the owner of product workflow; PO-level
+manual tracking remains in OrderList. Reverse VendorStatistics is a read-only
+purchase-header summary, using the native 14-month activity window. Derived
+licensing progress must be displayed through the bounded shared calculation
+and made read-only, including bulk-edit guards, without replacing the existing
+Master Data serving view or its other consumers.

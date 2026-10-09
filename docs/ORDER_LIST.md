@@ -288,3 +288,59 @@ zero linked order items are absent from the refreshed Styles bridge.
 
 The import-snapshot fallback now applies to the 10 unmatched historical lines
 and remains necessary when a new order arrives before its item does.
+
+
+## Native Sheets integration delivery (2026-10-09, issue #281)
+
+**Status: in progress, not yet deployed.** Application acceptance stays on
+[u2giants/popdam3#281](https://github.com/u2giants/popdam3/issues/281); the
+shared backend contract is [popcre/shared-db#4111](https://github.com/popcre/shared-db/issues/4111).
+The new named verification contract must land in protected tooling first
+([#4130](https://github.com/popcre/shared-db/issues/4130)). Reviewed source and
+passing local/CI tests are not evidence that production has changed.
+
+The native formula inventory was read from the live workbooks rather than
+cached XLSX formula results. The implementation boundary is OrderList,
+POTracking and its expanded ItemTracking details, SAMPLE lookup, customer suffix
+lookup and the Master Data VendorStatistics import. Master Data OrderLog,
+OrderSample and NotSoldIn are internal workbook helpers, not additional
+cross-workbook connections. The authority rules belong in the companywide
+[ERP orders and source meaning](https://github.com/popcre/shared-db/blob/main/docs/business-rules/erp-orders-and-source-meaning.md)
+topic; this document records the DAM implementation and acceptance boundary.
+
+Required serving behavior:
+
+- Item Master supplies product description. Current Master Data supplies
+  licensing progress, default/sample vendor, test report, professional photos
+  and contractual-sample reorder. Missing or conflicting current records remain
+  unavailable; frozen import values have separate historical fields.
+- POTracking supplies its manual header inputs and documents/payment facts;
+  ItemTracking components inherit those header facts. Calculated case totals,
+  forecasts, warehouse dates, delays, inspection/SVN and booking identifiers
+  remain read-only. Assortment physical-parent quantities are counted once;
+  unknown component quantities are never manufactured.
+- Latest nonblank positive sample depth is keyed by normalized style/customer;
+  raw invalid values and provenance remain available. Customer suffix settings
+  are manual inputs. David/Contractual sample overrides remain explicit.
+- VendorStatistics returns purchase-header counts, closed/open counts, latest
+  noncancelled sent-PO date and the native 14-month activity window to Master
+  Data. ColdLion sales-history placeholders are excluded from purchase tracking.
+
+The initial auxiliary-source payload contains 8,257 sample bindings, 38 customer
+suffix settings and 3,147 exact-matched tracking records. It deliberately
+excludes 71 missing PO references and three duplicate tracking rows after the
+first source match. Twelve of those missing references are already held by the
+separate Google refresh exception task (#277). Loading must revalidate the
+exact source digest, target identity, empty destination tables, canonical
+PO IDs/numbers, expected counts and recovery snapshot in one guarded transaction.
+Canonical Item Master, Master Data rows and existing PO dates are not seeded
+or overwritten by this auxiliary load.
+
+Backend acceptance requires governed preview/production application, exact
+catalog and ordinary authenticated-role proof. App acceptance additionally
+requires bounded screen queries, admin-only manual controls, explicit unknown
+workflow display, cross-screen refresh, preserved OrderList Find/saved views,
+passing tests/review, shipment and authenticated administrator/viewer visual
+proof. All acceptance remains unchecked until verified on the same issues.
+
+Execution plan: [native Sheets integration](../plan_orderlist_sheets_full_integration.md), with current STATUS and its own session handoff.
