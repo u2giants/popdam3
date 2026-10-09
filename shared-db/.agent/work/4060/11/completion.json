@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "work_issue": 4060,
+  "outcome": "ready-for-merge",
+  "pr": 4129,
+  "migration_versions": [
+    "20261009064439"
+  ],
+  "contract_ref": "refs/db-contracts/4060/11",
+  "contract_sha256": "7042e175ac1f0eece2a5a061ebcea0897a9279d32721cf5315457e76f7d2fd77",
+  "head_sha": "afb37a1e3ed5bff6a6e0d05d39c8d4c73e5b1d1a",
+  "base_sha": "23e3901ddbd4d60f565602ef09ec6014baa4d9bf",
+  "files_changed": [
+    ".github/workflows/shared-db-4060-observation.yml",
+    "scripts/production_migration_guard.py",
+    "scripts/test_dflow_users_email_ci_unique_forward.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20261009064439_dflow_users_email_ci_unique_forward.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "index dflow.users_email_lower_uidx",
+    "table dflow.users"
+  ],
+  "checks": [
+    {
+      "command": "20 PG16 isolated source regressions zero skips",
+      "exit_code": 0,
+      "evidence": "Owned hosted-equivalent PG16 service: all20 source regressions PASS zero skips after shallow checkout repair; producer11PASS on samefixture; container removed. Missing old Git object static fixture PASS and tampered historical bytes refuse. Exact reviewed SHA256361a127d70a9a19cbb7f7999a9d6f0931edb509ab83c0b358a0ae1384e31a418 requires original090 bytes, new064439 byte-equality. No skips, fetch/network or workflowdepth changes. HostedCI original20 soleGitobjectfailure preserved; newhostedCI pending."
+    },
+    {
+      "command": "Production guard/unit/catalog regressions including retirement and immutable byte-copy checks",
+      "exit_code": 0,
+      "evidence": "683PASS:304guard+142app+237catalog. Exact newretirement evidence verified; retired090 parseallowlist refuses; historical070/081/090 unchanged."
+    },
+    {
+      "command": "Canonical derive_targets exact email index/users table",
+      "exit_code": 0,
+      "evidence": "Actual064439 migration derives indexes=[('dflow.users_email_lower_uidx','dflow.users')],tables=['dflow.users']; no lexer/noop change."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "WhitespacePASS, SQLstaticPASS; bounded workflowwatcherglob covers old090/new064439, excludes unrelatedSQL."
+    },
+    {
+      "command": "Canonical full Git evidence",
+      "exit_code": 0,
+      "evidence": "Validate actual final evidence tail and full PRdiff/base/immutable parent10/11 before returning finalHEAD; no live authority claimed."
+    }
+  ],
+  "assumptions_resolved": [
+    "Root supported sameowner4117 reissue retirement6d51/new064439; original090SQL retained byte-identical361a127d70a9a19cbb7f7999a9d6f0931edb509ab83c0b358a0ae1384e31a418.",
+    "Gen10 published before initialfour source edits; gen11 published before mandatoryretiredsetfixture/workflowwatcher correction. Immutable gen9/gen10 refs preserved; no localgen10pair existed.",
+    "SourceSQLcontract and workflowruntime unchanged; only bounded forwardfilename watcherglob. Original4075 REVISE and allhistoricalSQL/evidence remain intact.",
+    "Production guard dualdispatch/checkout producer pin remains strict. Root canonical currentanti-collision MERGEFIRST ruling supersedes earlier premergepreview instruction. New064439 unapplied until guardedmerge then exactmergedcurrentmainrehearsal. No credentials/preview/production/appwrites executed.",
+    "Sourceimplementation77e86 contains exactly6sourcepaths, newPR4129 actualDRAFT. Freshreview/CI/guardedmerge/mergedmainpreview/risk/producerbackendpins/production/appacceptance remain root-owned.",
+    "Preserved prior1caf pair/failure/receipts privately. Ordinary implementation correction removes only ownunmergedpair then byte-identical publishedcontract and truthfulreport follow as2filetail;77e86/1caf ancestors retained, no amend/rebase/force."
+  ],
+  "stop_conditions_hit": []
+}
