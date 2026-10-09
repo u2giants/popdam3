@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import xml.etree.ElementTree as ET
+from zipfile import ZipFile
 from datetime import date, datetime, time
 from decimal import Decimal
 from pathlib import Path
@@ -17,6 +19,7 @@ from typing import Any
 
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
+from openpyxl.styles.numbers import is_date_format
 
 
 WORKBOOK_ID = "1ZL6cEwydC0cWSGP2I92uILn1ixILr_qAeDfDfD6F214"
@@ -146,6 +149,59 @@ def validate_headers(sheet_name: str, worksheet: Any) -> None:
         raise SystemExit(f"{sheet_name} column layout changed; refusing a shifted import: {'; '.join(mismatches)}")
 
 
+def extended_excel_date(serial: str, epoch: datetime) -> str:
+    """Preserve display dates beyond Python's year 9999 without guessing a year."""
+    value = Decimal(serial)
+    if not value.is_finite() or value != value.to_integral_value():
+        raise ValueError("Unsupported out-of-range fractional date; refusing data loss")
+    # Gregorian civil date from days since 1970 (400-year eras, no datetime limit).
+    z = int(value) - (24107 if epoch.year == 1904 else 25569) + 719468
+    era = z // 146097
+    doe = z - era * 146097
+    yoe = (doe - doe // 1460 + doe // 36524 - doe // 146096) // 365
+    year = yoe + era * 400
+    doy = doe - (365 * yoe + yoe // 4 - yoe // 100)
+    mp = (5 * doy + 2) // 153
+    day = doy - (153 * mp + 2) // 5 + 1
+    month = mp + (3 if mp < 10 else -9)
+    year += month <= 2
+    return f"{month}/{day}/{year}"
+
+
+def raw_overflow_values(path: Path, sheet_name: str) -> dict[str, str]:
+    """Read original numeric cells which openpyxl may replace with #VALUE!."""
+    ns = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    with ZipFile(path) as archive:
+        wb = ET.fromstring(archive.read("xl/workbook.xml"))
+        relationship = next(s.attrib["{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"]
+                            for s in wb.findall("m:sheets/m:sheet", ns) if s.attrib["name"] == sheet_name)
+        rels = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+        target = next(r.attrib["Target"] for r in rels if r.attrib["Id"] == relationship)
+        member = target.lstrip("/") if target.startswith("/") else "xl/" + target
+        result = {}
+        with archive.open(member) as stream:
+            for _, cell in ET.iterparse(stream, events=("end",)):
+                if cell.tag == "{" + ns["m"] + "}c":
+                    raw = cell.find("m:v", ns)
+                    if cell.attrib.get("t", "n") == "n" and raw is not None and raw.text:
+                        try:
+                            value = Decimal(raw.text)
+                            if value.is_finite() and value > 2958465:
+                                result[cell.attrib["r"]] = raw.text
+                        except ArithmeticError:
+                            pass
+                    cell.clear()
+                elif cell.tag == "{" + ns["m"] + "}row":
+                    cell.clear()
+        return result
+
+
+def cell_display(cell: Any, overflow: dict[str, str], epoch: datetime) -> Any:
+    if cell.coordinate in overflow and is_date_format(cell.number_format):
+        return extended_excel_date(overflow[cell.coordinate], epoch)
+    return display_value(cell.value)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("xlsx", type=Path)
@@ -164,8 +220,9 @@ def main() -> None:
             worksheet = workbook[sheet_name]
             validate_headers(sheet_name, worksheet)
             count = 0
+            overflow = raw_overflow_values(args.xlsx, sheet_name)
             for row_number, cells in enumerate(worksheet.iter_rows(min_row=3), start=3):
-                by_letter = {get_column_letter(cell.column): display_value(cell.value) for cell in cells if cell.value is not None}
+                by_letter = {get_column_letter(cell.column): cell_display(cell, overflow, workbook.epoch) for cell in cells if cell.value is not None}
                 if not any(is_business_value(by_letter.get(letter)) for letter in config["business_columns"]):
                     continue
 
