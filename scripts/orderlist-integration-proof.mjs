@@ -1,0 +1,456 @@
+import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  BASELINE_EVIDENCE,
+  createGeneratedTypesProof,
+  createLiveProof,
+  FRONTEND_BUILD_PATHS,
+  PRODUCTION_ORIGIN,
+  PRODUCTION_PROJECT,
+  validateBaselineEvidence,
+  validateBuildBinding,
+} from "./orderlist-integration-proof-contract.mjs";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const outputRoot = process.env.ORDERLIST_PROOF_OUTPUT_DIR;
+const productionUrl = PRODUCTION_ORIGIN;
+const projectHost = `${PRODUCTION_PROJECT}.supabase.co`;
+const watchedEndpoints = new Set([
+  "dam_order_list", "get_dam_order_tracking", "dam_order_sample_depth",
+  "dam_order_customer_settings", "dam_order_vendor_statistics",
+  "style_tracker_rows_with_bridge", "get_dam_style_tracker_license_status",
+]);
+const blockedMutationEndpoints = new Set([
+  "update_dam_order_tracking", "upsert_dam_order_sample_depth", "upsert_dam_order_customer_settings",
+]);
+const checkLabels = [];
+let stage = "startup";
+
+function assert(condition, label) {
+  checkLabels.push(label);
+  if (!condition) throw new Error(`acceptance check failed: ${label}`);
+}
+
+function runGit(args) {
+  return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+}
+
+function preflight() {
+  const workflowSha = process.env.GITHUB_SHA ?? "";
+  const deployedFrontendSha = process.env.DEPLOYED_FRONTEND_SHA ?? "";
+  const ref = process.env.GITHUB_REF ?? "";
+  const isAncestor = runGit(["merge-base", "--is-ancestor", deployedFrontendSha, workflowSha]) === "";
+  const frontendTreeEqual = runGit(["diff", "--quiet", deployedFrontendSha, workflowSha, "--", ...FRONTEND_BUILD_PATHS]) === "";
+  const binding = validateBuildBinding({ ref, workflowSha, deployedFrontendSha, isAncestor, frontendTreeEqual, observedToken: deployedFrontendSha.slice(0, 7) });
+  process.stdout.write(`PROOF_WORKFLOW_SHA=${binding.workflowSha}\nPROOF_FRONTEND_SHA=${binding.deployedFrontendSha}\nPROOF_BUILD_TOKEN=${binding.buildToken}\n`);
+}
+
+function validateDatabaseTarget() {
+  if (process.env.SUPABASE_PROJECT_ID !== PRODUCTION_PROJECT) throw new Error("configured Supabase project is not the required production project");
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_URL.replace(/\/$/, "") !== `https://${projectHost}`) throw new Error("configured Supabase URL is not the required production project");
+}
+
+function verifyProject() {
+  validateDatabaseTarget();
+  process.stdout.write("PRODUCTION_PROJECT_VERIFIED\n");
+}
+
+async function verifyTypes() {
+  validateDatabaseTarget();
+  const typePath = process.env.GENERATED_TYPES_PATH;
+  const proofPath = process.env.GENERATED_TYPES_PROOF_PATH;
+  const sha = process.env.GITHUB_SHA ?? "";
+  if (!typePath || !proofPath || !/^[0-9a-f]{40}$/i.test(sha)) throw new Error("generated-types proof paths or exact workflow SHA are missing");
+  const source = await readFile(typePath, "utf8");
+  const proof = createGeneratedTypesProof({ source, applicationCommitSha: sha });
+  await mkdir(dirname(proofPath), { recursive: true, mode: 0o700 });
+  await writeFile(proofPath, `${JSON.stringify(proof, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+  process.stdout.write(`PASS: production generated types verified; sha256=${proof.generated_types_sha256}\n`);
+}
+
+async function verifyBaselineEvidence() {
+  const evidencePath = process.env.BASELINE_EVIDENCE_PATH;
+  if (!evidencePath) throw new Error("baseline evidence output path is missing");
+  const apiBase = process.env.GITHUB_API_URL ?? "https://api.github.com";
+  const request = async (path) => {
+    const response = await fetch(`${apiBase}${path}`, { headers: { accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28" } });
+    if (!response.ok) throw new Error(`GitHub baseline evidence lookup failed (${response.status})`);
+    return response.json();
+  };
+  const repository = BASELINE_EVIDENCE.repository;
+  const lookup = async (kind) => {
+    const expected = BASELINE_EVIDENCE[kind];
+    const [run, artifact, comment] = await Promise.all([
+      request(`/repos/${repository}/actions/runs/${expected.runId}`),
+      request(`/repos/${repository}/actions/artifacts/${expected.artifactId}`),
+      request(`/repos/${repository}/issues/comments/${expected.commentId}`),
+    ]);
+    return { run, artifact, comment };
+  };
+  const [preview, production] = await Promise.all([lookup("preview"), lookup("production")]);
+  const evidence = { repository, head_sha: BASELINE_EVIDENCE.headSha, preview, production };
+  const proofFields = validateBaselineEvidence(evidence);
+  await mkdir(dirname(evidencePath), { recursive: true, mode: 0o700 });
+  await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+  process.stdout.write(`PASS: immutable preview/production evidence verified; preview_run=${proofFields.preview_run_id}; production_run=${proofFields.production_run_id}\n`);
+}
+
+function rows(value) { return Array.isArray(value) ? value : []; }
+function normalized(value) { return String(value ?? "").trim().toLowerCase(); }
+function shown(value) { return value == null || value === "" ? "Unknown" : String(value); }
+function yesNo(value) { return value === true ? "Yes" : value === false ? "No" : "Unknown"; }
+function dataCellValue(value) { return value == null || value === "" ? "Unknown" : String(value); }
+
+function watchApi(page, forbiddenWrites) {
+  const events = [];
+  page.on("response", (response) => {
+    let url;
+    try { url = new URL(response.url()); } catch { return; }
+    if (url.hostname !== projectHost || !url.pathname.startsWith("/rest/v1/")) return;
+    const endpoint = url.pathname.split("/").at(-1);
+    if (!watchedEndpoints.has(endpoint)) return;
+    events.push({ endpoint, status: response.status(), request: response.request(), json: response.json().catch(() => null) });
+  });
+  page.on("request", (request) => {
+    let url;
+    try { url = new URL(request.url()); } catch { return; }
+    const endpoint = url.pathname.split("/").at(-1);
+    if (url.hostname === projectHost && blockedMutationEndpoints.has(endpoint)) forbiddenWrites.push(endpoint);
+  });
+  async function waitFor(endpoint, predicate, start = 0) {
+    const deadline = Date.now() + 25_000;
+    while (Date.now() < deadline) {
+      for (const event of events.slice(start).filter((entry) => entry.endpoint === endpoint).reverse()) {
+        const data = await event.json;
+        if (event.status >= 200 && event.status < 300 && predicate(data)) return { data, event };
+      }
+      await page.waitForTimeout(100);
+    }
+    throw new Error(`timed out waiting for authenticated ${endpoint} response`);
+  }
+  return { events, waitFor };
+}
+
+async function fetchOrderListCandidate(session, filters, label) {
+  const { page, api } = session;
+  const event = [...api.events].reverse().find((entry) => entry.endpoint === "dam_order_list");
+  if (!event) throw new Error(`${label}: no authenticated OrderList request is available`);
+  const headers = await event.request.allHeaders();
+  delete headers.range;
+  delete headers.prefer;
+  headers["accept-profile"] = "api";
+  const params = new URLSearchParams({
+    select: "order_line_id,production_order_number,item_id,item_description,item_name,master_data_license_status,snapshot_license_status,snapshot_description",
+    limit: "1",
+    ...filters,
+  });
+  const url = new URL(`/rest/v1/dam_order_list?${params}`, `https://${projectHost}`);
+  const response = await page.request.get(url.href, { headers, timeout: 15_000 });
+  if (!response.ok()) throw new Error(`${label}: authenticated bounded OrderList candidate query failed (${response.status()})`);
+  const data = rows(await response.json());
+  if (data.length !== 1) throw new Error(`${label}: bounded query did not return exactly one existing row`);
+  return data[0];
+}
+
+async function navigateToExistingOrderRow(page, api, row, role, label) {
+  if (!row?.order_line_id || !row.production_order_number) throw new Error(`${label}: existing candidate is missing its ordinary OrderList identity`);
+  const start = api.events.length;
+  await page.getByLabel("Find in orders").fill(String(row.production_order_number));
+  await api.waitFor("dam_order_list", (data) => rows(data).some((entry) => entry.order_line_id === row.order_line_id), start);
+  return revealOrderRow(page, row);
+}
+
+async function installWriteBlock(context) {
+  await context.route(`https://${projectHost}/rest/v1/rpc/**`, async (route) => {
+    const endpoint = new URL(route.request().url()).pathname.split("/").at(-1);
+    if (blockedMutationEndpoints.has(endpoint)) {
+      await route.abort("blockedbyclient");
+      return;
+    }
+    await route.continue();
+  });
+}
+
+async function login(chromium, email, password, role) {
+  const context = await chromium.newContext({ viewport: { width: 1600, height: 1000 } });
+  await installWriteBlock(context);
+  const page = await context.newPage();
+  const forbiddenWrites = [];
+  const api = watchApi(page, forbiddenWrites);
+  await page.goto(new URL("/login", productionUrl).href, { waitUntil: "domcontentloaded" });
+  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[type="password"]').fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.waitForURL((url) => !url.pathname.includes("login"), { timeout: 30_000 });
+  const stamps = (await page.locator("header span.font-mono").allInnerTexts()).map((text) => text.trim().split(/\s+/)[0]);
+  const deployedSha = process.env.DEPLOYED_FRONTEND_SHA;
+  assert(stamps.includes(deployedSha.slice(0, 7)), `${role} sees exact deployed frontend stamp`);
+  assert(await page.getByText(/Connected to a non-production database/).count() === 0, `${role} sees no nonproduction banner`);
+  return { context, page, api, role, forbiddenWrites };
+}
+
+async function revealHorizontally(page, target) {
+  const viewport = page.locator(".ag-body-horizontal-scroll-viewport").first();
+  await viewport.waitFor();
+  const size = await viewport.evaluate((element) => ({ width: element.clientWidth, total: element.scrollWidth }));
+  const maxSteps = Math.min(60, Math.ceil(Math.max(0, size.total - size.width) / Math.max(1, size.width * 0.65)) + 2);
+  for (let step = 0; step <= maxSteps; step += 1) {
+    const targetBox = await target.boundingBox().catch(() => null);
+    const viewportBox = await viewport.boundingBox();
+    if (targetBox && viewportBox && targetBox.x >= viewportBox.x && targetBox.x + targetBox.width <= viewportBox.x + viewportBox.width) return true;
+    const current = await viewport.evaluate((element) => element.scrollLeft);
+    const max = await viewport.evaluate((element) => element.scrollWidth - element.clientWidth);
+    if (current >= max) break;
+    await viewport.evaluate((element) => { element.scrollLeft = Math.min(element.scrollWidth - element.clientWidth, element.scrollLeft + element.clientWidth * 0.65); });
+    await page.waitForTimeout(100);
+  }
+  return false;
+}
+
+async function revealOrderRow(page, row) {
+  await page.getByLabel("Find in orders").fill(String(row.production_order_number));
+  const target = page.locator(`.ag-center-cols-container .ag-row[row-id="${row.order_line_id}"]`);
+  await target.waitFor({ timeout: 20_000 });
+  const viewport = page.locator(".ag-body-viewport").first();
+  await viewport.waitFor();
+  const dims = await viewport.evaluate((element) => ({ height: element.clientHeight, max: element.scrollHeight - element.clientHeight }));
+  const maxSteps = Math.min(80, Math.ceil(Math.max(0, dims.max) / Math.max(1, dims.height * 0.7)) + 2);
+  for (let step = 0; step <= maxSteps; step += 1) {
+    const rowBox = await target.boundingBox().catch(() => null);
+    const viewportBox = await viewport.boundingBox();
+    if (rowBox && viewportBox && rowBox.y >= viewportBox.y && rowBox.y + rowBox.height <= viewportBox.y + viewportBox.height) return target;
+    const current = await viewport.evaluate((element) => element.scrollTop);
+    const max = await viewport.evaluate((element) => element.scrollHeight - element.clientHeight);
+    if (current >= max) break;
+    await viewport.evaluate((element) => { element.scrollTop = Math.min(element.scrollHeight - element.clientHeight, element.scrollTop + element.clientHeight * 0.7); });
+    await page.waitForTimeout(100);
+  }
+  throw new Error("selected bounded OrderList row could not be brought into view");
+}
+
+async function checkOrderList(role, session) {
+  const { page, api } = session;
+  stage = `${role}: OrderList current link and description`;
+  await page.goto(new URL("/orders", productionUrl).href);
+  const start = api.events.length;
+  const response = await api.waitFor("dam_order_list", (data) => rows(data).length > 0, start);
+  const resultRows = rows(response.data);
+  assert(resultRows.length <= 500, `${role} OrderList response stays within its bounded block`);
+  const linked = resultRows.find((row) => row?.order_line_id && row?.production_order_number && row.item_id && (row.item_description || row.item_name) && ["matched", "manual"].includes(row.master_data_match_status));
+  assert(Boolean(linked), `${role} bounded OrderList page contains a linked Item Master description`);
+  assert(linked.item_id && (linked.item_description || linked.item_name), `${role} linked row retains canonical Item Master identity and description`);
+  const exact = resultRows.find((row) => row.production_order_number === linked.production_order_number && row.order_line_id === linked.order_line_id);
+  assert(Boolean(exact), `${role} selected OrderList row came from the actual bounded API response`);
+  const gridRow = await navigateToExistingOrderRow(page, api, linked, role, `${role} linked current Item Master row`);
+  const descriptionHeader = page.locator('.ag-header-cell[col-id="master_data_description"] .ag-header-cell-text');
+  assert(await revealHorizontally(page, descriptionHeader), `${role} reveals current Master Data description column`);
+  const descriptionCell = gridRow.locator('.ag-cell[col-id="master_data_description"]');
+  assert(await revealHorizontally(page, descriptionCell), `${role} reveals same-row current Item Master description`);
+  const expectedDescription = String(linked.item_description || linked.item_name);
+  assert((await descriptionCell.innerText()).trim() === expectedDescription, `${role} current OrderList description matches the linked API record`);
+  stage = `${role}: current Unknown distinct from imported history`;
+  const unknown = await fetchOrderListCandidate(session, {
+    item_id: "not.is.null",
+    master_data_license_status: "is.null",
+    snapshot_license_status: "not.is.null",
+  }, `${role} current Unknown`);
+  assert(unknown.item_id && unknown.master_data_license_status == null && unknown.snapshot_license_status != null, `${role} bounded API row keeps current Unknown separate from imported status`);
+  const unknownGridRow = await navigateToExistingOrderRow(page, api, unknown, role, `${role} linked current Unknown row`);
+  const currentCell = unknownGridRow.locator('.ag-cell[col-id="master_data_license_status"]');
+  assert(await revealHorizontally(page, currentCell), `${role} reveals current workflow cell for linked unknown`);
+  assert((await currentCell.innerText()).trim() === "Unknown", `${role} current linked workflow remains Unknown`);
+
+  stage = `${role}: unlinked import snapshot label`;
+  const snapshot = await fetchOrderListCandidate(session, {
+    item_id: "is.null",
+    snapshot_description: "not.is.null",
+  }, `${role} unlinked snapshot`);
+  assert(!snapshot.item_id && snapshot.snapshot_description, `${role} bounded API row remains an unlinked historical snapshot`);
+  const snapshotGridRow = await navigateToExistingOrderRow(page, api, snapshot, role, `${role} unlinked snapshot row`);
+  const snapshotCell = snapshotGridRow.locator('.ag-cell[col-id="master_data_description"]');
+  assert(await revealHorizontally(page, snapshotCell), `${role} reveals unlinked snapshot description`);
+  assert((await snapshotCell.innerText()).includes("at import"), `${role} unlinked historical description is marked at import`);
+  return resultRows;
+}
+
+async function checkTracking(role, session) {
+  const { page, api } = session;
+  stage = `${role}: tracking`;
+  await page.goto(new URL("/orders", productionUrl).href);
+  const start = api.events.length;
+  await page.getByRole("button", { name: "PO Tracking", exact: true }).click();
+  const received = await api.waitFor("get_dam_order_tracking", (data) => rows(data).length > 0, start);
+  const pageRows = rows(received.data);
+  const body = received.event.request.postDataJSON();
+  assert(pageRows.length <= 50 && Number(body?.p_limit) <= 50 && Number(body?.p_limit) > 0, `${role} tracking query is authenticated and capped at 50 rows`);
+  assert(received.event.request.headers()["authorization"]?.startsWith("Bearer "), `${role} tracking request includes a signed-in bearer token`);
+  const record = pageRows.find((row) => row.order_id && row.production_order_number);
+  assert(Boolean(record), `${role} tracking response includes an existing purchase order`);
+  const row = page.getByRole("button", { name: String(record.production_order_number), exact: true });
+  await row.waitFor();
+  const tr = row.locator("xpath=ancestor::tr");
+  assert(await tr.count() === 1, `${role} tracking PO is visible in the same authenticated result`);
+  assert((await tr.innerText()).includes(shown(record.vendor_name)), `${role} visible tracking vendor matches same API row`);
+  if (role === "Administrator") {
+    assert(await tr.getByRole("button", { name: "Edit", exact: true }).count() === 1, "Administrator sees the tracking editor control");
+    await tr.getByRole("button", { name: "Edit", exact: true }).click();
+    await page.getByRole("button", { name: "Edit PO tracking", exact: true }).click();
+    for (const field of ["PO sent date", "MBL", "Close tracking", "CBM", "Comment", "Invoice", "Payment note"]) assert(await page.getByLabel(field, { exact: true }).count() > 0, `Administrator can open tracking field ${field}`);
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+  } else {
+    assert(await tr.getByRole("button", { name: "Edit", exact: true }).count() === 0, "Viewer has no tracking edit control");
+  }
+}
+
+async function checkSettingsAndVendors(role, session) {
+  const { page, api } = session;
+  stage = `${role}: sample settings`;
+  await page.goto(new URL("/orders", productionUrl).href);
+  const depthStart = api.events.length;
+  await page.getByRole("button", { name: "Sample Settings", exact: true }).click();
+  const depthResponse = await api.waitFor("dam_order_sample_depth", (data) => rows(data).length > 0, depthStart);
+  const depths = rows(depthResponse.data);
+  const depthRange = depthResponse.event.request.headers().range;
+  assert(depths.length <= 100 && (!depthRange || /^\d+-\d+$/.test(depthRange)), `${role} sample depth query stays within a bounded 100-row page`);
+  const depth = depths[0];
+  const depthRow = page.locator('[aria-label="Sample depth settings"] tbody tr').filter({ hasText: String(depth.sku_normalized) }).filter({ hasText: String(depth.customer_normalized) });
+  await depthRow.waitFor();
+  const depthCells = await depthRow.locator("td").allInnerTexts();
+  assert(depthCells[2]?.trim() === dataCellValue(depth.depth_inches), `${role} sample-depth current value matches same API row`);
+  assert(depthCells[3]?.includes(dataCellValue(depth.depth_raw)), `${role} sample-depth history matches same API row`);
+  if (role === "Administrator") assert(await depthRow.getByRole("button", { name: "Edit", exact: true }).count() === 1, "Administrator sees sample-depth edit control");
+  else assert(await depthRow.getByRole("button", { name: "Edit", exact: true }).count() === 0, "Viewer has no sample-depth edit control");
+  if (role === "Administrator") {
+    assert(await page.getByRole("button", { name: "Add depth setting", exact: true }).count() === 1, "Administrator can open sample-depth creation control");
+    assert(await page.getByRole("button", { name: "Add customer suffix", exact: true }).count() === 1, "Administrator can open suffix creation control");
+  }
+
+  stage = `${role}: customer suffix`;
+  const suffixStart = depthStart;
+  await page.getByRole("region", { name: "Customer suffix settings" }).waitFor();
+  const suffixResponse = await api.waitFor("dam_order_customer_settings", (data) => rows(data).length > 0, suffixStart);
+  const suffixes = rows(suffixResponse.data);
+  assert(suffixes.length <= 100, `${role} suffix query stays within a bounded 100-row page`);
+  const suffix = suffixes[0];
+  const suffixRow = page.locator('[aria-label="Customer suffix settings"] tbody tr').filter({ hasText: String(suffix.customer_normalized) });
+  await suffixRow.waitFor();
+  assert((await suffixRow.locator("td").nth(1).innerText()).trim() === String(suffix.suffix), `${role} suffix value matches same API row`);
+  if (role === "Administrator") assert(await suffixRow.getByRole("button", { name: "Edit", exact: true }).count() === 1, "Administrator sees suffix edit control");
+  else assert(await suffixRow.getByRole("button", { name: "Edit", exact: true }).count() === 0, "Viewer has no suffix edit control");
+
+  stage = `${role}: vendor statistics`;
+  await page.goto(new URL("/styles", productionUrl).href);
+  const vendorStart = api.events.length;
+  await page.getByRole("button", { name: "Vendor Statistics", exact: true }).click();
+  const vendorResponse = await api.waitFor("dam_order_vendor_statistics", (data) => rows(data).length > 0, vendorStart);
+  const vendors = rows(vendorResponse.data);
+  const vendorRange = vendorResponse.event.request.headers().range;
+  assert(vendors.length <= 100 && (!vendorRange || /^\d+-\d+$/.test(vendorRange)), `${role} vendor statistics query stays within a bounded 100-row page`);
+  const vendor = vendors[0];
+  const vendorRow = page.getByRole("region", { name: "Vendor Statistics" }).locator("tbody tr").filter({ hasText: String(vendor.vendor_name) }).filter({ hasText: String(vendor.factory_id ?? "Unknown") });
+  await vendorRow.waitFor();
+  const expected = [vendor.vendor_name, vendor.factory_id ?? "Unknown", vendor.order_count, vendor.closed_orders, vendor.open_orders, vendor.last_sent_po_date ?? "Unknown", vendor.activity_status].map(String);
+  const actual = (await vendorRow.locator("td").allInnerTexts()).map((cell) => cell.trim());
+  assert(expected.every((value, index) => actual[index] === value), `${role} vendor statistics cells match same API row`);
+  assert(await page.getByRole("region", { name: "Vendor Statistics" }).getByRole("button", { name: /edit|delete|save/i }).count() === 0, `${role} vendor statistics is read-only`);
+}
+
+async function checkLicense(role, session) {
+  const { page, api } = session;
+  stage = `${role}: Master Data licensing`;
+  await page.goto(new URL("/styles", productionUrl).href);
+  const start = api.events.length;
+  await page.getByRole("button", { name: "Licensed", exact: true }).click();
+  const trackerResponse = await api.waitFor("style_tracker_rows_with_bridge", (data) => rows(data).length > 0, start);
+  const trackers = rows(trackerResponse.data);
+  assert(trackers.length <= 1000, `${role} Master Data tracker page is bounded`);
+  const eligible = trackers.find((row) => row.id && row.source_sheet === "License.Style" && row.plm_item_id && row.sku);
+  assert(Boolean(eligible), `${role} authenticated Master Data page has an existing Licensed row`);
+  const statusesResponse = await api.waitFor("get_dam_style_tracker_license_status", (data) => rows(data).some((row) => row.id === eligible.id), start);
+  const computed = rows(statusesResponse.data).find((row) => row.id === eligible.id);
+  assert(Boolean(computed), `${role} computed licensing result is mapped by row ID`);
+  await page.getByPlaceholder("Find in master data (Ctrl+F)").fill(eligible.id);
+  const gridRow = page.locator(`.ag-center-cols-container .ag-row[row-id="${eligible.id}"]`);
+  await gridRow.waitFor({ timeout: 20_000 });
+  const header = page.locator('.ag-header-cell[col-id="N"] .ag-header-cell-text');
+  assert(await revealHorizontally(page, header), `${role} reveals horizontally virtualized License Status N`);
+  assert((await header.innerText()).trim() === "License Status", `${role} sees calculated License Status heading`);
+  const cell = gridRow.locator('.ag-cell[col-id="N"]');
+  assert(await revealHorizontally(page, cell), `${role} reveals calculated License Status cell`);
+  assert((await cell.innerText()).trim() === dataCellValue(computed.license_status), `${role} current license display matches ID-mapped API result`);
+  await cell.dblclick();
+  await page.waitForTimeout(150);
+  assert(await cell.evaluate((element) => !element.classList.contains("ag-cell-inline-editing") && !element.querySelector("input,textarea,select,[contenteditable=true]")), `${role} calculated License Status remains read-only`);
+}
+
+async function accept() {
+  if (process.env.POPDAM_ACCEPTANCE_BASE_URL !== productionUrl) throw new Error("acceptance target is not the exact production application origin");
+  validateDatabaseTarget();
+  const binding = validateBuildBinding({
+    ref: process.env.GITHUB_REF,
+    workflowSha: process.env.GITHUB_SHA,
+    deployedFrontendSha: process.env.DEPLOYED_FRONTEND_SHA,
+    isAncestor: runGit(["merge-base", "--is-ancestor", process.env.DEPLOYED_FRONTEND_SHA, process.env.GITHUB_SHA]) === "",
+    frontendTreeEqual: runGit(["diff", "--quiet", process.env.DEPLOYED_FRONTEND_SHA, process.env.GITHUB_SHA, "--", ...FRONTEND_BUILD_PATHS]) === "",
+    observedToken: process.env.DEPLOYED_FRONTEND_SHA.slice(0, 7),
+  });
+  if (!outputRoot) throw new Error("proof output directory is missing");
+  for (const name of ["POPDAM_TEST_USER", "POPDAM_TEST_PASSWORD", "POPDAM_VIEWER_TEST_USER", "POPDAM_VIEWER_TEST_PASSWORD"]) {
+    if (!process.env[name]) throw new Error(`required protected credential ${name} is unavailable`);
+  }
+
+  const require = createRequire(import.meta.url);
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch({ headless: true });
+  const sessions = [];
+  const checks = [];
+  try {
+    for (const [role, email, password] of [
+      ["Administrator", process.env.POPDAM_TEST_USER, process.env.POPDAM_TEST_PASSWORD],
+      ["Viewer", process.env.POPDAM_VIEWER_TEST_USER, process.env.POPDAM_VIEWER_TEST_PASSWORD],
+    ]) {
+      const session = await login(browser, email, password, role);
+      sessions.push(session);
+      const before = checkLabels.length;
+      await checkOrderList(role, session);
+      await checkTracking(role, session);
+      await checkSettingsAndVendors(role, session);
+      await checkLicense(role, session);
+      assert(session.forbiddenWrites.length === 0, `${role} acceptance made no protected business write request`);
+      checks.push(...checkLabels.slice(before).map((label) => ({ label, passed: true })));
+    }
+  } finally {
+    for (const session of sessions) await session.context.close().catch(() => {});
+    await browser.close();
+  }
+  const baselineEvidencePath = process.env.BASELINE_EVIDENCE_PATH;
+  if (!baselineEvidencePath) throw new Error("verified backend evidence input path is missing");
+  const baselineEvidence = JSON.parse(await readFile(baselineEvidencePath, "utf8"));
+  const proof = createLiveProof({ applicationCommitSha: binding.workflowSha, checks, baselineEvidence });
+  await mkdir(outputRoot, { recursive: true, mode: 0o700 });
+  const proofPath = resolve(outputRoot, "db-live-proof.json");
+  await writeFile(proofPath, `${JSON.stringify(proof, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+  process.stdout.write(`PASS: production admin/viewer read-only acceptance; checks=${proof.check_count}; checks_sha256=${proof.checks_sha256}\n`);
+}
+
+async function main() {
+  const mode = process.argv[2];
+  try {
+    if (mode === "preflight") return preflight();
+    if (mode === "verify-baseline") return await verifyBaselineEvidence();
+    if (mode === "verify-project") return verifyProject();
+    if (mode === "verify-types") return await verifyTypes();
+    if (mode === "accept") return await accept();
+    throw new Error("select one proof mode");
+  } catch (error) {
+    process.stderr.write(`FAIL: ${mode ?? "unknown"} at ${stage}: ${error instanceof Error ? error.message : "proof failed"}\n`);
+    process.exitCode = 1;
+  }
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
