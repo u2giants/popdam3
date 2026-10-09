@@ -45,6 +45,11 @@ Pagination defaults to 1,500 visible rows. **Show All** sits beside the
 bottom pagination controls and expands the current filtered result set; it does
 not change which rows are searched or filtered.
 
+Source date fidelity: [`verification/master-data-date-fidelity-20261008.md`](verification/master-data-date-fidelity-20261008.md)
+records the completed nine-cell correction and the permanent converter behavior
+for Google dates beyond year 9999. Original recovery-v2 TSV is an error preimage;
+use the protected date-repair source snapshot for corrected equality checks.
+
 ## Google Sheet Import Rules
 
 The import script is `scripts/import-style-tracker-xlsx.py`.
