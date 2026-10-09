@@ -27,8 +27,9 @@ all 462 links were read back and verified, with zero ambiguous rows.
 Earlier 93-check read acceptance, strict Find, loading/retry, screenshot and
 original-control reports were run against `f901017`; they remain historical
 acceptance for unchanged behavior. Native workflow `37987001226` passed for
-merge `9883315`: 90 checks across both roles, checks SHA-256
-`708b9395e8e6e054372a7c9b7a7bb73b03f0ce3448df2acec338b447586eb0e1`.
+merge `9883315`: 90 checks across both roles. The checks-label manifest SHA-256 is
+`708b9395e8e6e054372a7c9b7a7bb73b03f0ce3448df2acec338b447586eb0e1`; this
+hashes the ordered check labels only; run-specific results are separate.
 Canonical schema SHA-256
 `fc9041a48038b8604e94a8e0169d06d049214eba57dd609dd296f95823738954` matched;
 type artifact `11643178561` SHA-256
@@ -602,8 +603,9 @@ and controls acceptance is historical. PR #289 is live as `9883315`; deployment,
 focused role checks and native workflow `37987001226` passed. Native run
 `37981872323` failed its viewer current-link description after type generation
 passed; that earlier failure produced no canonical artifacts and remains part of
-the history. Native evidence now passed; #4111 is closed. PopDAM #281
-only #281 documentation/closeout remains open; #275 is closed after the 53-check role-based UI proof.
+the history. Native evidence now passed; #4111 is closed. Only #281
+documentation/closeout remains open; #275 is closed after the 53-check role-based
+UI proof.
 Existing controls passed in both roles as recorded in STATUS. These checks are
 read-only; no production edits are required.
 

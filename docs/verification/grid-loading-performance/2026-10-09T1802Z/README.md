@@ -66,7 +66,7 @@ zero business-row writes. The separate guarded #275 decision application made
 three intended links, which were read back and verified. Prior `f901017`
 observer, retry, Find, screenshot and controls results remain historical.
 
-Native workflow `37987001226` passed 90 checks across both roles; checks SHA-256
+Native workflow `37987001226` passed 90 checks across both roles; checks-label manifest SHA-256
 `708b9395e8e6e054372a7c9b7a7bb73b03f0ce3448df2acec338b447586eb0e1`. Schema
 SHA-256 `fc9041a48038b8604e94a8e0169d06d049214eba57dd609dd296f95823738954`
 matched the live schema. Type artifact `11643178561` SHA-256

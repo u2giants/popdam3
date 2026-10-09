@@ -137,13 +137,16 @@ npm run build
 
 ## Git Workflow
 
-Push directly to `main`. No feature branches. No PRs. See [CLAUDE.md](../CLAUDE.md).
+Make application changes on a feature branch, push that branch, and open a pull
+request. Let required checks and the normal protected merge path decide when it
+lands. Never push application changes directly to `main`. See
+[AGENTS.md](../AGENTS.md) for the repository policy.
 
 ```bash
+git switch -c codex/<task>
 git add <files>
 git commit -m "..."
-git push origin main
-git push github main
+git push -u origin codex/<task>
 ```
 
 After any push touching `supabase/functions/`, check the `Deploy Supabase Edge Functions` workflow run in GitHub Actions. Database migrations belong in canonical `shared-db`, not this repo.

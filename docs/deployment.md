@@ -74,7 +74,7 @@ PR #289 merge `9883315c7d64b9ed274cc92ae3c1d0c73cc6597b` is live. Publish run
 matches the merge, and Coolify deployment `btf5t1we2eh3alydmt6wxcoi` completed.
 Focused administrator/viewer edit and refresh checks passed without production
 business-row writes. Native workflow `37987001226` passed 90 checks across both
-roles (checks SHA-256
+roles (checks-label manifest SHA-256
 `708b9395e8e6e054372a7c9b7a7bb73b03f0ce3448df2acec338b447586eb0e1`). The
 schema SHA-256 `fc9041a48038b8604e94a8e0169d06d049214eba57dd609dd296f95823738954`
 matched; type artifact `11643178561` SHA-256
