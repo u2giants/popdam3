@@ -348,6 +348,10 @@ account GitHub proof secrets configured via protected stdin; no accounts were
 created. At that point in the release sequence the workflow had not yet run; its
 later guarded result and current remaining actions are recorded below.
 
+PR #286 merged the Licensed loading plan and October 9 measurement baseline as
+a documentation-only change (`fb1c800e72d837a937c82e72e86887e18ee3f670`); see
+the [October 9 baseline](verification/grid-loading-performance/2026-10-09T1802Z/README.md).
+
 The exact auxiliary source SHA-256
 `13bc64585bb5ec26e977fa948e6c59dfcf1b489e463fbe5e6151016ebd36fb4d` was loaded
 once in a guarded transaction: 8,257 sample-depth rows, 38 customer suffixes,

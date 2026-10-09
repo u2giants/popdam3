@@ -4,7 +4,7 @@
 
 Every production change follows this path:
 
-1. Develop on a feature branch from the GitHub source repository `origin`, open a pull request, and let required checks pass before merging through the normal protected path. Do not push application changes directly to `main`.
+1. Develop on a feature branch and open a pull request targeting `main`. Verify the GitHub remote with `git remote -v` and push to the remote whose URL is `https://github.com/u2giants/popdam3.git`; do not assume a remote alias identifies GitHub. Let required checks pass before merging through the normal protected path. Do not push application changes directly to `main`.
 2. GitHub Actions evaluates path filters and runs the relevant workflow(s).
 3. For frontend changes: `publish-frontend.yml` builds the React app, builds a Docker image with `Dockerfile.ci`, pushes it to GHCR as `ghcr.io/u2giants/popdam-frontend:latest`, `:sha-<short-sha>`, and `:<short-sha>` using `GHCR_PAT` when present, otherwise the workflow `GITHUB_TOKEN`, then calls the Coolify deploy API.
 4. Coolify receives the webhook, pulls `:latest` from GHCR, and replaces the running container. No SSH is involved.
@@ -221,7 +221,7 @@ SSH is not appropriate for:
 - Routine deployments (use GitHub Actions → Coolify API)
 - Runtime configuration changes (use Coolify UI)
 - Schema changes (use canonical `shared-db` branch + PR) or edge function changes (commit to this repo and let `deploy-supabase.yml` deploy functions)
-- Hotfixes (commit to `main` and push; CI deploys in ~2 minutes)
+- Hotfixes (use a feature branch and pull request, then merge through the normal protected path)
 
 Any change made via SSH must be followed immediately by committing a permanent fix to the repo or recording the change in Coolify. The server must never become a hidden source of truth.
 
@@ -279,7 +279,7 @@ Standard single-orchestrated-path, deployment-platform-owned model:
 | **Railway** | the worker container lifecycle + its runtime env vars |
 | **Production VPS** | runtime host only — never a configuration source |
 
-One normal path, no SSH deploys: push to `main` → GitHub Actions verifies/builds/publishes to GHCR → triggers the Coolify API → Coolify pulls the image. Workflows never SSH the server or run `docker`/`compose` on it as part of a normal deploy. `main` is the only release branch (no staging/promotion).
+One normal path, no SSH deploys: merge a reviewed pull request to `main` → GitHub Actions verifies/builds/publishes to GHCR → triggers the Coolify API → Coolify pulls the image. Workflows never SSH the server or run `docker`/`compose` on it as part of a normal deploy. `main` is the only release branch (no staging/promotion).
 
 ---
 
