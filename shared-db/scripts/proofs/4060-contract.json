@@ -4,9 +4,9 @@
   "application_repository": "popcre/designflow-backend",
   "application_branch": "develop",
   "project_ref": "qsllyeztdwjgirsysgai",
-  "source_pr": 4075,
-  "source_head": "38b6ade1b79f1c2fac869783b03ea23cc0df17ce",
-  "migration_version": "20261008160444",
+  "source_pr": 4119,
+  "source_head": "79ae57f95ef048abaa8a1e9c23234d2dacdd6835",
+  "migration_version": "20261009040550",
   "table": "dflow.users",
   "index": "dflow.users_email_lower_uidx",
   "live_assertion": "production dflow.users has a unique index on lower(email) and duplicate case-variant emails are rejected"

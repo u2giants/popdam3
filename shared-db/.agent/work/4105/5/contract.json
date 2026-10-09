@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "work_issue": 4105,
+  "generation": 5,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Rebind fixed rollback producer to canonical repaired4060 sourcePR4119 exacthead79ae57f95ef048abaa8a1e9c23234d2dacdd6835 and version20261009040550 without changing catalog guards.",
+  "base_sha": "c0ade816a4926a35fd3e6963118910d5c6ca82e3",
+  "dispatcher": "Codex coordinator chat01a11d57-118f-7f50-9c36-432c72e819d9",
+  "worker": "Codex subagent chat01a11d57-8ede-7483-8d13-d9dd718113ad",
+  "branch": "codex/4105-source-rebind-gen5",
+  "worktree": "/home/ahazan/.codex/worktrees/4105-source-rebind-gen5/shared-db",
+  "allowed_paths": [
+    ".github/workflows/shared-db-4060-observation.yml",
+    "scripts/proofs/shared-db-4060-observation.py",
+    "scripts/proofs/test_shared_db_4060_observation.py",
+    "scripts/proofs/4060-contract.json",
+    "scripts/proofs/4060-catalog.sql",
+    ".agent/work/4105/5/contract.json",
+    ".agent/work/4105/5/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/shared-db-4060-observation.yml",
+    "scripts/proofs/shared-db-4060-observation.py",
+    "scripts/proofs/test_shared_db_4060_observation.py",
+    "scripts/proofs/4060-contract.json",
+    "scripts/proofs/4060-catalog.sql",
+    ".agent/work/4105/5/contract.json",
+    ".agent/work/4105/5/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "required_checks": [
+    "python3 -m unittest discover -s scripts/proofs -p test_shared_db_4060_observation.py",
+    "PostgreSQL16 owned ephemeral integration test",
+    "git diff --check"
+  ],
+  "prohibited_actions": [
+    "No migration,index,schema,grant,RLS,role or application data change",
+    "No credentials,production execution,review allocation,merge or promotion by worker",
+    "Never relax existing read-only runners or publish private prototype/recovery artifacts",
+    "No fabricated historical pre-work ordering or backdating"
+  ],
+  "stop_conditions": [
+    "Stop if source targets differ from existing4060 assertion",
+    "Stop publication if prospective contract is refused",
+    "Stop live proof on unsafe trigger/rule/check/index/default/catalog or wrong exact constraint"
+  ],
+  "assumptions": [
+    "Root authorized minimal source pin rebind after historic producer4108 merged. Its original source/tests and gen4refs remain immutable.",
+    "Actual structural sourcePR4119 readyhead79ae57f95ef048abaa8a1e9c23234d2dacdd6835/version20261009040550 supplied by root; no live invocation until all canonical guards approve.",
+    "Only three necessary source files change: contractJSON, explicitLEDGERversion and realfixtureledger version. CatalogSQL and workflow bytes remain unchanged.",
+    "Root owns sourcecommit authorization, PR creation, push, allocation, merge, credentials and liveprobe. No sourcecommit or push yet."
+  ],
+  "evidence_parent": {
+    "work_issue": 4105,
+    "generation": 4,
+    "contract_sha256": "274d5f89baa22759429ccdd734a959e0907147973b621b5239f4406fc376a386"
+  }
+}

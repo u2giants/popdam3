@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 4105,
+  "outcome": "ready-for-merge",
+  "pr": 4121,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4105/5",
+  "contract_sha256": "46d19f55002491125a3f9a072ccb7fe7bc7dd834fbf2f6785fcfcbb1793316a1",
+  "head_sha": "98fb94942e145c54bf1cfe33f3c1cb1bfbee8e85",
+  "base_sha": "c0ade816a4926a35fd3e6963118910d5c6ca82e3",
+  "files_changed": [
+    "scripts/proofs/4060-contract.json",
+    "scripts/proofs/shared-db-4060-observation.py",
+    "scripts/proofs/test_shared_db_4060_observation.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s scripts/proofs -p test_shared_db_4060_observation.py",
+      "exit_code": 0,
+      "evidence": "11 tests discovered; 7 unit passed and 4 service tests initially skipped. Subsequently all 11 passed with real owned PostgreSQL16 service; no skipped cases in integration run."
+    },
+    {
+      "command": "PostgreSQL16 owned ephemeral integration test",
+      "exit_code": 0,
+      "evidence": "All11 passed including 4 actual PostgreSQL16 cases. Python3.12/psycopg3.2.13; own isolated localhost docker container removed after terminal success; saved log /tmp/taxonomy-producer-gen5-uqgxmsx1/pg16-tests.log."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Three source files, five insertions/deletions: only sourcePR/head/version pins plus explicit ledger and fixture version; no whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Prospective gen5 published before three necessary source edits; immutable historical producer/gen4/source/refusals preserved.",
+    "Pins sourcePR4119 exacthead79ae57f95ef048abaa8a1e9c23234d2dacdd6835/version20261009040550; catalogSQL/workflow unchanged.",
+    "No credentials, production execution, database writes, reviewer allocation, merge or live application acceptance performed by worker. Root holds all those decisions.",
+    "New maintenancePR4121 exists for existingissue4105; historicalproducer4108 already merged. Only exactcurrentgen5pair follows reported implementationhead."
+  ],
+  "stop_conditions_hit": []
+}

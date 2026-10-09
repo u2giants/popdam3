@@ -41,7 +41,7 @@ def digest(data):
 
 
 DUPLICATES = "SELECT count(*) FROM (SELECT lower(btrim(email)) FROM ONLY dflow.users WHERE nullif(btrim(email), '') IS NOT NULL GROUP BY lower(btrim(email)) HAVING count(*) > 1) duplicates"
-LEDGER = "SELECT count(*) = 1 FROM ONLY supabase_migrations.schema_migrations WHERE version = '20261008160444'"
+LEDGER = "SELECT count(*) = 1 FROM ONLY supabase_migrations.schema_migrations WHERE version = '20261009040550'"
 INDEX_DEFINITION = "CREATE UNIQUE INDEX users_email_lower_uidx ON dflow.users USING btree (lower(btrim((email)::text))) WHERE (NULLIF(btrim((email)::text), ''::text) IS NOT NULL)"
 
 def validate_catalog(c):
