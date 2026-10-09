@@ -168,7 +168,7 @@ def extended_excel_date(serial: str, epoch: datetime) -> str:
     return f"{month}/{day}/{year}"
 
 
-def raw_overflow_values(path: Path, sheet_name: str) -> dict[str, str]:
+def raw_overflow_values(path: Path, sheet_name: str, epoch: datetime) -> dict[str, str]:
     """Read original numeric cells which openpyxl may replace with #VALUE!."""
     ns = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
     with ZipFile(path) as archive:
@@ -186,7 +186,7 @@ def raw_overflow_values(path: Path, sheet_name: str) -> dict[str, str]:
                     if cell.attrib.get("t", "n") == "n" and raw is not None and raw.text:
                         try:
                             value = Decimal(raw.text)
-                            if value.is_finite() and value > 2958465:
+                            if value.is_finite() and value > (2957003 if epoch.year == 1904 else 2958465):
                                 result[cell.attrib["r"]] = raw.text
                         except ArithmeticError:
                             pass
@@ -220,7 +220,7 @@ def main() -> None:
             worksheet = workbook[sheet_name]
             validate_headers(sheet_name, worksheet)
             count = 0
-            overflow = raw_overflow_values(args.xlsx, sheet_name)
+            overflow = raw_overflow_values(args.xlsx, sheet_name, workbook.epoch)
             for row_number, cells in enumerate(worksheet.iter_rows(min_row=3), start=3):
                 by_letter = {get_column_letter(cell.column): cell_display(cell, overflow, workbook.epoch) for cell in cells if cell.value is not None}
                 if not any(is_business_value(by_letter.get(letter)) for letter in config["business_columns"]):
