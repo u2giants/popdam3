@@ -495,6 +495,8 @@ async function accept() {
       await checkLicense(role, session);
       assert(session.forbiddenWrites.length === 0, `${role} acceptance attempted no production Supabase REST mutation`);
       checks.push(...checkLabels.slice(before).map((label) => ({ label, passed: true })));
+      // End this completed role's background reads before starting the next role.
+      await session.context.close();
     }
   } finally {
     for (const session of sessions) await session.context.close().catch(() => {});
