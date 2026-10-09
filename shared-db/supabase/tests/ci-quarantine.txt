@@ -64,7 +64,6 @@ product_size_depth_phase1_contracts.sql                       # "coldlion produc
 core_licensor_alias_contracts.sql                             # core.licensor_alias does not exist: 20260731210000 refuses because Licensor "NBC" resolves to 0 rows. A synthetic seed may not carry a real licensor name.
 licensor_status_durability_and_owner_ruling.sql               # core.taxonomy_owner_ruling does not exist: 20260802171000 refuses because core.licensor (code=FR) is absent. Same rule, same reason.
 dam_customer_hub_wiring.sql                                   # "get_dam_customer_facets returned empty/non-array" -- the facets are computed from deployed DAM assets and style groups; an empty database has none and none may be invented.
-dam_order_list_item_columns_contract.sql                      # "permission denied for table style_tracker_item_bridge" -- the read grant this asserts is made against the deployed database, not by any migration here.
 
 # --- The test's own fixture contradicts the current schema or grants -------------------
 # CANDIDATE REAL DEFECTS, recorded rather than edited into passing. Each was invisible

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "work_issue": 4125,
+  "outcome": "ready-for-merge",
+  "pr": 4127,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4125/1",
+  "contract_sha256": "7de0db6f7ae6c4f26fda43dd767b38f0cd757b3243871c1437b70ed6ff412bf0",
+  "head_sha": "6274d2170c7850e16fae8d817d5128950c9af335",
+  "base_sha": "b34e636db0322384344fbcbef210514ef9a6d659",
+  "files_changed": [
+    ".agent/work/4125/1/completion.json",
+    ".agent/work/4125/1/contract.json",
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/merged-pr-issue-binding.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/merged-pr-issue-binding.test.mjs",
+      "exit_code": 0,
+      "evidence": "All 10 tests pass including the new regression: mergedPrReviewTarget trusts a real closing link without evidence-pair verification; disagreeing links still refuse; no-link path still verifies; closed issue with real link refuses."
+    },
+    {
+      "command": "node --test scripts/record-review-verdict.test.mjs scripts/check-exact-head-approval.test.mjs",
+      "exit_code": 0,
+      "evidence": "All 113 tests pass; no regressions in verdict recording or exact-head approval."
+    }
+  ],
+  "assumptions_resolved": [
+    "A real GitHub closing link is already trusted by closingIssuesForPr and readReviewerOperationRoute without verification",
+    "mergedPrReviewTarget now accepts the same real link, unblocking post-merge verdict recording for PR #4110",
+    "When no real closing link exists, the full verification path (evidence pair, completion record, claims) runs unchanged"
+  ],
+  "stop_conditions_hit": []
+}

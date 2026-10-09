@@ -3567,5 +3567,44 @@ class LegacyPropertiesSchemaMoveContractTests(unittest.TestCase):
         self.assertEqual(conditions(original), conditions(forward))
 
 
+class OrderSheetsIntegrationContractTests(unittest.TestCase):
+    def test_named_contract_builds_exact_serving_and_security_checks(self):
+        name = "dam_order_sheets_integration_v1"
+        expression = CATALOG_CONTRACTS[name]
+        import re
+        columns = re.findall(r"\('([^']+)','([^']+)','([^']+)'\)", expression)
+        self.assertEqual(len(columns), 268)
+        self.assertEqual(len(set(columns)), 268)
+        for text in ("snapshot_test_report", "snapshot_professional_photos", "snapshot_contractual_sample_reorder", "relrowsecurity", "security_invoker=true", "has_function_privilege('anon'", "unknown_case_groups", "provolatile=", "prosecdef=", "proretset=", "prorettype=", "proconfig", "prosqlbody is not null", "relkind='r'", "relkind='v'"):
+            self.assertIn(text, expression)
+        check = {"id": "sheets_exact_shape", "kind": "catalog_contract", "contract": name, "expected_count": 1, "migration_version": "20261009054834"}
+        sql = build_behavior_sql([check])
+        self.assertIn(expression.strip(), sql)
+
+
+    def test_sidecar_loader_accepts_registered_contract_and_rejects_unknown(self):
+        import hashlib
+        version = "20260101000000"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            migration = root / "supabase/migrations" / (version + "_fixture.sql")
+            migration.parent.mkdir(parents=True)
+            migration.write_text("select 1;\n")
+            sidecar = root / "scripts/production-verification-sidecars" / (version + ".json")
+            sidecar.parent.mkdir(parents=True)
+            payload = {"schema_version": 1, "migration_version": version,
+                       "migration_sha256": hashlib.sha256(migration.read_bytes()).hexdigest(),
+                       "checks": [{"id": "sheets_exact_shape", "kind": "catalog_contract", "contract": "dam_order_sheets_integration_v1", "expected_count": 1}]}
+            sidecar.write_text(json.dumps(payload))
+            checks = load_behavior_sidecars(root, {version: migration}, [version])
+            self.assertEqual(len(checks), 1)
+            self.assertEqual(checks[0]["contract"], "dam_order_sheets_integration_v1")
+            self.assertIn("p.provolatile=", build_behavior_sql(checks))
+            payload["checks"][0]["contract"] = "unknown_order_sheets_contract"
+            sidecar.write_text(json.dumps(payload))
+            with self.assertRaisesRegex(GuardError, "unsupported catalog contract"):
+                load_behavior_sidecars(root, {version: migration}, [version])
+
+
 if __name__ == "__main__":
     unittest.main()

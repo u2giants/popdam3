@@ -53,6 +53,9 @@ function mergedBindingIo(overrides={}){
   const state={
     pr:{number:options.pr,merged_at:'2026-09-29T06:57:17Z',merge_commit_sha:'e'.repeat(40),head:{sha:head,ref:`codex/issue-${options.issue}-work`},body:`Repairs #${options.issue}.\n\nWork issue #${options.issue}; active claim #1; orchestrator #2.`},
     completion:{work_issue:options.issue,pr:options.pr,migration_versions:['20260911213429']},
+    // #3380: the binding validates the contract's generation lineage, so the
+    // fixture serves a real v1 contract record alongside the completion report.
+    contract:{schema_version:1,work_type:'structural',route:'shared-db-orchestrator',work_issue:options.issue,generation:1,goal:'bind the merged pull request',base_sha:'e'.repeat(40),dispatcher:'d',worker:'w',branch:`codex/issue-${options.issue}-work`,worktree:'worktrees/x',allowed_paths:['supabase/**'],file_writes:['supabase/migrations/20260911213429_popsg_search.sql'],db_reads:[],db_writes:['supabase/migrations/20260911213429_popsg_search.sql'],prohibited_actions:['no production'],required_checks:['node --test'],assumptions:[],stop_conditions:['stop on scope change']},
     files:[{filename:'.agent/contract.json',status:'added'},{filename:'.agent/completion.json',status:'added'},{filename:'supabase/migrations/20260911213429_popsg_search.sql',status:'added'}],
     linked:[],
     refs:new Set(['refs/db-claims/20260911213429']),
@@ -62,7 +65,12 @@ function mergedBindingIo(overrides={}){
   return {
     getPr:()=>state.pr?{changed_files:state.files.length,...state.pr}:state.pr,
     getIssue:(n)=>({number:n,state:state.issueState}),
-    getFileAt:(file,ref)=>{assert.equal(ref,head);return typeof state.completion==='string'?state.completion:JSON.stringify(state.completion)},
+    getFileAt:(file,ref)=>{
+      assert.equal(ref,head)
+      if(file===(state.completionPath??'.agent/completion.json'))return typeof state.completion==='string'?state.completion:JSON.stringify(state.completion)
+      if(file===(state.contractPath??'.agent/contract.json'))return typeof state.contract==='string'?state.contract:JSON.stringify(state.contract)
+      throw new Error(`unexpected getFileAt ${file}`)
+    },
     getPrFiles:()=>state.files,
     readRef:(ref)=>state.refs.has(ref)?'a'.repeat(40):null,
     closingIssuesForPr:()=>state.linked,

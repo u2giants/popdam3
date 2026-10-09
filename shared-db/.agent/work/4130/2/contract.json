@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "work_issue": 4130,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Register the exact OrderList Sheets integration catalog verification contract before its structural PR merges",
+  "base_sha": "23e3901ddbd4d60f565602ef09ec6014baa4d9bf",
+  "dispatcher": "Codex chat 01a11d67-cd73-7ce0-9cb6-6fde00882486 on hetz",
+  "worker": "codex",
+  "branch": "codex/orderlist-verification-prerequisite",
+  "worktree": "/worksp/shared-db-orderlist-verifier",
+  "allowed_paths": [
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json"
+  ],
+  "file_writes": [
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change or bypass verification behavior for existing contracts",
+    "Do not touch migrations, database objects, rows, credentials or another session work"
+  ],
+  "required_checks": [
+    "python3 -m unittest discover -s scripts -p test_production_catalog_verification.py",
+    "git diff --check",
+    "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+    "node --test scripts/throughput-guard/*.test.mjs"
+  ],
+  "assumptions": [
+    "Structural source PR4118 retains its exact approved head until this prerequisite lands"
+  ],
+  "stop_conditions": [
+    "Any existing verifier test regression",
+    "Any unrelated or database change required"
+  ],
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 4130,
+    "generation": 1,
+    "contract_sha256": "1a1d29bd3a1370f83473beac621741511cfc156214e376ecef2c23cd299c5811"
+  }
+}

@@ -761,8 +761,8 @@ begin
 
   -- ------------------------------------------ 3. live Master Data vs the snapshot ----
   select master_data_description into v_txt from api.dam_order_list where order_line_id = v_line_l;
-  if v_txt = 'Licensed MD description v1' then v_pass := v_pass + 1;
-  else v_fail := v_fail + 1; raise notice 'FAIL view did not project live Master Data description (got %)', v_txt; end if;
+  if v_txt = 'Licensed description v1' then v_pass := v_pass + 1;
+  else v_fail := v_fail + 1; raise notice 'FAIL view did not project canonical Item Master description (got %)', v_txt; end if;
 
   -- style_tracker_rows stamps updated_by = auth.uid() and FKs it to auth.users, so the
   -- synthetic test uid has to be out of scope for this one statement.
@@ -772,8 +772,13 @@ begin
                      json_build_object('sub', v_user_a, 'role', 'authenticated')::text, true);
 
   select master_data_description into v_txt from api.dam_order_list where order_line_id = v_line_l;
-  if v_txt = 'Licensed MD description v2' then v_pass := v_pass + 1;
-  else v_fail := v_fail + 1; raise notice 'FAIL a Master Data edit did not appear through the view (got %)', v_txt; end if;
+  if v_txt = 'Licensed description v1' then v_pass := v_pass + 1;
+  else v_fail := v_fail + 1; raise notice 'FAIL a tracker description edit changed Item Master authority (got %)', v_txt; end if;
+
+  update plm.item set description='Canonical description v2' where id=v_item_l;
+  select master_data_description into v_txt from api.dam_order_list where order_line_id=v_line_l;
+  if v_txt='Canonical description v2' then v_pass := v_pass + 1;
+  else v_fail := v_fail + 1; raise notice 'FAIL an Item Master edit did not reach OrderList'; end if;
 
   select snapshot_description into v_txt from api.dam_order_list where order_line_id = v_line_l;
   if v_txt = 'Snapshot description' then v_pass := v_pass + 1;

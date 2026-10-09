@@ -6,6 +6,8 @@ import { findCompletionRecord } from '../../lib/work-dependencies.mjs'
 import { outcomeHistory, OutcomeError, OUTCOME_STATES, advanceOutcome } from '../../orchestrator-flow/outcome-lifecycle.mjs'
 import { coordinationEvent, formatEventComment } from '../../db-coordination-events.mjs'
 import { isEvidencePath, resolveEvidencePair } from '../../lib/agent-evidence-paths.mjs'
+import { validateGenerationLineage, refuseCommittedMutation } from '../../lib/evidence-generation-lineage.mjs'
+import { validateContract } from '../../agent-work-contract.mjs'
 import path from 'node:path'
 import { REPO } from './constants.mjs'
 import { parseQueueScope } from './queue-routing.mjs'
@@ -97,17 +99,21 @@ export function admitIssue(number, io = githubIo, { pr = null, actor = 'manage-m
 // A merged pull request whose body never produced a GitHub closing link cannot
 // gain one after merge, so its post-merge preview/production routes refuse
 // forever. An operator names the binding explicitly as "PR:ISSUE" (workflow
-// input merged_pr_issue_binding). It applies only to that exact merged PR, only
-// when GitHub reports zero closing links, and only after independent records
-// agree: the PR body's single "Work issue #N" line, any issue-N branch name,
+// input merged_pr_issue_binding). For the merged-PR review verdict gate
+// (mergedPrReviewTarget), a real GitHub closing link that matches the bound
+// issue is trusted without evidence-pair verification — the same trust
+// closingIssuesForPr and readReviewerOperationRoute already extend. When no
+// real link exists, or the link disagrees, the full verification path runs:
+// the PR body's single "Work issue #N" line, any issue-N branch name,
 // the merged head's .agent/completion.json (work_issue and pr), the PR's
 // migration versions equal to that record, and a permanent refs/db-claims
-// reservation for every version. Any mismatch, an unmerged PR, or a real closing
-// link that disagrees refuses, and so does a closed work issue or a renamed,
-// copied, or removed migration file. The reservation check proves each version
-// was issued by the claim allocator; it does not by itself tie the version to
-// this issue. That tie is the PR body, the completion record, and the unchanged
-// downstream issue admission, which still checks the declared objects.
+// reservation for every version. Any mismatch, an unmerged PR, or a real
+// closing link that disagrees refuses, and so does a closed work issue or a
+// renamed, copied, or removed migration file. The reservation check proves each
+// version was issued by the claim allocator; it does not by itself tie the
+// version to this issue. That tie is the PR body, the completion record, and
+// the unchanged downstream issue admission, which still checks the declared
+// objects.
 export function parseMergedPrIssueBinding(value) {
   const match=/^\s*([1-9]\d*):([1-9]\d*)\s*$/.exec(String(value??''))
   if(!match)throw new LaneError('merged PR issue binding must be exactly PR:ISSUE')
@@ -142,6 +148,22 @@ export function verifyMergedPrIssueBinding({pr,issue}, io = githubIo) {
   try{completion=JSON.parse(io.getFileAt(pair.completion,livePr.head.sha))}catch{throw new LaneError(`merged PR issue binding refused: ${pair.completion} at pull request #${pr} head is unreadable`)}
   if(Number(completion?.work_issue)!==issue||Number(completion?.pr)!==pr)throw new LaneError(`merged PR issue binding refused: completion record names issue #${completion?.work_issue} and PR #${completion?.pr}`)
   if(pair.key!=='legacy'&&completion.contract_ref!==`refs/db-contracts/${pair.key}`)throw new LaneError(`merged PR issue binding refused: completion contract_ref does not match evidence key ${pair.key}`)
+  // #3380: the contract behind this binding is evidence, not just JSON. Validate
+  // its generation lineage shape, and for a keyed pair hold it to the immutable
+  // published contract so a forged or mutated record cannot bind a merged PR.
+  let contractRecord
+  try{contractRecord=JSON.parse(io.getFileAt(pair.contract,livePr.head.sha))}catch{throw new LaneError(`merged PR issue binding refused: ${pair.contract} at pull request #${pr} head is unreadable`)}
+  try{validateGenerationLineage(contractRecord)}catch(error){throw new LaneError(`merged PR issue binding refused: contract lineage at ${pair.contract} is invalid (${error.message})`)}
+  if(pair.key!=='legacy'){
+    const contractRecordRef=`refs/db-contracts/${pair.key}`
+    const publishedSha=io.readRef(contractRecordRef)
+    if(!publishedSha)throw new LaneError(`merged PR issue binding refused: contract ref ${contractRecordRef} is not published`)
+    const publishedCommit=io.getCommit(publishedSha)
+    const publishedMessage=String(publishedCommit?.message??publishedCommit?.commit?.message??'')
+    let publishedContract
+    try{publishedContract=validateContract(JSON.parse(publishedMessage.split('\n').slice(2).join('\n').trim()))}catch{throw new LaneError(`merged PR issue binding refused: published contract ${contractRecordRef} is unreadable`)}
+    try{refuseCommittedMutation(publishedContract,contractRecord)}catch(error){throw new LaneError(`merged PR issue binding refused: ${error.message}`)}
+  }
   const versions=migrationVersions(prFiles).sort()
   const recorded=Array.isArray(completion.migration_versions)?completion.migration_versions.map(String).sort():[]
   if(!versions.length||versions.length!==recorded.length||versions.some((v,i)=>v!==recorded[i]))throw new LaneError(`merged PR issue binding refused: PR migrations ${versions.join(',')||'none'} do not equal completion record ${recorded.join(',')||'none'}`)
@@ -184,11 +206,26 @@ export function withMergedPrIssueBinding(io, value, log = (line)=>console.error(
       return linked===snapshot.linkedIssues?snapshot:{...snapshot,linkedIssues:linked}
     }
   }
-  // Verdict recording on a merged PR: only the bound PR and issue, and only after the
-  // same verification (merged, body, completion record, claims, open issue) passes.
+  // Verdict recording on a merged PR: only the bound PR and issue. A real GitHub
+  // closing link that matches is accepted, but the linked issue must still be
+  // open — checked both on the link-reported state (when present) and on the
+  // live io.getIssue state, matching verifyMergedPrIssueBinding's open-issue
+  // gate on the no-link path. When GitHub reports no closing link, the full
+  // verification (merged, body, completion record, claims, open issue) runs.
+  // This keeps mergedPrReviewTarget consistent with closingIssuesForPr and
+  // readReviewerOperationRoute for the link-trust decision, while preserving
+  // the open-issue gate the issue text promises.
   bound.mergedPrReviewTarget=(number,issue)=>{
     if(Number(number)!==binding.pr||Number(issue)!==binding.issue)return false
-    return apply([]).length===1
+    const linked=base(number)
+    if(Array.isArray(linked)&&linked.length===1&&Number(linked[0]?.number)===binding.issue){
+      const linkedState=String(linked[0]?.state??'').toLowerCase()
+      if(linkedState&&linkedState!=='open')return false
+      const work=io.getIssue(binding.issue)
+      if(String(work?.state??'').toLowerCase()!=='open')return false
+      return true
+    }
+    return apply(Array.isArray(linked)?linked:[]).length===1
   }
   return bound
 }

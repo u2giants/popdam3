@@ -9,7 +9,7 @@ import uuid
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
-MIGRATION = ROOT / 'supabase/migrations/20261009040550_dflow_users_email_ci_unique_forward.sql'
+MIGRATION = ROOT / 'supabase/migrations/20261009064439_dflow_users_email_ci_unique_forward.sql'
 CONTRACT = ROOT / 'supabase/tests/dflow_users_email_ci_unique_contracts.sql'
 
 
@@ -296,7 +296,7 @@ class ForwardMigrationTests(unittest.TestCase):
 class SourceDeliveryContractTests(unittest.TestCase):
     def test_canonical_catalog_derives_exact_real_index_and_table(self):
         from production_catalog_verification import derive_targets
-        targets = derive_targets({'20261009040550': MIGRATION}, ['20261009040550'])
+        targets = derive_targets({'20261009064439': MIGRATION}, ['20261009064439'])
         self.assertEqual(targets.indexes, [('dflow.users_email_lower_uidx', 'dflow.users')])
         self.assertEqual(targets.tables, ['dflow.users'])
 
@@ -307,3 +307,14 @@ class SourceDeliveryContractTests(unittest.TestCase):
         self.assertIn("PROOF4060_TEST_PORT: '5432'", step)
         self.assertIn('PROOF4060_TEST_CONTAINER: ${{ job.services.postgres.id }}', step)
         self.assertNotIn('secrets.', step)
+
+class ReissueImmutableSourceTests(unittest.TestCase):
+    def test_reissue_is_byte_identical_and_historical_source_is_immutable(self):
+        import hashlib
+        original = ROOT / 'supabase/migrations/20261009040550_dflow_users_email_ci_unique_forward.sql'
+        original_bytes = original.read_bytes()
+        self.assertEqual(hashlib.sha256(original_bytes).hexdigest(), '361a127d70a9a19cbb7f7999a9d6f0931edb509ab83c0b358a0ae1384e31a418')
+        self.assertEqual(MIGRATION.read_bytes(), original_bytes)
+        from production_migration_guard import HARD_BLOCKED
+        self.assertIn('20261009040550', HARD_BLOCKED)
+        self.assertNotIn('20261009064439', HARD_BLOCKED)

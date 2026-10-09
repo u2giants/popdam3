@@ -244,7 +244,7 @@ class PostgreSQLTests(unittest.TestCase):
         cls.connect = staticmethod(lambda user: psycopg.connect(host="127.0.0.1", port=cls.port,
                                         dbname="postgres", user=user, autocommit=True))
         with cls.connect("proof_admin") as connection, connection.cursor() as cursor:
-            cursor.execute("CREATE ROLE postgres LOGIN NOSUPERUSER BYPASSRLS; CREATE SCHEMA dflow AUTHORIZATION postgres; CREATE SCHEMA app AUTHORIZATION postgres; CREATE SCHEMA supabase_migrations AUTHORIZATION postgres; SET ROLE postgres; CREATE TABLE app.profile(id uuid PRIMARY KEY); CREATE TABLE supabase_migrations.schema_migrations(version text PRIMARY KEY); INSERT INTO supabase_migrations.schema_migrations VALUES ('20261009040550')")
+            cursor.execute("CREATE ROLE postgres LOGIN NOSUPERUSER BYPASSRLS; CREATE SCHEMA dflow AUTHORIZATION postgres; CREATE SCHEMA app AUTHORIZATION postgres; CREATE SCHEMA supabase_migrations AUTHORIZATION postgres; SET ROLE postgres; CREATE TABLE app.profile(id uuid PRIMARY KEY); CREATE TABLE supabase_migrations.schema_migrations(version text PRIMARY KEY); INSERT INTO supabase_migrations.schema_migrations VALUES ('20261009064439')")
             columns = []
             for name in sorted(p.EXPECTED_COLUMNS):
                 kind = "integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY" if name == "id" else "uuid REFERENCES app.profile(id)" if name == "app_profile_id" else "varchar(255)"

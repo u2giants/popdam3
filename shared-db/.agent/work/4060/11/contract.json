@@ -1,0 +1,73 @@
+{
+  "schema_version": 2,
+  "work_issue": 4060,
+  "generation": 11,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Deliver a case-insensitive, whitespace-insensitive unique index on dflow.users email to production through the governed lane",
+  "base_sha": "23e3901ddbd4d60f565602ef09ec6014baa4d9bf",
+  "branch": "codex/4060-provenance-reissue",
+  "worktree": "/home/ahazan/.codex/worktrees/4060-provenance-reissue/shared-db",
+  "dispatcher": "codex-01a11d57-coordinate-4060",
+  "worker": "codex",
+  "evidence_parent": {
+    "work_issue": 4060,
+    "generation": 10,
+    "contract_sha256": "d8949e710e38208b4933f046af1ef918be157bf61c5cd8a5fecabea91fd15888"
+  },
+  "allowed_paths": [
+    "supabase/migrations/20261009064439_dflow_users_email_ci_unique_forward.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_dflow_users_email_ci_unique_forward.py",
+    ".agent/work/4060/11/contract.json",
+    ".agent/work/4060/11/completion.json",
+    "scripts/test_post_batch_app_verification.py",
+    ".github/workflows/shared-db-4060-observation.yml",
+    ".agent/work/4060/10/contract.json",
+    ".agent/work/4060/10/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261009064439_dflow_users_email_ci_unique_forward.sql",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_dflow_users_email_ci_unique_forward.py",
+    ".agent/work/4060/11/contract.json",
+    ".agent/work/4060/11/completion.json",
+    "scripts/test_post_batch_app_verification.py",
+    ".github/workflows/shared-db-4060-observation.yml",
+    ".agent/work/4060/10/contract.json",
+    ".agent/work/4060/10/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "index dflow.users_email_lower_uidx",
+    "table dflow.users"
+  ],
+  "required_checks": [
+    "20 PG16 isolated source regressions zero skips",
+    "Production guard/unit/catalog regressions including retirement and immutable byte-copy checks",
+    "Canonical derive_targets exact email index/users table",
+    "git diff --check",
+    "Canonical full Git evidence"
+  ],
+  "prohibited_actions": [
+    "Do not copy, change or delete application rows",
+    "Do not change grants or RLS",
+    "Do not write production or dispatch production manually",
+    "Never reuse or apply retired versions 20261007232712, 20261008160444 or 20261009040550 to production"
+  ],
+  "stop_conditions": [
+    "stop if admission inspector objects differ from the issue writes",
+    "stop if any database write outside the governed preview lane is required",
+    "stop if case-insensitive duplicate emails appear in production"
+  ],
+  "assumptions": [
+    "Root supported same-owner reissue claim4117 reserves20261009064439; retirement09040550 immutable6d51aceaff9424211fd320510ff07746ef5bca9c.",
+    "Copy09040550 executable SQL byte-identically to064439; preserve all historical migration bytes/gen9 evidence.",
+    "Keep dual dispatch/checkout producer-byte pin strict. Next preview dispatch ref and actual checkout must both match final approved source producers.",
+    "SourceSQLcontract, producer and backend remain unchanged here; only the existing observation workflow PR path filter widens from the obsolete exact090 forward filename to the bounded *_dflow_users_email_ci_unique_forward.sql pattern. Original090 rehearsal37889697610 dispatch118 produced differentguard thanbb03; historical37894367587 refused automaticqualification.",
+    "Root retains all claim/review/PR/ship/preview/production actions.",
+    "Gen10 source tests demonstrated one additional app-verification retired-set fixture change; neither that file nor the workflow filter is edited before gen11 publication. Cancel only own unpublished gen10 pair while preserving its immutable published ref/private prototype."
+  ]
+}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { evaluateProbe, main, parseNameStatus, ProbeCheckError, probeShapeProblem, probeStatementText, scopeField } from './check-live-proof-probe.mjs'
 
 const scope = (returnTo) => `x\n\`\`\`db-work-scope\nwork_type: structural\napplication_return_to: ${returnTo}\nlive_assertion: a\n\`\`\`\n`
-const contract = { work_type: 'structural', work_issue: 3043 }
+const contract = { schema_version: 1, work_type: 'structural', work_issue: 3043 }
 const migration = ['supabase/migrations/20260916120643_x.sql', '.agent/contract.json']
 const PROBE = 'select (count(*) = 1) as passed from plm.production_lane_canary;'
 const never = () => { throw new Error('must not read') }
@@ -170,4 +170,15 @@ test('statement extraction removes only the lexical terminal delimiter', () => {
   for (const sql of ["SELECT 'as passed --'; COMMIT; SELECT true AS passed;", 'SELECT true AS passed;;', "SELECT 'unterminated AS passed", 'SELECT true AS wrong']) {
     assert.throws(() => probeStatementText(sql), ProbeCheckError)
   }
+})
+
+// #3380: the contract this guard reads is evidence. A record whose generation
+// lineage is malformed must refuse rather than steer the probe.
+test('main() refuses a contract whose generation lineage is malformed (#3380)', () => {
+  const bad = JSON.stringify({ schema_version: 99, work_type: 'structural', work_issue: 3043 })
+  const files = { '.agent/contract.json': bad, '.github/live-proofs/3043.sql': PROBE }
+  const diff = ['A	supabase/migrations/1_x.sql','A	.github/live-proofs/3043.sql',''].join(String.fromCharCode(10))
+  const t = io({ files, diff })
+  assert.equal(main(t.deps), 2)
+  assert.match(t.out[0], /REFUSED: unsupported contract schema_version/)
 })

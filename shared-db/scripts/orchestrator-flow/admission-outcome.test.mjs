@@ -799,7 +799,11 @@ test('the completion CLI retains every proof check through a verified merged-PR 
         getPr:()=>({...getPr(),number:7,changed_files:3,head:{sha:head,ref:'codex/issue-41-outcome'},body:'Work issue #41'}),
         closingIssuesForPr:()=>[],
         getPrFiles:()=>['.agent/contract.json','.agent/completion.json','supabase/migrations/20260911120000_example.sql'].map(filename=>({filename,status:'added'})),
-        getFileAt:()=>JSON.stringify({work_issue:41,pr:7,migration_versions:[version]}),
+        // #3380: the binding validates the contract's generation lineage, so the
+        // contract path must serve a real v1 contract, not the completion report.
+        getFileAt:(file)=>file==='.agent/contract.json'
+          ? JSON.stringify({schema_version:1,work_type:'structural',work_issue:41,generation:1,goal:'complete the outcome',base_sha:'e'.repeat(40),dispatcher:'d',worker:'w',branch:'codex/issue-41-outcome',worktree:'worktrees/x',allowed_paths:['supabase/**'],file_writes:['supabase/migrations/20260911120000_example.sql'],db_reads:[],db_writes:['supabase/migrations/20260911120000_example.sql'],prohibited_actions:[],required_checks:['node --test'],assumptions:[],stop_conditions:[]})
+          : JSON.stringify({work_issue:41,pr:7,migration_versions:[version]}),
       })
       const checks=[]
       for(const name of ['prStructuralObjects','mergeCommitInMain','verifyProductionApply','applicationCommitInDefaultBranch','verifyLiveAssertion']){

@@ -8,6 +8,12 @@ begin
   return query execute 'explain (costs off) select count(*) from api.dam_order_list';
 end $$;
 
+create or replace function pg_temp.explain_order_list_rows()
+returns setof text language plpgsql as $$
+begin
+  return query execute 'explain (costs off) select order_line_id, master_data_license_status, test_report, professional_photos from api.dam_order_list order by sent_po_date desc nulls last,order_id,order_line_id limit 100';
+end $$;
+
 do $contracts$
 declare
   v_valid boolean;
@@ -78,18 +84,35 @@ begin
   select string_agg(plan_line, E'\n') into v_plan
   from pg_temp.explain_order_list_count() plan_line;
 
-  if position('style_tracker_item_bridge_plm_item_cover_idx' in coalesce(v_plan, '')) = 0
-     or position('production_order_line_count_cover_idx' in coalesce(v_plan, '')) = 0 then
-    raise exception 'OrderList count did not plan through both required indexes: %', v_plan;
+  -- Aggregated product facts are cardinality-preserving and can now be pruned
+  -- entirely from a count. If PostgreSQL retains a bridge lookup, it must keep
+  -- using the covering index; eliminating that lookup is also valid.
+  -- A retained one-row lateral Result can make the primary-key path cheaper.
+  -- Keep both index shape assertions above and require an indexed count path.
+  if v_plan !~ 'Index (Only )?Scan using production_order_line_(count_cover_idx|pkey)' then
+    raise exception 'OrderList count did not use an available line index: %', v_plan;
   end if;
 
-  if v_plan ~ 'Seq Scan on (plm\.)?style_tracker_item_bridge'
-     or v_plan ~ 'Seq Scan on (plm\.)?production_order_line' then
+  if v_plan ~ 'Seq Scan on (plm\.)?style_tracker_item_bridge( |$)'
+     or v_plan ~ 'Seq Scan on (plm\.)?production_order_line( |$)'
+     or v_plan ~ 'Seq Scan on (public\.)?style_tracker_rows( |$)' then
     raise exception 'OrderList count retained a target sequential scan: %', v_plan;
   end if;
 
-  if v_plan !~ 'Index Only Scan using style_tracker_item_bridge_plm_item_cover_idx' then
+  if v_plan ~ 'on style_tracker_item_bridge( |$)' and v_plan !~ 'Index Only Scan using style_tracker_item_bridge_plm_item_cover_idx' then
     raise exception 'OrderList count bridge lookup is not index-only: %', v_plan;
+  end if;
+  -- Tiny fixtures otherwise choose bitmap heap scans; pin the available direct path.
+  perform set_config('enable_bitmapscan', 'off', true);
+  select string_agg(plan_line,E'\n') into v_plan from pg_temp.explain_order_list_rows() plan_line;
+  if v_plan !~ 'Index Only Scan using style_tracker_item_bridge_plm_item_cover_idx'
+    or v_plan ~ 'Seq Scan on (plm\.)?style_tracker_item_bridge( |$)'
+    or v_plan ~ 'Seq Scan on (plm\.)?production_order_line( |$)'
+    or v_plan ~ 'Seq Scan on (public\.)?style_tracker_rows( |$)' then
+    raise exception 'Bounded OrderList product row path lost indexed lookups: %',v_plan;
+  end if;
+  if v_plan ~ 'Function Scan on orderlist_product_facts' then
+    raise exception 'Product facts stopped inlining into the bounded row plan: %',v_plan;
   end if;
 end
 $contracts$;
