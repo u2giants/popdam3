@@ -57,7 +57,7 @@ Active plans (read STATUS first; do not re-derive completed steps):
 - plan_style_group_scoped_ai_metadata.md — product vs file-level AI metadata
 - plan_popsg_production_readiness.md — PopSG library truthfulness and search
 - plan_master_data_orderlist_loading_performance.md — first-paint and OrderList Find performance
-- plan_orderlist_sheets_full_integration.md — native Sheets integration; read STATUS and its own HANDOFF.d link first
+- plan_orderlist_sheets_full_integration.md — completed native Sheets integration; read STATUS for verified delivery and separate held source decisions; its completed session handoff is retired.
 
 Then load additional docs only when relevant — do **not** ingest every `.md` file:
 

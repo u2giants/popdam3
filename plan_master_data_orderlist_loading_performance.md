@@ -1,8 +1,10 @@
 # Master Data and OrderList loading-performance implementation plan
 
-Tracking: [PopDAM #121](https://github.com/u2giants/popdam3/issues/121) · completed database lane: [popcre/shared-db #2664](https://github.com/popcre/shared-db/issues/2664); #2665 was a closed duplicate · handoff: [HANDOFF.d/2026-09-10T0209Z-hetz-codex-grid-loading-performance-plan.md](HANDOFF.d/2026-09-10T0209Z-hetz-codex-grid-loading-performance-plan.md)
+Historical tracking (closed): [PopDAM #121](https://github.com/u2giants/popdam3/issues/121) · completed database lane: [popcre/shared-db #2664](https://github.com/popcre/shared-db/issues/2664); #2665 was a closed duplicate · handoff: [HANDOFF.d/2026-09-10T0209Z-hetz-codex-grid-loading-performance-plan.md](HANDOFF.d/2026-09-10T0209Z-hetz-codex-grid-loading-performance-plan.md)
 
 ## STATUS — read this first
+
+The linked September handoff belongs to another session and is retained as historical ownership evidence. Issue #121 is closed; this session does not reopen or edit that handoff or its predecessor. Current integration acceptance is on closed #281; the completed current session handoff is retired.
 
 **Complete:** all six steps have passed their acceptance gates. The editor-safe repair is live; focused edit/refresh checks and native workflow proof passed. Reviewed documentation landed in PR #290, and application integration #281, matching #275 and shared outcome #4111 are closed. Steps below are retained execution history; do not restart them. Any new shared-db structure must use its own claim-first route and current AI-reviewer gates; never request human approval.
 

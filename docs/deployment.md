@@ -81,7 +81,7 @@ matched; type artifact `11643178561` SHA-256
 `7fdbb47c64e182e3893d104ef3105a751e6a5666efe857d9d640943d306229a7` and live
 artifact `11642863862` SHA-256
 `54f02a6384171d797ce11ba7ef306dbc39e7d9e41a24c71c3f12b1672332ed59` passed.
-Shared-db #4111 and PopDAM #275 are closed. The #275 UI proof passed 53 administrator/viewer checks; report `coldlion-owner-link-proof.json` SHA-256 `fd33979beb4abe88c0a5eb969b58ec7b679ebffda9f227d63b1bfb9b6d7a219f`, with evidence in [#275 completion comment](https://github.com/u2giants/popdam3/issues/275#issuecomment-6089001259). Only PopDAM #281 documentation/closeout remains open. The post-link cohort has 23 lines across 7 Items; missing current Master tracker facts remain Unknown, with no records created.
+Shared-db #4111 and PopDAM #275 are closed. The #275 UI proof passed 53 administrator/viewer checks; report `coldlion-owner-link-proof.json` SHA-256 `fd33979beb4abe88c0a5eb969b58ec7b679ebffda9f227d63b1bfb9b6d7a219f`, with evidence in [#275 completion comment](https://github.com/u2giants/popdam3/issues/275#issuecomment-6089001259). PopDAM #281 is closed after reviewed documentation landed in PR #290. The post-link cohort has 23 lines across 7 Items; missing current Master tracker facts remain Unknown, with no records created.
 
 ### Frontend Deploy Verification Checklist
 
