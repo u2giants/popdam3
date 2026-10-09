@@ -1,7 +1,9 @@
--- #3869 / claim #3969 contracts: plm.v_prod_order_sales_order_link links on
--- ColdLion's own numbers. Production-history pairs are authoritative; only a PO
--- with none falls back to ColdLion's own D-number for the PO on sales-order lines
--- of the same customer (MOD011 read as MOD010); PLM prodReferenceNo is never used.
+-- #3869 generation 7 contracts: plm.v_prod_order_sales_order_link links on the
+-- CUSTOMER PO NUMBER, never on a sales-order number (owner rule 2026-10-09).
+-- Primary: prod_history_line.cust_po_number = order_history_line.po_number (trimmed,
+-- upper-cased, leading zeros stripped), same company and customer (MOD011 = MOD010).
+-- Fallback, only for a PO with no customer-PO pair: ColdLion D-number on same-customer
+-- sales orders entered in ColdLion within the window around the PO created time.
 -- Synthetic rows only; the CI runner wraps this file in begin/rollback.
 
 do $$
@@ -12,6 +14,7 @@ declare
   h_c integer;
   h_d integer;
   h_e integer;
+  v_po_created timestamptz := timestamptz '2026-01-10 12:00:00+00';
 begin
   if to_regclass('plm.v_prod_order_sales_order_link') is null then
     raise exception 'plm.v_prod_order_sales_order_link is missing';
@@ -23,104 +26,106 @@ begin
   end if;
 
   insert into coldlion.sync_run (endpoint, requested_by, status, started_at)
-  values ('/orderHistory', 'issue-3969-contract', 'running', now())
+  values ('/orderHistory', 'issue-3869-contract', 'running', now())
   returning id into v_run;
 
-  -- PO A: PLM reference is a typo (ZZTYPO); ColdLion says ZZ3969A. Direct pairs exist.
+  -- PO A: customer PO 009212870 on its ColdLion history; production history also
+  -- names sales order 99386999, which must NOT link (no sales-order number key).
   insert into plm."ProdOrderHeader"("prodOrderNo", "companyCode", "customerCode",
-                                    "prodReferenceNo", "prodOrderDate")
-  values ('990396901', 'EDGEHOME', 'ZZCUSTA', 'ZZTYPO', '2026-01-10')
+                                    "prodReferenceNo", "prodOrderDate", "createdTime", "salesOrderNo")
+  values ('990386901', 'EDGEHOME', 'ZZCUSTA', 'ZZTYPO', '2026-01-10', v_po_created, '99386998')
   returning id into h_a;
-  -- PO B: no direct pair; ColdLion D-number ZZ3969B, customer MOD011 (= MOD010).
-  -- Its PLM reference ZZ3969X must be ignored.
+  -- PO B: no customer PO; ColdLion D-number ZZ3869B, customer MOD011 (= MOD010).
   insert into plm."ProdOrderHeader"("prodOrderNo", "companyCode", "customerCode",
-                                    "prodReferenceNo", "prodOrderDate")
-  values ('990396902', 'EDGEHOME', 'MOD011', 'ZZ3969X', '2026-01-10')
+                                    "prodReferenceNo", "prodOrderDate", "createdTime")
+  values ('990386902', 'EDGEHOME', 'MOD011', 'ZZ3869X', '2026-01-10', v_po_created)
   returning id into h_b;
-  -- PO C: no ColdLion production history. Its PLM reference matches order lines
-  -- (must not link); its legacy header salesOrderNo is same-customer (links).
+  -- PO C: no ColdLion production history; its legacy header salesOrderNo must not link.
   insert into plm."ProdOrderHeader"("prodOrderNo", "companyCode", "customerCode",
                                     "prodReferenceNo", "prodOrderDate", "salesOrderNo")
-  values ('990396903', 'EDGEHOME', ' ZZCUSTC ', 'ZZ3969A', '2026-01-10', '99396930')
+  values ('990386903', 'EDGEHOME', 'ZZCUSTA', 'ZZ3869A', '2026-01-10', '99386930')
   returning id into h_c;
   -- PO D: other company; ColdLion rows for its number are EDGEHOME. Never links.
   insert into plm."ProdOrderHeader"("prodOrderNo", "companyCode", "customerCode",
-                                    "prodReferenceNo", "prodOrderDate")
-  values ('990396904', 'ZZOTHERCO', 'ZZCUSTA', 'ZZ3969A', '2026-01-10')
+                                    "prodReferenceNo", "prodOrderDate", "createdTime")
+  values ('990386904', 'ZZOTHERCO', 'ZZCUSTA', 'ZZ3869A', '2026-01-10', v_po_created)
   returning id into h_d;
-  -- PO E: ColdLion history names two customers; no fallback pairs.
+  -- PO E: no customer PO, ColdLion history names two customers: no fallback pairs.
   insert into plm."ProdOrderHeader"("prodOrderNo", "companyCode", "customerCode",
-                                    "prodReferenceNo", "prodOrderDate")
-  values ('990396905', 'EDGEHOME', 'ZZCUSTA', 'ZZ3969E', '2026-01-10')
+                                    "prodReferenceNo", "prodOrderDate", "createdTime")
+  values ('990386905', 'EDGEHOME', 'ZZCUSTA', 'ZZ3869E', '2026-01-10', v_po_created)
   returning id into h_e;
 
   insert into coldlion.order_history_line(
     company_code, sales_order_no, sales_order_line_no, master_item_no, label_code,
-    customer_code, prod_reference_no, start_date, cancel_date,
+    customer_code, po_number, prod_reference_no, start_date, cancel_date, created_time,
     line_source_hash, run_id, fetched_at)
   values
-    -- PO A's D-number on a direct-pair sales order: corroborates it
-    ('EDGEHOME', 99396910, 1, 'ZZITEM', 'BC', 'ZZCUSTA', 'ZZ3969A', date '2026-02-01', date '2026-03-01', repeat('1', 64), v_run, now()),
-    -- PO A's D-number, same customer, no direct pair: PO A has direct pairs, so no link
-    ('EDGEHOME', 99396900, 1, 'ZZITEM', 'BC', 'ZZCUSTA', 'ZZ3969A', date '2026-02-01', null, repeat('2', 64), v_run, now()),
-    -- PO B fallback: MOD010 line with padding and other case links (alias MOD011 -> MOD010)
-    ('EDGEHOME', 99396920, 1, 'ZZITEM', 'BC', ' MOD010 ', ' zz3969b ', date '2026-02-01', date '2026-03-01', repeat('3', 64), v_run, now()),
+    -- PO A: same customer PO (unpadded, padded) -> link; one also carries PO A's D-number
+    ('EDGEHOME', 99386910, 1, 'ZZITEM', 'BC', 'ZZCUSTA', ' 9212870 ', 'ZZ3869A', date '2026-02-01', date '2026-03-01', v_po_created - interval '30 days', repeat('1', 64), v_run, now()),
+    ('EDGEHOME', 99386911, 1, 'ZZITEM', 'BC', 'ZZCUSTA', '0009212870', 'OTHER',  date '2026-02-02', null,             null,                              repeat('2', 64), v_run, now()),
+    -- PO A's customer PO under another customer: no link
+    ('EDGEHOME', 99386912, 1, 'ZZITEM', 'BC', 'ZZCUSTB', '9212870',    'OTHER',  date '2026-02-01', null,             null,                              repeat('3', 64), v_run, now()),
+    -- PO A's D-number, same customer, other customer PO: PO A has customer-PO pairs, no link
+    ('EDGEHOME', 99386913, 1, 'ZZITEM', 'BC', 'ZZCUSTA', '1111',       'ZZ3869A', date '2026-02-01', null,            v_po_created - interval '1 day',   repeat('4', 64), v_run, now()),
+    -- PO A's header salesOrderNo, same customer, PO A's D-number: must NOT link
+    ('EDGEHOME', 99386998, 1, 'ZZITEM', 'BC', 'ZZCUSTA', '3333',       'ZZ3869A', date '2026-02-01', null,            v_po_created - interval '2 days',  repeat('d', 64), v_run, now()),
+    -- the sales order production history names for PO A: must NOT link
+    ('EDGEHOME', 99386999, 1, 'ZZITEM', 'BC', 'ZZCUSTA', '2222',       'OTHER',  date '2026-02-01', null,             null,                              repeat('5', 64), v_run, now()),
+    -- PO B fallback: MOD010 line, entered 10 days before the PO -> links
+    ('EDGEHOME', 99386920, 1, 'ZZITEM', 'BC', ' MOD010 ', null, ' zz3869b ', date '2026-02-01', date '2026-03-01', v_po_created - interval '10 days', repeat('6', 64), v_run, now()),
     -- PO B fallback, other customer: no link
-    ('EDGEHOME', 99396921, 1, 'ZZITEM', 'BC', 'ZZCUSTB', 'ZZ3969B', date '2026-02-01', null, repeat('4', 64), v_run, now()),
-    -- PO B fallback, years away: links (no date guard; D-numbers are not reused)
-    ('EDGEHOME', 99396922, 1, 'ZZITEM', 'BC', 'MOD011', 'ZZ3969B', date '2019-01-01', null, repeat('5', 64), v_run, now()),
-    -- PO B's PLM reference: must not link
-    ('EDGEHOME', 99396923, 1, 'ZZITEM', 'BC', 'MOD011', 'ZZ3969X', date '2026-02-01', null, repeat('6', 64), v_run, now()),
-    -- PO C's legacy header sales order
-    ('EDGEHOME', 99396930, 1, 'ZZITEM', 'BC', 'ZZCUSTC', 'OTHER', date '2026-02-01', date '2026-03-01', repeat('7', 64), v_run, now()),
+    ('EDGEHOME', 99386921, 1, 'ZZITEM', 'BC', 'ZZCUSTB', null, 'ZZ3869B', date '2026-02-01', null, v_po_created - interval '10 days', repeat('7', 64), v_run, now()),
+    -- PO B fallback, entered years before the PO: outside the window, no link
+    ('EDGEHOME', 99386922, 1, 'ZZITEM', 'BC', 'MOD011', null, 'ZZ3869B', date '2023-01-01', null, v_po_created - interval '1100 days', repeat('8', 64), v_run, now()),
+    -- PO B fallback, entered long after the PO: outside the window, no link
+    ('EDGEHOME', 99386923, 1, 'ZZITEM', 'BC', 'MOD011', null, 'ZZ3869B', date '2027-06-01', null, v_po_created + interval '400 days', repeat('9', 64), v_run, now()),
+    -- PO B fallback, no entry time known: no link
+    ('EDGEHOME', 99386924, 1, 'ZZITEM', 'BC', 'MOD011', null, 'ZZ3869B', date '2026-02-01', null, null, repeat('a', 64), v_run, now()),
+    -- PO C's legacy header sales order (and PO C's PLM reference): no link
+    ('EDGEHOME', 99386930, 1, 'ZZITEM', 'BC', 'ZZCUSTA', null, 'ZZ3869A', date '2026-02-01', null, v_po_created - interval '1 day', repeat('b', 64), v_run, now()),
     -- PO E's D-number, one of its two customers: no link
-    ('EDGEHOME', 99396950, 1, 'ZZITEM', 'BC', 'ZZCUSTA', 'ZZ3969E', date '2026-02-01', null, repeat('8', 64), v_run, now());
+    ('EDGEHOME', 99386950, 1, 'ZZITEM', 'BC', 'ZZCUSTA', null, 'ZZ3869E', date '2026-02-01', null, v_po_created - interval '1 day', repeat('c', 64), v_run, now());
 
   insert into coldlion.prod_history_line
     (company_code, prod_order_no, prod_line_seq, requested_stage_code, stage_code,
-     customer_code, sales_order_no, prod_reference_no, source_observed_at, line_source_hash, run_id, fetched_at)
+     customer_code, sales_order_no, prod_reference_no, cust_po_number, source_observed_at,
+     line_source_hash, run_id, fetched_at)
   values
-    -- PO A direct pairs (99396903 has no order lines at all)
-    ('EDGEHOME', 990396901, 1, 'ISS', 'ISS', 'ZZCUSTA', 99396903, 'ZZ3969A', now(), repeat('a', 64), v_run, now()),
-    ('EDGEHOME', 990396901, 2, 'ISS', 'ISS', 'ZZCUSTA', 99396910, 'ZZ3969A', now(), repeat('b', 64), v_run, now()),
-    -- PO B: history with no sales order
-    ('EDGEHOME', 990396902, 1, 'ISS', 'ISS', 'MOD011', 0, ' zz3969b ', now(), repeat('c', 64), v_run, now()),
-    -- PO D's number under EDGEHOME
-    ('EDGEHOME', 990396904, 1, 'ISS', 'ISS', 'ZZCUSTA', 99396903, 'ZZ3969A', now(), repeat('d', 64), v_run, now()),
-    -- PO E: two customers
-    ('EDGEHOME', 990396905, 1, 'ISS', 'ISS', 'ZZCUSTA', 0, 'ZZ3969E', now(), repeat('e', 64), v_run, now()),
-    ('EDGEHOME', 990396905, 2, 'ISS', 'ISS', 'ZZCUSTB', 0, 'ZZ3969E', now(), repeat('f', 64), v_run, now());
+    ('EDGEHOME', 990386901, 1, 'ISS', 'ISS', 'ZZCUSTA', 99386999, 'ZZ3869A', '009212870', now(), repeat('a', 64), v_run, now()),
+    ('EDGEHOME', 990386902, 1, 'ISS', 'ISS', 'MOD011',  99386921, ' zz3869b ', '  ',      now(), repeat('b', 64), v_run, now()),
+    ('EDGEHOME', 990386904, 1, 'ISS', 'ISS', 'ZZCUSTA', 0,        'ZZ3869A', '9212870',    now(), repeat('d', 64), v_run, now()),
+    ('EDGEHOME', 990386905, 1, 'ISS', 'ISS', 'ZZCUSTA', 0,        'ZZ3869E', null,         now(), repeat('e', 64), v_run, now()),
+    ('EDGEHOME', 990386905, 2, 'ISS', 'ISS', 'ZZCUSTB', 0,        'ZZ3869E', null,         now(), repeat('f', 64), v_run, now());
 
   if (select array_agg(sales_order_no || ':' || array_to_string(link_sources, '+') || ':' || source_count
                        order by sales_order_no)
         from plm.v_prod_order_sales_order_link where prod_order_header_id = h_a)
-     is distinct from array['99396903:prod_history_line:1',
-                            '99396910:order_history_line+prod_history_line:2'] then
-    raise exception 'PO A must link exactly to its production-history pairs, corroborated by its ColdLion D-number: %',
-      (select array_agg(sales_order_no order by sales_order_no)
+     is distinct from array['99386910:customer_po+prod_reference_no:2',
+                            '99386911:customer_po:1'] then
+    raise exception 'PO A must link by customer PO only (D-number corroborates): %',
+      (select array_agg(sales_order_no || ':' || array_to_string(link_sources, '+') order by sales_order_no)
          from plm.v_prod_order_sales_order_link where prod_order_header_id = h_a);
   end if;
 
   if (select sales_order_start_date from plm.v_prod_order_sales_order_link
-       where prod_order_header_id = h_a and sales_order_no = 99396910) <> date '2026-02-01' then
+       where prod_order_header_id = h_a and sales_order_no = 99386910) <> date '2026-02-01' then
     raise exception 'the sales-order start date (the promise) must be exposed';
   end if;
 
-  if (select array_agg(sales_order_no || ':' || array_to_string(link_sources, '+') order by sales_order_no)
+  if (select array_agg(array_to_string(link_sources, '+') || ':' || source_count || ':' ||
+             (latest_fetched_at is not null) || ':' || sales_order_no || ':' ||
+             sales_order_start_date || ':' || sales_order_start_date_max || ':' ||
+             sales_order_cancel_date || ':' || sales_order_start_date_ever_changed)
         from plm.v_prod_order_sales_order_link where prod_order_header_id = h_b)
-     is distinct from array['99396920:order_history_line', '99396922:order_history_line'] then
-    raise exception 'PO B must fall back to its ColdLion D-number, same customer with MOD011 = MOD010, never its PLM reference: %',
+     is distinct from array['prod_reference_no:1:true:99386920:2026-02-01:2026-02-01:2026-03-01:false'] then
+    raise exception 'PO B must fall back to its ColdLion D-number, same customer (MOD011 = MOD010), entered within the window, never by sales-order number: %',
       (select array_agg(sales_order_no order by sales_order_no)
          from plm.v_prod_order_sales_order_link where prod_order_header_id = h_b);
   end if;
 
-  if (select array_agg(array_to_string(link_sources, '+') || ':' || source_count || ':' ||
-             coalesce(latest_fetched_at::text, 'null') || ':' || sales_order_no || ':' ||
-             sales_order_start_date || ':' || sales_order_cancel_date || ':' ||
-             sales_order_start_date_ever_changed)
-        from plm.v_prod_order_sales_order_link where prod_order_header_id = h_c)
-     is distinct from array['prod_order_header:1:null:99396930:2026-02-01:2026-03-01:false'] then
-    raise exception 'PO C must link only through its same-customer legacy header sales order';
+  if exists (select 1 from plm.v_prod_order_sales_order_link where prod_order_header_id = h_c) then
+    raise exception 'a PO without ColdLion history must not link through its header sales-order number';
   end if;
 
   if exists (select 1 from plm.v_prod_order_sales_order_link where prod_order_header_id = h_d) then

@@ -64,6 +64,23 @@ export const ORDER_LINE_SPEC = [
   ["fetched_at", "ts"],
 ];
 
+// ColdLion's sales-order entry/edit stamps (issue #3869, migration 20261009170724). They
+// are written ONLY when the target table has the columns: the same loader runs against
+// databases where that additive migration has not been applied yet, and naming a missing
+// column would fail every window. The caller proves presence (run-history.mjs).
+export const ORDER_LINE_STAMP_SPEC = [
+  ["created_time", "ts"],
+  ["created_user", "text"],
+  ["mod_time", "ts"],
+  ["mod_user", "text"],
+];
+
+export function orderLineSpec(stampColumns) {
+  if (!stampColumns) return ORDER_LINE_SPEC;
+  const at = ORDER_LINE_SPEC.findIndex(([column]) => column === "line_source_hash");
+  return [...ORDER_LINE_SPEC.slice(0, at), ...ORDER_LINE_STAMP_SPEC, ...ORDER_LINE_SPEC.slice(at)];
+}
+
 export const ORDER_COMPONENT_SPEC = [
   ["sub_item_no", "text"],
   ["sub_label_code", "text"],
@@ -479,7 +496,9 @@ export function buildOrderHistoryLoadSql({
   finishedAt,
   durationMs,
   notes,
+  stampColumns = false,
 }) {
+  const lineSpec = orderLineSpec(stampColumns);
   const lines = withLocals(projected.lines);
   const components = withLocals(projected.components);
   const invoiceRefs = withLocals(projected.invoiceRefs);
@@ -498,11 +517,11 @@ export function buildOrderHistoryLoadSql({
       httpStatus: pages.at(-1).httpStatus,
       bodyStatus: pages.at(-1).bodyStatus,
     }),
-    stageSql("_stage_line", ORDER_LINE_SPEC, LOCAL, lines),
+    stageSql("_stage_line", lineSpec, LOCAL, lines),
     insertSql({
       target: "coldlion.order_history_line",
       constraint: "coldlion_order_history_line_identity_unique",
-      spec: ORDER_LINE_SPEC,
+      spec: lineSpec,
       stageName: "_stage_line",
       count: "order_history_line",
     }),

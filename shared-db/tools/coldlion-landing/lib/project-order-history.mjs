@@ -18,7 +18,7 @@
 
 import { randomUUID } from "node:crypto";
 import { EXCLUDED_DIVISION } from "./scopes.mjs";
-import { bigint, date, num, sourceHash, splitTokens, text } from "./values.mjs";
+import { EMPTY_DATE_MARKER, bigint, date, num, sourceHash, splitTokens, text } from "./values.mjs";
 
 /** Line-grain projection: every approved field proven constant across components. */
 export function projectLine(row) {
@@ -46,6 +46,49 @@ export function projectLine(row) {
     prod_cost: num(row.prodCost),
     prod_reference_no: text(row.prodReferenceNo),
   };
+}
+
+/**
+ * ColdLion's own entry/edit stamps for the sales-order line (owner request, Albert Hazan,
+ * 2026-10-09: ColdLion added createdTime/createdUser/modTime/modUser to /orderHistory so
+ * the sales-order received time can be compared with the production-PO created time).
+ *
+ * Deliberately OUTSIDE projectLine and therefore outside line_source_hash: modTime moves
+ * on every edit, and hashing it would turn each edit into a new line version. The vendor
+ * sends a zone-less wall-clock time ("2026-03-27 11:37:34.557"); it is landed as that
+ * wall clock read as UTC, the same convention plm."ProdOrderHeader"."createdTime" carries,
+ * so the two ColdLion clocks compare directly. Never parsed in the machine's local zone.
+ */
+export function wallClockTimestamp(value) {
+  const raw = text(value);
+  if (raw === null) return null;
+  const match = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?)(Z|[+-]\d{2}:?\d{2})?$/.exec(raw);
+  if (!match) throw new Error("a timestamp field was not an ISO timestamp");
+  if (match[1] <= EMPTY_DATE_MARKER) return null;
+  const parsed = new Date(`${match[1]}T${match[2]}${match[3] ?? "Z"}`);
+  if (Number.isNaN(parsed.valueOf())) throw new Error("a timestamp field was not an ISO timestamp");
+  return parsed.toISOString();
+}
+
+export function projectLineStamps(row) {
+  return {
+    created_time: wallClockTimestamp(row.createdTime),
+    created_user: text(row.createdUser),
+    mod_time: wallClockTimestamp(row.modTime),
+    mod_user: text(row.modUser),
+  };
+}
+
+/** Earliest creation and latest modification across the components of one line. */
+export function mergeLineStamps(into, stamps) {
+  if (stamps.created_time !== null && (into.created_time === null || stamps.created_time < into.created_time)) {
+    into.created_time = stamps.created_time;
+    into.created_user = stamps.created_user;
+  }
+  if (stamps.mod_time !== null && (into.mod_time === null || stamps.mod_time > into.mod_time)) {
+    into.mod_time = stamps.mod_time;
+    into.mod_user = stamps.mod_user;
+  }
 }
 
 /** Component-grain projection: the per-design facts and the verbatim document lists. */
@@ -156,9 +199,20 @@ export function projectOrderHistoryWindow(rows, { runId, fetchedAt, newId = rand
     );
     let parent = lines.get(key);
     if (!parent) {
-      parent = { localId: newId(), ...line, line_source_hash: lineHash, run_id: runId, fetched_at: fetchedAt };
+      parent = {
+        localId: newId(),
+        ...line,
+        created_time: null,
+        created_user: null,
+        mod_time: null,
+        mod_user: null,
+        line_source_hash: lineHash,
+        run_id: runId,
+        fetched_at: fetchedAt,
+      };
       lines.set(key, parent);
     }
+    mergeLineStamps(parent, projectLineStamps(row));
 
     const component = projectComponent(row);
     const componentHash = sourceHash(component);

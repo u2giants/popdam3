@@ -116,6 +116,19 @@ recipe sequence is deleted (with change_log evidence) only for codes the run
 actually asked, so the landing table tracks the vendor's current state without
 ever touching codes it did not question.
 
+Sales-order entry/edit stamps — `coldlion.order_history_line.created_time`,
+`created_user`, `mod_time`, `mod_user` (issue #3869, 2026-10-09). The window loader writes them
+only when the target table carries all four columns (migration `20261009170724`); against a
+database without that migration it loads exactly as before, and a partial set is refused. Rows
+landed earlier are filled by a one-off, re-runnable backfill that updates only those four
+columns and writes no evidence or ledger state. It refuses a database without the columns,
+clamps `--to` to the newest closed window, skips EP001, and matches the loader's line identity
+for the table shape it finds. Never schedule it: ongoing loads already carry the stamps.
+
+```bash
+node tools/coldlion-landing/backfill-order-stamps.mjs --from 2019-01-01 [--to 2026-10-04] [--company EDGEHOME] [--dry-run]
+```
+
 Backfill — resumable from the ledger, so re-running after an interruption
 continues where the evidence stops:
 

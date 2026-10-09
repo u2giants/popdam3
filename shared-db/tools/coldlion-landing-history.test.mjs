@@ -14,10 +14,11 @@ import { ORDER_HISTORY, allScopes, prodHistoryScope } from "./coldlion-landing/l
 import { assertPagesComplete, buildPageUrl, fetchPage, fetchWindowScope, isPermanentStatus, requestParams, validatePage } from "./coldlion-landing/lib/http.mjs";
 import { assertExpectedTarget } from "./coldlion-landing/lib/db.mjs";
 import { bigint, canonical, date, num, sourceHash, splitTokens, sqlText, text } from "./coldlion-landing/lib/values.mjs";
-import { projectOrderHistoryWindow, splitInvoiceTokens } from "./coldlion-landing/lib/project-order-history.mjs";
+import { projectOrderHistoryWindow, splitInvoiceTokens, wallClockTimestamp } from "./coldlion-landing/lib/project-order-history.mjs";
+import { aggregateStamps, buildStampUpdateSql, parseArgs as parseStampArgs } from "./coldlion-landing/backfill-order-stamps.mjs";
 import { projectProdHistoryWindow, quantitiesAgree, selectLookup } from "./coldlion-landing/lib/project-prod-history.mjs";
 import { buildOrderHistoryLoadSql, buildProdHistoryLoadSql } from "./coldlion-landing/lib/load-window.mjs";
-import { loadedWindowsSql } from "./coldlion-landing/lib/run-history.mjs";
+import { hasOrderStampColumns, interpretOrderStampColumns, loadedWindowsSql, orderStampColumnsSql } from "./coldlion-landing/lib/run-history.mjs";
 import { parseArgs as parseBackfillArgs, selectScopes } from "./coldlion-landing/backfill-history.mjs";
 import { parseArgs as parseSyncArgs } from "./coldlion-landing/sync-history.mjs";
 
@@ -281,6 +282,95 @@ test("a differing line projection is a separate VERSION, never a merged row", ()
   assert.equal(projected.lines.length, 2);
   assert.equal(projected.versionFanOut, 1, "the fan-out is reported, not hidden");
   assert.notEqual(projected.lines[0].line_source_hash, projected.lines[1].line_source_hash);
+});
+
+test("entry/edit stamps land on the line, earliest created and latest modified, outside the hash (#3869)", () => {
+  counter = 0;
+  const projected = projectOrderHistoryWindow(
+    [
+      orderRow({ createdTime: "2026-03-27 11:37:34.557", createdUser: "U1", modTime: "2026-04-01 08:00:00.000", modUser: "U2" }),
+      orderRow({ subItemNo: "SKU-2", createdTime: "2026-03-26 09:00:00.000", createdUser: "U0", modTime: "2026-05-01 10:00:00.000", modUser: "U3" }),
+    ],
+    { runId: ids(), fetchedAt: "2026-09-08T00:00:00Z", newId: ids },
+  );
+  assert.equal(projected.lines.length, 1, "differing stamps never split a line into versions");
+  const [line] = projected.lines;
+  assert.equal(line.created_time, "2026-03-26T09:00:00.000Z");
+  assert.equal(line.created_user, "U0");
+  assert.equal(line.mod_time, "2026-05-01T10:00:00.000Z");
+  assert.equal(line.mod_user, "U3");
+  counter = 0;
+  const bare = projectOrderHistoryWindow([orderRow()], { runId: ids(), fetchedAt: "2026-09-08T00:00:00Z", newId: ids });
+  assert.equal(bare.lines[0].line_source_hash, line.line_source_hash, "stamps are not part of line_source_hash");
+  assert.equal(bare.lines[0].created_time, null);
+  const loadArgs = {
+    window: { from: "2026-09-07", to: "2026-09-13" }, scope: ORDER_HISTORY, runId: ids(), requestedBy: "t",
+    companyCode: "TESTCO", pages: [{ pageNumber: 0, requestedPageSize: 200, returnedPageSize: 200, rowCount: 2, reportedTotalElements: 2, reportedTotalPages: 1, isLastPage: true, httpStatus: 200, bodyStatus: null, fetchedAt: "2026-09-08T00:00:00Z" }],
+    completion: { rows: 2 }, projected, startedAt: "2026-09-08T00:00:00Z", finishedAt: "2026-09-08T00:00:01Z", durationMs: 1, notes: null,
+  };
+  assert.match(buildOrderHistoryLoadSql({ ...loadArgs, stampColumns: true }), /created_time, created_user, mod_time, mod_user/);
+  assert.doesNotMatch(buildOrderHistoryLoadSql(loadArgs), /created_time/,
+    "a target without migration 20261009170724 is never sent the stamp columns");
+});
+
+test("the loader writes stamps only when the target has all four stamp columns", () => {
+  assert.equal(interpretOrderStampColumns([["4", "4"]]), true);
+  assert.equal(interpretOrderStampColumns([["0", "0"]]), false);
+  assert.throws(() => interpretOrderStampColumns([["1", "1"]]), /1 of the 4 ColdLion stamp columns/);
+  assert.throws(() => interpretOrderStampColumns([["3", "4"]]), /3 with the expected type/);
+  assert.match(orderStampColumnsSql(), /coldlion\.order_history_line/);
+  let probes = 0;
+  const query = () => { probes += 1; return [["4", "4"]]; };
+  assert.equal(hasOrderStampColumns({ url: "postgres://probe-test-a" }, query), true);
+  assert.equal(hasOrderStampColumns({ url: "postgres://probe-test-a" }, query), true);
+  assert.equal(probes, 1, "one probe per target per run");
+});
+
+test("the stamp backfill clamps --to to the newest closed window and skips EP001", () => {
+  const lastClosed = windowAtIndex(lastClosedWindowIndex(isoDate(new Date())));
+  assert.equal(parseStampArgs(["--from", "2026-01-01", "--to", "2999-01-01"]).to, lastClosed.to);
+  assert.equal(parseStampArgs(["--from", "2026-01-01"]).to, lastClosed.to);
+  assert.equal(parseStampArgs(["--from", "2020-01-01", "--to", "2020-02-01"]).to, "2020-02-01");
+  assert.throws(() => parseStampArgs([]), /--from is required/);
+  assert.deepEqual(aggregateStamps([orderRow({ divisionCode: "EP001", createdTime: "2026-03-27 11:00:00.000" })], "current"), []);
+  const many = Array.from({ length: 1201 }, (_, i) => orderRow({ salesOrderLineNo: String(i + 1), createdTime: "2026-03-27 11:00:00.000" }));
+  const sql = buildStampUpdateSql(aggregateStamps(many, "current"), "current");
+  assert.equal((sql.match(/insert into _stamps values/g) ?? []).length, 3, "batched 500 rows per statement");
+});
+
+test("vendor wall-clock stamps are read as UTC, never in the machine zone", () => {
+  assert.equal(wallClockTimestamp("2026-03-27 11:37:34.557"), "2026-03-27T11:37:34.557Z");
+  assert.equal(wallClockTimestamp("2026-03-27T11:37:34"), "2026-03-27T11:37:34.000Z");
+  assert.equal(wallClockTimestamp("2026-03-27T11:37:34-04:00"), "2026-03-27T15:37:34.000Z");
+  assert.equal(wallClockTimestamp("1900-01-01 00:00:00.000"), null);
+  assert.equal(wallClockTimestamp(""), null);
+  assert.throws(() => wallClockTimestamp("27/03/2026"), /not an ISO timestamp/);
+});
+
+test("the stamp backfill folds and matches on the loader's line identity for each table shape", () => {
+  const rows = [
+    orderRow({ labelCode: "", createdTime: "2026-03-27 11:00:00.000", modTime: "2026-03-28 11:00:00.000" }),
+    orderRow({ labelCode: "", createdTime: "2026-03-25 11:00:00.000", modTime: "2026-03-29 11:00:00.000", modUser: "M" }),
+    orderRow({ labelCode: "", salesOrderLineNo: "2", createdTime: "2026-03-20 11:00:00.000" }),
+    orderRow({ itemNo: "NO-STAMPS" }),
+  ];
+  const current = aggregateStamps(rows, "current");
+  assert.deepEqual(current.map((s) => [s.sales_order_line_no, s.created_time, s.mod_user]), [
+    [1, "2026-03-25T11:00:00.000Z", "M"],
+    [2, "2026-03-20T11:00:00.000Z", null],
+  ], "two order lines sharing order/item/label are never folded together");
+  const sql = buildStampUpdateSql(current, "current");
+  assert.match(sql, /^begin;/);
+  assert.match(sql, /set created_time = s\.created_time, created_user = s\.created_user,\s+mod_time = s\.mod_time, mod_user = s\.mod_user/);
+  assert.match(sql, /t\.sales_order_line_no = s\.sales_order_line_no\s+and t\.master_item_no = s\.item_no/);
+  assert.doesNotMatch(sql, /label_code is not distinct/);
+  assert.doesNotMatch(sql, /insert into coldlion/);
+  const legacy = aggregateStamps(rows, "legacy");
+  assert.equal(legacy.length, 1, "the line-number-less shape keys on order/item/label, its own identity");
+  assert.equal(legacy[0].created_time, "2026-03-20T11:00:00.000Z");
+  assert.match(buildStampUpdateSql(legacy, "legacy"), /t\.item_no = s\.item_no\s+and t\.label_code is not distinct from s\.label_code/);
+  assert.equal(buildStampUpdateSql([], "legacy"), null);
+  assert.throws(() => buildStampUpdateSql(current, "x; drop"), /unexpected table shape/);
 });
 
 test("EP001 rows are excluded and the exclusion is counted, not silent", () => {

@@ -575,3 +575,8 @@ itemImages,modTime,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #
 itemImages,modUser,ingest,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; metadata only - resourceContent/thumbnail128 excluded
 itemImages,resourceContent,ignore,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; image bytes excluded from landing
 itemImages,thumbnail128,ignore,100,,,Owner decision 2026-09-28 (Albert: keep) issue #2179; image bytes excluded from landing
+orderHistory,createdTime,ingest,,,,"owner request 2026-10-09 (Albert Hazan): ColdLion added it to /orderHistory; it is when the sales order was entered into ColdLion = the date we received the sales order, compared with the production-PO created time (shared-db#3869). Lands as coldlion.order_history_line.created_time (earliest across components), outside line_source_hash"
+orderHistory,createdUser,ingest,,,,"owner request 2026-10-09: who entered the sales order; lands with created_time (shared-db#3869)"
+orderHistory,modTime,ingest,,,,"owner request 2026-10-09: last edit time in ColdLion; coldlion.order_history_line.mod_time (latest across components), outside line_source_hash so an edit is not a new line version (shared-db#3869)"
+orderHistory,modUser,ingest,,,,"owner request 2026-10-09: who last edited the sales order; lands with mod_time (shared-db#3869)"
+prodHistory,createdTime,absent,,,,"2026-10-09: /prodHistory does not send createdTime (probed). The production-PO created time is ColdLion /prodtracking createdTime, already landed as plm.ProdOrderHeader.createdTime and as coldlion.prod_tracking.created_time; nothing added to prod_history_line (shared-db#3869)"

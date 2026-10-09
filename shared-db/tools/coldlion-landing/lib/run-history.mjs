@@ -44,6 +44,38 @@ export function ledgerKey(scope, window) {
  * input error forever is exactly the failure mode the vendor's malformed error contract
  * invites.
  */
+/**
+ * Does the target's coldlion.order_history_line carry all four ColdLion stamp columns
+ * (migration 20261009170724) with the expected types? All four or none: a partial set
+ * is refused rather than guessed around.
+ */
+export function orderStampColumnsSql() {
+  return `select count(*) filter (where (a.attname, format_type(a.atttypid, a.atttypmod)) in
+           (('created_time', 'timestamp with time zone'), ('created_user', 'text'),
+            ('mod_time', 'timestamp with time zone'), ('mod_user', 'text'))),
+         count(*) filter (where a.attname in ('created_time', 'created_user', 'mod_time', 'mod_user'))
+    from pg_attribute a
+   where a.attrelid = 'coldlion.order_history_line'::regclass and a.attnum > 0 and not a.attisdropped;`;
+}
+
+export function interpretOrderStampColumns(rows) {
+  const [typed, named] = (rows[0] ?? []).map(Number);
+  if (typed === 4 && named === 4) return true;
+  if (named === 0) return false;
+  throw new Error(
+    `coldlion.order_history_line carries ${named} of the 4 ColdLion stamp columns (${typed} with the expected type); refusing to load until migration 20261009170724 is applied whole`,
+  );
+}
+
+const stampColumnsByTarget = new Map();
+export function hasOrderStampColumns(dbOptions = {}, query = queryRows) {
+  const key = dbOptions.url ?? process.env.DATABASE_URL ?? process.env.SUPABASE_DB_URL ?? "";
+  if (!stampColumnsByTarget.has(key)) {
+    stampColumnsByTarget.set(key, interpretOrderStampColumns(query(orderStampColumnsSql(), dbOptions)));
+  }
+  return stampColumnsByTarget.get(key);
+}
+
 export async function loadWindowScope({
   scope,
   window,
@@ -55,6 +87,7 @@ export async function loadWindowScope({
   dbOptions = {},
   fetchImpl = fetch,
   execute = runSql,
+  orderStampColumns,
 }) {
   const runId = randomUUID();
   const startedAt = new Date();
@@ -130,6 +163,7 @@ export async function loadWindowScope({
         projected,
         ...finish(startedAt),
         notes: notesFor(summary),
+        stampColumns: orderStampColumns ?? hasOrderStampColumns(dbOptions),
       });
     }
 
