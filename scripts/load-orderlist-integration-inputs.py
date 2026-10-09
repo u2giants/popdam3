@@ -311,7 +311,7 @@ def _lock_tables(conn: Any) -> None:
 def _validate_po_pairs(conn: Any, expected: dict[str, str]) -> None:
     ids = [uuid.UUID(value) for value in expected]
     found = conn.execute(
-        "select id, customer_po_number from plm.production_order where id = any(%s) for share",
+        "select id, production_order_number from plm.production_order where id = any(%s) for share",
         (ids,),
     ).fetchall()
     actual = {str(order_id): _normalized(po) for order_id, po in found}

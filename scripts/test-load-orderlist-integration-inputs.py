@@ -142,6 +142,26 @@ class FakeProofConnection(FakeLockConnection):
         return super().execute(statement)
 
 
+class FakeProductionOrderConnection:
+    production_order_columns = {"id", "production_order_number"}
+
+    def __init__(self, rows):
+        self.rows = rows
+        self.statement = None
+        self.parameters = None
+
+    def execute(self, statement, parameters):
+        self.statement = statement
+        self.parameters = parameters
+        selected_column = statement.split(" from ", 1)[0].rsplit(", ", 1)[-1]
+        if selected_column not in self.production_order_columns:
+            raise AssertionError("PO validation queried a noncanonical column")
+        return self
+
+    def fetchall(self):
+        return self.rows
+
+
 class FakePsycopg:
     def __init__(self):
         self.kwargs = None
@@ -305,6 +325,19 @@ class OrderlistAuxLoaderTests(unittest.TestCase):
         loader._assert_target(FakeTargetConnection())
         with self.assertRaisesRegex(ValueError, "target proof"):
             loader._assert_target(FakeTargetConnection(database="wrong_database"))
+
+    def test_po_pair_revalidation_uses_canonical_production_order_number(self):
+        order_id = "43d53a47-c66e-45b8-8d51-3d6d16041d98"
+        connection = FakeProductionOrderConnection([(uuid.UUID(order_id), "PO-1001")])
+        loader._validate_po_pairs(connection, {order_id: "po-1001"})
+        self.assertIn("production_order_number", connection.statement)
+        self.assertIn("for share", connection.statement)
+        self.assertEqual(connection.parameters, ([uuid.UUID(order_id)],))
+        with self.assertRaisesRegex(ValueError, "Canonical PO identity"):
+            loader._validate_po_pairs(
+                FakeProductionOrderConnection([(uuid.UUID(order_id), "PO-1002")]),
+                {order_id: "po-1001"},
+            )
 
     def test_connection_requires_tls_and_uses_fixed_project_target(self):
         fake = FakePsycopg()
