@@ -9,6 +9,12 @@ export const READONLY_RPC_ALLOWLIST = new Set([
   "find_dam_order_list_row",
   "get_dam_order_tracking",
   "get_dam_style_tracker_license_status",
+  // Existing login/library facets and Master Data candidate lookup: STABLE, read-only.
+  "get_filter_counts",
+  "get_path_facets",
+  "get_dam_material_facets",
+  "get_dam_customer_facets",
+  "search_style_tracker_link_candidates",
 ]);
 export const BASELINE_EVIDENCE = {
   repository: "popcre/shared-db",
@@ -40,12 +46,15 @@ export function validateBuildBinding({ ref, workflowSha, deployedFrontendSha, is
   return { ...commits, buildToken, observedToken: observed };
 }
 
-export function shouldBlockSupabaseRequest({ host, path, method }) {
+export function shouldBlockSupabaseRequest({ host, path, method, body }) {
   if (host !== `${PRODUCTION_PROJECT}.supabase.co` || !path.startsWith("/rest/v1/")) return false;
   const verb = String(method ?? "").toUpperCase();
   if (["GET", "HEAD", "OPTIONS"].includes(verb)) return false;
   const rpcMatch = path.match(/^\/rest\/v1\/rpc\/([^/]+)$/);
-  if (verb === "POST" && rpcMatch && READONLY_RPC_ALLOWLIST.has(rpcMatch[1])) return false;
+  if (verb === "POST" && rpcMatch && READONLY_RPC_ALLOWLIST.has(rpcMatch[1])) {
+    if (rpcMatch[1] === "search_style_tracker_link_candidates") return !Number.isSafeInteger(body?.p_limit) || body.p_limit < 1 || body.p_limit > 500;
+    return false;
+  }
   return ["POST", "PUT", "PATCH", "DELETE"].includes(verb);
 }
 
