@@ -136,8 +136,11 @@ def main():
             subprocess.run(['ai-task-gates', 'check', '--before', 'database',
                             '--reviewer-approval', str(args.reviewer_approval)],
                            cwd=ROOT, check=True)
-            conn.execute('select pg_advisory_xact_lock(852000728)')
+            # Do not establish a repeatable-read snapshot while waiting for
+            # a competing writer: lock tables before the first SELECT.
             conn.execute('lock table '+', '.join(TABLES)+' in exclusive mode')
+            if not conn.execute('select pg_try_advisory_xact_lock(852000728)').fetchone()[0]:
+                raise ValueError('Another Master Data refresh is active')
         prove(conn)
         before = snapshot(conn)
         old_rows = [r[0] for r in before[TABLES[0]]]
