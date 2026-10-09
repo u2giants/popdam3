@@ -212,11 +212,15 @@ test("the transaction carries the spine bookkeeping", () => {
 // Resumability and selection.
 // -------------------------------------------------------------------------------------
 
+const now = new Date();
+const daysAgo = (d) => new Date(now.getTime() - d * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const ts = (d, h = "00:00:00") => `${daysAgo(d)}T${h}`;
+
 const HARVEST = [
-  { prodOrderNo: 30003, firstObserved: "2026-09-16T00:00:00", lastObserved: "2026-09-16T00:00:00" },
-  { prodOrderNo: 30001, firstObserved: "2026-01-01T00:00:00", lastObserved: "2026-09-17T06:00:00" },
-  { prodOrderNo: 30002, firstObserved: "2026-06-01T00:00:00", lastObserved: "2026-06-01T00:00:00" },
-  { prodOrderNo: 30004, firstObserved: "2026-09-01T00:00:00", lastObserved: "2026-09-17T05:00:00" },
+  { prodOrderNo: 30003, firstObserved: ts(3), lastObserved: ts(3) },
+  { prodOrderNo: 30001, firstObserved: ts(90), lastObserved: ts(1, "06:00:00") },
+  { prodOrderNo: 30002, firstObserved: ts(60), lastObserved: ts(60) },
+  { prodOrderNo: 30004, firstObserved: ts(30), lastObserved: ts(1, "05:00:00") },
 ];
 
 test("harvest and resume parsing tolerate Windows psql line endings", () => {
@@ -234,7 +238,7 @@ test("backfill selects never-fetched keys oldest first and honours the bounds", 
   assert.deepEqual(selection.map((entry) => entry.prodOrderNo), [30002, 30004, 30003], "oldest observation first, done keys skipped");
   const bounded = selectKeys({ harvested: HARVEST, done, refused: new Set(), mode: "backfill", from: null, recentDays: 21, limit: 2 });
   assert.deepEqual(bounded.map((entry) => entry.prodOrderNo), [30002, 30004]);
-  const scoped = selectKeys({ harvested: HARVEST, done, refused: new Set(), mode: "backfill", from: "2026-08-31", recentDays: 21, limit: null });
+  const scoped = selectKeys({ harvested: HARVEST, done, refused: new Set(), mode: "backfill", from: ts(45).slice(0, 10), recentDays: 21, limit: null });
   assert.deepEqual(scoped.map((entry) => entry.prodOrderNo), [30004, 30003], "only orders first observed on/after --from");
 });
 
