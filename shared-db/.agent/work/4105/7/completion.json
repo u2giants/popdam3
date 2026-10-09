@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 4105,
+  "outcome": "ready-for-merge",
+  "pr": 4132,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4105/7",
+  "contract_sha256": "de49be8742cee0ef5007bffc2b7bd86527eab2b2db3eafb0944a1ae5f19d05a8",
+  "head_sha": "ea197ec8374c8b47629204a90457abff7b4f98fb",
+  "base_sha": "04fbc5382dafa48cd8db754c84d734f59c51be2e",
+  "files_changed": [
+    "scripts/proofs/4060-contract.json",
+    "scripts/proofs/shared-db-4060-observation.py",
+    "scripts/proofs/test_shared_db_4060_observation.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s scripts/proofs -p test_shared_db_4060_observation.py",
+      "exit_code": 0,
+      "evidence": "All11 actual ownedPostgreSQL16 producer tests passed, zero skips."
+    },
+    {
+      "command": "PostgreSQL16 owned ephemeral integration test",
+      "exit_code": 0,
+      "evidence": "OwnedPostgreSQL16/Python3.12.14/psycopg3.2.13 all11PASS0skip; immutable private copies/log/container stop+remove receipts in approved continuation producer-gen7-rebind-evidence."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Exactly3sourcefiles/5insertions5deletions; JSONsourcePR/head/version and explicitproducer+fixtureLEDGER; no whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Root published prospectivegen7 before sourceedits; parentgen6pair remains unchanged onmain.",
+    "Actualmergedsource4129 headccb6671111dc873852d8dbcae274239123f80659/version20261009064439; base04fbc exactsource merge. ActualnewmaintenancePR4132, sourceimplementationea197ec8; onlyown2filepair follows implementation.",
+    "Catalog/workflow/CA unchanged. Workflow949d179a11eafd366719f7b4fae8d9e361c5ee3f96e5711dae31c1264058fe2b alreadymergedsource; no inertretired_versions metadata or runtimeweakening.",
+    "No credentials, preview/database writes, reviewallocation, merge or production byworker. Rootowns lifecycle; historical090SQL/ledger/reservations retained."
+  ],
+  "stop_conditions_hit": []
+}
