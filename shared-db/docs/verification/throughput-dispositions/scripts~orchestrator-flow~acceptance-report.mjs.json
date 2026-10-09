@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": "scripts/orchestrator-flow/acceptance-report.mjs",
+  "sites": [
+    {
+      "site": "scripts/orchestrator-flow/acceptance-report.mjs:96",
+      "semantic_key": "scripts/orchestrator-flow/acceptance-report.mjs:56742dadd2e82262cbf73238f1e43db8bebd491170df05af31005ac2547eff67:context-b46558d76b943289f3bd502f53320f3093850ee17f476d865164ff608a30963f",
+      "line_sha256": "56742dadd2e82262cbf73238f1e43db8bebd491170df05af31005ac2547eff67",
+      "disposition": "excluded",
+      "reason": "This refusal message names a lifecycle phase (entered/live_verified) missing from an acceptance outcome's event list, not a missing or unapplied database object, so it is outside the migration throughput truth audit that discovers it.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/acceptance-report.mjs:56742dadd2e82262cbf73238f1e43db8bebd491170df05af31005ac2547eff67:1"
+    }
+  ]
+}
