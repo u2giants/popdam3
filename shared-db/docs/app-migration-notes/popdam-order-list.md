@@ -288,3 +288,95 @@ Every one of the 48 columns appears exactly once above.
 ## Remaining dependency before schema work
 
 Phase 0 is complete. Phase 1 must still coordinate with [`fix_schema_for_api.md`](../../fix_schema_for_api.md), because that plan owns populating `plm.item`, repointing `plm.style_tracker_item_bridge`, and building the native Coldlion production-order path. OrderList must not start a parallel incompatible change to those objects.
+
+
+## Native workbook integration inventory (2026-10-09)
+
+**Evidence, not independent business authority.** Albert requested "reproduce
+the Sheets’ full integration" on [popdam3#281](https://github.com/u2giants/popdam3/issues/281).
+This native Sheets inspection replaces the earlier cached-XLSX inference that
+no lookup formulas existed. Source authority is recorded in the companywide
+[ERP, orders and source meaning](../business-rules/erp-orders-and-source-meaning.md)
+topic. Backend delivery is tracked on [#4111](https://github.com/popcre/shared-db/issues/4111).
+These findings describe source behavior; they do not claim a deployed result.
+
+The inspected connections are:
+
+- OrderList Order to MasterData License.Style/Generic.Style: current licensing
+  progress, default vendor, sample vendor, test report, professional photos and
+  licensed contractual-sample reorder. Item Master supplies product details
+  under Albert's later ruling. Generic licensing display is Generic Item.
+- OrderList Order to POTracking: manual PO-sent date, vendor-delivery/CRD,
+  booking state, ETD, ETA, container group, MBL, close-tracking, agent, CBM,
+  comment, vessel, sent-to-ColdLion, worksheet completion, inspection date and
+  note, invoice, packing list, bill of lading, TSCA, Lacey Act, telex, wire
+  request and payment note. These are PO-header inputs inherited by ItemTracking
+  components. PO identity, status, physical case totals, forecasts, delays and
+  inspection/booking helpers are calculated outputs.
+- The separate OrderList SAMPLE tab to TaskList LICENSED TO SAMPLE: a normalized
+  style/customer sample-depth lookup, newest nonblank source row first. Invalid or nonpositive
+  depths retain raw text and provenance rather than becoming valid depths. A
+  current clear remains clear and cannot revive its source history.
+  David Sample and Contractual Sample use the explicit David/CONT overrides.
+  This is separate from the historical Order tab's column Q, which contains
+  `N/A` and is not a current sample-depth source.
+- MasterData VendorStatistics to OrderList VendorStatistics: a native
+  IMPORTRANGE of seven fields: factory/vendor identity, vendor name, total
+  orders, closed orders, open orders, latest sent-PO date and activity. The
+  verified activity window is 14 months; counts are purchase-header counts,
+  and latest date excludes voided/cancelled headers. ColdLion sales-history
+  placeholders are not purchase headers and must not inflate these totals.
+
+OrderList customer suffix comes from its customer settings lookup. CBM is a
+manual POTracking input; the CBM helper tab maps container sizes to volumes.
+Formula-valued manual CBM cells were captured as evaluated values for initial
+loading. MasterData OrderLog, OrderSample and NotSoldIn are internal helpers;
+the native inspection found no additional cross-workbook imports there.
+
+Native date/calculation observations: the Order column labelled Seal Container
+Day reads POTracking CRD; CRD forecasts are +5 days for FOB, +21 for POE and +27
+for C Stock. Warehouse date is ETA+5. The cargo offsets observed were FOB7,
+C Stock NJ37, NY/NJ44, LA/CA23 and NC46 days. Delay is calculated from the
+applicable ETA/warehouse forecast and cancel date; FOB has no delay. A single
+row's destination/type is evaluated together instead of reproducing Sheets'
+whole-column AND error. Unknown dates/destinations remain explicit. Burlington
+worksheet remaining uses ETA minus today minus5 until done. Inspection values
+keep raw notes when no complete date can be parsed; SVN uses the Google date
+serial, and BN booking identifiers retain the native group/PO form.
+An explicit manual CRD or ETA clear is intentional; it suppresses compatibility
+fallback to the prior Seal Container or Warehouse date. An absent patch key
+leaves its current tracking value unchanged.
+
+Physical assortment quantities remain parent-row quantities. Expanded
+component lines must not repeat a parent case total; unknown component
+quantities must not be invented. Current missing or conflicting Master Data
+workflow remains unavailable even when an Item Master link is valid; separate
+import-history values never masquerade as current product approvals.
+
+Current source contract: Item Master supplies product identity and description;
+the exact linked Master Data catalog supplies current product workflow. The
+workflow source is Master Data, at-import only for unlinked historical lines,
+unavailable when current workflow is absent, and ambiguous when current tracker
+rows conflict; agreeing tracker rows may contribute the same current facts. A
+valid Item Master link does not turn absent workflow into approval. Current
+licensing is computed from workflow milestones in 1,000-row Master Data batches
+and displayed read-only. Explicit named-value NULLs override older sheet
+letters. OrderList test/photo/reorder indicators use current linked workflow
+when present and separately labelled import history for unlinked lines. The
+historical snapshot is immutable and never a current-value fallback.
+The twelve appended OrderList integration fields are read-only. The existing
+Find/filter/sort whitelist remains bounded; the new output fields are not
+advertised as searchable or filterable until that contract supports them.
+
+Manual PO tracking and sample-depth/customer-suffix maintenance is administrator
+only; viewers read these values without edit controls. The new integration
+controls write only those explicit application inputs; their writes do not
+modify canonical item identity, imported history or Master Data workflow.
+Source and lookup tables remain bounded in the UI; unavailable or failed
+current-data lookups are visible errors/Unknown values, not silent fallbacks.
+
+Delivery acceptance remains on the same issues: governed application and
+catalog proof, guarded auxiliary data loading, the OrderList/POTracking/sample
+settings and Master Data reverse-summary screens, admin/viewer checks,
+cross-screen refresh and authenticated live visual proof. No acceptance is
+inferred from this inventory or from source review alone.

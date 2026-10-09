@@ -35,24 +35,70 @@ Intake sequence for a new customer order (Settled, Albert, 2026-09-17):
    order and becomes immutable afterwards. (Consistent with the 2026-08-28 issue-#1772
    inspection, which additionally listed col 18 Order Depth as human input; Albert's 2026-09-17
    list omits it.)
-4. Description, licensing status, and the other lookup/calculated columns then carry values
-   sourced from the linked Master Data sheet; Adam does not type them.
+4. Licensing status and the other lookup/calculated columns then carry values
+   sourced from the linked Master Data sheet; Adam does not type them. Product
+   details now come from Item Master under Albert's 2026-10-09 ruling below.
 5. Yuchen (NY-based production coordinator; not currently a user of the DesignFlow system) then
    writes the production PO to the factory and enters columns 02 Import PO#, 03 Order vendor,
    04 Seal Container Day, and 05 Sent PO Date. The remaining columns auto-populate, partly from
    the workbook's PO tab (gid `426779438`). (Settled, Albert, 2026-09-17.)
 
-On the mechanism behind step 4: the 2026-08-07/09 formula audit found no Master Data lookup
-formulas on the `Order` tab, while the 2026-08-28 inspection found gray columns explicitly
-marked automatic. Both are honest for their dates; whether the population is live formulas or
-another path was never re-audited and does not need to be — the replacement system does not copy
-either mechanism. Description and licensing status are projections from the linked canonical
-item / Master Data (48-column contract, columns S and T).
+**Historical formula uncertainty, resolved 2026-10-09.** The 2026-08-07/09
+cached-workbook audit did not find Master Data lookup formulas. A native Sheets
+inspection on 2026-10-09 did find the live lookup and array formulas and the
+reverse VendorStatistics import. The earlier absence of cached formulas must
+not be treated as evidence that the workbooks have no integration. The verified
+connections and calculations are recorded in
+[`../app-migration-notes/popdam-order-list.md`](../app-migration-notes/popdam-order-list.md).
 
-**Unknowns**
+**Current product-detail authority (Settled, Albert, 2026-10-09).** Albert said,
+verbatim, "product details should now be supplied by item master" and
+"reproduce the Sheets’ full integration" in the PopDAM conversation recorded
+on [popdam3#281](https://github.com/u2giants/popdam3/issues/281). Product details
+come from the canonical Item Master. Product workflow facts continue to come
+from Master Data and are displayed in OrderList. Purchase tracking facts belong
+to the purchase order. Vendor activity is a purchase-order summary displayed
+back in Master Data.
 
-- The full set of automatic columns beyond description and licensing status is recorded only in
-  the live workbook, not yet in this library.
+### What this changes
+
+The earlier intake description's reference to descriptions being supplied by
+Master Data is historical. Item linkage and workflow linkage are separate:
+an item can have valid product details while its current Master Data workflow
+is unavailable. Missing or conflicting current workflow is not an approval;
+import history remains history. Test-report, professional-photo and
+contractual-sample reorder inputs remain in Master Data. OrderList consumes
+them; it does not become a second editor for those product facts. The reverse
+VendorStatistics connection does not make order-specific documents or payment
+facts product attributes.
+
+For a linked order line, Item Master supplies the current product identity and
+description. The matching Licensed or Generic Master Data row supplies current
+workflow facts such as licensing progress, default/sample vendor, test report,
+professional photos, contractual-sample reorder and discontinuation. Licensed
+license status is a calculation from current workflow milestones; Generic
+items display `Generic Item`. A present named workflow value, including an
+explicit clear, takes precedence over its older sheet-letter value. If the
+current row is unavailable or conflicting, show the workflow as Unknown. Do
+not fill that gap from the order's import snapshot. Keep historical values
+separately labelled as values captured at import.
+
+PO Tracking belongs to the production-order header and is shared by its
+component lines. Its manual facts are PO sent date, vendor delivery/CRD,
+booking state, ETD, ETA, container/booking group, MBL, tracking closure, agent,
+CBM, comment, vessel, sent-to-ColdLion, worksheet completion, inspection date
+and note, invoice, packing list, bill of lading, TSCA, Lacey Act, telex,
+wire request and payment note. These purchase facts do not become product
+workflow fields. Product workflow and calculated licensing stay read-only in
+OrderList and Master Data; authorized administrators maintain PO tracking,
+sample-depth and customer-suffix inputs, while viewer access remains read-only.
+
+Sample depth is keyed by normalized style and customer. The current usable
+depth is distinct from raw source text and its source row; invalid or
+nonpositive source values remain history, not a usable depth. Clearing the
+current depth does not reactivate the historical value. Customer suffix is a
+separate customer setting and must remain nonblank. Vendor activity is a
+summary of purchase-order headers, not sales-history lines or product counts.
 
 **Automatic order intake from ColdLion (Settled, Albert, 2026-09-17).** The DesignFlow system
 polls the ColdLion API periodically during the business day and creates the canonical order rows
