@@ -2,6 +2,8 @@
 
 ## STATUS
 
+**Closed:** all nine integration steps are complete. Reviewed delivery documentation landed in https://github.com/u2giants/popdam3/pull/290; application issue #281, matching issue #275 and shared outcome #4111 are closed. The completed session handoff is retired after confirming live results and closure. Historical attempts below remain evidence, not instructions to restart completed work. Separate source decisions remain on #277.
+
 Current production is PR #289 merge `9883315c7d64b9ed274cc92ae3c1d0c73cc6597b`.
 Publish run `37986360726` succeeded at 4:25 PM EDT. Production served HTTP 200
 with token `9883315`, asset `/assets/index-B2s-PtZY.js` (SHA-256
@@ -37,7 +39,7 @@ type artifact `11643178561` SHA-256
 artifact `11642863862` SHA-256
 `54f02a6384171d797ce11ba7ef306dbc39e7d9e41a24c71c3f12b1672332ed59` passed.
 Shared-db #4111 has native completion evidence `03332b22ceb8adcb` and is closed.
-Only PopDAM #281 documentation/closeout remains open; #275 is closed after the role-based UI proof.
+PopDAM #281 is closed after reviewed documentation landed; #275 is closed after the role-based UI proof.
 
 The backend migration `20261009073649_popdam_orderlist_sheets_integration.sql`
 is merged and applied. Its production run, migration hash, catalog proof and
@@ -57,7 +59,7 @@ proof are recorded above. Earlier 93-check read acceptance, Find, loading/retry,
 screenshot and controls were on `f901017` and are historical. Native runs
 `37978352705` and `37981872323` failed and produced no canonical artifacts;
 those failures remain in history. Current native workflow `37987001226` passed.
-Shared-db #4111 and PopDAM #275 are closed; only #281 documentation/closeout remains open.
+Shared-db #4111 and PopDAM #275 are closed; #281 is closed after reviewed documentation landed.
 
 | Step | Status | Evidence / remaining gate |
 |---|---|---|
@@ -69,7 +71,7 @@ Shared-db #4111 and PopDAM #275 are closed; only #281 documentation/closeout rem
 | 6. OrderList read-through and refresh | Complete | Current facts and bounded refresh passed the native role checks; focused interrupted-read recovery passed both roles. |
 | 7. Master Data licensing and reverse statistics | Complete | Merged in PR #282; read-only licensing and statistics verified in native workflow. |
 | 8. Authenticated production read acceptance | Complete | Native workflow `37987001226` passed 90 checks across both roles and verified the live and type artifacts; earlier failures remain historical. |
-| 9. Documentation and closeout | In progress | Update and review current docs, then close #281 and retire the active handoff. #275 is closed after its 53-check administrator/viewer proof. |
+| 9. Documentation and closeout | Complete | Reviewed documentation landed in https://github.com/u2giants/popdam3/pull/290; #281, #4111 and #275 are closed. This session's completed handoff is retired after successor review; separate source exceptions remain on #277. |
 
 ## 1. The ultimate goal — what we are trying to achieve
 
@@ -157,7 +159,7 @@ The application integration is merged through PR #289 and live as `9883315`;
 deployment, focused role acceptance and native proof are recorded in STATUS.
 The previous source implementation worktree was archived after PR #282; it is
 not a current checkout. Any new code work starts from current upstream in a
-fresh dedicated worktree. Keep issue #281 open for documentation/closeout and
+fresh dedicated worktree. Issue #281 is closed after reviewed documentation;
 #275 is closed after the verified role-based UI check.
 
 ## 6. Key findings and root cause
@@ -603,8 +605,7 @@ and controls acceptance is historical. PR #289 is live as `9883315`; deployment,
 focused role checks and native workflow `37987001226` passed. Native run
 `37981872323` failed its viewer current-link description after type generation
 passed; that earlier failure produced no canonical artifacts and remains part of
-the history. Native evidence now passed; #4111 is closed. Only #281
-documentation/closeout remains open; #275 is closed after the 53-check role-based
+the history. Native evidence now passed; #4111 is closed. #281 is closed after reviewed documentation; #275 is closed after the 53-check role-based
 UI proof.
 Existing controls passed in both roles as recorded in STATUS. These checks are
 read-only; no production edits are required.

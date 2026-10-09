@@ -127,8 +127,7 @@ canonical item links. A pre-refresh database backup was taken before replacement
   repair is now live in PR #289 as token `9883315`. Focused production checks
   passed in both roles, including edit preservation and cancellation with zero
   business writes. Native workflow `37987001226` passed 90 checks across both
-  roles; shared-db #4111 and PopDAM #275 are closed. Only #281 documentation/closeout
-  remains open. Earlier timing comparisons
+  roles; shared-db #4111 and PopDAM #275 are closed. #281 is closed after reviewed documentation landed. Earlier timing comparisons
   remain in the [October 9 baseline](verification/grid-loading-performance/2026-10-09T1802Z/README.md).
 - Until loading finishes, Find and column filters cover rows already loaded;
   once complete they cover the full in-browser tab.
@@ -342,7 +341,7 @@ schema generation. Repair PR #288 has exact-head GLM APPROVE (digest
 `6d770bdad0a5e1579182c0f469ee4731226b6d8f3d7fc25810c91ea6746ad806`); production
 and ship gates passed; it merged as `a5efa998799df2c99c562a10663b690d66c6ad18`
 and CI `37978046556` passed. Final workflow `37978352705` failed finding the
-viewer snapshot in the DOM and produced no canonical type-proof artifacts. PR #289 is live as token `9883315`; publish `37986360726` succeeded at 4:25 PM EDT. Served bundle `/assets/index-B2s-PtZY.js` has SHA-256 `574bdff6df39c7533993996c591b04c8133e62e82b3e25626f29a5258c8c46fb`; the container is healthy and matches merge `9883315c7d64b9ed274cc92ae3c1d0c73cc6597b`. Final CI `37985400880` passed 510 tests/82 files, one existing skip and 19 observer tests. Focused edit/refresh checks passed both roles; report `focus-refresh-9883315.json`, SHA-256 `4a3aced17a65b1d7ac473a31180ed7104cb9c36501ed4dfed114cf50702a2641`. The held 500-row read beginning at offset 10,000 was followed by a distinct 500-row read returning HTTP 200 at the exact offset. Native workflow `37987001226` passed 90 checks across both roles (checks-label manifest SHA-256 `708b9395e8e6e054372a7c9b7a7bb73b03f0ce3448df2acec338b447586eb0e1`); schema, type artifact `11643178561`, and live artifact `11642863862` matched and passed. Shared-db #4111 and PopDAM #275 are closed. Only #281 documentation/closeout remains open. The post-link readback now has 23 ColdLion lines across 7 linked Items; workflow remains correctly Unknown where Master tracker facts are absent, with no tracker or Item Master records created.
+viewer snapshot in the DOM and produced no canonical type-proof artifacts. PR #289 is live as token `9883315`; publish `37986360726` succeeded at 4:25 PM EDT. Served bundle `/assets/index-B2s-PtZY.js` has SHA-256 `574bdff6df39c7533993996c591b04c8133e62e82b3e25626f29a5258c8c46fb`; the container is healthy and matches merge `9883315c7d64b9ed274cc92ae3c1d0c73cc6597b`. Final CI `37985400880` passed 510 tests/82 files, one existing skip and 19 observer tests. Focused edit/refresh checks passed both roles; report `focus-refresh-9883315.json`, SHA-256 `4a3aced17a65b1d7ac473a31180ed7104cb9c36501ed4dfed114cf50702a2641`. The held 500-row read beginning at offset 10,000 was followed by a distinct 500-row read returning HTTP 200 at the exact offset. Native workflow `37987001226` passed 90 checks across both roles (checks-label manifest SHA-256 `708b9395e8e6e054372a7c9b7a7bb73b03f0ce3448df2acec338b447586eb0e1`); schema, type artifact `11643178561`, and live artifact `11642863862` matched and passed. Shared-db #4111 and PopDAM #275 are closed. #281 is closed after reviewed documentation landed. The post-link readback now has 23 ColdLion lines across 7 linked Items; workflow remains correctly Unknown where Master tracker facts are absent, with no tracker or Item Master records created.
 A private exact-sequence diagnostic later passed 90 checks total across both
 roles on `f901017` with no HTTP errors, using Find offsets `[0, 20438, 1403,
 1403, 12121, 10380]`; the repeated 1,403 is intentional: two separate Find cases
@@ -352,7 +351,7 @@ digest hashes the ordered check labels only, not run-specific results. The
 private report is not a native workflow artifact. Native rerun `37981872323` failed viewer current-link
 description with `ResponseTimeoutError` at 3:45:48 PM EDT after type generation
 passed; it produced no canonical artifacts. This failure remains preserved.
-Focused edit/refresh checks and native workflow proof passed on live `9883315`. The separate #275 UI check passed 53 administrator/viewer checks with exact Find results and visible canonical descriptions; issue #275 is closed. Only #281 documentation/closeout remains open.
+Focused edit/refresh checks and native workflow proof passed on live `9883315`. The separate #275 UI check passed 53 administrator/viewer checks with exact Find results and visible canonical descriptions; issue #275 is closed. #281 is closed after reviewed documentation landed.
 Production backend run
 `37951612832` passed with the unchanged migration SHA-256
 `bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590`, bounded
@@ -385,7 +384,7 @@ current-link description with `ResponseTimeoutError` at 3:45:48 PM EDT after
 type generation passed; it produced no canonical artifacts. The private
 exact-sequence diagnostic passed 90 checks total across both roles without HTTP
 errors, but is not a native artifact. PR #289 is live as `9883315`; fresh focused acceptance passed (details above).
-Native workflow `37987001226` passed; preserve the earlier failed runs as history. Shared-db #4111 and PopDAM #275 are closed with evidence. PopDAM #281 remains the acceptance tracker for documentation closeout.
+Native workflow `37987001226` passed; preserve the earlier failed runs as history. Shared-db #4111 and PopDAM #275 are closed with evidence. PopDAM #281 is the closed acceptance tracker for this integration.
 
 Master Data's named current workflow fields remain the source used by linked
 OrderList lines. When a named current field exists, its presence is authoritative
