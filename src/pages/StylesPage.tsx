@@ -41,9 +41,12 @@ import { navigateToStyleTrackerMatch } from "@/lib/style-tracker-find-navigation
 import { MASTER_DATA_DEFAULT_PAGE_SIZE, MASTER_DATA_PAGE_SIZE_OPTIONS } from "@/lib/master-data-pagination";
 import {
   MASTER_DATA_FETCH_BATCH_SIZE,
+  fetchMasterDataPageRanges,
   STYLE_TRACKER_ROW_SELECT,
   flattenMasterDataPages,
-  masterDataPageOffsets,
+  masterDataLoadStatus,
+  retryMasterDataLoad,
+  shouldAutoFetchMasterDataNextPage,
   nextMasterDataPageOffset,
   shouldFetchNextMasterDataBatch,
 } from "@/lib/master-data-loading";
@@ -535,7 +538,7 @@ async function fetchRowsPage(sourceSheet: string, pageOffset: number) {
 
   // PostgREST caps responses at 1,000 rows. A query page is four ordered
   // ranges so the grid can render its first 4,000 rows before later pages load.
-  const batches = await Promise.all(masterDataPageOffsets(pageOffset).map(fetchBatch));
+  const batches = await fetchMasterDataPageRanges(pageOffset, fetchBatch, sourceSheet);
   return {
     rows: batches.flat(),
     hasNextPage: batches.every((batch) => shouldFetchNextMasterDataBatch(batch.length)),
@@ -1224,13 +1227,13 @@ export default function StylesPage() {
   const savedViews = savedViewsQuery.data ?? [];
   const activeView = savedViews.find((view) => view.id === activeViewId) ?? null;
   const rows = useMemo(() => flattenMasterDataPages(rowsQuery.data?.pages ?? []), [rowsQuery.data?.pages]);
-  const { fetchNextPage, hasNextPage, isFetchingNextPage } = rowsQuery;
+  const { fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError } = rowsQuery;
 
   useEffect(() => {
-    if (hasNextPage && !isFetchingNextPage) {
+    if (shouldAutoFetchMasterDataNextPage(Boolean(hasNextPage), isFetchingNextPage, rowsQuery.isError)) {
       void fetchNextPage();
     }
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, rowsQuery.isError]);
 
   useEffect(() => {
     const focusGridSearch = (event: globalThis.KeyboardEvent) => {
@@ -1810,8 +1813,16 @@ export default function StylesPage() {
     [active, isAdmin, customerOptionById, customerOptionsQuery.data, descriptionOptions, designerOptionKeys, designerOptionsQuery.data, factoryOptionsQuery.data, licensorOptionsQuery.data, packagingTypeOptionKeys, packagingTypeOptionsQuery.data],
   );
 
-  const totalRows = countQuery.data ?? rows.length;
-  const isLoadingRemainingRows = rowsQuery.hasNextPage || rowsQuery.isFetchingNextPage;
+  const loadStatus = masterDataLoadStatus({
+    loadedRows: rows.length,
+    knownTotal: countQuery.data,
+    initialLoading: rowsQuery.isLoading,
+    initialError: rowsQuery.isError && rows.length === 0 && !rowsQuery.isFetchNextPageError,
+    hasNextPage: Boolean(rowsQuery.hasNextPage),
+    fetchingNextPage: rowsQuery.isFetchingNextPage,
+    nextPageError: rowsQuery.isFetchNextPageError,
+    refetchError: rowsQuery.isRefetchError,
+  });
   const auditRows = cellAuditQuery.data ?? [];
 
   const contextMenuItems = (params: GetContextMenuItemsParams<StyleRow>): (DefaultMenuItem | MenuItemDef<StyleRow>)[] => {
@@ -1876,11 +1887,19 @@ export default function StylesPage() {
             {isAdmin && <GridAiHelperDialog pageName="Master Data" selectedRowCount={selectedRowCount} fields={active.columns.filter((column) => column.typedField !== "license_status").map((column) => ({ key: column.letter, label: column.header }))} onApply={applyAiBulkEdit} />}
             <div className="min-w-0">
               <h1 className="text-lg font-semibold leading-tight text-foreground">Master Data</h1>
-              <p className="text-xs text-muted-foreground">
-                {isLoadingRemainingRows
-                  ? `${rows.length.toLocaleString()} of ${totalRows.toLocaleString()} rows loaded — loading the rest. Find and filters cover loaded rows.`
-                  : `${totalRows.toLocaleString()} rows loaded`}
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p role="status" className="text-xs text-muted-foreground">{loadStatus.message}</p>
+                {loadStatus.showRetry && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void retryMasterDataLoad(rowsQuery.isFetchNextPageError, fetchNextPage, rowsQuery.refetch)}
+                    disabled={loadStatus.retryDisabled || rowsQuery.isFetching}
+                  >
+                    {rowsQuery.isFetching ? "Retrying…" : "Retry loading"}
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
