@@ -6,6 +6,7 @@ import {
   createLiveProof,
   selectAuthenticatedReadHeaders,
   shouldBlockSupabaseRequest,
+  validateCommitInputs,
   validateBaselineEvidence,
   validateBuildBinding,
   validateGeneratedTypes,
@@ -59,10 +60,15 @@ test("proof binding requires exact deployed ancestry, unchanged frontend inputs,
   assert.deepEqual(validateBuildBinding({
     ref: "refs/heads/main", workflowSha, deployedFrontendSha: frontendSha,
     isAncestor: true, frontendTreeEqual: true, observedToken: frontendSha.slice(0, 7),
-  }), { workflowSha, deployedFrontendSha: frontendSha, buildToken: frontendSha.slice(0, 7) });
+  }), { workflowSha, deployedFrontendSha: frontendSha, buildToken: frontendSha.slice(0, 7), observedToken: frontendSha.slice(0, 7) });
+  assert.deepEqual(validateBuildBinding({
+    ref: "refs/heads/main", workflowSha: frontendSha, deployedFrontendSha: frontendSha,
+    isAncestor: true, frontendTreeEqual: true, observedToken: frontendSha.slice(0, 8),
+  }), { workflowSha: frontendSha, deployedFrontendSha: frontendSha, buildToken: frontendSha.slice(0, 7), observedToken: frontendSha.slice(0, 8) });
   assert.throws(() => validateBuildBinding({ ref: "refs/heads/main", workflowSha, deployedFrontendSha: frontendSha, isAncestor: true, frontendTreeEqual: true, observedToken: "deadbee" }), /stamp/);
   assert.throws(() => validateBuildBinding({ ref: "refs/heads/feature", workflowSha, deployedFrontendSha: frontendSha, isAncestor: true, frontendTreeEqual: true, observedToken: frontendSha.slice(0, 7) }), /main/);
   assert.throws(() => validateBuildBinding({ ref: "refs/heads/main", workflowSha, deployedFrontendSha: frontendSha, isAncestor: true, frontendTreeEqual: false, observedToken: frontendSha.slice(0, 7) }), /inputs changed/);
+  assert.throws(() => validateCommitInputs({ ref: "refs/heads/main", workflowSha: "--help", deployedFrontendSha: frontendSha }), /full 40-character SHAs/);
 });
 
 test("browser write guard denies every production REST mutation except listed read-only RPCs", () => {
@@ -131,14 +137,17 @@ test("live proof requires the exact successful hosted-preview and production art
 
 test("live proof refuses failed checks and contains no fixture data", () => {
   const checks = [{ label: "Administrator tracking bounded", passed: true }, { label: "Viewer license readonly", passed: true }];
-  const proof = createLiveProof({ applicationCommitSha: workflowSha, checks, baselineEvidence: baselineEvidence() });
+  const proof = createLiveProof({ applicationCommitSha: workflowSha, deployedFrontendSha: frontendSha, observedBuildStamp: frontendSha.slice(0, 8), checks, baselineEvidence: baselineEvidence() });
   assert.equal(proof.work_issue, 4111);
   assert.equal(proof.application_commit_sha, workflowSha);
   assert.equal(proof.result, "passed");
   assert.equal(proof.environment, "production");
   assert.equal(proof.database_project_id, "qsllyeztdwjgirsysgai");
+  assert.equal(proof.deployed_frontend_sha, frontendSha);
+  assert.equal(proof.observed_frontend_build_stamp, frontendSha.slice(0, 8));
   assert.equal(proof.check_count, 2);
   assert.doesNotMatch(JSON.stringify(proof), /customer|purchase|password|cookie|row_id/i);
-  assert.throws(() => createLiveProof({ applicationCommitSha: workflowSha, checks: [...checks, { label: "write blocked", passed: false }], baselineEvidence: baselineEvidence() }), /every real acceptance check/);
-  assert.throws(() => createLiveProof({ applicationCommitSha: workflowSha, checks, environment: "preview qsllyeztdwjgirsysgai", baselineEvidence: baselineEvidence() }), /not production/);
+  assert.throws(() => createLiveProof({ applicationCommitSha: workflowSha, deployedFrontendSha: frontendSha, observedBuildStamp: frontendSha.slice(0, 8), checks: [...checks, { label: "write blocked", passed: false }], baselineEvidence: baselineEvidence() }), /every real acceptance check/);
+  assert.throws(() => createLiveProof({ applicationCommitSha: workflowSha, deployedFrontendSha: frontendSha, observedBuildStamp: frontendSha.slice(0, 8), checks, environment: "preview qsllyeztdwjgirsysgai", baselineEvidence: baselineEvidence() }), /not production/);
+  assert.throws(() => createLiveProof({ applicationCommitSha: workflowSha, deployedFrontendSha: frontendSha, checks, baselineEvidence: baselineEvidence() }), /actually observed/);
 });

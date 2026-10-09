@@ -14,6 +14,7 @@ import {
   PRODUCTION_PROJECT,
   selectAuthenticatedReadHeaders,
   shouldBlockSupabaseRequest,
+  validateCommitInputs,
   validateBaselineEvidence,
   validateBuildBinding,
 } from "./orderlist-integration-proof-contract.mjs";
@@ -39,13 +40,24 @@ function runGit(args) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
 }
 
+function runGitBoolean(args) {
+  try {
+    execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "ignore", "ignore"] });
+    return true;
+  } catch (error) {
+    if (error?.status === 1) return false;
+    throw new Error("git build-source validation failed unexpectedly");
+  }
+}
+
 function preflight() {
   const workflowSha = process.env.GITHUB_SHA ?? "";
   const deployedFrontendSha = process.env.DEPLOYED_FRONTEND_SHA ?? "";
   const ref = process.env.GITHUB_REF ?? "";
-  const isAncestor = runGit(["merge-base", "--is-ancestor", deployedFrontendSha, workflowSha]) === "";
-  const frontendTreeEqual = runGit(["diff", "--quiet", deployedFrontendSha, workflowSha, "--", ...FRONTEND_BUILD_PATHS]) === "";
-  const binding = validateBuildBinding({ ref, workflowSha, deployedFrontendSha, isAncestor, frontendTreeEqual, observedToken: deployedFrontendSha.slice(0, 7) });
+  validateCommitInputs({ ref, workflowSha, deployedFrontendSha });
+  const isAncestor = runGitBoolean(["merge-base", "--is-ancestor", deployedFrontendSha, workflowSha]);
+  const frontendTreeEqual = runGitBoolean(["diff", "--quiet", deployedFrontendSha, workflowSha, "--", ...FRONTEND_BUILD_PATHS]);
+  const binding = validateBuildBinding({ ref, workflowSha, deployedFrontendSha, isAncestor, frontendTreeEqual });
   process.stdout.write(`PROOF_WORKFLOW_SHA=${binding.workflowSha}\nPROOF_FRONTEND_SHA=${binding.deployedFrontendSha}\nPROOF_BUILD_TOKEN=${binding.buildToken}\n`);
 }
 
@@ -76,8 +88,12 @@ async function verifyBaselineEvidence() {
   const evidencePath = process.env.BASELINE_EVIDENCE_PATH;
   if (!evidencePath) throw new Error("baseline evidence output path is missing");
   const apiBase = process.env.GITHUB_API_URL ?? "https://api.github.com";
+  if (apiBase !== "https://api.github.com") throw new Error("GitHub baseline evidence must use the verified public API origin");
+  const githubToken = process.env.GH_TOKEN;
   const request = async (path) => {
-    const response = await fetch(`${apiBase}${path}`, { headers: { accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28" } });
+    const headers = { accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28" };
+    if (githubToken) headers.authorization = `Bearer ${githubToken}`;
+    const response = await fetch(`${apiBase}${path}`, { headers });
     if (!response.ok) throw new Error(`GitHub baseline evidence lookup failed (${response.status})`);
     return response.json();
   };
@@ -100,9 +116,7 @@ async function verifyBaselineEvidence() {
 }
 
 function rows(value) { return Array.isArray(value) ? value : []; }
-function normalized(value) { return String(value ?? "").trim().toLowerCase(); }
 function shown(value) { return value == null || value === "" ? "Unknown" : String(value); }
-function yesNo(value) { return value === true ? "Yes" : value === false ? "No" : "Unknown"; }
 function dataCellValue(value) { return value == null || value === "" ? "Unknown" : String(value); }
 
 function watchApi(page) {
@@ -188,12 +202,15 @@ async function login(chromium, email, password, role) {
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL((url) => !url.pathname.includes("login"), { timeout: 30_000 });
   const deployedSha = process.env.DEPLOYED_FRONTEND_SHA;
-  const expectedToken = deployedSha.slice(0, 7);
-  await page.waitForFunction((token) => [...document.querySelectorAll("header span.font-mono")].some((element) => element.textContent?.trim().split(/\s+/)[0] === token), expectedToken, { timeout: 20_000 });
+  await page.waitForFunction((sha) => [...document.querySelectorAll("header span.font-mono")].some((element) => {
+    const token = element.textContent?.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+    return /^[0-9a-f]{7,40}$/.test(token) && sha.startsWith(token);
+  }), deployedSha.toLowerCase(), { timeout: 20_000 });
   const stamps = (await page.locator("header span.font-mono").allInnerTexts()).map((text) => text.trim().split(/\s+/)[0]);
-  assert(stamps.includes(deployedSha.slice(0, 7)), `${role} sees exact deployed frontend stamp`);
+  const observedBuildStamp = stamps.map((stamp) => stamp.toLowerCase()).find((stamp) => /^[0-9a-f]{7,40}$/.test(stamp) && deployedSha.toLowerCase().startsWith(stamp));
+  assert(Boolean(observedBuildStamp), `${role} sees a valid deployed frontend build stamp`);
   assert(await page.getByText(/Connected to a non-production database/).count() === 0, `${role} sees no nonproduction banner`);
-  return { context, page, api, role, forbiddenWrites };
+  return { context, page, api, role, forbiddenWrites, observedBuildStamp };
 }
 
 async function revealHorizontally(page, target) {
@@ -396,13 +413,16 @@ async function checkLicense(role, session) {
 async function accept() {
   if (process.env.POPDAM_ACCEPTANCE_BASE_URL !== productionUrl) throw new Error("acceptance target is not the exact production application origin");
   validateDatabaseTarget();
+  const ref = process.env.GITHUB_REF ?? "";
+  const workflowSha = process.env.GITHUB_SHA ?? "";
+  const deployedFrontendSha = process.env.DEPLOYED_FRONTEND_SHA ?? "";
+  validateCommitInputs({ ref, workflowSha, deployedFrontendSha });
   const binding = validateBuildBinding({
-    ref: process.env.GITHUB_REF,
-    workflowSha: process.env.GITHUB_SHA,
-    deployedFrontendSha: process.env.DEPLOYED_FRONTEND_SHA,
-    isAncestor: runGit(["merge-base", "--is-ancestor", process.env.DEPLOYED_FRONTEND_SHA, process.env.GITHUB_SHA]) === "",
-    frontendTreeEqual: runGit(["diff", "--quiet", process.env.DEPLOYED_FRONTEND_SHA, process.env.GITHUB_SHA, "--", ...FRONTEND_BUILD_PATHS]) === "",
-    observedToken: process.env.DEPLOYED_FRONTEND_SHA.slice(0, 7),
+    ref,
+    workflowSha,
+    deployedFrontendSha,
+    isAncestor: runGitBoolean(["merge-base", "--is-ancestor", deployedFrontendSha, workflowSha]),
+    frontendTreeEqual: runGitBoolean(["diff", "--quiet", deployedFrontendSha, workflowSha, "--", ...FRONTEND_BUILD_PATHS]),
   });
   if (!outputRoot) throw new Error("proof output directory is missing");
   for (const name of ["POPDAM_TEST_USER", "POPDAM_TEST_PASSWORD", "POPDAM_VIEWER_TEST_USER", "POPDAM_VIEWER_TEST_PASSWORD"]) {
@@ -414,19 +434,22 @@ async function accept() {
   const browser = await chromium.launch({ headless: true });
   const sessions = [];
   const checks = [];
+  let observedBuildStamp;
   try {
     for (const [role, email, password] of [
       ["Administrator", process.env.POPDAM_TEST_USER, process.env.POPDAM_TEST_PASSWORD],
       ["Viewer", process.env.POPDAM_VIEWER_TEST_USER, process.env.POPDAM_VIEWER_TEST_PASSWORD],
     ]) {
+      const before = checkLabels.length;
       const session = await login(browser, email, password, role);
       sessions.push(session);
-      const before = checkLabels.length;
+      if (observedBuildStamp === undefined) observedBuildStamp = session.observedBuildStamp;
+      else assert(session.observedBuildStamp === observedBuildStamp, "administrator and viewer see the same deployed frontend stamp");
       await checkOrderList(role, session);
       await checkTracking(role, session);
       await checkSettingsAndVendors(role, session);
       await checkLicense(role, session);
-      assert(session.forbiddenWrites.length === 0, `${role} acceptance made no protected business write request`);
+      assert(session.forbiddenWrites.length === 0, `${role} acceptance attempted no production Supabase REST mutation`);
       checks.push(...checkLabels.slice(before).map((label) => ({ label, passed: true })));
     }
   } finally {
@@ -436,7 +459,7 @@ async function accept() {
   const baselineEvidencePath = process.env.BASELINE_EVIDENCE_PATH;
   if (!baselineEvidencePath) throw new Error("verified backend evidence input path is missing");
   const baselineEvidence = JSON.parse(await readFile(baselineEvidencePath, "utf8"));
-  const proof = createLiveProof({ applicationCommitSha: binding.workflowSha, checks, baselineEvidence });
+  const proof = createLiveProof({ applicationCommitSha: binding.workflowSha, deployedFrontendSha: binding.deployedFrontendSha, observedBuildStamp, checks, baselineEvidence });
   await mkdir(outputRoot, { recursive: true, mode: 0o700 });
   const proofPath = resolve(outputRoot, "db-live-proof.json");
   await writeFile(proofPath, `${JSON.stringify(proof, null, 2)}\n`, { flag: "wx", mode: 0o600 });

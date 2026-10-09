@@ -20,19 +20,24 @@ export const BASELINE_EVIDENCE = {
 export const FRONTEND_BUILD_PATHS = [
   "src", "public", "index.html", "package.json", "package-lock.json",
   "vite.config.ts", "tailwind.config.ts", "postcss.config.js", "tsconfig*.json",
-  "Dockerfile", "Dockerfile.ci", "nginx.conf",
+  "Dockerfile", "Dockerfile.ci", "nginx.conf", ".github/workflows/publish-frontend.yml",
 ];
 
-export function validateBuildBinding({ ref, workflowSha, deployedFrontendSha, isAncestor, frontendTreeEqual, observedToken }) {
+export function validateCommitInputs({ ref, workflowSha, deployedFrontendSha }) {
   const sha = (value) => typeof value === "string" && /^[0-9a-f]{40}$/i.test(value);
   if (ref !== "refs/heads/main") throw new Error("workflow must run from main");
   if (!sha(workflowSha) || !sha(deployedFrontendSha)) throw new Error("both source commits must be full 40-character SHAs");
-  if (workflowSha.toLowerCase() === deployedFrontendSha.toLowerCase()) throw new Error("workflow-only proof commit must differ from deployed frontend commit");
+  return { workflowSha: workflowSha.toLowerCase(), deployedFrontendSha: deployedFrontendSha.toLowerCase() };
+}
+
+export function validateBuildBinding({ ref, workflowSha, deployedFrontendSha, isAncestor, frontendTreeEqual, observedToken }) {
+  const commits = validateCommitInputs({ ref, workflowSha, deployedFrontendSha });
   if (isAncestor !== true) throw new Error("deployed frontend commit is not an ancestor of the proof workflow commit");
   if (frontendTreeEqual !== true) throw new Error("frontend build inputs changed after the deployed commit");
-  const token = deployedFrontendSha.slice(0, 7).toLowerCase();
-  if (String(observedToken ?? "").trim().toLowerCase() !== token) throw new Error("live frontend build stamp does not exactly match deployed commit token");
-  return { workflowSha: workflowSha.toLowerCase(), deployedFrontendSha: deployedFrontendSha.toLowerCase(), buildToken: token };
+  const buildToken = commits.deployedFrontendSha.slice(0, 7);
+  const observed = observedToken === undefined || observedToken === null ? null : String(observedToken).trim().toLowerCase();
+  if (observed !== null && (!/^[0-9a-f]{7,40}$/.test(observed) || !commits.deployedFrontendSha.startsWith(observed))) throw new Error("live frontend build stamp is not a valid prefix of the deployed commit");
+  return { ...commits, buildToken, observedToken: observed };
 }
 
 export function shouldBlockSupabaseRequest({ host, path, method }) {
@@ -140,15 +145,19 @@ export function createGeneratedTypesProof({ source, workIssue = WORK_ISSUE, appl
   };
 }
 
-export function createLiveProof({ workIssue = WORK_ISSUE, applicationCommitSha, checks, environment = "production", baselineEvidence }) {
+export function createLiveProof({ workIssue = WORK_ISSUE, applicationCommitSha, deployedFrontendSha, observedBuildStamp, checks, environment = "production", baselineEvidence }) {
   if (workIssue !== WORK_ISSUE || !/^[0-9a-f]{40}$/i.test(applicationCommitSha ?? "")) throw new Error("live-proof identity is invalid");
   if (!Array.isArray(checks) || checks.length < 1 || checks.some((check) => check?.passed !== true)) throw new Error("live proof requires every real acceptance check to pass");
   if (environment !== "production") throw new Error("live proof target is not production");
+  if (!observedBuildStamp) throw new Error("live proof requires the actually observed frontend build stamp");
+  const stampBinding = validateBuildBinding({ ref: "refs/heads/main", workflowSha: applicationCommitSha, deployedFrontendSha, isAncestor: true, frontendTreeEqual: true, observedToken: observedBuildStamp });
   const basis = validateBaselineEvidence(baselineEvidence);
   return {
     schema_version: 1,
     work_issue: WORK_ISSUE,
     application_commit_sha: applicationCommitSha.toLowerCase(),
+    deployed_frontend_sha: stampBinding.deployedFrontendSha,
+    observed_frontend_build_stamp: stampBinding.observedToken,
     live_assertion: LIVE_ASSERTION,
     environment,
     database_project_id: PRODUCTION_PROJECT,
