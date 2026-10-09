@@ -86,6 +86,7 @@ jobs:
           POPDAM_VIEWER_TEST_USER: ${{ secrets.POPDAM_VIEWER_TEST_USER }}
           POPDAM_VIEWER_TEST_PASSWORD: ${{ secrets.POPDAM_VIEWER_TEST_PASSWORD }}
           ORDERLIST_PROOF_OUTPUT_DIR: ${{ runner.temp }}/orderlist-proof/live
+          ORDERLIST_PROOF_PRIVATE_DIR: ${{ runner.temp }}/orderlist-proof-private
           BASELINE_EVIDENCE_PATH: ${{ runner.temp }}/orderlist-proof/baseline/backend-evidence.json
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF: ${{ github.ref }}

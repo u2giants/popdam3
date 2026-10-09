@@ -4,6 +4,7 @@ import {
   BASELINE_EVIDENCE,
   createGeneratedTypesProof,
   createLiveProof,
+  shouldBlockSupabaseRequest,
   validateBaselineEvidence,
   validateBuildBinding,
   validateGeneratedTypes,
@@ -61,6 +62,23 @@ test("proof binding requires exact deployed ancestry, unchanged frontend inputs,
   assert.throws(() => validateBuildBinding({ ref: "refs/heads/main", workflowSha, deployedFrontendSha: frontendSha, isAncestor: true, frontendTreeEqual: true, observedToken: "deadbee" }), /stamp/);
   assert.throws(() => validateBuildBinding({ ref: "refs/heads/feature", workflowSha, deployedFrontendSha: frontendSha, isAncestor: true, frontendTreeEqual: true, observedToken: frontendSha.slice(0, 7) }), /main/);
   assert.throws(() => validateBuildBinding({ ref: "refs/heads/main", workflowSha, deployedFrontendSha: frontendSha, isAncestor: true, frontendTreeEqual: false, observedToken: frontendSha.slice(0, 7) }), /inputs changed/);
+});
+
+test("browser write guard denies every production REST mutation except listed read-only RPCs", () => {
+  const host = "qsllyeztdwjgirsysgai.supabase.co";
+  for (const method of ["GET", "HEAD", "OPTIONS"]) assert.equal(shouldBlockSupabaseRequest({ host, path: "/rest/v1/dam_order_list", method }), false);
+  assert.equal(shouldBlockSupabaseRequest({ host, path: "/rest/v1/rpc/get_dam_order_tracking", method: "POST" }), false);
+  assert.equal(shouldBlockSupabaseRequest({ host, path: "/rest/v1/rpc/get_dam_style_tracker_license_status", method: "POST" }), false);
+  assert.equal(shouldBlockSupabaseRequest({ host, path: "/rest/v1/rpc/find_dam_order_list_row", method: "POST" }), false);
+  for (const request of [
+    { path: "/rest/v1/rpc/update_dam_order_tracking", method: "POST" },
+    { path: "/rest/v1/rpc/upsert_dam_order_sample_depth", method: "POST" },
+    { path: "/rest/v1/rpc/unreviewed_function", method: "POST" },
+    { path: "/rest/v1/dam_order_tracking", method: "POST" },
+    { path: "/rest/v1/style_tracker_rows_with_bridge?id=eq.some-id", method: "PATCH" },
+    { path: "/rest/v1/dam_order_list", method: "DELETE" },
+  ]) assert.equal(shouldBlockSupabaseRequest({ host, ...request }), true);
+  assert.equal(shouldBlockSupabaseRequest({ host: "auth.example.test", path: "/auth/v1/token", method: "POST" }), false);
 });
 
 test("generated production types must contain the expected RPC arguments and API/tracking fields", () => {

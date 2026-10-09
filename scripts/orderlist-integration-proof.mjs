@@ -1,9 +1,10 @@
 import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
 import {
   BASELINE_EVIDENCE,
   createGeneratedTypesProof,
@@ -11,6 +12,7 @@ import {
   FRONTEND_BUILD_PATHS,
   PRODUCTION_ORIGIN,
   PRODUCTION_PROJECT,
+  shouldBlockSupabaseRequest,
   validateBaselineEvidence,
   validateBuildBinding,
 } from "./orderlist-integration-proof-contract.mjs";
@@ -23,9 +25,6 @@ const watchedEndpoints = new Set([
   "dam_order_list", "get_dam_order_tracking", "dam_order_sample_depth",
   "dam_order_customer_settings", "dam_order_vendor_statistics",
   "style_tracker_rows_with_bridge", "get_dam_style_tracker_license_status",
-]);
-const blockedMutationEndpoints = new Set([
-  "update_dam_order_tracking", "upsert_dam_order_sample_depth", "upsert_dam_order_customer_settings",
 ]);
 const checkLabels = [];
 let stage = "startup";
@@ -105,7 +104,7 @@ function shown(value) { return value == null || value === "" ? "Unknown" : Strin
 function yesNo(value) { return value === true ? "Yes" : value === false ? "No" : "Unknown"; }
 function dataCellValue(value) { return value == null || value === "" ? "Unknown" : String(value); }
 
-function watchApi(page, forbiddenWrites) {
+function watchApi(page) {
   const events = [];
   page.on("response", (response) => {
     let url;
@@ -113,13 +112,14 @@ function watchApi(page, forbiddenWrites) {
     if (url.hostname !== projectHost || !url.pathname.startsWith("/rest/v1/")) return;
     const endpoint = url.pathname.split("/").at(-1);
     if (!watchedEndpoints.has(endpoint)) return;
-    events.push({ endpoint, status: response.status(), request: response.request(), json: response.json().catch(() => null) });
-  });
-  page.on("request", (request) => {
-    let url;
-    try { url = new URL(request.url()); } catch { return; }
-    const endpoint = url.pathname.split("/").at(-1);
-    if (url.hostname === projectHost && blockedMutationEndpoints.has(endpoint)) forbiddenWrites.push(endpoint);
+    const request = response.request();
+    if (endpoint === "dam_order_list") {
+      if (request.method() !== "GET") return;
+      const preference = request.headers()["prefer"]?.toLowerCase() ?? "";
+      const select = url.searchParams.get("select") ?? "";
+      if (preference.includes("count=") || select === "order_line_id") return;
+    }
+    events.push({ endpoint, status: response.status(), request, json: response.json().catch(() => null) });
   });
   async function waitFor(endpoint, predicate, start = 0) {
     const deadline = Date.now() + 25_000;
@@ -164,10 +164,12 @@ async function navigateToExistingOrderRow(page, api, row, role, label) {
   return revealOrderRow(page, row);
 }
 
-async function installWriteBlock(context) {
-  await context.route(`https://${projectHost}/rest/v1/rpc/**`, async (route) => {
-    const endpoint = new URL(route.request().url()).pathname.split("/").at(-1);
-    if (blockedMutationEndpoints.has(endpoint)) {
+async function installWriteBlock(context, forbiddenWrites) {
+  await context.route((url) => url.hostname === projectHost && url.pathname.startsWith("/rest/v1/"), async (route) => {
+    const url = new URL(route.request().url());
+    const request = route.request();
+    if (shouldBlockSupabaseRequest({ host: url.hostname, path: url.pathname, method: request.method() })) {
+      forbiddenWrites.push(`${request.method()} ${url.pathname}`);
       await route.abort("blockedbyclient");
       return;
     }
@@ -177,17 +179,19 @@ async function installWriteBlock(context) {
 
 async function login(chromium, email, password, role) {
   const context = await chromium.newContext({ viewport: { width: 1600, height: 1000 } });
-  await installWriteBlock(context);
-  const page = await context.newPage();
   const forbiddenWrites = [];
-  const api = watchApi(page, forbiddenWrites);
+  await installWriteBlock(context, forbiddenWrites);
+  const page = await context.newPage();
+  const api = watchApi(page);
   await page.goto(new URL("/login", productionUrl).href, { waitUntil: "domcontentloaded" });
   await page.locator('input[type="email"]').fill(email);
   await page.locator('input[type="password"]').fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL((url) => !url.pathname.includes("login"), { timeout: 30_000 });
-  const stamps = (await page.locator("header span.font-mono").allInnerTexts()).map((text) => text.trim().split(/\s+/)[0]);
   const deployedSha = process.env.DEPLOYED_FRONTEND_SHA;
+  const expectedToken = deployedSha.slice(0, 7);
+  await page.waitForFunction((token) => [...document.querySelectorAll("header span.font-mono")].some((element) => element.textContent?.trim().split(/\s+/)[0] === token), expectedToken, { timeout: 20_000 });
+  const stamps = (await page.locator("header span.font-mono").allInnerTexts()).map((text) => text.trim().split(/\s+/)[0]);
   assert(stamps.includes(deployedSha.slice(0, 7)), `${role} sees exact deployed frontend stamp`);
   assert(await page.getByText(/Connected to a non-production database/).count() === 0, `${role} sees no nonproduction banner`);
   return { context, page, api, role, forbiddenWrites };
@@ -235,8 +239,8 @@ async function revealOrderRow(page, row) {
 async function checkOrderList(role, session) {
   const { page, api } = session;
   stage = `${role}: OrderList current link and description`;
-  await page.goto(new URL("/orders", productionUrl).href);
   const start = api.events.length;
+  await page.goto(new URL("/orders", productionUrl).href);
   const response = await api.waitFor("dam_order_list", (data) => rows(data).length > 0, start);
   const resultRows = rows(response.data);
   assert(resultRows.length <= 500, `${role} OrderList response stays within its bounded block`);
@@ -448,7 +452,18 @@ async function main() {
     if (mode === "accept") return await accept();
     throw new Error("select one proof mode");
   } catch (error) {
-    process.stderr.write(`FAIL: ${mode ?? "unknown"} at ${stage}: ${error instanceof Error ? error.message : "proof failed"}\n`);
+    const safeMode = ["preflight", "verify-baseline", "verify-project", "verify-types", "accept"].includes(mode) ? mode : "unknown";
+    const safeName = typeof error?.name === "string" && /^[A-Za-z][A-Za-z0-9]*$/.test(error.name) ? error.name : "Error";
+    const run = /^\d+$/.test(process.env.GITHUB_RUN_ID ?? "") ? process.env.GITHUB_RUN_ID : "local";
+    const attempt = /^\d+$/.test(process.env.GITHUB_RUN_ATTEMPT ?? "") ? process.env.GITHUB_RUN_ATTEMPT : "1";
+    const privateRoot = process.env.ORDERLIST_PROOF_PRIVATE_DIR ?? resolve(process.env.RUNNER_TEMP ?? tmpdir(), "orderlist-proof-private");
+    try {
+      await mkdir(privateRoot, { recursive: true, mode: 0o700 });
+      await chmod(privateRoot, 0o700);
+      await writeFile(resolve(privateRoot, `failure-${safeMode}-${run}-${attempt}.txt`), `${error instanceof Error ? error.stack ?? error.message : "proof failed"}\n`, { flag: "wx", mode: 0o600 });
+    } catch { /* Failure details remain private and optional; never echo them to CI logs. */ }
+    const safeStage = /^[A-Za-z0-9 :_-]+$/.test(stage) ? stage : "acceptance";
+    process.stderr.write(`FAIL: ${safeMode} at ${safeStage}: ${safeName}\n`);
     process.exitCode = 1;
   }
 }

@@ -5,6 +5,11 @@ export const PRODUCTION_ORIGIN = "https://dam.designflow.app";
 export const PRODUCTION_PROJECT = "qsllyeztdwjgirsysgai";
 export const LIVE_ASSERTION = "Item links and canonical descriptions remain intact; Master Data workflow edits change OrderList outputs without copying rows; tracking and statistics remain bounded and authenticated.";
 export const WORK_ISSUE = 4111;
+export const READONLY_RPC_ALLOWLIST = new Set([
+  "find_dam_order_list_row",
+  "get_dam_order_tracking",
+  "get_dam_style_tracker_license_status",
+]);
 export const BASELINE_EVIDENCE = {
   repository: "popcre/shared-db",
   headSha: "d7f3bd82103072254dad9de854d229eb1b4f3f6b",
@@ -28,6 +33,15 @@ export function validateBuildBinding({ ref, workflowSha, deployedFrontendSha, is
   const token = deployedFrontendSha.slice(0, 7).toLowerCase();
   if (String(observedToken ?? "").trim().toLowerCase() !== token) throw new Error("live frontend build stamp does not exactly match deployed commit token");
   return { workflowSha: workflowSha.toLowerCase(), deployedFrontendSha: deployedFrontendSha.toLowerCase(), buildToken: token };
+}
+
+export function shouldBlockSupabaseRequest({ host, path, method }) {
+  if (host !== `${PRODUCTION_PROJECT}.supabase.co` || !path.startsWith("/rest/v1/")) return false;
+  const verb = String(method ?? "").toUpperCase();
+  if (["GET", "HEAD", "OPTIONS"].includes(verb)) return false;
+  const rpcMatch = path.match(/^\/rest\/v1\/rpc\/([^/]+)$/);
+  if (verb === "POST" && rpcMatch && READONLY_RPC_ALLOWLIST.has(rpcMatch[1])) return false;
+  return ["POST", "PUT", "PATCH", "DELETE"].includes(verb);
 }
 
 function property(type, name) {
