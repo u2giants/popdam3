@@ -1,5 +1,14 @@
 name: OrderList integration live proof
 
+# Credential setup is limited to a one-time copy of the existing PopDAM
+# administrator and viewer test logins from 1Password vault vibe_coding into
+# POPDAM_TEST_USER, POPDAM_TEST_PASSWORD, POPDAM_VIEWER_TEST_USER, and
+# POPDAM_VIEWER_TEST_PASSWORD. Use existing accounts only: do not create
+# accounts, rotate credentials, or change permissions. Transfer values through
+# protected op_run environment and stdin pipes; never put them in arguments,
+# logs, or repository files. Dispatch on main only after exact-head review and
+# the normal merge/deployment gates pass.
+
 on:
   workflow_dispatch:
     inputs:
