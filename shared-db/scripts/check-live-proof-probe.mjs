@@ -24,6 +24,7 @@ import { runGitHubCommand } from './lib/github-transport.mjs'
 import { validateHistoricalRestorationFile } from './historical-migration-restorations.mjs'
 import { currentRepository, isThisRepositoryOrHistorical } from './lib/repository-identity.mjs'
 import { LEGACY_CONTRACT_PATH, resolveEvidencePair } from './lib/agent-evidence-paths.mjs'
+import { validateGenerationLineage } from './lib/evidence-generation-lineage.mjs'
 
 const SCOPE_FENCE = /```db-work-scope\s*\n([\s\S]*?)```/g
 
@@ -226,6 +227,10 @@ export function main({
     // file list is what names it, so a pull request never reads another one's.
     const contractPath = [resolveEvidencePair(changed).contract, LEGACY_CONTRACT_PATH].find((path) => path && fileExists(path))
     const contract = contractPath ? JSON.parse(readFile(contractPath)) : null
+    // #3380: the contract read here is evidence, not just JSON. Validate its
+    // generation lineage shape so a malformed or cross-issue record cannot steer
+    // the probe; the outer catch refuses loudly on failure.
+    if (contract) validateGenerationLineage(contract)
     const result = evaluateProbe({
       contract,
       changedFiles: changed,

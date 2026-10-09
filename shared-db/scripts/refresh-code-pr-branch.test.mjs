@@ -42,7 +42,7 @@ function repo({ keyed = false } = {}) {
   g(work, 'checkout', '-q', '-b', 'feature')
   put('scripts/x.test.mjs', "import test from 'node:test'\ntest('ok',()=>{})\n")
   g(work, 'add', '-A'); g(work, 'commit', '-qm', 'impl')
-  put(pair[0], '{"work_issue":7,"generation":1}\n')
+  put(pair[0], '{"schema_version":1,"work_issue":7,"generation":1}\n')
   put(pair[1], JSON.stringify({ pr: 8, head_sha: 'old', base_sha: 'old', checks: [{ command: TEST_CHECK, exit_code: 0, evidence: 'old' }, { command: DIFF_CHECK, exit_code: 0, evidence: 'old' }] }) + '\n')
   g(work, 'add', '-A'); g(work, 'commit', '-qm', 'evidence')
   return { root, work, g, put, pair }
@@ -131,16 +131,41 @@ test('#2708/#2845 a generation-keyed pair refreshes although main has no copy of
   const r = repo({ keyed: true })
   try {
     moveMain(r, 'base.txt', '2\n')
-    const result = refresh({ issue: 7, pr: 8, worktree: r.work, push: false, assign: false }, { log: () => {} })
+    // #3380 criterion 5: the refresh publishes a SUCCESSOR contract BEFORE any
+    // result is recorded. The run wrapper proves the ordering: at publish time
+    // the successor completion must not exist yet.
+    const order = []
+    const run = (file, args, opts) => {
+      if (file === 'node' && args.includes('--publish-contract')) {
+        order.push('publish')
+        const successorCompletion = join(r.work, '.agent/work/7/2/completion.json')
+        assert.throws(() => readFileSync(successorCompletion), /ENOENT/, 'no result may be recorded before the successor ref is published')
+      }
+      if (file === 'node' && args.includes('--validate-completion')) order.push('validate')
+      const env = { ...process.env }; delete env.NODE_TEST_CONTEXT
+      return spawnSync(file, args, { ...opts, env, encoding: 'utf8' })
+    }
+    const result = refresh({ issue: 7, pr: 8, worktree: r.work, push: false, assign: false }, { run, log: () => {} })
+    assert.deepEqual(order, ['publish', 'validate'], 'publish-contract runs before the rebound completion is validated')
     // The implementation head carries the code and none of its own evidence.
     assert.equal(r.g(r.work, 'diff', '--name-only', 'origin/main', result.head), 'scripts/x.test.mjs')
-    // Only this pull request's own two evidence files follow it, at paths no
-    // other pull request can write (#2708).
-    assert.deepEqual(r.g(r.work, 'diff', '--name-only', result.head, result.tip).split('\n').sort(), [...r.pair].sort())
-    const report = JSON.parse(readFileSync(join(r.work, r.pair[1]), 'utf8'))
+    // Only this pull request's own two evidence files follow it — now the
+    // SUCCESSOR generation's pair; the predecessor pair is historical only.
+    const successor = ['.agent/work/7/2/completion.json', '.agent/work/7/2/contract.json']
+    assert.deepEqual(r.g(r.work, 'diff', '--name-only', result.head, result.tip).split('\n').sort(), [...successor].sort())
+    assert.equal(r.g(r.work, 'status', '--porcelain'), '')
+    const successorContract = JSON.parse(readFileSync(join(r.work, successor[1]), 'utf8'))
+    assert.equal(successorContract.schema_version, 2)
+    assert.equal(successorContract.generation, 2)
+    assert.equal(successorContract.evidence_parent.work_issue, 7)
+    assert.equal(successorContract.evidence_parent.generation, 1)
+    assert.match(successorContract.evidence_parent.contract_sha256, /^[0-9a-f]{64}$/)
+    const report = JSON.parse(readFileSync(join(r.work, successor[0]), 'utf8'))
     assert.equal(report.head_sha, result.head)
     assert.equal(report.base_sha, r.g(r.work, 'rev-parse', 'origin/main'))
-    assert.equal(r.g(r.work, 'status', '--porcelain'), '')
+    assert.equal(report.contract_ref, 'refs/db-contracts/7/2')
+    // The predecessor pair is gone from the branch tip: exactly one pair claims the task.
+    assert.equal(r.g(r.work, 'ls-tree', '--name-only', result.tip, '.agent/work/7/1/').trim(), '')
   } finally { rmSync(r.root, { recursive: true, force: true }) }
 })
 
@@ -151,5 +176,20 @@ test('#2845 a legacy pair is rebound to the refreshed base as well', () => {
     refresh({ issue: 7, pr: 8, worktree: r.work, push: false, assign: false }, { log: () => {} })
     const report = JSON.parse(readFileSync(join(r.work, '.agent/completion.json'), 'utf8'))
     assert.equal(report.base_sha, r.g(r.work, 'rev-parse', 'origin/main'))
+  } finally { rmSync(r.root, { recursive: true, force: true }) }
+})
+
+// #3380: the contract the refresh reads is evidence. A record whose generation
+// lineage is malformed refuses before anything rebinds results onto it.
+test('#3380 a branch contract with invalid generation lineage refuses the refresh', () => {
+  const r = repo({ keyed: true })
+  try {
+    r.put(r.pair[0], '{"schema_version":99,"work_issue":7,"generation":1}\n')
+    r.g(r.work, 'add', '-A'); r.g(r.work, 'commit', '-qm', 'bad contract')
+    assert.throws(
+      () => refresh({ issue: 7, pr: 8, worktree: r.work, push: false, assign: false }, { log: () => {} }),
+      /invalid generation lineage/,
+    )
+    assert.equal(r.g(r.work, 'status', '--porcelain'), '')
   } finally { rmSync(r.root, { recursive: true, force: true }) }
 })

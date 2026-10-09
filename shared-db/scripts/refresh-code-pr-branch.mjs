@@ -8,11 +8,13 @@
 // It never carries an old review forward, never edits the published contract, and
 // refuses (leaving the branch as it was) on any real merge conflict or failing check.
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { REVIEWERS } from './manage-migration-author-lanes.mjs'
-import { LEGACY_COMPLETION_PATH, LEGACY_CONTRACT_PATH, resolveEvidencePair } from './lib/agent-evidence-paths.mjs'
+import { LEGACY_COMPLETION_PATH, LEGACY_CONTRACT_PATH, resolveEvidencePair, evidencePaths } from './lib/agent-evidence-paths.mjs'
+import { validateGenerationLineage, planSuccessor, assertGenerationWriteAllowed } from './lib/evidence-generation-lineage.mjs'
+import { contractHash, contractRef } from './agent-work-contract.mjs'
 
 export class RefreshError extends Error {}
 const LEGACY_EVIDENCE = [LEGACY_CONTRACT_PATH, LEGACY_COMPLETION_PATH]
@@ -46,10 +48,15 @@ export function evidencePairAt(ref, { show, ownChanges }) {
   if (resolved.state === 'conflicted') throw new RefreshError(`the branch carries more than one evidence pair (${resolved.key}); exactly one may be present (#2708)`)
   if (resolved.state === 'partial') throw new RefreshError('the branch carries half an evidence pair; a contract and a completion report travel together')
   if (resolved.state === 'inherited') throw new RefreshError('the branch carries no agent evidence pair to refresh')
+  const contract = JSON.parse(show(`${ref}:${resolved.contract}`))
+  // #3380: the contract read here is evidence. Refuse a record whose generation
+  // lineage is malformed before anything rebinds results onto it.
+  try { validateGenerationLineage(contract) } catch (error) { throw new RefreshError(`the branch contract at ${resolved.contract} has invalid generation lineage: ${error.message}`) }
   return {
-    contract: JSON.parse(show(`${ref}:${resolved.contract}`)),
+    contract,
     report: JSON.parse(show(`${ref}:${resolved.completion}`)),
     paths: [resolved.contract, resolved.completion],
+    keyed: resolved.key !== 'legacy',
   }
 }
 
@@ -82,7 +89,7 @@ export function refresh(options, { run = defaultRun, log = (l) => console.log(l)
   if (ok(git('status', '--porcelain'), 'git status')) throw new RefreshError('the worktree has uncommitted changes; commit or remove them first')
   const before = ok(git('rev-parse', 'HEAD'), 'git rev-parse')
   ok(git('fetch', '-q', 'origin', 'main'), 'git fetch origin main')
-  const { contract, report, paths: EVIDENCE } = evidencePairAt(before, {
+  const { contract, report, paths: EVIDENCE, keyed } = evidencePairAt(before, {
     show: (spec) => ok(git('show', spec), `reading ${spec}`),
     ownChanges: (ref) => ok(git('diff', '--name-only', `${ok(git('merge-base', 'origin/main', ref), 'resolving the merge base')}...${ref}`, '--', '.agent'), 'listing the branch evidence').split('\n').filter(Boolean),
   })
@@ -125,11 +132,41 @@ export function refresh(options, { run = defaultRun, log = (l) => console.log(l)
   ok(git('diff', '--check', 'origin/main...HEAD'), 'git diff --check')
   const [contractPath, completionPath] = EVIDENCE
   const base = ok(git('merge-base', 'origin/main', 'HEAD'), 'resolving the refreshed merge base')
-  mkdirSync(dirname(join(cwd, contractPath)), { recursive: true })
-  writeFileSync(join(cwd, contractPath), JSON.stringify(contract, null, 2) + '\n')
-  writeFileSync(join(cwd, completionPath), JSON.stringify(rebindCompletion(report, { head, base, testSummary }), null, 2) + '\n')
-  ok(run('node', ['scripts/agent-work-contract.mjs', '--validate-completion', '--report-file', completionPath, '--contract-file', contractPath, '--expected-pr', String(options.pr), '--expected-head-sha', head], { cwd }), 'validating the rebound completion report')
-  ok(git('add', '--', ...EVIDENCE), 'git add')
+  const rebound = rebindCompletion(report, { head, base, testSummary })
+  let contractToWrite = contract
+  let writeContractPath = contractPath
+  let writeCompletionPath = completionPath
+  if (keyed) {
+    // #3380 criterion 5: a generation-keyed pair records new results only under
+    // a SUCCESSOR contract whose ref is PUBLISHED FIRST. The predecessor's pair
+    // stays historical in git; it is never rebound in place, and a publication
+    // that fails stops the refresh before any result is recorded.
+    const listed = git('ls-remote', 'origin', `refs/db-contracts/${options.issue}/*`)
+    if (listed.status !== 0) throw new RefreshError(`published generations for issue #${options.issue} could not be listed (${String(listed.stderr || listed.stdout || '').trim().split('\n').at(-1)}); no successor can be planned, so nothing was recorded`)
+    const knownGenerations = String(listed.stdout || '').split(/\r?\n/).flatMap((line) => {
+      const match = /refs\/db-contracts\/\d+\/(\d+)\s*$/.exec(line.trim())
+      return match ? [Number(match[1])] : []
+    })
+    const successor = planSuccessor({ workIssue: options.issue, parentContract: contract, knownGenerations })
+    const nextContract = { ...contract, schema_version: 2, generation: successor.generation, evidence_parent: successor.evidence_parent }
+    assertGenerationWriteAllowed({ workIssue: options.issue, generation: successor.generation, committedContract: null, nextContract })
+    const next = evidencePaths(options.issue, successor.generation)
+    mkdirSync(dirname(join(cwd, next.contract)), { recursive: true })
+    writeFileSync(join(cwd, next.contract), JSON.stringify(nextContract, null, 2) + '\n')
+    ok(run('node', ['scripts/agent-work-contract.mjs', '--publish-contract', '--contract-file', next.contract], { cwd }), 'publishing the successor contract before recording new results')
+    contractToWrite = nextContract
+    writeContractPath = next.contract
+    writeCompletionPath = next.completion
+    rebound.contract_ref = contractRef(options.issue, successor.generation)
+    rebound.contract_sha256 = contractHash(nextContract)
+  } else {
+    mkdirSync(dirname(join(cwd, contractPath)), { recursive: true })
+    writeFileSync(join(cwd, contractPath), JSON.stringify(contractToWrite, null, 2) + '\n')
+  }
+  writeFileSync(join(cwd, writeCompletionPath), JSON.stringify(rebound, null, 2) + '\n')
+  ok(run('node', ['scripts/agent-work-contract.mjs', '--validate-completion', '--report-file', writeCompletionPath, '--contract-file', writeContractPath, '--expected-pr', String(options.pr), '--expected-head-sha', head], { cwd }), 'validating the rebound completion report')
+  const toAdd = [...new Set([...EVIDENCE, writeContractPath, writeCompletionPath])].filter((path) => existsSync(join(cwd, path)))
+  ok(git('add', '-A', '--', ...toAdd), 'git add')
   ok(git('commit', '-q', '-m', `chore(evidence): bind #${options.issue} contract pair to implementation head`), 'committing evidence')
   const tip = ok(git('rev-parse', 'HEAD'), 'git rev-parse')
   log(`Refreshed: implementation head ${head}, evidence head ${tip}. ${testSummary}.`)
