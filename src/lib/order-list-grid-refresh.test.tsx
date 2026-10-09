@@ -1,4 +1,4 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { AllCommunityModule, ModuleRegistry, themeQuartz, type GridApi, type IDatasource } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { describe, expect, it } from "vitest";
@@ -17,7 +17,7 @@ function rowsFor(start: number, end: number, revision: number): Row[] {
 function renderInfiniteGrid(
   datasource: IDatasource,
   onReady: (api: GridApi<Row>) => void,
-  options: { selectRows?: boolean; showRevision?: boolean } = {},
+  options: { selectRows?: boolean; showRevision?: boolean; editable?: boolean; onCellValueChanged?: (event: { data: Row; newValue: string }) => void } = {},
 ) {
   return render(
     <div style={{ height: 360, width: 720 }}>
@@ -29,12 +29,13 @@ function renderInfiniteGrid(
         cacheOverflowSize={1}
         maxBlocksInCache={20}
         infiniteInitialRowCount={500}
-        columnDefs={options.showRevision === false ? [{ field: "id" }] : [{ field: "id" }, { field: "revision" }]}
+        columnDefs={options.showRevision === false ? [{ field: "id" }] : [{ field: "id" }, { field: "revision", editable: options.editable }]}
         pagination
         paginationPageSize={1500}
         paginationPageSizeSelector={[500, 1000, 1500]}
         rowSelection={options.selectRows === false ? undefined : { mode: "multiRow", checkboxes: true, headerCheckbox: false }}
         getRowId={(params) => params.data.id}
+        onCellValueChanged={options.onCellValueChanged}
         onGridReady={(event) => onReady(event.api)}
       />
     </div>,
@@ -76,7 +77,7 @@ describe("OrderList grid refresh", () => {
     act(() => refreshOrderListRows(api));
 
     await waitFor(() => expect(api!.getRowNode("row-10380")?.data?.revision).toBe(2));
-    expect(document.querySelector('[row-id="row-10380"]')).not.toBeNull();
+    await waitFor(() => expect(document.querySelector('[row-id="row-10380"]')).not.toBeNull());
     expect(requests.slice(requestsBefore)).toEqual([{ start: 10_000, end: 10_500 }]);
   });
 
@@ -110,7 +111,7 @@ describe("OrderList grid refresh", () => {
     act(() => refreshOrderListRows(api));
 
     await waitFor(() => expect(api!.getRowNode("row-10380")?.data?.revision).toBe(2));
-    expect(document.querySelector('[row-id="row-10380"]')).not.toBeNull();
+    await waitFor(() => expect(document.querySelector('[row-id="row-10380"]')).not.toBeNull());
     expect(requests.slice(requestsBefore)).toEqual([{ start: 10_000, end: 10_500 }]);
     expect(api!.paginationGetRowCount()).toBe(rowCountBefore);
     expect(api!.isLastRowIndexKnown()).toBe(endKnownBefore);
@@ -161,7 +162,7 @@ describe("OrderList grid refresh", () => {
     act(() => lateResponse.shift()?.());
     await waitFor(() => expect(api!.getRowNode("row-10380")?.data?.revision).toBe(2));
 
-    expect(document.querySelector('[row-id="row-10380"]')).not.toBeNull();
+    await waitFor(() => expect(document.querySelector('[row-id="row-10380"]')).not.toBeNull());
     expect(requests.slice(requestsBefore)).toEqual([{ start: 10_000, end: 10_500 }]);
     expect(cachedStartsBefore).toContain(10_000);
     expect(api!.paginationGetRowCount()).toBe(rowCountBefore);
@@ -203,11 +204,131 @@ describe("OrderList grid refresh", () => {
     act(() => refreshOrderListRows(api));
 
     await waitFor(() => expect(api!.getRowNode("row-10380")?.data?.revision).toBe(2));
-    expect(document.querySelector('[row-id="row-10380"]')).not.toBeNull();
+    await waitFor(() => expect(document.querySelector('[row-id="row-10380"]')).not.toBeNull());
     expect(requests.slice(requestsBefore)).toEqual([{ start: 10_000, end: 10_500 }]);
     expect(api!.paginationGetRowCount()).toBe(totalRows);
     expect(api!.isLastRowIndexKnown()).toBe(true);
     expect(api!.paginationGetCurrentPage()).toBe(pageBefore);
     expect(api!.getSelectedRows().map((row) => row.id)).toEqual(selectedBefore);
+  });
+
+  it("defers repeated refresh requests during an edit and refreshes once after cancellation", async () => {
+    const requests: Array<{ start: number; end: number }> = [];
+    const changes: unknown[] = [];
+    let revision = 1;
+    let api: GridApi<Row> | null = null;
+    const datasource: IDatasource = {
+      getRows: async (params) => {
+        requests.push({ start: params.startRow, end: params.endRow });
+        const rows = rowsFor(params.startRow, params.endRow, revision);
+        await Promise.resolve();
+        params.successCallback(rows);
+      },
+    };
+    renderInfiniteGrid(datasource, (value) => { api = value; }, {
+      editable: true,
+      onCellValueChanged: (event) => changes.push(event),
+    });
+
+    await waitFor(() => expect(api).not.toBeNull());
+    await navigateAndWait(api!, 10_380);
+    api!.getRowNode("row-10380")?.setSelected(true);
+    const countBefore = api!.paginationGetRowCount();
+    const pageBefore = api!.paginationGetCurrentPage();
+    const selectedBefore = api!.getSelectedRows().map((row) => row.id);
+    const requestsBefore = requests.length;
+    revision = 2;
+    act(() => api!.startEditingCell({ rowIndex: 10_380, colKey: "revision" }));
+    const editor = document.querySelector<HTMLInputElement>(".ag-cell-inline-editing input");
+    expect(editor).not.toBeNull();
+    fireEvent.change(editor!, { target: { value: "99" } });
+    fireEvent.input(editor!, { target: { value: "99" } });
+
+    act(() => {
+      refreshOrderListRows(api);
+      refreshOrderListRows(api);
+      refreshOrderListRows(api);
+    });
+    expect(editor!.value).toBe("99");
+    expect(api!.getEditingCells()).toHaveLength(1);
+    expect(requests).toHaveLength(requestsBefore);
+    expect(changes).toHaveLength(0);
+
+    act(() => api!.stopEditing(true));
+    await waitFor(() => expect(api!.getRowNode("row-10380")?.data?.revision).toBe(2));
+    expect(requests.slice(requestsBefore)).toEqual([{ start: 10_000, end: 10_500 }]);
+    expect(changes).toHaveLength(0);
+    expect(api!.paginationGetRowCount()).toBe(countBefore);
+    expect(api!.paginationGetCurrentPage()).toBe(pageBefore);
+    expect(api!.getSelectedRows().map((row) => row.id)).toEqual(selectedBefore);
+  });
+
+  it("commits one user edit and refreshes only after the editor closes", async () => {
+    const requests: Array<{ start: number; end: number }> = [];
+    const changes: Array<{ data: Row; newValue: string }> = [];
+    let revision = 1;
+    let api: GridApi<Row> | null = null;
+    const datasource: IDatasource = {
+      getRows: async (params) => {
+        requests.push({ start: params.startRow, end: params.endRow });
+        const rows = rowsFor(params.startRow, params.endRow, revision);
+        await Promise.resolve();
+        params.successCallback(rows);
+      },
+    };
+    renderInfiniteGrid(datasource, (value) => { api = value; }, {
+      editable: true,
+      onCellValueChanged: (event) => changes.push(event),
+    });
+
+    await waitFor(() => expect(api).not.toBeNull());
+    await navigateAndWait(api!, 10_380);
+    const requestsBefore = requests.length;
+    revision = 2;
+    act(() => {
+      api!.startEditingCell({ rowIndex: 10_380, colKey: "revision" });
+      refreshOrderListRows(api);
+    });
+    const editor = document.querySelector<HTMLInputElement>(".ag-cell-inline-editing input");
+    expect(editor).not.toBeNull();
+    fireEvent.change(editor!, { target: { value: "99" } });
+    fireEvent.input(editor!, { target: { value: "99" } });
+    expect(editor!.value).toBe("99");
+    expect(api!.getEditingCells()).toHaveLength(1);
+    fireEvent.keyDown(editor!, { key: "Enter", code: "Enter", keyCode: 13, charCode: 13 });
+    act(() => api!.stopEditing(false));
+
+    await waitFor(() => expect(requests.slice(requestsBefore)).toEqual([{ start: 10_000, end: 10_500 }]));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ data: { id: "row-10380" }, newValue: "99" });
+    expect(api!.getEditingCells()).toHaveLength(0);
+    expect(api!.getRowNode("row-10380")?.data?.revision).toBe(2);
+  });
+
+  it("does not refresh or touch event listeners after the grid is destroyed", async () => {
+    const requests: Array<{ start: number; end: number }> = [];
+    let api: GridApi<Row> | null = null;
+    const datasource: IDatasource = {
+      getRows: async (params) => {
+        requests.push({ start: params.startRow, end: params.endRow });
+        await Promise.resolve();
+        params.successCallback(rowsFor(params.startRow, params.endRow, 1));
+      },
+    };
+    const view = renderInfiniteGrid(datasource, (value) => { api = value; }, { editable: true });
+
+    await waitFor(() => expect(api).not.toBeNull());
+    await navigateAndWait(api!, 10_380);
+    act(() => {
+      api!.startEditingCell({ rowIndex: 10_380, colKey: "revision" });
+      refreshOrderListRows(api);
+      api!.stopEditing(true);
+      api!.destroy();
+    });
+    const requestsAtDestroy = requests.length;
+    await act(async () => { await Promise.resolve(); });
+    expect(api!.isDestroyed()).toBe(true);
+    expect(requests).toHaveLength(requestsAtDestroy);
+    view.unmount();
   });
 });
