@@ -43,7 +43,7 @@ uncertain identities and malformed Google entries stay held on the same issue.
 
 ## Database contract
 
-All objects are owned by `u2giants/shared-db`. Nothing here may be changed from
+All objects are owned by canonical `popcre/shared-db`. Nothing here may be changed from
 this repo.
 
 | Object | Used for |
@@ -109,7 +109,7 @@ which 16,943 are a full scan of `plm.style_tracker_item_bridge`, a 132 MB table
 holding ~24 MB of live data. That scan happens because the bridge has no index
 on `plm_item_id`, the column this view joins it on, and the join cannot be
 pruned: the bridge genuinely fans out (24,010 order lines to 24,486 view rows).
-The remedy is two indexes in `u2giants/shared-db` (issue #1657), which drop the
+The remedy is two indexes in canonical `popcre/shared-db` (issue #1657), which drop the
 cold read substantially. **When measuring this again, look at `buffers`, not at
 RLS.**
 
@@ -292,12 +292,77 @@ and remains necessary when a new order arrives before its item does.
 
 ## Native Sheets integration delivery (2026-10-09, issue #281)
 
-**Status: in progress, not yet deployed.** Application acceptance stays on
+**Status: backend installed, source inputs loaded, and PRs #282–#289 merged. Current release `9883315` is live; publish `37986360726` and CI `37985400880` passed. The served bundle SHA-256 is `574bdff6df39c7533993996c591b04c8133e62e82b3e25626f29a5258c8c46fb`; focused administrator/viewer refresh checks passed. Native workflow `37987001226` passed 90 checks across both roles (checks-label manifest SHA-256 `708b9395e8e6e054372a7c9b7a7bb73b03f0ce3448df2acec338b447586eb0e1`), with verified schema, type and live artifacts. Shared-db #4111 and PopDAM #275 are closed. The #275 administrator/viewer UI proof passed 53 checks; report `coldlion-owner-link-proof.json`, SHA-256 `fd33979beb4abe88c0a5eb969b58ec7b679ebffda9f227d63b1bfb9b6d7a219f`. The 3 target Find IDs matched indexes 2,000, 2,558 and 7,785; 500-row reads at offsets 2,000, 2,500 and 7,500 displayed all 6 canonical descriptions. There were zero write attempts and browser errors; issue evidence is comment 6089001259. Only #281 documentation closeout remains. Earlier failures and prior-release acceptances below are historical.**
+Application acceptance stays on
 [u2giants/popdam3#281](https://github.com/u2giants/popdam3/issues/281); the
 shared backend contract is [popcre/shared-db#4111](https://github.com/popcre/shared-db/issues/4111).
-The new named verification contract must land in protected tooling first
-([#4130](https://github.com/popcre/shared-db/issues/4130)). Reviewed source and
-passing local/CI tests are not evidence that production has changed.
+The application merged as PR #282 at
+`3000b7e04bd6864bc9bef699abc6b84e02f64661`. Production backend run
+`37951612832` passed with the unchanged migration SHA-256
+`bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590`, bounded
+catalog verification (56 checks), and 9 behavior checks. The hosted-preview
+rollback acceptance passed administrator, viewer, and anonymous checks,
+including edits and clears; all fixture mutations were rolled back.
+The subsequent OrderList Find repair merged as PR #283 at
+`709450766d9ddf2e7944db1aaa916a188e3cac75` (reviewed source head
+`9e4a005aba239253fd9ab2c7435b755a2cf9e37e`). Full CI run `37958015493`
+passed 80 files / 496 tests plus one existing skip; the build passed. Frontend
+publish run `37958305346` succeeded; at that release, production served build
+token `7094507`, asset `index-U3ZqunIC.js`, bundle SHA-256
+`9fd6875ad97cbc7cdf44e033a54d3d26b88532058a8c8a3fe6f55014a508ae8e`, image
+digest `60d6eb3237d360f1fb90d8b7b5884ae8de92e6c1871c636d606772f766b6ace5`.
+Historical pre-PR #284 administrator/viewer same-row acceptance passed 93
+checks (47/46); report
+`acceptance-report-7094507-attempt2.json` SHA-256
+`0fccf979a10fc39fa61ea9cbb12eef45ac03c824388510518a4f0dd1b68dac73`. Find
+passed for both roles: current at offset 0 and far rows at offsets 10,380 and
+6,839 matched the exact RPC ID, bounded GET row, and visible grid row. Report
+`orderlist-find-final-diagnostic-attempt6-7094507.json` SHA-256
+`86b3cb643eb5740f7ae3c6e680b53d35d533c746a3d532f0407b4d0c01378977`.
+Original controls passed for both roles; report
+`existing-capabilities-attempt7-7094507.json` SHA-256
+`0b87513183fa5435225623a76fcd00db99144b28af961f3d01c4b4c56752464d`.
+Styles Find repair PR #284 merged at
+`f02b9de2e60a317aaf5136c77957b1639b9274b1` (1:11 PM EDT); its exact-head GLM
+review approved it (report
+`glm-final-check-20261009T165439-2485646-28136.md`). CI run `37964251577` passed 81 files / 497 tests plus one
+existing skip. Publish run `37964512337` succeeded at 1:15 PM EDT; that release
+served token `f02b9de`, asset `assets/index-BGe0FYew.js` (SHA-256
+`b48e4cafceb7113365782c2398707e029f2332ce5fe900ff349a2d4af6c9d2c6`), and image
+digest `12b5c868d41aa25a8cfbab0f8e38e1037f2e0c519fd52911fd120063eb9dc87a`.
+The administrator fixture capture passed; report `fixtures-f02b9de.json` has
+SHA-256 `2e1f46649dfe71e95b75f1f6e296145b38b986411b14e40518383e60c5a1782a`.
+The acceptance attempt at that point reached 88 of 93 checks before the viewer
+License/Styles row timed out. Both roles hit PostgreSQL `57014` on the initial
+normal GET for one of four ranges, leaving the grid blank; exact-ID Find reached
+its target after loading. This was a failed historical attempt; the current
+release proof is recorded below.
+
+PR #285, the deployed-app/production-types proof workflow, merged at
+`783f7357a1e407bc3a26859ddb82fa5561220f99` (1:33 PM EDT). Exact-head StepFun
+APPROVE is recorded for source `c8f02dc44e8b27a058ec538e10bcd28f0f478110` in
+`stepfun-final-check-20261009T172314-2599466-16163.md`. CI run `37966825066`
+passed 497 tests plus one existing skip and 19 observer tests. The merged
+`.github/workflows/orderlist-integration-live-proof.yml` has four existing-
+account GitHub proof secrets configured via protected stdin; no accounts were
+created. At that point in the release sequence the workflow had not yet run; its
+later guarded result and current remaining actions are recorded below.
+
+PR #286 merged the Licensed loading plan and October 9 measurement baseline as
+a documentation-only change (`fb1c800e72d837a937c82e72e86887e18ee3f670`); see
+the [October 9 baseline](verification/grid-loading-performance/2026-10-09T1802Z/README.md).
+
+The exact auxiliary source SHA-256
+`13bc64585bb5ec26e977fa948e6c59dfcf1b489e463fbe5e6151016ebd36fb4d` was loaded
+once in a guarded transaction: 8,257 sample-depth rows, 38 customer suffixes,
+and 3,147 tracking rows. A separate read-only production count check matched
+those counts. The 71 held tracking exceptions and three duplicate tracking rows
+remain excluded. A private identity-only comparison confirmed that all 12
+normalized PO identities in #277's held conflicting-order set (79 source rows)
+match 12 of the 71 auxiliary tracking holds; the other 59 holds stay excluded
+separately. Issue #277 describes 12 conflicting orders and 58
+malformed/incomplete rows; it does not own the other missing-reference holds.
+No business-row identifiers are repeated here.
 
 The native formula inventory was read from the live workbooks rather than
 cached XLSX formula results. The implementation boundary is OrderList,
@@ -308,13 +373,7 @@ cross-workbook connections. The authority rules belong in the companywide
 [ERP orders and source meaning](https://github.com/popcre/shared-db/blob/main/docs/business-rules/erp-orders-and-source-meaning.md)
 topic; this document records the DAM implementation and acceptance boundary.
 
-The integration code is implemented, but delivery remains **pending** on the
-existing [application acceptance issue #281](https://github.com/u2giants/popdam3/issues/281)
-and [backend issue #4111](https://github.com/popcre/shared-db/issues/4111).
-Preview/production application, guarded source loading, exact-head review,
-shipment, and authenticated administrator/viewer acceptance are not established
-by this document. Keep those gates open until their evidence is recorded on the
-same issues.
+The earlier `f901017` read, Find, loading/retry, screenshot and controls results are historical. Native runs `37978352705` and `37981872323` failed and produced no canonical artifacts; those failures are preserved. Native workflow `37987001226` passed on live `9883315`; its 90-check evidence and verified artifacts are summarized above. Shared-db #4111 and PopDAM #275 are closed; only #281 documentation closeout remains open.
 
 Required serving behavior:
 
@@ -364,27 +423,31 @@ These fields are hidden by default and are neither queryable nor editable throug
 the grid. Existing OrderList Find, filters, saved views and normal blue-input
 edits remain separate from the integration diagnostics.
 
-The initial auxiliary-source payload contains 8,257 sample bindings, 38 customer
-suffix settings and 3,147 exact-matched tracking records. It deliberately
-excludes 71 missing PO references and three duplicate tracking rows after the
-first source match. Twelve of those missing references are already held by the
-separate Google refresh exception task (#277). Loading must revalidate the
-exact source digest, target identity, empty destination tables, canonical
-PO IDs/numbers, expected counts and recovery snapshot in one guarded transaction.
-Canonical Item Master, Master Data rows and existing PO dates are not seeded
-or overwritten by this auxiliary load.
+The loaded auxiliary-source payload contains 8,257 sample bindings, 38 customer
+suffix settings and 3,147 exact-matched tracking records from the verified source
+digest above. It deliberately excludes 71 held tracking exceptions and three
+duplicate tracking rows after the first source match. A private identity-only
+comparison confirmed that all 12 PO identities in #277's held conflicting-order
+set match 12 of the 71 auxiliary tracking holds by normalized PO identity. Issue #277
+describes 12 conflicting orders across 79 source rows and 58 malformed/incomplete
+rows; Albert owns those business decisions. The other 59 auxiliary holds remain
+excluded separately. The production load used empty destination tables and revalidated canonical PO
+IDs/numbers, wrote the exact expected counts in one guarded transaction, and
+created private recovery evidence. Canonical Item Master, Master Data rows and
+existing PO dates were not seeded or overwritten.
 
-Keep the remaining exceptions separate: three ColdLion rows still need the
-owner's Licensed division decision on [#275](https://github.com/u2giants/popdam3/issues/275);
-the twelve Google refresh exceptions remain on [#277](https://github.com/u2giants/popdam3/issues/277).
-Neither set is resolved by matching style, quantity, or PO text, and no source
-rows are guessed or merged to make the integration appear complete.
+Keep remaining exceptions separate: the owner recorded
+`DSMT0MVAV01` → POP (Functional Wall) and `NTSTVSSSS01` → Spruce (Storage) on
+[#275](https://github.com/u2giants/popdam3/issues/275#issuecomment-6088735709). The guarded application is committed and read-back verified: all 462 links are present, zero are ambiguous, the three decided rows have the expected divisions, item IDs and served descriptions, and the original 459-row preimage fingerprint is unchanged. The final #275 administrator/viewer proof passed 53 checks and is recorded in [#275 completion comment](https://github.com/u2giants/popdam3/issues/275#issuecomment-6089001259); #275 is closed. The current linked cohort has 23 ColdLion lines across 7 Items with workflow correctly Unknown where Master tracker facts are absent; no records were created.
+Issue [#277](https://github.com/u2giants/popdam3/issues/277) holds business
+decisions for 12 conflicting orders (79 source rows) and 58 malformed/incomplete
+rows; its 12 order identities match 12 of the 71 auxiliary tracking holds. The
+other 59 auxiliary holds remain excluded. No source rows are guessed or merged.
 
-Backend acceptance requires governed preview/production application, exact
-catalog and ordinary authenticated-role proof. App acceptance additionally
-requires bounded screen queries, admin-only manual controls, explicit unknown
-workflow display, cross-screen refresh, preserved OrderList Find/saved views,
-passing tests/review, shipment and authenticated administrator/viewer visual
-proof. All acceptance remains unchecked until verified on the same issues.
+Backend application, catalog checks, preview rollback tests, and auxiliary
+production load are complete. Prior release `f901017` results are historical.
+Live `9883315` focused checks and native workflow `37987001226` passed; shared-db
+#4111 is closed. Current follow-up is #281 documentation closeout. Keep #277's conflicting-order
+and malformed-row choices separate.
 
 Execution plan: [native Sheets integration](../plan_orderlist_sheets_full_integration.md), with current STATUS and its own session handoff.

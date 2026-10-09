@@ -12,20 +12,18 @@ These rules exist so AI tools can safely assist with this repo without creating 
 
 ## Branch policy
 
-- This repo uses one branch only: `main`
-- Do not propose or create feature branches
-- Do not suggest branch-based workflows
-- Do not assume there is a staging branch
-- All approved changes should target `main`
+- Application changes use a feature branch and pull request targeting `main`.
+- Never push application changes directly to protected `main`.
+- Do not assume there is a staging or release branch; `main` remains the release branch.
 
 ## Approved deployment path
 
 The only normal deployment path is:
 
-1. change files in this repo
-2. commit to `main`
-3. GitHub Actions verifies the change
-4. GitHub Actions builds the production Docker image and pushes it to GHCR, using a package-write `GHCR_PAT` only when GitHub's user-scoped package permissions reject `GITHUB_TOKEN` writes
+1. make changes on a feature branch and push it to a verified GitHub remote
+2. open a pull request targeting `main` and pass the required checks
+3. merge through the normal protected path
+4. GitHub Actions verifies the merge, builds the production Docker image and pushes it to GHCR, using a package-write `GHCR_PAT` only when GitHub's user-scoped package permissions reject `GITHUB_TOKEN` writes
 5. GitHub Actions explicitly triggers the Coolify deploy API
 6. Coolify pulls the published image and replaces the production container
 
@@ -55,7 +53,7 @@ AI must not:
 - hand-edit files directly on the production server outside of CI
 - assume the server contains the source of truth
 - create undocumented hotfixes on the live machine
-- introduce additional branches
+- create staging or release branches outside the repository's branch policy
 - create a second deployment system
 - recommend storing production runtime configuration only in ad hoc server files
 
@@ -77,7 +75,7 @@ AI must not:
 When making changes:
 
 - prefer small, explicit edits
-- preserve the single-branch workflow
+- preserve `main` as the single release branch while using feature branches for changes
 - keep deployment logic simple
 - avoid introducing tools or processes that require manual server babysitting
 

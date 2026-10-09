@@ -152,18 +152,12 @@ The `@docker` suffix references the service registered by Coolify's Docker provi
 
 ### Force redeploy (without a code change)
 
-```bash
-git commit --allow-empty -m "chore: force redeploy"
-git push origin main && git push github main
-```
-
-Or retrigger from the GitHub Actions UI.
-
-Or call Coolify directly (needs the token):
-```bash
-curl -H "Authorization: Bearer <COOLIFY_TOKEN>" -H "Accept: application/json" \
-  "https://coolify.designflow.app/api/v1/deploy?uuid=qxj8a0j3tpa9lq4q5rs6pezy&force=false"
-```
+Redeployment is a production action. First follow the task-gate and exact-input
+AI-review requirements in `AGENTS.md` for the requested action. Then rerun the
+existing `Publish Frontend Image` workflow with `workflow_dispatch` on `main`,
+or use Coolify's supported redeploy control. Do not create an empty commit or
+push directly to `main` to trigger deployment. Verify the deployed build SHA,
+container health, and both production domains afterward.
 
 ### Roll back to a previous image
 
@@ -174,7 +168,7 @@ For emergency rollback without Coolify UI access (break-glass only — restore t
 ssh root@178.156.180.212
 docker exec coolify-db psql -U coolify -d coolify -c \
   "UPDATE applications SET docker_registry_image_tag='<sha>' WHERE uuid='qxj8a0j3tpa9lq4q5rs6pezy';"
-# Then trigger deploy via API or empty commit
+# After required task gates and exact-input AI review, redeploy through Coolify.
 ```
 
 ### Check container status

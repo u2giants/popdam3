@@ -114,18 +114,22 @@ canonical item links. A pre-refresh database backup was taken before replacement
 - A nonblank description must have approved values for MG01, MG02, MG03, Licensor + Property, and Size before the grid accepts the edit.
 - The `Row` button opens a menu for `+1`, `+5`, `+10`, `+25`.
 - Grid pagination defaults to 1,500 rows per page, with 500 and 1,000 row options.
-- The currently shipped Master Data page requests four 1,000-row ranges in
-  parallel for both sheets, then appends later pages. The October 9 read-only
-  production check reproduced a Licensed `57014` failure that prevented the
-  first page from rendering; the current header can show the total count even
-  when no rows arrived. Generic's parallel page completed successfully.
-- The measured proposed correction is prepared separately at
-  `37577e9f3f41948041826a97bd636440621d42b0`: serialize Licensed GET/status
-  pairs, retain Generic parallel loading, show rows actually received, and
-  retry only a failed later page. That implementation is not in this
-  documentation-only change and has not shipped. Its independent release
-  review and actual deployed acceptance remain open. Measurements are in
-  [`verification/grid-loading-performance/2026-10-09T1802Z/README.md`](verification/grid-loading-performance/2026-10-09T1802Z/README.md).
+- The current deployed Master Data page requests four 1,000-row ranges per
+  first wave. Licensed ranges load sequentially, each GET followed by its
+  computed-status request; Generic ranges remain parallel. Later pages append
+  in the background. The UI reports the number of rows actually received,
+  distinguishes initial and next-page failures from loading/completion, and
+  offers retry for an initial failure or the failed later page. A displayed
+  total does not imply that those rows have loaded. During partial loading,
+  Find and filters apply only to loaded rows.
+- This behavior first shipped in PR #287 as frontend token `f901017`; those
+  read/timing/retry results are historical. The editor-safe interrupted-refresh
+  repair is now live in PR #289 as token `9883315`. Focused production checks
+  passed in both roles, including edit preservation and cancellation with zero
+  business writes. Native workflow `37987001226` passed 90 checks across both
+  roles; shared-db #4111 and PopDAM #275 are closed. Only #281 documentation/closeout
+  remains open. Earlier timing comparisons
+  remain in the [October 9 baseline](verification/grid-loading-performance/2026-10-09T1802Z/README.md).
 - Until loading finishes, Find and column filters cover rows already loaded;
   once complete they cover the full in-browser tab.
 - Ctrl+F focuses the grid's full-dataset Find box. Find keeps the full table
@@ -229,7 +233,7 @@ Picker sources:
 - `core.property` has the property name and `licensor_id`; the UI shows the property picker as `Licensor Property`, so users browse by property but the final description includes the licensor automatically.
 - `core.product_size` is the preferred future size picker. Until it is live everywhere, the UI falls back to DAM style-group `size_name` values and the examples from the convention document.
 
-Do not add browser-side PLM calls for these pickers. Add or update shared picker tables/RPCs in `u2giants/shared-db`, then consume them from the Master Data page.
+Do not add browser-side PLM calls for these pickers. Add or update shared picker tables/RPCs in canonical `popcre/shared-db`, then consume them from the Master Data page.
 
 ## Known Data Provenance Finding
 
@@ -305,13 +309,83 @@ Verified during the 2026-08-02 RFQ Group rollout:
 
 ## OrderList integration delivery (2026-10-09)
 
-The application integration is implemented, but preview/production rollout,
-source loading, and authenticated visual acceptance remain pending on the
-existing [application issue #281](https://github.com/u2giants/popdam3/issues/281)
-and [backend issue #4111](https://github.com/popcre/shared-db/issues/4111).
-No deployment or live acceptance is claimed here. The current implementation
-and all remaining gates are recorded in
-[ORDER_LIST.md](ORDER_LIST.md#native-sheets-integration-delivery-2026-10-09-issue-281).
+The backend is installed and the application integration merged in PR #282
+(`3000b7e04bd6864bc9bef699abc6b84e02f64661`). The subsequent OrderList Find
+repair merged as PR #283 at `709450766d9ddf2e7944db1aaa916a188e3cac75`
+(reviewed source head `9e4a005aba239253fd9ab2c7435b755a2cf9e37e`). Full CI run
+`37958015493` passed 80 files / 496 tests plus one existing skip; the build
+passed. Frontend publish run `37958305346` succeeded. At that prior release,
+production served token `7094507`, asset `index-U3ZqunIC.js`, bundle SHA-256
+`9fd6875ad97cbc7cdf44e033a54d3d26b88532058a8c8a3fe6f55014a508ae8e`, and image
+digest `60d6eb3237d360f1fb90d8b7b5884ae8de92e6c1871c636d606772f766b6ace5`.
+Styles Find repair PR #284 merged at
+`f02b9de2e60a317aaf5136c77957b1639b9274b1` (1:11 PM EDT); exact-head GLM
+review approved it (report
+`glm-final-check-20261009T165439-2485646-28136.md`). CI run `37964251577` passed 81 files / 497 tests plus one
+existing skip. Publish run `37964512337` succeeded at 1:15 PM EDT. At that prior release,
+production served token `f02b9de`, asset `assets/index-BGe0FYew.js` (SHA-256
+`b48e4cafceb7113365782c2398707e029f2332ce5fe900ff349a2d4af6c9d2c6`), and image
+digest `12b5c868d41aa25a8cfbab0f8e38e1037f2e0c519fd52911fd120063eb9dc87a`.
+The administrator fixture capture passed; report `fixtures-f02b9de.json` has
+SHA-256 `2e1f46649dfe71e95b75f1f6e296145b38b986411b14e40518383e60c5a1782a`.
+PR #285, the deployed-app/production-types proof workflow, merged at
+`783f7357a1e407bc3a26859ddb82fa5561220f99` (1:33 PM EDT). Exact-head StepFun
+APPROVE is recorded for source `c8f02dc44e8b27a058ec538e10bcd28f0f478110` in
+`stepfun-final-check-20261009T172314-2599466-16163.md`. CI run `37966825066`
+passed 497 tests plus one existing skip and 19 observer tests. Its workflow has
+four existing-account proof secrets configured; no accounts were created.
+PR #287 then merged as `f9010170b1ec7e8003016dba0ade6f2251fccb48`; publish run
+`37974214106` succeeded and production served token `f901017`. The read
+acceptance, screenshot attempt 12 and existing controls at that release are
+historical; current focused acceptance is recorded below. The type-proof workflow `37975970329` stopped at its guard after
+schema generation. Repair PR #288 has exact-head GLM APPROVE (digest
+`6d770bdad0a5e1579182c0f469ee4731226b6d8f3d7fc25810c91ea6746ad806`); production
+and ship gates passed; it merged as `a5efa998799df2c99c562a10663b690d66c6ad18`
+and CI `37978046556` passed. Final workflow `37978352705` failed finding the
+viewer snapshot in the DOM and produced no canonical type-proof artifacts. PR #289 is live as token `9883315`; publish `37986360726` succeeded at 4:25 PM EDT. Served bundle `/assets/index-B2s-PtZY.js` has SHA-256 `574bdff6df39c7533993996c591b04c8133e62e82b3e25626f29a5258c8c46fb`; the container is healthy and matches merge `9883315c7d64b9ed274cc92ae3c1d0c73cc6597b`. Final CI `37985400880` passed 510 tests/82 files, one existing skip and 19 observer tests. Focused edit/refresh checks passed both roles; report `focus-refresh-9883315.json`, SHA-256 `4a3aced17a65b1d7ac473a31180ed7104cb9c36501ed4dfed114cf50702a2641`. The held 500-row read beginning at offset 10,000 was followed by a distinct 500-row read returning HTTP 200 at the exact offset. Native workflow `37987001226` passed 90 checks across both roles (checks-label manifest SHA-256 `708b9395e8e6e054372a7c9b7a7bb73b03f0ce3448df2acec338b447586eb0e1`); schema, type artifact `11643178561`, and live artifact `11642863862` matched and passed. Shared-db #4111 and PopDAM #275 are closed. Only #281 documentation/closeout remains open. The post-link readback now has 23 ColdLion lines across 7 linked Items; workflow remains correctly Unknown where Master tracker facts are absent, with no tracker or Item Master records created.
+A private exact-sequence diagnostic later passed 90 checks total across both
+roles on `f901017` with no HTTP errors, using Find offsets `[0, 20438, 1403,
+1403, 12121, 10380]`; the repeated 1,403 is intentional: two separate Find cases
+returned the same index. Its checks-label manifest SHA-256 is
+`708b9395e8e6e054372a7c9b7a7bb73b03f0ce3448df2acec338b447586eb0e1`; this
+digest hashes the ordered check labels only, not run-specific results. The
+private report is not a native workflow artifact. Native rerun `37981872323` failed viewer current-link
+description with `ResponseTimeoutError` at 3:45:48 PM EDT after type generation
+passed; it produced no canonical artifacts. This failure remains preserved.
+Focused edit/refresh checks and native workflow proof passed on live `9883315`. The separate #275 UI check passed 53 administrator/viewer checks with exact Find results and visible canonical descriptions; issue #275 is closed. Only #281 documentation/closeout remains open.
+Production backend run
+`37951612832` passed with the unchanged migration SHA-256
+`bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590`, bounded
+catalog verification (56 checks), and 9 behavior checks. The guarded auxiliary
+source load completed with 8,257 sample-depth, 38 suffix, and 3,147 tracking
+rows; a separate read-only production count check matched. Historical
+pre-PR #284 administrator/viewer same-row acceptance passed 93 checks (47/46);
+report
+`acceptance-report-7094507-attempt2.json` SHA-256
+`0fccf979a10fc39fa61ea9cbb12eef45ac03c824388510518a4f0dd1b68dac73`. Find
+passed for both roles: current at offset 0 and far rows at offsets 10,380 and
+6,839 matched exact Find IDs, bounded GET pages, and visible rows. The Find
+diagnostic SHA-256 is
+`86b3cb643eb5740f7ae3c6e680b53d35d533c746a3d532f0407b4d0c01378977`.
+Original controls passed for both roles; their report SHA-256 is
+`0b87513183fa5435225623a76fcd00db99144b28af961f3d01c4b4c56752464d`.
+The earlier parallel Licensed load produced a `57014` timeout; that finding is
+historical and was corrected in PR #287. The previous `f901017` release passed 93 read-only checks (administrator 47,
+viewer 46), strict Find, loading observation and retry probes; these are
+historical acceptance for unchanged behavior. Screenshot attempt 12 passed (14 role screenshots, 118
+meaningful API/DOM checks; report `screenshots-final-attempt12-f901017.json`,
+SHA-256 `d91c2a2e1e36973fa374b69511acfc2d6144a5fbdf2e61faa432a6bedd90f179`).
+Existing controls passed both roles; report
+`existing-capabilities-attempt7-f901017.json`, SHA-256
+`072f9c2887770f1d07aada9fdbebdc39d6a17992412bc31dcd25695144995706`. PR #288
+merged as `a5efa998799df2c99c562a10663b690d66c6ad18`; CI `37978046556` passed.
+Final workflow `37978352705` failed viewer snapshot DOM finding and produced no
+canonical type-proof artifacts. Native rerun `37981872323` failed viewer
+current-link description with `ResponseTimeoutError` at 3:45:48 PM EDT after
+type generation passed; it produced no canonical artifacts. The private
+exact-sequence diagnostic passed 90 checks total across both roles without HTTP
+errors, but is not a native artifact. PR #289 is live as `9883315`; fresh focused acceptance passed (details above).
+Native workflow `37987001226` passed; preserve the earlier failed runs as history. Shared-db #4111 and PopDAM #275 are closed with evidence. PopDAM #281 remains the acceptance tracker for documentation closeout.
 
 Master Data's named current workflow fields remain the source used by linked
 OrderList lines. When a named current field exists, its presence is authoritative
@@ -332,8 +406,13 @@ VendorStatistics is a separate read-only Master Data screen showing purchase
 header totals, closed/open totals, latest sent PO and 14-month activity, with
 100-row pages.
 
-Keep the source exceptions on their existing issues: three unresolved ColdLion
-division choices remain on [#275](https://github.com/u2giants/popdam3/issues/275),
-and twelve missing canonical PO references remain on [#277](https://github.com/u2giants/popdam3/issues/277).
-No Master Data row, canonical Item Master record, or existing PO date is
-manufactured or changed to conceal those exceptions.
+Keep source exceptions on their existing issues. The owner recorded
+`DSMT0MVAV01` → POP (Functional Wall) and `NTSTVSSSS01` → Spruce (Storage) on
+[#275](https://github.com/u2giants/popdam3/issues/275#issuecomment-6088735709). The guarded application is committed and read-back verified: all 462 links are present, zero are ambiguous, the three decided rows have the expected divisions, item IDs and served descriptions, and the original 459-row preimage fingerprint is unchanged. The administrator/viewer UI proof passed 53 checks; all three exact Find IDs, 500-row reads, and six canonical descriptions matched. The report `coldlion-owner-link-proof.json` has SHA-256 `fd33979beb4abe88c0a5eb969b58ec7b679ebffda9f227d63b1bfb9b6d7a219f`; it recorded zero write attempts and zero browser errors. Issue #275 is closed with evidence in comment 6089001259. Current linked workflow is Unknown for 23 ColdLion lines across 7 Items because Master tracker facts are absent; no tracker rows or Item Master records were created.
+Issue [#277](https://github.com/u2giants/popdam3/issues/277) holds business
+decisions for 12 conflicting orders (79 source rows) and 58 malformed/incomplete
+rows. A private identity-only comparison confirmed that all 12 conflicting
+order identities match 12 of the 71 auxiliary tracking holds; the other 59
+holds remain separate and excluded. Issue #277 does not own those other missing-
+reference holds. No Master Data row, canonical Item Master record, or existing
+PO date is manufactured or changed to conceal those exceptions.

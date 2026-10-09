@@ -137,17 +137,22 @@ npm run build
 
 ## Git Workflow
 
-Push directly to `main`. No feature branches. No PRs. See [CLAUDE.md](../CLAUDE.md).
+Make application changes on a feature branch and open a pull request to `main`.
+Check `git remote -v` and push to a remote verified as
+`https://github.com/u2giants/popdam3.git`; do not assume a remote alias identifies
+GitHub. Let required checks and the protected merge path decide when it lands.
+Never push application changes directly to `main`. See [AGENTS.md](../AGENTS.md)
+for the repository policy.
 
 ```bash
+git switch -c codex/<task>
 git add <files>
 git commit -m "..."
-git push origin main
-git push github main
+git push -u <verified-github-remote> codex/<task>
 ```
 
-After any push touching `supabase/functions/`, check the `Deploy Supabase Edge Functions` workflow run in GitHub Actions. Database migrations belong in canonical `shared-db`, not this repo.
+After a pull request touching `supabase/functions/` merges to `main`, check the `Deploy Supabase Edge Functions` workflow run in GitHub Actions. Database migrations belong in canonical `shared-db`, not this repo.
 
-After any push touching `apps/worker/`, Railway auto-deploys. No workflow file — Railway watches `main` directly. Changes to `apps/worker/` do **not** trigger `deploy-supabase.yml` or `publish-frontend.yml`; only Railway picks them up. Bump `apps/worker/package.json` version in the same commit.
+After a pull request touching `apps/worker/` merges to `main`, Railway auto-deploys. No workflow file — Railway watches `main` directly. Changes to `apps/worker/` do **not** trigger `deploy-supabase.yml` or `publish-frontend.yml`; only Railway picks them up. Bump `apps/worker/package.json` version in the same pull request.
 
-After any push touching `apps/bridge-agent/`, bump `apps/bridge-agent/package.json` version in the same commit.
+For a pull request touching `apps/bridge-agent/`, bump `apps/bridge-agent/package.json` in that pull request before merge; after it merges to `main`, verify the bridge publish workflow.
