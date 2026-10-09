@@ -218,7 +218,11 @@ async function installWriteBlock(context, forbiddenWrites) {
   await context.route((url) => url.hostname === projectHost && url.pathname.startsWith("/rest/v1/"), async (route) => {
     const url = new URL(route.request().url());
     const request = route.request();
-    if (shouldBlockSupabaseRequest({ host: url.hostname, path: url.pathname, method: request.method() })) {
+    let body;
+    if (request.method() === "POST" && url.pathname === "/rest/v1/rpc/search_style_tracker_link_candidates") {
+      try { body = request.postDataJSON(); } catch { body = undefined; }
+    }
+    if (shouldBlockSupabaseRequest({ host: url.hostname, path: url.pathname, method: request.method(), body })) {
       forbiddenWrites.push(`${request.method()} ${url.pathname}`);
       await route.abort("blockedbyclient");
       return;

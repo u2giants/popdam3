@@ -79,9 +79,10 @@ test("browser write guard denies every production REST mutation except listed re
   assert.equal(shouldBlockSupabaseRequest({ host, path: "/rest/v1/rpc/get_dam_style_tracker_license_status", method: "POST" }), false);
   assert.equal(shouldBlockSupabaseRequest({ host, path: "/rest/v1/rpc/find_dam_order_list_row", method: "POST" }), false);
   for (const name of ["get_filter_counts", "get_path_facets", "get_dam_material_facets", "get_dam_customer_facets", "search_style_tracker_link_candidates"]) {
-    assert.equal(shouldBlockSupabaseRequest({host, path: `/rest/v1/rpc/${name}`, method: "POST"}), false);
+    assert.equal(shouldBlockSupabaseRequest({host, path: `/rest/v1/rpc/${name}`, method: "POST", body: name === "search_style_tracker_link_candidates" ? {p_limit:8} : undefined}), false);
     for (const method of ["PATCH", "PUT", "DELETE"]) assert.equal(shouldBlockSupabaseRequest({host, path: `/rest/v1/rpc/${name}`, method}), true);
   }
+  for (const body of [undefined, {}, {p_limit:0}, {p_limit:501}, {p_limit:1.5}]) assert.equal(shouldBlockSupabaseRequest({host, path:"/rest/v1/rpc/search_style_tracker_link_candidates", method:"POST", body}), true);
   for (const request of [
     { path: "/rest/v1/rpc/update_dam_order_tracking", method: "POST" },
     { path: "/rest/v1/rpc/upsert_dam_order_sample_depth", method: "POST" },

@@ -46,12 +46,15 @@ export function validateBuildBinding({ ref, workflowSha, deployedFrontendSha, is
   return { ...commits, buildToken, observedToken: observed };
 }
 
-export function shouldBlockSupabaseRequest({ host, path, method }) {
+export function shouldBlockSupabaseRequest({ host, path, method, body }) {
   if (host !== `${PRODUCTION_PROJECT}.supabase.co` || !path.startsWith("/rest/v1/")) return false;
   const verb = String(method ?? "").toUpperCase();
   if (["GET", "HEAD", "OPTIONS"].includes(verb)) return false;
   const rpcMatch = path.match(/^\/rest\/v1\/rpc\/([^/]+)$/);
-  if (verb === "POST" && rpcMatch && READONLY_RPC_ALLOWLIST.has(rpcMatch[1])) return false;
+  if (verb === "POST" && rpcMatch && READONLY_RPC_ALLOWLIST.has(rpcMatch[1])) {
+    if (rpcMatch[1] === "search_style_tracker_link_candidates") return !Number.isSafeInteger(body?.p_limit) || body.p_limit < 1 || body.p_limit > 500;
+    return false;
+  }
   return ["POST", "PUT", "PATCH", "DELETE"].includes(verb);
 }
 
