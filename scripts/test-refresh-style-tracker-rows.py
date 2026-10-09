@@ -35,4 +35,21 @@ class SourceBoundaryTests(unittest.TestCase):
         for user,port in [('postgres.wrong',5432),('postgres.'+module.TARGET,6543)]:
             with self.assertRaises(ValueError): module.prove(SimpleNamespace(info=SimpleNamespace(host='aws-1-us-east-1.pooler.supabase.com',user=user,port=port)))
 
+    def test_unique_sku_identity_survives_row_move_and_edit(self):
+        old=dict(zip(module.FIELDS, self.row('License.Style','licensed')))
+        old['sku']=' STYLE ';old['id']='stable';old['source_row_number']=3
+        new=dict(old);new['sku']='style';new['source_row_number']=99;new['description']='changed'
+        self.assertEqual(module.identity_matches([old],[new])[0]['id'],'stable')
+    def test_changed_duplicate_sku_is_not_guessed(self):
+        old=dict(zip(module.FIELDS,self.row('License.Style','licensed')))
+        old.update(sku='same',id='first',source_row_number=3)
+        second=dict(old,id='second',description='other')
+        new=dict(old,description='changed')
+        new2=dict(second,description='also changed')
+        self.assertEqual(module.identity_matches([old,second],[new,new2]),{})
+    def test_crlf_inside_source_cell_is_preserved(self):
+        a=self.row('License.Style','licensed');a[6]='first\r\nsecond'
+        rows=self.read([a,self.row('Generic.Style','generic')])
+        self.assertEqual(rows[0]['description'],'first\r\nsecond')
+
 unittest.main()
