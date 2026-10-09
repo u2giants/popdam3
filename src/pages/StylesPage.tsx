@@ -37,6 +37,7 @@ import {
   type StyleTrackerLinkCandidate,
 } from "@/lib/style-tracker-candidates";
 import { approvalHighlightForRow } from "@/lib/style-tracker-row-highlighting";
+import { navigateToStyleTrackerMatch } from "@/lib/style-tracker-find-navigation";
 import { MASTER_DATA_DEFAULT_PAGE_SIZE, MASTER_DATA_PAGE_SIZE_OPTIONS } from "@/lib/master-data-pagination";
 import {
   MASTER_DATA_FETCH_BATCH_SIZE,
@@ -1243,17 +1244,15 @@ export default function StylesPage() {
     return () => window.removeEventListener("keydown", focusGridSearch);
   }, []);
 
-  useEffect(() => {
+  const navigateGridSearch = useCallback(() => {
     const api = gridRef.current?.api;
     if (!api || !gridReady || !normalizedGridSearch) return;
-    const match = rows.find((row) => JSON.stringify(row).toLocaleLowerCase().includes(normalizedGridSearch));
-    if (!match) return;
-    const node = api.getRowNode(match.id);
-    if (node?.rowIndex == null) return;
-    api.paginationGoToPage(Math.floor(node.rowIndex / api.paginationGetPageSize()));
-    api.ensureNodeVisible(node, "middle");
-    api.redrawRows();
+    navigateToStyleTrackerMatch(api, rows, normalizedGridSearch);
   }, [gridReady, normalizedGridSearch, rows]);
+
+  useEffect(() => {
+    navigateGridSearch();
+  }, [navigateGridSearch]);
 
   useEffect(() => {
     const channel = supabase
@@ -2149,6 +2148,7 @@ export default function StylesPage() {
               void event;
               setGridReady(true);
             }}
+            onRowDataUpdated={() => navigateGridSearch()}
             suppressDragLeaveHidesColumns
             maintainColumnOrder
             onCellValueChanged={(event: CellValueChangedEvent<StyleRow>) => {
