@@ -54,7 +54,6 @@ jobs:
       - name: Verify immutable hosted-preview and production migration evidence
         env:
           BASELINE_EVIDENCE_PATH: ${{ runner.temp }}/orderlist-proof/baseline/backend-evidence.json
-          GH_TOKEN: ${{ github.token }}
         run: node scripts/orderlist-integration-proof.mjs verify-baseline
 
       - name: Verify proof and deployed frontend source binding

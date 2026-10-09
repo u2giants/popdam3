@@ -87,10 +87,9 @@ async function verifyBaselineEvidence() {
   if (!evidencePath) throw new Error("baseline evidence output path is missing");
   const apiBase = process.env.GITHUB_API_URL ?? "https://api.github.com";
   if (apiBase !== "https://api.github.com") throw new Error("GitHub baseline evidence must use the verified public API origin");
-  const githubToken = process.env.GH_TOKEN;
+  // popcre/shared-db and these immutable Actions records are public; anonymous access avoids relying on a cross-repository token.
   const request = async (path) => {
     const headers = { accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28" };
-    if (githubToken) headers.authorization = `Bearer ${githubToken}`;
     const response = await fetch(`${apiBase}${path}`, { headers });
     if (!response.ok) throw new Error(`GitHub baseline evidence lookup failed (${response.status})`);
     return response.json();
