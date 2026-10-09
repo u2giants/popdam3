@@ -114,10 +114,19 @@ canonical item links. A pre-refresh database backup was taken before replacement
 - A nonblank description must have approved values for MG01, MG02, MG03, Licensor + Property, and Size before the grid accepts the edit.
 - The `Row` button opens a menu for `+1`, `+5`, `+10`, `+25`.
 - Grid pagination defaults to 1,500 rows per page, with 500 and 1,000 row options.
-- Master Data renders the first four 1,000-row ranges as soon as they arrive,
-  then appends later four-range pages in the background. Until the truthful
-  loading notice clears, Find and column filters cover the rows already loaded;
-  once complete they cover the full in-browser tab.
+- Master Data pages contain four 1,000-row ranges. Licensed loads each range
+  and its computed license-status result sequentially; Generic keeps parallel
+  ranges. This follows the measured production comparison in
+  [`verification/grid-loading-performance/2026-10-09T1802Z/README.md`](verification/grid-loading-performance/2026-10-09T1802Z/README.md):
+  parallel Licensed loading returned `57014`, while Generic completed faster
+  in parallel than in the controlled serial schedule. Each page remains capped
+  at 4,000 rows; later pages append in the background.
+- The status reports rows actually loaded, distinguishes unknown totals from
+  known exact totals, and explains that Find and column filters cover only
+  loaded rows until loading completes. Initial failures can retry the first
+  page; a failed later page can retry that page without clearing loaded rows.
+  Production acceptance of the updated scheduling and retry behavior is still
+  pending.
 - Ctrl+F focuses the grid's full-dataset Find box. Find keeps the full table
   visible, moves to the first matching row, and highlights matching rows rather
   than filtering every other row out.

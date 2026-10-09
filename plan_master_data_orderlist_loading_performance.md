@@ -9,11 +9,11 @@ Fresh sessions start at **Step 1**. Re-read the downstream phase before starting
 | Step | Status | Date | Evidence |
 |---|---|---|---|
 | 1. Record baselines and exact payload contract | ✅ complete — production acceptance | 2026-09-11 | Signed-in production evidence: `docs/verification/grid-loading-performance/2026-09-11T1856Z/README.md`; Generic and Licensed bounded waves and final counts recorded, with the one retried transient Licensed request retained. |
-| 2. Render the first 4,000 Master Data rows immediately | ✅ complete — production acceptance | 2026-09-11 | `useInfiniteQuery` releases four 1,000-row ranges per page and appends later pages; signed-in production wave evidence and final counts: `docs/verification/grid-loading-performance/2026-09-11T1856Z/README.md`. |
+| 2. Render the first 4,000 Master Data rows immediately | 🔄 measured Licensed correction in progress | 2026-10-09 | Deployed `f02b9de` parallel Licensed load reproduced HTTP 500 `57014` at offset 1,000 after 8,932 ms with no first-wave render. Controlled sequential scheduling completed four real Licensed GET/status-RPC pairs and rendered 4,000 rows in 13,312 ms; Generic succeeded and rendered sooner in parallel. Evidence: `docs/verification/grid-loading-performance/2026-10-09T1802Z/README.md`. Scoped code, retry, status, and regression tests are in this branch; updated live acceptance remains open. |
 | 3. Stop downloading unused Master Data fields | ✅ complete — production acceptance | 2026-09-11 | Explicit projection is visible in the signed-in production request shape and excludes the confirmed-unused view metadata; evidence: `docs/verification/grid-loading-performance/2026-09-11T1856Z/README.md`. |
 | 4. Add the governed OrderList Find-position RPC | ✅ complete — production | 2026-09-11 | Canonical shared-db #2664, PR #2748 merged `9da98edefecc7104d709762e53fd1efb421cc9dc`; production migration `20260911081204` and signed-in RPC acceptance passed. #2665 was a duplicate. |
 | 5. Replace the OrderList multi-request scan with the RPC | ✅ complete — deployed | 2026-09-11 | PopDAM `dc7e4c0fcf4d31f5726bcdb0a4e33e3b29a31acb` calls the RPC once with normalized filters/sort and retains only missing-function deployment-skew fallback; focused tests pass. |
-| 6. Ship and verify production behavior and performance | ✅ complete — production acceptance | 2026-09-11 | Signed-in production acceptance: `docs/verification/grid-loading-performance/2026-09-11T1856Z/README.md` and screenshots. Licensed 12,527 rows, Generic 3,215 rows, OrderList 24,486 lines; live Find returned HTTP 200 through one governed lookup with bounded destination loading. |
+| 6. Ship and verify production behavior and performance | 🔄 reopened for measured Licensed loading correction | 2026-10-09 | Previous whole-flow acceptance remains in `docs/verification/grid-loading-performance/2026-09-11T1856Z/README.md`. New baseline/controlled schedule comparison is `docs/verification/grid-loading-performance/2026-10-09T1802Z/README.md`; the revised frontend has not shipped or passed live acceptance yet. |
 
 ## 1. The ultimate goal
 
@@ -115,7 +115,8 @@ Everything described here is committed, pushed and deployed on PopDAM `main` at 
 ### Locked decisions — do not relitigate
 
 - **2026-09-10:** One plan covers all three improvements, but Master Data is an independently shippable phase while shared-db work waits.
-- **2026-09-10:** One Master Data page equals four concurrent 1,000-row requests; first useful render occurs after page one (up to 4,000 rows). Subsequent pages append in the background.
+- **2026-09-10:** One Master Data page equals four 1,000-row ranges; first useful render occurs after page one (up to 4,000 rows). Subsequent pages append in the background. The original schedule was concurrent; the 2026-10-09 measured override below is sheet-specific.
+- **2026-10-09:** Keep four 1,000-row ranges and 4,000-row pages, but schedule Licensed ranges sequentially, each GET followed by its computed-status RPC, because the deployed parallel Licensed baseline hit `57014`; retain parallel ranges for Generic, whose production wave succeeded and rendered sooner. Keep the existing database statement cap and page sizes unchanged.
 - **2026-09-10:** Use TanStack `useInfiniteQuery` or an equivalently cancellation-safe paged cache, flattening completed pages for AG Grid. Do not manage a second unsynchronized local copy of rows.
 - **2026-09-10:** The UI must say that remaining rows are loading and must distinguish partial from complete. It must never claim that partial Find/filter results cover the full tab.
 - **2026-09-10:** Use an explicit Master Data projection. Keep every field proven to be consumed, even if hidden or JSON-backed.
@@ -145,16 +146,16 @@ Dependencies: none. This baseline must precede performance edits.
 
 #### Step 2 — render the first 4,000 Master Data rows immediately
 
-1. Refactor `src/pages/StylesPage.tsx` `fetchRows` into a page fetcher that requests four non-overlapping 1,000-row ranges concurrently and returns one ordered page plus `hasNextPage`. Keep `source_row_number DESC` in every range.
+1. Refactor `src/pages/StylesPage.tsx` into a page fetcher that returns one ordered page plus `hasNextPage`, with four non-overlapping 1,000-row ranges. Schedule `License.Style` ranges sequentially, completing each range's computed-status RPC before requesting the next; retain parallel requests for `Generic.Style`. Keep `source_row_number DESC` in every range.
 2. Replace `useQuery(["style-rows", active.name])` with `useInfiniteQuery` keyed by active sheet. Flatten `data.pages` with `useMemo`; do not resort client-side and do not duplicate rows.
 3. Once page one resolves, supply its rows to AG Grid immediately. Start `fetchNextPage()` in a guarded effect until `hasNextPage` is false. At most one next-page fetch may be in flight.
 4. Abort or ignore stale background work when the user switches Licensed/Generic tabs. Returning to a cached tab must reuse its complete or partial pages correctly and resume only if incomplete.
 5. Keep realtime invalidation. An invalidation must restart from a coherent first page and then refill; it must not append fresh pages onto stale pages or duplicate IDs.
-6. Add a compact grid-adjacent status such as `4,000 of 12,527 rows loaded — loading the rest…`. Use the existing count query as the denominator. While incomplete, explain that Find and column filters currently cover loaded rows; once complete, change to the normal total without a warning. Do not block editing of loaded rows.
+6. Show the number of rows actually loaded, use an exact total only when available, and distinguish initial/next-page errors from loading and completion. Offer retry for initial failures and retry only the failed next page; never show a total as though those rows loaded. While incomplete, explain that Find and column filters cover only loaded rows. Do not block editing of loaded rows.
 7. Preserve pagination, Show All, saved views, row selection, AI helper selection, edits, audit history, realtime refresh, row highlighting and Find navigation.
 
 Dependencies: Step 1. Can be developed in parallel with shared-db Step 4.  
-**You'll know it worked when:** with the remaining-page requests deliberately delayed in browser devtools/test mocks, the grid shows exactly the first 4,000 ordered rows, the partial-loading label is truthful, editing a loaded row remains usable, later pages append without duplicates, and final Find/filter sees the full expected count.
+**You'll know it worked when:** Licensed's first four ordered ranges and matching status results complete without the measured parallel `57014`, Generic remains parallel, and each sheet supplies rows without duplicates; status/error/retry behavior remains truthful, later pages append, and final Find/filter sees the full expected count.
 
 **Natural context cut point:** after Step 2 is tested and its STATUS row updated, use `fresh-session` if context is tight. Re-read Steps 3–6 before continuing.
 
@@ -207,10 +208,10 @@ Dependencies: Step 4 production contract.
 
 1. Run focused lint, all tests and production build. Check `git diff --check` and `git var GIT_COMMITTER_IDENT` before the first commit.
 2. Update `docs/MASTER_DATA.md` and `docs/ORDER_LIST.md` with the final loading and lookup contracts. Update this STATUS table after every phase with artifact paths/SHAs, never bare claims.
-3. Commit owned PopDAM paths only, fetch/rebase if `origin/main` advanced, push to `main`, watch CI and `Publish Frontend Image` through success.
+3. Commit owned PopDAM paths only, fetch/rebase if `origin/main` advanced, push the feature branch and open a PR; wait for its checks and merge through the normal protected path. Watch `Publish Frontend Image` through success.
 4. Verify live HTML/bundle contains the exact deployed SHA/build stamp and both `/styles` and `/orders` return healthy responses. A green Railway deployment is not frontend proof.
 5. Perform signed-in production read-only/customer-safe QA on Licensed, Generic and OrderList: cold load, tab switch mid-load, cached return, Find before/after completion, column filter, saved view, edit-cancel path, default/custom sort and late OrderList Find. Do not save production edits solely for testing.
-6. Repeat Step 1 traces using the same browser/network conditions. Acceptance targets: first 4,000 Master Data rows usable after the first request wave; final row counts unchanged; confirmed-unused fields absent; lower transferred bytes; OrderList Find uses one position RPC and highlights the correct row with context. Record actual timings rather than inventing a fixed percentage target.
+6. Repeat Step 1 traces using the same browser/network conditions after the measured Licensed fix ships. Keep Licensed ranges sequential and Generic ranges parallel; prove the first visible rows, the completed four-range page, actual loaded-count/error/retry text, unchanged final counts/order, confirmed-unused fields absent, and OrderList Find behavior. Record actual timings rather than inventing a fixed percentage target; the single controlled comparison in the 2026-10-09 evidence is not a deployed-repair result or a reliability percentile.
 7. If any acceptance fails, fix forward or revert the exact app commit. Database rollback is a new forward migration revoking/dropping the new function only if no deployed app depends on it; never edit/remove the applied migration.
 8. Close PopDAM #121 only after production acceptance. Close shared-db #2665 per orchestrator rules only after its structure is merged/applied/verified. Delete this plan's handoff file when every obligation it describes is proven complete; keep or update the plan as durable history according to repo convention.
 
@@ -223,6 +224,9 @@ Dependencies: Steps 2–5.
 
 - Extend `src/test/master-data-loading.test.ts`:
   - four 1,000-row ranges form page one in stable descending order;
+  - Licensed GET/status ranges run sequentially and preserve all 4,000 ordered rows; Generic remains parallel;
+  - a failed later range stops that page and a retry targets only that failed page;
+  - loaded-row status covers initial, partial, unknown-total, complete, error and retry-in-progress states;
   - a short range stops pagination;
   - complete 4,000-row wave continues;
   - page offsets never overlap;
@@ -270,7 +274,7 @@ Dependencies: Steps 2–5.
 - Do not add browser-side direct database SQL, migrations in PopDAM, or changes to generated types.
 - `row_data` is not unused merely because individual keys are dynamic; almost every legacy grid column reads it.
 - RFQ groups are a lateral aggregate in the view but customer-visible. Optimizing or splitting that database contract is outside scope unless measurements prove it dominates and Albert expands scope through a new governed issue.
-- Partial Master Data must be labeled partial. Find/filter before full completion may operate on loaded rows, but the UI may not imply full-tab completeness.
+- Partial Master Data must be labeled partial. Find/filter before full completion may operate on loaded rows, but the UI may not imply full-tab completeness. A failed query must show actual loaded rows, and retrying a later page must preserve prior pages and target only that failed page.
 - AG Grid packages must remain exactly version-aligned at 35.3.1.
 - Visual QA is mandatory for UI changes. If the preferred browser controller is unavailable, repair/install the supported project-owned tool or use another approved visible browser; do not claim visual verification from HTTP 200.
 - Never expose tokens, cookies, user row contents or licensed data in traces, screenshots, logs, issues or commits. Secrets live in 1Password vault `vibe_coding`.
