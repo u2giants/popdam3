@@ -80,8 +80,8 @@ run, and full acceptance and screenshots pass.
 | 5. Sample Settings | implemented; local verification passed | merged in app PR #282; preview rollback and tests cover positive/NULL depth and suffix behavior; final visual/original-capability gate remains open |
 | 6. OrderList read-through and refresh | implemented; local verification passed | merged in app PR #282; source-qualified current facts and bounded refresh; final visual/original-capability gate remains open |
 | 7. Master Data licensing and reverse statistics | implemented; local verification passed | merged in app PR #282; ID-mapped readonly licensing and statistics; final visual/original-capability gate remains open |
-| 8. Authenticated production read acceptance | historical 7094507 checks passed; current f02b9de proof incomplete | Current run reached 88/93 before viewer License/Styles timeout; both roles hit `57014` on one initial range GET; Find reached its exact target after load; screenshots remain open |
-| 9. Documentation and closeout | in progress | PR #285 and exact-head StepFun review/CI passed; four existing-account proof secrets configured, but workflow has not run while Master Data loading repair is pending; retain handoff |
+| 8. Authenticated production read acceptance | historical 7094507 checks passed; current f02b9de proof incomplete | Current run reached 88/93 before viewer License/Styles timeout; both roles hit `57014` on one initial range GET; PR #287 merged; frontend publish is in progress; screenshots remain open |
+| 9. Documentation and closeout | in progress | PR #286 documentation merged; PR #287 has exact-head GLM APPROVE and native ship/deploy gates, CI run `37973902172` passed 503 tests plus one existing skip and 19 observer tests; PR #285 proof workflow still awaits loading repair; retain handoff |
 
 PR #284 remains the live frontend token `f02b9de`. PR #285 merged with exact-head
 StepFun APPROVE and CI run `37966825066` passed 497 tests plus one existing skip
@@ -91,6 +91,22 @@ Current acceptance on `f02b9de` reached 88/93 before a viewer License/Styles row
 timeout; both roles hit `57014` on one initial range GET, leaving a blank grid.
 Exact-ID Find reached the target after loading. Current full proof and screenshots
 remain open; the earlier 7094507 93-check result is historical only.
+
+The measured Licensed loading correction and its source-protected plan merged
+as documentation-only PR #286 at `fb1c800e72d837a937c82e72e86887e18ee3f670`;
+its exact-head GLM APPROVE covered source `412cac4d1ace532e522572c0a29b7e5eba7e8e5c`.
+The measurements were 13.312 seconds for 4,000 Licensed rows serially versus a
+parallel `57014`; Generic completed in 4.071 seconds for 3,249 rows in parallel
+versus 6.254 seconds serially. The plan keeps the Licensed correction scoped
+without imposing a generic deployment refusal.
+
+Application PR #287, [Fix Licensed Master Data loading and retry](https://github.com/u2giants/popdam3/pull/287),
+merged at `f9010170b1ec7e8003016dba0ade6f2251fccb48` at 2:34 PM EDT, from reviewed head `37577e9f3f41948041826a97bd636440621d42b0`. Exact-head GLM
+APPROVE digest is `ba5609af63bae62ac0639848ff506e5857ada21ce2e0992505ee8136137a1d33`.
+The change is limited to three source paths; 12 focused tests, build, and scoped
+lint passed, and the native ship/deploy gates passed. CI run `37973902172` passed 503 tests plus one existing skip and 19 observer tests. Frontend publish run `37974214106` is in progress; the live
+frontend remains `f02b9de`, and current production acceptance, generated types,
+live artifacts, and screenshots remain pending.
 
 ## 1. The ultimate goal — what we are trying to achieve
 
