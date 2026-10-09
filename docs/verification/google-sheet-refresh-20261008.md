@@ -16,11 +16,11 @@ both imported tabs in one transaction. The source is workbook
 `1ZL6cEwydC0cWSGP2I92uILn1ixILr_qAeDfDfD6F214`, SHA-256
 `5513f7a43a27235a74168a0cd532994c1c77b93265619e9848e9e2a6dba1b0cd`.
 The reviewed count is 12,737 Licensed and 3,249 Generic rows (15,986 total).
-The current database contains 15,742 rows. 8 existing nonblank normalized style numbers
+The current database contains 15,742 rows. One existing nonblank normalized style number
 are absent from the authoritative sheet. Existing source row positions have shifted; the reviewed identity matcher
 preserves 15,721 existing IDs and replaces 21 missing or unprovable identities.
 The first comparison incorrectly counted blank identifiers as absent because a
-TSV null marker had not been normalized. The corrected count is eight styles. The corrected package uses identity-preserving synchronization, described below.
+TSV null marker had not been normalized. The corrected count is one style. The corrected package uses identity-preserving synchronization, described below.
 
 The dry-run saves complete row preimages for the replica, bridge, audit log,
 manual resolutions, and saved views in a protected local recovery directory.
