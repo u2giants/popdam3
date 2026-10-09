@@ -1,6 +1,8 @@
 import hashlib
 import json
+import os
 from pathlib import Path
+import stat
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -251,6 +253,53 @@ class OrderlistAuxLoaderTests(unittest.TestCase):
                 copy_rows.assert_not_called()
             self.assertEqual(wrong_target.transaction_state, "rolled_back")
             self.assertFalse(evidence.exists())
+
+    def test_recovery_directory_fsync_failure_closes_directory_and_rolls_back(self):
+        raw, counts = sample_source("1")
+        payload = self.validate(raw, counts)
+        events = []
+        real_fsync = os.fsync
+        real_close = os.close
+
+        class CopyConnection(FakeLockConnection):
+            def execute(self, statement):
+                self.calls.append(statement)
+                if statement.startswith("select exists"):
+                    return FakeResult(False)
+                if statement.startswith("select count(*)"):
+                    return FakeResult(1)
+                raise AssertionError("Unexpected database call")
+
+        def fail_directory_fsync(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                events.append("directory fsync")
+                raise OSError("directory entry was not made durable")
+            events.append("file fsync")
+            return real_fsync(fd)
+
+        def record_close(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                events.append("directory close")
+            return real_close(fd)
+
+        connection = CopyConnection()
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory) / "recovery.json"
+            with (patch.object(loader, "SOURCE_COUNTS", counts),
+                  patch.object(loader, "_lock_and_assert_empty"),
+                  patch.object(loader, "_assert_target"),
+                  patch.object(loader, "_validate_po_pairs"),
+                  patch.object(loader, "_copy_rows", side_effect=lambda _conn, _table, _columns, rows: len(rows)),
+                  patch.object(loader, "_capture_full_row_hashes",
+                               return_value={table: {"fixture": "hash"} for table, _, _ in loader.TABLES}),
+                  patch.object(loader.os, "fsync", side_effect=fail_directory_fsync),
+                  patch.object(loader.os, "close", side_effect=record_close)):
+                with self.assertRaisesRegex(OSError, "not made durable"):
+                    loader.load_transaction(connection, payload, evidence)
+
+            self.assertEqual(connection.transaction_state, "rolled_back")
+            self.assertFalse(evidence.exists())
+            self.assertEqual(events, ["file fsync", "directory fsync", "directory close"])
 
     def test_target_proof_checks_live_connection_metadata_and_database(self):
         loader._assert_target(FakeTargetConnection())

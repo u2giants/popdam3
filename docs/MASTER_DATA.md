@@ -295,14 +295,35 @@ Verified during the 2026-08-02 RFQ Group rollout:
 
 ## OrderList integration delivery (2026-10-09)
 
-The full native Sheets integration is being delivered on
-[u2giants/popdam3#281](https://github.com/u2giants/popdam3/issues/281), with the
-backend tracked on [popcre/shared-db#4111](https://github.com/popcre/shared-db/issues/4111).
-It is not yet deployed. See [ORDER_LIST.md](ORDER_LIST.md#native-sheets-integration-delivery-2026-10-09-issue-281)
-for verified native connections, the serving contract and remaining acceptance.
-Master Data operational inputs remain the owner of product workflow; PO-level
-manual tracking remains in OrderList. Reverse VendorStatistics is a read-only
-purchase-header summary, using the native 14-month activity window. Derived
-licensing progress must be displayed through the bounded shared calculation
-and made read-only, including bulk-edit guards, without replacing the existing
-Master Data serving view or its other consumers.
+The application integration is implemented, but preview/production rollout,
+source loading, and authenticated visual acceptance remain pending on the
+existing [application issue #281](https://github.com/u2giants/popdam3/issues/281)
+and [backend issue #4111](https://github.com/popcre/shared-db/issues/4111).
+No deployment or live acceptance is claimed here. The current implementation
+and all remaining gates are recorded in
+[ORDER_LIST.md](ORDER_LIST.md#native-sheets-integration-delivery-2026-10-09-issue-281).
+
+Master Data's named current workflow fields remain the source used by linked
+OrderList lines. When a named current field exists, its presence is authoritative
+even if the value is NULL; an explicit NULL clears the older imported letter
+instead of reviving it. Missing or conflicting workflow results remain Unknown.
+Unlinked OrderList lines can show a frozen import value only with an `at import`
+label. Item Master supplies linked product descriptions; a source description
+snapshot remains historical fallback only when there is no linked live value.
+
+License Status is calculated from the current workflow through the bounded
+`get_dam_style_tracker_license_status` call, mapped by row ID for each loaded
+batch. A missing result ID fails the batch visibly. This computed value is
+read-only in cell editing, fill, AI helper field choices and update builders;
+the existing Master Data serving view remains unchanged. PO-level manual
+tracking stays on OrderList. Sample depth and suffix settings are application
+inputs in their own auxiliary tables, not canonical Master Data edits.
+VendorStatistics is a separate read-only Master Data screen showing purchase
+header totals, closed/open totals, latest sent PO and 14-month activity, with
+100-row pages.
+
+Keep the source exceptions on their existing issues: three unresolved ColdLion
+division choices remain on [#275](https://github.com/u2giants/popdam3/issues/275),
+and twelve missing canonical PO references remain on [#277](https://github.com/u2giants/popdam3/issues/277).
+No Master Data row, canonical Item Master record, or existing PO date is
+manufactured or changed to conceal those exceptions.

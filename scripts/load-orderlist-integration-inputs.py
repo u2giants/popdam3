@@ -251,6 +251,12 @@ def _write_new_private(path: Path, content: bytes) -> None:
         handle.write(content)
         handle.flush()
         os.fsync(handle.fileno())
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    directory_fd = os.open(path.parent, directory_flags)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
 
 
 def _read_private_json(path: Path) -> dict[str, Any]:

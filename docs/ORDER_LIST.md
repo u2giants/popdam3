@@ -308,23 +308,61 @@ cross-workbook connections. The authority rules belong in the companywide
 [ERP orders and source meaning](https://github.com/popcre/shared-db/blob/main/docs/business-rules/erp-orders-and-source-meaning.md)
 topic; this document records the DAM implementation and acceptance boundary.
 
+The integration code is implemented, but delivery remains **pending** on the
+existing [application acceptance issue #281](https://github.com/u2giants/popdam3/issues/281)
+and [backend issue #4111](https://github.com/popcre/shared-db/issues/4111).
+Preview/production application, guarded source loading, exact-head review,
+shipment, and authenticated administrator/viewer acceptance are not established
+by this document. Keep those gates open until their evidence is recorded on the
+same issues.
+
 Required serving behavior:
 
 - Item Master supplies product description. Current Master Data supplies
   licensing progress, default/sample vendor, test report, professional photos
-  and contractual-sample reorder. Missing or conflicting current records remain
-  unavailable; frozen import values have separate historical fields.
+  and contractual-sample reorder. For a linked line, a named current Master
+  Data field is authoritative even when its value is NULL: NULL displays as
+  Unknown and never falls back to an older letter or import snapshot. Conflicting
+  or unavailable workflow remains explicitly unknown. An unlinked line may show
+  its frozen import snapshot, visibly labelled `at import`; snapshots are
+  historical evidence, not current product truth. Item Master description is
+  the live description source, with the separately labelled import description
+  used only when no linked live description is available.
 - POTracking supplies its manual header inputs and documents/payment facts;
   ItemTracking components inherit those header facts. Calculated case totals,
   forecasts, warehouse dates, delays, inspection/SVN and booking identifiers
   remain read-only. Assortment physical-parent quantities are counted once;
   unknown component quantities are never manufactured.
-- Latest nonblank positive sample depth is keyed by normalized style/customer;
-  raw invalid values and provenance remain available. Customer suffix settings
-  are manual inputs. David/Contractual sample overrides remain explicit.
+- Administrators can patch only the 24 declared manual PO tracking inputs:
+  sent PO and vendor-delivery dates, booking state, ETD, ETA, container booking
+  group, MBL, close-tracking flag, agent, CBM, comment, vessel, ColdLion/worksheet
+  flags, inspection date/note, six document flags, wire request and payment
+  note. Patches are closed-key, validated and dirty-only. Tracking pages are
+  bounded to 50 headers; sample-depth and suffix settings, and vendor statistics,
+  are bounded to 100 rows. Literal searches, visible errors, periodic/focus
+  refetch and successful-save cross-screen refresh are part of the app behavior.
+  Reads require sign-in; manual writes are administrator-only, including during
+  impersonation.
+- The three auxiliary application tables are `dam.orderlist_sample_depth`,
+  `dam.orderlist_customer_settings` and `dam.order_tracking_ext`. They hold
+  sample-depth settings, customer suffixes and PO tracking extensions; they are
+  not canonical Item Master or Master Data. Current depth is keyed by normalized
+  style/customer. A positive current value may be cleared to NULL; after a clear,
+  the UI shows Unknown while retaining the raw imported value and provenance as
+  history. Customer suffix is trimmed, required (1–50 characters), and cannot
+  be cleared. Preserve explicit David/Contractual sample overrides.
 - VendorStatistics returns purchase-header counts, closed/open counts, latest
   noncancelled sent-PO date and the native 14-month activity window to Master
   Data. ColdLion sales-history placeholders are excluded from purchase tracking.
+  This is a read-only reverse summary, not a vendor editor.
+
+The OrderList view preserves its original 78 leading columns and appends 12
+read-only diagnostic fields: workflow source, Master Data sample vendor, current
+sample depth, case error, assortment parent quantity/cases/key, imported sample
+depth and source row, and the three imported test-report/photo/reorder snapshots.
+These fields are hidden by default and are neither queryable nor editable through
+the grid. Existing OrderList Find, filters, saved views and normal blue-input
+edits remain separate from the integration diagnostics.
 
 The initial auxiliary-source payload contains 8,257 sample bindings, 38 customer
 suffix settings and 3,147 exact-matched tracking records. It deliberately
@@ -335,6 +373,12 @@ exact source digest, target identity, empty destination tables, canonical
 PO IDs/numbers, expected counts and recovery snapshot in one guarded transaction.
 Canonical Item Master, Master Data rows and existing PO dates are not seeded
 or overwritten by this auxiliary load.
+
+Keep the remaining exceptions separate: three ColdLion rows still need the
+owner's Licensed division decision on [#275](https://github.com/u2giants/popdam3/issues/275);
+the twelve Google refresh exceptions remain on [#277](https://github.com/u2giants/popdam3/issues/277).
+Neither set is resolved by matching style, quantity, or PO text, and no source
+rows are guessed or merged to make the integration appear complete.
 
 Backend acceptance requires governed preview/production application, exact
 catalog and ordinary authenticated-role proof. App acceptance additionally
