@@ -32,6 +32,15 @@ PopSG never exposes this page: both the route and the nav item are behind
 | Types for the `api` view and the RPCs | `src/types/order-list.ts` |
 | Tests | `src/test/order-list*.test.ts(x)` |
 
+## Current Google source refresh
+
+Use `scripts/refresh-google-orderlist-rows.py` and the source-bound dry-run,
+independent-review, recovery, identity/fidelity, and live-proof procedure in
+[`verification/orderlist-refresh-20261008.md`](verification/orderlist-refresh-20261008.md).
+The historical first-import CLI's production replacement refusal remains intact.
+Do not delete or merge ColdLion records based on matching PO/style/quantity;
+uncertain identities and malformed Google entries stay held on the same issue.
+
 ## Database contract
 
 All objects are owned by `u2giants/shared-db`. Nothing here may be changed from

@@ -76,3 +76,25 @@ After apply, verify the live signed-in OrderList page, bounded first rows and
 source filtering, current imported values, and unchanged ColdLion population.
 Track source corrections and the 60 identity decisions on the same issue #277;
 no leftover-proof or duplicate work issue is created.
+
+## Executed result and pre-apply review conditions
+
+October 8, 2026: the approved operation inserted 100 orders and 344 lines,
+updated 3,060 orders and 24,002 lines, and preserved all 462 ColdLion lines
+and their headers exactly. Sixty new matching Google lines remain held.
+Before apply, full existing-ref comparison found 128 blank-PO placeholder
+parents now assigned, five same-order cancellation renames, and two changed
+assortment components within the same source row/assortment. There were no
+unexplained parent changes and no typed numeric or date values converted to
+NULL. This discharged the review's mandatory identity/fidelity conditions.
+
+The catalog intentionally treats multiple tracker rows linked to the same
+non-null canonical item as one candidate; different items or any unlinked
+tracker row retain ambiguity. This is an explicit application refresh rule,
+not an alteration of the historical importer's pure matching implementation.
+
+A post-commit dry run exposed redundant original-snapshot metadata on newly
+inserted lines. The refresh now saves an original snapshot only when the
+source snapshot actually changes; rerunning the same source performs no writes.
+Current apply must always repeat the per-ref identity and typed-value checks,
+including dates, before any database gate; do not infer safety from totals.

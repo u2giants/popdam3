@@ -50,7 +50,8 @@ def merged_payload(old,desired,metadata,columns):
     result={key:desired.get(key) for key in columns}
     prior=(old or {}).get('metadata') or {}
     result['metadata']={**prior,**metadata}
-    if old and 'order_list_snapshot' in prior:
+    if (old and 'order_list_snapshot' in prior and
+            prior['order_list_snapshot'] != metadata.get('order_list_snapshot')):
         result['metadata']['original_order_list_snapshot']=prior.get('original_order_list_snapshot',prior['order_list_snapshot'])
     if old and 'sku' in columns and normalized(old['sku'])==normalized(desired.get('sku')):
         # Preserve an established item link and its decision; the sheet has no

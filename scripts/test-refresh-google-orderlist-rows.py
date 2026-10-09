@@ -44,4 +44,9 @@ class RefreshBoundaryTests(unittest.TestCase):
   self.assertEqual(s.order_payload(old,order)['company_id'],'known')
   order.metadata['customer_name']='different'
   self.assertIsNone(s.order_payload(old,order)['company_id'])
+ def test_same_source_refresh_does_not_add_a_redundant_snapshot(self):
+  snapshot={'description':'same'}
+  old={'sku':'a','metadata':{'order_list_snapshot':snapshot}}
+  actual=s.merged_payload(old,{'sku':'a'},{'order_list_snapshot':snapshot},s.m.LINE_COLUMNS)
+  self.assertEqual(actual['metadata'],old['metadata'])
 unittest.main()
