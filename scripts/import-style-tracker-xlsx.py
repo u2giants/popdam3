@@ -186,7 +186,7 @@ def raw_overflow_values(path: Path, sheet_name: str, epoch: datetime) -> dict[st
                     if cell.attrib.get("t", "n") == "n" and raw is not None and raw.text:
                         try:
                             value = Decimal(raw.text)
-                            if value.is_finite() and value > (2957003 if epoch.year == 1904 else 2958465):
+                            if value.is_finite() and value >= (2957004 if epoch.year == 1904 else 2958466):
                                 result[cell.attrib["r"]] = raw.text
                         except ArithmeticError:
                             pass

@@ -23,4 +23,19 @@ class DateFidelityTests(unittest.TestCase):
   from types import SimpleNamespace
   c=SimpleNamespace(coordinate='A1',number_format='m/d/yyyy',value='#VALUE!')
   self.assertEqual(m.cell_display(c,{'A1':'6685006'},datetime(1899,12,30)),'12/3/20202')
+ def test_real_xml_relationship_paths_and_numeric_types(self):
+  from zipfile import ZipFile
+  from tempfile import TemporaryDirectory
+  for target in ('worksheets/sheet1.xml','/xl/worksheets/sheet1.xml'):
+   with TemporaryDirectory() as scratch:
+    path=Path(scratch)/'source.xlsx'
+    with ZipFile(path,'w') as z:
+     z.writestr('xl/workbook.xml','<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="License.Style" r:id="rId1" /></sheets></workbook>')
+     z.writestr('xl/_rels/workbook.xml.rels',f'<Relationships><Relationship Id="rId1" Target="{target}" /></Relationships>')
+     z.writestr('xl/worksheets/sheet1.xml','<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row><c r="A1" t="n"><v>6685006</v></c><c r="B1" t="e"><v>#VALUE!</v></c><c r="C1" t="n"><v>2958465.5</v></c></row></sheetData></worksheet>')
+    self.assertEqual(m.raw_overflow_values(path,'License.Style',datetime(1899,12,30)),{'A1':'6685006'})
+ def test_valid_last_day_fractional_datetime_keeps_existing_display(self):
+  from types import SimpleNamespace
+  c=SimpleNamespace(coordinate='A1',number_format='m/d/yyyy',value=datetime(9999,12,31,12))
+  self.assertEqual(m.cell_display(c,{},datetime(1899,12,30)),'9999-12-31 12:00:00')
 unittest.main()
