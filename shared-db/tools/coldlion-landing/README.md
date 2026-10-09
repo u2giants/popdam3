@@ -160,6 +160,46 @@ node tools/coldlion-landing/sync-prod-details.mjs --mode keys --keys 20000
 Add `--dry-run` to any of these to see the outstanding work without fetching or
 writing anything.
 
+## Forward scan for sales orders (`sync-history.mjs --forward`)
+
+Sales orders are keyed into ColdLion with FUTURE start dates, and `/orderHistory` filters
+windows by start date, so a new order is visible only in a window that has not closed.
+Settled rule "Forward-scan horizon" (Albert, 2026-09-17): scan forward until consecutive
+empty months, in addition to the trailing re-read.
+
+`--forward` runs, after the trailing sealed re-read, an `/orderHistory`-only scan of the
+open current week and every later grid window. Those windows are loaded UNSEALED: the same
+append-only `order_history_line` / component / document rows and a `sync_run` row
+(`request_params.unsealedForward = true`), but no `window_ledger` row and no page evidence,
+so each window is still loaded sealed, with its full page proof, once it closes. A changed
+line lands as a new version; an identical one is absorbed by the identity constraints, so it
+keeps the `run_id`, `fetched_at` and ColdLion stamps (`created_time`, `mod_time`, ...) of the
+FIRST load that saw it, usually a forward one. Stamps are outside `line_source_hash`, so a
+change to the stamps alone does not create a new version. `--today YYYY-MM-DD` overrides the
+scan date for tests and rehearsal; no workflow passes it.
+
+The scan stops after two consecutive start-date months that land no line (a failed window
+never counts as empty), or at the 18-month horizon shared with the order-intake poll
+(`lib/order-intake-windows.mjs`). Production history is never forward-loaded.
+
+One component set per line version. A forward load writes child rows (components, invoice
+and pick-ticket tokens) only under a line version it created, and a later sealed load writes
+none under a line version a forward load created first. A line version therefore keeps the
+children it was first landed with: a component-grain change (quantity, price, taxonomy,
+document tokens) with no line-grain change after that first load is not recorded, while a
+line-grain change lands as a new version with its own children. Line versions created by
+sealed loads behave exactly as before. Because a forward-loaded line keeps its first
+`fetched_at`, `plm.v_prod_order_sales_order_link`'s `latest_fetched_at` and start-date change
+flags reflect the first forward read of that version until a changed version lands.
+
+"Empty month" counts the order lines the vendor RETURNED for the month's windows, not new
+rows, so re-reading an unchanged month is not empty; in practice the scan usually runs to the
+horizon (about 78 windows a night), which is the cost the forward-scan rule accepts.
+
+The DesignFlow sandbox runs this nightly through `coldlion-landing-sync-sandbox.yml`
+(issue #3869). Production's `coldlion-landing-sync.yml` does NOT pass `--forward` yet, so
+production still lands only closed windows; enabling it there is separate work.
+
 ## The vendor behaviours this is built around
 
 **The page size is silently capped.** Asking for 2000 returns 200 with no error

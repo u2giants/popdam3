@@ -61,6 +61,12 @@ VERSION_RE = re.compile(r"^\d{14}$")
 
 # Versions this route refuses outright, with the reason printed on refusal.
 SANDBOX_BLOCKED = {
+    "20261009191951": (
+        "issue #3869: this migration moves the sandbox's 2026-09-29 coldlion table copy "
+        "aside and must run in ONE transaction with the canonical landing migrations and the "
+        "re-execution of 20261009170724; applied alone it leaves the sandbox with no landing "
+        "tables. Use tools/coldlion-landing/sandbox-spine-apply.py."
+    ),
     "20260905072856": (
         "issue #3428: the sandbox already has "
         "app.user_notification_unread_user_created_idx on a DIFFERENT definition "

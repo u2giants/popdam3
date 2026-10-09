@@ -76,6 +76,63 @@ export function hasOrderStampColumns(dbOptions = {}, query = queryRows) {
   return stampColumnsByTarget.get(key);
 }
 
+/**
+ * The canonical landing shape the history loaders write. Checked before any write, so a
+ * target that still carries a non-canonical table copy (the DesignFlow sandbox before
+ * migration 20261009191951 and the landing migrations were applied) is refused up front
+ * with one clear message, instead of failing every window and writing failure rows into
+ * the wrong tables.
+ */
+export const HISTORY_SHAPE = Object.freeze([
+  ["order_history_line", "id"],
+  ["order_history_line", "sales_order_line_no"],
+  ["order_history_line", "master_item_no"],
+  ["order_history_component", "line_id"],
+  ["window_ledger", "stage_code"],
+  ["history_page_ledger", "window_id"],
+  ["prod_history_line", "requested_stage_code"],
+]);
+
+// The ON CONFLICT targets the load SQL names; a target without them would fail per window.
+export const HISTORY_CONSTRAINTS = Object.freeze([
+  ["order_history_line", "coldlion_order_history_line_identity_unique"],
+  ["order_history_component", "coldlion_order_history_component_identity_unique"],
+  ["order_history_invoice_ref", "coldlion_order_history_invoice_ref_identity_unique"],
+  ["order_history_pick_ticket_ref", "coldlion_order_history_pick_ticket_ref_identity_unique"],
+  ["window_ledger", "coldlion_window_ledger_identity_unique"],
+  ["history_page_ledger", "coldlion_history_page_ledger_identity_unique"],
+]);
+
+export function historyShapeSql() {
+  const pairs = HISTORY_SHAPE.map(([table, column]) => `(${sqlText(table)}, ${sqlText(column)})`).join(", ");
+  const constraints = HISTORY_CONSTRAINTS.map(([table, name]) => `(${sqlText(table)}, ${sqlText(name)})`).join(", ");
+  return `select t.table_name || '.' || t.column_name
+    from (values ${pairs}) as t(table_name, column_name)
+   where not exists (
+     select 1 from pg_attribute a
+       join pg_class c on c.oid = a.attrelid
+      where c.relnamespace = 'coldlion'::regnamespace and c.relkind in ('r', 'p')
+        and c.relname = t.table_name and a.attname = t.column_name
+        and a.attnum > 0 and not a.attisdropped)
+  union all
+  select 'constraint ' || k.conname
+    from (values ${constraints}) as k(table_name, conname)
+   where not exists (
+     select 1 from pg_constraint x
+       join pg_class c on c.oid = x.conrelid
+      where c.relnamespace = 'coldlion'::regnamespace and c.relname = k.table_name
+        and x.conname = k.conname and x.contype = 'u');`;
+}
+
+export function assertHistoryShape(dbOptions = {}, query = queryRows) {
+  const missing = query(historyShapeSql(), dbOptions).map(([name]) => name);
+  if (missing.length > 0) {
+    throw new Error(
+      `the target's coldlion schema is not the canonical landing shape (missing ${missing.join(", ")}); refusing to load`,
+    );
+  }
+}
+
 export async function loadWindowScope({
   scope,
   window,
@@ -88,7 +145,11 @@ export async function loadWindowScope({
   fetchImpl = fetch,
   execute = runSql,
   orderStampColumns,
+  sealed = true,
 }) {
+  if (!sealed && (scope.stage || scope.endpoint !== "/orderHistory")) {
+    throw new Error("an unsealed forward load is defined for /orderHistory only");
+  }
   const runId = randomUUID();
   const startedAt = new Date();
   try {
@@ -164,6 +225,7 @@ export async function loadWindowScope({
         ...finish(startedAt),
         notes: notesFor(summary),
         stampColumns: orderStampColumns ?? hasOrderStampColumns(dbOptions),
+        sealed,
       });
     }
 
@@ -171,7 +233,7 @@ export async function loadWindowScope({
     return { runId, window, scope, fetched: completion, summary };
   } catch (error) {
     try {
-      recordFailure({ scope, window, runId, companyCode, requestedBy, error, options: dbOptions });
+      recordFailure({ scope, window, runId, companyCode, requestedBy, error, options: dbOptions, sealed });
     } catch (recordError) {
       // A failure we could not even record is worse than the original, so say both.
       error.message = `${error.message} (and the failure could not be recorded: ${recordError.message})`;

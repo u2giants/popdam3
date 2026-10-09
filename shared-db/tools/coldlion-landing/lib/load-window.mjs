@@ -364,6 +364,101 @@ insert into _window (id) select id from upserted;
 create temp table _inserted (grain text not null, n bigint not null) on commit drop;`;
 }
 
+// ---------------------------------------------------------------------------------
+// Unsealed forward loads (/orderHistory only)
+// ---------------------------------------------------------------------------------
+//
+// Sales orders are normally keyed into ColdLion with FUTURE start dates, and the vendor's
+// window filter keys on that start date, so a new order is visible only in a window that
+// has not closed yet. Loading such a window the sealed way would declare a still-changing
+// week complete forever. The forward-scan rule (Albert, 2026-09-17: scan forward until
+// consecutive empty months) is therefore met by an UNSEALED load: the same append-only
+// line/component/document rows and a sync_run record, but no window_ledger row and no page
+// evidence. The window stays unloaded, so the trailing sealed sync still loads it -- with
+// its full page proof -- once it closes. Replaying identical rows is absorbed by the same
+// ON CONFLICT identities, and a changed line lands as a new version, exactly as in the
+// sealed path.
+
+function unsealedPreamble({ scope, window, runId, requestedBy, companyCode, startedAt, rowsFetched, pageSize, httpStatus, bodyStatus }) {
+  if (scope.stage || scope.endpoint !== "/orderHistory") {
+    throw new Error("an unsealed forward load is defined for /orderHistory only");
+  }
+  return `begin;
+
+-- A sealed window is never touched by a forward load.
+do $loaded$
+begin
+  if exists (
+    select 1 from coldlion.window_ledger
+     where endpoint = ${sqlText(scope.endpoint)}
+       and company_code = ${sqlText(companyCode)}
+       and division_code is not distinct from null
+       and stage_code is not distinct from null
+       and window_from = ${sqlDate(window.from)}
+       and state = 'loaded'
+  ) then
+    raise exception 'window ${window.from} for ${scope.endpoint} is already loaded (sealed); a forward load may not touch it';
+  end if;
+end $loaded$;
+
+insert into coldlion.sync_run
+  (id, endpoint, company_code, request_params, window_from, window_to,
+   status, requested_by, started_at, http_status, body_status, rows_fetched)
+values
+  (${sqlUuid(runId)}, ${sqlText(scope.endpoint)}, ${sqlText(companyCode)},
+   ${sqlJson({ companyCode, fromDate: window.from, toDate: window.to, size: pageSize, unsealedForward: true })},
+   ${sqlDate(window.from)}, ${sqlDate(window.to)},
+   'running', ${sqlText(requestedBy)}, ${sqlTimestamp(startedAt)}, ${sqlNumber(httpStatus)}, ${sqlNumber(bodyStatus)}, ${sqlNumber(rowsFetched)});
+
+create temp table _inserted (grain text not null, n bigint not null) on commit drop;`;
+}
+
+function unsealedEpilogue({ runId, finishedAt, durationMs, notes }) {
+  return `update coldlion.sync_run
+   set status = 'succeeded',
+       finished_at = ${sqlTimestamp(finishedAt)},
+       duration_ms = ${sqlNumber(durationMs)},
+       rows_inserted = (select coalesce(sum(n), 0) from _inserted),
+       notes = ${sqlText(notes)}
+ where id = ${sqlUuid(runId)};
+
+commit;`;
+}
+
+// ONE COMPONENT SET PER LINE VERSION once forward loads exist. An unsealed forward load
+// re-reads a window that is still open, night after night, and line_source_hash excludes
+// component-grain facts (quantities, prices, taxonomy, document tokens). So:
+//   * an UNSEALED load writes child rows (components, invoice and pick-ticket tokens) only
+//     under a line version that load itself created;
+//   * a SEALED load writes no child rows under a line version that an unsealed forward load
+//     created first.
+// A line version therefore keeps the children it was first landed with, and consumers that
+// join line to component with no version filter (plm.coldlion_sales_history) can never see
+// two component sets under one line_id because of forward loads. A component-grain change
+// with no line-grain change after the first load is not recorded; a line-grain change lands
+// as a new version with its own children. Line versions created by sealed loads are not
+// affected: _old_line is empty for them, exactly as before forward loads existed.
+function forwardCreatedLinesSql() {
+  return `create temp table _old_line on commit drop as
+select m.local_id
+  from _map_line m
+  join coldlion.order_history_line l on l.id = m.id
+  join coldlion.sync_run r on r.id = l.run_id
+ where r.request_params ? 'unsealedForward';`;
+}
+
+function unsealedOldLinesSql(runId) {
+  return `create temp table _old_line on commit drop as
+select m.local_id
+  from _map_line m
+  join coldlion.order_history_line l on l.id = m.id
+ where l.run_id is distinct from ${sqlUuid(runId)};`;
+}
+
+function dropChildrenOfOldLinesSql(stageName) {
+  return `delete from ${stageName} s using _old_line o where s.line_local_id = o.local_id;`;
+}
+
 function pageLedgerSql({ scope, window, runId, companyCode, pages }) {
   const stage = scope.stage ? sqlText(scope.stage) : "null";
   const values = pages
@@ -497,26 +592,28 @@ export function buildOrderHistoryLoadSql({
   durationMs,
   notes,
   stampColumns = false,
+  sealed = true,
 }) {
   const lineSpec = orderLineSpec(stampColumns);
+  const head = {
+    scope,
+    window,
+    runId,
+    requestedBy,
+    companyCode,
+    startedAt,
+    rowsFetched: completion.rows,
+    pageSize,
+    httpStatus: pages.at(-1).httpStatus,
+    bodyStatus: pages.at(-1).bodyStatus,
+  };
   const lines = withLocals(projected.lines);
   const components = withLocals(projected.components);
   const invoiceRefs = withLocals(projected.invoiceRefs);
   const pickRefs = withLocals(projected.pickTicketRefs);
 
   return [
-    preamble({
-      scope,
-      window,
-      runId,
-      requestedBy,
-      companyCode,
-      startedAt,
-      rowsFetched: completion.rows,
-      pageSize,
-      httpStatus: pages.at(-1).httpStatus,
-      bodyStatus: pages.at(-1).bodyStatus,
-    }),
+    sealed ? preamble(head) : unsealedPreamble(head),
     stageSql("_stage_line", lineSpec, LOCAL, lines),
     insertSql({
       target: "coldlion.order_history_line",
@@ -531,7 +628,9 @@ export function buildOrderHistoryLoadSql({
       ["master_item_no", false],
       ["line_source_hash", false],
     ]),
+    sealed ? forwardCreatedLinesSql() : unsealedOldLinesSql(runId),
     stageSql("_stage_component", ORDER_COMPONENT_SPEC, LOCAL_AND_PARENT, components),
+    dropChildrenOfOldLinesSql("_stage_component"),
     insertSql({
       target: "coldlion.order_history_component",
       constraint: "coldlion_order_history_component_identity_unique",
@@ -553,6 +652,7 @@ export function buildOrderHistoryLoadSql({
       "t.line_id = (select m.id from _map_line m where m.local_id = s.line_local_id)",
     ),
     stageSql("_stage_invoice", INVOICE_REF_SPEC, CHILD_OF_COMPONENT, invoiceRefs),
+    dropChildrenOfOldLinesSql("_stage_invoice"),
     childRefSql({
       target: "coldlion.order_history_invoice_ref",
       constraint: "coldlion_order_history_invoice_ref_identity_unique",
@@ -561,6 +661,7 @@ export function buildOrderHistoryLoadSql({
       count: "order_history_invoice_ref",
     }),
     stageSql("_stage_pick", PICK_TICKET_REF_SPEC, CHILD_OF_COMPONENT, pickRefs),
+    dropChildrenOfOldLinesSql("_stage_pick"),
     childRefSql({
       target: "coldlion.order_history_pick_ticket_ref",
       constraint: "coldlion_order_history_pick_ticket_ref_identity_unique",
@@ -568,8 +669,10 @@ export function buildOrderHistoryLoadSql({
       stageName: "_stage_pick",
       count: "order_history_pick_ticket_ref",
     }),
-    pageLedgerSql({ scope, window, runId, companyCode, pages }),
-    epilogue({ scope, window, runId, companyCode, completion, finishedAt, durationMs, notes }),
+    sealed ? pageLedgerSql({ scope, window, runId, companyCode, pages }) : "",
+    sealed
+      ? epilogue({ scope, window, runId, companyCode, completion, finishedAt, durationMs, notes })
+      : unsealedEpilogue({ runId, finishedAt, durationMs, notes }),
   ]
     .filter(Boolean)
     .join("\n\n");

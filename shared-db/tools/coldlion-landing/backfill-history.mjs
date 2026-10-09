@@ -20,7 +20,7 @@ import { readColdlionApiKey } from "../coldlion-sync-common.mjs";
 import { isoDate, lastClosedWindowIndex, windowAtIndex, windowRange } from "./lib/grid.mjs";
 import { proveTarget } from "./lib/db.mjs";
 import { COMPANY_CODE, PAGE_SIZE, PROD_STAGES } from "./lib/scopes.mjs";
-import { allScopes, ledgerKey, loadWindowScope, loadedWindows, scopeLabel } from "./lib/run-history.mjs";
+import { allScopes, assertHistoryShape, ledgerKey, loadWindowScope, loadedWindows, scopeLabel } from "./lib/run-history.mjs";
 
 export function parseArgs(argv) {
   const args = { limit: Infinity, company: COMPANY_CODE, pageSize: PAGE_SIZE, dryRun: false };
@@ -74,6 +74,7 @@ export async function main(argv = process.argv.slice(2)) {
   if (scopes.length === 0) throw new Error("no scope matches the given --endpoint/--stage");
 
   const target = proveTarget();
+  assertHistoryShape();
   console.log(
     `target ${target.database} at ${target.host} (${target.coldlionTables} coldlion tables)`,
   );

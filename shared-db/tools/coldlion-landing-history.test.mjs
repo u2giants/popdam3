@@ -18,9 +18,10 @@ import { projectOrderHistoryWindow, splitInvoiceTokens, wallClockTimestamp } fro
 import { aggregateStamps, buildStampUpdateSql, parseArgs as parseStampArgs } from "./coldlion-landing/backfill-order-stamps.mjs";
 import { projectProdHistoryWindow, quantitiesAgree, selectLookup } from "./coldlion-landing/lib/project-prod-history.mjs";
 import { buildOrderHistoryLoadSql, buildProdHistoryLoadSql } from "./coldlion-landing/lib/load-window.mjs";
-import { hasOrderStampColumns, interpretOrderStampColumns, loadedWindowsSql, orderStampColumnsSql } from "./coldlion-landing/lib/run-history.mjs";
+import { assertHistoryShape, hasOrderStampColumns, historyShapeSql, interpretOrderStampColumns, loadedWindowsSql, orderStampColumnsSql } from "./coldlion-landing/lib/run-history.mjs";
+import { createHash } from "node:crypto";
 import { parseArgs as parseBackfillArgs, selectScopes } from "./coldlion-landing/backfill-history.mjs";
-import { parseArgs as parseSyncArgs } from "./coldlion-landing/sync-history.mjs";
+import { forwardScan, parseArgs as parseSyncArgs } from "./coldlion-landing/sync-history.mjs";
 
 // ---------------------------------------------------------------------------------
 // The fixed grid
@@ -499,6 +500,7 @@ test("the lookup selection prefers the newest dated copy and is stable", () => {
 
 // ---------------------------------------------------------------------------------
 // The generated transaction
+const SEALED_ORDER_SQL_SHA256 = "85506c8abc52818e0469f70bb3ba45b6dc73c58152d2f8977a81e56023d54d58";
 // ---------------------------------------------------------------------------------
 
 const page = (rowCount) => ({
@@ -515,7 +517,7 @@ const page = (rowCount) => ({
   fetchedAt: "2026-09-08T00:00:00Z",
 });
 
-function orderSql() {
+function orderSql(extra = {}) {
   counter = 0;
   const runId = "11111111-1111-4111-8111-111111111111";
   const projected = projectOrderHistoryWindow([orderRow({ invoiceNoString: "I1", invoiceDateString: "2021-03-04" })], {
@@ -536,6 +538,7 @@ function orderSql() {
     finishedAt: "2026-09-08T00:00:01Z",
     durationMs: 1000,
     notes: "lines=1",
+    ...extra,
   });
 }
 
@@ -852,4 +855,162 @@ test("no secret value can be printed", () => {
     assert.doesNotMatch(workflow, /echo .*\$\{\{\s*secrets\./, `${name} must never echo a secret`);
     assert.doesNotMatch(workflow, /echo "?\$DATABASE_URL/, `${name} must never echo the connection string`);
   }
+});
+
+// ---------------------------------------------------------------------------------
+// Forward scan (unsealed /orderHistory loads, #3869)
+// ---------------------------------------------------------------------------------
+
+test("an unsealed forward load writes lines and a run record but never seals the window", () => {
+  const sql = orderSql({ sealed: false });
+  assert.match(sql, /^begin;/);
+  assert.match(sql, /commit;$/);
+  assert.match(sql, /insert into coldlion\.order_history_line/);
+  assert.match(sql, /coldlion_order_history_line_identity_unique/);
+  assert.match(sql, /"unsealedForward":true/);
+  assert.doesNotMatch(sql, /insert into coldlion\.window_ledger/);
+  assert.doesNotMatch(sql, /history_page_ledger/);
+  assert.doesNotMatch(sql, /set state = 'loaded'/);
+  assert.match(sql, /already loaded \(sealed\)/, "a sealed window is refused, never touched");
+});
+
+test("the sealed load differs from the pre-forward loader ONLY by the forward-created-line child filter", () => {
+  // SEALED_ORDER_SQL_SHA256 is sha256 of orderSql() as built by origin/main e6a279c7, before
+  // forward mode existed. Removing exactly the three statements this PR adds to the sealed
+  // path must give back those bytes, so nothing else in the sealed load changed.
+  const sql = orderSql({ sealed: true });
+  const added = [
+    /\n\ncreate temp table _old_line on commit drop as\n[\s\S]*?where r\.request_params \? 'unsealedForward';/,
+    /\n\ndelete from _stage_component s using _old_line o where s\.line_local_id = o\.local_id;/,
+    /\n\ndelete from _stage_invoice s using _old_line o where s\.line_local_id = o\.local_id;/,
+    /\n\ndelete from _stage_pick s using _old_line o where s\.line_local_id = o\.local_id;/,
+  ];
+  let stripped = sql;
+  for (const pattern of added) {
+    assert.match(stripped, pattern);
+    stripped = stripped.replace(pattern, "");
+  }
+  assert.equal(createHash("sha256").update(stripped).digest("hex"), SEALED_ORDER_SQL_SHA256);
+});
+
+test("an unsealed load writes children only under line versions it created", () => {
+  const sql = orderSql({ sealed: false });
+  assert.match(sql, /create temp table _old_line/);
+  for (const stage of ["_stage_component", "_stage_invoice", "_stage_pick"]) {
+    assert.match(sql, new RegExp(`delete from ${stage} s using _old_line o`));
+  }
+  const sealed = orderSql();
+  assert.match(sealed, /join coldlion\.sync_run r on r\.id = l\.run_id/, "sealed loads skip children only under forward-created versions");
+  assert.doesNotMatch(sealed, /l\.run_id is distinct from/);
+});
+
+test("the loaders refuse a target that is not the canonical landing shape", () => {
+  assert.match(historyShapeSql(), /'order_history_line', 'id'/);
+  assert.match(historyShapeSql(), /'window_ledger', 'stage_code'/);
+  assert.match(historyShapeSql(), /coldlion_order_history_component_identity_unique/);
+  assert.match(historyShapeSql(), /relkind in \('r', 'p'\)/, "a view of the same name is not the table");
+  assert.doesNotThrow(() => assertHistoryShape({}, () => []));
+  assert.throws(() => assertHistoryShape({}, () => [["order_history_line.id"]]), /not the canonical landing shape/);
+});
+
+test("forward mode is /orderHistory only", () => {
+  assert.throws(() => orderSql({ sealed: false, scope: prodHistoryScope("ISS") }), /orderHistory only/);
+});
+
+test("--forward is parsed and --today drives the closed-window clamp", () => {
+  const args = parseSyncArgs(["--forward", "--today", "2026-10-09"]);
+  assert.equal(args.forward, true);
+  assert.equal(args.to, "2026-10-05");
+});
+
+async function scanWith(linesByMonth, { failMonth, failWindows = [] } = {}) {
+  const seen = [];
+  const failures = [];
+  const result = await forwardScan({
+    args: { today: "2026-10-09", company: "TESTCO", pageSize: 200 },
+    apiKey: "k",
+    failures,
+    load: async ({ window, sealed, scope }) => {
+      assert.equal(sealed, false);
+      assert.equal(scope.endpoint, "/orderHistory");
+      seen.push(window.from);
+      const month = window.from.slice(0, 7);
+      if (month === failMonth || failWindows.includes(window.from)) throw new Error("vendor down");
+      const lines = linesByMonth[month] ?? 0;
+      return { fetched: { rows: lines }, summary: { lines } };
+    },
+  });
+  return { seen, failures, result };
+}
+
+test("the forward scan starts at the OPEN current window and stops after two empty months", async () => {
+  const { seen, result } = await scanWith({ "2026-10": 5, "2026-11": 3, "2026-12": 1 });
+  assert.equal(seen[0], windowContaining("2026-10-09").from, "the open week is scanned");
+  assert.ok(seen.some((from) => from.startsWith("2026-12")), "a month with orders keeps the scan going");
+  const months = [...new Set(seen.map((from) => from.slice(0, 7)))];
+  assert.deepEqual(months.slice(-2), ["2027-01", "2027-02"], "two consecutive empty months end it");
+  assert.equal(result.stoppedAt, "2027-03-01");
+  const lastFeb = seen.filter((from) => from.startsWith("2027-02")).length;
+  assert.equal(lastFeb, 4, "an empty month is judged only after ALL its windows were read");
+});
+
+test("a forward outage stops after a bounded run of failures and stays red", async () => {
+  const { seen, failures, result } = await scanWith({}, { failMonth: "2026-10" });
+  assert.equal(seen.length, 4);
+  assert.equal(result.aborted, true);
+  assert.equal(result.stoppedAt, null, "an outage is never an empty-month stop");
+  assert.ok(failures.some((f) => /aborted after 4 consecutive/.test(f)));
+});
+
+test("a failed forward window never counts as an empty month", async () => {
+  // November would be empty, but one of its windows failed: it is NOT an empty month, so
+  // the scan runs through December and January before two empty months end it.
+  const novemberWindow = windowAtIndex(windowContaining("2026-11-10").index).from;
+  const { seen, failures } = await scanWith({ "2026-10": 5 }, { failWindows: [novemberWindow] });
+  const months = [...new Set(seen.map((from) => from.slice(0, 7)))];
+  assert.deepEqual(months.slice(-2), ["2026-12", "2027-01"]);
+  assert.equal(failures.length, 1);
+});
+
+// ---------------------------------------------------------------------------------
+// The DesignFlow sandbox sync workflow (#3869): the third sanctioned writer
+// ---------------------------------------------------------------------------------
+
+const SANDBOX_REF = "xupnyeifmpsacrqahwwm";
+const sandboxSync = readWorkflow("coldlion-landing-sync-sandbox.yml");
+
+test("the sandbox sync can only target the DesignFlow sandbox", () => {
+  const declarations = sandboxSync.match(/COLDLION_EXPECTED_PROJECT_REF: (\S+)/g) ?? [];
+  assert.deepEqual(declarations, [`COLDLION_EXPECTED_PROJECT_REF: ${SANDBOX_REF}`]);
+  assert.doesNotMatch(sandboxSync, new RegExp(PRODUCTION_REF), "never names production");
+  assert.doesNotMatch(sandboxSync, /SUPABASE_DB_URL_PRODUCTION|DATABASE_URL: \$\{\{/, "no production or injected URL secret");
+  assert.match(sandboxSync, /environment: designflow-sandbox/);
+  assert.match(sandboxSync, /secrets\.SUPABASE_DB_PASSWORD_DESIGNFLOW_SANDBOX/);
+});
+
+test("the sandbox sync cannot be reached by a push, a pull request or a fork", () => {
+  const on = sandboxSync.slice(sandboxSync.indexOf("\non:"), sandboxSync.indexOf("\njobs:"));
+  assert.doesNotMatch(on, /pull_request|push:/);
+  assert.match(on, /workflow_dispatch/);
+  assert.match(on, /cron: '30 5 \* \* \*'/);
+});
+
+test("the sandbox sync shares the one sandbox writer lock and never cancels a run", () => {
+  assert.match(sandboxSync, /concurrency:\n\s+group: designflow-sandbox-migrations\n\s+cancel-in-progress: false/);
+  assert.match(readWorkflow("designflow-sandbox-migrations.yml"), /group: designflow-sandbox-migrations/);
+});
+
+test("the sandbox sync runs the offline tests first, masks the password and bounds the backfill", () => {
+  assert.ok(sandboxSync.indexOf("node --test") < sandboxSync.indexOf("name: Sync"));
+  assert.match(sandboxSync, /::add-mask::/);
+  assert.match(sandboxSync, /SANDBOX_SYSTEM_IDENTIFIER: '7678069749886157684'/);
+  assert.ok(sandboxSync.indexOf("system_identifier mismatch") < sandboxSync.indexOf("node tools/coldlion-landing/"), "the database is proven before any loader runs");
+  const echoes = sandboxSync.match(/echo[^\n]*\$SANDBOX_PASSWORD[^\n]*/g) ?? [];
+  assert.deepEqual(echoes, ['echo "::add-mask::$SANDBOX_PASSWORD"'], "the raw password is only ever masked, never printed");
+  assert.match(sandboxSync, /--from "\$FROM" --limit "\$LIMIT"/);
+  assert.match(sandboxSync, /--windows "\$WINDOWS" --forward/);
+});
+
+test("--today is validated", () => {
+  assert.throws(() => parseSyncArgs(["--today", "2026-13-40"]), /--today/);
 });

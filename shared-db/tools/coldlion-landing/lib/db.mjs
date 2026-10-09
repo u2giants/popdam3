@@ -189,7 +189,7 @@ export function proveTarget(options = {}) {
  * or the database, and two of them in a row would otherwise trip a circuit breaker on a
  * healthy feed.
  */
-export function recordFailure({ scope, window, runId, companyCode, requestedBy, error, options = {} }) {
+export function recordFailure({ scope, window, runId, companyCode, requestedBy, error, options = {}, sealed = true }) {
   if (isClientSpawnFault(error) || isClientUriFault(error)) return false;
   const message = String(error?.message ?? error).slice(0, 4000);
   const sql = `begin;
@@ -200,20 +200,20 @@ values
   ('${runId}', ${literal(scope.endpoint)}, ${literal(companyCode)},
    jsonb_build_object('fromDate', ${literal(window.from)}, 'toDate', ${literal(window.to)}${
      scope.stage ? `, 'stageCode', ${literal(scope.stage)}` : ""
-   }),
+   }${sealed ? "" : ", 'unsealedForward', true"}),
    date ${literal(window.from)}, date ${literal(window.to)},
    'failed', ${literal(requestedBy)}, now(), now(),
    ${error?.httpStatus ?? "null"}, ${error?.bodyStatus ?? "null"}, ${literal(message)})
 on conflict (id) do nothing;
 
-update coldlion.window_ledger
+${sealed ? `update coldlion.window_ledger
    set state = 'failed', last_error = ${literal(message)}
  where endpoint = ${literal(scope.endpoint)}
    and company_code = ${literal(companyCode)}
    and stage_code is not distinct from ${scope.stage ? literal(scope.stage) : "null"}
    and window_from = date ${literal(window.from)}
    and state <> 'loaded';
-
+` : "-- unsealed forward load: no window_ledger row exists or is touched\n"}
 select pg_notify('coldlion_sync_alert', ${literal(
     `${scope.endpoint}${scope.stage ? ` ${scope.stage}` : ""} window ${window.from}: ${message}`.slice(0, 7000),
   )});
