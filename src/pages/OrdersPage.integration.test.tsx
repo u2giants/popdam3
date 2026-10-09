@@ -41,7 +41,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 vi.mock("@/components/orders/OrderListGrid", async () => {
   const React = await import("react");
   return { OrderListGrid: React.forwardRef(function MockOrderListGrid(_props: unknown, ref: React.ForwardedRef<unknown>) {
-    React.useImperativeHandle(ref, () => ({ api: { refreshInfiniteCache: mocks.gridRefresh, setGridOption: mocks.setGridOption } }));
+    React.useImperativeHandle(ref, () => ({ api: { purgeInfiniteCache: mocks.gridRefresh, setGridOption: mocks.setGridOption } }));
     return <div data-testid="orderlist-grid">Existing OrderList grid</div>;
   }) };
 });

@@ -31,6 +31,7 @@ import {
   useUpdateOrder,
 } from "@/hooks/useOrderList";
 import { IS_NON_PRODUCTION_DATABASE, POPDAM_SUPABASE_PROJECT_REF } from "@/lib/app-mode";
+import { refreshOrderListRows } from "@/lib/order-list-grid-refresh";
 import { supabase } from "@/integrations/supabase/client";
 import { buildOrderListEdit, ORDER_LIST_COLUMNS } from "@/lib/order-list";
 import { navigateToOrderListMatch } from "@/lib/order-list-find-navigation";
@@ -61,7 +62,7 @@ export default function OrdersPage() {
 
   /** Reloads the rows the grid is showing, without re-reading the whole list. */
   const refreshRows = useCallback(() => {
-    gridRef.current?.api?.refreshInfiniteCache();
+    refreshOrderListRows(gridRef.current?.api);
   }, []);
 
   useEffect(() => {
