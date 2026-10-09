@@ -35,6 +35,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -86,7 +87,7 @@ jobs:
           supabase gen types typescript --project-id "$SUPABASE_PROJECT_ID" --schema public,api,dam > "$GENERATED_TYPES_PATH"
           node scripts/orderlist-integration-proof.mjs verify-types
 
-      - name: Run read-only production administrator and viewer acceptance
+      - name: Run read-only production administrator and viewer REST acceptance
         env:
           POPDAM_ACCEPTANCE_BASE_URL: https://dam.designflow.app
           SUPABASE_PROJECT_ID: ${{ secrets.EXTERNAL_SUPABASE_PROJECT_ID }}

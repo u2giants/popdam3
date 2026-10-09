@@ -59,6 +59,18 @@ export function selectAuthenticatedReadHeaders(source = {}) {
   return headers;
 }
 
+export function validateFindCandidate({ candidateRows, expectedRowId, boundedRowIds = [] }) {
+  if (typeof expectedRowId !== "string" || !expectedRowId || !Array.isArray(candidateRows)) throw new Error("Find candidate identity is invalid");
+  const candidate = candidateRows.find((row) => row?.order_line_id === expectedRowId);
+  if (!candidate) throw new Error("Find RPC did not return the expected row identity");
+  if (!Number.isSafeInteger(candidate.row_index) || candidate.row_index < 0) throw new Error("Find RPC returned an invalid row position");
+  return {
+    orderLineId: candidate.order_line_id,
+    rowIndex: candidate.row_index,
+    hasBoundedRowEvidence: boundedRowIds.includes(expectedRowId),
+  };
+}
+
 function property(type, name) {
   if (!type || !ts.isTypeLiteralNode(type)) return undefined;
   return type.members.find((member) => ts.isPropertySignature(member) && memberName(member.name) === name);

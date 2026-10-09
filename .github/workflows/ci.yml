@@ -38,7 +38,7 @@ jobs:
       - name: Measurement observer tests
         env:
           POP_MEASURE_TEST_DATABASE_URL: postgresql://postgres:fixture-only@127.0.0.1:5432/postgres
-        run: node --test scripts/lib/indexed-write-measurement.test.mjs scripts/measure-indexed-writes.test.mjs scripts/measure-indexed-writes.pg.test.mjs
+        run: node --test scripts/lib/indexed-write-measurement.test.mjs scripts/measure-indexed-writes.test.mjs scripts/measure-indexed-writes.pg.test.mjs scripts/orderlist-integration-proof.test.mjs
 
       - name: Build
         run: bun run build

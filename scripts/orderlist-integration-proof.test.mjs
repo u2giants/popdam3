@@ -10,6 +10,7 @@ import {
   validateBaselineEvidence,
   validateBuildBinding,
   validateGeneratedTypes,
+  validateFindCandidate,
 } from "./orderlist-integration-proof-contract.mjs";
 
 const workflowSha = "b".repeat(40);
@@ -103,6 +104,20 @@ test("filtered API reads forward only bearer, API key, and accepted schema heade
     accept: "application/json",
     "accept-profile": "api",
   });
+});
+
+test("Find identity must come from the RPC and row data must be bounded before UI acceptance", () => {
+  const candidates = [{ order_line_id: "line-A", row_index: 10380 }];
+  const cached = validateFindCandidate({ candidateRows: candidates, expectedRowId: "line-A", boundedRowIds: ["line-A"] });
+  assert.deepEqual(cached, { orderLineId: "line-A", rowIndex: 10380, hasBoundedRowEvidence: true });
+
+  const uncached = validateFindCandidate({ candidateRows: candidates, expectedRowId: "line-A" });
+  assert.equal(uncached.hasBoundedRowEvidence, false, "an RPC result alone is not sufficient row-data evidence");
+  const afterBoundedFetch = validateFindCandidate({ candidateRows: candidates, expectedRowId: "line-A", boundedRowIds: ["line-A"] });
+  assert.equal(afterBoundedFetch.hasBoundedRowEvidence, true, "a successful bounded row response completes the identity chain");
+
+  assert.throws(() => validateFindCandidate({ candidateRows: candidates, expectedRowId: "another-line" }), /expected row identity/);
+  assert.throws(() => validateFindCandidate({ candidateRows: [{ order_line_id: "line-A", row_index: -1 }], expectedRowId: "line-A" }), /row position/);
 });
 
 test("generated production types must contain the expected RPC arguments and API/tracking fields", () => {

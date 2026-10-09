@@ -14,6 +14,7 @@ import {
   PRODUCTION_PROJECT,
   selectAuthenticatedReadHeaders,
   shouldBlockSupabaseRequest,
+  validateFindCandidate,
   validateCommitInputs,
   validateBaselineEvidence,
   validateBuildBinding,
@@ -27,6 +28,7 @@ const watchedEndpoints = new Set([
   "dam_order_list", "get_dam_order_tracking", "dam_order_sample_depth",
   "dam_order_customer_settings", "dam_order_vendor_statistics",
   "style_tracker_rows_with_bridge", "get_dam_style_tracker_license_status",
+  "find_dam_order_list_row",
 ]);
 const checkLabels = [];
 let stage = "startup";
@@ -34,10 +36,6 @@ let stage = "startup";
 function assert(condition, label) {
   checkLabels.push(label);
   if (!condition) throw new Error(`acceptance check failed: ${label}`);
-}
-
-function runGit(args) {
-  return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
 }
 
 function runGitBoolean(args) {
@@ -136,8 +134,8 @@ function watchApi(page) {
     }
     events.push({ endpoint, status: response.status(), request, json: response.json().catch(() => null) });
   });
-  async function waitFor(endpoint, predicate, start = 0) {
-    const deadline = Date.now() + 25_000;
+  async function waitFor(endpoint, predicate, start = 0, timeoutMs = 25_000) {
+    const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       for (const event of events.slice(start).filter((entry) => entry.endpoint === endpoint).reverse()) {
         const data = await event.json;
@@ -145,9 +143,21 @@ function watchApi(page) {
       }
       await page.waitForTimeout(100);
     }
-    throw new Error(`timed out waiting for authenticated ${endpoint} response`);
+    const error = new Error(`timed out waiting for authenticated ${endpoint} response`);
+    error.name = "ResponseTimeoutError";
+    throw error;
   }
-  return { events, waitFor };
+  async function boundedOrderRow(rowId) {
+    for (const event of [...events].reverse().filter((entry) => entry.endpoint === "dam_order_list" && entry.status >= 200 && entry.status < 300)) {
+      const data = rows(await event.json);
+      if (data.length <= 500) {
+        const found = data.find((row) => row?.order_line_id === rowId);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  }
+  return { events, waitFor, boundedOrderRow };
 }
 
 async function fetchOrderListCandidate(session, filters, label) {
@@ -157,24 +167,52 @@ async function fetchOrderListCandidate(session, filters, label) {
   const requestHeaders = await event.request.allHeaders();
   const headers = selectAuthenticatedReadHeaders(requestHeaders);
   const params = new URLSearchParams({
-    select: "order_line_id,production_order_number,item_id,item_description,item_name,master_data_license_status,snapshot_license_status,snapshot_description",
-    limit: "1",
+    select: "order_line_id,production_order_number,sku,sku_normalized,item_id,item_description,item_name,master_data_match_status,master_data_license_status,snapshot_license_status,snapshot_description",
+    limit: "25",
     ...filters,
   });
   const url = new URL(`/rest/v1/dam_order_list?${params}`, `https://${projectHost}`);
   const response = await page.request.get(url.href, { headers, timeout: 15_000 });
   if (!response.ok()) throw new Error(`${label}: authenticated bounded OrderList candidate query failed (${response.status()})`);
   const data = rows(await response.json());
-  if (data.length !== 1) throw new Error(`${label}: bounded query did not return exactly one existing row`);
-  return data[0];
+  if (!data.length || data.length > 25) throw new Error(`${label}: bounded query did not return existing rows within its limit`);
+  return data;
 }
 
-async function navigateToExistingOrderRow(page, api, row, role, label) {
-  if (!row?.order_line_id || !row.production_order_number) throw new Error(`${label}: existing candidate is missing its ordinary OrderList identity`);
+async function findAndRevealOrderRow(page, api, search, label) {
+  if (typeof search !== "string" || !search.trim()) throw new Error(`${label}: search term is empty`);
   const start = api.events.length;
-  await page.getByLabel("Find in orders").fill(String(row.production_order_number));
-  await api.waitFor("dam_order_list", (data) => rows(data).some((entry) => entry.order_line_id === row.order_line_id), start);
-  return revealOrderRow(page, row);
+  await page.getByLabel("Find in orders").fill(search);
+  const result = await api.waitFor("find_dam_order_list_row", (data) => rows(data).some((entry) => entry?.order_line_id && Number.isSafeInteger(entry?.row_index)), start, 8_000);
+  const candidateRows = rows(result.data);
+  const candidate = candidateRows.find((entry) => entry?.order_line_id && Number.isSafeInteger(entry?.row_index));
+  if (!candidate || result.event.request.method() !== "POST" || result.event.request.postDataJSON()?.p_search !== search) throw new Error(`${label}: Find RPC evidence does not match the submitted search`);
+  const cached = await api.boundedOrderRow(candidate.order_line_id);
+  const selected = validateFindCandidate({ candidateRows, expectedRowId: candidate.order_line_id, boundedRowIds: cached ? [candidate.order_line_id] : [] });
+  let actual = cached;
+  if (!actual) {
+    const fetched = await api.waitFor("dam_order_list", (data) => rows(data).length <= 500 && rows(data).some((entry) => entry?.order_line_id === selected.orderLineId), start);
+    actual = rows(fetched.data).find((entry) => entry?.order_line_id === selected.orderLineId);
+  }
+  if (!actual || actual.order_line_id !== selected.orderLineId) throw new Error(`${label}: Find RPC row lacks bounded authenticated data`);
+  const proven = validateFindCandidate({ candidateRows, expectedRowId: selected.orderLineId, boundedRowIds: [actual.order_line_id] });
+  if (!proven.hasBoundedRowEvidence) throw new Error(`${label}: Find RPC row is not backed by bounded API data`);
+  const gridRow = await revealOrderRow(page, actual);
+  if (await gridRow.getAttribute("row-id") !== selected.orderLineId) throw new Error(`${label}: visible grid row differs from Find RPC identity`);
+  return { row: actual, gridRow, rowIndex: selected.rowIndex };
+}
+
+async function findSemanticOrderRow(page, api, candidates, predicate, label) {
+  const terms = [...new Set(candidates.flatMap((row) => [row?.production_order_number, row?.sku_normalized, row?.sku]).filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim()))].slice(0, 10);
+  for (const term of terms) {
+    try {
+      const result = await findAndRevealOrderRow(page, api, term, label);
+      if (predicate(result.row)) return result;
+    } catch (error) {
+      if (error?.name !== "ResponseTimeoutError") throw error;
+    }
+  }
+  throw new Error(`${label}: bounded Find candidates did not resolve a row with the required current semantics`);
 }
 
 async function installWriteBlock(context, forbiddenWrites) {
@@ -232,7 +270,6 @@ async function revealHorizontally(page, target) {
 }
 
 async function revealOrderRow(page, row) {
-  await page.getByLabel("Find in orders").fill(String(row.production_order_number));
   const target = page.locator(`.ag-center-cols-container .ag-row[row-id="${row.order_line_id}"]`);
   await target.waitFor({ timeout: 20_000 });
   const viewport = page.locator(".ag-body-viewport").first();
@@ -260,12 +297,12 @@ async function checkOrderList(role, session) {
   const response = await api.waitFor("dam_order_list", (data) => rows(data).length > 0, start);
   const resultRows = rows(response.data);
   assert(resultRows.length <= 500, `${role} OrderList response stays within its bounded block`);
-  const linked = resultRows.find((row) => row?.order_line_id && row?.production_order_number && row.item_id && (row.item_description || row.item_name) && ["matched", "manual"].includes(row.master_data_match_status));
-  assert(Boolean(linked), `${role} bounded OrderList page contains a linked Item Master description`);
-  assert(linked.item_id && (linked.item_description || linked.item_name), `${role} linked row retains canonical Item Master identity and description`);
-  const exact = resultRows.find((row) => row.production_order_number === linked.production_order_number && row.order_line_id === linked.order_line_id);
-  assert(Boolean(exact), `${role} selected OrderList row came from the actual bounded API response`);
-  const gridRow = await navigateToExistingOrderRow(page, api, linked, role, `${role} linked current Item Master row`);
+  const linkedHints = resultRows.filter((row) => row?.order_line_id && row?.production_order_number && row.item_id && (row.item_description || row.item_name) && ["matched", "manual"].includes(row.master_data_match_status));
+  assert(linkedHints.length > 0, `${role} bounded OrderList page contains linked Item Master candidates`);
+  const linkedResult = await findSemanticOrderRow(page, api, linkedHints, (row) => row?.item_id && (row.item_description || row.item_name) && ["matched", "manual"].includes(row.master_data_match_status), `${role} linked current Item Master row`);
+  const linked = linkedResult.row;
+  const gridRow = linkedResult.gridRow;
+  assert(linked.item_id && (linked.item_description || linked.item_name), `${role} Find-selected row retains canonical Item Master identity and description`);
   const descriptionHeader = page.locator('.ag-header-cell[col-id="master_data_description"] .ag-header-cell-text');
   assert(await revealHorizontally(page, descriptionHeader), `${role} reveals current Master Data description column`);
   const descriptionCell = gridRow.locator('.ag-cell[col-id="master_data_description"]');
@@ -273,24 +310,28 @@ async function checkOrderList(role, session) {
   const expectedDescription = String(linked.item_description || linked.item_name);
   assert((await descriptionCell.innerText()).trim() === expectedDescription, `${role} current OrderList description matches the linked API record`);
   stage = `${role}: current Unknown distinct from imported history`;
-  const unknown = await fetchOrderListCandidate(session, {
+  const unknownCandidates = await fetchOrderListCandidate(session, {
     item_id: "not.is.null",
     master_data_license_status: "is.null",
     snapshot_license_status: "not.is.null",
   }, `${role} current Unknown`);
-  assert(unknown.item_id && unknown.master_data_license_status == null && unknown.snapshot_license_status != null, `${role} bounded API row keeps current Unknown separate from imported status`);
-  const unknownGridRow = await navigateToExistingOrderRow(page, api, unknown, role, `${role} linked current Unknown row`);
+  const unknownResult = await findSemanticOrderRow(page, api, unknownCandidates, (row) => Boolean(row?.item_id) && row.master_data_license_status == null && row.snapshot_license_status != null, `${role} linked current Unknown row`);
+  const unknown = unknownResult.row;
+  const unknownGridRow = unknownResult.gridRow;
+  assert(unknown.item_id && unknown.master_data_license_status == null && unknown.snapshot_license_status != null, `${role} Find-selected row keeps current Unknown separate from imported status`);
   const currentCell = unknownGridRow.locator('.ag-cell[col-id="master_data_license_status"]');
   assert(await revealHorizontally(page, currentCell), `${role} reveals current workflow cell for linked unknown`);
   assert((await currentCell.innerText()).trim() === "Unknown", `${role} current linked workflow remains Unknown`);
 
   stage = `${role}: unlinked import snapshot label`;
-  const snapshot = await fetchOrderListCandidate(session, {
+  const snapshotCandidates = await fetchOrderListCandidate(session, {
     item_id: "is.null",
     snapshot_description: "not.is.null",
   }, `${role} unlinked snapshot`);
-  assert(!snapshot.item_id && snapshot.snapshot_description, `${role} bounded API row remains an unlinked historical snapshot`);
-  const snapshotGridRow = await navigateToExistingOrderRow(page, api, snapshot, role, `${role} unlinked snapshot row`);
+  const snapshotResult = await findSemanticOrderRow(page, api, snapshotCandidates, (row) => !row?.item_id && Boolean(row?.snapshot_description), `${role} unlinked snapshot row`);
+  const snapshot = snapshotResult.row;
+  const snapshotGridRow = snapshotResult.gridRow;
+  assert(!snapshot.item_id && snapshot.snapshot_description, `${role} Find-selected row remains an unlinked historical snapshot`);
   const snapshotCell = snapshotGridRow.locator('.ag-cell[col-id="master_data_description"]');
   assert(await revealHorizontally(page, snapshotCell), `${role} reveals unlinked snapshot description`);
   const snapshotText = (await snapshotCell.innerText()).trim();
