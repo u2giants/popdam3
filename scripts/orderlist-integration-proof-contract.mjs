@@ -9,6 +9,12 @@ export const READONLY_RPC_ALLOWLIST = new Set([
   "find_dam_order_list_row",
   "get_dam_order_tracking",
   "get_dam_style_tracker_license_status",
+  // Existing login/library facets and Master Data candidate lookup: STABLE, read-only.
+  "get_filter_counts",
+  "get_path_facets",
+  "get_dam_material_facets",
+  "get_dam_customer_facets",
+  "search_style_tracker_link_candidates",
 ]);
 export const BASELINE_EVIDENCE = {
   repository: "popcre/shared-db",
