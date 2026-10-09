@@ -1195,7 +1195,6 @@ export default function StylesPage() {
   const [viewsMenuOpen, setViewsMenuOpen] = useState(false);
   const [selectedRowCount, setSelectedRowCount] = useState(0);
   const lastAppliedSheetRef = useRef<string | null>(null);
-  const lastNavigatedGridSearchRef = useRef<string | null>(null);
 
   const active = configs.find((config) => config.name === activeSheet) ?? configs[0];
   const rowsQuery = useInfiniteQuery({
@@ -1246,17 +1245,9 @@ export default function StylesPage() {
   }, []);
 
   const navigateGridSearch = useCallback(() => {
-    if (!normalizedGridSearch) {
-      lastNavigatedGridSearchRef.current = null;
-      return;
-    }
-    if (lastNavigatedGridSearchRef.current === normalizedGridSearch) return;
-
     const api = gridRef.current?.api;
-    if (!api || !gridReady) return;
-    if (navigateToStyleTrackerMatch(api, rows, normalizedGridSearch)) {
-      lastNavigatedGridSearchRef.current = normalizedGridSearch;
-    }
+    if (!api || !gridReady || !normalizedGridSearch) return;
+    navigateToStyleTrackerMatch(api, rows, normalizedGridSearch);
   }, [gridReady, normalizedGridSearch, rows]);
 
   useEffect(() => {
