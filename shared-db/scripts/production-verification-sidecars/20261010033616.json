@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261010033616",
+  "migration_sha256": "8fd2cc8ac81d41e9b36946c29df99bf9d09c928461fbaa628634202d0c9b907f",
+  "checks": [
+    {"id": "frozen_schema_gone", "kind": "exact_row_count", "relation": "pg_catalog.pg_namespace", "filters": [{"column": "nspname", "type": "text", "equals": "designflow_frozen_20260710"}], "expected_count": 0},
+    {"id": "frozen_art_piece_gone", "kind": "catalog_absence", "object": "designflow_frozen_20260710.art_piece", "expected_count": 1},
+    {"id": "frozen_artists_gone", "kind": "catalog_absence", "object": "designflow_frozen_20260710.artists", "expected_count": 1},
+    {"id": "frozen_customers_gone", "kind": "catalog_absence", "object": "designflow_frozen_20260710.customers", "expected_count": 1},
+    {"id": "frozen_comments_gone", "kind": "catalog_absence", "object": "designflow_frozen_20260710.comments", "expected_count": 1},
+    {"id": "frozen_product_category_gone", "kind": "catalog_absence", "object": "designflow_frozen_20260710.product_category", "expected_count": 1},
+    {"id": "frozen_art_piece_id_seq_gone", "kind": "catalog_absence", "object": "designflow_frozen_20260710.art_piece_id_seq", "expected_count": 1},
+    {"id": "frozen_artists_id_seq_gone", "kind": "catalog_absence", "object": "designflow_frozen_20260710.artists_id_seq", "expected_count": 1},
+    {"id": "frozen_customers_seq_gone", "kind": "catalog_absence", "object": "designflow_frozen_20260710.customers_customers_id_seq", "expected_count": 1},
+    {"id": "frozen_comments_id_seq_gone", "kind": "catalog_absence", "object": "designflow_frozen_20260710.comments_id_seq", "expected_count": 1},
+    {"id": "frozen_product_category_id_seq_gone", "kind": "catalog_absence", "object": "designflow_frozen_20260710.product_category_id_seq", "expected_count": 1},
+    {"id": "frozen_function_get_child_id_gone", "kind": "catalog_absence", "object": "designflow_frozen_20260710.get_child_id(character varying,character varying,character varying,character varying,character varying,integer)", "expected_count": 1},
+    {"id": "frozen_function_get_parent_id_gone", "kind": "catalog_absence", "object": "designflow_frozen_20260710.get_parent_id(character varying,character varying,integer)", "expected_count": 1}
+  ],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 142,
+      "line_end": 142,
+      "disposition": "no_durable_target",
+      "reason": "Dynamic EXECUTE drops frozen-schema functions by catalog-derived OID signature (pg_proc.oid::regprocedure). Creates no dynamic catalog target; exact signatures come from the catalog, not from static text."
+    }
+  ]
+}
