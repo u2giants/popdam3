@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261009224453",
+  "migration_sha256": "e66c4eb6590824a9c7e0933c2f4f27a16002ba8883b363e0ad42ce0946bbc980",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 391,
+      "line_end": 391,
+      "disposition": "no_durable_target",
+      "reason": "Complete-capture probe reads plm.pmt_capture status only. Read-only; creates no durable catalog object."
+    },
+    {
+      "line_start": 395,
+      "line_end": 395,
+      "disposition": "no_durable_target",
+      "reason": "Complete-capture probe reads plm.nbcu_capture status only. Read-only; creates no durable catalog object."
+    },
+    {
+      "line_start": 399,
+      "line_end": 399,
+      "disposition": "no_durable_target",
+      "reason": "Complete-capture probe reads plm.opa_capture status only. Read-only; creates no durable catalog object."
+    },
+    {
+      "line_start": 404,
+      "line_end": 404,
+      "disposition": "no_durable_target",
+      "reason": "Complete-capture probe reads plm.dcp_crawl status only. Read-only; creates no durable catalog object."
+    },
+    {
+      "line_start": 408,
+      "line_end": 408,
+      "disposition": "no_durable_target",
+      "reason": "Complete-capture probe reads plm.wildbrain_capture status only. Read-only; creates no durable catalog object."
+    },
+    {
+      "line_start": 412,
+      "line_end": 412,
+      "disposition": "no_durable_target",
+      "reason": "Complete-capture probe reads plm.wb_capture status only (capture_id + chunk_number=0). Read-only; creates no durable catalog object."
+    },
+    {
+      "line_start": 528,
+      "line_end": 528,
+      "disposition": "no_durable_target",
+      "reason": "Official-spelling probe reads plm.pmt_property.property_name for plan after-values. Read-only; creates no durable catalog object."
+    },
+    {
+      "line_start": 532,
+      "line_end": 532,
+      "disposition": "no_durable_target",
+      "reason": "Official-spelling probe reads plm.nbcu_property.property_label for plan after-values. Read-only; creates no durable catalog object."
+    },
+    {
+      "line_start": 536,
+      "line_end": 536,
+      "disposition": "no_durable_target",
+      "reason": "Official-spelling probe reads plm.opa_property_character.property_name for plan after-values. Read-only; creates no durable catalog object."
+    },
+    {
+      "line_start": 766,
+      "line_end": 766,
+      "disposition": "no_durable_target",
+      "reason": "Capture-membership probe tests pmt_property presence for support retirement. Read-only existence check; creates no durable catalog object."
+    },
+    {
+      "line_start": 771,
+      "line_end": 771,
+      "disposition": "no_durable_target",
+      "reason": "Capture-membership probe tests nbcu_property presence for support retirement. Read-only existence check; creates no durable catalog object."
+    }
+  ],
+  "checks": []
+}

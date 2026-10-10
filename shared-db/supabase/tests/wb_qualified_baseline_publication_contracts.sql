@@ -82,10 +82,12 @@ begin
    where n.nspname not in ('pg_catalog','information_schema') and n.nspname not like 'pg\_%'
      and (b.src ~* 'plm\.wb_capture\M' or (b.src ~* 'withdrawn' and b.src ~* 'plm\.wb_'));
   if v_wrappers is distinct from array[
+       'plm.apply_licensing_consolidation(uuid,text)',
        'plm.begin_wb_capture(text,date,text,text,integer,text,text,text)',
        'plm.fail_wb_capture(uuid,text)',
        'plm.finalize_wb_capture(uuid,text,numeric)',
        'plm.load_wb_chunk(uuid,integer,text,text)',
+       'plm.plan_licensing_consolidation(text,uuid,text)',
        'plm.sync_wb_normalized_target(uuid,text,jsonb,text,numeric)'] then
     raise exception 'Warner capture/withdrawal function inventory changed: %', v_wrappers;
   end if;
