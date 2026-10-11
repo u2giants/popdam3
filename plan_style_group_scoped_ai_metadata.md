@@ -119,7 +119,7 @@ What existed at that historical baseline (the completed Steps 2–6 supersede th
 - The Style Group panel loads every member at `StyleGroupDetailPanel.tsx:517-529`, displays one selected file’s flat tags at `:1170-1205`, and displays its descriptions at `:1209-1260`.
 - Manual tag editing is currently inconsistent: `AssetDetailPanel.tsx:354-394` correctly writes `asset_tags` rows with `source = 'manual'`, while `StyleGroupDetailPanel.tsx:706-717` edits only the denormalized `assets.tags` array. The `asset_tags` sync trigger can later rebuild that array and erase the panel-only manual value. This divergence must be reconciled before any AI backfill.
 - The asset search fallback uses `cover_description`, `ai_description`, and `scene_description` at `src/hooks/useAssets.ts:41-67`; group fallback columns are defined at `src/hooks/useStyleGroups.ts:63-90`. Normal indexed search goes through shared-db search-document refresh functions.
-- Active [`plan_hybrid_search_rollout.md`](plan_hybrid_search_rollout.md), tracked by PopDAM issue #97, supersedes `docs/archive/fix_search.md` §§1–2 and owns tag/character-name search text, search-maintenance triggers, bounded refresh, and the embedding backfill. It overlaps this plan’s Step 2 on the same DAM search functions and `asset_tags` triggers. The two plans must share one orchestrator-owned final definition/order: scoped tag tables/status/backfill first, then final asset+group+character search builders/triggers, then exactly one embedding backfill. For tag/confidence extraction this plan supersedes `docs/archive/fix_search.md` §3a. Never ship competing `CREATE OR REPLACE` definitions or embed an intermediate corpus.
+- Active [`plan_hybrid_search_rollout.md`](plan_hybrid_search_rollout.md), tracked by PopDAM issue #97, supersedes `docs/archive/fix_search.md` §§1–2 and owns tag/character-name search text, search-maintenance triggers, bounded refresh, and the embedding backfill. It overlaps this plan’s Step 2 on the same DAM search functions and `asset_tags` triggers. The two plans must share one canonical issue-owned final definition/order: scoped tag tables/status/backfill first, then final asset+group+character search builders/triggers, then exactly one embedding backfill. For tag/confidence extraction this plan supersedes `docs/archive/fix_search.md` §3a. Never ship competing `CREATE OR REPLACE` definitions or embed an intermediate corpus.
 - The legacy Edge helper `supabase/functions/_shared/tag-propagation.ts:1-228` filters a hard-coded phrase denylist and copies selected fields/tags/characters to siblings. The active bulk worker calls the database RPC through `apps/worker/src/handlers/tag-propagation.ts:1-45`.
 - Bulk-operation conflict protection between AI tagging, group rebuild, and propagation exists in `apps/worker/src/operation-loop.ts` and `supabase/functions/_shared/operation-constants.ts`; it must evolve with the new operations rather than be removed.
 
@@ -274,7 +274,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 - Change `apps/worker/src/handlers/tag-propagation.ts`, `supabase/functions/_shared/admin-handlers/tag-propagation-handlers.ts`, admin labels, and UI action semantics from copying primary tags to refreshing authoritative/group AI facts and search documents.
 - Keep the old `propagate-group-tags` operation key/API temporarily as a compatibility alias that invokes the safe refresh and emits a deprecation diagnostic; update its entries in `OP_LANES`, `OP_CONFLICTS`, `OP_ACTIONS`, labels, and admin handlers, and ensure it never copies asset rows. Add a new canonical `refresh-group-metadata` operation key.
-- Remove `supabase/functions/_shared/tag-propagation.ts` only after searches show no live import/caller and compatibility tests prove the alias. The shared-db orchestrator may retire `propagate_group_tags_batch` in a later additive migration after production has run one full cycle safely.
+- Remove `supabase/functions/_shared/tag-propagation.ts` only after searches show no live import/caller and compatibility tests prove the alias. The existing canonical exact-object issue owner may retire `propagate_group_tags_batch` in a later additive migration after production has run one full cycle safely.
 - Update conflict maps and progress terminology from “assets propagated” to “groups refreshed.” Preserve stop/resume/diagnostics capability.
 - Replace the panel button label and confirmation text. Do not silently remove the user’s ability to refresh a group.
 
@@ -344,11 +344,11 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 - Update this STATUS table after every executed step with artifact-backed evidence; do not leave pre-implementation claims marked current.
 - Add the canonical shared-db migration note and exact merged/apply evidence links.
 - Close issue #96 only after Definition of Done passes.
-- Retire the applicable current handoff only after all #96 obligations and successor-rule checks pass; preserve the dated August handoff as historical evidence and reconcile current continuation/router links. Remove this plan’s active-router links only when work is genuinely complete or replace them with the durable topic-doc link.
+- Retire only the scoped historical August #96 predecessor if still present and all its obligations and successor-rule checks pass; git history preserves it. Never delete the current 17-issue campaign continuation while any campaign obligation remains open. Reconcile current continuation/router links. Remove this plan’s active-router links only when work is genuinely complete or replace them with the durable topic-doc link.
 
 **Dependencies:** Step 9.
 
-**Verification gate:** repo docs describe the same live behavior observed in production, issue #96 is closed with exact evidence, the open handoff is retired, git status is clean apart from separately owned work, and `origin/main` contains the completion commit.
+**Verification gate:** repo docs describe the same live behavior observed in production, issue #96 is closed with exact evidence, only the completed scoped historical #96 predecessor is retired if present, and the current campaign handoff is preserved while any campaign obligation remains open, git status is clean apart from separately owned work, and `origin/main` contains the completion commit.
 
 ## 10. Tests required
 
@@ -393,7 +393,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 ### Shared-db verification
 
-The shared-db orchestrator must add SQL/fixture tests covering constraints, uniqueness, RLS/grants, atomic replacement, manual preservation, candidate exclusion, trigger refresh, search union, idempotency, and reassignment. Tests run in preview inside rollback transactions and cite their artifact; no bare row-count claim is acceptable.
+The existing canonical exact-object issue owner must add SQL/fixture tests covering constraints, uniqueness, RLS/grants, atomic replacement, manual preservation, candidate exclusion, trigger refresh, search union, idempotency, and reassignment. Tests run in preview inside rollback transactions and cite their artifact; no bare row-count claim is acceptable.
 
 ### Commands that must stay green
 
@@ -473,7 +473,7 @@ Local development and checks:
 - [ ] Focused commits are pushed under Albert’s identity; required CI is green.
 - [ ] Railway worker, frontend image/Coolify, and live site each prove their relevant exact SHA.
 - [ ] Full rollout counters reconcile and production smoke evidence is recorded.
-- [ ] Documentation matches live behavior; issue #96 is closed; the applicable current handoff is retired only under the successor rule after all proof passes.
+- [ ] Documentation matches live behavior; issue #96 is closed; only the completed scoped historical #96 predecessor is retired if present after successor-rule proof; the current 17-issue campaign continuation remains while any campaign obligation is open.
 
 ### Principal risks and mitigations
 

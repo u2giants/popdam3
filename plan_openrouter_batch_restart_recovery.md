@@ -109,7 +109,7 @@ Remaining acceptance and historical gaps:
 - Step 8 still lacks the required live same-ID-across-Railway-restart and
   exactly-once application artifact.
 - **Historical September WIP, superseded by the merged implementation recorded in STATUS:** the remote direct Gemini Batch alternative at
-  `the historical protected source worktree (current recovery custody is linked from https://github.com/u2giants/popdam3/issues/92)` commit `653cb150` passes its local tests/
+  [protected historical source worktree](https://github.com/u2giants/licensor-source-data/blob/main/outputs/popdam-pilot-baseline-20261011/continuation-custody.md#custody-30) commit `653cb150` passes its local tests/
   builds but is not shippable. A definitive provider POST rejection consumes the one-use receipt,
   and the current shared-db contract has no narrow safe reset for that known-not-
   accepted outcome. Those WIP/reset-contract blockers are historical; do not resume or ship that branch. Current protected recovery and acceptance gates are in the linked continuation.
