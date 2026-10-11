@@ -12,19 +12,19 @@
 
 ## STATUS — read this first
 
-Fresh sessions start at **Step 1: re-verify repository and live production state**. Do not infer live counts or deployment state from this plan.
+**Updated October 11, 2026.** Start by rechecking the current #96 pilot and #92 recovery gates, then resume the remaining coverage/rollout work. Do not infer current counts from this dated snapshot. Current continuation: [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md); live verification is recorded in [#97](https://github.com/u2giants/popdam3/issues/97).
 
 | Step | State | Owner/route | Implementation artifact | Verification evidence |
 |---|---|---|---|---|
-| 1. Re-verify code, schema, deployment, and live coverage | 🟨 in progress | PopDAM read-only inspection | Coordinated scoped baseline under `verification/ai-tagging-scope/` | Baseline began at `ae029a53` and safely fast-forwarded to `993c099a`; scoped aggregates are recorded, while deployment/auth/search probes remain pending |
+| 1. Re-verify code, schema, deployment, and live coverage | 🟨 refreshed; broader acceptance open | PopDAM read-only inspection | October 11 aggregate target/role proof and three-role signed-in search | 149,703 documents / 4,584 embedded / 145,119 pending at dated check. Nine searches passed across admin/designer/viewer; admin-only coverage access preserved. Refresh counts before backfill. |
 | 2. Dispatch and land the canonical shared-DB search-maintenance change | ✅ production complete | `u2giants/shared-db` orchestrator | Shared request `u2giants/shared-db#1427`; PR #1482; migration `20260825082910`; merge `8ae124a2` | Production apply run `32827618163` and durable-contract verification run `32833236435`; final active asset/group tags plus canonical characters are live, with no embedding backfill run |
 | 3. Add authorization-safe hybrid search contract | 🟨 routed | Shared-db orchestrator + PopDAM edge function | Remaining ranked authorization/pagination/facet contract routed as `u2giants/shared-db#1703`, dependent on effective-filter contract #1645; edge at `37cca5ca` now uses the caller client instead of service-role search | Edge deploy run `33120788198` passed; await governed DB contract and cross-user authorization proof before hybrid activation |
-| 4. Add resumable embedding worker operation | 🟨 deployed dark | PopDAM `main` | `apps/worker/src/handlers/embed-search.ts`, lease-only edge action, operation registration/tests at `37cca5ca` | 134 worker tests/build and CI run `33120788175` pass; Railway successful descendant `47405e46`; controlled restart/resume proof pending and no backfill has run |
-| 5. Add bounded automatic freshness loop | 🟨 implemented, off | PopDAM worker | One 25-document batch/minute only when `SEARCH_AUTO_EMBED_ENABLED=true`; database leases remain authoritative | Default is absent/off; live overlap, lease-expiry, retry, disable, and steady-state lag proof pending |
+| 4. Add resumable embedding worker operation | 🟨 deployed; live restart proof open | PopDAM main | Existing embed-dam-search operation | An old interrupted checkpoint remains; restart/resume, lease/retry/terminal-coverage acceptance still required. No new embedding job started by this verification. |
+| 5. Add bounded automatic freshness loop | 🟨 implemented, off | PopDAM worker | Existing opt-in loop | SEARCH_AUTO_EMBED_ENABLED absent/off after exact restoration; live overlap, lease-expiry, retry, disable and steady-state lag proof remain. |
 | 6. Add admin coverage and start/stop UI | 🟨 deployed | PopDAM `main` | `SearchIndexCard` with coverage, start/stop/resume, and terminal requeue at `37cca5ca` | Component test/build pass; frontend publish run `33120788225`, live DAM/SG HTTP 200 and JS stamp `37cca5c`; authenticated desktop/mobile visual proof pending |
-| 7. Complete search UX, score floor, and pagination behavior | 🟨 partial / DB-blocked | PopDAM `main` plus shared-db #1703 | Search-mode cache now has bounded TTL/invalidation; current 500-ID handoff remains unchanged | Ranked filtered cursor/count/facet contract and smart/closest-match UX wait on #1645/#1703 |
-| 8. Run measured production backfill | ⬜ open | PopDAM op after Albert approval | `BULK_OPERATIONS.embed-dam-search` run | Before/after status artifacts, throughput projection, restart test, categorized residue |
-| 9. Enable hybrid mode and verify/observe/rollback | ⬜ open | PopDAM admin config after Albert approval | `admin_config.SEARCH_MODE` data change | Live user-flow screenshots, fallback drill, config rollback proof, deployed SHAs |
+| 7. Complete search UX, score floor, and pagination behavior | 🟨 partial; saved floor live-proven | PopDAM main plus current shared contract | Floor app #173 shipped; shared-db #3457 closed | October 11 saved UI floor 0.99 persisted/reloaded: 46 baseline results, six keyword matches retained, 40 weak semantic-only matches removed. Original absent-row floor restored and blank card/search rechecked. Broader ranking, filtered pagination/facets and fallback remain unproven. |
+| 8. Run measured production backfill | ⬜ open | PopDAM operation under current owner scope and technical review | BULK_OPERATIONS.embed-dam-search | Blocked on #96 usable pilot/business acceptance and current #92 recovery; measure throughput, restart behavior and categorized residue before full run. |
+| 9. Enable hybrid mode and verify/observe/rollback | ⬜ open | PopDAM config under current owner scope and technical review | admin_config.SEARCH_MODE | Keyword default remains; no enablement performed. Coverage/relevance/access/fallback and required business gates must pass first. |
 | 10. Optional telemetry and evidence-based tuning | ⬜ open; separately gated | Separate shared-db + PopDAM phase | Future telemetry migration/app code | Albert-approved retention, privacy/RLS tests, first analysis artifact |
 | 11. Documentation, closeout, and handoff retirement | ⬜ open | Final implementing session | Docs, commits, CI/deploy evidence | Issue #97 closure only after every required gate is proven |
 
@@ -51,6 +51,8 @@ PopDAM is POP Creations’ internal digital-asset manager for licensed consumer-
 - Runtime feature/config state: `public.admin_config`, managed through authenticated application workflows rather than ad-hoc production SQL.
 
 Read `AGENTS.md`, `CLAUDE.md`, this plan’s STATUS table, `docs/archive/fix_search.md` §§1–2, `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md`, `docs/configuration.md`, and the current `/worksp/shared-db/AGENTS.md` before execution. Re-read downstream phases before each context cut because these files and production state can drift.
+
+**Historical-state note (October 11, 2026):** dated implementation weaknesses below explain the original design. They are not instructions to redo shipped contracts or the now-passed saved-floor check. Reproduce current gaps and use the STATUS table before editing.
 
 ## 3. What triggered this work
 
