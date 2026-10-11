@@ -67,6 +67,13 @@ describe("PopSG NAS config is write-only for the password (#194)", () => {
     expect("error" in buildSgNasUpserts({ password: 5 }, "t")).toBe(true);
   });
 
+  it("a failing Vault save stops before the public keys are written", async () => {
+    const { db, upsert } = fakeDb([]);
+    db.rpc = vi.fn(async () => ({ data: null, error: { message: "vault down" } }));
+    await expect(handleSetSgNasConfig(db, { host: "h", password: PASS })).rejects.toThrow("vault down");
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
   it("saves public keys in one upsert, the password only through Vault, and returns no password", async () => {
     const { db, upsert, rows, vault } = fakeDb([], { value: "old" });
     const view = await handleSetSgNasConfig(db, { host: "h", password: PASS });
@@ -83,7 +90,8 @@ describe("PopSG NAS config is write-only for the password (#194)", () => {
   it("agent-api reads the PopSG password from Vault, not admin_config", () => {
     const src = readFileSync(new URL("../../agent-api/index.ts", import.meta.url), "utf8");
     expect(src).toContain('db.rpc("get_sg_nas_password")');
-    expect(src).not.toMatch(/^\s*"WINDOWS_AGENT_SG_NAS_PASS",\s*$/m);
+    // The key may appear only in comments, never as a string literal the code reads.
+    expect(src).not.toMatch(/["'`]WINDOWS_AGENT_SG_NAS_PASS["'`]/);
   });
 
   it("the PopSG settings page never reads the password key from admin_config", () => {

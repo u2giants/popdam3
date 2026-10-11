@@ -91,11 +91,12 @@ export async function handleSetSgNasConfig(
 ): Promise<SgNasConfigView> {
   const built = buildSgNasUpserts(body, new Date().toISOString());
   if ("error" in built) throw new Error(built.error);
-  const { error } = await db.from("admin_config").upsert(built.rows);
-  if (error) throw new Error(error.message);
+  // Password first: if it fails nothing else is saved, and the admin sees the error.
   if (built.password !== undefined) {
     const set = await db.rpc("set_sg_nas_password", { p_password: built.password });
     if (set.error) throw new Error(set.error.message);
   }
+  const { error } = await db.from("admin_config").upsert(built.rows);
+  if (error) throw new Error(error.message);
   return await handleGetSgNasConfig(db);
 }
