@@ -171,9 +171,11 @@ function acceptedCommandDeferral(body: Record<string, unknown>, agentType: strin
   const request = body.command_deferral;
   if (!request || typeof request !== "object" || Array.isArray(request)) return null;
   const { nonce, expires_at } = request as Record<string, unknown>;
-  if (typeof nonce !== "string" || !/^[a-f0-9]{32}$/.test(nonce) ||
-      typeof expires_at !== "number" || !Number.isFinite(expires_at) ||
-      expires_at <= nowMs || expires_at > nowMs + 5 * 60 * 1000) return null;
+  if (
+    typeof nonce !== "string" || !/^[a-f0-9]{32}$/.test(nonce) ||
+    typeof expires_at !== "number" || !Number.isFinite(expires_at) ||
+    expires_at <= nowMs || expires_at > nowMs + 5 * 60 * 1000
+  ) return null;
   return { nonce, expires_at };
 }
 
