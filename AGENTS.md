@@ -307,8 +307,6 @@ coverage/
 .nyc_output/
 *.tsbuildinfo
 package-lock.json
-bun.lock
-bun.lockb
 apps/*/package-lock.json
 .lovable/               # Lovable platform memory
 worksp_symlink.md       # harness bookkeeping
