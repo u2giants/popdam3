@@ -327,6 +327,7 @@ apps/popdam-helper/.webpack/
 
 Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
 
+- AG Grid license warning is accepted: no purchase; ignore the warning and preserve existing features (owner instruction 2026-10-11)
 - Dual-mode (PopDAM / PopSG) via hostname detection
 - `asset_count` on `style_groups` is a cached field, not computed on read
 - Style-group SKU extraction must skip category folders but accept digit-leading SKUs

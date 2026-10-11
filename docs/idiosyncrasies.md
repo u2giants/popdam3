@@ -266,3 +266,10 @@ The nightly `rebuild-style-groups` operation recreates every `style_groups` row 
 ## Muse Spark 1.3 Contributor answers 404 `model_not_found` when capacity is short (found 2026-09-23)
 
 `muse-spark-1.3-contributor` stays listed in `/v1/models`, but it intermittently or persistently returns an instant 404 `model_not_found` (sometimes 503) with no `x-ratelimit-*` headers. `muse-spark-1.3` and `muse-spark-1.2-contributor` succeed with the same key and the same request. The limit appears to be team-wide, shared by every POP app. The worker caps Contributor calls at `META_CONTRIBUTOR_CONCURRENCY` (default 2) and retries 404/503 with jitter (`apps/worker/src/meta-model-api.ts`). Don't treat this as a wrong model ID, endpoint or key, and don't switch models: Albert requires Contributor. It is tracked in popcre/ai-devops#683.
+
+## AG Grid license warning is an accepted owner decision
+
+**Looks like:** The empty AG Grid Enterprise key or its warning requires a license purchase.
+**Actually:** Albert has explicitly decided not to buy an AG Grid license. Ignore the warning and preserve the existing grid features. This is settled owner direction, not an unanswered business question or a release blocker.
+**Why:** Albert reiterated his instruction on October 11, 2026: “we are not buying an AG-grid license. i must have mentioned to ignore that warning 1000 times. why is it not being documented or obeyed?” Recorded in PopDAM issue #196.
+**Do not change because:** Recommending a purchase again, disabling grid features, or treating the warning as unfinished work would contradict the owner's instruction. Do not add a fake key, suppress messages in code, or change the licensing implementation as part of this documentation decision. A future change requires a new explicit owner instruction.
