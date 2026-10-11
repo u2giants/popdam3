@@ -21,8 +21,7 @@ import { handleAiTagBakeoff } from "./handlers/ai-tag-bakeoff.js";
 import { handleStyleGroupProfiles } from "./handlers/ai-style-group-profile.js";
 import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "./handlers/style-groups.js";
 import { handleRelinkOrphanedAssets } from "./handlers/relink-orphaned.js";
-import { handlePropagateGroupTags } from "./handlers/tag-propagation.js";
-import { handleRefreshGroupMetadata } from "./handlers/group-metadata-refresh.js";
+import { handleLegacyPropagationAlias, handleRefreshGroupMetadata } from "./handlers/group-metadata-refresh.js";
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handlers/erp.js";
 import { handleShortenItemDescriptions } from "./handlers/item-short-description.js";
 import { handleRichPdfExtract } from "./handlers/rich-pdf.js";
@@ -727,7 +726,7 @@ export async function dispatch(opKey: string, opState: OpState): Promise<BatchRe
     case "reconcile-style-group-stats":
       return handleReconcileStyleGroupStats(opState);
     case "propagate-group-tags":
-      return handlePropagateGroupTags(opState);
+      return handleLegacyPropagationAlias(opState);
     case "refresh-group-metadata":
       return handleRefreshGroupMetadata(opState);
     case "cleanup-mega-group-tags":

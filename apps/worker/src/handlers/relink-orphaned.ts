@@ -1,11 +1,10 @@
-import { db } from "../supabase.js";
+import { db, type DB } from "../supabase.js";
 import { logger } from "../logger.js";
 import type { BatchResult, OpState } from "../types.js";
 
 const BATCH_SIZE = 500;
 
-export async function handleRelinkOrphanedAssets(opState: OpState): Promise<BatchResult> {
-  const client = db();
+export async function handleRelinkOrphanedAssets(opState: OpState, client: DB = db()): Promise<BatchResult> {
   const cursor = (opState.cursor === 0 || opState.cursor === null) ? null : opState.cursor as string;
 
   let q = client

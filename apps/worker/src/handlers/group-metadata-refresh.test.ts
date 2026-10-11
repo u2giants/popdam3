@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   authoritativeTagsAreCurrent,
   deriveRefreshTags,
+  handleLegacyPropagationAlias,
   handleRefreshGroupMetadata,
   needsProvenanceRestore,
   LEGACY_PROPAGATION_DEPRECATION,
@@ -13,7 +14,6 @@ import {
   type RefreshDependencies,
   type RefreshGroupRow,
 } from "./group-metadata-refresh.js";
-import { handlePropagateGroupTags } from "./tag-propagation.js";
 import type { OpState } from "../types.js";
 
 const GROUP_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -152,7 +152,7 @@ const ASSET_FIELDS = [
 ];
 
 test("neither the new operation nor the legacy alias ever reaches an asset row", async () => {
-  for (const run of [handleRefreshGroupMetadata, handlePropagateGroupTags]) {
+  for (const run of [handleRefreshGroupMetadata, handleLegacyPropagationAlias]) {
     const client = recordingClient();
     await run({ status: "running", cursor: 0 } as OpState, deps({ client }));
     const serialized = JSON.stringify(client.rpcCalls);
@@ -202,7 +202,7 @@ test("no production path still calls the legacy copy helper", () => {
 
 test("the legacy operation key still works and says it is deprecated", async () => {
   const client = recordingClient();
-  const result = await handlePropagateGroupTags({ status: "running", cursor: 0 } as OpState, deps({ client }));
+  const result = await handleLegacyPropagationAlias({ status: "running", cursor: 0 } as OpState, deps({ client }));
   assert.equal(result.ok, true);
   assert.equal(result.deprecated, true);
   assert.match(String(result.deprecation_notice), /deprecated/);

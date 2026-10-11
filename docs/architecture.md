@@ -45,7 +45,7 @@ Located in `apps/worker/`. A persistent Node.js process deployed on Railway (aut
 
 **What it does:** polls `admin_config.BULK_OPERATIONS` every 1 s (configurable). Each tick reads the operations JSON blob, detects stale locks, auto-resumes interrupted ops, promotes queued ops into empty lanes with conflict isolation, dispatches batch handlers, and persists state back via the `update_bulk_operation` RPC. There is no HTTP endpoint; all triggering is done by writing to `admin_config.BULK_OPERATIONS` from the frontend or admin API.
 
-**Handlers:** `ai-tagging.ts` (production AI tag operations), `ai-tag-bakeoff.ts` (non-destructive model bake-off using the same tagging contract), `erp.ts` (ERP enrichment + AI category classification), `style-groups.ts` (rebuild, reconcile, cleanup), `relink-orphaned.ts`, `tag-propagation.ts`, and `embed-search.ts` (leased search-document embeddings).
+**Handlers:** `ai-tagging.ts` (production AI tag operations), `ai-tag-bakeoff.ts` (non-destructive model bake-off using the same tagging contract), `erp.ts` (ERP enrichment + AI category classification), `style-groups.ts` (rebuild, reconcile, cleanup), `relink-orphaned.ts`, `group-metadata-refresh.ts` (also serves the deprecated `propagate-group-tags` key), and `embed-search.ts` (leased search-document embeddings).
 
 **Lane isolation:** ops are assigned lanes (`ai-tagging`, `style-groups`, `erp`, `metadata`). Cross-lane conflicts are enforced (e.g., `ai-tag-*` and `rebuild-style-groups` cannot run concurrently). Kill switches stop a lane after 20 identical errors or 80%+ failure rate over 50+ items.
 

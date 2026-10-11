@@ -6,7 +6,7 @@
  * (default: "anthropic/claude-3.5-haiku").
  */
 
-import { db } from "../supabase.js";
+import { db, type DB } from "../supabase.js";
 import { config } from "../config.js";
 import { getOpenRouterApiKey } from "../openrouter-key.js";
 import { logger } from "../logger.js";
@@ -91,8 +91,7 @@ export function applyErpKeysetPage<Q extends KeysetQuery<Q>>(query: Q, afterId: 
   return (afterId ? ordered.gt("id", afterId) : ordered).limit(size);
 }
 
-export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchResult> {
-  const client = db();
+export async function handleApplyErpEnrichment(opState: OpState, client: DB = db()): Promise<BatchResult> {
   const mode = (opState.params?.mode as string) || "apply";
   const batchSize = 100;
   const afterId = erpKeysetAfter(opState.cursor);
