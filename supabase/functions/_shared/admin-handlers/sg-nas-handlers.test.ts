@@ -4,7 +4,7 @@ import { buildSgNasUpserts, handleGetSgNasConfig, handleSetSgNasConfig, SG_NAS_P
 
 const PASS = "test-fixture-pass";
 
-function fakeDb(rows: { key: string; value: unknown }[]) {
+function fakeDb(rows: { key: string; value: unknown }[], vault: { value: string } = { value: "" }) {
   const upsert = vi.fn(async (newRows: { key: string; value: unknown }[]) => {
     for (const r of newRows) {
       const i = rows.findIndex((x) => x.key === r.key);
@@ -20,8 +20,13 @@ function fakeDb(rows: { key: string; value: unknown }[]) {
       }),
       upsert,
     }),
+    rpc: vi.fn(async (fn: string, args?: { p_password?: string }) => {
+      if (fn === "get_sg_nas_password") return { data: vault.value, error: null };
+      if (fn === "set_sg_nas_password") { vault.value = args?.p_password ?? ""; return { data: null, error: null }; }
+      return { data: null, error: { message: `unexpected rpc ${fn}` } };
+    }),
   };
-  return { db, upsert, rows };
+  return { db, upsert, rows, vault };
 }
 
 describe("PopSG NAS config is write-only for the password (#194)", () => {
@@ -44,24 +49,38 @@ describe("PopSG NAS config is write-only for the password (#194)", () => {
     expect(keep.rows.find((r) => r.key === "WINDOWS_AGENT_SG_NAS_HOST")?.value).toBe("h");
     expect(keep.rows.find((r) => r.key === "WINDOWS_AGENT_SG_NAS_MOUNT_PATH")?.value).toBe("Y:");
 
+    expect(keep.password).toBeUndefined();
+
     const replace = buildSgNasUpserts({ password: PASS }, "t");
     if ("error" in replace) throw new Error(replace.error);
-    expect(replace.rows.find((r) => r.key === SG_NAS_PASSWORD_KEY)?.value).toBe(PASS);
+    expect(replace.password).toBe(PASS);
+    expect(replace.rows.map((r) => r.key)).not.toContain(SG_NAS_PASSWORD_KEY);
 
     const clear = buildSgNasUpserts({ clearPassword: true }, "t");
     if ("error" in clear) throw new Error(clear.error);
-    expect(clear.rows.find((r) => r.key === SG_NAS_PASSWORD_KEY)?.value).toBe("");
+    expect(clear.password).toBe("");
+    expect(clear.rows.map((r) => r.key)).not.toContain(SG_NAS_PASSWORD_KEY);
 
     expect("error" in buildSgNasUpserts({ password: 5 }, "t")).toBe(true);
   });
 
-  it("saves every key in one upsert and returns no password", async () => {
-    const { db, upsert, rows } = fakeDb([{ key: SG_NAS_PASSWORD_KEY, value: "old" }]);
+  it("saves public keys in one upsert, the password only through Vault, and returns no password", async () => {
+    const { db, upsert, rows, vault } = fakeDb([], { value: "old" });
     const view = await handleSetSgNasConfig(db, { host: "h", password: PASS });
     expect(upsert).toHaveBeenCalledTimes(1);
-    expect(rows.find((r) => r.key === SG_NAS_PASSWORD_KEY)?.value).toBe(PASS);
+    expect(rows.find((r) => r.key === SG_NAS_PASSWORD_KEY)).toBeUndefined();
+    expect(vault.value).toBe(PASS);
     expect(JSON.stringify(view)).not.toContain(PASS);
     expect((await handleGetSgNasConfig(db)).passwordSet).toBe(true);
+    await handleSetSgNasConfig(db, { clearPassword: true });
+    expect(vault.value).toBe("");
+    expect((await handleGetSgNasConfig(db)).passwordSet).toBe(false);
+  });
+
+  it("agent-api reads the PopSG password from Vault, not admin_config", () => {
+    const src = readFileSync(new URL("../../agent-api/index.ts", import.meta.url), "utf8");
+    expect(src).toContain('db.rpc("get_sg_nas_password")');
+    expect(src).not.toMatch(/^\s*"WINDOWS_AGENT_SG_NAS_PASS",\s*$/m);
   });
 
   it("the PopSG settings page never reads the password key from admin_config", () => {
