@@ -20,26 +20,35 @@ const CORS_ALLOW_HEADERS = "authorization, x-client-info, apikey, content-type, 
 
 const CORS_EXPOSE_HEADERS = "X-Row-Count, Content-Disposition";
 
-const ALLOWED_ORIGIN_PATTERNS = [
-  /^https:\/\/[a-z0-9-]+\.designflow\.app$/,
-  /^https:\/\/[a-z0-9-]+\.lovable\.app$/,
-  /^http:\/\/localhost(:\d+)?$/,
-];
+// Exact browser origins allowed to call PopDAM edge functions:
+//   dam.designflow.app — PopDAM frontend
+//   sg.designflow.app  — PopSG (StyleGuides) sister app
+//   localhost / 127.0.0.1 (any port) — local dev
+// Agents, the helper, and server-to-server callers send no Origin header and
+// do not need CORS headers at all.
+const ALLOWED_ORIGINS = new Set([
+  "https://dam.designflow.app",
+  "https://sg.designflow.app",
+]);
+const LOCAL_DEV_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+export function isAllowedOrigin(origin: string | null): origin is string {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.has(origin) || LOCAL_DEV_ORIGIN.test(origin);
+}
 
 function resolveAllowedOrigin(origin: string | null): string {
-  if (!origin) return "*"; // non-browser / server-to-server request — no restriction
-  return ALLOWED_ORIGIN_PATTERNS.some((p) => p.test(origin)) ? origin : "";
+  return isAllowedOrigin(origin) ? origin : "";
 }
 
 function buildCorsHeaders(allowedOrigin: string): Record<string, string> {
   if (!allowedOrigin) return {}; // rejected origin — omit CORS headers entirely
-  const headers: Record<string, string> = {
+  return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
     "Access-Control-Expose-Headers": CORS_EXPOSE_HEADERS,
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   };
-  if (allowedOrigin !== "*") headers["Vary"] = "Origin";
-  return headers;
 }
 
 /**
@@ -68,9 +77,9 @@ export function err(message: string, status = 400): Response {
  * response.  Handles OPTIONS preflights automatically; the inner handler never
  * needs to check req.method === "OPTIONS".
  *
- * Allowed origins: *.designflow.app, *.lovable.app, localhost (any port).
- * Requests from other origins receive no CORS headers (browser will block them).
- * Non-browser requests (no Origin header) are unrestricted.
+ * Allowed origins: dam.designflow.app, sg.designflow.app, localhost (any port).
+ * Requests from other origins, and non-browser requests with no Origin header,
+ * receive no CORS headers. Every response carries Vary: Origin.
  */
 export function corsServe(handler: (req: Request) => Promise<Response>): void {
   serve(async (req: Request) => {
@@ -79,7 +88,7 @@ export function corsServe(handler: (req: Request) => Promise<Response>): void {
     const hdrs = buildCorsHeaders(allowedOrigin);
 
     if (req.method === "OPTIONS") {
-      return new Response(null, { headers: hdrs });
+      return new Response(null, { headers: { ...hdrs, Vary: "Origin" } });
     }
 
     const response = await handler(req);
@@ -92,8 +101,9 @@ export function corsServe(handler: (req: Request) => Promise<Response>): void {
     headers.delete("Access-Control-Allow-Origin");
     headers.delete("Access-Control-Allow-Headers");
     headers.delete("Access-Control-Expose-Headers");
-    headers.delete("Vary");
+    headers.delete("Access-Control-Allow-Methods");
     for (const [k, v] of Object.entries(hdrs)) headers.set(k, v);
+    headers.set("Vary", "Origin");
 
     return new Response(response.body, {
       status: response.status,
