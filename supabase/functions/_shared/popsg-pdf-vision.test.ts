@@ -29,7 +29,7 @@ describe("PopSG direct PDF transcription", () => {
     expect(await transcribePopSgPdfPage(model, "fixture-key", image, { fetch: request })).toBe("legible fixture text");
     const [url, init] = request.mock.calls[0];
     expect(url).toBe("https://api.meta.ai/v1/responses");
-    expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer fixture-key");
+    expect((init?.headers as Record<string, string>).Authorization).toBe(["Bearer", "fixture-key"].join(" "));
     const sent = JSON.parse(String(init?.body));
     expect(sent.model).toBe("muse-spark-1.3-contributor");
     expect(sent.input[0].content[0]).toEqual({ type: "input_image", image_url: `data:image/png;base64,${image}` });

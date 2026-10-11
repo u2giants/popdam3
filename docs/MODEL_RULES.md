@@ -57,7 +57,9 @@ rendered PNG page; the Meta credential remains in the edge function's
 `META_API_KEY` environment. This route uses Responses, literal transcription,
 bounded same-model Contributor-capacity retries, and the existing 60-second
 client ceiling. It never sends a `meta-direct/` identifier to OpenRouter and
-never changes the selected model. Regular OpenRouter PDF extraction is unchanged.
+never changes the selected model. A direct Meta selection requires a PopSG content
+lease; other PDF callers fail closed rather than forwarding that selection to
+OpenRouter. Regular OpenRouter PDF extraction is unchanged when selected.
 
 ### Vision Bake-Off
 - Code path: `apps/worker/src/handlers/ai-tag-bakeoff.ts`, reusing `callTagAssetModel()` from `ai-tagging-shared.ts`.

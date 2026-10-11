@@ -3546,18 +3546,23 @@ async function handleTranscribeStyleGuidePdfPage(body: Record<string, unknown>, 
   const model = String((models?.value as Record<string, unknown> | null)?.pdf_extraction ?? "").trim();
   const apiKey = Deno.env.get("META_API_KEY") ?? "";
   if (!apiKey) return err("PopSG PDF transcription provider is not configured", 503);
+  let text: string;
   try {
-    const text = await transcribePopSgPdfPage(model, apiKey, body.image_base64 as string);
-    // Completion still belongs to complete-style-guide-pdf-text. Return no
-    // transcription against a claim that changed while the provider answered.
-    const { data: current, error } = await db.from("style_guide_pdf_text")
-      .select("status,claimed_by,claim_expires_at,content_identity").eq("style_guide_file_id", fileId).maybeSingle();
-    if (error) return err("PopSG PDF content lease could not be rechecked", 503);
-    assertPopSgPdfVisionLease(current, agentId, identity);
-    return json({ ok: true, text });
+    text = await transcribePopSgPdfPage(model, apiKey, body.image_base64 as string);
   } catch (error) {
     return err((error as Error).message, 502);
   }
+  // Completion still belongs to complete-style-guide-pdf-text. Return no
+  // transcription against a claim that changed while the provider answered.
+  const { data: current, error } = await db.from("style_guide_pdf_text")
+    .select("status,claimed_by,claim_expires_at,content_identity").eq("style_guide_file_id", fileId).maybeSingle();
+  if (error) return err("PopSG PDF content lease could not be rechecked", 503);
+  try {
+    assertPopSgPdfVisionLease(current, agentId, identity);
+  } catch (error) {
+    return err((error as Error).message, 409);
+  }
+  return json({ ok: true, text });
 }
 
 async function handleClaimStyleGuidePdfText(agentId: string, agentType: string) {
