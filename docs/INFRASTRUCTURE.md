@@ -41,6 +41,8 @@ All batch AI operations are handled by a persistent Node.js worker running on Ra
 
 **Repo path:** `apps/worker/`
 
+**Verified Railway identifiers (October 11, 2026):** project `8645c5fe-ae60-413e-8464-508456c65365`, worker service `f777713f-d0f8-4f9b-9685-37c9090c98ef`, production environment `70aef28e-b9f8-4aa6-b902-c9a06aec08d5`. Recheck identity before runtime actions; these identifiers contain no credentials. A Railway deployment proves the worker only, not the served frontend.
+
 **Deployment:** Railway auto-deploys from the `main` branch on every push. No manual step required. Railway detects changes and rebuilds.
 
 **Operations handled by the Railway worker:**

@@ -1,42 +1,16 @@
 # OpenRouter Batch Restart Recovery Implementation Plan
 
-Linked handoff: [`HANDOFF.d/2026-09-24T0005Z-hetz-claude-issue-143-continuation.md`](HANDOFF.d/2026-09-24T0005Z-hetz-claude-issue-143-continuation.md)
+Linked handoff: [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md)
 
 Tracking issue: [u2giants/popdam3#92](https://github.com/u2giants/popdam3/issues/92)
 
-## STATUS
+## STATUS — read this first
 
-The original OpenRouter restart-safe implementation is deployed, and the shared
-database lease contract plus terminal-clear follow-up (#1211) are live. Production
-acceptance is still blocked because the account's only advertised OpenRouter vision
-batch route rejects images. A direct Gemini Batch alternative is implemented on branch
-`codex/issue-92-direct-gemini-batch` (worktree `/worksp/popdam-issue92-gemini-batch`).
-On 2026-09-23 it was rebased onto main and the prior review findings were fixed:
-parsed provider 400/422 submission rejections now consume the receipt through the
-governed `reset_bulk_operation_submission_lease` RPC (popcre/shared-db #3418, PR
-#3426 — merged but **not yet applied to production**); pre-POST local failures keep
-the held receipt and retry through a same-owner lease renewal; failed/cancelled/
-expired provider batches fail the operation once; temporary poll failures keep the
-same saved batch ID; every `:batch` model is limited to primary Image Tagging; and
-PDF/bake-off settings keep cached catalogs on warnings.
+**Updated October 11, 2026.** The direct-Gemini path and subsequent crash/receipt recovery code have merged, including #317. The September “unshipped branch” and reset-contract blockers are superseded; do not repeat that shipment. This session inspected production state but submitted no paid batch and recovered no protected job.
 
-**Deploy-ordering precondition (not a code defect):** the reset RPC is merged in
-popcre/shared-db #3426 and is being promoted by shared-db's governed production
-lane. #92 must not ship until it is live. If the worker ever runs first, a
-definitive rejection fails the operation visibly as `reset_contract_unavailable`
-(PGRST202) instead of sitting ambiguous.
+**Next session:** begin with Step 8: refresh current deployed code and protected job state, reconcile existing external jobs safely, then obtain the retained same-provider-ID restart/exactly-once proof. Follow current technical task/reviewer gates; paid work remains within verified owner authority. Read [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md) and current [#92](https://github.com/u2giants/popdam3/issues/92) comments. Evidence: [issue #143 closeout receipt](https://github.com/u2giants/popdam3/issues/143#issuecomment-6112766070); #92 latest acceptance comment October 11, 2026 at 11:58 AM EDT.
 
-**Owner-delegated decision (2026-09-23, reversible):** malformed answers inside a
-batch (direct Gemini and OpenRouter) go through the shared JSON-repair step on the
-SAME model, text only; no fallback to a different model. Only unrepairable items
-count as failed, each with its reason.
-
-**Next session:** confirm the branch's latest exact-head independent review verdict,
-confirm the reset RPC is applied to production (otherwise definitive rejections
-fall back to the ambiguous-submission path), then ship through PopDAM's branch
-policy and resume Step 8's controlled production proof with owner authorization.
-
-**2026-09-24 update:** the lease-reset contract merged (shared-db PR #3426, not yet in production). The #92 branch is at `4db3c4bd` with every listed finding fixed (222 worker tests pass). Codex's remaining REJECT needs the widened reset in shared-db #3464. Ship only after #3418 and #3464 are live in production and an exact-head APPROVE. At the end of each phase, re-read Steps 8-9 and the linked handoff §6, and report drift.
+**Settled decision:** malformed batch answers use JSON repair on the SAME model; do not substitute a different model. Historical September implementation detail remains in the plan body for rationale, not as current deployment status.
 
 | Step | Status | Date | Evidence |
 |---|---|---|---|
@@ -47,8 +21,9 @@ policy and resume Step 8's controlled production proof with owner authorization.
 | 5. Integrate yielding, stops, polling, and stale-run safety | ✅ done | 2026-08-20 | Receipt-gated worker path and 10-second cadence |
 | 6. Complete recovery/failure test matrix | ✅ done | 2026-08-24 | 63 worker tests, worker build, frontend build, and lint pass |
 | 7. Update operating documentation and diagnostics | ✅ done | 2026-08-20 | Four operating docs updated; waiting-state visual proof captured |
-| 8. Land, deploy, and prove a controlled production restart | 🟨 partial | 2026-08-24 | `1c042fb9` is green and live on Railway deployment `6061715659`; automated restart simulation passed, but the tiny live batch-across-restart/log artifact is still required |
-| 9. Add a settings-exposed compatible provider route | 🟨 partial | 2026-09-23 | Branch `codex/issue-92-direct-gemini-batch` implements the governed reset contract and all 2026-09-22 review findings with worker, settings and build verification; not yet shipped, and the reset RPC is not yet applied to production |
+| 8. Land, deploy, and prove a controlled production restart | 🟨 partial | 2026-10-11 | Current recovery implementation and receipt-loss fix #317 shipped. Live same-provider-ID batch crossing an ordinary restart and exactly-once clear remain unproven; protected historical jobs require governed reconciliation. |
+| 9. Add a settings-exposed compatible provider route | ✅ code shipped; live acceptance remains in Step 8 | 2026-10-11 | Direct Gemini Batch implementation has merged. Old unshipped WIP/reset-contract descriptions below are historical; do not deploy the rejected branch. |
+
 
 ## 1. The ultimate goal
 
