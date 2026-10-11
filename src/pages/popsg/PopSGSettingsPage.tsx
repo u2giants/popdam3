@@ -28,6 +28,15 @@ import {
 } from "@/components/settings/WindowsAgentTab";
 import { UsersSection, InvitationSection } from "@/components/settings/UsersTab";
 
+/** Browser-safe NAS config from admin-api; the password itself is never returned (#194). */
+interface SgNasConfigView {
+  host: string;
+  share: string;
+  mountPath: string;
+  user: string;
+  passwordSet: boolean;
+}
+
 // Lazy: the panel carries a large generated fixture; keep it out of the main bundle (#191).
 const PropertyReconciliationPanel = lazy(() =>
   import("@/features/popsg-property-reconciliation/PropertyReconciliationPanel").then((m) => ({
@@ -766,26 +775,10 @@ export default function PopSGSettingsPage() {
     },
   });
 
+  // NAS password is write-only (#194): the server returns only whether one is set.
   const { data: sgNasConfig } = useQuery({
     queryKey: ["popsg", "sg_nas_config"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("admin_config")
-        .select("key,value")
-        .in("key", [
-          "WINDOWS_AGENT_SG_NAS_HOST",
-          "WINDOWS_AGENT_SG_NAS_SHARE",
-          "WINDOWS_AGENT_SG_NAS_MOUNT_PATH",
-          "WINDOWS_AGENT_SG_NAS_USER",
-          "WINDOWS_AGENT_SG_NAS_PASS",
-        ]);
-      if (error) throw error;
-      const map: Record<string, string> = {};
-      for (const row of data ?? []) {
-        if (typeof row.value === "string") map[row.key] = row.value;
-      }
-      return map;
-    },
+    queryFn: () => callAdminApi("get-sg-nas-config") as Promise<SgNasConfigView>,
   });
 
   const [sgNasHost, setSgNasHost] = useState("");
@@ -798,35 +791,27 @@ export default function PopSGSettingsPage() {
 
   useEffect(() => {
     if (sgNasConfig !== undefined && !sgNasConfigInitialized) {
-      setSgNasHost(sgNasConfig["WINDOWS_AGENT_SG_NAS_HOST"] ?? "");
-      setSgNasShare(sgNasConfig["WINDOWS_AGENT_SG_NAS_SHARE"] ?? "");
-      setSgMountPath(sgNasConfig["WINDOWS_AGENT_SG_NAS_MOUNT_PATH"] ?? "");
-      setSgNasUser(sgNasConfig["WINDOWS_AGENT_SG_NAS_USER"] ?? "");
-      setSgNasPass(sgNasConfig["WINDOWS_AGENT_SG_NAS_PASS"] ?? "");
+      setSgNasHost(sgNasConfig.host ?? "");
+      setSgNasShare(sgNasConfig.share ?? "");
+      setSgMountPath(sgNasConfig.mountPath ?? "");
+      setSgNasUser(sgNasConfig.user ?? "");
       setSgNasConfigInitialized(true);
     }
   }, [sgNasConfig, sgNasConfigInitialized]);
 
   const saveMountPath = useMutation({
     mutationFn: async () => {
-      const entries = [
-        { key: "WINDOWS_AGENT_SG_NAS_HOST", value: sgNasHost.trim() },
-        { key: "WINDOWS_AGENT_SG_NAS_SHARE", value: sgNasShare.trim() },
-        { key: "WINDOWS_AGENT_SG_NAS_MOUNT_PATH", value: sgMountPath.trim().replace(/\\+$/, "") },
-        { key: "WINDOWS_AGENT_SG_NAS_USER", value: sgNasUser.trim() },
-        { key: "WINDOWS_AGENT_SG_NAS_PASS", value: sgNasPass },
-      ];
-      for (const entry of entries) {
-        const { data, error } = await supabase.from("admin_config").upsert({
-          key: entry.key,
-          value: entry.value,
-          updated_at: new Date().toISOString(),
-        }).select("key");
-        if (error) throw error;
-        if (!data || data.length === 0) throw new Error(`Save was blocked for config key "${entry.key}" — you may not have permission`);
-      }
+      await callAdminApi("set-sg-nas-config", {
+        host: sgNasHost,
+        share: sgNasShare,
+        mountPath: sgMountPath,
+        user: sgNasUser,
+        // Empty means "keep the stored password".
+        ...(sgNasPass ? { password: sgNasPass } : {}),
+      });
     },
     onSuccess: () => {
+      setSgNasPass("");
       toast.success("Style guide NAS config saved");
       queryClient.invalidateQueries({ queryKey: ["popsg", "sg_nas_config"] });
     },
@@ -1023,11 +1008,17 @@ export default function PopSGSettingsPage() {
                   />
                 </div>
                 <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-medium text-muted-foreground">NAS Password</label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    NAS Password{" "}
+                    <span data-testid="sg-nas-pass-status">
+                      ({sgNasConfig?.passwordSet ? "set" : "not set"})
+                    </span>
+                  </label>
                   <div className="flex gap-2">
                     <Input
                       type={showSgPass ? "text" : "password"}
-                      placeholder="password"
+                      placeholder={sgNasConfig?.passwordSet ? "Leave blank to keep current password" : "password"}
+                      autoComplete="new-password"
                       value={sgNasPass}
                       onChange={(e) => setSgNasPass(e.target.value)}
                       className="font-mono text-xs"
