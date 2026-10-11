@@ -38,7 +38,7 @@ import {
 } from "../batch-provider.js";
 import { PreSubmissionError } from "../batch-submission-error.js";
 import { RepairNotAuthorizedError, RepairUnavailableError, safeRepairReason, structuredBatchResult } from "../batch-result-repair.js";
-import { ApplyWriteError, MAX_APPLY_WRITE_ATTEMPTS } from "./ai-tagging-batch-state.js";
+import { ApplyWriteError, clearRequestJob, MAX_APPLY_WRITE_ATTEMPTS } from "./ai-tagging-batch-state.js";
 import type { BatchResult, OpState } from "../types.js";
 import { AiTagCursorError, decodeAiTagCursor, encodeAiTagCursor } from "../ai-tag-cursor.js";
 import { getAiRetryPageSize } from "../operation-retry.js";
@@ -582,11 +582,7 @@ async function handleDurableBatchTag(
       tagged: 0,
       skipped: 0,
       failed: 0,
-      external_job: {
-        ...job,
-        lease_token: action.leaseToken,
-        clear_after_reconciliation: true,
-      },
+      external_job: clearRequestJob(job, action.leaseToken),
       last_stage: "state_persist",
     };
   }

@@ -1356,7 +1356,9 @@ export async function tick(): Promise<void> {
       if (protectedErrorState.status === "failed") await recordStyleGroupTerminalOutcome(opKey, protectedErrorState, "failed");
       return;
     }
-    if (resultJob?.lease_token && currentState.external_job) {
+    // A receipt-proven write, or the governed receipt-less clear of a completed
+    // job whose lease expired after a crash (shared-db #3543).
+    if ((resultJob?.lease_token || resultJob?.clear_after_reconciliation) && currentState.external_job) {
       const guardedState: OpState = {
         ...currentState,
         status: result.done ? "completed" : "running",
@@ -1368,12 +1370,17 @@ export async function tick(): Promise<void> {
       const saved = await guardedPersistOpState(opKey, guardedState, {
         expectedRevision: currentState.state_revision ?? 0,
       });
+      if (!saved.ok && saved.reason === "already_cleared" && resultJob.clear_after_reconciliation) {
+        // Idempotent repeat clear: another tick already cleared this job.
+        submissionLeaseTokens.delete(opKey);
+        return;
+      }
       if (!saved.ok) throw new Error(`Protected provider state save refused: ${saved.reason}`);
       if (result.done || resultJob.clear_after_reconciliation) {
         submissionLeaseTokens.delete(opKey);
         return;
       }
-      if (resultJob.phase === "completed") {
+      if (resultJob.phase === "completed" && resultJob.lease_token) {
         // Clear right away while this worker still holds the receipt. The
         // database only clears a stored "completed" job with a live receipt and
         // never re-issues one for it, so waiting for the next tick would leave a

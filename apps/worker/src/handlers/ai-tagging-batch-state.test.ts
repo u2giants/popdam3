@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { indexBatchResults, isNewBatchVisibilityDelay, nextBatchAction } from "./ai-tagging-batch-state.js";
+import { clearRequestJob, indexBatchResults, isNewBatchVisibilityDelay, nextBatchAction } from "./ai-tagging-batch-state.js";
 
 test("restart with a saved batch ID claims polling ownership instead of submitting", () => {
   assert.deepEqual(nextBatchAction({ phase: "pending", provider_batch_id: "batch-1" }, Date.now()), {
@@ -15,7 +15,6 @@ test("restart claims resume paid pending, applying, and completed jobs without c
   for (const [phase, expected] of [
     ["pending", "poll"],
     ["applying", "apply"],
-    ["completed", "clear"],
   ] as const) {
     const saved = { phase, provider_batch_id: "paid-batch" };
     assert.equal(nextBatchAction(saved).type, "claim");
@@ -102,7 +101,23 @@ test("completed work clears only with the saved ID and receipt", () => {
     provider_batch_id: "batch-1",
     lease_token: "receipt",
   }), { type: "clear", batchId: "batch-1", leaseToken: "receipt" });
-  assert.equal(nextBatchAction({ phase: "completed", provider_batch_id: "batch-1" }).type, "claim");
+});
+
+test("a completed job that lost its receipt waits for lease expiry, then clears without a receipt (#3543)", () => {
+  const now = Date.parse("2026-10-11T12:00:00Z");
+  const live = { phase: "completed" as const, provider_batch_id: "batch-1", lease_expires_at: "2026-10-11T12:01:00Z" };
+  assert.deepEqual(nextBatchAction(live, now), { type: "wait" });
+  const expired = { ...live, lease_expires_at: "2026-10-11T11:59:00Z" };
+  assert.deepEqual(nextBatchAction(expired, now), { type: "clear", batchId: "batch-1" });
+  assert.equal(nextBatchAction({ phase: "completed", provider_batch_id: "batch-1" }, now).type, "blocked");
+  assert.equal(nextBatchAction({ ...expired, provider_batch_id: undefined }, now).type, "blocked");
+});
+
+test("clear request offers the exact stored job, adding a receipt only when held", () => {
+  const stored = { phase: "completed" as const, provider_batch_id: "batch-1", lease_expires_at: "2026-10-11T11:59:00Z" };
+  assert.deepEqual(clearRequestJob(stored), { ...stored, clear_after_reconciliation: true });
+  assert.deepEqual(clearRequestJob(stored, "r"), { ...stored, lease_token: "r", clear_after_reconciliation: true });
+  assert.equal("lease_token" in clearRequestJob({ ...stored, lease_token: "stale" }), false);
 });
 
 test("a paused apply waits for its retry time, then applies the same saved batch", () => {
