@@ -128,3 +128,21 @@ export async function runSteppableSgRefresh(
 // the contract is restart-safe. The smaller batch preserves the same guard and
 // continuation semantics without increasing the statement ceiling.
 export const SG_RECONCILE_BATCH_SIZE = 250;
+
+/** Wait between retries of a refresh step that hit the API statement ceiling. */
+export const SG_REFRESH_TIMEOUT_RETRY_MS = 5_000;
+/** Total time after ingest completion during which timed-out refresh steps are retried. */
+export const SG_REFRESH_TIMEOUT_RETRY_WINDOW_MS = 15 * 60_000;
+
+/**
+ * A matview refresh step that hit the statement timeout is restart-safe, so it
+ * is retried through the bridge continuation loop until the window after ingest
+ * completion closes. Any other error, or a timeout after the window, fails the run.
+ */
+export function shouldRetrySgRefreshTimeout(error: string, ingestCompletedAt: string, nowMs: number): boolean {
+  const message = error.toLowerCase();
+  if (!message.includes("statement timeout") && !message.includes("57014")) return false;
+  const startedMs = Date.parse(ingestCompletedAt);
+  if (!Number.isFinite(startedMs)) return false;
+  return nowMs - startedMs < SG_REFRESH_TIMEOUT_RETRY_WINDOW_MS;
+}
