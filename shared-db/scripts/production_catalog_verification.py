@@ -157,6 +157,8 @@ from production_migration_guard import (  # noqa: E402
     GuardError,
     local_migrations,
     parse_allowlist,
+    LEDGER_NAMES,
+    migration_target_for_ledger,
     parse_remote_versions,
     strip_sql,
 )
@@ -3983,13 +3985,14 @@ def verify(
     enforcing: bool,
     api: str = MANAGEMENT_API,
     remote_ledger: Path | None = None,
+    ledger_name: str = "production",
 ) -> int:
     remote = (
         parse_remote_versions(remote_ledger)
         if remote_ledger is not None
         else frozenset()
     )
-    allowlist = parse_allowlist(raw_allowlist, remote)
+    allowlist = parse_allowlist(raw_allowlist, remote, migration_target_for_ledger(ledger_name))
     migrations = local_migrations(repo)
     targets = derive_targets(migrations, allowlist)
     behavior_checks = load_behavior_sidecars(repo, migrations, allowlist)
@@ -4127,6 +4130,7 @@ def main() -> int:
     parser.add_argument("--allowlist", required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--project-ref", required=True)
+    parser.add_argument("--ledger-name", choices=LEDGER_NAMES, default="production")
     parser.add_argument(
         "--remote-ledger",
         type=Path,
@@ -4165,6 +4169,7 @@ def main() -> int:
             token,
             enforcing=args.mode == "enforce",
             remote_ledger=args.remote_ledger,
+            ledger_name=args.ledger_name,
         )
     except (GuardError, OSError) as exc:
         print(f"CATALOG VERIFICATION BLOCKED: {exc}", file=sys.stderr)

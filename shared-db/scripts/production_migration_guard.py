@@ -65,6 +65,11 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    "20261001122410",
+    # #2508: replaced originals; immutable successor provenance and live ledger verified.
+    "20260914061331",
+    "20260930212107",
+    "20261007143431",
     # #4060: merged PR4063 carries no PR-owned evidence pair, so its production
     # risk review cannot bind. Preview applied it. Claim4062 was reissued; only
     # forward replacement 20261009064439 may apply.
@@ -292,6 +297,10 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261001122410": "#3859 / #3948: preview-era PR3862 original replaced by production-path successor 20261006004845 (PR3951), applied automatically in run37400719394; immutable successor header pins the same static index statement. Live production successor ledger and exact btree(company_code,prod_order_no) index reverified October11,2026. Preserve original SQL; never promote original.",
+    "20260914061331": "#2879 / #2885: production run 34819885746 refused original PR2882 provenance; #2885 forbids reuse of this version. Forward replacement 20260914075758 applied in run34834533519; live production ledger reverified October11,2026. Preserve original SQL and preview ledger; never promote original.",
+    "20260930212107": "#3234: preview-era PR3852 original replaced by production-path successor 20261005044103, applied run37292826682; source issue records complete live constraint proof. Live production successor ledger reverified October11,2026. Preserve original SQL and preview ledger; never promote original.",
+    "20261007143431": "#4037: PR4033 original never promoted; claim4038 reissued as production-path successor 20261007171252 (successor header pins byte-identical function body), applied run37669223667. Live successor ledger reverified October11,2026. Preserve original SQL; never promote original.",
     "20261009040550": "unpromotable producer provenance: original preview apply 37889697610 dispatched at 118561faaad54fd6bc477641e7a97bbf4c9db143 carried production_migration_guard.py blob bbbba660c9b329ddf35d58d28a31273f0f43b606, different from authored PR4119 merge bb03f7a54e90a7989347c40596249595b328d9fd blob 86d4f7ac1240460f5458ad8795c7ffa7a87971eb; historical recovery 37894367587 preview succeeded but automatic qualification refused dual producer pin. Preview already applied 090; production never applied it. Preserve immutable SQL and original evidence; supported same-owner claim 4117 retirement 6d51aceaff9424211fd320510ff07746ef5bca9c reissues byte-identical canonical replacement 20261009064439 under original issue 4060. Never apply retired090 again.",
     "20261008160444": "merged-stranded: PR4075 head38b6ade1b79f1c2fac869783b03ea23cc0df17ce has immutable production-risk REVISE; audit4116 and retirementd3fa4a2e7573abb5904b10f8e713a8b04880357e preserve source, never apply; claim4117 reserves canonical replacement20261009064439 under issue4060",
     "20261007232712": "merged-stranded: PR4063 head e42418b1b9dfcb271f81c06a058cb53567302de3 merged without a PR-owned evidence pair, so the post-merge production-risk review cannot bind; preview applied it in run37706126189; production never applied it; retain source and preview ledger, never apply this version; claim4062 reissued through immutable retirement589067baf4bdabe95b09dcedbe1e3f87106ee3f5 to never-applied20261008160444, now retired by audit4116 / d3fa4a2e7573abb5904b10f8e713a8b04880357e; canonical forward replacement20261009064439 under issue4060",
@@ -372,6 +381,31 @@ PREVIEW_ONLY_HISTORICAL_RESTORATIONS = {
 KNOWN_MIGRATION_TARGETS = frozenset({"production", "preview", "designflow-nonprod"})
 
 FOREIGN_TARGET_MIGRATIONS = {
+    "20261002135053": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#3869",
+        "note": "PR#3873, source issue #3869 and immutable generation 2 contract scope this link change to DesignFlow sandbox only. Source instructions prohibit shared production/preview apply. Exact version confirmed in sandbox ledger October11,2026. This is target scope, not retirement; it remains in-scope on designflow-nonprod.",
+    },
+    "20261002224215": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#3869",
+        "note": "PR#3915, source issue #3869 and immutable generation 5 contract scope this link change to DesignFlow sandbox only. Source instructions prohibit shared production/preview apply. Exact version confirmed in sandbox ledger October11,2026. This is target scope, not retirement; it remains in-scope on designflow-nonprod.",
+    },
+    "20261006164244": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#3869",
+        "note": "PR#3970, source issue #3869 and immutable generation 6 contract scope this link change to DesignFlow sandbox only. Source instructions prohibit shared production/preview apply. Exact version confirmed in sandbox ledger October11,2026. This is target scope, not retirement; it remains in-scope on designflow-nonprod.",
+    },
+    "20261009170724": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#3869",
+        "note": "PR#4143, source issue #3869 and immutable generation 9 contract scope this link change to DesignFlow sandbox only. Source instructions prohibit shared production/preview apply. Exact version confirmed in sandbox ledger October11,2026. This is target scope, not retirement; it remains in-scope on designflow-nonprod.",
+    },
+
     "20260909121403": {
         "target": "designflow-nonprod",
         "project": (
@@ -1107,7 +1141,7 @@ def assert_atomic_batches(allowlist: list[str], remote: set[str]) -> None:
         )
 
 
-def parse_allowlist(raw: str, remote: set[str] | frozenset[str] = frozenset()) -> list[str]:
+def parse_allowlist(raw: str, remote: set[str] | frozenset[str] = frozenset(), target: str = "production") -> list[str]:
     """Parse and policy-check a production allowlist.
 
     ``remote`` is the real production ledger when the caller has one. It is
@@ -1117,6 +1151,8 @@ def parse_allowlist(raw: str, remote: set[str] | frozenset[str] = frozenset()) -
     ``production_catalog_verification``) keep the STRICTER ledger-blind
     behaviour. Defaulting to "no ledger" fails closed, never open.
     """
+    if target not in KNOWN_MIGRATION_TARGETS:
+        raise GuardError(f"unknown migration target: {target}")
     items = raw.split(",")
     if not items or any(not item.strip() for item in items):
         raise GuardError("production allowlist is empty")
@@ -1139,7 +1175,7 @@ def parse_allowlist(raw: str, remote: set[str] | frozenset[str] = frozenset()) -
     # single choke point every promotion subcommand must call, so no subcommand
     # can route around it. Derived from the registry, never a version literal.
     foreign = sorted(
-        value for value in values if foreign_target_entry(value, "production") is not None
+        value for value in values if foreign_target_entry(value, target) is not None
     )
     if foreign:
         details = "; ".join(
@@ -1578,6 +1614,12 @@ def assert_content_manifest(directory: Path) -> None:
 # The ledgers the shared guard can be pointed at. Only used to word refusals
 # truthfully; every check runs identically whichever ledger was read.
 LEDGER_NAMES = ("production", "preview", "sandbox")
+
+def migration_target_for_ledger(ledger_name: str) -> str:
+    """Named policy target only; never replaces the workflow connection proof."""
+    if ledger_name not in LEDGER_NAMES:
+        raise GuardError(f"unknown ledger name: {ledger_name}")
+    return "designflow-nonprod" if ledger_name == "sandbox" else ledger_name
 
 
 def validate_candidates(
@@ -2450,7 +2492,7 @@ def preflight(
     ledger_name: str = "production",
 ) -> None:
     remote = parse_remote_versions(ledger)
-    allowlist = parse_allowlist(raw_allowlist, remote)
+    allowlist = parse_allowlist(raw_allowlist, remote, migration_target_for_ledger(ledger_name))
     migrations = local_migrations(repo)
     validate_candidates(migrations, allowlist, remote, derivation_overrides, ledger_name)
     preflight_batch(migrations, allowlist, remote)
@@ -2471,7 +2513,7 @@ def prepare(
     ledger_name: str = "production",
 ) -> None:
     remote = parse_remote_versions(ledger)
-    allowlist = parse_allowlist(raw_allowlist, remote)
+    allowlist = parse_allowlist(raw_allowlist, remote, migration_target_for_ledger(ledger_name))
     migrations = local_migrations(repo)
     validate_candidates(migrations, allowlist, remote, derivation_overrides, ledger_name)
     # AGENTS.md section 6.8: the whole batch must be proven runnable end to end
@@ -2504,6 +2546,7 @@ def assert_bounded(
     raw_allowlist: str,
     ledger: Path,
     derivation_overrides: dict[tuple[str, str], str] | None = None,
+    ledger_name: str = "production",
 ) -> None:
     """Re-prove that a checkout is still bounded, immediately before it is pushed.
 
@@ -2514,7 +2557,7 @@ def assert_bounded(
     result computed earlier in the job.
     """
     remote = parse_remote_versions(ledger)
-    allowlist = parse_allowlist(raw_allowlist, remote)
+    allowlist = parse_allowlist(raw_allowlist, remote, migration_target_for_ledger(ledger_name))
     # Re-prove atomicity at the point of use too, for the same reason this
     # function re-proves boundedness: `prepare` and the push are separate steps.
     assert_atomic_batches(allowlist, remote)
@@ -2548,14 +2591,14 @@ def assert_bounded(
     )
 
 
-def verify_dry_run(path: Path, raw_allowlist: str, ledger: Path | None = None) -> None:
+def verify_dry_run(path: Path, raw_allowlist: str, ledger: Path | None = None, ledger_name: str = "production") -> None:
     # `ledger` is OPTIONAL and only feeds the ledger-aware co-presence rule.
     # Omitting it keeps the stricter ledger-blind behaviour, which fails closed.
     # The lane workflow passes it so an already-applied required fix does not
     # deadlock this step after `prepare` and `preflight` have already accepted
     # the same allowlist.
     remote = parse_remote_versions(ledger) if ledger is not None else frozenset()
-    allowlist = parse_allowlist(raw_allowlist, remote)
+    allowlist = parse_allowlist(raw_allowlist, remote, migration_target_for_ledger(ledger_name))
     raw = path.read_text(encoding="utf-8")
     marker = "Would push these migrations:"
     if marker not in raw:
@@ -2612,6 +2655,7 @@ def main() -> int:
     bounded.add_argument("--dir", dest="directory", type=Path, required=True)
     bounded.add_argument("--allowlist", required=True)
     bounded.add_argument("--remote-ledger", type=Path, required=True)
+    bounded.add_argument("--ledger-name", choices=LEDGER_NAMES, default="production")
     _add_derivation_override(bounded)
     verify = subs.add_parser("verify-dry-run")
     verify.add_argument("--dry-run-output", type=Path, required=True)
@@ -2624,6 +2668,7 @@ def main() -> int:
     # asserting they always will.
     verify.add_argument("--remote-ledger", type=Path, required=True)
     verify.add_argument("--allowlist", required=True)
+    verify.add_argument("--ledger-name", choices=LEDGER_NAMES, default="production")
     args = parser.parse_args()
     try:
         overrides = parse_overrides(getattr(args, "derivation_override", []))
@@ -2644,10 +2689,10 @@ def main() -> int:
             )
         elif args.command == "assert-bounded":
             assert_bounded(
-                args.directory.resolve(), args.allowlist, args.remote_ledger, overrides
+                args.directory.resolve(), args.allowlist, args.remote_ledger, overrides, args.ledger_name
             )
         else:
-            verify_dry_run(args.dry_run_output, args.allowlist, args.remote_ledger)
+            verify_dry_run(args.dry_run_output, args.allowlist, args.remote_ledger, args.ledger_name)
     except (GuardError, DerivationError, OSError, subprocess.CalledProcessError) as exc:
         print(f"BLOCKED: {exc}", file=sys.stderr)
         return 1

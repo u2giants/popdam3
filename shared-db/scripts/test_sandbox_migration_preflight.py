@@ -171,6 +171,16 @@ class WorkflowInvariantTests(unittest.TestCase):
     def test_allowlist_gate_runs_before_any_github_or_database_read(self) -> None:
         self.assertLess(WORKFLOW.index("- name: Sandbox allowlist gate"), WORKFLOW.index("- name: Bind the source PR"))
 
+    def test_every_shared_guard_call_names_sandbox_without_replacing_identity_proof(self):
+        commands = re.findall(r"python[^\n]*(?:production_migration_guard|production_catalog_verification)\.py[^\n]*", WORKFLOW.replace("\\\n", " "))
+        self.assertEqual(len(commands), 6)
+        for command in commands:
+            self.assertIn("--ledger-name sandbox", command)
+        step = WORKFLOW.split("- name: Bounded dry-run, then apply in apply mode", 1)[1].split("\n      - name:", 1)[0]
+        self.assertLess(step.index('cat supabase/.temp/project-ref'), step.index('supabase db push --include-all'))
+        self.assertIn('!= "$SANDBOX_PROJECT_REF"', step)
+        self.assertIn("sandbox_migration_preflight.py identity", WORKFLOW)
+
     def test_apply_requires_prior_dry_run_and_post_apply_proofs(self) -> None:
         for needle in ("dry_run_run_id", "check-exact-head-approval.mjs", "sandbox-migration-binding.mjs --source-pr", "sandbox-migration-binding.mjs --dry-run-run", "sandbox_migration_preflight.py collisions",
                        "sandbox_migration_preflight.py identity", "verify-ledger", "production_catalog_verification.py",

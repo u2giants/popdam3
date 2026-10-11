@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "work_issue": 2508,
+  "generation": 7,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Preserve approved generation6 scope and repair direct-invocation test placement; revalidate isolated reviewer test failures with exact identity and evidence.",
+  "base_sha": "1f5f9746314d09212dde4901315f1695a8509bc6",
+  "dispatcher": "Codex parent chat 01a12b01-aaac-7551-8860-61a4384a25b0 exact approved seven-version scope",
+  "worker": "Codex ledger_indexes subagent",
+  "branch": "codex/2508-classifier-recovery",
+  "worktree": "/home/ahazan/.codex/worktrees/3bd9-ledger/shared-db",
+  "allowed_paths": [
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    ".github/workflows/designflow-sandbox-migrations.yml",
+    "scripts/test_sandbox_migration_preflight.py",
+    ".agent/work/2508/6/contract.json",
+    ".agent/work/2508/6/completion.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    ".agent/work/2508/7/contract.json",
+    ".agent/work/2508/7/completion.json"
+  ],
+  "file_writes": [
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    ".github/workflows/designflow-sandbox-migrations.yml",
+    "scripts/test_sandbox_migration_preflight.py",
+    ".agent/work/2508/4/contract.json",
+    ".agent/work/2508/4/completion.json",
+    ".agent/work/2508/5/contract.json",
+    ".agent/work/2508/5/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No immutable migration edits or database/ledger mutations",
+    "No bulk apply or target-proof bypass",
+    "Default production and explicit preview deny foreign-target versions; unknown target names refuse"
+  ],
+  "required_checks": [
+    "python3 -m unittest discover -s scripts -p test_*.py",
+    "node --test scripts/check-migration-ledger-drift.test.mjs scripts/report-ledger-drift-status.test.mjs"
+  ],
+  "assumptions": [
+    "Exact replacement versions proven in production ledger",
+    "Four exact foreign-target versions proven in DesignFlow sandbox ledger and durable source contracts",
+    "Generation3 pair retired from PR diff; generation4 includes companion exact-retired-set regression expectation",
+    "Fourth replacement20261006004845 applied run37400719394 with exact live index and ledger verified; parent approves named sandbox capability preservation after GLM findings",
+    "Parent approves exact detector hash refresh only when independently derived old/new dynamic marker inventory matches and all other baseline fields remain unchanged",
+    "Parent approves moving catalog safety test before unittest.main and exact remote-less reviewer reproduction; no review capacity reset without real repair"
+  ],
+  "stop_conditions": [
+    "Stop if scope requires any additional excluded version or immutable migration edit"
+  ],
+  "evidence_parent": {
+    "work_issue": 2508,
+    "generation": 6,
+    "contract_sha256": "816aed6ef8c10f5f378aeaf9e6768a292c163975444055cb9b3a0acabdbf6945"
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "work_issue": 2508,
+  "outcome": "ready-for-merge",
+  "pr": 4157,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2508/7",
+  "contract_sha256": "1d26dd78a5e30f5d9d97150439c528d3e917ae43b2666ec154014b5fd072b58f",
+  "head_sha": "8f2d9b15cb231850f510effdf902ab6e61a7bfb0",
+  "base_sha": "1f5f9746314d09212dde4901315f1695a8509bc6",
+  "files_changed": [
+    ".github/workflows/designflow-sandbox-migrations.yml",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_sandbox_migration_preflight.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_*.py",
+      "exit_code": 0,
+      "evidence": "1485 tests pass,43 environment-specific skips; sandbox prepare/bounded/dry-run/catalog path and production/preview/unknown denials tested"
+    },
+    {
+      "command": "node --test scripts/check-migration-ledger-drift.test.mjs scripts/report-ledger-drift-status.test.mjs",
+      "exit_code": 0,
+      "evidence": "64 tests pass; six genuine shared pending versions preserved"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/*.test.mjs",
+      "exit_code": 0,
+      "evidence": "72 tests pass"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "335 call sites,94 sources; unchanged marker inventory independently proved775 files108 matches,106historicalrows identical"
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "OK74 sidecars; enforced versions and all baseline fields except detector hash unchanged"
+    },
+    {
+      "command": "python3 scripts/test_production_catalog_verification.py",
+      "exit_code": 0,
+      "evidence": "240 tests including new SandboxTargetCatalogSafetyTests run directly"
+    },
+    {
+      "command": "exact bf0a5555 remote-less bubblewrap snapshot64/72 Node test suites with disposable Python3 alias and verified repository identity",
+      "exit_code": 0,
+      "evidence": "Before64=56pass8fail,72=61pass11fail; every failure spawnSync python ENOENT. Identity alone preserves failure. Disposable-only python symlink to existing /usr/bin/python3+PATH yields64/64 and72/72; no reviewed source change; no network or credentials"
+    }
+  ],
+  "assumptions_resolved": [
+    "Four exact retirement successors verified by immutable source, successful production runs and live ledger",
+    "Four sandbox-only immutable contracts and sandbox live ledger verified",
+    "Existing sandbox connection identity proof retained; named flags grant no database authority",
+    "No immutable SQL or database ledger changes",
+    "DeepSeek REVISE a04f2cce reproduced exactly; missing python alias in cleared-environment review sandbox resolved with disposable runtime alias, no host changes"
+  ],
+  "stop_conditions_hit": []
+}
