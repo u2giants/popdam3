@@ -938,7 +938,7 @@ test('#498-17 live head is injected, a stale named head or stale prompt verdict 
 })
 
 // Issue #3027 Step 7: the durable start marker is written before the provider launches and fails closed.
-import { recordReviewStart, reviewStartedRef } from './run-governed-review.mjs'
+import { recordReviewStart, reviewStartedRef, validateReviewContinuation, persistentReviewCommand } from './run-governed-review.mjs'
 test('review start marker is recorded before the provider spawns, and a failed record starts nothing',()=>{
   const order=[]
   assert.throws(()=>runGovernedReview(options,{preflight:()=>{},resolve:(name)=>name,recordStart:()=>{order.push('start');throw new Error('review start marker could not be recorded; no reviewer was started')},spawn:()=>{order.push('spawn');return{status:1,stdout:''}},record:()=>assert.fail('must not record')}),/no reviewer was started/)
@@ -952,8 +952,8 @@ test('review start marker is recorded before the provider spawns, and a failed r
   const refs=new Map(),commits=new Map(),io={makeOwnerCommit:(message)=>{const sha=String(commits.size+1).padStart(40,'c');commits.set(sha,{message});return sha},createRef:(r,sha)=>{if(refs.has(r))return false;refs.set(r,sha);return true},readRef:(r)=>refs.get(r)??null,getCommit:(sha)=>commits.get(sha)??null}
   assert.equal(recordReviewStart(req,io,123,held),ref)
   assert.match(commits.get(refs.get(ref)).message,/^db-coordination review-started issue=1 pr=2 .* sequence=7 /)
-  // A retry of the same lease finds its own marker and proceeds.
-  assert.equal(recordReviewStart(req,io,124,held),ref)
+  // A repeated new paid launch cannot reuse the same started draw.
+  assert.throws(()=>recordReviewStart(req,io,124,held),/another new paid launch is refused/)
   // A lease the unstarted reclaim already returned owns the marker with its release commit: nothing starts.
   refs.set(ref,'r'.repeat(40));commits.set('r'.repeat(40),{message:'db-coordination reviewer-silence-release reviewer=kimi'})
   assert.throws(()=>recordReviewStart(req,io,125,held),/occupied by a reclaim/)
@@ -1303,4 +1303,84 @@ test('#3810: the failure log is written privately and without clobbering',()=>{
     if(process.platform!=='win32')assert.equal(statSync(file).mode&0o777,0o600)
     assert.equal(redactWrapperStderr('SECRET_X: abcdefgh'),'SECRET_X=[REDACTED]')
   }finally{rmSync(dir,{recursive:true,force:true})}
+})
+
+
+test('real protected named continuation binds original receipt, session and exact source',()=>{
+ const root=mkdtempSync(join(tmpdir(),'governed-continuation-')),home=join(root,'home'),name='stable-review',head='a'.repeat(40),source='d'.repeat(64),packet='e'.repeat(64)
+ const env={AI_MUSE_CALLER:'codex'},remote='https://github.com/popcre/shared-db.git'
+ const rid=createHash('sha256').update(`${root}\n${remote}`).digest('hex').slice(0,12)
+ const dir=join(home,'.local','state','ai-devops','muse','sessions',rid),reviews=join(root,'.ai','reviews'),receiptPath=join(reviews,'governed-source-12345678.json')
+ mkdirSync(dir,{recursive:true});mkdirSync(reviews,{recursive:true})
+ const metaPath=join(dir,'codex--stable-review.json'),meta={name,caller:'codex',repository_root:root,session_id:'protected-session-1',head,packet_sha256:packet}
+ const receipt={schema_version:1,identity:{repository:root,base:'c'.repeat(40),head,source_digest:source},packet_sha256:packet}
+ writeFileSync(metaPath,JSON.stringify(meta),{mode:0o600});writeFileSync(receiptPath,JSON.stringify(receipt),{mode:0o600})
+ const request={wrapper:'ai-muse',wrapperArgs:['ask',name],worktree:root,headSha:head,sourceIdentity:{headSha:head,mergeBase:'c'.repeat(40),sourceDigest:source}}
+ const marker=`db-coordination review-started issue=1 pr=2 head=${head} slot=1 sequence=1 reviewer=muse-spark-1.3-contributor at=2026-10-06T18:00:00Z session=${name} receipt-path=sha256:${createHash('sha256').update(receiptPath).digest('hex')} source=sha256:${source}`
+ const deps={home,env,git:()=>remote}
+ try {
+  assert.equal(validateReviewContinuation(request,marker,deps).sessionId,'protected-session-1')
+  assert.throws(()=>validateReviewContinuation({...request,wrapperArgs:['new',name]},marker,deps),/new paid launch/)
+  assert.throws(()=>validateReviewContinuation({...request,wrapperArgs:['ask','wrong-session']},marker,deps),/session or trusted source/)
+  assert.throws(()=>validateReviewContinuation(request,marker.replace(source,'f'.repeat(64)),deps),/session or trusted source/)
+  assert.throws(()=>validateReviewContinuation(request,marker.replace(/receipt-path=sha256:[a-f0-9]+/,'receipt-path=sha256:'+ 'f'.repeat(64)),deps),/receipt is missing/)
+  writeFileSync(metaPath,JSON.stringify({...meta,head:'b'.repeat(40)}));assert.throws(()=>validateReviewContinuation(request,marker,deps),/binding is invalid/)
+  writeFileSync(metaPath,JSON.stringify({...meta,packet_sha256:'f'.repeat(64)}));assert.throws(()=>validateReviewContinuation(request,marker,deps),/packet differs/)
+  writeFileSync(metaPath,'broken');assert.throws(()=>validateReviewContinuation(request,marker,deps))
+  rmSync(metaPath);assert.throws(()=>validateReviewContinuation(request,marker,deps),/metadata is missing/)
+  assert.throws(()=>validateReviewContinuation(request,marker.split(' session=')[0],deps),/legacy.*paused and recoverable/)
+ } finally {rmSync(root,{recursive:true,force:true})}
+})
+
+test('DeepSeek generated session requires wrapper-bound original receipt',()=>{
+ const root=mkdtempSync(join(tmpdir(),'deepseek-continuation-')),head='a'.repeat(40),source='d'.repeat(64),packet='e'.repeat(64),sid='generated-session'
+ const reviews=join(root,'.ai','reviews'),sessions=join(root,'.ai','deepseek-sessions');mkdirSync(reviews,{recursive:true});mkdirSync(sessions,{recursive:true})
+ const receiptPath=join(reviews,'governed-source-generated.json'),metaPath=join(sessions,`${sid}.meta.json`)
+ const receipt={schema_version:1,identity:{repository:root,base:'c'.repeat(40),head,source_digest:source},packet_sha256:packet}
+ const meta={caller:'codex',repository_root:root,session_id:sid,head,packet_sha256:packet}
+ writeFileSync(metaPath,JSON.stringify(meta),{mode:0o600});writeFileSync(receiptPath,JSON.stringify(receipt),{mode:0o600})
+ const request={wrapper:'ai-deepseek-agent',wrapperArgs:['reply',sid,'continue'],worktree:root,headSha:head,sourceIdentity:{headSha:head,mergeBase:'c'.repeat(40),sourceDigest:source}}
+ const marker=`db-coordination review-started issue=1 pr=2 head=${head} slot=1 sequence=1 reviewer=deepseek-flash at=2026-10-06T18:00:00Z session=- receipt-path=sha256:${createHash('sha256').update(receiptPath).digest('hex')} source=sha256:${source}`
+ const deps={env:{AI_DEEPSEEK_CALLER:'codex'},git:()=> 'https://github.com/popcre/shared-db.git'}
+ try {
+  assert.throws(()=>validateReviewContinuation(request,marker,deps),/ENOENT/)
+  const companion={schema_version:1,provider:'deepseek',session_id:sid,packet_sha256:packet,source_digest:source,receipt_sha256:createHash('sha256').update(readFileSync(receiptPath)).digest('hex')};writeFileSync(receiptPath+'.continuation.json',JSON.stringify(companion),{mode:0o600})
+  assert.equal(validateReviewContinuation(request,marker,deps).sessionId,sid)
+  companion.session_id='other';writeFileSync(receiptPath+'.continuation.json',JSON.stringify(companion));assert.throws(()=>validateReviewContinuation(request,marker,deps),/lacks.*session\/source binding/)
+  companion.session_id=sid;writeFileSync(receiptPath+'.continuation.json',JSON.stringify(companion));writeFileSync(receiptPath,JSON.stringify(receipt)+'\n');assert.throws(()=>validateReviewContinuation(request,marker,deps),/lacks.*session\/source binding/)
+ }finally{rmSync(root,{recursive:true,force:true})}
+})
+
+test('Gemini and Qwen start bindings use the actual session before governed flag injection',async()=>{
+ const {persistentReviewCommand}=await import('./run-governed-review.mjs')
+ for(const wrapper of ['ai-gemini','ai-qwen']){
+  let started,launched
+  runGovernedReview({...options,wrapper,wrapperArgs:['new','bound-session','--prompt-file','brief.md']},{
+   preflight:()=>{},resolve:x=>x,recordStart:o=>{started=persistentReviewCommand(o.wrapper,o.wrapperArgs);return 'bound'},
+   spawn:(file,args)=>{if(file==='gh')return{status:0,stdout:JSON.stringify({html_url:'https://example.test/review'})};launched=args;return{status:0,stdout:`VERDICT: APPROVE ${options.headSha}`}},record:()=>({ref:'verdict',sha:'f'.repeat(40)})})
+  assert.equal(started.name,'bound-session');assert.equal(started.continuation,false)
+  assert.equal(launched[1],'--governed-verdict');assert.ok(launched.includes('bound-session'))
+ }
+})
+
+const ACTUAL_GLM_QUOTA_DIAGNOSTIC='ai-glm: error: GLM provider returned an error and ended the turn (provider-quota-exhausted): Provider request failed with HTTP 429: {"error":{"code":"1310","message":"Weekly/Monthly Limit Exhausted. Your limit will reset at 2026-10-09 04:35:21"}}'
+test('actual GLM quota terminal produces cause-bound non-verdict and retains original observation',()=>{
+  const at='2026-10-07T11:58:22.775Z',events=[]
+  assert.throws(()=>runGovernedReview(options,{now:()=>at,preflight:()=>{},appendLifecycle:e=>events.push(e),resolve:x=>x,spawn:()=>({status:1,stderr:ACTUAL_GLM_QUOTA_DIAGNOSTIC,stdout:''}),record:()=>assert.fail('quota cannot authorize a verdict')}),error=>{
+    assert.ok(error instanceof GovernedReviewRerouteError)
+    assert.equal(error.startDecision.reason,'insufficient_quota')
+    assert.ok(!error.message.includes('1310'))
+    assert.ok(!error.message.includes('2026-10-09'))
+    return true
+  })
+  assert.equal(events.at(-1).reason,'insufficient_quota')
+  assert.equal(events.at(-1).at,at)
+})
+test('GLM quota classification refuses quoted, embedded, malformed and unsupported diagnostics',()=>{
+  for(const stderr of ['provider-quota-exhausted',`> ${ACTUAL_GLM_QUOTA_DIAGNOSTIC}`,`prefix${ACTUAL_GLM_QUOTA_DIAGNOSTIC}`,ACTUAL_GLM_QUOTA_DIAGNOSTIC.replace('provider-quota-exhausted','not-provider-quota-exhausted'),ACTUAL_GLM_QUOTA_DIAGNOSTIC.replace('ai-glm:','ai-other:'),ACTUAL_GLM_QUOTA_DIAGNOSTIC+'\u001b',ACTUAL_GLM_QUOTA_DIAGNOSTIC.replace(': Provider',':\nProvider')])assert.equal(wrapperFailureReason({stderr},'ai-glm'),'wrapper stderr was present but its reason was not recognized; inspect the exact wrapper session',stderr)
+})
+
+test('GLM diagnostic cannot attribute quota to another or unbound wrapper',()=>{
+  for(const wrapper of ['ai-stepfun','ai-muse',undefined])assert.equal(wrapperFailureReason({stderr:ACTUAL_GLM_QUOTA_DIAGNOSTIC},wrapper),'wrapper stderr was present but its reason was not recognized; inspect the exact wrapper session')
+  assert.match(wrapperFailureReason({stderr:ACTUAL_GLM_QUOTA_DIAGNOSTIC},'ai-glm'),/^insufficient_quota:/)
 })

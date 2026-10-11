@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/review-circuit-breaker.mjs",
+  "sites": [
+    {
+      "source": "scripts/lib/lanes/review-circuit-breaker.mjs",
+      "site": "scripts/lib/lanes/review-circuit-breaker.mjs:112",
+      "semantic_key": "scripts/lib/lanes/review-circuit-breaker.mjs:c0152911c8f170386db1b9b0b03fb582bafed540efbb890e40e3ee51762d8a51:context-a57bdb250575a4a0f6897e0e9357ab09041d6abd17512318fead718a35dcca5d",
+      "legacy_semantic_key": "scripts/lib/lanes/review-circuit-breaker.mjs:c0152911c8f170386db1b9b0b03fb582bafed540efbb890e40e3ee51762d8a51:1",
+      "line_sha256": "c0152911c8f170386db1b9b0b03fb582bafed540efbb890e40e3ee51762d8a51",
+      "disposition": "excluded",
+      "reason": "Owned reviewer-budget Git provenance maintenance on work issue 3536: this guard refuses an unavailable canonical predecessor-contract reader during immutable same-issue lineage authentication. It does not assert database object absence or clear a database alarm."
+    },
+    {
+      "source": "scripts/lib/lanes/review-circuit-breaker.mjs",
+      "site": "scripts/lib/lanes/review-circuit-breaker.mjs:158",
+      "semantic_key": "scripts/lib/lanes/review-circuit-breaker.mjs:c07f487bef49f6264f2846d25b763f32fb2f297a69703aaa938b86ba72a83d1e:context-ebb8ed72d56548ba541a8759406f756706478993d91b9f7d39453024ba7340c9",
+      "legacy_semantic_key": "scripts/lib/lanes/review-circuit-breaker.mjs:c07f487bef49f6264f2846d25b763f32fb2f297a69703aaa938b86ba72a83d1e:1",
+      "line_sha256": "c07f487bef49f6264f2846d25b763f32fb2f297a69703aaa938b86ba72a83d1e",
+      "disposition": "excluded",
+      "reason": "Owned reviewer-budget Git provenance maintenance on work issue 3536: this guard refuses a missing canonical Git blob during immutable parent/source proof. It makes no claim about a database object or migration being absent and cannot clear a database alarm."
+    }
+  ]
+}

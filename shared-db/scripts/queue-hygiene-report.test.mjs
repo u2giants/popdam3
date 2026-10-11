@@ -40,7 +40,7 @@ const scope = (status, workType, route, priority, objects = []) => '```db-work-s
 ].join('\n') + '\n```'
 
 const MUTATION_HOOKS = [
-  'postCommitStatus', 'updateIssue', 'makeOwnerCommit', 'makeReviewVerdictCommit',
+  'postCommitStatus', 'updateIssue', 'makeOwnerCommit', 'makeReviewVerdictCommit', 'pauseReviewerFailure',
   'createRef', 'deleteRef', 'releaseRefOverGit', 'updateRef', 'atomicReviewRefs', 'atomicReviewMutexRelease',
   'reserveVersion', 'createClaim', 'createIssueIn', 'commentIssue', 'closeIssue',
   'closeClaim', 'contentPreservingRefresh', 'rewriteVersion', 'commitAndPushReversion',
@@ -53,7 +53,7 @@ const KNOWN_READ_HOOKS = new Set([
   'databasePreviewClassification', 'pullRequestFiles', 'handoffCollisions', 'readReviewerOperationRoute', 'countLogicalReviewRequests',
   'readPrWithReviewContext', 'observedReviewQuota', 'getRateLimit', 'previewApplyRun', 'verifyPreviewApplyArtifact',
   'readActiveReviewLeases', 'readActiveReviewLeasesOverGit', 'readActiveReviewLeasesOverGraphql', 'readReviewStates',
-  'readReviewRefs', 'readReviewRecords', 'openClaims', 'closedClaimsForWork', 'openWorkIssues', 'openIssueNumbers', 'openIssueRows',
+  'readReviewRefs', 'readReviewRecords', 'readReviewFailureCommit', 'readPaidReviewStarts', 'reviewContentComparison', 'openClaims', 'closedClaimsForWork', 'openWorkIssues', 'openIssueNumbers', 'openIssueRows',
   'dependencyStates', 'mergeCommitInMain', 'prSources', 'openPulls', 'readPullStates', 'mergeTouchesMigrations',
   'branchPulls', 'getPr', 'getPrFiles', 'databasePreviewFileSnapshot', 'comparePullRequestFiles', 'getCommitStatus',
   'verifyNonclosingMaintenanceBinding', 'prepareNonclosingEvidenceGit',

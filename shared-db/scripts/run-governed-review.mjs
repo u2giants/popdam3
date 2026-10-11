@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process'
-import { readFileSync, mkdirSync, mkdtempSync, lstatSync, realpathSync, writeFileSync } from 'node:fs'
+import { readFileSync, readdirSync, mkdirSync, mkdtempSync, lstatSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir, homedir } from 'node:os'
 import { join, resolve as resolvePath } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
@@ -381,13 +381,16 @@ const OUT_OF_CREDIT_PROVIDER_NAMES=Object.freeze({grok:'xAI (Grok)',muse:'Meta (
 // Raw provider billing text, from a wrapper that predates the contract above. It is
 // recognized but NEVER echoed: only the fixed sentence below crosses into the refusal.
 const RAW_BILLING_EXHAUSTION=/used all available credits|monthly spending limit|insufficient balance|arrearage|prepayment credits are depleted/i
-export function outOfCreditReason(stderr){
+export function outOfCreditReason(stderr,wrapper){
   const lines=String(stderr??'').split(/\r?\n/)
   const machine=lines.map((line)=>OUT_OF_CREDIT_MACHINE_LINE.exec(line)).find(Boolean)
   if(machine){
     const human=lines.find((line)=>OUT_OF_CREDIT_HUMAN_LINE.test(line))
     return `insufficient_quota: ${human??`OUT OF CREDIT: the ${OUT_OF_CREDIT_PROVIDER_NAMES[machine[1]]} reviewer account has run out of credits or hit its spending limit`}`
   }
+  // Only the wrapper's anchored terminal diagnostic, never a quoted token or
+  // provider body, identifies this GLM cause. Keep raw provider/reset text private.
+  if(wrapperBaseName(wrapper??'')==='ai-glm'&&lines.some(line=>/^ai-glm: error: GLM provider returned an error and ended the turn \(provider-quota-exhausted\): [\x20-\x7e]{1,600}$/.test(line)))return 'insufficient_quota: the GLM provider reported exhausted quota and ended the turn'
   if(RAW_BILLING_EXHAUSTION.test(String(stderr??'')))return 'insufficient_quota: the provider reported that its account is out of credit or over its spending limit'
   return null
 }
@@ -398,10 +401,10 @@ export function outOfCreditReason(stderr){
 // Albert which account needs credit. It must match OUT_OF_CREDIT_HUMAN_LINE exactly --
 // one whole line, printable ASCII only, 10-300 characters -- so no control character,
 // multi-line payload, or unbounded provider text can ride along with it.
-export function wrapperFailureReason(run){
+export function wrapperFailureReason(run,wrapper){
   const stderr=String(run.stderr??'')
   const reasons=[]
-  const outOfCredit=outOfCreditReason(stderr)
+  const outOfCredit=outOfCreditReason(stderr,wrapper)
   if(outOfCredit)reasons.push(outOfCredit)
   const hasReason=(reason)=>new RegExp(`(?:^|[^A-Za-z0-9_-])${reason}(?=$|[^A-Za-z0-9_-])`,'i').test(stderr)
   if(run.error)reasons.push('the wrapper process could not complete')
@@ -542,7 +545,7 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
   // written BEFORE the provider is launched and fails closed: a review whose start cannot be
   // recorded is not started, so the watcher can never reroute a review that is running.
   if(typeof deps.recordStart!=='function')throw new Error('review start recorder is required; no reviewer was started')
-  lifecycle.push(lifecycleEvent(deps,assignment,'review_started',{marker:deps.recordStart(options)}))
+  lifecycle.push(lifecycleEvent(deps,assignment,'review_started',{marker:deps.recordStart({...options,wrapperArgs:brief.wrapperArgs,sourceIdentity,sourceReceiptPath:receipt.path})}))
   // Issue #2678: the wrapper is told WHO is calling it in the environment this
   // runner spawns, not left to whatever an operator happened to export first. A
   // programmatic caller of this function now gets the same environment the CLI does.
@@ -569,7 +572,7 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
   if(run.error||run.status!==0||!verdict){
     // Issue #2492: a refusal that says only "no verdict" costs a fresh hand
     // investigation every time. Name the budget the reviewer was actually given.
-    const reason=wrapperFailureReason(run)
+    const reason=wrapperFailureReason(run,options.wrapper)
     let logNote=''
     if(typeof deps.writeFailureLog==='function'){
       try{
@@ -723,6 +726,57 @@ export function reviewStartedRef(options,sequence){
 // existing ref is accepted only when it is this runner's own earlier start marker (a retry).
 // Any other occupant is the unstarted reclaim's release commit: the slot was returned and no
 // provider may start. After the write the same lease must still be held.
+export function persistentReviewCommand(wrapper,args) {
+  const command=args?.[0],name=args?.[1]
+  const provider=({'ai-glm':'glm','ai-muse':'muse','ai-gemini':'gemini','ai-qwen':'qwen','ai-grok-review':'grok','ai-deepseek-agent':'deepseek'})[wrapperBaseName(wrapper)]
+  if(!provider)return null
+  if(provider==='deepseek'){if(command!=='reply')return null}
+  else if(!['new','ask'].includes(command))return null
+  if(!/^[A-Za-z0-9._-]{1,128}$/.test(name??''))throw new Error('persistent review session name is malformed')
+  return {provider,name,continuation:command==='ask'||command==='reply'}
+}
+function privateReviewJson(file) {
+  const stat=lstatSync(file)
+  if(realpathSync(file)!==resolvePath(file)||!stat.isFile()||stat.isSymbolicLink()||stat.size>128*1024||(process.platform!=='win32'&&((typeof process.getuid==='function'&&stat.uid!==process.getuid())||(stat.mode&0o077)!==0)))throw new Error('continuation metadata or receipt is not a protected bounded regular file')
+  return JSON.parse(readFileSync(file,'utf8'))
+}
+export function validateReviewContinuation(options,marker,{readJson=privateReviewJson,readBytes=readFileSync,list=readdirSync,realpath=realpathSync,git=execFileSync,home=homedir(),env=process.env}={}) {
+  const command=persistentReviewCommand(options.wrapper,options.wrapperArgs)
+  if(!command?.continuation)throw new Error('this paid draw already started; another new paid launch is refused')
+  const bound=/ session=([A-Za-z0-9._-]+) receipt-path=sha256:([0-9a-f]{64}) source=sha256:([0-9a-f]{64})$/.exec(marker)
+  if(!bound)throw new Error('legacy started draw lacks a durable conversation binding; its continuation remains paused and recoverable')
+  if((command.provider!=='deepseek'&&bound[1]!==command.name)||bound[3]!==options.sourceIdentity?.sourceDigest)throw new Error('continuation session or trusted source does not match the started draw')
+  const root=realpath(options.worktree),caller=reviewCallerEnvironment(options.wrapper,env,{required:true})
+  const engine=Object.values(caller)[0]
+  if(!/^[a-z0-9-]+$/.test(engine??''))throw new Error('continuation caller is unknown')
+  const remote=String(git('git',['-C',root,'config','--get','remote.origin.url'],{encoding:'utf8'})).trim()
+  const rid=createHash('sha256').update(`${root}\n${remote}`).digest('hex').slice(0,12)
+  const full=`${engine}--${command.name}`,short=full.length<=56?full:`${full.slice(0,43)}-${createHash('sha256').update(full).digest('hex').slice(0,12)}`
+  const state=env[`AI_${command.provider.toUpperCase()}_STATE_DIR`]??join(home,'.local','state','ai-devops',command.provider)
+  let metadataPath
+  if(command.provider==='deepseek')metadataPath=join(root,'.ai','deepseek-sessions',`${command.name}.meta.json`)
+  else {
+    const directory=join(state,'sessions',rid),names=list(directory)
+    const candidates=[`${full}.json`,`${short}.json`].filter((name,index,all)=>all.indexOf(name)===index&&names.includes(name))
+    if(candidates.length!==1)throw new Error('continuation protected session metadata is missing or ambiguous')
+    metadataPath=join(directory,candidates[0])
+  }
+  const meta=readJson(metadataPath),sessionId=meta.session_id??meta.conversation_id??meta.opencode_session_id??meta.qwen_session_id??meta.grok_session_id
+  const recordedRoot=meta.repository_root??meta.repo
+  if(typeof sessionId!=='string'||!sessionId||meta.caller!==engine||realpath(recordedRoot)!==root||meta.head!==options.headSha||! /^[0-9a-f]{64}$/.test(meta.packet_sha256??'')||(command.provider!=='deepseek'&&meta.name!==command.name)||(command.provider==='deepseek'&&sessionId!==command.name))throw new Error('continuation provider session, caller, head or packet binding is invalid')
+  const directory=join(root,'.ai','reviews'),files=list(directory).filter(file=>/^governed-source-[a-z0-9-]+\.json$/.test(file))
+  if(files.length>1000)throw new Error('continuation source receipt listing exceeds its bounded ceiling')
+  const candidates=files.map(file=>join(directory,file)).filter(file=>createHash('sha256').update(file).digest('hex')===bound[2])
+  if(candidates.length!==1)throw new Error('continuation original source receipt is missing or ambiguous')
+  const receipt=readJson(candidates[0]),source=validateSourceReceipt(receipt,options.sourceIdentity,root)
+  if(source.packetSha256!==meta.packet_sha256)throw new Error('continuation receipt packet differs from protected provider session')
+  if(command.provider==='deepseek'){
+    const companion=readJson(`${candidates[0]}.continuation.json`)
+    const originalDigest=createHash('sha256').update(readBytes(candidates[0])).digest('hex')
+    if(companion.schema_version!==1||companion.provider!=='deepseek'||companion.session_id!==command.name||companion.packet_sha256!==source.packetSha256||companion.source_digest!==source.sourceDigest||companion.receipt_sha256!==originalDigest)throw new Error('DeepSeek continuation companion lacks the wrapper-produced exact session/source binding')
+  }
+  return {provider:command.provider,sessionId,packetSha256:source.packetSha256}
+}
 export function recordReviewStart(options,io,at=Date.now(),leaseHeld=reviewLeaseStillHeld){
   const request={issue:options.issue,pr:options.pr,headSha:String(options.headSha??'').toLowerCase(),slot:options.slot??1,reviewer:options.reviewer}
   if(!Number.isInteger(Number(request.issue))||!Number.isInteger(Number(request.pr))||!/^[0-9a-f]{40}$/.test(request.headSha))throw new Error('review start marker requires exact issue, PR, and head; no reviewer was started')
@@ -731,10 +785,15 @@ export function recordReviewStart(options,io,at=Date.now(),leaseHeld=reviewLease
   const ref=reviewStartedRef(request,lease.sequence)
   if(!ref.startsWith(`${REVIEW_STARTED_REF_PREFIX}/`))throw new Error('review start marker is outside its namespace')
   const prefix='db-coordination review-started '
-  const sha=io.makeOwnerCommit(`${prefix}issue=${Number(request.issue)} pr=${Number(request.pr)} head=${request.headSha} slot=${Number(request.slot)} sequence=${Number(lease.sequence)} reviewer=${request.reviewer??'unknown'} at=${new Date(at).toISOString()}`)
+  const persistent=persistentReviewCommand(options.wrapper,options.wrapperArgs)
+  const binding=options.sourceReceiptPath&&options.sourceIdentity?.sourceDigest?` session=${persistent?.name??'-'} receipt-path=sha256:${createHash('sha256').update(options.sourceReceiptPath).digest('hex')} source=sha256:${options.sourceIdentity.sourceDigest}`:''
+  const sha=io.makeOwnerCommit(`${prefix}issue=${Number(request.issue)} pr=${Number(request.pr)} head=${request.headSha} slot=${Number(request.slot)} sequence=${Number(lease.sequence)} reviewer=${request.reviewer??'unknown'} at=${new Date(at).toISOString()}${binding}`)
   if(!io.createRef(ref,sha)){
     const existing=io.readRef(ref),message=existing?String(io.getCommit(existing)?.message??io.getCommit(existing)?.commit?.message??''):''
     if(!existing||!message.startsWith(prefix))throw new Error('review start marker is occupied by a reclaim of this lease; no reviewer was started')
+    const expected=`${prefix}issue=${Number(request.issue)} pr=${Number(request.pr)} head=${request.headSha} slot=${Number(request.slot)} sequence=${Number(lease.sequence)} reviewer=${request.reviewer??'unknown'} at=`
+    if(!message.startsWith(expected))throw new Error('existing review start marker differs from the exact held assignment')
+    validateReviewContinuation(options,message)
   }else if(io.readRef(ref)!==sha)throw new Error('review start marker could not be recorded; no reviewer was started')
   if(!leaseHeld({...request,sequence:lease.sequence},io))throw new Error('review lease was reclaimed before the provider launched; no reviewer was started')
   return ref

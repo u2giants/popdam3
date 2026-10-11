@@ -82,7 +82,7 @@ function handleGit(a,opts){
   if(sub==='cat-file'&&args[1]==='--batch'){log('git-local','cat-file --batch');const parts=[];for(const sha of String(opts?.input??'').split(nl).filter(Boolean)){const c=s.commits[sha];if(!c){parts.push(Buffer.from(sha+' missing'+nl));continue}const body=Buffer.from('tree '+c.tree+nl+(c.parents??[]).map(p=>'parent '+p+nl).join('')+'author A <a@x> 1789000000 +0000'+nl+'committer A <a@x> 1789000000 +0000'+nl+nl+c.message);parts.push(Buffer.from(sha+' commit '+body.length+nl),body,Buffer.from(nl))}return Buffer.concat(parts)}
   if(sub==='cat-file'){log('git-local','cat-file');if(!s.commits[String(args.at(-1)).replace('^{commit}','')])fail('unknown commit');return ''}
   if(sub==='fetch'){log('git-wire','fetch');return ''}
-  if(sub==='ls-remote'){log('git-wire','ls-remote');return Object.entries(s.refs).map(([r,t])=>`${t}\t${r}`).join('\n')+'\n'}
+  if(sub==='ls-remote'){log('git-wire','ls-remote');const patterns=args.slice(args.indexOf('origin')+1);return Object.entries(s.refs).filter(([r])=>!patterns.length||patterns.some(pattern=>new RegExp('^'+pattern.split('*').map(part=>part.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('.*')+'$').test(r))).map(([r,t])=>`${t}\t${r}`).join('\n')+'\n'}
   if(sub==='push'){
     log('git-wire','push')
     const leases=new Map(args.filter(x=>x.startsWith('--force-with-lease=')).map(x=>{const [r,...e]=x.slice(19).split(':');return[r,e.join(':')]}))

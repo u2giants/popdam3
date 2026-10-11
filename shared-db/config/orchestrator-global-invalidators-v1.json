@@ -44,6 +44,7 @@
     "scripts/lib/lanes/retirement.mjs",
     "scripts/lib/lanes/review-approval.mjs",
     "scripts/lib/lanes/review-assignment.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
     "scripts/lib/lanes/review-leases.mjs",
     "scripts/lib/lanes/review-records.mjs",
     "scripts/lib/lanes/review-replacement.mjs",

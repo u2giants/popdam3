@@ -39,7 +39,9 @@ import { HISTORICAL_RESTORATIONS, validateHistoricalRestorationFile } from './hi
 import { AdmissionError, SERVICE_CLASSES, CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, STRUCTURAL_ROUTES, parseImpactBlock, evaluateAdmission, inspectPrStructuralChange, structuralWritesMatch, structuralWritesCovered } from './orchestrator-flow/admission.mjs'
 import { assertNamedHold, conflicts, describeLeaseHolder, formatHoldReason, HoldReasonError } from './lib/hold-reason.mjs'
 import { OUTCOME_STATES, OutcomeError, advanceOutcome, completeOutcome, verifyOutcomeAcceptance, outcomeEvent, outcomeHistory, repairOutcomeHistory } from './orchestrator-flow/outcome-lifecycle.mjs'
-import { isContentPreservingRefresh } from './lib/pr-content-equivalence.mjs'
+import { assertPaidReviewCapacity, pauseActualReviewFailure, derivePaidContentProof } from './lib/lanes/review-circuit-breaker.mjs'
+const paidBudgetContractCaches=new WeakMap()
+import { isContentPreservingRefresh, prContentDigest, verifiedEvidencePaths } from './lib/pr-content-equivalence.mjs'
 import { wrapperEmitsGovernedVerdict } from './lib/reviewer-capabilities.mjs'
 import { classifyBranchFreshness } from './check-main-tip-freshness.mjs'
 import { MigrationTrainError, TRAIN_REF_PREFIX, assertDispatchMatchesTrain, assertRecordedTrain, assertTrainProductionEvidence, proposeTrain, trainRecordRef, transitionTrain, validateTrain } from './orchestrator-flow/migration-train.mjs'
@@ -85,6 +87,30 @@ export { readExclusiveLease, assertExclusive }
 import { trainIo, assertTrainLiveOnMain, runTrainCommand } from './lib/lanes/cli-train.mjs'
 import { verifyMergedWorkRecord } from './lib/lanes/claim-maintenance.mjs'
 export { trainIo, assertTrainLiveOnMain, runTrainCommand }
+export function pauseProviderFailure(record,{resolveCommand=resolveCommandPath,execute=execFileSync,platform=process.platform,env=process.env,now=Date.now}={}) {
+    const reviewer=REVIEWERS.find(row=>row.name===record.reviewer)
+    if(!reviewer?.provider)throw new LaneError('provider pause reviewer registry binding unreadable')
+    const resolved=resolveCommand('ai-review-preflight')
+    if(!resolved)throw new LaneError('supported monotonic pause command unavailable')
+    const invoke=(args)=>{
+      const plan=platform==='win32'&&/\.(cmd|bat)$/i.test(resolved)
+        ?{file:env.ComSpec||'cmd.exe',args:['/d','/s','/c',resolved,...args]}:{file:resolved,args}
+      let text
+      try{text=execute(plan.file,plan.args,{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:REVIEWER_PREFLIGHT_TIMEOUT_MS});return JSON.parse(text)}
+      catch(error){throw new LaneError(`supported provider pause/status command failed or returned unreadable JSON: ${String(error.message).split('\n')[0]}`)}
+    }
+    const result=invoke(['pause',reviewer.provider,record.failureCode,'--seconds','3600','--observed',String(record.observedEpoch)])
+    const actual=invoke(['pause-status',reviewer.provider])
+    const currentEpoch=Math.floor(now()/1000), expiry=record.observedEpoch+3600
+    if(result?.status==='expired'){
+      if(result.provider!==reviewer.provider||result.observed_epoch!==record.observedEpoch||result.expires_epoch!==expiry||expiry>currentEpoch)throw new LaneError('historical provider pause result unreadable')
+      if(actual!==null&&(!actual||actual.provider!==reviewer.provider||typeof actual.record_id!=='string'||!Number.isInteger(actual.expires_epoch)))throw new LaneError('historical provider pause status unreadable')
+      return result
+    }
+    if(!actual||JSON.stringify(actual)!==JSON.stringify(result)||actual.provider!==reviewer.provider||!Number.isInteger(actual.created_epoch)||!Number.isInteger(actual.expires_epoch)||actual.expires_epoch<expiry||actual.expires_epoch<=currentEpoch||typeof actual.record_id!=='string'||!actual.record_id)throw new LaneError('provider pause protected persisted readback mismatch')
+    return actual
+}
+
 export const REVIEW_OPERATION_REQUEST_LIMIT = 25, REVIEW_MUTEX_SECTION_RESERVE = 15 // slot 2 = 10 pre-mutex + this reserve; slot 1 = 7 + reserve. RE-DERIVED, NOT WIDENED (issue #2075): every reviewer operation now proves 'a verdict exists for this head' from the create-only durable verdict refs instead of from comment prose. That costs exactly ONE listing of refs/db-review-verdict pre-mutex (cached for the rest of the operation by reviewOperationIo) and ONE uncached re-listing inside the mutex section, so each half grew by exactly one request. Measured totals moved 21->23 (slot-2 assignment), 18->20 (slot-2 replacement), and 8->9 pre-mutex for the first replacement, with the post-mutex replacement section going 10->11. Issue #2550 keeps this ceiling fixed by carrying predecessor failure refs in the replacement batch and treating absence in the complete active-lease snapshot as proved absence. The bounded per-PR exclusion read is inside the mutex so it cannot race assignment. This entry gate refuses to acquire the mutex unless the whole mutex-held section still fits. Release is guaranteed separately by cleanupReserve. Derivation: docs/verification/reviewer-assignment-api-budget-2026-08-28.md (#1812, #1833, #2550)
 
 // The conflict matrix lives in ./lib/hold-reason.mjs so named holds and lane
@@ -747,6 +773,32 @@ export const githubIo = {
   // first parent (main as the merge saw it). The guarded migration lane uses
   // two-parent --merge; a squash has no reviewed second parent and cannot carry
   // a prior approval here. The broader merge gate also serves prose-only PRs.
+  readReviewFailureCommit(sha) { return readGitCommits([sha]).get(sha) },
+  pauseReviewerFailure(record) { return pauseProviderFailure(record) },
+  readPaidReviewStarts(prefix,pr) {
+    if(!Number.isInteger(pr)||pr<1)throw new LaneError('review circuit breaker: exact positive PR number required')
+    const rows=[...gitRemoteRefs([`${prefix}*-${Number(pr)}-*`])].map(([ref,sha])=>({ref,sha}))
+    if(rows.length>=REVIEW_REF_ROW_LIMIT)throw new LaneError('review circuit breaker: complete start history reaches bounded row ceiling; possibly truncated history refused')
+    const commits=readGitCommits(rows.map(row=>row.sha))
+    return rows.map(row=>({...row,commit:commits.get(row.sha)}))
+  },
+  reviewContentComparison(before,after,pr,context={}) {
+    const base=context.base??this.getPr(pr)?.base?.sha
+    context.base=base
+    if(!/^[0-9a-f]{40}$/.test(base??''))throw new LaneError('review circuit breaker: exact protected comparison base unreadable')
+    execFileSync('git',['fetch','--no-tags','-q','origin',before,after,base],{stdio:['ignore','pipe','pipe']})
+    const excludePaths=verifiedEvidencePaths(before,after)
+    let contracts=paidBudgetContractCaches.get(context);if(!contracts){contracts=new Map();paidBudgetContractCaches.set(context,contracts)}
+    const readContract=ref=>{
+      if(!contracts.has(ref))contracts.set(ref,readPublishedContractFromGit(ref,(command,args,options)=>{
+        if(command==='git' && ['ls-remote','fetch'].includes(args[0]))consumeReviewWireRequest()
+        return execFileSync(command,args,options)
+      }))
+      return contracts.get(ref)
+    }
+    const budgetProof=derivePaidContentProof(before,after,base,args=>execFileSync('git',args,{encoding:'utf8',stdio:['ignore','pipe','pipe']}),excludePaths,pr,readContract)
+    return {before:prContentDigest(before,base,{excludePaths}),after:prContentDigest(after,base,{excludePaths}),budgetProof}
+  },
   contentPreservingRefresh(approvedHead,head,pr=null,context=null,gitRunner=(args)=>execFileSync('git',args,{encoding:'utf8',stdio:['ignore','pipe','pipe']})){
     const key=`${Number(pr)}:${String(head).toLowerCase()}`
     if(context?.key!==undefined&&context.key!==key)return{ok:false,reason:'review comparison context was reused for a different pull request or head'}
@@ -1533,7 +1585,7 @@ function reviewOperationIo(io){
       const cacheable=['listRefs','listReviewRefsPaged','getCommit','getPr','getIssue','getIssueComments','getPrReviews'].includes(key)
       const cacheKey=cacheable?`${String(key)}:${JSON.stringify(args)}`:null
       if(cacheable&&cache.has(cacheKey))return cache.get(cacheKey)
-      const result=value.apply(target,args)
+      const result=value.apply(key==='reviewContentComparison'?proxy:target,args)
       if(cacheable)cache.set(cacheKey,result)
       if(['createRef','updateRef','deleteRef'].includes(key))cache.delete(`readRef:${JSON.stringify([args[0]])}`)
       return result
@@ -2065,6 +2117,7 @@ function assignNextReviewerOperation({issue,pr,headSha,slot=1,reviewerAllowlist=
       if(!reviewerEmitsGovernedVerdict(current.reviewer))throw new LaneError(`reviewer ${current.reviewer} is assigned to this head but its wrapper cannot emit the governed VERDICT line. Draw another reviewer with the exact command: ${nonVerdictReviewerReplacementCommand({issue:current.issue,pr:current.pr,headSha:current.headSha,slot:request.slot},current.sequence)}`)
       return {...current,slot:request.slot,wrapper:REVIEWERS.find((r)=>r.name===current.reviewer)?.wrapper}
     }
+    assertPaidReviewCapacity(request,io)
     const sequence=(current?.sequence??0)+1
     // Ordinary path: rotate within the preferred pool. Grok is considered after
     // that pool for this exact assignment (#3592). The durable sequence remains
@@ -2465,13 +2518,25 @@ export function reissueMergedStrandedClaim(options,now=new Date(),io=githubIo){
 export function releaseFailedReviewer(options,io=githubIo){
   return withReviewRequestBudget(()=>{
     io=reviewOperationIo(io)
-    const request=validateTerminalReviewerFailure(options,'reviewer release'),failureRef=reviewerFailureRef(request)
+    const request=validateTerminalReviewerFailure(options,'reviewer release')
+    request.headSha=String(request.headSha).toLowerCase()
+    const failureRef=reviewerFailureRef(request)
     const original=resolveFailedReviewRecord(request,io),priorFailureSha=io.readRef(failureRef)
     if(priorFailureSha){
-      const prior=parseReviewRelease(io.getCommit(priorFailureSha))
+      const priorCommit=io.getCommit(priorFailureSha),prior=parseTerminalFailureEvidence(priorCommit)
       if(prior.issue!==request.issue||prior.pr!==request.pr||prior.headSha!==request.headSha||prior.failedSequence!==request.failedSequence||prior.reviewer!==original.reviewer||prior.failureCode!==String(options.failureCode))throw new LaneError('immutable reviewer release evidence does not match this request')
+      if(prior.selfReplacement){
+        const replacement=parseReviewReplacement(priorCommit)
+        const base=`${REVIEW_REPLACEMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}${assignmentSlotSuffix(request.slot)}`
+        const rows=io.listRefs(base)
+        if(!Array.isArray(rows)||rows.length>=REVIEW_REF_ROW_LIMIT)throw new LaneError('immutable replacement pause repair inventory unreadable or incomplete')
+        const matching=rows.filter(row=>row.ref===base||row.ref===`${base}-${request.failedSequence}`)
+        if(matching.length!==1||matching[0].sha!==priorFailureSha||(replacement.slot??1)!==request.slot||replacement.failedSequence!==request.failedSequence||replacement.issue!==request.issue||replacement.pr!==request.pr||replacement.headSha!==request.headSha||replacement.failureSha!=='self')throw new LaneError('immutable replacement pause repair protected replacement binding mismatch or ambiguity')
+      }
       if(reviewLeaseRefCandidates({...original,slot:request.slot},Boolean(io.requiresExactReviewHeadSha)).some((candidate)=>leaseRefHoldsAssignment(candidate,{...original,slot:request.slot},io)))throw new LaneError('reviewer release evidence exists but the active lease is still present; reconciliation requires manual audit')
-      throw new LaneError(`reviewer ${original.reviewer} terminal failure was already released with immutable evidence ${priorFailureSha}`)
+      if(!['insufficient_quota','provider_unavailable'].includes(prior.failureCode))throw new LaneError(`reviewer ${original.reviewer} terminal failure was already released with immutable evidence ${priorFailureSha}`)
+      const pause=pauseActualReviewFailure({...request,reviewer:original.reviewer,failureCode:prior.failureCode,failureSha:priorFailureSha},io)
+      return {...request,reviewer:original.reviewer,failureCode:prior.failureCode,failureSha:priorFailureSha,alreadyReleased:true,pause}
     }
     const preflightBusy=findBusyReviewers(io,[request])
     if(!preflightBusy)throw new LaneError('active reviewer leases are unreadable; reviewer release refused before mutex acquisition')
@@ -2512,6 +2577,7 @@ export function releaseFailedReviewer(options,io=githubIo){
       io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:ownerSha},{ref:failureRef,expected:null,sha:failureSha},{ref:leaseRefForRelease,expected:failedLeaseSha,sha:null}])
       const after=io.readReviewRefs([MUTEX_REF,failureRef,leaseRefForRelease])
       if(after.get(MUTEX_REF)!==ownerSha||after.get(failureRef)!==failureSha||after.get(leaseRefForRelease)!==null)throw new LaneError('atomic reviewer release readback mismatch')
+      pauseActualReviewFailure({...request,reviewer:original.reviewer,failureCode:String(options.failureCode),failureSha},io)
       return {...request,reviewer:original.reviewer,failureCode:String(options.failureCode),failureSha,releasedLeaseSha:failedLeaseSha}
     }finally{if(acquired)finalizeReviewMutex(ownerSha,io)}
   })
@@ -2774,6 +2840,7 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     // The failing check rides along in the immutable evidence, so a later reader
     // can tell a real provider outage from a stopped local service without
     // re-deriving it from memory.
+    assertPaidReviewCapacity(request,io)
     const checkNote=String(failingCheck??'').trim()?` failing-check=${String(failingCheck).trim().replace(/\s+/g,'_')}`:''
     let failureSha
     // SKIP, DO NOT REFUSE (#1297). The rotation position is only a starting point.
@@ -2929,7 +2996,14 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
   }finally{if(mutexAcquired)finalizeReviewMutexPreservingResult(ownerSha,io,completedResult)}
 }
 
-export function replaceFailedReviewer(request,io=githubIo){return withReviewRequestBudget(()=>replaceFailedReviewerOperation(request,reviewOperationIo(io)))}
+export function replaceFailedReviewer(request,io=githubIo){return withReviewRequestBudget(()=>{
+  const operationIo=reviewOperationIo(io)
+  const result=replaceFailedReviewerOperation(request,operationIo)
+  if(result.failureSha&&['insufficient_quota','provider_unavailable'].includes(result.failureCode)){
+    pauseActualReviewFailure({issue:Number(result.issue),pr:Number(result.pr),headSha:String(result.headSha).toLowerCase(),slot:Number(result.slot??1),failedSequence:Number(result.failedSequence??result.replacementSequence),failureCode:result.failureCode,failureSha:result.failureSha},operationIo)
+  }
+  return result
+})}
 
 function activateReviewCutoverOperation(io) {
   const already = io.readRef(REVIEW_ACTIVE_CUTOVER_REF)

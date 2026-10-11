@@ -43,6 +43,7 @@ export function hygieneReportIo(io) {
   return {
     ...io,
     postCommitStatus: refuse('postCommitStatus'),
+    pauseReviewerFailure: refuse('pauseReviewerFailure'),
     updateIssue: refuse('updateIssue'),
     makeOwnerCommit: refuse('makeOwnerCommit'),
     makeReviewVerdictCommit: refuse('makeReviewVerdictCommit'),
