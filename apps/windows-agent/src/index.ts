@@ -400,6 +400,13 @@ const heartbeatCommandHandlers = createWindowsCommandHandlers({
 function startHeartbeat() {
   const HEARTBEAT_MS = 30_000;
   const loop = async () => {
+    let nextScheduled = false;
+    const scheduleNext = () => {
+      if (!nextScheduled) {
+        nextScheduled = true;
+        setTimeout(loop, api.suggestedHeartbeatDelayMs());
+      }
+    };
     try {
       const updateState = getUpdateState();
       const deferral = currentCommandDeferral();
@@ -414,7 +421,9 @@ function startHeartbeat() {
       }, getLogTail(50), deferral), async (response) => {
       applyCloudConfig(response);
       consecutiveHeartbeatFailures = 0;
-
+      // HTTP has completed; keep regular authenticated heartbeats/config flowing
+      // while this delivery remains counted through any long command operation.
+      scheduleNext();
       await dispatchCommands(response.commands, heartbeatCommandHandlers);
       });
 
@@ -436,7 +445,7 @@ function startHeartbeat() {
       }
     }
     // Slow down after repeated auth failures instead of retrying every 30s.
-    setTimeout(loop, api.suggestedHeartbeatDelayMs());
+    scheduleNext();
   };
   setTimeout(loop, api.suggestedHeartbeatDelayMs());
   logger.info("Heartbeat started (30s interval, backs off on auth failures)");

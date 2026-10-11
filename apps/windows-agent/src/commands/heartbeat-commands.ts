@@ -122,7 +122,7 @@ export function createWindowsCommandHandlers(ctx: WindowsCommandContext): Comman
       run: (c) => {
         if (c?.trigger_update) {
           logger.info("Cloud requested immediate update check");
-          ctx.triggerImmediateUpdate().catch((e) => logger.error("Triggered update failed", { error: (e as Error).message }));
+          return ctx.triggerImmediateUpdate().catch((e) => logger.error("Triggered update failed", { error: (e as Error).message }));
         }
       },
     },
@@ -132,7 +132,7 @@ export function createWindowsCommandHandlers(ctx: WindowsCommandContext): Comman
       run: (c) => {
         if (c?.force_apply_update) {
           logger.info("Cloud requested force update — bypassing active-jobs guard");
-          ctx.triggerImmediateUpdate(true).catch((e) => logger.error("Force update failed", { error: (e as Error).message }));
+          return ctx.triggerImmediateUpdate(true).catch((e) => logger.error("Force update failed", { error: (e as Error).message }));
         }
       },
     },
