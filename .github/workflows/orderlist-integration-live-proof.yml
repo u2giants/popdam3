@@ -31,14 +31,14 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout exact proof workflow commit and ancestry
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
           cache: npm
@@ -47,7 +47,7 @@ jobs:
         run: npm ci
 
       - name: Install Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
         with:
           version: 2.105.0
 
@@ -103,7 +103,7 @@ jobs:
         run: node scripts/orderlist-integration-proof.mjs accept
 
       - name: Publish canonical generated-types proof
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: shared-db-generated-types-4111-${{ github.sha }}
           path: ${{ runner.temp }}/orderlist-proof/generated/db-generated-types-proof.json
@@ -111,7 +111,7 @@ jobs:
           retention-days: 90
 
       - name: Publish exact generated production TypeScript schema
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: orderlist-generated-production-types-${{ github.sha }}
           path: ${{ runner.temp }}/orderlist-proof/database.types.ts
@@ -119,7 +119,7 @@ jobs:
           retention-days: 90
 
       - name: Publish canonical live-application proof
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: shared-db-live-proof-4111-${{ github.sha }}
           path: ${{ runner.temp }}/orderlist-proof/live/db-live-proof.json

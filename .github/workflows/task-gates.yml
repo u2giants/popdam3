@@ -15,11 +15,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Check out PopDAM
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       - name: Check out accepted task-gate engine
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: popcre/ai-devops
           ref: 4d83f9a5dc400f87408663eddac872b9074c18ed
