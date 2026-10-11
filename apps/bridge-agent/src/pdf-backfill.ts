@@ -13,7 +13,7 @@
  */
 
 import { readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { resolveUnderRoot } from "./path-containment.js";
 import sharp from "sharp";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
@@ -221,7 +221,7 @@ export async function runPdfBackfill(
       await api.reportPdfBackfillProgress(totalProcessed + i, batch.total, asset.filename, "processing");
 
       try {
-        const result = await processOne(asset, join(mountRoot, asset.relative_path), aiConfig);
+        const result = await processOne(asset, resolveUnderRoot(mountRoot, asset.relative_path), aiConfig);
         results.push(result);
         logger.info("PDF backfill: file done", {
           filename: asset.filename,

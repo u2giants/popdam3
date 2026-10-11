@@ -18,7 +18,7 @@
  * changes, so a stuck check-in can't drive repeated full reads.
  */
 
-import { join } from "node:path";
+import { resolveUnderRoot } from "./path-containment.js";
 import { stat } from "node:fs/promises";
 import * as api from "./api-client.js";
 import { computeQuickHash } from "./hasher.js";
@@ -65,7 +65,17 @@ export async function verifyPendingCheckins(mountRoot: string): Promise<void> {
           continue;
         }
 
-        const absPath = join(cleanRoot, item.relative_path);
+        let absPath: string;
+        try {
+          absPath = resolveUnderRoot(cleanRoot, item.relative_path);
+        } catch (e) {
+          await api.reportCheckinVerification({
+            checkout_id: item.checkout_id,
+            outcome: "not_ready",
+            detail: (e as Error).message.slice(0, 500),
+          });
+          continue;
+        }
 
         // Past the resolve deadline: classify what is sitting at the master path
         // and hand off a terminal 'resolved' outcome so the server releases the

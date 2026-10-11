@@ -31,6 +31,7 @@ import { writeFile } from "node:fs/promises";
 import { type AiModelDef, type PdfSampleAsset, runPdfTextSample } from "./pdf-text-sampler";
 import { runPdfBackfill } from "./pdf-backfill";
 import { runStyleGuidePdfBackfill } from "./style-guide-pdf-backfill";
+import { assertSafeRelativePath } from "./path-containment";
 import { createCompatAuditWorker, runCompatAudit, runCompatAuditPreview } from "./compat-audit";
 
 // ── State ───────────────────────────────────────────────────────
@@ -172,6 +173,7 @@ async function doPairing() {
  * to a Windows UNC path using NAS_HOST and NAS_SHARE config.
  */
 function toUncPath(relativePath: string): string {
+  assertSafeRelativePath(relativePath);
   const windowsPath = relativePath.replace(/\//g, "\\");
 
   // If a local mount path is configured (e.g. Z:), use it
@@ -192,6 +194,7 @@ function toUncPath(relativePath: string): string {
  * sg_nas_mount_path config (falls back to the main NAS mount if unset).
  */
 function toSgUncPath(relativePath: string): string {
+  assertSafeRelativePath(relativePath);
   const windowsPath = relativePath.replace(/\//g, "\\");
   const mountPath = (cloudSgNasMountPath || cloudNasMountPath || "").trim()
     .replace(/\\+$/, "");
@@ -523,7 +526,14 @@ function waitForIdleThenRestart() {
 // ── Job processing ──────────────────────────────────────────────
 
 async function processJob(job: api.RenderJob): Promise<void> {
-  const uncPath = toUncPath(job.relative_path);
+  let uncPath: string;
+  try {
+    uncPath = toUncPath(job.relative_path);
+  } catch (e) {
+    logger.warn("Rejected unsafe render path", { jobId: job.job_id, relativePath: job.relative_path });
+    await api.completeRender(job.job_id, false, undefined, (e as Error).message.slice(0, 500));
+    return;
+  }
   logger.info("Processing render job", {
     jobId: job.job_id,
     assetId: job.asset_id,
@@ -599,7 +609,14 @@ async function ensureSgNasMapped(): Promise<boolean> {
 }
 
 async function processSgJob(job: api.SgRenderJob): Promise<void> {
-  const uncPath = toSgUncPath(job.relative_path);
+  let uncPath: string;
+  try {
+    uncPath = toSgUncPath(job.relative_path);
+  } catch (e) {
+    logger.warn("Rejected unsafe SG render path", { jobId: job.job_id, relativePath: job.relative_path });
+    await api.completeSgRender(job.job_id, false, undefined, (e as Error).message.slice(0, 500));
+    return;
+  }
   logger.info("Processing SG render job", {
     jobId: job.job_id,
     fileId: job.style_guide_file_id,
@@ -1062,7 +1079,18 @@ function startTiffPolling() {
             continue;
           }
 
-          const filePath = toUncPath(relativePath);
+          let filePath: string;
+          try {
+            filePath = toUncPath(relativePath);
+          } catch (e) {
+            logger.warn("Rejected unsafe TIFF path", { jobId, relativePath });
+            await api.callApi("complete-tiff-job", {
+              job_id: jobId,
+              success: false,
+              error: (e as Error).message.slice(0, 500),
+            });
+            continue;
+          }
 
           try {
             const result = await compressTiff(filePath, mode, fileModifiedAt, fileCreatedAt, jobId);
@@ -1180,7 +1208,18 @@ function startTiffReinspectPolling() {
           continue;
         }
 
-        const filePath = toUncPath(relativePath);
+        let filePath: string;
+        try {
+          filePath = toUncPath(relativePath);
+        } catch (e) {
+          logger.warn("Rejected unsafe TIFF reinspect path", { jobId, relativePath });
+          await api.callApi("complete-tiff-reinspect", {
+            job_id: jobId,
+            success: false,
+            error: (e as Error).message.slice(0, 500),
+          }).catch(() => {});
+          continue;
+        }
         try {
           const ts = await captureTimestamps(filePath, jobId);
           await api.callApi("complete-tiff-reinspect", {
