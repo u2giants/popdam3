@@ -1,4 +1,4 @@
-import { resolveUnderRoot } from "./path-containment.js";
+import { resolveUnderRoot } from "./common/path-containment.js";
 import * as api from "./api-client.js";
 import { logger } from "./logger.js";
 import { isAiSentinel } from "./ai-sentinel-detect.js";

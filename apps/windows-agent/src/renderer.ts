@@ -35,7 +35,7 @@ import { readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { logger } from "./logger";
-import { readFileWithinLimit } from "./bounded-read";
+import { readFileWithinLimit } from "./common/bounded-read.js";
 import { isCompatAlertBuffer, createCompatAuditWorker } from "./compat-audit";
 
 // On Windows, paths longer than MAX_PATH (260) fail silently with Win32 APIs.

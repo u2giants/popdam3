@@ -157,6 +157,7 @@ popdam3/
 │   ├── windows-agent/          ← Windows render agent: Inkscape/ImageMagick/Ghostscript/Poppler/Tesseract (TypeScript)
 │   └── popdam-helper/          ← Electron desktop app
 ├── packages/path-filters/      ← Shared path filter logic (Node.js workspace pkg)
+├── packages/agent-common/      ← Source shared by bridge + windows agents (synced into apps/*/src/common at build; edit here)
 ├── scripts/                    ← Utility scripts (nas-ssh.sh, etc.)
 ├── deploy/synology/            ← Reference docker-compose.yml for NAS
 ├── .github/workflows/          ← CI/CD pipelines
@@ -173,7 +174,7 @@ popdam3/
 - `node_modules/`, `apps/*/node_modules/`
 - `.lovable/` — Lovable platform memory (ignore)
 
-**Project-owned source:** `src/`, `supabase/functions/`, `apps/*/src/`, `packages/path-filters/src/`.
+**Project-owned source:** `src/`, `supabase/functions/`, `apps/*/src/`, `packages/path-filters/src/`, `packages/agent-common/src/`.
 **Docs and runbooks:** root `*.md`, `docs/`, `SELFHOST.md`, `HANDOFF.md`.
 **Scripts and deployment metadata:** `scripts/`, `deploy/`, `.github/workflows/`, Dockerfiles, `nginx.conf`.
 
@@ -301,6 +302,7 @@ apps/*/node_modules/
 apps/*/dist/
 apps/*/out/
 packages/path-filters/dist/
+apps/*/src/common/          (generated copy of packages/agent-common/src)
 apps/popdam-helper/out/
 .cache/
 coverage/

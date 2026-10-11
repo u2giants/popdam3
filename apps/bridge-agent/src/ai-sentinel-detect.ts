@@ -21,7 +21,7 @@
  */
 
 import { open } from "node:fs/promises";
-import { readFileWithinLimit } from "./bounded-read.js";
+import { readFileWithinLimit } from "./common/bounded-read.js";
 import * as mupdf from "mupdf";
 
 /** Canonical fragment Adobe writes into the placeholder page's text. */

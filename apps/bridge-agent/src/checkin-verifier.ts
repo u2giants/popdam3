@@ -18,7 +18,7 @@
  * changes, so a stuck check-in can't drive repeated full reads.
  */
 
-import { resolveUnderRoot } from "./path-containment.js";
+import { resolveUnderRoot } from "./common/path-containment.js";
 import { stat } from "node:fs/promises";
 import * as api from "./api-client.js";
 import { computeQuickHash } from "./hasher.js";

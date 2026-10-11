@@ -43,6 +43,9 @@ RUN npm install --loglevel verbose
 # ── Step 3: Build bridge-agent TypeScript ────────────────────────
 COPY apps/bridge-agent/tsconfig.json ./
 COPY apps/bridge-agent/src/ ./src/
+# Shared agent source; the prebuild script (../../packages/agent-common/sync.mjs,
+# i.e. /packages from /app) copies it into src/common so tsc bundles it into dist.
+COPY packages/agent-common /packages/agent-common
 RUN npm run build
 
 # ── Step 4: Remove devDependencies manually ──────────────────────

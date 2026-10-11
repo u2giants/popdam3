@@ -1,0 +1,6 @@
+{
+  "name": "@popdam/agent-common",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Source shared by bridge-agent and windows-agent. Not a runtime dependency: sync.mjs copies src/*.ts into each agent's src/common/ before build/test/dev so it is compiled into each agent's own dist."
+}
