@@ -4456,6 +4456,21 @@ export type Database = {
           material: string
         }[]
       }
+      get_dam_order_tracking: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_only_open?: boolean
+          p_search?: string
+        }
+        Returns: unknown[]
+        SetofOptions: {
+          from: "*"
+          to: "dam_order_tracking"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_dam_search_embedding_status: { Args: never; Returns: Json }
       get_dam_search_performance_stats: {
         Args: never
@@ -4468,6 +4483,13 @@ export type Database = {
           shared_blks_hit: number
           shared_blks_read: number
           total_exec_ms: number
+        }[]
+      }
+      get_dam_style_tracker_license_status: {
+        Args: { p_row_ids: string[] }
+        Returns: {
+          id: string
+          license_status: string
         }[]
       }
       get_effective_asset_metadata: {
@@ -5121,6 +5143,18 @@ export type Database = {
           p_order_patch?: Json
         }
         Returns: string
+      }
+      update_dam_order_tracking: {
+        Args: { p_order_id: string; p_patch: Json }
+        Returns: string
+      }
+      upsert_dam_order_customer_settings: {
+        Args: { p_customer: string; p_suffix: string }
+        Returns: undefined
+      }
+      upsert_dam_order_sample_depth: {
+        Args: { p_customer: string; p_depth_inches: number; p_sku: string }
+        Returns: undefined
       }
       upsert_dam_search_embedding: {
         Args: {
