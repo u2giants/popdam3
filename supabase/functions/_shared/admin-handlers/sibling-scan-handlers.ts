@@ -2,6 +2,7 @@
  * Extracted admin-api handlers for sibling image scanning and ingestion.
  */
 
+import { refreshStyleGroupCounts } from "../style-group-counts-refresh.ts";
 import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
 import { optionalString, requireString } from "../validators.ts";
@@ -317,8 +318,8 @@ export async function handleIngestSiblingImages(body: Record<string, unknown>, u
   // Refresh style group counts
   const groupIds = [styleGroupId];
   try {
-    await db.rpc("refresh_style_group_counts_batch", { p_group_ids: groupIds });
-    await db.rpc("refresh_style_group_primaries", { p_group_ids: groupIds });
+    const r = await refreshStyleGroupCounts(db, groupIds);
+    if (!r.ok) throw new Error(r.error);
   } catch (e) {
     console.warn("Failed to refresh style group stats:", e);
   }
