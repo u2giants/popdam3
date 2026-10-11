@@ -18,7 +18,7 @@ Handoff: [HANDOFF.d/2026-09-15T1117Z-hetz-codex-popsg-production-closeout.md](HA
 | 9. Run full production acceptance | ⬜ open | Current #107 retains changed-night acceptance after #336; verification/popsg-readiness/final-acceptance.md remains unwritten. |
 | 10. Land, document, and retire the workstream | ⬜ open | Merged commits, deployed SHAs, updated docs, closed #107, deleted handoff |
 
-**Where to start (October 11, 2026):** refresh #335/#107 ordinary crawl receipts after #336; complete the retained changed-night gate, then final acceptance/docs retirement. Read [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md). Latest evidence source: [#107 comment](https://github.com/u2giants/popdam3/issues/107); verify the current comment URL through GitHub because counts/receipts can change.
+**Where to start (October 11, 2026):** refresh #335/#107 ordinary crawl receipts after #336; complete the retained changed-night gate, then final acceptance/docs retirement. Read [HANDOFF.d/2026-10-11T2213Z-hetz-codex-open-issues-coordinator-continuation.md](HANDOFF.d/2026-10-11T2213Z-hetz-codex-open-issues-coordinator-continuation.md). Latest evidence source: [#107 comment](https://github.com/u2giants/popdam3/issues/107); verify the current comment URL through GitHub because counts/receipts can change.
 
 **Fresh-session start:** begin with this STATUS table; do not repeat a completed baseline, crawl proof, preview proof, or bridge incident. Resume at the earliest in-progress/open gate, then re-read all downstream phases and update this table after each accepted phase; at each marked context cut, use the `fresh-session` skill.
 

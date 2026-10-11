@@ -20,7 +20,7 @@ Registered handoff: [`HANDOFF.d/2026-08-24T1402Z-hetz-codex-scoped-ai-metadata-p
 | 9. Full rollout and exact-SHA verification | ⬜ open | 2026-10-11 | Blocked on usable Step 8 scorecard and Albert's business acceptance. No full rollout started by this verification. |
 | 10. Documentation, issue closure, and handoff retirement | ⬜ open | 2026-08-24 | Implement §9 Step 10 after production verification. |
 
-**Current continuation:** [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md); production findings in [#96](https://github.com/u2giants/popdam3/issues/96). Earlier baseline/implementation rows retain dated historical evidence; current retained profiles must be proved after re-profiling. No new retention implementation is required solely because the pre-fix cohort was wiped.
+**Current continuation:** [HANDOFF.d/2026-10-11T2213Z-hetz-codex-open-issues-coordinator-continuation.md](HANDOFF.d/2026-10-11T2213Z-hetz-codex-open-issues-coordinator-continuation.md); production findings in [#96](https://github.com/u2giants/popdam3/issues/96). Earlier baseline/implementation rows retain dated historical evidence; current retained profiles must be proved after re-profiling. No new retention implementation is required solely because the pre-fix cohort was wiped.
 
 **Historical filtering rationale:** the September 3 tag-count failures came from whole-set materialization in the counting path while bounded rows passed. Preserve separate/serialized expensive count and facet requests; the now-enabled contract is not permission to reintroduce wide counted reads.
 

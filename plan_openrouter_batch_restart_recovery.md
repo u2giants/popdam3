@@ -1,6 +1,6 @@
 # OpenRouter Batch Restart Recovery Implementation Plan
 
-Linked handoff: [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md)
+Linked handoff: [HANDOFF.d/2026-10-11T2213Z-hetz-codex-open-issues-coordinator-continuation.md](HANDOFF.d/2026-10-11T2213Z-hetz-codex-open-issues-coordinator-continuation.md)
 
 Tracking issue: [u2giants/popdam3#92](https://github.com/u2giants/popdam3/issues/92)
 
@@ -8,7 +8,7 @@ Tracking issue: [u2giants/popdam3#92](https://github.com/u2giants/popdam3/issues
 
 **Updated October 11, 2026.** The direct-Gemini path and subsequent crash/receipt recovery code have merged, including #317. The September “unshipped branch” and reset-contract blockers are superseded; do not repeat that shipment. This session inspected production state but submitted no paid batch and recovered no protected job.
 
-**Next session:** begin with Step 8: refresh current deployed code and protected job state, reconcile existing external jobs safely, then obtain the retained same-provider-ID restart/exactly-once proof. Follow current technical task/reviewer gates; paid work remains within verified owner authority. Read [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md) and current [#92](https://github.com/u2giants/popdam3/issues/92) comments. Evidence: [issue #143 closeout receipt](https://github.com/u2giants/popdam3/issues/143#issuecomment-6112766070); #92 latest acceptance comment October 11, 2026 at 11:58 AM EDT.
+**Next session:** begin with Step 8: refresh current deployed code and protected job state, reconcile existing external jobs safely, then obtain the retained same-provider-ID restart/exactly-once proof. Follow current technical task/reviewer gates; paid work remains within verified owner authority. Read [HANDOFF.d/2026-10-11T2213Z-hetz-codex-open-issues-coordinator-continuation.md](HANDOFF.d/2026-10-11T2213Z-hetz-codex-open-issues-coordinator-continuation.md) and current [#92](https://github.com/u2giants/popdam3/issues/92) comments. Evidence: [issue #143 closeout receipt](https://github.com/u2giants/popdam3/issues/143#issuecomment-6112766070); #92 latest acceptance comment October 11, 2026 at 11:58 AM EDT.
 
 **Settled decision:** malformed batch answers use JSON repair on the SAME model; do not substitute a different model. Historical September implementation detail remains in the plan body for rationale, not as current deployment status.
 

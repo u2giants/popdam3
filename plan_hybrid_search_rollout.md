@@ -12,7 +12,7 @@
 
 ## STATUS — read this first
 
-**Updated October 11, 2026.** Start by rechecking the current #96 pilot and #92 recovery gates, then resume the remaining coverage/rollout work. Do not infer current counts from this dated snapshot. Current continuation: [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md); live verification is recorded in [#97](https://github.com/u2giants/popdam3/issues/97).
+**Updated October 11, 2026.** Start by rechecking the current #96 pilot and #92 recovery gates, then resume the remaining coverage/rollout work. Do not infer current counts from this dated snapshot. Current continuation: [HANDOFF.d/2026-10-11T2213Z-hetz-codex-open-issues-coordinator-continuation.md](HANDOFF.d/2026-10-11T2213Z-hetz-codex-open-issues-coordinator-continuation.md); live verification is recorded in [#97](https://github.com/u2giants/popdam3/issues/97).
 
 | Step | State | Owner/route | Implementation artifact | Verification evidence |
 |---|---|---|---|---|
