@@ -4,10 +4,7 @@
  */
 
 import { join, dirname, normalize, isAbsolute, sep } from "path";
-import {
-  copyFileSync, mkdirSync, existsSync, statSync, openSync, closeSync, writeFileSync,
-  renameSync, unlinkSync,
-} from "fs";
+import { copyFile, mkdir, stat, open, writeFile, rename, unlink, access } from "fs/promises";
 import { app } from "electron";
 import { sha256File } from "./hash";
 import { log } from "./logger";
@@ -94,41 +91,41 @@ export async function copyToWorkspace(
   filename: string,
   workspacePath: string,
 ): Promise<CopiedFile> {
-  if (!existsSync(sourcePath)) {
+  if (!(await pathExists(sourcePath))) {
     throw new Error(`Source file not found: ${sourcePath}`);
   }
 
   const destDir = checkoutDir(workspacePath, checkoutId);
-  mkdirSync(destDir, { recursive: true });
+  await mkdir(destDir, { recursive: true });
   const destPath = joinWithinRoot(destDir, safePathSegment(filename));
 
   log.info(`Copying ${sourcePath} → ${destPath}`);
-  copyFileSync(sourcePath, destPath);
+  await copyFile(sourcePath, destPath);
 
   const hash = await sha256File(destPath);
-  const size = statSync(destPath).size;
+  const size = (await stat(destPath)).size;
 
   return { workspacePath: destPath, hash, size };
 }
 
-export function copySnapshotToManagedPath(
+export async function copySnapshotToManagedPath(
   snapshotPath: string,
   relativePath: string,
   rootMappings: RootMapping[],
   tempSuffix: string,
-): string {
+): Promise<string> {
   const rootId = relativePath.split("/")[0] ?? relativePath.split("\\")[0];
   const finalPath = resolveAssetPath(rootId, relativePath, rootMappings);
   const finalDir = dirname(finalPath);
   const tempPath = join(finalDir, `${finalPath.split(/[\\/]/).pop() ?? "upload"}${tempSuffix}`);
 
-  mkdirSync(finalDir, { recursive: true });
+  await mkdir(finalDir, { recursive: true });
   log.info(`Copying ${snapshotPath} → ${tempPath}`);
-  copyFileSync(snapshotPath, tempPath);
+  await copyFile(snapshotPath, tempPath);
   try {
-    renameSync(tempPath, finalPath);
+    await rename(tempPath, finalPath);
   } catch (e) {
-    try { unlinkSync(tempPath); } catch { /* best effort cleanup */ }
+    await unlink(tempPath).catch(() => { /* best effort cleanup */ });
     throw e;
   }
   return finalPath;
@@ -152,8 +149,8 @@ export interface CheckoutMeta {
   seafile_obj_id?: string;
 }
 
-export function writeCheckoutMeta(destDir: string, meta: CheckoutMeta): void {
-  writeFileSync(
+export async function writeCheckoutMeta(destDir: string, meta: CheckoutMeta): Promise<void> {
+  await writeFile(
     join(destDir, ".pop-checkout.json"),
     JSON.stringify(meta, null, 2),
     "utf-8",
@@ -170,21 +167,22 @@ export async function waitForFileStable(filePath: string): Promise<void> {
   for (let attempt = 0; attempt < STABILITY_MAX_ATTEMPTS; attempt++) {
     await sleep(STABILITY_WAIT_MS);
 
-    if (!existsSync(filePath)) {
+    let st;
+    try {
+      st = await stat(filePath);
+    } catch {
       throw new Error(`File disappeared during stability check: ${filePath}`);
     }
-
-    const stat = statSync(filePath);
-    const size = stat.size;
-    const mtime = stat.mtimeMs;
+    const size = st.size;
+    const mtime = st.mtimeMs;
 
     if (size === lastSize && mtime === lastMtime) {
       stableCount++;
       if (stableCount >= 2) {
         // Try to open for exclusive read to confirm not locked
         try {
-          const fd = openSync(filePath, "r");
-          closeSync(fd);
+          const fh = await open(filePath, "r");
+          await fh.close();
         } catch {
           // Still locked — keep waiting
           stableCount = 0;
@@ -220,19 +218,28 @@ export async function createSnapshot(
   workspacePath: string,
 ): Promise<Snapshot> {
   const snapDir = snapshotDir(workspacePath, checkoutId);
-  mkdirSync(snapDir, { recursive: true });
+  await mkdir(snapDir, { recursive: true });
   const snapPath = joinWithinRoot(snapDir, safePathSegment(filename));
 
   log.info(`Snapshotting ${workspaceFilePath} → ${snapPath}`);
-  copyFileSync(workspaceFilePath, snapPath);
+  await copyFile(workspaceFilePath, snapPath);
 
   const hash = await sha256File(snapPath);
-  const size = statSync(snapPath).size;
+  const size = (await stat(snapPath)).size;
 
   return { snapshotPath: snapPath, hash, size };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

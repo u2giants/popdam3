@@ -20,7 +20,8 @@
  * "not a sentinel" — the detector never classifies drawn artwork as a placeholder.
  */
 
-import { readFile, open } from "node:fs/promises";
+import { open } from "node:fs/promises";
+import { readFileWithinLimit } from "./bounded-read.js";
 import * as mupdf from "mupdf";
 
 /** Canonical fragment Adobe writes into the placeholder page's text. */
@@ -73,7 +74,12 @@ export async function inspectAiPage(filePath: string): Promise<AiPageInfo> {
   }
 
   // Modern format: PDF-wrapped.
-  const fileBuffer = await readFile(filePath);
+  // Bounded read (#232): a real sentinel is a tiny text-only placeholder, so a
+  // file over the in-memory cap is real artwork — never buffer it whole.
+  const fileBuffer = await readFileWithinLimit(filePath);
+  if (!fileBuffer) {
+    return { isSentinel: false, oldFormat: false, pageCount: 0, pageText: "" };
+  }
   const doc = mupdf.Document.openDocument(fileBuffer, "application/pdf");
   const pageCount = doc.countPages();
   if (pageCount === 0) {

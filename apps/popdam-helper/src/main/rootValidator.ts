@@ -9,7 +9,7 @@
  */
 
 import { join, dirname, sep } from "path";
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "fs";
+import { readFile, readdir, stat, writeFile } from "fs/promises";
 import {
   FORBIDDEN_ROOT_PREFIXES_WIN,
   FORBIDDEN_ROOT_PREFIXES_MAC,
@@ -45,12 +45,12 @@ function isForbidden(p: string): boolean {
   });
 }
 
-function readMarker(dir: string): MarkerFile | null {
+async function readMarker(dir: string): Promise<MarkerFile | null> {
   const markerPath = join(dir, ROOT_MARKER_FILENAME);
-  if (!existsSync(markerPath)) return null;
   try {
-    return JSON.parse(readFileSync(markerPath, "utf-8"));
+    return JSON.parse(await readFile(markerPath, "utf-8"));
   } catch {
+    // Missing or unreadable/invalid marker — treated the same way.
     return null;
   }
 }
@@ -65,10 +65,10 @@ function readMarker(dir: string): MarkerFile | null {
  * the expected root_id, but keep the first mismatched marker so we can return a
  * useful wrong-root error when no matching marker exists nearby.
  */
-function findMarkerNearby(
+async function findMarkerNearby(
   startPath: string,
   expectedRootId: string,
-): { path: string; marker: MarkerFile } | null {
+): Promise<{ path: string; marker: MarkerFile } | null> {
   let firstMismatch: { path: string; marker: MarkerFile } | null = null;
   const consider = (path: string, marker: MarkerFile | null) => {
     if (!marker) return null;
@@ -78,7 +78,7 @@ function findMarkerNearby(
   };
 
   // Check the path itself first
-  const direct = consider(startPath, readMarker(startPath));
+  const direct = consider(startPath, await readMarker(startPath));
   if (direct) return direct;
 
   // Check up to 4 levels up
@@ -86,17 +86,17 @@ function findMarkerNearby(
   for (let i = 0; i < 4; i++) {
     const parent = dirname(current);
     if (parent === current) break; // reached fs root
-    const found = consider(parent, readMarker(parent));
+    const found = consider(parent, await readMarker(parent));
     if (found) return found;
     current = parent;
   }
 
   // Check up to 5 levels down, bounded so a virtual drive cannot hang Settings.
-  function searchDown(
+  async function searchDown(
     dir: string,
     maxDepth: number,
     maxNodes: number,
-  ): { path: string; marker: MarkerFile } | null {
+  ): Promise<{ path: string; marker: MarkerFile } | null> {
     const queue: Array<{ dir: string; depth: number }> = [{ dir, depth: 0 }];
     let visited = 0;
     while (queue.length && visited < maxNodes) {
@@ -106,7 +106,7 @@ function findMarkerNearby(
 
       let entries: string[];
       try {
-        entries = readdirSync(currentDir.dir);
+        entries = await readdir(currentDir.dir);
       } catch {
         continue;
       }
@@ -114,8 +114,8 @@ function findMarkerNearby(
       for (const entry of entries) {
         const child = join(currentDir.dir, entry);
         try {
-          if (!statSync(child).isDirectory()) continue;
-          const found = consider(child, readMarker(child));
+          if (!(await stat(child)).isDirectory()) continue;
+          const found = consider(child, await readMarker(child));
           if (found) return found;
           queue.push({ dir: child, depth: currentDir.depth + 1 });
         } catch {
@@ -125,7 +125,7 @@ function findMarkerNearby(
     }
     return null;
   }
-  const down = searchDown(startPath, 5, 1200);
+  const down = await searchDown(startPath, 5, 1200);
   if (down) return down;
 
   return firstMismatch;
@@ -137,9 +137,9 @@ function markerDepth(fromPath: string, markerPath: string): number {
   return from - marker;
 }
 
-function isLikelySeaDriveAccountRoot(chosenPath: string): boolean {
+async function isLikelySeaDriveAccountRoot(chosenPath: string): Promise<boolean> {
   try {
-    const entries = readdirSync(chosenPath, { withFileTypes: true })
+    const entries = (await readdir(chosenPath, { withFileTypes: true }))
       .filter((d) => d.isDirectory())
       .map((d) => d.name.toLowerCase());
     return entries.some((name) =>
@@ -150,7 +150,7 @@ function isLikelySeaDriveAccountRoot(chosenPath: string): boolean {
   }
 }
 
-export function validateRoot(chosenPath: string, expectedRootId: string): ValidationResult {
+export async function validateRoot(chosenPath: string, expectedRootId: string): Promise<ValidationResult> {
   if (isForbidden(chosenPath)) {
     return {
       ok: false,
@@ -159,7 +159,7 @@ export function validateRoot(chosenPath: string, expectedRootId: string): Valida
     };
   }
 
-  const directMarker = readMarker(chosenPath);
+  const directMarker = await readMarker(chosenPath);
 
   if (directMarker) {
     if (directMarker.root_id !== expectedRootId) {
@@ -175,10 +175,10 @@ export function validateRoot(chosenPath: string, expectedRootId: string): Valida
   }
 
   // No direct marker — search nearby
-  const nearby = findMarkerNearby(chosenPath, expectedRootId);
+  const nearby = await findMarkerNearby(chosenPath, expectedRootId);
 
   if (!nearby) {
-    if (isLikelySeaDriveAccountRoot(chosenPath)) {
+    if (await isLikelySeaDriveAccountRoot(chosenPath)) {
       return {
         ok: false,
         reason: "no_marker",
@@ -234,7 +234,7 @@ export function validateRoot(chosenPath: string, expectedRootId: string): Valida
   };
 }
 
-export function writeMarker(rootPath: string, rootId: string, company = "POP Creations"): void {
+export async function writeMarker(rootPath: string, rootId: string, company = "POP Creations"): Promise<void> {
   const marker: MarkerFile = {
     type: "pop-dam-root",
     root_id: rootId,
@@ -243,7 +243,7 @@ export function writeMarker(rootPath: string, rootId: string, company = "POP Cre
     do_not_move: true,
     schema_version: 1,
   } as MarkerFile & { created_by: string; do_not_move: boolean };
-  writeFileSync(
+  await writeFile(
     join(rootPath, ROOT_MARKER_FILENAME),
     JSON.stringify(marker, null, 2),
     "utf-8",

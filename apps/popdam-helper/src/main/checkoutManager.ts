@@ -6,7 +6,8 @@
 
 import { shell } from "electron";
 import chokidar, { FSWatcher } from "chokidar";
-import { existsSync, statSync } from "fs";
+import { existsSync } from "fs";
+import { stat } from "fs/promises";
 import { join, dirname, basename, resolve } from "path";
 import {
   resolveAssetPath,
@@ -28,7 +29,8 @@ import { enqueue } from "./uploadQueue";
 import { getConfig } from "./config";
 import { validateRoot } from "./rootValidator";
 import {
-  getSeafileHealth,
+  detectSeaDriveRootAsync,
+  getSeafileHealthAsync,
   resolveSeafileTarget,
   ensureHydrated,
   getSeafileObjId,
@@ -95,8 +97,8 @@ export async function loadActiveCheckouts(): Promise<void> {
       // file's mtime vs the checkout time so a file edited before a restart is
       // still flagged as having un-checked-in work.
       try {
-        if (existsSync(record.workspacePath)) {
-          const mt = statSync(record.workspacePath).mtime.getTime();
+        if (record.workspacePath) {
+          const mt = (await stat(record.workspacePath)).mtime.getTime();
           if (mt > new Date(record.checkedOutAt).getTime() + 1000) {
             record.editedSinceCheckout = true;
             record.lastEditedAt = new Date(mt).toISOString();
@@ -180,7 +182,7 @@ async function resolveCopyAndOpen(
   // Double-check each mapping's local path is still pointing at the right folder level
   for (const mapping of mergedMappings) {
     if (!mapping.local_path) continue;
-    const vResult = validateRoot(mapping.local_path, mapping.root_id);
+    const vResult = await validateRoot(mapping.local_path, mapping.root_id);
     if (!vResult.ok) {
       if (vResult.reason === "too_deep" || vResult.reason === "too_shallow") {
         // Auto-correct in memory for this checkout — user should fix in Settings
@@ -222,15 +224,15 @@ async function resolveCopyAndOpen(
   let seafileObjId: string | undefined;
 
   if (preferred === "seafile") {
-    const health = getSeafileHealth(config);
-    // Gate on the mount root existing — NOT on health.available, which is
+    const seaDriveRoot = await detectSeaDriveRootAsync(config);
+    // Gate on the mount root existing — NOT on Seafile health.available, which is
     // all-or-nothing (it requires EVERY configured library to be mounted, so a
     // Character Licensed checkout would wrongly fail just because Generic Decor
     // isn't synced). resolveSeafileTarget + ensureHydrated below already verify
     // the SPECIFIC library and file this asset needs, and fall back if missing.
-    if (health.root) {
+    if (seaDriveRoot) {
       try {
-        const target = resolveSeafileTarget(asset.relative_path, config);
+        const target = await resolveSeafileTarget(asset.relative_path, config);
         // Confirm the file is fully local (or trigger + wait for hydration)
         await ensureHydrated(target.localPath, {
           onProgress: (s) =>
@@ -245,12 +247,15 @@ async function resolveCopyAndOpen(
         if (!config.synologyFallbackAllowed) throw e;
         log.warn(`Seafile resolution failed, falling back to Synology: ${seafileIssue}`);
       }
-    } else if (!config.synologyFallbackAllowed) {
-      throw new Error(
-        "Seafile/SeaDrive is unavailable and fallback is not enabled for this account." +
-          (health.detail ? `\n\n${health.detail}` : ""),
-      );
     } else {
+      // No mount root: fetch full health only now, for a useful message.
+      const health = await getSeafileHealthAsync(config);
+      if (!config.synologyFallbackAllowed) {
+        throw new Error(
+          "Seafile/SeaDrive is unavailable and fallback is not enabled for this account." +
+            (health.detail ? `\n\n${health.detail}` : ""),
+        );
+      }
       seafileIssue = health.detail ?? "SeaDrive mount root not found";
       log.warn(`Seafile unavailable (${seafileIssue}); falling back to Synology.`);
     }
@@ -275,7 +280,7 @@ async function resolveCopyAndOpen(
   );
 
   const destDir = checkoutDir(config.workspacePath, checkout_id);
-  writeCheckoutMeta(destDir, {
+  await writeCheckoutMeta(destDir, {
     checkout_id,
     asset_id: asset.asset_id,
     root_id: asset.relative_path.split("/")[0],
