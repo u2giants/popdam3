@@ -3,6 +3,38 @@ import { logger } from "../logger.js";
 import type { BatchResult, OpState } from "../types.js";
 
 const BATCH_SIZE = 500;
+const GROUP_PAGE = 1000;
+
+/** Page through every style group with a folder_path (no silent PostgREST row cap). */
+async function loadGroupPaths(client: DB): Promise<{ byPath: Map<string, string>; error?: string }> {
+  const byPath = new Map<string, string>();
+  let lastId: string | null = null;
+  for (;;) {
+    let q = client
+      .from("style_groups")
+      .select("id, folder_path")
+      .not("folder_path", "is", null)
+      .order("id", { ascending: true })
+      .limit(GROUP_PAGE);
+    if (lastId) q = q.gt("id", lastId);
+    const { data, error } = await q;
+    if (error) return { byPath, error: error.message };
+    const rows = (data ?? []) as Array<{ id: string; folder_path: string | null }>;
+    for (const g of rows) if (g.folder_path && !byPath.has(g.folder_path)) byPath.set(g.folder_path, g.id);
+    if (rows.length < GROUP_PAGE) break;
+    lastId = rows[rows.length - 1].id;
+  }
+  return { byPath };
+}
+
+/** Longest group folder_path that prefixes relativePath, via map lookups (no linear scan). */
+export function matchGroup(relativePath: string, byPath: Map<string, string>): string | null {
+  for (let i = relativePath.length; i > 0; i--) {
+    const id = byPath.get(relativePath.slice(0, i));
+    if (id) return id;
+  }
+  return null;
+}
 
 export async function handleRelinkOrphanedAssets(opState: OpState, client: DB = db()): Promise<BatchResult> {
   const cursor = (opState.cursor === 0 || opState.cursor === null) ? null : opState.cursor as string;
@@ -20,41 +52,36 @@ export async function handleRelinkOrphanedAssets(opState: OpState, client: DB = 
   if (orphanErr) return { ok: false, done: false, error: orphanErr.message };
   if (!orphans || orphans.length === 0) return { ok: true, done: true, relinked: 0, errors: 0 };
 
-  // Build group-path map once per batch (sorted longest-first for specificity)
-  const { data: groups, error: groupErr } = await client
-    .from("style_groups")
-    .select("id, folder_path")
-    .not("folder_path", "is", null);
-  if (groupErr) return { ok: false, done: false, error: groupErr.message };
+  const { byPath, error: groupErr } = await loadGroupPaths(client);
+  if (groupErr) return { ok: false, done: false, error: groupErr };
 
-  const sortedPaths = (groups ?? [])
-    .filter((g: { folder_path: string | null }) => g.folder_path)
-    .map((g: { id: string; folder_path: string }) => ({ id: g.id, path: g.folder_path }))
-    .sort((a: { path: string }, b: { path: string }) => b.path.length - a.path.length);
+  // Bucket assets by target group, then one set-based update per group.
+  const byGroup = new Map<string, string[]>();
+  for (const asset of orphans) {
+    const gid = matchGroup((asset.relative_path as string | null) ?? "", byPath);
+    if (!gid) continue;
+    const list = byGroup.get(gid) ?? [];
+    list.push(asset.id as string);
+    byGroup.set(gid, list);
+  }
 
   let relinked = 0;
   let errors = 0;
-  let lastId = cursor;
-
-  for (const asset of orphans) {
-    lastId = asset.id as string;
-    const match = sortedPaths.find((g: { path: string }) => (asset.relative_path as string).startsWith(g.path));
-    if (!match) continue;
-
+  for (const [groupId, assetIds] of byGroup) {
     const { error: updateErr } = await client
       .from("assets")
-      .update({ style_group_id: (match as { id: string }).id })
-      .eq("id", asset.id)
+      .update({ style_group_id: groupId })
+      .in("id", assetIds)
       .is("style_group_id", null);
-
     if (updateErr) {
-      logger.warn("relink-orphaned: failed to update asset", { assetId: asset.id, error: updateErr.message });
-      errors++;
+      logger.warn("relink-orphaned: failed to update assets", { groupId, count: assetIds.length, error: updateErr.message });
+      errors += assetIds.length;
     } else {
-      relinked++;
+      relinked += assetIds.length;
     }
   }
 
+  const lastId = orphans[orphans.length - 1].id as string;
   const done = orphans.length < BATCH_SIZE;
   return { ok: true, done, relinked, errors, nextOffset: done ? null : lastId };
 }

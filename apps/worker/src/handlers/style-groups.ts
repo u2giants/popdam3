@@ -161,6 +161,39 @@ export function normalizeRebuildState(state: RebuildState | null): RebuildState 
   };
 }
 
+// ── Set-based empty-group check ──────────────────────────────────────────────
+// One paged query over live member assets for the whole candidate batch instead
+// of one exact count per group. Pages until exhausted so the PostgREST row cap
+// can never hide a live member (which would wrongly delete a non-empty group).
+const LIVE_MEMBER_PAGE = 1000;
+
+export async function findEmptyGroupIds(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  client: { from: (t: string) => any },
+  ids: string[],
+): Promise<{ emptyIds: string[]; error?: unknown }> {
+  if (ids.length === 0) return { emptyIds: [] };
+  const live = new Set<string>();
+  let lastAssetId: string | null = null;
+  for (;;) {
+    let q = client
+      .from("assets")
+      .select("id, style_group_id")
+      .in("style_group_id", ids)
+      .eq("is_deleted", false)
+      .order("id", { ascending: true })
+      .limit(LIVE_MEMBER_PAGE);
+    if (lastAssetId) q = q.gt("id", lastAssetId);
+    const { data, error } = await q;
+    if (error) return { emptyIds: [], error };
+    const rows = (data ?? []) as Array<{ id: string; style_group_id: string }>;
+    for (const r of rows) live.add(r.style_group_id);
+    if (rows.length < LIVE_MEMBER_PAGE || live.size === ids.length) break;
+    lastAssetId = rows[rows.length - 1].id;
+  }
+  return { emptyIds: ids.filter((id) => !live.has(id)) };
+}
+
 // ── Rebuild handler — called from operation-loop per batch ───────────────────
 
 export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchResult> {
@@ -333,17 +366,8 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     if (fetchErr) return { ok: false, done: false, error: formatError(fetchErr), error_stage: "delete_groups" };
 
     const ids = (rows ?? []).map((r: { id: string }) => r.id);
-    const emptyIds: string[] = [];
-    for (const id of ids) {
-      const { count, error: cntErr } = await client
-        .from("assets")
-        .select("id", { count: "exact", head: false })
-        .eq("style_group_id", id)
-        .eq("is_deleted", false)
-        .limit(0);
-      if (cntErr) return { ok: false, done: false, error: formatError(cntErr), error_stage: "delete_groups" };
-      if (count === 0) emptyIds.push(id);
-    }
+    const { emptyIds, error: liveErr } = await findEmptyGroupIds(client, ids);
+    if (liveErr) return { ok: false, done: false, error: formatError(liveErr), error_stage: "delete_groups" };
     if (emptyIds.length > 0) {
       const { error: delErr } = await client.from("style_groups").delete().in("id", emptyIds);
       if (delErr) return { ok: false, done: false, error: formatError(delErr), error_stage: "delete_groups" };
