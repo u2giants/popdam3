@@ -217,7 +217,8 @@ const HEARTBEAT_CONFIG_KEYS_WINDOWS = [
   "WINDOWS_AGENT_SG_NAS_SHARE",
   "WINDOWS_AGENT_SG_NAS_MOUNT_PATH",
   "WINDOWS_AGENT_SG_NAS_USER",
-  "WINDOWS_AGENT_SG_NAS_PASS",
+  // WINDOWS_AGENT_SG_NAS_PASS is not in admin_config any more: it lives in Vault
+  // and is read server-side through get_sg_nas_password() (shared-db#4168).
   "WINDOWS_AGENT_RENDER_CONCURRENCY",
   "WINDOWS_REPAIR_CODE",
   "PDF_TEXT_SAMPLE_REQUEST",
@@ -382,6 +383,11 @@ async function handleHeartbeat(
   const configMap: Record<string, unknown> = {};
   for (const row of configResult.data || []) {
     configMap[row.key] = row.value;
+  }
+  if (agentType === "windows-render") {
+    const { data: sgPass, error: sgPassErr } = await db.rpc("get_sg_nas_password");
+    if (sgPassErr) console.error("get_sg_nas_password failed:", sgPassErr.message);
+    else configMap.WINDOWS_AGENT_SG_NAS_PASS = typeof sgPass === "string" ? sgPass : "";
   }
 
   // Spaces

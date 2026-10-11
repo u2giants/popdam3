@@ -40,7 +40,9 @@ For each credential:
 2. **Save the new value into PopDAM/PopSG Settings** (admin login), which writes it back
    to `admin_config`. For the NAS passwords this is: log in to `sg.designflow.app`
    (styleguides) / `dam.designflow.app` (mac) → Settings → the NAS section → Password →
-   Save. For the API/DO keys, the relevant Settings tab.
+   Save. For the API/DO keys, the relevant Settings tab. Since popcre/shared-db#4168 the
+   PopSG NAS password (#7) is stored in Supabase Vault, not `admin_config`; the PopSG
+   Settings save writes it there.
 3. Update the matching 1Password item field with the new value.
 4. Revoke/delete the old value at the provider once the new one is confirmed working.
 
