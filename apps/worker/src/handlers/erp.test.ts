@@ -62,8 +62,8 @@ test("ERP apply payload keeps plan order and fields", () => {
 });
 
 test("ERP apply results must match the item count and normalise ids", () => {
-  assert.deepEqual(parseErpApplyResults([{ asset_count: 2, group_count: 1, asset_id: "a", group_id: null }], 1), [
-    { asset_count: 2, group_count: 1, asset_id: "a", group_id: null },
+  assert.deepEqual(parseErpApplyResults([{ asset_count: 2, group_count: 1, asset_id: "a", group_id: "g" }], 1), [
+    { asset_count: 2, group_count: 1, asset_id: "a", group_id: "g" },
   ]);
   assert.throws(() => parseErpApplyResults([], 1), /0 results for 1 items/);
   assert.throws(() => parseErpApplyResults(null, 1), /results for 1 items/);
