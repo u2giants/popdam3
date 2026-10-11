@@ -157,6 +157,7 @@ popdam3/
 │   ├── windows-agent/          ← Windows render agent: Inkscape/ImageMagick/Ghostscript/Poppler/Tesseract (TypeScript)
 │   └── popdam-helper/          ← Electron desktop app
 ├── packages/path-filters/      ← Shared path filter logic (Node.js workspace pkg)
+├── packages/agent-common/      ← Source shared by bridge + windows agents (synced into apps/*/src/common at build; edit here)
 ├── scripts/                    ← Utility scripts (nas-ssh.sh, etc.)
 ├── deploy/synology/            ← Reference docker-compose.yml for NAS
 ├── .github/workflows/          ← CI/CD pipelines
@@ -173,7 +174,7 @@ popdam3/
 - `node_modules/`, `apps/*/node_modules/`
 - `.lovable/` — Lovable platform memory (ignore)
 
-**Project-owned source:** `src/`, `supabase/functions/`, `apps/*/src/`, `packages/path-filters/src/`.
+**Project-owned source:** `src/`, `supabase/functions/`, `apps/*/src/`, `packages/path-filters/src/`, `packages/agent-common/src/`.
 **Docs and runbooks:** root `*.md`, `docs/`, `SELFHOST.md`, `HANDOFF.md`.
 **Scripts and deployment metadata:** `scripts/`, `deploy/`, `.github/workflows/`, Dockerfiles, `nginx.conf`.
 
@@ -263,7 +264,7 @@ Files outside project-owned areas that were intentionally modified:
 |---|---|---|---|---|
 | `popdam-frontend` | React/Vite static web app for PopDAM + PopSG | Coolify on VPS | Coolify app `qxj8a0j3tpa9lq4q5rs6pezy`; domains `dam.designflow.app`, `sg.designflow.app` | `ghcr.io/u2giants/popdam-frontend:latest` from `.github/workflows/publish-frontend.yml` + `Dockerfile.ci` |
 | `coolify-proxy` | Traefik reverse proxy for Coolify apps | Coolify on VPS | Traefik service `https-0-qxj8a0j3tpa9lq4q5rs6pezy@docker` routes to frontend | `traefik:v3.6` managed by Coolify |
-| Railway worker | Persistent batch processor for AI tagging, ERP, style groups, SeaDrive mirror | Railway | Railway service for `apps/worker/` (exact Railway project ID unknown; verify in Railway dashboard) | `apps/worker/Dockerfile`; Railway rebuilds on every push to `main` |
+| Railway worker | Persistent batch processor for AI tagging, ERP, style groups, SeaDrive mirror | Railway | Railway service for `apps/worker/` (verified project/service/environment identifiers: `docs/INFRASTRUCTURE.md` → Railway Worker) | `apps/worker/Dockerfile`; Railway rebuilds on every push to `main` |
 | `popdam-bridge` | Synology NAS scanner, thumbnailer, upload/check-in verifier | Synology Container Manager / docker compose | Host `edgesynology1` (edgesynology2 copy retired 2026-09-23, #141); compose reference `deploy/synology/docker-compose.yml` | `ghcr.io/u2giants/popdam-bridge:stable` from `.github/workflows/publish-bridge-agent.yml` |
 | Windows render agent | Windows render (Inkscape, ImageMagick, Ghostscript, Poppler, Tesseract — no Illustrator) and PDF text backfill agent | Manual Windows VM install | Release channel `windows-agent-latest` | `apps/windows-agent/`, packaged by `.github/workflows/publish-windows-agent.yml` |
 | POP DAM Helper | Designer desktop checkout/check-in helper | End-user desktop install | Release channel `popdam-helper-latest` | `apps/popdam-helper/`, packaged by `.github/workflows/publish-popdam-helper.yml` |
@@ -301,14 +302,13 @@ apps/*/node_modules/
 apps/*/dist/
 apps/*/out/
 packages/path-filters/dist/
+apps/*/src/common/          (generated copy of packages/agent-common/src)
 apps/popdam-helper/out/
 .cache/
 coverage/
 .nyc_output/
 *.tsbuildinfo
 package-lock.json
-bun.lock
-bun.lockb
 apps/*/package-lock.json
 .lovable/               # Lovable platform memory
 worksp_symlink.md       # harness bookkeeping
@@ -327,6 +327,7 @@ apps/popdam-helper/.webpack/
 
 Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
 
+- AG Grid license warning is accepted: no purchase; ignore the warning and preserve existing features (owner instruction 2026-10-11)
 - Dual-mode (PopDAM / PopSG) via hostname detection
 - `asset_count` on `style_groups` is a cached field, not computed on read
 - Style-group SKU extraction must skip category folders but accept digit-leading SKUs
@@ -432,7 +433,7 @@ Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the
 | Status | Item | Next action |
 |--------|------|-------------|
 | 🟡 open | **Seafile/SeaDrive Helper — Brazil pilot** | First slice (v1.4.1) + receipt verification (bridge agent v1.16.x) shipped and **active** (`CHECKIN_VERIFICATION_ENABLED = true`, 2026-06-09); Helper Microsoft OAuth + USA SMB/local check-in shipped in `1cc3fd3`; Supabase Auth callback `http://127.0.0.1:47380/auth/callback` allowed on 2026-06-24. Next: install Helper + SeaDrive on one Brazil Mac and validate checkout/check-in round-trip — watch the first real check-in go `verifying → complete`. See `HANDOFF.md`, `docs/SEAFILE_INTEGRATION.md`. |
-| 🟡 open | **PopSG production readiness (#107)** | Tracked in `plan_popsg_production_readiness.md` — read its STATUS table. As of 2026-09-18: previews classified, bridge 1.16.12, v2 search fast; blocked on shared-db #3282 (PDF claim timeout) and on the nightly crawl recovering after #3023. |
+| 🟡 open | **PopSG production readiness (#107)** | Tracked in `plan_popsg_production_readiness.md` — read its STATUS table. As of October 11, 2026: extraction and v2 app cutover delivered; remaining changed-night acceptance is tracked by #335/#336 and #107. Verify ordinary post-deployment receipts, then final acceptance/docs retirement. |
 | 🟡 open | **Style Guide Sources archival readiness** | Let the licensing-PDF backfill finish, add crawl-regression guard before archiving, then build an explicit archived state for old style guides. See `HANDOFF.md` and `docs/POPSG.md`. |
 
 ## Critical incidents

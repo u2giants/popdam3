@@ -6,8 +6,10 @@ import {
   countAcceptedExtensions,
   evaluateSgDropGuard,
   hasMoreSgSearchDocuments,
-  runSteppableSgRefresh,
+  runScheduledSgRefresh,
   SG_RECONCILE_BATCH_SIZE,
+  SG_REFRESH_TIMEOUT_RETRY_WINDOW_MS,
+  shouldRetrySgRefreshTimeout,
 } from "./sg-crawl-state.ts";
 
 describe("buildSgCrawlCompletionUpdate", () => {
@@ -80,67 +82,101 @@ describe("hasMoreSgSearchDocuments", () => {
   });
 });
 
-describe("runSteppableSgRefresh", () => {
-  it("runs each fresh phase as its own RPC statement in order", async () => {
-    const calls: string[] = [];
-    const result = await runSteppableSgRefresh("run-1", 5_000, async (args) => {
-      calls.push(args.p_step);
-      expect(args).toMatchObject({ p_run_id: "run-1", p_search_batch_size: 5_000 });
-      return { data: [{ search_documents_synced: args.p_step === "search" ? 5_000 : 0 }], error: null };
-    });
-    expect(calls).toEqual(["file_groups", "folders", "search"]);
-    expect(result).toEqual({ synced: 5_000 });
+describe("runScheduledSgRefresh", () => {
+  const refreshedAt = "2026-10-11T21:07:14.000Z";
+  const ready = async () => ({ data: [{ ready: true, refreshed_at: refreshedAt }], error: null });
+
+  it("does not synchronize search or run aggregates while the scheduler is pending", async () => {
+    let called = false;
+    expect(
+      await runScheduledSgRefresh("run-1", 5_000, async (args) => {
+        expect(args).toEqual({ p_run_id: "run-1" });
+        return { data: [{ ready: false, refreshed_at: null }], error: null };
+      }, async () => {
+        called = true;
+        return { data: [], error: null };
+      }),
+    ).toEqual({ synced: 0, pending: true });
+    expect(called).toBe(false);
   });
 
-  it("replays all bounded steps for an old bridge continuation or restarted crawl", async () => {
-    const calls: string[] = [];
-    const result = await runSteppableSgRefresh("run-1", 5_000, async (args) => {
-      calls.push(args.p_step);
-      return { data: [{ search_documents_synced: 0 }], error: null };
+  it("runs only one bounded search slice after the scheduler proves freshness", async () => {
+    const result = await runScheduledSgRefresh("run-1", 5_000, ready, async (args) => {
+      expect(args).toEqual({ p_run_id: "run-1", p_search_batch_size: 5_000, p_step: "search" });
+      return { data: [{ search_documents_synced: 5_000 }], error: null };
     });
-    expect(calls).toEqual(["file_groups", "folders", "search"]);
-    expect(result).toEqual({ synced: 0 });
+    expect(result).toEqual({ synced: 5_000, refreshedAt });
+    expect(hasMoreSgSearchDocuments(result.synced, 5_000)).toBe(true);
   });
 
-  it("stops at the failed step and rejects missing or impossible counts", async () => {
-    const calls: string[] = [];
-    const failure = await runSteppableSgRefresh("run-1", 5_000, async (args) => {
-      calls.push(args.p_step);
-      return args.p_step === "folders"
-        ? { data: null, error: { message: "bounded statement failed" } }
-        : { data: [{ search_documents_synced: 0 }], error: null };
-    });
-    expect(calls).toEqual(["file_groups", "folders"]);
-    expect(failure).toEqual({ synced: 0, failedStep: "folders", error: "bounded statement failed" });
-    for (const badCount of [null, -1, 5_001, 1.5]) {
-      const result = await runSteppableSgRefresh("run-1", 5_000, async (args) => ({
-        data: [{ search_documents_synced: args.p_step === "search" ? badCount : 0 }],
-        error: null,
-      }));
+  it("refuses malformed readiness and never advances search from it", async () => {
+    for (
+      const data of [null, [], [{ ready: true }], [{ ready: false, refreshed_at: refreshedAt }], [{ ready: "true", refreshed_at: refreshedAt }], [{
+        ready: true,
+        refreshed_at: "bad",
+      }], [{ ready: true, refreshed_at: refreshedAt }, { ready: true, refreshed_at: refreshedAt }]]
+    ) {
+      let called = false;
+      const result = await runScheduledSgRefresh("run-1", 5_000, async () => ({ data, error: null }), async () => {
+        called = true;
+        return { data: [], error: null };
+      });
+      expect(result.failedStep).toBe("scheduled_refresh");
+      expect(called).toBe(false);
+    }
+  });
+
+  it("preserves readiness and search errors without reporting completion", async () => {
+    expect(
+      await runScheduledSgRefresh("run-1", 5_000, async () => ({ data: null, error: { message: "scheduler expired" } }), async () => {
+        throw new Error("must not search");
+      }),
+    ).toEqual({ synced: 0, failedStep: "scheduled_refresh", error: "scheduler expired" });
+    expect(await runScheduledSgRefresh("run-1", 5_000, ready, async () => ({ data: null, error: { message: "statement timeout" } })))
+      .toEqual({ synced: 0, refreshedAt, failedStep: "search", error: "statement timeout" });
+  });
+
+  it("refuses missing, fractional, negative and oversized synchronization counts", async () => {
+    for (const badCount of [null, undefined, -1, 5_001, 1.5]) {
+      const result = await runScheduledSgRefresh("run-1", 5_000, ready, async () => ({ data: [{ search_documents_synced: badCount }], error: null }));
       expect(result.failedStep).toBe("search");
       expect(result.error).toMatch(/invalid synchronization count/);
     }
   });
 
-  it("replays from file_groups after an interrupted folder step", async () => {
-    const calls: string[] = [];
-    let failFolder = true;
-    const call = async (args: { p_step: "file_groups" | "folders" | "search" }) => {
-      calls.push(args.p_step);
-      if (args.p_step === "folders" && failFolder) {
-        failFolder = false;
-        return { data: null, error: { message: "temporary timeout" } };
-      }
-      return { data: [{ search_documents_synced: 0 }], error: null };
-    };
-    expect((await runSteppableSgRefresh("run-1", 5_000, call)).failedStep).toBe("folders");
-    expect(await runSteppableSgRefresh("run-1", 5_000, call)).toEqual({ synced: 0 });
-    expect(calls).toEqual(["file_groups", "folders", "file_groups", "folders", "search"]);
+  it("rechecks scheduled freshness on restart and completes only with a valid short search slice", async () => {
+    let attempts = 0;
+    const search = async () =>
+      ++attempts === 1 ? { data: null, error: { message: "statement timeout" } } : { data: [{ search_documents_synced: 0 }], error: null };
+    expect((await runScheduledSgRefresh("run-1", 5_000, ready, search)).failedStep).toBe("search");
+    expect(await runScheduledSgRefresh("run-1", 5_000, ready, search)).toEqual({ synced: 0, refreshedAt });
   });
 });
 
 describe("SG_RECONCILE_BATCH_SIZE", () => {
   it("keeps each production reconciliation write bounded", () => {
     expect(SG_RECONCILE_BATCH_SIZE).toBe(250);
+  });
+});
+
+describe("shouldRetrySgRefreshTimeout", () => {
+  const ingest = "2026-10-10T02:21:02.084Z";
+  const ingestMs = Date.parse(ingest);
+  const timeout = "canceling statement due to statement timeout";
+
+  it("retries a statement timeout inside the window (nightly crawl 2026-10-10 failure)", () => {
+    expect(shouldRetrySgRefreshTimeout(timeout, ingest, ingestMs + 10_000)).toBe(true);
+  });
+
+  it("stops retrying once the window closes", () => {
+    expect(shouldRetrySgRefreshTimeout(timeout, ingest, ingestMs + SG_REFRESH_TIMEOUT_RETRY_WINDOW_MS)).toBe(false);
+  });
+
+  it("never retries other errors", () => {
+    expect(shouldRetrySgRefreshTimeout("permission denied for function", ingest, ingestMs)).toBe(false);
+  });
+
+  it("fails closed on an unreadable ingest timestamp", () => {
+    expect(shouldRetrySgRefreshTimeout(timeout, "not-a-date", ingestMs)).toBe(false);
   });
 });

@@ -110,6 +110,7 @@ function currentEvidence(event, io) {
   const evidence = parseOutcomeEvidence(comment.body, { requiredStage: event.stage })
   if (evidence.work_issue !== event.work_issue || evidence.merge_pr !== event.pr || evidence.merge_sha !== event.merge_sha) throw new Error('outcome evidence belongs to another issue or merge')
   const scope = io.parseScope(io.getIssue(event.work_issue)?.body ?? '')
+  if (scope?.workType === 'curated-master-data') throw new Error('curated Master Data has no runtime stage; it completes by an authentic merged completion record (#4194)')
   if (!scope || scope.workType !== 'structural' || !STRUCTURAL_ROUTES.includes(scope.route)) throw new Error('runtime stage requires admitted structural outcome evidence')
   const inspection = io.prStructuralInspection(event.pr, event.merge_sha)
   if (!Array.isArray(scope.writes) || !structuralWritesMatch(inspection, [...scope.writes].sort())) throw new Error('stage PR objects do not match the admitted writes')

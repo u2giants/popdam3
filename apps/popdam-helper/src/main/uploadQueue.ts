@@ -149,7 +149,7 @@ async function processJob(job: StoredJob): Promise<void> {
     try {
       if (job.uploadMethod === "smb_local") {
         const config = getConfig();
-        copySnapshotToManagedPath(
+        await copySnapshotToManagedPath(
           snapshotPath,
           job.relativePath,
           config.rootMappings,

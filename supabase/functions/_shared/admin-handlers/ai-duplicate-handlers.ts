@@ -7,6 +7,7 @@
  * This removes A.ai: soft-deletes the DB record and deletes its DO Spaces thumbnail.
  */
 
+import { refreshStyleGroupCounts } from "../style-group-counts-refresh.ts";
 import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
 import { credentialsFromConfig, deleteSpacesObjects } from "../spaces-delete.ts";
@@ -95,8 +96,8 @@ export async function handleDeleteAiPdfDuplicates() {
         await db.from("style_groups").delete().in("id", emptyGroups);
       }
       if (nonEmptyGroups.length > 0) {
-        await db.rpc("refresh_style_group_counts_batch", { p_group_ids: nonEmptyGroups });
-        await db.rpc("refresh_style_group_primaries", { p_group_ids: nonEmptyGroups });
+        const r = await refreshStyleGroupCounts(db, nonEmptyGroups);
+        if (!r.ok) throw new Error(r.error);
       }
     } catch (e) {
       console.warn("ai-duplicate delete: group refresh failed (non-fatal):", (e as Error).message);

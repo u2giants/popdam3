@@ -88,5 +88,6 @@ export function main(argv, { log = (t) => process.stdout.write(t), err = console
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exit(main(process.argv.slice(2)))
+  // Let pending stdout/stderr pipe writes drain before Node exits.
+  process.exitCode = main(process.argv.slice(2))
 }

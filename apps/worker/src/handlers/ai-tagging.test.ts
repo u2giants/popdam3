@@ -44,6 +44,75 @@ function candidate(id: string, tier: number) {
   };
 }
 
+test("explicit asset pages checkpoint and resume the remaining IDs without discovery", async () => {
+  const ids = Array.from({ length: 23 }, (_, i) => `123e4567-e89b-42d3-a456-${String(i).padStart(12, "0")}`);
+  const calls: Array<Record<string, unknown>> = [];
+  const processed: string[] = [];
+  const dependencies = {
+    client: fakeClient([], calls),
+    batchSize: 10,
+    concurrency: 2,
+    tagAsset: async (id: string) => {
+      processed.push(id);
+      return { outcome: "tagged" as const };
+    },
+  };
+  const first = await handleBulkAiTag({ status: "running", cursor: 0, params: { asset_ids: ids } }, false, dependencies);
+  assert.equal(first.done, false);
+  assert.equal(first.tagged, 10);
+  assert.equal(first.nextOffset, 10);
+  assert.deepEqual(processed, ids.slice(0, 10));
+
+  const second = await handleBulkAiTag({ status: "running", cursor: first.nextOffset, params: { asset_ids: ids } }, false, dependencies);
+  assert.equal(second.done, false);
+  assert.equal(second.tagged, 10);
+  assert.equal(second.nextOffset, 20);
+
+  const final = await handleBulkAiTag({ status: "running", cursor: second.nextOffset, params: { asset_ids: ids } }, false, dependencies);
+  assert.equal(final.done, true);
+  assert.equal(final.tagged, 3);
+  assert.equal(final.nextOffset, 23);
+  assert.deepEqual(processed, ids);
+  assert.equal(calls.length, 0);
+});
+
+test("explicit asset pages stop at fifty and reject invalid cursors before tagging", async () => {
+  let processed = 0;
+  const ids = Array.from({ length: 60 }, (_, i) => `123e4567-e89b-42d3-a456-${String(i).padStart(12, "0")}`);
+  const dependencies = {
+    client: fakeClient([], []), batchSize: 500,
+    tagAsset: async () => { processed++; return { outcome: "tagged" as const }; },
+  };
+  const page = await handleBulkAiTag({ status: "running", params: { asset_ids: ids } }, false, dependencies);
+  assert.equal(processed, 50);
+  assert.equal(page.nextOffset, 50);
+  assert.equal(page.done, false);
+  for (const cursor of [-1, 0.5, "ai1:1:fixture", Number.NaN, 61]) {
+    const rejected = await handleBulkAiTag({ status: "running", cursor, params: { asset_ids: ids } }, false, dependencies);
+    assert.equal(rejected.ok, false);
+    assert.equal(processed, 50);
+  }
+});
+
+test("single-asset forced tagging keeps its exact scope and finishes in one page", async () => {
+  const processed: string[] = [];
+  const result = await handleBulkAiTag(
+    { status: "running", cursor: 0, params: { asset_ids: [IDS[0]] } }, true,
+    {
+      client: fakeClient([], []),
+      tagAsset: async (id, force) => {
+        assert.equal(force, true);
+        processed.push(id);
+        return { outcome: "tagged" };
+      },
+    }, true,
+  );
+  assert.deepEqual(processed, [IDS[0]]);
+  assert.equal(result.done, true);
+  assert.equal(result.tagged, 1);
+  assert.equal(result.nextOffset, 1);
+});
+
 test("empty candidate page completes without an exact count", async () => {
   const calls: Array<Record<string, unknown>> = [];
   const result = await handleBulkAiTag(

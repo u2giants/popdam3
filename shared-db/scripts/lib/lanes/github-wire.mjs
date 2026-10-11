@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process'
 import { REVIEW_VERDICT_REPLACEMENT_REF_PREFIX } from '../../lib/review-verdict-artifact.mjs'
 import { classifyChangedPaths, changedPathsFromPullRequestFiles } from '../../lib/documents-only-change.mjs'
-import { REPO, REVIEW_REPLACEMENT_REF_PREFIX } from './constants.mjs'
+import { REPO, REPO_OWNER, REPO_NAME, REVIEW_REPLACEMENT_REF_PREFIX } from './constants.mjs'
 import { LaneError } from './claims.mjs'
 import { projectReviewPr } from './review-assignment.mjs'
 import { gitRemoteRefs, githubIo, runGitHubCommand } from '../../manage-migration-author-lanes.mjs'
@@ -141,6 +141,76 @@ export function readGitCommits(shas,{run=execFileSync}={}){
     if(result.unfetched.length)throw new LaneError(`git commits ${result.unfetched.join(', ')} are unreadable after fetch`)
   }
   return result.commits
+}
+// Complete only overflowing review evidence; ordinary batches retain one wire read.
+export function completeReviewStatePages(pr,issue,lease,fetchPage,{maxPages=20,issueCache=new Map(),prCache=new Map()}={}) {
+  const identity=(row,kind)=>JSON.stringify(kind==='pullRequest'?{number:row.number,updatedAt:row.updatedAt,state:row.state,merged:row.merged,mergeCommit:row.mergeCommit,headRefOid:row.headRefOid}:{number:row.number,updatedAt:row.updatedAt,state:row.state})
+  const complete=(initial,kind,number)=>{
+    if(!initial)throw new LaneError('review evidence object is unreadable')
+    const names=kind==='pullRequest'?['comments','reviews']:['comments']
+    for(const name of names){
+      const c=initial[name]
+      if(!c||!Array.isArray(c.nodes)||!Number.isInteger(c.totalCount)||c.totalCount<0||c.nodes.length>100||typeof c.pageInfo?.hasNextPage!=='boolean'||(!c.pageInfo.hasNextPage&&c.nodes.length!==c.totalCount)||(c.pageInfo.hasNextPage&&(!c.nodes.length||c.nodes.length>=c.totalCount)))throw new LaneError('review evidence connection is incomplete or malformed')
+      const ids=new Set()
+      for(const node of c.nodes){
+        if(typeof node?.id!=='string'||!node.id||ids.has(node.id)||typeof node.updatedAt!=='string'||!Number.isFinite(Date.parse(node.updatedAt))||typeof node.body!=='string'||typeof node.authorAssociation!=='string'||(name==='reviews'&&(!node.commit||!/^[0-9a-f]{40}$/i.test(node.commit.oid)||typeof node.state!=='string')))throw new LaneError('review evidence row identity or verdict is unreadable')
+        ids.add(node.id)
+      }
+    }
+    if(initial.number!==number||typeof initial.updatedAt!=='string'||!Number.isFinite(Date.parse(initial.updatedAt))||!(kind==='pullRequest'?['OPEN','CLOSED','MERGED']:['OPEN','CLOSED']).includes(initial.state)||(kind==='pullRequest'&&(!/^[0-9a-f]{40}$/i.test(initial.headRefOid)||typeof initial.merged!=='boolean')))throw new LaneError('review evidence identity is unreadable')
+    if(!names.some(name=>initial[name].pageInfo.hasNextPage))return initial
+    const baseline=identity(initial,kind),result={...initial}
+    for(const name of names){
+      const first=initial[name]
+      if(first?.pageInfo?.hasNextPage!==true)continue
+      const total=first.totalCount,seen=new Set(),cursors=new Set(),nodes=[]
+      const append=(connection)=>{
+        if(!connection||connection.totalCount!==total||!Number.isInteger(total)||total<0||!Array.isArray(connection.nodes)||connection.nodes.length>100||typeof connection.pageInfo?.hasNextPage!=='boolean')throw new LaneError('paginated review evidence count or shape changed')
+        for(const node of connection.nodes){
+          if(typeof node?.id!=='string'||!node.id||seen.has(node.id)||typeof node.updatedAt!=='string'||!Number.isFinite(Date.parse(node.updatedAt))||typeof node.body!=='string'||typeof node.authorAssociation!=='string')throw new LaneError('paginated review evidence has duplicate or unreadable rows')
+          if(name==='reviews'&&(typeof node.state!=='string'||!node.commit||typeof node.commit.oid!=='string'||!/^[0-9a-f]{40}$/i.test(node.commit.oid)))throw new LaneError('paginated review verdict commit is unreadable')
+          seen.add(node.id);nodes.push(node)
+        }
+        if(nodes.length>total)throw new LaneError('paginated review evidence exceeds its count')
+      }
+      append(first)
+      let page=first,pages=1
+      while(page.pageInfo.hasNextPage){
+        const cursor=page.pageInfo.endCursor
+        if(typeof cursor!=='string'||!cursor||cursors.has(cursor)||!page.nodes.length)throw new LaneError('paginated review evidence cursor is invalid or repeated')
+        if(pages>=maxPages)throw new LaneError('paginated review evidence exceeded its bounded page limit')
+        cursors.add(cursor);pages++
+        const metadata=kind==='pullRequest'?'number updatedAt state merged mergeCommit{oid} headRefOid':'number updatedAt state'
+        const fields=name==='reviews'?'id updatedAt body state authorAssociation commit{oid}':'id updatedAt body authorAssociation'
+        const query=`query{repository(owner:${JSON.stringify(REPO_OWNER)},name:${JSON.stringify(REPO_NAME)}){x:${kind}(number:${number}){${metadata} ${name}(first:100,after:${JSON.stringify(cursor)}){totalCount pageInfo{hasNextPage endCursor} nodes{${fields}}}}}}`
+        const response=fetchPage(query)
+        if(response?.errors!==undefined&&(!Array.isArray(response.errors)||response.errors.length))throw new LaneError('paginated review evidence returned GraphQL errors')
+        const row=response?.data?.repository?.x
+        if(!row||identity(row,kind)!==baseline)throw new LaneError('paginated review evidence metadata or head changed')
+        page=row[name];append(page)
+      }
+      if(nodes.length!==total)throw new LaneError('paginated review evidence is truncated')
+      const metadata=kind==='pullRequest'?'number updatedAt state merged mergeCommit{oid} headRefOid':'number updatedAt state'
+      const fields=name==='reviews'?'id updatedAt body state authorAssociation commit{oid}':'id updatedAt body authorAssociation'
+      const proof=fetchPage(`query{repository(owner:${JSON.stringify(REPO_OWNER)},name:${JSON.stringify(REPO_NAME)}){x:${kind}(number:${number}){${metadata} ${name}(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{${fields}}}}}}`)
+      if(proof?.errors!==undefined&&(!Array.isArray(proof.errors)||proof.errors.length))throw new LaneError('paginated review evidence final proof returned GraphQL errors')
+      const current=proof?.data?.repository?.x
+      if(!current||identity(current,kind)!==baseline||JSON.stringify(current[name])!==JSON.stringify(first))throw new LaneError('paginated review evidence changed during final proof')
+      result[name]={...page,nodes}
+    }
+    return result
+  }
+  const cached=(initial,kind,number,cache)=>{
+    const prior=cache.get(number)
+    if(prior){
+      if(JSON.stringify(initial)!==JSON.stringify(prior.original))throw new LaneError('shared review evidence snapshots disagree')
+      return prior.complete
+    }
+    const value=complete(initial,kind,number)
+    cache.set(number,{original:structuredClone(initial),complete:value})
+    return value
+  }
+  return {pr:cached(pr,'pullRequest',Number(lease.pr),prCache),issue:cached(issue,'issue',Number(lease.issue),issueCache)}
 }
 export function reviewStateEntry(pr,issue){
   if(!pr||!issue||!Array.isArray(pr.comments?.nodes)||!Array.isArray(pr.reviews?.nodes)||!Array.isArray(issue.comments?.nodes)||pr.comments?.pageInfo?.hasNextPage!==false||pr.reviews?.pageInfo?.hasNextPage!==false||issue.comments?.pageInfo?.hasNextPage!==false)throw new LaneError('batched reviewer PR/verdict evidence is incomplete or paginated')

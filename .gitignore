@@ -50,3 +50,4 @@ oc_logs.txt
 # Generated Python bytecode from project-owned import utilities/tests
 __pycache__/
 *.py[cod]
+apps/*/src/common/

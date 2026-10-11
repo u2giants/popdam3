@@ -115,6 +115,7 @@ import {
 import { handleGetSgNasConfig, handleSetSgNasConfig } from "../_shared/admin-handlers/sg-nas-handlers.ts";
 import { handlePlanGridBulkEdit } from "../_shared/admin-handlers/grid-ai-handler.ts";
 import { handleRankMasterDataMatchCandidates } from "../_shared/admin-handlers/master-data-jev-handler.ts";
+import { handleAddScopedTag, handleRemoveScopedTag, handleReviewScopedTag } from "../_shared/admin-handlers/scoped-tag-review-handlers.ts";
 
 // ── Auth: JWT validation only (any authenticated user) ──────────────
 

@@ -67,7 +67,7 @@ import {
   type StyleGroupRepresentativeCandidate,
 } from "../style-group-representatives.js";
 import { fetchImageData, getAiTaggingApiKey, parseJsonObject, type ImageData } from "./ai-tagging-shared.js";
-import { ApplyWriteError, MAX_APPLY_WRITE_ATTEMPTS, indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
+import { ApplyWriteError, clearRequestJob, MAX_APPLY_WRITE_ATTEMPTS, indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 import { getVisionModels } from "./ai-tagging.js";
 
 const AI_TIMEOUT_MS = 90_000;
@@ -778,7 +778,7 @@ async function handleDurableGroupProfiles(
       profiled: 0,
       skipped: 0,
       failed: 0,
-      external_job: { ...job, lease_token: action.leaseToken, clear_after_reconciliation: true },
+      external_job: clearRequestJob(job, action.leaseToken),
       last_stage: "state_persist",
     };
   }

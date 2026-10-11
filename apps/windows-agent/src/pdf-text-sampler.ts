@@ -11,7 +11,7 @@
  */
 
 import { readFile, stat } from "node:fs/promises";
-import { resolveUnderRoot } from "./path-containment";
+import { resolveUnderRoot } from "./common/path-containment.js";
 import { logger } from "./logger";
 import * as api from "./api-client";
 import { uploadPdfPage } from "./uploader";
@@ -53,6 +53,8 @@ export interface AiConfig {
   openRouterApiKey?: string;
   /** Per-task model overrides from AI_TASK_MODELS admin config */
   aiTaskModels?: Record<string, string>;
+  /** Server-side direct provider route, bound to the current PopSG PDF lease. */
+  directPdfVision?: (page: Buffer) => Promise<string>;
 }
 
 export interface PdfTextSampleResult {
@@ -84,6 +86,10 @@ interface FileProgressEntry {
 const PDF_EXTRACTION_PROMPT = "Transcribe only text that is visually legible. Preserve reading order where possible. Do not infer, complete, correct, or invent unclear text. Omit unreadable text. Return only the transcription.";
 
 export async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {
+  if (aiConfig.aiTaskModels?.pdf_extraction?.trim().startsWith("meta-direct/")) {
+    if (!aiConfig.directPdfVision) throw new Error("Direct PDF transcription requires a server-side content lease");
+    return aiConfig.directPdfVision(pngBuffer);
+  }
   const base64 = pngBuffer.toString("base64");
 
   // ── Path 1: OpenRouter (preferred when key is configured) ───────────────

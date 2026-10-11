@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261011201710",
+  "migration_sha256": "56dd41bc8c214ab175d6b8cf7b949485c9c464769bfb99e7e0e81e741c99f494",
+  "checks": [
+    {
+      "id": "exorcist_1973_active_under_warner",
+      "kind": "exact_row_count",
+      "relation": "core.property",
+      "filters": [
+        {
+          "column": "name",
+          "type": "text",
+          "equals": "Exorcist, The (1973)"
+        },
+        {
+          "column": "licensor_id",
+          "type": "uuid",
+          "equals": "88313675-0089-4072-87be-5b989df8a3fc"
+        },
+        {
+          "column": "status",
+          "type": "app.entity_status",
+          "equals": "active"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "exorcist_1973_warner_source_ref",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "plm.wb_property"
+        },
+        {
+          "column": "source_id",
+          "type": "text",
+          "equals": "67830330-59a0-4d42-8765-c88e10814332"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "property"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "warner_product_catalogue"
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}

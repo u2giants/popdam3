@@ -1,7 +1,7 @@
 // Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { isTrustedOperatorComment } from '../../lib/repository-identity.mjs'
-import { AdmissionError, STRUCTURAL_ROUTES, evaluateAdmission, parseImpactBlock, inspectPrStructuralChange, structuralWritesMatch, NON_STRUCTURAL_CHANGE_TYPES } from '../../orchestrator-flow/admission.mjs'
+import { AdmissionError, STRUCTURAL_ROUTES, evaluateAdmission, parseImpactBlock, inspectPrStructuralChange, inspectPrCuratedDataChange, structuralWritesMatch, NON_STRUCTURAL_CHANGE_TYPES } from '../../orchestrator-flow/admission.mjs'
 import { findCompletionRecord } from '../../lib/work-dependencies.mjs'
 import { outcomeHistory, OutcomeError, OUTCOME_STATES, advanceOutcome } from '../../orchestrator-flow/outcome-lifecycle.mjs'
 import { coordinationEvent, formatEventComment } from '../../db-coordination-events.mjs'
@@ -63,10 +63,15 @@ export function admitIssue(number, io = githubIo, { pr = null, actor = 'manage-m
       if(!head)throw new AdmissionError('pull request exact head is unreadable')
       const files=io.getPrFiles(Number(pr)).map((file)=>/^supabase\/migrations\/\d{14}_[^/]+\.sql$/.test(String(file?.filename??file?.path??''))&&file?.status!=='removed'
         ?{...file,content:io.getFileAt(file.filename??file.path,head)}:file)
+      if(admitted.curated){
+        const inspection=inspectPrCuratedDataChange(files,issue,scope)
+        admitted={...admitted,actual_objects:[],reads:inspection.reads,row_writes:inspection.row_writes,row_reads:inspection.row_reads,migrations:inspection.migrations}
+      }else{
       const inspection=inspectPrStructuralChange(files)
       const declared=[...scope.writes].sort()
       if(!structuralWritesMatch(inspection,declared))throw new AdmissionError(`pull request #${pr} structural objects must exactly match admitted issue #${number} writes`)
       admitted={...admitted,actual_objects:inspection.objects,migrations:inspection.migrations}
+      }
     }
     if(reopenAfterValidation){
       io.updateIssue(Number(number),{state:'open'})

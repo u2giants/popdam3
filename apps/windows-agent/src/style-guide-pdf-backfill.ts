@@ -36,7 +36,7 @@ export async function runStyleGuidePdfBackfill(
             needs_thumbnail: false,
           },
           resolvePath(job.relative_path),
-          aiConfig,
+          { ...aiConfig, directPdfVision: (page) => api.transcribeStyleGuidePdfPage(job, page) },
           false,
         );
         const outcome = toStyleGuidePdfOutcome(extracted);

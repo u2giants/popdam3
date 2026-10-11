@@ -16,7 +16,7 @@ import { execFile } from "node:child_process";
 // usage patterns.
 sharp.cache(false);
 import { promisify } from "node:util";
-import { mkdtemp, readFile, rm, readdir } from "node:fs/promises";
+import { mkdtemp, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createWorker } from "tesseract.js";
@@ -57,8 +57,8 @@ export interface PdfThumbnailResult extends ThumbnailResult {
  * Generate a thumbnail for a png/jpg file (comp views).
  */
 async function thumbnailRaster(filePath: string): Promise<ThumbnailResult> {
-  const fileBuffer = await readFile(filePath);
-  const img = sharp(fileBuffer).rotate().flatten({ background: "#ffffff" });
+  // Pass the path so libvips streams from disk instead of buffering the file (#232).
+  const img = sharp(filePath).rotate().flatten({ background: "#ffffff" });
   const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
   const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "raster.toBuffer");
   const meta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "raster.meta");
@@ -72,11 +72,9 @@ async function thumbnailRaster(filePath: string): Promise<ThumbnailResult> {
 async function thumbnailPsd(filePath: string): Promise<ThumbnailResult> {
   try {
     const psdWork = async () => {
-      // Pre-read into buffer so the OS file handle is released before we enter
-      // the sharp pipeline.  If the pipeline hangs and withTimeout fires, the fd
-      // is already closed — no leaked handles from timed-out processing.
-      const fileBuffer = await readFile(filePath);
-      const img = sharp(fileBuffer, { pages: -1 }).flatten({ background: "#ffffff" });
+      // Pass the path so libvips reads from disk instead of buffering a
+      // multi-GB PSD in memory (#232).
+      const img = sharp(filePath, { pages: -1 }).flatten({ background: "#ffffff" });
       const meta = await withTimeout(img.metadata(), SHARP_TIMEOUT_MS, "psd.metadata");
       const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
       const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "psd.toBuffer");
@@ -207,8 +205,7 @@ async function thumbnailFromSibling(filePath: string): Promise<ThumbnailResult> 
     siblingUsed: path.basename(siblingPath),
   });
 
-  const siblingBuffer = await readFile(siblingPath);
-  const resized = sharp(siblingBuffer)
+  const resized = sharp(siblingPath)
     .flatten({ background: "#ffffff" })
     .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
   const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "sibling.toBuffer");
@@ -273,8 +270,7 @@ async function thumbnailAi(filePath: string): Promise<ThumbnailResult> {
 
   // Step 1: Try sharp (PDF-compatible .ai files)
   try {
-    const aiBuffer = await readFile(filePath);
-    const img = sharp(aiBuffer, { density: 150 }).flatten({ background: "#ffffff" });
+    const img = sharp(filePath, { density: 150 }).flatten({ background: "#ffffff" });
     const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
     const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "ai.toBuffer");
     const meta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "ai.meta");

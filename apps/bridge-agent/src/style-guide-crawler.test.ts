@@ -3,7 +3,13 @@ import test from "node:test";
 import { safeFilesystemModifiedAt } from "./file-date-validation.js";
 import { isIngestableFile } from "./sg-ingest-filter.js";
 import { boundedRetryDelay, completionDisposition } from "./sg-crawl-continuation.js";
-import { SG_CRAWL_INGEST_BATCH_SIZE } from "./sg-crawl-bounds.js";
+import { SG_CRAWL_INGEST_BATCH_SIZE, SG_CRAWL_MAX_COMPLETION_CONTINUATIONS } from "./sg-crawl-bounds.js";
+
+test("completion budget covers hourly refresh's 67-minute cap and bounded search slices", () => {
+  const waitContinuations = Math.ceil(67 * 60_000 / boundedRetryDelay({ ok: true, state: "refreshing", retry_after_ms: 30_000 }));
+  const searchContinuations = Math.ceil(220_218 / 5_000);
+  assert.ok(SG_CRAWL_MAX_COMPLETION_CONTINUATIONS > waitContinuations + searchContinuations);
+});
 
 const NOW = Date.parse("2026-08-02T12:00:00Z");
 

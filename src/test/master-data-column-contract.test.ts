@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const page = readFileSync(`${process.cwd()}/src/pages/StylesPage.tsx`, "utf8");
+const page = ["src/pages/StylesPage.tsx", "src/pages/styles/columns.ts", "src/pages/styles/helpers.ts"]
+  .map((file) => readFileSync(`${process.cwd()}/${file}`, "utf8"))
+  .join("\n");
 const importer = readFileSync(`${process.cwd()}/scripts/import-style-tracker-xlsx.py`, "utf8");
 
 describe("Master Data source column contract", () => {

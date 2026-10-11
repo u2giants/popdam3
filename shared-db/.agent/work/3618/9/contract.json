@@ -1,0 +1,64 @@
+{
+  "allowed_paths": [
+    "scripts/lib/lanes/expired-merged-claim-adoption.mjs",
+    "scripts/transfer-expired-merged-claim-author.mjs",
+    "scripts/expired-merged-claim-adoption.test.mjs",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~expired-merged-claim-adoption.mjs.json",
+    ".agent/work/3618/9/contract.json",
+    ".agent/work/3618/9/completion.json",
+    "docs/verification/throughput-dispositions/scripts~transfer-expired-merged-claim-author.mjs.json",
+    ".agent/work/3618/8/contract.json",
+    ".agent/work/3618/8/completion.json"
+  ],
+  "assumptions": [
+    "Only expired-unconfirmed merged claims qualify; active and relinquished merged claims refuse.",
+    "Original source/merge/objects/reservations and prior refusals remain immutable.",
+    "Independent abandonment audit, current chat authorization, clean successor and no stages/conflicts remain required.",
+    "Ordinary manager bytes remain unchanged; separate explicit expired-MERGED CLI imports canonical primitives."
+  ],
+  "base_sha": "5c50ee4a9cb228f868a0322b7e7385b404832950",
+  "branch": "codex/3618-current-recovery",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex root chat01a12b01-aaac-7551-8860-61a4384a25b0",
+  "evidence_parent": {
+    "work_issue": 3618,
+    "generation": 8,
+    "contract_sha256": "5ceb38ff6d12173cea1f8297dd1c8de0069573cead57432bccc8beb7ef8a2e5b"
+  },
+  "file_writes": [
+    "scripts/lib/lanes/expired-merged-claim-adoption.mjs",
+    "scripts/transfer-expired-merged-claim-author.mjs",
+    "scripts/expired-merged-claim-adoption.test.mjs",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~expired-merged-claim-adoption.mjs.json",
+    ".agent/work/3618/9/contract.json",
+    ".agent/work/3618/9/completion.json",
+    "docs/verification/throughput-dispositions/scripts~transfer-expired-merged-claim-author.mjs.json",
+    ".agent/work/3618/8/contract.json",
+    ".agent/work/3618/8/completion.json"
+  ],
+  "generation": 9,
+  "goal": "Guarded operator adoption for expired merged-stranded author claims without an active-lease override.",
+  "prohibited_actions": [
+    "No live claim adoption, schema writes, preview, merge or production.",
+    "No active-lease override, reviewer replacement or erased substantive refusal."
+  ],
+  "required_checks": [
+    "node --test scripts/expired-merged-claim-adoption.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop if the exact claim, PR, version reservation, audit, chat marker, or operator attestation cannot be proved",
+    "Stop if a target worktree identity collides or the immutable adoption record cannot be read back",
+    "Stop before any live claim transfer pending a separate exact owner decision"
+  ],
+  "work_issue": 3618,
+  "work_type": "repo-maintenance",
+  "worker": "Codex subagent chat01a12bda-c166-7fa2-aa32-62da2347739f",
+  "worktree": "/home/ahazan/.codex/worktrees/3bd9-3618-recovery/shared-db"
+}

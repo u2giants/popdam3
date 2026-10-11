@@ -9,6 +9,8 @@ type State = {
   calls: string[];
   failOn?: string;
   logged: unknown[];
+  rpcItems: unknown[];
+  rpcResult?: unknown;
 };
 
 function fakeClient(state: State) {
@@ -55,10 +57,22 @@ function fakeClient(state: State) {
     });
     return q;
   };
-  return { from, schema: (schema: string) => ({ from: (table: string) => from(`${schema}.${table}`) }) } as unknown as DB;
+  const rpc = (fn: string, args: { p_items?: Array<{ sku: string }> }) => {
+    state.calls.push(`rpc:${fn}`);
+    state.writes++;
+    if (state.failOn === `rpc:${fn}`) return Promise.resolve({ data: null, error: { message: "boom" } });
+    state.rpcItems.push(...(args.p_items ?? []));
+    const data = state.rpcResult !== undefined
+      ? state.rpcResult
+      : (args.p_items ?? []).map((i) => i.sku === "SAME"
+        ? { asset_count: 1, group_count: 0, asset_id: "a1", group_id: null }
+        : { asset_count: 0, group_count: 0, asset_id: null, group_id: null });
+    return Promise.resolve({ data, error: null });
+  };
+  return { from, rpc, schema: (schema: string) => ({ from: (table: string) => from(`${schema}.${table}`) }) } as unknown as DB;
 }
 
-const newState = (failOn?: string): State => ({ predictionFilters: [], writes: 0, calls: [], failOn, logged: [] });
+const newState = (failOn?: string): State => ({ predictionFilters: [], writes: 0, calls: [], failOn, logged: [], rpcItems: [] });
 
 test("the worker dry run loads predictions by canonical UUID in one batched read", async () => {
   const state = newState();
@@ -78,6 +92,11 @@ test("apply batches reads and writes the audit log once per page", async () => {
   assert.equal(state.calls.filter((c) => c === "select:assets").length, 1);
   assert.equal(state.calls.filter((c) => c === "select:style_groups").length, 1);
   assert.equal(state.calls.filter((c) => c === "insert:erp_enrichment_log").length, 1);
+  // One atomic RPC per page, no per-item PATCHes (#204, popcre/shared-db#4167).
+  assert.equal(state.calls.filter((c) => c === "rpc:apply_erp_item_updates").length, 1);
+  assert.equal(state.calls.filter((c) => c.startsWith("update:")).length, 0);
+  assert.deepEqual(state.rpcItems, [{ sku: "SAME", division_code: "SP001", updates: { mg01_code: "M1", division_code: "SP001", product_category: "Tabletop" } }]);
+  assert.deepEqual([...new Set((state.logged as Array<{ target_id: string }>).map((e) => e.target_id))], ["a1"]);
   const fields = (state.logged as Array<{ field_name: string; target_id: string }>).map((e) => e.field_name).sort();
   assert.deepEqual(fields, ["mg01_code", "product_category"]);
 });
@@ -86,8 +105,7 @@ for (const failOn of [
   "select:product_category_predictions",
   "select:assets",
   "select:style_groups",
-  "update:assets",
-  "update:style_groups",
+  "rpc:apply_erp_item_updates",
   "insert:erp_enrichment_log",
 ]) {
   test(`apply surfaces a ${failOn} error and does not advance the cursor`, async () => {
@@ -95,6 +113,22 @@ for (const failOn of [
     assert.equal(result.ok, false);
     assert.equal(result.nextOffset, undefined);
     assert.match(String(result.error), /boom/);
+  });
+}
+
+for (const [name, rpcResult] of [
+  ["a short result list", []],
+  ["a non-array result", { nope: true }],
+  ["a negative count", [{ asset_count: -1, group_count: 0, asset_id: null, group_id: null }]],
+] as const) {
+  test(`apply refuses ${name} from apply_erp_item_updates and does not advance the cursor`, async () => {
+    const state = newState();
+    state.rpcResult = rpcResult;
+    const result = await handleApplyErpEnrichment({ status: "running", params: {} }, fakeClient(state));
+    assert.equal(result.ok, false);
+    assert.equal(result.nextOffset, undefined);
+    assert.match(String(result.error), /apply_erp_item_updates/);
+    assert.equal(state.calls.filter((c) => c === "insert:erp_enrichment_log").length, 0);
   });
 }
 

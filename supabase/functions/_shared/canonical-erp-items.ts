@@ -26,12 +26,15 @@ export function canonicalItems(db: ServiceClient) {
 export async function canonicalItemIdMap(db: ServiceClient, items: CanonicalItemIdentity[]): Promise<Map<string, string>> {
   const sourceIds = [...new Set(items.map((item) => item.source_id).filter(Boolean))];
   if (sourceIds.length === 0) return new Map();
-  const { data, error } = await db.schema("plm").from("item")
-    .select("id, source_system, item_number, raw")
-    .eq("source_system", "coldlion")
-    .in("item_number", sourceIds);
+  // The plm schema is not exposed through the REST API; read it through the
+  // read-only SQL RPC instead of db.schema("plm").
+  const list = sourceIds.map((id) => `'${id.replace(/'/g, "''")}'`).join(", ");
+  const { data, error } = await db.rpc("execute_readonly_query", {
+    query_text: `SELECT id, source_system, item_number, jsonb_build_object('divisionCode', raw ->> 'divisionCode') AS raw
+      FROM plm.item WHERE source_system = 'coldlion' AND item_number IN (${list})`,
+  });
   if (error) throw new Error(`Failed to resolve canonical item IDs: ${error.message}`);
-  return uniqueCanonicalItemIds(data ?? []);
+  return uniqueCanonicalItemIds(Array.isArray(data) ? data : []);
 }
 
 /**

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261011170134",
+  "migration_sha256": "09dcc91c3e47018d3d4c06e7285cada24154ed5af83f68444f8f1e03eb464e08",
+  "checks": [],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 108,
+      "line_end": 116,
+      "disposition": "no_durable_target",
+      "reason": "Both EXECUTE statements run inside the body of public.apply_erp_item_updates at call time (row UPDATEs on public.assets and public.style_groups with whitelisted %I column names); applying the migration executes neither, so they create no catalog object. The function itself is a static CREATE FUNCTION covered by ordinary catalog verification."
+    }
+  ]
+}

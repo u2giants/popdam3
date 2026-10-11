@@ -53,12 +53,16 @@ import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_sha
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
 import { sha256Hex, toHex } from "../_shared/crypto.ts";
 import { isPdfBackfillComplete } from "../_shared/pdf-backfill-state.ts";
+import { assertPopSgPdfVisionLease, transcribePopSgPdfPage, validatePopSgPdfPage } from "../_shared/popsg-pdf-vision.ts";
 import {
   buildSgCrawlCompletionUpdate,
   buildSgIngestCompletionUpdate,
   hasMoreSgSearchDocuments,
-  runSteppableSgRefresh,
+  runScheduledSgRefresh,
   SG_RECONCILE_BATCH_SIZE,
+  SG_REFRESH_TIMEOUT_RETRY_MS,
+  SG_SCHEDULED_REFRESH_RETRY_MS,
+  shouldRetrySgRefreshTimeout,
 } from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
@@ -213,7 +217,8 @@ const HEARTBEAT_CONFIG_KEYS_WINDOWS = [
   "WINDOWS_AGENT_SG_NAS_SHARE",
   "WINDOWS_AGENT_SG_NAS_MOUNT_PATH",
   "WINDOWS_AGENT_SG_NAS_USER",
-  "WINDOWS_AGENT_SG_NAS_PASS",
+  // WINDOWS_AGENT_SG_NAS_PASS is not in admin_config any more: it lives in Vault
+  // and is read server-side through get_sg_nas_password() (shared-db#4168).
   "WINDOWS_AGENT_RENDER_CONCURRENCY",
   "WINDOWS_REPAIR_CODE",
   "PDF_TEXT_SAMPLE_REQUEST",
@@ -378,6 +383,11 @@ async function handleHeartbeat(
   const configMap: Record<string, unknown> = {};
   for (const row of configResult.data || []) {
     configMap[row.key] = row.value;
+  }
+  if (agentType === "windows-render") {
+    const { data: sgPass, error: sgPassErr } = await db.rpc("get_sg_nas_password");
+    if (sgPassErr) console.error("get_sg_nas_password failed:", sgPassErr.message);
+    else configMap.WINDOWS_AGENT_SG_NAS_PASS = typeof sgPass === "string" ? sgPass : "";
   }
 
   // Spaces
@@ -3083,11 +3093,14 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
   if (done) {
     const { data: runData, error: runErr } = await db
       .from("style_guide_crawl_runs")
-      .select("roots_scanned")
+      .select("roots_scanned, ingest_completed_at")
       .eq("id", runId)
       .single();
     if (runErr || !runData) return err(`Could not load crawl state: ${runErr?.message ?? "run not found"}`, 500);
     const rootsScanned = (runData?.roots_scanned as string[] | null) || [];
+    // Continuation calls must keep the first ingest timestamp: it anchors the
+    // bounded retry window for a timed-out matview refresh step.
+    const ingestCompletedAt = (runData?.ingest_completed_at as string | null) ?? new Date().toISOString();
     const inaccessibleRootSet = new Set(inaccessibleRoots);
     const accessibleRoots = rootsScanned.filter((root) => !inaccessibleRootSet.has(root));
     const rootLabels = [...new Set(rootsScanned.map((root) => root.split("/").filter(Boolean).pop() || root))];
@@ -3116,6 +3129,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
     if (effectiveCrawlError) {
       await db.from("style_guide_crawl_runs").update({
         status: "failed",
+        lifecycle_state: "failed",
         error_message: effectiveCrawlError,
         completed_at: new Date().toISOString(),
         files_found: finalFileCount,
@@ -3142,7 +3156,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
           finalFileCount,
           acceptedFileCount,
           inaccessibleRoots,
-          new Date().toISOString(),
+          ingestCompletedAt,
         ),
       ).eq("id", runId);
       if (ingestStateErr) {
@@ -3225,17 +3239,36 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         }
       }
 
-      // Refresh the PopSG aggregation matviews now that is_active is finalized
-      // for this crawl — they back the guides grid + folder tree so the Library
-      // stops re-aggregating all active rows per request. Passing the run id is
-      // required: that is what stamps refresh_completed_at, without which the
-      // completion CHECK constraint rejects the update below.
+      // The existing scheduler owns aggregate refresh. Require success after
+      // this crawl's reconciliation boundary, then drain bounded search slices.
       if (reconcileOk) {
         const searchBatchSize = 5000;
-        // The existing bridge sends the same final request for a search
-        // continuation and a restarted crawl. Replay both matview steps in
-        // separate statements so either path is safe without a bridge change.
-        const refresh = await runSteppableSgRefresh(runId, searchBatchSize, async (args) => await db.rpc("refresh_style_guide_matviews", args));
+        const refresh = await runScheduledSgRefresh(
+          runId,
+          searchBatchSize,
+          async (args) => await db.rpc("await_style_guide_matview_refresh", args),
+          async (args) => await db.rpc("refresh_style_guide_matviews", args),
+        );
+        if (refresh.pending) {
+          const { error } = await db.from("style_guide_crawl_runs").update({ lifecycle_state: "refreshing" }).eq("id", runId);
+          if (error) return err(`Could not persist scheduled-refresh wait: ${error.message}`, 500);
+          return json({ ok: true, state: "refreshing", retry_after_ms: SG_SCHEDULED_REFRESH_RETRY_MS });
+        }
+        if (
+          refresh.error && refresh.failedStep === "search" && shouldRetrySgRefreshTimeout(refresh.error, refresh.refreshedAt ?? ingestCompletedAt, Date.now())
+        ) {
+          console.warn("[complete-style-guide-crawl]", "Bounded search refresh timed out; retrying");
+          const { error: retryStateErr } = await db.from("style_guide_crawl_runs").update({
+            lifecycle_state: "refreshing",
+          }).eq("id", runId);
+          if (retryStateErr) return err(`Could not persist refresh retry: ${retryStateErr.message}`, 500);
+          return json({
+            ok: true,
+            state: "refreshing",
+            retry_after_ms: SG_REFRESH_TIMEOUT_RETRY_MS,
+            counters: { refresh_timeout_retries: 1 },
+          });
+        }
         if (refresh.error) {
           reconcileOk = false;
           reconcileFailure = `Matview refresh step ${refresh.failedStep} failed: ${refresh.error}`;
@@ -3265,6 +3298,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         // rather than attempting a write the database would reject anyway.
         await db.from("style_guide_crawl_runs").update({
           status: "failed",
+          lifecycle_state: reconcileAttentionRequired ? "attention_required" : "failed",
           error_message: reconcileFailure,
           completed_at: new Date().toISOString(),
           files_found: finalFileCount,
@@ -3501,6 +3535,56 @@ function parseFilesUsedFromText(text: string): string[] {
 }
 
 // ── Routes: dedicated PopSG PDF text extraction ──────────────────────────────
+
+async function handleTranscribeStyleGuidePdfPage(body: Record<string, unknown>, agentId: string, agentType: string) {
+  if (agentType !== "windows-render") return err("PopSG PDF transcription requires a Windows render agent", 403);
+  const fileId = requireString(body, "style_guide_file_id");
+  const identity = requireString(body, "content_identity");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fileId) || !/^[0-9a-f]{32}$/i.test(identity)) {
+    return err("Invalid PopSG PDF content identity", 400);
+  }
+  try {
+    validatePopSgPdfPage(body.image_base64);
+  } catch (error) {
+    return err((error as Error).message, 400);
+  }
+  const db = serviceClient();
+  const [{ data: lease, error: leaseError }, { data: file, error: fileError }, { data: models, error: modelError }] = await Promise.all([
+    db.from("style_guide_pdf_text").select("status,claimed_by,claim_expires_at,content_identity")
+      .eq("style_guide_file_id", fileId).maybeSingle(),
+    db.from("style_guide_files").select("is_active,file_extension").eq("id", fileId).maybeSingle(),
+    db.from("admin_config").select("value").eq("key", "AI_TASK_MODELS").maybeSingle(),
+  ]);
+  if (leaseError || fileError || modelError) return err("PopSG PDF transcription eligibility could not be verified", 503);
+  if (!file?.is_active || !["pdf", ".pdf"].includes(String(file.file_extension).toLowerCase())) {
+    return err("PopSG PDF transcription requires an active PDF", 409);
+  }
+  try {
+    assertPopSgPdfVisionLease(lease, agentId, identity);
+  } catch (error) {
+    return err((error as Error).message, 409);
+  }
+  const model = String((models?.value as Record<string, unknown> | null)?.pdf_extraction ?? "").trim();
+  const apiKey = Deno.env.get("META_API_KEY") ?? "";
+  if (!apiKey) return err("PopSG PDF transcription provider is not configured", 503);
+  let text: string;
+  try {
+    text = await transcribePopSgPdfPage(model, apiKey, body.image_base64 as string);
+  } catch (error) {
+    return err((error as Error).message, 502);
+  }
+  // Completion still belongs to complete-style-guide-pdf-text. Return no
+  // transcription against a claim that changed while the provider answered.
+  const { data: current, error } = await db.from("style_guide_pdf_text")
+    .select("status,claimed_by,claim_expires_at,content_identity").eq("style_guide_file_id", fileId).maybeSingle();
+  if (error) return err("PopSG PDF content lease could not be rechecked", 503);
+  try {
+    assertPopSgPdfVisionLease(current, agentId, identity);
+  } catch (error) {
+    return err((error as Error).message, 409);
+  }
+  return json({ ok: true, text });
+}
 
 async function handleClaimStyleGuidePdfText(agentId: string, agentType: string) {
   if (agentType !== "windows-render") return err("PopSG PDF extraction requires a Windows render agent", 403);
@@ -4607,6 +4691,8 @@ corsServe(async (req: Request) => {
         return await handleCompleteSgRender(body);
       case "claim-style-guide-pdf-text":
         return await handleClaimStyleGuidePdfText(agentId, agentType);
+      case "transcribe-style-guide-pdf-page":
+        return await handleTranscribeStyleGuidePdfPage(body, agentId, agentType);
       case "complete-style-guide-pdf-text":
         return await handleCompleteStyleGuidePdfText(body);
       case "claim-pdf-backfill-batch":

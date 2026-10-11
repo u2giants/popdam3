@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261011175808",
+  "migration_sha256": "d5bc5a33800928ce77260ba468ca2ac005d602509ef004ea315ecf63f9923b2c",
+  "checks": [
+    {
+      "id": "cron_matview_refresh_cadence",
+      "kind": "exact_row_count",
+      "relation": "cron.job",
+      "filters": [
+        {
+          "column": "jobname",
+          "type": "text",
+          "equals": "refresh-style-guide-matviews"
+        },
+        {
+          "column": "schedule",
+          "type": "text",
+          "equals": "7 * * * *"
+        },
+        {
+          "column": "active",
+          "type": "boolean",
+          "equals": true
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "cron_default_snapshot_cadence",
+      "kind": "exact_row_count",
+      "relation": "cron.job",
+      "filters": [
+        {
+          "column": "jobname",
+          "type": "text",
+          "equals": "refresh-style-guide-library-default-snapshot"
+        },
+        {
+          "column": "schedule",
+          "type": "text",
+          "equals": "*/15 * * * *"
+        },
+        {
+          "column": "active",
+          "type": "boolean",
+          "equals": true
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}

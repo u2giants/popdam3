@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 3618,
+  "outcome": "ready-for-merge",
+  "pr": 4188,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3618/9",
+  "contract_sha256": "0cbbbd3990fab3ed6b6930ea4c374cc416151eb573e5f33fe2db4c3959baad30",
+  "base_sha": "5c50ee4a9cb228f868a0322b7e7385b404832950",
+  "head_sha": "d29a21f20c72c7dbb16ec3d0dc963fcc7e7e44a1",
+  "files_changed": [
+    "scripts/lib/lanes/expired-merged-claim-adoption.mjs",
+    "scripts/transfer-expired-merged-claim-author.mjs",
+    "scripts/expired-merged-claim-adoption.test.mjs",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/verification/throughput-dispositions/scripts~transfer-expired-merged-claim-author.mjs.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/expired-merged-claim-adoption.test.mjs",
+      "exit_code": 0,
+      "evidence": "17 tests PASS; absent audit, guarded source, race, mutex and rollback cases"
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "788 tests PASS; manager bytes unchanged"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "340 call sites,96 sources PASS"
+    }
+  ],
+  "assumptions_resolved": [
+    "Canonical stage import loads. Missing audit returns NULL and explicitly refuses. Original manager remains unchanged."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Tooling preparation only. No original-machine custody, live claim adoption, database acceptance, or merge decision asserted. Original draft4109 preserved."
+}

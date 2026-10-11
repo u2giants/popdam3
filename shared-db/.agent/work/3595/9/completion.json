@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "work_issue": 3595,
+  "outcome": "ready-for-merge",
+  "pr": 4203,
+  "migration_versions": [
+    "20261011212008"
+  ],
+  "contract_ref": "refs/db-contracts/3595/9",
+  "contract_sha256": "3a7394a6867418cbef8a1694a9338ba27ab7edc88194d847bfbd2249533146e4",
+  "head_sha": "ef711f5ee9814e9f1bd13872bcb5b62f9721f86e",
+  "base_sha": "544875ec8a4e4d997a16538a71ac9628dc0ca922",
+  "files_changed": [
+    ".github/live-proofs/3498.sql",
+    ".github/live-proofs/3595.sql",
+    "docs/designflow-master-data-migration/designflow-schema-segregation.md",
+    "supabase/migrations/20261011212008_plm_item_action_lookup_indexes_append_only.sql",
+    "supabase/tests/plm_item_assignment_action_append_only_contracts.sql",
+    "supabase/tests/plm_item_assignment_action_homes_contract.sql"
+  ],
+  "db_reads": [
+    "table dflow.item_user_assignment",
+    "table dflow.item_workflow_action"
+  ],
+  "db_writes": [
+    "table plm.item_user_assignment",
+    "table plm.item_workflow_action",
+    "index plm.item_user_assignment_active_lookup",
+    "index plm.item_workflow_action_item_time",
+    "index plm.item_workflow_action_open_handoff_lookup",
+    "index plm.item_workflow_action_admin_review",
+    "function plm.reject_item_assignment_history_rewrite",
+    "function plm.reject_item_workflow_action_rewrite",
+    "trigger item_user_assignment_immutable_history on plm.item_user_assignment",
+    "trigger item_workflow_action_immutable on plm.item_workflow_action"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at ef711f5e after refreshing onto origin/main."
+    },
+    {
+      "command": "python3 -m unittest scripts.test_shared_db_live_proof",
+      "exit_code": 0,
+      "evidence": "Probe qualified."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    },
+    {
+      "command": "local postgres:17 replay of 20260925222635 + this migration + contract test + live probe",
+      "exit_code": 0,
+      "evidence": "Migration applied, contract test passed, probe returned true, index count 15; test fails as expected when EXECUTE is granted to anon or when the action trigger is disabled."
+    }
+  ],
+  "assumptions_resolved": [
+    "Version 20261011212008 re-reserved for claim #4202.",
+    "Production plm.item_user_assignment and plm.item_workflow_action both have 0 rows (read-only count, 2026-10-11).",
+    "Generations 1-5 evidence absent from the tree; generation 6 is the only pair (evidence_parent: generation 3).",
+    "Deferred on #3595: user-id FKs (#71 decision), backend grants/RLS (#88 decision), notification FK re-point (after row move, #118)."
+  ],
+  "stop_conditions_hit": []
+}

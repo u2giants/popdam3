@@ -21,8 +21,8 @@ jobs:
   contracts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
       - run: node --test scripts/observe-style-group-drift.test.mjs
@@ -34,8 +34,8 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
       - name: Read aggregate reconciler measurement
@@ -50,7 +50,7 @@ jobs:
         id: retain
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: style-group-drift-${{ github.run_id }}
           path: style-group-drift-report.json
@@ -58,7 +58,7 @@ jobs:
           retention-days: 90
       - name: Alert on drift or failed measurement
         if: always() && (steps.observe.outcome == 'failure' || steps.retain.outcome == 'failure')
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const fs = require('fs');
@@ -108,6 +108,42 @@ jobs:
             } catch {
               core.warning('Alert posted with owner line; GitHub assignee update failed.');
             }
+      - name: Resolve alert after a clean measurement
+        if: steps.observe.outcome == 'success' && steps.retain.outcome == 'success'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('style-group-drift-report.json', 'utf8'));
+            const m = report.measurement || {};
+            const title = '[Production alert] Style-group reconciler drift or missing measurement';
+            const open = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner, repo: context.repo.repo, state: 'open', per_page: 100,
+            });
+            const existing = open.find(item => item.title === title && !item.pull_request);
+            if (!existing) return;
+            const body = [
+              'Auto-resolved: the read-only style-group reconciler measured zero drift.',
+              '',
+              `- assets_missing_or_wrong_group=${m.assets_missing_or_wrong_group}`,
+              `- assets_with_unexpected_group=${m.assets_with_unexpected_group}`,
+              `- orphan_group_references=${m.orphan_group_references}`,
+              `- effective_tag_drifted_assets=${m.effective_tag_drifted_assets}`,
+              '',
+              `Checked: ${report.checked_at}`,
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              '',
+              'A new alert issue opens automatically if drift returns.',
+              '',
+              'Posted by Claude chat unknown on GitHub Actions',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body,
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number,
+              state: 'closed', state_reason: 'completed',
+            });
       - name: Fail on drift or missing measurement
         if: steps.observe.outcome == 'failure' || steps.retain.outcome == 'failure'
         run: exit 1

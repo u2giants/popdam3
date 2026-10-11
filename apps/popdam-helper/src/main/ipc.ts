@@ -207,9 +207,9 @@ export function registerIpcHandlers(): void {
   });
 
   // ── Root path validation ────────────────────────────────────────────────────
-  ipcMain.handle("validate-root", (_event, { path, rootId }: { path: string; rootId: string }) => {
+  ipcMain.handle("validate-root", async (_event, { path, rootId }: { path: string; rootId: string }) => {
     try {
-      const result = validateRoot(path, rootId);
+      const result = await validateRoot(path, rootId);
       return { ok: true, data: result };
     } catch (e: unknown) {
       return { ok: false, error: String(e) };
@@ -261,9 +261,9 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     "test-seafile-mapping",
-    (_event, { sampleRelativePath }: { sampleRelativePath: string }) => {
+    async (_event, { sampleRelativePath }: { sampleRelativePath: string }) => {
       try {
-        return { ok: true, data: testSeafileMapping(sampleRelativePath, getConfig()) };
+        return { ok: true, data: await testSeafileMapping(sampleRelativePath, getConfig()) };
       } catch (e: unknown) {
         return { ok: false, error: String(e) };
       }

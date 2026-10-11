@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "source": "scripts/transfer-expired-merged-claim-author.mjs",
+  "sites": [
+    {
+      "source": "scripts/transfer-expired-merged-claim-author.mjs",
+      "site": "scripts/transfer-expired-merged-claim-author.mjs:10",
+      "semantic_key": "scripts/transfer-expired-merged-claim-author.mjs:13c1b0e2ca1669e3bcf12ec246db3197f325c1bd87713171f7aa34b207ef1c63:context-fed44a32af719fcc4fad1d0dc7638e4079a6eea7bd17550847a29c5d21b5c0c8",
+      "legacy_semantic_key": "scripts/transfer-expired-merged-claim-author.mjs:13c1b0e2ca1669e3bcf12ec246db3197f325c1bd87713171f7aa34b207ef1c63:1",
+      "line_sha256": "13c1b0e2ca1669e3bcf12ec246db3197f325c1bd87713171f7aa34b207ef1c63",
+      "disposition": "excluded",
+      "reason": "Owned issue 3618 repository-maintenance guard refuses missing custody or CLI arguments. This is a fail-closed operator-proof requirement, not a database absence assertion, and cannot clear a database alarm."
+    }
+  ]
+}
