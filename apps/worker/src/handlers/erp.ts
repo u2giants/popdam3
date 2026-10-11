@@ -68,26 +68,48 @@ function deriveErpCoverDescription(itemDescription: string | null): string | nul
   return s || null;
 }
 
+/**
+ * ERP paging uses keyset pagination on the unique `id` column (#203): offset
+ * paging over a non-unique sort could skip or repeat rows, and rows inserted
+ * mid-run shifted every later offset. The cursor is the last processed id.
+ * A legacy numeric offset cursor (or none) restarts from the beginning; both
+ * handlers are idempotent per item, so a restart is safe.
+ */
+export function erpKeysetAfter(cursor: unknown): string | null {
+  return typeof cursor === "string" && cursor.length > 0 ? cursor : null;
+}
+
+interface KeysetQuery<Q> {
+  order(column: string, options: { ascending: boolean }): Q;
+  gt(column: string, value: string): Q;
+  limit(count: number): Q;
+}
+
+/** Orders by the unique id, resumes strictly after `afterId`, and caps the page. */
+export function applyErpKeysetPage<Q extends KeysetQuery<Q>>(query: Q, afterId: string | null, size: number): Q {
+  const ordered = query.order("id", { ascending: true });
+  return (afterId ? ordered.gt("id", afterId) : ordered).limit(size);
+}
+
 export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchResult> {
   const client = db();
   const mode = (opState.params?.mode as string) || "apply";
   const batchSize = 100;
-  const offset = typeof opState.cursor === "number" ? opState.cursor : 0;
+  const afterId = erpKeysetAfter(opState.cursor);
+  const processedBefore = typeof opState.progress?.total === "number" && afterId ? opState.progress.total : 0;
   const runId = typeof opState.run_id === "string" && opState.run_id.length > 0
     ? opState.run_id
     : crypto.randomUUID();
 
-  const { data: erpItems, error: erpErr } = await canonicalItems(client)
+  const erpQuery = canonicalItems(client)
     .select("id, source_id, source_system, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, erp_updated_at")
     .not("style_number", "is", null)
-    .neq("style_number", "")
-    .order("source_id")
-    .order("division_code")
-    .range(offset, offset + batchSize - 1);
+    .neq("style_number", "");
+  const { data: erpItems, error: erpErr } = await applyErpKeysetPage(erpQuery, afterId, batchSize);
 
   if (erpErr) return { ok: false, done: false, error: erpErr.message };
   if (!erpItems || erpItems.length === 0) {
-    return { ok: true, done: true, updated: 0, assets_updated: 0, groups_updated: 0, total: offset };
+    return { ok: true, done: true, updated: 0, assets_updated: 0, groups_updated: 0, total: processedBefore };
   }
   const canonicalIds = await canonicalItemIdMap(client, erpItems);
 
@@ -234,11 +256,11 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
   return {
     ok: true,
     done,
-    nextOffset: offset + erpItems.length,
+    nextOffset: erpItems[erpItems.length - 1].id,
     assets_updated: assetsUpdated,
     groups_updated: groupsUpdated,
     updated: assetsUpdated + groupsUpdated,
-    total: offset + erpItems.length,
+    total: processedBefore + erpItems.length,
   };
 }
 
@@ -275,9 +297,7 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
   const batchSize = 15;
   const scanWindow = 200;
   const maxScanWindows = 20;
-  const offset = typeof opState.cursor === "number" ? opState.cursor : 0;
-
-  let scanOffset = offset;
+  let scanAfter = erpKeysetAfter(opState.cursor);
   let scanned = 0;
   let exhausted = false;
 
@@ -300,14 +320,12 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
   const candidates: ErpCandidate[] = [];
 
   for (let i = 0; i < maxScanWindows && candidates.length < batchSize; i++) {
-    const { data: windowRows, error: windowErr } = await canonicalItems(client)
+    const windowQuery = canonicalItems(client)
       .select("id, source_id, source_system, division_code, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, mg04_code, mg05_code, mg06_code")
       .is("mg_category", null)
       .not("style_number", "is", null)
-      .neq("style_number", "")
-      .order("source_id", { ascending: true })
-      .order("division_code", { ascending: true })
-      .range(scanOffset, scanOffset + scanWindow - 1);
+      .neq("style_number", "");
+    const { data: windowRows, error: windowErr } = await applyErpKeysetPage(windowQuery, scanAfter, scanWindow);
 
     if (windowErr) return { ok: false, done: false, error: windowErr.message };
 
@@ -315,7 +333,7 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
     if (rows.length === 0) { exhausted = true; break; }
 
     scanned += rows.length;
-    scanOffset += rows.length;
+    scanAfter = rows[rows.length - 1].id;
 
     const styleNumbers = [...new Set(rows.map((r) => r.style_number).filter((v): v is string => !!v))];
     const canonicalIds = await canonicalItemIdMap(client, rows);
@@ -356,7 +374,7 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
   }
 
   if (candidates.length === 0) {
-    return { ok: true, done: exhausted, classified: 0, skipped_unclassifiable: 0, total: 0, scanned, nextOffset: scanOffset };
+    return { ok: true, done: exhausted, classified: 0, skipped_unclassifiable: 0, total: 0, scanned, nextOffset: scanAfter ?? undefined };
   }
 
   let classified = 0;
@@ -468,6 +486,6 @@ Use the provided tool to return your classification.`;
     skipped_unclassifiable: skippedUnclassifiable,
     total: classified + skippedUnclassifiable + failed,
     scanned,
-    nextOffset: scanOffset,
+    nextOffset: scanAfter ?? undefined,
   };
 }
