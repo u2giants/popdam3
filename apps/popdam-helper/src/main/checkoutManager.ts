@@ -34,6 +34,7 @@ import {
   getSeafileObjId,
 } from "./seafileAdapter";
 import { log } from "./logger";
+import { joinWithinRoot, safePathSegment } from "./pathSafety";
 import type { CheckoutRecord, RootMapping, StorageProvider } from "@shared/types";
 
 // In-memory map of active checkouts: checkoutId → record
@@ -52,6 +53,16 @@ export function onCheckoutsChanged(cb: () => void): void {
 
 function notify(): void {
   changeListener?.();
+}
+
+/** Server-supplied id/filename -> workspace path, or "" when unsafe (#229). */
+function safeWorkspaceFilePath(workspacePath: string, checkoutId: string, filename: string): string {
+  try {
+    return joinWithinRoot(checkoutDir(workspacePath, checkoutId), safePathSegment(filename));
+  } catch (e) {
+    log.warn(`Ignoring unsafe checkout path from server: ${(e as Error).message}`);
+    return "";
+  }
 }
 
 // ── Load from server on startup ───────────────────────────────────────────────
@@ -75,10 +86,7 @@ export async function loadActiveCheckouts(): Promise<void> {
         rootId: "",
         sourceHash: co.source_hash,
         sourceSize: co.source_size,
-        workspacePath: join(
-          checkoutDir(config.workspacePath, co.id),
-          assetInfo.filename ?? "",
-        ),
+        workspacePath: safeWorkspaceFilePath(config.workspacePath, co.id, assetInfo.filename ?? ""),
         snapshotPath: null,
         uploadProgress: null,
         errorMessage: null,

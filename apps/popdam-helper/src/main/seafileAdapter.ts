@@ -23,6 +23,7 @@ import { execFileSync } from "child_process";
 import { loadToken } from "./credentials";
 import { saveConfig } from "./config";
 import { log } from "./logger";
+import { joinWithinRoot } from "./pathSafety";
 import type {
   LocalConfig,
   SeafileLibraryMapping,
@@ -440,7 +441,7 @@ export function resolveSeafileTarget(
   const prefix = normalizeRel(mapping.pathPrefix);
   const remainder = rel === prefix ? "" : rel.slice(prefix.length + 1);
   const pathInLib = remainder ? sanitizeRelativePath(remainder) : "";
-  const localPath = pathInLib ? join(libDir, pathInLib) : libDir;
+  const localPath = pathInLib ? joinWithinRoot(libDir, pathInLib) : libDir;
   return { mapping, localPath, pathInLib };
 }
 
