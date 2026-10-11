@@ -4072,6 +4072,7 @@ export type Database = {
           total_cost_before: Json
         }[]
       }
+      apply_erp_item_updates: { Args: { p_items: Json }; Returns: Json }
       approve_licensor_alias: {
         Args: {
           p_alias: string
@@ -4785,6 +4786,10 @@ export type Database = {
       refresh_sku_human_description: { Args: never; Returns: number }
       refresh_style_group_counts: { Args: never; Returns: undefined }
       refresh_style_group_counts_batch: {
+        Args: { p_group_ids: string[] }
+        Returns: number
+      }
+      refresh_style_group_counts_serialized: {
         Args: { p_group_ids: string[] }
         Returns: number
       }
