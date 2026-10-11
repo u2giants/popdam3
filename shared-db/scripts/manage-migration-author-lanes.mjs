@@ -312,12 +312,13 @@ export function buildDatabasePreviewFileSnapshot(files,base,head,readContent){
 // #4048: a partial maintenance PR must retain its authentic work issue without
 // pretending to close that unfinished parent. Refs only selects the proof;
 // immutable canonical evidence and normal Git validation supply authority.
-export function verifyNonclosingMaintenanceBinding({pr,headSha,files,issue=null,structural=false},io,git=gitIo){
+export function verifyNonclosingMaintenanceBinding({pr,headSha,files,issue=null,structural=false},io,git=gitIo,{gitRunner=(args,options)=>execFileSync('git',args,{...options,encoding:'utf8',stdio:['ignore','pipe','pipe']})}={}){
   const refuse=(reason)=>{throw new LaneError(`nonclosing maintenance binding refused: ${reason}`)}
   const live=io.getPr(pr),main=io.mainSha?.()
   if(!live||Number(live.number)!==pr||live.state!=='open'||live.head?.sha!==headSha||
     live.head?.repo?.full_name!==REPO||live.base?.repo?.full_name!==REPO||live.base?.ref!=='main'||
-    !/^[0-9a-f]{40}$/.test(main??'')||live.base.sha!==main||!live.head?.ref)refuse('exact live PR, head, repository or protected main changed')
+    !/^[0-9a-f]{40}$/.test(main??'')||!/^[0-9a-f]{40}$/.test(live.base?.sha??'')||!live.head?.ref)refuse('exact live PR, head, repository or protected main changed')
+  const identity=JSON.stringify({number:live.number,state:live.state,head:live.head.sha,branch:live.head.ref,headRepo:live.head.repo.full_name,base:live.base.sha,baseRef:live.base.ref,baseRepo:live.base.repo.full_name,user:live.user?.login,association:live.author_association,body:live.body})
   if(!isTrustedOperatorComment({author:live.user?.login,author_association:live.author_association},REPO)||
     !/^Posted by [A-Za-z][A-Za-z0-9 -]* chat [A-Za-z0-9-]+ on [A-Za-z0-9_.-]+\s*$/m.test(live.body??''))refuse('trusted signed attribution missing')
   const refs=[...String(live.body??'').matchAll(/\bRefs\s+#([1-9]\d*)\b/gi)].map(m=>Number(m[1]))
@@ -341,6 +342,16 @@ export function verifyNonclosingMaintenanceBinding({pr,headSha,files,issue=null,
       : contract.work_type!=='repo-maintenance'||contract.route!=='repo-maintenance'||contract.db_reads.length||contract.db_writes.length))refuse('canonical work issue, branch, route or no-database scope disagrees')
   if(typeof io.prepareNonclosingEvidenceGit!=='function')refuse('exact source Git reader unavailable')
   io.prepareNonclosingEvidenceGit(headSha,main)
+  // GitHub's PR base snapshot may lag protected main. Prove the same actual
+  // main through ancestry, the existing clean-merge/diff gate and canonical
+  // evidence; the API snapshot itself never supplies freshness authority.
+  try{
+    if(git.isAncestor(live.base.sha,main)!==true)refuse('API base is not a proven ancestor of captured protected main')
+    if(live.base.sha!==main){
+      const freshness=classifyBranchFreshness({headSha,tipSha:main,gitRunner})
+      if(freshness?.ok!==true)refuse(`branch freshness failed (${freshness?.reason??'unreadable proof'})`)
+    }
+  }catch(error){refuse(`API base or branch freshness proof failed (${error.message})`)}
   try{verifyGitEvidence({contract,report,prBaseSha:main,prHeadSha:headSha},git)}
   catch(error){refuse(`published contract or exact Git proof failed (${error.message})`)}
   const work=io.getIssue(refs[0])
@@ -351,6 +362,9 @@ export function verifyNonclosingMaintenanceBinding({pr,headSha,files,issue=null,
     if(work.state!=='open'||scope?.status!=='ready'||scope?.workType!=='structural'||!CLAIM_FIRST_ROUTES.has(scope.route)||
       scope.route!==contract.route||JSON.stringify([...scope.writes].sort())!==JSON.stringify([...contract.db_writes].sort()))refuse('structural issue, route or exact writes disagrees')
   }
+  const finalPr=io.getPr(pr),finalMain=io.mainSha?.()
+  const finalIdentity=JSON.stringify({number:finalPr?.number,state:finalPr?.state,head:finalPr?.head?.sha,branch:finalPr?.head?.ref,headRepo:finalPr?.head?.repo?.full_name,base:finalPr?.base?.sha,baseRef:finalPr?.base?.ref,baseRepo:finalPr?.base?.repo?.full_name,user:finalPr?.user?.login,association:finalPr?.author_association,body:finalPr?.body})
+  if(finalMain!==main||finalIdentity!==identity)refuse('exact live PR identity or protected main moved during proof')
   return {issue:refs[0],work,headSha,route:structural?'structural':'repo-maintenance',contractRef:report.contract_ref,contractHash:contractHash(contract)}
 }
 

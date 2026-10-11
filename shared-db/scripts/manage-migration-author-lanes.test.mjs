@@ -11412,9 +11412,10 @@ function nonclosingGitFixture(structural=false){
   const files=[{filename:sourcePath,status:structural?'added':'modified'},{filename:'.agent/work/41/1/contract.json',status:'added'},{filename:'.agent/work/41/1/completion.json',status:'added'}]
   const proofGit={isAncestor:(a,b)=>{try{git('merge-base','--is-ancestor',a,b);return true}catch{return false}},mergeBase:(a,b)=>git('merge-base',a,b),changedFiles:(a,b)=>git('diff','--name-only',a,b).split('\n').filter(Boolean),readPublishedContract:ref=>bindingPublishedContract(ref,(command,args,options)=>execFileSync(command,args,{...options,cwd:dir}))}
   const io={getPr:()=>live,mainSha:()=>base,getPrFiles:()=>files,closingIssuesForPr:()=>[],getFileAt:(name,sha)=>git('show',`${sha}:${name}`),getIssue:()=>work,prepareNonclosingEvidenceGit:(a,b)=>git('fetch','--quiet','origin',a,b)}
-  io.verifyNonclosingMaintenanceBinding=request=>verifyNonclosingMaintenanceBinding(request,io,proofGit)
-  io.verifyNonclosingStructuralBinding=request=>verifyNonclosingMaintenanceBinding({...request,structural:true},io,proofGit)
-  return {dir,git,put,contract,report,live,work,files,io,proofGit,head,base,close:()=>rmSync(dir,{recursive:true,force:true})}
+  const gitRunner=(args)=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']})
+  io.verifyNonclosingMaintenanceBinding=request=>verifyNonclosingMaintenanceBinding(request,io,proofGit,{gitRunner})
+  io.verifyNonclosingStructuralBinding=request=>verifyNonclosingMaintenanceBinding({...request,structural:true},io,proofGit,{gitRunner})
+  return {dir,git,gitRunner,put,contract,report,live,work,files,io,proofGit,head,base,close:()=>rmSync(dir,{recursive:true,force:true})}
 }
 test('nonclosing maintenance binding proves canonical live direct and snapshot routes through real Git',()=>{
   const f=nonclosingGitFixture()
@@ -11441,6 +11442,83 @@ test('nonclosing maintenance binding refuses metadata and canonical mismatches w
     f.work.number=42;assert.throws(check,/refused/);f.work.number=41
     const saved=f.files.splice(1,1);assert.throws(check,/refused/);f.files.splice(1,0,...saved)
     f.files.push({filename:'.agent/work/42/1/contract.json',status:'added'},{filename:'.agent/work/42/1/completion.json',status:'added'});assert.throws(check,/refused/)
+  }finally{f.close()}
+})
+// Real commits and the normal immutable evidence readers remain the authority.
+function advanceNonclosingMain(f,name,content){
+  f.git('checkout','main');f.put(name,content);f.git('add',name);f.git('commit','-m','controlled main advance')
+  const tip=f.git('rev-parse','HEAD');f.git('push','origin','main');f.git('checkout','feature');f.io.mainSha=()=>tip
+  return tip
+}
+for(const structural of [false,true]){
+  const route=structural?'structural':'maintenance'
+  test(`nonclosing ${route} accepts stale API base after unrelated real code and documentation advances`,()=>{
+    for(const name of ['scripts/unrelated.mjs','docs/unrelated.md']){
+      const f=nonclosingGitFixture(structural)
+      try{
+        const tip=advanceNonclosingMain(f,name,'unrelated real source\n'),seen=[],evidenceBases=[]
+        const mergeBase=f.proofGit.mergeBase;f.proofGit.mergeBase=(a,b)=>{evidenceBases.push([a,b]);return mergeBase(a,b)}
+        const runner=args=>{seen.push(args);return f.gitRunner(args)}
+        assert.equal(verifyNonclosingMaintenanceBinding({pr:7,headSha:f.head,files:f.files,issue:41,structural},f.io,f.proofGit,{gitRunner:runner}).issue,41)
+        assert.equal(f.live.base.sha,f.base);assert.notEqual(tip,f.base)
+        assert.deepEqual(evidenceBases,[[tip,f.head]])
+        assert.ok(seen.some(args=>args[0]==='merge-base'&&args.includes(tip)&&args.includes(f.head)))
+        if(name.endsWith('.mjs'))assert.ok(seen.some(args=>args[0]==='merge-tree'&&args.includes(tip)))
+      }finally{f.close()}
+    }
+  })
+  test(`nonclosing ${route} refuses actual source overlap and conflicting merge`,()=>{
+    const f=nonclosingGitFixture(structural)
+    try{
+      advanceNonclosingMain(f,structural?'supabase/migrations/20260101000000_example.sql':'app.txt','conflicting source\n')
+      assert.throws(()=>derivePrOperationRoute(7,f.io,{headSha:f.head,issue:41}),/main also changed/)
+    }finally{f.close()}
+  })
+  test(`nonclosing ${route} refuses invalid missing and divergent API bases`,()=>{
+    const f=nonclosingGitFixture(structural)
+    try{
+      const tip=advanceNonclosingMain(f,'scripts/unrelated.mjs','unchanged canonical work\n')
+      f.git('checkout','--orphan','divergent');f.put('orphan.txt','different ancestry\n');f.git('add','orphan.txt');f.git('commit','-m','different history')
+      const divergent=f.git('rev-parse','HEAD');f.git('checkout','feature')
+      for(const sha of ['',null,'not-a-sha','a'.repeat(40),divergent]){
+        f.live.base.sha=sha
+        assert.throws(()=>derivePrOperationRoute(7,f.io,{headSha:f.head,issue:41}),/refused/)
+      }
+      f.live.base.sha=tip;delete f.io.prepareNonclosingEvidenceGit
+      assert.throws(()=>derivePrOperationRoute(7,f.io,{headSha:f.head,issue:41}),/reader unavailable/)
+    }finally{f.close()}
+  })
+  test(`nonclosing ${route} refuses main head and live identity races after actual Git proof`,()=>{
+    for(const mutate of [f=>f.io.mainSha=()=>f.base,f=>f.live.head.sha='a'.repeat(40),f=>f.live.head.ref='other',f=>f.live.base.ref='develop',f=>f.live.base.sha='a'.repeat(40),f=>f.live.body+='\nRefs #42',f=>f.live.state='closed',f=>f.live.head.repo.full_name='other/repo']){
+      const f=nonclosingGitFixture(structural)
+      try{
+        advanceNonclosingMain(f,'scripts/unrelated.mjs','actual clean merge\n')
+        const read=f.io.getIssue;f.io.getIssue=number=>{const work=read(number);mutate(f);return work}
+        assert.throws(()=>derivePrOperationRoute(7,f.io,{headSha:f.head,issue:41}),/moved during proof/)
+      }finally{f.close()}
+    }
+  })
+  test(`nonclosing ${route} refuses unreadable trial merge and changed complete merged diff`,()=>{
+    const f=nonclosingGitFixture(structural)
+    try{
+      const tip=advanceNonclosingMain(f,'scripts/unrelated.mjs','actual clean merge\n')
+      const request={pr:7,headSha:f.head,files:f.files,issue:41,structural}
+      const conflict=args=>{if(args[0]==='merge-tree'){const e=new Error('controlled unreadable or conflict');e.status=1;throw e}return f.gitRunner(args)}
+      assert.throws(()=>verifyNonclosingMaintenanceBinding(request,f.io,f.proofGit,{gitRunner:conflict}),/merging origin\/main into the head conflicts/)
+      // Give the existing classifier a real, valid tree with collateral changes:
+      // even an apparently successful trial merge must not alter the PR diff.
+      const changed=args=>args[0]==='merge-tree'?f.gitRunner(['rev-parse',`${tip}^{tree}`]):f.gitRunner(args)
+      assert.throws(()=>verifyNonclosingMaintenanceBinding(request,f.io,f.proofGit,{gitRunner:changed}),/trial merge changes the pull request's own diff/)
+      const unreadable=args=>{if(args[0]==='diff')throw new Error('controlled Git read failure');return f.gitRunner(args)}
+      assert.throws(()=>verifyNonclosingMaintenanceBinding(request,f.io,f.proofGit,{gitRunner:unreadable}),/could not be read|cannot be proven/)
+    }finally{f.close()}
+  })
+}
+test('nonclosing structural binding refuses duplicate migration version on actual main',()=>{
+  const f=nonclosingGitFixture(true)
+  try{
+    advanceNonclosingMain(f,'supabase/migrations/20260101000000_different.sql','CREATE TABLE core.different (id integer);\n')
+    assert.throws(()=>derivePrOperationRoute(7,f.io,{headSha:f.head,issue:41}),/migration version collision/)
   }finally{f.close()}
 })
 test('nonclosing maintenance fallback never changes structural, unknown or multiple-closing routing',()=>{
