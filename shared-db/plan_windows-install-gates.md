@@ -4,16 +4,28 @@
 
 | Phase | Step | Status | Evidence |
 |-------|------|--------|----------|
-| 1 | P1 — Patch `update.sh` path normalization | ⬜ open | |
-| 1 | P2 — Patch `update.sh` / `ai-task-gates` lock fallback | ⬜ open | |
-| 1 | P3 — Patch `ai-task-gates` launcher path check | ⬜ open | |
-| 2 | P4 — Split review vs. install into separate tasks | ⬜ open | |
-| 2 | P5 — Run second `final-check` review for deploy action | ⬜ open | |
-| 2 | P6 — Run `authorize-install` with correct bindings | ⬜ open | |
-| 3 | P7 — Run Windows installer (`install-ai-devops-windows.ps1`) | ⬜ open | |
-| 3 | P8 — Verify installed hashes and routing | ⬜ open | |
+| 1 | P1 — Patch `update.sh` path normalization | Partial: source repair | [ai-devops PR #1559](https://github.com/popcre/ai-devops/pull/1559); syntax and focused equivalent/distinct/failed-normalization checks pass; review/CI pending. |
+| 1 | P2 — Patch `update.sh` / `ai-task-gates` lock fallback | Partial: native source canary passed | Same PR; real edge-dev missing-`flock` concurrent exclusion, signal cleanup and lock reuse pass. No `flock` call exists in `ai-task-gates`; Linux descriptor locking is retained. Review/CI still gate source merge. |
+| 1 | P3 — Patch `ai-task-gates` launcher path check | Partial: native source canary passed | Same PR; real edge-dev MSYS/Windows root equivalence and managed launcher routing pass with both ProgramFiles variables unset. Review/CI still gate source merge. |
+| 2 | P4 — Split review vs. install into separate tasks | Verified; do not redo | Existing Windows task remains `installation`, start head `63e83b0772b5b8e7a071264829b163dd863c39f6`, base `b9046892660d7eccd3efc0e4af84cf85849923a6`. |
+| 2 | P5 — Run second `final-check` review for deploy action | Verified retained review; do not redo | Existing Muse lifecycle is completed/APPROVE/nonstale, final-check, implementer `mimo`, head `b9046892660d7eccd3efc0e4af84cf85849923a6`, base `1861259dfa243ebe25f1b984b43d1f2a44bcd8c4`. Installation remains separately gated. |
+| 2 | P6 — Run `authorize-install` with correct bindings | Blocked: installed checkout advanced beyond requested target | Actual clean installed head `698554f6013a78e7be4c67ecf8afa9b2a4409708` is a descendant of the requested target. The existing task cannot authorize a backward installation. |
+| 3 | P7 — Run Windows installer (`install-ai-devops-windows.ps1`) | Not run: blocked by P6 | Preserve the explicitly requested `-ExpectedHead b9046892660d7eccd3efc0e4af84cf85849923a6`; do not reset/downgrade or silently substitute a target. |
+| 3 | P8 — Verify installed hashes and routing | Partial: live availability proved; receipt integrity fails | Actual Windows preflight reports Muse and DeepSeek usable/installed-healthy. Gate receipt matches neither current source hash nor current checkout head. This is not installation acceptance. |
 
-**Fresh session starts at:** Phase 1. Re-read this STATUS table before each phase.
+**Fresh session starts at:** Finish PR #1559 source validation and normal merge, then reconcile the blocked exact installation target through the supported gates. P4/P5 are already verified. Re-read this STATUS table before each phase.
+
+**Current checkpoint:** October 11, 2026, 9:10 AM EDT. Root-owned continuation cards: [ai-devops #1548](https://github.com/popcre/ai-devops/issues/1548#issuecomment-6109257375) and [shared-db #770](https://github.com/popcre/shared-db/issues/770#issuecomment-6109276316). All 77 protected #770 inputs match their recorded hashes, pending-v10 and invocation-v10 remain unchanged, and all five exact future-output paths are absent. No credential, database, cloud, service, rehearsal or production write occurred. These are custody checks, not recovery or application acceptance.
+
+**Release distinction:** The source repair introduces new bytes in PR #1559; those bytes are not in the historical `b904689` release. Do not patch the clean installation candidate locally or treat the old review as approval of the new repair. The new repair has its own independent exact-head review. The original installation review remains preserved for its original target only.
+
+**Source review passed:** Muse completed an independent final-check APPROVE/nonstale at repair head `7658048db5ee9c2123a2a5e03983bd94b722fd73`, implementer/caller `codex`, comparison base `d7ae3261214d33a62ec7024dc3e5f4da7ed88df1`, on October 11, 2026, 9:27:27 AM EDT. [Durable review checkpoint](https://github.com/popcre/ai-devops/pull/1559#issuecomment-6109525040). Report SHA256 `275279880f2757cee8bc063f4ffb4d3cb2c694c94bf628299b2adfe18bb5d5ec`; sealed packet SHA256 `659d8c09c17fcbb851838680d9ef3b9290ba773dd1ae5eb9dec4049caa39e25a`. Required CI and normal merge still gate source delivery. This is not installation or production authority.
+
+**Validation update — October 11, 2026:** Native Windows task-gate suite completed with 339 passing checks and one failing existing assertion, `the explain cache directory is private`. That unchanged Unix-mode assertion and native Windows state protection are already covered by the separate open [ai-devops PR #1382](https://github.com/popcre/ai-devops/pull/1382); its body records the native ACL repair. Do not suppress that test or claim Windows privacy acceptance. The reviewer lifecycle suite subsequently passed all 81 checks in the same dedicated Windows source worktree, with the runner collision check clear. Native ProgramFiles/root-path and missing-`flock` concurrent exclusion/signal cleanup/reuse canaries also pass. Neither the requested authority nor a consuming authority exists; the installed/candidate heads remain unchanged.
+
+Actual Linux CI at the approved repair head reports task gates **340 passed, 0 failed**. A separate unchanged `test-ai-pr-wait.sh` pagination-accounting assertion failed once (89/1). Its waiter, test and measurement reporter are byte-unchanged from the source comparison base; the affected fixture explicitly disables task gates. After local runner collision clearance, the isolated exact-current-source waiter suite passed **90/0**, including that same assertion. After the original run completed, one normal failed-job re-run was accepted at 9:58 AM EDT, with every required check retained. This is a diagnostic/retest, not a claim that the unrelated accounting defect was repaired.
+
+The first source review correctly rejected a Linux-fragile test stub (the closing `]` argument was missing from the stub's match); CI confirmed 339 passing checks and that one failure. The consolidated correction exposed a second fixture defect: a Bash-only last-argument expansion in a generated `#!/bin/sh` script. Both generated fixtures now use a POSIX argument loop, directly verified under real `sh`, including the `--` separator. The fresh repair-head review above approves the correction; neither earlier rejection authorizes merge. Both earlier reviews found no defect in the changed installer/gate functions. These fixture findings do not change the retained installation review's target or authority.
 
 **Linked handoff:** `HANDOFF.d/2026-10-09T2200Z-edge-dev-mimo-windows-install-gates.md`
 
@@ -56,7 +68,7 @@ Session `ses_ffe5ee11d71a2ffe5UuMOc8kR7` on edge-dev merged PR #1533 (fixture re
 ### 5. Current state of the code
 
 - **Merged target:** `b9046892660d7eccd3efc0e4af84cf85849923a6` on `popcre/ai-devops` `main`. PR #1533 merged 2026-10-09T15:52:39Z. CI green except ENVY Windows section 2 (known limitation).
-- **Installed checkout:** `C:\repos\ai-devops` at `63e83b0772b5b8e7a071264829b163dd863c39f6` (the commit before #1533). Needs update to `b904689`.
+- **Installed checkout — UPDATED October 11, 2026:** `C:\repos\ai-devops` is clean at `698554f6013a78e7be4c67ecf8afa9b2a4409708`, beyond the requested `b904689` target. The prior `63e83b07` observation is historical; it remains the preserved task declaration's start head. Do not repeat installation under the old baseline assumption.
 - **Managed launchers:** `%USERPROFILE%\.local\bin\ai-task-gates` (bash) and `.cmd`. Both have 6-line format with `source-sha`/`source-hash` receipt pointing at `356a79d6deba7d721d01967ce2dfa9525f94b98f`.
 - **Candidate worktree:** `C:\tmp\ai-devops-install` was created at `b904689`, reset to `63e83b07`, fast-forwarded to `b904689`. Its `ai-task-gates start --class installation` was called with `start_head=63e83b07`, `base=b904689`.
 - **Review reports:** Muse diff-review APPROVE at `C:\tmp\ai-devops-1533\.ai\reviews\muse-diff-review-20261009T125444-1278485-12429.md`. Muse final-check APPROVE at `C:\tmp\ai-devops-install\.ai\reviews\muse-final-check-20261009T175147-1827819-20806.md`. The final-check was run on the candidate worktree at `b904689`.
@@ -89,8 +101,8 @@ Session `ses_ffe5ee11d71a2ffe5UuMOc8kR7` on edge-dev merged PR #1533 (fixture re
 - **LOCKED:** The review that authorizes the deploy must be a separate `final-check` review with `--implementer mimo` (different from provider `muse`), bound to the exact target head.
 - **LOCKED:** The installation task must be declared with `start --class installation` at the **pre-update** installed head (`63e83b07`), then the candidate advances to the target (`b904689`).
 - **LOCKED:** The ENVY CI runner limitation is preserved, not bypassed.
-- **OPEN:** Whether to patch `update.sh` upstream (contributing back to `popcre/ai-devops`) or only fix locally. Default: fix locally first, propose upstream if the fix is clean.
-- **OPEN:** Whether `PROGRAMFILES` should be set in the Git Bash profile or detected by the script. Default: detect in the script (more robust).
+- **SOURCE DECISION October 11, 2026:** Permanent source repair is authored upstream in ai-devops PR #1559, separately reviewed and tested. The original clean installation candidate and installed checkout are untouched.
+- **SOURCE DECISION October 11, 2026:** Detect ProgramFiles in the script from either existing variable, then the actual existing Git installation. No profile mutation or routing bypass.
 
 ---
 
@@ -284,8 +296,8 @@ cd /c/repos/ai-devops && ai-task-gates start --class reviewer-safety 2>&1
 
 - [ ] P1-P3 patches applied and `bash -n` passes on each patched file.
 - [ ] Existing test suites (`test-ai-task-gates.sh`, `test-ai-review-lifecycle.sh`) pass.
-- [ ] P4: installation task correctly declared with `start_head=63e83b07`.
-- [ ] P5: `final-check` APPROVE review exists at head `b904689` with `review_mode: final-check`.
+- [x] P4: installation task correctly declared with `start_head=63e83b07` (live verified October 11, 2026).
+- [x] P5: retained `final-check` APPROVE review exists at head `b904689`, with implementer `mimo`, exact `1861259d` comparison base and nonstale lifecycle (live verified October 11, 2026).
 - [ ] P6: `authorize-install` produces a one-use authorization receipt.
 - [ ] P7: Windows installer exits 0; installed checkout HEAD is `b904689`.
 - [ ] P8: launcher hashes match; `ai-review-preflight usable` resolves wrappers; `ai-task-gates start` works.
@@ -296,9 +308,10 @@ cd /c/repos/ai-devops && ai-task-gates start --class reviewer-safety 2>&1
 - The Muse review system was flaky on this machine earlier (DeepSeek processes killed, Codex sandbox denied). If Muse also fails, try `ai-review stepfun final-check` or `ai-review glm final-check` — both are registered.
 - The installer may hit additional Windows gates not yet discovered. Each new gate needs its root cause diagnosed before a workaround is applied; do not blanket-disable checks.
 
-**Open questions:**
-- Should the P1-P3 patches be contributed upstream to `popcre/ai-devops`? Criteria: if the fix is clean (≤10 lines total, no security change), open a PR. Otherwise keep local and open an upstream issue.
-- If `final-check` review at the exact head cannot be obtained (reviewer outage), the install is blocked. No skip path exists by design.
+**Current technical blockers (owned by the resuming session):**
+- Upstream source delivery is selected and independently approved in PR #1559; finish its normal checks and merge. Do not maintain a local-only installer patch.
+- The requested installation head predates the installed checkout. P6/P7 must remain blocked until supported forward-only installation authority reconciles that exact target; no downgrade or silent target substitution.
+- Native Windows state privacy acceptance is still unproved; the existing separate PR #1382 owns that repair. Do not suppress the Unix-only assertion or treat preflight availability as installation acceptance.
 
 ---
 
