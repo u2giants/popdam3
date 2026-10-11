@@ -7,28 +7,27 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ImpersonationProvider } from "@/contexts/ImpersonationContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppLayout from "@/components/AppLayout";
-import Index from "./pages/Index";
 import LoginPage from "./pages/LoginPage";
-import LandingPage from "./pages/LandingPage";
-import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
-import TermsOfServicePage from "./pages/TermsOfServicePage";
-import SettingsPage from "./pages/SettingsPage";
-import DownloadsPage from "./pages/DownloadsPage";
-import SetupPage from "./pages/SetupPage";
-import AiTaggingFailuresPage from "./pages/AiTaggingFailuresPage";
-import AiTaggingDetailPage from "./pages/AiTaggingDetailPage";
-import ScanDiagnosticsPage from "./pages/ScanDiagnosticsPage";
-import ForgotPasswordPage from "./pages/ForgotPasswordPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
-import AuthCallbackPage from "./pages/AuthCallbackPage";
-import NotFound from "./pages/NotFound";
-import PopSGLibraryPage from "./pages/popsg/PopSGLibraryPage";
-import PopSGSettingsPage from "./pages/popsg/PopSGSettingsPage";
-import FileBrowserPage from "./pages/FileBrowserPage";
-import StylesPage from "./pages/StylesPage";
-import OrdersPage from "./pages/OrdersPage";
-import SellThroughExportPage from "./pages/SellThroughExportPage";
 import { IS_POPSG } from "@/lib/app-mode";
+const Index = lazy(() => import("./pages/Index"));
+const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
+const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const DownloadsPage = lazy(() => import("./pages/DownloadsPage"));
+const SetupPage = lazy(() => import("./pages/SetupPage"));
+const AiTaggingFailuresPage = lazy(() => import("./pages/AiTaggingFailuresPage"));
+const AiTaggingDetailPage = lazy(() => import("./pages/AiTaggingDetailPage"));
+const ScanDiagnosticsPage = lazy(() => import("./pages/ScanDiagnosticsPage"));
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
+const AuthCallbackPage = lazy(() => import("./pages/AuthCallbackPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const PopSGLibraryPage = lazy(() => import("./pages/popsg/PopSGLibraryPage"));
+const PopSGSettingsPage = lazy(() => import("./pages/popsg/PopSGSettingsPage"));
+const FileBrowserPage = lazy(() => import("./pages/FileBrowserPage"));
+const StylesPage = lazy(() => import("./pages/StylesPage"));
+const OrdersPage = lazy(() => import("./pages/OrdersPage"));
+const SellThroughExportPage = lazy(() => import("./pages/SellThroughExportPage"));
 const PropertyReconciliationVisualPage = lazy(
   () => import("@/features/popsg-property-reconciliation/PropertyReconciliationVisualPage"),
 );
@@ -50,6 +49,7 @@ const App = () => (
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AuthProvider>
           <ImpersonationProvider>
+            <Suspense fallback={null}>
             <Routes>
               <Route path="/" element={<LoginPage />} />
               <Route path="/login" element={<LoginPage />} />
@@ -59,7 +59,7 @@ const App = () => (
               <Route path="/privacy" element={<PrivacyPolicyPage />} />
               <Route path="/terms" element={<TermsOfServicePage />} />
               {import.meta.env.DEV && (
-                <Route path="/__visual/property-reconciliation" element={<Suspense fallback={null}><PropertyReconciliationVisualPage /></Suspense>} />
+                <Route path="/__visual/property-reconciliation" element={<PropertyReconciliationVisualPage />} />
               )}
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/library" element={IS_POPSG ? <PopSGLibraryPage /> : <Index />} />
@@ -80,6 +80,7 @@ const App = () => (
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </ImpersonationProvider>
         </AuthProvider>
       </BrowserRouter>
