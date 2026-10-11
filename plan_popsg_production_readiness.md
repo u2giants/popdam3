@@ -504,7 +504,7 @@ Use authenticated browser testing and preserve screenshots/network evidence for 
 - [ ] Shared-db migration is preview-tested, merged, production-applied under the correct gate, and consumer types sync.
 - [ ] App changes are committed/pushed; all relevant CI/deployments pass; live SHAs/versions match.
 - [ ] Three ordinary nightly crawls and full signed-in production QA pass with saved evidence.
-- [ ] Docs are current; #107 is closed; handoff is deleted; both worktrees are clean/handoff-safe.
+- [ ] Docs are current; #107 is closed; only the completed scoped PopSG predecessor is retired if present after successor-rule proof; the current 17-issue campaign continuation remains while any campaign obligation is open; both owned worktrees are handoff-safe.
 
 ### Risks and rollback
 
