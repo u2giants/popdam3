@@ -1,7 +1,7 @@
 # PopSG Production Readiness and NAS Fidelity Plan
 
 Issue: [u2giants/popdam3 #107](https://github.com/u2giants/popdam3/issues/107)
-Handoff: [HANDOFF.d/2026-09-15T1117Z-hetz-codex-popsg-production-closeout.md](HANDOFF.d/2026-09-15T1117Z-hetz-codex-popsg-production-closeout.md)
+Handoff: [HANDOFF.d/2026-10-11T2300Z-hetz-codex-open-issues-coordinator-continuation.md](HANDOFF.d/2026-10-11T2300Z-hetz-codex-open-issues-coordinator-continuation.md)
 
 ## STATUS — read this first
 
@@ -9,20 +9,20 @@ Handoff: [HANDOFF.d/2026-09-15T1117Z-hetz-codex-popsg-production-closeout.md](HA
 |---|---|---|
 | 1. Freeze the acceptance contract and baseline | ✅ complete | `verification/popsg-readiness/baseline-2026-09-03T164944Z.json`; reusable exact-contract collector; edge2 job exit 0 with zero inaccessible paths; private path evidence remains git-ignored |
 | 2. Route and ship the shared-database contract | ✅ complete | `u2giants/shared-db#2212`; PR #2339 merged as `9e83aa04`; migration `20260905104802` preview-tested and verified in Virginia production; generated consumer types synced in `fc0513fc` |
-| 3. Make crawl completion truthful and restart-safe | 🟨 repair in review, October 11 | Five of ten October nightly crawls failed in file_groups despite clean reconciliation. #336 cfb36150 retry/lifecycle fix deployed October 11 at 2:12 PM EDT; this repair replaces the remaining slow request path. App #335; canonical shared-db #3458 / PR #4201 adds service-only scheduled-refresh readiness; application cutover and complete production crawl still pending. No statement timeout increase. |
+| 3. Repair bounded nightly reconciliation and aggregation | 🟨 current controlled/ordinary acceptance open | October 11, 6:32 PM EDT owner receipt [6114634037](https://github.com/u2giants/popdam3/issues/335#issuecomment-6114634037): shared-db #4201 automatically applied in Virginia (38179538914, post-apply assertions passed); app #347 merged 46dd78567bc99516d294867923f5b242be2fbd3e, Edge/agent publication succeeded, Bridge 1.16.17 and Windows 0.16.7.173 adopted. Controlled crawl 0c34cc2e-2d23-4e60-8f6e-eb1cbf8bbc70 started 6:30 PM EDT and remains running; real scheduler refresh/search drain and ordinary changed-night proof remain. Controlled proof does not count as an ordinary night. |
 | 4. Reconcile the current ghost rows safely | ✅ complete | `verification/popsg-readiness/baseline-2026-09-14T022122Z.json`; same-window edge2 scan exit 0, 216,702 eligible, zero inaccessible, exact path-set parity with 216,702 active Virginia rows, zero missing/extra |
 | 5. Add crawl regression protection and operator visibility | ✅ complete 2026-09-16 | Administrator-console acceptance on build `f341443`: all four Settings tabs, zero 4xx/5xx, zero console errors, healthy/reconciling/completed/failed states observed — `verification/popsg-readiness/admin-console-qa-2026-09-15.md` |
-| 6. Finish and classify preview coverage | ✅ complete; rechecked October 11, 4:09 PM EDT | Read-only Virginia aggregates: 220,218 active, 217,998 previewed, 2,220 classified render exceptions, zero unexplained. Signed-in production browsing renders previews in both modes. |
-| 7. Finish searchable PDF/source coverage | 🟨 provider repair and bounded retry required | October 11, 4:51 PM EDT active-only join: 4,379 PDFs; 4,023 extracted, 223 explicit size exceptions, 100 exhausted invalid-provider failures, 33 without extraction rows. Historical completed status and total row count did not prove active coverage. Restore supported PDF routing, retry only the exact exhausted cohort, process new PDFs, and verify search synchronization before acceptance. |
-| 8. Build comprehensive PopSG search and filters | 🟨 common-search performance repair required | October 11 request-correlated signed-in checks reproduced SQLSTATE 57014 for a common matching search; default browsing and unmatched search succeed. Earlier matching-search acceptance counted a prior default response and is withdrawn. A later warm-cache success does not resolve the failures. Preserve complete search sources, ranking, totals and facets while repairing performance through the canonical route. |
-| 9. Run full production acceptance | 🟨 partial | Signed-in library browsing passes. Repair deployment, a complete controlled crawl, and ordinary changed-night acceptance remain on #107; manual proof does not replace ordinary nights. |
+| 6. Finish and classify preview coverage | ✅ classified at dated check | October 11 #107 comment at 2:30 PM EDT reports 220,218 active rows = 217,998 previewed + 2,220 classified exceptions; zero unexplained. Fresh UI proof remains part of final acceptance. |
+| 7. Finish searchable PDF/source coverage | 🟨 current active PDF/provider/source acceptance open | Historical DAM/PopsG backfill completion is not current active-only coverage. October 11 owner evidence: 4,379 active PDFs = 4,023 extracted + 223 explicit size exceptions + 100 invalid-provider failures + 33 missing extraction rows. At 6:32 PM EDT, no failure reset/backfill occurred; exposed Meta credential replacement/revocation and all-consumer proof are blocked by unavailable provider sign-in before separately reviewed 133-row recovery. Recheck current content identities, terminal classifications, incremental search synchronization, actionable DAM remainder, resolver metrics/unresolved rows and Files Used panels under §9.9. Do not restart completed historical queues by assumption. |
+| 8. Build comprehensive PopSG search and filters | 🟨 current search repair/release and full acceptance open | App v2 cutover is historical delivery. October 11, 6:32 PM EDT owner receipt reproduces request-correlated signed-in failures; shared-db #4210 / PR #4213 reviews and guarded release remain pending. Nine behavior contracts / 224 JSON comparisons and Files 4.113 s / Guides 4.621 s bounded probes are diagnostic evidence, not live acceptance. After actual release verify both modes, active PDF text, all filters including modified-date/content availability, authorization, combined facets/counts and stable paging under §9.10–9.11. |
+| 9. Run full production acceptance | ⬜ open | Current #107 retains changed-night acceptance after #336; verification/popsg-readiness/final-acceptance.md remains unwritten. |
 | 10. Land, document, and retire the workstream | ⬜ open | Merged commits, deployed SHAs, updated docs, closed #107, deleted handoff |
 
-**Where to start (October 11, 4:09 PM EDT):** complete the #335 repair through canonical shared-db #3458 / PR #4201, then adapt agent-api and the bridge bounded continuation count for both existing */15 and approved hourly :07 scheduler cadence. Preserve concurrent cadence work #4190 / #4192; write no cron configuration. Complete production crawl proof and ordinary changed-night acceptance before closing #107 or retiring this plan. Earlier execution-drift entries below are historical; current repository AGENTS.md and claim-first rules supersede their old routing instructions.
+**Where to start (October 11, 2026, 6:32 PM EDT):** retain the existing #335 owner; verify controlled crawl completion, governed #4213 search release and credential/provider repair before current PDF recovery; then complete the retained ordinary-night gate and every downstream acceptance/docs-retirement requirement. Read [HANDOFF.d/2026-10-11T2300Z-hetz-codex-open-issues-coordinator-continuation.md](HANDOFF.d/2026-10-11T2300Z-hetz-codex-open-issues-coordinator-continuation.md). Latest evidence source: [#107 comment](https://github.com/u2giants/popdam3/issues/107); verify the current comment URL through GitHub because counts/receipts can change.
 
-Coordinator context: [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md). Its ordinary-night gate stays on #107; the fresh browser and aggregate proof above supplements its older snapshot.
+**Fresh-session start:** begin with this STATUS table; do not repeat dated completed implementation by assumption. Resume at the earliest currently unfinished gate. After every accepted phase, dependency transition or incident, re-read this plan from that gate through §9.12 and §§10–13; reconcile STATUS, the original issue and current handoff, and execute newly ready downstream work before declaring a block. At each marked context cut, use the `fresh-session` skill.
 
-**Fresh-session start:** begin with this STATUS table; do not repeat a completed baseline, crawl proof, preview proof, or bridge incident. Resume at the earliest in-progress/open gate, then re-read all downstream phases and update this table after each accepted phase; at each marked context cut, use the `fresh-session` skill.
+**Current nightly acceptance rule:** §9.11 requires three consecutive ordinary clean post-repair nights. #335’s two qualifying changed-night windows are additional repair evidence, not a waiver of #107’s three-night requirement. A controlled/manual crawl does not count. Current same-window NAS parity, preview partition, PDF/source resolution, full authenticated desktop/mobile search/filter journeys and final acceptance remain necessary even when their earlier dated implementations passed.
 
 **Execution drift — 2026-09-03 16:49Z:** the first exact-contract re-baseline found 216,332 eligible NAS files and 226,390 active database rows, with 1,560 NAS-only and 11,618 database-only path keys. This is a 10,058 net excess, 1,749 above the earlier dated estimate, and 3,190 database-only rows were recorded by the latest crawl. Therefore no current row set is safe to inactivate from age alone; Phase C remains gated on the new bounded contract plus a fresh accepted same-window crawl. The baseline also confirmed 23,358 actionable PopDAM PDF items remaining, 734 resolved/87 unresolved source links, and no dedicated PopSG PDF pipeline in the current schema. One failed collector attempt rendered one licensed relative path in the private Codex transcript; the committed incident note records the streaming fix. All downstream phases were re-read after this finding; their order and gates remain valid.
 
@@ -90,14 +90,14 @@ PopSG is the style-guide mode of `u2giants/popdam3`, locally `/worksp/popdam`. I
 
 - Production UI: `https://sg.designflow.app`
 - Application repo and default branch: `u2giants/popdam3`, `main`
-- Canonical shared schema repo: `u2giants/shared-db`, locally `/worksp/shared-db`; it uses branch + PR
+- Canonical shared schema repo: `popcre/shared-db`, locally `/worksp/shared-db`; use claim-first exact-object ownership on the existing issue, branch + PR and its guarded promotion lane
 - Production Supabase ref: `qsllyeztdwjgirsysgai` (Virginia). Never use retired `ryltkzzernhwnojzouyb`.
 - Canonical read-side NAS: `edgesynology2`, `/volume1/styleguides`; the bridge sees it as `/mnt/nas/styleguides`
 - Production frontend: Coolify app `qxj8a0j3tpa9lq4q5rs6pezy`
 - Bridge image: `ghcr.io/u2giants/popdam-bridge:stable`
 - Windows agent: manually installed Windows render/PDF agent
 
-Read `AGENTS.md`, `docs/POPSG.md`, `docs/KNOWN_QUIRKS.md` #23 and #46–#48, this plan’s linked handoff, and the STATUS table before editing. For schema/RPC/view/index work, also load `codex-shared-db-change` and `/worksp/shared-db/AGENTS.md`; non-orchestrator sessions route a fresh `db-work` issue rather than authoring structural work themselves.
+Read `AGENTS.md`, `docs/POPSG.md`, `docs/KNOWN_QUIRKS.md` #23 and #46–#48, this plan’s linked handoff, and the STATUS table before editing. For schema/RPC/view/index work, also load `codex-shared-db-change` and `/worksp/shared-db/AGENTS.md`; claim-first is the current structural path: claim exact objects on the existing issue under canonical repository rules; no separate orchestrator permission or duplicate issue is required. Never author structure in the application repository.
 
 ## 3. What triggered this work
 
@@ -184,7 +184,7 @@ No fix, cleanup, shared-db issue, migration, or application implementation has s
 - **Treat cleanup and aggregate refresh as best-effort. Rejected.** Customer-visible truth depends on both. A crawl cannot be “completed” while ghosts or stale folder aggregates remain.
 - **Trust `files_found` alone. Rejected.** It counts pre-server candidates and does not equal accepted/indexed rows.
 - **Compare against every raw NAS file. Rejected.** PopSG intentionally excludes non-creative and non-previewable content; raw counts create false deficits.
-- **Put new migrations in PopDAM or use Dashboard SQL. Rejected.** Shared database structure is governed by `u2giants/shared-db`.
+- **Put new migrations in PopDAM or use Dashboard SQL. Rejected.** Shared database structure is governed by `popcre/shared-db`.
 - **Use browser-side filtering/search over downloaded rows. Rejected.** The corpus is over 200,000 rows; filters, authorization, ranking, counts, and paging must happen server-side.
 - **Call PopDAM `pdf_text_samples` comprehensive PopSG content search. Rejected.** That table is keyed to PopDAM assets and only a small linked subset reaches PopSG through `sku_files_used`; it cannot search the PopSG PDF corpus.
 - **Declare all render errors blockers. Rejected.** Some files are corrupt, missing, or technically terminal. Classify them and set an accepted exception policy; do not endlessly retry terminal cases.
@@ -240,7 +240,7 @@ Dependency: none. This baseline gates all later data changes.
 
 #### 9.2 Route the shared-database work
 
-Classify the required database objects from scratch and open a `db-work` issue in `u2giants/shared-db` naming at least: `style_guide_crawl_runs`, the cleanup RPC(s), aggregate refresh contract, PopSG PDF extraction rows/status/claim-complete contract, search RPC/documents/indexes, and any status/metrics fields. The replacement cleanup/continuation RPCs must be service-role-only unless a narrowly authorized user-facing wrapper is proven necessary; explicitly remove/reject the baseline function’s broad `authenticated` grant. Do not assume issue #107 grants a migration-author lane. The shared-db orchestrator authors the migration on a dedicated branch, tests it in preview, merges the PR, and—only with the production promotion gate satisfied—applies it to production. App code must not depend on the new contract until production structure exists. If `codex-shared-db-change` is unavailable, the invariant is still: inspect read-only freely, but route all structure through the one shared-db orchestrator and never write app-side DDL.
+For any newly required structural successor, classify its exact objects independently, reuse the existing canonical `popcre/shared-db` issue and claim exact-object ownership before authoring; name at least: `style_guide_crawl_runs`, the cleanup RPC(s), aggregate refresh contract, PopSG PDF extraction rows/status/claim-complete contract, search RPC/documents/indexes, and any status/metrics fields. The replacement cleanup/continuation RPCs must be service-role-only unless a narrowly authorized user-facing wrapper is proven necessary; explicitly remove/reject the baseline function’s broad `authenticated` grant. Do not assume issue #107 grants a migration-author lane. The claimed structural owner authors the migration on a dedicated branch, tests it in preview and owns the guarded PR/merge/promotion workflow; production application requires the canonical exact promotion gates. App code must not depend on the new contract until production structure exists. If `codex-shared-db-change` is unavailable, the invariant is still: inspect read-only freely, but route all structure through canonical shared-db claim-first governance and never write app-side DDL.
 
 Dependency: 9.1 defines the behavior and baseline.
 **You’ll know it worked when** the shared-db issue is dispatched, its PR is merged, preview behavior/performance evidence is attached, production migration ledger is verified, and generated consumer types have synced back without app-side migration files.
@@ -389,7 +389,7 @@ Dependency: all prior phases.
 
 #### 9.12 Land and retire
 
-Update `docs/POPSG.md`, `docs/KNOWN_QUIRKS.md`, relevant configuration/deployment docs, and this plan’s STATUS after each landed phase. Shared schema lands through shared-db branch/PR/merge; PopDAM app changes go to `main` with owned paths staged only. Verify CI, Supabase deployment, bridge image/self-update, Windows release/install if changed, frontend image/Coolify deployment, and live SHAs. Close #107 only after §9.11 passes. Delete the linked handoff in the completing commit; retain the plan as historical operating context or mark it complete according to repository convention.
+Update `docs/POPSG.md`, `docs/KNOWN_QUIRKS.md`, relevant configuration/deployment docs, and this plan’s STATUS after each landed phase. Shared schema lands through shared-db branch/PR/merge; PopDAM app changes land through a feature-branch PR, normal checks/merge queue and owned-path staging to `main`; never push directly to protected `main`. Verify CI, Supabase deployment, bridge image/self-update, Windows release/install if changed, frontend image/Coolify deployment, and live SHAs. Close #107 only after §9.11 passes. Delete the linked handoff in the completing commit; retain the plan as historical operating context or mark it complete according to repository convention.
 
 Dependency: 9.11.
 **You’ll know it worked when** issue #107 is closed with final evidence, no open obligation remains, the handoff is removed, both repos are clean, and production still passes the acceptance checks.
@@ -422,7 +422,7 @@ Run the repository’s Edge typecheck/test command documented in `docs/developme
 
 ### Shared database
 
-In `u2giants/shared-db`, add migration behavior tests for:
+In canonical `popcre/shared-db`, add migration behavior tests for:
 
 - candidate preview with no mutation;
 - multi-batch cleanup, interruption/resume, idempotency, multiple roots;
@@ -455,7 +455,7 @@ Use authenticated browser testing and preserve screenshots/network evidence for 
 
 - Read and obey `/worksp/popdam/AGENTS.md`; stage only owned paths and preserve `.claude/` and other sessions’ work.
 - Before the first commit, `git var GIT_COMMITTER_IDENT` must be `Albert Hazan <u2giants@users.noreply.github.com>`.
-- PopDAM app work goes to `main`. Shared-db uses its single orchestrator, dedicated branch, PR, preview-first workflow, and AI-owned merge.
+- PopDAM app work lands to `main` through feature-branch PRs and normal checks/merge queue, never a direct protected-main push. Shared-db uses claim-first exact-object ownership, a dedicated branch/PR, preview-first guarded promotion and AI-owned merge; do not require a separate orchestrator permission or duplicate claim.
 - Prove `qsllyeztdwjgirsysgai` immediately before every production data write. Never use the default/retired Ohio project.
 - Never add migrations under PopDAM’s `supabase/migrations/`; its mirror is read-only.
 - Production/shared infrastructure is read-only unless exact current-chat authority exists. Do not live-edit servers or increase timeouts.
