@@ -59,6 +59,8 @@ import {
   hasMoreSgSearchDocuments,
   runSteppableSgRefresh,
   SG_RECONCILE_BATCH_SIZE,
+  SG_REFRESH_TIMEOUT_RETRY_MS,
+  shouldRetrySgRefreshTimeout,
 } from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
@@ -3083,11 +3085,14 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
   if (done) {
     const { data: runData, error: runErr } = await db
       .from("style_guide_crawl_runs")
-      .select("roots_scanned")
+      .select("roots_scanned, ingest_completed_at")
       .eq("id", runId)
       .single();
     if (runErr || !runData) return err(`Could not load crawl state: ${runErr?.message ?? "run not found"}`, 500);
     const rootsScanned = (runData?.roots_scanned as string[] | null) || [];
+    // Continuation calls must keep the first ingest timestamp: it anchors the
+    // bounded retry window for a timed-out matview refresh step.
+    const ingestCompletedAt = (runData?.ingest_completed_at as string | null) ?? new Date().toISOString();
     const inaccessibleRootSet = new Set(inaccessibleRoots);
     const accessibleRoots = rootsScanned.filter((root) => !inaccessibleRootSet.has(root));
     const rootLabels = [...new Set(rootsScanned.map((root) => root.split("/").filter(Boolean).pop() || root))];
@@ -3116,6 +3121,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
     if (effectiveCrawlError) {
       await db.from("style_guide_crawl_runs").update({
         status: "failed",
+        lifecycle_state: "failed",
         error_message: effectiveCrawlError,
         completed_at: new Date().toISOString(),
         files_found: finalFileCount,
@@ -3142,7 +3148,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
           finalFileCount,
           acceptedFileCount,
           inaccessibleRoots,
-          new Date().toISOString(),
+          ingestCompletedAt,
         ),
       ).eq("id", runId);
       if (ingestStateErr) {
@@ -3236,6 +3242,22 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         // continuation and a restarted crawl. Replay both matview steps in
         // separate statements so either path is safe without a bridge change.
         const refresh = await runSteppableSgRefresh(runId, searchBatchSize, async (args) => await db.rpc("refresh_style_guide_matviews", args));
+        if (refresh.error && shouldRetrySgRefreshTimeout(refresh.error, ingestCompletedAt, Date.now())) {
+          // The concurrent matview refresh runs close to the 8 s API statement
+          // ceiling and times out on some nights. Each step is restart-safe, so
+          // ask the bridge to call again instead of failing the whole crawl.
+          console.warn("[complete-style-guide-crawl]", `Matview refresh step ${refresh.failedStep} timed out; retrying`);
+          const { error: retryStateErr } = await db.from("style_guide_crawl_runs").update({
+            lifecycle_state: "refreshing",
+          }).eq("id", runId);
+          if (retryStateErr) return err(`Could not persist refresh retry: ${retryStateErr.message}`, 500);
+          return json({
+            ok: true,
+            state: "refreshing",
+            retry_after_ms: SG_REFRESH_TIMEOUT_RETRY_MS,
+            counters: { refresh_timeout_retries: 1 },
+          });
+        }
         if (refresh.error) {
           reconcileOk = false;
           reconcileFailure = `Matview refresh step ${refresh.failedStep} failed: ${refresh.error}`;
@@ -3265,6 +3287,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         // rather than attempting a write the database would reject anyway.
         await db.from("style_guide_crawl_runs").update({
           status: "failed",
+          lifecycle_state: reconcileAttentionRequired ? "attention_required" : "failed",
           error_message: reconcileFailure,
           completed_at: new Date().toISOString(),
           files_found: finalFileCount,

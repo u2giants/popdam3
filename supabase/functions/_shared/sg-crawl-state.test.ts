@@ -8,6 +8,8 @@ import {
   hasMoreSgSearchDocuments,
   runSteppableSgRefresh,
   SG_RECONCILE_BATCH_SIZE,
+  SG_REFRESH_TIMEOUT_RETRY_WINDOW_MS,
+  shouldRetrySgRefreshTimeout,
 } from "./sg-crawl-state.ts";
 
 describe("buildSgCrawlCompletionUpdate", () => {
@@ -142,5 +144,27 @@ describe("runSteppableSgRefresh", () => {
 describe("SG_RECONCILE_BATCH_SIZE", () => {
   it("keeps each production reconciliation write bounded", () => {
     expect(SG_RECONCILE_BATCH_SIZE).toBe(250);
+  });
+});
+
+describe("shouldRetrySgRefreshTimeout", () => {
+  const ingest = "2026-10-10T02:21:02.084Z";
+  const ingestMs = Date.parse(ingest);
+  const timeout = "canceling statement due to statement timeout";
+
+  it("retries a statement timeout inside the window (nightly crawl 2026-10-10 failure)", () => {
+    expect(shouldRetrySgRefreshTimeout(timeout, ingest, ingestMs + 10_000)).toBe(true);
+  });
+
+  it("stops retrying once the window closes", () => {
+    expect(shouldRetrySgRefreshTimeout(timeout, ingest, ingestMs + SG_REFRESH_TIMEOUT_RETRY_WINDOW_MS)).toBe(false);
+  });
+
+  it("never retries other errors", () => {
+    expect(shouldRetrySgRefreshTimeout("permission denied for function", ingest, ingestMs)).toBe(false);
+  });
+
+  it("fails closed on an unreadable ingest timestamp", () => {
+    expect(shouldRetrySgRefreshTimeout(timeout, "not-a-date", ingestMs)).toBe(false);
   });
 });
