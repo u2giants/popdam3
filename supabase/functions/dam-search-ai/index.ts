@@ -1,6 +1,8 @@
 import { createClient } from "../_shared/supabase-js.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
+import { authenticateUser } from "../_shared/admin-auth.ts";
+import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
 import { parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
 
 declare const Supabase: {
@@ -18,33 +20,26 @@ declare const Supabase: {
 
 const model = new Supabase.ai.Session("gte-small");
 
-function authHeader(req: Request) {
-  const header = req.headers.get("Authorization");
-  return header?.startsWith("Bearer ") ? header : null;
-}
-
-async function authenticateUser(req: Request) {
-  const header = authHeader(req);
-  if (!header) return null;
-
-  const token = header.replace("Bearer ", "");
-  const serviceRoleClient = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    token,
-    { global: { headers: { Authorization: header } } },
-  );
-  const { error: serviceRoleError } = await serviceRoleClient.rpc("get_dam_search_embedding_status");
-  if (!serviceRoleError) return { userId: "system", serviceRole: true, admin: true, client: serviceRoleClient };
-
+async function authenticateCaller(req: Request) {
+  // Shared helper: exact match on the deployed service key (sb_secret_), plus the
+  // signature-verified legacy service_role JWT the Railway worker still sends.
+  // Signed-in users never trigger a privileged probe call.
+  const result = await authenticateUser(req, {
+    parseMode: "strict",
+    allowServiceRole: true,
+    allowVerifiedLegacyServiceRole: true,
+  });
+  if (!result.ok) return null;
+  if (result.via === "service_role") {
+    return { userId: "system", serviceRole: true, admin: true, client: serviceClient() };
+  }
   const client = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
-    { global: { headers: { Authorization: header } } },
+    { global: { headers: { Authorization: req.headers.get("Authorization")! } } },
   );
-  const { data, error } = await client.auth.getUser(token);
-  if (error || !data.user?.id) return null;
-  const { data: role } = await serviceClient().from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin").maybeSingle();
-  return { userId: data.user.id, serviceRole: false, admin: Boolean(role), client };
+  const { data: roles } = await serviceClient().from("user_roles").select("role").eq("user_id", result.userId);
+  return { userId: result.userId, serviceRole: false, admin: rolesGrantAdmin(roles), client };
 }
 
 async function embedText(input: string) {
@@ -57,7 +52,7 @@ async function embedText(input: string) {
 corsServe(async (req) => {
   if (req.method !== "POST") return err("Method not allowed", 405);
 
-  const auth = await authenticateUser(req);
+  const auth = await authenticateCaller(req);
   if (!auth) return err("Unauthorized", 401);
 
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
