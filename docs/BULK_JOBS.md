@@ -37,6 +37,14 @@ The worker polls `admin_config.BULK_OPERATIONS` every **1 second** by default (`
 
 ---
 
+## Explicit asset lists
+
+Synchronous Image Tagging jobs with `params.asset_ids` process a bounded page per worker tick, at most50 IDs, and checkpoint a numeric list offset. The next tick resumes the same ordered list at that offset; completion occurs only at its end. Invalid, negative, fractional, string or out-of-range offsets stop before tagging. Existing single-asset forced re-tags still process only their exact ID and finish in one tick. Provider asynchronous batches and discovered-candidate cursors retain their existing behavior. `retry_page_size` can narrow the ordinary page (minimum10); it cannot raise this explicit-list cap beyond50.
+
+After an interruption, ordinary untagged mode skips assets whose validated metadata was already saved; manual tags and rejected tombstones retain their existing native protections. A receipt with failures or unavailable previews is not proof that all targets received AI tags. Verify saved metadata and normalized active AI tags, reconcile partial writes, and record outstanding targets on the original issue. Never replace a protected external batch receipt with a new explicit list.
+
+---
+
 ## Lane System
 
 Jobs in the **same lane** are automatically serialized — the runner will not promote a queued job until the running job in that lane finishes or is stopped.

@@ -1014,13 +1014,18 @@ export async function handleBulkAiTag(
     return { ok: false, done: true, error: "Single-asset tag operation has no asset ID" };
   }
 
-  // Fast path: tag specific assets by ID (used for single-asset re-tag from UI)
+  // Explicit IDs use the same bounded checkpoints as discovered candidates.
   if (assetIds && assetIds.length > 0) {
+    const assetOffset = rawCursor ?? 0;
+    if (typeof assetOffset !== "number" || !Number.isSafeInteger(assetOffset) || assetOffset < 0 || assetOffset > assetIds.length) {
+      return { ok: false, done: false, error: "Explicit asset IDs require a numeric cursor within the target list", error_stage: "candidate_fetch" };
+    }
+    const page = assetIds.slice(assetOffset, assetOffset + Math.min(BATCH_SIZE, 50));
     let tagged = 0, skipped = 0, failed = 0, visualAnalysisUnavailable = 0;
     const failureSamples: Array<{ at: string; asset_id: string; filename: string; relative_path: string; error: string }> = [];
 
-    for (let i = 0; i < assetIds.length; i += CONCURRENCY) {
-      const chunk = assetIds.slice(i, i + CONCURRENCY);
+    for (let i = 0; i < page.length; i += CONCURRENCY) {
+      const chunk = page.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         chunk.map(async (id) => {
           const result = await tagAsset(id, tagAll);
@@ -1040,7 +1045,8 @@ export async function handleBulkAiTag(
       }
     }
 
-    return { ok: true, done: true, tagged, skipped, failed, visual_analysis_unavailable: visualAnalysisUnavailable, failure_samples: failureSamples, skip_samples: [], nextOffset: rawCursor ?? 0, last_stage: "tag_write" };
+    const nextOffset = assetOffset + page.length;
+    return { ok: true, done: nextOffset >= assetIds.length, tagged, skipped, failed, visual_analysis_unavailable: visualAnalysisUnavailable, failure_samples: failureSamples, skip_samples: [], nextOffset, last_stage: "tag_write" };
   }
 
   let cursor;
