@@ -102,6 +102,8 @@ not the identity, and nothing new depends on them.
 
 ## Division changes the meaning
 
+For the owner-directed replacement of licensed MG06 choices with the exact submission Property vocabulary, legacy Item mapping, and new Item selection, see [Submission Property identity and the ColdLion cutover](licensing-master-data.md#submission-property-identity-and-the-coldlion-cutover). That October 11, 2026 ruling does not change the slot meanings below.
+
 `mgTypeCode` has no meaning by itself. Always interpret the pair of Division and `mgTypeCode`.
 
 - In licensed divisions `CW001` and `SP001`, MG05 and MG06 mean Licensor and Property.

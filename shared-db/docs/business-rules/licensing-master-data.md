@@ -32,6 +32,22 @@ Licensing Master Data consists of Licensors, Properties, Characters, Style Guide
 - This does not change "OPA cannot separate Marvel from Disney" below. OPA filing Marvel submissions under its Disney branch is a portal limitation, not Licensor identity.
 - `FR` was not a real Licensor in the ColdLion source. Do not promote it to one from an old code alone.
 
+## Submission Property identity and the ColdLion cutover
+
+**Status: Settled. Authority: Albert Hazan, October 11, 2026, direct chat clarification recorded on [#2541](https://github.com/popcre/shared-db/issues/2541).**
+
+DesignFlow PLM's intended outcome is to populate the fields of an Item's submission in each Licensor's system automatically. The Item's assigned Property must match exactly the Property that the Licensor's submission system shows. The authorized scraped submission vocabulary retained in Supabase is the source for that match, with its Licensor and source identity preserved; a creative-asset vocabulary is not automatically a submission vocabulary.
+
+ColdLion's current MG06 Property choices are to be replaced with those approved submission Property values. Existing pre-switchover Items must be mapped to the new Property list; the licensing team is working on that mapping. New Items will select from the new MG06 values. This is the target cutover, not evidence that the mappings or the ColdLion update are already delivered.
+
+### What this changes
+
+The historical proposal to admit all unmatched ColdLion codes into canonical Properties does not by itself implement this outcome. An existing ColdLion value must not enlarge or override an authorized submission vocabulary merely because it is unmatched. Preserve historical identity and provenance while applying approved mappings; do not infer a Property from spelling similarity or an unresolved old code.
+
+The owner described existing Item links as MG05. In the licensed divisions, the settled [merchandise-group meanings](merchandise-and-product-taxonomy.md#division-changes-the-meaning) remain MG05 Licensor and MG06 Property. An existing Licensor link is context for the Item mapping, not a one-to-one Property decision: one Licensor can have many Properties. The licensing team's qualified mapping must settle the actual Item-to-Property choice. This ruling does not reinterpret MG05/MG06 in generic or retired divisions, merge Licensors, or replace source-specific entitlement rules.
+
+**Unknown / not yet delivered:** the complete approved legacy Item mapping, the final qualified submission Property set for each Licensor, the cutover date, and verified ColdLion selection/update behavior. The owner reported the mapping work in progress; no independently verified last activity time was supplied. The old admission count is not authority to bypass these requirements.
+
 ## Licensor naming aliases
 
 **Settled - Albert Hazan, 2026-09-06.** The Licensor recorded as `VM` / "Viacom Multi" is Paramount, and is also the Nickelodeon licensor. Paramount, Viacom and Nickelodeon are one Licensor under this single record, not three. Any item, property or asset whose description names Paramount or Nickelodeon resolves to this Licensor. Never create a separate Paramount or Nickelodeon Licensor, and never report such an item as having an unknown Licensor because the word "Paramount" does not appear in the Licensor list.
