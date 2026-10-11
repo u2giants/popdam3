@@ -16,7 +16,8 @@ export type BatchNextAction =
   | { type: "wait" }
   | { type: "poll"; batchId: string }
   | { type: "apply"; batchId: string }
-  | { type: "clear"; batchId: string; leaseToken: string }
+  /** leaseToken absent = governed receipt-less clear after lease expiry (shared-db #3543). */
+  | { type: "clear"; batchId: string; leaseToken?: string }
   | { type: "blocked"; reason: string };
 
 export function nextBatchAction(job: OpenRouterBatchJobState, nowMs = Date.now()): BatchNextAction {
@@ -44,10 +45,24 @@ export function nextBatchAction(job: OpenRouterBatchJobState, nowMs = Date.now()
   }
   if (job.phase === "completed") {
     if (!job.provider_batch_id) return { type: "blocked", reason: "Completed provider job has no batch ID" };
-    if (!job.lease_token) return { type: "claim" };
+    if (!job.lease_token) {
+      // The worker crashed after saving "completed" and lost its one-time
+      // receipt; completed jobs never re-mint one. Once the stored lease has
+      // expired the database accepts the exact clear without the receipt
+      // (shared-db #3543); until then, wait instead of re-claiming forever.
+      const leaseEnd = job.lease_expires_at ? new Date(job.lease_expires_at).getTime() : NaN;
+      if (!Number.isFinite(leaseEnd)) return { type: "blocked", reason: "Completed provider job lost its receipt and has no lease expiry" };
+      return leaseEnd <= nowMs ? { type: "clear", batchId: job.provider_batch_id } : { type: "wait" };
+    }
     return { type: "clear", batchId: job.provider_batch_id, leaseToken: job.lease_token };
   }
   return { type: "blocked", reason: "Unknown provider batch state" };
+}
+
+/** The exact stored completed job plus the clear flag; the receipt only when held. */
+export function clearRequestJob(job: OpenRouterBatchJobState, leaseToken?: string): OpenRouterBatchJobState {
+  const { lease_token: _dropped, ...stored } = job;
+  return leaseToken ? { ...stored, lease_token: leaseToken, clear_after_reconciliation: true } : { ...stored, clear_after_reconciliation: true };
 }
 
 export function indexBatchResults<T extends { custom_id?: string }>(

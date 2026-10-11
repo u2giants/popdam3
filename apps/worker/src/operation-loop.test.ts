@@ -313,3 +313,12 @@ test("a completed provider job is cleared immediately while the receipt is still
   assert.equal(await clearCompletedJobNow("op-clear", { ok: true, state_revision: 8, operation: { ...stored, external_job: { phase: "applying", provider_batch_id: "batch-1" } } }, "r", persist), false);
   assert.equal(writes.length, 1);
 });
+
+test("receipt-less clear after a crash matches the vendored #3543 contract and treats a repeat clear as done", () => {
+  const migration = readFileSync(new URL("../../../shared-db/supabase/migrations/20260930193549_popdam_expired_lease_terminal_external_job_clear.sql", import.meta.url), "utf8");
+  assert.match(migration, /no receipt was presented and the submission lease has not expired/);
+  assert.match(migration, /v_reason := 'already_cleared'/);
+  const source = readFileSync(new URL("./operation-loop.ts", import.meta.url), "utf8");
+  assert.match(source, /resultJob\?\.lease_token \|\| resultJob\?\.clear_after_reconciliation/);
+  assert.match(source, /saved\.reason === "already_cleared" && resultJob\.clear_after_reconciliation/);
+});
