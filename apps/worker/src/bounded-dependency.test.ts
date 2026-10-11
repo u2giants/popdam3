@@ -8,10 +8,17 @@ test("withDependencyTimeout returns a completed dependency result", async () => 
 
 test("withDependencyTimeout rejects a hung dependency with a visible stage", async () => {
   const never = new Promise<string>(() => undefined);
-  await assert.rejects(
-    withDependencyTimeout("model config", never, 5),
-    /model config timed out after 5ms/,
-  );
+  // The real worker has a referenced polling loop. Keep that condition here
+  // while exercising the real unreferenced dependency timeout.
+  const keepAlive = setTimeout(() => undefined, 1_000);
+  try {
+    await assert.rejects(
+      withDependencyTimeout("model config", never, 5),
+      /model config timed out after 5ms/,
+    );
+  } finally {
+    clearTimeout(keepAlive);
+  }
 });
 
 test("withDependencyTimeout preserves an upstream error", async () => {
