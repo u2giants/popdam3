@@ -198,7 +198,7 @@ Runs on Railway. Environment variables are set in the Railway project dashboard.
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
 | `OPENROUTER_API_KEY` | No | Fallback when database-managed `OPENROUTER_API_KEY` is empty or unreadable |
-| `META_API_KEY` | No | Meta Model API direct access when Image Tagging selects `meta-direct/muse-spark-1.3-contributor` |
+| `META_API_KEY` | No | Railway: direct Meta Image Tagging. Supabase `agent-api` environment: content-lease-bound PopSG PDF transcription; never returned to agents. |
 | `GOOGLE_AI_API_KEY` | No | Fallback when database-managed `GOOGLE_AI_API_KEY` is empty or unreadable |
 | `BULK_OPERATION_ALERT_WEBHOOK_URL` | Yes once the `bulk-operation-alert` function is deployed | Receives terminal `rebuild-style-groups` failure alerts; an unset value is logged as an undelivered alert, never treated as success. Set it to the deployed `bulk-operation-alert` function URL including its `?key=` shared secret (see below). |
 

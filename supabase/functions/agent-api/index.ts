@@ -53,13 +53,15 @@ import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_sha
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
 import { sha256Hex, toHex } from "../_shared/crypto.ts";
 import { isPdfBackfillComplete } from "../_shared/pdf-backfill-state.ts";
+import { assertPopSgPdfVisionLease, transcribePopSgPdfPage, validatePopSgPdfPage } from "../_shared/popsg-pdf-vision.ts";
 import {
   buildSgCrawlCompletionUpdate,
   buildSgIngestCompletionUpdate,
   hasMoreSgSearchDocuments,
-  runSteppableSgRefresh,
+  runScheduledSgRefresh,
   SG_RECONCILE_BATCH_SIZE,
   SG_REFRESH_TIMEOUT_RETRY_MS,
+  SG_SCHEDULED_REFRESH_RETRY_MS,
   shouldRetrySgRefreshTimeout,
 } from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
@@ -3231,22 +3233,25 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         }
       }
 
-      // Refresh the PopSG aggregation matviews now that is_active is finalized
-      // for this crawl — they back the guides grid + folder tree so the Library
-      // stops re-aggregating all active rows per request. Passing the run id is
-      // required: that is what stamps refresh_completed_at, without which the
-      // completion CHECK constraint rejects the update below.
+      // The existing scheduler owns aggregate refresh. Require success after
+      // this crawl's reconciliation boundary, then drain bounded search slices.
       if (reconcileOk) {
         const searchBatchSize = 5000;
-        // The existing bridge sends the same final request for a search
-        // continuation and a restarted crawl. Replay both matview steps in
-        // separate statements so either path is safe without a bridge change.
-        const refresh = await runSteppableSgRefresh(runId, searchBatchSize, async (args) => await db.rpc("refresh_style_guide_matviews", args));
-        if (refresh.error && shouldRetrySgRefreshTimeout(refresh.error, ingestCompletedAt, Date.now())) {
-          // The concurrent matview refresh runs close to the 8 s API statement
-          // ceiling and times out on some nights. Each step is restart-safe, so
-          // ask the bridge to call again instead of failing the whole crawl.
-          console.warn("[complete-style-guide-crawl]", `Matview refresh step ${refresh.failedStep} timed out; retrying`);
+        const refresh = await runScheduledSgRefresh(
+          runId,
+          searchBatchSize,
+          async (args) => await db.rpc("await_style_guide_matview_refresh", args),
+          async (args) => await db.rpc("refresh_style_guide_matviews", args),
+        );
+        if (refresh.pending) {
+          const { error } = await db.from("style_guide_crawl_runs").update({ lifecycle_state: "refreshing" }).eq("id", runId);
+          if (error) return err(`Could not persist scheduled-refresh wait: ${error.message}`, 500);
+          return json({ ok: true, state: "refreshing", retry_after_ms: SG_SCHEDULED_REFRESH_RETRY_MS });
+        }
+        if (
+          refresh.error && refresh.failedStep === "search" && shouldRetrySgRefreshTimeout(refresh.error, refresh.refreshedAt ?? ingestCompletedAt, Date.now())
+        ) {
+          console.warn("[complete-style-guide-crawl]", "Bounded search refresh timed out; retrying");
           const { error: retryStateErr } = await db.from("style_guide_crawl_runs").update({
             lifecycle_state: "refreshing",
           }).eq("id", runId);
@@ -3524,6 +3529,56 @@ function parseFilesUsedFromText(text: string): string[] {
 }
 
 // ── Routes: dedicated PopSG PDF text extraction ──────────────────────────────
+
+async function handleTranscribeStyleGuidePdfPage(body: Record<string, unknown>, agentId: string, agentType: string) {
+  if (agentType !== "windows-render") return err("PopSG PDF transcription requires a Windows render agent", 403);
+  const fileId = requireString(body, "style_guide_file_id");
+  const identity = requireString(body, "content_identity");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fileId) || !/^[0-9a-f]{32}$/i.test(identity)) {
+    return err("Invalid PopSG PDF content identity", 400);
+  }
+  try {
+    validatePopSgPdfPage(body.image_base64);
+  } catch (error) {
+    return err((error as Error).message, 400);
+  }
+  const db = serviceClient();
+  const [{ data: lease, error: leaseError }, { data: file, error: fileError }, { data: models, error: modelError }] = await Promise.all([
+    db.from("style_guide_pdf_text").select("status,claimed_by,claim_expires_at,content_identity")
+      .eq("style_guide_file_id", fileId).maybeSingle(),
+    db.from("style_guide_files").select("is_active,file_extension").eq("id", fileId).maybeSingle(),
+    db.from("admin_config").select("value").eq("key", "AI_TASK_MODELS").maybeSingle(),
+  ]);
+  if (leaseError || fileError || modelError) return err("PopSG PDF transcription eligibility could not be verified", 503);
+  if (!file?.is_active || !["pdf", ".pdf"].includes(String(file.file_extension).toLowerCase())) {
+    return err("PopSG PDF transcription requires an active PDF", 409);
+  }
+  try {
+    assertPopSgPdfVisionLease(lease, agentId, identity);
+  } catch (error) {
+    return err((error as Error).message, 409);
+  }
+  const model = String((models?.value as Record<string, unknown> | null)?.pdf_extraction ?? "").trim();
+  const apiKey = Deno.env.get("META_API_KEY") ?? "";
+  if (!apiKey) return err("PopSG PDF transcription provider is not configured", 503);
+  let text: string;
+  try {
+    text = await transcribePopSgPdfPage(model, apiKey, body.image_base64 as string);
+  } catch (error) {
+    return err((error as Error).message, 502);
+  }
+  // Completion still belongs to complete-style-guide-pdf-text. Return no
+  // transcription against a claim that changed while the provider answered.
+  const { data: current, error } = await db.from("style_guide_pdf_text")
+    .select("status,claimed_by,claim_expires_at,content_identity").eq("style_guide_file_id", fileId).maybeSingle();
+  if (error) return err("PopSG PDF content lease could not be rechecked", 503);
+  try {
+    assertPopSgPdfVisionLease(current, agentId, identity);
+  } catch (error) {
+    return err((error as Error).message, 409);
+  }
+  return json({ ok: true, text });
+}
 
 async function handleClaimStyleGuidePdfText(agentId: string, agentType: string) {
   if (agentType !== "windows-render") return err("PopSG PDF extraction requires a Windows render agent", 403);
@@ -4630,6 +4685,8 @@ corsServe(async (req: Request) => {
         return await handleCompleteSgRender(body);
       case "claim-style-guide-pdf-text":
         return await handleClaimStyleGuidePdfText(agentId, agentType);
+      case "transcribe-style-guide-pdf-page":
+        return await handleTranscribeStyleGuidePdfPage(body, agentId, agentType);
       case "complete-style-guide-pdf-text":
         return await handleCompleteStyleGuidePdfText(body);
       case "claim-pdf-backfill-batch":

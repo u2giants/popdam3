@@ -51,6 +51,16 @@ This document covers two distinct things: (1) which AI models are used inside th
 - Retry behavior: malformed/invalid JSON mode output gets one repair retry with a stricter JSON-only instruction inside `callTagAssetModel()`. Production Image Tagging also retries the **same model once** in `tagSingleAsset()` when the full structured-output ladder fails with routing/structured-output symptoms such as OpenRouter 404, `No endpoints found`, tool-use support errors, malformed tool JSON, or no parsable JSON. It does not same-model retry content-inspection failures, missing thumbnails, or DB write errors; after the bounded retry, the configured fallback model can still run for model/provider-specific failures.
 - **Endpoint pinning (optional):** `admin_config.AI_TASK_MODELS.vision_tagging_provider` = comma-separated OpenRouter provider slug(s) (e.g. `anthropic`, `anthropic,amazon-bedrock`). When set, the worker sends `provider: { only: [...], allow_fallbacks: false }` on every OpenRouter leg — forcing those endpoints and disabling silent fallback so a flaky endpoint hard-fails visibly. Blank = normal routing. Set it in Settings → AI Models → Image Tagging. Wiring: `buildProviderPin()` in `openrouter.ts` → `callTagAssetModel(..., provider)`. See `docs/KNOWN_QUIRKS.md` #60. Only Image Tagging reads this; ERP/PDF paths do not.
 
+PopSG PDF transcription also honors a direct Meta selection. The Windows agent
+uses an authenticated, active-content-lease-bound `agent-api` request for the
+rendered PNG page; the Meta credential remains in the edge function's
+`META_API_KEY` environment. This route uses Responses, literal transcription,
+bounded same-model Contributor-capacity retries, and the existing 60-second
+client ceiling. It never sends a `meta-direct/` identifier to OpenRouter and
+never changes the selected model. A direct Meta selection requires a PopSG content
+lease; other PDF callers fail closed rather than forwarding that selection to
+OpenRouter. Regular OpenRouter PDF extraction is unchanged when selected.
+
 ### Vision Bake-Off
 - Code path: `apps/worker/src/handlers/ai-tag-bakeoff.ts`, reusing `callTagAssetModel()` from `ai-tagging-shared.ts`.
 - Purpose: compare candidate models against the **same** production Image Tagging contract without overwriting production tags.

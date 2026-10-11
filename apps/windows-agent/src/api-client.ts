@@ -37,7 +37,7 @@ function noteAuthSuccess(): void {
   consecutiveAuthFailures = 0;
 }
 
-export async function callApi(action: string, payload: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+export async function callApi(action: string, payload: Record<string, unknown> = {}, timeoutMs?: number): Promise<Record<string, unknown>> {
   const body = JSON.stringify({ action, ...payload });
 
   const res = await fetch(config.agentApiUrl, {
@@ -47,6 +47,7 @@ export async function callApi(action: string, payload: Record<string, unknown> =
       "x-agent-key": config.agentKey,
     },
     body,
+    signal: timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs),
   });
 
   if (!res.ok) {
@@ -304,6 +305,16 @@ export async function claimStyleGuidePdfText(agentId: string): Promise<StyleGuid
 
 export async function completeStyleGuidePdfText(results: StyleGuidePdfTextResult[]): Promise<void> {
   await callApi("complete-style-guide-pdf-text", { results });
+}
+
+export async function transcribeStyleGuidePdfPage(job: StyleGuidePdfTextJob, page: Buffer): Promise<string> {
+  const data = await callApi("transcribe-style-guide-pdf-page", {
+    style_guide_file_id: job.style_guide_file_id,
+    content_identity: job.content_identity,
+    image_base64: page.toString("base64"),
+  }, 60_000);
+  if (typeof data.text !== "string" || !data.text.trim()) throw new Error("PopSG PDF transcription returned no readable text");
+  return data.text;
 }
 
 /**

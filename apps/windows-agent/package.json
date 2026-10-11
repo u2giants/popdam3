@@ -1,6 +1,6 @@
 {
   "name": "@popdam/windows-agent",
-  "version": "0.16.6",
+  "version": "0.16.7",
   "private": true,
   "main": "dist/index.js",
   "scripts": {
