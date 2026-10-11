@@ -16,7 +16,7 @@ Current primary documentation contradicts the dated code comment claiming Contri
 
 Read-only checks in this chat: models list and exact model GET both200/list Contributor; captured Railway variables confirm key equal to protected vault key and URL correct; latest successful deployed SHA cbb1de825c65ef31362bf8d0bbd023a18ec3c682. Before inference, REPEAT runtime key equality, URL and deployment success/SHA verification, print only booleans/IDs/SHA, and stop if mismatch. No raw vars/headers/logs may be returned.
 
-## Exact five sequential inference actions requested
+## Completed five-request diagnostic specification (historical; do not repeat)
 
 At most FIVE requests, existing key via protected op_run, api.meta.ai, each deadline60 seconds, NO retries, no simultaneous requests, max20,384 outputtokens (production4000+16384). Synthetic prompts only. Abort remaining on401/402/403, safety/refusal, billing/payment/region errors. No application writes, restarts, variables or shipment.
 
@@ -38,6 +38,6 @@ At most FIVE requests, existing key via protected op_run, api.meta.ai, each dead
 
 Output allowlist: status, duration, response model/status, usage totals, completion-valid boolean, sanitized error code/message and x-ratelimit headers only. Never key, raw traffic, full headers, licensed data or account details. Private scratch records only. No further calls after five without new explicit action approval.
 
-## Required reviewer decision
+## Historical diagnostic reviewer decision (already completed; no new inference requested)
 
 Review and explicitly authorize the exact FIVE PRODUCTION INFERENCE ACTIONS above, not document shipment. APPROVE must cover the finite same-account control test and four Contributor synthetic requests under the stated bounds. Source-only/inert-document approval is insufficient. Separately gated real asset canary, concrete code repair, production shipment, and remaining12176-file tagging are excluded from THIS action approval. Preview recovery for493 active missing-tag files measured without thumbnails in this chat remains unfinished; unrelated group cohorts are excluded.

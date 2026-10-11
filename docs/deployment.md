@@ -191,6 +191,10 @@ Railway auto-deploys on every push to `main` regardless of which files changed (
 
 ---
 
+## Worker outbound connectivity
+
+`apps/worker/railway.toml` opts the worker into supported outbound IPv6 through `deploy.ipv6EgressEnabled = true`; existing IPv4 remains available. This is a bounded connection repair trial, not verified Meta recovery yet. It does not change region, replica count, model, keys, timeout, database or the worker entrypoint. Verify the effective deployment manifest, then compare Meta model discovery from the actual container on both address families. The original missing-tag request stays open until a native worker job saves Contributor tags and descriptions. If the trial fails, remove only this setting through a reviewed branch/PR and verify the original IPv4 behavior. Do not pin Meta IP addresses or proxy through another machine. Railway source: https://docs.railway.com/networking/outbound-networking.
+
 ## Rollback
 
 **Frontend rollback:**
