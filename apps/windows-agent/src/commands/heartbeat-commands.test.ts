@@ -89,6 +89,6 @@ test("missing or empty commands trigger nothing", async () => {
 test("entrypoint wires heartbeat commands through the dispatch table", () => {
   const src = readFileSync(path.join(__dirname, "..", "index.ts"), "utf-8");
   assert.match(src, /createWindowsCommandHandlers\(/);
-  assert.match(src, /dispatchCommands\(commands, heartbeatCommandHandlers\)/);
+  assert.match(src, /dispatchCommands\(response\.commands, heartbeatCommandHandlers\)/);
   assert.doesNotMatch(src, /response\.commands\?\.(trigger_pdf_backfill|force_restart|browse_dir)/);
 });

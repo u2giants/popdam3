@@ -164,6 +164,19 @@ async function handleRegister(req: Request, body: Record<string, unknown>) {
 
 // ── Route: heartbeat ────────────────────────────────────────────────
 
+// A short, nonce-bound maintenance heartbeat must not consume work the caller
+// cannot execute. Unknown/legacy callers retain normal command delivery.
+function acceptedCommandDeferral(body: Record<string, unknown>, agentType: string, nowMs: number) {
+  if (agentType !== "windows-render") return null;
+  const request = body.command_deferral;
+  if (!request || typeof request !== "object" || Array.isArray(request)) return null;
+  const { nonce, expires_at } = request as Record<string, unknown>;
+  if (typeof nonce !== "string" || !/^[a-f0-9]{32}$/.test(nonce) ||
+      typeof expires_at !== "number" || !Number.isFinite(expires_at) ||
+      expires_at <= nowMs || expires_at > nowMs + 5 * 60 * 1000) return null;
+  return { nonce, expires_at };
+}
+
 // Config keys needed by ALL agent types
 const HEARTBEAT_CONFIG_KEYS_COMMON = [
   "SPACES_CONFIG",
@@ -242,6 +255,7 @@ async function handleHeartbeat(
   agentType: string,
   agentName: string,
 ) {
+  const commandDeferral = acceptedCommandDeferral(body, agentType, Date.now());
   const counters = body.counters as Record<string, unknown> | undefined;
   const lastError = optionalString(body, "last_error");
   const health = body.health as Record<string, unknown> | undefined;
@@ -566,7 +580,7 @@ async function handleHeartbeat(
   // ── PDF text sample claim/dispatch ──
   let pdfTextSampleCommand: Record<string, unknown> = {};
   const sampleReq = configMap.PDF_TEXT_SAMPLE_REQUEST as Record<string, unknown> | undefined;
-  if (sampleReq && sampleReq.status === "pending") {
+  if (!commandDeferral && sampleReq && sampleReq.status === "pending") {
     const policy = (configMap.WINDOWS_RENDER_POLICY as Record<string, unknown> | null) || null;
     const policyMode = (policy?.mode as string) || "primary";
     const requireWindowsHealthy = policy?.require_windows_healthy === true;
@@ -616,7 +630,7 @@ async function handleHeartbeat(
   // ── Compat audit claim/dispatch ──
   // Only dispatched to Windows render agents — OCR via Tesseract would spike CPU on Synology NAS.
   let compatAuditCommand: Record<string, unknown> = {};
-  if (agentType === "windows-render") {
+  if (agentType === "windows-render" && !commandDeferral) {
     const auditReq = configMap.COMPAT_AUDIT_REQUEST as Record<string, unknown> | undefined;
     if (auditReq && auditReq.status === "pending") {
       const nowIso = new Date().toISOString();
@@ -761,7 +775,8 @@ async function handleHeartbeat(
         pdf_extraction: (configMap.PDF_EXTRACTION_CONFIG as Record<string, unknown>) || null,
       },
     },
-    commands: {
+    ...(commandDeferral ? { command_deferral: commandDeferral } : {}),
+    commands: commandDeferral ? {} : {
       force_scan: forceScan,
       scan_session_id: scanSessionId,
       abort_scan: scanAbort || forceStop,
@@ -808,7 +823,7 @@ async function handleHeartbeat(
   const needsClear = meta.trigger_update === true || meta.force_restart === true ||
     meta.force_apply_update === true || meta.force_stop_jobs === true;
 
-  if (needsClear || configMap.WINDOWS_REPAIR_CODE) {
+  if (!commandDeferral && (needsClear || configMap.WINDOWS_REPAIR_CODE)) {
     const cleanMeta: Record<string, unknown> = {
       ...meta,
       trigger_update: false,
