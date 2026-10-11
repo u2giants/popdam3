@@ -5,7 +5,7 @@ Registered handoff: [`HANDOFF.d/2026-08-24T1402Z-hetz-codex-scoped-ai-metadata-p
 
 ## STATUS — read this first
 
-**Updated October 11, 2026.** Fresh sessions start at **Step 8: refresh current pilot and protected-job state**, after reconfirming current Step 7 filtering acceptance rather than assuming old timeout findings still apply. At the end of every phase, re-read every downstream phase through Step 10, report any assumption/interface/file-name drift, and update this plan before cutting context. Do not re-derive completed steps.
+**Updated October 11, 2026.** Fresh sessions start at **Step 8: refresh current pilot and protected-job state**, after reconfirming current Step 7 filtering acceptance rather than assuming old timeout findings still apply. At the end of every phase, re-read every downstream phase through Step 10 and ALL following tests, constraints, access, definition-of-done, risks, rollback and self-audit sections through PLAN-END, report any assumption/interface/file-name drift, and update this plan before cutting context. Do not re-derive completed steps.
 
 | Step | Status | Date | Evidence / next action |
 |---|---|---|---|
@@ -311,7 +311,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 - Before every database write, prove the exact target by the current shared-db/application procedure and record the project ref without credentials.
 - Backfill existing rows non-destructively in the governed order: first reconcile manual-only `assets.tags` values into active manual `asset_tags` rows, then mark existing AI rows with `source = 'legacy_unscoped'`; manual rows retain ownership, legacy rows remain searchable during comparison, authoritative group facts are derived deterministically, rejected tombstones remain excluded, and no legacy text is automatically promoted to a group fact.
-- Select a bounded pilot of 20–50 Style Groups covering single/many assets, photos, source art, renders, tech packs, multiple characters/colorways, no thumbnails, and at least one large group. Use existing production assets only within approved internal systems; do not export licensed images to new services.
+- Reuse the approved fixed 28-SKU pilot and re-resolve current Style Group IDs by exact SKU; do not select a different cohort. Preserve its representative coverage criteria for single/many assets, photos, source art, renders, tech packs, characters/colorways and large groups. Use existing production assets only within approved internal systems; do not export licensed images to new services.
 - Run group profiling, then per-file tagging on the pilot. Store a before/after manifest of IDs and metadata hashes in protected operational evidence; commit only aggregate/synthetic results.
 - Human-review a fixed scorecard: zero file-category/view leakage across siblings; authoritative licensor/property/product facts unchanged; manual tags unchanged; candidate behavior correct; descriptions correctly separated; search finds all members via group terms and only relevant files via file terms; cost/latency within agreed existing tagging budget.
 - Do not delete legacy rows or run the whole library if any critical criterion fails. Fix, rerun the same pilot idempotently, and update this plan.

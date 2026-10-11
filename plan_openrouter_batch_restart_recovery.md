@@ -186,7 +186,7 @@ Remaining acceptance and historical gaps:
 
 ## 9. The implementation plan
 
-Steps 1–7 and provider-route implementation in Step 9 retain dated implementation history; do not repeat completed work. Current remaining execution is Step 8 under the continuation’s exact ownership/review/runtime gates. At every phase or acceptance boundary, re-read **all remaining phases and steps through Step 9**, report assumption/interface/file-name/provider/authority drift, update STATUS and downstream instructions, and only then cut context or continue.
+Steps 1–7 and provider-route implementation in Step 9 retain dated implementation history; do not repeat completed work. Current remaining execution is Step 8 under the continuation’s exact ownership/review/runtime gates. At every phase or acceptance boundary, re-read **all remaining phases and steps through Step 9 and ALL following tests, constraints, access, definition-of-done, risks, rollback and self-audit sections through PLAN-END**, report assumption/interface/file-name/provider/authority drift, update STATUS and downstream instructions, and only then cut context or continue.
 
 ### Phase A: contract and provider client
 
@@ -341,7 +341,7 @@ Before deploying old code, stop/drain every operation with an external job and c
 
 1. **Can a zero-context new session execute perfectly without questions?** Yes. §§1-4 define goal/system/trigger/scope; §§5-8 capture code state/findings/dead ends/decisions; §9 gives ordered file/function steps and gates; §9 contains the current test matrix, landing/acceptance gates, risks and rollback; current access and custody are in the linked continuation.
 2. **Does it carry all current background, nuance and rejected reasoning?** Yes. §§3,5-7 record both earlier bugs, deployed evidence, memory/stale/progress traps, provider contract limits, and every rejected approach; §8 locks resulting decisions.
-3. **Is the goal clear enough for judgment if a step is wrong?** Yes. §1 states business truth and goal-wins rule; invariants in §§8,11,13 guide choices.
+3. **Is the goal clear enough for judgment if a step is wrong?** Yes. §1 states business truth and goal-wins rule; invariants in §§8–9 guide choices.
 
 Checklist: §§1–9 and current linked continuation; plain goal; zero-context detail; rejected attempts; concrete steps/gates; locked/open decisions; explicit out-of-scope; named tests; defined identifiers/paths/URLs/SHAs; secret locations only; commit/CI/deploy definition; reciprocal handoff links. **Self-audit passed.**
 

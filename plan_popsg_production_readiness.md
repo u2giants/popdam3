@@ -145,7 +145,7 @@ Counts are a dated baseline, not constants. Re-measure before implementation and
 - Raising statement/Edge timeouts, disabling safety checks, direct production DDL, or a one-off dashboard SQL fix.
 - Forcing all terminally corrupt or technically unsupported creative files to produce previews; those require honest exception labels.
 
-## 5. Current state of the code
+## 5. Historical September baseline — current STATUS and continuation govern
 
 All code described here was on `main` at `f76c91ed0ded318afe4de3a9c01516b6a9f5d4ec` when investigated. Production frontend ran application commit `f82089bd71605b6a788146ebec0f7fa443622ba7`; the only later app-repo commit was generated Supabase types, so the PopSG UI source was current. Recheck both before implementation.
 
@@ -389,10 +389,12 @@ Dependency: all prior phases.
 
 #### 9.12 Land and retire
 
-Update `docs/POPSG.md`, `docs/KNOWN_QUIRKS.md`, relevant configuration/deployment docs, and this plan’s STATUS after each landed phase. Shared schema lands through shared-db branch/PR/merge; PopDAM app changes land through a feature-branch PR, normal checks/merge queue and owned-path staging to `main`; never push directly to protected `main`. Verify CI, Supabase deployment, bridge image/self-update, Windows release/install if changed, frontend image/Coolify deployment, and live SHAs. Close #107 only after §9.11 passes. Delete the linked handoff in the completing commit; retain the plan as historical operating context or mark it complete according to repository convention.
+MAIN landing requires the existing tagging owner’s explicit safe main/restart release; prose also restarts Railway. Feature-branch publication remains separate.
+
+Update `docs/POPSG.md`, `docs/KNOWN_QUIRKS.md`, relevant configuration/deployment docs, and this plan’s STATUS after each landed phase. Shared schema lands through shared-db branch/PR/merge; PopDAM app changes land through a feature-branch PR, normal checks/merge queue and owned-path staging to `main`; never push directly to protected `main`. Verify CI, Supabase deployment, bridge image/self-update, Windows release/install if changed, frontend image/Coolify deployment, and live SHAs. Close #107 only after §9.11 passes. Retire only the completed scoped PopSG predecessor under the successor rule in the completing commit; preserve the current 17-issue campaign continuation while any campaign obligation remains open; retain the plan as historical operating context or mark it complete according to repository convention.
 
 Dependency: 9.11.
-**You’ll know it worked when** issue #107 is closed with final evidence, no open obligation remains, the handoff is removed, both repos are clean, and production still passes the acceptance checks.
+**You’ll know it worked when** issue #107 is closed with final evidence, no open obligation remains, only the completed scoped predecessor handoff is retired, unrelated campaign handoffs remain, both owned worktrees are handoff-safe, and production still passes the acceptance checks.
 
 ## 10. Tests required
 
