@@ -354,6 +354,14 @@ export function verifyNonclosingMaintenanceBinding({pr,headSha,files,issue=null,
   return {issue:refs[0],work,headSha,route:structural?'structural':'repo-maintenance',contractRef:report.contract_ref,contractHash:contractHash(contract)}
 }
 
+function readCompleteReviewStates(repository,leases){
+  const issueCache=new Map(),prCache=new Map(),states=new Map()
+  leases.forEach((lease,index)=>{
+    const {pr,issue}=completeReviewStatePages(repository?.[`p${index}`],repository?.[`i${index}`],lease,(query)=>ghJson(['api','graphql','-f',`query=${query}`]),{issueCache,prCache})
+    states.set(`${lease.issue}:${lease.pr}`,reviewStateEntry(pr,issue))
+  })
+  return states
+}
 export const githubIo = {
   releaseRefOverGit(ref, ownerSha) { return releaseRefOverGit(ref, ownerSha) },
   enforceAdmission:true,
@@ -390,8 +398,8 @@ export const githubIo = {
     // Issue #3187: inside a reviewer operation the same snapshot also reads the PR's and
     // its single linked issue's review evidence, primed for the fresh state read that
     // follows under the same held mutex, so that read costs no second request.
-    const evidence=reviewWireBudget?' comments(first:100){pageInfo{hasNextPage} nodes{body authorAssociation}} reviews(first:100){pageInfo{hasNextPage} nodes{body state authorAssociation commit{oid}}} mergeCommit{oid}':''
-    const issueEvidence=reviewWireBudget?' comments(first:100){pageInfo{hasNextPage} nodes{body authorAssociation}}':''
+    const evidence=reviewWireBudget?' number updatedAt comments(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{id updatedAt body authorAssociation}} reviews(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{id updatedAt body state authorAssociation commit{oid}}} mergeCommit{oid}':''
+    const issueEvidence=reviewWireBudget?' updatedAt comments(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{id updatedAt body authorAssociation}}':''
     const query=`query($owner:String!,$name:String!,$pr:Int!){repository(owner:$owner,name:$name){pullRequest(number:$pr){state merged mergedAt headRefOid${evidence} files(first:100){pageInfo{hasNextPage} nodes{path changeType}} closingIssuesReferences(first:2){pageInfo{hasNextPage} nodes{... on Issue{number state body createdAt${issueEvidence}}}}}}}`
     const data=ghJson(['api','graphql','-f',`query=${query}`,'-F',`owner=${REPO_OWNER}`,'-F',`name=${REPO_NAME}`,'-F',`pr=${Number(pr)}`])
     // The caller's admission gate uses its own request counter, while the
@@ -399,7 +407,7 @@ export const githubIo = {
     const snapshot=completeReviewerOperationRouteSnapshot(data,()=>githubIo.getPrFiles(Number(pr)))
     const row=data.data.repository.pullRequest,linked=row.closingIssuesReferences.nodes
     if(reviewWireBudget&&linked.length===1&&Number.isInteger(linked[0]?.number)){
-      try{primeReviewStates([[`${linked[0].number}:${Number(pr)}`,reviewStateEntry(row,linked[0])]])}catch{}
+      primeReviewStates([...readCompleteReviewStates({p0:row,i0:linked[0]},[{issue:linked[0].number,pr:Number(pr)}])])
     }
     return snapshot
   },
@@ -464,16 +472,15 @@ export const githubIo = {
     const unique=[...new Map(leases.filter((lease)=>Number.isInteger(Number(lease.issue))&&Number.isInteger(Number(lease.pr))).map((lease)=>[`${lease.issue}:${lease.pr}`,lease])).values()]
     const fields=unique.map(reviewStateGraphqlFields).join(' ')
     const data=ghJson(['api','graphql','-f',`query=query($owner:String!,$name:String!){rateLimit{remaining limit resetAt} repository(owner:$owner,name:$name){defaultBranchRef{target{oid ... on Commit{tree{oid}}}} ${fields}}}`,'-F',`owner=${REPO_OWNER}`,'-F',`name=${REPO_NAME}`])
-    if(data?.errors?.length)throw new LaneError('active reviewer lease snapshot returned GraphQL errors')
+    if(data?.errors!==undefined&&(!Array.isArray(data.errors)||data.errors.length))throw new LaneError('active reviewer lease snapshot returned GraphQL errors')
     recordReviewGraphQuota(data?.data?.rateLimit)
     const repo=data?.data?.repository
     if(!repo)throw new LaneError('active reviewer lease snapshot is unreadable')
     const base=repo?.defaultBranchRef?.target
     if(!base?.oid||!base?.tree?.oid)throw new LaneError('review commit base is unreadable')
     reviewCommitBase={head:base.oid,tree:base.tree.oid}
-    const states=[]
-    unique.forEach((lease,index)=>{try{states.push([`${lease.issue}:${lease.pr}`,reviewStateEntry(repo[`p${index}`],repo[`i${index}`])])}catch{}})
-    if(states.length===unique.length)primeReviewStates(states)
+    const states=readCompleteReviewStates(repo,unique)
+    primeReviewStates([...states])
     return new Map(entries)
   },
   readActiveReviewLeasesOverGraphql(){
@@ -498,7 +505,7 @@ export const githubIo = {
       if(isCommandSizeFailure(error))throw markReviewRefListingRefusal(new LaneError(`active reviewer lease snapshot of ${refs.length} refs exceeds the process argument limit; retire abandoned leases with --reap-abandoned-review-leases --apply-recovery (${error.message})`),{refs:refs.length,cause:'command-size'})
       throw error
     }
-    if(data?.errors?.length)throw new LaneError('active reviewer lease snapshot returned GraphQL errors')
+    if(data?.errors!==undefined&&(!Array.isArray(data.errors)||data.errors.length))throw new LaneError('active reviewer lease snapshot returned GraphQL errors')
     recordReviewGraphQuota(data?.data?.rateLimit)
     const repo=data?.data?.repository
     if(!repo)throw new LaneError('active reviewer lease snapshot is unreadable')
@@ -528,13 +535,8 @@ export const githubIo = {
     if(primed)return primed
     const fields=unique.map(reviewStateGraphqlFields).join(' ')
     const data=ghJson(['api','graphql','-f',`query=query{repository(owner:${JSON.stringify(REPO_OWNER)},name:${JSON.stringify(REPO_NAME)}){${fields}}}`])
-    if(data?.errors?.length||!data?.data?.repository)throw new LaneError('batched reviewer PR/verdict evidence returned GraphQL errors')
-    const result=new Map()
-    unique.forEach((lease,index)=>{
-      const {pr,issue}=completeReviewStatePages(data.data.repository[`p${index}`],data.data.repository[`i${index}`],lease,(query)=>ghJson(['api','graphql','-f',`query=${query}`]))
-      result.set(`${lease.issue}:${lease.pr}`,reviewStateEntry(pr,issue))
-    })
-    return result
+    if((data?.errors!==undefined&&(!Array.isArray(data.errors)||data.errors.length))||!data?.data?.repository)throw new LaneError('batched reviewer PR/verdict evidence returned GraphQL errors')
+    return readCompleteReviewStates(data.data.repository,unique)
   },
   // GraphQL `ref(qualifiedName:...)` silently resolves to null for refs
   // outside refs/heads/ and refs/tags/, even when the ref genuinely exists
@@ -749,16 +751,22 @@ export const githubIo = {
   getIssue(number) { return ghJson(['api', `repos/${REPO}/issues/${number}`]) },
   getIssueComments(number) { return ghPaginated(`repos/${REPO}/issues/${number}/comments?per_page=100`) },
   getPrReviews(number) { return ghPaginated(`repos/${REPO}/pulls/${number}/reviews?per_page=100`) },
-  readLeaseActivity(lease) {
-    const query=`query{repository(owner:${JSON.stringify(REPO_OWNER)},name:${JSON.stringify(REPO_NAME)}){pullRequest(number:${Number(lease.pr)}){comments(first:100){totalCount nodes{updatedAt}} reviews(first:100){totalCount nodes{submittedAt updatedAt}} reviewThreads(first:100){totalCount nodes{comments(first:100){totalCount nodes{updatedAt}}}}} object(oid:${JSON.stringify(String(lease.headSha))}){... on Commit{statusCheckRollup{contexts(first:100){totalCount nodes{... on CheckRun{startedAt completedAt}}}}}}}}`
-    const data=ghJson(['api','graphql','-f',`query=${query}`])?.data?.repository,pr=data?.pullRequest,contexts=data?.object?.statusCheckRollup?.contexts
-    const workflows=ghJson(['api',`repos/${REPO}/actions/runs?head_sha=${lease.headSha}&per_page=100`])
-    if(!pr||!Array.isArray(pr.comments?.nodes)||Number(pr.comments.totalCount)!==pr.comments.nodes.length||!Array.isArray(pr.reviews?.nodes)||Number(pr.reviews.totalCount)!==pr.reviews.nodes.length||!Array.isArray(pr.reviewThreads?.nodes)||Number(pr.reviewThreads.totalCount)!==pr.reviewThreads.nodes.length)throw new LaneError('reviewer comment or review activity is unreadable or paginated')
+  readLeaseActivity(lease,{readJson=ghJson}={}) {
+    const connectionFields='totalCount pageInfo{hasNextPage} nodes'
+    const query=`query{repository(owner:${JSON.stringify(REPO_OWNER)},name:${JSON.stringify(REPO_NAME)}){nameWithOwner pullRequest(number:${Number(lease.pr)}){number headRefOid comments(first:100){${connectionFields}{id updatedAt}} reviews(first:100){${connectionFields}{id submittedAt updatedAt}} reviewThreads(first:100){${connectionFields}{comments(first:100){${connectionFields}{id updatedAt}}}}} object(oid:${JSON.stringify(String(lease.headSha))}){__typename ... on Commit{oid statusCheckRollup{contexts(first:100){${connectionFields}{__typename ... on CheckRun{databaseId status conclusion startedAt completedAt} ... on StatusContext{id state createdAt}}}}}}}}`
+    const response=readJson(['api','graphql','-f',`query=${query}`])
+    if(!response||typeof response!=='object'||response.errors!==undefined&&(!Array.isArray(response.errors)||response.errors.length))throw new LaneError('reviewer activity snapshot returned GraphQL errors or unreadable data')
+    const data=response.data?.repository,pr=data?.pullRequest,commit=data?.object
+    if(data?.nameWithOwner!==REPO||pr?.number!==Number(lease.pr)||pr?.headRefOid!==lease.headSha||commit?.__typename!=='Commit'||commit?.oid!==lease.headSha)throw new LaneError('reviewer activity repository, PR or Commit identity is unreadable or mismatched')
+    const completeConnection=(connection)=>connection&&Array.isArray(connection.nodes)&&Number.isInteger(connection.totalCount)&&connection.totalCount>=0&&connection.totalCount===connection.nodes.length&&connection.pageInfo?.hasNextPage===false
+    const contexts=commit.statusCheckRollup?.contexts
+    if(!completeConnection(contexts))throw new LaneError('reviewer activity check rollup is unreadable or paginated')
+    if(!completeConnection(pr.comments)||!completeConnection(pr.reviews)||!completeConnection(pr.reviewThreads))throw new LaneError('reviewer comment or review activity is unreadable or paginated')
     const reviewComments=[]
-    for(const thread of pr.reviewThreads.nodes){if(!Array.isArray(thread.comments?.nodes)||Number(thread.comments.totalCount)!==thread.comments.nodes.length)throw new LaneError('reviewer review-comment activity is unreadable or paginated');reviewComments.push(...thread.comments.nodes)}
-    if(contexts&&!Array.isArray(contexts.nodes)||contexts&&Number(contexts.totalCount)!==contexts.nodes.length)throw new LaneError('reviewer activity check runs are unreadable or paginated')
-    if(!Array.isArray(workflows?.workflow_runs)||Number(workflows.total_count)!==workflows.workflow_runs.length)throw new LaneError('reviewer activity workflow runs are unreadable or paginated')
-    return {issueComments:pr.comments.nodes,reviewComments,reviews:pr.reviews.nodes,checkRuns:contexts?.nodes??[],workflowRuns:workflows.workflow_runs}
+    for(const thread of pr.reviewThreads.nodes){if(!completeConnection(thread?.comments))throw new LaneError('reviewer review-comment activity is unreadable or paginated');reviewComments.push(...thread.comments.nodes)}
+    const workflows=readJson(['api',`repos/${REPO}/actions/runs?head_sha=${lease.headSha}&per_page=100`])
+    if(!Array.isArray(workflows?.workflow_runs)||!Number.isInteger(workflows.total_count)||workflows.total_count<0||workflows.total_count!==workflows.workflow_runs.length||workflows.workflow_runs.some(run=>run?.head_sha!==lease.headSha))throw new LaneError('reviewer activity workflow runs are unreadable, mismatched or paginated')
+    return {issueComments:pr.comments.nodes,reviewComments,reviews:pr.reviews.nodes,checkRuns:contexts.nodes,workflowRuns:workflows.workflow_runs}
   },
   readReviewerQueue(){
     const rows=this.listReviewRefsPaged(REVIEW_QUEUE_REF_PREFIX)
@@ -1690,6 +1698,35 @@ export function listDurableVerdictRefs(io,{fresh=false}={}){
   if(reviewWireBudget)freshDurableVerdictRefs=rows
   return rows
 }
+function normalizedReviewerActivity(name,rows,fields){
+  const metadataFields=['id','databaseId','__typename','status','state','conclusion',...fields]
+  return rows.map((row)=>{
+    if(!row||typeof row!=='object')throw new LaneError(`reviewer ${name} metadata is unreadable`)
+    const metadata={}
+    let timestampCount=0
+    for(const field of metadataFields){
+      const value=row[field]
+      if(value===undefined||value===null)continue
+      if(fields.includes(field)){
+        if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)||!Number.isFinite(Date.parse(value)))throw new LaneError(`reviewer ${name} activity timestamp is unreadable`)
+        metadata[field]=new Date(value).toISOString();timestampCount++
+      }else{
+        if(!['string','number','boolean'].includes(typeof value))throw new LaneError(`reviewer ${name} metadata is unreadable`)
+        metadata[field]=value
+      }
+    }
+    if(timestampCount===0)throw new LaneError(`reviewer ${name} activity timestamp is missing`)
+    if(name==='checkRuns'||name==='workflowRuns'){
+      if(name==='checkRuns'&&!['CheckRun','StatusContext'].includes(row.__typename))throw new LaneError('reviewer checkRuns object type is unreadable or unknown')
+      const legacyContext=name==='checkRuns'&&row.__typename==='StatusContext'
+      const status=legacyContext?row.state:row.status
+      if(typeof status!=='string')throw new LaneError(`reviewer ${name} status is missing or unreadable`)
+      if(legacyContext?!['SUCCESS','FAILURE','ERROR'].includes(status.toUpperCase()):status.toUpperCase()!=='COMPLETED')throw new LaneError(`reviewer ${name} status is nonterminal or unknown`)
+    }
+    return metadata
+  }).sort((left,right)=>{const a=canonicalJson(left),b=canonicalJson(right);return a<b?-1:a>b?1:0})
+}
+
 export function activityFingerprintForLease(lease,io,{freshPr=false,ownStartOnly=false}={}){
   if(typeof io?.readLeaseActivity!=='function')throw new LaneError('reviewer activity is unreadable; silence cannot be observed')
   const pr=freshPr&&typeof io.__freshGetPr==='function'?io.__freshGetPr(lease.pr):reviewWireBudget&&typeof io.readPrWithReviewContext==='function'?io.readPrWithReviewContext(lease.pr):io.getPr(lease.pr)
@@ -1707,9 +1744,10 @@ export function activityFingerprintForLease(lease,io,{freshPr=false,ownStartOnly
     ['checkRuns',activity.checkRuns,['completed_at','completedAt','started_at','startedAt','created_at','createdAt']],
     ['workflowRuns',activity.workflowRuns,['updated_at','updatedAt','created_at','createdAt']],
   ]
+  const normalized=groups.map(([name,rows,fields])=>[name,normalizedReviewerActivity(name,rows,fields)])
   const maxima=groups.map(([name,rows,fields])=>[name,newestActivityTimestamp(rows,fields)])
   const last=maxima.map(([,value])=>value).filter(Boolean).sort((a,b)=>b.time-a.time)[0]??null
-  const facts={issue:Number(lease.issue),pr:Number(lease.pr),headSha:String(lease.headSha).toLowerCase(),slot:Number(lease.slot??1),sequence:Number(lease.sequence),prState:String(pr.state).toLowerCase(),currentHead:String(pr.head.sha).toLowerCase(),draft:pr.draft===true,verdictPresent:hasVerdictForHead(lease.issue,lease.pr,lease.headSha,io,leaseVerdictOptions(lease)),activity:Object.fromEntries(maxima.map(([name,value])=>[name,{count:activity[name].length,max:value?.value??null}]))}
+  const facts={issue:Number(lease.issue),pr:Number(lease.pr),headSha:String(lease.headSha).toLowerCase(),slot:Number(lease.slot??1),sequence:Number(lease.sequence),prState:String(pr.state).toLowerCase(),currentHead:String(pr.head.sha).toLowerCase(),draft:pr.draft===true,verdictPresent:hasVerdictForHead(lease.issue,lease.pr,lease.headSha,io,leaseVerdictOptions(lease)),activity:Object.fromEntries(maxima.map(([name,value])=>[name,{count:activity[name].length,max:value?.value??null}])),metadataDigest:createHash('sha256').update(canonicalJson(Object.fromEntries(normalized))).digest('hex')}
   return {fingerprint:createHash('sha256').update(canonicalJson(facts)).digest('hex'),lastActivityIso:last?.value??'none',facts}
 }
 
@@ -1739,7 +1777,10 @@ function probeSilentReviewerOperation(options,now,io){
   const heldSince=lease.heldSince
   if(unstarted&&reviewStartMarkerPresent({...lease,sequence:request.sequence,slot:request.slot},io))throw new LaneError('unstarted probe refused because the review has a durable start marker')
   const observed=activityFingerprintForLease({...lease,slot:request.slot},io,{ownStartOnly:unstarted})
-  if(!unstarted&&observed.lastActivityIso!=='none'&&Date.parse(observed.lastActivityIso)>Date.parse(heldSince))throw new LaneError('silence probe refused because reviewer activity occurred after the lease was drawn')
+  if(!unstarted&&observed.lastActivityIso!=='none'){
+    const quietAge=reviewLeaseAgeHours(observed.lastActivityIso,now)
+    if(quietAge===null||quietAge<SILENCE_MIN_AGE_HOURS)throw new LaneError(`silence probe requires readable terminal activity quiet for at least ${SILENCE_MIN_AGE_HOURS} hours`)
+  }
   const message=`db-coordination reviewer-silence-probe reviewer=${original.reviewer} issue=${request.issue} pr=${request.pr} head=${request.headSha} sequence=${request.sequence} slot=${request.slot} observed-at=${new Date(now).toISOString()} lease-held-since=${new Date(heldSince).toISOString()} last-activity=${observed.lastActivityIso} fingerprint=${observed.fingerprint}`
   const sha=io.makeOwnerCommit(message)
   if(!io.createRef(probeRef,sha)||io.readRef(probeRef)!==sha)throw new LaneError('reviewer silence probe create-only write could not be proved')

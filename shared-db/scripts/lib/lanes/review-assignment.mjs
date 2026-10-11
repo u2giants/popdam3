@@ -154,7 +154,7 @@ export function reconcileReviewerOperationRouteFiles(snapshot,restFiles){
 // verdict predicate refuses association-less prose, so omitting this field here
 // makes a genuine OWNER verdict invisible to normal reviewer-lease cleanup.
 export function reviewStateGraphqlFields(lease,index){
-  return `p${index}:pullRequest(number:${lease.pr}){state merged mergeCommit{oid} headRefOid comments(first:100){pageInfo{hasNextPage endCursor} nodes{body authorAssociation}} reviews(first:100){pageInfo{hasNextPage endCursor} nodes{body state authorAssociation commit{oid}}}} i${index}:issue(number:${lease.issue}){state comments(first:100){pageInfo{hasNextPage endCursor} nodes{body authorAssociation}}}`
+  return `p${index}:pullRequest(number:${lease.pr}){number updatedAt state merged mergeCommit{oid} headRefOid comments(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{id updatedAt body authorAssociation}} reviews(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{id updatedAt body state authorAssociation commit{oid}}}} i${index}:issue(number:${lease.issue}){number updatedAt state comments(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{id updatedAt body authorAssociation}}}`
 }
 
 export const MERGE_ANCESTRY_MEMO=new WeakMap()

@@ -1235,20 +1235,29 @@ test('pg_cron schedule changes are structural writes on table cron.job (#4192)',
 // batched review-state snapshot refuse every reviewer draw in the repository.
 test('review-state evidence over 100 comments is completed by cursor, fail-closed', async () => {
   const { completeReviewStatePages, reviewStateEntry } = await import('../lib/lanes/github-wire.mjs')
-  const node = (n) => ({ body: `c${n}`, authorAssociation: 'MEMBER' })
+  const updatedAt='2026-10-11T18:00:00Z'
+  const node = (n) => ({ id:`comment${n}`,updatedAt,body: `c${n}`, authorAssociation: 'MEMBER' })
+  const empty=()=>({totalCount:0,pageInfo:{hasNextPage:false,endCursor:null},nodes:[]})
   const fresh = () => ({
-    pr: { state:'OPEN', merged:false, headRefOid:'a'.repeat(40), comments:{ pageInfo:{ hasNextPage:false, endCursor:null }, nodes:[] }, reviews:{ pageInfo:{ hasNextPage:false, endCursor:null }, nodes:[] } },
-    issue: { state:'OPEN', comments:{ pageInfo:{ hasNextPage:true, endCursor:'c100' }, nodes:Array.from({ length:100 }, (_, n) => node(n)) } },
+    pr: { number:4171,updatedAt,state:'OPEN',merged:false,mergeCommit:null,headRefOid:'a'.repeat(40),comments:empty(),reviews:empty() },
+    issue: { number:3536,updatedAt,state:'OPEN',comments:{totalCount:103,pageInfo:{hasNextPage:true,endCursor:'c100'},nodes:Array.from({length:100},(_,n)=>node(n))} },
   })
   let row = fresh()
   assert.throws(() => reviewStateEntry(row.pr, row.issue), /incomplete or paginated/)
   const queries = []
-  const fetchPage = (query) => { queries.push(query); return { data:{ repository:{ x:{ comments:{ pageInfo:{ hasNextPage:false, endCursor:'c103' }, nodes:[node(100), node(101), node(102)] } } } } } }
+  const fetchPage = (query) => {
+    queries.push(query)
+    const issue=query.includes('after:')?{...row.issue,comments:{totalCount:103,pageInfo:{hasNextPage:false,endCursor:'c103'},nodes:[node(100),node(101),node(102)]}}:row.issue
+    return {data:{repository:{x:issue}}}
+  }
   const done = completeReviewStatePages(row.pr, row.issue, { issue:3536, pr:4171 }, fetchPage)
   assert.equal(reviewStateEntry(done.pr, done.issue).evidence.length, 103)
-  assert.match(queries[0], /issue\(number:3536\)\{comments\(first:100,after:"c100"\)/)
+  assert.match(queries[0], /issue\(number:3536\)\{number updatedAt state comments\(first:100,after:"c100"\)/)
+  assert.equal(queries.length,2)
+  assert.doesNotMatch(queries[1],/after:/)
+  assert.equal(row.issue.comments.nodes.length,100)
   row = fresh()
-  assert.throws(() => completeReviewStatePages(row.pr, row.issue, { issue:3536, pr:4171 }, () => ({ data:{ repository:{ x:{ comments:{ pageInfo:{ hasNextPage:true, endCursor:'c100' }, nodes:[] } } } } })), /incomplete or paginated/)
+  assert.throws(() => completeReviewStatePages(row.pr,row.issue,{issue:3536,pr:4171},()=>({data:{repository:{x:{...row.issue,comments:{totalCount:103,pageInfo:{hasNextPage:true,endCursor:'c100'},nodes:[node(100)]}}}}})), /cursor is invalid or repeated/)
   row = fresh()
-  assert.throws(() => completeReviewStatePages(row.pr, row.issue, { issue:3536, pr:4171 }, () => ({ errors:[{ message:'x' }] })), /incomplete or paginated/)
+  assert.throws(() => completeReviewStatePages(row.pr, row.issue, { issue:3536, pr:4171 }, () => ({ errors:[{ message:'x' }] })), /GraphQL errors/)
 })
