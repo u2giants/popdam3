@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "../_shared/supabase-js.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";

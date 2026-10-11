@@ -17,7 +17,7 @@
  * toolchain, so this file's type gate is the deploy workflow.
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "./supabase-js.ts";
 import { serviceClient } from "./service-client.ts";
 import { claimsServiceRole, extractBearerToken, isServiceRoleToken, rolesGrantAdmin } from "./auth-policy.ts";
 

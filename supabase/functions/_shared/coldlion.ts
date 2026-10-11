@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "./supabase-js.ts";
 
 const COLDLION_BASE = "http://x5.coldlion.com/EhpApi";
 const COMPANY = "EDGEHOME";

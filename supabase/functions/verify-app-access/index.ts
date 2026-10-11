@@ -13,7 +13,7 @@
  * Public (verify_jwt = false in config.toml — we validate the bearer token in code).
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "../_shared/supabase-js.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

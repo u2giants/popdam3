@@ -19,7 +19,7 @@
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "../_shared/supabase-js.ts";
 
 // Stuck-check-in lifecycle timing (Seafile only). Both deadlines are measured
 // from when the checkout entered 'verifying' but are pushed forward by the
