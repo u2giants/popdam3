@@ -21,7 +21,7 @@ Tracking issue: [u2giants/popdam3#92](https://github.com/u2giants/popdam3/issues
 | 5. Integrate yielding, stops, polling, and stale-run safety | ✅ done | 2026-08-20 | Receipt-gated worker path and 10-second cadence |
 | 6. Complete recovery/failure test matrix | ✅ done | 2026-08-24 | 63 worker tests, worker build, frontend build, and lint pass |
 | 7. Update operating documentation and diagnostics | ✅ done | 2026-08-20 | Four operating docs updated; waiting-state visual proof captured |
-| 8. Land, deploy, and prove a controlled production restart | 🟨 partial | 2026-10-11 | Current recovery implementation and receipt-loss fix #317 shipped. Live same-provider-ID batch crossing an ordinary restart and exactly-once clear remain unproven; protected historical jobs require governed reconciliation. |
+| 8. Land, deploy, and prove a controlled production restart | 🟨 partial | 2026-10-11 | Current recovery implementation and receipt-loss fix #317 (cbc31d36) shipped. Live same-provider-ID batch crossing an ordinary restart and exactly-once clear remain unproven; protected historical jobs require governed reconciliation. |
 | 9. Add a settings-exposed compatible provider route | ✅ code shipped; live acceptance remains in Step 8 | 2026-10-11 | Direct Gemini Batch implementation has merged. Old unshipped WIP/reset-contract descriptions below are historical; do not deploy the rejected branch. |
 
 
