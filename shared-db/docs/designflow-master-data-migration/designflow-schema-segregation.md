@@ -149,8 +149,8 @@ DesignFlow data will first land in a Supabase **`designflow` staging schema** (f
 | 22 | `item_character_associations` | Item ↔ character links |
 | 23 | `productUserAssignment` | Item user role assignments |
 | 24 | `ProductNickname` | Product nickname config (MG FK refs) |
-| 24a | `item_user_assignment` | Final `plm` home beside `productUserAssignment` (#3498). Before row movement, preflight legacy keys: the final PLM FKs are VALID while dflow source FKs are NOT VALID. DesignFlow grants and append-only wiring remain separate work; resolve parent CASCADE versus append-only DELETE trigger before moving rows. |
-| 24b | `item_workflow_action` | Final `plm` item-master home (#3498). Before row movement, preflight legacy item/step keys against VALID PLM FKs; source dflow FKs are NOT VALID. Notification references, DesignFlow grants, and append-only wiring remain separate work. Preserve identity IDs with OVERRIDING SYSTEM VALUE and advance the new sequence past max(id). |
+| 24a | `item_user_assignment` | Final `plm` home beside `productUserAssignment` (#3498). Before row movement, preflight legacy keys: the final PLM FKs are VALID while dflow source FKs are NOT VALID. Lookup index and append-only enforcement added by #3595 (migration 20261011212008): DELETE is refused and only the one-time close of an active assignment is allowed, so deleting a parent RFQItem that has assignment history is refused (SQLSTATE 55000), as on dflow. User-id foreign keys and DesignFlow grants remain open on #3595. |
+| 24b | `item_workflow_action` | Final `plm` item-master home (#3498). Before row movement, preflight legacy item/step keys against VALID PLM FKs; source dflow FKs are NOT VALID. Lookup indexes and append-only enforcement (UPDATE and DELETE refused) added by #3595 (migration 20261011212008). Notification references (re-point app.user_notification.workflow_action_id after the row move), user-id foreign keys, and DesignFlow grants remain open. Preserve identity IDs with OVERRIDING SYSTEM VALUE and advance the new sequence past max(id). |
 
 #### Art pieces (operational)
 

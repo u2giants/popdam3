@@ -199,7 +199,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 #### Step 2 — Land the governed shared-db contract first
 
-**Route, do not self-author from the app session:** coordinate with `plan_hybrid_search_rollout.md`/PopDAM issue #97 before opening schema work. Cross-link #96 and #97. If #97 already has a shared-db `db-work` issue/branch, add these requirements to that orchestrator work rather than opening a competing function-replacement lane. Otherwise open one shared-db issue that names both PopDAM issues and the required ordered contract. The single shared-db orchestrator owns branch, timestamps, SQL, preview proof, PR, merge, production promotion approval, consumer sync, and canonical migration note. The required order is: (1) scoped tag/status/backfill objects, (2) one final deterministic search/maintenance definition containing active asset tags, active Style Group tags, and canonical character names, and only then (3) the hybrid plan’s single corpus embedding backfill.
+**Completed Step2 contract — verify, do not recreate:** current STATUS records this structural implementation as complete. Verify the actual current contract and coordinate #96/#97 before any new structural need. If a fresh shape change is genuinely required, claim exact objects on the existing canonical `popcre/shared-db` issue and use its current branch/PR/preview/guarded-promotion rules; no duplicate issue, separate orchestrator permission or app-side migration. Preserve ordered scoped metadata then final deterministic corpus maintenance, followed by the separately gated embedding backfill. Existing fixture/object details below explain historical acceptance, not permission to replay it.
 
 **Required logical objects:**
 
@@ -215,9 +215,9 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 **Dependencies:** Step 1 inventory informs fixture sizes. No dependent PopDAM code lands before this schema is merged/applied according to `/worksp/shared-db/AGENTS.md`.
 
-**Verification gate:** shared-db `scripts/check-sql.sh` passes; preview applies cleanly after immediate target proof; transaction-rolled-back fixture tests prove manual-wins behavior, candidate/rejected exclusion from search and `assets.tags`, active group tag inclusion in member search, asset-only tag isolation, character-name inclusion, idempotent replacement, group reassignment behavior, bounded refresh, and RLS/service-role access; the shared-db issue/PR cross-links PopDAM #96 and #97 and records the ordered final corpus definition; the merged migration and canonical app note are present on shared-db `main`; production application is performed only through the orchestrator’s current approval procedure and exact ledger/object checks are recorded; no hybrid embedding backfill has run against an intermediate corpus.
+**Verification gate:** shared-db `scripts/check-sql.sh` passes; preview applies cleanly after immediate target proof; transaction-rolled-back fixture tests prove manual-wins behavior, candidate/rejected exclusion from search and `assets.tags`, active group tag inclusion in member search, asset-only tag isolation, character-name inclusion, idempotent replacement, group reassignment behavior, bounded refresh, and RLS/service-role access; the shared-db issue/PR cross-links PopDAM #96 and #97 and records the ordered final corpus definition; the merged migration and canonical app note are present on shared-db `main`; production application is performed only through the existing canonical issue owner’s current approval procedure and exact ledger/object checks are recorded; no hybrid embedding backfill has run against an intermediate corpus.
 
-**End-of-phase drift gate and fresh-session cut:** re-read Steps 3–10, report/update any drift caused by the final database names or behavior, then use the `fresh-session` skill if context is crowded. The successor must confirm the merged database contract before editing app code.
+**End-of-phase drift gate and fresh-session cut:** re-read Steps 3–10 and all following sections through PLAN-END, report/update any drift caused by the final database names or behavior, then use the `fresh-session` skill if context is crowded. The successor must confirm the merged database contract before editing app code.
 
 #### Step 3 — Add one typed scope/category policy and two structured contracts
 
@@ -437,7 +437,7 @@ Verified while drafting on 2026-08-24:
 
 - GitHub CLI can read and create issues in `u2giants/popdam3`; issue #96 was created.
 - `/worksp/popdam` was clean on `main` and matched `origin/main` at `dfe25d69` before plan edits.
-- `/worksp/shared-db` was clean but 758 commits behind its `origin/main`; do not use that stale ordinary checkout for implementation. The orchestrator must start from a fresh current branch/worktree.
+- `/worksp/shared-db` was clean but 758 commits behind its `origin/main`; do not use that stale ordinary checkout for implementation. Any new canonical work must claim exact objects on its existing issue and use a fresh current-upstream dedicated worktree; no separate orchestrator permission.
 - Git committer identity was correctly configured for Albert.
 
 Not verified in this planning session and therefore must be checked live before use:

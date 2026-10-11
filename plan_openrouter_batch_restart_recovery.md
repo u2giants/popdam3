@@ -109,7 +109,7 @@ Remaining acceptance and historical gaps:
 - Step 8 still lacks the required live same-ID-across-Railway-restart and
   exactly-once application artifact.
 - **Historical September WIP, superseded by the merged implementation recorded in STATUS:** the remote direct Gemini Batch alternative at
-  `/worksp/popdam-issue92-gemini-batch` commit `653cb150` passes its local tests/
+  `the historical protected source worktree (current recovery custody is linked from https://github.com/u2giants/popdam3/issues/92)` commit `653cb150` passes its local tests/
   builds but is not shippable. A definitive provider POST rejection consumes the one-use receipt,
   and the current shared-db contract has no narrow safe reset for that known-not-
   accepted outcome. Those WIP/reset-contract blockers are historical; do not resume or ship that branch. Current protected recovery and acceptance gates are in the linked continuation.
@@ -286,7 +286,7 @@ Update `docs/BULK_JOBS.md`, `INFRASTRUCTURE.md`, `MODEL_RULES.md`, and a prescri
 - Verify Railway exact-SHA deployment success.
 - **Unmet successful batch acceptance criterion, not current paid/model-switch authority:** a controlled production test would use a tiny, already-tagged, re-tag-safe asset set via normal UI, never the whole library. Under current Muse-only authority, do not fabricate a batch or switch models to manufacture this proof. Proceed only if an actually authorized compatible route exists; otherwise keep this criterion open. Record operation key, run ID, batch ID, asset IDs and pre-state in a secrets-free ignored artifact.
 - Once batch ID is durable, restart only Railway through normal owner. Prove after restart: same ID GET, zero replacement POST/ID for same run/page, each asset applied once, cursor once.
-- Prove production logs show one submitted ID followed by GETs for that same ID. Update/close issue #92 only with commit, CI, deployment and restart artifacts. Retire handoff only when complete.
+- Prove production logs show one submitted ID followed by GETs for that same ID. Update/close issue #92 only with commit, CI, deployment and restart artifacts. Retire only the completed scoped historical #92 predecessor after its obligations are met; preserve the current 17-issue campaign continuation while any campaign obligation remains open.
 
 **You'll know it worked when** exact SHA is green/deployed and controlled restart proves same ID/no duplicate/correct mapping.
 
