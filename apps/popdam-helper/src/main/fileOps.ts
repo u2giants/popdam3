@@ -18,6 +18,7 @@ import {
   SNAPSHOTS_SUBDIR,
 } from "@shared/constants";
 import type { RootMapping } from "@shared/types";
+import { joinWithinRoot, safePathSegment } from "./pathSafety";
 
 // ── Path construction ─────────────────────────────────────────────────────────
 
@@ -34,7 +35,7 @@ export function resolveAssetPath(
   if (!mapping) throw new Error(`No local mapping for root_id "${rootId}"`);
 
   const safeRelative = sanitizeRelativePath(stripRootSegment(rootId, relativePath));
-  return join(mapping.local_path, safeRelative);
+  return joinWithinRoot(mapping.local_path, safeRelative);
 }
 
 function stripRootSegment(rootId: string, relativePath: string): string {
@@ -72,11 +73,11 @@ export function workspaceBase(configWorkspacePath: string): string {
 }
 
 export function checkoutDir(workspacePath: string, checkoutId: string): string {
-  return join(workspacePath, WORKSPACE_SUBDIR, checkoutId);
+  return joinWithinRoot(join(workspacePath, WORKSPACE_SUBDIR), safePathSegment(checkoutId, "checkout id"));
 }
 
 export function snapshotDir(workspacePath: string, checkoutId: string): string {
-  return join(workspacePath, SNAPSHOTS_SUBDIR, checkoutId);
+  return joinWithinRoot(join(workspacePath, SNAPSHOTS_SUBDIR), safePathSegment(checkoutId, "checkout id"));
 }
 
 // ── Copy to workspace ─────────────────────────────────────────────────────────
@@ -99,7 +100,7 @@ export async function copyToWorkspace(
 
   const destDir = checkoutDir(workspacePath, checkoutId);
   mkdirSync(destDir, { recursive: true });
-  const destPath = join(destDir, filename);
+  const destPath = joinWithinRoot(destDir, safePathSegment(filename));
 
   log.info(`Copying ${sourcePath} → ${destPath}`);
   copyFileSync(sourcePath, destPath);
@@ -220,7 +221,7 @@ export async function createSnapshot(
 ): Promise<Snapshot> {
   const snapDir = snapshotDir(workspacePath, checkoutId);
   mkdirSync(snapDir, { recursive: true });
-  const snapPath = join(snapDir, filename);
+  const snapPath = joinWithinRoot(snapDir, safePathSegment(filename));
 
   log.info(`Snapshotting ${workspaceFilePath} → ${snapPath}`);
   copyFileSync(workspaceFilePath, snapPath);
