@@ -46,7 +46,7 @@ describe("canonical ERP cutover", () => {
   });
 
   it("keeps dismiss, show-dismissed, and restore behavior wired to canonical identities", () => {
-    const ui = read("src/components/settings/ErpEnrichmentTab.tsx");
+    const ui = read("src/components/settings/erp-enrichment/ErpItemsBrowser.tsx");
     const handler = read("supabase/functions/_shared/admin-handlers/erp-browse-handlers.ts");
     expect(ui).toContain("Show dismissed");
     expect(ui).toContain('dismiss: !item.dismissed');
