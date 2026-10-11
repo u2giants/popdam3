@@ -7,7 +7,7 @@
     "prebuild": "node ../../packages/agent-common/sync.mjs",
     "build": "tsc",
     "pretest": "node ../../packages/agent-common/sync.mjs",
-    "test": "tsx --test src/commands/heartbeat-commands.test.ts src/update-guard.test.ts src/claim-gate.test.ts src/nas-mapper.test.ts src/pdf-text-sampler.test.ts src/style-guide-pdf-outcome.test.ts ../../packages/agent-common/src/path-containment.test.ts ../../packages/agent-common/src/bounded-read.test.ts && vitest run --root ../.. apps/windows-agent/src/tiff-timestamps.vitest.ts",
+    "test": "tsx --test src/commands/heartbeat-commands.test.ts src/update-guard.test.ts src/claim-gate.test.ts src/maintenance-lease.test.ts src/nas-mapper.test.ts src/pdf-text-sampler.test.ts src/style-guide-pdf-outcome.test.ts ../../packages/agent-common/src/path-containment.test.ts ../../packages/agent-common/src/bounded-read.test.ts && vitest run --root ../.. apps/windows-agent/src/tiff-timestamps.vitest.ts",
     "start": "node dist/index.js",
     "predev": "node ../../packages/agent-common/sync.mjs",
     "dev": "tsx src/index.ts"

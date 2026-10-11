@@ -133,6 +133,7 @@ export interface AgentHealthPayload {
 }
 
 export interface WindowsVersionInfo {
+  build_sha?: string | null;
   version: string;
   update_available: boolean;
   latest_version: string | null;

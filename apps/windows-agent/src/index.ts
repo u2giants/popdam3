@@ -13,6 +13,7 @@
  */
 
 import { config } from "./config";
+import { ClaimAccounting, maintenancePausesClaims } from "./maintenance-lease";
 import { getLogTail, logger } from "./logger";
 import * as api from "./api-client";
 import { type CompatWorker, type PdfRenderResult, renderFile, renderNativeImage } from "./renderer";
@@ -41,6 +42,7 @@ import { handleDirBrowse } from "./handlers/dir-browse";
 
 let agentId: string = "";
 let activeJobs = 0;
+const claimAccounting = new ClaimAccounting();
 
 // Lazily-initialized Tesseract worker for inline compat-alert OCR checks.
 // Created on first AI render job, kept alive for the process lifetime.
@@ -393,6 +395,9 @@ const heartbeatCommandHandlers = createWindowsCommandHandlers({
   handleDirBrowse: (cmd) => handleDirBrowse(cmd, () => (cloudNasMountPath || "").trim() || `\\\\${cloudNasHost}\\${cloudNasShare}`),
 });
 
+const deferredHeartbeatCommands: Awaited<ReturnType<typeof api.heartbeat>>["commands"][] = [];
+let administrativeDispatches = 0;
+
 function startHeartbeat() {
   const HEARTBEAT_MS = 30_000;
   const loop = async () => {
@@ -400,6 +405,7 @@ function startHeartbeat() {
       const updateState = getUpdateState();
       const response = await api.heartbeat(agentId, lastError, healthStatus, {
         version: config.version,
+        build_sha: config.buildSha,
         update_available: updateState.updateAvailable,
         latest_version: updateState.latestVersion,
         last_update_check: updateState.lastCheckAt,
@@ -409,7 +415,18 @@ function startHeartbeat() {
       applyCloudConfig(response);
       consecutiveHeartbeatFailures = 0;
 
-      await dispatchCommands(response.commands, heartbeatCommandHandlers);
+      if (response.commands) deferredHeartbeatCommands.push(response.commands);
+      // Keep authenticated heartbeats/config flowing, but no administrative work,
+      // pairing, restart or force action may race an acknowledged maintenance drain.
+      while (deferredHeartbeatCommands.length > 0 && administrativeDispatches === 0 &&
+        !maintenancePausesClaims(activeJobs, claimAccounting.inFlight + administrativeDispatches,
+          isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText ||
+          isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating)) {
+        administrativeDispatches++;
+        const commands = deferredHeartbeatCommands.shift();
+        try { await dispatchCommands(commands, heartbeatCommandHandlers); }
+        finally { administrativeDispatches--; }
+      }
 
       logger.debug("Heartbeat sent");
     } catch (e) {
@@ -611,6 +628,7 @@ function startPolling() {
     } else {
       // Fill all available slots — try PopDAM jobs first, then SG jobs
       while (activeJobs < maxConcurrency) {
+        if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + administrativeDispatches, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating)) break;
         try {
           // Never claim a PopDAM job against a dead Z: mapping. ensureNasMapped is a
           // cheap access check while the share is reachable; when the SMB session has
@@ -632,14 +650,14 @@ function startPolling() {
           } else if (!healthStatus.healthy) {
             healthStatus = { ...healthStatus, healthy: true, nasHealthy: true, lastPreflightError: null };
           }
-          const job = zGate.ready ? await api.claimRender(agentId) : null;
+          if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + administrativeDispatches, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating)) break;
+          const job = zGate.ready ? await claimAccounting.claim(() => api.claimRender(agentId), (claimed) => { if (claimed) activeJobs++; }) : null;
           if (job) {
             if (!job.relative_path) {
               logger.error("Claimed job missing relative_path", { jobId: job.job_id });
-              await api.completeRender(job.job_id, false, undefined, "Asset missing relative_path");
+              try { await api.completeRender(job.job_id, false, undefined, "Asset missing relative_path"); } finally { activeJobs--; }
               continue;
             }
-            activeJobs++;
             processJob(job)
               .catch((e) => logger.error("Uncaught job error", { error: (e as Error).message }))
               .finally(() => {
@@ -655,14 +673,14 @@ function startPolling() {
             // toSgUncPath reads from the PopSG mount only when one is set; otherwise
             // it builds the path on the main mount/host, so readiness follows that.
             Boolean((cloudSgNasMountPath || "").trim()), zGate.ready, ensureSgNasMapped);
-          const sgJob = sgReady ? await api.claimSgRender(agentId) : null;
+          if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + administrativeDispatches, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating)) break;
+          const sgJob = sgReady ? await claimAccounting.claim(() => api.claimSgRender(agentId), (claimed) => { if (claimed) activeJobs++; }) : null;
           if (sgJob) {
             if (!sgJob.relative_path) {
               logger.error("Claimed SG job missing relative_path", { jobId: sgJob.job_id });
-              await api.completeSgRender(sgJob.job_id, false, undefined, "File missing relative_path");
+              try { await api.completeSgRender(sgJob.job_id, false, undefined, "File missing relative_path"); } finally { activeJobs--; }
               continue;
             }
-            activeJobs++;
             processSgJob(sgJob)
               .catch((e) => logger.error("Uncaught SG job error", { error: (e as Error).message }))
               .finally(() => {
@@ -828,7 +846,7 @@ async function main() {
 
   // 8. Initialize self-updater
   initUpdater({
-    getActiveJobs: () => activeJobs,
+    getActiveJobs: () => activeJobs + claimAccounting.inFlight,
     agentId,
   });
 

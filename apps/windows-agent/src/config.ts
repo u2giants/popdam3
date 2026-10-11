@@ -137,6 +137,14 @@ export const config = {
     } catch { return "0.0.0"; }
   })(),
 
+  // Immutable source identity stamped into both installer and OTA package.
+  buildSha: (() => {
+    try {
+      const pkg = require(require("path").join(__dirname, "..", "package.json"));
+      return typeof pkg.build_sha === "string" && /^[a-f0-9]{40}$/.test(pkg.build_sha) ? pkg.build_sha : null;
+    } catch { return null; }
+  })(),
+
   // Derived
   get agentApiUrl() {
     return `${this.supabaseUrl}/functions/v1/agent-api`;

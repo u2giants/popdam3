@@ -2,11 +2,10 @@
 <#
 .SYNOPSIS
   Installs the PopDAM Windows Render Agent as a Scheduled Task
-  that runs in an interactive desktop session (required for
-  Adobe Illustrator COM automation).
+  that preserves a managed boot task or creates a standalone logon task.
 
 .DESCRIPTION
-  Performs a preflight scrub before installation:
+  Performs stopped-installation preflight before installation:
     - Removes existing scheduled task if present
     - Removes legacy NSSM service if present
     - Cleans stale temp artifacts (popdam-gs-*, popdam-ink-*, popdam-im-*, magick-*)
@@ -35,11 +34,42 @@
 
 param(
     [string]$InstallDir = "C:\Program Files\PopDAM\WindowsAgent",
-    [string]$Username = $env:USERNAME
+    [string]$Username = $env:USERNAME,
+    [switch]$PreflightOnly
 )
 
 $ErrorActionPreference = "Stop"
 $TaskName = "PopDAM Windows Render Agent"
+
+# Pre-copy admission also applies to manual invocation. Never overwrite a running
+# agent or stop active rendering. Running agents update through their existing
+# self-updater. Drain/stop independently before manual reinstall; stopped legacy
+# services retain their migration capability.
+$legacyService = Get-Service -Name 'PopDAMWindowsAgent' -ErrorAction SilentlyContinue
+$currentTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+$runningNode = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.ExecutablePath -eq (Join-Path $InstallDir 'node.exe') })
+if (($legacyService -and $legacyService.Status -ne 'Stopped') -or
+    ($currentTask -and $currentTask.State -eq 'Running') -or $runningNode.Count -gt 0) {
+    throw 'Running installation must update through the self-updater or drain/stop independently before manual reinstall; no files or jobs changed.'
+}
+
+# Managed hosts keep their canonical password-backed boot task, including its
+# stored credential and restart policy. Fresh standalone installs retain the
+# existing interactive task flow; host credentials belong to canonical Ansible.
+$managed = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+if ($managed -and $managed.Principal.UserId -match '(^|\\)popdam-render$') {
+    if ($managed.Principal.LogonType -ne 'Password' -or $managed.Principal.RunLevel -ne 'Limited' -or
+        -not ($managed.Triggers | Where-Object { $_.CimClass.CimClassName -eq 'MSFT_TaskBootTrigger' }) -or
+        $managed.Actions.Count -ne 1 -or $managed.Actions[0].Execute -ne (Join-Path $InstallDir 'popdam-launcher.bat') -or
+        $managed.Actions[0].WorkingDirectory -ne $InstallDir -or
+        $managed.Settings.MultipleInstances -ne 'IgnoreNew' -or $managed.Settings.RestartCount -ne 3 -or
+        $managed.Settings.RestartInterval -ne 'PT1M' -or $managed.Settings.ExecutionTimeLimit -ne 'PT0S') {
+        throw 'Managed task does not match canonical startup contract; installation refused.'
+    }
+    Write-Output 'Canonical boot task preserved without account or credential changes.'
+    exit 0
+}
+if ($PreflightOnly) { exit 0 }
 
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
@@ -55,8 +85,6 @@ Write-Host "── Preflight Scrub ──" -ForegroundColor Yellow
 $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 if ($existing) {
     Write-Host "  Stopping and removing existing task '$TaskName'..." -ForegroundColor Yellow
-    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
     Write-Host "  Existing task removed." -ForegroundColor Green
 } else {
@@ -67,8 +95,6 @@ if ($existing) {
 $legacyService = Get-Service -Name "PopDAMWindowsAgent" -ErrorAction SilentlyContinue
 if ($legacyService) {
     Write-Host "  Legacy service 'PopDAMWindowsAgent' detected — removing..." -ForegroundColor Yellow
-    Stop-Service -Name "PopDAMWindowsAgent" -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
     $nssm = Get-Command nssm -ErrorAction SilentlyContinue
     if ($nssm) {
         & nssm remove PopDAMWindowsAgent confirm 2>&1 | Out-Null
@@ -193,7 +219,7 @@ Register-ScheduledTask `
     -Trigger $trigger `
     -Settings $settings `
     -Principal $principal `
-    -Description "PopDAM Windows Render Agent — renders AI/PSD thumbnails using Adobe Illustrator. Requires interactive desktop session for COM automation." `
+    -Description "PopDAM Windows Render Agent — renders thumbnails using supported standalone render tools." `
     -Force
 
 # ── Verify ──────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import { maintenancePausesClaims } from "./maintenance-lease";
 /**
  * Windows Render Agent — Self-updater with dist/ hot-swap + restart.
  *
@@ -223,6 +224,8 @@ async function checkForUpdate(agentId: string, forceApply = false, bypassIdleChe
         latest: info.latest_version,
       });
     }
+
+    if (maintenancePausesClaims(activeJobsRef(), 0, false, false)) return;
 
     // Wait for idle (no active render jobs) — unless bypass requested
     if (!bypassIdleCheck && activeJobsRef() > 0) {

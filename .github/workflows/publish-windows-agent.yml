@@ -66,6 +66,7 @@ jobs:
         run: |
           $pkg = Get-Content apps\windows-agent\package.json | ConvertFrom-Json
           $pkg.version = "${{ steps.version.outputs.version }}"
+          $pkg | Add-Member -NotePropertyName build_sha -NotePropertyValue $env:GITHUB_SHA -Force
           $pkg | ConvertTo-Json -Depth 10 | Set-Content apps\windows-agent\package.json
           Write-Host "Stamped version ${{ steps.version.outputs.version }}"
 
@@ -108,6 +109,7 @@ jobs:
 
           # Copy package.json (already stamped with full version above)
           Copy-Item "apps\windows-agent\package.json" -Destination "installer\package.json"
+          Copy-Item "scripts\windows-agent\install-scheduled-task.ps1" -Destination "installer\install-scheduled-task.ps1"
           Write-Host "package.json copied (version already stamped)"
 
       - name: Create launcher script
@@ -304,25 +306,17 @@ jobs:
             StrCmp $ServerUrl "" 0 +3
               MessageBox MB_OK|MB_ICONSTOP "Server URL is required." /SD IDOK
               Abort
-            ; ── Remove existing scheduled task if reinstalling (ignore if not found) ──
-            nsExec::ExecToStack 'schtasks /delete /tn "PopDAM Windows Render Agent" /f'
+            ; Validate managed task before any installation change. Do not delete
+            ; a canonical boot task or lose its protected stored credential.
+            InitPluginsDir
+            File /oname=$PLUGINSDIR\setup-task.ps1 "install-scheduled-task.ps1"
+            nsExec::ExecToStack 'powershell -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\setup-task.ps1" -InstallDir "$INSTDIR" -PreflightOnly'
             Pop $0
             Pop $1
-            Sleep 500
-
-            ; ── Remove legacy NSSM service if present (ignore if not found) ──
-            nsExec::ExecToStack 'sc query PopDAMWindowsAgent'
-            Pop $0
-            Pop $1
-            StrCmp $0 "0" 0 skip_legacy
-              nsExec::ExecToStack 'sc stop PopDAMWindowsAgent'
-              Pop $0
-              Pop $1
-              Sleep 2000
-              nsExec::ExecToStack 'sc delete PopDAMWindowsAgent'
-              Pop $0
-              Pop $1
-            skip_legacy:
+            StrCmp $0 "0" preflight_ok
+              MessageBox MB_OK|MB_ICONSTOP "Managed startup preflight failed. Installation stopped."
+              Abort
+            preflight_ok:
 
             ; ── Install program files ──
             SetOutPath "$INSTDIR"
@@ -370,8 +364,9 @@ jobs:
               Abort
             config_ok:
 
-            ; ── Register Scheduled Task (interactive session) ──
-            nsExec::ExecToStack 'powershell -NoProfile -ExecutionPolicy Bypass -Command "$$action = New-ScheduledTaskAction -Execute \"$INSTDIR\popdam-launcher.bat\" -WorkingDirectory \"$INSTDIR\"; $$trigger = New-ScheduledTaskTrigger -AtLogOn; $$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -DontStopOnIdleEnd -RestartCount 3 -RestartInterval (New-TimeSpan -Seconds 60) -ExecutionTimeLimit (New-TimeSpan -Days 0) -StartWhenAvailable -MultipleInstances IgnoreNew; $$principal = New-ScheduledTaskPrincipal -UserId $$env:USERNAME -LogonType Interactive -RunLevel Highest; Register-ScheduledTask -TaskName \"PopDAM Windows Render Agent\" -Action $$action -Trigger $$trigger -Settings $$settings -Principal $$principal -Description \"PopDAM Windows Render Agent\" -Force"'
+            ; Shared setup preserves a managed boot task and retains original
+            ; interactive registration for fresh standalone installations.
+            nsExec::ExecToStack 'powershell -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\setup-task.ps1" -InstallDir "$INSTDIR"'
             Pop $0  ; exit code
             Pop $1  ; output
             StrCmp $0 "0" task_registered
