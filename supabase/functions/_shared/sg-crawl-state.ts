@@ -90,39 +90,39 @@ export function hasMoreSgSearchDocuments(synced: number, batchSize: number): boo
   return synced >= batchSize;
 }
 
-export type SgRefreshStep = "file_groups" | "folders" | "search";
+export type SgRefreshStep = "scheduled_refresh" | "search";
 export type SgRefreshResult = {
   data: unknown;
   error: { message: string } | null;
 };
 
-/** Each callback invocation is one independent RPC statement. */
-export async function runSteppableSgRefresh(
+/** Await the existing scheduler, then synchronize only one bounded search slice. */
+export async function runScheduledSgRefresh(
   runId: string,
   batchSize: number,
-  call: (args: { p_run_id: string; p_search_batch_size: number; p_step: SgRefreshStep }) => Promise<SgRefreshResult>,
-): Promise<{ synced: number; failedStep?: SgRefreshStep; error?: string }> {
-  const steps: SgRefreshStep[] = ["file_groups", "folders", "search"];
-  for (const step of steps) {
-    const { data, error } = await call({
-      p_run_id: runId,
-      p_search_batch_size: batchSize,
-      p_step: step,
-    });
-    if (error) return { synced: 0, failedStep: step, error: error.message };
-    const row = Array.isArray(data) ? data[0] : data;
-    const synced = (row as { search_documents_synced?: unknown } | null)?.search_documents_synced;
-    if (
-      !Number.isSafeInteger(synced) || (synced as number) < 0 ||
-      (step !== "search" && synced !== 0) ||
-      (step === "search" && (synced as number) > batchSize)
-    ) {
-      return { synced: 0, failedStep: step, error: "RPC returned an invalid synchronization count" };
-    }
-    if (step === "search") return { synced: synced as number };
+  awaitRefresh: (args: { p_run_id: string }) => Promise<SgRefreshResult>,
+  synchronizeSearch: (args: { p_run_id: string; p_search_batch_size: number; p_step: "search" }) => Promise<SgRefreshResult>,
+): Promise<{ synced: number; pending?: boolean; refreshedAt?: string; failedStep?: SgRefreshStep; error?: string }> {
+  const readiness = await awaitRefresh({ p_run_id: runId });
+  if (readiness.error) return { synced: 0, failedStep: "scheduled_refresh", error: readiness.error.message };
+  const row = Array.isArray(readiness.data) && readiness.data.length === 1 ? readiness.data[0] : null;
+  const ready = (row as { ready?: unknown } | null)?.ready;
+  const refreshedAt = (row as { refreshed_at?: unknown } | null)?.refreshed_at;
+  if (ready === false && refreshedAt === null) return { synced: 0, pending: true };
+  if (ready !== true || typeof refreshedAt !== "string" || !Number.isFinite(Date.parse(refreshedAt))) {
+    return { synced: 0, failedStep: "scheduled_refresh", error: "RPC returned invalid scheduled-refresh readiness" };
   }
-  return { synced: 0, failedStep: "search", error: "Search step was not called" };
+  const search = await synchronizeSearch({ p_run_id: runId, p_search_batch_size: batchSize, p_step: "search" });
+  if (search.error) return { synced: 0, refreshedAt, failedStep: "search", error: search.error.message };
+  const searchRow = Array.isArray(search.data) && search.data.length === 1 ? search.data[0] : null;
+  const synced = (searchRow as { search_documents_synced?: unknown } | null)?.search_documents_synced;
+  if (!Number.isSafeInteger(synced) || (synced as number) < 0 || (synced as number) > batchSize) {
+    return { synced: 0, refreshedAt, failedStep: "search", error: "RPC returned an invalid synchronization count" };
+  }
+  return { synced: synced as number, refreshedAt };
 }
+
+export const SG_SCHEDULED_REFRESH_RETRY_MS = 30_000;
 
 // 5,000-row reconciliation timed out in ordinary production runs even though
 // the contract is restart-safe. The smaller batch preserves the same guard and
@@ -131,13 +131,12 @@ export const SG_RECONCILE_BATCH_SIZE = 250;
 
 /** Wait between retries of a refresh step that hit the API statement ceiling. */
 export const SG_REFRESH_TIMEOUT_RETRY_MS = 5_000;
-/** Total time after ingest completion during which timed-out refresh steps are retried. */
+/** Total time after scheduled refresh completion for retrying bounded search timeouts. */
 export const SG_REFRESH_TIMEOUT_RETRY_WINDOW_MS = 15 * 60_000;
 
 /**
- * A matview refresh step that hit the statement timeout is restart-safe, so it
- * is retried through the bridge continuation loop until the window after ingest
- * completion closes. Any other error, or a timeout after the window, fails the run.
+ * Search synchronization is restart-safe. Other errors and expired retry
+ * windows fail the run; aggregate refresh never runs through this request.
  */
 export function shouldRetrySgRefreshTimeout(error: string, ingestCompletedAt: string, nowMs: number): boolean {
   const message = error.toLowerCase();

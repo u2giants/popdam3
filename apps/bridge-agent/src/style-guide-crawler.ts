@@ -17,7 +17,7 @@ import { safeFilesystemModifiedAt } from "./file-date-validation.js";
 import { isIngestableFile } from "./sg-ingest-filter.js";
 import { eligibilityContract } from "./sg-ingest-filter.js";
 import { boundedRetryDelay, completionDisposition, type StyleGuideCrawlCompletion } from "./sg-crawl-continuation.js";
-import { SG_CRAWL_INGEST_BATCH_SIZE } from "./sg-crawl-bounds.js";
+import { SG_CRAWL_INGEST_BATCH_SIZE, SG_CRAWL_MAX_COMPLETION_CONTINUATIONS } from "./sg-crawl-bounds.js";
 
 // ── Normalization ────────────────────────────────────────────────
 
@@ -163,8 +163,6 @@ async function* walkDirectory(
 
 // ── Main crawl function ──────────────────────────────────────────
 
-const MAX_COMPLETION_CONTINUATIONS = 120;
-
 const sleep = (milliseconds: number) => new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
 
 async function finishCrawl(
@@ -175,8 +173,8 @@ async function finishCrawl(
 ): Promise<StyleGuideCrawlCompletion> {
   let response = await api.completeStyleGuideCrawl(runId, finalBatch, true, totalFiles, undefined, inaccessibleRoots);
   for (let attempt = 0; completionDisposition(response) === "continue"; attempt++) {
-    if (attempt >= MAX_COMPLETION_CONTINUATIONS) {
-      throw new Error(`Style guide crawl reconciliation did not finish after ${MAX_COMPLETION_CONTINUATIONS} bounded continuations`);
+    if (attempt >= SG_CRAWL_MAX_COMPLETION_CONTINUATIONS) {
+      throw new Error(`Style guide crawl reconciliation did not finish after ${SG_CRAWL_MAX_COMPLETION_CONTINUATIONS} bounded continuations`);
     }
     await sleep(boundedRetryDelay(response));
     response = await api.completeStyleGuideCrawl(runId, [], true, totalFiles, undefined, inaccessibleRoots);
