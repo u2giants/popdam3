@@ -2,6 +2,7 @@
  * Extracted admin-api handler for purging old assets.
  */
 
+import { refreshStyleGroupCounts } from "../style-group-counts-refresh.ts";
 import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
 
@@ -75,8 +76,8 @@ export async function handlePurgeOldAssets(body: Record<string, unknown>) {
     // Refresh counts for non-empty groups
     if (nonEmptyGroups.length > 0) {
       try {
-        await db.rpc("refresh_style_group_counts_batch", { p_group_ids: nonEmptyGroups });
-        await db.rpc("refresh_style_group_primaries", { p_group_ids: nonEmptyGroups });
+        const r = await refreshStyleGroupCounts(db, nonEmptyGroups);
+        if (!r.ok) throw new Error(r.error);
         groupsUpdated = nonEmptyGroups.length;
       } catch (e) {
         console.warn("Failed to refresh style group stats after purge:", e);
@@ -174,8 +175,8 @@ export async function handlePurgeExcludedSubfolderAssets() {
 
     if (nonEmptyGroups.length > 0) {
       try {
-        await db.rpc("refresh_style_group_counts_batch", { p_group_ids: nonEmptyGroups });
-        await db.rpc("refresh_style_group_primaries", { p_group_ids: nonEmptyGroups });
+        const r = await refreshStyleGroupCounts(db, nonEmptyGroups);
+        if (!r.ok) throw new Error(r.error);
         groupsUpdated = nonEmptyGroups.length;
       } catch (e) {
         console.warn("Failed to refresh style group stats after excluded-subfolder purge:", e);
