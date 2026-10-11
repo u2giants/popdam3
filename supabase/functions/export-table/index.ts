@@ -7,11 +7,8 @@ import { createClient } from "../_shared/supabase-js.ts";
 
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe } from "../_shared/http.ts";
+import { tableSource } from "../_shared/export-tables.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 const ALLOWED_TABLES = [
   "assets",
@@ -38,12 +35,6 @@ const ALLOWED_TABLES = [
   "agent_pairings",
 ];
 
-function tableSource(db: ReturnType<typeof createClient>, table: string) {
-  if (table === "licensors") return db.schema("core").from("licensor");
-  if (table === "properties") return db.schema("core").from("property");
-  if (table === "plm_item_list") return db.schema("api").from("plm_item_list");
-  return db.from(table);
-}
 
 corsServe(async (req) => {
   try {
@@ -55,7 +46,7 @@ corsServe(async (req) => {
       // Every failure reason keeps this function's historical 401 + bare body.
       return new Response(JSON.stringify({ error: "Unauthorized — requires admin role or service role key" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -68,7 +59,7 @@ corsServe(async (req) => {
     if (!table || !ALLOWED_TABLES.includes(table)) {
       return new Response(JSON.stringify({ error: `Table not allowed. Valid: ${ALLOWED_TABLES.join(", ")}` }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -89,7 +80,7 @@ corsServe(async (req) => {
       if (chunkErr) {
         return new Response(JSON.stringify({ error: chunkErr.message }), {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
       if (!chunk || chunk.length === 0) break;
@@ -102,13 +93,13 @@ corsServe(async (req) => {
 
     if (format === "json") {
       return new Response(JSON.stringify({ table, page, pageSize, totalCount, totalPages, rowsInPage: rows.length, data: rows }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json", "Content-Disposition": `attachment; filename="${table}_page${page}.json"` },
+        headers: { "Content-Type": "application/json", "Content-Disposition": `attachment; filename="${table}_page${page}.json"` },
       });
     }
 
     if (rows.length === 0) {
       return new Response(JSON.stringify({ table, page, totalCount, totalPages, rowsInPage: 0, message: "No more data" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -137,7 +128,6 @@ corsServe(async (req) => {
 
     return new Response(csvContent, {
       headers: {
-        ...corsHeaders,
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="${table}_page${page}.csv"`,
         "X-Total-Count": String(totalCount ?? 0),
@@ -149,7 +139,7 @@ corsServe(async (req) => {
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
     });
   }
 });

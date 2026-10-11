@@ -22,11 +22,8 @@
 import { createClient } from "../_shared/supabase-js.ts";
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe } from "../_shared/http.ts";
+import { tableSource } from "../_shared/export-tables.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 // Tables in dependency order (parents first)
 const TABLES_IN_ORDER = [
@@ -56,11 +53,6 @@ const TABLES_IN_ORDER = [
 const DEFAULT_CHUNK = 5000;
 const POSTGREST_PAGE = 1000; // PostgREST max per request
 
-function tableSource(db: ReturnType<typeof createClient>, table: string) {
-  if (table === "licensors") return db.schema("core").from("licensor");
-  if (table === "properties") return db.schema("core").from("property");
-  return db.from(table);
-}
 
 function sqlTarget(table: string): string {
   if (table === "licensors") return "core.licensor";
@@ -103,7 +95,7 @@ corsServe(async (req) => {
     if (!(await authorizeAdmin(req))) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -125,7 +117,7 @@ corsServe(async (req) => {
       }
 
       return new Response(JSON.stringify({ chunkSize, tables, generated: new Date().toISOString() }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -134,7 +126,7 @@ corsServe(async (req) => {
     if (!table || !TABLES_IN_ORDER.includes(table)) {
       return new Response(
         JSON.stringify({ error: `Provide ?table=NAME. Valid: ${TABLES_IN_ORDER.join(", ")}` }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 400, headers: { "Content-Type": "application/json" } },
       );
     }
 
@@ -156,7 +148,7 @@ corsServe(async (req) => {
       if (error) {
         return new Response(JSON.stringify({ error: error.message }), {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
       if (!page || page.length === 0) break;
@@ -202,7 +194,6 @@ corsServe(async (req) => {
 
     return new Response(sqlContent, {
       headers: {
-        ...corsHeaders,
         "Content-Type": "text/sql; charset=utf-8",
         "Content-Disposition": `attachment; filename="${filename}"`,
         "X-Table": table,
@@ -213,7 +204,7 @@ corsServe(async (req) => {
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
     });
   }
 });
