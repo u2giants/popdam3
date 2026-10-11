@@ -22,7 +22,10 @@ function fakeDb(rows: { key: string; value: unknown }[], vault: { value: string 
     }),
     rpc: vi.fn(async (fn: string, args?: { p_password?: string }) => {
       if (fn === "get_sg_nas_password") return { data: vault.value, error: null };
-      if (fn === "set_sg_nas_password") { vault.value = args?.p_password ?? ""; return { data: null, error: null }; }
+      if (fn === "set_sg_nas_password") {
+        vault.value = args?.p_password ?? "";
+        return { data: null, error: null };
+      }
       return { data: null, error: { message: `unexpected rpc ${fn}` } };
     }),
   };
