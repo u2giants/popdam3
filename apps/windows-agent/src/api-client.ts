@@ -1,3 +1,4 @@
+import type { CommandDeferral } from "./maintenance-lease";
 /**
  * Cloud API client for Windows Render Agent.
  * Handles registration, heartbeat, claim-render, and complete-render.
@@ -78,6 +79,7 @@ export async function register(agentName: string): Promise<string> {
 }
 
 export interface WindowsHeartbeatResponse {
+  command_deferral?: CommandDeferral;
   ok: boolean;
   config?: {
     do_spaces?: {
@@ -134,6 +136,7 @@ export interface AgentHealthPayload {
 }
 
 export interface WindowsVersionInfo {
+  build_sha?: string | null;
   version: string;
   update_available: boolean;
   latest_version: string | null;
@@ -148,10 +151,12 @@ export async function heartbeat(
   health?: AgentHealthPayload,
   versionInfo?: WindowsVersionInfo,
   logTail?: string[],
+  commandDeferral?: CommandDeferral,
 ): Promise<WindowsHeartbeatResponse> {
   const data = await callApi("heartbeat", {
     agent_id: agentId,
     counters: {},
+    command_deferral: commandDeferral,
     last_error: lastError,
     health: health ?? undefined,
     version_info: versionInfo ?? undefined,

@@ -1,3 +1,4 @@
+import { maintenancePausesClaims, maintenanceBlocksConsumedUpdate } from "./maintenance-lease";
 /**
  * Windows Render Agent — Self-updater with dist/ hot-swap + restart.
  *
@@ -189,12 +190,18 @@ function restartAgent(reason: string): never {
 
 // ── Check + download + swap ─────────────────────────────────────
 
+let updateOperation: Promise<void> | undefined;
 async function checkForUpdate(agentId: string, forceApply = false, bypassIdleCheck = false): Promise<void> {
-  if (state.updating) {
-    logger.debug("Update already in progress, skipping check");
-    return;
-  }
-
+  // Consumed commands wait their turn with original flags. Periodic checks may
+  // reuse an in-flight check; only one operation may ever swap installation files.
+  if (!forceApply && updateOperation) return updateOperation;
+  while (updateOperation) await updateOperation;
+  const operation = performUpdateCheck(agentId, forceApply, bypassIdleCheck);
+  updateOperation = operation;
+  try { await operation; }
+  finally { if (updateOperation === operation) updateOperation = undefined; }
+}
+async function performUpdateCheck(agentId: string, forceApply: boolean, bypassIdleCheck: boolean): Promise<void> {
   try {
     logger.info("Checking for updates...");
     const info = await api.getLatestBuild();
@@ -223,6 +230,15 @@ async function checkForUpdate(agentId: string, forceApply = false, bypassIdleChe
         latest: info.latest_version,
       });
     }
+
+    if (forceApply) {
+      // Never consume an immediate command during an administrative lease. Hold
+      // its delivery accounting until expiry/release, then retain idle/force rules.
+      while (maintenanceBlocksConsumedUpdate() ||
+          (!bypassIdleCheck && activeJobsRef() > 0)) {
+        await new Promise<void>(resolve => setTimeout(resolve, 1000));
+      }
+    } else if (maintenancePausesClaims(activeJobsRef(), 0, false, false)) return;
 
     // Wait for idle (no active render jobs) — unless bypass requested
     if (!bypassIdleCheck && activeJobsRef() > 0) {
