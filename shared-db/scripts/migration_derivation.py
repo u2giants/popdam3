@@ -156,6 +156,13 @@ IMMUTABLE_NON_LEDGER_DERIVATIONS: dict[str, tuple[str, str]] = {
         "not from a migration ledger version. The exact malformed declaration/source is pinned "
         "so future prose under the reserved label remains refused.",
     ),
+    "20261011201710": (
+        "-- derived-from: 20260902222649_property_codeless_uniqueness_and_mortal_kombat_ii_2026.sql\n",
+        "Issue #4172's merged curated Master Data row load (PR #4176) named its pattern "
+        "precedent's FILENAME under the reserved label. It replaces no object (data-only "
+        "INSERT/UPDATE, admitted by the curated data-only proof), so it depends on no "
+        "earlier rewrite and its base set is empty; the merged bytes stay unedited.",
+    ),
 }
 
 

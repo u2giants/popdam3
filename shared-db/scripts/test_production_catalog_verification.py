@@ -3616,6 +3616,40 @@ class SandboxTargetCatalogSafetyTests(unittest.TestCase):
                     verify(REPO, "20261002135053", Path(tmp), "synthetic-project", "synthetic-token", True, ledger_name=ledger_name)
                 query.assert_not_called()
 
+class Issue4207RealSidecars(unittest.TestCase):
+    """#4207: the cron-only (#4192) and curated data-only (#4176) migrations
+    name no catalog object, so their post-apply proof is their hash-bound
+    behavior sidecar. Without it the step proves nothing and fails."""
+
+    def test_real_sidecars_load_and_make_the_data_only_proof_pass(self):
+        repo = Path(__file__).resolve().parents[1]
+        migrations = {p.name[:14]: p for p in (repo / "supabase" / "migrations").glob("*.sql")}
+        for version, ids in {
+            "20261011175808": {"cron_matview_refresh_cadence", "cron_default_snapshot_cadence"},
+            "20261011201710": {"exorcist_1973_active_under_warner", "exorcist_1973_warner_source_ref"},
+        }.items():
+            targets = derive_targets(migrations, [version])
+            self.assertTrue(targets.is_empty(), version)
+            _md, failures = render_report([version], targets, None, None, [], True)
+            self.assertTrue(any("proved nothing" in f for f in failures), version)
+            checks = load_behavior_sidecars(repo, migrations, [version])
+            self.assertEqual({c["id"] for c in checks}, ids)
+            _md, failures = render_report(
+                [version], targets, None, None, [], True,
+                behavior_checks=checks,
+                behavior_results={"behavior_checks": [
+                    {"id": c["id"], "actual_count": c["expected_count"], "expected_count": c["expected_count"]}
+                    for c in checks]},
+            )
+            self.assertEqual(failures, [], version)
+            _md, failures = render_report(
+                [version], targets, None, None, [], True,
+                behavior_checks=checks,
+                behavior_results={"behavior_checks": [
+                    {"id": c["id"], "actual_count": 0, "expected_count": c["expected_count"]} for c in checks]},
+            )
+            self.assertTrue(failures, version)
+
 
 if __name__ == "__main__":
     unittest.main()
