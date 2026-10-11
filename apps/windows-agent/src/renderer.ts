@@ -30,11 +30,12 @@
 import sharp from "sharp";
 import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, rm, readdir, open, copyFile, readFile } from "node:fs/promises";
+import { mkdtemp, rm, readdir, open, copyFile } from "node:fs/promises";
 import { readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { logger } from "./logger";
+import { readFileWithinLimit } from "./bounded-read";
 import { isCompatAlertBuffer, createCompatAuditWorker } from "./compat-audit";
 
 // On Windows, paths longer than MAX_PATH (260) fail silently with Win32 APIs.
@@ -282,7 +283,10 @@ async function isAiWithoutPdfCompat(filePath: string): Promise<boolean> {
     const mupdf: any = await dynamicImport("mupdf").catch(() => null);
     if (!mupdf) return false;
 
-    const fileBuffer = await readFile(withLongPathPrefix(filePath));
+    // Bounded read (#232): a sentinel is a tiny text-only placeholder; anything
+    // over the in-memory cap is real artwork, so never buffer it whole.
+    const fileBuffer = await readFileWithinLimit(withLongPathPrefix(filePath));
+    if (!fileBuffer) return false;
     const doc = mupdf.Document.openDocument(fileBuffer, "application/pdf");
     if (doc.countPages() === 0) return false;
     const page = doc.loadPage(0);

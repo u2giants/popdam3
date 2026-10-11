@@ -13,7 +13,7 @@
  */
 
 import { createServer, IncomingMessage, ServerResponse } from "http";
-import { readdirSync, statSync } from "fs";
+import { readdir, stat } from "fs/promises";
 import { resolve } from "path";
 import { getConfig } from "./config";
 import { getSeafileHealthAsync } from "./seafileAdapter";
@@ -77,7 +77,7 @@ class BrowseError extends Error {
   }
 }
 
-function browseLocal(requestPath: string): { path: string; entries: DirEntry[] } {
+async function browseLocal(requestPath: string): Promise<{ path: string; entries: DirEntry[] }> {
   const config = getConfig();
   const roots = config.rootMappings.filter((r) => r.local_path);
 
@@ -103,13 +103,13 @@ function browseLocal(requestPath: string): { path: string; entries: DirEntry[] }
   if (!localPath) throw new BrowseError(403, "Path escapes root");
 
   const entries: DirEntry[] = [];
-  const items = readdirSync(localPath);
+  const items = await readdir(localPath);
 
   for (const name of items) {
     // Skip hidden files
     if (name.startsWith(".")) continue;
     try {
-      const st = statSync(resolve(localPath, name));
+      const st = await stat(resolve(localPath, name));
       entries.push({
         name,
         is_dir: st.isDirectory(),
@@ -263,7 +263,7 @@ export function startLocalServer(): void {
 
       if (url.pathname === "/browse") {
         const path = url.searchParams.get("path") ?? "";
-        const result = browseLocal(path);
+        const result = await browseLocal(path);
         send(res, 200, {
           ok: true,
           path: result.path,

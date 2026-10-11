@@ -15,8 +15,7 @@
  * when no token/server URL is configured, which is an accepted state.
  */
 
-import { existsSync, statSync, openSync, closeSync, readSync, readdirSync } from "fs";
-import { readdir, stat } from "fs/promises";
+import { access, open, readdir, stat } from "fs/promises";
 import { basename, join, normalize, isAbsolute, sep } from "path";
 import { homedir } from "os";
 import { execFileSync } from "child_process";
@@ -44,25 +43,6 @@ import type {
 // Non-technical users won't know or configure this, so the Helper discovers the
 // library folder by searching every plausible base + category, then caches the
 // hit. Search is bounded (depth + node caps) so a virtual drive can't hang us.
-
-function safeIsDir(p: string): boolean {
-  try {
-    return existsSync(p) && statSync(p).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-/** Immediate subdirectory names of `p` (dirs only, no dotfiles). Never throws. */
-function subDirs(p: string): string[] {
-  try {
-    return readdirSync(p, { withFileTypes: true })
-      .filter((d) => !d.name.startsWith(".") && (d.isDirectory() || safeIsDir(join(p, d.name))))
-      .map((d) => d.name);
-  } catch {
-    return [];
-  }
-}
 
 async function safeIsDirAsync(p: string): Promise<boolean> {
   try {
@@ -96,28 +76,6 @@ const SEADRIVE_ALL_CATEGORY_DIRS = [...SEADRIVE_CATEGORY_DIRS, "Shared with grou
  * config root, the per-account subfolders of the platform default mount, and (on
  * Windows) C:\seadrive\<acct>. Order matters: explicit/config first.
  */
-export function seaDriveBaseRoots(config: LocalConfig): string[] {
-  const out: string[] = [];
-  const add = (p?: string | null) => {
-    if (p && safeIsDir(p) && !out.includes(p)) out.push(p);
-  };
-
-  add(config.seaDriveRoot);
-  for (const acct of subDirs(config.seaDriveRoot ?? "")) add(join(config.seaDriveRoot ?? "", acct));
-
-  // Platform default mount parents + their per-account subfolders.
-  const parents =
-    process.platform === "win32"
-      ? ["C:\\seadrive", join(homedir(), "seadrive"), join(homedir(), "SeaDrive")]
-      : [join(homedir(), "SeaDrive"), join(homedir(), "seadrive")];
-
-  for (const parent of parents) {
-    add(parent);
-    for (const acct of subDirs(parent)) add(join(parent, acct));
-  }
-  return out;
-}
-
 async function seaDriveBaseRootsAsync(config: LocalConfig): Promise<string[]> {
   const out: string[] = [];
   const add = async (p?: string | null) => {
@@ -140,44 +98,8 @@ async function seaDriveBaseRootsAsync(config: LocalConfig): Promise<string[]> {
 }
 
 /** Backwards-compatible single representative mount root (first base), or null. */
-export function detectSeaDriveRoot(config: LocalConfig): string | null {
-  return seaDriveBaseRoots(config)[0] ?? null;
-}
-
-/** Bounded breadth-first search for a directory named `target` under `base`. */
-function bfsFindDir(base: string, target: string, maxDepth: number, maxNodes: number): string | null {
-  const queue: Array<{ dir: string; depth: number }> = [{ dir: base, depth: 0 }];
-  let visited = 0;
-  const targetLower = target.toLowerCase();
-  while (queue.length) {
-    const { dir, depth } = queue.shift()!;
-    if (visited++ > maxNodes) break;
-    for (const name of subDirs(dir)) {
-      const child = join(dir, name);
-      if (name.toLowerCase() === targetLower) return child;
-      if (depth + 1 < maxDepth) queue.push({ dir: child, depth: depth + 1 });
-    }
-  }
-  return null;
-}
-
-/** Search one base mount for a library folder named `target`. */
-function searchUnderBase(base: string, target: string): string | null {
-  // Fast deterministic candidates (direct + known category folders).
-  const direct = [join(base, target), ...SEADRIVE_CATEGORY_DIRS.map((c) => join(base, c, target))];
-  for (const c of direct) if (safeIsDir(c)) return c;
-
-  // "Shared with groups/<group>/<lib>" — one extra (group-name) level.
-  const groups = join(base, "Shared with groups");
-  if (safeIsDir(groups)) {
-    for (const g of subDirs(groups)) {
-      const c = join(groups, g, target);
-      if (safeIsDir(c)) return c;
-    }
-  }
-
-  // Bounded fallback scan for anything we didn't anticipate.
-  return bfsFindDir(base, target, 3, 400);
+export async function detectSeaDriveRootAsync(config: LocalConfig): Promise<string | null> {
+  return (await seaDriveBaseRootsAsync(config))[0] ?? null;
 }
 
 function addUnique(out: string[], name: string): void {
@@ -189,38 +111,6 @@ function addUnique(out: string[], name: string): void {
  * checkout mapping: it shows what the client can see, including libraries not
  * yet configured in HELPER_SEAFILE_LIBRARIES.
  */
-export function discoverSeaDriveLibraries(config: LocalConfig): string[] {
-  const found: string[] = [];
-  const categoryNames = new Set(SEADRIVE_ALL_CATEGORY_DIRS.map((d) => d.toLowerCase()));
-
-  for (const base of seaDriveBaseRoots(config)) {
-    const baseName = basename(base).toLowerCase();
-
-    // If the configured root is itself a category folder (for example
-    // C:\seadrive\<acct>\My Libraries), its direct children are libraries.
-    if (categoryNames.has(baseName)) {
-      for (const lib of subDirs(base)) addUnique(found, lib);
-    }
-
-    for (const category of SEADRIVE_ALL_CATEGORY_DIRS) {
-      const categoryDir = join(base, category);
-      if (!safeIsDir(categoryDir)) continue;
-
-      for (const child of subDirs(categoryDir)) {
-        const childPath = join(categoryDir, child);
-        addUnique(found, child);
-
-        // Some SeaDrive installs put libraries under Shared with groups/<group>/<lib>.
-        if (category === "Shared with groups") {
-          for (const nested of subDirs(childPath)) addUnique(found, nested);
-        }
-      }
-    }
-  }
-
-  return found.sort((a, b) => a.localeCompare(b));
-}
-
 async function discoverSeaDriveLibrariesAsync(config: LocalConfig): Promise<string[]> {
   const found: string[] = [];
   const categoryNames = new Set(SEADRIVE_ALL_CATEGORY_DIRS.map((d) => d.toLowerCase()));
@@ -285,53 +175,21 @@ async function findLibraryDirAsync(seaDriveFolder: string, config: LocalConfig):
  * fresh discovery, caches the hit in config so the next checkout is instant.
  * Returns null if the library isn't mounted anywhere we can see.
  */
-export function findLibraryDir(seaDriveFolder: string, config: LocalConfig): string | null {
-  const cached = config.seafileLibraryPaths?.[seaDriveFolder];
-  if (cached && safeIsDir(cached)) return cached;
-
-  for (const base of seaDriveBaseRoots(config)) {
-    const found = searchUnderBase(base, seaDriveFolder);
-    if (found) {
-      try {
-        saveConfig({
-          seafileLibraryPaths: { ...(config.seafileLibraryPaths ?? {}), [seaDriveFolder]: found },
-        });
-      } catch (e) {
-        log.warn("Could not cache discovered library path:", (e as Error).message);
-      }
-      return found;
+async function findAndCacheLibraryDirAsync(seaDriveFolder: string, config: LocalConfig): Promise<string | null> {
+  const found = await findLibraryDirAsync(seaDriveFolder, config);
+  if (found && config.seafileLibraryPaths?.[seaDriveFolder] !== found) {
+    try {
+      saveConfig({
+        seafileLibraryPaths: { ...(config.seafileLibraryPaths ?? {}), [seaDriveFolder]: found },
+      });
+    } catch (e) {
+      log.warn("Could not cache discovered library path:", (e as Error).message);
     }
   }
-  return null;
+  return found;
 }
 
 // ── Install / process detection ─────────────────────────────────────────────
-
-/**
- * Best-effort check for an installed SeaDrive (virtual-drive) client.
- * We only support SeaDrive — never the legacy Seafile *sync* client, which would
- * try to fully download a library to local disk. Do not add sync-client paths here.
- */
-export function isSeaDriveInstalled(): boolean {
-  if (detectSeaDriveRoot({} as LocalConfig) || isSeaDriveRunning()) return true;
-  const paths =
-    process.platform === "darwin"
-      ? [
-          "/Applications/SeaDrive.app",
-          join(homedir(), "Applications/SeaDrive.app"),
-        ]
-      : [
-          "C:\\Program Files\\SeaDrive\\seadrive.exe",
-          "C:\\Program Files (x86)\\SeaDrive\\seadrive.exe",
-        ];
-  return paths.some((p) => {
-    try {
-      return existsSync(p);
-    } catch {
-      return false;
-    }
-  });
-}
 
 /** Best-effort process-list check. Never throws — returns false on any error. */
 export function isSeaDriveRunning(): boolean {
@@ -415,11 +273,11 @@ export interface SeafileTarget {
  *
  * Throws on: no mount root, no library covering the path, or unsafe path.
  */
-export function resolveSeafileTarget(
+export async function resolveSeafileTarget(
   relativePath: string,
   config: LocalConfig,
-): SeafileTarget {
-  if (seaDriveBaseRoots(config).length === 0) {
+): Promise<SeafileTarget> {
+  if ((await seaDriveBaseRootsAsync(config)).length === 0) {
     throw new Error("SeaDrive mount not found — is the SeaDrive client installed and signed in?");
   }
 
@@ -429,7 +287,7 @@ export function resolveSeafileTarget(
   }
 
   // Auto-discover where THIS library is mounted (My Libraries / Shared with … ).
-  const libDir = findLibraryDir(mapping.seaDriveFolder, config);
+  const libDir = await findAndCacheLibraryDirAsync(mapping.seaDriveFolder, config);
   if (!libDir) {
     throw new Error(
       `The "${mapping.displayName}" library isn't visible in SeaDrive yet. ` +
@@ -445,19 +303,6 @@ export function resolveSeafileTarget(
   return { mapping, localPath, pathInLib };
 }
 
-/** Convenience wrapper returning just the absolute local path. */
-export function resolveSeafilePath(relativePath: string, config: LocalConfig): string {
-  return resolveSeafileTarget(relativePath, config).localPath;
-}
-
-/** Configured library folders the Helper can actually locate in SeaDrive. */
-export function getMountedLibraries(config: LocalConfig): string[] {
-  if (seaDriveBaseRoots(config).length === 0) return [];
-  return (config.seafileLibraries ?? [])
-    .map((m) => m.seaDriveFolder)
-    .filter((folder) => findLibraryDir(folder, config) !== null);
-}
-
 // ── Health ──────────────────────────────────────────────────────────────────
 
 export interface SeafileHealth extends StorageHealth {
@@ -471,36 +316,6 @@ export interface SeafileHealth extends StorageHealth {
   librariesMissing: string[];
 }
 
-export function getSeafileHealth(config: LocalConfig): SeafileHealth {
-  const installed = isSeaDriveInstalled();
-  const running = isSeaDriveRunning();
-  const root = detectSeaDriveRoot(config);
-  const discovered = discoverSeaDriveLibraries(config);
-  const configured = (config.seafileLibraries ?? []).map((m) => m.seaDriveFolder);
-  const mounted = getMountedLibraries(config);
-  const missing = configured.filter((f) => !mounted.includes(f));
-
-  let detail: string | undefined;
-  if (!installed) detail = "SeaDrive client not detected.";
-  else if (!root) detail = "SeaDrive mount root not found.";
-  else if (!running) detail = "SeaDrive client is not running.";
-  else if (missing.length) detail = `Libraries not mounted: ${missing.join(", ")}`;
-
-  const available = !!root && missing.length === 0;
-  return {
-    provider: "seafile",
-    available,
-    installed,
-    running,
-    root,
-    discoveredLibraries: discovered,
-    librariesConfigured: configured,
-    librariesMounted: mounted,
-    librariesMissing: missing,
-    detail,
-  };
-}
-
 /** Health polling uses async filesystem calls so a slow macOS SeaDrive mount cannot freeze Electron. */
 export async function getSeafileHealthAsync(config: LocalConfig): Promise<SeafileHealth> {
   const running = isSeaDriveRunning();
@@ -509,7 +324,7 @@ export async function getSeafileHealthAsync(config: LocalConfig): Promise<Seafil
   const appPaths = process.platform === "darwin"
     ? ["/Applications/SeaDrive.app", join(homedir(), "Applications/SeaDrive.app")]
     : ["C:\\Program Files\\SeaDrive\\seadrive.exe", "C:\\Program Files (x86)\\SeaDrive\\seadrive.exe"];
-  const installed = running || !!root || appPaths.some((path) => existsSync(path));
+  const installed = running || !!root || (await Promise.all(appPaths.map(pathExists))).some(Boolean);
   const discovered = await discoverSeaDriveLibrariesAsync(config);
   const mappings = config.seafileLibraries ?? [];
   const configured = mappings.map((library) => library.seaDriveFolder);
@@ -543,10 +358,9 @@ export async function getSeafileHealthAsync(config: LocalConfig): Promise<Seafil
  * SeaDrive presents cloud-only files as zero-byte (or sparse) placeholders that
  * fill in on access. We treat a readable, non-empty, size-stable file as local.
  */
-export function getHydrationStatus(localPath: string): HydrationStatus {
+export async function getHydrationStatus(localPath: string): Promise<HydrationStatus> {
   try {
-    if (!existsSync(localPath)) return { state: "unavailable" };
-    const size = statSync(localPath).size;
+    const size = (await stat(localPath)).size;
     if (size <= 0) return { state: "hydrating", bytesDone: 0 };
     return { state: "local", bytesDone: size, bytesTotal: size };
   } catch {
@@ -555,14 +369,13 @@ export function getHydrationStatus(localPath: string): HydrationStatus {
 }
 
 /** Touch the file to nudge SeaDrive into hydrating it (read first byte). */
-function nudgeHydration(localPath: string): void {
+async function nudgeHydration(localPath: string): Promise<void> {
   try {
-    const fd = openSync(localPath, "r");
+    const fh = await open(localPath, "r");
     try {
-      const buf = Buffer.alloc(1);
-      readSync(fd, buf, 0, 1, 0);
+      await fh.read(Buffer.alloc(1), 0, 1, 0);
     } finally {
-      closeSync(fd);
+      await fh.close();
     }
   } catch {
     /* best-effort */
@@ -580,16 +393,16 @@ export async function ensureHydrated(
   const maxAttempts = opts.maxAttempts ?? 60; // ~3 min at 3s
   const intervalMs = opts.intervalMs ?? 3000;
 
-  if (!existsSync(localPath)) {
+  if (!(await pathExists(localPath))) {
     throw new Error(`File not found in SeaDrive: ${localPath}`);
   }
 
-  nudgeHydration(localPath);
+  await nudgeHydration(localPath);
 
   let lastSize = -1;
   let stable = 0;
   for (let i = 0; i < maxAttempts; i++) {
-    const status = getHydrationStatus(localPath);
+    const status = await getHydrationStatus(localPath);
     opts.onProgress?.(status);
     if (status.state === "local") {
       const size = status.bytesDone ?? 0;
@@ -604,7 +417,7 @@ export async function ensureHydrated(
       throw new Error(`File became unavailable during hydration: ${localPath}`);
     } else {
       stable = 0;
-      nudgeHydration(localPath);
+      await nudgeHydration(localPath);
     }
     await sleep(intervalMs);
   }
@@ -660,13 +473,13 @@ export interface MappingTestResult {
   message: string;
 }
 
-export function testSeafileMapping(
+export async function testSeafileMapping(
   sampleRelativePath: string,
   config: LocalConfig,
-): MappingTestResult {
+): Promise<MappingTestResult> {
   try {
-    const { localPath, mapping } = resolveSeafileTarget(sampleRelativePath, config);
-    const exists = existsSync(localPath);
+    const { localPath, mapping } = await resolveSeafileTarget(sampleRelativePath, config);
+    const exists = await pathExists(localPath);
     return {
       ok: true,
       resolvedPath: localPath,
@@ -677,6 +490,15 @@ export function testSeafileMapping(
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await access(p);
+    return true;
+  } catch {
+    return false;
   }
 }
 
