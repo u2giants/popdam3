@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process'
 import { REVIEW_VERDICT_REPLACEMENT_REF_PREFIX } from '../../lib/review-verdict-artifact.mjs'
 import { classifyChangedPaths, changedPathsFromPullRequestFiles } from '../../lib/documents-only-change.mjs'
-import { REPO, REVIEW_REPLACEMENT_REF_PREFIX } from './constants.mjs'
+import { REPO, REPO_OWNER, REPO_NAME, REVIEW_REPLACEMENT_REF_PREFIX } from './constants.mjs'
 import { LaneError } from './claims.mjs'
 import { projectReviewPr } from './review-assignment.mjs'
 import { gitRemoteRefs, githubIo, runGitHubCommand } from '../../manage-migration-author-lanes.mjs'
@@ -141,6 +141,34 @@ export function readGitCommits(shas,{run=execFileSync}={}){
     if(result.unfetched.length)throw new LaneError(`git commits ${result.unfetched.join(', ')} are unreadable after fetch`)
   }
   return result.commits
+}
+// #4184: a work issue or PR with more than 100 comments (or reviews) made the
+// batched snapshot "incomplete or paginated", and because the snapshot covers
+// EVERY active lease, one long-running issue refused every reviewer draw in the
+// repository. Complete each truncated connection by cursor instead, still
+// fail-closed: an unreadable or non-advancing page refuses as before.
+const REVIEW_CONNECTIONS=Object.freeze([
+  {owner:'pr',key:'comments',select:(lease)=>`pullRequest(number:${lease.pr})`,nodes:'nodes{body authorAssociation}'},
+  {owner:'pr',key:'reviews',select:(lease)=>`pullRequest(number:${lease.pr})`,nodes:'nodes{body state authorAssociation commit{oid}}'},
+  {owner:'issue',key:'comments',select:(lease)=>`issue(number:${lease.issue})`,nodes:'nodes{body authorAssociation}'},
+])
+export function completeReviewStatePages(pr,issue,lease,fetchPage,{maxPages=50}={}){
+  const holders={pr,issue}
+  for(const connection of REVIEW_CONNECTIONS){
+    const holder=holders[connection.owner],conn=holder?.[connection.key]
+    if(!conn||!Array.isArray(conn.nodes))continue
+    let pages=0
+    while(conn.pageInfo?.hasNextPage===true){
+      const cursor=conn.pageInfo.endCursor
+      if(typeof cursor!=='string'||!cursor||++pages>maxPages)throw new LaneError('batched reviewer PR/verdict evidence is incomplete or paginated')
+      const next=fetchPage(`query{repository(owner:${JSON.stringify(REPO_OWNER)},name:${JSON.stringify(REPO_NAME)}){x:${connection.select(lease)}{${connection.key}(first:100,after:${JSON.stringify(cursor)}){pageInfo{hasNextPage endCursor} ${connection.nodes}}}}}`)
+      const page=next?.data?.repository?.x?.[connection.key]
+      if(next?.errors?.length||!page||!Array.isArray(page.nodes)||typeof page.pageInfo?.hasNextPage!=='boolean'||(page.pageInfo.hasNextPage&&page.pageInfo.endCursor===cursor))throw new LaneError('batched reviewer PR/verdict evidence is incomplete or paginated')
+      conn.nodes=[...conn.nodes,...page.nodes]
+      conn.pageInfo=page.pageInfo
+    }
+  }
+  return {pr,issue}
 }
 export function reviewStateEntry(pr,issue){
   if(!pr||!issue||!Array.isArray(pr.comments?.nodes)||!Array.isArray(pr.reviews?.nodes)||!Array.isArray(issue.comments?.nodes)||pr.comments?.pageInfo?.hasNextPage!==false||pr.reviews?.pageInfo?.hasNextPage!==false||issue.comments?.pageInfo?.hasNextPage!==false)throw new LaneError('batched reviewer PR/verdict evidence is incomplete or paginated')

