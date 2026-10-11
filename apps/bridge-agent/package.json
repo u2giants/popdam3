@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "test": "tsx --test src/style-guide-crawler.test.ts src/liveness-watchdog.test.ts src/path-containment.test.ts src/bounded-read.test.ts",
+    "test": "tsx --test src/commands/heartbeat-commands.test.ts src/style-guide-crawler.test.ts src/liveness-watchdog.test.ts src/path-containment.test.ts src/bounded-read.test.ts",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },
