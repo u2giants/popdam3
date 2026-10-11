@@ -263,9 +263,11 @@ When the op is finished or has no next key, the worker writes `null`, never a ba
 
 The nightly `rebuild-style-groups` operation recreates every `style_groups` row with a new UUID. On 2026-09-23 all ~10,901 rows had `created_at` after 02:54 America/New_York. Any fixed list of groups (an approved pilot cohort, a bug repro, operation `params.group_ids`) must be pinned by **`sku`** and resolved to IDs just before use. A list of Style Group IDs from the previous day points at rows that no longer exist. Asset IDs are stable.
 
-## Muse Spark 1.3 Contributor answers 404 `model_not_found` when capacity is short (found 2026-09-23)
+## Muse Spark 1.3 Contributor 404s need checks from the actual worker (found 2026-09-23; refined 2026-10-11)
 
 `muse-spark-1.3-contributor` stays listed in `/v1/models`, but it intermittently or persistently returns an instant 404 `model_not_found` (sometimes 503) with no `x-ratelimit-*` headers. `muse-spark-1.3` and `muse-spark-1.2-contributor` succeed with the same key and the same request. The limit appears to be team-wide, shared by every POP app. The worker caps Contributor calls at `META_CONTRIBUTOR_CONCURRENCY` (default 2) and retries 404/503 with jitter (`apps/worker/src/meta-model-api.ts`). Don't treat this as a wrong model ID, endpoint or key, and don't switch models: Albert requires Contributor. It is tracked in popcre/ai-devops#683.
+
+October 11 live origin comparison disproved treating every such 404 as a capacity diagnosis: the same protected key returned eight enabled models and valid Contributor text/image/schema replies from the operator host, but zero enabled models and seven inference 404s from the actual Railway worker. Runtime key equality was verified inside the running container. Headers, network address family, and the same Meta edge addresses did not change this origin-specific difference. The worker retained IPv4 connectivity but had outbound IPv6 disabled (`ENETUNREACH`); the supported opt-in is being tested under `plan_muse_worker_connection_repair.md`. Do not claim a repair from operator-host success, a model list HTTP 200 with no models, or a completed job with failed rows. Prove actual worker model discovery and saved Contributor tags/descriptions. Current Meta documentation supports Responses and Chat Completions; the dated Responses-only source comment is historical, not current availability evidence.
 
 ## AG Grid license warning is an accepted owner decision
 
