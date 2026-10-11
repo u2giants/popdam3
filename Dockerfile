@@ -12,7 +12,7 @@ ARG APP_DATE=unknown
 ENV APP_COMMIT=${APP_COMMIT}
 ENV APP_DATE=${APP_DATE}
 
-COPY package.json package-lock.json* bun.lockb* ./
+COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
