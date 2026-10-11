@@ -18,10 +18,10 @@ import * as api from "./api-client.js";
 import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { createLivenessWatchdog, startEventLoopBackstop, setActivity, getActivity, withTimeout } from "./liveness-watchdog.js";
 import { exec } from "node:child_process";
-import { stat, readdir, readFile, writeFile, mkdir } from "node:fs/promises";
-import { validateScanRoots, scanFiles, isPdfCandidate, type FileCandidate, type ScanCallbacks } from "./scanner.js";
+import { stat, readFile, writeFile, mkdir } from "node:fs/promises";
+import { validateScanRoots, scanFiles, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
-import { generateThumbnail, isAiWithoutPdfCompat, isCompatAlertThumbnail, createCompatAuditWorker, isBlankThumbnail, type PdfThumbnailResult } from "./thumbnailer.js";
+import { generateThumbnail, isAiWithoutPdfCompat, isBlankThumbnail, type PdfThumbnailResult } from "./thumbnailer.js";
 import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader.js";
 import { randomUUID } from "node:crypto";
 import { dirname, join, basename } from "node:path";
@@ -32,6 +32,11 @@ import { runPdfBackfill } from "./pdf-backfill.js";
 import { runAiSentinelScan } from "./ai-sentinel-scanner.js";
 import { verifyPendingCheckins } from "./checkin-verifier.js";
 import { SkuSerialQueue, skuFromRelativePath } from "./sku-serial-queue.js";
+import { dispatchCommands } from "./commands/dispatch.js";
+import { createBridgeCommandHandlers } from "./commands/heartbeat-commands.js";
+import { runCompatAudit, runCompatAuditPreview } from "./handlers/compat-audit.js";
+import { processSiblingScanRequests } from "./handlers/sibling-scan.js";
+import { handlePathTest, handleDirBrowse } from "./handlers/path-tools.js";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -270,115 +275,10 @@ async function sendHeartbeat() {
   }
 
   if (response.commands) {
-    if (response.commands.abort_scan && isScanning) {
-      logger.info("Abort requested via heartbeat");
-      abortRequested = true;
-    }
-    if (!isScanning && response.commands.force_scan) {
-      const sessionId = response.commands.scan_session_id || undefined;
-      logger.info("Scan requested via heartbeat config sync", { sessionId });
-      runScan(sessionId).catch((e) => logger.error("Scan error", { error: (e as Error).message }));
-    }
-    if (response.commands.test_paths) {
-      handlePathTest(response.commands.test_paths).catch((e) =>
-        logger.error("Path test failed", { error: (e as Error).message })
-      );
-    }
-    if (response.commands.browse_dir) {
-      handleDirBrowse(response.commands.browse_dir as { request_id: string; path: string }).catch((e) =>
-        logger.error("Dir browse failed", { error: (e as Error).message })
-      );
-    }
-    if (response.commands.check_update) {
-      handleCheckUpdate().catch((e) =>
-        logger.error("Update check failed", { error: (e as Error).message })
-      );
-    }
-    if (response.commands.apply_update) {
-      handleApplyUpdate();
-    }
-    // PDF text sample
-    if (response.commands.trigger_pdf_text_sample && !isSamplingPdfText) {
-      const assets = (response.commands.pdf_text_sample_assets as PdfSampleAsset[]) || [];
-      isSamplingPdfText = true;
-      logger.info("PDF text sample requested via heartbeat", { count: assets.length });
-      runPdfTextSample(assets, config.nasContainerMountRoot, {
-        models: cloudAiModels,
-        pdf_extraction: cloudPdfExtractionConfig,
-        googleApiKey: cloudGoogleAiApiKey,
-        anthropicApiKey: cloudAnthropicApiKey,
-        openRouterApiKey: cloudOpenRouterApiKey,
-        aiTaskModels: cloudAiTaskModels,
-      }).finally(() => {
-        isSamplingPdfText = false;
-      });
-    }
-    // AI sentinel scan (fast header-only check per batch)
-    if (response.commands.trigger_ai_sentinel_scan && !isAiSentinelScanning) {
-      const assets = response.commands.ai_sentinel_scan_assets ?? [];
-      if (assets.length > 0) {
-        isAiSentinelScanning = true;
-        logger.info("AI sentinel scan batch requested via heartbeat", { count: assets.length });
-        runAiSentinelScan(assets, config.nasContainerMountRoot)
-          .finally(() => { isAiSentinelScanning = false; });
-      }
-    }
-    // Blank thumbnail cleanup
-    if (response.commands.trigger_blank_thumb_cleanup && !isBlankThumbCleanupRunning) {
-      const assets = response.commands.blank_thumb_cleanup_assets ?? [];
-      if (Array.isArray(assets) && assets.length > 0) {
-        logger.info("Blank thumbnail cleanup batch requested", { count: assets.length });
-        runBlankThumbCleanup(assets as Array<{ id: string; thumbnail_url: string; file_type: string; relative_path: string }>).catch((e) => {
-          logger.error("Blank thumbnail cleanup failed", { error: (e as Error).message });
-          isBlankThumbCleanupRunning = false;
-        });
-      }
-    }
-    // PDF backfill (self-driven claim loop — no asset list passed)
-    if (response.commands.trigger_pdf_backfill && !isPdfBackfilling) {
-      isPdfBackfilling = true;
-      logger.info("PDF backfill requested via heartbeat");
-      runPdfBackfill(config.nasContainerMountRoot, {
-        models: cloudAiModels,
-        pdf_extraction: cloudPdfExtractionConfig,
-        googleApiKey: cloudGoogleAiApiKey,
-        anthropicApiKey: cloudAnthropicApiKey,
-        openRouterApiKey: cloudOpenRouterApiKey,
-        aiTaskModels: cloudAiTaskModels,
-      }).catch((e) =>
-        logger.error("PDF backfill error", { error: (e as Error).message })
-      ).finally(() => {
-        isPdfBackfilling = false;
-      });
-    }
-    // Compat audit
-    if (response.commands.audit_compat_thumbnails && !isAuditingCompatThumbnails) {
-      isAuditingCompatThumbnails = true;
-      logger.info("Compat thumbnail audit requested via heartbeat");
-      runCompatAudit().finally(() => {
-        isAuditingCompatThumbnails = false;
-      });
-    }
-    // Compat audit preview (scan first batch only, no clearing)
-    if (response.commands.audit_compat_preview && !isPreviewingCompatThumbnails && !isAuditingCompatThumbnails) {
-      isPreviewingCompatThumbnails = true;
-      logger.info("Compat thumbnail preview requested via heartbeat");
-      runCompatAuditPreview().finally(() => {
-        isPreviewingCompatThumbnails = false;
-      });
-    }
-    // Style guide crawl
-    if (response.commands.trigger_style_guide_crawl && !isCrawlingStyleGuides) {
-      isCrawlingStyleGuides = true;
-      const roots = cloudStyleGuideRoots.length > 0 ? cloudStyleGuideRoots : [];
-      logger.info("Style guide crawl requested via heartbeat", { roots });
-      crawlStyleGuides(roots).finally(() => {
-        isCrawlingStyleGuides = false;
-      });
-    }
+    await dispatchCommands(response.commands, heartbeatCommandHandlers);
   }
 
-  processSiblingScanRequests().catch((e) =>
+  processSiblingScanRequests(() => cloudMountRoot || config.nasContainerMountRoot).catch((e) =>
     logger.error("Sibling scan processing failed", { error: (e as Error).message })
   );
 
@@ -398,6 +298,60 @@ async function sendHeartbeat() {
     }
   }
 }
+
+// ── Heartbeat command dispatch table (#234) ─────────────────────
+// Handlers live in commands/heartbeat-commands.ts; agent state stays here and
+// is exposed through accessors so the table reads/writes the same variables.
+const heartbeatCommandHandlers = createBridgeCommandHandlers({
+  flags: {
+    get isScanning() { return isScanning; },
+    set isScanning(v) { isScanning = v; },
+    get abortRequested() { return abortRequested; },
+    set abortRequested(v) { abortRequested = v; },
+    get isSamplingPdfText() { return isSamplingPdfText; },
+    set isSamplingPdfText(v) { isSamplingPdfText = v; },
+    get isAiSentinelScanning() { return isAiSentinelScanning; },
+    set isAiSentinelScanning(v) { isAiSentinelScanning = v; },
+    get isBlankThumbCleanupRunning() { return isBlankThumbCleanupRunning; },
+    set isBlankThumbCleanupRunning(v) { isBlankThumbCleanupRunning = v; },
+    get isPdfBackfilling() { return isPdfBackfilling; },
+    set isPdfBackfilling(v) { isPdfBackfilling = v; },
+    get isAuditingCompatThumbnails() { return isAuditingCompatThumbnails; },
+    set isAuditingCompatThumbnails(v) { isAuditingCompatThumbnails = v; },
+    get isPreviewingCompatThumbnails() { return isPreviewingCompatThumbnails; },
+    set isPreviewingCompatThumbnails(v) { isPreviewingCompatThumbnails = v; },
+    get isCrawlingStyleGuides() { return isCrawlingStyleGuides; },
+    set isCrawlingStyleGuides(v) { isCrawlingStyleGuides = v; },
+  },
+  logger,
+  runScan: (sessionId) => runScan(sessionId),
+  handlePathTest,
+  handleDirBrowse,
+  handleCheckUpdate: () => handleCheckUpdate(),
+  handleApplyUpdate: () => handleApplyUpdate(),
+  runPdfTextSample: (assets) => runPdfTextSample(assets, config.nasContainerMountRoot, {
+    models: cloudAiModels,
+    pdf_extraction: cloudPdfExtractionConfig,
+    googleApiKey: cloudGoogleAiApiKey,
+    anthropicApiKey: cloudAnthropicApiKey,
+    openRouterApiKey: cloudOpenRouterApiKey,
+    aiTaskModels: cloudAiTaskModels,
+  }),
+  runAiSentinelScan: (assets) => runAiSentinelScan(assets, config.nasContainerMountRoot),
+  runBlankThumbCleanup: (assets) => runBlankThumbCleanup(assets),
+  runPdfBackfill: () => runPdfBackfill(config.nasContainerMountRoot, {
+    models: cloudAiModels,
+    pdf_extraction: cloudPdfExtractionConfig,
+    googleApiKey: cloudGoogleAiApiKey,
+    anthropicApiKey: cloudAnthropicApiKey,
+    openRouterApiKey: cloudOpenRouterApiKey,
+    aiTaskModels: cloudAiTaskModels,
+  }),
+  runCompatAudit,
+  runCompatAuditPreview,
+  getStyleGuideRoots: () => cloudStyleGuideRoots,
+  crawlStyleGuides: (roots) => crawlStyleGuides(roots),
+});
 
 const HEARTBEAT_STAT_TIMEOUT_MS = 10_000;
 
@@ -1398,107 +1352,6 @@ async function processFile(file: FileCandidate) {
 
 // ── Sibling Scan Handler ─────────────────────────────────────────
 
-// ── Compat audit ────────────────────────────────────────────────────────────
-// Reads source AI files for all assets that currently have thumbnail_url set.
-// Checks each file for the /CompatibilityAlert marker (Illustrator saved without
-// PDF compatibility). Clears thumbnails for matches so the asset is re-queued
-// for proper rendering (Windows Render Agent / Inkscape path).
-
-async function runCompatAudit(): Promise<void> {
-  logger.info("Starting compat thumbnail audit (OCR-based)");
-  let afterId: string | null = null;
-  let totalScanned = 0;
-  let totalCleared = 0;
-
-  const worker = await createCompatAuditWorker();
-  try {
-    while (true) {
-      const { assets, batch_size } = await api.getCompatAuditBatch(afterId);
-      if (!assets || assets.length === 0) break;
-
-      const badIds: string[] = [];
-
-      for (const asset of assets) {
-        totalScanned++;
-        if (!asset.thumbnail_url) continue;
-        const isPlaceholder = await isCompatAlertThumbnail(asset.thumbnail_url, worker);
-        if (isPlaceholder) {
-          badIds.push(asset.id);
-          logger.info("Compat audit: flagging placeholder thumbnail", { path: asset.relative_path });
-        }
-      }
-
-      if (badIds.length > 0) {
-        await api.clearCompatThumbnails(badIds);
-        totalCleared += badIds.length;
-        logger.info("Compat audit: cleared placeholder thumbnails", { cleared: badIds.length, cumulative: totalCleared });
-      }
-
-      if (assets.length < batch_size) break; // last page
-      afterId = assets[assets.length - 1].id;
-    }
-
-    logger.info("Compat thumbnail audit complete", { scanned: totalScanned, cleared: totalCleared });
-    await api.completeCompatAudit(totalScanned, totalCleared);
-  } catch (e) {
-    const msg = (e as Error).message;
-    logger.error("Compat thumbnail audit failed", { error: msg, scanned: totalScanned, cleared: totalCleared });
-    await api.completeCompatAudit(totalScanned, totalCleared, msg).catch(() => {});
-  } finally {
-    await worker.terminate();
-  }
-}
-
-// ── Compat audit preview ─────────────────────────────────────────────────────
-// Scans ALL AI assets across all batches and reports which are flagged as
-// compatibility-alert placeholders — WITHOUT clearing anything.
-// Uses Tesseract OCR on each stored thumbnail to detect the warning page
-// visually, so it only flags thumbnails that *actually look wrong* regardless
-// of what the source .ai file contains.
-// Sends live progress after each batch so the UI can show thumbnails as they
-// accumulate. Lets the admin visually confirm every affected asset before
-// committing to the destructive full audit.
-
-async function runCompatAuditPreview(): Promise<void> {
-  logger.info("Starting compat thumbnail preview (OCR-based, all batches, no clearing)");
-  let afterId: string | null = null;
-  let totalScanned = 0;
-  const allFlagged: api.CompatAuditPreviewFlagged[] = [];
-
-  const worker = await createCompatAuditWorker();
-  try {
-    while (true) {
-      const { assets, batch_size } = await api.getCompatAuditBatch(afterId);
-      if (!assets || assets.length === 0) break;
-
-      for (const asset of assets) {
-        totalScanned++;
-        if (!asset.thumbnail_url) continue;
-        const isPlaceholder = await isCompatAlertThumbnail(asset.thumbnail_url, worker);
-        if (isPlaceholder) {
-          allFlagged.push({ id: asset.id, thumbnail_url: asset.thumbnail_url, relative_path: asset.relative_path });
-          logger.info("Compat preview: flagged placeholder", { path: asset.relative_path });
-        }
-      }
-
-      // Report incremental progress after each batch so the UI updates live
-      await api.updateCompatAuditPreview(totalScanned, allFlagged).catch(() => {});
-
-      if (assets.length < batch_size) break; // last page
-      afterId = assets[assets.length - 1].id;
-    }
-
-    logger.info("Compat thumbnail preview complete", { scanned: totalScanned, flagged: allFlagged.length });
-    await api.completeCompatAuditPreview(totalScanned, allFlagged);
-  } catch (e) {
-    const msg = (e as Error).message;
-    logger.error("Compat thumbnail preview failed", { error: msg, scanned: totalScanned });
-    await api.completeCompatAuditPreview(totalScanned, allFlagged, msg).catch(() => {});
-  } finally {
-    await worker.terminate();
-  }
-}
-
 async function runBlankThumbCleanup(
   assets: Array<{ id: string; thumbnail_url: string; file_type: string; relative_path: string }>
 ): Promise<void> {
@@ -1522,213 +1375,6 @@ async function runBlankThumbCleanup(
     await api.completeBlankThumbCleanup(results);
   } finally {
     isBlankThumbCleanupRunning = false;
-  }
-}
-
-let siblingScanInProgress = false;
-
-const SIBLING_SCAN_CONCURRENCY = 4;
-
-async function executeSiblingScan(request: api.SiblingScanRequest): Promise<void> {
-  const effectiveMountRoot = (cloudMountRoot || config.nasContainerMountRoot).replace(/\/+$/, "");
-  const folderPath = request.folder_path.replace(/^\/+/, "").replace(/\/+$/, "");
-  const absoluteFolder = `${effectiveMountRoot}/${folderPath}`;
-
-  const { resolve } = await import("node:path");
-  const resolved = resolve(absoluteFolder);
-  if (!resolved.startsWith(resolve(effectiveMountRoot))) {
-    logger.error("Sibling scan path traversal blocked", { requested: absoluteFolder, resolved });
-    await api.completeSiblingScan(request.request_id, "failed", [], "Path traversal detected — folder is outside allowed mount root");
-    return;
-  }
-
-  try {
-    const s = await stat(resolved);
-    if (!s.isDirectory()) {
-      await api.completeSiblingScan(request.request_id, "failed", [], `Path exists but is not a directory: ${folderPath}`);
-      return;
-    }
-  } catch (e) {
-    const code = (e as NodeJS.ErrnoException).code;
-    const msg = code === "ENOENT" ? `Folder not found: ${folderPath}` : code === "EACCES" ? `Permission denied: ${folderPath}` : `Cannot access folder: ${(e as Error).message}`;
-    logger.warn("Sibling scan folder inaccessible", { folder: folderPath, error: msg });
-    await api.completeSiblingScan(request.request_id, "failed", [], msg);
-    return;
-  }
-
-  const entries = await readdir(resolved, { withFileTypes: true });
-  const extensions = new Set((request.extensions || [".jpg", ".jpeg", ".png"]).map(e => e.toLowerCase()));
-  const images: api.SiblingImageResult[] = [];
-
-  for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    const ext = "." + entry.name.split(".").pop()?.toLowerCase();
-    if (!extensions.has(ext)) continue;
-    if (ext === ".pdf" && !isPdfCandidate(entry.name)) continue;
-
-    try {
-      const filePath = `${resolved}/${entry.name}`;
-      const fileStat = await stat(filePath);
-      const result: api.SiblingImageResult = {
-        filename: entry.name,
-        relative_path: `${folderPath}/${entry.name}`,
-        file_size: fileStat.size,
-      };
-
-      try {
-        let buffer: Buffer;
-        if (ext === ".pdf") {
-          const thumbResult = await generateThumbnail(filePath, "pdf");
-          buffer = thumbResult.buffer;
-        } else {
-          const sharp = (await import("sharp")).default;
-          buffer = await sharp(filePath)
-            .flatten({ background: "#ffffff" })
-            .resize(400, 400, { fit: "inside", withoutEnlargement: true })
-            .jpeg({ quality: 75 })
-            .toBuffer();
-        }
-        const { createHash } = await import("node:crypto");
-        const pathHash = createHash("md5").update(result.relative_path).digest("hex");
-        const { uploadSiblingThumbnail } = await import("./uploader.js");
-        result.thumbnail_url = await uploadSiblingThumbnail(pathHash, buffer);
-      } catch (thumbErr) {
-        logger.warn("Sibling thumbnail generation failed", { file: entry.name, error: (thumbErr as Error).message });
-      }
-
-      images.push(result);
-    } catch {
-      // Skip files we can't stat
-    }
-  }
-
-  await api.completeSiblingScan(request.request_id, "completed", images);
-  logger.info("Sibling scan completed", { requestId: request.request_id, folder: folderPath, imageCount: images.length });
-}
-
-async function processSiblingScanRequests() {
-  if (siblingScanInProgress) return;
-  siblingScanInProgress = true;
-
-  try {
-    // Claim up to SIBLING_SCAN_CONCURRENCY requests at once, process in parallel,
-    // then repeat until the queue is empty.
-    while (true) {
-      const claims = await Promise.all(
-        Array.from({ length: SIBLING_SCAN_CONCURRENCY }, () => api.claimSiblingScan())
-      );
-      const requests = Array.from(
-        new Map(
-          claims
-            .filter((r): r is api.SiblingScanRequest => r !== null)
-            .map((r) => [r.request_id, r])
-        ).values()
-      );
-      if (requests.length === 0) break;
-
-      logger.info(`Sibling scan: processing ${requests.length} folders in parallel`);
-      await Promise.all(requests.map(async (r) => {
-        try {
-          await executeSiblingScan(r);
-        } catch (e) {
-          const message = (e as Error).message;
-          logger.error("Sibling scan worker error", { requestId: r.request_id, error: message });
-          try {
-            await api.completeSiblingScan(r.request_id, "failed", [], `Bridge Agent error: ${message}`);
-          } catch (completeErr) {
-            logger.error("Failed to report sibling scan failure", {
-              requestId: r.request_id,
-              error: (completeErr as Error).message,
-            });
-          }
-        }
-      }));
-    }
-  } catch (e) {
-    logger.error("Sibling scan error", { error: (e as Error).message });
-  } finally {
-    siblingScanInProgress = false;
-  }
-}
-
-// ── Path Test Handler ────────────────────────────────────────────
-
-async function handlePathTest(cmd: { request_id: string; container_mount_root: string; scan_roots: string[] }) {
-  logger.info("Path test requested", { requestId: cmd.request_id });
-
-  let mountRootValid = false;
-  try {
-    const s = await stat(cmd.container_mount_root);
-    mountRootValid = s.isDirectory();
-  } catch { /* not found */ }
-
-  const scanRootResults: Array<{ path: string; valid: boolean; file_count?: number; error?: string }> = [];
-  for (const root of cmd.scan_roots) {
-    try {
-      const s = await stat(root);
-      if (!s.isDirectory()) {
-        scanRootResults.push({ path: root, valid: false, error: "exists but is not a directory" });
-        continue;
-      }
-      const entries = await readdir(root);
-      scanRootResults.push({ path: root, valid: true, file_count: entries.length });
-    } catch (e) {
-      const code = (e as NodeJS.ErrnoException).code;
-      scanRootResults.push({ path: root, valid: false, error: code === "ENOENT" ? "not found" : code === "EACCES" ? "permission denied" : String(e) });
-    }
-  }
-
-  await api.reportPathTest(cmd.request_id, {
-    mount_root_valid: mountRootValid,
-    scan_root_results: scanRootResults,
-  });
-
-  logger.info("Path test completed", { mountRootValid, scanRootResults });
-}
-
-async function handleDirBrowse(cmd: { request_id: string; path: string }) {
-  const target = cmd.path.trim();
-  logger.info("Dir browse requested", { requestId: cmd.request_id, path: target });
-
-  try {
-    let entries: api.DirEntry[];
-
-    if (!target) {
-      // Empty path → list scan roots
-      const scanRootsCfg = config.scanRoots ?? [];
-      entries = await Promise.all(
-        scanRootsCfg.map(async (root: string) => {
-          try {
-            const s = await stat(root);
-            return { name: root, is_dir: s.isDirectory() };
-          } catch {
-            return { name: root, is_dir: true };
-          }
-        })
-      );
-    } else {
-      const rawEntries = await readdir(target, { withFileTypes: true });
-      entries = await Promise.all(
-        rawEntries.map(async (e) => {
-          const entry: api.DirEntry = { name: e.name, is_dir: e.isDirectory() };
-          if (!e.isDirectory()) {
-            try {
-              const s = await stat(`${target}/${e.name}`);
-              entry.size = s.size;
-              entry.modified = s.mtime.toISOString();
-            } catch { /* skip */ }
-          }
-          return entry;
-        })
-      );
-    }
-
-    await api.reportDirBrowse(cmd.request_id, target, entries);
-    logger.info("Dir browse completed", { path: target, count: entries.length });
-  } catch (e) {
-    const msg = (e as NodeJS.ErrnoException).message ?? String(e);
-    logger.warn("Dir browse failed", { path: target, error: msg });
-    await api.reportDirBrowse(cmd.request_id, target, []);
   }
 }
 

@@ -33,6 +33,9 @@ import { runPdfBackfill } from "./pdf-backfill";
 import { runStyleGuidePdfBackfill } from "./style-guide-pdf-backfill";
 import { assertSafeRelativePath } from "./path-containment";
 import { createCompatAuditWorker, runCompatAudit, runCompatAuditPreview } from "./compat-audit";
+import { dispatchCommands } from "./commands/dispatch";
+import { createWindowsCommandHandlers } from "./commands/heartbeat-commands";
+import { handleDirBrowse } from "./handlers/dir-browse";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -330,6 +333,66 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
   }
 }
 
+// ── Heartbeat command dispatch table (#234) ─────────────────────
+// Handlers live in commands/heartbeat-commands.ts; agent state stays here and
+// is exposed through accessors so the table reads/writes the same variables.
+const heartbeatCommandHandlers = createWindowsCommandHandlers({
+  flags: {
+    get isSamplingPdfText() { return isSamplingPdfText; },
+    set isSamplingPdfText(v) { isSamplingPdfText = v; },
+    get isBackfillingPdfText() { return isBackfillingPdfText; },
+    set isBackfillingPdfText(v) { isBackfillingPdfText = v; },
+    get isBackfillingSgPdfText() { return isBackfillingSgPdfText; },
+    set isBackfillingSgPdfText(v) { isBackfillingSgPdfText = v; },
+    get isRunningCompatAudit() { return isRunningCompatAudit; },
+    set isRunningCompatAudit(v) { isRunningCompatAudit = v; },
+    get isRunningCompatAuditPreview() { return isRunningCompatAuditPreview; },
+    set isRunningCompatAuditPreview(v) { isRunningCompatAuditPreview = v; },
+    get stopAcceptingJobs() { return stopAcceptingJobs; },
+    set stopAcceptingJobs(v) { stopAcceptingJobs = v; },
+    get activeJobs() { return activeJobs; },
+  },
+  logger,
+  runPdfTextSample: (assets) => {
+    const mountRoot = cloudNasMountPath.trim() || `\\\\${cloudNasHost}\\${cloudNasShare}`;
+    return runPdfTextSample(assets, mountRoot, {
+      models: cloudAiModels,
+      pdf_extraction: cloudPdfExtractionConfig,
+      googleApiKey: cloudGoogleAiApiKey,
+      anthropicApiKey: cloudAnthropicApiKey,
+      openRouterApiKey: cloudOpenRouterApiKey,
+      aiTaskModels: cloudAiTaskModels,
+    });
+  },
+  runPdfBackfill: () => {
+    const mountRoot = cloudNasMountPath.trim() || `\\\\${cloudNasHost}\\${cloudNasShare}`;
+    return runPdfBackfill(mountRoot, {
+      models: cloudAiModels,
+      pdf_extraction: cloudPdfExtractionConfig,
+      googleApiKey: cloudGoogleAiApiKey,
+      anthropicApiKey: cloudAnthropicApiKey,
+      openRouterApiKey: cloudOpenRouterApiKey,
+      aiTaskModels: cloudAiTaskModels,
+    });
+  },
+  runStyleGuidePdfBackfill: () => runStyleGuidePdfBackfill(agentId, toSgUncPath, {
+    models: cloudAiModels,
+    pdf_extraction: cloudPdfExtractionConfig,
+    googleApiKey: cloudGoogleAiApiKey,
+    anthropicApiKey: cloudAnthropicApiKey,
+    openRouterApiKey: cloudOpenRouterApiKey,
+    aiTaskModels: cloudAiTaskModels,
+  }),
+  triggerImmediateUpdate: (force) => (force ? triggerImmediateUpdate(agentId, true) : triggerImmediateUpdate(agentId)),
+  forceRestart: () => process.exit(RESTART_EXIT_CODE),
+  waitForIdleThenRestart: () => waitForIdleThenRestart(),
+  setPairingCode: (code) => { (config as Record<string, unknown>).pairingCode = code; },
+  doPairing: () => doPairing(),
+  runCompatAudit: () => runCompatAudit(),
+  runCompatAuditPreview: () => runCompatAuditPreview(),
+  handleDirBrowse: (cmd) => handleDirBrowse(cmd, () => (cloudNasMountPath || "").trim() || `\\\\${cloudNasHost}\\${cloudNasShare}`),
+});
+
 function startHeartbeat() {
   const HEARTBEAT_MS = 30_000;
   const loop = async () => {
@@ -346,135 +409,7 @@ function startHeartbeat() {
       applyCloudConfig(response);
       consecutiveHeartbeatFailures = 0;
 
-      // PDF text extraction sample
-      if (response.commands?.trigger_pdf_text_sample && !isSamplingPdfText) {
-        const assets = (response.commands.pdf_text_sample_assets as PdfSampleAsset[]) || [];
-        const mountRoot = cloudNasMountPath.trim() || `\\\\${cloudNasHost}\\${cloudNasShare}`;
-        isSamplingPdfText = true;
-        logger.info("PDF text sample requested via heartbeat", { count: assets.length });
-        runPdfTextSample(assets, mountRoot, {
-          models: cloudAiModels,
-          pdf_extraction: cloudPdfExtractionConfig,
-          googleApiKey: cloudGoogleAiApiKey,
-          anthropicApiKey: cloudAnthropicApiKey,
-          openRouterApiKey: cloudOpenRouterApiKey,
-          aiTaskModels: cloudAiTaskModels,
-        }).finally(() => {
-          isSamplingPdfText = false;
-        });
-      }
-
-      // Full-library PDF/.ai backfill (self-driven claim loop — no asset list passed).
-      // Runs the entire mupdf→OCR→AI extraction on this Windows VM so the load stays off
-      // the Synology. runPdfBackfill never throws; the finally just clears the guard.
-      if (
-        response.commands?.trigger_pdf_backfill &&
-        !isBackfillingPdfText &&
-        !isBackfillingSgPdfText &&
-        !isSamplingPdfText &&
-        !isRunningCompatAudit &&
-        !isRunningCompatAuditPreview &&
-        activeJobs === 0
-      ) {
-        const mountRoot = cloudNasMountPath.trim() || `\\\\${cloudNasHost}\\${cloudNasShare}`;
-        isBackfillingPdfText = true;
-        logger.info("PDF backfill requested via heartbeat");
-        runPdfBackfill(mountRoot, {
-          models: cloudAiModels,
-          pdf_extraction: cloudPdfExtractionConfig,
-          googleApiKey: cloudGoogleAiApiKey,
-          anthropicApiKey: cloudAnthropicApiKey,
-          openRouterApiKey: cloudOpenRouterApiKey,
-          aiTaskModels: cloudAiTaskModels,
-        }).catch((e) => logger.error("PDF backfill error", { error: (e as Error).message })).finally(() => {
-          isBackfillingPdfText = false;
-        });
-      }
-
-      if (
-        response.commands?.trigger_popsg_pdf_backfill &&
-        !isBackfillingPdfText &&
-        !isBackfillingSgPdfText &&
-        !isSamplingPdfText &&
-        !isRunningCompatAudit &&
-        !isRunningCompatAuditPreview &&
-        activeJobs === 0
-      ) {
-        isBackfillingSgPdfText = true;
-        logger.info("PopSG PDF extraction requested via heartbeat");
-        runStyleGuidePdfBackfill(agentId, toSgUncPath, {
-          models: cloudAiModels,
-          pdf_extraction: cloudPdfExtractionConfig,
-          googleApiKey: cloudGoogleAiApiKey,
-          anthropicApiKey: cloudAnthropicApiKey,
-          openRouterApiKey: cloudOpenRouterApiKey,
-          aiTaskModels: cloudAiTaskModels,
-        }).catch((e) => logger.error("PopSG PDF extraction error", { error: (e as Error).message })).finally(() => {
-          isBackfillingSgPdfText = false;
-        });
-      }
-
-      // Check if cloud requests immediate update (standard — respects idle check)
-      if (response.commands?.trigger_update) {
-        logger.info("Cloud requested immediate update check");
-        triggerImmediateUpdate(agentId).catch((e) => logger.error("Triggered update failed", { error: (e as Error).message }));
-      }
-
-      // Force apply update — bypass activeJobs guard
-      if (response.commands?.force_apply_update) {
-        logger.info("Cloud requested force update — bypassing active-jobs guard");
-        triggerImmediateUpdate(agentId, true).catch((e) => logger.error("Force update failed", { error: (e as Error).message }));
-      }
-
-      // Force restart — exit immediately, launcher restarts us
-      if (response.commands?.force_restart) {
-        logger.info("Cloud requested force restart — exiting now");
-        process.exit(RESTART_EXIT_CODE);
-      }
-
-      // Force stop jobs — stop claiming, drain current jobs, then restart
-      if (response.commands?.force_stop_jobs) {
-        logger.info("Cloud requested stop — halting job claims and draining");
-        stopAcceptingJobs = true;
-        waitForIdleThenRestart();
-      }
-
-      // Remote re-pairing — cloud sent a new pairing code
-      if (response.commands?.repair_pairing_code) {
-        const code = response.commands.repair_pairing_code;
-        logger.info("Cloud sent repair pairing code — re-pairing agent");
-        try {
-          (config as Record<string, unknown>).pairingCode = code;
-          await doPairing();
-          logger.info("Agent re-paired successfully via remote repair");
-        } catch (pairErr) {
-          logger.error("Remote re-pairing failed", { error: (pairErr as Error).message });
-        }
-      }
-
-      // Compat thumbnail audit — OCR all AI thumbnails and clear placeholder ones
-      if (response.commands?.audit_compat_thumbnails && !isRunningCompatAudit) {
-        isRunningCompatAudit = true;
-        logger.info("Compat thumbnail audit requested via heartbeat");
-        runCompatAudit().finally(() => {
-          isRunningCompatAudit = false;
-        });
-      }
-
-      // Compat thumbnail preview — OCR all AI thumbnails, report flagged without clearing
-      if (response.commands?.audit_compat_preview && !isRunningCompatAuditPreview) {
-        isRunningCompatAuditPreview = true;
-        logger.info("Compat thumbnail preview requested via heartbeat");
-        runCompatAuditPreview().finally(() => {
-          isRunningCompatAuditPreview = false;
-        });
-      }
-
-      if (response.commands?.browse_dir) {
-        handleDirBrowse(response.commands.browse_dir as { request_id: string; path: string }).catch((e) =>
-          logger.error("Dir browse failed", { error: (e as Error).message })
-        );
-      }
+      await dispatchCommands(response.commands, heartbeatCommandHandlers);
 
       logger.debug("Heartbeat sent");
     } catch (e) {
@@ -1252,45 +1187,6 @@ function startTiffReinspectPolling() {
 // ── Hygiene Scan Checker (AI Raster Inspection) ─────────────────
 
 let hygieneScanRunning = false;
-
-async function handleDirBrowse(cmd: { request_id: string; path: string }) {
-  const target = cmd.path.trim();
-  logger.info("Dir browse requested", { requestId: cmd.request_id, path: target });
-
-  try {
-    const { readdir, stat: fsStat } = await import("node:fs/promises");
-    let entries: api.DirEntry[];
-
-    if (!target) {
-      // Empty path → list the NAS mount root
-      const mountRoot = (cloudNasMountPath || "").trim() || `\\\\${cloudNasHost}\\${cloudNasShare}`;
-      const rawEntries = await readdir(mountRoot, { withFileTypes: true });
-      entries = rawEntries.map((e) => ({ name: e.name, is_dir: e.isDirectory() }));
-    } else {
-      const rawEntries = await readdir(target, { withFileTypes: true });
-      entries = await Promise.all(
-        rawEntries.map(async (e) => {
-          const entry: api.DirEntry = { name: e.name, is_dir: e.isDirectory() };
-          if (!e.isDirectory()) {
-            try {
-              const s = await fsStat(path.join(target, e.name));
-              entry.size = s.size;
-              entry.modified = s.mtime.toISOString();
-            } catch { /* skip */ }
-          }
-          return entry;
-        }),
-      );
-    }
-
-    await api.reportDirBrowse(cmd.request_id, target, entries);
-    logger.info("Dir browse completed", { path: target, count: entries.length });
-  } catch (e) {
-    const msg = (e as NodeJS.ErrnoException).message ?? String(e);
-    logger.warn("Dir browse failed", { path: target, error: msg });
-    await api.reportDirBrowse(cmd.request_id, target, []);
-  }
-}
 
 function startHygieneScanChecker() {
   const CHECK_MS = 30_000;
