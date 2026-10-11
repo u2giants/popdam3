@@ -12,6 +12,8 @@
  * bridge agent uses — so no extra worker env vars are required.
  */
 
+import { Readable } from "node:stream";
+import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { db } from "../supabase.js";
 import { logger } from "../logger.js";
@@ -65,7 +67,7 @@ async function loadSpacesCfg(): Promise<SpacesCfg | null> {
 }
 
 /** Parse the download page for the newest SeaDrive version + installer URLs. */
-function parseDownloadPage(html: string): { version: string; mac: string | null; win: string | null } | null {
+export function parseDownloadPage(html: string): { version: string; mac: string | null; win: string | null } | null {
   const urls = Array.from(
     html.matchAll(/https?:\/\/[^\s"'<>]*\/seadrive-(\d+\.\d+\.\d+)[^\s"'<>]*\.(pkg|msi)/gi),
   ).map((m) => ({ url: m[0], version: m[1], ext: m[2].toLowerCase() }));
@@ -94,20 +96,59 @@ async function mirrorOne(
   version: string,
 ): Promise<string> {
   const res = await fetch(sourceUrl, { signal: AbortSignal.timeout(INSTALLER_FETCH_TIMEOUT_MS) });
-  if (!res.ok) throw new Error(`download ${sourceUrl} failed (${res.status})`);
-  const body = Buffer.from(await res.arrayBuffer());
+  if (!res.ok || !res.body) throw new Error(`download ${sourceUrl} failed (${res.status})`);
+  // Stream the body straight into Spaces instead of buffering it whole (#199).
+  // The abort signal above also bounds the streamed transfer.
+  const length = Number(res.headers.get("content-length"));
+  if (!Number.isFinite(length) || length <= 0) {
+    await res.body.cancel().catch(() => {});
+    throw new Error(`download ${sourceUrl} has no content-length; cannot stream upload`);
+  }
   const objectKey = `${SPACES_PREFIX}/seadrive-${version}.${ext}`;
   await s3.send(
     new PutObjectCommand({
       Bucket: cfg.bucket,
       Key: objectKey,
-      Body: body,
+      Body: Readable.fromWeb(res.body as WebReadableStream),
+      ContentLength: length,
       ACL: "public-read",
       ContentType: ext === "pkg" ? "application/octet-stream" : "application/x-msi",
     }),
   );
-  logger.info("seadrive-mirror: uploaded", { objectKey, bytes: body.length });
+  logger.info("seadrive-mirror: uploaded", { objectKey, bytes: length });
   return `${cfg.baseUrl}/${objectKey}`;
+}
+
+export type InstallerUploader = (sourceUrl: string, ext: "pkg" | "msi", version: string) => Promise<string>;
+
+/**
+ * Mirror both platform installers. `mirrored` is true only when BOTH the macOS
+ * .pkg and Windows .msi were found and uploaded (#200), so a partial result is
+ * retried on the next run. A platform whose upload fails falls back to its
+ * official URL.
+ */
+export async function mirrorInstallers(
+  parsed: { version: string; mac: string | null; win: string | null },
+  upload: InstallerUploader,
+): Promise<{ macUrl: string | null; winUrl: string | null; mirrored: boolean }> {
+  const one = async (src: string | null, ext: "pkg" | "msi"): Promise<{ url: string | null; ok: boolean }> => {
+    if (!src) {
+      logger.warn("seadrive-mirror: installer missing from download page", { ext, version: parsed.version });
+      return { url: null, ok: false };
+    }
+    try {
+      return { url: await upload(src, ext, parsed.version), ok: true };
+    } catch (e) {
+      logger.error("seadrive-mirror: upload failed; falling back to official URL", {
+        ext,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return { url: src, ok: false };
+    }
+  };
+  const mac = await one(parsed.mac, "pkg");
+  const win = await one(parsed.win, "msi");
+  return { macUrl: mac.url, winUrl: win.url, mirrored: mac.ok && win.ok };
 }
 
 /**
@@ -170,19 +211,9 @@ async function runMirror(): Promise<void> {
         credentials: { accessKeyId: cfg.key, secretAccessKey: cfg.secret },
         forcePathStyle: false,
       });
-      try {
-        if (parsed.mac) macUrl = await mirrorOne(s3, cfg, parsed.mac, "pkg", parsed.version);
-        if (parsed.win) winUrl = await mirrorOne(s3, cfg, parsed.win, "msi", parsed.version);
-        mirrored = true;
-      } catch (e) {
-        // Fall back to the official source URLs if the mirror fails.
-        logger.error("seadrive-mirror: upload failed; falling back to official URLs", {
-          error: e instanceof Error ? e.message : String(e),
-        });
-        macUrl = parsed.mac;
-        winUrl = parsed.win;
-        mirrored = false;
-      }
+      ({ macUrl, winUrl, mirrored } = await mirrorInstallers(parsed, (src, ext, version) =>
+        mirrorOne(s3, cfg, src, ext, version),
+      ));
     } else {
       logger.warn("seadrive-mirror: Spaces config missing; recording official URLs only");
     }
