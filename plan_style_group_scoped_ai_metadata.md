@@ -5,22 +5,22 @@ Registered handoff: [`HANDOFF.d/2026-08-24T1402Z-hetz-codex-scoped-ai-metadata-p
 
 ## STATUS — read this first
 
-**Updated October 11, 2026.** Fresh sessions start at **Step 8: refresh current pilot and protected-job state**, after reconfirming current Step 7 filtering acceptance rather than assuming old timeout findings still apply. At the end of every phase, re-read every downstream phase through Step 10, report any assumption/interface/file-name drift, and update this plan before cutting context. Do not re-derive completed steps.
+**Updated October 11, 2026.** Fresh sessions start at **Step 8: refresh current pilot and protected-job state**, after reconfirming current Step 7 filtering acceptance rather than assuming old timeout findings still apply. At the end of every phase, re-read every downstream phase through Step 10 and ALL following tests, constraints, access, definition-of-done, risks, rollback and self-audit sections through PLAN-END, report any assumption/interface/file-name drift, and update this plan before cutting context. Do not re-derive completed steps.
 
 | Step | Status | Date | Evidence / next action |
 |---|---|---|---|
 | 1. Reconfirm baseline and capture fixtures | ✅ complete | 2026-08-25 | Grok REVISE findings corrected: exact SQL is committed, the two zero-size groups are labeled as a derived historical residual, the unavailable pre-normalization manual-array measure is disclosed, and the tautological collision test is replaced by a real atomic-writer test. |
 | 2. Land the governed shared-db contract | ✅ complete | 2026-08-25 | `u2giants/shared-db#1427` closed after PRs #1444/#1462/#1473/#1476/#1482/#1486; production ledger `20260825041343` + `20260825082910` and live catalog/RPC/trigger evidence verified on `qsllyeztdwjgirsysgai`. |
-| 3. Add typed scope/category policy and structured contracts | ✅ complete | 2026-08-26 | Typed shared policy and both contracts are implemented and validated. GLM's focused correction review returned APPROVE after the three requested fixes. Shared-db #1498 is production-complete at migration `20260825165139`; #1597 / PR #1604 is merged at `7da455b1ce7444f864f899d75007510c0ee21dd2`, and production ledger `20260826144047` was independently verified. Land this reviewed increment, then start Step 4. |
+| 3. Add typed scope/category policy and structured contracts | ✅ complete | 2026-08-26 | Typed shared policy and both contracts are implemented and validated. GLM's focused correction review returned APPROVE after the three requested fixes. Shared-db #1498 is production-complete at migration `20260825165139`; #1597 / PR #1604 is merged at `7da455b1ce7444f864f899d75007510c0ee21dd2`, and production ledger `20260826144047` was independently verified. The then-required landing/Step 4 continuation is historical and complete. |
 | 4. Build the Style Group profile pass | ✅ complete | 2026-08-26 | Representative selection (`bbc2a6e8`) is now consumed by `apps/worker/src/handlers/ai-style-group-profile.ts`: group-only contract vendored for the Railway image with a drift test, atomic two-source `replace_style_group_ai_profile` writer (authoritative first, then `group_ai`, both carrying the final description), foreign-evidence rejection, 0.85 / two-distinct-evidence promotion, actual downloaded-byte ceiling, restart-safe reuse of the existing `external_job` receipt gate, and `ai-tag-group-profiles` registered symmetrically in the worker, backend, and UI with an admin control. 96 worker tests, 181 root tests, lint (0 errors), and both builds passed. |
 | 5. Convert per-file tagging to asset-only visual analysis | ✅ complete | 2026-08-27 | Both writers share the atomic asset-only RPC; the Step 5 gate is now discharged by tests in `apps/worker/src/handlers/ai-tagging-scope.test.ts` covering the durable-batch writer, group-category rejection, manual survival, rejected tombstones, stale-AI replacement, sibling isolation on the three-file fixture, and provider fallback. Bake-off display now shows structured `tag (category)` from the stored `raw_output`. GLM's REVISE was fixed: contract assertions resolve the LIVE migration body via `apps/worker/src/handlers/live-migration-contract.ts` instead of pinning a superseded file, the identity-exclusion assertion is no longer tautological, and the untested searchability claim was withdrawn. GLM accepted all three fixes. |
 | 6. Replace propagation with group-metadata refresh | ✅ complete | 2026-08-27 | Legacy copying is gone: `supabase/functions/_shared/tag-propagation.ts` is deleted with no live caller. New canonical `refresh-group-metadata` (`apps/worker/src/handlers/group-metadata-refresh.ts` and the edge handler) reconciles authoritative group facts through the governed RPC and rebuilds the group search document, touching no asset row; `propagate-group-tags` survives as a deprecation-emitting alias so the capability is preserved. UI is re-worded to Refresh Group Metadata in both the group panel and admin. GLM returned APPROVE after fixes: profile eligibility now keys off `group_ai_description_source` rather than the RPC-stamped `group_ai_tagged_at` (a bulk refresh would otherwise have excluded most of the library from ever being profiled), `group_ai_tagged_at` is carried through the provenance restore, prior provenance is recorded on failure, and the authoritative source/model plus the comparison were centralized in the shared policy. The policy vendor drift test GLM identified as missing was added, not deferred. |
 | 7. Combine scopes in search and UI | 🟨 implemented; final pilot acceptance remains | 2026-10-11 | Scoped UI implementation is GLM-approved. `src/hooks/useAssets.ts` now sets EFFECTIVE_SCOPE_CONTRACT_READY = true; code records shared-db #2501 qualification and migration 20260911052640. The September 3 gated-off/count-timeout description is historical, not the current wiring. Reconfirm signed-in effective tag/licensor/property/mixed-filter rows, totals and facets as part of remaining live acceptance; this session did not rerun that full matrix. |
-| 8. Backfill safely and run a bounded production pilot | 🟨 partial; current pilot unaccepted | 2026-10-11 | Read-only production check: 28 current groups / 475 active assets / 468 previews; zero current profiles/accepted group tags and zero cohort file tags since September 23. October 2 wipe erased historical profiles; retention code already fixed in 67685c55, corroborated by latest #96 comment at 2:28 PM EDT. Governed #92 job recovery, re-profiling, file tagging and next-night persistence proof remain. Use SKU cohort in the current coordinator handoff, not retired group UUIDs or completed historical counters. |
+| 8. Backfill safely and run a bounded production pilot | 🟨 partial; current pilot unaccepted | 2026-10-11 | Dated read-only baseline before the later native file-tagging run: 28 groups / 475 active assets / 468 previews; zero current profiles/accepted group tags and zero cohort file tags since September 23. October 2 wipe erased historical profiles; retention code already fixed in 67685c55, corroborated by latest #96 comment at 2:28 PM EDT. Governed #92 job recovery, re-profiling, file tagging and next-night persistence proof remain. Use SKU cohort in the current coordinator handoff, not retired group UUIDs or completed historical counters. |
 | 9. Full rollout and exact-SHA verification | ⬜ open | 2026-10-11 | Blocked on usable Step 8 scorecard and Albert's business acceptance. No full rollout started by this verification. |
 | 10. Documentation, issue closure, and handoff retirement | ⬜ open | 2026-08-24 | Implement §9 Step 10 after production verification. |
 
-**Current continuation:** [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md); production findings in [#96](https://github.com/u2giants/popdam3/issues/96). Earlier baseline/implementation rows retain dated historical evidence; current retained profiles must be proved after re-profiling. No new retention implementation is required solely because the pre-fix cohort was wiped.
+**Current continuation:** [HANDOFF.d/2026-10-11T2300Z-hetz-codex-open-issues-coordinator-continuation.md](HANDOFF.d/2026-10-11T2300Z-hetz-codex-open-issues-coordinator-continuation.md); production findings in [#96](https://github.com/u2giants/popdam3/issues/96). Earlier baseline/implementation rows retain dated historical evidence; current retained profiles must be proved after re-profiling. No new retention implementation is required solely because the pre-fix cohort was wiped.
 
 **Historical filtering rationale:** the September 3 tag-count failures came from whole-set materialization in the counting path while bounded rows passed. Preserve separate/serialized expensive count and facet requests; the now-enabled contract is not permission to reintroduce wide counted reads.
 
@@ -49,7 +49,7 @@ PopDAM is POP Creations’ internal Digital Asset Manager for licensed consumer-
 
 - Repository: `u2giants/popdam3`
 - Normal local path: `/worksp/popdam`
-- App branch policy: direct, focused commits to `main`
+- App branch policy: isolated current-upstream worktree → feature branch/PR → actual checks and exact review → protected-main landing only after explicit tagging-owner main-merge/restart release
 - Web app: React/Vite/TypeScript under `src/`
 - Production UI: `https://dam.designflow.app`
 - PopSG sibling mode: `https://sg.designflow.app`; this plan must not change PopSG semantics
@@ -61,18 +61,18 @@ PopDAM is POP Creations’ internal Digital Asset Manager for licensed consumer-
 
 A **Style Group** represents one SKU and contains all related assets. An **asset** is one file. `asset_tags` currently stores normalized per-file tag rows and `assets.tags` is a trigger-maintained denormalized array used by filters.
 
-## 3. What triggered this work
+## 3. Historical August trigger — not current runtime status
 
 On 2026-08-23 Albert asked how AI tagging could work for all assets when some facts apply to every file in a Style Group—licensor, property, product type, product description, and product artwork—while other facts must remain file-specific—tech pack versus professional photograph, view, scene, and similar visual properties.
 
-Repository inspection confirmed that PopDAM already has a two-level foundation but still produces one flat AI tag list and relies on propagation from one primary asset. The current production behavior can be observed in either detail panel:
+Repository inspection confirmed that PopDAM already has a two-level foundation but still produces one flat AI tag list and relies on propagation from one primary asset. The pre-implementation August behavior was observed in the detail panels:
 
 1. Open `https://dam.designflow.app` and select a Style Group with multiple dissimilar member files, such as a tech pack, product photograph, and mockup.
 2. Open different files inside the group.
 3. The UI shows flat `assets.tags`; the group panel offers **Sync Tags to All Group Members**.
 4. Running the legacy propagation can apply group-looking tags or descriptions from the primary file to visually different siblings.
 
-This is a feature/data-quality workstream tracked by [issue #96](https://github.com/u2giants/popdam3/issues/96), not a currently declared production incident.
+This is a feature/data-quality workstream tracked by [issue #96](https://github.com/u2giants/popdam3/issues/96), the August investigation was not then a declared production incident. Current runtime/incident state and owner holds must be refreshed from the continuation and existing #96 owner; do not infer present safety from this historical statement.
 
 ## 4. Scope
 
@@ -103,11 +103,11 @@ This is a feature/data-quality workstream tracked by [issue #96](https://github.
 - Broad UI redesign outside the two detail panels and the existing AI-tagging/operations controls.
 - Direct production SQL, app-repo migrations, or any schema work outside `u2giants/shared-db`.
 
-## 5. Current state of the code and deployments
+## 5. Historical August code/deployment baseline — STATUS and continuation govern current state
 
 The investigation baseline is PopDAM `main` at `dfe25d6909809648218f3c54afd7909b70e1c641`, which matched `origin/main` when code inspection began on 2026-08-24. Concurrent work advanced `main` before publication; this plan package first landed as `cec4ce39`. A future implementer must fetch and drift-check the current head; do not assume either SHA remains current.
 
-What already exists:
+What existed at that historical baseline (the completed Steps 2–6 supersede the flat-contract, legacy-copy and manual-writer descriptions below):
 
 - The canonical tag schema returns a flat `tags: string[]` alongside `ai_description`, `scene_description`, and `content_type` in `supabase/functions/_shared/tag-asset-contract.js:18-52`.
 - The prompt explicitly mixes group-like product/property facts with file-like view, image category, style, motif, and color facts in `tag-asset-contract.js:123-168`.
@@ -119,13 +119,13 @@ What already exists:
 - The Style Group panel loads every member at `StyleGroupDetailPanel.tsx:517-529`, displays one selected file’s flat tags at `:1170-1205`, and displays its descriptions at `:1209-1260`.
 - Manual tag editing is currently inconsistent: `AssetDetailPanel.tsx:354-394` correctly writes `asset_tags` rows with `source = 'manual'`, while `StyleGroupDetailPanel.tsx:706-717` edits only the denormalized `assets.tags` array. The `asset_tags` sync trigger can later rebuild that array and erase the panel-only manual value. This divergence must be reconciled before any AI backfill.
 - The asset search fallback uses `cover_description`, `ai_description`, and `scene_description` at `src/hooks/useAssets.ts:41-67`; group fallback columns are defined at `src/hooks/useStyleGroups.ts:63-90`. Normal indexed search goes through shared-db search-document refresh functions.
-- Active [`plan_hybrid_search_rollout.md`](plan_hybrid_search_rollout.md), tracked by PopDAM issue #97, supersedes `docs/archive/fix_search.md` §§1–2 and owns tag/character-name search text, search-maintenance triggers, bounded refresh, and the embedding backfill. It overlaps this plan’s Step 2 on the same DAM search functions and `asset_tags` triggers. The two plans must share one orchestrator-owned final definition/order: scoped tag tables/status/backfill first, then final asset+group+character search builders/triggers, then exactly one embedding backfill. For tag/confidence extraction this plan supersedes `docs/archive/fix_search.md` §3a. Never ship competing `CREATE OR REPLACE` definitions or embed an intermediate corpus.
+- Active [`plan_hybrid_search_rollout.md`](plan_hybrid_search_rollout.md), tracked by PopDAM issue #97, supersedes `docs/archive/fix_search.md` §§1–2 and owns tag/character-name search text, search-maintenance triggers, bounded refresh, and the embedding backfill. It overlaps this plan’s Step 2 on the same DAM search functions and `asset_tags` triggers. The two plans must share one canonical issue-owned final definition/order: scoped tag tables/status/backfill first, then final asset+group+character search builders/triggers, then exactly one embedding backfill. For tag/confidence extraction this plan supersedes `docs/archive/fix_search.md` §3a. Never ship competing `CREATE OR REPLACE` definitions or embed an intermediate corpus.
 - The legacy Edge helper `supabase/functions/_shared/tag-propagation.ts:1-228` filters a hard-coded phrase denylist and copies selected fields/tags/characters to siblings. The active bulk worker calls the database RPC through `apps/worker/src/handlers/tag-propagation.ts:1-45`.
 - Bulk-operation conflict protection between AI tagging, group rebuild, and propagation exists in `apps/worker/src/operation-loop.ts` and `supabase/functions/_shared/operation-constants.ts`; it must evolve with the new operations rather than be removed.
 
 Exact live deployment of this planning baseline was not re-proven because this session changed documentation only. GitHub/Railway deployment evidence from other open handoffs must not be treated as proof for the eventual implementation. Step 9 requires exact-SHA production proof.
 
-## 6. Key findings and root cause
+## 6. Historical implementation findings and root cause — completed fixes remain binding
 
 1. **The output contract has no scope.** A string such as `backpack`, `Frozen`, `professional photography`, or `blue` carries no machine-readable statement about whether it belongs to the SKU or one file. The writer cannot make a safe propagation decision.
 2. **The propagation classification is an exact-text blacklist.** `supabase/functions/_shared/tag-propagation.ts:21-49` excludes a limited list. Current controlled prompt terms such as `professional photography`, `straight view`, `3/4 view`, `close-up view`, `lifestyle / in-use image`, `person holding item / size scale image`, and `embellishment placement design` are absent or not exact matches, so vocabulary drift can leak file facts across a group.
@@ -190,7 +190,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 - Fetch `origin/main`; inspect `git status --short --branch`, `git log -1`, active AI-tagging plans, and the current shared-db status. Preserve concurrent changes and use an isolated current worktree if the ordinary checkout is dirty.
 - Before dispatching either database Step 2, add reciprocal cross-links and the agreed schema/search/embedding order to this plan, `plan_hybrid_search_rollout.md` STATUS/current-state/Step 8 gate, and `HANDOFF.d/2026-08-27T2258Z-hetz-codex-hybrid-search-completion.md` in a coordinated documentation commit. The hybrid Step 8 gate must explicitly confirm that #96’s scoped tag/status contract has landed or been formally deferred before any corpus-wide embedding run. If another session owns the hybrid artifacts, coordinate rather than overwriting its concurrent edits. Neither plan may advance to shared-db dispatch while the other still describes an independent competing search migration.
 - Capture sanitized, repository-safe fixtures under `apps/worker/src/fixtures/ai-tagging-scope/` for at least three Style Groups, each containing dissimilar assets: tech pack + photograph + mockup; source art + product render; multiple character/color variants. Store IDs as synthetic UUIDs and image inputs as tiny synthetic fixtures or mocked image descriptors—never licensed artwork.
-- Add green characterization tests to `apps/worker/src/handlers/ai-tagging-scope.test.ts` that assert today’s flat-contract behavior and manual-collision behavior. Document scope separation as the known limitation; Step 3 changes/inverts those assertions once the typed contract exists. Never commit an intentionally red suite to direct-to-`main` CI.
+- Add green characterization tests to `apps/worker/src/handlers/ai-tagging-scope.test.ts` that assert today’s flat-contract behavior and manual-collision behavior. Document scope separation as the known limitation; Step 3 changes/inverts those assertions once the typed contract exists. Never commit an intentionally red suite to feature-branch CI.
 - Record read-only baseline counts in a dated file under `verification/ai-tagging-scope/<UTC>/baseline.md`: total non-deleted assets, thumbnail-backed assets, untagged assets, Style Groups, group-size distribution, AI/manual tag counts, and counts of known file-specific controlled phrases found on more than one sibling. Use only aggregate counts and synthetic examples; do not commit licensed filenames/content.
 
 **Dependencies:** none. This step is read-only except repository fixtures/tests. It can run while the shared-db issue is being triaged.
@@ -199,7 +199,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 #### Step 2 — Land the governed shared-db contract first
 
-**Route, do not self-author from the app session:** coordinate with `plan_hybrid_search_rollout.md`/PopDAM issue #97 before opening schema work. Cross-link #96 and #97. If #97 already has a shared-db `db-work` issue/branch, add these requirements to that orchestrator work rather than opening a competing function-replacement lane. Otherwise open one shared-db issue that names both PopDAM issues and the required ordered contract. The single shared-db orchestrator owns branch, timestamps, SQL, preview proof, PR, merge, production promotion approval, consumer sync, and canonical migration note. The required order is: (1) scoped tag/status/backfill objects, (2) one final deterministic search/maintenance definition containing active asset tags, active Style Group tags, and canonical character names, and only then (3) the hybrid plan’s single corpus embedding backfill.
+**Completed Step2 contract — verify, do not recreate:** current STATUS records this structural implementation as complete. Verify the actual current contract and coordinate #96/#97 before any new structural need. If a fresh shape change is genuinely required, claim exact objects on the existing canonical `popcre/shared-db` issue and use its current branch/PR/preview/guarded-promotion rules; no duplicate issue, separate orchestrator permission or app-side migration. Preserve ordered scoped metadata then final deterministic corpus maintenance, followed by the separately gated embedding backfill. Existing fixture/object details below explain historical acceptance, not permission to replay it.
 
 **Required logical objects:**
 
@@ -215,9 +215,9 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 **Dependencies:** Step 1 inventory informs fixture sizes. No dependent PopDAM code lands before this schema is merged/applied according to `/worksp/shared-db/AGENTS.md`.
 
-**Verification gate:** shared-db `scripts/check-sql.sh` passes; preview applies cleanly after immediate target proof; transaction-rolled-back fixture tests prove manual-wins behavior, candidate/rejected exclusion from search and `assets.tags`, active group tag inclusion in member search, asset-only tag isolation, character-name inclusion, idempotent replacement, group reassignment behavior, bounded refresh, and RLS/service-role access; the shared-db issue/PR cross-links PopDAM #96 and #97 and records the ordered final corpus definition; the merged migration and canonical app note are present on shared-db `main`; production application is performed only through the orchestrator’s current approval procedure and exact ledger/object checks are recorded; no hybrid embedding backfill has run against an intermediate corpus.
+**Verification gate:** shared-db `scripts/check-sql.sh` passes; preview applies cleanly after immediate target proof; transaction-rolled-back fixture tests prove manual-wins behavior, candidate/rejected exclusion from search and `assets.tags`, active group tag inclusion in member search, asset-only tag isolation, character-name inclusion, idempotent replacement, group reassignment behavior, bounded refresh, and RLS/service-role access; the shared-db issue/PR cross-links PopDAM #96 and #97 and records the ordered final corpus definition; the merged migration and canonical app note are present on shared-db `main`; production application is performed only through the existing canonical issue owner’s current approval procedure and exact ledger/object checks are recorded; no hybrid embedding backfill has run against an intermediate corpus.
 
-**End-of-phase drift gate and fresh-session cut:** re-read Steps 3–10, report/update any drift caused by the final database names or behavior, then use the `fresh-session` skill if context is crowded. The successor must confirm the merged database contract before editing app code.
+**End-of-phase drift gate and fresh-session cut:** re-read Steps 3–10 and all following sections through PLAN-END, report/update any drift caused by the final database names or behavior, then use the `fresh-session` skill if context is crowded. The successor must confirm the merged database contract before editing app code.
 
 #### Step 3 — Add one typed scope/category policy and two structured contracts
 
@@ -232,6 +232,8 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 **Dependencies:** Step 2’s exact database/RPC contract.
 
 **Verification gate:** root `npm test -- --run src/test/tag-asset-contract.test.ts src/test/tag-asset-gemini-schema.test.ts` and worker `npm test` pass. Tests reject a group-scoped category in an asset result, reject file-only categories in a group result, validate confidence/evidence, and prove manual/authoritative priority. No model-name branching is added.
+
+**End-of-Phase-A drift gate:** after Step 3, re-read every remaining phase and Steps 4–10 through final acceptance/rollback/retirement; report/update exact contract, file-name, interface and authority drift before continuing.
 
 ### Phase B — build group and asset writers
 
@@ -272,7 +274,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 - Change `apps/worker/src/handlers/tag-propagation.ts`, `supabase/functions/_shared/admin-handlers/tag-propagation-handlers.ts`, admin labels, and UI action semantics from copying primary tags to refreshing authoritative/group AI facts and search documents.
 - Keep the old `propagate-group-tags` operation key/API temporarily as a compatibility alias that invokes the safe refresh and emits a deprecation diagnostic; update its entries in `OP_LANES`, `OP_CONFLICTS`, `OP_ACTIONS`, labels, and admin handlers, and ensure it never copies asset rows. Add a new canonical `refresh-group-metadata` operation key.
-- Remove `supabase/functions/_shared/tag-propagation.ts` only after searches show no live import/caller and compatibility tests prove the alias. The shared-db orchestrator may retire `propagate_group_tags_batch` in a later additive migration after production has run one full cycle safely.
+- Remove `supabase/functions/_shared/tag-propagation.ts` only after searches show no live import/caller and compatibility tests prove the alias. The existing canonical exact-object issue owner may retire `propagate_group_tags_batch` in a later additive migration after production has run one full cycle safely.
 - Update conflict maps and progress terminology from “assets propagated” to “groups refreshed.” Preserve stop/resume/diagnostics capability.
 - Replace the panel button label and confirmation text. Do not silently remove the user’s ability to refresh a group.
 
@@ -303,18 +305,22 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 #### Step 8 — Backfill safely and run a bounded production pilot
 
-**Change/run:**
+**Current continuation gates:** refresh the existing 28-SKU pilot from the approved private worksheet; nightly group UUIDs and baseline hashes are not fixed identities or acceptance. The merged private baseline PR112 is custody of an actual count/hash worksheet, **not a completed quality scorecard**. Keep raw runtime/provider/asset-bearing identities, screenshots and recovery manifests in protected approved storage; public Git receives aggregate/synthetic evidence only. Existing file-tagging owner retains its active Contributor run and preview-recovery lane. Obtain its separate paid-lane release before profiling/recovery and explicit main/restart release before any landing or deployment; refresh runtime/cohort/checkpoint and exact operational review after every deployment change. Preserve Muse Spark 1.3 Contributor, force=false for the reviewed product canary, no substitution/fallback, manual identity and user-stop hold. Reconcile only independently reviewed protected #92 receipts; do not repeat completed schema backfills or retention implementation. Re-profile the currently absent products only through the exact reviewed canary/remainder gates, deliver the actual row-by-row scorecard and prove ordinary next-night retention.
+
+**Change/run (original pilot requirements, still acceptance criteria):**
 
 - Before every database write, prove the exact target by the current shared-db/application procedure and record the project ref without credentials.
 - Backfill existing rows non-destructively in the governed order: first reconcile manual-only `assets.tags` values into active manual `asset_tags` rows, then mark existing AI rows with `source = 'legacy_unscoped'`; manual rows retain ownership, legacy rows remain searchable during comparison, authoritative group facts are derived deterministically, rejected tombstones remain excluded, and no legacy text is automatically promoted to a group fact.
-- Select a bounded pilot of 20–50 Style Groups covering single/many assets, photos, source art, renders, tech packs, multiple characters/colorways, no thumbnails, and at least one large group. Use existing production assets only within approved internal systems; do not export licensed images to new services.
+- Reuse the approved fixed 28-SKU pilot and re-resolve current Style Group IDs by exact SKU; do not select a different cohort. Preserve its representative coverage criteria for single/many assets, photos, source art, renders, tech packs, characters/colorways and large groups. Use existing production assets only within approved internal systems; do not export licensed images to new services.
 - Run group profiling, then per-file tagging on the pilot. Store a before/after manifest of IDs and metadata hashes in protected operational evidence; commit only aggregate/synthetic results.
 - Human-review a fixed scorecard: zero file-category/view leakage across siblings; authoritative licensor/property/product facts unchanged; manual tags unchanged; candidate behavior correct; descriptions correctly separated; search finds all members via group terms and only relevant files via file terms; cost/latency within agreed existing tagging budget.
 - Do not delete legacy rows or run the whole library if any critical criterion fails. Fix, rerun the same pilot idempotently, and update this plan.
 
 **Dependencies:** Steps 2–7 deployed in correct order: schema first, then worker/API/UI.
 
-**Verification gate:** a dated `verification/ai-tagging-scope/<UTC>/pilot-summary.md` cites the exact deployed SHA, target proof, operation IDs, aggregate before/after queries, test assets by protected internal IDs only, screenshots, and every scorecard result. Critical acceptance is 100% for manual preservation, structured identity preservation, and zero cross-file leakage in the reviewed pilot; anything lower blocks Step 9.
+**Verification gate:** a dated aggregate/synthetic pilot summary links approved protected evidence and cites the exact deployed SHA, target proof, operation IDs, aggregate before/after queries, protected internal asset IDs and screenshots only inside approved private custody, plus every scorecard result. No raw IDs/runtime records or licensed images enter public Git. Critical acceptance is 100% for manual preservation, structured identity preservation, and zero cross-file leakage in the reviewed pilot; anything lower blocks Step 9.
+
+**Phase-end drift gate:** before leaving pilot Step 8, re-read Steps 9–10 and every downstream acceptance/rollback obligation; report/update runtime, model, owner-release, custody and interface drift. Before leaving rollout Step 9, re-read Step 10 through the final Definition of Done and retirement requirements. At final closure re-audit the entire plan and current continuation; unresolved proof remains on #96.
 
 #### Step 9 — Full rollout and exact-SHA verification
 
@@ -323,10 +329,10 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 - Roll out in resumable batches: deterministic group facts, group profiles, then asset visual passes. Use operation lanes/conflicts and restart-safe state. Never run legacy propagation concurrently.
 - Monitor completed/failed/unavailable counts, provider cost, retry/fallback rate, database errors/locks, search-refresh lag, and Railway restarts. Failure counters must reconcile to every attempted asset/group.
 - Keep `asset_tags.source = 'legacy_unscoped'` rows searchable only for the bounded transition window. After full coverage and review, run a preview/count-only cleanup, then remove or archive only those AI-owned legacy rows. Never delete manual rows or rejected tombstones.
-- Push focused PopDAM commits to `main`; verify GitHub CI, Railway worker deployment for the exact worker SHA, frontend image workflow, Coolify activation, and live build SHA/header at `dam.designflow.app`. A green Railway deployment proves worker only, not frontend.
+- Publish focused feature-branch pull requests, satisfy actual checks/exact independent review, and obtain explicit tagging-owner main-merge/ordinary-restart release before protected-main landing; verify GitHub CI, Railway worker deployment for the exact worker SHA, frontend image workflow, Coolify activation, and live build SHA/header at `dam.designflow.app`. A green Railway deployment proves worker only, not frontend.
 - Run bounded live smoke checks: group-term search, file-term search, group panel, two sibling asset panels, one no-preview asset, one manual edit, one candidate approval, and one safe re-tag.
 
-**Dependencies:** Step 8 acceptance.
+**Dependencies:** completed usable Step 8 scorecard and ordinary overnight retention, followed by Albert’s actual business acceptance; baseline publication and successful processing alone do not qualify. Exact technical actions remain AI-reviewed.
 
 **Verification gate:** CI is green for the exact commit; Railway and frontend/Coolify each prove the relevant exact SHA; production aggregates reconcile; no active legacy propagation operation exists; smoke evidence is stored under `verification/ai-tagging-scope/<UTC>/production.md`; and rollback remains possible until cleanup is separately proven.
 
@@ -338,11 +344,11 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 - Update this STATUS table after every executed step with artifact-backed evidence; do not leave pre-implementation claims marked current.
 - Add the canonical shared-db migration note and exact merged/apply evidence links.
 - Close issue #96 only after Definition of Done passes.
-- Delete `HANDOFF.d/2026-08-24T1402Z-hetz-codex-scoped-ai-metadata-plan.md` in the completion commit; git history retains it. Remove this plan’s active-router links only when work is genuinely complete or replace them with the durable topic-doc link.
+- Retire only the scoped historical August #96 predecessor if still present and all its obligations and successor-rule checks pass; git history preserves it. Never delete the current 17-issue campaign continuation while any campaign obligation remains open. Reconcile current continuation/router links. Remove this plan’s active-router links only when work is genuinely complete or replace them with the durable topic-doc link.
 
 **Dependencies:** Step 9.
 
-**Verification gate:** repo docs describe the same live behavior observed in production, issue #96 is closed with exact evidence, the open handoff is retired, git status is clean apart from separately owned work, and `origin/main` contains the completion commit.
+**Verification gate:** repo docs describe the same live behavior observed in production, issue #96 is closed with exact evidence, only the completed scoped historical #96 predecessor is retired if present, and the current campaign handoff is preserved while any campaign obligation remains open, git status is clean apart from separately owned work, and `origin/main` contains the completion commit.
 
 ## 10. Tests required
 
@@ -387,7 +393,7 @@ These decisions were made on 2026-08-24 from Albert’s requested semantics and 
 
 ### Shared-db verification
 
-The shared-db orchestrator must add SQL/fixture tests covering constraints, uniqueness, RLS/grants, atomic replacement, manual preservation, candidate exclusion, trigger refresh, search union, idempotency, and reassignment. Tests run in preview inside rollback transactions and cite their artifact; no bare row-count claim is acceptable.
+The existing canonical exact-object issue owner must add SQL/fixture tests covering constraints, uniqueness, RLS/grants, atomic replacement, manual preservation, candidate exclusion, trigger refresh, search union, idempotency, and reassignment. Tests run in preview inside rollback transactions and cite their artifact; no bare row-count claim is acceptable.
 
 ### Commands that must stay green
 
@@ -410,9 +416,9 @@ Run targeted tests during development, then all commands above before landing. U
 ## 11. Constraints, standing rules, and gotchas
 
 - Read the live repository `AGENTS.md`; it wins over this plan if operating rules change.
-- PopDAM app work lands on `main`; shared-db uses branch + PR through its single orchestrator.
+- PopDAM app work uses a current-upstream feature branch/PR with actual checks and exact review; protected-main landing/deployment waits for explicit tagging-owner restart-window release. Shared-db follows its current canonical claim-first route.
 - Do not create/edit PopDAM `supabase/migrations/` or the vendored `shared-db/` mirror. All structure originates in `/worksp/shared-db`.
-- Planning does not consume a shared-db lane. Implementation Step 2 must create a fresh structural issue and let the orchestrator route it; do not inherit another issue’s lane.
+- Planning does not consume a shared-db lane. Step 2 is complete; do not create replacement structural work. Any genuinely new structural requirement follows current canonical claim-first ownership on the applicable existing issue, without competing object claims.
 - Prove the database target immediately before every write. Never print secrets.
 - Never edit generated `src/integrations/supabase/types.ts`; the normal shared-db/application workflow regenerates it.
 - Preserve concurrent work: inspect status, use an isolated current worktree when needed, stage exact owned paths, and never broad-reset/pull/stage.
@@ -431,7 +437,7 @@ Verified while drafting on 2026-08-24:
 
 - GitHub CLI can read and create issues in `u2giants/popdam3`; issue #96 was created.
 - `/worksp/popdam` was clean on `main` and matched `origin/main` at `dfe25d69` before plan edits.
-- `/worksp/shared-db` was clean but 758 commits behind its `origin/main`; do not use that stale ordinary checkout for implementation. The orchestrator must start from a fresh current branch/worktree.
+- `/worksp/shared-db` was clean but 758 commits behind its `origin/main`; do not use that stale ordinary checkout for implementation. Any new canonical work must claim exact objects on its existing issue and use a fresh current-upstream dedicated worktree; no separate orchestrator permission.
 - Git committer identity was correctly configured for Albert.
 
 Not verified in this planning session and therefore must be checked live before use:
@@ -467,7 +473,7 @@ Local development and checks:
 - [ ] Focused commits are pushed under Albert’s identity; required CI is green.
 - [ ] Railway worker, frontend image/Coolify, and live site each prove their relevant exact SHA.
 - [ ] Full rollout counters reconcile and production smoke evidence is recorded.
-- [ ] Documentation matches live behavior; issue #96 is closed; this handoff is deleted when finished.
+- [ ] Documentation matches live behavior; issue #96 is closed; only the completed scoped historical #96 predecessor is retired if present after successor-rule proof; the current 17-issue campaign continuation remains while any campaign obligation is open.
 
 ### Principal risks and mitigations
 
@@ -490,7 +496,7 @@ Local development and checks:
 
 ### Genuine open questions and decision criteria
 
-No owner decision is required before implementation. The following are engineering measurements resolved by the pilot:
+No new technical approval question goes to Albert. His genuine business acceptance is required only after the completed usable pilot scorecard is delivered, before Step 9/#97 activation. The following are engineering measurements resolved by the pilot:
 
 - **Representative count:** choose the smallest number from 4–8 that captures file-family/content diversity without exceeding current image payload/provider limits.
 - **Automatic group-AI promotion:** the locked starting rule is confidence ≥0.85 plus evidence from at least two distinct assets. Tighten or disable auto-promotion if the pilot produces any critical false shared fact; never loosen it merely to increase coverage.
@@ -516,7 +522,7 @@ The read-only Kimi session `scoped-ai-metadata-plan-k3-audit`, pinned by the wra
 - It identified three non-blocking precision items now resolved here: extend the reciprocal coordination commit to the hybrid handoff and hybrid Step 8 embedding gate; mark `legacy_unscoped` rows explicitly active and align reconciliation order; state identity behavior after propagation retirement.
 - For identity behavior, this plan deliberately chooses physical ownership rather than Kimi’s suggested null-fill: grouped assets resolve licensor/property from the Style Group; ungrouped assets may use their own columns; refresh never copies group identity into member rows.
 
-Focused continuation verdict after re-reading the amendments: **APPROVE**, all three findings resolved, no unresolved objections. Kimi explicitly accepted the stricter no-copy identity design as coherent and complete. Implementation should begin in a fresh session at Step 1.
+Focused continuation verdict after re-reading the amendments: **APPROVE**, all three findings resolved, no unresolved objections. Kimi explicitly accepted the stricter no-copy identity design as coherent and complete. That August review recommended a fresh Step 1 start at the time; current continuation begins at Step 8 under STATUS and the linked current handoff.
 
 ## Mandatory plan self-audit
 

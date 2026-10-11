@@ -1,6 +1,6 @@
 # OpenRouter Batch Restart Recovery Implementation Plan
 
-Linked handoff: [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md)
+Linked handoff: [HANDOFF.d/2026-10-11T2300Z-hetz-codex-open-issues-coordinator-continuation.md](HANDOFF.d/2026-10-11T2300Z-hetz-codex-open-issues-coordinator-continuation.md)
 
 Tracking issue: [u2giants/popdam3#92](https://github.com/u2giants/popdam3/issues/92)
 
@@ -8,7 +8,7 @@ Tracking issue: [u2giants/popdam3#92](https://github.com/u2giants/popdam3/issues
 
 **Updated October 11, 2026.** The direct-Gemini path and subsequent crash/receipt recovery code have merged, including #317. The September “unshipped branch” and reset-contract blockers are superseded; do not repeat that shipment. This session inspected production state but submitted no paid batch and recovered no protected job.
 
-**Next session:** begin with Step 8: refresh current deployed code and protected job state, reconcile existing external jobs safely, then obtain the retained same-provider-ID restart/exactly-once proof. Follow current technical task/reviewer gates; paid work remains within verified owner authority. Read [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md) and current [#92](https://github.com/u2giants/popdam3/issues/92) comments. Evidence: [issue #143 closeout receipt](https://github.com/u2giants/popdam3/issues/143#issuecomment-6112766070); #92 latest acceptance comment October 11, 2026 at 11:58 AM EDT.
+**Next session:** begin with Step 8: refresh current deployed code and protected job state, reconcile existing external jobs safely, then obtain the retained same-provider-ID restart/exactly-once proof. Keep Muse Spark 1.3 Contributor selected, with no substitution or fallback. Obtain the existing tagging owner’s separate paid-lane and main-merge/restart releases before conflicting work; an idle sample or another deployment is not release. Revalidate actual runtime and frozen review inputs after any deployment change. Existing failed receipts may be read/reconciled only through their exact reviewed protected contract; preserve the explicit user-stop hold. Four failed GET receipts do not prove successful restart acceptance. No new paid batch or convenient model switch is authorized by this plan. Follow current technical task/reviewer gates. Read [HANDOFF.d/2026-10-11T2300Z-hetz-codex-open-issues-coordinator-continuation.md](HANDOFF.d/2026-10-11T2300Z-hetz-codex-open-issues-coordinator-continuation.md) and current [#92](https://github.com/u2giants/popdam3/issues/92) comments. Evidence: [issue #143 closeout receipt](https://github.com/u2giants/popdam3/issues/143#issuecomment-6112766070); #92 latest acceptance comment October 11, 2026 at 11:58 AM EDT.
 
 **Settled decision:** malformed batch answers use JSON repair on the SAME model; do not substitute a different model. Historical September implementation detail remains in the plan body for rationale, not as current deployment status.
 
@@ -104,15 +104,15 @@ Deployed and verified as of 2026-09-22:
   prove recovery. The final one used a public URL and established that the account's
   only advertised vision batch route rejects image input in its actual batch path.
 
-Half-done/gaps:
+Remaining acceptance and historical gaps:
 
 - Step 8 still lacks the required live same-ID-across-Railway-restart and
   exactly-once application artifact.
-- The remote WIP direct Gemini Batch alternative at
-  `/worksp/popdam-issue92-gemini-batch` commit `653cb150` passes its local tests/
+- **Historical September WIP, superseded by the merged implementation recorded in STATUS:** the remote direct Gemini Batch alternative at
+  [protected historical source worktree](https://github.com/u2giants/licensor-source-data/blob/main/outputs/popdam-pilot-baseline-20261011/continuation-custody.md#custody-30) commit `653cb150` passes its local tests/
   builds but is not shippable. A definitive provider POST rejection consumes the one-use receipt,
   and the current shared-db contract has no narrow safe reset for that known-not-
-  accepted outcome. The newest linked handoff lists every remaining review finding.
+  accepted outcome. Those WIP/reset-contract blockers are historical; do not resume or ship that branch. Current protected recovery and acceptance gates are in the linked continuation.
 - Production Image Tagging remains on Muse, not a batch route. Re-verify the exact
   saved model before acting because Settings can change it.
 
@@ -185,6 +185,8 @@ Half-done/gaps:
 - Single-asset batch: support consistently unless provider rejects one-request batches; then give a clear error requiring non-batch model, never silently change pricing/model.
 
 ## 9. The implementation plan
+
+Steps 1–7 and provider-route implementation in Step 9 retain dated implementation history; do not repeat completed work. Current remaining execution is Step 8 under the continuation’s exact ownership/review/runtime gates. At every phase or acceptance boundary, re-read **all remaining phases and steps through Step 9 and ALL following tests, constraints, access, definition-of-done, risks, rollback and self-audit sections through PLAN-END**, report assumption/interface/file-name/provider/authority drift, update STATUS and downstream instructions, and only then cut context or continue.
 
 ### Phase A: contract and provider client
 
@@ -265,7 +267,7 @@ Change `operation-loop.ts` and tagging tests:
 
 ### Step 6. Complete the test matrix
 
-Implement every named §10 test with injected clock/fetch/DB/state writer; no real sleeps.
+Preserve the deployed recovery test matrix: injected clock/fetch/DB/state writer; same-ID restart with zero replacement POST; shuffled/duplicate/missing result mapping; stop/stale/lease/ambiguity handling; receipt/reset refusal; replay-safe counters and cursor zero. Run the current repository’s existing test commands; no real sleeps or provider calls.
 
 **You'll know it worked when** worker tests/build, current CI-equivalent root commands and `git diff --check` pass.
 
@@ -277,29 +279,25 @@ Update `docs/BULK_JOBS.md`, `INFRASTRUCTURE.md`, `MODEL_RULES.md`, and a prescri
 
 ### Step 8. Land, deploy and prove restart
 
-- First deployment is a cutover: drain any old in-memory batch and do not start a large batch during the deploy window. Confirm no old worker can keep processing before enabling new batch runs.
+- **Historical initial cutover; current deployments require explicit owner restart-window release and fresh exact-input review.** First deployment is a cutover: drain any old in-memory batch and do not start a large batch during the deploy window. Confirm no old worker can keep processing before enabling new batch runs.
 - Verify commit identity, stage only owned files, create a current-main feature
   branch and pull request, pass required checks/review, then merge through the
   repository's protected-main workflow. Never push directly to protected `main`.
 - Verify Railway exact-SHA deployment success.
-- Controlled production test on a tiny, already-tagged, re-tag-safe asset set via normal UI, never the whole library. Record operation key, run ID, batch ID, asset IDs and pre-state in a secrets-free ignored artifact.
+- **Unmet successful batch acceptance criterion, not current paid/model-switch authority:** a controlled production test would use a tiny, already-tagged, re-tag-safe asset set via normal UI, never the whole library. Under current Muse-only authority, do not fabricate a batch or switch models to manufacture this proof. Proceed only if an actually authorized compatible route exists; otherwise keep this criterion open. Record operation key, run ID, batch ID, asset IDs and pre-state in a secrets-free ignored artifact.
 - Once batch ID is durable, restart only Railway through normal owner. Prove after restart: same ID GET, zero replacement POST/ID for same run/page, each asset applied once, cursor once.
-- Prove production logs show one submitted ID followed by GETs for that same ID. Update/close issue #92 only with commit, CI, deployment and restart artifacts. Retire handoff only when complete.
+- Prove production logs show one submitted ID followed by GETs for that same ID. Update/close issue #92 only with commit, CI, deployment and restart artifacts. Retire only the completed scoped historical #92 predecessor after its obligations are met; preserve the current 17-issue campaign continuation while any campaign obligation remains open.
 
 **You'll know it worked when** exact SHA is green/deployed and controlled restart proves same ID/no duplicate/correct mapping.
 
-### Step 9. Finish the settings-exposed direct Gemini Batch route
+### Step 9. Historical settings-exposed direct Gemini Batch implementation — shipped, superseded
 
-Implemented on branch `codex/issue-92-direct-gemini-batch` (see STATUS). The
+The following records the historical implementation branch `codex/issue-92-direct-gemini-batch`; STATUS supersedes its former shipment/reset blockers. Do not resume the rejected WIP or repeat this shipment. The
 governed reset contract (shared-db #3418 / PR #3426) is used for parsed 400/422
 rejections; terminal provider states, transient polling, batch-model scope,
 cached catalogs, same-model JSON repair for batch results, pre-POST receipt
 handling and the missing-RPC (PGRST202) failure are covered by worker and
-settings tests. Remaining: an APPROVE exact-head review, the reset RPC live in
-production, then ship through a feature branch and protected-main pull request
-and continue with Step 8 under Albert's exact authorization (prove both
-`vision_tagging` lanes idle, select Direct Gemini Batch only for Image Tagging,
-capture one saved batch ID across a Railway restart, then restore Muse).
+settings tests. The former remaining instructions required exact review/reset deployment and a temporary Direct Gemini selection followed by Muse restoration. Those instructions are historical and **not authorized continuation actions**. Current code is merged; current production authority is Muse Spark 1.3 Contributor without substitution/fallback. Refresh runtime/provider pointers under the current owner holds, reconcile only the exact reviewed saved jobs, and leave successful same-ID restart/exactly-once acceptance open until genuinely proved without changing settled authority.
 
 ### Legacy OpenRouter route — completed Steps 1-7
 
@@ -312,17 +310,11 @@ capture one saved batch ID across a Railway restart, then restore Muse).
 - [x] Legacy-route tests/build/CI-equivalent commands green; original docs deployed.
 - [x] Legacy-route commits are on `main`; CI and Railway exact-SHA deployment passed.
 
-### Direct Gemini route — unfinished Step 9
+### Direct Gemini route — historical implementation checklist; remaining acceptance is Step 8
 
-- [ ] Governed shared-db definitive-rejection lease reset is preview-tested, merged,
-  applied and backward-compatible after Albert explicitly authorizes the orchestrator.
-- [ ] Terminal provider states, transient poll failures, unsupported batch selections,
-  catalog warnings and database-round-trip reset tests pass.
-- [ ] Exact-current-base independent review APPROVES; reviewed commit is pushed by
-  feature branch/PR; CI, Railway and frontend exact SHA are verified.
-- [ ] Controlled restart proof is linked on #92; Muse restoration is effective after
-  the 60-second cache; issue closes only then and the handoff retires under the
-  successor rule.
+- [x] Provider-route and guarded reset implementation merged; September WIP/review/reset-contract shipment blockers are superseded by STATUS. Reconfirm current deployed contract before any recovery rather than repeating implementation or opening another structural issue.
+- [x] Terminal states, transient polling, catalog/model scope and receipt/reset handling are covered by the deployed tests; preserve them.
+- [ ] Fresh exact-runtime recovery receipts and successful same-ID restart/exactly-once proof remain required on #92. Failed historical receipt accounting is not successful acceptance. No temporary Gemini selection or new paid submission is authorized; current Muse authority and both owner holds remain binding.
 
 ### Risks/mitigations
 
@@ -347,11 +339,11 @@ Before deploying old code, stop/drain every operation with an external job and c
 
 ## Mandatory self-audit
 
-1. **Can a zero-context new session execute perfectly without questions?** Yes. §§1-4 define goal/system/trigger/scope; §§5-8 capture code state/findings/dead ends/decisions; §9 gives ordered file/function steps and gates; §§10-13 give exact tests/rules/access/landing/risks/rollback.
+1. **Can a zero-context new session execute perfectly without questions?** Yes. §§1-4 define goal/system/trigger/scope; §§5-8 capture code state/findings/dead ends/decisions; §9 gives ordered file/function steps and gates; §9 contains the current test matrix, landing/acceptance gates, risks and rollback; current access and custody are in the linked continuation.
 2. **Does it carry all current background, nuance and rejected reasoning?** Yes. §§3,5-7 record both earlier bugs, deployed evidence, memory/stale/progress traps, provider contract limits, and every rejected approach; §8 locks resulting decisions.
-3. **Is the goal clear enough for judgment if a step is wrong?** Yes. §1 states business truth and goal-wins rule; invariants in §§8,11,13 guide choices.
+3. **Is the goal clear enough for judgment if a step is wrong?** Yes. §1 states business truth and goal-wins rule; invariants in §§8–9 guide choices.
 
-Checklist: all 13 sections; plain goal; zero-context detail; rejected attempts; concrete steps/gates; locked/open decisions; explicit out-of-scope; named tests; defined identifiers/paths/URLs/SHAs; secret locations only; commit/CI/deploy definition; reciprocal handoff links. **Self-audit passed.**
+Checklist: §§1–9 and current linked continuation; plain goal; zero-context detail; rejected attempts; concrete steps/gates; locked/open decisions; explicit out-of-scope; named tests; defined identifiers/paths/URLs/SHAs; secret locations only; commit/CI/deploy definition; reciprocal handoff links. **Self-audit passed.**
 
 ## Grok 4.6 review
 

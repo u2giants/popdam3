@@ -12,20 +12,20 @@
 
 ## STATUS — read this first
 
-**Updated October 11, 2026.** Start by rechecking the current #96 pilot and #92 recovery gates, then resume the remaining coverage/rollout work. Do not infer current counts from this dated snapshot. Current continuation: [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md); live verification is recorded in [#97](https://github.com/u2giants/popdam3/issues/97).
+**Updated October 11, 2026.** Start by rechecking the current #96 pilot and #92 recovery gates, then resume the remaining coverage/rollout work. Do not infer current counts from this dated snapshot. Current continuation: [HANDOFF.d/2026-10-11T2300Z-hetz-codex-open-issues-coordinator-continuation.md](HANDOFF.d/2026-10-11T2300Z-hetz-codex-open-issues-coordinator-continuation.md); live verification is recorded in [#97](https://github.com/u2giants/popdam3/issues/97).
 
 | Step | State | Owner/route | Implementation artifact | Verification evidence |
 |---|---|---|---|---|
 | 1. Re-verify code, schema, deployment, and live coverage | 🟨 refreshed; broader acceptance open | PopDAM read-only inspection | October 11 aggregate target/role proof and three-role signed-in search | 149,703 documents / 4,584 embedded / 145,119 pending at dated check. Nine searches passed across admin/designer/viewer; admin-only coverage access preserved. Refresh counts before backfill. |
-| 2. Dispatch and land the canonical shared-DB search-maintenance change | ✅ production complete | `u2giants/shared-db` orchestrator | Shared request `u2giants/shared-db#1427`; PR #1482; migration `20260825082910`; merge `8ae124a2` | Production apply run `32827618163` and durable-contract verification run `32833236435`; final active asset/group tags plus canonical characters are live, with no embedding backfill run |
-| 3. Add authorization-safe hybrid search contract | 🟨 routed | Shared-db orchestrator + PopDAM edge function | Remaining ranked authorization/pagination/facet contract routed as `u2giants/shared-db#1703`, dependent on effective-filter contract #1645; edge at `37cca5ca` now uses the caller client instead of service-role search | Edge deploy run `33120788198` passed; await governed DB contract and cross-user authorization proof before hybrid activation |
+| 2. Dispatch and land the canonical shared-DB search-maintenance change | ✅ production complete | `popcre/shared-db` existing issue owner (historical receipt) | Shared request `popcre/shared-db#1427`; PR #1482; migration `20260825082910`; merge `8ae124a2` | Production apply run `32827618163` and durable-contract verification run `32833236435`; final active asset/group tags plus canonical characters are live, with no embedding backfill run |
+| 3. Add authorization-safe hybrid search contract | 🟨 routed | Existing canonical shared-db issue owner + PopDAM edge function | Remaining ranked authorization/pagination/facet contract routed as `popcre/shared-db#1703`, dependent on effective-filter contract #1645; edge at `37cca5ca` now uses the caller client instead of service-role search | Edge deploy run `33120788198` passed; await governed DB contract and cross-user authorization proof before hybrid activation |
 | 4. Add resumable embedding worker operation | 🟨 deployed; live restart proof open | PopDAM main | Existing embed-dam-search operation | An old interrupted checkpoint remains; restart/resume, lease/retry/terminal-coverage acceptance still required. No new embedding job started by this verification. |
 | 5. Add bounded automatic freshness loop | 🟨 implemented, off | PopDAM worker | Existing opt-in loop | SEARCH_AUTO_EMBED_ENABLED absent/off after exact restoration; live overlap, lease-expiry, retry, disable and steady-state lag proof remain. |
 | 6. Add admin coverage and start/stop UI | 🟨 deployed | PopDAM `main` | `SearchIndexCard` with coverage, start/stop/resume, and terminal requeue at `37cca5ca` | Component test/build pass; frontend publish run `33120788225`, live DAM/SG HTTP 200 and JS stamp `37cca5c`; authenticated desktop/mobile visual proof pending |
 | 7. Complete search UX, score floor, and pagination behavior | 🟨 partial; saved floor live-proven | PopDAM main plus current shared contract | Floor app #173 shipped; shared-db #3457 closed | October 11 saved UI floor 0.99 persisted/reloaded: 46 baseline results, six keyword matches retained, 40 weak semantic-only matches removed. Original absent-row floor restored and blank card/search rechecked. Broader ranking, filtered pagination/facets and fallback remain unproven. |
 | 8. Run measured production backfill | ⬜ open | PopDAM operation under current owner scope and technical review | BULK_OPERATIONS.embed-dam-search | Blocked on #96 usable pilot/business acceptance and current #92 recovery; measure throughput, restart behavior and categorized residue before full run. |
 | 9. Enable hybrid mode and verify/observe/rollback | ⬜ open | PopDAM config under current owner scope and technical review | admin_config.SEARCH_MODE | Keyword default remains; no enablement performed. Coverage/relevance/access/fallback and required business gates must pass first. |
-| 10. Optional telemetry and evidence-based tuning | ⬜ open; separately gated | Separate shared-db + PopDAM phase | Future telemetry migration/app code | Albert-approved retention, privacy/RLS tests, first analysis artifact |
+| 10. Optional telemetry and evidence-based tuning | ⬜ optional; off/outside campaign | Separately requested future scope | No current telemetry implementation | Future business retention decision, independent technical review, privacy/RLS tests |
 | 11. Documentation, closeout, and handoff retirement | ⬜ open | Final implementing session | Docs, commits, CI/deploy evidence | Issue #97 closure only after every required gate is proven |
 
 ---
@@ -43,14 +43,14 @@ This is not merely a pgvector launch. It is a safe discovery system: keyword pre
 PopDAM is POP Creations’ internal digital-asset manager for licensed consumer-product artwork. PopSG is the style-guide mode served by the same frontend. Designers and sales staff browse more than 100,000 source-art records, thumbnails, metadata, licensed properties, characters, tags, and style groups.
 
 - Application repo: `/worksp/popdam`, GitHub `u2giants/popdam3`, trunk branch `main`.
-- Canonical shared-schema repo: `/worksp/shared-db`, GitHub `u2giants/shared-db`; branch + PR through its single orchestrator.
+- Canonical shared-schema repo: `/worksp/shared-db`, GitHub `popcre/shared-db`; claim exact objects on the existing issue, then use its branch, PR, preview and guarded promotion route.
 - Frontend: React/Vite in `src/`; production at `https://dam.designflow.app` and `https://sg.designflow.app`, published to GHCR and deployed by Coolify.
 - Search edge function: `supabase/functions/dam-search-ai/index.ts`, deployed to Supabase project `qsllyeztdwjgirsysgai` by `Deploy Supabase Edge Functions`.
 - Persistent worker: `apps/worker/`, deployed by Railway from every push to PopDAM `main`.
 - Database: the shared Supabase project `qsllyeztdwjgirsysgai`; all structural changes are canonical shared-db migrations.
 - Runtime feature/config state: `public.admin_config`, managed through authenticated application workflows rather than ad-hoc production SQL.
 
-Read `AGENTS.md`, `CLAUDE.md`, this plan’s STATUS table, `docs/archive/fix_search.md` §§1–2, `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md`, `docs/configuration.md`, and the current `/worksp/shared-db/AGENTS.md` before execution. Re-read downstream phases before each context cut because these files and production state can drift.
+Read `AGENTS.md`, `CLAUDE.md`, this plan’s STATUS table, `docs/archive/fix_search.md` §§1–2, `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md`, `docs/configuration.md`, and the current `/worksp/shared-db/AGENTS.md` before execution. At the end of EVERY phase and before each context cut, reread every remaining phase through the end of this plan, including tests, constraints, access, rollback and definition of done. Revalidate current prerequisites, authority, owners, resource releases, live contracts and exact review bindings. Record every drift on this plan and the same existing issue; correct authorized documentation before advancing and stop any conflicting or unsupported action. The current continuation handoff must reciprocally instruct successors to perform this whole-plan check; its dated snapshot never replaces the check.
 
 **Historical-state note (October 11, 2026):** dated implementation weaknesses below explain the original design. They are not instructions to redo shipped contracts or the now-passed saved-floor check. Reproduce current gaps and use the STATUS table before editing.
 
@@ -89,7 +89,7 @@ Reproduction of today’s business gap must be performed in Step 1 against live 
 - Image/CLIP embeddings, image-to-image similarity, a second vector column/table, GPU/API selection, or “find visually similar.” Write a separate costed proposal only; implementation requires Albert’s explicit approval.
 - AI-tag confidence, review queues, high-resolution image retries, prompt consolidation, character facets, or group-tag propagation policy redesign from later sections of `docs/archive/fix_search.md`.
 - Changing the `gte-small` model or vector dimension without a separate compatibility/migration decision.
-- Collecting click telemetry during the initial launch. Step 10 is optional and may begin only after Albert approves retention and scope.
+- Collecting click telemetry during the initial launch. Step 10 is optional, off and outside this campaign; only a separately requested future scope may obtain a business retention/scope decision.
 - Direct production SQL, Dashboard edits, app-repo migrations, or a live server edit.
 - Weakening RLS, returning service-role search results and relying solely on the browser to hide them, or suppressing errors as a substitute for repair.
 
@@ -224,13 +224,13 @@ These are repository observations from 2026-08-24, not proof of current producti
 5. Verify `dam-search-ai` deployment and SHA via the latest `Deploy Supabase Edge Functions` run and live function behavior. Confirm `supabase/config.toml` versus deployed auth behavior; do not equate `verify_jwt=false` with unauthenticated access without testing manual validation.
 6. Verify the live frontend build SHA/header and Railway worker deployment independently; a green Railway GitHub deployment does not prove the frontend.
 7. Update this STATUS table with artifact paths/run IDs and any divergence. Trust code/live state over this plan and amend downstream steps before implementation.
-8. Confirm shared-db issue #1427 remains the one combined #96/#97 workstream and that no competing branch/issue is replacing the same search functions. Confirm #96 is merged into the final corpus contract or formally deferred by Albert before any Step 8 embedding sample.
+8. Reconcile existing canonical issues #1427, #1703 and #1645 against current owners, merged contracts and live definitions; historical routing is not delivery. Claim only still-missing exact objects on their existing issue, without duplicate issues or competing branches. Before Step 8 require the final #96 corpus contract, actual usable pilot business acceptance, reviewed #92 accounting, and the tagging owner’s explicit restart and distinct paid-resource releases.
 
 **You’ll know it worked when:** the STATUS table links to a private verification artifact containing target proof, exact counts, deployed versions, current mode, auth probes, and tag/character baseline searches; no write has occurred.
 
 ### Step 2 — Dispatch and land shared-DB indexing, maintenance, and lease primitives
 
-This is structural work. The PopDAM session must create a fully scoped `db-work` issue and stop; the single `shared-db-orchestrator` owns the branch, migration, preview, PR, merge, and approved production promotion.
+This is structural work only where current live proof establishes a missing contract. In canonical `popcre/shared-db`, claim the exact objects on the existing work issue and follow current claim-first governance, independent review, preview, PR, merge and guarded promotion. No orchestrator chat is required. Do not redo the completed Step 2 migration or open a duplicate issue.
 
 Required objects/behavior in a new timestamped migration above the current maximum:
 
@@ -242,11 +242,11 @@ Required objects/behavior in a new timestamped migration above the current maxim
 6. Preserve `upsert_dam_search_embedding` hash matching and additionally require valid lease ownership. A stale hash or lost lease returns false without overwriting newer content.
 7. Replace error marking with transient/terminal category, bounded retry count, exponential cooldown, and operator-visible terminal state. Provide an admin-only reset/requeue RPC scoped to selected terminal rows.
 8. Preserve least privilege and explicit grants whenever function signatures change. Re-run security-definer execute lockdown checks. Revoke authenticated execution on any unfiltered internal `search_dam_documents`/wrapper, or make the externally callable version authorization-aware; do the same for keyword fallback wrappers. Restrict embedding status/reset/claim/upsert/error functions to the minimum admin/service roles.
-9. Do not hide the data refresh inside an unbounded migration. The migration installs primitives; preview validation may exercise a bounded batch. Production data backfill is Step 8 through the application-owned operation after the merged structural contract is promoted with Albert’s exact approval.
+9. Do not hide the data refresh inside an unbounded migration. The migration installs primitives; preview validation may exercise a bounded batch. Production data backfill is Step 8 through the application-owned operation after the merged structural contract is promoted with the assigned independent AI reviewer’s exact-input approval and current task gates.
 
 Preview tests must prove tag-only and character-only asset matches; active group-tag matches; candidate/rejected exclusion; style-group ranking parity between hybrid and keyword; move asset A from group 1 to group 2 so group 1 loses and group 2 gains its unique token; asset delete/undelete; relationship moves/deletes; deterministic hashes; preservation of every field in the latest rich-PDF builder; a tag-only token remaining within the first 8,000 characters when PDF text is long; unchanged embedding retention; changed embedding invalidation; no global delete; lease exclusivity; expired lease recovery; stale-hash refusal; retry exhaustion; authorization/grants; and representative authenticated search timing with headroom below eight seconds.
 
-**You’ll know it worked when:** shared-db SQL checks pass; preview artifacts show object and behavior assertions plus timing; the PR is merged; Albert has approved the exact production structural promotion; the bounded production promotion targets `qsllyeztdwjgirsysgai` with immediate target proof; and post-apply object definitions match the merged migration. Record migration, merge SHA, CI run, and apply proof in STATUS.
+**You’ll know it worked when:** shared-db SQL checks pass; preview artifacts show object and behavior assertions plus timing; the PR is merged; the assigned independent AI reviewer has approved the exact production inputs and current guarded-promotion gates pass; the bounded production promotion targets `qsllyeztdwjgirsysgai` with immediate target proof; and post-apply object definitions match the merged migration. Record migration, merge SHA, CI run, and apply proof in STATUS.
 
 ### Step 3 — Make the edge search response authorization-safe
 
@@ -320,23 +320,23 @@ Preferred design: the existing Railway worker periodically runs a small incremen
 
 ### Step 8 — Run the production refresh and embedding backfill
 
-This is the first long-running production data operation and requires Albert’s explicit approval after the report below.
+This long-running production operation requires assigned independent AI review of exact inputs and current task gates after the report below. Before any sample, prove actual #96 usable-pilot business acceptance and reviewed #92 accounting, and obtain the existing tagging owner’s explicit main/restart and distinct paid-resource releases. Silence, idle samples, previous merges and expired holds do not release resources.
 
-**Hard coordination gate:** before any sample or corpus-wide embedding run, confirm with merged migration and production object evidence that issue #96's scoped tag/status contract has landed, or record a formal deferral that preserves one final corpus definition. Never embed an intermediate corpus that omits the agreed active asset tags, active Style Group tags, or canonical character names.
+**Hard coordination gate:** before any sample or corpus-wide embedding run, confirm with merged migration and production object evidence that issue #96's scoped tag/status contract has landed and actual usable-pilot business acceptance is recorded; do not bypass this dependency by technical deferral. Never embed an intermediate corpus that omits the agreed active asset tags, active Style Group tags, or canonical character names.
 
-1. Confirm merged/deployed SHAs, live function definitions, target project, automatic loop still disabled, current counts, and that keyword search is healthy. Confirm #96's active asset/style-group tag contract and the one final search builder have landed (or Albert formally deferred #96), and confirm only the worker can claim embedding leases.
+1. Confirm merged/deployed SHAs, live function definitions, target project, automatic loop still disabled, current counts, and that keyword search is healthy. Confirm #96's active asset/style-group tag contract and the one final search builder have landed, actual usable-pilot business acceptance is recorded, and confirm only the worker can claim embedding leases.
 2. Run a small bounded production sample through the operation. Record start/end times, documents claimed/embedded/stale/retried/failed, edge/worker error categories, and other worker-lane health.
-3. Calculate projected full duration from measured throughput and remaining eligible documents. Report it to Albert with the exact scope, rollback (stop operation; keyword remains active), and any terminal residue. Obtain approval before the full run.
+3. Calculate projected full duration from measured throughput and remaining eligible documents. Record exact scope, measured duration, rollback (stop operation; keyword remains active), and terminal residue on #97. Obtain assigned independent AI exact-input approval and pass current task gates before the full run; no technical approval is requested from Albert.
 4. Start the full operation through the admin UI/normal `BULK_OPERATIONS` workflow. Do not call embedding RPCs manually in a shell loop.
-5. During the run, verify a Railway restart: stop/redeploy only through the normal deployment workflow if a safe natural restart cannot be observed; confirm expired/in-flight leases resume without duplicate committed work.
+5. During the run, verify a Railway restart: stop/redeploy only through the normal deployment workflow with fresh exact technical approval and the existing tagging owner’s explicit restart release if a safe natural restart cannot be observed; confirm expired/in-flight leases resume without duplicate committed work.
 6. Categorize every terminal error. Fix systemic failures and retry; accept residue only when explicitly explained by category and impact. “100%” means all eligible documents embedded, not that errors were removed from the denominator.
-7. Enable `SEARCH_AUTO_EMBED_ENABLED` only after the initial backlog is complete and observe steady-state freshness for at least two intervals.
+7. Enable `SEARCH_AUTO_EMBED_ENABLED` only with exact technical review/task gates and released resource custody after the initial backlog is complete and observe steady-state freshness for at least two intervals.
 
 **You’ll know it worked when:** status shows zero pending-ready and zero expired/abandoned leases; all eligible documents are embedded or each terminal exception has a recorded category/owner; restart recovery is proven; automatic freshness clears a newly changed test document within the SLO; keyword mode remained available throughout.
 
 ### Step 9 — Enable hybrid mode, verify end to end, and prove rollback
 
-This is user-visible and requires Albert’s explicit approval after Step 8 evidence.
+This user-visible activation requires assigned independent AI exact-input approval and current task gates after Step 8 evidence, completed #96 usable-pilot business acceptance, and fresh resource custody. Albert decides business usefulness, not technical permission.
 
 1. Confirm production `SEARCH_MODE=keyword`, record the current value, and change it through the authenticated admin-config workflow/UI—not direct SQL or a migration.
 2. Set the calibrated `SEARCH_MIN_SEMANTIC_SCORE`; keep telemetry off.
@@ -350,8 +350,8 @@ This is user-visible and requires Albert’s explicit approval after Step 8 evid
    - smart/closest-match messaging;
    - edge failure → keyword → ILIKE drill.
 5. Record frontend live build SHA/header, edge deployment run/SHA, Railway worker SHA, screenshots, and private query evidence.
-6. Observe error rate, latency, pending age, terminal errors, and user-reported false positives during a defined initial window. Recommended: active observation for the first hour and daily review for seven days.
-7. Prove rollback by setting `SEARCH_MODE=keyword`, confirming browser keyword behavior, then restore hybrid only if the drill is clean and Albert still approves.
+6. Observe error rate, latency, pending age, terminal errors, and user-reported false positives during a defined initial window. Recommended: active observation for the first hour and daily review for seven days. Name the observation owner and record actual receipts on #97; do not promise background monitoring after a session ends.
+7. Prove rollback by setting `SEARCH_MODE=keyword`, confirming browser keyword behavior, then restore hybrid only if the drill is clean and the exact technical approval, task gates and resource custody remain valid.
 
 **You’ll know it worked when:** authorized users receive meaningfully ranked results, restricted records do not leak, both fallback levels work invisibly, paging/count behavior is honest, live SHAs are recorded, and keyword rollback is demonstrated—not merely documented.
 
@@ -359,7 +359,7 @@ This is user-visible and requires Albert’s explicit approval after Step 8 evid
 
 ### Step 10 — Add telemetry only after separate retention approval
 
-This phase is not required to close the safe hybrid-search launch. Before starting, Albert must approve: enabled populations, captured fields, retention period, deletion mechanism, and whether query text is permitted.
+This phase is not required to close the safe hybrid-search launch. Keep telemetry off and outside this campaign. Only if separately requested, obtain Albert’s business decision on enabled populations, captured fields, retention period, deletion mechanism and whether query text is permitted; technical execution then requires independent review and current gates.
 
 1. Route the new table/RLS/RPC through shared-db. Store the minimum event: normalized/redacted query or one-way query identifier as approved, authorized returned ranks/IDs necessary for analysis, clicked authorized entity, mode, effective weight/threshold, and timestamp. Do not add user-identifying data beyond an already-approved existing identifier.
 2. Admin-read only; ordinary users may insert only their own valid click event through a narrow RPC and cannot select telemetry. Gate collection behind `SEARCH_TELEMETRY_ENABLED=false` by default.
@@ -376,9 +376,9 @@ This phase is not required to close the safe hybrid-search launch. Before starti
 2. Correct `docs/archive/fix_search.md` §§1–2, especially stale §1d; do not mark unrelated recommendations complete.
 3. Update `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md`, `docs/configuration.md`, and `docs/architecture.md` with the final implemented contract, configuration defaults, status/error semantics, rollback, and deployed path.
 4. Update canonical shared-db docs required by its rulebook. Do not duplicate companywide rules into PopDAM.
-5. Run focused and full checks, inspect owned diff, stage only owned files, commit directly to PopDAM `main`, and push `origin main` then `github main`. Resolve non-fast-forward only with the documented safe `git rebase --autostash` procedure after fresh status/stash snapshots.
+5. Run focused and required full checks, inspect the owned diff and stage only owned files in a dedicated current-upstream worktree. Commit to its feature branch and open the normal reviewed PR; never push directly to protected main or autostash concurrent work. Reconcile upstream changes in an owned clean worktree and renew changed-head review. Feature PR publication is separate from main landing: every main push restarts Railway, so merge only after the existing tagging owner explicitly releases the main/restart window.
 6. Verify CI and deployments by component. Documentation-only commits do not prove app deployments.
-7. Close issue #97 only when every required definition-of-done item is met. Delete this plan’s handoff file in the finishing commit; preserve the plan as durable architecture/rollout history unless project convention later archives it.
+7. Close issue #97 only when every required definition-of-done item is met. Retire only the historical `HANDOFF.d/2026-08-27T2258Z-hetz-codex-hybrid-search-completion.md` after its scoped work is complete and durable facts are preserved; do not delete the current 17-issue campaign continuation. Preserve the plan as durable architecture/rollout history unless project convention later archives it.
 
 **You’ll know it worked when:** docs match live behavior, checks/CI pass, exact commits are on remotes, frontend/edge/Railway deployed SHAs are independently proven, issue #97 is closed, and no stale handoff or untracked migration remains.
 
@@ -441,7 +441,7 @@ Use current package scripts after inspecting `package.json`; at minimum run the 
 ## 11. Constraints, standing rules, and gotchas
 
 - All database structure belongs in `/worksp/shared-db`; no PopDAM migration, direct DDL, Dashboard SQL, or one-off `execute_sql`.
-- A consumer session dispatches shared schema work through the single `shared-db-orchestrator`; it does not author the migration itself.
+- Shared schema work is authored in canonical `popcre/shared-db`, claim-first on the existing exact-object issue; no orchestrator requirement or application-side migration.
 - Prove the database target immediately before every write, preview and production.
 - Preview first. Production structural promotion and the long data backfill are separate approval gates.
 - Never reuse a migration timestamp or edit an applied migration.
@@ -500,7 +500,7 @@ If a required canonical credential/tool is broken, repair that capability and ve
 - [ ] Keyword and hybrid style-group ranking use the same member-rollup contract.
 - [ ] Full eligible corpus coverage or every terminal residue categorized and accepted.
 - [ ] Railway restart/resume and stale-content behavior proven.
-- [ ] Hybrid search enabled only after Albert approval; empty browse unchanged.
+- [ ] Hybrid search enabled only after actual #96 business acceptance and exact independent technical approval/task gates/resource releases; empty browse unchanged.
 - [ ] Edge→keyword→ILIKE fallback and keyword rollback proven live.
 - [ ] Required tests/checks/CI green.
 - [ ] App/shared-db commits, PR/merge, production apply, frontend edge worker deployed SHAs recorded separately.
@@ -520,7 +520,7 @@ If a required canonical credential/tool is broken, repair that capability and ve
 - **Bad semantic matches:** calibrated minimum score plus honest closest-match UX and keyword weighting.
 - **Pagination dishonesty:** server-side ranked paging/`has_more`, not an arbitrary larger ID ceiling.
 - **Filter/facet mismatch:** apply filters before paging and share a search-scoped result/count contract.
-- **Concurrent repo work:** owned-path staging, status snapshots, shared-db orchestration.
+- **Concurrent repo work:** owned-path staging, status snapshots, canonical claim-first shared-db ownership.
 - **Deployment false positive:** prove frontend, edge, worker, schema, and config independently.
 
 ### Rollback
@@ -533,10 +533,10 @@ If a required canonical credential/tool is broken, repair that capability and ve
 
 ### Owner decisions and open questions
 
-1. **Production structural promotion:** Albert must approve the exact merged shared-db migration after preview evidence. Blocks Step 2 production apply.
-2. **Full production backfill:** Albert must approve after measured sample throughput and projected duration. Blocks Step 8 full run.
-3. **Hybrid mode flip:** Albert must approve after coverage/security/fallback evidence. Blocks Step 9.
-4. **Telemetry retention:** no telemetry implementation or enablement until Albert approves fields and retention. Recommended default if pursued: 30 days, query text excluded or normalized/redacted unless expressly approved.
+1. **Production structural promotion:** assigned independent AI exact-input review and canonical guarded promotion after preview evidence; completed Step 2 is not reopened. Missing remaining contracts block their dependent phase.
+2. **Full production backfill:** actual #96 usable-pilot business acceptance, reviewed #92 accounting, measured throughput, exact independent technical review/task gates and explicit tagging-owner restart/paid releases block Step 8.
+3. **Hybrid mode flip:** actual #96 business acceptance and coverage/security/fallback evidence plus exact independent technical review/task gates and fresh resource custody block Step 9.
+4. **Telemetry retention:** off and outside this campaign; only a separately requested future scope may ask Albert to decide fields and retention. Recommended default if pursued: 30 days, query text excluded or normalized/redacted unless expressly approved.
 5. **Image embeddings:** separate future investment; not approved by this plan.
 6. **Freshness SLO and score threshold:** implementation may choose initial conservative values from measured evidence; report them before launch. Escalate only if the business tradeoff materially changes result coverage.
 
@@ -546,7 +546,7 @@ If a required canonical credential/tool is broken, repair that capability and ve
 
 ### 1. Could a brand-new AI session execute this plan without asking for context?
 
-**Yes.** Sections 1–4 define the business goal, application, trigger, and boundaries. Sections 5–8 preserve exact repository state, line references, findings, rejected paths, and locked/open decisions. Section 9 gives ordered file/function-level implementation steps with dependencies, context cuts, and a verification gate for every step. Sections 10–13 supply exact test behaviors, constraints, access locations, landing proof, rollback, and owner-only approvals.
+**Yes.** Sections 1–4 define the business goal, application, trigger, and boundaries. Sections 5–8 preserve exact repository state, line references, findings, rejected paths, and locked/open decisions. Section 9 gives ordered file/function-level implementation steps with dependencies, context cuts, and a verification gate for every step. Sections 10–13 supply exact test behaviors, constraints, access locations, landing proof, rollback, business-only decisions and independent technical gates.
 
 ### 2. Does the plan carry the background, nuance, and reasoning—including rejected approaches?
 
