@@ -24,7 +24,6 @@ import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe } from "../_shared/http.ts";
 import { tableSource } from "../_shared/export-tables.ts";
 
-
 // Tables in dependency order (parents first)
 const TABLES_IN_ORDER = [
   "licensors",
@@ -52,7 +51,6 @@ const TABLES_IN_ORDER = [
 
 const DEFAULT_CHUNK = 5000;
 const POSTGREST_PAGE = 1000; // PostgREST max per request
-
 
 function sqlTarget(table: string): string {
   if (table === "licensors") return "core.licensor";

@@ -9,7 +9,6 @@ import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe } from "../_shared/http.ts";
 import { tableSource } from "../_shared/export-tables.ts";
 
-
 const ALLOWED_TABLES = [
   "assets",
   "asset_tags",
@@ -34,7 +33,6 @@ const ALLOWED_TABLES = [
   "agent_registrations",
   "agent_pairings",
 ];
-
 
 corsServe(async (req) => {
   try {
