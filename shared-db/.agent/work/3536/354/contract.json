@@ -1,0 +1,67 @@
+{
+  "allowed_paths": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-circuit-breaker.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3536/354/contract.json",
+    ".agent/work/3536/354/completion.json"
+  ],
+  "assumptions": [
+    "Root selected genuinely necessary narrow two-capability safety repair after full design/current helper and actual parent-blob inspection. Fresh independent current-main bc08 worktree; parent352 actual published hash98dde, not separate353 parser publication. No source edits before root actual354 publication/readback.",
+    "Canonical named-import union accepts ONLY one exact conflict in existing admission-outcome.test.mjs, regular100644 staged blobs bound to actual mergebase/parents, exact six-binding ancestor anchor and exact two additions structuralWritesMatch and inspectPrCuratedDataChange, one protected parent by ancestry, whole-file byte reconstruction. Refuse aliases/dynamic/other module/unknown or duplicate binding/body conflict/mode/rename/custom attributes/stage forgery/missing parent/additional conflict. No whole-test-path source witness exemption or2758 review-equivalence widening.",
+    "Actual immutable335/9883 to private353/c9fa genuine importunion must produce unchanged strict content proof, preserving actual6143 START as spent. Synthetic real-Git two spent STARTs remain two and third draw refuses. Genuine surviving body repair remains substantive only under existing witness rules; union/retired evidence never manufactures capacity.",
+    "Targeted stale-v2 reaper requires all exact tuple fields issue/pr/recordedhead/slot/sequence/reviewer/expected lease SHA; reuse existing CLI options and reaper stale-reason validation, full readable inventory, fresh under-mutex reproof, exact CAS/readback. Refuse partial/wrong/unknown/legacy/malformed identities and all races; delete ONLY authenticated stale target. No-target global operation retains behavior. Foreign43 stale leases remain untouched.",
+    "Original6143 native completion/artifact remainsUNKNOWN; targeted scheduling retirement requires no fabricated noartifact or provider failure claim and preserves START/verdict/failure/probe/history/counts. Currentpublic4171 head9883 remains unchanged, so no6143 retirement currentlyeligible. No provider/status/probe/reclaim/release/reap apply calls in this implementation scope.",
+    "Use only existing two source helpers/two test suites; declare existing two truth catalogues for actual new or relocated semantic guard bindings only. No new shared harness/artifact. Root retains source/security/merge/recovery decisions; ordinary assigned independent review after actual canonical gates is required."
+  ],
+  "base_sha": "bc08e15dc0928c0620f647c37eeedf0efabc2a89",
+  "branch": "codex/3536-targeted-review-recovery",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex parent selected bounded two-capability repair after complete source and actual conflict evidence inspection",
+  "evidence_parent": {
+    "contract_sha256": "98dde88ce4dffce324079fff21a6507069e5a1281f86f6960e3a1c49ed72f4ea",
+    "generation": 352,
+    "work_issue": 3536
+  },
+  "file_writes": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-circuit-breaker.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3536/354/contract.json",
+    ".agent/work/3536/354/completion.json"
+  ],
+  "generation": 354,
+  "goal": "Prove exact additive named-import merge bytes for existing reviewer-budget provenance and target only an authenticated stale v2 scheduling lease using the existing reaper without foreign writes or paid-budget changes",
+  "prohibited_actions": [
+    "No DB/schema/data/production or infrastructure writes",
+    "No frozen queue/parser4171 source/status/settings/lease/START mutation",
+    "No provider calls/reviewer draw without actual assigned authorized review",
+    "No paid budget reset/refund/waiver/new history exemption or review2758 weakening",
+    "No foreign/global cleanup, no probe/reclaim/release/reaper apply",
+    "No new shared source/harness files or unrelated semantic fixes"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/reviewer-wire-budget.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node scripts/agent-work-contract.mjs --validate-contract --contract-file .agent/work/3536/354/contract.json"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop on unexpected source/conflict shape, unverifiable actual immutable case, loss of parent capability, foreign target, missing tuple or canonical gate refusal",
+    "Stop before source publication/review/merge/recovery until root complete source/proof decision; UNKNOWN outcomes remainUNKNOWN"
+  ],
+  "work_issue": 3536,
+  "work_type": "repo-maintenance",
+  "worker": "Codex style recovery safety capability",
+  "worktree": "/home/ahazan/.codex/worktrees/review-target-recovery/shared-db"
+}

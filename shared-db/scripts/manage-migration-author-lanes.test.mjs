@@ -11776,3 +11776,45 @@ test('curated master data fork completes with authentic merged evidence (#4194)'
   assert.equal(completeWork({ issue: 5, report: mergedRecord(5) }, io).outcome, 'merged')
   assert.equal(io.posted.length, 1)
 })
+
+function exactReapFixture({live=false}={}){
+ const f=abandonedLeaseIo();const ref=f.lease(0,{issue:3536,pr:4171,headSha:'a'.repeat(40),current:(live?'a':'b').repeat(40)})
+ const sha=f.io.refs.get(ref),record=parseReviewLease(f.io.getCommit(sha))
+ const options={issue:record.issue,pr:record.pr,headSha:record.headSha,reviewSlot:record.slot,failedSequence:record.sequence,reviewer:record.reviewer,expectedSha:sha}
+ return {...f,ref,sha,options}
+}
+test('targeted v2 retirement preserves forty-three foreign leases and durable START',()=>{
+ const f=exactReapFixture();for(let i=1;i<=43;i++)f.lease(i,{issue:5000+i,pr:6000+i,headSha:'c'.repeat(40),current:'d'.repeat(40)})
+ const start='refs/db-review-started/3536-4171-'+ 'a'.repeat(40)+'-slot1-seq1';f.io.refs.set(start,'e'.repeat(40));const before=new Map(f.io.refs)
+ assert.equal(reapAbandonedReviewLeases({},new Date(),f.io).candidates,44)
+ const preview=reapAbandonedReviewLeases(f.options,new Date(),f.io);assert.equal(preview.candidates,1);assert.deepEqual(f.io.refs,before)
+ const result=reapAbandonedReviewLeases({...f.options,applyRecovery:true},new Date(),f.io);assert.equal(result.reaped.length,1);assert.equal(result.reaped[0].ref,f.ref)
+ before.delete(f.ref);assert.deepEqual(f.io.refs,before)
+})
+test('targeted live v2 lease remains live without provider artifact assertion',()=>{const f=exactReapFixture({live:true});const before=new Map(f.io.refs);assert.equal(reapAbandonedReviewLeases({...f.options,applyRecovery:true},new Date(),f.io).candidates,0);assert.deepEqual(f.io.refs,before)})
+test('targeted v2 reap refuses every missing identity component',()=>{
+ for(const key of ['issue','pr','headSha','reviewSlot','failedSequence','reviewer','expectedSha']){const f=exactReapFixture(),options={...f.options};delete options[key];assert.throws(()=>reapAbandonedReviewLeases(options,new Date(),f.io),/complete tuple/)}
+})
+test('targeted v2 reap refuses mismatched immutable identity and SHA',()=>{
+ for(const [key,value] of [['issue',3537],['pr',4172],['headSha','f'.repeat(40)],['reviewSlot',2],['failedSequence',2],['reviewer',ACTIVE_REVIEWERS[1].name],['expectedSha','f'.repeat(40)]]){const f=exactReapFixture(),before=new Map(f.io.refs);assert.throws(()=>reapAbandonedReviewLeases({...f.options,[key]:value},new Date(),f.io));assert.deepEqual(f.io.refs,before)}
+})
+test('targeted v2 reap rechecks head movement under its mutex',()=>{
+ const f=exactReapFixture(),create=f.io.createRef.bind(f.io);f.io.createRef=(ref,sha)=>{if(ref===MUTEX_REF)f.prs.set(4171,{number:4171,state:'open',head:{sha:'a'.repeat(40)}});return create(ref,sha)}
+ const result=reapAbandonedReviewLeases({...f.options,applyRecovery:true},new Date(),f.io);assert.equal(result.reaped.length,0);assert.equal(result.skippedChanged,1);assert.equal(f.io.refs.get(f.ref),f.sha)
+})
+test('targeted v2 reap refuses lease replacement under mutex without foreign writes',()=>{
+ const f=exactReapFixture(),replacement=f.io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=2 reviewer=${f.options.reviewer} issue=3536 pr=4171 head=${f.options.headSha}`),create=f.io.createRef.bind(f.io);f.io.createRef=(ref,sha)=>{if(ref===MUTEX_REF)f.io.refs.set(f.ref,replacement);return create(ref,sha)}
+ assert.throws(()=>reapAbandonedReviewLeases({...f.options,applyRecovery:true},new Date(),f.io),/expected SHA changed/);assert.equal(f.io.refs.get(f.ref),replacement);assert.equal(f.io.refs.has(MUTEX_REF),false)
+})
+test('targeted v2 reap refuses malformed identities before any ref mutation',()=>{
+ for(const [key,value] of [['issue',0],['pr',1.5],['headSha','unknown'],['reviewSlot',0],['failedSequence',-1],['reviewer','unknown-provider'],['expectedSha','UNKNOWN']]){const f=exactReapFixture(),before=new Map(f.io.refs);assert.throws(()=>reapAbandonedReviewLeases({...f.options,[key]:value,applyRecovery:true},new Date(),f.io),/malformed or unknown/);assert.deepEqual(f.io.refs,before)}
+})
+test('targeted v2 reap preserves disappeared target and refuses unreadable expected commit',()=>{
+ const f=exactReapFixture();f.io.refs.delete(f.ref);const before=new Map(f.io.refs);assert.equal(reapAbandonedReviewLeases({...f.options,applyRecovery:true},new Date(),f.io).candidates,0);assert.deepEqual(f.io.refs,before)
+ f.io.getCommit=()=>{throw Error('immutable commit unreadable')};assert.throws(()=>reapAbandonedReviewLeases(f.options,new Date(),f.io),/immutable commit unreadable/)
+})
+test('targeted v2 reap keeps exact CAS guard against replacement after under-lock proof',()=>{
+ const f=exactReapFixture(),atomic=f.io.atomicReviewRefs.bind(f.io),replacement=f.io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=2 reviewer=${f.options.reviewer} issue=3536 pr=4171 head=${f.options.headSha}`)
+ f.io.atomicReviewRefs=edits=>{if(edits.some(row=>row.ref===f.ref&&row.sha===null))f.io.refs.set(f.ref,replacement);return atomic(edits)}
+ assert.throws(()=>reapAbandonedReviewLeases({...f.options,applyRecovery:true},new Date(),f.io));assert.equal(f.io.refs.get(f.ref),replacement);assert.equal(f.io.refs.has(MUTEX_REF),false)
+})

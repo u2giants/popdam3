@@ -1841,9 +1841,30 @@ function reclaimSilentReviewerOperation(options,now,io){
 
 
 export function reclaimSilentReviewer(options,now=new Date(),io=githubIo){return withReviewRequestBudget(()=>reclaimSilentReviewerOperation(options,now,io),REVIEW_SILENT_RECLAIM_REQUEST_LIMIT,'reclaim-silent-reviewer')}
+// An exact target narrows scheduling retirement; it never certifies a provider outcome.
+function targetedAbandonedLeaseSelector(options,io){
+  const keys=['issue','pr','headSha','reviewSlot','failedSequence','reviewer','expectedSha']
+  if(!keys.some(key=>options[key]!==undefined))return rows=>rows
+  if(keys.some(key=>options[key]===undefined))throw new LaneError('targeted abandoned lease reap requires the complete tuple and expected lease SHA')
+  const tuple={issue:Number(options.issue),pr:Number(options.pr),headSha:String(options.headSha),slot:Number(options.reviewSlot),sequence:Number(options.failedSequence),reviewer:String(options.reviewer)}
+  if(['issue','pr','slot','sequence'].some(key=>!Number.isSafeInteger(tuple[key])||tuple[key]<1)||!/^([0-9a-f]{40})$/.test(tuple.headSha)||!/^([0-9a-f]{40})$/.test(String(options.expectedSha))||!REVIEWERS.some(row=>row.name===tuple.reviewer))throw new LaneError('targeted abandoned lease reap identity is malformed or unknown')
+  const ref=reviewActiveRef(tuple.reviewer,tuple)
+  if(!ref.startsWith('refs/db-review-active-v2/'))throw new LaneError('targeted abandoned lease reap requires an exact v2 ref')
+  return rows=>{
+    const lease=parseReviewLease(io.getCommit(options.expectedSha))
+    if(!lease||Object.keys(tuple).some(key=>lease[key]!==tuple[key]))throw new LaneError('targeted abandoned lease reap immutable tuple differs')
+    const sha=io.readRef(ref)
+    if(!sha)return []
+    if(sha!==options.expectedSha)throw new LaneError('targeted abandoned lease reap expected SHA changed')
+    const selected=rows.filter(row=>row.ref===ref)
+    if(selected.length>1||selected.some(row=>row.sha!==sha))throw new LaneError('targeted abandoned lease reap snapshot differs')
+    return selected
+  }
+}
 function reapAbandonedReviewLeasesOperation(options,now,io){
   io=reviewOperationIo(io)
-  const candidates=abandonedLeases(io)
+  const select=targetedAbandonedLeaseSelector(options,io)
+  const candidates=select(abandonedLeases(io))
   if(!options.applyRecovery||!candidates.length)return {generatedAt:new Date(now).toISOString(),applied:false,candidates:candidates.length,reaped:[],leases:candidates}
   if(typeof io.atomicReviewRefs!=='function'||typeof io.readReviewRefs!=='function')throw new LaneError('abandoned lease reap requires atomic compare-and-swap ref support')
   const ownerSha=io.makeOwnerCommit(`db-coordination reviewer-abandoned-lease-reap-lock candidates=${candidates.length} at=${new Date(now).toISOString()}`)
@@ -1851,7 +1872,7 @@ function reapAbandonedReviewLeasesOperation(options,now,io){
   try{
     requireReviewWireCapacity(20)
     acquireReviewMutex(ownerSha,io);acquired=true;requireOwnedRef(MUTEX_REF,ownerSha,io)
-    const confirmed=new Map(abandonedLeases(io).map((row)=>[row.ref,row]))
+    const confirmed=new Map(select(abandonedLeases(io)).map((row)=>[row.ref,row]))
     const reap=candidates.filter((row)=>confirmed.get(row.ref)?.sha===row.sha)
     const reaped=[]
     for(let index=0;index<reap.length;index+=REVIEW_REAP_BATCH){
