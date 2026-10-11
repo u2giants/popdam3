@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 4164,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/334",
+  "contract_sha256": "bb55a97c94422b0dde8aacf9247dde5bd6c7b444a467e5820371572e2246a1d0",
+  "head_sha": "da7a586a760727d793f3724213b05682d83c7466",
+  "base_sha": "b2d1fa3bd127fe72080d629c0e967be03ec95b1b",
+  "files_changed": [
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/queue-hygiene-report.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual exact implementation da7a586a760727d793f3724213b05682d83c7466; private bounded check0 log retained."
+    },
+    {
+      "command": "node --test scripts/queue-hygiene-report.test.mjs scripts/manage-migration-author-lanes-surface.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual exact implementation da7a586a760727d793f3724213b05682d83c7466; private bounded check1 log retained."
+    },
+    {
+      "command": "node --test scripts/agent-work-contract.test.mjs scripts/agent-work-contract-git-evidence.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual exact implementation da7a586a760727d793f3724213b05682d83c7466; private bounded check2 log retained."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Actual exact implementation da7a586a760727d793f3724213b05682d83c7466; private bounded check3 log retained."
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_business_risk_gate.ProductionBusinessRiskGateTests.test_preview_producer_paths_cover_the_whole_executed_closure",
+      "exit_code": 0,
+      "evidence": "Actual exact implementation da7a586a760727d793f3724213b05682d83c7466; private bounded check4 log retained."
+    },
+    {
+      "command": "node --test scripts/check-migration-pr-lease.test.mjs scripts/check-live-proof-probe.test.mjs scripts/check-exact-head-approval.test.mjs scripts/check-required-checks-preflight.test.mjs scripts/lib/required-check-authority.test.mjs scripts/update-required-checks.test.mjs scripts/check-migration-ledger-drift.test.mjs scripts/check-worktree-freshness.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/migration-retirement-tombstones.test.mjs scripts/merged-pr-issue-binding.test.mjs scripts/manage-preview-maintenance-lock.test.mjs scripts/historical-migration-restorations.test.mjs scripts/lib/work-dependencies.test.mjs scripts/lib/review-verdict-artifact.test.mjs scripts/lib/documents-only-change.test.mjs scripts/lib/pr-content-equivalence.test.mjs scripts/agent-work-contract.test.mjs scripts/db-coordination-events.test.mjs scripts/coordination-scenarios.test.mjs scripts/lib/exclusive-lease.test.mjs scripts/apply-lane-advisory-lock.test.mjs scripts/record-review-verdict.test.mjs scripts/run-governed-review.test.mjs scripts/lib/reviewer-turn-budget.test.mjs scripts/repair-voided-findings.test.mjs scripts/refresh-code-pr-branch.test.mjs scripts/dispatch-production-apply.test.mjs scripts/orchestrator-flow/*.test.mjs scripts/check-closeout-readiness.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual exact implementation da7a586a760727d793f3724213b05682d83c7466; private bounded check5 log retained."
+    }
+  ],
+  "assumptions_resolved": [
+    "Parent authorized independent necessary nonclosing repair after original3999 active custody collision. Original source/budget/reinstatement remains outside this independent change.",
+    "331 immutable predecessor and original protected branch source retained; separate327-330 authority unchanged.",
+    "Actual4161 source requires fresh current-main canonical evidence from its owner; do not loosen base proof."
+  ],
+  "stop_conditions_hit": []
+}

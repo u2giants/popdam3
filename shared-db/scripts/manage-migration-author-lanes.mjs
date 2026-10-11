@@ -312,7 +312,7 @@ export function buildDatabasePreviewFileSnapshot(files,base,head,readContent){
 // #4048: a partial maintenance PR must retain its authentic work issue without
 // pretending to close that unfinished parent. Refs only selects the proof;
 // immutable canonical evidence and normal Git validation supply authority.
-export function verifyNonclosingMaintenanceBinding({pr,headSha,files,issue=null},io,git=gitIo){
+export function verifyNonclosingMaintenanceBinding({pr,headSha,files,issue=null,structural=false},io,git=gitIo){
   const refuse=(reason)=>{throw new LaneError(`nonclosing maintenance binding refused: ${reason}`)}
   const live=io.getPr(pr),main=io.mainSha?.()
   if(!live||Number(live.number)!==pr||live.state!=='open'||live.head?.sha!==headSha||
@@ -322,6 +322,7 @@ export function verifyNonclosingMaintenanceBinding({pr,headSha,files,issue=null}
     !/^Posted by [A-Za-z][A-Za-z0-9 -]* chat [A-Za-z0-9-]+ on [A-Za-z0-9_.-]+\s*$/m.test(live.body??''))refuse('trusted signed attribution missing')
   const refs=[...String(live.body??'').matchAll(/\bRefs\s+#([1-9]\d*)\b/gi)].map(m=>Number(m[1]))
   if(refs.length!==1||issue!==null&&Number(issue)!==refs[0])refuse('exactly one consistent Refs work issue is required')
+  if(/\b(?:closes?|fix(?:es)?|resolves?)\s+#([1-9]\d*)\b/i.test(live.body??''))refuse('nonclosing binding cannot declare a closing issue')
   if(!Array.isArray(files)||!files.length)refuse('complete actual file inventory unavailable')
   const pair=resolveEvidencePair(files.map(f=>f.filename),{readFile:path=>io.getFileAt(path,headSha)})
   if(pair.state!=='current'||pair.key==='legacy')refuse('one current keyed canonical evidence pair is required')
@@ -335,15 +336,22 @@ export function verifyNonclosingMaintenanceBinding({pr,headSha,files,issue=null}
     validatePullRequestCompletion(report,{pr,headSha})
   }catch(error){refuse(`canonical evidence validation failed (${error.message})`)}
   if(contract.work_issue!==refs[0]||report.work_issue!==refs[0]||pair.key!==`${refs[0]}/${contract.generation}`||
-    contract.branch!==live.head.ref||contract.work_type!=='repo-maintenance'||contract.route!=='repo-maintenance'||
-    contract.db_reads.length||contract.db_writes.length)refuse('canonical work issue, branch, route or no-database scope disagrees')
+    contract.branch!==live.head.ref||
+    (structural ? contract.work_type!=='structural'||!CLAIM_FIRST_ROUTES.has(contract.route)||!contract.db_writes.length
+      : contract.work_type!=='repo-maintenance'||contract.route!=='repo-maintenance'||contract.db_reads.length||contract.db_writes.length))refuse('canonical work issue, branch, route or no-database scope disagrees')
   if(typeof io.prepareNonclosingEvidenceGit!=='function')refuse('exact source Git reader unavailable')
   io.prepareNonclosingEvidenceGit(headSha,main)
   try{verifyGitEvidence({contract,report,prBaseSha:main,prHeadSha:headSha},git)}
   catch(error){refuse(`published contract or exact Git proof failed (${error.message})`)}
   const work=io.getIssue(refs[0])
   if(Number(work?.number)!==refs[0])refuse('authentic work issue unavailable')
-  return {issue:refs[0],work,headSha,contractRef:report.contract_ref,contractHash:contractHash(contract)}
+  if(structural){
+    let scope
+    try{scope=parseQueueScope(work?.body??'')}catch(error){refuse(`structural scope is unreadable (${error.message})`)}
+    if(work.state!=='open'||scope?.status!=='ready'||scope?.workType!=='structural'||!CLAIM_FIRST_ROUTES.has(scope.route)||
+      scope.route!==contract.route||JSON.stringify([...scope.writes].sort())!==JSON.stringify([...contract.db_writes].sort()))refuse('structural issue, route or exact writes disagrees')
+  }
+  return {issue:refs[0],work,headSha,route:structural?'structural':'repo-maintenance',contractRef:report.contract_ref,contractHash:contractHash(contract)}
 }
 
 export const githubIo = {
@@ -673,6 +681,7 @@ export const githubIo = {
   // `openPulls()` cannot see it; this looks the branch up across every state.
   branchPulls(branch) { return ghPaginated(`repos/${REPO}/pulls?state=all&head=${REPO.split('/')[0]}:${encodeURIComponent(branch)}&per_page=100`) },
   verifyNonclosingMaintenanceBinding(request){return verifyNonclosingMaintenanceBinding(request,this)},
+  verifyNonclosingStructuralBinding(request){return verifyNonclosingMaintenanceBinding({...request,structural:true},this)},
   prepareNonclosingEvidenceGit(head,base){execFileSync('git',['fetch','--no-tags','--quiet','origin',head,base],{stdio:['ignore','pipe','pipe']})},
   getPr(number) { return ghJson(['api', `repos/${REPO}/pulls/${number}`]) },
   getPrFiles(number) { return ghPaginated(`repos/${REPO}/pulls/${number}/files?per_page=100`) },
@@ -3284,9 +3293,16 @@ export function resolveAdmittedIssueForPr(pr, io = githubIo) {
   if (!Number.isInteger(Number(pr)) || Number(pr) < 1) throw new LaneError('--resolve-admitted-issue-for-pr requires a pull request number')
   const linked = io.closingIssuesForPr(Number(pr))
   if (!Array.isArray(linked)) throw new LaneError('pull request closing-issue linkage is unreadable')
-  if (linked.length !== 1) throw new LaneError(`pull request must close exactly one structural work issue; found ${linked.length}`)
-  const result = admitIssueSerialized(Number(linked[0].number), io, { pr:Number(pr), allowLegacy:true })
-  return { issue:Number(linked[0].number), pr:Number(pr), admission:result.admitted ? 'admitted' : 'refused' }
+  if(linked.length>1)throw new LaneError(`pull request must close exactly one structural work issue; found ${linked.length}`)
+  if(linked.length===0){
+    const candidate=io.getPr(Number(pr))
+    if(!candidate||candidate.merged_at||String(candidate.state??'open').toLowerCase()!=='open')throw new LaneError('pull request must close exactly one structural work issue; found 0')
+  }
+  const route=linked.length===0?derivePrOperationRoute(Number(pr),io):null
+  if(route&&route.route!=='structural')throw new LaneError('nonclosing PR resolution requires verified structural work')
+  const number=route?.issue??Number(linked[0].number)
+  const result=admitIssueSerialized(number,io,{pr:Number(pr),allowLegacy:true})
+  return {issue:number,pr:Number(pr),admission:result.admitted?'admitted':'refused'}
 }
 
 // Issue #2802: routing and admission are one gate, and neither half is reviewer work.
