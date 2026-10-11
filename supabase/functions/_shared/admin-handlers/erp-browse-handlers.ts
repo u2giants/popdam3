@@ -114,14 +114,18 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   if (error) return err(error.message, 500);
 
   // Enrich with item descriptions
-  const itemIds = [...new Set((data || []).map((d: any) => d.plm_item_id).filter(Boolean))];
+  // The plm schema is not exposed through the REST API, so read canonical
+  // items through the read-only SQL RPC (same path as erp-items-browse).
+  const itemIds = [...new Set((data || []).map((d: any) => d.plm_item_id).filter(isUuid))];
   const { data: erpItems, error: itemError } = itemIds.length
-    ? await db.schema("plm").from("item").select("id, description, item_number").in("id", itemIds)
+    ? await db.rpc("execute_readonly_query", {
+      query_text: `SELECT id, description, item_number FROM plm.item WHERE id IN (${itemIds.map((id) => `'${id}'`).join(", ")})`,
+    })
     : { data: [], error: null };
   if (itemError) return err(itemError.message, 500);
 
   const descMap: Record<string, { description: string; style_number: string }> = {};
-  for (const item of erpItems || []) {
+  for (const item of (Array.isArray(erpItems) ? erpItems : []) as any[]) {
     const value = {
       description: item.description || "",
       style_number: item.item_number || "",
@@ -144,6 +148,11 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
     total_pages: Math.ceil((totalCount ?? 0) / pageSize),
     status_counts: statusCounts,
   });
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_RE.test(value);
 }
 
 /**
