@@ -91,6 +91,150 @@ export function applyErpKeysetPage<Q extends KeysetQuery<Q>>(query: Q, afterId: 
   return (afterId ? ordered.gt("id", afterId) : ordered).limit(size);
 }
 
+type ErpApplyRow = {
+  id: string;
+  source_id: string;
+  source_system: string;
+  style_number: string | null;
+  item_description: string | null;
+  mg_category: string | null;
+  mg01_code: string | null;
+  mg02_code: string | null;
+  mg03_code: string | null;
+  size_code: string | null;
+  licensor_code: string | null;
+  property_code: string | null;
+  division_code: string | null;
+  erp_updated_at: string | null;
+};
+
+export type ErpPredictionRow = {
+  plm_item_id: string | null;
+  predicted_category: string | null;
+  confidence: number | null;
+  classification_source: string | null;
+  status: string;
+  created_at?: string | null;
+};
+
+export interface ErpApplyPlan {
+  item: ErpApplyRow;
+  updates: Record<string, unknown>;
+  classificationSource: string;
+  confidence: number | null;
+}
+
+export type ErpEnrichmentLogEntry = {
+  target_type: string;
+  target_id: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  source: string;
+  confidence: number | null;
+  run_id: string;
+};
+
+/** Newest prediction per canonical item id (rows must already be newest-first). */
+export function latestPredictionByItem(rows: ErpPredictionRow[]): Map<string, ErpPredictionRow> {
+  const latest = new Map<string, ErpPredictionRow>();
+  for (const row of rows) {
+    if (row.plm_item_id && !latest.has(row.plm_item_id)) latest.set(row.plm_item_id, row);
+  }
+  return latest;
+}
+
+const ERP_COPIED_FIELDS = ["mg01_code", "mg02_code", "mg03_code", "size_code", "licensor_code", "property_code", "division_code"] as const;
+
+/** Pure: decides which fields to write for one ERP item. Returns null when nothing applies. */
+export function planErpItemUpdate(item: ErpApplyRow, prediction: ErpPredictionRow | undefined): ErpApplyPlan | null {
+  if (!item.style_number) return null;
+  const updates: Record<string, unknown> = {};
+  let productCategory: string | null = null;
+  let classificationSource = "erp";
+  let confidence: number | null = null;
+
+  // MG codes before 2025-05-10 were unreliable; only trust mg_category for items updated on or after that date
+  const mgCategoryReliable =
+    item.mg_category && item.erp_updated_at && new Date(item.erp_updated_at) >= new Date("2025-05-10");
+
+  if (mgCategoryReliable) {
+    productCategory = item.mg_category;
+    confidence = 1;
+  } else if (prediction && ["approved", "auto_applied"].includes(prediction.status)) {
+    productCategory = prediction.predicted_category;
+    classificationSource = prediction.classification_source || "ai";
+    confidence = prediction.confidence ?? null;
+  }
+
+  for (const field of ERP_COPIED_FIELDS) {
+    if (item[field]) updates[field] = item[field];
+  }
+  if (productCategory) updates.product_category = productCategory;
+  const coverDesc = deriveErpCoverDescription(item.item_description ?? null);
+  if (coverDesc) updates.cover_description = coverDesc;
+
+  if (Object.keys(updates).length === 0) return null;
+  return { item, updates, classificationSource, confidence };
+}
+
+/** Pure: audit-log rows for fields whose value actually changes. */
+export function buildErpLogEntries(
+  plan: ErpApplyPlan,
+  representative: Record<string, unknown> | null,
+  target: { type: string; id: string },
+  runId: string,
+): ErpEnrichmentLogEntry[] {
+  const entries: ErpEnrichmentLogEntry[] = [];
+  for (const [field, newVal] of Object.entries(plan.updates)) {
+    const oldVal = representative?.[field];
+    if (String(oldVal ?? "") === String(newVal ?? "")) continue;
+    entries.push({
+      target_type: target.type,
+      target_id: target.id,
+      field_name: field,
+      old_value: oldVal != null ? String(oldVal) : null,
+      new_value: newVal != null ? String(newVal) : null,
+      source: plan.classificationSource,
+      confidence: plan.confidence,
+      run_id: runId,
+    });
+  }
+  return entries;
+}
+
+/** Runs `fn` over `items` with at most `limit` in flight; rejects on the first failure. */
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+const ERP_WRITE_CONCURRENCY = 8;
+
+function firstRowByMatchKey(rows: unknown): Map<string, Record<string, unknown>> {
+  const map = new Map<string, Record<string, unknown>>();
+  for (const row of (rows ?? []) as Array<Record<string, unknown>>) {
+    const key = canonicalItemMatchKey(row.sku as string | null, row.division_code as string | null);
+    if (!map.has(key)) map.set(key, row);
+  }
+  return map;
+}
+
+/**
+ * Per page (#204): one prediction read, one current-values read per target
+ * table, per-item updates run concurrently, and one audit-log insert.
+ * Every read/write error fails the page without advancing the cursor (#205);
+ * the handler is idempotent so the retry is safe. Collapsing the per-item
+ * updates into one statement needs a DB function (belongs in popcre/shared-db).
+ */
 export async function handleApplyErpEnrichment(opState: OpState, client: DB = db()): Promise<BatchResult> {
   const mode = (opState.params?.mode as string) || "apply";
   const batchSize = 100;
@@ -112,141 +256,78 @@ export async function handleApplyErpEnrichment(opState: OpState, client: DB = db
   }
   const canonicalIds = await canonicalItemIdMap(client, erpItems);
 
+  // Ambiguous identities are skipped entirely: two duplicates would otherwise
+  // write competing values to the same SKU/division and the last would win.
+  const items = resolvedErpItems(erpItems as ErpApplyRow[], canonicalIds).filter((i) => !!i.style_number);
+
+  const predictionIds = [...new Set(items.map((i) => canonicalIds.get(canonicalItemKey(i))).filter((v): v is string => !!v))];
+  let predictions = new Map<string, ErpPredictionRow>();
+  if (predictionIds.length > 0) {
+    const { data: predictionRows, error: predErr } = await client
+      .from("product_category_predictions")
+      .select("plm_item_id, predicted_category, confidence, classification_source, status, created_at")
+      .in("plm_item_id", predictionIds)
+      .order("created_at", { ascending: false });
+    if (predErr) return { ok: false, done: false, error: `prediction lookup failed: ${predErr.message}` };
+    predictions = latestPredictionByItem((predictionRows ?? []) as ErpPredictionRow[]);
+  }
+
+  const plans = items
+    .map((item) => {
+      const predId = canonicalIds.get(canonicalItemKey(item));
+      return planErpItemUpdate(item, predId ? predictions.get(predId) : undefined);
+    })
+    .filter((p): p is ErpApplyPlan => p !== null);
+
   let assetsUpdated = 0;
   let groupsUpdated = 0;
 
-  // Ambiguous identities are skipped entirely: two duplicates would otherwise
-  // write competing values to the same SKU/division and the last would win.
-  for (const erpItem of resolvedErpItems(erpItems, canonicalIds)) {
-    if (!erpItem.style_number) continue;
+  if (mode !== "dry-run" && plans.length > 0) {
+    const skus = [...new Set(plans.map((p) => p.item.style_number as string))];
+    const fields = [...new Set(plans.flatMap((p) => Object.keys(p.updates)))];
+    const selectCols = [...new Set(["id", "sku", "division_code", ...fields])].join(", ");
 
-    const updates: Record<string, unknown> = {};
-    let productCategory: string | null = null;
-    let classificationSource = "erp";
-    let confidence: number | null = null;
+    const [assetsRes, groupsRes] = await Promise.all([
+      client.from("assets").select(selectCols).in("sku", skus).eq("is_deleted", false),
+      client.from("style_groups").select(selectCols).in("sku", skus),
+    ]);
+    if (assetsRes.error) return { ok: false, done: false, error: `assets lookup failed: ${assetsRes.error.message}` };
+    if (groupsRes.error) return { ok: false, done: false, error: `style_groups lookup failed: ${groupsRes.error.message}` };
+    const currentAssets = firstRowByMatchKey(assetsRes.data);
+    const currentGroups = firstRowByMatchKey(groupsRes.data);
 
-    // MG codes before 2025-05-10 were unreliable; only trust mg_category for items updated on or after that date
-    const mgCategoryReliable =
-      erpItem.mg_category &&
-      erpItem.erp_updated_at &&
-      new Date(erpItem.erp_updated_at) >= new Date("2025-05-10");
-
-    if (!mgCategoryReliable) {
-      const { data: predictionRow } = await client
-        .from("product_category_predictions")
-        .select("predicted_category, confidence, classification_source, status, created_at")
-        .eq("plm_item_id", canonicalIds.get(canonicalItemKey(erpItem)) ?? "00000000-0000-0000-0000-000000000000")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (predictionRow && ["approved", "auto_applied"].includes(predictionRow.status)) {
-        productCategory = predictionRow.predicted_category;
-        classificationSource = predictionRow.classification_source || "ai";
-        confidence = predictionRow.confidence ?? null;
-      }
-    } else {
-      productCategory = erpItem.mg_category;
-      classificationSource = "erp";
-      confidence = 1;
+    let outcomes: Array<{ assets: number; groups: number; logs: ErpEnrichmentLogEntry[] }>;
+    try {
+      outcomes = await mapWithConcurrency(plans, ERP_WRITE_CONCURRENCY, async (plan) => {
+        const sku = plan.item.style_number as string;
+        const division = plan.item.division_code;
+        const [assetRes, groupRes] = await Promise.all([
+          client.from("assets").update(plan.updates).eq("sku", sku).eq("division_code", division).eq("is_deleted", false).select("id"),
+          client.from("style_groups").update(plan.updates).eq("sku", sku).eq("division_code", division).select("id"),
+        ]);
+        if (assetRes.error) throw new Error(`assets update failed for ${sku}: ${assetRes.error.message}`);
+        if (groupRes.error) throw new Error(`style_groups update failed for ${sku}: ${groupRes.error.message}`);
+        const assetRows = (assetRes.data ?? []) as Array<{ id: string }>;
+        const groupRows = (groupRes.data ?? []) as Array<{ id: string }>;
+        const key = canonicalItemMatchKey(sku, division);
+        const representative = currentAssets.get(key) ?? currentGroups.get(key) ?? null;
+        const target = assetRows.length
+          ? { type: "asset", id: assetRows[0].id }
+          : groupRows.length
+            ? { type: "style_group", id: groupRows[0].id }
+            : { type: "erp_item", id: plan.item.id };
+        return { assets: assetRows.length, groups: groupRows.length, logs: buildErpLogEntries(plan, representative, target, runId) };
+      });
+    } catch (e) {
+      return { ok: false, done: false, error: e instanceof Error ? e.message : String(e) };
     }
 
-    if (erpItem.mg01_code) updates.mg01_code = erpItem.mg01_code;
-    if (erpItem.mg02_code) updates.mg02_code = erpItem.mg02_code;
-    if (erpItem.mg03_code) updates.mg03_code = erpItem.mg03_code;
-    if (erpItem.size_code) updates.size_code = erpItem.size_code;
-    if (erpItem.licensor_code) updates.licensor_code = erpItem.licensor_code;
-    if (erpItem.property_code) updates.property_code = erpItem.property_code;
-    if (erpItem.division_code) updates.division_code = erpItem.division_code;
-    if (productCategory) updates.product_category = productCategory;
-
-    const coverDesc = deriveErpCoverDescription(erpItem.item_description ?? null);
-    if (coverDesc) updates.cover_description = coverDesc;
-
-    if (Object.keys(updates).length === 0) continue;
-
-    if (mode !== "dry-run") {
-      const updateFields = Object.keys(updates);
-
-      const [{ data: currentAssets }, { data: currentGroups }] = await Promise.all([
-        client
-          .from("assets")
-          .select(`id, ${updateFields.join(", ")}`)
-          .eq("sku", erpItem.style_number)
-          .eq("division_code", erpItem.division_code)
-          .eq("is_deleted", false)
-          .limit(1),
-        client
-          .from("style_groups")
-          .select(`id, ${updateFields.join(", ")}`)
-          .eq("sku", erpItem.style_number)
-          .eq("division_code", erpItem.division_code)
-          .limit(1),
-      ]);
-
-      const { data: assetRows, error: assetUpdateErr } = await client
-        .from("assets")
-        .update(updates)
-        .eq("sku", erpItem.style_number)
-        .eq("division_code", erpItem.division_code)
-        .eq("is_deleted", false)
-        .select("id");
-      if (assetUpdateErr) {
-        return { ok: false, done: false, error: `assets update failed for ${erpItem.style_number}: ${assetUpdateErr.message}` };
-      }
-      assetsUpdated += assetRows?.length ?? 0;
-
-      const { data: groupRows, error: groupUpdateErr } = await client
-        .from("style_groups")
-        .update(updates)
-        .eq("sku", erpItem.style_number)
-        .eq("division_code", erpItem.division_code)
-        .select("id");
-      if (groupUpdateErr) {
-        return { ok: false, done: false, error: `style_groups update failed for ${erpItem.style_number}: ${groupUpdateErr.message}` };
-      }
-      groupsUpdated += groupRows?.length ?? 0;
-
-      const representative = currentAssets?.[0] ?? currentGroups?.[0] ?? null;
-      const targetId = assetRows?.[0]?.id ?? groupRows?.[0]?.id ?? erpItem.id;
-      const targetType = assetRows?.length ? "asset" : groupRows?.length ? "style_group" : "erp_item";
-
-      const logEntries = updateFields
-        .map((field) => {
-          const oldVal = representative?.[field as keyof typeof representative];
-          const newVal = updates[field];
-          if (String(oldVal ?? "") === String(newVal ?? "")) return null;
-          return {
-            target_type: targetType,
-            target_id: targetId,
-            field_name: field,
-            old_value: oldVal != null ? String(oldVal) : null,
-            new_value: newVal != null ? String(newVal) : null,
-            source: classificationSource,
-            confidence,
-            run_id: runId,
-          };
-        })
-        .filter((entry): entry is {
-          target_type: string;
-          target_id: string;
-          field_name: string;
-          old_value: string | null;
-          new_value: string | null;
-          source: string;
-          confidence: number | null;
-          run_id: string;
-        } => entry !== null);
-
-      if (logEntries.length > 0) {
-        const { error: logErr } = await client.from("erp_enrichment_log").insert(logEntries);
-        if (logErr) {
-          logger.warn("erp-enrichment: failed to insert audit log entries", {
-            sku: erpItem.style_number,
-            error: logErr.message,
-            count: logEntries.length,
-          });
-        }
+    for (const o of outcomes) { assetsUpdated += o.assets; groupsUpdated += o.groups; }
+    const logEntries = outcomes.flatMap((o) => o.logs);
+    if (logEntries.length > 0) {
+      const { error: logErr } = await client.from("erp_enrichment_log").insert(logEntries);
+      if (logErr) {
+        return { ok: false, done: false, error: `erp_enrichment_log insert failed (${logEntries.length} rows): ${logErr.message}` };
       }
     }
   }
@@ -262,6 +343,7 @@ export async function handleApplyErpEnrichment(opState: OpState, client: DB = db
     total: processedBefore + erpItems.length,
   };
 }
+
 
 // ── ERP Classification ───────────────────────────────────────────────────────
 
