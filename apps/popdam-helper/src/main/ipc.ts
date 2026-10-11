@@ -21,6 +21,7 @@ import { getSeafileHealthAsync, testSeafileMapping } from "./seafileAdapter";
 import { startMicrosoftOAuth } from "./oauth";
 import { shell } from "electron";
 import { log } from "./logger";
+import { stagePhotoshopPlugin } from "./editorToken";
 import type { LocalConfig } from "@shared/types";
 
 async function registerDeviceAfterSignIn(): Promise<void> {
@@ -284,7 +285,9 @@ export function registerIpcHandlers(): void {
     const resourcesPath = app.isPackaged
       ? process.resourcesPath
       : join(__dirname, "../../resources");
-    const pluginDir = join(resourcesPath, "photoshop-plugin");
+    // Stage a copy with this install's editor token beside the manifest; the
+    // plugin must send that token to /editor-event.
+    const pluginDir = stagePhotoshopPlugin(join(resourcesPath, "photoshop-plugin"));
     shell.openPath(pluginDir);
     return { ok: true, data: pluginDir };
   });

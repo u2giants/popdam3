@@ -21,12 +21,14 @@ Load it with Adobe's **UXP Developer Tool (UDT)**:
 4. In Photoshop: **Plugins → POP DAM Helper** to show the panel. The panel
    shows "Connected to POP DAM Helper" when the Helper is running.
 
-`manifest.json` lives inside the installed Helper at:
-- **Windows:** `…\resources\photoshop-plugin\manifest.json`
-- **macOS:** `POP DAM Helper.app/Contents/Resources/photoshop-plugin/manifest.json`
-
-The Helper's Settings has a **"Reveal Photoshop plugin folder"** button that opens
-this location for you.
+Always load the plugin from the folder opened by the Helper's Settings button
+**"Reveal Photoshop plugin folder"**. That button stages a copy of the plugin in
+the Helper's user-data folder (`…/photoshop-plugin/`) together with
+`helper-token.json`, a per-install secret. The Helper's `/editor-event` endpoint
+rejects requests without that token, so a copy loaded straight from the app's
+bundled `resources/photoshop-plugin` folder will not work. If you loaded the
+plugin from the bundled folder before, remove it in UDT and re-add it from the
+revealed folder.
 
 ## Notes / limitations
 - Requires Photoshop 23.0+ (UXP).

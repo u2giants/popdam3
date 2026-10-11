@@ -3,7 +3,9 @@
  * bypassing the cloud roundtrip for directory browsing and other fast operations.
  *
  * Runs on a fixed port (47380) so the web app always knows where to find it.
- * CORS is restricted to *.designflow.app and localhost.
+ * Every request must carry Host 127.0.0.1/localhost:47380 (blocks DNS rebinding).
+ * /status and /browse require an exact allowlisted web-app Origin.
+ * /editor-event requires the per-install token (see editorToken.ts).
  *
  * Endpoints:
  *   GET /status          — health check; returns { ok, version, roots[] }
@@ -12,22 +14,20 @@
 
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { readdirSync, statSync } from "fs";
-import { join } from "path";
+import { resolve } from "path";
 import { getConfig } from "./config";
 import { getSeafileHealthAsync } from "./seafileAdapter";
 import { completeMicrosoftOAuthCallback } from "./oauth";
 import { log } from "./logger";
 import { HELPER_VERSION, LOCAL_SERVER_PORT } from "@shared/constants";
-
-const ALLOWED_ORIGINS = [
-  /^https?:\/\/localhost(:\d+)?$/,
-  /^https:\/\/[a-z0-9-]+\.designflow\.app$/,
-];
-
-function isAllowedOrigin(origin: string | undefined): boolean {
-  if (!origin) return true; // non-browser request
-  return ALLOWED_ORIGINS.some((p) => p.test(origin));
-}
+import { getEditorToken } from "./editorToken";
+import {
+  EDITOR_TOKEN_HEADER,
+  isAllowedHost,
+  isAllowedOrigin,
+  resolveWithinRoot,
+  tokensMatch,
+} from "./localServerSecurity";
 
 function send(res: ServerResponse, status: number, body: unknown, origin?: string): void {
   const json = JSON.stringify(body);
@@ -71,6 +71,12 @@ interface DirEntry {
   modified?: string;
 }
 
+class BrowseError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+  }
+}
+
 function browseLocal(requestPath: string): { path: string; entries: DirEntry[] } {
   const config = getConfig();
   const roots = config.rootMappings.filter((r) => r.local_path);
@@ -92,10 +98,9 @@ function browseLocal(requestPath: string): { path: string; entries: DirEntry[] }
   const subPath = parts.slice(1).join("/");
 
   const root = roots.find((r) => r.root_id === rootId);
-
-  // If not a known root_id, try treating as an absolute local path (power-user mode)
-  const localBase = root ? root.local_path : requestPath;
-  const localPath = root && subPath ? join(localBase, subPath) : localBase;
+  if (!root) throw new BrowseError(404, "Unknown root");
+  const localPath = resolveWithinRoot(root.local_path, subPath);
+  if (!localPath) throw new BrowseError(403, "Path escapes root");
 
   const entries: DirEntry[] = [];
   const items = readdirSync(localPath);
@@ -104,7 +109,7 @@ function browseLocal(requestPath: string): { path: string; entries: DirEntry[] }
     // Skip hidden files
     if (name.startsWith(".")) continue;
     try {
-      const st = statSync(join(localPath, name));
+      const st = statSync(resolve(localPath, name));
       entries.push({
         name,
         is_dir: st.isDirectory(),
@@ -160,14 +165,21 @@ export function startLocalServer(): void {
     const origin = req.headers.origin;
     const url = new URL(req.url ?? "/", `http://localhost:${LOCAL_SERVER_PORT}`);
 
+    // DNS-rebinding guard: a rebound attacker domain still sends its own Host.
+    if (!isAllowedHost(req.headers.host, LOCAL_SERVER_PORT)) {
+      send(res, 421, { ok: false, error: "Misdirected request" });
+      return;
+    }
+
     // Preflight
     if (req.method === "OPTIONS") {
       if (isAllowedOrigin(origin)) {
         res.writeHead(204, {
-          "Access-Control-Allow-Origin": origin ?? "*",
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Origin": origin as string,
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
           "Access-Control-Max-Age": "86400",
+          Vary: "Origin",
         });
       } else {
         res.writeHead(403);
@@ -179,8 +191,9 @@ export function startLocalServer(): void {
     // Editor integration: the Photoshop plugin POSTs document events here (e.g.
     // a close of an edited, checked-out file → the Helper offers to check it in).
     if (req.method === "POST" && url.pathname === "/editor-event") {
-      if (!isAllowedOrigin(origin)) {
-        send(res, 403, { ok: false, error: "Forbidden origin" });
+      const provided = req.headers[EDITOR_TOKEN_HEADER];
+      if (!tokensMatch(getEditorToken(), typeof provided === "string" ? provided : undefined)) {
+        send(res, 401, { ok: false, error: "Missing or invalid helper token" });
         return;
       }
       try {
@@ -200,12 +213,8 @@ export function startLocalServer(): void {
       return;
     }
 
-    if (!isAllowedOrigin(origin)) {
-      send(res, 403, { ok: false, error: "Forbidden origin" });
-      return;
-    }
-
     try {
+      // OAuth redirect is a top-level browser navigation (no Origin header).
       if (url.pathname === "/auth/callback") {
         const result = await completeMicrosoftOAuthCallback(url);
         const title = result.ok ? "Sign-in complete" : "Sign-in failed";
@@ -219,6 +228,12 @@ export function startLocalServer(): void {
     <p>${escapedMessage}</p>
   </body>
 </html>`);
+        return;
+      }
+
+      // Everything below is for the web app only: exact Origin required.
+      if (!isAllowedOrigin(origin)) {
+        send(res, 403, { ok: false, error: "Forbidden origin" });
         return;
       }
 
@@ -261,6 +276,10 @@ export function startLocalServer(): void {
       send(res, 404, { ok: false, error: "Not found" }, origin);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
+      if (e instanceof BrowseError) {
+        send(res, e.status, { ok: false, error: msg }, origin);
+        return;
+      }
       log.error("Local server error:", msg);
       send(res, 500, { ok: false, error: msg }, origin);
     }

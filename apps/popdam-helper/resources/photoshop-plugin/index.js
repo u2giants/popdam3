@@ -31,14 +31,36 @@ function cacheOpenDocuments() {
   }
 }
 
+// The Helper writes a per-install token (helper-token.json) into the copy of
+// this plugin it stages via Settings → "Reveal Photoshop plugin folder".
+// /editor-event rejects requests without it.
+let helperToken = null;
+async function loadHelperToken() {
+  if (helperToken) return helperToken;
+  try {
+    const { localFileSystem } = require("uxp").storage;
+    const folder = await localFileSystem.getPluginFolder();
+    const file = await folder.getEntry("helper-token.json");
+    const parsed = JSON.parse(await file.read());
+    if (parsed && typeof parsed.token === "string") helperToken = parsed.token;
+  } catch (e) {
+    /* token file missing — plugin was not loaded from the Helper-staged folder */
+  }
+  return helperToken;
+}
+
 async function postEvent(event, path) {
   try {
-    await fetch(HELPER_URL, {
+    const token = await loadHelperToken();
+    const resp = await fetch(HELPER_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-PopDAM-Helper-Token": token || "",
+      },
       body: JSON.stringify({ event, path }),
     });
-    setStatus(true);
+    setStatus(resp.ok);
   } catch (e) {
     // Helper not running / not reachable — silently ignore; nothing to do here.
     setStatus(false);
