@@ -61,6 +61,16 @@ import { handleErpItemsBrowse, handleErpItemsDismiss, handleErpReviewQueue, skuF
 beforeEach(() => {
   fixture.calls.length = 0;
   fixture.rpc.mockReset();
+  // plm is not REST-exposed; handlers read plm.item via execute_readonly_query.
+  fixture.rpc.mockImplementation(async (fn: string, params: { query_text?: string }) => {
+    const sql = params?.query_text ?? "";
+    if (fn !== "execute_readonly_query" || !sql.includes("FROM plm.item")) return { data: [], error: null };
+    const inList = sql.match(/IN \(([^)]*)\)/)?.[1] ?? "";
+    const values = [...inList.matchAll(/'([^']*)'/g)].map((m) => m[1]);
+    const byId = /WHERE id IN/.test(sql);
+    const rows = (fixture.tables["plm.item"] ?? []).filter((row) => values.includes(byId ? row.id : row.item_number));
+    return { data: rows, error: null };
+  });
   fixture.tables = {
     "api.plm_item_list": [
       {
@@ -73,7 +83,7 @@ beforeEach(() => {
         mg_category: null,
       },
       {
-        id: "canonical-sp",
+        id: "00000000-0000-4000-8000-0000000000c2",
         source_id: "SAME",
         source_system: "coldlion",
         division_code: "SP001",
@@ -83,14 +93,14 @@ beforeEach(() => {
       },
     ],
     "plm.item": [
-      { id: "canonical-cw", source_system: "coldlion", item_number: "SAME", description: "CW description", raw: { divisionCode: "CW001" } },
-      { id: "canonical-sp", source_system: "coldlion", item_number: "SAME", description: "SP description", raw: { divisionCode: "SP001" } },
+      { id: "00000000-0000-4000-8000-0000000000c1", source_system: "coldlion", item_number: "SAME", description: "CW description", raw: { divisionCode: "CW001" } },
+      { id: "00000000-0000-4000-8000-0000000000c2", source_system: "coldlion", item_number: "SAME", description: "SP description", raw: { divisionCode: "SP001" } },
     ],
     assets: [{ id: "asset-cw", sku: "SAME", division_code: "CW001", is_deleted: false }],
     style_groups: [],
     product_category_predictions: [
-      { id: "prediction-cw", plm_item_id: "canonical-cw", erp_item_id: "legacy-cw", external_id: "SAME", predicted_category: "Wall", status: "approved" },
-      { id: "prediction-sp", plm_item_id: "canonical-sp", erp_item_id: "legacy-sp", external_id: "SAME", predicted_category: "Tabletop", status: "approved" },
+      { id: "prediction-cw", plm_item_id: "00000000-0000-4000-8000-0000000000c1", erp_item_id: "legacy-cw", external_id: "SAME", predicted_category: "Wall", status: "approved" },
+      { id: "prediction-sp", plm_item_id: "00000000-0000-4000-8000-0000000000c2", erp_item_id: "legacy-sp", external_id: "SAME", predicted_category: "Tabletop", status: "approved" },
       { id: "unresolved", plm_item_id: null, external_id: "SAME", predicted_category: "Other", status: "pending", item_identity_status: "unresolved" },
     ],
   };
@@ -101,7 +111,7 @@ describe("canonical ERP handler behavior", () => {
     const body = await (await handleApplyErpEnrichment({ mode: "dry-run" })).json();
     expect(body.sample_updates).toHaveLength(1);
     expect(body.sample_updates[0]).toMatchObject({ predicted_category: "Wall", matching_asset_count: 1 });
-    expect(fixture.calls).toContainEqual({ table: "product_category_predictions", column: "plm_item_id", value: "canonical-cw" });
+    expect(fixture.calls).toContainEqual({ table: "product_category_predictions", column: "plm_item_id", value: "00000000-0000-4000-8000-0000000000c1" });
   });
 
   it("dry-run totals count only the matched division, as the worker updates by SKU and division", async () => {
