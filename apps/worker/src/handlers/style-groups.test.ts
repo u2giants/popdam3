@@ -129,3 +129,17 @@ test("differential progress counts actual selected rows, including zero-row fina
   assert.throws(() => rebuildProcessedRows({ rows_examined: "3" }, mark, 100));
   assert.equal(rebuildProcessedRows({}, undefined, 100), 100);
 });
+
+// PostgreSQL jsonb returns object fields in its own order, not insertion order.
+test("persisted JSONB watermark resumes when field order changes", () => {
+  const initial = bindRebuildWatermark(normalizeRebuildState(null), incremental, true);
+  const persisted = JSON.parse(JSON.stringify({ ...initial, last_rebuild_asset_id: "asset-after-restart",
+    total_processed: 7, watermark: { run_id: initial.watermark!.run_id,
+      rebuild_mode: initial.watermark!.rebuild_mode, changed_since: initial.watermark!.changed_since,
+      changed_cutoff: initial.watermark!.changed_cutoff } }));
+  assert.notEqual(JSON.stringify(persisted.watermark), JSON.stringify(initial.watermark));
+  const resumed = bindRebuildWatermark(normalizeRebuildState(persisted), incremental, false);
+  assert.equal(resumed.total_processed, 7);
+  assert.equal(rebuildRpcArgs(resumed, 100).p_last_asset_id, "asset-after-restart");
+  assert.equal(rebuildRpcArgs(resumed, 100).p_changed_since, incremental.params!.changed_since);
+});
