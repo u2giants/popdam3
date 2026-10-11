@@ -113,3 +113,19 @@ for (const [name, extra, observedAt] of [
     }
   })
 }
+
+test('complete paginated issue evidence adds only continuation and fresh proof reads',()=>{
+  const ordinary=mkdtempSync(path.join(tmpdir(),'reviewer-wire-ordinary-')),paged=mkdtempSync(path.join(tmpdir(),'reviewer-wire-pages-'))
+  try{
+    seed(path.join(ordinary,'state.json'));seed(path.join(paged,'state.json'))
+    const file=path.join(paged,'state.json'),state=JSON.parse(readFileSync(file,'utf8'))
+    state.issues[9001].comments=Array.from({length:101},(_,i)=>({id:`comment${i}`,updatedAt:'2026-09-01T00:00:00Z',body:`preserved evidence ${i}`,authorAssociation:'OWNER'}))
+    writeFileSync(file,JSON.stringify(state))
+    for(const [index,args] of [[0,['--assign-reviewer',...common]],[1,['--assign-reviewer',...common,'--review-slot','2']]]){
+      const baseline=within(`ordinary slot${index+1}`,run(ordinary,args)),actual=run(paged,args)
+      assert.equal(actual.status,0,actual.output.slice(-1500))
+      assert.equal(actual.api.length,baseline+2*(index+1),'only continuation + fresh first-page proof for each distinct snapshot may add reads')
+      assert.ok(!actual.api.some(row=>/rate_limit/.test(row.label)))
+    }
+  }finally{rmSync(ordinary,{recursive:true,force:true});rmSync(paged,{recursive:true,force:true})}
+})

@@ -1,4 +1,4 @@
-// Single-flight, coalescing gate around public.refresh_style_group_counts_batch
+// Single-flight, coalescing gate around public.refresh_style_group_counts_serialized
 // (and its companion refresh_style_group_primaries). See issue #294.
 //
 // The RPC waits forever on style_groups row locks (lock_timeout = 0), so
@@ -10,8 +10,10 @@
 //   - group ids are sorted so concurrent sessions lock rows in the same order;
 //   - transient failures are retried with backoff, and the final failure is
 //     returned (never swallowed) so callers can surface it.
-// Cross-process serialization against the nightly pg_cron job needs a DB-side
-// advisory lock; that is tracked in popcre/shared-db (linked on #294).
+// Cross-process serialization against the nightly pg_cron reconcile is DB-side:
+// refresh_style_group_counts_serialized (popcre/shared-db#4174) takes the same
+// advisory lock the nightly job holds, with a 5s lock_timeout, so a call blocked
+// behind it fails with a lock error, is retried here, and is then reported.
 
 export interface RpcClient {
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ error: { message: string } | null }>;
@@ -37,6 +39,8 @@ interface Waiter {
   primaries: boolean;
   resolve: (r: RefreshResult) => void;
 }
+
+export const COUNTS_RPC = "refresh_style_group_counts_serialized";
 
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -79,7 +83,7 @@ export function createStyleGroupCountsRefresher(opts: RefreshOptions = {}) {
     let attempts = 0;
     for (let i = 0; i < sorted.length; i += chunkSize) {
       const chunk = sorted.slice(i, i + chunkSize);
-      const c = await callWithRetry(db, "refresh_style_group_counts_batch", chunk);
+      const c = await callWithRetry(db, COUNTS_RPC, chunk);
       attempts += c.attempts;
       if (c.error) {
         for (const id of chunk) failed.set(id, c.error);

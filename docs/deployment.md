@@ -191,6 +191,24 @@ Railway auto-deploys on every push to `main` regardless of which files changed (
 
 ---
 
+## Worker outbound connectivity
+
+`apps/worker/railway.toml` enables supported outbound IPv6 through `deploy.ipv6EgressEnabled = true`; existing IPv4 remains available. October 11, 2026 live verification of PR #344 proved that the actual worker discovers eight Meta models, including Contributor, over IPv6, while IPv4 and the ordinary default fetch return zero models and Contributor 404. The same protected key works from the operator host. This is a connection-origin difference; billing, capacity and an exact Meta-side cause are not proved.
+
+The direct Meta client uses a request-scoped Undici dispatcher with DNS `order: ipv6first` and native connection-family fallback. It resolves the official hostname normally, preserves TLS verification/SNI and IPv4 connection fallback, and changes no global DNS or dispatcher setting. Other providers and Supabase retain their existing connections. There is no address pin, proxy, model switch, credential rotation, timeout increase, region change or replica change. The worker's existing response validation, Contributor concurrency cap and bounded retries remain in place. Sources: https://docs.railway.com/networking/outbound-networking and https://nodejs.org/api/dns.html#dnslookuphostname-options-callback.
+
+### Exact deployment and single-asset verification for this repair
+
+Owner request in chat, quoted verbatim: "do deeper research. fix the problem" and "tag the untagged PopDAM assets using Muse Spark 1.3 contributor". Owner: Codex chat 01a12c67-9746-7172-9ffb-36ff93bbfec2. Tracker: https://github.com/u2giants/popdam3/issues/96. Independent review must explicitly authorize the source deployment and ONE conditional native real-asset canary described here; code-only/document-only approval does not authorize row writes.
+
+Deploy only by normal feature PR/checks/merge and Railway's automatic GitHub deployment, with all worker operations idle immediately before merge and production gates passed. Production target: Railway project8645c5fe-ae60-413e-8464-508456c65365, environment70aef28e-b9f8-4aa6-b902-c9a06aec08d5, servicef777713f-d0f8-4f9b-9685-37c9090c98ef; one replica in us-east4-eqdc4a. Verify successful merged SHA, effective IPv6=true, unchanged placement/key and ordinary Supabase polling. From that actual runtime, at most four metadata GETs using the shipped Meta dispatcher may establish a nonempty list with Contributor and exact Contributor HTTP200; no paid synthetic probe.
+
+ONLY after those guards pass, take the exact asset identity privately from the sole `params.asset_ids` element in the completed prior `ai-tag-untagged` receipt with run_id90267d0a-25d9-42fc-842a-5bcd67109081. That is an operation ID, not an asset UUID. Immediately before enqueue assert that exact receipt ID, completed status, no external_job, one ID, active/pending asset with working thumbnail and no active AI tags. If anything changes, stop; never choose a replacement asset. Re-prove production Supabase https://qsllyeztdwjgirsysgai.supabase.co, exact `meta-direct/muse-spark-1.3-contributor`, blank fallback/provider pin and no conflicting jobs. Privately back up the receipt. With independent exact-head action approval and production/database gates, use existing admin-api `update-bulk-op`, op_key `ai-tag-untagged`, `only_if_status: completed`, fresh run_id/running state/cursor0/progress.total1 and the one proved asset ID. Assert read-back own run_id and await terminal receipt. No direct SQL writes. Success requires tagged1/failed0, fresh saved ai_tagged_at, exact model, nonblank description and active AI tags. Completed+failed1 is failure. Manual tags and rejection tombstones retain existing protections.
+
+No bulk run, group profiling, PopSG, preview changes or new provider terms are authorized by this one-asset verification. If connection verification or the canary fails, stop without repeating paid requests; preserve failure receipts and review the next exact action. A failed deploy is reverted through a fresh current-upstream reviewed PR removing only owned changes, preserving intervening work. The original missing-tag request remains open until persisted worker proof and separately reviewed bulk processing complete. Required reviewer sentence if approving both actions: "Approved the Meta connection deployment and one conditional native canary as specified."
+
+---
+
 ## Rollback
 
 **Frontend rollback:**

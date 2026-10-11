@@ -300,7 +300,17 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
       const parents=run(['rev-list','--parents','-n','1',commit]).split(' ').slice(1)
       if(parents.length===2){const candidate=merge(...parents)
         for(const file of run(['diff','--name-only',tree(candidate),commit,'--',...paths]).split('\n').filter(Boolean))if(file.startsWith('.agent/'))neededFiles.add(file)
+      } else if(parents.length===1){
+        for(const line of run(['diff','--name-status','--no-renames',parents[0],commit]).split('\n').filter(Boolean)){
+          const [status,file]=line.split('\t')
+          if(status==='D' && file?.startsWith('.agent/'))neededFiles.add(file)
+        }
       }
+    }
+    // Ordinary authored retirement is evidence history too. Authenticate every
+    // net metadata difference before excluding it; source merge proof is unchanged.
+    for(const file of run(['diff','--name-only',tree(expected),after,'--',...paths]).split('\n').filter(Boolean)){
+      if(file.startsWith('.agent/'))neededFiles.add(file)
     }
     const intermediate = neededFiles.size?verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,[...neededFiles]):[]
     if(intermediate.length)paths=[...paths,...intermediate.map(p=>`:(top,literal,exclude)${p}`)]

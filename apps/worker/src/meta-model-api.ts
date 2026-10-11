@@ -1,4 +1,5 @@
 import type { ChatCompletionRequest, ChatCompletionResult, ChatMessage, OpenRouterProviderInfo } from "./openrouter.js";
+import { metaDispatcher } from "./meta-connection.js";
 
 // Contributor models are served only by the Responses API; Chat Completions
 // returns 404 model_not_found for them (verified 2026-09-23).
@@ -127,12 +128,14 @@ export async function metaChatCompletion(
   let bodyText: string;
   for (let attempt = 0; ; attempt++) {
     [response, bodyText] = await withContributorSlot(request.model, async () => {
-      const res = await fetch(META_RESPONSES_URL, {
+      const requestOptions = {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify(buildMetaResponsesBody(request)),
         signal: AbortSignal.timeout(timeoutMs),
-      });
+        dispatcher: metaDispatcher,
+      };
+      const res = await fetch(META_RESPONSES_URL, requestOptions);
       return [res, await res.text()] as const;
     });
     if (response.ok) break;

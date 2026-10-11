@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 4193,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/352",
+  "contract_sha256": "98dde88ce4dffce324079fff21a6507069e5a1281f86f6960e3a1c49ed72f4ea",
+  "head_sha": "989d19b3e5d588bfbb944d9fa950dee5d7bd597c",
+  "base_sha": "353e4d212f6e51ae54cdb710f0ebf5b4e7175df1",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "scripts/lib/lanes/github-wire.mjs",
+    "scripts/lib/lanes/review-assignment.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "scripts/reviewer-wire-budget.test.mjs",
+    "scripts/test-fixtures/github-wire-fake.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual combined four declared test files:996PASS/0FAIL/0SKIP, exit0; private352-full-tests.log"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Truth audit342call sites/96sources, exit0; private352-truth.log"
+    },
+    {
+      "command": "node scripts/agent-work-contract.mjs --validate-contract --contract-file .agent/work/3536/352/contract.json",
+      "exit_code": 0,
+      "evidence": "Published352 canonical contract validates, exit0; private352-contract.log"
+    },
+    {
+      "command": "node --test scripts/reviewer-wire-budget.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual combined four declared test files:996PASS/0FAIL/0SKIP, exit0; private352-full-tests.log"
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/admission-outcome.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual combined four declared test files:996PASS/0FAIL/0SKIP, exit0; private352-full-tests.log"
+    },
+    {
+      "command": "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual combined four declared test files:996PASS/0FAIL/0SKIP, exit0; private352-full-tests.log"
+    }
+  ],
+  "assumptions_resolved": [
+    "Preserve genuine6186/c896 REVISE,6230 immutable START and exact provider_unavailable failure release8366832f6d042731446c90afd8fe49b586997939,6240 exact fcbd4 APPROVE/START, all published predecessor contracts, private recovery refs/bundles and actual paid accounting. No reset/refund/replay or new paid call.",
+    "Historical351 is completed/published fcbd4baedb59c0713dd7c031692429b84b12a54e with actual6240 exact-head APPROVE ab178d9659f853f6e20bae35b3fa23a70de473b7. Root read full109-line report and selected no fixes for seven LOW fail-closed/cosmetic findings; sole current completion will be352.",
+    "Ordinary integrate actual current main353e4d212f6e51ae54cdb710f0ebf5b4e7175df1, preserving all four foreign SQL/probe/test files and every owned non-agent source byte. Privately preserve351 pair before ordinary retirement; seal sole352 evidence after actual checks.",
+    "Verify full PR diff byte equality excluding only .agent evidence through existing normal2758 proof; no exception, manufactured source repair or extra paid review. Root retains final merge/security decision.",
+    "Preserve truthful historical350 canonical EOF test collision and all strict intermediate evidence/automatic source merge proofs. Actual6230 failure release succeeded normally before351 publication; original incident remains unresolved/run-scoped with6231 success counterevidence.",
+    "UNKNOWN activity/old incompatible probes refuse; no probe/reclaim, frozen queue source edits, production/schema/data writes, provider substitution or budget reset.",
+    "Published352 exact hash readback verified before edits; verified private351 bundle/ref preserves approval6240 and all prior history. Actual ordinary353e merge clean and owned351 pair retired. Full non-agent PR diff equivalence and fresh CI remain required before root merge decision."
+  ],
+  "stop_conditions_hit": []
+}

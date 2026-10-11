@@ -2877,7 +2877,7 @@ test('silence fingerprint changes on reviewer progress and ignores an unrelated 
 
 test('a genuinely working lane cannot be probed or reclaimed after one comment',()=>{
   const active=silentLeaseIo({activity:[{updated_at:'2026-09-04T12:30:00Z'}]})
-  assert.throws(()=>probeSilentReviewer({...active.request,failedSequence:active.assigned.sequence},new Date('2026-09-04T13:00:00Z'),active.io),/activity occurred after/)
+  assert.throws(()=>probeSilentReviewer({...active.request,failedSequence:active.assigned.sequence},new Date('2026-09-04T13:00:00Z'),active.io),/quiet for at least/)
   const quiet=silentLeaseIo(),options={...quiet.request,failedSequence:quiet.assigned.sequence,confirmNoVerdict:true,confirmNoArtifact:true}
   probeSilentReviewer(options,new Date('2026-09-04T12:00:00Z'),quiet.io)
   quiet.io.readLeaseActivity=()=>({issueComments:[{updated_at:'2026-09-04T13:00:00Z'}],reviewComments:[],reviews:[],checkRuns:[],workflowRuns:[]})
@@ -3042,7 +3042,7 @@ test('unstarted mode judges a reviewer only by its own start marker: CI and a si
   assert.ok(released.releaseSha);assert.equal(fixture.io.refs.get(fixture.leaseRef)??null,null)
   // The ordinary (non-unstarted) silence path still treats PR activity as progress.
   const plain=silentLeaseIo({heldSince:'2026-09-04T10:00:00Z',activity:[{created_at:'2026-09-04T11:00:00Z'}]})
-  assert.throws(()=>probeSilentReviewer({...plain.request,failedSequence:plain.assigned.sequence},new Date('2026-09-04T13:00:00Z'),plain.io),/activity occurred after the lease was drawn/)
+  assert.throws(()=>probeSilentReviewer({...plain.request,failedSequence:plain.assigned.sequence},new Date('2026-09-04T12:59:59Z'),plain.io),/quiet for at least/)
   // Fail closed: an unreadable PR is never read as unstarted.
   const dark=silentLeaseIo({heldSince:'2026-09-04T10:00:00Z'}),darkOptions={...dark.request,failedSequence:dark.assigned.sequence,unstarted:true}
   dark.io.getPr=()=>null
@@ -11479,6 +11479,277 @@ test('nonclosing structural proof refuses untrusted or stale canonical identity 
   const verify=f.io.verifyNonclosingStructuralBinding;f.io.verifyNonclosingStructuralBinding=()=>({issue:41,headSha:f.head,route:'repo-maintenance'});assert.throws(check,/structural binding is unreadable/);f.io.verifyNonclosingStructuralBinding=verify
   f.io.closingIssuesForPr=()=>[{number:41},{number:42}];assert.throws(check,/must close exactly one/)
  }finally{f.close()}
+})
+
+// #3536: ordinary silence recovery requires fully readable terminal quiet activity.
+function ordinaryActivityFixture(activity){
+  const fixture=silentLeaseIo(),options={...fixture.request,failedSequence:fixture.assigned.sequence,confirmNoVerdict:true,confirmNoArtifact:true}
+  fixture.io.readLeaseActivity=()=>({issueComments:[],reviewComments:[],reviews:[],checkRuns:[],workflowRuns:[],...activity})
+  return {...fixture,options}
+}
+test('ordinary silence accepts completed postdraw CI only after both two-hour windows',()=>{
+  const fixture=ordinaryActivityFixture({checkRuns:[{__typename:'CheckRun',id:'check-1',status:'COMPLETED',startedAt:'2026-09-04T10:30:00Z',completedAt:'2026-09-04T11:00:00Z'}],workflowRuns:[{id:2,status:'completed',updated_at:'2026-09-04T11:00:00Z'}]})
+  assert.throws(()=>probeSilentReviewer(fixture.options,new Date('2026-09-04T12:59:59Z'),fixture.io),/quiet for at least/)
+  probeSilentReviewer(fixture.options,new Date('2026-09-04T13:00:00Z'),fixture.io)
+  assert.throws(()=>reclaimSilentReviewer(fixture.options,new Date('2026-09-04T14:59:59Z'),fixture.io),/unchanged readable probe/)
+  assert.ok(reclaimSilentReviewer(fixture.options,new Date('2026-09-04T15:00:00Z'),fixture.io).releaseSha)
+})
+test('ordinary silence rejects old running queued unknown and missing CI states',()=>{
+  for(const group of ['checkRuns','workflowRuns'])for(const status of ['IN_PROGRESS','queued','mystery',null,undefined]){
+    const row={...(group==='checkRuns'?{__typename:'CheckRun'}:{}),startedAt:'2026-09-04T10:00:00Z',updated_at:'2026-09-04T10:00:00Z',...(status===undefined?{}:{status})}
+    const fixture=ordinaryActivityFixture({[group]:[row]})
+    assert.throws(()=>probeSilentReviewer(fixture.options,new Date('2026-09-04T15:00:00Z'),fixture.io),/status is/)
+    assert.equal(fixture.io.refs.get(fixture.leaseRef),fixture.leaseSha)
+  }
+})
+test('ordinary silence refuses absent invalid future and partial unreadable activity timestamps',()=>{
+  for(const row of [{},{updatedAt:null},{updatedAt:'not-a-date'},{updatedAt:'2026-09-05T10:00:00Z'},{updatedAt:'2026-09-04T10:00:00Z',createdAt:'bad'}]){
+    const fixture=ordinaryActivityFixture({issueComments:[row]})
+    assert.throws(()=>probeSilentReviewer(fixture.options,new Date('2026-09-04T15:00:00Z'),fixture.io),/timestamp|quiet for at least/)
+  }
+})
+test('ordinary silence keeps lease-age minimum even when all observed activity is old',()=>{
+  const fixture=silentLeaseIo({heldSince:'2026-09-04T14:00:00Z',activity:[{updatedAt:'2026-09-04T10:00:00Z'}]})
+  assert.throws(()=>probeSilentReviewer({...fixture.request,failedSequence:fixture.assigned.sequence},new Date('2026-09-04T15:00:00Z'),fixture.io),/lease at least 2 hours/)
+})
+test('ordinary full metadata digest detects same-count nonmaximum edits and ignores row ordering',()=>{
+  const rows=[{id:1,updatedAt:'2026-09-04T10:00:00Z'},{id:2,updatedAt:'2026-09-04T11:00:00Z'}]
+  const fixture=ordinaryActivityFixture({issueComments:rows}),lease={...fixture.assigned,slot:1}
+  const before=activityFingerprintForLease(lease,fixture.io)
+  rows.reverse()
+  assert.equal(activityFingerprintForLease(lease,fixture.io).fingerprint,before.fingerprint)
+  rows.find(row=>row.id===1).updatedAt='2026-09-04T10:30:00Z'
+  const after=activityFingerprintForLease(lease,fixture.io)
+  assert.equal(after.lastActivityIso,before.lastActivityIso)
+  assert.notEqual(after.fingerprint,before.fingerprint)
+})
+test('ordinary reclaim refuses changed nonmaximum metadata and nonterminal activity after immutable probe',()=>{
+  for(const change of ['nonmaximum','ongoing']){
+    const rows=[{id:1,updatedAt:'2026-09-04T10:00:00Z'},{id:2,updatedAt:'2026-09-04T11:00:00Z'}]
+    const fixture=ordinaryActivityFixture({issueComments:rows})
+    const probe=probeSilentReviewer(fixture.options,new Date('2026-09-04T13:00:00Z'),fixture.io)
+    if(change==='nonmaximum')rows[0].updatedAt='2026-09-04T10:30:00Z'
+    else fixture.io.readLeaseActivity=()=>({issueComments:rows,reviewComments:[],reviews:[],checkRuns:[{__typename:'CheckRun',status:'IN_PROGRESS',startedAt:'2026-09-04T10:00:00Z'}],workflowRuns:[]})
+    assert.throws(()=>reclaimSilentReviewer(fixture.options,new Date('2026-09-04T15:00:00Z'),fixture.io),/fingerprint changed|nonterminal/)
+    assert.equal(fixture.io.refs.get(fixture.leaseRef),fixture.leaseSha)
+    assert.equal(fixture.io.refs.get(probe.probeRef),probe.probeSha)
+  }
+})
+test('ordinary silence legacy status contexts require terminal readable states',()=>{
+  for(const state of ['SUCCESS','FAILURE','ERROR']){
+    const fixture=ordinaryActivityFixture({checkRuns:[{__typename:'StatusContext',id:'ctx',state,createdAt:'2026-09-04T11:00:00Z'}]})
+    assert.ok(probeSilentReviewer(fixture.options,new Date('2026-09-04T13:00:00Z'),fixture.io).probeSha)
+  }
+  const pending=ordinaryActivityFixture({checkRuns:[{__typename:'StatusContext',state:'PENDING',createdAt:'2026-09-04T10:00:00Z'}]})
+  assert.throws(()=>probeSilentReviewer(pending.options,new Date('2026-09-04T15:00:00Z'),pending.io),/nonterminal/)
+})
+
+test('ordinary reclaim freshly refuses progress head lease and verdict races under the mutex',()=>{
+  for(const race of ['progress','head','lease','verdict']){
+    const rows=[{id:1,updatedAt:'2026-09-04T11:00:00Z'}],fixture=ordinaryActivityFixture({issueComments:rows})
+    probeSilentReviewer(fixture.options,new Date('2026-09-04T13:00:00Z'),fixture.io)
+    const create=fixture.io.createRef
+    fixture.io.createRef=(ref,sha)=>{
+      const made=create(ref,sha)
+      if(ref===MUTEX_REF&&made){
+        if(race==='progress')rows[0].updatedAt='2026-09-04T14:59:00Z'
+        if(race==='head')fixture.io.getPr=()=>({state:'open',head:{sha:'b'.repeat(40)}})
+        if(race==='lease')fixture.io.refs.set(fixture.leaseRef,'b'.repeat(40))
+        if(race==='verdict')giveVerdict(fixture.io,fixture.request)
+      }
+      return made
+    }
+    assert.throws(()=>reclaimSilentReviewer(fixture.options,new Date('2026-09-04T15:00:00Z'),fixture.io))
+    assert.equal([...fixture.io.refs.keys()].some(ref=>ref.startsWith(REVIEW_SILENCE_RELEASE_REF_PREFIX)),false)
+    assert.equal(fixture.io.refs.get(fixture.leaseRef),race==='lease'?'b'.repeat(40):fixture.leaseSha)
+  }
+})
+test('ordinary reclaim preserves exact lease when a competing lease wins atomic CAS',()=>{
+  const fixture=ordinaryActivityFixture({})
+  probeSilentReviewer(fixture.options,new Date('2026-09-04T12:00:00Z'),fixture.io)
+  const atomic=fixture.io.atomicReviewRefs
+  fixture.io.atomicReviewRefs=(changes)=>{
+    if(changes.some(change=>change.ref===fixture.leaseRef&&change.sha===null))fixture.io.refs.set(fixture.leaseRef,'b'.repeat(40))
+    return atomic(changes)
+  }
+  assert.throws(()=>reclaimSilentReviewer(fixture.options,new Date('2026-09-04T14:00:00Z'),fixture.io))
+  assert.equal(fixture.io.refs.get(fixture.leaseRef),'b'.repeat(40))
+  assert.equal([...fixture.io.refs.keys()].some(ref=>ref.startsWith(REVIEW_SILENCE_RELEASE_REF_PREFIX)),false)
+})
+
+function completeActivityResponseFixture(){
+  const lease={pr:2237,headSha:'a'.repeat(40)},connection=(nodes=[])=>({totalCount:nodes.length,pageInfo:{hasNextPage:false},nodes})
+  const graphql={data:{repository:{nameWithOwner:REPO,pullRequest:{number:lease.pr,headRefOid:lease.headSha,comments:connection([{id:'comment-1',updatedAt:'2026-09-04T11:00:00Z'}]),reviews:connection(),reviewThreads:connection([{comments:connection([{id:'reply-1',updatedAt:'2026-09-04T10:00:00Z'}])}])},object:{__typename:'Commit',oid:lease.headSha,statusCheckRollup:{contexts:connection([{__typename:'CheckRun',databaseId:1,status:'COMPLETED',conclusion:'SUCCESS',startedAt:'2026-09-04T10:00:00Z',completedAt:'2026-09-04T11:00:00Z'},{__typename:'StatusContext',id:'context-1',state:'SUCCESS',createdAt:'2026-09-04T11:00:00Z'}])}}}}}
+  const rest={total_count:1,workflow_runs:[{id:2,head_sha:lease.headSha,status:'completed',conclusion:'success',created_at:'2026-09-04T10:00:00Z',updated_at:'2026-09-04T11:00:00Z'}]},requests=[]
+  const readJson=(args)=>{requests.push(args);return args[1]==='graphql'?graphql:rest}
+  return {lease,graphql,rest,requests,readJson,connection}
+}
+test('githubIo ordinary activity consumes actual complete GraphQL and REST response shapes',()=>{
+  const wire=completeActivityResponseFixture(),fixture=ordinaryActivityFixture({})
+  fixture.io.readLeaseActivity=()=>githubIo.readLeaseActivity(wire.lease,{readJson:wire.readJson})
+  const observed=activityFingerprintForLease({...fixture.assigned,slot:1},fixture.io)
+  assert.equal(observed.lastActivityIso,'2026-09-04T11:00:00.000Z')
+  assert.equal(wire.requests.length,2)
+  const query=wire.requests[0].at(-1)
+  for(const field of ['nameWithOwner','headRefOid','__typename','oid','pageInfo{hasNextPage}','databaseId status conclusion startedAt completedAt','id state createdAt'])assert.ok(query.includes(field),`canonical activity selection lacks ${field}`)
+  assert.ok(wire.requests[1][1].includes(`head_sha=${wire.lease.headSha}`))
+  assert.ok(probeSilentReviewer(fixture.options,new Date('2026-09-04T13:00:00Z'),fixture.io).probeSha)
+})
+test('githubIo activity refuses partial GraphQL errors null malformed missing and foreign identity branches',()=>{
+  const mutations=[
+    w=>{w.graphql.errors=[{message:'partial resolver error'}]},
+    w=>{w.graphql.errors={message:'malformed errors'}},
+    w=>{w.graphql.data=null},w=>{w.graphql.data.repository=null},
+    w=>{w.graphql.data.repository.nameWithOwner='foreign/repository'},
+    w=>{w.graphql.data.repository.pullRequest=null},w=>{delete w.graphql.data.repository.pullRequest},
+    w=>{w.graphql.data.repository.pullRequest.comments=null},
+    w=>{w.graphql.data.repository.pullRequest.number=99},
+    w=>{w.graphql.data.repository.pullRequest.headRefOid='b'.repeat(40)},
+    w=>{w.graphql.data.repository.object=null},
+    w=>{delete w.graphql.data.repository.object},
+    w=>{w.graphql.data.repository.object.__typename='Tree'},
+    w=>{w.graphql.data.repository.object.oid='b'.repeat(40)},
+    w=>{w.graphql.data.repository.object.statusCheckRollup=null},
+    w=>{delete w.graphql.data.repository.object.statusCheckRollup},
+    w=>{w.graphql.data.repository.object.statusCheckRollup.contexts={}},
+    w=>{w.graphql.data.repository.object.statusCheckRollup.contexts.pageInfo.hasNextPage=true},
+    w=>{w.graphql.data.repository.object.statusCheckRollup.contexts.totalCount=3},
+    w=>{delete w.graphql.data.repository.pullRequest.comments.pageInfo},
+    w=>{w.graphql.data.repository.pullRequest.reviewThreads.nodes[0].comments.totalCount=2},
+  ]
+  for(const mutate of mutations){const wire=completeActivityResponseFixture();mutate(wire);assert.throws(()=>githubIo.readLeaseActivity(wire.lease,{readJson:wire.readJson}),/GraphQL|identity|unreadable|paginated/)}
+})
+test('githubIo activity refuses incomplete or foreign workflow shapes and unknown check union nodes',()=>{
+  for(const mutate of [w=>{w.rest.total_count=2},w=>{w.rest.workflow_runs=null},w=>{w.rest.workflow_runs[0].head_sha='b'.repeat(40)},w=>{delete w.rest.total_count}]){
+    const wire=completeActivityResponseFixture();mutate(wire)
+    assert.throws(()=>githubIo.readLeaseActivity(wire.lease,{readJson:wire.readJson}),/workflow runs are/)
+  }
+  for(const typename of [undefined,'UnknownCheck']){
+    const wire=completeActivityResponseFixture(),fixture=ordinaryActivityFixture({})
+    wire.graphql.data.repository.object.statusCheckRollup.contexts.nodes[0].__typename=typename
+    fixture.io.readLeaseActivity=()=>githubIo.readLeaseActivity(wire.lease,{readJson:wire.readJson})
+    assert.throws(()=>probeSilentReviewer(fixture.options,new Date('2026-09-04T15:00:00Z'),fixture.io),/object type is unreadable or unknown/)
+  }
+})
+test('githubIo positive empty complete connections are readable rather than inferred from null',()=>{
+  const wire=completeActivityResponseFixture(),fixture=ordinaryActivityFixture({})
+  const pr=wire.graphql.data.repository.pullRequest
+  for(const key of ['comments','reviews','reviewThreads'])pr[key]=wire.connection()
+  wire.graphql.data.repository.object.statusCheckRollup.contexts=wire.connection()
+  wire.rest={total_count:0,workflow_runs:[]}
+  fixture.io.readLeaseActivity=()=>githubIo.readLeaseActivity(wire.lease,{readJson:args=>args[1]==='graphql'?wire.graphql:wire.rest})
+  assert.equal(activityFingerprintForLease({...fixture.assigned,slot:1},fixture.io).lastActivityIso,'none')
+  assert.ok(probeSilentReviewer(fixture.options,new Date('2026-09-04T12:00:00Z'),fixture.io).probeSha)
+})
+function ordinaryCapacityRow(fixture){
+  fixture.io.readActiveReviewLeases=()=>new Map([[fixture.leaseRef,{sha:fixture.leaseSha,commit:fixture.io.getCommit(fixture.leaseSha)}]])
+  fixture.io.readReviewStates=()=>new Map([[`${fixture.request.issue}:${fixture.request.pr}`,{issue:{state:'open'},pr:fixture.io.getPr(),evidence:[]}]])
+  return reviewerCapacityReport(fixture.io,new Date('2026-09-04T15:00:00Z')).reviewers.find(row=>row.held)
+}
+test('capacity reports UNKNOWN for ongoing or unreadable ordinary activity without freeing the lease',()=>{
+  for(const activity of [{checkRuns:[{__typename:'CheckRun',status:'IN_PROGRESS',startedAt:'2026-09-04T10:00:00Z'}]},{issueComments:[{updatedAt:'unreadable'}]}]){
+    const fixture=ordinaryActivityFixture(activity),row=ordinaryCapacityRow(fixture)
+    assert.equal(row.classification,'unknown');assert.equal(row.lastActivityIso,null)
+    assert.equal(fixture.io.refs.get(fixture.leaseRef),fixture.leaseSha)
+  }
+})
+test('old immutable count-and-maximum probe fingerprints remain incompatible and cannot authorize reclaim',()=>{
+  const fixture=ordinaryActivityFixture({}),probe=probeSilentReviewer(fixture.options,new Date('2026-09-04T12:00:00Z'),fixture.io)
+  const {metadataDigest,...oldFacts}=activityFingerprintForLease({...fixture.assigned,slot:1},fixture.io).facts
+  assert.ok(metadataDigest)
+  const oldDigest=createHash('sha256').update(canonicalJson(oldFacts)).digest('hex')
+  const message=fixture.io.getCommit(probe.probeSha).message.replace(/fingerprint=[0-9a-f]{64}/,`fingerprint=${oldDigest}`)
+  const historicalSha=fixture.io.makeOwnerCommit(message);fixture.io.refs.set(probe.probeRef,historicalSha)
+  assert.throws(()=>reclaimSilentReviewer(fixture.options,new Date('2026-09-04T15:00:00Z'),fixture.io),/fingerprint changed/)
+  assert.ok(['live','suspect-aged'].includes(ordinaryCapacityRow(fixture).classification))
+  assert.equal(fixture.io.refs.get(probe.probeRef),historicalSha)
+  assert.equal(fixture.io.refs.get(fixture.leaseRef),fixture.leaseSha)
+})
+
+// Real connection pages preserve every verdict row before allocator classification.
+import { completeReviewStatePages, reviewStateEntry } from './lib/lanes/github-wire.mjs'
+function fixtureReviewStateBatch(repository,leases,{readJson,maxPages=20}={}){
+  const issueCache=new Map(),prCache=new Map(),states=new Map()
+  leases.forEach((lease,index)=>{const {pr,issue}=completeReviewStatePages(repository[`p${index}`],repository[`i${index}`],lease,query=>readJson(['api','graphql','-f',`query=${query}`]),{maxPages,issueCache,prCache});states.set(`${lease.issue}:${lease.pr}`,reviewStateEntry(pr,issue))})
+  return states
+}
+function paginatedReviewFixture(){
+  const time='2026-10-11T18:00:00Z',head='a'.repeat(40)
+  const node=(id,review=false)=>({id,updatedAt:time,body:`evidence ${id}`,authorAssociation:'OWNER',...(review?{state:'COMMENTED',commit:{oid:head}}:{})})
+  const connection=(nodes,totalCount=nodes.length,hasNextPage=false,endCursor=null)=>({totalCount,pageInfo:{hasNextPage,endCursor},nodes})
+  const empty=()=>connection([])
+  const pr={number:4193,updatedAt:time,state:'OPEN',merged:false,mergeCommit:null,headRefOid:head,comments:empty(),reviews:empty()}
+  const issue={number:3536,updatedAt:time,state:'OPEN',comments:connection([node('c1')],2,true,'cursor1')}
+  const page={...issue,comments:connection([node('c2')],2)}
+  return {time,head,node,connection,pr,issue,page,repository:{p0:pr,i0:issue},leases:[{issue:3536,pr:4193}]}
+}
+test('paginated reviewer evidence follows cursor and retains every body and association',()=>{
+  const f=paginatedReviewFixture(),queries=[]
+  const states=fixtureReviewStateBatch(f.repository,f.leases,{readJson(args){queries.push(args.at(-1));return {data:{repository:{x:queries.length===1?f.page:f.issue}}}}})
+  assert.equal(queries.length,2);assert.match(queries[0],/after:"cursor1"/);assert.doesNotMatch(queries[1],/after:/)
+  assert.deepEqual(states.get('3536:4193').evidence.map(r=>r.body),['evidence c1','evidence c2'])
+  assert.equal(states.get('3536:4193').evidence[1].authorAssociation,'OWNER')
+})
+test('paginated shared issue is read once per batch and ordinary evidence adds no reads',()=>{
+  const f=paginatedReviewFixture();f.repository.p1={...f.pr,number:4194};f.repository.i1=structuredClone(f.issue);f.leases.push({issue:3536,pr:4194});let calls=0
+  const states=fixtureReviewStateBatch(f.repository,f.leases,{readJson(){return {data:{repository:{x:++calls===1?f.page:f.issue}}}}})
+  assert.equal(calls,2);assert.equal(states.size,2)
+  f.issue.comments=f.connection([]);f.repository.i1=structuredClone(f.issue)
+  fixtureReviewStateBatch(f.repository,f.leases,{readJson(){assert.fail('ordinary batch must not add a read')}})
+})
+test('paginated PR comments and commit-bound reviews both complete',()=>{
+  const f=paginatedReviewFixture();f.issue.comments=f.connection([])
+  f.pr.comments=f.connection([f.node('p1')],2,true,'comments1');f.pr.reviews=f.connection([f.node('r1',true)],2,true,'reviews1')
+  const states=fixtureReviewStateBatch(f.repository,f.leases,{readJson(args){const query=args.at(-1),review=query.includes('reviews(first:100'),name=review?'reviews':'comments';return {data:{repository:{x:query.includes('after:')?{...f.pr,[name]:f.connection([f.node(review?'r2':'p2',review)],2)}:f.pr}}}}})
+  const rows=states.get('3536:4193').evidence;assert.equal(rows.length,4);assert.equal(rows[3].commit_id,f.head)
+})
+for(const [name,mutate] of [
+  ['GraphQL partial errors',r=>{r.errors=[{message:'partial'}]}],
+  ['null object',r=>{r.data.repository.x=null}],
+  ['missing connection',r=>{delete r.data.repository.x.comments}],
+  ['count change',r=>{r.data.repository.x.comments.totalCount=3}],
+  ['duplicate identity',r=>{r.data.repository.x.comments.nodes[0].id='c1'}],
+  ['invalid timestamp',r=>{r.data.repository.x.comments.nodes[0].updatedAt='unknown'}],
+  ['missing author association',r=>{delete r.data.repository.x.comments.nodes[0].authorAssociation}],
+  ['truncated last page',r=>{r.data.repository.x.comments.nodes=[]}],
+  ['metadata movement',r=>{r.data.repository.x.updatedAt='2026-10-11T18:01:00Z'}],
+  ['repeated cursor',r=>{r.data.repository.x.comments=freshRepeatedPage()}],
+])test(`paginated reviewer evidence refuses ${name}`,()=>{
+  const f=paginatedReviewFixture();assert.throws(()=>fixtureReviewStateBatch(f.repository,f.leases,{readJson(){const r={data:{repository:{x:structuredClone(f.page)}}};mutate(r);return r}}),LaneError)
+})
+function freshRepeatedPage(){const f=paginatedReviewFixture();return f.connection([f.node('c2')],2,true,'cursor1')}
+test('paginated reviewer evidence refuses invalid cursor and bounded page limit',()=>{
+  for(const cursor of [null,'',123]){const f=paginatedReviewFixture();f.issue.comments.pageInfo.endCursor=cursor;assert.throws(()=>fixtureReviewStateBatch(f.repository,f.leases,{readJson(){assert.fail('bad cursor must not read')}}),LaneError)}
+  const f=paginatedReviewFixture();assert.throws(()=>fixtureReviewStateBatch(f.repository,f.leases,{maxPages:1,readJson(){assert.fail('limit must stop before read')}}),/bounded page limit/)
+})
+test('paginated reviewer evidence refuses same-count first-page edits during final proof',()=>{
+  const f=paginatedReviewFixture();let calls=0
+  assert.throws(()=>fixtureReviewStateBatch(f.repository,f.leases,{readJson(){const row=structuredClone(++calls===1?f.page:f.issue);if(calls===2)row.comments.nodes[0].body='changed';return {data:{repository:{x:row}}}}}),/changed during final proof/)
+})
+test('paginated PR evidence refuses head movement and malformed verdict commit',()=>{
+  for(const mode of ['head','commit']){const f=paginatedReviewFixture();f.issue.comments=f.connection([]);f.pr.reviews=f.connection([f.node('r1',true)],2,true,'r1')
+    assert.throws(()=>fixtureReviewStateBatch(f.repository,f.leases,{readJson(){const pr={...f.pr,reviews:f.connection([f.node('r2',true)],2)};if(mode==='head')pr.headRefOid='b'.repeat(40);else pr.reviews.nodes[0].commit=null;return {data:{repository:{x:pr}}}}}),LaneError)
+  }
+})
+test('complete ordinary reviewer evidence accepts merged PR state without extra reads',()=>{
+  const f=paginatedReviewFixture();f.issue.comments=f.connection([]);f.pr.state='MERGED';f.pr.merged=true;f.pr.mergeCommit={oid:f.head}
+  const states=fixtureReviewStateBatch(f.repository,f.leases,{readJson(){assert.fail('ordinary merged state requires no additional read')}})
+  assert.equal(states.get('3536:4193').pr.merged,true)
+})
+test('ordinary reviewer evidence refuses malformed counts and duplicate row identities',()=>{
+  for(const mode of ['count','duplicate','identity']){const f=paginatedReviewFixture();f.issue.comments=f.connection([f.node('c1')]);if(mode==='count')f.issue.comments.totalCount=2;if(mode==='duplicate')f.issue.comments=f.connection([f.node('c1'),f.node('c1')]);if(mode==='identity')f.pr.number=7
+    assert.throws(()=>fixtureReviewStateBatch(f.repository,f.leases,{readJson(){assert.fail('malformed ordinary evidence cannot add a read')}}),LaneError)
+  }
+})
+test('canonical page API completes frozen snapshots without mutating shared issue input',()=>{
+  const f=paginatedReviewFixture(),before=JSON.stringify({pr:f.pr,issue:f.issue})
+  const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value)}return value}
+  freeze(f.pr);freeze(f.issue);let reads=0
+  const issueCache=new Map(),prCache=new Map(),fetchPage=()=>({data:{repository:{x:++reads===1?f.page:f.issue}}})
+  const result=completeReviewStatePages(f.pr,f.issue,f.leases[0],fetchPage,{issueCache,prCache})
+  assert.equal(result.issue.comments.nodes.length,2);assert.equal(JSON.stringify({pr:f.pr,issue:f.issue}),before)
+  const second=completeReviewStatePages({...f.pr,number:4194},structuredClone(f.issue),{issue:3536,pr:4194},()=>assert.fail('shared issue cache must reuse verified pages'),{issueCache,prCache})
+  assert.equal(second.issue.comments.nodes.length,2);assert.equal(reads,2)
 })
 
 // #4194: a curated Master Data fork (#4172 / PR #4176) reaches preview with a

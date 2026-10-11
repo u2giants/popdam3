@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildMetaResponsesBody, isMetaDirectModel, metaChatCompletion, metaModelId } from "./meta-model-api.js";
+import { metaDispatcher } from "./meta-connection.js";
 
 test("recognizes and unwraps explicit direct Meta model IDs", () => {
   assert.equal(isMetaDirectModel("meta-direct/muse-spark-1.3-contributor"), true);
@@ -14,6 +15,7 @@ test("calls Meta directly and parses tool arguments", async () => {
   globalThis.fetch = async (input, init) => {
     assert.equal(String(input), "https://api.meta.ai/v1/responses");
     assert.equal(new Headers(init?.headers).get("authorization"), "Bearer test-meta-key");
+    assert.equal((init as RequestInit & { dispatcher: unknown }).dispatcher, metaDispatcher);
     sent = JSON.parse(String(init?.body));
     return new Response(JSON.stringify({
       id: "meta-generation-1",
