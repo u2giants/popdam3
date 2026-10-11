@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef, Suspense, lazy } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Settings as SettingsIcon, RefreshCw, Activity, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Play, StopCircle, RotateCcw, Download, Loader2, CheckCircle2, AlertTriangle, Eye, Users, Search, X } from "lucide-react";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+const ThroughputChart = lazy(() => import("@/components/settings/ThroughputChart"));
 import { NasStorageTab, ImageOutputTab, ScanningTab, LiveScanMonitor, UpdateAgentButton } from "@/components/settings/WorkerManagementTab";
 import ApisTab from "@/components/settings/ApisTab";
 import WindowsAgentTab from "@/components/settings/WindowsAgentTab";
@@ -1096,26 +1096,9 @@ function AgentThroughputChart() {
       </CardHeader>
       <CardContent>
         <div className="h-[220px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 14% 22%)" />
-              <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(220 10% 55%)" }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: "hsl(220 10% 55%)" }} tickLine={false} axisLine={false} allowDecimals={false} />
-              <RechartsTooltip
-                contentStyle={{
-                  backgroundColor: "hsl(220 16% 15%)",
-                  border: "1px solid hsl(220 14% 22%)",
-                  borderRadius: "6px",
-                  fontSize: 12,
-                  color: "hsl(220 13% 91%)",
-                }}
-              />
-              <Area type="monotone" dataKey="ingested" name="Ingested" stroke="hsl(38 92% 55%)" fill="hsl(38 92% 55% / 0.2)" strokeWidth={2} />
-              <Area type="monotone" dataKey="updated" name="Updated" stroke="hsl(217 91% 60%)" fill="hsl(217 91% 60% / 0.1)" strokeWidth={1.5} />
-              <Area type="monotone" dataKey="moved" name="Moved" stroke="hsl(142 71% 45%)" fill="hsl(142 71% 45% / 0.1)" strokeWidth={1.5} />
-              <Area type="monotone" dataKey="errors" name="Errors" stroke="hsl(0 72% 51%)" fill="hsl(0 72% 51% / 0.1)" strokeWidth={1.5} />
-            </AreaChart>
-          </ResponsiveContainer>
+          <Suspense fallback={null}>
+            <ThroughputChart chartData={chartData} />
+          </Suspense>
         </div>
         <div className="flex items-center justify-center gap-4 mt-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> Ingested</span>
