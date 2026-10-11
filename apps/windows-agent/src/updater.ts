@@ -1,4 +1,4 @@
-import { maintenancePausesClaims } from "./maintenance-lease";
+import { maintenancePausesClaims, maintenanceBlocksConsumedUpdate } from "./maintenance-lease";
 /**
  * Windows Render Agent — Self-updater with dist/ hot-swap + restart.
  *
@@ -234,7 +234,7 @@ async function performUpdateCheck(agentId: string, forceApply: boolean, bypassId
     if (forceApply) {
       // Never consume an immediate command during an administrative lease. Hold
       // its delivery accounting until expiry/release, then retain idle/force rules.
-      while (maintenancePausesClaims(activeJobsRef(), 0, false, false) ||
+      while (maintenanceBlocksConsumedUpdate() ||
           (!bypassIdleCheck && activeJobsRef() > 0)) {
         await new Promise<void>(resolve => setTimeout(resolve, 1000));
       }

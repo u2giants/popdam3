@@ -35,11 +35,26 @@
 param(
     [string]$InstallDir = "C:\Program Files\PopDAM\WindowsAgent",
     [string]$Username = $env:USERNAME,
-    [switch]$PreflightOnly
+    [switch]$PreflightOnly,
+    [switch]$UninstallPreflight
 )
 
 $ErrorActionPreference = "Stop"
 $TaskName = "PopDAM Windows Render Agent"
+
+function Convert-TaskDuration($Value) {
+    if ($Value -is [TimeSpan]) { return $Value }
+    $text = [string]$Value
+    if ($text -match '^P') { return [Xml.XmlConvert]::ToTimeSpan($text) }
+    return [TimeSpan]::Parse($text, [Globalization.CultureInfo]::InvariantCulture)
+}
+if ($UninstallPreflight) {
+    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    if ($task -and $task.Principal.UserId -match '(^|\\)popdam-render$') {
+        throw 'Managed installation must be removed through its canonical host owner; nothing removed.'
+    }
+    exit 0
+}
 
 # Pre-copy admission also applies to manual invocation. Never overwrite a running
 # agent or stop active rendering. Running agents update through their existing
@@ -63,7 +78,7 @@ if ($managed -and $managed.Principal.UserId -match '(^|\\)popdam-render$') {
         $managed.Actions.Count -ne 1 -or $managed.Actions[0].Execute -ne (Join-Path $InstallDir 'popdam-launcher.bat') -or
         $managed.Actions[0].WorkingDirectory -ne $InstallDir -or
         $managed.Settings.MultipleInstances -ne 'IgnoreNew' -or $managed.Settings.RestartCount -ne 3 -or
-        $managed.Settings.RestartInterval -ne 'PT1M' -or $managed.Settings.ExecutionTimeLimit -ne 'PT0S') {
+        (Convert-TaskDuration $managed.Settings.RestartInterval) -ne [TimeSpan]::FromMinutes(1) -or (Convert-TaskDuration $managed.Settings.ExecutionTimeLimit) -ne [TimeSpan]::Zero) {
         throw 'Managed task does not match canonical startup contract; installation refused.'
     }
     Write-Output 'Canonical boot task preserved without account or credential changes.'

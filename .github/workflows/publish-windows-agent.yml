@@ -314,7 +314,7 @@ jobs:
             Pop $0
             Pop $1
             StrCmp $0 "0" preflight_ok
-              MessageBox MB_OK|MB_ICONSTOP "Managed startup preflight failed. Installation stopped."
+              MessageBox MB_OK|MB_ICONSTOP "Managed startup preflight failed. Installation stopped." /SD IDOK
               Abort
             preflight_ok:
 
@@ -417,6 +417,15 @@ jobs:
           ; ══════════════════════════════════════════════════════
 
           Section "Uninstall"
+            InitPluginsDir
+            File /oname=$PLUGINSDIR\setup-task.ps1 "install-scheduled-task.ps1"
+            nsExec::ExecToStack 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\setup-task.ps1" -InstallDir "$INSTDIR" -UninstallPreflight'
+            Pop $0
+            Pop $1
+            StrCmp $0 "0" uninstall_preflight_ok
+              MessageBox MB_OK|MB_ICONSTOP "Managed installation belongs to its canonical host owner. Nothing removed." /SD IDOK
+              Abort
+            uninstall_preflight_ok:
             SetShellVarContext all
             ; Stop and remove the scheduled task
             nsExec::ExecToLog 'schtasks /end /tn "PopDAM Windows Render Agent"'

@@ -40,7 +40,7 @@ async function updaterHarness() {
  const timers:Array<()=>void>=[];let leased=false,jobs=0;let httpDone!:(v:unknown)=>void;let applyDone!:()=>void;let requests=0,applies=0;
  const context:any={state:{updating:false},config:{version:'1.0.0'},logger:{info:()=>{},debug:()=>{},warn:()=>{},error:()=>{}},
   api:{getLatestBuild:()=>{requests++;return new Promise(r=>{httpDone=r})}},isNewer:()=>false,
-  activeJobsRef:()=>jobs,maintenancePausesClaims:()=>leased,setTimeout:(r:()=>void)=>timers.push(r),
+  activeJobsRef:()=>jobs,maintenancePausesClaims:()=>leased,maintenanceBlocksConsumedUpdate:()=>leased,setTimeout:(r:()=>void)=>timers.push(r),
   applyUpdate:()=>{applies++;return new Promise<void>(r=>{applyDone=r})}};
  vm.runInNewContext(ts.transpileModule('let updateOperation;\n'+functions+'\nglobalThis.run=checkForUpdate;', {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
  const flush=()=>new Promise<void>(r=>setImmediate(r));
@@ -62,4 +62,16 @@ test('actual updater serializes swaps and retains force bypass after finite leas
  h.setJobs(2);h.setLease(true);h.finishHttp();await h.flush();assert.equal(h.applies(),1);
  h.setLease(false);h.timers.shift()!();await h.flush();assert.equal(h.applies(),2); // original bypass retained
  h.finishApply();await second;
+});
+
+test('consumed update lease inspection fails closed on protected read errors, resumes only after trusted expiry',async()=>{
+ const {readFileSync}=await import('node:fs');const vm=await import('node:vm');const ts=await import('typescript');
+ const source=readFileSync(new URL('./maintenance-lease.ts',import.meta.url),'utf8');const parsed=ts.createSourceFile('lease.ts',source,ts.ScriptTarget.Latest,true);
+ const declaration=parsed.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='maintenanceBlocksConsumedUpdate')!;
+ let inaccessible=true;let paused=true;
+ const context:any={trustedRequest:()=>{if(inaccessible)throw Error('ACL inspection timeout');return '{}'},inspectMaintenanceLease:()=>({pause:paused})};
+ vm.runInNewContext(ts.transpileModule(declaration.getText(parsed).replace('export ', '')+'\nglobalThis.block=maintenanceBlocksConsumedUpdate;',{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
+ assert.equal(context.block(),true);
+ inaccessible=false;assert.equal(context.block(),true);
+ paused=false;assert.equal(context.block(),false);
 });

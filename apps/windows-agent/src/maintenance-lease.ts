@@ -82,3 +82,13 @@ export function maintenancePausesClaims(activeJobs: number, inFlight: number, ex
     return lease.pause;
   } catch { return false; } // Invalid/untrusted administrative input cannot disable normal claiming.
 }
+
+// Consumed update commands cannot treat an unreadable lease as permission to swap.
+// Each protected ACL read already has a five-second timeout; the updater retries
+// without releasing command accounting, while regular heartbeats continue.
+export function maintenanceBlocksConsumedUpdate(): boolean {
+  try {
+    const raw = trustedRequest();
+    return raw !== null && inspectMaintenanceLease(raw, Date.now(), 0, 0, false).pause;
+  } catch { return true; }
+}
