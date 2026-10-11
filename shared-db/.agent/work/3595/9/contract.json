@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "generation": 9,
+  "work_issue": 3595,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Add the four deferred source lookup indexes and append-only enforcement to plm.item_user_assignment and plm.item_workflow_action before DesignFlow writes its first final-home row (version 20261011212008, re-reserved from 20261011193702 then 20261011203448 as main advanced). Generation 6 (re-versioned; content of generations 4-5, now with an explicit evidence_parent to reviewed generation 3) answers the slot-2 StepFun REVISE on head 3e78cb70: update the #3498 test and live proof index counts (11 -> 15), harden the #3595 test and probe (exact index definitions, function EXECUTE revokes, search_path, RLS, row survival), and correct the segregation map.",
+  "base_sha": "353e4d212f6e51ae54cdb710f0ebf5b4e7175df1",
+  "dispatcher": "Claude chat fdad18ce-76ef-4760-a59c-ea5dab1f11bb on edge-dev3",
+  "worker": "Claude chat fdad18ce-76ef-4760-a59c-ea5dab1f11bb on edge-dev3",
+  "branch": "claude/3595-plm-action-indexes-append-only",
+  "worktree": "/home/ahazan/repos/sdb-3595",
+  "allowed_paths": [
+    "supabase/migrations/20261011212008_plm_item_action_lookup_indexes_append_only.sql",
+    "supabase/tests/plm_item_assignment_action_append_only_contracts.sql",
+    ".github/live-proofs/3595.sql",
+    "supabase/tests/plm_item_assignment_action_homes_contract.sql",
+    ".github/live-proofs/3498.sql",
+    "docs/designflow-master-data-migration/designflow-schema-segregation.md",
+    ".agent/work/3595/6/contract.json",
+    ".agent/work/3595/6/completion.json",
+    ".agent/work/3595/3/"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261011212008_plm_item_action_lookup_indexes_append_only.sql",
+    "supabase/tests/plm_item_assignment_action_append_only_contracts.sql",
+    ".github/live-proofs/3595.sql",
+    "supabase/tests/plm_item_assignment_action_homes_contract.sql",
+    ".github/live-proofs/3498.sql",
+    "docs/designflow-master-data-migration/designflow-schema-segregation.md",
+    ".agent/work/3595/6/contract.json",
+    ".agent/work/3595/6/completion.json",
+    ".agent/work/3595/3/contract.json",
+    ".agent/work/3595/3/completion.json"
+  ],
+  "db_reads": [
+    "table dflow.item_user_assignment",
+    "table dflow.item_workflow_action"
+  ],
+  "db_writes": [
+    "table plm.item_user_assignment",
+    "table plm.item_workflow_action",
+    "index plm.item_user_assignment_active_lookup",
+    "index plm.item_workflow_action_item_time",
+    "index plm.item_workflow_action_open_handoff_lookup",
+    "index plm.item_workflow_action_admin_review",
+    "function plm.reject_item_assignment_history_rewrite",
+    "function plm.reject_item_workflow_action_rewrite",
+    "trigger item_user_assignment_immutable_history on plm.item_user_assignment",
+    "trigger item_workflow_action_immutable on plm.item_workflow_action"
+  ],
+  "prohibited_actions": [
+    "No row movement, grants, RLS policies, or user-id foreign keys in this migration",
+    "No session-made production dispatch; production only via the activated automatic promotion workflow",
+    "No writes outside the exact objects claimed by #4202"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Migration version 20261011212008 re-reserved for claim #4202 (supersedes 20261011193702 and 20261011203448).",
+    "Both plm tables are empty in production at authoring time (verified read-only).",
+    "Generations 1-5 evidence is removed from the tree; generation 6 is the only evidence pair. Generation 3 (reviewed head 3e78cb70) is the evidence parent; generations 4 and 5 were published but never reviewed (main advanced; generation 5 lacked evidence_parent).",
+    "Deferred and recorded on #3595: user-id foreign keys (canonical user table undecided, DesignFlow #71), backend grants/RLS policies (writing service identity undecided, DesignFlow #88), and re-pointing app.user_notification.workflow_action_id from dflow to plm (must follow the row move in the DesignFlow cutover, #118).",
+    "TRUNCATE is not refused, matching the dflow source; tables are deny-by-default so only the owner can truncate."
+  ],
+  "stop_conditions": [
+    "Stop if version or object claim collides with current main.",
+    "Stop if exact-head reviews or CI fail."
+  ],
+  "evidence_parent": {
+    "work_issue": 3595,
+    "generation": 8,
+    "contract_sha256": "776e899ff105bccc7b4e1767c4be7a083a73b8b5898b1f2b643e9da90dfa0ffd"
+  }
+}

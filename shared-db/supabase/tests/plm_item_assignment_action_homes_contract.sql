@@ -119,8 +119,9 @@ BEGIN
   ) OR (
     SELECT count(*) FROM pg_catalog.pg_index
     WHERE indrelid IN ('plm.item_user_assignment'::regclass, 'plm.item_workflow_action'::regclass)
-  ) <> 11 THEN
-    RAISE EXCEPTION 'seven claimed indexes or four primary/constraint indexes differ from exact catalogue contract';
+  ) <> 15 THEN
+    -- 11 from #3498 plus the four source lookup indexes added by #3595.
+    RAISE EXCEPTION 'seven claimed indexes, four #3595 lookup indexes or four primary/constraint indexes differ from exact catalogue contract';
   END IF;
 END
 $test$;
