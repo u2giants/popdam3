@@ -11,7 +11,7 @@
  */
 
 import { readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { resolveUnderRoot } from "./path-containment";
 import { logger } from "./logger";
 import * as api from "./api-client";
 import { uploadPdfPage } from "./uploader";
@@ -405,9 +405,10 @@ export async function runPdfTextSample(
 
   for (let i = 0; i < assets.length; i++) {
     const asset = assets[i];
-    const fullPath = join(mountRoot, asset.relative_path);
+    let fullPath = asset.relative_path;
 
     try {
+      fullPath = resolveUnderRoot(mountRoot, asset.relative_path);
       const result = await processSinglePdf(asset, fullPath, aiConfig, i, assets.length, fileResults);
       results.push(result);
       fileResults.push({

@@ -1,4 +1,4 @@
-import { join } from "path";
+import { resolveUnderRoot } from "./path-containment.js";
 import * as api from "./api-client.js";
 import { logger } from "./logger.js";
 import { isAiSentinel } from "./ai-sentinel-detect.js";
@@ -19,8 +19,8 @@ export async function runAiSentinelScan(
   let sentinelCount = 0;
 
   for (const asset of assets) {
-    const absolutePath = join(nasContainerMountRoot, asset.relative_path);
     try {
+      const absolutePath = resolveUnderRoot(nasContainerMountRoot, asset.relative_path);
       const isSentinel = await isAiSentinel(absolutePath);
       results.push({ asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path, is_sentinel: isSentinel });
       if (isSentinel) {
