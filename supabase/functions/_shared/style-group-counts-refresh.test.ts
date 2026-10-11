@@ -18,7 +18,7 @@ function fakeDb(failures: Record<string, number> = {}) {
         failures[fn]--;
         return { error: { message: "canceling statement due to statement timeout" } };
       }
-      if (fn === "refresh_style_group_counts_batch") for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+      if (fn === "refresh_style_group_counts_batch") { for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1); }
       return { error: null };
     },
   };

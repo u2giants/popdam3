@@ -68,9 +68,11 @@ export function createStyleGroupCountsRefresher(opts: RefreshOptions = {}) {
   async function runBatch(db: RpcClient, waiters: Waiter[]) {
     const all = new Set<string>();
     const prim = new Set<string>();
-    for (const w of waiters) for (const id of w.ids) {
-      all.add(id);
-      if (w.primaries) prim.add(id);
+    for (const w of waiters) {
+      for (const id of w.ids) {
+        all.add(id);
+        if (w.primaries) prim.add(id);
+      }
     }
     const sorted = [...all].sort();
     const failed = new Map<string, string>();
@@ -79,12 +81,15 @@ export function createStyleGroupCountsRefresher(opts: RefreshOptions = {}) {
       const chunk = sorted.slice(i, i + chunkSize);
       const c = await callWithRetry(db, "refresh_style_group_counts_batch", chunk);
       attempts += c.attempts;
-      if (c.error) { for (const id of chunk) failed.set(id, c.error); continue; }
+      if (c.error) {
+        for (const id of chunk) failed.set(id, c.error);
+        continue;
+      }
       const primChunk = chunk.filter((id) => prim.has(id));
       if (primChunk.length > 0) {
         const p = await callWithRetry(db, "refresh_style_group_primaries", primChunk);
         attempts += p.attempts;
-        if (p.error) for (const id of primChunk) failed.set(id, p.error);
+        if (p.error) { for (const id of primChunk) failed.set(id, p.error); }
       }
     }
     for (const w of waiters) {
