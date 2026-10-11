@@ -50,7 +50,7 @@ Always start with:
 
 Active plans (read STATUS first; do not re-derive completed steps):
 
-- plan_muse_tagging_failure_repair.md — bounded Meta Contributor diagnosis; STATUS: synthetic tests passed, real worker proof and tagging pending.
+- plan_muse_tagging_failure_repair.md — Meta connection diagnosis; STATUS: operator tests pass, actual worker has an empty Meta model list; repair and tagging pending.
 
 - plan_master_data_designflow_reference_cutover.md — converge shared Master Data vs DesignFlow Item Details
 - plan_openrouter_batch_restart_recovery.md — Image Tagging batches survive Railway restarts
