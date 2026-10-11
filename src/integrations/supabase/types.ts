@@ -4082,6 +4082,13 @@ export type Database = {
         Returns: string
       }
       assets_thumbnail_min_date: { Args: never; Returns: string }
+      await_style_guide_matview_refresh: {
+        Args: { p_run_id: string }
+        Returns: {
+          ready: boolean
+          refreshed_at: string
+        }[]
+      }
       backfill_pdf_files_used: { Args: never; Returns: number }
       bulk_assign_style_groups: {
         Args: { p_assignments: Json }
