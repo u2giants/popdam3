@@ -148,8 +148,7 @@ popdam3/
 │   │   ├── admin-api/          ← Admin operations router (~1300 lines)
 │   │   ├── agent-api/          ← Bridge/Windows agent comms (~2800 lines)
 │   │   ├── helper-api/         ← Desktop helper checkout/checkin
-│   │   ├── _shared/            ← Shared handlers, types, constants
-│   │   └── bulk-job-runner/    ← No-op stub (replaced by Railway worker)
+│   │   └── _shared/            ← Shared handlers, types, constants
 │   └── migrations/             ← Historical/inert only; new migrations go in `/worksp/shared-db`
 ├── apps/
 │   ├── worker/                 ← Railway cloud worker (Node.js, TypeScript)
@@ -214,10 +213,10 @@ Files outside project-owned areas that were intentionally modified:
 
 | Task | Files to touch | Files NOT to touch |
 |------|---------------|-------------------|
-| Add/fix admin UI bulk operation | `src/components/settings/diagnostics/`, `apps/worker/src/handlers/`, `apps/worker/src/operation-loop.ts`, `supabase/functions/_shared/operation-constants.ts` | `supabase/functions/bulk-job-runner/` (no-op stub) |
+| Add/fix admin UI bulk operation | `src/components/settings/diagnostics/`, `apps/worker/src/handlers/`, `apps/worker/src/operation-loop.ts`, `supabase/functions/_shared/operation-constants.ts` | — |
 | Add/fix edge function route | `supabase/functions/admin-api/index.ts` or `agent-api/index.ts`, `supabase/functions/_shared/admin-handlers/` | `src/integrations/supabase/types.ts` (auto-generated) |
 | DB schema change | Canonical `/worksp/shared-db/supabase/migrations/` via shared-db branch + PR | This repo's `supabase/migrations/`; any existing migration file |
-| Fix style group rebuild | `apps/worker/src/handlers/style-groups.ts`, DB functions in canonical `/worksp/shared-db/supabase/migrations/` | `supabase/functions/bulk-job-runner/`; this repo's `supabase/migrations/` |
+| Fix style group rebuild | `apps/worker/src/handlers/style-groups.ts`, DB functions in canonical `/worksp/shared-db/supabase/migrations/` | this repo's `supabase/migrations/` |
 | Fix style group asset_count drift | Canonical `/worksp/shared-db/supabase/migrations/`, `supabase/functions/_shared/` if function code changes | This repo's `supabase/migrations/` |
 | Fix ERP sync | `apps/worker/src/handlers/erp.ts`, `supabase/functions/_shared/mg-codes.ts`, `supabase/functions/_shared/mg-lookup.ts` | — |
 | Fix SKU-derived MG01–MG03 names | `supabase/functions/_shared/sku-parser.ts`, `_shared/mg-lookup.ts` (current, hierarchical), `_shared/mg-legacy.ts` (pre-2025-05-14 flat lists) | `src/lib/mg-lookup.ts` is only a re-export |
@@ -344,7 +343,7 @@ Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read
 - Master Data style tracker is temporary; companywide business rules own source authority
 - Sibling file scans need a 10-minute lease/expiry
 - `app/` symlink at repo root
-- `bulk-job-runner` edge function is a deployed no-op
+- `bulk-job-runner` edge function is a deployed no-op; its source was removed (#220)
 - PopSG file tagging (`tag-popsg-files`) runs in the Railway worker, not an edge function
 - `verify_jwt = false` on `admin-api` in `supabase/config.toml`
 - Style group rebuild `finalize_stats` calls `reconcile_style_group_stats_batch` in a loop

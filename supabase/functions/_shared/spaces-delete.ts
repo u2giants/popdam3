@@ -1,3 +1,4 @@
+import { sha256Hex, toHex } from "./crypto.ts";
 /**
  * AWS Sig v4 DELETE for DigitalOcean Spaces objects from Deno edge functions.
  * Credentials are read from admin_config (DO_SPACES_KEY, DO_SPACES_SECRET, SPACES_CONFIG).
@@ -8,15 +9,6 @@ export interface SpacesCredentials {
   secret: string;
   bucket: string;
   region: string;
-}
-
-function toHex(bytes: Uint8Array): string {
-  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function sha256Hex(message: string): Promise<string> {
-  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(message));
-  return toHex(new Uint8Array(hash));
 }
 
 async function hmacSha256Bytes(key: Uint8Array, message: string): Promise<Uint8Array> {

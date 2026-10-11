@@ -51,6 +51,7 @@ import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNu
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
+import { sha256Hex, toHex } from "../_shared/crypto.ts";
 import { isPdfBackfillComplete } from "../_shared/pdf-backfill-state.ts";
 import {
   buildSgCrawlCompletionUpdate,
@@ -96,14 +97,7 @@ async function authenticateAgent(
   }
 
   const db = serviceClient();
-  const encoder = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest(
-    "SHA-256",
-    encoder.encode(agentKey),
-  );
-  const hashHex = Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const hashHex = await sha256Hex(agentKey);
 
   const { data, error } = await db
     .from("agent_registrations")
@@ -2244,16 +2238,10 @@ async function handlePair(body: Record<string, unknown>) {
   // Generate a permanent agent key
   const keyBytes = new Uint8Array(32);
   crypto.getRandomValues(keyBytes);
-  const rawKey = Array.from(keyBytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const rawKey = toHex(keyBytes);
 
   // Hash for DB storage
-  const encoder = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(rawKey));
-  const hashHex = Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const hashHex = await sha256Hex(rawKey);
 
   // Use the agent name from the pairing code or the request
   const finalName = agentName !== "agent" ? agentName : (pairing.agent_name || pairing.agent_type);
