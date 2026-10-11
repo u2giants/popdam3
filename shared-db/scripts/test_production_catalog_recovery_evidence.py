@@ -78,4 +78,33 @@ class RecoveryEvidenceTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.build(catalog=row)
 
 
+    def row_count_catalog(self, **overrides):
+        check = {"id": "exorcist_row", "kind": "exact_row_count", "relation": "core.property",
+                 "filters": [{"column": "name", "type": "text", "equals": "x"}], "expected_count": 1,
+                 "migration_version": VERSION, "migration_sha256": self.digest}
+        check.update(overrides)
+        return {"enforcing": True, "errors": [], "allowlist": [VERSION], "behavior_checks": [check],
+                "behavior_results": {"behavior_checks": [{"id": "exorcist_row", "actual_count": 1, "expected_count": 1}]}}
+
+    def test_data_only_recovery_accepts_hash_bound_exact_row_count(self):
+        # Issue #4207: a pg_cron or curated data migration has no catalog object;
+        # its hash-bound exact row count is its named post-apply assertion.
+        self.assertTrue(self.build(catalog=self.row_count_catalog())["catalog_enforced"])
+        row = self.row_count_catalog(); row["errors"] = ["the allowlisted migrations named no catalog object, but supplied 2 hash-bound behavioral assertion(s)."]
+        self.assertTrue(self.build(catalog=row)["catalog_enforced"])
+
+    def test_data_only_recovery_still_refuses_weak_or_failed_row_counts(self):
+        for overrides in ({"migration_sha256": "0" * 64}, {"filters": []}, {"relation": "evil; drop"}, {"kind": "row_count_guess"}, {"expected_count": 0}):
+            with self.subTest(**{k: str(v) for k, v in overrides.items()}), self.assertRaises(ValueError):
+                self.build(catalog=self.row_count_catalog(**overrides))
+        row = self.row_count_catalog(); row["behavior_results"]["behavior_checks"][0]["actual_count"] = 0
+        with self.assertRaises(ValueError): self.build(catalog=row)
+        row = self.row_count_catalog(); row["errors"] = ["behavioral query failed: x"]
+        with self.assertRaises(ValueError): self.build(catalog=row)
+        row = self.row_count_catalog(); row["errors"] = ["the allowlisted migrations named no catalog object, but supplied 2 hash-bound behavioral assertion(s).", "behavioral query failed: x"]
+        with self.assertRaises(ValueError): self.build(catalog=row)
+        row = self.row_count_catalog(); row["errors"] = "the allowlisted migrations named no catalog object"
+        with self.assertRaises(ValueError): self.build(catalog=row)
+
+
 if __name__ == "__main__": unittest.main()

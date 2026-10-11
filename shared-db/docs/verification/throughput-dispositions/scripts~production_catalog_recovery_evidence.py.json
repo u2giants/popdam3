@@ -3,12 +3,12 @@
   "source": "scripts/production_catalog_recovery_evidence.py",
   "sites": [
     {
-      "site": "scripts/production_catalog_recovery_evidence.py:71",
-      "semantic_key": "scripts/production_catalog_recovery_evidence.py:54e6e19bb9d59e327bf4ea2bfaedd47615afb62c2b8af0a4e685535056c3c170:context-9c48ed1ab04b18ce45f361e71250cef03065e40eb3a86a29d0ebffaffd95d5d0",
-      "legacy_semantic_key": "scripts/production_catalog_recovery_evidence.py:54e6e19bb9d59e327bf4ea2bfaedd47615afb62c2b8af0a4e685535056c3c170:1",
-      "line_sha256": "54e6e19bb9d59e327bf4ea2bfaedd47615afb62c2b8af0a4e685535056c3c170",
+      "site": "scripts/production_catalog_recovery_evidence.py:79",
+      "semantic_key": "scripts/production_catalog_recovery_evidence.py:3243ca832d858662dd806e519cae0000212ec39564744d028559556db471717b:context-f7607e206e934c38403650b73351b3e040aea5d99a35e58e958986dba9124737",
+      "legacy_semantic_key": "scripts/production_catalog_recovery_evidence.py:3243ca832d858662dd806e519cae0000212ec39564744d028559556db471717b:1",
+      "line_sha256": "3243ca832d858662dd806e519cae0000212ec39564744d028559556db471717b",
       "disposition": "excluded",
-      "reason": "This verification-only recovery diagnostic refuses incomplete immutable apply evidence or absent hash-bound named catalog contracts. It preserves fail-closed validation and does not classify throughput readiness."
+      "reason": "This verification-only recovery diagnostic refuses incomplete immutable apply evidence or a version without a hash-bound named assertion (a catalog contract, or for a data or pg_cron migration an exact row count; issue #4214). It preserves fail-closed validation and does not classify throughput readiness."
     },
     {
       "site": "scripts/production_catalog_recovery_evidence.py:49",

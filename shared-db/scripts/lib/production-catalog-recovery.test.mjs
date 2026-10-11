@@ -62,3 +62,23 @@ test('composite adapter refuses an existing recovery artifact without its new bi
 test('composite adapter refuses foreign recovery URL before using its artifacts',()=>{
  const {x,io,read}=adapterFixture();x.evidence.production_recovery_evidence='https://github.com/foreign/project/actions/runs/3';assert.equal(verifyProductionEvidence(x.evidence,io,read,'popcre/shared-db'),false)
 })
+
+// Issue #4214: a pg_cron or curated data migration has no catalog object; its
+// recovery proof is a hash-bound exact row count, and the verifier records the
+// data-only route as an informational line that is not a failure.
+test('data-only recovery accepts a hash-bound exact row count and only the verifier data-only notice',()=>{
+  const dataOnly=(mutate=()=>{})=>{const row=fixture();row.catalog.behavior_checks=[{id:'row',kind:'exact_row_count',relation:'cron.job',filters:[{column:'jobname',type:'text',equals:'x'}],migration_version:v,migration_sha256:hash,expected_count:1}];row.catalog.behavior_results={behavior_checks:[{id:'row',actual_count:1,expected_count:1}]};row.catalog.errors=['the allowlisted migrations named no catalog object, but supplied 1 hash-bound behavioral assertion(s).'];mutate(row);return row}
+  assert.equal(matchesCatalogRecovery(dataOnly()),true)
+  assert.equal(matchesCatalogRecovery(dataOnly(r=>{r.catalog.errors=[]})),true)
+  for(const [name,mutate] of [
+    ['other error',r=>{r.catalog.errors.push('behavioral query failed: x')}],
+    ['notice with suffix',r=>{r.catalog.errors=['the allowlisted migrations named no catalog object, but supplied 1 hash-bound behavioral assertion(s). extra']}],
+    ['zero assertions notice',r=>{r.catalog.errors=['the allowlisted migrations named no catalog object, but supplied 0 hash-bound behavioral assertion(s).']}],
+    ['errors not a list',r=>{r.catalog.errors='x'}],
+    ['wrong hash',r=>{r.catalog.behavior_checks[0].migration_sha256='0'.repeat(64)}],
+    ['empty filters',r=>{r.catalog.behavior_checks[0].filters=[]}],
+    ['bad relation',r=>{r.catalog.behavior_checks[0].relation='cron.job; drop'}],
+    ['unknown kind',r=>{r.catalog.behavior_checks[0].kind='row_count_guess'}],
+    ['failed count',r=>{r.catalog.behavior_results.behavior_checks[0].actual_count=0}],
+  ])assert.equal(matchesCatalogRecovery(dataOnly(mutate)),false,name)
+})
