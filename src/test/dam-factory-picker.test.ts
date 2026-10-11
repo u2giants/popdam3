@@ -27,7 +27,7 @@ describe("DAM vendor picker (api.dam_factory_list)", () => {
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
     const source = await fs.readFile(
-      path.resolve(__dirname, "../pages/StylesPage.tsx"),
+      path.resolve(__dirname, "../pages/styles/api.ts"),
       "utf8",
     );
     expect(source).toContain('from("dam_factory_list")');
