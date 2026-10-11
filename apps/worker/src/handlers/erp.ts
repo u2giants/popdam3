@@ -203,21 +203,37 @@ export function buildErpLogEntries(
   return entries;
 }
 
-/** Runs `fn` over `items` with at most `limit` in flight; rejects on the first failure. */
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
-      const i = next++;
-      results[i] = await fn(items[i]);
-    }
-  });
-  await Promise.all(workers);
-  return results;
+export type ErpApplyRpcResult = {
+  asset_count: number;
+  group_count: number;
+  asset_id: string | null;
+  group_id: string | null;
+};
+
+/** Pure: the apply_erp_item_updates payload, one element per plan, in order. */
+export function buildErpApplyPayload(plans: ErpApplyPlan[]): Array<{ sku: string; division_code: string | null; updates: Record<string, unknown> }> {
+  return plans.map((p) => ({
+    sku: p.item.style_number as string,
+    division_code: p.item.division_code,
+    updates: p.updates,
+  }));
 }
 
-const ERP_WRITE_CONCURRENCY = 8;
+/** Pure: validates the RPC result shape; one result per plan, in order. */
+export function parseErpApplyResults(data: unknown, expected: number): ErpApplyRpcResult[] {
+  if (!Array.isArray(data) || data.length !== expected) {
+    throw new Error(`apply_erp_item_updates returned ${Array.isArray(data) ? data.length : typeof data} results for ${expected} items`);
+  }
+  return data.map((r) => {
+    const o = (r ?? {}) as Record<string, unknown>;
+    return {
+      asset_count: Number(o.asset_count) || 0,
+      group_count: Number(o.group_count) || 0,
+      asset_id: typeof o.asset_id === "string" ? o.asset_id : null,
+      group_id: typeof o.group_id === "string" ? o.group_id : null,
+    };
+  });
+}
 
 function firstRowByMatchKey(rows: unknown): Map<string, Record<string, unknown>> {
   const map = new Map<string, Record<string, unknown>>();
@@ -230,10 +246,9 @@ function firstRowByMatchKey(rows: unknown): Map<string, Record<string, unknown>>
 
 /**
  * Per page (#204): one prediction read, one current-values read per target
- * table, per-item updates run concurrently, and one audit-log insert.
+ * table, one atomic apply_erp_item_updates call, and one audit-log insert.
  * Every read/write error fails the page without advancing the cursor (#205);
- * the handler is idempotent so the retry is safe. Collapsing the per-item
- * updates into one statement needs a DB function (belongs in popcre/shared-db).
+ * the handler is idempotent so the retry is safe.
  */
 export async function handleApplyErpEnrichment(opState: OpState, client: DB = db()): Promise<BatchResult> {
   const mode = (opState.params?.mode as string) || "apply";
@@ -296,31 +311,29 @@ export async function handleApplyErpEnrichment(opState: OpState, client: DB = db
     const currentAssets = firstRowByMatchKey(assetsRes.data);
     const currentGroups = firstRowByMatchKey(groupsRes.data);
 
-    let outcomes: Array<{ assets: number; groups: number; logs: ErpEnrichmentLogEntry[] }>;
+    // One atomic call for the whole page (popcre/shared-db#4167): each item's
+    // assets and style group are updated together, or the page fails as a unit.
+    const { data: rpcData, error: rpcErr } = await client.rpc("apply_erp_item_updates", {
+      p_items: buildErpApplyPayload(plans),
+    });
+    if (rpcErr) return { ok: false, done: false, error: `apply_erp_item_updates failed: ${rpcErr.message}` };
+    let results: ErpApplyRpcResult[];
     try {
-      outcomes = await mapWithConcurrency(plans, ERP_WRITE_CONCURRENCY, async (plan) => {
-        const sku = plan.item.style_number as string;
-        const division = plan.item.division_code;
-        const [assetRes, groupRes] = await Promise.all([
-          client.from("assets").update(plan.updates).eq("sku", sku).eq("division_code", division).eq("is_deleted", false).select("id"),
-          client.from("style_groups").update(plan.updates).eq("sku", sku).eq("division_code", division).select("id"),
-        ]);
-        if (assetRes.error) throw new Error(`assets update failed for ${sku}: ${assetRes.error.message}`);
-        if (groupRes.error) throw new Error(`style_groups update failed for ${sku}: ${groupRes.error.message}`);
-        const assetRows = (assetRes.data ?? []) as Array<{ id: string }>;
-        const groupRows = (groupRes.data ?? []) as Array<{ id: string }>;
-        const key = canonicalItemMatchKey(sku, division);
-        const representative = currentAssets.get(key) ?? currentGroups.get(key) ?? null;
-        const target = assetRows.length
-          ? { type: "asset", id: assetRows[0].id }
-          : groupRows.length
-            ? { type: "style_group", id: groupRows[0].id }
-            : { type: "erp_item", id: plan.item.id };
-        return { assets: assetRows.length, groups: groupRows.length, logs: buildErpLogEntries(plan, representative, target, runId) };
-      });
+      results = parseErpApplyResults(rpcData, plans.length);
     } catch (e) {
       return { ok: false, done: false, error: e instanceof Error ? e.message : String(e) };
     }
+    const outcomes = plans.map((plan, i) => {
+      const r = results[i];
+      const key = canonicalItemMatchKey(plan.item.style_number as string, plan.item.division_code);
+      const representative = currentAssets.get(key) ?? currentGroups.get(key) ?? null;
+      const target = r.asset_id
+        ? { type: "asset", id: r.asset_id }
+        : r.group_id
+          ? { type: "style_group", id: r.group_id }
+          : { type: "erp_item", id: plan.item.id };
+      return { assets: r.asset_count, groups: r.group_count, logs: buildErpLogEntries(plan, representative, target, runId) };
+    });
 
     for (const o of outcomes) { assetsUpdated += o.assets; groupsUpdated += o.groups; }
     const logEntries = outcomes.flatMap((o) => o.logs);
