@@ -6,9 +6,10 @@ import { sha256, canonicalJson, buildEvidenceBundle } from '../../orchestrator-f
 import { bindSenderPreviewClassification, validatePreviewClassification, databasePreviewRequiredFromEvidenceBundle, selectPreviewRoute } from '../../orchestrator-flow/select-preview-route.mjs'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { inspectPrStructuralChange, structuralWritesCovered } from '../../orchestrator-flow/admission.mjs'
+import { inspectPrStructuralChange, inspectPrCuratedDataChange, structuralWritesCovered } from '../../orchestrator-flow/admission.mjs'
 import { LaneError, parseAuthorLease } from './claims.mjs'
 import { parseQueueScope } from './queue-routing.mjs'
+import { CURATED_LEDGER_TABLES } from '../../orchestrator-flow/curated-admission.mjs'
 import { REPO } from './constants.mjs'
 import { claimTitleIssues, claimTitleWorkIssue, claimWorkIssue } from './claim-maintenance.mjs'
 import { githubIo, main, validateOriginalPreviewApplyEvidence } from '../../manage-migration-author-lanes.mjs'
@@ -144,8 +145,22 @@ export function deriveLivePreviewCandidate(issue,io,{claimNumber=null}={}){
   const inventory=JSON.parse(io.getFileAt('config/orchestrator-global-invalidators-v1.json',head)),allFiles=new Set([...migrations,...changed.filter((file)=>/^(?:supabase\/tests\/|scripts\/production-verification-sidecars\/)/.test(file)),...inventory.files,'config/orchestrator-global-invalidators-v1.json'])
   const contents=new Map([...allFiles].map((file)=>[file,io.getFileAt(file,head)])),headTree=io.treeFiles(head),order=headTree.filter((file)=>/^supabase\/migrations\/\d{14}_[^/]+\.sql$/.test(file)).sort()
   // Preview readiness is structural evidence: classify the migration SQL itself, never its filename, and bind it to the claim's writes.
-  const structural=inspectPrStructuralChange(prFiles.filter((file)=>migrations.includes(file.filename)).map((file)=>({...file,content:contents.get(file.filename)}))),leaseWrites=[...(lease.writes??[])].sort()
-  if(!structuralWritesCovered(structural,leaseWrites))throw new LaneError(`pull request #${pr.number} structural objects are not all covered by claim #${claim.number} writes; preview preparation refused`)
+  // #4194: a curated Master Data fork is admitted by its data-only proof, not
+  // structural DDL. Its preview uses the same curated inspection admission used,
+  // and every curated table the migration writes must be held by the claim.
+  const migrationFiles=prFiles.filter((file)=>migrations.includes(file.filename)).map((file)=>({...file,content:contents.get(file.filename)})),leaseWrites=[...(lease.writes??[])].sort()
+  const workScope=parseQueueScope(io.getIssue(issue)?.body??'')
+  let structural
+  if(workScope?.workType==='curated-master-data'){
+    let curated
+    try{curated=inspectPrCuratedDataChange(migrationFiles)}catch(error){throw new LaneError(`pull request #${pr.number} is not an admissible curated data-only migration: ${error.message}; preview preparation refused`)}
+    const uncovered=curated.row_writes.filter((key)=>!leaseWrites.includes(key)&&!CURATED_LEDGER_TABLES.includes(key))
+    if(uncovered.length)throw new LaneError(`pull request #${pr.number} curated row writes ${uncovered.join(', ')} are not covered by claim #${claim.number} writes; preview preparation refused`)
+    structural={reads:[]}
+  }else{
+    structural=inspectPrStructuralChange(migrationFiles)
+    if(!structuralWritesCovered(structural,leaseWrites))throw new LaneError(`pull request #${pr.number} structural objects are not all covered by claim #${claim.number} writes; preview preparation refused`)
+  }
   const roleDependencies = new Set([...(lease.reads ?? []), ...leaseWrites])
   if ((structural.reads ?? []).some((key) => !roleDependencies.has(key))) throw new LaneError('ownership role dependencies must be covered by claim reads or writes; preview preparation refused')
   const bundle=buildEvidenceBundle({migrations,focusedFiles:changed.filter((file)=>file.startsWith('supabase/tests/')),verificationFiles:changed.filter((file)=>file.startsWith('scripts/production-verification-sidecars/')),writes:lease.writes,reads:lease.reads,migrationOrderDigest:sha256(canonicalJson(order)),issue,pr:pr.number,claim:claim.number,baseMainSha:pr.base.sha,integrationSha:head},{isClean:()=>true,fileExists:(file)=>contents.has(file),readFile:(file)=>contents.get(file)})

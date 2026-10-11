@@ -110,6 +110,10 @@ const SETTABLE = new Set(['statement_timeout', 'lock_timeout'])
 
 // Curated Master Data lives in core.*; a curated write into core.property is
 // authorised by a row in plm.licensing_write_authorization (the licensing guard).
+// The licensing guard ledger is append-only: each curated transaction inserts
+// its own authorization row keyed by backend pid and transaction id, so it is
+// written by every curated load and is not an exclusive claim object.
+export const CURATED_LEDGER_TABLES = Object.freeze(['table plm.licensing_write_authorization'])
 export function isCuratedTarget(schema, name) {
   return schema === 'core' || (schema === 'plm' && name === 'licensing_write_authorization')
 }
