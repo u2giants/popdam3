@@ -13,28 +13,12 @@
  * Public (verify_jwt = false in config.toml — we validate the bearer token in code).
  */
 
+import { corsServe, json } from "../_shared/http.ts";
 import { createClient } from "../_shared/supabase-js.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
 
 const VALID_APPS = new Set(["popdam", "styleguides"]);
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
+corsServe(async (req) => {
   try {
     const auth = req.headers.get("authorization") ?? "";
     const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
@@ -86,13 +70,7 @@ Deno.serve(async (req) => {
 
     if (!hasAccess) {
       return json(
-        {
-          ok: false,
-          error: `User does not have access to '${app}'`,
-          user_id: userId,
-          email,
-          apps,
-        },
+        { ok: false, error: `User does not have access to '${app}'` },
         403,
       );
     }
