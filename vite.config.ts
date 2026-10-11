@@ -36,6 +36,22 @@ export default defineConfig(({ mode }) => {
       __APP_DATE__: JSON.stringify(date),
     },
     plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+    build: {
+      rollupOptions: {
+        output: {
+          // Split large third-party libraries into their own long-cacheable
+          // chunks so the main entry stays small and app deploys don't
+          // invalidate vendor code (#193). Heavy libs used only by lazy pages
+          // (AG Grid, recharts, exceljs) stay off the initial load.
+          manualChunks: {
+            "vendor-react": ["react", "react-dom", "react-router-dom"],
+            "vendor-supabase": ["@supabase/supabase-js"],
+            "vendor-query": ["@tanstack/react-query"],
+            "vendor-ag-grid": ["ag-grid-community", "ag-grid-enterprise", "ag-grid-react"],
+          },
+        },
+      },
+    },
     resolve: {
       dedupe: ["react", "react-dom"],
       alias: {
