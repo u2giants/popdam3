@@ -47,3 +47,24 @@ test("ERP keyset paging neither skips nor repeats rows when rows are inserted mi
   }
   assert.deepEqual(seen, ["b", "d", "e", "f", "h", "j"]);
 });
+
+import { buildErpApplyPayload, parseErpApplyResults, type ErpApplyPlan } from "./erp.js";
+
+test("ERP apply payload keeps plan order and fields", () => {
+  const plans = [
+    { item: { id: "1", style_number: "S1", division_code: "D" }, updates: { mg01_code: "A" }, classificationSource: "erp", confidence: 1 },
+    { item: { id: "2", style_number: "S2", division_code: null }, updates: { cover_description: "X" }, classificationSource: "ai", confidence: null },
+  ] as unknown as ErpApplyPlan[];
+  assert.deepEqual(buildErpApplyPayload(plans), [
+    { sku: "S1", division_code: "D", updates: { mg01_code: "A" } },
+    { sku: "S2", division_code: null, updates: { cover_description: "X" } },
+  ]);
+});
+
+test("ERP apply results must match the item count and normalise ids", () => {
+  assert.deepEqual(parseErpApplyResults([{ asset_count: 2, group_count: 1, asset_id: "a", group_id: "g" }], 1), [
+    { asset_count: 2, group_count: 1, asset_id: "a", group_id: "g" },
+  ]);
+  assert.throws(() => parseErpApplyResults([], 1), /0 results for 1 items/);
+  assert.throws(() => parseErpApplyResults(null, 1), /results for 1 items/);
+});

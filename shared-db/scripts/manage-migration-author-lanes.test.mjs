@@ -11480,3 +11480,28 @@ test('nonclosing structural proof refuses untrusted or stale canonical identity 
   f.io.closingIssuesForPr=()=>[{number:41},{number:42}];assert.throws(check,/must close exactly one/)
  }finally{f.close()}
 })
+
+// #4194: a curated Master Data fork (#4172 / PR #4176) reaches preview with a
+// data-only migration; preview uses the curated inspection, not structural DDL.
+test('preview preparation admits a curated data-only migration whose row writes the claim holds (#4194)',()=>{
+  const curatedIssue=()=>({body:['```db-work-scope','status: ready','work_type: curated-master-data','route: curated-master-data-governance','change_type: migration','live_assertion: one row','generated_types: not-applicable','priority: 1','writes:','reads:','```'].join(String.fromCharCode(10))})
+  const curated=(options)=>{const fixture=mergedRehearsalIo(options);fixture.io.getIssue=curatedIssue;return fixture.io}
+  const load="insert into core.property (name) values ('Exorcist, The (1973)');\n"
+  assert.equal(deriveLivePreviewCandidate(1769,curated({migrationBody:load,writes:['table core.property']})).pr,1809)
+  // the append-only licensing guard ledger is written by every curated load and is not a claim object
+  assert.equal(deriveLivePreviewCandidate(1769,curated({migrationBody:"insert into plm.licensing_write_authorization (backend_pid) values (pg_backend_pid());\n"+load,writes:['table core.property']})).pr,1809)
+  assert.throws(()=>deriveLivePreviewCandidate(1769,curated({migrationBody:load,writes:['table core.licensor']})),/curated row writes table core\.property are not covered by claim #1805/)
+  assert.throws(()=>deriveLivePreviewCandidate(1769,curated({migrationBody:'create table core.evil();\n'+load,writes:['table core.property']})),/not an admissible curated data-only migration/)
+  // the structural route still refuses the same data-only SQL
+  assert.throws(()=>deriveLivePreviewCandidate(1769,mergedRehearsalIo({migrationBody:load,writes:['table core.property']}).io),/not structural/)
+})
+
+// #4194: curated Master Data completes like its #2132 precedent, by an authentic
+// merged completion record; the structural outcome lifecycle does not apply.
+test('curated master data fork completes with authentic merged evidence (#4194)', () => {
+  const io = typedCompletionIo()
+  io.getIssue = () => ({ body: '```db-work-scope\n' + ['status: ready', 'work_type: curated-master-data', 'route: curated-master-data-governance',
+    'change_type: migration', 'live_assertion: one row', 'generated_types: not-applicable', 'priority: 1', 'writes:', 'reads:'].join('\n') + '\n```' })
+  assert.equal(completeWork({ issue: 5, report: mergedRecord(5) }, io).outcome, 'merged')
+  assert.equal(io.posted.length, 1)
+})
