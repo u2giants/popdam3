@@ -1,12 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import {
-  buildSgNasUpserts,
-  handleGetSgNasConfig,
-  handleSetSgNasConfig,
-  SG_NAS_PASSWORD_KEY,
-  toSgNasConfigView,
-} from "./sg-nas-handlers.ts";
+import { buildSgNasUpserts, handleGetSgNasConfig, handleSetSgNasConfig, SG_NAS_PASSWORD_KEY, toSgNasConfigView } from "./sg-nas-handlers.ts";
 
 const PASS = "test-fixture-pass";
 
