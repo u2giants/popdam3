@@ -224,14 +224,25 @@ export function parseErpApplyResults(data: unknown, expected: number): ErpApplyR
   if (!Array.isArray(data) || data.length !== expected) {
     throw new Error(`apply_erp_item_updates returned ${Array.isArray(data) ? data.length : typeof data} results for ${expected} items`);
   }
-  return data.map((r) => {
+  const count = (v: unknown, i: number, field: string) => {
+    if (!Number.isInteger(v) || (v as number) < 0) {
+      throw new Error(`apply_erp_item_updates result ${i} has invalid ${field}: ${JSON.stringify(v)}`);
+    }
+    return v as number;
+  };
+  const id = (v: unknown) => (typeof v === "string" && v.length > 0 ? v : null);
+  return data.map((r, i) => {
     const o = (r ?? {}) as Record<string, unknown>;
-    return {
-      asset_count: Number(o.asset_count) || 0,
-      group_count: Number(o.group_count) || 0,
-      asset_id: typeof o.asset_id === "string" ? o.asset_id : null,
-      group_id: typeof o.group_id === "string" ? o.group_id : null,
+    const res = {
+      asset_count: count(o.asset_count, i, "asset_count"),
+      group_count: count(o.group_count, i, "group_count"),
+      asset_id: id(o.asset_id),
+      group_id: id(o.group_id),
     };
+    if ((res.asset_count > 0) !== (res.asset_id !== null) || (res.group_count > 0) !== (res.group_id !== null)) {
+      throw new Error(`apply_erp_item_updates result ${i} has counts that disagree with its ids`);
+    }
+    return res;
   });
 }
 
