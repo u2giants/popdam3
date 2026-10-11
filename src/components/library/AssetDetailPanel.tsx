@@ -50,6 +50,7 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useEffectiveAssetTags } from "@/hooks/useEffectiveAssetTags";
 import { ScopedTagSections, type ScopedTagAction } from "@/components/library/ScopedTagSections";
 import CheckoutBar from "@/components/library/CheckoutBar";
+import { useBulkOperationWaiter } from "@/hooks/useBulkOperationWaiter";
 
 // ── File type colours (same palette as AssetGrid) ─────────────
 const FILE_TYPE_COLOR: Record<string, string> = {
@@ -303,6 +304,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
   });
 
   // ── AI tag ────────────────────────────────────────────────────
+  const waitForBulkOperation = useBulkOperationWaiter();
   const handleAiTag = async () => {
     setAiTagging(true);
     try {
@@ -321,31 +323,18 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
       });
       if (error) throw error;
 
-      const maxWaitMs = 90_000;
-      const pollMs = 2_000;
-      const start = Date.now();
-      while (Date.now() - start < maxWaitMs) {
-        await new Promise((r) => setTimeout(r, pollMs));
-        const { data: configRow } = await supabase
-          .from("admin_config")
-          .select("value")
-          .eq("key", "BULK_OPERATIONS")
-          .maybeSingle();
-        const ops = configRow?.value as Record<string, any> | undefined;
-        const op = ops?.[opKey];
-        if (!op || op.status === "completed") {
-          // Keep the completed operation record. Replacing it with {status:"idle"}
-          // can erase a protected provider-job pointer and is refused by the
-          // restart-safety database contract.
-          queryClient.invalidateQueries({ queryKey: ["assets"] });
-          queryClient.invalidateQueries({ queryKey: ["asset-tags", asset.id] });
-          toast("AI tagging complete");
-          return;
-        }
-        if (op.status === "failed" || op.status === "interrupted") {
-          throw new Error(op.error || "AI tagging failed");
-        }
+      const outcome = await waitForBulkOperation(opKey);
+      if (outcome.status === "aborted") return; // panel unmounted mid-poll
+      if (outcome.status === "completed") {
+        // Keep the completed operation record. Replacing it with {status:"idle"}
+        // can erase a protected provider-job pointer and is refused by the
+        // restart-safety database contract.
+        queryClient.invalidateQueries({ queryKey: ["assets"] });
+        queryClient.invalidateQueries({ queryKey: ["asset-tags", asset.id] });
+        toast("AI tagging complete");
+        return;
       }
+      if (outcome.status === "failed") throw new Error(outcome.error || "AI tagging failed");
       toast("AI tagging is still running — check back shortly");
     } catch (e: any) {
       toast.error("AI tagging failed", { description: e.message });
