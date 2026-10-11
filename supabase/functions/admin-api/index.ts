@@ -112,6 +112,7 @@ import {
   handleTriggerHygieneScan,
   handleUpdateHygieneFindings,
 } from "../_shared/admin-handlers/hygiene-handlers.ts";
+import { handleGetSgNasConfig, handleSetSgNasConfig } from "../_shared/admin-handlers/sg-nas-handlers.ts";
 import { handlePlanGridBulkEdit } from "../_shared/admin-handlers/grid-ai-handler.ts";
 import { handleRankMasterDataMatchCandidates } from "../_shared/admin-handlers/master-data-jev-handler.ts";
 
@@ -1853,6 +1854,14 @@ corsServe(async (req: Request) => {
         return await handleGetConfig(body);
       case "set-config":
         return await handleSetConfig(body, userId);
+      case "get-sg-nas-config":
+        return json({ ok: true, ...(await handleGetSgNasConfig(serviceClient())) });
+      case "set-sg-nas-config":
+        try {
+          return json({ ok: true, ...(await handleSetSgNasConfig(serviceClient(), body)) });
+        } catch (e) {
+          return err((e as Error).message, 400);
+        }
 
       // ── Invitations ──
       case "invite-user":
