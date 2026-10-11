@@ -1267,3 +1267,13 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
      may exist in this repository, separately from whether the change is correct.
      Evidence capture does not authorize public storage of licensed, private, or
      sensitive source material.
+
+### Expired merged-source custody recovery (#3618)
+
+The explicit `scripts/transfer-expired-merged-claim-author.mjs` entry point handles only an expired-unconfirmed claim whose exact source pull request is already merged. The ordinary lane manager and ordinary open-source transfer remain unchanged. This capability does not establish abandonment or authorize live adoption by itself.
+
+The operator must independently prove the exact open repository-maintenance abandonment audit, original owner and source head, preserved original worktree custody, current declared chat authority, clean successor at the original source head and branch, unchanged permanent version reservation, complete claimed source objects, current-main ancestry, and absence of conflicting claims or exclusive stages. Missing audit proof refuses. Active and relinquished claims refuse.
+
+The operation acquires the canonical mutex, records a create-only recovery receipt before changing the claim, rechecks the complete evidence under that mutex, verifies the resulting claim and permanent reservation, and preserves its receipt for exact replay. A partial claim update is rolled back only while mutex ownership still holds. It never applies database changes or releases a protected production claim. The receipt explicitly records that human identity was not independently authenticated.
+
+Owner: work issue #3618. This narrow standalone module is the recovery boundary; future consolidation into the canonical transfer module requires separately reviewed scope. No original claim may be adopted merely because this tooling is installed.
