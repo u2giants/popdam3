@@ -28,7 +28,8 @@ async function run(body: Record<string, unknown>, agentType = "windows-render", 
   const writes: Array<{ table: string; action: string; payload?: any; filters: Record<string, unknown> }> = [];
   const db = {
     from(table: string) {
-      let action = "select", payload: any, columns = "", filters: Record<string, unknown> = {}, keys: string[] | undefined;
+      let action = "select", payload: any, columns = "", keys: string[] | undefined;
+      const filters: Record<string, unknown> = {};
       const query: any = {
         select(value: string) {
           columns = value;

@@ -115,7 +115,7 @@ test('actual heartbeat continues authenticated HTTP during counted updater wait 
  const declaration=parsed.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='startHeartbeat')!;
  const timers:Array<{fn:()=>Promise<void>,delay:number}>=[];const responses:Array<(r:any)=>void>=[];
  let httpActive=0,maxHttpActive=0,requests=0,configUpdates=0;let finishUpdate!:()=>void;
- const lease={nonce:'a'.repeat(32),expires_at:Date.now()+300000};let deferral:typeof lease|undefined;
+ const lease={nonce:'a'.repeat(32),expires_at:Date.now()+300000};let deferral:typeof lease|undefined=undefined;
  const delivery=new HeartbeatDelivery();
  const context:any={heartbeatDelivery:delivery,agentId:'agent',lastError:null,healthStatus:{},config:{version:'1',buildSha:'a'.repeat(40)},
   getUpdateState:()=>({}),currentCommandDeferral:()=>deferral,getLogTail:()=>[],consecutiveHeartbeatFailures:0,
