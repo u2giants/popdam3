@@ -6,6 +6,7 @@ on:
     paths:
       - "apps/windows-agent/**"
       - "packages/path-filters/**"
+      - "packages/agent-common/**"
       - ".github/workflows/publish-windows-agent.yml"
 
 permissions:

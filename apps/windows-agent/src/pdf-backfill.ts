@@ -13,7 +13,7 @@
  */
 
 import { readFile, stat } from "node:fs/promises";
-import { resolveUnderRoot } from "./path-containment";
+import { resolveUnderRoot } from "./common/path-containment.js";
 import { logger } from "./logger";
 import * as api from "./api-client";
 import { uploadPdfPage, uploadThumbnail } from "./uploader";

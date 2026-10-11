@@ -31,7 +31,7 @@ import { writeFile } from "node:fs/promises";
 import { type AiModelDef, type PdfSampleAsset, runPdfTextSample } from "./pdf-text-sampler";
 import { runPdfBackfill } from "./pdf-backfill";
 import { runStyleGuidePdfBackfill } from "./style-guide-pdf-backfill";
-import { assertSafeRelativePath } from "./path-containment";
+import { assertSafeRelativePath } from "./common/path-containment.js";
 import { createCompatAuditWorker, runCompatAudit, runCompatAuditPreview } from "./compat-audit";
 import { dispatchCommands } from "./commands/dispatch";
 import { createWindowsCommandHandlers } from "./commands/heartbeat-commands";

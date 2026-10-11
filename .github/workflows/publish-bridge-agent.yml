@@ -6,6 +6,7 @@ on:
     paths:
       - "apps/bridge-agent/**"
       - "packages/path-filters/**"
+      - "packages/agent-common/**"
       - ".github/workflows/publish-bridge-agent.yml"
     tags:
       - "bridge-v*"
