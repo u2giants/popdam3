@@ -9,7 +9,7 @@
 
 import { err } from "./http.ts";
 import { serviceClient } from "./service-client.ts";
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { SupabaseClient } from "./supabase-js.ts";
 
 export async function requireBridgeLatest(db?: SupabaseClient): Promise<Response | null> {
   const client = db ?? serviceClient();

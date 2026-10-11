@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "../_shared/supabase-js.ts";
 import { authenticateUser as sharedAuthenticateUser, requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { findRunningConflict } from "../_shared/operation-constants.ts";

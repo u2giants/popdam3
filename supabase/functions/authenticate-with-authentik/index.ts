@@ -13,7 +13,7 @@
  *   6. Frontend calls supabase.auth.verifyOtp({ token_hash, type: 'email' })
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "../_shared/supabase-js.ts";
 import { createRemoteJWKSet, jwtVerify } from "https://esm.sh/jose@5";
 import { corsServe, err, json } from "../_shared/http.ts";
 

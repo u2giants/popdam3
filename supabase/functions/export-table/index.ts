@@ -3,7 +3,7 @@
 //
 // Auth: requires admin JWT or service-role key
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "../_shared/supabase-js.ts";
 
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe } from "../_shared/http.ts";
