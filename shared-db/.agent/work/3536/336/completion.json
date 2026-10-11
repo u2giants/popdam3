@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 4186,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/336",
+  "contract_sha256": "ecb1e93a4b91756959e01cf6f0859c732527b3c3df8575c7e0418432cb8ae982",
+  "head_sha": "d42f32feebbeb8e89d7b72f75fdfd3e8f994512d",
+  "base_sha": "7f198bb1b8c05cbbb2f5c2aab8c91c926144f1ab",
+  "files_changed": [
+    "scripts/gh-read.mjs",
+    "scripts/gh-read.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/gh-read.test.mjs scripts/lib/github-transport.test.mjs",
+      "exit_code": 0,
+      "evidence": "34 tests pass; conformance405 files; integrated exact source and original-failure logs retained privately."
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "34 tests pass; conformance405 files; integrated exact source and original-failure logs retained privately."
+    }
+  ],
+  "assumptions_resolved": [
+    "Original CLI truncates both ASCII and multibyte JSON; fixed CLI preserves complete bytes.",
+    "Portable Node fixture intercepts only external gh process and runs actual CLI and transport without platform skip.",
+    "Immutable336 retained; fresh current-main integration precedes completion."
+  ],
+  "stop_conditions_hit": []
+}
