@@ -88,9 +88,15 @@ describe("runScheduledSgRefresh", () => {
 
   it("does not synchronize search or run aggregates while the scheduler is pending", async () => {
     let called = false;
-    expect(await runScheduledSgRefresh("run-1", 5_000,
-      async (args) => { expect(args).toEqual({ p_run_id: "run-1" }); return { data: [{ ready: false, refreshed_at: null }], error: null }; },
-      async () => { called = true; return { data: [], error: null }; })).toEqual({ synced: 0, pending: true });
+    expect(
+      await runScheduledSgRefresh("run-1", 5_000, async (args) => {
+        expect(args).toEqual({ p_run_id: "run-1" });
+        return { data: [{ ready: false, refreshed_at: null }], error: null };
+      }, async () => {
+        called = true;
+        return { data: [], error: null };
+      }),
+    ).toEqual({ synced: 0, pending: true });
     expect(called).toBe(false);
   });
 
@@ -104,20 +110,28 @@ describe("runScheduledSgRefresh", () => {
   });
 
   it("refuses malformed readiness and never advances search from it", async () => {
-    for (const data of [null, [], [{ ready: true }], [{ ready: false, refreshed_at: refreshedAt }],
-      [{ ready: "true", refreshed_at: refreshedAt }], [{ ready: true, refreshed_at: "bad" }],
-      [{ ready: true, refreshed_at: refreshedAt }, { ready: true, refreshed_at: refreshedAt }]]) {
+    for (
+      const data of [null, [], [{ ready: true }], [{ ready: false, refreshed_at: refreshedAt }], [{ ready: "true", refreshed_at: refreshedAt }], [{
+        ready: true,
+        refreshed_at: "bad",
+      }], [{ ready: true, refreshed_at: refreshedAt }, { ready: true, refreshed_at: refreshedAt }]]
+    ) {
       let called = false;
-      const result = await runScheduledSgRefresh("run-1", 5_000, async () => ({ data, error: null }),
-        async () => { called = true; return { data: [], error: null }; });
+      const result = await runScheduledSgRefresh("run-1", 5_000, async () => ({ data, error: null }), async () => {
+        called = true;
+        return { data: [], error: null };
+      });
       expect(result.failedStep).toBe("scheduled_refresh");
       expect(called).toBe(false);
     }
   });
 
   it("preserves readiness and search errors without reporting completion", async () => {
-    expect(await runScheduledSgRefresh("run-1", 5_000, async () => ({ data: null, error: { message: "scheduler expired" } }),
-      async () => { throw new Error("must not search"); })).toEqual({ synced: 0, failedStep: "scheduled_refresh", error: "scheduler expired" });
+    expect(
+      await runScheduledSgRefresh("run-1", 5_000, async () => ({ data: null, error: { message: "scheduler expired" } }), async () => {
+        throw new Error("must not search");
+      }),
+    ).toEqual({ synced: 0, failedStep: "scheduled_refresh", error: "scheduler expired" });
     expect(await runScheduledSgRefresh("run-1", 5_000, ready, async () => ({ data: null, error: { message: "statement timeout" } })))
       .toEqual({ synced: 0, refreshedAt, failedStep: "search", error: "statement timeout" });
   });
@@ -132,7 +146,8 @@ describe("runScheduledSgRefresh", () => {
 
   it("rechecks scheduled freshness on restart and completes only with a valid short search slice", async () => {
     let attempts = 0;
-    const search = async () => ++attempts === 1 ? { data: null, error: { message: "statement timeout" } } : { data: [{ search_documents_synced: 0 }], error: null };
+    const search = async () =>
+      ++attempts === 1 ? { data: null, error: { message: "statement timeout" } } : { data: [{ search_documents_synced: 0 }], error: null };
     expect((await runScheduledSgRefresh("run-1", 5_000, ready, search)).failedStep).toBe("search");
     expect(await runScheduledSgRefresh("run-1", 5_000, ready, search)).toEqual({ synced: 0, refreshedAt });
   });

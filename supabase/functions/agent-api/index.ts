@@ -3237,15 +3237,20 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       // this crawl's reconciliation boundary, then drain bounded search slices.
       if (reconcileOk) {
         const searchBatchSize = 5000;
-        const refresh = await runScheduledSgRefresh(runId, searchBatchSize,
+        const refresh = await runScheduledSgRefresh(
+          runId,
+          searchBatchSize,
           async (args) => await db.rpc("await_style_guide_matview_refresh", args),
-          async (args) => await db.rpc("refresh_style_guide_matviews", args));
+          async (args) => await db.rpc("refresh_style_guide_matviews", args),
+        );
         if (refresh.pending) {
           const { error } = await db.from("style_guide_crawl_runs").update({ lifecycle_state: "refreshing" }).eq("id", runId);
           if (error) return err(`Could not persist scheduled-refresh wait: ${error.message}`, 500);
           return json({ ok: true, state: "refreshing", retry_after_ms: SG_SCHEDULED_REFRESH_RETRY_MS });
         }
-        if (refresh.error && refresh.failedStep === "search" && shouldRetrySgRefreshTimeout(refresh.error, refresh.refreshedAt ?? ingestCompletedAt, Date.now())) {
+        if (
+          refresh.error && refresh.failedStep === "search" && shouldRetrySgRefreshTimeout(refresh.error, refresh.refreshedAt ?? ingestCompletedAt, Date.now())
+        ) {
           console.warn("[complete-style-guide-crawl]", "Bounded search refresh timed out; retrying");
           const { error: retryStateErr } = await db.from("style_guide_crawl_runs").update({
             lifecycle_state: "refreshing",
@@ -3529,8 +3534,14 @@ async function handleTranscribeStyleGuidePdfPage(body: Record<string, unknown>, 
   if (agentType !== "windows-render") return err("PopSG PDF transcription requires a Windows render agent", 403);
   const fileId = requireString(body, "style_guide_file_id");
   const identity = requireString(body, "content_identity");
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fileId) || !/^[0-9a-f]{32}$/i.test(identity)) return err("Invalid PopSG PDF content identity", 400);
-  try { validatePopSgPdfPage(body.image_base64); } catch (error) { return err((error as Error).message, 400); }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fileId) || !/^[0-9a-f]{32}$/i.test(identity)) {
+    return err("Invalid PopSG PDF content identity", 400);
+  }
+  try {
+    validatePopSgPdfPage(body.image_base64);
+  } catch (error) {
+    return err((error as Error).message, 400);
+  }
   const db = serviceClient();
   const [{ data: lease, error: leaseError }, { data: file, error: fileError }, { data: models, error: modelError }] = await Promise.all([
     db.from("style_guide_pdf_text").select("status,claimed_by,claim_expires_at,content_identity")
@@ -3542,7 +3553,11 @@ async function handleTranscribeStyleGuidePdfPage(body: Record<string, unknown>, 
   if (!file?.is_active || !["pdf", ".pdf"].includes(String(file.file_extension).toLowerCase())) {
     return err("PopSG PDF transcription requires an active PDF", 409);
   }
-  try { assertPopSgPdfVisionLease(lease, agentId, identity); } catch (error) { return err((error as Error).message, 409); }
+  try {
+    assertPopSgPdfVisionLease(lease, agentId, identity);
+  } catch (error) {
+    return err((error as Error).message, 409);
+  }
   const model = String((models?.value as Record<string, unknown> | null)?.pdf_extraction ?? "").trim();
   const apiKey = Deno.env.get("META_API_KEY") ?? "";
   if (!apiKey) return err("PopSG PDF transcription provider is not configured", 503);

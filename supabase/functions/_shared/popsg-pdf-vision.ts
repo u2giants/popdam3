@@ -1,7 +1,8 @@
 // PopSG owns this bounded, lease-bound transcription route. Provider credentials
 // stay on the server; agents send only the rendered page of their claimed PDF.
 export const POPSG_PDF_VISION_MAX_IMAGE_BYTES = 6 * 1024 * 1024;
-const TRANSCRIPTION_PROMPT = "Transcribe only text that is visually legible. Preserve reading order where possible. Do not infer, complete, correct, or invent unclear text. Omit unreadable text. Return only the transcription.";
+const TRANSCRIPTION_PROMPT =
+  "Transcribe only text that is visually legible. Preserve reading order where possible. Do not infer, complete, correct, or invent unclear text. Omit unreadable text. Return only the transcription.";
 
 export interface PopSgPdfLease {
   status: string;
@@ -12,15 +13,19 @@ export interface PopSgPdfLease {
 
 export function assertPopSgPdfVisionLease(lease: PopSgPdfLease | null, agentId: string, identity: string, now = Date.now()): void {
   const expires = Date.parse(lease?.claim_expires_at ?? "");
-  if (!lease || lease.status !== "claimed" || lease.claimed_by !== agentId ||
-      lease.content_identity !== identity || !Number.isFinite(expires) || expires <= now) {
+  if (
+    !lease || lease.status !== "claimed" || lease.claimed_by !== agentId ||
+    lease.content_identity !== identity || !Number.isFinite(expires) || expires <= now
+  ) {
     throw new Error("PopSG PDF transcription requires this agent's current content lease");
   }
 }
 
 export function validatePopSgPdfPage(image: unknown): asserts image is string {
-  if (typeof image !== "string" || !image || image.length > Math.ceil(POPSG_PDF_VISION_MAX_IMAGE_BYTES / 3) * 4 ||
-      image.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(image)) {
+  if (
+    typeof image !== "string" || !image || image.length > Math.ceil(POPSG_PDF_VISION_MAX_IMAGE_BYTES / 3) * 4 ||
+    image.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(image)
+  ) {
     throw new Error("PopSG PDF transcription requires a bounded base64 PNG page");
   }
   const signature = atob(image.slice(0, 12)).slice(0, 8);
@@ -45,19 +50,24 @@ export async function transcribePopSgPdfPage(
   const delays = [1_000, 2_000, 4_000, 8_000];
   const body = JSON.stringify({
     model: model.slice("meta-direct/".length),
-    input: [{ role: "user", content: [
-      { type: "input_image", image_url: `data:image/png;base64,${image}` },
-      { type: "input_text", text: TRANSCRIPTION_PROMPT },
-    ] }],
+    input: [{
+      role: "user",
+      content: [
+        { type: "input_image", image_url: `data:image/png;base64,${image}` },
+        { type: "input_text", text: TRANSCRIPTION_PROMPT },
+      ],
+    }],
     max_output_tokens: 4096 + 16_384,
   });
   let response: Response;
-  for (let attempt = 0; ; attempt++) {
+  for (let attempt = 0;; attempt++) {
     const remaining = deadline - now();
     if (remaining <= 0) throw new Error("PopSG PDF transcription provider exceeded its bounded deadline");
     response = await request("https://api.meta.ai/v1/responses", {
-      method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body, signal: AbortSignal.timeout(remaining),
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body,
+      signal: AbortSignal.timeout(remaining),
     });
     if (response.ok) break;
     // Contributor capacity may appear as model_not_found/503. Retry the same
