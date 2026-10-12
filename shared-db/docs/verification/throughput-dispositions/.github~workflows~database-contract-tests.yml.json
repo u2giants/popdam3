@@ -25,6 +25,22 @@
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "legacy_semantic_key": ".github/workflows/database-contract-tests.yml:bb5aed84ab4f5bd487ba52b2937a453c0449276949e5e0a49386b1aa24560c3b:1"
+    },
+    {
+      "site": ".github/workflows/database-contract-tests.yml:353",
+      "semantic_key": ".github/workflows/database-contract-tests.yml:083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4:context-c7dc7951925c3993d48195f9299fb79dada930739ec814085379eed31b3a9d34",
+      "legacy_semantic_key": ".github/workflows/database-contract-tests.yml:083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4:1",
+      "line_sha256": "083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4",
+      "disposition": "excluded",
+      "reason": "Exact never-installed unit6 ephemeral replay skip refuses when HARD_BLOCKED, never-installed retirement receipt, or exact successor file proof is absent. This is an offline replay admission refusal, not a live catalog absence finding. Both embedded guards execute fail-closed negative cases in Unit6NeverInstalledReplayTests; all other replay behavior is unchanged."
+    },
+    {
+      "site": ".github/workflows/database-contract-tests.yml:515",
+      "semantic_key": ".github/workflows/database-contract-tests.yml:083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4:context-9c396b03df00fa99e563ff60fbcf9f7dbe26e7550f65364cc46c2f1b46effe68",
+      "legacy_semantic_key": ".github/workflows/database-contract-tests.yml:083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4:2",
+      "line_sha256": "083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4",
+      "disposition": "excluded",
+      "reason": "Exact never-installed unit6 ephemeral replay skip refuses when HARD_BLOCKED, never-installed retirement receipt, or exact successor file proof is absent. This is an offline replay admission refusal, not a live catalog absence finding. Both embedded guards execute fail-closed negative cases in Unit6NeverInstalledReplayTests; all other replay behavior is unchanged."
     }
   ]
 }

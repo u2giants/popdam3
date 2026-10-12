@@ -760,6 +760,7 @@ class BatchResolutionTests(unittest.TestCase):
         self.assertEqual(
             RETIRED_VERSIONS,
             {
+                "20261005025111",
                 "20261001122410",
                 "20260914061331",
                 "20260930212107",
@@ -1675,6 +1676,43 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(len(failures), 3)
         self.assertIn("**FAIL**", md)
 
+
+
+class Unit6NeverInstalledReplayTests(unittest.TestCase):
+    """Execute the actual embedded workflow guard in both replay passes."""
+    def guards(self):
+        import textwrap
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/database-contract-tests.yml').read_text()
+        guards = re.findall(r"<<'PY_UNIT6'\n(.*?)\n          PY_UNIT6", workflow, re.S)
+        self.assertEqual(len(guards), 2)
+        self.assertEqual(guards[0], guards[1])
+        self.assertEqual(workflow.count('if [ "${base%%_*}" = "20261005025111" ]; then'), 2)
+        self.assertEqual(workflow.count('echo "$base" >> "$RUNNER_TEMP/skipped-retired-unit6.txt"'), 2)
+        return [textwrap.dedent(body) for body in guards]
+
+    def test_exact_retirement_and_successor_are_required_in_both_passes(self):
+        import production_migration_guard as guard
+        from unittest.mock import patch
+        for code in self.guards():
+            with tempfile.TemporaryDirectory() as directory:
+                successor = Path(directory) / '20261011224904_coldlion_unit6_consumer_contracts_safe.sql'
+                successor.write_text('-- synthetic exact successor file presence')
+                with patch.object(sys, 'argv', ['-', str(successor)]):
+                    exec(code, {})
+                    with patch.object(guard, 'HARD_BLOCKED', set(guard.HARD_BLOCKED) - {'20261005025111'}):
+                        with self.assertRaisesRegex(SystemExit, 'proof missing'): exec(code, {})
+                    with patch.object(guard, 'RETIRED_VERSION_REASONS', {}):
+                        with self.assertRaisesRegex(SystemExit, 'proof missing'): exec(code, {})
+                    with patch.object(guard, 'RETIRED_VERSION_REASONS', {'20261005025111':'unrelated retirement successor'}):
+                        with self.assertRaisesRegex(SystemExit, 'proof missing'): exec(code, {})
+                    with patch.object(guard, 'RETIRED_VERSION_REASONS', {'20261005025111':'replacement20261011224904 only; no never-installed proof'}):
+                        with self.assertRaisesRegex(SystemExit, 'proof missing'): exec(code, {})
+                    wrong = Path(directory) / 'other.sql'
+                    wrong.write_text('-- unrelated file')
+                    with patch.object(sys, 'argv', ['-', str(wrong)]):
+                        with self.assertRaisesRegex(SystemExit, 'proof missing'): exec(code, {})
+                    successor.unlink()
+                    with self.assertRaisesRegex(SystemExit, 'proof missing'): exec(code, {})
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

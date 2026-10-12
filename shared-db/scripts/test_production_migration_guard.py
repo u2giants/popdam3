@@ -276,6 +276,22 @@ class GuardTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(GuardError):
                 parse_allowlist(value)
 
+    def test_2176_unsafe_original_is_retired_and_replacement_remains_pending(self):
+        self.assertIn("20261005025111", HARD_BLOCKED)
+        self.assertIn("20261005025111", production_migration_guard.RETIRED_VERSION_REASONS)
+        reason = production_migration_guard.RETIRED_VERSION_REASONS["20261005025111"]
+        self.assertIn("REVISE", reason)
+        self.assertIn("6328e126316baca16b7f3d842f79a769599f478c", reason)
+        self.assertIn("20261011224904", reason)
+        self.assertIn("not yet installed", reason)
+        self.assertNotIn("20261011224904", HARD_BLOCKED)
+        import hashlib
+        original = REPO / 'supabase/migrations/20261005025111_coldlion_unit6_consumer_contracts.sql'
+        self.assertEqual(hashlib.sha256(original.read_bytes()).hexdigest(), '55007a6e5eee7f1966568368f8d9c10e3f04ea884310b4cdba72026fe12f0543')
+        with self.assertRaises(GuardError):
+            parse_allowlist('20261005025111')
+        self.assertEqual(parse_allowlist('20261011224904'), ['20261011224904'])
+
     def test_4060_forward_retirement_names_actual_replacement_and_preserves_risk_revise(self):
         versions = ("20261007232712", "20261008160444", "20261009040550")
         for version in versions:
@@ -318,6 +334,7 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(
             HARD_BLOCKED,
             {
+                "20261005025111",
                 "20261001122410",
                 "20260914061331",
                 "20260930212107",
@@ -4069,7 +4086,7 @@ class ForeignTargetScopeTest(unittest.TestCase):
                 self.assertIsNone(foreign_target_entry(version, "designflow-nonprod"))
                 with self.assertRaises(GuardError):
                     parse_allowlist(version)
-        for version in ("20260929082814", "20260930193549", "20261005025111", "20261009191951", "20261009224453", "20261010033616"):
+        for version in ("20260929082814", "20260930193549", "20261011224904", "20261009191951", "20261009224453", "20261010033616"):
             with self.subTest(control=version):
                 self.assertNotIn(classify_pending_version(version, set(), REPO, paths, "production")["kind"], ("retired", "deliberately-held", "foreign-target"))
         held = classify_pending_version("20260817150944", set(), REPO, paths, "production")

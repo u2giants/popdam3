@@ -65,6 +65,7 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    "20261005025111",  # #2176 immutable slot7 REVISE; never-installed source retired.
     "20261001122410",
     # #2508: replaced originals; immutable successor provenance and live ledger verified.
     "20260914061331",
@@ -297,6 +298,7 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261005025111": "#2176 merged-stranded: immutable PR3839 head dd269428fc3953e98366142cec24c71e25d71b09 carries slot7 REVISE verdict45d5766e4e3d62d777c19d057e3d59825f150a1c; preview and production never applied original; claim3838 supported reissue retirement6328e126316baca16b7f3d842f79a769599f478c reserves standalone safe replacement20261011224904, not yet installed. Preserve original SQL and all reviews; never apply original.",
     "20261001122410": "#3859 / #3948: preview-era PR3862 original replaced by production-path successor 20261006004845 (PR3951), applied automatically in run37400719394; immutable successor header pins the same static index statement. Live production successor ledger and exact btree(company_code,prod_order_no) index reverified October11,2026. Preserve original SQL; never promote original.",
     "20260914061331": "#2879 / #2885: production run 34819885746 refused original PR2882 provenance; #2885 forbids reuse of this version. Forward replacement 20260914075758 applied in run34834533519; live production ledger reverified October11,2026. Preserve original SQL and preview ledger; never promote original.",
     "20260930212107": "#3234: preview-era PR3852 original replaced by production-path successor 20261005044103, applied run37292826682; source issue records complete live constraint proof. Live production successor ledger reverified October11,2026. Preserve original SQL and preview ledger; never promote original.",
