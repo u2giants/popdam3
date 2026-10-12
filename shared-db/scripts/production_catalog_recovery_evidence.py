@@ -72,8 +72,15 @@ def build_binding(repo, evidence, live_ledger, catalog, jobs, inputs):
     # Require a hash-bound named assertion for every version: a catalog
     # contract (opaque DDL) or, for a data or pg_cron migration with no catalog
     # object (issue #4207), an exact row count on a named relation.
-    checks = catalog.get("behavior_checks", [])
-    results = catalog.get("behavior_results", {}).get("behavior_checks", [])
+    checks = catalog.get("behavior_checks")
+    if not isinstance(checks, list) or any(not isinstance(check, dict) for check in checks):
+        raise ValueError("hash-bound behavior declarations must be a list of objects")
+    behavior = catalog.get("behavior_results")
+    if not isinstance(behavior, dict) or not isinstance(behavior.get("behavior_checks"), list):
+        raise ValueError("hash-bound behavior assertion results must be an object containing a list")
+    results = behavior["behavior_checks"]
+    if any(not isinstance(result, dict) for result in results):
+        raise ValueError("hash-bound behavior results must contain objects")
     def named(c):
         if c.get("kind") == "catalog_contract":
             return isinstance(c.get("contract"), str) and bool(c["contract"])

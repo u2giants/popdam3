@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 4231,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/370",
+  "contract_sha256": "5a1aeed120871dd7a329bc7fa15ff66396dd9810100ebbe569bac5cec94c44f6",
+  "head_sha": "9eb940767addfe1ee709b9e179aff315a45abf55",
+  "base_sha": "63aec8b0d15a886e0522036e5b93fbe65de424bd",
+  "files_changed": [
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production_catalog_recovery_evidence.py",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_recovery_evidence.py",
+    "scripts/test_production_catalog_verification.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "exact authoritative2421probe equality and real selectedcontract read-onlypositive PASS",
+      "exit_code": 0,
+      "evidence": "Current267 focused tests pass; constant exactly mirrors committedprobe. Prior actual selectedcontract count1 and14ACLproof unchanged sourcepolicy."
+    },
+    {
+      "command": "all recovery prerequisite/hash/delta/namedassertion/null/malformed/count negatives PASS",
+      "exit_code": 0,
+      "evidence": "Current267 focusedtests preserve original hashes/delta/namedassertion guards; missing/null/malformed declarations fail closed."
+    },
+    {
+      "command": "base-trusted rulebook-first policy-only diff with sidecar activation absent PASS",
+      "exit_code": 0,
+      "evidence": "Current source has no12727sidecar or registry activation; original369pair/source/test/registry bytes privately SHAverified before ownretirement. Published370 matches immutable readback."
+    },
+    {
+      "command": "full source offline suites and owned current-source/Git/contract checks PASS",
+      "exit_code": 0,
+      "evidence": "Clean exact9eb940 Node4930total4929pass0fail1existingWindows skip; Python1522PASS43existingconditional/live skips; original broad autodiscovery included private-data-only suites and local ignored overlay, preserved as unsuccessful inappropriate invocation."
+    }
+  ],
+  "assumptions_resolved": [
+    "Guarded38238527865 refused newcontract activation undertrustedbase. This PRonlyinstalls verifier/recoverypolicy; separate activation follows governed merge.",
+    "Original SQL/failedapply/artifact/ledger/review/2758/cap2/frozenhistory remain unchanged.",
+    "Published370verified before edits; original369pair SHAverified privatebeforeownretirement.",
+    "Source readiness does not claim installed recovery or application acceptance."
+  ],
+  "stop_conditions_hit": []
+}

@@ -37,6 +37,16 @@ class RecoveryEvidenceTests(unittest.TestCase):
     def build(self, catalog=None, job_rows=None):
         return build_binding(self.root, self.evidence, self.live, catalog or self.catalog, job_rows or jobs(), self.inputs)
 
+    def test_absent_null_malformed_behavior_results_refuse_cleanly(self):
+        for value in (None, [], "unknown", {}, {"behavior_checks": None}, {"behavior_checks": {}}, {"behavior_checks": [None]}, {"behavior_checks": [1]}):
+            row = copy.deepcopy(self.catalog); row["behavior_results"] = value
+            with self.subTest(value=value), self.assertRaises(ValueError): self.build(catalog=row)
+
+    def test_malformed_behavior_declarations_refuse_cleanly(self):
+        for value in (None, {}, [None], ["unknown"]):
+            row = copy.deepcopy(self.catalog); row["behavior_checks"] = value
+            with self.subTest(value=value), self.assertRaises(ValueError): self.build(catalog=row)
+
     def test_exact_successful_recovery(self):
         self.assertEqual(self.build()["migration_hashes"], {VERSION: self.digest})
 

@@ -3743,5 +3743,11 @@ class TemporalRoutineAclTests(unittest.TestCase):
         sql="revoke all on function plm.f(integer) from anon;grant execute on function plm.f to authenticated;"
         rows,failures=assert_privileges(targets_for(sql),self.data(["anon"]))
         self.assertEqual([r[1] for r in rows],["FAIL","RECORD"]);self.assertEqual(len(failures),1)
+
+
+class StyleDifferentialInstalledDeclarationTests(unittest.TestCase):
+    def test_contract_is_exactly_the_authoritative_committed_probe(self):
+        probe = (REPO / ".github/live-proofs/2421.sql").read_text().strip().removesuffix(";")
+        self.assertEqual(CATALOG_CONTRACTS["style_group_differential_installed_v1"], "(" + probe + ")")
 if __name__ == "__main__":
     unittest.main()

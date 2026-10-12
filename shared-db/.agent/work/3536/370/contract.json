@@ -1,0 +1,74 @@
+{
+  "allowed_paths": [
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/production_catalog_recovery_evidence.py",
+    "scripts/test_production_catalog_recovery_evidence.py",
+    "scripts/production-verification-sidecars/20261012012727.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "docs/verification/throughput-dispositions/scripts~production_catalog_recovery_evidence.py.json",
+    ".agent/work/3536/369/contract.json",
+    ".agent/work/3536/369/completion.json",
+    ".agent/work/3536/370/contract.json",
+    ".agent/work/3536/370/completion.json"
+  ],
+  "assumptions": [
+    "Guarded4230main63aec installed148focusedtestsPASS; exactGLMsourceAPP466a407 fullyread.",
+    "Read-only recovery38234599718 passed all originalapply/artifact/target/delta/catalog stages but binding failed onbehavior_resultsNone because static12727hadno named sidecar. Do not weaken requirednamedassertion; supply exactexistingcommittedprobe hash-bound instead.",
+    "Original apply38221234278/main4dc artifact11734438278 digestsha256:951f9adbfe6673fb6630b7b3359e2ad9fd2aa41b602e436213f388d7ce5d0672 and migrationSQLbytes remainimmutable.",
+    "Owner of new verifier declaration isexisting2421 installedprobe; necessity original recoveryrequires namedassertion; consolidation source isauthoritativeprobe with byte-equalitytest, notcompetinglogic.",
+    "Guardedmerge38238527865 correctly refused unknown newcontract name in base-trusted reader; not a transientfailure. Mustlandpolicyfirstthenactivation, neverretryunchangedoroverride trustedpolicy."
+  ],
+  "base_sha": "63aec8b0d15a886e0522036e5b93fbe65de424bd",
+  "branch": "codex/3536-style-recovery-contract",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Current Codex root exact-safety repair under Albert resume instruction",
+  "evidence_parent": {
+    "work_issue": 3536,
+    "generation": 369,
+    "contract_sha256": "cc84873511fe9485592dd9a29804cb9fc99bc4b8a86df7aa0d6b8aa668269c8c"
+  },
+  "file_writes": [
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/production_catalog_recovery_evidence.py",
+    "scripts/test_production_catalog_recovery_evidence.py",
+    "scripts/production-verification-sidecars/20261012012727.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "docs/verification/throughput-dispositions/scripts~production_catalog_recovery_evidence.py.json",
+    ".agent/work/3536/369/contract.json",
+    ".agent/work/3536/369/completion.json",
+    ".agent/work/3536/370/contract.json",
+    ".agent/work/3536/370/completion.json"
+  ],
+  "generation": 370,
+  "goal": "Complete existing verification-only recovery without relaxing its evidence: add a hash-bound named installed-state contract for immutable style12727, byte-identical to authoritative committed2421probe and checked against it. Register selected sidecar/owner2421; preserve all source SQL and original apply/ledger/artifact/risk/review inputs. Missing/nonobject behavior results fail closed explicitly rather than crash. Recovery remains read-only and requires all original delta/hash/namedassertion/role/catalog guards. Fresh actual source checks and independent approval precede guarded merge and exact original-run recovery. Follow the existing base-trusted rulebook-first gate observed in guardedmerge38238527865: this PRlandsONLY reviewed verifier/recovery policy and exactsourceprobe-equality test. Privately preserve andretireonlyunmerged new12727sidecar/registryentry andits sidecar-specific test; preserve themfornext governed activationPRafterpolicyisinstalled. No trusted-base/head override or weakening; failed original/source/review/publish records remain. Keep published369contract/pair privately/Gitbefore ownretirement, firstcomplete370afternewsourcechecks, freshapprovalrequired.",
+  "prohibited_actions": [
+    "No claim/ref/lease/history/source migration/function/production or frozenqueue edits",
+    "No missing/foreign caller authority, caller-pattern widening or substring identity",
+    "No cron disable, test weakening/quarantine/removal, old verdict carry, budget/refund/2758 bypass",
+    "No manual production action or prior-main risk assessment reuse",
+    "No source SQL/ACL mutation, schema or production write; no ordinary-source bound beyond4MiB; no contract/report1MiB change; no semantic capacity/hash/history/source witness waiver."
+  ],
+  "required_checks": [
+    "exact authoritative2421probe equality and real selectedcontract read-onlypositive PASS",
+    "all recovery prerequisite/hash/delta/namedassertion/null/malformed/count negatives PASS",
+    "base-trusted rulebook-first policy-only diff with sidecar activation absent PASS",
+    "full source offline suites and owned current-source/Git/contract checks PASS"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Any cross-chat, malformed or arbitrary alias accepts",
+    "Any selected change edits foreign claim/evidence or source SQL",
+    "Any independent reviewer refuses or required check fails",
+    "Any original gate/cap/claim scope loses enforcement"
+  ],
+  "work_issue": 3536,
+  "work_type": "repo-maintenance",
+  "worker": "Current Codex root retains security and landing decisions",
+  "worktree": "/home/ahazan/.codex/worktrees/eight-issues-review-read/shared-db"
+}
