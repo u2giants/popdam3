@@ -10,7 +10,94 @@ import { loadAuthoritativeLicensingMaps, resolveAuthoritativeLicensing } from ".
 
 // ── Route: reprocess-asset-metadata ─────────────────────────────────
 
+/**
+ * Fill-only licensing mode. Used after new licensor/property codes land in
+ * master data: walks only licensed assets whose licensor_id is still NULL, by
+ * id keyset (rows leaving the set cannot shift the cursor), and writes ONLY
+ * licensing columns that are currently NULL. It never touches SKU/MG fields,
+ * is_licensed, workflow_status, or any non-null value, and every UPDATE is
+ * guarded on licensor_id still being NULL so concurrent writers win.
+ */
+export const FILL_MISSING_LICENSING_MODE = "fill-missing-licensing";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const LICENSING_COLUMNS = ["licensor_id", "licensor_code", "licensor_name", "property_id", "property_code", "property_name"] as const;
+
+export interface FillLicensingDeps {
+  parse: typeof parseSku;
+  loadMaps: typeof loadAuthoritativeLicensingMaps;
+  resolve: typeof resolveAuthoritativeLicensing;
+}
+
+// deno-lint-ignore no-explicit-any
+export async function fillMissingLicensing(body: Record<string, unknown>, db: any, deps: FillLicensingDeps = {
+  parse: parseSku,
+  loadMaps: loadAuthoritativeLicensingMaps,
+  resolve: resolveAuthoritativeLicensing,
+}): Promise<Record<string, unknown>> {
+  const after = typeof body.after_id === "string" && UUID_RE.test(body.after_id) ? body.after_id : null;
+  if (body.after_id !== undefined && body.after_id !== null && body.after_id !== 0 && !after) {
+    throw new Error("after_id must be a UUID");
+  }
+  const requested = typeof body.batch_size === "number" ? Math.floor(body.batch_size) : 200;
+  const batchSize = Math.max(1, Math.min(requested, 200));
+
+  let query = db.from("assets")
+    .select(`id, filename, file_created_at, is_licensed, ${LICENSING_COLUMNS.join(", ")}`)
+    .eq("is_deleted", false)
+    .eq("is_licensed", true)
+    .is("licensor_id", null);
+  if (after) query = query.gt("id", after);
+  const { data: assets, error } = await query.order("id").limit(batchSize);
+  if (error) throw new Error(error.message);
+  const rows = (assets ?? []) as Record<string, unknown>[];
+  if (rows.length === 0) return { ok: true, done: true, updated: 0, total: 0, nextOffset: null, unresolved_licensor: 0, unresolved_property: 0 };
+
+  const parsed = await Promise.all(rows.map(async (a) => ({
+    asset: a,
+    parsed: await deps.parse(String(a.filename), { fileDate: a.file_created_at as string | null }),
+  })));
+  const maps = await deps.loadMaps(db, parsed.flatMap(({ parsed }) => parsed ? [parsed.sku] : []));
+
+  let updated = 0;
+  let unresolvedLicensor = 0;
+  let unresolvedProperty = 0;
+  for (const { asset, parsed: p } of parsed) {
+    const r = await deps.resolve(db, true, p, maps);
+    if (r.unresolved_licensor || !r.licensor_id) {
+      unresolvedLicensor++;
+      continue;
+    }
+    if (r.unresolved_property) unresolvedProperty++;
+    const updates: Record<string, unknown> = {};
+    for (const col of LICENSING_COLUMNS) {
+      const next = (r as unknown as Record<string, unknown>)[col];
+      if (asset[col] === null && next !== null && next !== undefined) updates[col] = next;
+    }
+    if (Object.keys(updates).length === 0) continue;
+    const { data: written, error: updateErr } = await db.from("assets")
+      .update(updates)
+      .eq("id", asset.id)
+      .is("licensor_id", null)
+      .select("id");
+    // A failed row must fail the batch so the worker retries it, never skip it.
+    if (updateErr) throw new Error(`asset ${asset.id}: ${updateErr.message}`);
+    if (Array.isArray(written) && written.length > 0) updated++;
+  }
+
+  const done = rows.length < batchSize;
+  return {
+    ok: true,
+    done,
+    updated,
+    total: rows.length,
+    unresolved_licensor: unresolvedLicensor,
+    unresolved_property: unresolvedProperty,
+    nextOffset: done ? null : String(rows[rows.length - 1].id),
+  };
+}
+
 export async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
+  if (body.mode === FILL_MISSING_LICENSING_MODE) return json(await fillMissingLicensing(body, serviceClient()));
   const offset = typeof body.offset === "number" ? body.offset : 0;
   // Keep one edge invocation below the authenticated database ceiling. The
   // persistent worker supplies 25; direct/older callers retain the old 200.

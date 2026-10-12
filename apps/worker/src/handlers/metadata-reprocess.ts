@@ -8,7 +8,11 @@ export async function handleReprocessMetadata(
   fetchImpl: FetchLike = fetch,
   edgeKey = config.supabaseSecretKey || config.supabaseServiceRoleKey,
 ): Promise<BatchResult> {
+  const fillMode = op.params?.mode === "fill-missing-licensing";
   const offset = typeof op.cursor === "number" ? op.cursor : 0;
+  const payload: Record<string, unknown> = fillMode
+    ? { action: "reprocess-asset-metadata", mode: "fill-missing-licensing", after_id: typeof op.cursor === "string" ? op.cursor : null, batch_size: 25 }
+    : { action: "reprocess-asset-metadata", offset, batch_size: 25 };
   const response = await fetchImpl(`${config.supabaseUrl}/functions/v1/admin-api`, {
     method: "POST",
     headers: {
@@ -16,11 +20,7 @@ export async function handleReprocessMetadata(
       Authorization: `Bearer ${edgeKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      action: "reprocess-asset-metadata",
-      offset,
-      batch_size: 25,
-    }),
+    body: JSON.stringify(payload),
   });
 
   const text = await response.text();
@@ -41,7 +41,7 @@ export async function handleReprocessMetadata(
   return {
     ok: true,
     done: data.done === true,
-    nextOffset: typeof data.nextOffset === "number" ? data.nextOffset : null,
+    nextOffset: typeof data.nextOffset === "number" || typeof data.nextOffset === "string" ? data.nextOffset : null,
     checked: Number(data.total ?? 0),
     updated: Number(data.updated ?? 0),
     unresolved_licensor: Number(data.unresolved_licensor ?? 0),
