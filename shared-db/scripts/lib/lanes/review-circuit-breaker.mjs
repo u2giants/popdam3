@@ -217,7 +217,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     const match=/^(100644|100755) blob ([0-9a-f]{40})\t(.+)$/.exec(record[0])
     if(!match || match[3]!==file)throw new LaneError('review budget canonical regular mode unreadable')
     const text=raw(['show',`${tree(commit)}:${file}`])
-    if(Buffer.byteLength(text)>1048576 || createHash('sha1').update(`blob ${Buffer.byteLength(text)}\0`).update(text).digest('hex')!==match[2])throw new LaneError('review budget canonical blob bytes unreadable or oversized')
+    if(Buffer.byteLength(text)>(file.startsWith('.agent/')?1048576:4194304) || createHash('sha1').update(`blob ${Buffer.byteLength(text)}\0`).update(text).digest('hex')!==match[2])throw new LaneError('review budget canonical blob bytes unreadable or oversized')
     return {mode:match[1],blob:match[2],text}
   }
   const equal = (a,b) => {

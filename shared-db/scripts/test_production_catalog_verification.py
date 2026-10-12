@@ -1345,7 +1345,9 @@ class PrivilegeAssertionTests(unittest.TestCase):
 
     # -- functions ---------------------------------------------------------
     def function_catalog(self, overloads):
+        overloads = [dict(row, oid=str(index + 1)) for index, row in enumerate(overloads)]
         return {
+            "function_acl_signatures": [{"signature": row["identity"], "oid": row["oid"]} for row in overloads],
             "maintain_probed": True,
             "probe_roles": ["anon", "authenticated", "public", "service_role"],
             "functions": [{"name": "plm.f", "overloads": overloads}],
@@ -1405,7 +1407,7 @@ class PrivilegeAssertionTests(unittest.TestCase):
         self.assertEqual(len(failures), 1)
         self.assertIn("STILL holds EXECUTE", failures[0])
 
-    def test_ambiguous_overloads_record_a_grant_with_the_reason(self):
+    def test_literal_grant_selects_only_its_named_overload(self):
         rows, failures = self.assert_for(
             "grant execute on function plm.f(bigint) to anon;",
             self.function_catalog(
@@ -1418,8 +1420,7 @@ class PrivilegeAssertionTests(unittest.TestCase):
             ),
         )
         self.assertEqual(failures, [])
-        self.assertEqual(rows[0][1], "RECORD")
-        self.assertIn("overloads", rows[0][2])
+        self.assertEqual(rows[0][1], "PASS")
 
 
 class PrivilegeOrderTests(unittest.TestCase):
@@ -3651,5 +3652,96 @@ class Issue4207RealSidecars(unittest.TestCase):
             self.assertTrue(failures, version)
 
 
+
+
+class LiteralRoutineAclTests(unittest.TestCase):
+    def catalog(self, selected_holders=(), default=False):
+        return {
+            "maintain_probed": True, "probe_roles": ["authenticated", "anon", "service_role", "public"],
+            "function_acl_signatures": [{"signature": "public.rebuild_style_groups_batch(uuid, integer, timestamptz)", "oid": "20"}],
+            "functions": [{"name": "public.rebuild_style_groups_batch", "overloads": [
+                {"oid": "10", "identity": "public.rebuild_style_groups_batch(uuid,integer)", "owner": "postgres", "acl_is_default": False, "acl": [], "execute_held_by": ["authenticated"]},
+                {"oid": "20", "identity": "public.rebuild_style_groups_batch(uuid,integer,timestamp with time zone)", "owner": "postgres", "acl_is_default": default, "acl": [], "execute_held_by": list(selected_holders)},
+            ]}],
+        }
+    SQL = "revoke all on function public.rebuild_style_groups_batch(uuid, integer, timestamptz) from authenticated;"
+    def test_preserved_legacy_access_does_not_fail_selected_revoke(self):
+        rows, failures = assert_privileges(targets_for(self.SQL), self.catalog())
+        self.assertEqual(failures, [])
+        self.assertEqual([r[1] for r in rows], ["PASS"])
+        self.assertIn("timestamp with time zone", rows[0][0])
+    def test_selected_inherited_or_direct_execute_still_fails(self):
+        rows, failures = assert_privileges(targets_for(self.SQL), self.catalog(["authenticated"]))
+        self.assertEqual(len(failures), 1); self.assertEqual(rows[0][1], "FAIL")
+    def test_selected_public_default_still_fails(self):
+        _, failures = assert_privileges(targets_for(self.SQL), self.catalog(default=True))
+        self.assertEqual(len(failures), 1); self.assertIn("DEFAULT ACL", failures[0])
+    def test_missing_or_unresolved_selected_overload_never_uses_legacy(self):
+        for kind in ("mapping", "selected", "wrong"):
+            data = self.catalog()
+            if kind == "mapping": data["function_acl_signatures"] = []
+            elif kind == "selected": data["functions"][0]["overloads"].pop()
+            else: data["function_acl_signatures"][0]["oid"] = "999"
+            _, failures = assert_privileges(targets_for(self.SQL), data)
+            self.assertEqual(len(failures), 1)
+    def test_type_aliases_and_statement_order_use_actual_oid(self):
+        data = self.catalog(["authenticated"])
+        data["function_acl_signatures"].append({"signature": "public.rebuild_style_groups_batch(uuid, integer, timestamp with time zone)", "oid": "20"})
+        sql = self.SQL + " grant execute on function public.rebuild_style_groups_batch(uuid, integer, timestamp with time zone) to authenticated;"
+        rows, failures = assert_privileges(targets_for(sql), data)
+        self.assertEqual(failures, []); self.assertEqual([r[1] for r in rows], ["RECORD", "PASS"])
+
+
+
+class RoutineAclCompatibilityTests(unittest.TestCase):
+    def one(self, held=()):
+        return {"maintain_probed":True,"probe_roles":["anon","authenticated","public"],"function_acl_signatures":[{"signature":"plm.f(integer)","oid":"10"},{"signature":"plm.f(in x integer)","oid":"10"},{"signature":"plm.f(x integer)","oid":"10"}],"functions":[{"name":"plm.f","overloads":[{"oid":"10","identity":"plm.f(integer)","owner":"postgres","acl_is_default":False,"acl":[],"execute_held_by":list(held)}]}]}
+    def test_mixed_bare_literal_statement_order_in_both_directions(self):
+        for first,last,held in [("grant execute on function plm.f(integer) to anon;","revoke execute on function plm.f from anon;",()),("revoke execute on function plm.f from anon;","grant execute on function plm.f(integer) to anon;",("anon",))]:
+            rows,failures=assert_privileges(targets_for(first+last),self.one(held))
+            self.assertEqual(failures,[]);self.assertEqual([r[1] for r in rows],["RECORD","PASS"])
+    def test_postgresql_input_names_and_modes_resolve_selected_oid(self):
+        for signature in ("plm.f(in x integer)","plm.f(x integer)"):
+            rows,failures=assert_privileges(targets_for("revoke all on function "+signature+" from anon;"),self.one())
+            self.assertEqual(failures,[]);self.assertEqual([r[1] for r in rows],["PASS"])
+    def test_normalization_ignores_only_output_and_preserves_variadic_array_type(self):
+        from production_catalog_verification import normalize_function_acl_signature
+        self.assertEqual(normalize_function_acl_signature("plm.f(in x integer, out label text)"),("plm.f(integer)",None))
+        self.assertEqual(normalize_function_acl_signature("plm.f(variadic values uuid[], inout z timestamp with time zone)"),("plm.f(uuid[],timestamp with time zone)",None))
+        self.assertEqual(normalize_function_acl_signature("plm.f(in x plm.capture_status)"),("plm.f(plm.capture_status)",None))
+    def test_unknown_custom_search_path_and_complex_types_are_explicitly_not_asserted(self):
+        for signature in ("plm.f(migration_enum)","plm.f(numeric(10,2))"):
+            rows,failures=assert_privileges(targets_for("revoke all on function "+signature+" from anon;"),self.one(["anon"]))
+            self.assertEqual(failures,[]);self.assertEqual([r[1] for r in rows],["RECORD"])
+            self.assertTrue("search_path" in rows[0][2] or "explicit catalog evidence" in rows[0][2])
+    def test_multiple_routine_targets_do_not_misread_qualified_types(self):
+        targets=targets_for("revoke all on function plm.f(in x core.kind), plm.g(integer) from anon;")
+        self.assertEqual(targets.functions,["plm.f","plm.g"])
+        self.assertEqual([e.function_signature for e in targets.privileges],["plm.f(in x core.kind)","plm.g(integer)"])
+    def test_normalized_probe_keeps_raw_signature_and_never_parses_unknown_type(self):
+        sql=build_catalog_sql(targets_for("revoke all on function plm.f(in x integer),plm.g(migration_enum) from anon;"))
+        self.assertIn("plm.f(in x integer)",sql);self.assertIn("plm.f(integer)",sql)
+        self.assertIn("NULL",sql);self.assertIn("to_regprocedure(normalized_signature)",sql)
+
+
+class TemporalRoutineAclTests(unittest.TestCase):
+    def data(self, held=()):
+        return {"maintain_probed":True,"probe_roles":["anon","authenticated","public"],"function_acl_signatures":[{"signature":"plm.f(integer)","oid":"10"}],"functions":[{"name":"plm.f","overloads":[{"oid":"10","identity":"plm.f(integer)","owner":"postgres","acl_is_default":False,"acl":[],"execute_held_by":list(held)},{"oid":"20","identity":"plm.f(text)","owner":"postgres","acl_is_default":True,"acl":[],"execute_held_by":["authenticated"]}]}]}
+    def test_bare_before_later_overload_and_final_literal_grant(self):
+        sql="revoke all on function plm.f from authenticated;grant execute on function plm.f(integer) to authenticated;"
+        rows,failures=assert_privileges(targets_for(sql),self.data(["authenticated"]))
+        self.assertEqual(failures,[]);self.assertEqual([r[1] for r in rows],["RECORD","PASS"])
+    def test_later_bare_cannot_be_attributed_to_a_final_multi_overload_family(self):
+        sql="revoke all on function plm.f(integer) from authenticated;grant execute on function plm.f to authenticated;"
+        rows,failures=assert_privileges(targets_for(sql),self.data(["authenticated"]))
+        self.assertEqual(failures,[]);self.assertEqual([r[1] for r in rows],["RECORD","RECORD"])
+    def test_final_literal_revoke_still_rejects_selected_execute_after_ambiguous_bare(self):
+        sql="grant execute on function plm.f to authenticated;revoke all on function plm.f(integer) from authenticated;"
+        rows,failures=assert_privileges(targets_for(sql),self.data(["authenticated"]))
+        self.assertEqual([r[1] for r in rows],["RECORD","FAIL"]);self.assertEqual(len(failures),1)
+    def test_later_ambiguous_bare_for_another_role_never_suppresses_exact_revoke(self):
+        sql="revoke all on function plm.f(integer) from anon;grant execute on function plm.f to authenticated;"
+        rows,failures=assert_privileges(targets_for(sql),self.data(["anon"]))
+        self.assertEqual([r[1] for r in rows],["FAIL","RECORD"]);self.assertEqual(len(failures),1)
 if __name__ == "__main__":
     unittest.main()

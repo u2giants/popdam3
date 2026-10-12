@@ -313,6 +313,14 @@
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "legacy_semantic_key": "scripts/production_catalog_verification.py:e748322a7132254d79ac48f1c8dcd2858097e841631b7ac5a2c37149d9700a27:1"
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3386",
+      "semantic_key": "scripts/production_catalog_verification.py:fdb5aea013dbb126249fc8164afefe5fc71639ddb7d4e6823c64315e059e93e4:context-b0607a34182d6bfe3f507a9e23589536ed06b6445f81f31d1710868ff9b9eddb",
+      "line_sha256": "fdb5aea013dbb126249fc8164afefe5fc71639ddb7d4e6823c64315e059e93e4",
+      "disposition": "excluded",
+      "reason": "Literal routine ACL resolution failure is always a hard FAIL naming the exact signature; this is not a missing-production-source ambiguity and cannot use an unrelated legacy overload.",
+      "legacy_semantic_key": "scripts/production_catalog_verification.py:fdb5aea013dbb126249fc8164afefe5fc71639ddb7d4e6823c64315e059e93e4:1"
     }
   ]
 }

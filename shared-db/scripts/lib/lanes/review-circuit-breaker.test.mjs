@@ -631,3 +631,28 @@ for(const [kind,fixture] of [['registry',sidecarRegistryFixture],['import',named
  f.git(['commit','-qm','post-merge canonical file change']);const after=f.git(['rev-parse','HEAD']).trim()
  assert.throws(()=>derivePaidContentProof(f.before,after,f.main,f.git),change==='delete'?/canonical blob missing/:/surviving author source edit unavailable/)
 })
+
+// Real generated source blobs are larger than the JSON evidence bound.
+test('large ordinary source preserves exact surviving authored witness', t=>{
+ const f=realGitFixture(t), source='generated source line\n'.repeat(60000)
+ const before=f.commit('types.txt',source+'original\n')
+ const after=f.commit('types.txt',source+'genuine repair\n')
+ const git=args=>execFileSync('git',args,{cwd:f.dir,encoding:'utf8',stdio:['ignore','pipe','pipe'],maxBuffer:4*1024*1024})
+ const proof=derivePaidContentProof(before,after,f.base,git)
+ assert.equal(proof.kind,'substantive');assert.equal(proof.witness.path,'types.txt')
+ assert.equal(proof.witness.blob,git(['rev-parse',after+':types.txt']).trim())
+})
+test('ordinary source above explicit4MiB bound still refuses',t=>{
+ const f=realGitFixture(t), source='x'.repeat(4*1024*1024+1)
+ const before=f.commit('types.txt',source)
+ const after=f.commit('types.txt',source+'genuine repair')
+ const git=args=>execFileSync('git',args,{cwd:f.dir,encoding:'utf8',stdio:['ignore','pipe','pipe'],maxBuffer:8*1024*1024})
+ assert.throws(()=>derivePaidContentProof(before,after,f.base,git),/canonical blob bytes unreadable or oversized/)
+})
+
+test('shipped reader refuses oversized provenance without returning partial witness',async t=>{
+ const {paidReviewGitReader}=await import('../../manage-migration-author-lanes.mjs')
+ const f=realGitFixture(t), source='x'.repeat(4*1024*1024+65536)
+ const before=f.commit('types.txt',source),after=f.commit('types.txt',source+'repair')
+ assert.throws(()=>derivePaidContentProof(before,after,f.base,args=>paidReviewGitReader(['-C',f.dir,...args])),/Git provenance refused:.*ENOBUFS/)
+})

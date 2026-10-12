@@ -309,6 +309,13 @@ export function buildDatabasePreviewFileSnapshot(files,base,head,readContent){
   }).sort((a,b)=>a.path.localeCompare(b.path))
 }
 
+// Owner: exact paid-review provenance. Complete source blobs can exceed the
+// Node default1MiB. This process bound does not change semantic evidence limits.
+export const PAID_REVIEW_GIT_MAX_BYTES = 4 * 1024 * 1024
+export function paidReviewGitReader(args) {
+  return execFileSync('git', args, {encoding:'utf8', stdio:['ignore','pipe','pipe'], maxBuffer:PAID_REVIEW_GIT_MAX_BYTES})
+}
+
 // #4048: a partial maintenance PR must retain its authentic work issue without
 // pretending to close that unfinished parent. Refs only selects the proof;
 // immutable canonical evidence and normal Git validation supply authority.
@@ -828,10 +835,10 @@ export const githubIo = {
       }))
       return contracts.get(ref)
     }
-    const budgetProof=derivePaidContentProof(before,after,base,args=>execFileSync('git',args,{encoding:'utf8',stdio:['ignore','pipe','pipe']}),excludePaths,pr,readContract)
+    const budgetProof=derivePaidContentProof(before,after,base,paidReviewGitReader,excludePaths,pr,readContract)
     return {before:prContentDigest(before,base,{excludePaths}),after:prContentDigest(after,base,{excludePaths}),budgetProof}
   },
-  contentPreservingRefresh(approvedHead,head,pr=null,context=null,gitRunner=(args)=>execFileSync('git',args,{encoding:'utf8',stdio:['ignore','pipe','pipe']})){
+  contentPreservingRefresh(approvedHead,head,pr=null,context=null,gitRunner=paidReviewGitReader){
     const key=`${Number(pr)}:${String(head).toLowerCase()}`
     if(context?.key!==undefined&&context.key!==key)return{ok:false,reason:'review comparison context was reused for a different pull request or head'}
     if(context?.refusal)return context.refusal
