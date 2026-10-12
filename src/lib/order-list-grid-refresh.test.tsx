@@ -3,7 +3,7 @@ import { AllCommunityModule, ModuleRegistry, themeQuartz, type GridApi, type IDa
 import { AgGridReact } from "ag-grid-react";
 import { describe, expect, it } from "vitest";
 
-import { refreshOrderListRows } from "@/lib/order-list-grid-refresh";
+import { refreshOrderListRows, refreshOrderListRowsInPlace } from "@/lib/order-list-grid-refresh";
 import { navigateToOrderListMatch } from "@/lib/order-list-find-navigation";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -330,5 +330,29 @@ describe("OrderList grid refresh", () => {
     expect(api!.isDestroyed()).toBe(true);
     expect(requests).toHaveLength(requestsAtDestroy);
     view.unmount();
+  });
+
+  it("background refresh updates on-screen rows in place without emptying the grid", async () => {
+    let revision = 1;
+    let api: GridApi<Row> | null = null;
+    const datasource: IDatasource = {
+      getRows: async (params) => { await Promise.resolve(); params.successCallback(rowsFor(params.startRow, params.endRow, revision)); },
+    };
+    renderInfiniteGrid(datasource, (value) => { api = value; }, { selectRows: false });
+    await waitFor(() => expect(api?.getRowNode("row-0")?.data?.revision).toBe(1));
+    revision = 2;
+    const fetches: Array<{ startRow: number; endRow: number }> = [];
+    let emptied = false;
+    await act(async () => {
+      await refreshOrderListRowsInPlace(api, async (request) => {
+        fetches.push({ startRow: request.startRow, endRow: request.endRow });
+        if (!api!.getRowNode("row-0")?.data) emptied = true;
+        return rowsFor(request.startRow, request.endRow, revision);
+      }, (row) => row.id);
+    });
+    expect(emptied).toBe(false);
+    expect(fetches).toHaveLength(1);
+    expect(fetches[0].startRow).toBe(0);
+    expect(api!.getRowNode("row-0")?.data?.revision).toBe(2);
   });
 });
