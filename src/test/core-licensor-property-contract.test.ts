@@ -68,8 +68,11 @@ describe("canonical licensor/property contract", () => {
   it("keeps ColdLion MG codes scoped to their division", () => {
     const parser = read("supabase/functions/_shared/sku-parser.ts");
     const coldlion = read("supabase/functions/_shared/coldlion.ts");
-    expect(parser).toContain('getMgLookup("05", division_code)');
-    expect(parser).toContain('getMgLookup("06", division_code)');
+    // Display-name lookups stay division-scoped; an outage leaves names null
+    // (unresolved) instead of failing ingest — licensing comes from the mirror.
+    expect(parser).toContain('getMgLookupOrEmpty("05", division_code)');
+    expect(parser).toContain('getMgLookupOrEmpty("06", division_code)');
+    expect(parser).toContain("getMgLookup(mgTypeCode, divisionCode)");
     expect(coldlion).not.toContain("getLicensorLookup");
     expect(coldlion).not.toContain("{ ...cw, ...sp }");
   });

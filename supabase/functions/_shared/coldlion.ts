@@ -1,4 +1,8 @@
+import { ColdLionBreaker } from "./coldlion-breaker.ts";
 import { createClient } from "./supabase-js.ts";
+
+// One breaker per isolate: an outage costs one timeout per cooldown, not one per call.
+const breaker = new ColdLionBreaker();
 
 const COLDLION_BASE = "http://x5.coldlion.com/EhpApi";
 const COMPANY = "EDGEHOME";
@@ -56,6 +60,7 @@ async function fetchMgLookup(
   divisionCode: string,
   cacheKey: string,
 ): Promise<Record<string, string>> {
+  breaker.assertClosed(`${mgTypeCode}/${divisionCode}`);
   const apiKey = await getApiKey();
   const url = `${COLDLION_BASE}/merchGroupDetails?companyCode=${COMPANY}` +
     `&mgTypeCode=${mgTypeCode}&divisionCode=${divisionCode}`;
@@ -78,9 +83,11 @@ async function fetchMgLookup(
       map[item.mgCode] = item.mgDesc;
     }
     cache[cacheKey] = map;
+    breaker.recordSuccess();
     return map;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
+    breaker.recordFailure(message);
     throw new Error(`ColdLion API fetch failed for ${mgTypeCode}/${divisionCode}: ${message}`);
   }
 }
@@ -95,14 +102,22 @@ const itemCache = new Map<string, ColdLionItemInfo | null>();
 export async function getColdLionItemInfo(itemNo: string): Promise<ColdLionItemInfo | null> {
   const key = itemNo.toUpperCase();
   if (itemCache.has(key)) return itemCache.get(key)!;
+  breaker.assertClosed(`items/${key}`);
   const apiKey = await getApiKey();
   const url = `${COLDLION_BASE}/items?companyCode=${COMPANY}&itemNo=${encodeURIComponent(key)}`;
-  const res = await fetch(url, {
-    headers: { "X-API-Key": apiKey },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) throw new Error(`ColdLion API items/${key} returned ${res.status}`);
-  const data = await res.json();
+  let data;
+  try {
+    const res = await fetch(url, {
+      headers: { "X-API-Key": apiKey },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) throw new Error(`ColdLion API items/${key} returned ${res.status}`);
+    data = await res.json();
+  } catch (e) {
+    breaker.recordFailure(e instanceof Error ? e.message : String(e));
+    throw e;
+  }
+  breaker.recordSuccess();
   const items = Array.isArray(data) ? data : (data.content ?? data.value ?? []);
   const hit = items.find((i: { itemNo?: string }) => i.itemNo?.toUpperCase() === key);
   const info = hit ? { createdTime: String(hit.createdTime), divisionCode: String(hit.divisionCode) } : null;
