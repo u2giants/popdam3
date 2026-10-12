@@ -477,18 +477,19 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
           rowCounts = { rows_examined: null, rows_written: null, rebuild_counts_exact: false };
         }
       }
+      const successful: Partial<BatchResult> = batch.ok ? batch : {};
       return {
         ...rowCounts,
-        groups: ((prev.groups as number) || 0) + ((batch.groups_created as number) || 0),
-        assigned: ((prev.assigned as number) || 0) + ((batch.assets_assigned as number) || 0),
-        cleared: ((prev.cleared as number) || 0) + ((batch.cleared_assets as number) || 0),
-        groups_deleted: ((prev.groups_deleted as number) || 0) + ((batch.groups_deleted as number) || 0),
-        total_groups_before_delete: Math.max((prev.total_groups_before_delete as number) || 0, (batch.total_groups_before_delete as number) || 0),
-        total_processed: Math.max((prev.total_processed as number) || 0, (batch.total_processed as number) || 0),
-        total_assets: Math.max((prev.total_assets as number) || 0, (batch.total_assets as number) || 0),
-        counts_processed: Math.max((prev.counts_processed as number) || 0, (batch.counts_processed as number) || 0),
-        primaries_processed: Math.max((prev.primaries_processed as number) || 0, (batch.primaries_processed as number) || 0),
-        finalize_total_groups: Math.max((prev.finalize_total_groups as number) || 0, (batch.finalize_total_groups as number) || 0),
+        groups: ((prev.groups as number) || 0) + ((successful.groups_created as number) || 0),
+        assigned: ((prev.assigned as number) || 0) + ((successful.assets_assigned as number) || 0),
+        cleared: ((prev.cleared as number) || 0) + ((successful.cleared_assets as number) || 0),
+        groups_deleted: ((prev.groups_deleted as number) || 0) + ((successful.groups_deleted as number) || 0),
+        total_groups_before_delete: Math.max((prev.total_groups_before_delete as number) || 0, (successful.total_groups_before_delete as number) || 0),
+        total_processed: Math.max((prev.total_processed as number) || 0, (successful.total_processed as number) || 0),
+        total_assets: Math.max((prev.total_assets as number) || 0, (successful.total_assets as number) || 0),
+        counts_processed: Math.max((prev.counts_processed as number) || 0, (successful.counts_processed as number) || 0),
+        primaries_processed: Math.max((prev.primaries_processed as number) || 0, (successful.primaries_processed as number) || 0),
+        finalize_total_groups: Math.max((prev.finalize_total_groups as number) || 0, (successful.finalize_total_groups as number) || 0),
         stage: batch.stage || prev.stage,
         substage: batch.sub || batch.substage || prev.substage,
       };

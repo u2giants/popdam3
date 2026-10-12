@@ -134,9 +134,9 @@ test("missing or malformed scheduled counts remain unknown without failing the o
 });
 
 test("a failed rebuild batch advances neither actual counters nor completion", () => {
-  const previous = { rows_examined: 3, rows_written: 2, rebuild_counts_exact: true };
+  const previous = { rows_examined: 3, rows_written: 2, rebuild_counts_exact: true, groups: 4, assigned: 2, cleared: 5, groups_deleted: 3, total_processed: 11 };
   const failed = qualifyRebuildRowCounts({
-    ok: false, done: false, stage: "rebuild_assets", error: "statement timeout", rows_examined: 10, assets_assigned: 8, assets_ungrouped: 1,
+    ok: false, done: false, stage: "rebuild_assets", error: "statement timeout", rows_examined: 10, assets_assigned: 8, assets_ungrouped: 1, groups_created: 3, cleared_assets: 4, groups_deleted: 2, total_processed: 100,
   }, scheduledRebuild);
   assert.equal(failed.ok, false);
   assert.equal(failed.done, false);
@@ -145,6 +145,11 @@ test("a failed rebuild batch advances neither actual counters nor completion", (
   assert.equal(progress.rows_examined, 3);
   assert.equal(progress.rows_written, 2);
   assert.equal(progress.rebuild_counts_exact, true);
+  assert.equal(progress.groups, 4);
+  assert.equal(progress.assigned, 2);
+  assert.equal(progress.cleared, 5);
+  assert.equal(progress.groups_deleted, 3);
+  assert.equal(progress.total_processed, 11);
 });
 
 test("blank handler errors are made explicit and are not classified as unknown", () => {
