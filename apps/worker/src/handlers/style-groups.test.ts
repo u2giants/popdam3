@@ -83,3 +83,63 @@ test("findEmptyGroupIds with no candidates makes no query", async () => {
   assert.deepEqual((await findEmptyGroupIds(client, [])).emptyIds, []);
   assert.equal(queries.length, 0);
 });
+
+import { bindRebuildWatermark, rebuildRpcArgs, rebuildProcessedRows, rebuildWatermark } from "./style-groups.js";
+import type { OpState } from "../types.js";
+const incremental: OpState = { status: "running", run_id: "scheduled-run", params: {
+  watermark_protocol: 1, rebuild_mode: "incremental", changed_since: "2026-10-10T06:00:00Z", changed_cutoff: "2026-10-11T06:00:00Z",
+} };
+
+test("scheduled differential bounds survive normalization and cursor resume", () => {
+  const initial = bindRebuildWatermark(normalizeRebuildState(null), incremental, true);
+  const saved = normalizeRebuildState({ ...initial, last_rebuild_asset_id: "cursor", total_processed: 7 });
+  const resumed = bindRebuildWatermark(saved, { ...incremental, params: { ...incremental.params, resumed: true } }, false);
+  assert.deepEqual(rebuildRpcArgs(resumed, 100), { p_last_asset_id: "cursor", p_batch_size: 100, p_changed_since: "2026-10-10T06:00:00Z" });
+  assert.equal(resumed.total_processed, 7);
+  assert.throws(() => bindRebuildWatermark(saved, { ...incremental, run_id: "another-run" }, false), /identity changed/);
+  assert.throws(() => bindRebuildWatermark(saved, { ...incremental, params: { ...incremental.params, changed_cutoff: "2026-10-11T07:00:00Z" } }, false), /identity changed/);
+  assert.equal(saved.last_rebuild_asset_id, "cursor");
+  assert.equal(saved.watermark?.changed_cutoff, "2026-10-11T06:00:00Z");
+  assert.throws(() => bindRebuildWatermark(saved, { ...incremental, params: { ...incremental.params, changed_since: "2026-10-09T06:00:00Z" } }, false), /identity changed/);
+});
+
+test("weekly full and legacy recovery keep distinct RPC signatures", () => {
+  const full = bindRebuildWatermark(normalizeRebuildState(null), { ...incremental, params: { ...incremental.params, rebuild_mode: "full", changed_since: null } }, true);
+  assert.equal(rebuildRpcArgs(full, 50).p_changed_since, null);
+  const legacy = bindRebuildWatermark(normalizeRebuildState({ stage: "clear_assets" }), { status: "running" }, false);
+  assert.equal(legacy.stage, "clear_assets");
+  assert.deepEqual(rebuildRpcArgs(legacy, 50), { p_last_asset_id: null, p_batch_size: 50 });
+});
+
+test("invalid or changed scheduled inputs stop before any cursor advancement", () => {
+  for (const params of [ { ...incremental.params, watermark_protocol: 2 }, { ...incremental.params, changed_since: null }, { ...incremental.params, changed_cutoff: "bad-date" }, { ...incremental.params, changed_since: "2026-10-12T06:00:00Z" }, { ...incremental.params, rebuild_mode: "unknown" } ]) {
+    assert.throws(() => rebuildWatermark({ ...incremental, params }));
+  }
+  assert.throws(() => rebuildWatermark({ ...incremental, run_id: undefined }));
+  assert.throws(() => bindRebuildWatermark(normalizeRebuildState({ stage: "rebuild_assets", last_rebuild_asset_id: "legacy-cursor" }), incremental, false), /restart explicitly/);
+});
+
+test("differential progress counts actual selected rows, including zero-row final batch", () => {
+  const mark = rebuildWatermark(incremental);
+  assert.equal(rebuildProcessedRows({ rows_examined: 3 }, mark, 100), 3);
+  assert.equal(rebuildProcessedRows({ rows_examined: 0 }, mark, 100), 0);
+  assert.throws(() => rebuildProcessedRows({}, mark, 100));
+  assert.throws(() => rebuildProcessedRows({ rows_examined: -1 }, mark, 100));
+  assert.throws(() => rebuildProcessedRows({ rows_examined: 1.5 }, mark, 100));
+  assert.throws(() => rebuildProcessedRows({ rows_examined: "3" }, mark, 100));
+  assert.equal(rebuildProcessedRows({}, undefined, 100), 100);
+});
+
+// PostgreSQL jsonb returns object fields in its own order, not insertion order.
+test("persisted JSONB watermark resumes when field order changes", () => {
+  const initial = bindRebuildWatermark(normalizeRebuildState(null), incremental, true);
+  const persisted = JSON.parse(JSON.stringify({ ...initial, last_rebuild_asset_id: "asset-after-restart",
+    total_processed: 7, watermark: { run_id: initial.watermark!.run_id,
+      rebuild_mode: initial.watermark!.rebuild_mode, changed_since: initial.watermark!.changed_since,
+      changed_cutoff: initial.watermark!.changed_cutoff } }));
+  assert.notEqual(JSON.stringify(persisted.watermark), JSON.stringify(initial.watermark));
+  const resumed = bindRebuildWatermark(normalizeRebuildState(persisted), incremental, false);
+  assert.equal(resumed.total_processed, 7);
+  assert.equal(rebuildRpcArgs(resumed, 100).p_last_asset_id, "asset-after-restart");
+  assert.equal(rebuildRpcArgs(resumed, 100).p_changed_since, incremental.params!.changed_since);
+});
