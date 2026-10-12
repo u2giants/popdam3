@@ -31,7 +31,7 @@ import {
   useUpdateOrder,
 } from "@/hooks/useOrderList";
 import { IS_NON_PRODUCTION_DATABASE, POPDAM_SUPABASE_PROJECT_REF } from "@/lib/app-mode";
-import { refreshOrderListRows } from "@/lib/order-list-grid-refresh";
+import { refreshOrderListRows, refreshOrderListRowsInPlace } from "@/lib/order-list-grid-refresh";
 import { supabase } from "@/integrations/supabase/client";
 import { buildOrderListEdit, ORDER_LIST_COLUMNS } from "@/lib/order-list";
 import { navigateToOrderListMatch } from "@/lib/order-list-find-navigation";
@@ -65,10 +65,19 @@ export default function OrdersPage() {
     refreshOrderListRows(gridRef.current?.api);
   }, []);
 
+  /** Background refresh: updates on-screen rows in place so the grid never blinks. */
+  const refreshRowsQuietly = useCallback(() => {
+    void refreshOrderListRowsInPlace(
+      gridRef.current?.api,
+      async (request) => (await fetchOrderListBlock({ ...request, search: "" })).rows,
+      (row) => row.order_line_id,
+    ).catch(() => refreshRows());
+  }, [refreshRows]);
+
   useEffect(() => {
     if (!authReady) return;
     let debounce: ReturnType<typeof setTimeout> | undefined;
-    const refreshVisible = () => { if (document.visibilityState === "visible" && activeTab === "orders") refreshRows(); };
+    const refreshVisible = () => { if (document.visibilityState === "visible" && activeTab === "orders") refreshRowsQuietly(); };
     const channel = supabase.channel("orderlist-current-master-workflow").on("postgres_changes", { event: "*", schema: "public", table: "style_tracker_rows" }, () => {
       clearTimeout(debounce);
       debounce = setTimeout(refreshVisible, 500);
@@ -76,7 +85,7 @@ export default function OrdersPage() {
     const timer = setInterval(refreshVisible, 30_000);
     window.addEventListener("focus", refreshVisible);
     return () => { clearTimeout(debounce); clearInterval(timer); window.removeEventListener("focus", refreshVisible); void supabase.removeChannel(channel); };
-  }, [authReady, activeTab, refreshRows]);
+  }, [authReady, activeTab, refreshRowsQuietly]);
 
   const updateOrder = useUpdateOrder(refreshRows);
   const createOrder = useCreateOrder(refreshRows);
