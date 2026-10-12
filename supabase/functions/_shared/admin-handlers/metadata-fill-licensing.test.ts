@@ -5,7 +5,7 @@ vi.mock("../service-client.ts", () => ({ serviceClient: () => ({}) }));
 vi.mock("../sku-parser.ts", () => ({ parseSku: async () => null }));
 vi.mock("../metadata-derivation.ts", () => ({ deriveMetadataFromPath: async () => ({}) }));
 vi.mock("../licensing-resolution.ts", () => ({ loadAuthoritativeLicensingMaps: async () => ({}), resolveAuthoritativeLicensing: async () => ({}) }));
-import { fillMissingLicensing, handleReprocessAssetMetadata, type FillLicensingDeps } from "./metadata-handlers.ts";
+import { type FillLicensingDeps, fillMissingLicensing, handleReprocessAssetMetadata } from "./metadata-handlers.ts";
 
 type Row = Record<string, unknown>;
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -20,8 +20,15 @@ function fakeDb(rows: Row[], opts: { failUpdateFor?: string; raceFor?: string; r
       is: (c: string, v: unknown) => (filters.push((r) => r[c] === v), chain),
       gt: (c: string, v: string) => (filters.push((r) => String(r[c]) > v), chain),
       order: () => chain,
-      limit: (n: number) => { lim = n; return chain; },
-      then: (res: (v: unknown) => void) => res({ data: rows.filter((r) => filters.every((f) => f(r))).sort((a, b) => String(a.id).localeCompare(String(b.id))).slice(0, lim).map((r) => ({ ...r })), error: null }),
+      limit: (n: number) => {
+        lim = n;
+        return chain;
+      },
+      then: (res: (v: unknown) => void) =>
+        res({
+          data: rows.filter((r) => filters.every((f) => f(r))).sort((a, b) => String(a.id).localeCompare(String(b.id))).slice(0, lim).map((r) => ({ ...r })),
+          error: null,
+        }),
     };
     return chain;
   };
@@ -29,8 +36,14 @@ function fakeDb(rows: Row[], opts: { failUpdateFor?: string; raceFor?: string; r
     let target = "";
     const guards: [string, unknown][] = [];
     const chain: Record<string, unknown> = {
-      eq: (_c: string, v: string) => { target = v; return chain; },
-      is: (c: string, v: unknown) => { guards.push([c, v]); return chain; },
+      eq: (_c: string, v: string) => {
+        target = v;
+        return chain;
+      },
+      is: (c: string, v: unknown) => {
+        guards.push([c, v]);
+        return chain;
+      },
       select: async () => {
         if (target === opts.failUpdateFor) return { data: null, error: { message: "boom" } };
         const row = rows.find((r) => r.id === target)!;
@@ -48,9 +61,20 @@ function fakeDb(rows: Row[], opts: { failUpdateFor?: string; raceFor?: string; r
 }
 
 const asset = (n: number, extra: Row = {}): Row => ({
-  id: id(n), filename: `F${n}.tif`, file_created_at: null, is_licensed: true, is_deleted: false,
-  licensor_id: null, licensor_code: null, licensor_name: null, property_id: null, property_code: null, property_name: null,
-  sku: "KEEP", mg01_name: "KEEP", ...extra,
+  id: id(n),
+  filename: `F${n}.tif`,
+  file_created_at: null,
+  is_licensed: true,
+  is_deleted: false,
+  licensor_id: null,
+  licensor_code: null,
+  licensor_name: null,
+  property_id: null,
+  property_code: null,
+  property_name: null,
+  sku: "KEEP",
+  mg01_name: "KEEP",
+  ...extra,
 });
 
 const deps = (resolveBy: (filename: string) => Row): FillLicensingDeps => ({
@@ -58,7 +82,16 @@ const deps = (resolveBy: (filename: string) => Row): FillLicensingDeps => ({
   loadMaps: (async () => ({})) as unknown as FillLicensingDeps["loadMaps"],
   resolve: (async (_db: unknown, _l: boolean, p: { sku: string }) => resolveBy(p.sku)) as unknown as FillLicensingDeps["resolve"],
 });
-const full = { licensor_id: "L", licensor_code: "LC", licensor_name: "Lic", property_id: "P", property_code: "PC", property_name: "Prop", unresolved_licensor: false, unresolved_property: false };
+const full = {
+  licensor_id: "L",
+  licensor_code: "LC",
+  licensor_name: "Lic",
+  property_id: "P",
+  property_code: "PC",
+  property_name: "Prop",
+  unresolved_licensor: false,
+  unresolved_property: false,
+};
 
 describe("fillMissingLicensing", () => {
   it("fills only NULL licensing columns and never touches other fields or existing values", async () => {
