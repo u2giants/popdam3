@@ -11,7 +11,7 @@ export function withDependencyTimeout<T>(
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
-    timer.unref?.();
+    // A pending dependency must reach its deadline even when no other handle is referenced.
     Promise.resolve(work).then(
       (value) => {
         clearTimeout(timer);

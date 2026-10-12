@@ -386,6 +386,24 @@ function detectStaleRun(op: OpState): boolean {
 
 // ── Progress accumulator — mirrors buildProgress() in bulk-job-runner ────────
 
+function isRebuildRowCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+export function qualifyRebuildRowCounts(batch: BatchResult, op: OpState): BatchResult {
+  if (!batch.ok || batch.stage !== "rebuild_assets") return batch;
+  // The legacy handler estimates selected rows from its configured batch size.
+  // Only the scheduled watermark contract returns actual selected candidates;
+  // these counts do not describe physical database reads.
+  const exact = op.params?.watermark_protocol === 1
+    && isRebuildRowCount(batch.rows_examined)
+    && isRebuildRowCount(batch.assets_assigned)
+    && isRebuildRowCount(batch.assets_ungrouped)
+    && Number.isSafeInteger(batch.assets_assigned + batch.assets_ungrouped)
+    && batch.assets_assigned + batch.assets_ungrouped <= batch.rows_examined;
+  return { ...batch, rebuild_counts_exact: exact };
+}
+
 export function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: BatchResult): Record<string, unknown> {
   // Normalize dynamic keys for matching
   const normalizedKey = opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey;
@@ -432,21 +450,53 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         failure_samples: [...prevFail, ...batchFail].slice(-100),
       };
     }
-    case "rebuild-style-groups":
+    case "rebuild-style-groups": {
+      let rowCounts = {
+        rows_examined: prev.rows_examined,
+        rows_written: prev.rows_written,
+        rebuild_counts_exact: prev.rebuild_counts_exact,
+      };
+      if (batch.ok && batch.stage === "rebuild_assets") {
+        const freshPrefix = prev.rebuild_counts_exact === undefined
+          && prev.rows_examined === undefined && prev.rows_written === undefined
+          && (prev.total_processed === undefined || prev.total_processed === 0);
+        const exactPrefix = prev.rebuild_counts_exact === true
+          && isRebuildRowCount(prev.rows_examined) && isRebuildRowCount(prev.rows_written);
+        const selected = batch.rows_examined;
+        const assigned = batch.assets_assigned;
+        const ungrouped = batch.assets_ungrouped;
+        if (batch.rebuild_counts_exact === true && (freshPrefix || exactPrefix)
+          && isRebuildRowCount(selected) && isRebuildRowCount(assigned) && isRebuildRowCount(ungrouped)) {
+          const examined = (freshPrefix ? 0 : Number(prev.rows_examined)) + selected;
+          const written = (freshPrefix ? 0 : Number(prev.rows_written)) + assigned + ungrouped;
+          // The handler commits its cursor/total before this separate progress
+          // write. A crash between them must not label an incomplete sum exact.
+          const reconciled = isRebuildRowCount(batch.total_processed) && batch.total_processed === examined;
+          rowCounts = reconciled && Number.isSafeInteger(examined) && Number.isSafeInteger(written)
+            ? { rows_examined: examined, rows_written: written, rebuild_counts_exact: true }
+            : { rows_examined: null, rows_written: null, rebuild_counts_exact: false };
+        } else {
+          // A resumed legacy prefix cannot be reconstructed from total_processed.
+          rowCounts = { rows_examined: null, rows_written: null, rebuild_counts_exact: false };
+        }
+      }
+      const successful: Partial<BatchResult> = batch.ok ? batch : {};
       return {
-        groups: ((prev.groups as number) || 0) + ((batch.groups_created as number) || 0),
-        assigned: ((prev.assigned as number) || 0) + ((batch.assets_assigned as number) || 0),
-        cleared: ((prev.cleared as number) || 0) + ((batch.cleared_assets as number) || 0),
-        groups_deleted: ((prev.groups_deleted as number) || 0) + ((batch.groups_deleted as number) || 0),
-        total_groups_before_delete: Math.max((prev.total_groups_before_delete as number) || 0, (batch.total_groups_before_delete as number) || 0),
-        total_processed: Math.max((prev.total_processed as number) || 0, (batch.total_processed as number) || 0),
-        total_assets: Math.max((prev.total_assets as number) || 0, (batch.total_assets as number) || 0),
-        counts_processed: Math.max((prev.counts_processed as number) || 0, (batch.counts_processed as number) || 0),
-        primaries_processed: Math.max((prev.primaries_processed as number) || 0, (batch.primaries_processed as number) || 0),
-        finalize_total_groups: Math.max((prev.finalize_total_groups as number) || 0, (batch.finalize_total_groups as number) || 0),
+        ...rowCounts,
+        groups: ((prev.groups as number) || 0) + ((successful.groups_created as number) || 0),
+        assigned: ((prev.assigned as number) || 0) + ((successful.assets_assigned as number) || 0),
+        cleared: ((prev.cleared as number) || 0) + ((successful.cleared_assets as number) || 0),
+        groups_deleted: ((prev.groups_deleted as number) || 0) + ((successful.groups_deleted as number) || 0),
+        total_groups_before_delete: Math.max((prev.total_groups_before_delete as number) || 0, (successful.total_groups_before_delete as number) || 0),
+        total_processed: Math.max((prev.total_processed as number) || 0, (successful.total_processed as number) || 0),
+        total_assets: Math.max((prev.total_assets as number) || 0, (successful.total_assets as number) || 0),
+        counts_processed: Math.max((prev.counts_processed as number) || 0, (successful.counts_processed as number) || 0),
+        primaries_processed: Math.max((prev.primaries_processed as number) || 0, (successful.primaries_processed as number) || 0),
+        finalize_total_groups: Math.max((prev.finalize_total_groups as number) || 0, (successful.finalize_total_groups as number) || 0),
         stage: batch.stage || prev.stage,
         substage: batch.sub || batch.substage || prev.substage,
       };
+    }
     case "reconcile-style-group-stats":
       return {
         counts_processed: Math.max((prev.counts_processed as number) || 0, (batch.counts_processed as number) || 0),
@@ -660,8 +710,13 @@ export function buildResultMessage(opKey: string, progress: Record<string, unkno
       return `Profiled ${progress.profiled || 0} style groups. ${(Number(progress.visual_analysis_unavailable) || 0) + (Number(progress.image_unusable) || 0)} without usable representative images. ${progress.failed || 0} failed${progress.image_unusable ? ` (${progress.image_unusable} with unusable images)` : ""}.`;
     case "ai-tag-bakeoff":
       return `Evaluated ${progress.evaluated || 0} model responses. ${progress.failed || 0} failed.`;
-    case "rebuild-style-groups":
-      return `Created ${progress.groups} style groups, assigned ${progress.assigned} assets`;
+    case "rebuild-style-groups": {
+      const counts = progress.rebuild_counts_exact === true
+        && isRebuildRowCount(progress.rows_examined) && isRebuildRowCount(progress.rows_written)
+        ? `${progress.rows_examined} assets checked, ${progress.rows_written} assignments changed`
+        : "Asset check/change counts unavailable for this run";
+      return `Created ${progress.groups} style groups, assigned ${progress.assigned} assets. ${counts}`;
+    }
     case "reconcile-style-group-stats":
       return `Reconciled counts for ${progress.counts_processed || 0} groups, primaries for ${progress.primaries_processed || 0} groups`;
     case "erp-enrichment":
@@ -722,7 +777,7 @@ export async function dispatch(opKey: string, opState: OpState): Promise<BatchRe
     case "ai-tag-group-profiles":
       return handleStyleGroupProfiles(opState);
     case "rebuild-style-groups":
-      return handleRebuildStyleGroups(opState);
+      return qualifyRebuildRowCounts(await handleRebuildStyleGroups(opState), opState);
     case "reconcile-style-group-stats":
       return handleReconcileStyleGroupStats(opState);
     case "propagate-group-tags":

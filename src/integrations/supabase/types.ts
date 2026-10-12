@@ -763,6 +763,7 @@ export type Database = {
           updated_at: string | null
           width: number | null
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
+          style_group_changed_at: string
         }
         Insert: {
           ai_description?: string | null
@@ -835,6 +836,7 @@ export type Database = {
           workflow_status?:
             | Database["public"]["Enums"]["workflow_status"]
             | null
+          style_group_changed_at?: string
         }
         Update: {
           ai_description?: string | null
@@ -907,6 +909,7 @@ export type Database = {
           workflow_status?:
             | Database["public"]["Enums"]["workflow_status"]
             | null
+          style_group_changed_at?: string
         }
         Relationships: [
           {
@@ -2787,6 +2790,7 @@ export type Database = {
           technical_designer_name: string | null
           updated_at: string | null
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
+          style_group_changed_at: string
         }
         Insert: {
           asset_count?: number | null
@@ -2845,6 +2849,7 @@ export type Database = {
           workflow_status?:
             | Database["public"]["Enums"]["workflow_status"]
             | null
+          style_group_changed_at?: string
         }
         Update: {
           asset_count?: number | null
@@ -2903,6 +2908,7 @@ export type Database = {
           workflow_status?:
             | Database["public"]["Enums"]["workflow_status"]
             | null
+          style_group_changed_at?: string
         }
         Relationships: [
           {
@@ -4334,6 +4340,7 @@ export type Database = {
           updated_at: string | null
           width: number | null
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
+          style_group_changed_at: string
         }[]
         SetofOptions: {
           from: "*"
@@ -4413,6 +4420,7 @@ export type Database = {
           updated_at: string | null
           width: number | null
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
+          style_group_changed_at: string
         }[]
         SetofOptions: {
           from: "*"
@@ -4692,16 +4700,32 @@ export type Database = {
         Returns: number
       }
       rebuild_dam_search_documents: { Args: never; Returns: Json }
-      rebuild_style_groups_batch: {
-        Args: { p_batch_size?: number; p_last_asset_id?: string }
-        Returns: {
-          assets_assigned: number
-          assets_ungrouped: number
-          done: boolean
-          groups_created: number
-          next_cursor: string
-        }[]
-      }
+      rebuild_style_groups_batch:
+        | {
+            Args: { p_batch_size?: number; p_last_asset_id?: string | null }
+            Returns: {
+              assets_assigned: number
+              assets_ungrouped: number
+              done: boolean
+              groups_created: number
+              next_cursor: string
+            }[]
+          }
+        | {
+            Args: {
+              p_batch_size: number
+              p_changed_since: string | null
+              p_last_asset_id: string | null
+            }
+            Returns: {
+              assets_assigned: number
+              assets_ungrouped: number
+              done: boolean
+              groups_created: number
+              next_cursor: string
+              rows_examined: number
+            }[]
+          }
       reconcile_stale_sg_files_batch: {
         Args: {
           p_batch_size?: number

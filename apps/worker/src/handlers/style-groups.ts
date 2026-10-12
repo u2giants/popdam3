@@ -25,7 +25,8 @@ const DEFAULT_REBUILD_BATCH = 100;
 const COUNTS_BATCH = 100;
 const PRIMARIES_BATCH = 25;
 
-type RebuildState = {
+export type RebuildState = {
+  watermark?: RebuildWatermark;
   stage: "clear_assets" | "delete_groups" | "rebuild_assets" | "finalize_stats";
   last_asset_id?: string | null;
   last_group_id?: string | null;
@@ -40,6 +41,45 @@ type RebuildState = {
   finalize_sub?: string;
   finalize_cursor?: number;
 };
+
+export type RebuildWatermark = {
+  run_id: string;
+  changed_since: string | null;
+  changed_cutoff: string;
+  rebuild_mode: "full" | "incremental";
+};
+
+export function rebuildWatermark(op: OpState): RebuildWatermark | undefined {
+  if (op.params?.watermark_protocol === undefined) return undefined;
+  if (op.params.watermark_protocol !== 1 || !op.run_id) throw new Error("Invalid scheduled rebuild protocol/run identity");
+  const { changed_since, changed_cutoff, rebuild_mode } = op.params;
+  if (typeof changed_cutoff !== "string" || !Number.isFinite(Date.parse(changed_cutoff))) throw new Error("Invalid scheduled rebuild cutoff");
+  if (rebuild_mode !== "full" && rebuild_mode !== "incremental") throw new Error("Invalid scheduled rebuild mode");
+  if (rebuild_mode === "full" ? changed_since !== null : typeof changed_since !== "string" || !Number.isFinite(Date.parse(changed_since)) || Date.parse(changed_since) >= Date.parse(changed_cutoff)) throw new Error("Invalid scheduled rebuild lower bound");
+  return { run_id: op.run_id, changed_since: changed_since as string | null, changed_cutoff, rebuild_mode };
+}
+
+export function bindRebuildWatermark(state: RebuildState, op: OpState, fresh: boolean): RebuildState {
+  const watermark = rebuildWatermark(op);
+  const saved = state.watermark ?? undefined;
+  const sameIdentity = saved === undefined && watermark === undefined ||
+    saved !== undefined && typeof saved === "object" && watermark !== undefined &&
+    saved.run_id === watermark.run_id && saved.changed_since === watermark.changed_since &&
+    saved.changed_cutoff === watermark.changed_cutoff && saved.rebuild_mode === watermark.rebuild_mode;
+  if (!fresh && !sameIdentity) throw new Error("Rebuild resume bounds/run identity changed; restart explicitly");
+  return { ...state, watermark };
+}
+
+export function rebuildRpcArgs(state: RebuildState, batchSize: number): Record<string, unknown> {
+  return { p_last_asset_id: state.last_rebuild_asset_id ?? null, p_batch_size: batchSize,
+    ...(state.watermark ? { p_changed_since: state.watermark.changed_since } : {}) };
+}
+
+export function rebuildProcessedRows(row: Record<string, unknown>, watermark: RebuildWatermark | undefined, legacyBatch: number): number {
+  if (!watermark) return legacyBatch;
+  if (!Number.isInteger(row.rows_examined) || Number(row.rows_examined) < 0) throw new Error("Differential rebuild returned no valid selected-row count");
+  return Number(row.rows_examined);
+}
 
 export function formatError(e: unknown, http?: { status?: number | null; statusText?: string | null }): string {
   const httpParts = [
@@ -146,6 +186,7 @@ export function normalizeRebuildState(state: RebuildState | null): RebuildState 
     // unnecessary - and it destroyed every column that lives only on the group
     // (item_description, group AI profile, rich_metadata, cover choice, and the
     // ON DELETE CASCADE child rows) every night.
+    watermark: state?.watermark,
     stage: state?.stage ?? "rebuild_assets",
     last_asset_id: state?.last_asset_id ?? null,
     last_group_id: state?.last_group_id ?? null,
@@ -229,8 +270,13 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
 
   let state = (existingStateRow?.value as RebuildState | null) ?? null;
 
-  if (forceRestart || !state) {
-    state = normalizeRebuildState(null);
+  const fresh = forceRestart || !state;
+  try {
+    state = bindRebuildWatermark(normalizeRebuildState(fresh ? null : state), opState, fresh);
+  } catch (error) {
+    return { ok: false, done: false, error: formatError(error), error_stage: "rebuild_assets" };
+  }
+  if (fresh) {
     await saveState(state);
   }
 
@@ -404,10 +450,7 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     let rpcResult: unknown;
     let rpcErr: unknown;
     try {
-      const res = await client.rpc("rebuild_style_groups_batch", {
-        p_last_asset_id: state.last_rebuild_asset_id ?? null,
-        p_batch_size: rebuildBatch,
-      });
+      const res = await client.rpc("rebuild_style_groups_batch", rebuildRpcArgs(state, rebuildBatch));
       rpcResult = res.data;
       rpcErr = res.error;
     } catch (e) {
@@ -444,7 +487,10 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     if (!row) return { ok: false, done: false, error: "No result from rebuild_style_groups_batch", error_stage: "rebuild_assets" };
 
     const reachedEnd = row.done ?? true;
-    const totalProcessed = (state.total_processed ?? 0) + rebuildBatch;
+    let selectedRows: number;
+    try { selectedRows = rebuildProcessedRows(row, state.watermark, rebuildBatch); }
+    catch (error) { return { ok: false, done: false, error: formatError(error), error_stage: "rebuild_assets" }; }
+    const totalProcessed = (state.total_processed ?? 0) + selectedRows;
 
     const nextState: RebuildState = reachedEnd
       ? { ...state, stage: "finalize_stats", last_stats_group_id: null, total_processed: totalProcessed, stage_started_at: new Date().toISOString() }
@@ -458,6 +504,8 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
       stage: "rebuild_assets",
       groups_created: row.groups_created ?? 0,
       assets_assigned: row.assets_assigned ?? 0,
+      assets_ungrouped: row.assets_ungrouped ?? 0,
+      rows_examined: selectedRows,
       total_processed: totalProcessed,
       total_assets: nextState.total_assets ?? 0,
       nextOffset: (typeof opState.cursor === "number" ? opState.cursor : 0) + 1,
