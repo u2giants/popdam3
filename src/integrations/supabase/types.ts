@@ -755,6 +755,7 @@ export type Database = {
           sku_sequence: string | null
           stage: string | null
           status: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at: string
           style_group_id: string | null
           tags: string[]
           technical_designer_name: string | null
@@ -763,7 +764,6 @@ export type Database = {
           updated_at: string | null
           width: number | null
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
-          style_group_changed_at: string
         }
         Insert: {
           ai_description?: string | null
@@ -826,6 +826,7 @@ export type Database = {
           sku_sequence?: string | null
           stage?: string | null
           status?: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at?: string
           style_group_id?: string | null
           tags?: string[]
           technical_designer_name?: string | null
@@ -836,7 +837,6 @@ export type Database = {
           workflow_status?:
             | Database["public"]["Enums"]["workflow_status"]
             | null
-          style_group_changed_at?: string
         }
         Update: {
           ai_description?: string | null
@@ -899,6 +899,7 @@ export type Database = {
           sku_sequence?: string | null
           stage?: string | null
           status?: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at?: string
           style_group_id?: string | null
           tags?: string[]
           technical_designer_name?: string | null
@@ -909,7 +910,6 @@ export type Database = {
           workflow_status?:
             | Database["public"]["Enums"]["workflow_status"]
             | null
-          style_group_changed_at?: string
         }
         Relationships: [
           {
@@ -2787,10 +2787,10 @@ export type Database = {
           size_name: string | null
           sku: string
           stage: string | null
+          style_group_changed_at: string
           technical_designer_name: string | null
           updated_at: string | null
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
-          style_group_changed_at: string
         }
         Insert: {
           asset_count?: number | null
@@ -2844,12 +2844,12 @@ export type Database = {
           size_name?: string | null
           sku: string
           stage?: string | null
+          style_group_changed_at?: string
           technical_designer_name?: string | null
           updated_at?: string | null
           workflow_status?:
             | Database["public"]["Enums"]["workflow_status"]
             | null
-          style_group_changed_at?: string
         }
         Update: {
           asset_count?: number | null
@@ -2903,12 +2903,12 @@ export type Database = {
           size_name?: string | null
           sku?: string
           stage?: string | null
+          style_group_changed_at?: string
           technical_designer_name?: string | null
           updated_at?: string | null
           workflow_status?:
             | Database["public"]["Enums"]["workflow_status"]
             | null
-          style_group_changed_at?: string
         }
         Relationships: [
           {
@@ -4332,6 +4332,7 @@ export type Database = {
           sku_sequence: string | null
           stage: string | null
           status: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at: string
           style_group_id: string | null
           tags: string[]
           technical_designer_name: string | null
@@ -4340,7 +4341,6 @@ export type Database = {
           updated_at: string | null
           width: number | null
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
-          style_group_changed_at: string
         }[]
         SetofOptions: {
           from: "*"
@@ -4412,6 +4412,7 @@ export type Database = {
           sku_sequence: string | null
           stage: string | null
           status: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at: string
           style_group_id: string | null
           tags: string[]
           technical_designer_name: string | null
@@ -4420,7 +4421,6 @@ export type Database = {
           updated_at: string | null
           width: number | null
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
-          style_group_changed_at: string
         }[]
         SetofOptions: {
           from: "*"
@@ -4702,7 +4702,7 @@ export type Database = {
       rebuild_dam_search_documents: { Args: never; Returns: Json }
       rebuild_style_groups_batch:
         | {
-            Args: { p_batch_size?: number; p_last_asset_id?: string | null }
+            Args: { p_batch_size?: number; p_last_asset_id?: string }
             Returns: {
               assets_assigned: number
               assets_ungrouped: number
@@ -4714,8 +4714,8 @@ export type Database = {
         | {
             Args: {
               p_batch_size: number
-              p_changed_since: string | null
-              p_last_asset_id: string | null
+              p_changed_since: string
+              p_last_asset_id: string
             }
             Returns: {
               assets_assigned: number
