@@ -112,7 +112,7 @@ export function validateTagAssetData(value: Record<string, unknown>, mode: strin
       if (typeof item.category !== "string" || !ASSET_TAG_CATEGORIES.includes(item.category)) {
         errors.push("every asset tag must use an asset-only category");
       }
-      if (typeof item.confidence !== "number" || item.confidence < 0 || item.confidence > 1) {
+      if (typeof item.confidence !== "number" || !Number.isFinite(item.confidence) || item.confidence < 0 || item.confidence > 1) {
         errors.push("every asset tag confidence must be between 0 and 1");
       }
       if (!Array.isArray(item.evidence) || item.evidence.length === 0 || item.evidence.some((entry) => typeof entry !== "string" || !entry.trim())) {
@@ -129,6 +129,13 @@ export function validateTagAssetData(value: Record<string, unknown>, mode: strin
   }
   if (typeof value.content_type !== "string" || !CONTENT_TYPE_VALUES.includes(value.content_type)) {
     errors.push("content_type must be a recognized file kind");
+  }
+  for (const field of ["asset_type", "art_source"] as const) {
+    const properties = TAG_ASSET_SCHEMA.properties as Record<string, { enum: unknown[] }>;
+    const allowed = properties[field].enum;
+    if (value[field] !== undefined && !allowed.includes(value[field])) {
+      errors.push(`${field} must be one of ${JSON.stringify(allowed)}; use JSON null, never the string "null"`);
+    }
   }
   if (errors.length > 0) {
     throw new Error(`Model returned invalid ${mode} tag data: ${errors.join("; ")}`);
@@ -348,6 +355,11 @@ export function buildBatchImageTaggingMessages(systemPrompt: string, imageUrl: s
   ];
 }
 
+export function isRetryableTagTransportError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.name === "TimeoutError" || error.name === "AbortError" || /(?:timed out|timeout|fetch failed)/i.test(error.message);
+}
+
 export async function callTagAssetModel(
   apiKey: string,
   model: string,
@@ -375,7 +387,7 @@ export async function callTagAssetModel(
     apiKey: selectedApiKey, model, messages, schemaName: "tag_asset", schema: TAG_ASSET_SCHEMA,
     capabilities, timeoutMs, maxTokens, provider: directMeta ? undefined : provider,
     completion: directMeta ? metaChatCompletion : undefined,
-    isTerminalError: directMeta ? isTerminalMetaModelApiError : undefined,
+    isTerminalError: directMeta ? (error) => isTerminalMetaModelApiError(error) || isRetryableTagTransportError(error) : undefined,
     validate(value) { validateTagAssetData(value, "structured"); return value; },
   });
   return { tagData: result.value, usage: result.usage as TagAssetCompletionResult["usage"], outputMode: result.outputMode, providerInfo: result.providerInfo, retryCount: result.repairCount, attempts: result.attempts };

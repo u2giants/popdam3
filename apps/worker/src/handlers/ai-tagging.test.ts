@@ -238,3 +238,9 @@ test("no-preview assets are counted as visual analysis unavailable, not failed o
   assert.equal(result.visual_analysis_unavailable, 1);
   assert.match((result.skip_samples as Array<{ reason: string }>)[0].reason, /unavailable/i);
 });
+
+test("invalid structured data receives only the existing bounded same-model retry classification", () => {
+  assert.equal(isRetryableStructuredOutputError("Structured output failed: json_schema: Model returned invalid structured tag data: every asset tag confidence must be between 0 and 1"), true);
+  assert.equal(isRetryableStructuredOutputError("DB write failed: invalid enum"), false);
+  assert.equal(isRetryableStructuredOutputError("Structured output failed: data_inspection_failed: invalid structured tag data"), false);
+});
