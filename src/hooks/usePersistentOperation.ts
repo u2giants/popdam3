@@ -60,6 +60,8 @@ export function isResumableOperationCursor(operationKey: string, cursor: unknown
   if (operationKey === "ai-tag-group-profiles") {
     return cursor === 0 || (typeof cursor === "string" && UUID_CURSOR_RE.test(cursor));
   }
+  // Fill-missing-licensing reprocessing keysets by assets.id; resume keeps its params.
+  if (operationKey === "reprocess-metadata" && typeof cursor === "string") return UUID_CURSOR_RE.test(cursor);
   if (operationKey === "tag-popsg-files") {
     return typeof cursor === "string"
       && (UUID_CURSOR_RE.test(cursor) || POPSG_CONSENSUS_CURSOR_RE.test(cursor));
