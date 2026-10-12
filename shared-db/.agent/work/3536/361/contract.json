@@ -1,0 +1,59 @@
+{
+  "allowed_paths": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-circuit-breaker.mjs.json",
+    ".agent/work/3536/361/contract.json",
+    ".agent/work/3536/361/completion.json"
+  ],
+  "assumptions": [
+    "Actual2421 generation12 dc398ca6 and generation13 74cf5330 fail ONLY missing required node live-probe command; later34b0552b and1eb1c037 are normal-valid complete canonical same-source endpoints. All report fields except checks and entire immutable contract are identical. Original bytes/history preserved; never rewrite those earlier records.",
+    "Only removed INTERMEDIATE generation prefixes qualify, never the baseline paid start or current endpoint. Every prefix check is successful and byte-identical to an ordered prefix of the complete checks, with the same actual source head and all other fields. Its own-pair-only canonical witness must precede a fully valid canonical witness; later incomplete reversion refuses.",
+    "The selected complete pair still passes original full contract/report/Git file-list/modes/PR/source-base/publishedhash/lineage checks. Partial prefix is non-authorizing metadata, never a source witness, valid report, refund or review approval.",
+    "Any failed check, altered source/report field, check evidence drift/reorder, source commit between metadata endpoints, missing complete witness, bad lineage/scope/PR/hash or arbitrary metadata refuses. Original5373 implementation-file mismatch and contract path omission can NEVER qualify; actual original records remain refused.",
+    "No paid records, failure codes, reinstatement ceiling, provider holds, source-group cap, reviewer roster, native terminal state, normal2758 or structural claims change. No queue conflict/DAG/crossPR reconstruction policy in this repair.",
+    "Only existing helper/test, its real current throughput binding and own361canonical pair. No frozenqueue/source/SQL/settings/production changes. Root keeps security decision and full-source/live installed verification; fresh independent exacthead review and normalCI/guardedmerge mandatory."
+  ],
+  "base_sha": "99148a74024a801fbd5e941f7e437b14ed6d25e6",
+  "branch": "codex/3536-check-prefix-recovery",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Current Codex root exact-safety repair under Albert resume instruction",
+  "evidence_parent": {
+    "work_issue": 3536,
+    "generation": 360,
+    "contract_sha256": "6df118dbd5dd87b30481104449a0074b660983f8562af714c877078aa63afb94"
+  },
+  "file_writes": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-circuit-breaker.mjs.json",
+    ".agent/work/3536/361/contract.json",
+    ".agent/work/3536/361/completion.json"
+  ],
+  "generation": 361,
+  "goal": "Authenticate strictly superseded successful check-prefix variants of removed intermediate canonical pairs, only when a later complete same-source canonical endpoint proves all required checks. Preserve every original report, source/contract/PR/lineage gate, invalid original5373 refusal, paid STARTs/nativeUNKNOWN/two-attempt cap and2758. Restore normal2421 source-review admission through reviewed installation, not a direct tool bypass.",
+  "prohibited_actions": [
+    "No DB/schema/data/production/infrastructure/settings or protected main writes",
+    "No paid budget reset/refund/exemption, native state fabrication or reviewer/2758 weakening",
+    "No frozen3998/4170 source or records/leases/claims/provider mutation",
+    "No generic merge/DAG/crossPR acceptance or hypothetical historical snapshot repair"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs scripts/run-governed-review.test.mjs scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "actual2421 historical prefix proof and original5373 refusal",
+    "git diff --check"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop on any scope or ownership collision, unsupported supersession, failed negative test, capacity/refund change, or weakening original5373/UNKNOWN/2758 refusal.",
+    "Stop before any current allocator uses changed source until independently approved exacthead and normal guarded merge; use installedmain code for assignments."
+  ],
+  "work_issue": 3536,
+  "work_type": "repo-maintenance",
+  "worker": "codex/01a12d90-cce8-7131-b1eb-eff6becc806e",
+  "worktree": "/home/ahazan/.codex/worktrees/eight-issues-check-records/shared-db"
+}

@@ -248,10 +248,11 @@ test('zero-byte added file supplies no surviving source byte witness',t=>{
 
 import {contractHash} from '../../agent-work-contract.mjs'
 import {verifiedEvidencePaths} from '../pr-content-equivalence.mjs'
-function generationsFixture(t,{repair=true,revert=false,bad=null,publishedOnly=false,ordinaryRetirement=false}={}){
+function generationsFixture(t,{repair=true,revert=false,bad=null,publishedOnly=false,ordinaryRetirement=false,checkPrefix=false,prefixFailure=null}={}){
  const f=realGitFixture(t),sha=()=>f.git(['rev-parse','HEAD']).trim()
  const contract=(generation,parent)=>({schema_version:2,generation,work_issue:3536,work_type:'repo-maintenance',route:'repo-maintenance',goal:'Fixture source proof',base_sha:f.base,dispatcher:'fixture',worker:'fixture',branch:'feature',worktree:f.dir,allowed_paths:['app.txt','.agent/work/3536/**'],file_writes:['app.txt','.agent/work/3536/**'],db_reads:[],db_writes:[],prohibited_actions:[],required_checks:['fixture'],assumptions:[],stop_conditions:['Stop on unknown'],evidence_parent:parent})
  const root=contract(312,{work_issue:3536,generation:311,contract_sha256:'a'.repeat(64)})
+ if(prefixFailure==='baseline')root.required_checks.push('fixture-second')
  const writePair=(c,implementation)=>{
   const dir=path.join(f.dir,`.agent/work/3536/${c.generation}`);mkdirSync(dir,{recursive:true})
   const report={schema_version:1,work_issue:3536,outcome:'ready-for-merge',pr:3999,migration_versions:[],contract_ref:`refs/db-contracts/3536/${c.generation}`,contract_sha256:contractHash(c),head_sha:implementation,base_sha:f.base,files_changed:['app.txt'],db_reads:[],db_writes:[],checks:[{command:'fixture',exit_code:0,evidence:'Controlled fixture'}],assumptions_resolved:[],stop_conditions_hit:[]}
@@ -259,10 +260,34 @@ function generationsFixture(t,{repair=true,revert=false,bad=null,publishedOnly=f
   writeFileSync(path.join(dir,'contract.json'),JSON.stringify(c));writeFileSync(path.join(dir,'completion.json'),JSON.stringify(report))
   if(c.generation===317 && bad==='missing')rmSync(path.join(dir,'completion.json'));if(c.generation===317 && bad==='tail'){writeFileSync(path.join(f.dir,'unrelated-tail.txt'),'not canonical evidence\n');f.git(['add','unrelated-tail.txt'])};f.git(['add',`.agent/work/3536/${c.generation}`]);if(c.generation===317 && bad==='mode'){f.git(['update-index','--chmod=+x','.agent/work/3536/317/completion.json']);chmodSync(path.join(dir,'completion.json'),0o755)};f.git(['commit','-qm','fixture exact pair']);return sha()
  }
+ const finishPrefix=c=>{
+  const file=path.join(f.dir,`.agent/work/3536/${c.generation}/completion.json`)
+  const original=readFileSync(file,'utf8'),r=JSON.parse(original)
+  if(prefixFailure==='no-complete')return
+  if(prefixFailure==='changed-source')f.commit('app.txt','context\nseparator1\nseparator2\nintervening unbound source\nend\n')
+  if(prefixFailure==='source-head')r.head_sha=f.commit('app.txt','context\nseparator1\nseparator2\ndifferent implementation\nend\n')
+  r.checks=[{command:'fixture',exit_code:0,evidence:'Controlled fixture'},{command:'fixture-second',exit_code:0,evidence:'Completed unchanged-source check'}]
+  if(prefixFailure==='evidence-drift')r.checks[0].evidence='Rewritten earlier evidence'
+  if(prefixFailure==='reordered-checks')r.checks.reverse()
+  if(prefixFailure==='report-field')r.assumptions_resolved=['New unrelated report fact']
+  writeFileSync(file,JSON.stringify(r));f.git(['add',file]);f.git(['commit','-qm','complete only the same-source canonical check list'])
+  if(prefixFailure==='revert-prefix'){writeFileSync(file,original);f.git(['add',file]);f.git(['commit','-qm','revert to incomplete prefix after completion'])}
+ }
  const before=writePair(root,sha())
+ if(prefixFailure==='baseline')finishPrefix(root)
  const published=contract(315,{work_issue:3536,generation:312,contract_sha256:contractHash(root)})
  const middle=contract(317,{work_issue:3536,generation:publishedOnly?315:312,contract_sha256:contractHash(publishedOnly?published:root)})
+ if(checkPrefix)middle.required_checks.push('fixture-second')
  f.git(['rm','-r','.agent/work/3536/312']);f.git(['commit','-qm','retire baseline metadata']);writePair(middle,sha())
+ if(checkPrefix){
+  if(['failed-check','implementation-file'].includes(prefixFailure)){
+   const file=path.join(f.dir,'.agent/work/3536/317/completion.json'),r=JSON.parse(readFileSync(file,'utf8'))
+   if(prefixFailure==='failed-check')r.checks[0].exit_code=1
+   else r.files_changed=[]
+   writeFileSync(file,JSON.stringify(r));f.git(['add',file]);f.git(['commit','-qm','retain invalid preliminary record'])
+  }
+  finishPrefix(middle)
+ }
  f.git(['switch','main']);const main=f.commit('app.txt','main context\nseparator1\nseparator2\nauthor\nend\n')
  f.git(['switch','feature']);if(ordinaryRetirement && ['unknownDeletion','foreignDeletion'].includes(bad)){
  const file=bad==='unknownDeletion'?'.agent/unknown-retired.txt':'.agent/work/3537/317/contract.json';mkdirSync(path.dirname(path.join(f.dir,file)),{recursive:true});f.commit(file,'unowned metadata\n');f.git(['rm',file]);f.git(['commit','-qm','ordinary unknown or foreign retirement'])
@@ -275,6 +300,7 @@ function generationsFixture(t,{repair=true,revert=false,bad=null,publishedOnly=f
  if(repair)f.commit('app.txt','main context\nseparator1\nseparator2\ngenuine safety repair\nend\n')
  if(revert)f.commit('app.txt',expected)
  const last=contract(319,{work_issue:3536,generation:317,contract_sha256:contractHash(middle)})
+ if(prefixFailure==='endpoint')last.required_checks.push('fixture-second')
  const after=writePair(last,sha())
  return {...f,before,after,main,published,proof:()=>derivePaidContentProof(before,after,main,f.git,verifiedEvidencePaths(before,after,{gitRunner:f.git}),3999)}
 }
@@ -295,6 +321,21 @@ test('actual repaired endpoint ignores preserved incomplete tail without authent
 })
 test('ordinary owned pair retirement with canonical merge authenticates surviving repair',t=>{
  const f=generationsFixture(t,{ordinaryRetirement:true});assert.equal(f.proof().kind,'substantive')
+})
+test('removed intermediate successful check prefix needs a later complete identical-source tail',t=>{
+ const f=generationsFixture(t,{checkPrefix:true,ordinaryRetirement:true}),proof=f.proof()
+ assert.equal(proof.kind,'substantive');assert.equal(proof.witness.path,'app.txt')
+ assert.equal(proof.supersededCheckPrefixes.length,1)
+ const receipt=proof.supersededCheckPrefixes[0]
+ assert.equal(receipt.generation,317);assert.match(receipt.provisionalReportJsonSha256,/^[0-9a-f]{64}$/)
+ assert.notEqual(receipt.provisionalReportJsonSha256,receipt.completeReportJsonSha256)
+})
+for(const input of [{repair:false},{repair:true,revert:true}])test(`superseded check prefix cannot witness ${input.repair?'net-reverted':'unchanged'} source`,t=>{
+ const proof=generationsFixture(t,{...input,checkPrefix:true,ordinaryRetirement:true}).proof()
+ assert.equal(proof.kind,'unchanged');assert.equal(proof.witness,undefined)
+})
+for(const prefixFailure of ['failed-check','no-complete','changed-source','source-head','evidence-drift','reordered-checks','report-field','revert-prefix','implementation-file','baseline','endpoint'])test(`successful check-prefix supersession refuses ${prefixFailure}`,t=>{
+ assert.throws(()=>generationsFixture(t,{checkPrefix:true,prefixFailure,ordinaryRetirement:true}).proof(),/historical|completion|hash|ancestor|tail|source|scope|identity|file proof/)
 })
 for(const [name,input] of [['metadata only',{repair:false}],['net reverted',{repair:true,revert:true}]])test(`ordinary canonical retirement keeps ${name} unchanged`,t=>{
  assert.equal(generationsFixture(t,{...input,ordinaryRetirement:true}).proof().kind,'unchanged')

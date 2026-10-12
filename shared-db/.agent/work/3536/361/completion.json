@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 4228,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/361",
+  "contract_sha256": "e023745c1c38f706555f40f6078d1ec3ccbb2109108aefe526a1c530f6fded3d",
+  "head_sha": "0861464b738be9a7c47608d95743ac64d9ee8e71",
+  "files_changed": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs",
+      "exit_code": 0,
+      "evidence": "141 passed,0 failed,0 skipped. Real Git positive prefix supersession; source/scope/failedcheck/evidence/reorder/reversion/baseline/endpoint/implementation-file negatives. Unchanged or net-reverted source never gains a witness."
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/run-governed-review.test.mjs scripts/lib/lanes/review-circuit-breaker.test.mjs",
+      "exit_code": 0,
+      "evidence": "1092 passed,0 failed,1 existing Windows-short/long-spelling test skipped on Linux. Original cap/eligibility/nativeUNKNOWN and2758 tests preserved."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "PASS344call_sites/96sources, derived_digestd5f836c4e47c; semantic bindings unchanged, no new absence/declaration exception."
+    },
+    {
+      "command": "actual2421 historical prefix proof and original5373 refusal",
+      "exit_code": 0,
+      "evidence": "Readonly modified-source experiment (not allocator): actual e9ef\u219209583 against99148 yields substantive genuine source witnessd136/migration, supersession receipts generations13/12. Exact original5373 Git/protected copySHA16d23ea6a515fbabe235ed0cd0a388861da9c381c3912c02d09295756347a26e:11actual/9reported files, not missing-check-prefix class; original frozen queue proof still refuses complete first-parent ancestry unavailable. No paid/ref/source/lease mutation."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "All required checks actually completed before this FIRST canonical pair commit. No preliminary ready-for-merge report minted.",
+    "All original reports, paidSTARTs and nativeUNKNOWN retained. Superseded prefixes remain nonauthorizing and cannot be baseline/endpoint authority or source witness.",
+    "No frozenqueue exception, generic merge/DAG/crossPR allowance, settings, SQL, DB, production or2758/cap/failure-policy change.",
+    "Source experiments are test-only; current live allocator still uses unchangedmain until assigned review/CI/guardedmerge and root installed proof."
+  ],
+  "stop_conditions_hit": []
+}

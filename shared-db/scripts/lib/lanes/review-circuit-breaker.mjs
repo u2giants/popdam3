@@ -54,7 +54,7 @@ export function paidStart(row, commit) {
 
 
 // Budget-only historical normalization. Strict review equivalence is unchanged.
-function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,neededFiles) {
+function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,neededFiles,supersededCheckPrefixes=[]) {
   const run=args=>String(git(args)).trim(),raw=args=>String(git(args))
   const ancestor=(a,b)=>{try{run(['merge-base','--is-ancestor',a,b]);return true}catch(e){if(e.status===1)return false;throw e}}
   const pairPaths=(issue,generation)=>['contract','completion'].map(kind=>`.agent/work/${issue}/${generation}/${kind}.json`)
@@ -150,8 +150,33 @@ function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract
       validating.delete(generation);validated.set(generation,hash);return hash
     }
     if(!variants?.size)throw new LaneError('review budget required historical pair unavailable')
+    const entries=[...variants.values()]
+    const reportWithoutChecks=report=>JSON.stringify({...report,checks:null})
+    const prefixes=new Set()
+    // These are non-authorizing preliminary metadata, never source witnesses.
+    // A baseline/current endpoint still needs its own complete report. Only a
+    // removed intermediate pair can have a successful check prefix superseded
+    // by a later complete own-pair-only tail on the identical implementation.
+    if(generation!==baselineGeneration && generation!==(endpoint.contract.generation??1)){
+      for(const entry of entries){
+        const {record,witnesses}=entry,{contract,report}=record
+        validateContract(contract);validateCompletionReport(report,{validateCompletionRecord})
+        const result=reconcileReportWithContract(report,contract)
+        if(result.satisfied || !result.problems.length || !result.problems.every(problem=>problem.startsWith('required check was never run: ')) || !witnesses.length || !report.checks.length || report.checks.some(check=>check.exit_code!==0))continue
+        const complete=entries.find(candidate=>candidate!==entry && candidate.witnesses.length && Array.isArray(candidate.record.report.checks) &&
+          contractHash(candidate.record.contract)===contractHash(contract) &&
+          reportWithoutChecks(candidate.record.report)===reportWithoutChecks(report) &&
+          candidate.record.report.checks.length>report.checks.length &&
+          report.checks.every((check,index)=>JSON.stringify(check)===JSON.stringify(candidate.record.report.checks[index])) &&
+          reconcileReportWithContract(candidate.record.report,candidate.record.contract).satisfied &&
+          witnesses.every(start=>candidate.witnesses.some(end=>start!==end && ancestor(start,end))))
+        if(!complete)continue
+        prefixes.add(entry)
+        supersededCheckPrefixes.push({generation,sourceHead:report.head_sha,contractSha256:contractHash(contract),provisionalWitnesses:witnesses,completeWitnesses:complete.witnesses,provisionalReportJsonSha256:createHash('sha256').update(JSON.stringify(report)).digest('hex'),completeReportJsonSha256:createHash('sha256').update(JSON.stringify(complete.record.report)).digest('hex')})
+      }
+    }
     let hash
-    for(const {record,witnesses} of variants.values()){
+    for(const {record,witnesses} of entries.filter(entry=>!prefixes.has(entry))){
       const {contract,report}=record;validateContract(contract);validateCompletionReport(report,{validateCompletionRecord})
       if(!witnesses.length || contract.work_issue!==issue || (contract.generation??1)!==generation || report.work_issue!==issue || report.pr!==pr || report.contract_ref!==`refs/db-contracts/${issue}/${generation}` || !ancestor(contract.base_sha,report.head_sha) || !/^[0-9a-f]{40}$/.test(report.base_sha??contract.base_sha) || !ancestor(report.base_sha??contract.base_sha,report.head_sha))throw new LaneError('review budget historical evidence identity/ancestor/tail refused')
       const actualFiles=run(['diff','--name-only',report.base_sha??contract.base_sha,report.head_sha]).split('\n').filter(Boolean).sort()
@@ -178,7 +203,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
   const ancestor = (a,b) => { try { run(['merge-base','--is-ancestor',a,b]); return true } catch (error) { if(error?.status===1)return false;throw error } }
   const registry=readStoredHashRegistry(protectedMain,{gitRunner:git})
   const stored=[...new Set(registry.map(entry=>entry.file))]
-  const canonicalAppends=[]
+  const canonicalAppends=[],supersededCheckPrefixes=[]
   const canonicalPinOverlaps=[]
   const canonicalImportUnions=[]
   const canonicalRegistryUnions=[]
@@ -373,11 +398,11 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     for(const file of run(['diff','--name-only',tree(expected),after,'--',...paths]).split('\n').filter(Boolean)){
       if(file.startsWith('.agent/'))neededFiles.add(file)
     }
-    const intermediate = neededFiles.size?verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,[...neededFiles]):[]
+    const intermediate = neededFiles.size?verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,[...neededFiles],supersededCheckPrefixes):[]
     if(intermediate.length)paths=[...paths,...intermediate.map(p=>`:(top,literal,exclude)${p}`)]
     // Recompute with the exact authenticated historical pair paths. They can
     // explain evidence retirement but can never serve as an author witness.
-    if(intermediate.length && equal(expected,after))return {schema:1,before,after,protectedMain,kind:'unchanged',canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions}
+    if(intermediate.length && equal(expected,after))return {schema:1,before,after,protectedMain,kind:'unchanged',canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions,...(supersededCheckPrefixes.length?{supersededCheckPrefixes}:{})}
 
     if (index < 0 || index >= 1000) throw new LaneError('review budget complete first-parent ancestry unavailable')
     const authorCandidates=[]
@@ -440,7 +465,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
       }
     }
     if (!authored) throw new LaneError('review budget surviving author source edit unavailable')
-    return {schema:1,before,after,protectedMain,kind:'substantive',historyCount:index,witness,canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions}
+    return {schema:1,before,after,protectedMain,kind:'substantive',historyCount:index,witness,canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions,...(supersededCheckPrefixes.length?{supersededCheckPrefixes}:{})}
   } catch (error) {
     throw new LaneError(`review budget Git provenance refused: ${String(error?.message??error).split('\n')[0]}`)
   }
