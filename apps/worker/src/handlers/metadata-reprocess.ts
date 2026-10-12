@@ -9,6 +9,10 @@ export async function handleReprocessMetadata(
   edgeKey = config.supabaseSecretKey || config.supabaseServiceRoleKey,
 ): Promise<BatchResult> {
   const fillMode = op.params?.mode === "fill-missing-licensing";
+  if (!fillMode && typeof op.cursor === "string") {
+    // A UUID cursor belongs to fill mode; never silently restart a full pass at 0.
+    return { ok: false, done: false, error: "Metadata reprocess failed: keyset cursor without fill-missing-licensing mode" };
+  }
   const offset = typeof op.cursor === "number" ? op.cursor : 0;
   const payload: Record<string, unknown> = fillMode
     ? { action: "reprocess-asset-metadata", mode: "fill-missing-licensing", after_id: typeof op.cursor === "string" ? op.cursor : null, batch_size: 25 }

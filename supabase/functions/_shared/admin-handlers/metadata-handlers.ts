@@ -74,11 +74,11 @@ export async function fillMissingLicensing(body: Record<string, unknown>, db: an
       if (asset[col] === null && next !== null && next !== undefined) updates[col] = next;
     }
     if (Object.keys(updates).length === 0) continue;
-    const { data: written, error: updateErr } = await db.from("assets")
-      .update(updates)
-      .eq("id", asset.id)
-      .is("licensor_id", null)
-      .select("id");
+    // Guard every written column (and licensor_id) on still being NULL, so a
+    // concurrent writer to any licensing field wins instead of being overwritten.
+    let guarded = db.from("assets").update(updates).eq("id", asset.id).is("licensor_id", null);
+    for (const col of Object.keys(updates)) if (col !== "licensor_id") guarded = guarded.is(col, null);
+    const { data: written, error: updateErr } = await guarded.select("id");
     // A failed row must fail the batch so the worker retries it, never skip it.
     if (updateErr) throw new Error(`asset ${asset.id}: ${updateErr.message}`);
     if (Array.isArray(written) && written.length > 0) updated++;

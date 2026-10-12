@@ -222,8 +222,8 @@ Re-derives path-based metadata (licensor_id, property_id, SKU fields, workflow_s
 Returns: `{ updated, total, offset }`.
 
 `mode: "fill-missing-licensing"` (with `after_id` UUID keyset cursor) is a fill-only variant: it walks only licensed,
-non-deleted assets whose `licensor_id` is NULL and writes only licensing columns that are currently NULL, guarded on
-`licensor_id` still being NULL. Use it after new licensor/property codes land in master data. The worker runs it when
+non-deleted assets whose `licensor_id` is NULL and writes only licensing columns that are currently NULL; each UPDATE is guarded
+on `licensor_id` and every written column still being NULL, so concurrent writers win. Use it after new licensor/property codes land in master data. The worker runs it when
 `BULK_OPERATIONS["reprocess-metadata"].params.mode` is `"fill-missing-licensing"`.
 
 ### `backfill-sku-names`

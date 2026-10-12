@@ -10,7 +10,7 @@ import { fillMissingLicensing, type FillLicensingDeps } from "./metadata-handler
 type Row = Record<string, unknown>;
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
-function fakeDb(rows: Row[], opts: { failUpdateFor?: string; raceFor?: string } = {}) {
+function fakeDb(rows: Row[], opts: { failUpdateFor?: string; raceFor?: string; raceProperty?: string } = {}) {
   const updates: { id: string; values: Row }[] = [];
   const selectChain = () => {
     const filters: ((r: Row) => boolean)[] = [];
@@ -35,6 +35,7 @@ function fakeDb(rows: Row[], opts: { failUpdateFor?: string; raceFor?: string } 
         if (target === opts.failUpdateFor) return { data: null, error: { message: "boom" } };
         const row = rows.find((r) => r.id === target)!;
         if (target === opts.raceFor) row.licensor_id = "someone-else";
+        if (target === opts.raceProperty) row.property_id = "other-property";
         if (!guards.every(([c, v]) => row[c] === v)) return { data: [], error: null };
         Object.assign(row, values);
         updates.push({ id: target, values });
@@ -94,6 +95,14 @@ describe("fillMissingLicensing", () => {
     const out = await fillMissingLicensing({}, db, deps(() => full));
     expect(out.updated).toBe(0);
     expect(rows[0].licensor_id).toBe("someone-else");
+  });
+
+  it("does not overwrite a concurrent write to a sibling licensing column", async () => {
+    const rows = [asset(1)];
+    const { db } = fakeDb(rows, { raceProperty: id(1) });
+    const out = await fillMissingLicensing({}, db, deps(() => full));
+    expect(out.updated).toBe(0);
+    expect(rows[0]).toMatchObject({ property_id: "other-property", licensor_id: null });
   });
 
   it("fails the batch when a row update fails", async () => {
