@@ -1,0 +1,67 @@
+{
+  "allowed_paths": [
+    "scripts/lib/session-authority.mjs",
+    "scripts/lib/session-authority.test.mjs",
+    "supabase/tests/popdam_expired_lease_terminal_clear_contracts.sql",
+    ".agent/work/3536/362/contract.json",
+    ".agent/work/3536/362/completion.json",
+    ".agent/work/3536/363/contract.json",
+    ".agent/work/3536/363/completion.json"
+  ],
+  "assumptions": [
+    "Normal adoption4158/4152 recorded codex/currentUUID-2421/2336 but preview named owner resolves only plain session IDs and full chat labels. No source witness, owner transfer, claim title, lease or immutable record may be rewritten as a remedy.",
+    "Selected support is ONLY lowercase codex/full canonical UUID-positive numeric work issue. Other aliases, malformed/incomplete UUID, unknown engines, zero/leading-zero issue, extra suffix/prefix/newline and cross-chat caller refuse. Existing full chat/raw ID behavior unchanged; SHARED_DB_SESSION_ID pattern never widened.",
+    "This reads identity only; exact-object locks, reservation, review, target, sourcehead, bounded preview and automatic promotion gates remain unchanged. One session owns both preserved exact claims, declared by its real UUID.",
+    "No manual production action or dropping --claim-number to evade the mismatch. Earlier exact-main risk assessment becomes stale after this maintenance merges; a fresh exact-current-main assigned assessment is required.",
+    "Actual CI38208479266 at393c failed exactly one nonquarantined test at5:40AMUTC: client2369 holds fixture state row then wants BULK advisory; concurrentclient2370 holds advisory then wants that row. Unchanged public.update_bulk_operation already locks BULK before row. The direct fixture write inverted the real protocol. This is not source-owner identity behavior or permission to hide a runtime deadlock.",
+    "GLM6396 exact393c APPROVE is preserved, but the changed test is code and requires a fresh normal finalhead review; add its named conservative uppercase/oversized UUID negative controls in the same source batch.",
+    "All existing terminal/expired/receipt/provider/revision/idempotency assertions remain byte-identical; only one fixture lock and explanatory comment are added. No cron/job stop, quarantine, source migration/body edit or test deletion.",
+    "Original362 full pair is preserved in Git/private copy and retired only from this branch when363 is fully sealed; no incomplete preliminary pair."
+  ],
+  "base_sha": "3ed8c2ed7b1eb8e5b2f7291340a3d35421012072",
+  "branch": "codex/3536-owner-identity",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Current Codex root exact-safety repair under Albert resume instruction",
+  "evidence_parent": {
+    "work_issue": 3536,
+    "generation": 362,
+    "contract_sha256": "ea00df0cc9955a0923e6b28555edad539cd0b2262b3783c2b9aac19fa6aa228f"
+  },
+  "file_writes": [
+    "scripts/lib/session-authority.mjs",
+    "scripts/lib/session-authority.test.mjs",
+    "supabase/tests/popdam_expired_lease_terminal_clear_contracts.sql",
+    ".agent/work/3536/362/contract.json",
+    ".agent/work/3536/362/completion.json",
+    ".agent/work/3536/363/contract.json",
+    ".agent/work/3536/363/completion.json"
+  ],
+  "generation": 363,
+  "goal": "Batch the complete independent review and actual CI finding: preserve the exact-chat adoption identity repair; add explicit conservative case/UUID negatives; make the terminal-lease SQL fixture take the existing BULK_OPERATIONS transaction lock before its own state row write. Reproduce old two-session inversion and prove the corrected fixture retains every lease assertion with the unchanged compiled runtime routine and a real competing caller. Never disable cron, weaken tests, quarantine a failure, change production SQL or carry old approval.",
+  "prohibited_actions": [
+    "No claim/ref/lease/history/source migration/function/production or frozenqueue edits",
+    "No missing/foreign caller authority, caller-pattern widening or substring identity",
+    "No cron disable, test weakening/quarantine/removal, old verdict carry, budget/refund/2758 bypass",
+    "No manual production action or prior-main risk assessment reuse"
+  ],
+  "required_checks": [
+    "session authority same-chat positives and all foreign/malformed/case/UUID/undeclared negatives PASS",
+    "actual parsed root-owned4158/4152 normal resolver only accepts current UUID PASS",
+    "old fixture deadlock reproduced and corrected entire lease suite passes with unchanged compiled runtime routine plus real competing caller PASS",
+    "full clean exact-source offline suite PASS",
+    "owned whitespace, identity, exact source commit/remote readback and normal canonical Git evidence PASS"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Any cross-chat, malformed or arbitrary alias accepts",
+    "Any selected change edits foreign claim/evidence or source SQL",
+    "Any independent reviewer refuses or required check fails",
+    "Any original gate/cap/claim scope loses enforcement"
+  ],
+  "work_issue": 3536,
+  "work_type": "repo-maintenance",
+  "worker": "Current Codex root retains security and landing decisions",
+  "worktree": "/home/ahazan/.codex/worktrees/eight-issues-check-records/shared-db"
+}

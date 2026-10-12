@@ -76,3 +76,28 @@ test('#3972 a valid owner label never supplies missing or malformed caller autho
   for(const session of [undefined,'','bad id',owner])assert.equal(resolveSessionAuthority({env:env(session),claimOwner:owner}).live,false);
   assert.equal(resolveSessionAuthority({env:env('other-session'),claimOwner:owner}).live,false);
 });
+
+test('#3536 supported adoption labels retain the exact current chat boundary',()=>{
+  const current='01a12d90-cce8-7131-b1eb-eff6becc806e';
+  for(const issue of [2421,2336]){
+    const owner=`codex/${current}-${issue}`;
+    const authority=resolveSessionAuthority({env:env(current),claimOwner:owner});
+    assert.equal(authority.live,true);assert.equal(authority.task,current);assert.equal(authority.calling_task,current);
+    assert.equal(resolveSessionAuthority({env:env(foreignChat),claimOwner:owner}).live,false);
+    for(const caller of [undefined,'','bad id',owner])assert.equal(resolveSessionAuthority({env:env(caller),claimOwner:owner}).live,false);
+  }
+});
+
+test('#3536 adoption recognition never accepts arbitrary aliases or ambiguous labels',()=>{
+  for(const owner of [
+    `prefix codex/${ownChat}-2421`,`codex/${ownChat}-2421-extra`,`codex/${ownChat}-0`,
+    `codex/${ownChat}-02421`,`codex/${ownChat}`,`codex/${ownChat}-`,
+    `codex/${ownChat.slice(0,-1)}-2421`,`claude/${ownChat}-2421`,
+    `unknown/${ownChat}-2421`,`codex/${ownChat}-2421/other`,
+    `codex/${ownChat}-2421\nowner: ${foreignChat}`,`codex/${foreignChat}-2421`,
+    'codex/2336-runtime-recovery','codex/issue-2421',
+    `CODEX/${ownChat}-2421`,`codex/${ownChat.toUpperCase()}-2421`,
+    `codex/${ownChat}0-2421`,
+  ])assert.equal(resolveSessionAuthority({env:env(ownChat),claimOwner:owner}).live,false);
+  assert.equal(readSessionId(env(`codex/${ownChat}-2421`)).malformed,true);
+});
