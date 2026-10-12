@@ -143,3 +143,21 @@ test("persisted JSONB watermark resumes when field order changes", () => {
   assert.equal(rebuildRpcArgs(resumed, 100).p_last_asset_id, "asset-after-restart");
   assert.equal(rebuildRpcArgs(resumed, 100).p_changed_since, incremental.params!.changed_since);
 });
+
+
+test("legacy persisted null watermark preserves the existing cursor and progress", () => {
+  const saved = JSON.parse('{"stage":"rebuild_assets","watermark":null,"last_rebuild_asset_id":"legacy-cursor","total_processed":9}');
+  const resumed = bindRebuildWatermark(normalizeRebuildState(saved), { status: "running" }, false);
+  assert.equal(resumed.total_processed, 9);
+  assert.deepEqual(rebuildRpcArgs(resumed, 50), { p_last_asset_id: "legacy-cursor", p_batch_size: 50 });
+});
+test("scheduled persisted null watermark rejects changed identity without a TypeError", () => {
+  const saved = JSON.parse('{"stage":"rebuild_assets","watermark":null,"last_rebuild_asset_id":"saved-cursor"}');
+  assert.throws(() => bindRebuildWatermark(normalizeRebuildState(saved), incremental, false), /Rebuild resume bounds\/run identity changed; restart explicitly/);
+  assert.equal(saved.last_rebuild_asset_id, "saved-cursor");
+});
+test("nonobject persisted watermark rejects safely without losing saved progress", () => {
+  const saved = JSON.parse('{"stage":"rebuild_assets","watermark":27,"total_processed":9}');
+  assert.throws(() => bindRebuildWatermark(normalizeRebuildState(saved), incremental, false), /Rebuild resume bounds\/run identity changed; restart explicitly/);
+  assert.equal(saved.total_processed, 9);
+});

@@ -61,9 +61,9 @@ export function rebuildWatermark(op: OpState): RebuildWatermark | undefined {
 
 export function bindRebuildWatermark(state: RebuildState, op: OpState, fresh: boolean): RebuildState {
   const watermark = rebuildWatermark(op);
-  const saved = state.watermark;
+  const saved = state.watermark ?? undefined;
   const sameIdentity = saved === undefined && watermark === undefined ||
-    saved !== undefined && watermark !== undefined &&
+    saved !== undefined && typeof saved === "object" && watermark !== undefined &&
     saved.run_id === watermark.run_id && saved.changed_since === watermark.changed_since &&
     saved.changed_cutoff === watermark.changed_cutoff && saved.rebuild_mode === watermark.rebuild_mode;
   if (!fresh && !sameIdentity) throw new Error("Rebuild resume bounds/run identity changed; restart explicitly");
