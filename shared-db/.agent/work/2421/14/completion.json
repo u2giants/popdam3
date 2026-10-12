@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "work_issue": 2421,
+  "outcome": "ready-for-merge",
+  "pr": 4161,
+  "migration_versions": [
+    "20261012012727"
+  ],
+  "contract_ref": "refs/db-contracts/2421/14",
+  "contract_sha256": "9abb320c09bfbc9248e75dead0bde5a67b80c717ba73bc3c088731620ffdeed2",
+  "head_sha": "d136f4e3979d5bc27f5b8c5fbc7eb7690c137345",
+  "files_changed": [
+    ".github/live-proofs/2421.sql",
+    "HANDOFF.d/2026-10-11T1324Z-edge-dev3-codex-style-group-watermark.md",
+    "scripts/test_style_group_watermark.py",
+    "supabase/migrations/20261012012727_style_group_change_watermark.sql",
+    "supabase/tests/style_group_change_watermark_contracts.sql"
+  ],
+  "db_reads": [
+    "function public.style_group_key_for_sku",
+    "function public.refresh_style_group_counts_batch",
+    "table public.admin_config"
+  ],
+  "db_writes": [
+    "table public.assets",
+    "column public.assets.style_group_changed_at",
+    "table public.style_groups",
+    "column public.style_groups.style_group_changed_at",
+    "function public.stamp_style_group_asset_change",
+    "function public.stamp_style_group_definition_change",
+    "function public.touch_style_group_tag_change",
+    "trigger assets_style_group_change_clock on public.assets",
+    "trigger style_groups_style_group_change_clock on public.style_groups",
+    "trigger style_group_tags_change_clock on public.style_group_tags",
+    "function public.rebuild_style_groups_batch",
+    "function public.queue_nightly_rebuild_style_groups",
+    "index public.assets_style_group_changed_at_idx",
+    "index public.style_groups_style_group_changed_at_idx",
+    "index public.assets_ungrouped_style_cursor_idx",
+    "table public.style_group_tags"
+  ],
+  "checks": [
+    {
+      "command": "python3 scripts/test_style_group_watermark.py",
+      "exit_code": 0,
+      "evidence": "12 real isolated PostgreSQL17 tests passed in11.931s. Exact unmodified compiled source probe positive PASS; ten hostile object mutations plus modified queue body all return false, including missing legacy function. Writer/queue serialization, external pending updates, normalized timestamps, invalid batches, actual cancellation/reentrant/rollback preserved. Physical fixture candidate reads3 versus10001, distinct from runtime candidate cardinality."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static and real production-ledger B2 guards PASS on final batched source.734 applied versions,max224904 precedes normal12727reservation; no DB writes."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    },
+    {
+      "command": "python3 -m unittest scripts.test_migration_derivation scripts.test_shared_db_live_proof",
+      "exit_code": 0,
+      "evidence": "74 qualification tests passed; exact probe remains installed-state only, never app/week acceptance."
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Normal structural outcome routing on sole14 endpoint confirms application return u2giants/popdam3. Exact committed installed-state SQL independently executed positive and eleven hostile cases in real localPG; actual app/week proof remains required."
+    }
+  ],
+  "assumptions_resolved": [
+    "Published prospective14 BEFORE edits. Exact16 claimed objects and normalpermanent12727reservation preserved. Original9/12/13 pairs, all native reports/STARTs and original frozenqueue source preserved.",
+    "NewRPC md5=9222e39f7953290f2050123aa07811b6, unmodified queue md5=ae23005822bc9f0b500c06776ab9bee4 from actual compiled network-isolated source; positive exact probe replays real hour6 queue before testing, not modifiedfixture.",
+    "Normal report binds actual implementation source and only own-two-file evidence tail; canonicalGit validation required, no circular self-head or widened2758.",
+    "All prior actual findings fully read; oldGLMunpublished/source-movement and nativeDeepSeek multiple-verdict failures retained. Neither is approval authority nor refunded.",
+    "Output batches bounded; changed-group cardinality risk and timestamp-index sort explicitly documented. Full arm serves via existing UUIDPK. Runtime rows_examined means summed selected candidates, separate physicalEXPLAIN metric. No newindex outsideclaimed16 or fabricatedcost constant.",
+    "No database/app/production-week acceptance claimed."
+  ],
+  "stop_conditions_hit": []
+}
