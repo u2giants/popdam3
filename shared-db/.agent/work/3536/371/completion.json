@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 4232,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/371",
+  "contract_sha256": "772f2f99d93d6938e6802f8d43bdf599398e5d7739a38ab7bd89be782661871b",
+  "head_sha": "0765456d0aabf174e65afc27d0078a1e2e96c4ae",
+  "base_sha": "139bea18269bf864e99ad2ee1e66e648a953a887",
+  "files_changed": [
+    "config/production-verification-sidecar-registry.json",
+    "scripts/production-verification-sidecars/20261012012727.json",
+    "scripts/test_production_catalog_verification.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "current main contains approved exact policy definition before sidecar activation PASS",
+      "exit_code": 0,
+      "evidence": "Guarded4231run38241067985SUCCESS; actualmain139bea contains approved1982da54policy before edits. Published371exactreadback772f2f before source activation."
+    },
+    {
+      "command": "immutable SQL hash and registry owner and exact committed probe declaration PASS",
+      "exit_code": 0,
+      "evidence": "Preserved originalsidecar exactSQLSHA9d3026,expected1,fixedcontract andowner2421; newtest passes; actual full production enforcingCLIexit0 with namedcount1expected1 and14ACL assertions."
+    },
+    {
+      "command": "full source focused tests and normal sidecar/truth inventory guards PASS",
+      "exit_code": 0,
+      "evidence": "Full actualPython1523PASS43existingconditional/live skips;100focused NodePASS; normal sidecar/truth inventory guards PASS; no source SQL/verifier/recovery orforeignregistry bytechanges."
+    },
+    {
+      "command": "owned complete current-source and canonical Git/contract checks PASS",
+      "exit_code": 0,
+      "evidence": "Owned diff3sourcefiles andAlbertidentity/whitespace/sourcecommit0765456/publicreadback; firstpaironlyaftercomplete sourcechecks, canonicalGit validation follows seal beforepaidreview."
+    }
+  ],
+  "assumptions_resolved": [
+    "Policy-firstdefinition installed and independentlyAPP before activation; no trustedbase override.",
+    "Original failedapply38221234278artifact951f9a and all original hash/target/ledgerdelta/namedassertion guards remain.",
+    "No production/schema/row/function/grant/version/claim/history/UNKNOWN5419/cap2/2758 change.",
+    "Source and read-onlypositive are not installed original-run recovery or application-week acceptance."
+  ],
+  "stop_conditions_hit": []
+}

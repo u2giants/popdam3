@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261012012727",
+  "migration_sha256": "9d302667821858a87b972f87f4c5addd0a1cdd4bee359d73152508faed84ab8e",
+  "checks": [
+    {
+      "id": "style_group_differential_installed",
+      "kind": "catalog_contract",
+      "contract": "style_group_differential_installed_v1",
+      "expected_count": 1
+    }
+  ]
+}
