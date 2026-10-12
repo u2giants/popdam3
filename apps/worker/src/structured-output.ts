@@ -44,7 +44,7 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
         request.tools = [tool(options.schemaName, `Return structured ${options.schemaName} data.`, options.schema)];
         request.tool_choice = method === "tool_named" ? { type: "function", function: { name: options.schemaName } } : method === "tool_required" ? "required" : "auto";
       } else {
-        request.messages = [...options.messages, { role: "user", content: "Return only one valid JSON object matching the supplied contract. No markdown or commentary." }];
+        request.messages = [...options.messages, { role: "user", content: `Return only one valid JSON object matching this JSON Schema: ${JSON.stringify(options.schema)}. No markdown or commentary.` }];
         request.response_format = method === "json_schema" ? { type: "json_schema", json_schema: { name: options.schemaName, strict: isStrictCompatibleSchema(options.schema), schema: options.schema } } : { type: "json_object" };
       }
       const result = await completion(options.apiKey, request, options.timeoutMs);
@@ -81,6 +81,7 @@ export interface JsonRepairOptions<T> {
   model: string;
   messages: ChatMessage[];
   repairSource: string;
+  schema?: Record<string, unknown>;
   validate: (value: Record<string, unknown>) => T;
   maxTokens?: number;
   timeoutMs?: number;
@@ -103,7 +104,7 @@ export async function runJsonRepair<T>(options: JsonRepairOptions<T>): Promise<
   const method: StructuredOutputMethod = "json_repair"; const started = Date.now();
   let stage: "transport" | "parse" | "validation" = "transport";
   try {
-    const result = await completion(options.apiKey, { model: options.model, messages: [...options.messages, { role: "user", content: `A previous response failed validation: ${safe(options.repairSource)}. Return corrected JSON only.` }], response_format: { type: "json_object" }, max_tokens: options.maxTokens ?? 1500, temperature: 0, provider: options.provider }, options.timeoutMs);
+    const result = await completion(options.apiKey, { model: options.model, messages: [...options.messages, { role: "user", content: `A previous response failed validation: ${safe(options.repairSource)}. Return corrected JSON only.${options.schema ? ` Match this JSON Schema exactly: ${JSON.stringify(options.schema)}.` : ""}` }], response_format: { type: "json_object" }, max_tokens: options.maxTokens ?? 1500, temperature: 0, provider: options.provider }, options.timeoutMs);
     stage = "parse"; const candidate = parseStructuredJson(result.content); if (!candidate) throw new Error("No parsable JSON after repair");
     stage = "validation";
     const value = options.validate(candidate);

@@ -49,6 +49,7 @@ import {
   buildBatchImageTaggingMessages,
   buildImageTaggingPrompt,
   callTagAssetModel,
+  isRetryableTagTransportError,
   fetchImageData,
   getAiTaggingApiKey,
   isStyleGuideSourcePdf,
@@ -144,7 +145,8 @@ export function isRetryableStructuredOutputError(msg: string): boolean {
       lower.includes("tool_call") ||
       lower.includes("no parsable json") ||
       lower.includes("malformed tool call json") ||
-      lower.includes("openrouter 404")
+      lower.includes("openrouter 404") ||
+      lower.includes("invalid structured tag data")
     )
   );
 }
@@ -951,7 +953,7 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
         return { outcome: "tagged" };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (sameModelRetry < SAME_MODEL_STRUCTURED_RETRY_COUNT && isRetryableStructuredOutputError(msg)) {
+        if (sameModelRetry < SAME_MODEL_STRUCTURED_RETRY_COUNT && (isRetryableStructuredOutputError(msg) || (model.startsWith("meta-direct/") && isRetryableTagTransportError(e)))) {
           logger.warn("ai-tag: structured output/routing error, retrying same model", {
             assetId,
             model,
