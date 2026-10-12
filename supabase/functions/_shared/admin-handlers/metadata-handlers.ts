@@ -98,6 +98,8 @@ export async function fillMissingLicensing(body: Record<string, unknown>, db: an
 
 export async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
   if (body.mode === FILL_MISSING_LICENSING_MODE) return json(await fillMissingLicensing(body, serviceClient()));
+  // Fail closed: an unknown mode must never fall through to the full rewrite.
+  if (body.mode !== undefined && body.mode !== null) return err(`Unknown reprocess mode: ${String(body.mode)}`, 400);
   const offset = typeof body.offset === "number" ? body.offset : 0;
   // Keep one edge invocation below the authenticated database ceiling. The
   // persistent worker supplies 25; direct/older callers retain the old 200.

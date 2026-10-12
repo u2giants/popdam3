@@ -5,7 +5,7 @@ vi.mock("../service-client.ts", () => ({ serviceClient: () => ({}) }));
 vi.mock("../sku-parser.ts", () => ({ parseSku: async () => null }));
 vi.mock("../metadata-derivation.ts", () => ({ deriveMetadataFromPath: async () => ({}) }));
 vi.mock("../licensing-resolution.ts", () => ({ loadAuthoritativeLicensingMaps: async () => ({}), resolveAuthoritativeLicensing: async () => ({}) }));
-import { fillMissingLicensing, type FillLicensingDeps } from "./metadata-handlers.ts";
+import { fillMissingLicensing, handleReprocessAssetMetadata, type FillLicensingDeps } from "./metadata-handlers.ts";
 
 type Row = Record<string, unknown>;
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -113,5 +113,11 @@ describe("fillMissingLicensing", () => {
   it("rejects a malformed cursor", async () => {
     const { db } = fakeDb([]);
     await expect(fillMissingLicensing({ after_id: "x;drop" }, db, deps(() => full))).rejects.toThrow(/UUID/);
+  });
+});
+
+describe("handleReprocessAssetMetadata modes", () => {
+  it("fails closed on an unknown mode", async () => {
+    expect(await handleReprocessAssetMetadata({ mode: "fill-everything" })).toEqual({ error: "Unknown reprocess mode: fill-everything" });
   });
 });

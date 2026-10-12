@@ -68,3 +68,11 @@ test("standard mode refuses a keyset cursor instead of restarting at offset 0", 
   assert.equal(result.ok, false);
   assert.equal(called, false);
 });
+
+test("unknown mode fails closed without calling the edge route", async () => {
+  let called = false;
+  const fakeFetch = (async () => { called = true; return new Response("{}"); }) as typeof fetch;
+  const result = await handleReprocessMetadata({ status: "running", cursor: 0, params: { mode: "bogus" } }, fakeFetch, "k");
+  assert.equal(result.ok, false);
+  assert.equal(called, false);
+});

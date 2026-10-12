@@ -9,6 +9,9 @@ export async function handleReprocessMetadata(
   edgeKey = config.supabaseSecretKey || config.supabaseServiceRoleKey,
 ): Promise<BatchResult> {
   const fillMode = op.params?.mode === "fill-missing-licensing";
+  if (op.params?.mode !== undefined && op.params?.mode !== null && !fillMode) {
+    return { ok: false, done: false, error: `Metadata reprocess failed: unknown mode ${String(op.params.mode)}` };
+  }
   if (!fillMode && typeof op.cursor === "string") {
     // A UUID cursor belongs to fill mode; never silently restart a full pass at 0.
     return { ok: false, done: false, error: "Metadata reprocess failed: keyset cursor without fill-missing-licensing mode" };
