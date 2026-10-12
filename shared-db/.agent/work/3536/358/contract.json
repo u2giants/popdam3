@@ -1,0 +1,66 @@
+{
+  "allowed_paths": [
+    "scripts/orchestrator-flow/admission.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    ".agent/work/3536/353/contract.json",
+    ".agent/work/3536/353/completion.json",
+    ".agent/work/3536/358/contract.json",
+    ".agent/work/3536/358/completion.json"
+  ],
+  "assumptions": [
+    "Historical353 sourcec9fa and immutable355/356 prospective authority retained. Actualselected JSONB source9fad is committed and ordinarily merged withaf4d atc72f. No355/356 canonical endpoint was authored. Preserve actual353 pair privately before retirement; foreign354 pair stays byte-identical. Public4171 remains9883 and original6143 START/outcome unchanged.",
+    "Selected single lexer retains closed exact single-quoted empty-object literal spelling only; every other single-quoted literal and dollar/function body remains opaque. Add anchored single-action JSONB grammar with optional NULL/NOT NULL and optional exact DEFAULT empty-object literal cast to jsonb. Primitive grammar unchanged. Never generic quoted defaults, arbitrary JSON, expression/function/operator, other casts, multiple ALTER actions or malformed/unterminated input.",
+    "Comparison-only proof remains private WeakMap bound to authentic inspection. Actual complete2336 SQL inventory proves55 static plus27 columns equals82 while retaining all16 table-wide locks and89 held claim objects. Dispatch parser and database semantics unchanged.",
+    "Root retains schema/security/source/merge/recovery decisions. No database, claims, statuses, settings, probe, lease/recovery or provider mutations authorized by this source contract.",
+    "Root FULLread selectedtwo-source patch7da4d6e9ed66e7a721d512ed662f34a415a9622c494f409c599a148937c6cfc9. Actual9fad/c72f carry exactly this selected source plus preservedforeign354 bytes. Correct only reviewed unpublishedmetadata branch mistake; no new helper/source semantics authorized.",
+    "Durable tests cover the exact two JSONB clauses and lexical/inspection negatives. The separate private complete actual2336cf76 source proof establishes55 static+27 columns=82 and all17 table locks; do not claim the durable suite imports an unmerged migration.",
+    "Actual merged354 approval/source and installed read-only targeted preview produced zero candidates while public4171 still9883. Recovery eligibility requires real subsequent source head movement and root exact tuple reproof; no native artifact absence assertion, no global reaping or provider-health inference.",
+    "Root inspected exact b504: sole four D changes to353 and foreign354 canonical pair, no SOURCE changes; parentc72f is genuine9fad+af4d ordinary merge. Originalremote4171 remains9883. Preserve complete rejected unpublishedb504 recovery ref/verified bundle, then rename its local branch codex/2421-recovery-356 and create the original local branch codex/2421-column-proof from exactc72f only while sourceclean/exactHEAD/remoteunchanged. No Git reset, commit deletion, force push, budget reset/refund or START/artifact change.",
+    "Foreign354 belongs PR4209, never a same-PR paid-content evidence witness. Preserve its full protected bytes unchanged. Source restoration/correction cannot itself serve as an authored repair witness; genuine selectedJSONB source9fad remains unchanged and must supply any supported surviving source proof.",
+    "Actual970tests/truth342/96 and selectedtwo-source bytes retained. Source-only push before canonical endpoint is allowed after local checks; pre-completion strict proof refusal is preserved as non-authorizing. After actual SOURCE CI accepts, seal current358 tail normally and require strict complete historical proof/current paid inventory; never ignore foreign evidence or widen the helper.",
+    "If strict paid-content proof still refuses after a truthful canonical endpoint, stop before provider/scheduling recovery and report actual evidence. Native outcome remainsUNKNOWN and original6143 START counted; no invented substantive witness.",
+    "Publication initially refused before any ref creation when actualmain movedaf4d\u21925550. Root FULLread all6foreign4208 paths: exact legacy derivation overlay/twohash-bound behavior sidecars/registry/tests. No SQL migration added or ownedparser overlap; preserve every foreign byte through ordinary5550 integration after local branch correction. Source required checks must run on this actual final source.",
+    "Historical357 published prospective4461 is preserved and no corresponding source integration/branch correction or completion occurred: fresh main moved5550 to8d805 before action. Current358 is bound to actual544875, which incorporates all six foreign4208 registry/sidecar/overlay/tests paths from5550, all three4182 Vault migration/live-proof/contract paths from8d805, then4211 docs-only changes. Root FULLread these foreign changes. Preserve every protected foreign source and canonical354 byte; no new parser semantics or reset/recovery authority is inferred."
+  ],
+  "base_sha": "544875ec8a4e4d997a16538a71ac9628dc0ca922",
+  "branch": "codex/2421-column-proof",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex parent authorized necessary #3536 safety-tooling repair for2421",
+  "evidence_parent": {
+    "contract_sha256": "4461c33fa47c5a5a57aed834853a739f0dc59998b93355facbdf69260b148a83",
+    "generation": 357,
+    "work_issue": 3536
+  },
+  "file_writes": [
+    "scripts/orchestrator-flow/admission.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    ".agent/work/3536/353/contract.json",
+    ".agent/work/3536/353/completion.json",
+    ".agent/work/3536/358/contract.json",
+    ".agent/work/3536/358/completion.json"
+  ],
+  "generation": 358,
+  "goal": "Preserve foreign354 canonical pair and all current544875 protected bytes while completing selected JSONB comparison proof. Recover unpublished local branch from reviewed c72f with rejectedb504 preserved in verified bundle/recovery branch, then ordinary current544875 integration preserving5550 registry/sidecars/tests,8d805 vault migration/proof/test and544875 documentation. Retire ONLY own353 pair, publish actual SOURCE after local checks, seal sole358 after actual SOURCE CI, then strict canonical provenance before any review/recovery. No public rewrite, reset/refund or artificial source witness; root retains all decisions.",
+  "prohibited_actions": [
+    "No permanent issue/claim/migration/SQL edits",
+    "No global dispatch parser changes or dropped locks",
+    "No DB/settings/production mutation or automatic parent closure"
+  ],
+  "required_checks": [
+    "node --test scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "node --test scripts/check-pr-object-collisions.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop on unselected source changes, capability loss, custody conflict, changed main requiring integration, unsupported provenance or gates",
+    "Hold publication/canonical seal/review/recovery until root complete-source decision; never bypass admission or trim objects"
+  ],
+  "work_issue": 3536,
+  "work_type": "repo-maintenance",
+  "worker": "Codex ledger child",
+  "worktree": "/home/ahazan/.codex/worktrees/3bd9-2421-parser/shared-db"
+}

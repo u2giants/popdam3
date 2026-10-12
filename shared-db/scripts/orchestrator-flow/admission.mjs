@@ -221,6 +221,7 @@ export function inspectPrCuratedDataChange(prFiles = [], issue = null, scope = n
 }
 
 const inspectedAliasProofs=new WeakMap()
+const inspectedAddedColumns=new WeakMap()
 
 export function inspectPrStructuralChange(prFiles = []) {
   if (!Array.isArray(prFiles)) throw new AdmissionError('pull request files are unreadable')
@@ -250,7 +251,53 @@ export function inspectPrStructuralChange(prFiles = []) {
     objects:[...new Set([...actualWrites,...rewrites])].sort(),
   }
   inspectedAliasProofs.set(inspection,provenLegacyTableAliases(proposedSql))
+  inspectedAddedColumns.set(inspection,provenAddedColumns(proposedSql))
   return inspection
+}
+
+// This proof supplements comparison only. Dispatch deliberately retains a
+// table-wide lock for ALTER TABLE, including two edits to different columns.
+// Keep literals opaque except the exact closed '{}' token used only by the
+// strict JSONB default proof. Ignore bodies and nested comments before proving
+// one complete statement-leading ADD COLUMN. Unknown forms prove
+// nothing; in particular a comma-separated ALTER cannot grant partial proof.
+function topLevelColumnStatements(sql) {
+  const statements=[];let current=''
+  for(let i=0;i<sql.length;){
+    if(sql.startsWith('--',i)){const end=sql.indexOf('\n',i+2);i=end<0?sql.length:end;current+=' ';continue}
+    if(sql.startsWith('/*',i)){
+      let depth=1;i+=2
+      while(i<sql.length&&depth){if(sql.startsWith('/*',i)){depth++;i+=2}else if(sql.startsWith('*/',i)){depth--;i+=2}else i++}
+      if(depth)return [];current+=' ';continue
+    }
+    const quote=sql[i]
+    if(quote==='\''||quote==='"'){
+      const start=i++;let closed=false
+      while(i<sql.length){if(sql[i]===quote){if(sql[i+1]===quote){i+=2;continue}i++;closed=true;break}if(quote==='\''&&sql[i]==='\\'){i+=2;continue}i++}
+      if(!closed)return []
+      current+=quote==='"'||sql.slice(start,i)==="'{}'"?sql.slice(start,i):' ? ';continue
+    }
+    const dollar=/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i))
+    if(dollar){const end=sql.indexOf(dollar[0],i+dollar[0].length);if(end<0)return [];i=end+dollar[0].length;current+=' ? ';continue}
+    if(sql[i]===';'){statements.push(current);current='';i++;continue}
+    current+=sql[i++]
+  }
+  // An unterminated statement does not prove executable DDL.
+  return statements
+}
+
+function provenAddedColumns(sqlTexts) {
+  const identifier=String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_$]*)`
+  const type=String.raw`(?:smallint|integer|bigint|boolean|text|uuid|date|timestamptz|timestamp(?:\s+(?:with|without)\s+time\s+zone)?)`
+  const add=new RegExp(String.raw`^\s*alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(${identifier}\s*\.\s*${identifier})\s+add\s+column\s+(?:if\s+not\s+exists\s+)?(${identifier})\s+${type}(?:\s+(?:not\s+null|null))?(?:\s+default\s+(?:now\s*\(\s*\)|current_timestamp|true|false|-?\d+))?\s*$`,'i')
+  const jsonb=new RegExp(String.raw`^\s*alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(${identifier}\s*\.\s*${identifier})\s+add\s+column\s+(?:if\s+not\s+exists\s+)?(${identifier})\s+jsonb(?:\s+(?:not\s+null|null))?(?:\s+default\s+'{}'\s*::\s*jsonb)?\s*$`,'i')
+  const proof=new Map()
+  for(const sql of sqlTexts)for(const statement of topLevelColumnStatements(sql)){
+    const match=add.exec(statement)??jsonb.exec(statement);if(!match)continue
+    const table=canonicalIdentifier(match[1]),column=canonicalIdentifier(match[2])
+    proof.set(`column ${table}.${column}`,`table ${table}`)
+  }
+  return proof
 }
 
 function provenLegacyTableAliases(sqlTexts) {
@@ -271,8 +318,12 @@ export function structuralWritesMatch(inspection, declared) {
   const actual=[...inspection.objects].sort(), held=[...declared].sort()
   if(new Set(actual).size!==actual.length||new Set(held).size!==held.length)return false
   const aliases=new Set(inspectedAliasProofs.get(inspection)??[])
-  const compared=held.filter((key)=>!(/^table /.test(key)&&aliases.has(key)
-    &&held.includes(key.replace(/^table /,'view '))&&actual.includes(key.replace(/^table /,'view '))))
+  const columns=inspectedAddedColumns.get(inspection)??new Map()
+  const compared=held.filter((key)=>{
+    if(/^table /.test(key)&&aliases.has(key)&&held.includes(key.replace(/^table /,'view '))&&actual.includes(key.replace(/^table /,'view ')))return false
+    const parent=columns.get(key)
+    return !(parent&&held.includes(parent)&&actual.includes(parent)&&!actual.includes(key))
+  })
   return actual.length===compared.length&&actual.every((value,index)=>value===compared[index])
 }
 
