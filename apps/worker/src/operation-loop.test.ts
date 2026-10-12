@@ -89,7 +89,7 @@ test("actual rebuild counts survive multiple batches, interrupted persistence an
 
 test("an empty scheduled candidate batch reports exact zero rather than unavailable counts", () => {
   const progress = mergeProgress("rebuild-style-groups", {}, qualifyRebuildRowCounts({
-    ok: true, done: false, stage: "rebuild_assets", rows_examined: 0, assets_assigned: 0, assets_ungrouped: 0,
+    ok: true, done: false, stage: "rebuild_assets", rows_examined: 0, assets_assigned: 0, assets_ungrouped: 0, total_processed: 0,
   }, scheduledRebuild));
   assert.equal(progress.rebuild_counts_exact, true);
   assert.equal(progress.rows_examined, 0);
@@ -410,4 +410,24 @@ test("receipt-less clear after a crash matches the vendored #3543 contract and t
   const source = readFileSync(new URL("./operation-loop.ts", import.meta.url), "utf8");
   assert.match(source, /resultJob\?\.lease_token \|\| resultJob\?\.clear_after_reconciliation/);
   assert.match(source, /saved\.reason === "already_cleared" && resultJob\.clear_after_reconciliation/);
+});
+
+
+test("a state cursor ahead of loop progress never labels the partial sum exact", () => {
+  const previous = { rows_examined: 3, rows_written: 2, rebuild_counts_exact: true, total_processed: 3 };
+  const progress = mergeProgress("rebuild-style-groups", previous, qualifyRebuildRowCounts({
+    ok: true, done: false, stage: "rebuild_assets", rows_examined: 2, assets_assigned: 1, assets_ungrouped: 0, total_processed: 8,
+  }, scheduledRebuild));
+  assert.equal(progress.total_processed, 8, "the authoritative handler total and job progress are preserved");
+  assert.equal(progress.rebuild_counts_exact, false);
+  assert.equal(progress.rows_examined, null);
+  assert.equal(progress.rows_written, null);
+  assert.match(buildResultMessage("rebuild-style-groups", progress), /counts unavailable/);
+});
+test("missing authoritative scheduled total never becomes an exact run count", () => {
+  const progress = mergeProgress("rebuild-style-groups", {}, qualifyRebuildRowCounts({
+    ok: true, done: false, stage: "rebuild_assets", rows_examined: 2, assets_assigned: 1, assets_ungrouped: 0,
+  }, scheduledRebuild));
+  assert.equal(progress.rebuild_counts_exact, false);
+  assert.equal(progress.rows_examined, null);
 });

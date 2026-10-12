@@ -469,7 +469,10 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
           && isRebuildRowCount(selected) && isRebuildRowCount(assigned) && isRebuildRowCount(ungrouped)) {
           const examined = (freshPrefix ? 0 : Number(prev.rows_examined)) + selected;
           const written = (freshPrefix ? 0 : Number(prev.rows_written)) + assigned + ungrouped;
-          rowCounts = Number.isSafeInteger(examined) && Number.isSafeInteger(written)
+          // The handler commits its cursor/total before this separate progress
+          // write. A crash between them must not label an incomplete sum exact.
+          const reconciled = isRebuildRowCount(batch.total_processed) && batch.total_processed === examined;
+          rowCounts = reconciled && Number.isSafeInteger(examined) && Number.isSafeInteger(written)
             ? { rows_examined: examined, rows_written: written, rebuild_counts_exact: true }
             : { rows_examined: null, rows_written: null, rebuild_counts_exact: false };
         } else {
