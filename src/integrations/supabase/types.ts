@@ -4702,7 +4702,7 @@ export type Database = {
       rebuild_dam_search_documents: { Args: never; Returns: Json }
       rebuild_style_groups_batch:
         | {
-            Args: { p_batch_size?: number; p_last_asset_id?: string }
+            Args: { p_batch_size?: number; p_last_asset_id?: string | null }
             Returns: {
               assets_assigned: number
               assets_ungrouped: number
@@ -4714,8 +4714,8 @@ export type Database = {
         | {
             Args: {
               p_batch_size: number
-              p_changed_since: string
-              p_last_asset_id: string
+              p_changed_since: string | null
+              p_last_asset_id: string | null
             }
             Returns: {
               assets_assigned: number
