@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { paidStart, assertPaidReviewCapacity, pauseActualReviewFailure, derivePaidContentProof } from './review-circuit-breaker.mjs'
@@ -562,13 +563,22 @@ test('named import union refuses custom merge attributes and symlink resolution'
  const link=namedImportFixture(t),blob=link.git(['rev-parse',`${link.after}:${link.file}`]).trim();link.git(['update-index','--cacheinfo',`120000,${blob},${link.file}`]);link.git(['commit','-qm','symlink resolution']);const after=link.git(['rev-parse','HEAD']).trim();assert.throws(()=>derivePaidContentProof(link.before,after,link.main,link.git),/provenance refused/)
 })
 
-function sidecarRegistryFixture(t,{variant=null,repair=false}={}){
+function sidecarRegistryFixture(t,{variant=null,repair=false,metadata=null}={}){
  const f=realGitFixture(t),file='config/production-verification-sidecar-registry.json'
  mkdirSync(path.join(f.dir,'config'),{recursive:true})
  const original=[{version:'20261010000000',issue:null}],author={version:'20261011220717',issue:4210},upstream={version:'20261011201710',issue:4172}
  const encode=items=>JSON.stringify({schema_version:1,sidecars:items},null,2)+'\n'
+ const metadataFile='config/detector-baseline.json',sourceFile='detector.txt'
+ const pin=(source,extra='stable')=>JSON.stringify({hash:createHash('sha256').update(source).digest('hex'),extra},null,2)+'\n'
+ const originalSource='original\nseparator1\nseparator2\nend\n',authorSource='author\nseparator1\nseparator2\nend\n',mainSource='original\nseparator1\nseparator2\nprotected\n'
+ if(metadata){
+   f.commit(sourceFile,originalSource);f.commit(metadataFile,pin(originalSource))
+   f.commit('config/review-carry-forward-stored-hashes-v1.json',JSON.stringify({schema_version:1,entries:[{file:metadataFile,field:'hash',source:sourceFile}]})+'\n')
+ }
  const base=f.commit(file,encode(original))
  f.git(['switch','-qc','registry-author',base])
+ if(metadata){f.commit(sourceFile,authorSource);writeFileSync(path.join(f.dir,metadataFile),metadata==='stale'?pin(originalSource):pin(authorSource,metadata==='other-bytes'?'changed':'stable'));f.git(['add',metadataFile]);f.git(['commit','--allow-empty','-qm','author pin'])}
+
  const shared={version:'20261011110000',issue:555}
  if(variant==='author-missing-issue')author.issue=null
  const authorAdditions=variant==='union-size'?Array.from({length:500},(_,i)=>({version:String(20261011230000+i),issue:600+i})):[...(variant==='same-overlap'?[shared]:[]),author]
@@ -577,6 +587,7 @@ function sidecarRegistryFixture(t,{variant=null,repair=false}={}){
  if(variant==='extra-conflict')f.commit('app.txt','author conflict\n')
  if(variant==='custom')f.commit('.gitattributes',file+' merge=union\n')
  f.git(['switch','-qc','registry-main',base])
+ if(metadata){f.commit(sourceFile,mainSource);f.commit(metadataFile,pin(mainSource))}
  let entries=[...original,upstream],text
  if(variant==='base-remove')entries=[upstream]
  if(variant==='union-size')entries=[...original,...Array.from({length:500},(_,i)=>({version:String(20261011120000+i),issue:1200+i}))]
@@ -597,6 +608,7 @@ function sidecarRegistryFixture(t,{variant=null,repair=false}={}){
  if(variant==='mode'){f.git(['update-index','--chmod=+x',file]);f.git(['commit','-qm','registry mode']);main=f.git(['rev-parse','HEAD']).trim()}
  f.git(['switch','registry-author'])
  if(variant==='custom')f.git(['merge','--no-commit','registry-main']);else assert.throws(()=>f.git(['merge','--no-commit','registry-main']),/./)
+ if(metadata){const mergedSource=readFileSync(path.join(f.dir,sourceFile),'utf8');writeFileSync(path.join(f.dir,metadataFile),pin(mergedSource));f.git(['add',metadataFile])}
  if(variant==='extra-conflict'){writeFileSync(path.join(f.dir,'app.txt'),'resolved conflict\n');f.git(['add','app.txt'])}
  let union=encode([...original,upstream,author])
  if(variant==='bad-resolution')union=encode([...original,author])
@@ -655,4 +667,37 @@ test('shipped reader refuses oversized provenance without returning partial witn
  const f=realGitFixture(t), source='x'.repeat(4*1024*1024+65536)
  const before=f.commit('types.txt',source),after=f.commit('types.txt',source+'repair')
  assert.throws(()=>derivePaidContentProof(before,after,f.base,args=>paidReviewGitReader(['-C',f.dir,...args])),/Git provenance refused:.*ENOBUFS/)
+})
+
+test('registered authenticated hash conflict plus exact registry union preserves paid caps',t=>{
+ const f=sidecarRegistryFixture(t,{metadata:'valid'}),proof=derivePaidContentProof(f.before,f.after,f.main,f.git)
+ assert.equal(proof.kind,'unchanged');assert.equal(proof.canonicalRegistryUnions.length,1)
+ assert.throws(()=>assertPaidReviewCapacity({...request,headSha:f.after},{...io([row(),row(2)]),reviewContentComparison:()=>({before:digest,after:digest,budgetProof:{...proof,before:head}})}),/third draw refused/)
+})
+test('registered hash conflict cannot conceal substantive authored repair',t=>{
+ const f=sidecarRegistryFixture(t,{metadata:'valid',repair:true}),proof=derivePaidContentProof(f.before,f.after,f.main,f.git)
+ assert.equal(proof.kind,'substantive');assert.equal(proof.witness.path,'app.txt')
+})
+for(const metadata of ['stale','other-bytes'])test(`stored hash conflict refuses ${metadata}`,t=>{
+ const f=sidecarRegistryFixture(t,{metadata});assert.throws(()=>derivePaidContentProof(f.before,f.after,f.main,f.git),/provenance refused/)
+})
+test('authenticated stored hash does not admit an additional source conflict',t=>{
+ const f=sidecarRegistryFixture(t,{metadata:'valid',variant:'extra-conflict'})
+ assert.throws(()=>derivePaidContentProof(f.before,f.after,f.main,f.git),/conflict is outside/)
+})
+test('stored hash reconstruction authenticates original stages',t=>{
+ const f=sidecarRegistryFixture(t,{metadata:'valid'})
+ const forged=args=>{try{return f.git(args)}catch(error){if(args[0]==='merge-tree'&&error.status===1)error.stdout=error.stdout.replace(/100644 [0-9a-f]{40} 2\tconfig\/detector-baseline.json/,'100644 '+'f'.repeat(40)+' 2\tconfig/detector-baseline.json');throw error}}
+ assert.throws(()=>derivePaidContentProof(f.before,f.after,f.main,forged),/stored hash conflict stages/)
+})
+test('resolved metadata requires a valid source hash and all other bytes',t=>{
+ for(const wrong of ['stale','other-bytes','mode']){
+  const f=sidecarRegistryFixture(t,{metadata:'valid'})
+  const file='config/detector-baseline.json',record=JSON.parse(readFileSync(path.join(f.dir,file),'utf8'))
+  if(wrong==='stale')record.hash='f'.repeat(64)
+  if(wrong==='other-bytes')record.extra='changed'
+  if(wrong==='mode'){f.git(['update-index','--chmod=+x',file]);f.git(['commit','-qm','metadata mode'])}
+  else f.commit(file,JSON.stringify(record,null,2)+'\n')
+  assert.throws(()=>derivePaidContentProof(f.before,f.git(['rev-parse','HEAD']).trim(),f.main,f.git),/provenance refused/)
+ }
 })

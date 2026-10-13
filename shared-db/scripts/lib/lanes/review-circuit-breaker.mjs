@@ -224,8 +224,8 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     const overrides=a?.overrides??new Map()
     const selected=[...overrides.keys()]
     if(run(['diff','--name-only',tree(a),tree(b),'--',...paths,...selected.map(p=>`:(top,literal,exclude)${p}`)])!=='')return false
-    if(!stored.every(file=>normalizedStoredHashFile(tree(a),file,registry,{gitRunner:git})===normalizedStoredHashFile(tree(b),file,registry,{gitRunner:git})))return false
-    return selected.every(file=>{const actual=entry(b,file),expected=overrides.get(file);return actual.mode===expected.mode && actual.text===expected.text})
+    if(!stored.every(file=>(overrides.get(file)?.normalizedStoredHash??normalizedStoredHashFile(tree(a),file,registry,{gitRunner:git}))===normalizedStoredHashFile(tree(b),file,registry,{gitRunner:git})))return false
+    return selected.every(file=>{if(overrides.get(file)?.normalizedStoredHash)return true;const actual=entry(b,file),expected=overrides.get(file);return actual.mode===expected.mode && actual.text===expected.text})
   }
   const canonicalAppend = (a,b,base) => {
     const file='scripts/manage-migration-author-lanes.test.mjs'
@@ -360,12 +360,37 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     catch(error) {
       if(error?.status!==1 || typeof error.stdout!=='string')throw error
       const lines=error.stdout.split('\n'),resultTree=lines[0]
-      const stages=lines.slice(1).filter(line=>/^[0-9]{6} /.test(line))
+      let stages=lines.slice(1).filter(line=>/^[0-9]{6} /.test(line))
+      const metadataOverrides=new Map()
+      // The protected registry already sets aside ONLY correctly pinned hashes.
+      // Reconstruct a conflicting registered file only when all three complete
+      // regular blobs authenticate their pins and normalize to identical bytes.
+      // Source files remain in the ordinary merge and authored-witness checks.
+      for(const file of stored){
+        const group=stages.filter(line=>line.endsWith(`\t${file}`))
+        if(!group.length)continue
+        const commits=[base,a,b],rows=commits.map(commit=>entry(commit,file))
+        if(group.length!==3 || group.some((line,i)=>line!==`100644 ${rows[i].blob} ${i+1}\t${file}`))throw new LaneError('review budget stored hash conflict stages refused')
+        const normalized=commits.map(commit=>normalizedStoredHashFile(commit,file,registry,{gitRunner:git}))
+        for(const item of registry.filter(item=>item.file===file)){
+          for(let i=0;i<commits.length;i++){
+            const source=entry(commits[i],item.source)
+            const digest=createHash('sha256').update(source.text.replace(/\r\n/g,'\n')).digest('hex')
+            const matches=[...rows[i].text.matchAll(new RegExp(`("${item.field}"\\s*:\\s*")([0-9a-f]{64})(")`,'g'))]
+            if(matches.length!==1 || matches[0][2]!==digest || !normalized[i].includes(`<verified sha256 of ${item.source}>`))throw new LaneError('review budget stored hash conflict pin refused')
+          }
+        }
+        if(normalized.some(value=>value!==normalized[0]))throw new LaneError('review budget stored hash conflict changes other bytes')
+        metadataOverrides.set(file,{mode:'100644',text:rows[1].text,normalizedStoredHash:normalized[0]})
+        stages=stages.filter(line=>!group.includes(line))
+      }
+      const withMetadata=overrides=>({tree:resultTree,overrides:new Map([...metadataOverrides,...overrides])})
+      if(sha.test(resultTree) && stages.length===0 && metadataOverrides.size)return withMetadata(new Map())
       if(!sha.test(resultTree) || stages.length!==3)throw new LaneError('review budget conflict is outside the one canonical test append')
-      if(stages.every((line,i)=>new RegExp(`^(100644|100755) [0-9a-f]{40} ${i+1}\\tscripts/manage-migration-author-lanes\\.test\\.mjs$`).test(line)))return {tree:resultTree,overrides:canonicalAppend(a,b,base)}
-      if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tscripts/production_business_risk_gate\\.py$`).test(line)))return {tree:resultTree,overrides:canonicalPinOverlap(a,b,base)}
-      if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tscripts/orchestrator-flow/admission-outcome\\.test\\.mjs$`).test(line)))return {tree:resultTree,overrides:canonicalImportUnion(a,b,base,stages)}
-      if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tconfig/production-verification-sidecar-registry\\.json$`).test(line)))return {tree:resultTree,overrides:canonicalRegistryUnion(a,b,base,stages)}
+      if(stages.every((line,i)=>new RegExp(`^(100644|100755) [0-9a-f]{40} ${i+1}\\tscripts/manage-migration-author-lanes\\.test\\.mjs$`).test(line)))return withMetadata(canonicalAppend(a,b,base))
+      if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tscripts/production_business_risk_gate\\.py$`).test(line)))return withMetadata(canonicalPinOverlap(a,b,base))
+      if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tscripts/orchestrator-flow/admission-outcome\\.test\\.mjs$`).test(line)))return withMetadata(canonicalImportUnion(a,b,base,stages))
+      if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tconfig/production-verification-sidecar-registry\\.json$`).test(line)))return withMetadata(canonicalRegistryUnion(a,b,base,stages))
       throw new LaneError('review budget conflict is outside the one canonical test append')
     }
     if (!sha.test(result)) throw new LaneError('review budget automatic merge proof unreadable')

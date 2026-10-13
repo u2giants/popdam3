@@ -1,0 +1,56 @@
+{
+  "allowed_paths": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    ".agent/work/3536/372/contract.json",
+    ".agent/work/3536/372/completion.json"
+  ],
+  "assumptions": [
+    "Root explicitly authorized narrow registered hash metadata reconstruction before edits",
+    "Original licensing09d/main0a39 conflict has registry and detector baseline paths",
+    "Frozen original reports and nine STARTs immutable; no retrospective witness"
+  ],
+  "base_sha": "c9cc89fb6a44b53fc1859fd9f5e09aedff2c58e7",
+  "branch": "codex/review-recovery-1013",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex root authorized narrow reconstruction in current chat",
+  "evidence_parent": {
+    "work_issue": 3536,
+    "generation": 371,
+    "contract_sha256": "772f2f99d93d6938e6802f8d43bdf599398e5d7739a38ab7bd89be782661871b"
+  },
+  "file_writes": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    ".agent/work/3536/372/contract.json",
+    ".agent/work/3536/372/completion.json"
+  ],
+  "generation": 372,
+  "goal": "Reconstruct only authenticated registered stored-hash metadata conflicts while preserving all existing exact source conflict rules, complete-byte normalization, author witness and paid caps. Investigate immutable frozen queue evidence without rewriting it.",
+  "prohibited_actions": [
+    "No claim/ref/lease/history/source migration/function/production or frozenqueue edits",
+    "No missing/foreign caller authority, caller-pattern widening or substring identity",
+    "No cron disable, test weakening/quarantine/removal, old verdict carry, budget/refund/2758 bypass",
+    "No manual production action or prior-main risk assessment reuse",
+    "No source SQL/ACL mutation, schema or production write; no ordinary-source bound beyond4MiB; no contract/report1MiB change; no semantic capacity/hash/history/source witness waiver."
+  ],
+  "required_checks": [
+    "Focused complete reviewer circuit suite PASS",
+    "Authenticated metadata conflict positive and malformed/source/other-byte/mode/foreign-path negatives PASS",
+    "Original paid caps and unchanged source exceptions PASS",
+    "Actual licensing Git reconstruction proof"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Any cross-chat, malformed or arbitrary alias accepts",
+    "Any selected change edits foreign claim/evidence or source SQL",
+    "Any independent reviewer refuses or required check fails",
+    "Any original gate/cap/claim scope loses enforcement"
+  ],
+  "work_issue": 3536,
+  "work_type": "repo-maintenance",
+  "worker": "Codex review_recovery subagent",
+  "worktree": "/home/ahazan/.codex/worktrees/review-recovery-1013/shared-db"
+}
