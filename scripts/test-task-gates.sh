@@ -5,6 +5,10 @@ pass(){ passes=$((passes + 1)); printf 'PASS: %s\n' "$1"; }; fail(){ printf 'FAI
 expect_class(){ local path="$1" expected="$2" label="$3" actual; printf '%s\n' "$path" > "$TMP/paths"; actual="$(ai-task-gates explain --json --paths-from "$TMP/paths" | jq -r '.observed_class')"; if [ "$actual" = "$expected" ]; then pass "$label"; else fail "$label (expected $expected, got $actual)"; fi; }
 expect_class scripts/refresh-style-tracker-rows.py reviewer-safety 'Master row writer receives protected review'
 expect_class scripts/refresh-google-orderlist-rows.py reviewer-safety 'Order row writer receives protected review'
+expect_class scripts/consolidate-orderlist-matches.py reviewer-safety 'Reviewed order consolidation receives protected review'
+expect_class scripts/test-consolidate-orderlist-matches.py reviewer-safety 'Order consolidation guards receive protected review'
+expect_class scripts/orderlist-source-dispositions.py reviewer-safety 'Source exception planner receives protected review'
+expect_class scripts/test-orderlist-source-dispositions.py reviewer-safety 'Source exception guards receive protected review'
 expect_class scripts/load-orderlist-integration-inputs.py reviewer-safety 'Auxiliary input writer receives protected review'
 expect_class scripts/test-load-orderlist-integration-inputs.py reviewer-safety 'Auxiliary writer guards receive protected review'
 expect_class scripts/repair-style-tracker-overflow-dates.py reviewer-safety 'Source fidelity row repair receives protected review'
