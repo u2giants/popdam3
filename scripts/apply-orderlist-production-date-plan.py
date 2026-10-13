@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import hashlib
 import importlib.util
 import json
@@ -21,8 +22,11 @@ POOLER_HOST = 'aws-1-us-east-1.pooler.supabase.com'
 POOLER_PORT = 5432
 POOLER_USER = 'postgres.' + TARGET
 DATABASE = 'postgres'
+CA_FILE = ROOT / 'shared-db' / 'scripts' / 'certs' / 'supabase-root-2021.crt'
+CA_SHA256 = '700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7'
 MAX_PROPOSALS = 1000
 MAX_BATCH_SCOPE_ROWS = 100000
+MAX_PROTECTED_INPUT_BYTES = 128 * 1024 * 1024
 REVIEW_BUNDLE_SCHEMA = 'orderlist-production-date-review-bundle-v1'
 GATE_LAUNCHER = Path('/usr/local/bin/ai-task-gates')
 GATE_RESOLVED_PATH = Path('/worksp/ai-devops/bin/ai-task-gates')
@@ -55,12 +59,23 @@ def _read_fd(path: Path, *, allowed_uids: set[int], mode_0600: bool = False) -> 
                 (mode_0600 and stat.S_IMODE(info.st_mode) != 0o600) or
                 (not mode_0600 and info.st_mode & (stat.S_IWGRP | stat.S_IWOTH))):
             raise ValueError('Protected input has unsafe ownership or permissions')
+        if info.st_size > MAX_PROTECTED_INPUT_BYTES:
+            raise ValueError('Protected input exceeds the 128 MiB input bound')
         chunks = []
+        total = 0
         while True:
             chunk = os.read(fd, 1024 * 1024)
             if not chunk:
                 break
+            total += len(chunk)
+            if total > MAX_PROTECTED_INPUT_BYTES:
+                raise ValueError('Protected input exceeds the 128 MiB input bound')
             chunks.append(chunk)
+        after = os.fstat(fd)
+        stable_fields = ('st_dev', 'st_ino', 'st_uid', 'st_mode', 'st_size',
+                         'st_mtime_ns', 'st_ctime_ns')
+        if any(getattr(info, field) != getattr(after, field) for field in stable_fields):
+            raise ValueError('Protected input changed while being read')
         return b''.join(chunks)
     finally:
         os.close(fd)
@@ -72,6 +87,25 @@ def read_private_input(path: Path) -> bytes:
 
 def read_reviewer_report(path: Path) -> bytes:
     return _read_fd(path, allowed_uids={os.getuid(), 0}, mode_0600=False)
+
+
+@contextmanager
+def _pinned_ca_file():
+    ca_bytes = _read_fd(CA_FILE, allowed_uids={os.getuid(), 0})
+    if sha_bytes(ca_bytes) != CA_SHA256:
+        raise ValueError('Pinned Virginia database certificate checksum mismatch')
+    with tempfile.TemporaryDirectory(prefix='popdam-date-ca-') as ca_dir:
+        ca_path = Path(ca_dir) / 'supabase-root-2021.crt'
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0)
+        fd = os.open(ca_path, flags, 0o600)
+        with os.fdopen(fd, 'wb') as ca_handle:
+            ca_handle.write(ca_bytes)
+            ca_handle.flush()
+            os.fsync(ca_handle.fileno())
+        private_copy = _read_fd(ca_path, allowed_uids={os.getuid()}, mode_0600=True)
+        if sha_bytes(private_copy) != CA_SHA256:
+            raise ValueError('Private Virginia database certificate copy failed verification')
+        yield ca_path
 
 
 def load_frozen_plan(path: Path, expected_sha: str, raw: bytes | None = None) -> dict:
@@ -221,8 +255,10 @@ def connect():
         target = conninfo_to_dict(dsn)
         if not _conninfo_target_ok(target):
             raise ValueError('Connection does not identify the expected production project')
-        conn = psycopg.connect(dsn, connect_timeout=8, sslmode='verify-full',
-                               sslrootcert='system')
+        # libpq reads CA files by path, so use a private pinned copy.
+        with _pinned_ca_file() as ca_path:
+            conn = psycopg.connect(dsn, connect_timeout=8, sslmode='verify-full',
+                                   sslrootcert=str(ca_path))
         try:
             # The first target proof is a read-only session. It cannot issue
             # application SQL even if a caller reaches this function directly.
@@ -299,15 +335,15 @@ def _bounded_rows(conn, query: str, params: tuple, lock: str = '',
     return [row[0] for row in fetched]
 
 
-def _batch_customer_snapshot(conn, plan: dict, lock: bool = False) -> list[dict]:
-    if (plan.get('customer_identity_snapshot_complete') is not True or
+def _batch_customer_snapshot(conn, plan: dict | None = None, lock: bool = False) -> list[dict]:
+    if plan is not None and (plan.get('customer_identity_snapshot_complete') is not True or
             plan.get('customer_identity_snapshot_row_limit') != planner.CUSTOMER_IDENTITY_SNAPSHOT_LIMIT):
         raise ValueError('A complete bounded ERP customer identity snapshot is required')
     locking = ' FOR SHARE OF e, c' if lock else ''
     query = (
         'SELECT to_jsonb(mapped) AS row FROM ('
         'SELECT e.company_code, e.customer_code, e.customer_id, '
-        'c.canonical_name, c.display_name, c.routing_aliases, c.normalized_name, '
+        'c.name AS canonical_name, c.display_name, c.routing_aliases, c.normalized_name, '
         'e.updated_at AS erp_updated_at, c.updated_at AS customer_updated_at '
         'FROM plm.erp_customer AS e JOIN core.customer AS c ON c.id = e.customer_id '
         f'ORDER BY e.company_code, e.customer_code LIMIT {planner.CUSTOMER_IDENTITY_SNAPSHOT_LIMIT + 1}{locking}'
@@ -316,7 +352,7 @@ def _batch_customer_snapshot(conn, plan: dict, lock: bool = False) -> list[dict]
     snapshot = [row[0] for row in conn.execute(query).fetchall()]
     if len(snapshot) > planner.CUSTOMER_IDENTITY_SNAPSHOT_LIMIT:
         raise ValueError('Live ERP customer identity snapshot exceeds the 2,000-row bound')
-    if (len(snapshot) != plan.get('customer_identity_snapshot_count') or
+    if plan is not None and (len(snapshot) != plan.get('customer_identity_snapshot_count') or
             planner.customer_identity_snapshot_digest(snapshot) !=
             plan.get('customer_identity_snapshot_digest')):
         raise ValueError('Complete ERP customer identity snapshot changed since planning')

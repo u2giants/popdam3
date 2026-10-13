@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import stat
 from types import SimpleNamespace
 import tempfile
 import unittest
@@ -100,6 +101,20 @@ class ProductionDatePlannerTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'changed while being read'):
                     planmod._read_protected_capture(path, hashlib.sha256(raw).hexdigest())
 
+    def test_protected_capture_rejects_oversized_inode_before_reading(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'capture.json'
+            path.write_bytes(b'{}')
+            path.chmod(0o600)
+            fake_stat = SimpleNamespace(
+                st_dev=1, st_ino=2, st_uid=os.geteuid(), st_mode=stat.S_IFREG | 0o600,
+                st_size=planmod.MAX_PROTECTED_INPUT_BYTES + 1,
+                st_mtime_ns=1, st_ctime_ns=1)
+            with (mock.patch.object(planmod.os, 'fstat', return_value=fake_stat),
+                  mock.patch.object(planmod.os, 'fdopen', side_effect=AssertionError('must not read'))):
+                with self.assertRaisesRegex(ValueError, '128 MiB input bound'):
+                    planmod._read_protected_capture(path, hashlib.sha256(b'{}').hexdigest())
+
     def test_protected_capture_rejects_symlinks_bad_permissions_and_malformed_json(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -184,6 +199,50 @@ class ProductionDatePlannerTests(unittest.TestCase):
         self.assertEqual(result['proposals'][0]['match_route'], 'erp_customer_bridge')
         self.assertEqual(result['proposals'][0]['identity_scope_customer_identity_preimages'],
                          capture['customer_identity_rows'])
+
+    def test_missing_issued_customer_code_round_trips_alias_scope_through_executor(self):
+        capture = base_capture()
+        capture['prod_history_rows'][0]['customer_code'] = None
+        mapping = {
+            'company_code': 'EDGEHOME', 'customer_code': 'CUST-1',
+            'customer_id': 'customer-1', 'canonical_name': 'Acme Incorporated',
+            'display_name': 'Acme Customer', 'routing_aliases': [],
+            'normalized_name': 'acme incorporated', 'erp_updated_at': '2026-10-12T12:00:00Z',
+            'customer_updated_at': '2026-10-12T13:00:00Z',
+        }
+        capture['customer_identity_rows'] = [mapping]
+        plan = planmod.build_plan(capture)
+        self.assertEqual(plan['counts']['proposed'], 1)
+        proposal = plan['proposals'][0]
+        self.assertEqual(proposal['customer_identity_scope_pairs'], [['EDGEHOME', 'CUST-1']])
+        self.assertEqual(proposal['identity_scope_customer_identity_preimages'], [mapping])
+        snapshot = {
+            'headers': proposal['identity_scope_header_preimages'],
+            'lines': proposal['identity_scope_line_preimages'],
+            'refs': proposal['identity_scope_ref_preimages'],
+            'source': proposal['identity_scope_source_preimages'],
+            'customer_rows': [mapping],
+        }
+        executormod._assert_batch_snapshot(plan, snapshot)
+
+        snapshot['customer_rows'][0] = {**mapping, 'display_name': 'Renamed Customer'}
+        with self.assertRaisesRegex(ValueError, 'ERP customer identity bridge changed'):
+            executormod._assert_batch_snapshot(plan, snapshot)
+
+    def test_unavailable_customer_name_still_returns_frozen_rows_and_pairs(self):
+        issued = [{'company_code': 'EDGEHOME', 'customer_code': 'CUST-1'}]
+        mapping = {
+            'company_code': 'EDGEHOME', 'customer_code': 'CUST-1',
+            'customer_id': 'customer-1', 'canonical_name': 'Acme Incorporated',
+            'display_name': 'Acme Customer', 'routing_aliases': [],
+            'normalized_name': 'acme incorporated', 'erp_updated_at': '2026-10-12T12:00:00Z',
+            'customer_updated_at': '2026-10-12T13:00:00Z',
+        }
+        status, scoped_rows, pairs = planmod._customer_bridge_scope(
+            None, issued, [mapping], True, [('EDGEHOME', 'CUST-1')])
+        self.assertEqual(status, 'unavailable')
+        self.assertEqual(scoped_rows, [mapping])
+        self.assertEqual(pairs, [['EDGEHOME', 'CUST-1']])
 
     def test_reused_d_bridge_scope_round_trips_through_batch_executor_and_detects_drift(self):
         capture = base_capture()
@@ -311,6 +370,16 @@ class ProductionDatePlannerTests(unittest.TestCase):
         capture = base_capture()
         capture['customer_identity_snapshot_row_limit'] = 100
         with self.assertRaisesRegex(ValueError, 'requires a complete customer identity bridge snapshot'):
+            planmod.build_plan(capture)
+
+    def test_held_header_ids_must_be_an_array_of_uuid_strings(self):
+        capture = base_capture()
+        capture['held_header_ids'] = 'not-an-array'
+        with self.assertRaisesRegex(ValueError, 'must be an array'):
+            planmod.build_plan(capture)
+        capture = base_capture()
+        capture['held_header_ids'] = ['not-a-uuid']
+        with self.assertRaisesRegex(ValueError, 'UUID strings'):
             planmod.build_plan(capture)
 
     def test_source_ref_mismatch_is_a_contradiction_not_fallback(self):
@@ -485,7 +554,9 @@ class ProductionDatePlannerTests(unittest.TestCase):
 
     def test_held_and_nonblank_orders_are_never_proposed(self):
         capture = base_capture()
-        capture['held_header_ids'] = ['header-1']
+        capture['headers'][0]['id'] = '00000000-0000-0000-0000-000000000001'
+        capture['lines'][0]['production_order_id'] = capture['headers'][0]['id']
+        capture['held_header_ids'] = [capture['headers'][0]['id']]
         self.assertEqual(planmod.build_plan(capture)['counts']['proposed'], 0)
         capture = base_capture()
         capture['headers'][0]['order_date'] = '2020-02-03'

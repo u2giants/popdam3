@@ -6,11 +6,15 @@ import hashlib
 import importlib.util
 import json
 import copy
+import os
 from pathlib import Path
+import stat
+from types import SimpleNamespace
 import tempfile
 import unittest
 from unittest import mock
 import subprocess
+import types
 
 SCRIPT = Path(__file__).with_name('apply-orderlist-production-date-plan.py')
 SPEC = importlib.util.spec_from_file_location('apply_production_date_plan', SCRIPT)
@@ -189,6 +193,20 @@ class FakeCursor:
 
 
 class ApplyProductionDatePlanTests(unittest.TestCase):
+    def test_executor_rejects_oversized_private_input_before_reading(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'oversized-plan.json'
+            path.write_bytes(b'{}')
+            path.chmod(0o600)
+            fake_stat = SimpleNamespace(
+                st_dev=1, st_ino=2, st_uid=os.getuid(), st_mode=stat.S_IFREG | 0o600,
+                st_size=executor.MAX_PROTECTED_INPUT_BYTES + 1,
+                st_mtime_ns=1, st_ctime_ns=1)
+            with (mock.patch.object(executor.os, 'fstat', return_value=fake_stat),
+                  mock.patch.object(executor.os, 'read', side_effect=AssertionError('must not read'))):
+                with self.assertRaisesRegex(ValueError, '128 MiB input bound'):
+                    executor.read_private_input(path)
+
     def test_transaction_mode_is_verified_before_application_reads(self):
         class TransactionConnection:
             def __init__(self, isolation='serializable', read_only='on'):
@@ -273,6 +291,9 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
         self.assertEqual(sum('FROM plm.production_order_line_source_ref AS t' in q for q, _ in connection.queries), 1)
         self.assertEqual(sum('FROM coldlion.prod_history_line AS s' in q for q, _ in connection.queries), 1)
         self.assertEqual(sum('FROM plm.erp_customer AS e' in q for q, _ in connection.queries), 1)
+        customer_query = next(q for q, _ in connection.queries if 'FROM plm.erp_customer AS e' in q)
+        self.assertIn('c.name AS canonical_name', customer_query)
+        self.assertNotIn('c.canonical_name', customer_query)
         self.assertFalse(any(q.lstrip().upper().startswith('UPDATE ') for q, _ in connection.queries))
 
     def test_bulk_update_uses_one_values_statement_and_rejects_partial_count(self):
@@ -366,6 +387,71 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
             'port': '5432', 'dbname': 'postgres', 'sslmode': 'verify-full',
         }))
 
+    def test_pinned_ca_is_verified_copied_private_and_used_with_verify_full(self):
+        certificate = executor.CA_FILE.read_bytes()
+        self.assertEqual(executor.sha_bytes(certificate), executor.CA_SHA256)
+        with executor._pinned_ca_file() as ca_path:
+            self.assertEqual(ca_path.read_bytes(), certificate)
+            self.assertEqual(ca_path.stat().st_mode & 0o777, 0o600)
+        self.assertFalse(ca_path.exists())
+
+        class Connection:
+            def __init__(self):
+                self.info = types.SimpleNamespace(
+                    host=executor.POOLER_HOST, port=executor.POOLER_PORT,
+                    user=executor.POOLER_USER, dbname=executor.DATABASE)
+                self.closed = False
+            def commit(self):
+                pass
+            def close(self):
+                self.closed = True
+
+        conn = Connection()
+        calls = {}
+        psycopg = types.ModuleType('psycopg')
+        def fake_connect(dsn, **kwargs):
+            calls.update(kwargs)
+            ca_path = Path(kwargs['sslrootcert'])
+            calls['ca_bytes'] = ca_path.read_bytes()
+            calls['ca_mode'] = ca_path.stat().st_mode & 0o777
+            return conn
+        psycopg.connect = fake_connect
+        conninfo = types.ModuleType('psycopg.conninfo')
+        conninfo.conninfo_to_dict = lambda dsn: {
+            'host': executor.POOLER_HOST, 'user': executor.POOLER_USER,
+            'port': '5432', 'dbname': 'postgres', 'sslmode': 'verify-full'}
+        identity = types.SimpleNamespace(fingerprint=('db', 'addr', 'started'))
+        with (mock.patch.dict('sys.modules', {'psycopg': psycopg, 'psycopg.conninfo': conninfo}),
+              mock.patch.dict('os.environ', {'PRODUCTION_DATABASE_URL': 'host=approved'}),
+              mock.patch.object(executor.shared_db_importer, 'assert_server_is_target', return_value=identity),
+              mock.patch.object(executor.shared_db_importer, 'read_server_identity', return_value=identity)):
+            returned, fingerprint = executor.connect()
+        self.assertIs(returned, conn)
+        self.assertEqual(fingerprint, identity.fingerprint)
+        self.assertEqual(calls['sslmode'], 'verify-full')
+        self.assertEqual(calls['ca_bytes'], certificate)
+        self.assertEqual(calls['ca_mode'], 0o600)
+        self.assertNotEqual(calls['sslrootcert'], 'system')
+
+    def test_pinned_ca_rejects_changed_certificate_bytes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            fake_ca = Path(folder) / 'root.crt'
+            fake_ca.write_bytes(b'wrong certificate')
+            fake_ca.chmod(0o444)
+            with (mock.patch.object(executor, 'CA_FILE', fake_ca),
+                  self.assertRaisesRegex(ValueError, 'checksum mismatch')):
+                with executor._pinned_ca_file():
+                    self.fail('Invalid certificate was yielded to libpq')
+
+    def test_pinned_ca_rejects_writable_source_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            fake_ca = Path(folder) / 'root.crt'
+            fake_ca.write_bytes(executor.CA_FILE.read_bytes())
+            fake_ca.chmod(0o664)
+            with (mock.patch.object(executor, 'CA_FILE', fake_ca),
+                  self.assertRaisesRegex(ValueError, 'unsafe ownership or permissions')):
+                with executor._pinned_ca_file():
+                    self.fail('Writable certificate source was yielded to libpq')
     def test_live_batch_snapshot_locks_full_customer_bridge_and_binds_digest(self):
         plan = batch_plan()
         connection = BatchSnapshotConnection(plan)

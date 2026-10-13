@@ -18,6 +18,7 @@ from pathlib import Path
 import re
 import stat
 import sys
+from uuid import UUID
 
 SCHEMA = 'orderlist-production-date-plan-v1'
 CAPTURE_SCHEMA = 'orderlist-production-date-capture-v1'
@@ -30,6 +31,7 @@ CUSTOMER_IDENTITY_FIELDS = (
     'customer_updated_at',
 )
 CUSTOMER_IDENTITY_SNAPSHOT_LIMIT = 2000
+MAX_PROTECTED_INPUT_BYTES = 128 * 1024 * 1024
 
 
 def canonical(value) -> str:
@@ -51,6 +53,8 @@ def _read_protected_capture(path: Path, expected_sha256: str) -> tuple[dict, str
         if (not stat.S_ISREG(before.st_mode) or before.st_uid != os.geteuid() or
                 stat.S_IMODE(before.st_mode) != 0o600):
             raise ValueError('Protected capture must be an owned regular mode-0600 file')
+        if before.st_size > MAX_PROTECTED_INPUT_BYTES:
+            raise ValueError('Protected capture exceeds the 128 MiB input bound')
         with os.fdopen(fd, 'rb', closefd=False) as handle:
             raw = handle.read()
         after = os.fstat(fd)
@@ -58,6 +62,8 @@ def _read_protected_capture(path: Path, expected_sha256: str) -> tuple[dict, str
                          'st_mtime_ns', 'st_ctime_ns')
         if any(getattr(before, field) != getattr(after, field) for field in stable_fields):
             raise ValueError('Protected capture changed while being read')
+        if len(raw) > MAX_PROTECTED_INPUT_BYTES:
+            raise ValueError('Protected capture exceeds the 128 MiB input bound')
     finally:
         os.close(fd)
     actual_sha256 = hashlib.sha256(raw).hexdigest()
@@ -110,6 +116,16 @@ def _validate_capture(capture: dict) -> tuple[list[dict], str, str]:
     refs = capture.get('line_source_refs', [])
     if not all(isinstance(x, list) for x in (rows, headers, lines, refs)):
         raise ValueError('Capture collections must be arrays')
+    held_ids = capture.get('held_header_ids', [])
+    if not isinstance(held_ids, list):
+        raise ValueError('Held header identities must be an array')
+    for held_id in held_ids:
+        if not isinstance(held_id, str):
+            raise ValueError('Held header identities must be UUID strings')
+        try:
+            UUID(held_id)
+        except ValueError as exc:
+            raise ValueError('Held header identities must be UUID strings') from exc
     customer_rows = capture.get('customer_identity_rows', [])
     if not isinstance(customer_rows, list):
         raise ValueError('Customer identity bridge rows must be an array')
@@ -288,20 +304,21 @@ def _customer_bridge_scope(customer_name: str | None, issued: list[dict],
                            identity_rows: list[dict], complete: bool,
                            applicable_pairs: list[tuple[str, str]] | None = None) -> tuple[str, list[dict], list[list[str]]]:
     wanted = folded(customer_name)
-    if not wanted:
-        return 'unavailable', [], []
     source_pairs = sorted({
         (exact(row.get('company_code')), exact(row.get('customer_code')))
         for row in issued
         if exact(row.get('company_code')) and exact(row.get('customer_code'))
     })
+    frozen_pairs = sorted(set(applicable_pairs if applicable_pairs is not None else source_pairs))
+    frozen_pair_list = [list(pair) for pair in frozen_pairs]
+    scoped_rows = customer_identity_scope_rows(wanted, frozen_pair_list, identity_rows)
+    if not wanted:
+        return 'unavailable', scoped_rows, frozen_pair_list
     if not source_pairs or len(source_pairs) != len({
             (exact(row.get('company_code')), exact(row.get('customer_code'))) for row in issued}):
-        return 'unavailable', [], [list(pair) for pair in (applicable_pairs or source_pairs)]
-    frozen_pairs = sorted(set(applicable_pairs or source_pairs))
-    scoped_rows = customer_identity_scope_rows(wanted, [list(pair) for pair in frozen_pairs], identity_rows)
+        return 'unavailable', scoped_rows, frozen_pair_list
     if not complete:
-        return 'unavailable', scoped_rows, [list(pair) for pair in frozen_pairs]
+        return 'unavailable', scoped_rows, frozen_pair_list
     by_pair: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for row in identity_rows:
         company = exact(row.get('company_code'))
@@ -311,13 +328,13 @@ def _customer_bridge_scope(customer_name: str | None, issued: list[dict],
     customer_ids = set()
     for pair in source_pairs:
         if len(by_pair.get(pair, [])) != 1:
-            return 'unavailable', scoped_rows, [list(x) for x in frozen_pairs]
+            return 'unavailable', scoped_rows, frozen_pair_list
         customer_id = exact(by_pair[pair][0].get('customer_id'))
         if not customer_id:
-            return 'unavailable', scoped_rows, [list(x) for x in frozen_pairs]
+            return 'unavailable', scoped_rows, frozen_pair_list
         customer_ids.add(customer_id)
     if len(customer_ids) != 1:
-        return 'ambiguous', scoped_rows, [list(x) for x in frozen_pairs]
+        return 'ambiguous', scoped_rows, frozen_pair_list
     # A display name or routing alias shared by different customer IDs is not
     # sufficient evidence, even when the particular ERP code appears valid.
     alias_owners = {
@@ -327,13 +344,13 @@ def _customer_bridge_scope(customer_name: str | None, issued: list[dict],
     }
     if alias_owners != customer_ids:
         return ('ambiguous' if alias_owners else 'alias_mismatch',
-                scoped_rows, [list(pair) for pair in frozen_pairs])
+                scoped_rows, frozen_pair_list)
     mapped_aliases = set().union(*(
         _customer_aliases(row) for row in identity_rows
         if exact(row.get('customer_id')) in customer_ids
     )) if customer_ids else set()
     return ('match' if wanted in mapped_aliases else 'alias_mismatch',
-            scoped_rows, [list(pair) for pair in frozen_pairs])
+            scoped_rows, frozen_pair_list)
 
 
 def _source_ref_route_status(target_lines: list[dict], refs_by_line: dict[str, list[dict]],
