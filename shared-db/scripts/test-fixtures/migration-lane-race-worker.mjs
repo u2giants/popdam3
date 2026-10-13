@@ -45,7 +45,7 @@ const io = {
   },
 }
 try {
-  const result=acquireAuthorLane({task:`race-${owner}`,owner,branch:`codex/${owner}`,worktree:`C:/w/${owner}`,objects:[object],leaseHours:12},new Date('2026-08-14T20:00:00Z'),io)
+  const result=acquireAuthorLane({task:`race-${owner}`,owner,branch:`codex/${owner}`,worktree:`C:/w/${owner}`,objects:[object],leaseHours:0.5},new Date('2026-08-14T20:00:00Z'),io)
   process.stdout.write(JSON.stringify({ok:true,result}))
 } catch(error) {
   if(!(error instanceof LaneError))throw error

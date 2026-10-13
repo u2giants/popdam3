@@ -53,7 +53,9 @@ export const [REPO_OWNER, REPO_NAME] = REPO.split('/')
 export const AUTHOR_CAPACITY_STATES = Object.freeze(['active', 'relinquished', 'expired-unconfirmed'])
 export const AUTHORABLE_CAPACITY_STATES = Object.freeze(AUTHOR_CAPACITY_STATES.filter((state) => state !== 'expired-unconfirmed'))
 export const WORKTREE_STATES = Object.freeze(['clean', 'dirty', 'absent', 'remote'])
-export const DEFAULT_LEASE_HOURS = 12
+export const MAX_AUTHOR_LEASE_HOURS = 0.5
+export const DEFAULT_LEASE_HOURS = MAX_AUTHOR_LEASE_HOURS
+export const AUTHOR_CHECKIN_INTERVAL_MINUTES = 10
 export const MUTEX_STALE_AFTER_MS = 2 * 60 * 1000
 export const MUTEX_REF = 'refs/db-coordination/author-acquisition'
 export const MUTEX_RECOVERY_ACTIVE_REF = 'refs/db-coordination/author-acquisition-recovery-active'

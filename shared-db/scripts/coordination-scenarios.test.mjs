@@ -49,11 +49,11 @@ test('abandoned absent work frees only capacity and cannot resume without recove
   assert.equal(protectedState.active.length,0)
   assert.equal(protectedState.protected.length,1)
   assert.throws(()=>assertLaneAvailable([claim],['table plm.sample'],NOW),/object collision/)
-  assert.throws(()=>resumeAuthorLease({claim:claimNumber,owner:'shared-db.orch/agent-2503',leaseHours:12},NOW,io),/proven-clean worktree or --recovery-artifact/)
+  assert.throws(()=>resumeAuthorLease({claim:claimNumber,owner:'shared-db.orch/agent-2503',leaseHours:0.5},NOW,io),/proven-clean worktree or --recovery-artifact/)
   // A recovery reference of exactly the right shape that names nothing real is
   // refused; otherwise the recovery gate would only be checking spelling.
-  assert.throws(()=>resumeAuthorLease({claim:claimNumber,owner:'shared-db.orch/agent-2503',leaseHours:12,recoveryArtifact:'artifact:'+'9'.repeat(40)},NOW,io),/cannot be dereferenced/)
-  resumeAuthorLease({claim:claimNumber,owner:'shared-db.orch/agent-2503',leaseHours:12,recoveryArtifact:'artifact:'+'a'.repeat(40)},NOW,io)
+  assert.throws(()=>resumeAuthorLease({claim:claimNumber,owner:'shared-db.orch/agent-2503',leaseHours:0.5,recoveryArtifact:'artifact:'+'9'.repeat(40)},NOW,io),/cannot be dereferenced/)
+  resumeAuthorLease({claim:claimNumber,owner:'shared-db.orch/agent-2503',leaseHours:0.5,recoveryArtifact:'artifact:'+'a'.repeat(40)},NOW,io)
   const resumed=parseAuthorLease(claim.body,NOW)
   assert.equal(resumed.capacityActive,true)
   assert.equal(resumed.worktreeState,null)
@@ -360,7 +360,7 @@ function residueFixture(leaseTail){
 test('resume removes indented relinquish-only fields the parser still reads (#3170)',()=>{
   const {claim,io,owner,claimNumber}=residueFixture('capacity_state: relinquished\n  worktree_state: absent\n  blocked_on: issue:#3114\n')
   assert.equal(parseAuthorLease(claim.body,NOW).capacityState,'relinquished')
-  resumeAuthorLease({claim:claimNumber,owner,leaseHours:12},NOW,io)
+  resumeAuthorLease({claim:claimNumber,owner,leaseHours:0.5},NOW,io)
   const lease=parseAuthorLease(claim.body,NOW)
   assert.equal(lease.capacityState,'active')
   assert.equal(lease.worktreeState,null)

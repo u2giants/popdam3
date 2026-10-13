@@ -1272,6 +1272,11 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
 ### Expired clean checkpoint blocker recovery (#3618)
 
+**2026-10-13 successor route:** cooperative stopped-owner handoff below takes
+priority when authentic owner-issued consent can be obtained. Do not wait for
+expiry or invent abandonment for work an owner voluntarily stopped. The expired
+checkpoint bridge remains available only for its original qualified case.
+
 `scripts/rebind-expired-claim-blocker.mjs` is a separate preserve-only bridge for
 an OPEN source PR whose clean, explicitly relinquished author claim has naturally
 expired but still names its exact source checkpoint as its blocker and recovery.
@@ -1306,6 +1311,59 @@ The existing author-transfer operation remains a separate, unchanged gate after
 this metadata repair. Neither repair nor its source merge authorizes adoption,
 source merge, preview replay or production. Issue #3618 owns this narrow bridge;
 future consolidation into the canonical claim module requires separate review.
+
+### Immediate voluntary stop, succession and check-ins (#3618)
+
+Fresh author grants are at most thirty minutes. The native `--check-in-author`
+entry point confirms the actual current owner, exact claim/issue/PR/head and
+local branch/head, re-proves canonical scope/source/reservation/collisions under
+the existing mutex, and creates a separate immutable owner confirmation bound
+to the full current claim body and a bounded expiry. Existing lease-body fields
+remain unchanged for older readers. Run it
+explicitly every ten minutes while execution is needed and before protected
+actions. The migration author gate refuses missing, future or older-than-ten-
+minute confirmation and any oversized grant. A process merely existing is not
+continued-need confirmation. A stopped or expired owner cannot use check-in to
+revive execution; normal recovery remains separate. Legacy claims stay readable
+and protective but must obtain a real confirmation before protected admission.
+
+On normal completion, external-block stop or wrap-up, first stop all source
+writers. Fully delivered/live-accepted work uses its existing native release
+gate. Unfinished clean source uses `--stop-author` with exact claim/issue/PR/head,
+owner, branch and original worktree. The actual owner relinquishes execution
+capacity and publishes a create-only `refs/db-author-handoff-ready/` receipt.
+That receipt pins the complete stopped claim-body hash, source head, permanent
+version/reservation, custody, former deadline and actual issuer session; it names
+no prospective successor. Re-read both claim and receipt before ending. Dirty,
+remote, legacy or ambiguous custody remains preserved and explicitly blocked
+until its governed recovery proof passes. Never discard source/object protection.
+
+An actual recipient uses `--handoff-claim-author` with exact original/successor
+custody, its real identity, recipient identity, user instruction and ready ref.
+Without a ready ref only the actual original owner can execute the direct
+cooperative handoff. This is not abandonment and requires no elapsed deadline.
+Original and successor must genuinely be clean at the same source branch/head;
+use independent repository/worktree custody when Git cannot attach a branch
+twice. Never force a duplicate checkout or discard the original.
+
+Acceptance re-proves source/version/parser/custody/main ancestry, scope, entire
+claim body, ready evidence, permanent reservation, foreign collisions and stages
+under the canonical mutex. A distinct create-only acceptance receipt binds both
+full claim bodies and the ready-ref SHA. It records the old deadline and gives
+the successor a new real-time grant of at most thirty minutes, with explicit
+confirmation. Ownership, worktree and execution state move atomically; objects,
+source and permanent version remain protected. Open and merged source proofs
+remain distinct; merged sources use the canonical exact-head structural parser
+and main-history verification, never a fake open-PR entry.
+
+Replays require unchanged receipts and exact body readback. A resumed or edited
+old claim invalidates ready consent. A failed first attempt whose recorded grant
+has elapsed retains its evidence and may use a fresh request ID only while the
+original stopped claim remains unchanged. Rollback occurs only under owned lock;
+unknown/lost ownership reports partial evidence instead of foreign rollback.
+Owned cleanup uses the canonical API/git fallback and exposes a proven completed
+receipt if cleanup fails. Wrap-up freshly verifies native release, ready consent
+or actual succession; notes and a closed chat alone are not successful cleanup.
 
 ### Expired merged-source custody recovery (#3618)
 

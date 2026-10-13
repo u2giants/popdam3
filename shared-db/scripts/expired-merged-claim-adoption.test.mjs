@@ -11,7 +11,7 @@ const QUOTE='I authorize the exact guarded operator adoption for the expired cla
 const ARTIFACT='artifact:'+'f'.repeat(40)
 const args={issue:2110,claim:3378,pr:3391,headSha:HEAD,oldOwner:'old-author',newOwner:'new-author',
   branch:'codex/2110-old',worktree:'C:/old-remote',targetWorktree:'/tmp/new-author',
-  abandonmentIssue:900,worktreeState:'remote',authorizationChatId:'root',authorizationQuote:QUOTE,recoveryArtifact:ARTIFACT,leaseHours:12}
+  abandonmentIssue:900,worktreeState:'remote',authorizationChatId:'root',authorizationQuote:QUOTE,recoveryArtifact:ARTIFACT,leaseHours:0.5}
 
 function fixture(overrides={}){
   resetRetirementSnapshot()
@@ -113,7 +113,7 @@ test('merged CLI operation is explicit and keeps ordinary transfer separate',()=
   const dir=mkdtempSync(join(tmpdir(),'merged-author-cli-')),quoteFile=join(dir,'quote.txt');writeFileSync(quoteFile,QUOTE)
   const io=mergedFixture(),log=console.log;console.log=()=>{}
   try{
-    const argv=['--issue','2110','--claim-number','3378','--pr','3391','--head-sha',HEAD,'--old-owner',args.oldOwner,'--new-owner',args.newOwner,'--branch',args.branch,'--worktree',args.worktree,'--target-worktree',args.targetWorktree,'--abandonment-issue','900','--worktree-state','remote','--authorization-chat-id','root','--authorization-quote-file',quoteFile,'--recovery-artifact',ARTIFACT,'--lease-hours','12']
+    const argv=['--issue','2110','--claim-number','3378','--pr','3391','--head-sha',HEAD,'--old-owner',args.oldOwner,'--new-owner',args.newOwner,'--branch',args.branch,'--worktree',args.worktree,'--target-worktree',args.targetWorktree,'--abandonment-issue','900','--worktree-state','remote','--authorization-chat-id','root','--authorization-quote-file',quoteFile,'--recovery-artifact',ARTIFACT,'--lease-hours','0.5']
     assert.equal(adoptionMain(argv,NOW,io),0);assert.equal(parseAuthorLease(io.issues.get(3378).body,NOW).owner,args.newOwner)
   }finally{console.log=log;rmSync(dir,{recursive:true,force:true})}
 })

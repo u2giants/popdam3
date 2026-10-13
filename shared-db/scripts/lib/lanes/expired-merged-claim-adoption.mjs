@@ -2,7 +2,7 @@
 // transfer module. Ordinary open-PR adoption remains unchanged in the manager.
 import { isDeepStrictEqual } from 'node:util'
 import { LaneError, parseAuthorLease, validateClaimObjects, assertLaneAvailable } from './claims.mjs'
-import { WORKTREE_STATES, MUTEX_REF } from './constants.mjs'
+import { WORKTREE_STATES, MUTEX_REF, MAX_AUTHOR_LEASE_HOURS } from './constants.mjs'
 import { EXCLUSIVE_REFS } from './queue-routing.mjs'
 import { normalizeWorktreePath } from './claim-versions.mjs'
 import { workstreamKey, migrationVersions, renewalIssueScope, assertMergeCommitInMainHistory, observedWorktreeState, requireDereferenceableRecoveryArtifact, replaceLeaseLocation, replaceLeaseExpiry, replaceCapacityState } from './claim-maintenance.mjs'
@@ -21,7 +21,7 @@ export function validateMergedAdoptionRequest(options){
   const request=Object.fromEntries(REQUEST_KEYS.map(key=>[key,options[key]??(key==='recoveryArtifact'?'':undefined)]))
   for(const key of ['issue','claim','pr','abandonmentIssue'])if(!Number.isSafeInteger(request[key])||request[key]<=0)refuse(`exact positive ${key} required`)
   for(const key of ['oldOwner','newOwner','branch','worktree','targetWorktree','authorizationChatId','authorizationQuote'])if(typeof request[key]!=='string'||!request[key]||request[key]!==request[key].trim()||/[\r\n`]/.test(request[key]))refuse(`invalid ${key}`)
-  if(!SHA.test(request.headSha)||request.oldOwner===request.newOwner||/\s/.test(request.branch)||normalizeWorktreePath(request.worktree)===normalizeWorktreePath(request.targetWorktree)||!WORKTREE_STATES.includes(request.worktreeState)||typeof request.recoveryArtifact!=='string'||request.authorizationQuote.length<20||!Number.isFinite(request.leaseHours)||request.leaseHours<=0||request.leaseHours>24)refuse('exact source, distinct successor, preservation state, quote and bounded lease required')
+  if(!SHA.test(request.headSha)||request.oldOwner===request.newOwner||/\s/.test(request.branch)||normalizeWorktreePath(request.worktree)===normalizeWorktreePath(request.targetWorktree)||!WORKTREE_STATES.includes(request.worktreeState)||typeof request.recoveryArtifact!=='string'||request.authorizationQuote.length<20||!Number.isFinite(request.leaseHours)||request.leaseHours<=0||request.leaseHours>MAX_AUTHOR_LEASE_HOURS)refuse('exact source, distinct successor, preservation state, quote and bounded lease required')
   return request
 }
 function adoptionBody(body,request,expiresAt){

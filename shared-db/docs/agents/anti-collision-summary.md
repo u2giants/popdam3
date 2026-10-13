@@ -10,6 +10,15 @@ preview rehearsal and its recovery lane:
 Read it in full before you claim a lane, author a migration, or rehearse on preview.** The five
 rules below are the operative summary.
 
+**Stopped-owner and check-in rule (2026-10-13, #3618):** new author permissions
+are at most thirty minutes. Explicitly check in through native `--check-in-author`
+every ten minutes and before protected actions; the migration gate verifies the
+actual confirmation timestamp. At normal completion, an external-block stop, or
+wrap-up, stop writers and finish native release or `--stop-author` readiness.
+An actual successor consumes the create-only ready receipt immediately through
+`--handoff-claim-author`; it never waits out the former owner's deadline. Preserve
+object/version/source protection. See the current procedure in the full text.
+
 1. **There is no limit on how many unrelated migrations may be authored at once. Preview, merges,
    and production promotion remain one at a time** (owner ruling 2026-09-11, marker #2758, issue
    #2775: no limit on migration author lanes, ever). Exact object claims and version reservations

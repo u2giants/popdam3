@@ -3366,7 +3366,7 @@ test('partial reviewer replacement failure rolls back cursor and immutable evide
   assert.equal([...io.refs.keys()].some((ref)=>ref.startsWith('refs/db-review-failures/')),false)
 })
 
-const opts={task:'#1',owner:'agent',branch:'codex/x',worktree:'C:/w',objects:['table core.x'],leaseHours:12,requestId:'r1',mutexAttempts:1}
+const opts={task:'#1',owner:'agent',branch:'codex/x',worktree:'C:/w',objects:['table core.x'],leaseHours:0.5,requestId:'r1',mutexAttempts:1}
 
 test('GitHub create-if-absent mutex makes acquisition cross-host atomic', () => {
   const io=memoryIo()
@@ -4593,13 +4593,13 @@ function renewalIo(overrides={}){
   io.prSources=()=>[{label:'PR #1060 "#853 OrderList"',objects:[...objects],versions:[version]}]
   return Object.assign(io,{issue,workIssue,version,head,objects},overrides)
 }
-const renewalOptions={claim:1058,issue:853,owner:'codex-issue-853-orderlist',branch:'codex/issue-853-orderlist',worktree:'C:\\repos\\shared-db-worktrees\\issue-853-orderlist',pr:1060,headSha:'a'.repeat(40),leaseHours:12,requestId:'renew-853',mutexAttempts:1}
+const renewalOptions={claim:1058,issue:853,owner:'codex-issue-853-orderlist',branch:'codex/issue-853-orderlist',worktree:'C:\\repos\\shared-db-worktrees\\issue-853-orderlist',pr:1060,headSha:'a'.repeat(40),leaseHours:0.5,requestId:'renew-853',mutexAttempts:1}
 
 test('#853-shaped expired claim renewal preserves every byte except expires_at',()=>{
   const io=renewalIo(),before=io.issue.body,result=renewExpiredClaim(renewalOptions,NOW,io)
   assert.equal(result.idempotent,false);assert.equal(result.version,io.version)
   assert.equal(io.issue.body.replace(/^expires_at:.*$/m,'expires_at: X'),before.replace(/^expires_at:.*$/m,'expires_at: X'))
-  assert.match(io.issue.body,/expires_at: 2026-08-15T08:00:00.000Z/)
+  assert.match(io.issue.body,/expires_at: 2026-08-14T20:30:00.000Z/)
 })
 
 test('expired claim renewal retains an unrelated historical lock without declaring it as a current write',()=>{
@@ -4741,8 +4741,8 @@ test('claim renewal rolls back readback failure while mutex-owned and refuses af
 })
 
 test('claim renewal enforces a bounded lease and real CLI wiring',()=>{
-  for(const leaseHours of [0,24.01,NaN])assert.throws(()=>renewExpiredClaim({...renewalOptions,leaseHours},NOW,renewalIo()),/no more than 24/)
-  const io=renewalIo(),args=['--renew-claim','--claim-number','1058','--issue','853','--owner',renewalOptions.owner,'--branch',renewalOptions.branch,'--worktree',renewalOptions.worktree,'--pr','1060','--head-sha',renewalOptions.headSha,'--lease-hours','12']
+  for(const leaseHours of [0,24.01,NaN])assert.throws(()=>renewExpiredClaim({...renewalOptions,leaseHours},NOW,renewalIo()),/no more than 0.5/)
+  const io=renewalIo(),args=['--renew-claim','--claim-number','1058','--issue','853','--owner',renewalOptions.owner,'--branch',renewalOptions.branch,'--worktree',renewalOptions.worktree,'--pr','1060','--head-sha',renewalOptions.headSha,'--lease-hours','0.5']
   assert.equal(main(args,NOW,io),0);assert.equal(parseAuthorLease(io.issue.body,NOW).active,true)
 })
 
@@ -4762,7 +4762,7 @@ function expiredPrRecoveryIo({issueNumber,claimNumber,prNumber,version,owner,bra
 
 const recovery2177={issueNumber:2177,claimNumber:2182,prNumber:2183,version:'20260904001147',owner:'claude-subagent-2177',branch:'claude/2177-coldlion-cust-sp',worktree:'C:\\repos\\shared-db\\.claude\\worktrees\\coldlion-cust-sp-2177',title:'CLAIM: #2177 ColdLion customer + salesperson field projections (owner ruling issue 2081, run c5519623574)',tables:['table coldlion.customer','table coldlion.salesperson'],children:['column coldlion.customer.customer_name','column coldlion.customer.currency_code','column coldlion.customer.payment_terms','column coldlion.customer.price_level','column coldlion.customer.salesperson_code','column coldlion.customer.ship_via','column coldlion.customer.tax_code','column coldlion.salesperson.active']}
 const recovery2175={issueNumber:2175,claimNumber:2184,prNumber:2185,version:'20260903030716',owner:'claude-opus-5-subagent-2175',branch:'claude/2175-coldlion-unit-5a',worktree:'C:\\repos\\shared-db\\.claude\\worktrees\\coldlion-5a-inv-prodtrack',title:'CLAIM: Issue #2175 ColdLion landing unit 5a: create coldlion.inventory and coldlion.prod_tracking landing tables from live-sampled shapes',tables:['table coldlion.inventory','table coldlion.prod_tracking'],children:['column coldlion.inventory.company_code','column coldlion.inventory.item_pkey','column coldlion.inventory.warehouse_code','column coldlion.inventory.inventory_qty','column coldlion.inventory.inventory_cost','column coldlion.prod_tracking.company_code','column coldlion.prod_tracking.prod_order_no','column coldlion.prod_tracking.order_date','column coldlion.prod_tracking.start_date','column coldlion.prod_tracking.cancel_date','column coldlion.prod_tracking.payload_hash','column coldlion.prod_tracking.source_updated_at']}
-function recoveryOptions(fixture){return {claim:fixture.claimNumber,issue:fixture.issueNumber,owner:fixture.owner,branch:fixture.branch,worktree:fixture.worktree,pr:fixture.prNumber,headSha:'a'.repeat(40),leaseHours:12,requestId:`recover-${fixture.issueNumber}`,mutexAttempts:1}}
+function recoveryOptions(fixture){return {claim:fixture.claimNumber,issue:fixture.issueNumber,owner:fixture.owner,branch:fixture.branch,worktree:fixture.worktree,pr:fixture.prNumber,headSha:'a'.repeat(40),leaseHours:0.5,requestId:`recover-${fixture.issueNumber}`,mutexAttempts:1}}
 
 test('#2177/#2182 expired recovery atomically appends eight PR-derived child columns and renews',()=>{
   const io=expiredPrRecoveryIo(recovery2177),before=io.claim.body,result=recoverExpiredClaimFromPr(recoveryOptions(recovery2177),NOW,io),lease=parseAuthorLease(io.claim.body,NOW)
@@ -4833,7 +4833,7 @@ test('THE DEADLOCK: an expired claim whose PR objects exceed it is refused by BO
 })
 
 test('REAL main command wires expired PR expansion and renewal as one recovery',()=>{
-  const io=expiredPrRecoveryIo(recovery2177),f=recovery2177,args=['--recover-expired-claim-from-pr','--claim-number',String(f.claimNumber),'--issue',String(f.issueNumber),'--owner',f.owner,'--branch',f.branch,'--worktree',f.worktree,'--pr',String(f.prNumber),'--head-sha','a'.repeat(40),'--lease-hours','12']
+  const io=expiredPrRecoveryIo(recovery2177),f=recovery2177,args=['--recover-expired-claim-from-pr','--claim-number',String(f.claimNumber),'--issue',String(f.issueNumber),'--owner',f.owner,'--branch',f.branch,'--worktree',f.worktree,'--pr',String(f.prNumber),'--head-sha','a'.repeat(40),'--lease-hours','0.5']
   assert.equal(main(args,NOW,io),0);assert.equal(parseAuthorLease(io.claim.body,NOW).active,true);assert.equal(io.updateCalls,1)
 })
 
@@ -4920,7 +4920,7 @@ function mergedReissueIo(overrides={}){
   io.mainSha=()=>main;io.compareCommits=()=>({status:'ahead',behind_by:0});io.reserveVersion=()=>({version:fresh})
   return Object.assign(io,{issue,old,fresh,merge,main,objects},overrides)
 }
-const mergedReissueArgs={issue:1645,claim:1656,sourcePr:1664,owner:'codex-agent issue-1645-1649',targetBranch:'codex/issue-1645-effective-filters-reissue',targetWorktree:'C:\\new',oldVersion:'20260827183011',leaseHours:12}
+const mergedReissueArgs={issue:1645,claim:1656,sourcePr:1664,owner:'codex-agent issue-1645-1649',targetBranch:'codex/issue-1645-effective-filters-reissue',targetWorktree:'C:\\new',oldVersion:'20260827183011',leaseHours:0.5}
 
 test('merged stranded claim reissue preserves the exact object lock and both permanent reservations',()=>{
   const io=mergedReissueIo(),result=reissueMergedStrandedClaim(mergedReissueArgs,NOW,io),lease=parseAuthorLease(io.issue.body,NOW)
@@ -4976,7 +4976,7 @@ test('merged stranded claim reissue resumes exact evidence stranded before the c
 })
 
 test('REAL main command wires the merged stranded claim reissue identities',()=>{
-  const io=mergedReissueIo(),args=['--reissue-merged-stranded-claim','--issue','1645','--claim-number','1656','--source-pr','1664','--owner',mergedReissueArgs.owner,'--target-branch',mergedReissueArgs.targetBranch,'--target-worktree',mergedReissueArgs.targetWorktree,'--old-version',mergedReissueArgs.oldVersion,'--lease-hours','12']
+  const io=mergedReissueIo(),args=['--reissue-merged-stranded-claim','--issue','1645','--claim-number','1656','--source-pr','1664','--owner',mergedReissueArgs.owner,'--target-branch',mergedReissueArgs.targetBranch,'--target-worktree',mergedReissueArgs.targetWorktree,'--old-version',mergedReissueArgs.oldVersion,'--lease-hours','0.5']
   assert.equal(main(args,NOW,io),0);assert.equal(parseAuthorLease(io.issue.body,NOW).version,io.fresh)
 })
 
@@ -10456,12 +10456,12 @@ test('#498-12 a legacy lease and a wrong owner are two different refusals on res
   const io = memoryIo()
   io.openClaims = () => [{ number: 7, body: claimBodyText }]
   io.getIssue = () => ({ state: 'open', body: claimBodyText })
-  const { code, text } = refusalText(['--resume-author-lease', '--claim-number', '7', '--owner', 'agent-9', '--lease-hours', '4'], io)
+  const { code, text } = refusalText(['--resume-author-lease', '--claim-number', '7', '--owner', 'agent-9', '--lease-hours', '0.5'], io)
   assert.equal(code, 2)
   // It must not be the old combined "is legacy or belongs to a different owner".
   assert.doesNotMatch(text, /is legacy or belongs to a different owner/)
   assert.match(text, /the owner on record is "agent-7"/)
-  assert.match(text, /--resume-author-lease --claim-number 7 --owner "agent-7" --lease-hours <1-24>/)
+  assert.match(text, /--resume-author-lease --claim-number 7 --owner "agent-7" --lease-hours <0-0.5>/)
 })
 
 // --- issue #2824 hole 1: the sanctioned scope-status writer -----------------
