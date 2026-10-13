@@ -263,6 +263,7 @@ def prepare_exception_scope(
         "target": TARGET,
         "source_system": SOURCE_SYSTEM,
         "input_plan_sha256": plan_sha256,
+        "canonical_importer_sha256": expected_importer_sha,
         "source_hashes": dict(source_hashes),
         "expected_counts": dict(EXPECTED_COUNTS),
         "orders": desired_orders,
@@ -742,6 +743,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     saved_plan = {
         "schema": "orderlist-exception-only-review-plan-v1",
         "input_plan_sha256": scoped["input_plan_sha256"],
+        "canonical_importer_sha256": scoped["canonical_importer_sha256"],
         "source_hashes": source_hashes,
         "preimages_sha256": preimages_digest,
         "mapping": {

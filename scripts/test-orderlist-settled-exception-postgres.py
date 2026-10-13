@@ -117,6 +117,7 @@ def main() -> None:
     }
     mapping = executor.PREFLIGHT.validate_source_ref_mappings(scoped, preimages)
     review = {
+        "canonical_importer_sha256": executor.sha256_bytes(executor.CANONICAL_IMPORTER_PATH.read_bytes()),
         "input_plan_sha256": "3" * 64,
         "_exact_review_plan_sha256": "4" * 64,
         "_exact_preimages_file_sha256": "5" * 64,

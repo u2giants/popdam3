@@ -121,6 +121,34 @@ class FakeGateway:
 
 
 class SettledExceptionExecutorTests(unittest.TestCase):
+    def test_original_importer_pin_is_required_and_checked_before_plan_build(self):
+        current = executor.sha256_bytes(executor.CANONICAL_IMPORTER_PATH.read_bytes())
+        self.assertEqual(executor._require_canonical_importer_pin({"canonical_importer_sha256": current}), current)
+        for review_plan in (
+            {},
+            {"canonical_importer_sha256": "not-a-sha"},
+            {"canonical_importer_sha256": "f" * 64},
+        ):
+            with self.subTest(pin=review_plan.get("canonical_importer_sha256")), self.assertRaises(executor.ExecutorError):
+                executor.construct_postimage(review_plan, {}, {}, {})
+
+    def test_public_importer_drift_after_preflight_refuses_initial_postimage(self):
+        pinned = executor.sha256_bytes(executor.CANONICAL_IMPORTER_PATH.read_bytes())
+        with tempfile.TemporaryDirectory() as temp_dir:
+            changed_importer = Path(temp_dir) / "import-order-list-xlsx.py"
+            changed_importer.write_text("# changed after preflight\n", encoding="utf-8")
+            review_plan = {"canonical_importer_sha256": pinned}
+            with mock.patch.object(executor, "CANONICAL_IMPORTER_PATH", changed_importer):
+                with self.assertRaisesRegex(executor.ExecutorError, "differs from the frozen review plan"):
+                    executor.construct_postimage(review_plan, {}, {}, {})
+                with self.assertRaisesRegex(executor.ExecutorError, "differs from the frozen review plan"):
+                    executor._validate_review_plan(
+                        review_plan, {},
+                        expected_review_plan_sha256="0" * 64,
+                        expected_preimages_file_sha256="0" * 64,
+                        review_plan_raw=b"{}", preimages_raw=b"{}",
+                    )
+
     def test_capture_queries_only_missing_line_sku_and_type(self):
         lines = [{"source_id": "line:one", "payload": {"sku": "SKU-1", "source_style_type": "licensed"}}]
         preimages = {"lines": []}

@@ -161,6 +161,14 @@ class ExceptionWriterTests(unittest.TestCase):
             expected_source_hashes=cls.source_hashes,
         )
 
+    def test_scoped_plan_carries_the_exact_checked_importer_sha(self):
+        expected = self.plan_doc["provenance"]["canonical_importer_sha256"]
+        self.assertEqual(self.scope["canonical_importer_sha256"], expected)
+        self.assertEqual(
+            expected,
+            writer.sha256((writer.ROOT / "shared-db" / "scripts" / "import-order-list-xlsx.py").read_bytes()),
+        )
+
     def test_held_parent_lines_and_headers_are_excluded(self):
         self.assertEqual(len(self.scope["orders"]), 76)
         self.assertEqual(len(self.scope["lines"]), 296)

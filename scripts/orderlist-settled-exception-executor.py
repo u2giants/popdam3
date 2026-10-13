@@ -69,10 +69,24 @@ PREFLIGHT = importlib.util.module_from_spec(_PREFLIGHT_SPEC)
 sys.modules[_PREFLIGHT_SPEC.name] = PREFLIGHT
 _PREFLIGHT_SPEC.loader.exec_module(PREFLIGHT)
 IMPORTER = PREFLIGHT.IMPORTER
+CANONICAL_IMPORTER_PATH = ROOT / "shared-db" / "scripts" / "import-order-list-xlsx.py"
 
 
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _require_canonical_importer_pin(review_plan: Mapping[str, Any]) -> str:
+    try:
+        expected = PREFLIGHT._require_hash(
+            review_plan.get("canonical_importer_sha256"), "canonical_importer_sha256"
+        )
+    except PREFLIGHT.PreflightError:
+        raise ExecutorError("frozen canonical importer SHA-256 is missing or invalid") from None
+    actual = sha256_bytes(CANONICAL_IMPORTER_PATH.read_bytes())
+    if actual != expected:
+        raise ExecutorError("canonical importer SHA-256 differs from the frozen review plan")
+    return expected
 
 
 def canonical(value: Any) -> Any:
@@ -131,6 +145,7 @@ def _validate_review_plan(
     review_plan_raw: bytes,
     preimages_raw: bytes,
 ) -> dict[str, Any]:
+    _require_canonical_importer_pin(review_plan)
     if sha256_bytes(review_plan_raw) != expected_review_plan_sha256:
         raise ExecutorError("frozen review-plan digest mismatch")
     if sha256_bytes(preimages_raw) != expected_preimages_file_sha256:
@@ -288,6 +303,7 @@ def construct_postimage(
     review_plan: Mapping[str, Any], source_preimages: Mapping[str, Any], scoped: Mapping[str, Any],
     catalog_snapshot: Mapping[str, Any],
 ) -> dict[str, Any]:
+    canonical_importer_sha256 = _require_canonical_importer_pin(review_plan)
     mapping = PREFLIGHT.validate_source_ref_mappings(scoped, source_preimages)
     saved_mapping = review_plan.get("mapping", {})
     checked_mapping = {key: value for key, value in mapping.items() if key not in {"resolved_header_uuids", "resolved_line_uuids"}}
@@ -546,7 +562,7 @@ def construct_postimage(
         "catalog_snapshot": catalog_snapshot,
         "catalog_snapshot_sha256": digest(catalog_snapshot),
         "catalog_resolution_counts": catalog_audit,
-        "canonical_importer_sha256": sha256_bytes((ROOT / "shared-db" / "scripts" / "import-order-list-xlsx.py").read_bytes()),
+        "canonical_importer_sha256": canonical_importer_sha256,
         "deletes": 0,
     }
 
