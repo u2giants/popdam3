@@ -15,7 +15,7 @@ Issue: u2giants/popdam3#357. Code on main (4fb0b89c or later): PR #359 fill-only
 1. The DAM scan (session 9381c755) has finished. admin_config SCAN_PROGRESS is not "running".
 2. Freshness: the worker heartbeat `sha` (from RAILWAY_GIT_COMMIT_SHA or GIT_COMMIT_SHA) and the edge function deploy are main 4fb0b89c or later. A 10-asset sample resolves a licensor from the current ColdLion mirror.
 3. Conflict guard: no other metadata-lane operation (including backfill-sku-names) is running or queued. The server checks only the operations listed in OP_CONFLICTS for reprocess-metadata, so this is checked by hand. No scan, ColdLion mirror sync, or ERP pass may be running, because they also write licensing columns.
-4. Snapshot before any write: all six licensing columns plus size, division, sku_sequence, mg01-03, is_licensed, workflow_status, and style_group_changed_at (stamped by the assets_style_group_change_clock trigger whenever a licensing column changes) for every licensed asset, saved to a local file outside the repo. This is the rollback source for every column.
+4. Snapshot before any write: all six licensing columns plus size, division, sku_sequence, mg01-03, is_licensed, workflow_status for every licensed asset, and separately record style_group_changed_at (the watermark; see Verification), saved to a local file outside the repo. This is the rollback source for every column.
 5. `ai-task-gates check --before database --reviewer-approval <assigned AI reviewer exact-head APPROVE report>` passes, with target-database proof on the issue. This run is not a small owner entry.
 
 ## Pilot (500 assets)
@@ -28,7 +28,7 @@ Issue: u2giants/popdam3#357. Code on main (4fb0b89c or later): PR #359 fill-only
 - If any condition fails, do not start the full run.
 
 ## Stop procedure
-- Read the current op_state, change only `status` to "interrupted" and `interruption_reason_code` to "user_stop", and write the full object back with update-bulk-op. Writing only the status can be auto-resumed.
+- Read the current op_state, change only `status` to "interrupted" and `interruption_reason_code` to "user_stop", and write the full object back with update-bulk-op. Writing only the status is unsafe because it leaves a transient reason in place.
 
 ## Full run
 - Resume the same operation from its stored cursor. Do not set a manual id. A resume must write status "running", set interruption_reason_code to null, and keep cursor and params, because the worker auto-resume loop skips a user_stop reason. Use the same read-modify-write as the stop procedure.
@@ -41,12 +41,13 @@ Issue: u2giants/popdam3#357. Code on main (4fb0b89c or later): PR #359 fill-only
 - Verification assumes this run is the only licensing writer during its window. Prerequisite 3 enforces that. If any other writer touches a row during the window, the verification must show it and the run stops.
 - After the pilot and after the full run, against the full snapshot, not only the pilot:
   - Rows where a non-NULL licensing value changed. Expect 0.
-  - Rows where a non-licensing column changed. Expect 0.
+  - Rows where a non-licensing column changed, excluding style_group_changed_at. Expect 0.
+  - Rows where style_group_changed_at changed. Expect exactly the rows where a licensing column was filled.
   - NULL-licensor count after the run. Expect the fall to equal the number of rows filled. Report the unresolved count.
 
 ## Rollback
 - Fill-only never overwrites a non-NULL value, so the run cannot overwrite data.
-- Rollback restores style_group_changed_at to its snapshot value for each restored row too.
+- style_group_changed_at is a watermark that the assets_style_group_change_clock trigger always moves forward on licensing writes, so rollback cannot restore it. Its advance on filled and restored rows only triggers a style-group reconcile for those rows. This is accepted and recorded here.
 - Undo for licensing columns is a column-level restore, applied only to rows that the verification shows this run changed: for each asset and licensing column that was NULL in the snapshot and is non-NULL now, set only that column back to NULL.
 - If any non-licensing column changed, restore that column from the snapshot the same way.
 - The expected row count for the guarded transaction is the number of rows that differ between the snapshot and now, computed before the write.
