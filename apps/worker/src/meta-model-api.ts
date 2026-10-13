@@ -289,7 +289,7 @@ export async function createStoredMetaResponse(apiKey: string, request: ChatComp
           const envelope = JSON.parse(data) as { type?: string; response?: { id?: unknown } };
           if (envelope.type !== "response.created") continue;
           const id = envelope.response?.id;
-          if (typeof id !== "string" || (!id.trim() || id.length > 256 || /[\x00-\x20\x7f]/.test(id))) throw new AmbiguousBatchSubmissionError("Meta");
+          if (typeof id !== "string" || (!id.trim() || id.length > 256 || Array.from(id).some(char => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127))) throw new AmbiguousBatchSubmissionError("Meta");
           asyncReservations.set(reservationOwner, id);
           return id;
         }
@@ -308,7 +308,7 @@ export async function createStoredMetaResponse(apiKey: string, request: ChatComp
 }
 
 export async function retrieveStoredMetaResponse(apiKey: string, id: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Record<string, unknown>> {
-  if ((!id.trim() || id.length > 256 || /[\x00-\x20\x7f]/.test(id))) throw new Error("Invalid saved Meta response ID");
+  if ((!id.trim() || id.length > 256 || Array.from(id).some(char => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127))) throw new Error("Invalid saved Meta response ID");
   const requestOptions = {
     headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(timeoutMs), dispatcher: metaDispatcher,
   };
