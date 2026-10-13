@@ -250,6 +250,11 @@ describe("OrderList summary and loading", () => {
 });
 
 describe("OrderList columns", () => {
+  it("labels the production order date distinctly from the sent PO date", () => {
+    expect(ORDER_LIST_COLUMNS.find((column) => column.field === "order_date")?.header).toBe("Prod PO Date");
+    expect(ORDER_LIST_COLUMNS.find((column) => column.field === "sent_po_date")?.header).toBe("Sent PO");
+  });
+
   it("opens with the recognizable legacy sheet order", () => {
     const visible = ORDER_LIST_COLUMNS.filter((column) => !column.hide).map((column) => column.field);
     expect(visible.slice(0, 9)).toEqual([
