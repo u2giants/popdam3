@@ -361,7 +361,7 @@ describe("OrderList database query building", () => {
       { column: "order_line_id", ascending: true },
     ]);
     expect(buildOrderListSort([])).toEqual([
-      { column: "order_date", ascending: false },
+      { column: "start_ship_date", ascending: false },
       { column: "order_line_id", ascending: true },
     ]);
   });
