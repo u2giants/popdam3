@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import math
 import re
 import sys
 from collections import Counter, defaultdict
@@ -54,7 +55,6 @@ EXPECTED_CASE_COUNTS = {
     ("Other source warnings", "Keep original text as written"): 3,
 }
 IDENTITY_COLUMNS = ("A", "C", "H", "K", "L", "N")
-CONFLICT_GROUP_FIELDS = (*IDENTITY_COLUMNS, "B")
 PER_COMPONENT_COLUMNS = frozenset({"AM", "AT", "T", "AF", "AG"})
 HEADER_STATUS_COLUMNS = frozenset(IMPORTER.HEADER_IDENTITY_COLUMNS)
 _BLANK_MARKERS = frozenset({"", "[blank]", "blank"})
@@ -86,7 +86,18 @@ def _json_bytes(value: Any) -> bytes:
 
 
 def _row_hash(row: Any) -> str:
-    return _sha256(_json_bytes(list(row.values)))
+    values = list(row.values)
+    for index, value in enumerate(values):
+        if value is None or isinstance(value, (str, bool, int)):
+            continue
+        if isinstance(value, float) and math.isfinite(value):
+            continue
+        raise DispositionError(
+            f"Google row {row.sheet_row} column {IMPORTER.column_letter(index)} "
+            "is not a supported JSON primitive"
+        )
+    encoded = json.dumps(values, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    return _sha256(encoded.encode("utf-8"))
 
 
 def _raw_cell(row: Any, column: str) -> Any:
@@ -349,23 +360,10 @@ def _plan_per_style_components(
     parsing_row = _replace_cells(amended_row, {target: None})
     split = IMPORTER.split_assortment(parsing_row)
     if split.rejected:
-        plan.rejected_rows.append(
-            IMPORTER.RejectedRow(
-                original_row.sheet_row,
-                IMPORTER.ROW_SHAPE_ASSORTMENT,
-                f"assortment_structurally_invalid_after_note_override:{split.reason}",
-                {"component_counts": dict(split.counts), "corrected_column": target},
-            )
+        raise DispositionError(
+            f"approved per-style row {original_row.sheet_row} has misaligned remaining "
+            f"component fields after {target} override: counts={dict(split.counts)}"
         )
-        plan.unresolved_fields.append(
-            {
-                "source_row": original_row.sheet_row,
-                "source_column": target,
-                "status": "note_override_exact_but_other_component_fields_remain_misaligned",
-                "component_counts": dict(split.counts),
-            }
-        )
-        return []
 
     values_by_sku: dict[str, str | None] = {}
     for entry in instruction["component_values_in_exact_note_order"]:
@@ -819,6 +817,7 @@ def build_source_disposition_plan(
         grouped[key].append(rownum)
     plan.provenance = {
         "spec_sha256": spec_sha,
+        "canonical_importer_sha256": _sha256(_IMPORTER_PATH.read_bytes()),
         "source_hashes": dict(expected_source_hashes),
         "source_rows_bound": len(bound_rows),
         "approved_case_count": len(cases),
@@ -845,12 +844,9 @@ def build_source_disposition_plan(
             desired_sid = _opaque_group_source_id(original_sid, (po_norm, identity))
         else:
             desired_sid = original_sid
-        parsed_rows = [eligible[rn] for rn in sorted(rownums) if rn not in parent_only_rows]
-        if not parsed_rows:
-            # parent-only line still needs an ordinary header generated from its
-            # source row. The parser emits and we retain the header before filtering
-            # its expected no-component rejection.
-            parsed_rows = source_rows_for_parser[:1]
+        # Parse every row, including parent-only rows, so header disagreements
+        # remain visible and cannot be hidden by selecting the first row.
+        parsed_rows = source_rows_for_parser
         subplan = IMPORTER.build_plan(parsed_rows, catalog)
         canonical_parser_raw_counters.update(subplan.counters)
         canonical_parser_raw_rejected_rows += len(subplan.rejected_rows)

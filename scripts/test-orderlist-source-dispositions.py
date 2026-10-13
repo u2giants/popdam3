@@ -296,6 +296,49 @@ class SourceDispositionPlannerTests(unittest.TestCase):
                     edits,
                 )
 
+    def test_per_style_remaining_component_misalignment_fails_closed(self) -> None:
+        changed_rows = list(self.rows)
+        index = next(i for i, row in enumerate(changed_rows) if row.sheet_row == 300)
+        original = changed_rows[index]
+        values = list(original.values)
+        values[imp.column_index("AF")] = "one\ntwo\nthree"
+        changed = imp.SourceRow(original.sheet_row, tuple(values))
+        changed_rows[index] = changed
+        spec = json.loads(self.spec_bytes)
+        binding = next(
+            bound
+            for case in spec["cases"]
+            for bound in case["source_rows"]
+            if bound["source"]["sheet_row"] == 300
+        )
+        binding["current_preimage_sha256"] = dispositions._row_hash(changed)
+        altered = (json.dumps(spec, ensure_ascii=False, indent=2) + "\n").encode()
+        with self.assertRaisesRegex(dispositions.DispositionError, "misaligned remaining component fields"):
+            self._plan(
+                rows=changed_rows,
+                spec_bytes=altered,
+                spec_sha=hashlib.sha256(altered).hexdigest(),
+            )
+
+    def test_source_preimage_hash_rejects_non_json_primitives(self) -> None:
+        from datetime import date
+        from decimal import Decimal
+
+        for value in (date(2026, 1, 12), Decimal("1.25"), float("nan"), float("inf")):
+            with self.subTest(value_type=type(value).__name__):
+                with self.assertRaises(dispositions.DispositionError):
+                    dispositions._row_hash(_row(991, {"D": value}))
+        # JSON booleans are supported primitives and remain distinct from integers.
+        self.assertNotEqual(
+            dispositions._row_hash(_row(992, {"D": True})),
+            dispositions._row_hash(_row(992, {"D": 1})),
+        )
+
+    def test_provenance_pins_the_canonical_importer_bytes(self) -> None:
+        plan = self._plan()
+        expected = hashlib.sha256(dispositions._IMPORTER_PATH.read_bytes()).hexdigest()
+        self.assertEqual(plan.provenance["canonical_importer_sha256"], expected)
+
     def test_blank_business_po_is_ledgered_without_a_generated_order_or_fake_po(self) -> None:
         plan = self._plan()
         evidence = next(x for x in plan.unresolved_fields if x.get("source_row") == 210)
@@ -322,6 +365,39 @@ class SourceDispositionPlannerTests(unittest.TestCase):
         four = [line for line in plan.lines if line.sheet_row == 600]
         self.assertEqual(len(four), 4)
         self.assertTrue(all(line.payload["quantity_ordered"] is None for line in four))
+
+    def test_parent_only_header_parse_includes_every_group_row(self) -> None:
+        changed_rows = list(self.rows)
+        index = next(i for i, row in enumerate(changed_rows) if row.sheet_row == 611)
+        original = changed_rows[index]
+        values = list(original.values)
+        values[imp.column_index("B")] = "PARENT00"
+        values[imp.column_index("A")] = "Closed"
+        changed = imp.SourceRow(original.sheet_row, tuple(values))
+        changed_rows[index] = changed
+        spec = json.loads(self.spec_bytes)
+        binding = next(
+            bound
+            for case in spec["cases"]
+            for bound in case["source_rows"]
+            if bound["source"]["sheet_row"] == 611
+        )
+        binding["current_preimage_sha256"] = dispositions._row_hash(changed)
+        altered = (json.dumps(spec, ensure_ascii=False, indent=2) + "\n").encode()
+        plan = self._plan(
+            rows=changed_rows,
+            spec_bytes=altered,
+            spec_sha=hashlib.sha256(altered).hexdigest(),
+        )
+        order = next(order for order in plan.orders if order.sheet_rows == [610, 611])
+        self.assertTrue(order.quarantined)
+        self.assertTrue(
+            any(
+                entry.get("status") == "header_identity_conflict_quarantined"
+                and entry.get("source_rows") == [610, 611]
+                for entry in plan.unresolved_fields
+            )
+        )
 
     def test_parent_only_missing_or_unparseable_quantity_is_ledgered_unknown(self) -> None:
         for raw_quantity in (None, "quantity pending"):
