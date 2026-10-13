@@ -71,6 +71,9 @@ class ConsolidationTests(unittest.TestCase):
     def test_database_identity_and_history_fields_never_enter_line_updates(self):
         database_managed = {'id', 'created_at', 'updated_at'}
         self.assertTrue(database_managed.isdisjoint(c.m.LINE_COLUMNS))
+        # The parent is deliberately reassigned and verified separately; it
+        # cannot also enter the importer-column protected-preimage loop.
+        self.assertNotIn('production_order_id', c.m.LINE_COLUMNS)
 
         update_columns = [
             field for field in c.m.LINE_COLUMNS

@@ -36,6 +36,9 @@ PROTECTED_LINE_FIELDS = {
     'source_system', 'source_id', 'unit_cost', 'quantity_shipped', 'status',
     'production_order_id', 'created_at', 'updated_at', 'id',
 }
+# The actual importer LINE_COLUMNS excludes production_order_id and database
+# IDs/timestamps. Parent reassignment is a separate update and postcondition;
+# test_database_identity_and_history_fields_never_enter_line_updates pins this.
 GOOGLE_EVIDENCE_METADATA_KEYS = {
     'order_list_source', 'raw_evidence', 'order_list_snapshot',
     'contractual_sample_reorder_raw', 'invalid_line_values',
