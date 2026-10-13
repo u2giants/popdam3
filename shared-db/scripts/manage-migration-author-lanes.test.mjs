@@ -26,7 +26,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assertUnambiguousClaimTitle, claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewerCapacityReport, reviewLeaseAgeHours, activityFingerprintForLease, probeSilentReviewer, reclaimSilentReviewer, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, assertDurableReviewApproval, buildDynamicQueues, claimBody, closedClaimAuthoredOnMain, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverExpiredClaimFromPr, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, releaseFailedReviewer, replaceFailedReviewer, failedReviewerReleaseCommand, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, doctorTimeoutFailingChecks, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, REVIEWER_PREFLIGHT_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, excludeReviewerForPr, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, reinstateReviewerExclusion, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, reviewerEmitsGovernedVerdict, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, markLeaseReadFailure, isLeaseReadFailure, REVIEW_TARGET_SUPERSEDED, reapAbandonedReviewLeases, withArchivedVerdictMirror, legacyLeaseTerminalReason, isCommandSizeFailure, archiveOldReviewVerdicts, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, reviewerStartWatchLeases, RETURNED_COPY_MARKER, returnedCopyProvenance, REPO } from './manage-migration-author-lanes.mjs'
+import { assertUnambiguousClaimTitle, claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewerCapacityReport, reviewLeaseAgeHours, activityFingerprintForLease, probeSilentReviewer, reclaimSilentReviewer, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, assertDurableReviewApproval, buildDynamicQueues, claimBody, closedClaimAuthoredOnMain, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverExpiredClaimFromPr, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, releaseFailedReviewer, replaceFailedReviewer, failedReviewerReleaseCommand, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, doctorTimeoutFailingChecks, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, REVIEWER_PREFLIGHT_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, excludeReviewerForPr, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, reinstateReviewerExclusion, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, reviewerEmitsGovernedVerdict, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, markLeaseReadFailure, isLeaseReadFailure, REVIEW_TARGET_SUPERSEDED, reapAbandonedReviewLeases, withArchivedVerdictMirror, legacyLeaseTerminalReason, isCommandSizeFailure, archiveOldReviewVerdicts, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, reviewerStartWatchLeases, RETURNED_COPY_MARKER, returnedCopyProvenance, REPO, noteHeldMutex, clearHeldMutex, releaseHeldMutexOnProcessExit } from './manage-migration-author-lanes.mjs'
 import { readDatabasePreviewClassificationFile, withDatabasePreviewClassificationFile, databasePreviewAdmission, buildDatabasePreviewFileSnapshot } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
@@ -9821,9 +9821,10 @@ test('#2457 a refused mutex release still reports the completed assignment inste
 // Issue #2457: --replace-failed-reviewer is a reviewer DRAW too, and it was the
 // path that reproduced this twice on PR #2409. The replacement itself succeeded;
 // only the readback that proves the mutex release keeps answering with the
-// pre-deletion owner. That refusal must carry the completed result instead of
-// leaving the operator a bare "RECOVERY REQUIRED" for healthy state.
-test('#2457 a refused mutex release still reports the completed replacement instead of losing it',()=>{
+// pre-deletion owner. #4255: once a secondary ownership read (or the git
+// fallback) proves the ref is no longer ours, that IS a proved release -- the
+// replacement completes normally instead of refusing healthy state.
+test('#2457 a lagging replica after a real deletion completes the replacement instead of refusing',()=>{
   const io=failedReviewIo()
   let releasedOwner=null
   io.readReviewStates=(leases)=>new Map(leases.map((lease)=>[`${lease.issue}:${lease.pr}`,{issue:{state:'open'},pr:{state:'open',head:{sha:lease.headSha}},evidence:[]}]))
@@ -9835,21 +9836,73 @@ test('#2457 a refused mutex release still reports the completed replacement inst
   io.atomicReviewMutexRelease=(ownerSha)=>{io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:null}]);releasedOwner=ownerSha}
   io.readRefOverApi=(ref)=>(ref===MUTEX_REF&&releasedOwner)?releasedOwner:(io.refs.get(ref)??null)
   io.wait=()=>{}
-  let refused=null
-  assert.throws(()=>replaceFailedReviewer(replacementRequest,io),(error)=>(refused=error,
-    /could not be proved after atomic deletion/.test(error.message)&&
-    /THE OPERATION ITSELF COMPLETED/.test(error.message)&&
-    /"reviewer":/.test(error.message)&&
-    /"replacementSha":/.test(error.message)&&
-    Boolean(error.completedResult?.reviewer)&&
-    Boolean(error.completedResult?.replacementSha)))
-  // Durable state, not only the message: the replacement record the refusal
-  // names really exists at the ref it reports.
-  assert.ok(refused.completedResult.assignmentRef)
-  assert.equal(io.refs.get(refused.completedResult.assignmentRef),refused.completedResult.replacementSha)
+  const result=replaceFailedReviewer(replacementRequest,io)
+  assert.ok(result.reviewer)
+  assert.ok(result.assignmentRef)
+  assert.equal(io.refs.get(result.assignmentRef),result.replacementSha)
   // The deletion itself worked: refusing and telling the operator to retry would
   // draw a SECOND reviewer, which is exactly the harm the old message invited.
   assert.equal(io.refs.get(MUTEX_REF),undefined)
+})
+
+// Issue #4255: PR 4221 left refs/db-coordination/author-acquisition held by
+// `db-coordination reviewer-assignment-lock` commits when the process died or
+// the atomic release threw, blocking documents-only merge authorization on
+// unrelated PRs until recover-author-mutex.yml ran.
+test('#4255 an atomic-release throw falls back to the owner-verified git delete',()=>{
+  const io=reviewIo()
+  io.atomicReviewMutexRelease=()=>{throw new Error('atomic push failed: network reset')}
+  let gitReleased=null
+  io.releaseRefOverGit=(ref,sha)=>{gitReleased=[ref,sha];if(io.refs.get(ref)!==sha)return false;io.refs.delete(ref);return true}
+  const result=assignNextReviewer({issue:4255,pr:4221,headSha:'a'.repeat(40)},io)
+  assert.ok(result.reviewer)
+  assert.equal(gitReleased[0],MUTEX_REF)
+  assert.match(gitReleased[1],/^[0-9a-f]+$/)
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
+test('#4255 when the git fallback also fails but the ref is gone, release is still proved',()=>{
+  const io=reviewIo()
+  io.atomicReviewMutexRelease=()=>{io.refs.delete(MUTEX_REF);throw new Error('atomic push failed after delete was accepted')}
+  io.releaseRefOverGit=()=>{throw new Error('git push refused')}
+  const result=assignNextReviewer({issue:4256,pr:4222,headSha:'b'.repeat(40)},io)
+  assert.ok(result.reviewer)
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
+test('#4255 when every release path fails and we still own the ref, RECOVERY REQUIRED names the SHA',()=>{
+  const io=reviewIo()
+  io.atomicReviewMutexRelease=()=>{throw new Error('atomic push failed')}
+  io.releaseRefOverGit=()=>{throw new Error('git push refused')}
+  const ownerPattern=/RECOVERY REQUIRED: refs\/db-coordination\/author-acquisition expected SHA [0-9a-f]+/
+  assert.throws(()=>assignNextReviewer({issue:4257,pr:4223,headSha:'c'.repeat(40)},io),ownerPattern)
+  assert.equal(io.refs.has(MUTEX_REF),true,'an unproved release must never pretend the lock is free')
+})
+
+test('#4255 process-exit cleanup releases a held mutex over git without API quota',()=>{
+  const io=reviewIo()
+  const sha=io.makeOwnerCommit('db-coordination reviewer-assignment-lock issue=1 pr=2 head='+'d'.repeat(40))
+  io.refs.set(MUTEX_REF,sha)
+  let called=null
+  io.releaseRefOverGit=(ref,owner)=>{called=[ref,owner];io.refs.delete(ref);return true}
+  noteHeldMutex(sha,io)
+  assert.equal(releaseHeldMutexOnProcessExit(),true)
+  assert.deepEqual(called,[MUTEX_REF,sha])
+  assert.equal(io.refs.has(MUTEX_REF),false)
+  assert.equal(releaseHeldMutexOnProcessExit(),false,'a second call is a no-op')
+})
+
+test('#4255 process-exit cleanup never deletes a successor-owned mutex',()=>{
+  const io=reviewIo()
+  const sha=io.makeOwnerCommit('db-coordination reviewer-assignment-lock issue=1 pr=2 head='+'e'.repeat(40))
+  const rival='f'.repeat(40)
+  io.refs.set(MUTEX_REF,rival)
+  noteHeldMutex(sha,io)
+  let asked=null
+  io.releaseRefOverGit=(ref,owner)=>{asked=[ref,owner];return false}
+  releaseHeldMutexOnProcessExit()
+  assert.deepEqual(asked,[MUTEX_REF,sha])
+  assert.equal(io.refs.get(MUTEX_REF),rival)
 })
 
 

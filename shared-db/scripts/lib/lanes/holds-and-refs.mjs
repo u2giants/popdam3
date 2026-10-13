@@ -10,6 +10,7 @@ import { githubIo } from '../../manage-migration-author-lanes.mjs'
 import { gitRemoteRefs } from '../../manage-migration-author-lanes.mjs'
 import { GIT_COMMAND_TIMEOUT_MS } from './github-wire.mjs'
 import { execFileSync } from 'node:child_process'
+import { constants as osConstants } from 'node:os'
 
 // NAMED HOLDS (Step 2, locked decision 15, issue #3027). Every stage-lease refusal
 // names the exact lease holder, so a waiting item can record a hold on THAT lease
@@ -118,10 +119,53 @@ export function readPrAfterPush(pr, expected, io = githubIo, attempts = 12) {
   return null
 }
 
+// Process-death safety net (#4255). A crash, cancelled Actions job, or timeout
+// skips every `finally`, leaving refs/db-coordination/author-acquisition held
+// and blocking unrelated work (documents-only merge authorization) until a
+// manual recover-author-mutex.yml run. Track the exact owner SHA we hold and
+// release it best-effort over the git protocol (sync, no API quota) on process
+// exit and on the signals a cancelled runner actually sends.
+let heldMutex = null
+let mutexExitHooksInstalled = false
+
+export function noteHeldMutex(ownerSha, io = githubIo) {
+  heldMutex = { ownerSha, io }
+  installMutexExitHooks()
+}
+
+export function clearHeldMutex(ownerSha) {
+  if (heldMutex?.ownerSha === ownerSha) heldMutex = null
+}
+
+export function releaseHeldMutexOnProcessExit() {
+  const held = heldMutex
+  if (!held) return false
+  heldMutex = null
+  try {
+    if (typeof held.io.releaseRefOverGit === 'function') return Boolean(held.io.releaseRefOverGit(MUTEX_REF, held.ownerSha))
+    return Boolean(releaseRefOverGit(MUTEX_REF, held.ownerSha))
+  } catch {
+    return false
+  }
+}
+
+function installMutexExitHooks() {
+  if (mutexExitHooksInstalled || typeof process === 'undefined' || typeof process.on !== 'function') return
+  mutexExitHooksInstalled = true
+  const release = () => { try { releaseHeldMutexOnProcessExit() } catch { /* best-effort */ } }
+  process.on('exit', release)
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    process.on(signal, () => {
+      release()
+      process.exit(128 + (osConstants.signals?.[signal] ?? 0))
+    })
+  }
+}
+
 export function acquireMutex(ownerSha, io = githubIo, attempts = 100) {
   for (let attempt=1; attempt<=attempts; attempt++) {
     if(io.readRef(MUTEX_RECOVERY_ACTIVE_REF))throw new LaneError('author mutex recovery is active; retry after it finishes')
-    try { acquireRef(MUTEX_REF,ownerSha,io);return }
+    try { acquireRef(MUTEX_REF,ownerSha,io);noteHeldMutex(ownerSha,io);return }
     catch(error) {
       if(!/occupied/.test(error.message))throw error
       if(attempt===attempts){
@@ -184,6 +228,7 @@ export function releaseRefOnExit(ref, ownerSha, io = githubIo, { strict = false 
   try {
     if (strict) releaseOwnedRef(ref, ownerSha, io)
     else if (io.readRef(ref) === ownerSha) releaseOwnedRef(ref, ownerSha, io)
+    if (ref === MUTEX_REF) clearHeldMutex(ownerSha)
     return
   } catch (apiError) {
     if (/belongs to another owner/.test(String(apiError?.message))) throw apiError
@@ -192,6 +237,7 @@ export function releaseRefOnExit(ref, ownerSha, io = githubIo, { strict = false 
     try {
       const released = io.releaseRefOverGit(ref, ownerSha)
       if (released) process.stderr.write(`released ${ref} (${ownerSha}) over git after the API release failed: ${first(apiError)}\n`)
+      if (ref === MUTEX_REF) clearHeldMutex(ownerSha)
       return
     } catch (gitError) {
       throw new LaneError(`${ref} may still be held by ${ownerSha}: the API release failed (${first(apiError)}) and the git release failed (${first(gitError)}); if it is still held, recover it with --recover-author-mutex naming exactly ${ownerSha}`)

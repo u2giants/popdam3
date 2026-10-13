@@ -64,8 +64,8 @@ import { flowCapacityFacts, deriveLiveNoDatabasePreview, databasePreviewAdmissio
 export { flowCapacityFacts, deriveLiveNoDatabasePreview, databasePreviewAdmission, readDatabasePreviewClassificationFile, withDatabasePreviewClassificationFile, deriveLivePreviewCandidate, terminalizeHistoricalPreviewReady }
 import { REVIEWER_DOCTOR_TIMEOUT_MS, REVIEWER_PREFLIGHT_TIMEOUT_MS, parseDoctorFailures, summarizeDoctorOutput, unnamedDoctorFailure, doctorSpawnPlan, doctorTimeoutFailingChecks, pickExecutableCandidate, resolveCommandPath } from './lib/lanes/reviewer-doctor.mjs'
 export { REVIEWER_DOCTOR_TIMEOUT_MS, REVIEWER_PREFLIGHT_TIMEOUT_MS, parseDoctorFailures, summarizeDoctorOutput, unnamedDoctorFailure, doctorSpawnPlan, doctorTimeoutFailingChecks, pickExecutableCandidate, resolveCommandPath }
-import { leaseHoldText, holdFacts, namedHold, urgentHoldReason, urgentHoldDetail, acquireRef, readRefAfterWrite, readPrAfterPush, acquireMutex, requireOwnedRef, recoverStaleAuthorMutex, releaseOwnedRef, releaseMutexOnExit, releaseRefOnExit, releaseRefOverGit } from './lib/lanes/holds-and-refs.mjs'
-export { leaseHoldText, holdFacts, namedHold, urgentHoldReason, urgentHoldDetail, acquireRef, readRefAfterWrite, readPrAfterPush, acquireMutex, requireOwnedRef, recoverStaleAuthorMutex, releaseOwnedRef, releaseMutexOnExit, releaseRefOnExit, releaseRefOverGit }
+import { leaseHoldText, holdFacts, namedHold, urgentHoldReason, urgentHoldDetail, acquireRef, readRefAfterWrite, readPrAfterPush, acquireMutex, requireOwnedRef, recoverStaleAuthorMutex, releaseOwnedRef, releaseMutexOnExit, releaseRefOnExit, releaseRefOverGit, noteHeldMutex, clearHeldMutex, releaseHeldMutexOnProcessExit } from './lib/lanes/holds-and-refs.mjs'
+export { leaseHoldText, holdFacts, namedHold, urgentHoldReason, urgentHoldDetail, acquireRef, readRefAfterWrite, readPrAfterPush, acquireMutex, requireOwnedRef, recoverStaleAuthorMutex, releaseOwnedRef, releaseMutexOnExit, releaseRefOnExit, releaseRefOverGit, noteHeldMutex, clearHeldMutex, releaseHeldMutexOnProcessExit }
 import { parseReviewCursor, sameVerdictRecord, recordReviewVerdict, nonVerdictReviewerReplacementCommand, nonReadingReviewerReplacementCommand, readReviewVerdicts, reviewActiveRef, parseReviewLease, parseReviewExclusion, REVIEW_EXCLUSION_GENERATION_LIMIT, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATIONS, countDoctorPassLines, parseReviewReinstatement, parseReviewReturn, parseAssignmentRef, reviewReturnRef, readReviewReturns, retiredVerdictRef, reviewReturnsHeldBy, reviewLeaseRefForAssignment, activeLeaseRecordForAssignment, activeLeaseRecordForJob, reviewLeaseRefCandidates, leaseMatchesAssignment, leaseRefHoldsAssignment, resolveAssignmentLeaseRef, reviewerExclusions, retireVerdictsOrphanedByReturn, outstandingRetirements, reviewExclusionGenerationRows, liveExclusionGeneration } from './lib/lanes/review-records.mjs'
 export { parseReviewCursor, sameVerdictRecord, recordReviewVerdict, nonVerdictReviewerReplacementCommand, nonReadingReviewerReplacementCommand, readReviewVerdicts, reviewActiveRef, parseReviewLease, parseReviewExclusion, REVIEW_EXCLUSION_GENERATION_LIMIT, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATIONS, countDoctorPassLines, parseReviewReinstatement, parseReviewReturn, parseAssignmentRef, reviewReturnRef, readReviewReturns, retiredVerdictRef, reviewReturnsHeldBy }
 import { findPrReviewAssignments, verdictOpensLine, evidenceTiedToHead, isApprovalFor, isVerdictFor, anyVerdictFor, gateAuthorizes, withArchivedVerdictMirror, DURABLE_VERDICT_REF_NAMESPACE, hasVerdictForHead, headVerdictBlocksReplacement, mergedReviewComparisonBase, resolveLaneApprovalBase, assertDurableReviewApproval, MUTEX_RELEASE_READBACK_DELAYS_MS, readDurableVerdictRefs, leaseVerdictOptions, assertReviewLeaseStillStale, isReviewAssignmentLive, mergedPrReviewerReuseAllowed } from './lib/lanes/review-approval.mjs'
@@ -1675,8 +1675,27 @@ function finalizeReviewMutex(ownerSha,io){
       return true
     }
     return releaseOwnedRef(MUTEX_REF,ownerSha,io)
-  }catch(error){throw new LaneError(`${error.message}; RECOVERY REQUIRED: ${MUTEX_REF} expected SHA ${ownerSha}. Use the guarded recover-author-mutex.yml procedure and do not retry blindly`)}
-  finally{if(reviewWireBudget){reviewWireBudget.cleanup=previous;reviewWireBudget.releaseProofAllowance=0}}
+  }catch(error){
+    // #4255 / issue #3791 for the reviewer path: the atomic/API release failed.
+    // Fall back to the owner-verified git-protocol delete (no API quota) before
+    // declaring RECOVERY REQUIRED. A ref that is gone or owned by a successor is
+    // a proved release -- an orphaned mutex must never be assumed released, but
+    // one we no longer own is not ours to recover.
+    let gitError=null
+    try{
+      if(typeof io.releaseRefOverGit==='function'&&io.releaseRefOverGit(MUTEX_REF,ownerSha))return true
+    }catch(fallback){gitError=fallback}
+    try{
+      const still=typeof io.readRef==='function'?io.readRef(MUTEX_REF):ownerSha
+      if(still!==ownerSha)return true
+    }catch{/* unreadable ownership keeps the original refusal */}
+    if(gitError)throw new LaneError(`${error.message}; git release fallback failed (${String(gitError?.message??gitError).split('\n')[0]}); RECOVERY REQUIRED: ${MUTEX_REF} expected SHA ${ownerSha}. Use the guarded recover-author-mutex.yml procedure and do not retry blindly`)
+    throw new LaneError(`${error.message}; RECOVERY REQUIRED: ${MUTEX_REF} expected SHA ${ownerSha}. Use the guarded recover-author-mutex.yml procedure and do not retry blindly`)
+  }
+  finally{
+    clearHeldMutex(ownerSha)
+    if(reviewWireBudget){reviewWireBudget.cleanup=previous;reviewWireBudget.releaseProofAllowance=0}
+  }
 }
 function requireReviewWireCapacity(required,when='refused before mutex acquisition'){const limit=reviewWireBudget?.limit??REVIEW_OPERATION_REQUEST_LIMIT;if(reviewWireBudget&&reviewWireBudget.count+required>limit)throw new LaneError(`reviewer operation cannot fit ${required} remaining requests inside the ${limit}-request budget; ${when}`)}
 function acquireReviewMutex(ownerSha,io){
@@ -1696,6 +1715,7 @@ function acquireReviewMutex(ownerSha,io){
     throw error
   }
   if(!acquired)throw new LaneError(`${MUTEX_REF} is occupied`)
+  noteHeldMutex(ownerSha,io)
   try{
     const proof=io.readReviewRefs?.([MUTEX_RECOVERY_ACTIVE_REF,MUTEX_REF])
     const recovery=proof?proof.get(MUTEX_RECOVERY_ACTIVE_REF):io.readRef(MUTEX_RECOVERY_ACTIVE_REF)
