@@ -43,6 +43,9 @@ GOOGLE_EVIDENCE_METADATA_KEYS = {
     'order_list_source', 'raw_evidence', 'order_list_snapshot',
     'contractual_sample_reorder_raw', 'invalid_line_values',
 }
+NUMERIC_LINE_FIELDS = frozenset({
+    'order_depth_inches', 'case_pack', 'cases_reported',
+})
 SPEC = importlib.util.spec_from_file_location('source_import', ROOT/'shared-db/scripts/import-order-list-xlsx.py')
 m = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = m
@@ -183,6 +186,8 @@ def make_bindings(packet: dict, decisions: dict[int, dict], rows, by_source):
         line = candidates[0]
         if line.sheet_row != physical:
             raise ValueError('Google source row identity changed')
+        if line.order_source_id != entry['original_google_binding']['google_parent_source_id']:
+            raise ValueError('Google parent source identity changed')
         if src.cell('N') != decision.get('customer_po'):
             raise ValueError('Google customer PO changed from returned decision workbook')
         if refresh.normalized(line.payload.get('customer_po_number')) != refresh.normalized(decision.get('customer_po')):
@@ -357,6 +362,7 @@ SAFE_GUARD_MESSAGES = frozenset({
     'Unsupported binding packet schema','Binding packet has no rows',
     'Duplicate or invalid returned workbook row binding','Invalid Google source row binding',
     'Incomplete ColdLion line binding','Incomplete Google line binding','Binding rows are not unique',
+    'Google parent source identity changed',
     'Returned workbook has no Potential overlaps sheet','Returned workbook headers changed',
     'Each approved row note must contain exactly one explicit Quantity N declaration','Invalid quantity note',
     'A bound row does not have the exact approved decision','Returned notes differ from the frozen decision binding',
@@ -591,6 +597,30 @@ def build_plan(args, packet, decisions, bound, pre):
         'entries':entries,'scope_counts':pre['counts'],'expected_parent_map':sorted((e['cold_id'],e['google_parent_id']) for e in entries)}
 
 
+def line_readback_equal(field: str, actual, expected) -> bool:
+    """Compare JSON readback with the value the importer writer actually stores."""
+    if field == 'metadata':
+        try:
+            writer_value=json.loads(json.dumps(expected,default=str,separators=(',',':')))
+        except (TypeError, ValueError):
+            return False
+        return m.canonical(actual)==m.canonical(writer_value)
+    if field in NUMERIC_LINE_FIELDS:
+        if actual is None or expected is None:
+            return actual is None and expected is None
+        if isinstance(actual,bool) or isinstance(expected,bool):
+            return False
+        if not isinstance(actual,(int,float,Decimal)) or not isinstance(expected,(int,float,Decimal)):
+            return False
+        try:
+            actual_number=Decimal(str(actual))
+            expected_number=Decimal(str(expected))
+        except InvalidOperation:
+            return False
+        return actual_number.is_finite() and expected_number.is_finite() and actual_number==expected_number
+    return m.canonical(actual)==m.canonical(expected)
+
+
 def _parent_uuid(source_id, pre):
     matches=[ref['production_order_id'] for ref in pre.get('google_parent_refs',[])
              if ref.get('source_system')==m.SOURCE_SYSTEM and ref.get('source_id')==source_id]
@@ -635,10 +665,11 @@ def apply_plan(conn, plan, pre):
             raise ValueError('ColdLion line was not moved to the bound Google header')
         for field in m.LINE_COLUMNS:
             if field=='metadata':
-                if m.canonical(row[field])!=m.canonical(e['cold_after'][field]): raise ValueError('Merged line evidence did not persist')
+                if not line_readback_equal(field,row.get(field),e['cold_after'].get(field)): raise ValueError('Merged line evidence did not persist')
             elif field in PROTECTED_LINE_FIELDS:
-                if m.canonical(row.get(field))!=m.canonical(e['cold_before'].get(field)): raise ValueError('Protected ColdLion line field changed')
-            elif m.canonical(row.get(field))!=m.canonical(e['cold_after'].get(field)): raise ValueError('Google-owned field did not persist')
+                if not line_readback_equal(field,row.get(field),e['cold_before'].get(field)): raise ValueError('Protected ColdLion line field changed')
+            elif not line_readback_equal(field,row.get(field),e['cold_after'].get(field)):
+                raise ValueError('Google-owned field did not persist')
     for e in entries:
         refs=conn.execute('select to_jsonb(t) from '+LINE_REF_TABLE+' t where source_system=%s and source_id=%s',('google_order_list',e['google_source_id'])).fetchall()
         if len(refs)!=1 or refs[0][0]['production_order_line_id']!=e['cold_id']:

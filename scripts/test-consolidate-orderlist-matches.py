@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from decimal import Decimal
+from types import SimpleNamespace
 
 HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location('consolidate_matches', HERE/'consolidate-orderlist-matches.py')
@@ -99,6 +101,52 @@ class ConsolidationTests(unittest.TestCase):
         updated = c.cold_google_patch(old, item, 'google-header')
         self.assertEqual({field: updated.get(field) for field in original}, original)
         self.assertEqual(updated['production_order_id'], 'google-header')
+
+    def test_make_bindings_rejects_changed_google_parent_with_same_po_and_sku(self):
+        values = [None] * 48
+        values[c.m.column_index('N')] = 'PO 77'
+        source = c.m.SourceRow(sheet_row=22, values=tuple(values))
+        source_id = 'order:row:22'
+        parsed_line = SimpleNamespace(
+            sheet_row=22,
+            order_source_id='new-normalized-import-po',
+            payload={'customer_po_number':'PO 77','sku':'AB-12'},
+            metadata={},
+        )
+        self.assertEqual(source.cell('N'), parsed_line.payload['customer_po_number'])
+        self.assertEqual(c.m.normalize_sku(parsed_line.payload['sku']), c.m.normalize_sku('AB-12'))
+        packet = {'rows':[{
+            'returned_excel_row':2,'google_physical_row':22,
+            'decision':c.DECISION,'notes':'Quantity 12',
+            'original_cold_binding':{},
+            'original_google_binding':{
+                'google_line_source_id':source_id,
+                'google_parent_source_id':'old-normalized-import-po',
+            },
+        }]}
+        decisions = {2:{
+            'google_row':22,'decision':c.DECISION,'notes':'Quantity 12',
+            'customer_po':'PO 77','sku':'AB-12',
+        }}
+        with self.assertRaisesRegex(ValueError,'Google parent source identity changed'):
+            c.make_bindings(packet,decisions,[source],{source_id:[parsed_line]})
+
+    def test_readback_comparison_matches_numeric_json_and_exact_metadata_writer_semantics(self):
+        parsed, raw = c.m.parse_number('4')
+        self.assertEqual(parsed, Decimal('4'))
+        self.assertEqual(raw, '4')
+        self.assertTrue(c.line_readback_equal('case_pack',4,parsed))
+        self.assertTrue(c.line_readback_equal('order_depth_inches',4.5,Decimal('4.5')))
+        self.assertFalse(c.line_readback_equal('cases_reported',5,Decimal('4')))
+        self.assertTrue(c.line_readback_equal('case_pack',None,None))
+        self.assertFalse(c.line_readback_equal('case_pack',None,Decimal('0')))
+        self.assertFalse(c.line_readback_equal('case_pack','4',Decimal('4')))
+
+        expected_metadata={'numeric_evidence':Decimal('4.0'),'raw_text':'4.0'}
+        stored_metadata=json.loads(json.dumps(expected_metadata,default=str))
+        self.assertEqual(stored_metadata['numeric_evidence'],'4.0')
+        self.assertTrue(c.line_readback_equal('metadata',stored_metadata,expected_metadata))
+        self.assertFalse(c.line_readback_equal('metadata',{'numeric_evidence':4,'raw_text':'4.0'},expected_metadata))
 
     def test_header_rebind_does_not_require_same_parent(self):
         old=sample_line()
