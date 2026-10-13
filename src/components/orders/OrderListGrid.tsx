@@ -149,7 +149,7 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
           width: column.width,
           hide: column.hide,
           pinned: column.pinned,
-          sort: column.field === "order_date" ? "desc" : undefined,
+          sort: column.field === "start_ship_date" ? "desc" : undefined,
           sortable: column.queryable !== false,
           resizable: true,
           filter: column.queryable === false ? false : filterFor(column),

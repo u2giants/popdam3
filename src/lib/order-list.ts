@@ -142,7 +142,7 @@ export function buildOrderListSort(sortModel: Array<{ colId: string; sort: strin
   const sorts = (sortModel ?? [])
     .filter((entry) => entry.colId && entry.sort)
     .map((entry) => ({ column: entry.colId, ascending: entry.sort === "asc" }));
-  if (sorts.length === 0) sorts.push({ column: "order_date", ascending: false });
+  if (sorts.length === 0) sorts.push({ column: "start_ship_date", ascending: false });
   sorts.push({ column: "order_line_id", ascending: true });
   return sorts;
 }
