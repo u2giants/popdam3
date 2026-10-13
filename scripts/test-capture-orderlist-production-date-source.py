@@ -40,15 +40,45 @@ class FakeConnection:
             'production_order_number': 'D-100', 'order_date': None,
             'metadata': {'customer_name': 'Buyer'}, 'preserved_unknown_header': 'raw',
         }
+        self.competing_header = {
+            'id': '12111111-1111-4111-8111-111111111111',
+            'production_order_number': 'D-100', 'order_date': None,
+            'preserved_unknown_header': 'same exact source number',
+        }
+        self.unrelated_header = {
+            'id': '13111111-1111-4111-8111-111111111111',
+            'production_order_number': ' D-100 ', 'order_date': None,
+            'preserved_unknown_header': 'keep header, exact comparison omits these lines',
+        }
         self.line = {
             'id': '22222222-2222-4222-8222-222222222222',
             'production_order_id': self.header['id'], 'sku': 'STYLE-1',
             'preserved_unknown_line': {'x': 7},
         }
+        self.competing_line = {
+            'id': '23222222-2222-4222-8222-222222222222',
+            'production_order_id': self.competing_header['id'], 'sku': 'STYLE-2',
+            'preserved_unknown_line': {'competitor': True},
+        }
+        self.unrelated_line = {
+            'id': '24222222-2222-4222-8222-222222222222',
+            'production_order_id': self.unrelated_header['id'], 'sku': 'UNRELATED',
+            'preserved_unknown_line': {'excluded': True},
+        }
         self.ref = {
             'id': '33333333-3333-4333-8333-333333333333',
             'production_order_line_id': self.line['id'], 'source_id': 'google:line:1',
             'preserved_unknown_ref': True,
+        }
+        self.competing_ref = {
+            'id': '34333333-3333-4333-8333-333333333333',
+            'production_order_line_id': self.competing_line['id'], 'source_id': 'other:source',
+            'preserved_unknown_ref': 'competitor retained',
+        }
+        self.unrelated_ref = {
+            'id': '35333333-3333-4333-8333-333333333333',
+            'production_order_line_id': self.unrelated_line['id'], 'source_id': 'unrelated:source',
+            'preserved_unknown_ref': 'must not be captured',
         }
         base = {
             'company_code': 'EDGEHOME', 'prod_order_no': 77, 'prod_reference_no': 'D-100',
@@ -75,6 +105,8 @@ class FakeConnection:
         self.source_queries = 0
         self.source_query_params = []
         self.source_query_text = []
+        self.line_query_params = []
+        self.ref_query_params = []
 
     def execute(self, query, params=()):
         if query.startswith('BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE READ ONLY'):
@@ -83,11 +115,17 @@ class FakeConnection:
         if query.startswith('SET LOCAL') or query.startswith('SHOW'):
             return FakeCursor([('serializable' if 'isolation' in query else 'on',)])
         if 'FROM plm.production_order AS t' in query:
-            rows = [self.header]
+            rows = [self.header, self.competing_header, self.unrelated_header]
         elif 'FROM plm.production_order_line AS t' in query:
-            rows = [self.line]
+            self.line_query_params.append(params)
+            selected = set(params[0])
+            rows = [line for line in [self.line, self.competing_line, self.unrelated_line]
+                    if line['production_order_id'] in selected]
         elif 'FROM plm.production_order_line_source_ref AS t' in query:
-            rows = [self.ref]
+            self.ref_query_params.append(params)
+            selected = set(params[0])
+            rows = [ref for ref in [self.ref, self.competing_ref, self.unrelated_ref]
+                    if ref['production_order_line_id'] in selected]
         elif 'FROM coldlion.prod_history_line AS s' in query:
             self.source_queries += 1
             self.source_query_params.append(params)
@@ -129,10 +167,23 @@ class CaptureTests(unittest.TestCase):
             self.assertTrue(connection.readonly_started)
             self.assertTrue(connection.rolled_back)
             self.assertTrue(connection.closed)
-            self.assertEqual(result['header_count'], 1)
-            self.assertEqual(body['headers'][0]['preserved_unknown_header'], 'raw')
+            self.assertEqual(result['header_count'], 3)
+            self.assertEqual({header['id'] for header in body['headers']},
+                             {connection.header['id'], connection.competing_header['id'],
+                              connection.unrelated_header['id']})
+            self.assertEqual({line['id'] for line in body['lines']},
+                             {connection.line['id'], connection.competing_line['id']})
             self.assertEqual(body['lines'][0]['preserved_unknown_line'], {'x': 7})
             self.assertEqual(body['line_source_refs'][0]['preserved_unknown_ref'], True)
+            self.assertEqual(len(body['line_source_refs']), 2)
+            self.assertEqual({row['id'] for row in body['prod_history_rows']},
+                             {connection.source['id'], connection.source_same_d_other_partition['id'],
+                              connection.source_same_partition_other_d['id']})
+            self.assertEqual(len(connection.line_query_params), 1)
+            self.assertEqual(set(connection.line_query_params[0][0]),
+                             {connection.header['id'], connection.competing_header['id']})
+            self.assertNotIn(connection.unrelated_header['id'], connection.line_query_params[0][0])
+            self.assertNotIn(connection.unrelated_line['id'], connection.ref_query_params[0][0])
             self.assertEqual(body['prod_history_rows'][0]['preserved_unknown_source'], 'kept')
             self.assertEqual(len(body['prod_history_rows']), 3)
             self.assertEqual(len(connection.source_query_params[1]), 6)

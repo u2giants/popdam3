@@ -96,22 +96,12 @@ def _capture_rows(conn) -> tuple[list[dict], list[dict], list[dict], list[dict],
         'SELECT to_jsonb(t) AS row, t.id::text AS row_id FROM plm.production_order AS t',
         (), HEADER_LIMIT)
     header_ids = _ids(headers, 'id')
-    lines = _read_rows(
-        conn,
-        'SELECT to_jsonb(t) AS row, t.id::text AS row_id FROM plm.production_order_line AS t '
-        'WHERE t.production_order_id = ANY(%s::uuid[])',
-        (header_ids,), LINE_LIMIT)
-    line_ids = _ids(lines, 'id')
-    refs = _read_rows(
-        conn,
-        'SELECT to_jsonb(t) AS row, t.id::text AS row_id FROM plm.production_order_line_source_ref AS t '
-        'WHERE t.production_order_line_id = ANY(%s::uuid[])',
-        (line_ids,), REF_LIMIT)
-
-    d_numbers = sorted({str(row['production_order_number']).strip()
+    # Keep source-number spelling byte-for-byte: candidates are joined by exact
+    # equality below, and no whitespace/case normalization is an identity rule.
+    d_numbers = sorted({str(row['production_order_number'])
                         for row in headers
                         if row.get('production_order_number') is not None and
-                        str(row['production_order_number']).strip()})
+                        str(row['production_order_number']) != ''})
     if d_numbers:
         d_sources = _read_rows(
             conn,
@@ -136,10 +126,36 @@ def _capture_rows(conn) -> tuple[list[dict], list[dict], list[dict], list[dict],
             f'WHERE s.prod_reference_no::text = ANY(%s::text[]) OR {clause}',
             (d_numbers, *partition_params), SOURCE_LIMIT)
     else:
+        d_sources = []
         source_rows = []
     _ids(source_rows, 'id')
     if not source_rows:
         raise ValueError('ColdLion production-history capture contains no source rows')
+
+    # Preserve every header sharing an exact source D-number, including
+    # competitors, but do not serialize unrelated production-order lines.
+    matched_d_numbers = {str(row['prod_reference_no']) for row in d_sources
+                         if row.get('prod_reference_no') is not None}
+    candidate_header_ids = [str(row['id']) for row in headers
+                            if row.get('production_order_number') is not None and
+                            str(row['production_order_number']) in matched_d_numbers]
+    if candidate_header_ids:
+        lines = _read_rows(
+            conn,
+            'SELECT to_jsonb(t) AS row, t.id::text AS row_id FROM plm.production_order_line AS t '
+            'WHERE t.production_order_id = ANY(%s::uuid[])',
+            (candidate_header_ids,), LINE_LIMIT)
+    else:
+        lines = []
+    line_ids = _ids(lines, 'id')
+    if line_ids:
+        refs = _read_rows(
+            conn,
+            'SELECT to_jsonb(t) AS row, t.id::text AS row_id FROM plm.production_order_line_source_ref AS t '
+            'WHERE t.production_order_line_id = ANY(%s::uuid[])',
+            (line_ids,), REF_LIMIT)
+    else:
+        refs = []
 
     customer_rows = executor._batch_customer_snapshot(conn, plan=None)
     if len(customer_rows) > planner.CUSTOMER_IDENTITY_SNAPSHOT_LIMIT:
