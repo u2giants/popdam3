@@ -55,10 +55,38 @@ export function projectLine(row) {
  *
  * Deliberately OUTSIDE projectLine and therefore outside line_source_hash: modTime moves
  * on every edit, and hashing it would turn each edit into a new line version. The vendor
- * sends a zone-less wall-clock time ("2026-03-27 11:37:34.557"); it is landed as that
- * wall clock read as UTC, the same convention plm."ProdOrderHeader"."createdTime" carries,
- * so the two ColdLion clocks compare directly. Never parsed in the machine's local zone.
+ * sends a zone-less wall-clock time ("2026-03-27 11:37:34.557") in NEW YORK time (Settled,
+ * Albert Hazan, 2026-10-09: all ColdLion times are New York time; issue #4150). It is read
+ * as America/New_York (EST/EDT by date) and landed as that instant. An explicit offset or
+ * Z in the value is honoured as given. Never parsed in the machine's local zone.
  */
+export const COLDLION_TIME_ZONE = "America/New_York";
+
+const zoneFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: COLDLION_TIME_ZONE,
+  hourCycle: "h23",
+  year: "numeric", month: "2-digit", day: "2-digit",
+  hour: "2-digit", minute: "2-digit", second: "2-digit",
+});
+
+/** Offset (ms) of the New York zone from UTC at the given instant. */
+function zoneOffsetAt(epochMs) {
+  const parts = Object.fromEntries(zoneFormatter.formatToParts(new Date(epochMs)).map((p) => [p.type, p.value]));
+  const asUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+  return asUtc - Math.floor(epochMs / 1000) * 1000;
+}
+
+/**
+ * New York wall clock -> UTC epoch ms. The offset is resolved twice so a wall clock near a
+ * DST change uses the offset in force at the resulting instant. The one ambiguous hour
+ * (November fall-back) is not decidable from the vendor value; it resolves to one of the
+ * two valid readings and is never off by more than that hour.
+ */
+export function newYorkWallClockToEpoch(wallAsUtcMs) {
+  const guess = wallAsUtcMs - zoneOffsetAt(wallAsUtcMs);
+  return wallAsUtcMs - zoneOffsetAt(guess);
+}
+
 export function wallClockTimestamp(value) {
   const raw = text(value);
   if (raw === null) return null;
@@ -67,7 +95,8 @@ export function wallClockTimestamp(value) {
   if (match[1] <= EMPTY_DATE_MARKER) return null;
   const parsed = new Date(`${match[1]}T${match[2]}${match[3] ?? "Z"}`);
   if (Number.isNaN(parsed.valueOf())) throw new Error("a timestamp field was not an ISO timestamp");
-  return parsed.toISOString();
+  if (match[3]) return parsed.toISOString();
+  return new Date(newYorkWallClockToEpoch(parsed.valueOf())).toISOString();
 }
 
 export function projectLineStamps(row) {

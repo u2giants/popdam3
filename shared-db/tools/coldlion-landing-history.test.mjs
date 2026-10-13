@@ -296,9 +296,9 @@ test("entry/edit stamps land on the line, earliest created and latest modified, 
   );
   assert.equal(projected.lines.length, 1, "differing stamps never split a line into versions");
   const [line] = projected.lines;
-  assert.equal(line.created_time, "2026-03-26T09:00:00.000Z");
+  assert.equal(line.created_time, "2026-03-26T13:00:00.000Z", "09:00 New York (EDT) is 13:00 UTC");
   assert.equal(line.created_user, "U0");
-  assert.equal(line.mod_time, "2026-05-01T10:00:00.000Z");
+  assert.equal(line.mod_time, "2026-05-01T14:00:00.000Z");
   assert.equal(line.mod_user, "U3");
   counter = 0;
   const bare = projectOrderHistoryWindow([orderRow()], { runId: ids(), fetchedAt: "2026-09-08T00:00:00Z", newId: ids });
@@ -339,9 +339,18 @@ test("the stamp backfill clamps --to to the newest closed window and skips EP001
   assert.equal((sql.match(/insert into _stamps values/g) ?? []).length, 3, "batched 500 rows per statement");
 });
 
-test("vendor wall-clock stamps are read as UTC, never in the machine zone", () => {
-  assert.equal(wallClockTimestamp("2026-03-27 11:37:34.557"), "2026-03-27T11:37:34.557Z");
-  assert.equal(wallClockTimestamp("2026-03-27T11:37:34"), "2026-03-27T11:37:34.000Z");
+test("vendor wall-clock stamps are read as New York time, never UTC or the machine zone", () => {
+  // Issue #4150 acceptance example: SO 7127837 entered 2026-05-05 4:25 PM New York (EDT).
+  assert.equal(wallClockTimestamp("2026-05-05 16:25:21.159"), "2026-05-05T20:25:21.159Z");
+  assert.equal(wallClockTimestamp("2026-03-27 11:37:34.557"), "2026-03-27T15:37:34.557Z");
+  assert.equal(wallClockTimestamp("2026-03-27T11:37:34"), "2026-03-27T15:37:34.000Z");
+  // Winter is EST (-05:00); both sides of the 2026 changes resolve correctly.
+  assert.equal(wallClockTimestamp("2026-01-15 09:00:00.000"), "2026-01-15T14:00:00.000Z");
+  assert.equal(wallClockTimestamp("2026-03-08 01:59:59.000"), "2026-03-08T06:59:59.000Z");
+  assert.equal(wallClockTimestamp("2026-03-08 03:00:00.000"), "2026-03-08T07:00:00.000Z");
+  assert.equal(wallClockTimestamp("2026-11-01 00:30:00.000"), "2026-11-01T04:30:00.000Z");
+  assert.equal(wallClockTimestamp("2026-11-01 02:30:00.000"), "2026-11-01T07:30:00.000Z");
+  assert.equal(wallClockTimestamp("2026-03-27T11:37:34Z"), "2026-03-27T11:37:34.000Z", "explicit Z is honoured");
   assert.equal(wallClockTimestamp("2026-03-27T11:37:34-04:00"), "2026-03-27T15:37:34.000Z");
   assert.equal(wallClockTimestamp("1900-01-01 00:00:00.000"), null);
   assert.equal(wallClockTimestamp(""), null);
@@ -357,8 +366,8 @@ test("the stamp backfill folds and matches on the loader's line identity for eac
   ];
   const current = aggregateStamps(rows, "current");
   assert.deepEqual(current.map((s) => [s.sales_order_line_no, s.created_time, s.mod_user]), [
-    [1, "2026-03-25T11:00:00.000Z", "M"],
-    [2, "2026-03-20T11:00:00.000Z", null],
+    [1, "2026-03-25T15:00:00.000Z", "M"],
+    [2, "2026-03-20T15:00:00.000Z", null],
   ], "two order lines sharing order/item/label are never folded together");
   const sql = buildStampUpdateSql(current, "current");
   assert.match(sql, /^begin;/);
@@ -368,7 +377,7 @@ test("the stamp backfill folds and matches on the loader's line identity for eac
   assert.doesNotMatch(sql, /insert into coldlion/);
   const legacy = aggregateStamps(rows, "legacy");
   assert.equal(legacy.length, 1, "the line-number-less shape keys on order/item/label, its own identity");
-  assert.equal(legacy[0].created_time, "2026-03-20T11:00:00.000Z");
+  assert.equal(legacy[0].created_time, "2026-03-20T15:00:00.000Z");
   assert.match(buildStampUpdateSql(legacy, "legacy"), /t\.item_no = s\.item_no\s+and t\.label_code is not distinct from s\.label_code/);
   assert.equal(buildStampUpdateSql([], "legacy"), null);
   assert.throws(() => buildStampUpdateSql(current, "x; drop"), /unexpected table shape/);
