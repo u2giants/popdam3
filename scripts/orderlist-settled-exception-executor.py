@@ -5,6 +5,10 @@ Dry-run is the default. Apply requires an exact preimage bundle, a reviewer
 approval bundle for these bytes and this executor, the standard task gate, a
 fresh Virginia identity proof, exact guard absence, and unchanged locked
 preimages. It never deletes rows or writes historical-PO admissions.
+
+The approved historical reconstruction contains 40 header groups and is only
+eligible before either known PO-reuse guard migration is installed. It never
+creates admissions or bypasses a present or partially installed guard.
 """
 
 from __future__ import annotations
@@ -29,7 +33,11 @@ ROOT = Path(__file__).resolve().parents[1]
 PREFLIGHT_PATH = ROOT / "scripts" / "orderlist-source-disposition-writer.py"
 TARGET = "qsllyeztdwjgirsysgai"
 SOURCE_SYSTEM = "google_order_list"
-GUARD_MIGRATION = "20261013164735"
+GUARD_MIGRATIONS = ("20261013164735", "20261013201822")
+GUARD_STATE_OBJECT_KEYS = frozenset({
+    "reservation_table", "legacy_admission_table", "normalizer_function",
+    "guard_function", "trigger", "migration_versions",
+})
 EXPECTED_HEADER_COUNT = 76
 EXPECTED_LINE_COUNT = 296
 ADVISORY_LOCK_KEY = 852_000_727
@@ -597,6 +605,7 @@ def _master_data_catalog(
 ) -> Any:
     if snapshot.get("schema") != CATALOG_SNAPSHOT_SCHEMA or snapshot.get("target") != TARGET:
         raise ExecutorError("bounded catalog snapshot schema or target is invalid")
+    _validate_catalog_guard_state(snapshot.get("po_reuse_guard_state"))
     existing_ids = {str(row.get("id")) for row in source_preimages.get("lines", [])}
     missing_sids = {line["source_id"] for line in lines if line_uuid_by_source[line["source_id"]] not in existing_ids}
     current_by_source = {
@@ -739,28 +748,53 @@ def _known_guard_state(connection: Any) -> dict[str, Any]:
     if not has_ledger:
         raise ExecutorError("migration ledger unavailable; PO reuse guard absence cannot be proven")
     version_row = connection.execute(
-        "select exists(select 1 from supabase_migrations.schema_migrations where version=%s)",
-        (GUARD_MIGRATION,),
+        "select " + ", ".join(
+            "exists(select 1 from supabase_migrations.schema_migrations where version=%s)"
+            for _ in GUARD_MIGRATIONS
+        ),
+        GUARD_MIGRATIONS,
     ).fetchone()
-    if version_row is None:
+    if version_row is None or len(version_row) != len(GUARD_MIGRATIONS):
         raise ExecutorError("PO reuse guard migration state could not be proven")
-    applied = bool(version_row[0])
-    present = any((has_reservation, has_admission, has_normalizer, has_guard_fn, has_trigger, applied))
-    return {
-        "status": "present_or_partial" if present else "absent",
-        "objects": {
+    migration_versions = {version: bool(applied) for version, applied in zip(GUARD_MIGRATIONS, version_row)}
+    objects = {
             "reservation_table": has_reservation,
             "legacy_admission_table": has_admission,
             "normalizer_function": has_normalizer,
             "guard_function": has_guard_fn,
             "trigger": has_trigger,
-            "migration_applied": applied,
-        },
+            "migration_versions": migration_versions,
+    }
+    return {
+        "status": "present_or_partial" if any((has_reservation, has_admission, has_normalizer, has_guard_fn, has_trigger, *migration_versions.values())) else "absent",
+        "objects": objects,
     }
 
 
+def _validate_catalog_guard_state(state: Any) -> dict[str, Any]:
+    if not isinstance(state, dict) or set(state) != {"status", "objects"}:
+        raise ExecutorError("bounded catalog snapshot is missing complete PO reuse guard state")
+    objects = state.get("objects")
+    if not isinstance(objects, dict) or set(objects) != GUARD_STATE_OBJECT_KEYS:
+        raise ExecutorError("bounded catalog snapshot PO reuse guard state is malformed")
+    for key in GUARD_STATE_OBJECT_KEYS - {"migration_versions"}:
+        if not isinstance(objects.get(key), bool):
+            raise ExecutorError("bounded catalog snapshot PO reuse guard state is malformed")
+    migrations = objects.get("migration_versions")
+    if not isinstance(migrations, dict) or set(migrations) != set(GUARD_MIGRATIONS):
+        raise ExecutorError("bounded catalog snapshot PO reuse guard migration state is incomplete")
+    if any(not isinstance(value, bool) for value in migrations.values()):
+        raise ExecutorError("bounded catalog snapshot PO reuse guard migration state is malformed")
+    present = any(objects[key] for key in GUARD_STATE_OBJECT_KEYS - {"migration_versions"}) or any(migrations.values())
+    expected_status = "present_or_partial" if present else "absent"
+    if state.get("status") != expected_status:
+        raise ExecutorError("bounded catalog snapshot PO reuse guard status conflicts with its evidence")
+    return state
+
+
 def require_guard_absent(state: Mapping[str, Any]) -> None:
-    if state.get("status") != "absent" or any(state.get("objects", {}).values()):
+    validated = _validate_catalog_guard_state(state)
+    if validated["status"] != "absent":
         raise AdmissionRequired("PO reuse guard is present or partial; finite reviewed admissions are required")
 
 

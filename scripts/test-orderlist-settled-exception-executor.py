@@ -27,8 +27,23 @@ def snapshot(rows, pairs=None):
     return {
         "schema": executor.CATALOG_SNAPSHOT_SCHEMA,
         "target": executor.TARGET,
-        "requested_pairs": pairs or [{"sku_normalized": "sku-1", "style_type": "licensed"}],
+        "requested_pairs": pairs if pairs is not None else [{"sku_normalized": "sku-1", "style_type": "licensed"}],
         "rows": rows,
+        "po_reuse_guard_state": absent_guard_state(),
+    }
+
+
+def absent_guard_state():
+    return {
+        "status": "absent",
+        "objects": {
+            "reservation_table": False,
+            "legacy_admission_table": False,
+            "normalizer_function": False,
+            "guard_function": False,
+            "trigger": False,
+            "migration_versions": {version: False for version in executor.GUARD_MIGRATIONS},
+        },
     }
 
 
@@ -48,6 +63,21 @@ class FakeConnection:
 
     def fetchall(self):
         return self.rows
+
+
+class GuardProbe:
+    def __init__(self, applied):
+        self.responses = [(False, False, False, False, False, True), applied]
+        self.queries = []
+        self.params = []
+
+    def execute(self, query, params=None):
+        self.queries.append(query)
+        self.params.append(params)
+        return self
+
+    def fetchone(self):
+        return self.responses.pop(0)
 
 
 class FakeTransaction:
@@ -70,7 +100,7 @@ def fake_postimage():
     lines = [{"id": f"line-{i}", "source_id": f"l:{i}", "action": "insert", "assert_fields": {"id": f"line-{i}"}} for i in range(296)]
     order_refs = {row["source_id"]: {"id": f"href-{i}", "production_order_id": row["id"], "source_system": "google_order_list", "source_id": row["source_id"], "is_primary": True, "metadata": {}} for i, row in enumerate(orders)}
     line_refs = {row["source_id"]: {"id": f"lref-{i}", "production_order_line_id": row["id"], "source_system": "google_order_list", "source_id": row["source_id"], "is_primary": True, "metadata": {}} for i, row in enumerate(lines)}
-    catalog = {"schema": executor.CATALOG_SNAPSHOT_SCHEMA, "target": executor.TARGET, "requested_pairs": [], "rows": [], "po_reuse_guard_state": {"status": "absent", "objects": {}}}
+    catalog = {"schema": executor.CATALOG_SNAPSHOT_SCHEMA, "target": executor.TARGET, "requested_pairs": [], "rows": [], "po_reuse_guard_state": absent_guard_state()}
     return {
         "orders": orders, "lines": lines,
         "order_source_ref_assertions": order_refs, "line_source_ref_assertions": line_refs,
@@ -85,7 +115,7 @@ class FakeGateway:
         self.connection = FakeTransaction()
         self.preimages = preimages
         self.postimage = postimage
-        self.guard = guard or {"status": "absent", "objects": {}}
+        self.guard = guard or absent_guard_state()
         self.catalog = catalog or postimage["catalog_snapshot"]
         self.preimage_drift = preimage_drift
         self.bad_readback = bad_readback
@@ -454,10 +484,43 @@ class SettledExceptionExecutorTests(unittest.TestCase):
         self.assertEqual(result["requested_pairs"], [])
         self.assertEqual(result["rows"], [])
 
+    def test_offline_catalog_requires_complete_consistent_guard_state(self):
+        good = snapshot([], pairs=[])
+        resolved = executor._master_data_catalog(good, [], {"lines": []}, {})
+        self.assertEqual(resolved.rows, {})
+        for bad_state in (
+            None,
+            {"status": "absent", "objects": {}},
+            {"status": "absent", "objects": {**absent_guard_state()["objects"], "migration_versions": {executor.GUARD_MIGRATIONS[0]: False}}},
+            {"status": "absent", "objects": {**absent_guard_state()["objects"], "trigger": True}},
+        ):
+            bad = {**good, "po_reuse_guard_state": bad_state}
+            with self.subTest(state=bad_state), self.assertRaisesRegex(executor.ExecutorError, "PO reuse guard"):
+                executor._master_data_catalog(bad, [], {"lines": []}, {})
+
+    def test_guard_probe_blocks_each_exact_migration_version(self):
+        for index, version in enumerate(executor.GUARD_MIGRATIONS):
+            applied = tuple(i == index for i in range(len(executor.GUARD_MIGRATIONS)))
+            probe = GuardProbe(applied)
+            state = executor._known_guard_state(probe)
+            self.assertEqual(probe.params[1], executor.GUARD_MIGRATIONS)
+            self.assertEqual(state["status"], "present_or_partial")
+            self.assertTrue(state["objects"]["migration_versions"][version])
+            with self.assertRaises(executor.AdmissionRequired):
+                executor.require_guard_absent(state)
+
+        absent_probe = GuardProbe((False, False))
+        absent = executor._known_guard_state(absent_probe)
+        self.assertEqual(absent, absent_guard_state())
+        executor.require_guard_absent(absent)
+
     def test_guard_state_requires_exact_absence(self):
-        executor.require_guard_absent({"status": "absent", "objects": {"trigger": False}})
+        executor.require_guard_absent(absent_guard_state())
+        present = absent_guard_state()
+        present["status"] = "present_or_partial"
+        present["objects"]["trigger"] = True
         with self.assertRaises(executor.AdmissionRequired):
-            executor.require_guard_absent({"status": "present_or_partial", "objects": {"trigger": True}})
+            executor.require_guard_absent(present)
 
     def test_generated_ids_are_deterministic_and_source_bound(self):
         one = executor.deterministic_uuid("production_order_line", "order:row:42")
@@ -469,7 +532,8 @@ class SettledExceptionExecutorTests(unittest.TestCase):
     def test_transaction_commits_only_after_complete_count_and_reference_readback(self):
         preimages = {"orders": [{"id": "old"}], "lines": []}
         postimage = fake_postimage()
-        gateway = FakeGateway(preimages, postimage)
+        guard = executor._known_guard_state(GuardProbe((False, False)))
+        gateway = FakeGateway(preimages, postimage, guard=guard)
         executor.apply_transaction(gateway, postimage, preimages)
         self.assertTrue(gateway.applied)
         self.assertTrue(gateway.connection.committed)
@@ -492,7 +556,10 @@ class SettledExceptionExecutorTests(unittest.TestCase):
         preimages = {"orders": [{"id": "old"}], "lines": []}
         postimage = fake_postimage()
         for gateway in (
-            FakeGateway(preimages, postimage, guard={"status": "present_or_partial", "objects": {"trigger": True}}),
+            FakeGateway(preimages, postimage, guard={
+                "status": "present_or_partial",
+                "objects": {**absent_guard_state()["objects"], "trigger": True},
+            }),
             FakeGateway(preimages, postimage, bad_readback=True),
         ):
             with self.assertRaises(executor.ExecutorError):

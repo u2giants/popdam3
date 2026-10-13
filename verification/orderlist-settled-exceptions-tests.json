@@ -1,21 +1,21 @@
 {
   "schema": "orderlist-settled-exceptions-source-test-evidence-v1",
-  "executed_at": "2026-10-13T21:13:14.065059+00:00",
+  "executed_at": "2026-10-13T21:30:04.957232+00:00",
   "scope": "Owned isolated synthetic PostgreSQL fixture and offline tests only",
   "source_file_sha256": {
     ".ai-devops/task-gates.json": "35c2c9ed249a93d44ca6808f915fc23ce7c43a9ef1714602193a3cd23f483f40",
     "scripts/test-task-gates.sh": "da6adb1400abb4c20887ad723f64b61de921d88724b8516dfab0b90f53fdb6fa",
     "scripts/orderlist-source-disposition-writer.py": "647f69f45c82f851431b20c09ab5335670ccfd2c0943701257ef626cf5ffb226",
     "scripts/test-orderlist-source-disposition-writer.py": "012a73701b42e051839937c77dfec8b0f902cb45816b14af4e259b23cc65409d",
-    "scripts/orderlist-settled-exception-executor.py": "99b4dfd7e0844904980492e0a18845e65c63dde89c84ba44c54a4d0afe08a75c",
-    "scripts/test-orderlist-settled-exception-executor.py": "00190ddf40de38bd9ca1ba681dd783a320b38dbf73c8fd03e974cfc3ccab5063",
-    "scripts/test-orderlist-settled-exception-postgres.py": "37b521bdd3802fba2bb65c8941e201e4174ff1e84592c9ce70d833136cc3036f",
+    "scripts/orderlist-settled-exception-executor.py": "50f7d6f42a7e41760942e24d8e58a8a7279be2d6b660f1a9168384a7734e1c08",
+    "scripts/test-orderlist-settled-exception-executor.py": "8309fa4f0eb7aac0682c4a2c373b7c93db37b3dc6c1d1b739350c30c1fc55764",
+    "scripts/test-orderlist-settled-exception-postgres.py": "9f90e1b6f15d5c9e5405c2cca50d0d138ef1a2045fe901a5cf0eca1fb92ebc83",
     "scripts/orderlist-source-dispositions.py": "1077ec59df21d2087ff0e1668b7d1a4f022e6d6fc869a65c72841ea28508d3c2",
     "scripts/test-orderlist-source-dispositions.py": "ca5e863a62ab7473d0889818acde01baebd95d9dfbae2f66a4e1a37d05110cf3"
   },
   "canonical_importer_sha256": "7b499d63c4fc07b7c11896f226607b5d930a148bcef4e725ae90392ac91ea410",
   "passing_suites": {
-    "executor": 25,
+    "executor": 27,
     "preflight": 16,
     "source_disposition_planner": 23,
     "task_gates": 30
@@ -42,5 +42,15 @@
     "preserved_from_planner_through_review_plan": true,
     "validated_before_postimage_construction_and_apply_recomputation": true,
     "drift_before_initial_postimage_rejected": true
+  },
+  "po_reuse_guard_snapshot_contract": {
+    "required_for_offline_and_captured_catalog_snapshots": true,
+    "exact_migration_versions_checked": [
+      "20261013164735",
+      "20261013201822"
+    ],
+    "each_migration_version_blocks_apply_when_present": true,
+    "fully_false_migration_map_allows_apply_gate": true,
+    "admissions_written": 0
   }
 }

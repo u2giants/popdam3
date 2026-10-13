@@ -67,7 +67,14 @@ def main() -> None:
 
     catalog = {
         "schema": executor.CATALOG_SNAPSHOT_SCHEMA, "target": executor.TARGET,
-        "requested_pairs": [], "rows": [], "po_reuse_guard_state": {"status": "absent", "objects": {}},
+        "requested_pairs": [], "rows": [], "po_reuse_guard_state": {
+            "status": "absent",
+            "objects": {
+                "reservation_table": False, "legacy_admission_table": False,
+                "normalizer_function": False, "guard_function": False, "trigger": False,
+                "migration_versions": {version: False for version in executor.GUARD_MIGRATIONS},
+            },
+        },
     }
     timestamp = "2026-01-01T00:00:00+00:00"
     seed_header_ids = {
