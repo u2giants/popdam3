@@ -3,6 +3,7 @@
  */
 
 import { err, json } from "../http.ts";
+import { ColdLionConfigError } from "../coldlion.ts";
 import { serviceClient } from "../service-client.ts";
 
 const COLDLION_BASE = "http://x5.coldlion.com/EhpApi";
@@ -18,7 +19,7 @@ export async function getColdlionApiKey(): Promise<string> {
   if (data?.value && typeof data.value === "string" && data.value.trim()) {
     return data.value.trim();
   }
-  throw new Error("COLDLION_API_KEY is missing from admin_config");
+  throw new ColdLionConfigError("COLDLION_API_KEY is missing from admin_config");
 }
 
 // ── debug-coldlion-lookup ───────────────────────────────────────────
