@@ -69,7 +69,7 @@ describe("canonical licensor/property contract", () => {
     expect(parser).toContain("if (e instanceof ColdLionConfigError) throw e;");
     expect(parser.match(/instanceof ColdLionConfigError/g)?.length).toBe(2);
     // The key is read before the circuit breaker at both call sites, so a missing key is never masked.
-    expect(coldlion.match(/await readColdLionApiKey\(\);\n  breaker\.assertClosed/g)?.length).toBe(2);
+    expect(coldlion.match(/await readColdLionApiKey\(\);\n {2}breaker\.assertClosed/g)?.length).toBe(2);
     expect(coldlion).toContain("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set");
     expect(coldlion).toContain("res.error");
     const handlers = read("supabase/functions/_shared/admin-handlers/coldlion-handlers.ts");
