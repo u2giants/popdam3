@@ -32,6 +32,7 @@ import { handlePopSGFileTags, processPendingPopSGTags } from "./handlers/popsg-t
 import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
+import { isDeepStrictEqual } from "node:util";
 import { withDependencyTimeout } from "./bounded-dependency.js";
 import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
 import { alreadyBoundAcceptedAcknowledgement, createSubmissionOwnerFactory, persistAcceptedProviderAcknowledgement, type AcceptedProviderAcknowledgement, awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, failOperationAfterNotSubmitted, failClaimedOperation, failOperationWithoutResetContract, failOperationWithoutResetContractNotSubmitted, finishInterruptedReset, ResetContractUnavailableError, type RpcCall } from "./provider-submission-recovery.js";
@@ -57,10 +58,35 @@ const submissionLeaseTokens = new Map<string, string>();
 export const submissionOwnerForRun = createSubmissionOwnerFactory();
 // RAM only; a known acknowledgement may never return to the submission path.
 const acceptedAcknowledgements = new Map<string, AcceptedProviderAcknowledgement>();
+// Accepted receipts prove only this exact bound job; they cannot authorize creation.
+const acceptedBindingReceipts = new Map<string, AcceptedProviderAcknowledgement>();
+export function boundProviderReceipt(opKey: string, current: OpState): string | undefined {
+  const ack = acceptedBindingReceipts.get(opKey);
+  const original = ack?.submitted;
+  const job = current.external_job;
+  const bound = original?.external_job;
+  if (!ack || !original || !job?.provider_batch_id || job.provider_batch_id !== bound?.provider_batch_id ||
+      current.run_id !== original.run_id || current.started_at !== original.started_at || current.cursor !== original.cursor ||
+      !isDeepStrictEqual(current.params, original.params) || !isDeepStrictEqual(current.meta_tag_attempt, original.meta_tag_attempt) ||
+      job.provider !== bound.provider || job.model !== bound.model || job.prepared_at !== bound.prepared_at ||
+      job.page_cursor !== bound.page_cursor || job.submission_owner !== ack.claimed.external_job?.submission_owner ||
+      job.lease_proof !== ack.claimed.external_job?.lease_proof ||
+      job.meta_account_fingerprint !== bound.meta_account_fingerprint ||
+      !isDeepStrictEqual(job.meta_character_catalog_ids, bound.meta_character_catalog_ids) ||
+      !isDeepStrictEqual(job.items?.map(item => [item.asset_id, item.custom_id]), bound.items?.map(item => [item.asset_id, item.custom_id]))) return undefined;
+  return ack.leaseToken;
+}
+function retainBoundAcknowledgement(ack: AcceptedProviderAcknowledgement): void {
+  acceptedBindingReceipts.set(ack.opKey, ack);
+  submissionLeaseTokens.delete(ack.opKey);
+  submissionLeaseRetryAfter.delete(ack.opKey);
+  preSubmissionRetries.delete(ack.opKey);
+  acceptedAcknowledgements.delete(ack.opKey);
+}
 export function holdsAcceptedAcknowledgement(opKey: string): boolean { return acceptedAcknowledgements.has(opKey); }
 export function reconcileHeldAcknowledgement(opKey: string, current: OpState): boolean {
   const held = acceptedAcknowledgements.get(opKey);
-  if (held && alreadyBoundAcceptedAcknowledgement(held, current)) acceptedAcknowledgements.delete(opKey);
+  if (held && alreadyBoundAcceptedAcknowledgement(held, current)) retainBoundAcknowledgement(held);
   return acceptedAcknowledgements.has(opKey);
 }
 export async function saveAcceptedAcknowledgement(
@@ -71,9 +97,10 @@ export async function saveAcceptedAcknowledgement(
   const held = acceptedAcknowledgements.get(ack.opKey);
   if (held && held !== ack) return { saved: false, reason: "acknowledgement_already_held" };
   acceptedAcknowledgements.set(ack.opKey, ack);
-  releaseReceiptAfterPost(ack.opKey, ack.claimed.external_job?.lease_expires_at);
+  submissionLeaseTokens.delete(ack.opKey); // One-time creation authority is consumed.
+  submissionLeaseRetryAfter.delete(ack.opKey);
   const result = await persistAcceptedProviderAcknowledgement(rpc, read, ack);
-  if (result.saved) acceptedAcknowledgements.delete(ack.opKey);
+  if (result.saved) retainBoundAcknowledgement(ack);
   return result;
 }
 const submissionLeaseRetryAfter = new Map<string, number>();
@@ -113,6 +140,7 @@ export function rememberSubmissionReceipt(opKey: string, leaseToken: string): vo
 
 /** Drop every in-memory submission artifact for an operation that has ended. */
 export function forgetSubmissionState(opKey: string): void {
+  acceptedBindingReceipts.delete(opKey);
   submissionLeaseTokens.delete(opKey);
   submissionLeaseRetryAfter.delete(opKey);
   pendingNotSubmittedResets.delete(opKey);
@@ -944,6 +972,7 @@ export async function clearCompletedJobNow(
     return false;
   }
   submissionLeaseTokens.delete(opKey);
+  acceptedBindingReceipts.delete(opKey);
   return true;
 }
 
@@ -1243,11 +1272,11 @@ export async function tick(): Promise<void> {
     let result: BatchResult;
     try {
       const retryAfter = submissionLeaseRetryAfter.get(opKey) ?? 0;
-      if (currentState.external_job && !submissionLeaseTokens.has(opKey) && retryAfter > Date.now()) {
+      if (currentState.external_job && !submissionLeaseTokens.has(opKey) && !boundProviderReceipt(opKey, currentState) && retryAfter > Date.now()) {
         await heartbeatWhileWaiting(opKey, currentState);
         return;
       }
-      const rememberedLeaseToken = submissionLeaseTokens.get(opKey);
+      const rememberedLeaseToken = boundProviderReceipt(opKey, currentState) ?? submissionLeaseTokens.get(opKey);
       const cachedPayload = preparedPayloads.get(opKey);
       preparedPayloads.delete(opKey);
       const reusablePayload = cachedPayload && currentState.external_job?.phase === "prepared"
@@ -1469,12 +1498,14 @@ export async function tick(): Promise<void> {
         expectedRevision: currentState.state_revision ?? 0,
       });
       if (!saved.ok && saved.reason === "already_cleared" && resultJob.clear_after_reconciliation) {
+        acceptedBindingReceipts.delete(opKey);
         // Idempotent repeat clear: another tick already cleared this job.
         submissionLeaseTokens.delete(opKey);
         return;
       }
       if (!saved.ok) throw new Error(`Protected provider state save refused: ${saved.reason}`);
       if (result.done || resultJob.clear_after_reconciliation) {
+        acceptedBindingReceipts.delete(opKey);
         submissionLeaseTokens.delete(opKey);
         return;
       }

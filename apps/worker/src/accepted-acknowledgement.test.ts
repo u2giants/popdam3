@@ -41,3 +41,21 @@ test('real Meta adapter makes one POST across three guarded persistence conflict
  reconcileHeldAcknowledgement(ack.opKey,ack.submitted);await retrieveStoredMetaResponse('test','accepted-id',60000);
  }finally{globalThis.fetch=original;}
 });
+for (const late of [false,true]) test(`bound receipt supports immediate poll/apply/clear, late binding=${late}`,async()=>{
+ const {boundProviderReceipt,clearCompletedJobNow,holdsSubmissionReceipt,forgetSubmissionState}=await import('./operation-loop.js');
+ const ack=fixture(`phase-proof-${late}`);ack.claimed.external_job!.lease_expires_at=new Date(Date.now()+60000).toISOString();ack.submitted.external_job!.lease_expires_at=ack.claimed.external_job!.lease_expires_at;
+ // Generic provider exercises the unchanged native clear path without Meta attempt rules.
+ ack.claimed.external_job!.provider='openrouter';ack.submitted.external_job!.provider='openrouter';
+ const rpc:RpcCall=async(_,p)=>{if(late)throw Error('lost acknowledgement');return envelope(true,{...p.p_op_state as OpState,state_revision:11});};
+ await saveAcceptedAcknowledgement(ack,rpc,async()=>null);
+ if(late){assert.equal(boundProviderReceipt(ack.opKey,ack.claimed),undefined);assert.equal(reconcileHeldAcknowledgement(ack.opKey,ack.submitted),false);}
+ assert.equal(holdsSubmissionReceipt(ack.opKey),false); // Cannot renew/create with this receipt.
+ assert.equal(boundProviderReceipt(ack.opKey,ack.submitted),ack.leaseToken);
+ const applying={...structuredClone(ack.submitted),progress:{tagged:5},external_job:{...ack.submitted.external_job!,phase:'applying' as const}};
+ assert.equal(boundProviderReceipt(ack.opKey,applying),ack.leaseToken);
+ assert.equal(boundProviderReceipt(ack.opKey,{...applying,external_job:{...applying.external_job,provider_batch_id:'replacement'}}),undefined);
+ assert.equal(boundProviderReceipt(ack.opKey,{...applying,cursor:5}),undefined);
+ const completed={...applying,external_job:{...applying.external_job,phase:'completed' as const}};let clears=0;
+ assert.equal(await clearCompletedJobNow(ack.opKey,{ok:true,state_revision:12,operation:completed},boundProviderReceipt(ack.opKey,completed)!,async(_key,state)=>{clears++;assert.equal(state.external_job!.lease_token,ack.leaseToken);assert.equal(state.external_job!.clear_after_reconciliation,true);return {ok:true,reason:'cleared',state_revision:13,lease_receipt_issued:false,submission_owner:null,lease_expires_at:null,lease_token:null,operation:{...state,external_job:undefined}};}),true);
+ assert.equal(clears,1);assert.equal(boundProviderReceipt(ack.opKey,completed),undefined);forgetSubmissionState(ack.opKey);
+});
