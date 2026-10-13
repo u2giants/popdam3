@@ -67,13 +67,14 @@ describe("canonical licensor/property contract", () => {
     expect(coldlion).not.toContain("return {};");
     // Config errors must propagate out of the non-fatal ColdLion fallbacks.
     expect(parser).toContain("if (e instanceof ColdLionConfigError) throw e;");
-    expect(parser).toContain("instanceof ColdLionConfigError");
-    // The key is read before the circuit breaker, so a missing key is never masked.
-    const keyIdx = coldlion.indexOf("await getApiKey();\n  breaker.assertClosed");
-    expect(keyIdx).toBeGreaterThan(0);
+    expect(parser.match(/instanceof ColdLionConfigError/g)?.length).toBe(2);
+    // The key is read before the circuit breaker at both call sites, so a missing key is never masked.
+    expect(coldlion.match(/await readColdLionApiKey\(\);\n  breaker\.assertClosed/g)?.length).toBe(2);
+    expect(coldlion).toContain("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set");
+    expect(coldlion).toContain("res.error");
     const handlers = read("supabase/functions/_shared/admin-handlers/coldlion-handlers.ts");
-    expect(handlers).toContain("throw new ColdLionConfigError");
-    expect(handlers).not.toMatch(/throw new Error\("COLDLION_API_KEY is missing/);
+    expect(handlers).toContain("readColdLionApiKey");
+    expect(handlers).not.toContain("COLDLION_API_KEY is missing");
   });
 
   it("keeps ColdLion MG codes scoped to their division", () => {
