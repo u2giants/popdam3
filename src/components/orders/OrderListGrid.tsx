@@ -155,7 +155,7 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
           filter: column.queryable === false ? false : filterFor(column),
           valueFormatter: valueFormatterFor(column),
           editable: Boolean(column.editable),
-          headerTooltip: `${sourceLabel}. ${column.editable ? "Double-click to edit." : "Read-only."}`,
+          headerTooltip: column.headerTooltip ?? `${sourceLabel}. ${column.editable ? "Double-click to edit." : "Read-only."}`,
           headerClass:
             source === "input"
               ? "bg-blue-200 text-blue-950 dark:bg-blue-900/70 dark:text-blue-100"
