@@ -257,3 +257,85 @@ test("invalid stored-response budget makes zero POSTs and leaves no phantom capa
  const {createStoredMetaResponse,metaAsyncBusy,synchronizeMetaReservations}=await import("./meta-model-api.js");synchronizeMetaReservations({});const original=globalThis.fetch;let posts=0;
  try{globalThis.fetch=async()=>{posts++;throw new Error("Unexpected POST");};await assert.rejects(createStoredMetaResponse("fixture-key",{model:"meta-direct/muse-spark-1.3-contributor",messages:[],max_tokens:20000,meta_max_output_tokens:32768},60000,"budget-owner"),/Invalid Meta/);assert.equal(posts,0);assert.equal(metaAsyncBusy("other-owner"),false);}finally{globalThis.fetch=original;synchronizeMetaReservations({});}
 });
+
+const ORPHAN_MODEL = "meta-direct/muse-spark-1.3-contributor";
+async function orphanFixture(owner: string, id: string) {
+ const m=await import("./meta-model-api.js");const {accountFingerprint}=await import("./batch-provider.js");
+ const job={provider:"meta-responses" as const,phase:"pending" as const,provider_batch_id:id,model:ORPHAN_MODEL,account_fingerprint:accountFingerprint("orphan-fixture-key")};
+ const snapshot={fixture:{status:"running" as const,run_id:owner,external_job:job}};m.synchronizeMetaReservations(snapshot);return {m,snapshot,job};
+}
+async function releaseFixture(id: string) {
+ const {retrieveStoredMetaResponse,synchronizeMetaReservations}=await import("./meta-model-api.js");const original=globalThis.fetch;
+ try{globalThis.fetch=async()=>new Response(JSON.stringify({id,status:"completed",model:"muse-spark-1.3-contributor"}));await retrieveStoredMetaResponse("orphan-fixture-key",id);}finally{globalThis.fetch=original;synchronizeMetaReservations({});}
+}
+test("rolling overlap: durably bound orphan GET proves terminal and frees capacity without native writes",async()=>{
+ const {m,snapshot}=await orphanFixture("overlap-owner","overlap-response");const before=JSON.stringify(snapshot);m.synchronizeMetaReservations({});let gets=0;
+ try{assert.equal(m.metaAsyncBusy("next-owner"),true);const terminal=async(_key:string,id:string,_timeout:number|undefined,expectedModel?:string)=>{gets++;assert.equal(id,"overlap-response");assert.equal(expectedModel,ORPHAN_MODEL);return {id,model:"muse-spark-1.3-contributor",status:"completed"};};assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",terminal,1_000_000),true);assert.equal(gets,1);assert.equal(m.metaAsyncBusy("next-owner"),false);assert.equal(JSON.stringify(snapshot),before);}finally{await releaseFixture("overlap-response");}
+});
+test("orphan pending, unknown, wrongID/model and transport failures retain capacity; wrong key issues no GET",async()=>{
+ const {m}=await orphanFixture("hold-owner","hold-response");m.synchronizeMetaReservations({});let gets=0;
+ try{
+  assert.equal(await m.observePausedMetaResponse({},"wrong-key",async()=>{gets++;return {};},1_100_000),false);assert.equal(gets,0);
+  const cases=[{id:"hold-response",model:"muse-spark-1.3-contributor",status:"queued"},{id:"hold-response",model:"muse-spark-1.3-contributor",status:"in_progress"},{id:"hold-response",model:"muse-spark-1.3-contributor",status:"unknown"},{id:"wrong",model:"muse-spark-1.3-contributor",status:"completed"},{id:"hold-response",model:"wrong",status:"completed"},{id:"hold-response",status:"completed"}];
+  let now=1_100_000;for(const response of cases){assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",async()=>{gets++;return response;},now),false);assert.equal(m.metaAsyncBusy("another"),true);now+=30_001;}
+  assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",async()=>{throw new Error("transport refused");},now),false);assert.equal(m.metaAsyncBusy("another"),true);
+ }finally{await releaseFixture("hold-response");}
+});
+test("strict orphan model validation occurs before the real GET helper releases a terminal reservation",async()=>{
+ const {m}=await orphanFixture("strict-owner","strict-response");m.synchronizeMetaReservations({});const original=globalThis.fetch;let gets=0;
+ try{
+  for(const model of [undefined,"wrong"]){globalThis.fetch=async()=>{gets++;return new Response(JSON.stringify({id:"strict-response",status:"completed",model}));};await assert.rejects(m.retrieveStoredMetaResponse("orphan-fixture-key","strict-response",60_000,ORPHAN_MODEL),/different or missing response model/);assert.equal(m.metaAsyncBusy("another"),true);}
+  globalThis.fetch=async()=>{gets++;return new Response(JSON.stringify({id:"strict-response",status:"completed",model:"muse-spark-1.3-contributor"}));};assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",undefined,1_400_000),true);assert.equal(gets,3);assert.equal(m.metaAsyncBusy("another"),false);
+ }finally{globalThis.fetch=original;await releaseFixture("strict-response");}
+});
+test("never durably bound acknowledgement and ambiguous NULL are never orphan polled",async()=>{
+ const m=await import("./meta-model-api.js");const original=globalThis.fetch;let gets=0;
+ try{
+  globalThis.fetch=async()=>new Response('data: {"type":"response.created","response":{"id":"unbound-orphan"}}\n\n');await m.createStoredMetaResponse("orphan-fixture-key",{model:ORPHAN_MODEL,messages:[]},60_000,"unbound-owner");m.synchronizeMetaReservations({});
+  assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",async()=>{gets++;return {};},1_500_000),false);assert.equal(gets,0);assert.equal(m.metaAsyncBusy("another"),true);await releaseFixture("unbound-orphan");
+  const ambiguous={ambiguous:{status:"failed" as const,run_id:"null-owner",external_job:{provider:"meta-responses" as const,phase:"ambiguous_submission" as const}}};m.synchronizeMetaReservations(ambiguous);assert.equal(await m.observePausedMetaResponse(ambiguous,"orphan-fixture-key",async()=>{gets++;return {};},1_500_000),false);assert.equal(m.metaAsyncBusy("another"),true);assert.equal(gets,0);
+ }finally{globalThis.fetch=original;m.synchronizeMetaReservations({});}
+});
+test("conflicting durable model/account/owner provenance holds rather than guessing",async()=>{
+ const {m,snapshot,job}=await orphanFixture("conflict-owner","conflict-response");let gets=0;
+ try{m.synchronizeMetaReservations({...snapshot,second:{status:"running",run_id:"different-owner",external_job:{...job,model:"meta-direct/different",account_fingerprint:"0123456789abcdef"}}});m.synchronizeMetaReservations({});assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",async()=>{gets++;return {id:"conflict-response",model:"muse-spark-1.3-contributor",status:"completed"};},1_600_000),false);assert.equal(gets,0);assert.equal(m.metaAsyncBusy("another"),true);}finally{await releaseFixture("conflict-response");}
+});
+test("one unified observation per tick is fair and throttled across paused and orphan jobs",async()=>{
+ const {m}=await orphanFixture("fair-orphan-owner","fair-orphan");const {accountFingerprint}=await import("./batch-provider.js");
+ const paused={paused:{status:"failed" as const,run_id:"fair-paused-owner",external_job:{provider:"meta-responses" as const,phase:"pending" as const,provider_batch_id:"fair-paused",model:ORPHAN_MODEL,account_fingerprint:accountFingerprint("orphan-fixture-key")}}};m.synchronizeMetaReservations(paused);const observed:string[]=[];
+ try{const pending=async(_key:string,id:string)=>{observed.push(id);return {id,model:"muse-spark-1.3-contributor",status:"in_progress"};};await m.observePausedMetaResponse(paused,"orphan-fixture-key",pending,1_700_000);assert.equal(observed.length,1);await m.observePausedMetaResponse(paused,"orphan-fixture-key",pending,1_705_000);assert.equal(observed.length,2);assert.equal(new Set(observed).size,2);await m.observePausedMetaResponse(paused,"orphan-fixture-key",pending,1_710_000);assert.equal(observed.length,2);await m.observePausedMetaResponse(paused,"orphan-fixture-key",pending,1_730_001);assert.equal(observed[2],observed[0]);}finally{await releaseFixture("fair-orphan");await releaseFixture("fair-paused");}
+});
+test("late orphan completion never releases the owner's newer replacement ID",async()=>{
+ const {m}=await orphanFixture("late-owner","late-old");m.synchronizeMetaReservations({});
+ try{const oldTerminal=async()=>{await orphanFixture("late-owner","late-new");return {id:"late-old",model:"muse-spark-1.3-contributor",status:"completed"};};assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",oldTerminal,1_800_000),false);assert.equal(m.metaAsyncBusy("late-owner"),true);}finally{await releaseFixture("late-old");await releaseFixture("late-new");}
+});
+test("live and queued referenced jobs are not treated as missing-job orphans",async()=>{
+ const {m,snapshot}=await orphanFixture("active-owner","active-response");let gets=0;
+ try{for(const status of ["running","queued"] as const){const current={fixture:{...snapshot.fixture,status}};m.synchronizeMetaReservations(current);assert.equal(await m.observePausedMetaResponse(current,"orphan-fixture-key",async()=>{gets++;return {};},1_900_000),false);}assert.equal(gets,0);assert.equal(m.metaAsyncBusy("other"),true);}finally{await releaseFixture("active-response");}
+});
+
+test("real strict GET captures binding before fetch and retains conflicts/replacements introduced during await",async()=>{
+ const original=globalThis.fetch;
+ try{
+  for(const mode of ["conflict","replacement"]){
+   const oldId=`real-race-${mode}`;const {m,snapshot,job}=await orphanFixture(`real-race-owner-${mode}`,oldId);m.synchronizeMetaReservations({});
+   globalThis.fetch=async()=>{
+    if(mode==="conflict")m.synchronizeMetaReservations({...snapshot,changed:{status:"running",run_id:"different-real-owner",external_job:{...job,account_fingerprint:"0123456789abcdef"}}});
+    else await orphanFixture(`real-race-owner-${mode}`,"real-race-replacement-new");
+    return new Response(JSON.stringify({id:oldId,model:"muse-spark-1.3-contributor",status:"completed"}));
+   };
+   await assert.rejects(m.retrieveStoredMetaResponse("orphan-fixture-key",oldId,60_000,ORPHAN_MODEL),/binding changed/);
+   assert.equal(m.metaAsyncBusy("another-owner"),true,"real helper must not release the current reservation before post-GET guard");
+   await releaseFixture(oldId);if(mode==="replacement"){assert.equal(m.metaAsyncBusy("another-owner"),true);await releaseFixture("real-race-replacement-new");}
+  }
+ }finally{globalThis.fetch=original;}
+});
+
+test("an ID referenced by a live job or conflicting paused binding never enters the observation pool",async()=>{
+ const {m,snapshot,job}=await orphanFixture("referenced-owner","referenced-response");let gets=0;
+ try{
+  const duplicate={...snapshot,paused:{status:"failed" as const,run_id:"other-referenced-owner",external_job:job}};m.synchronizeMetaReservations(duplicate);
+  assert.equal(await m.observePausedMetaResponse(duplicate,"orphan-fixture-key",async()=>{gets++;return {id:"referenced-response",model:"muse-spark-1.3-contributor",status:"completed"};},2_000_000),false);assert.equal(gets,0);
+  const allPaused={paused:{...duplicate.paused}};m.synchronizeMetaReservations(allPaused);assert.equal(await m.observePausedMetaResponse(allPaused,"orphan-fixture-key",async()=>{gets++;return {};},2_000_001),false);assert.equal(gets,0);assert.equal(m.metaAsyncBusy("another"),true);
+ }finally{await releaseFixture("referenced-response");}
+});

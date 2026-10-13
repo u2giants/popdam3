@@ -104,6 +104,22 @@ const contributorWaiters: Array<() => void> = [];
 
 const asyncReservations = new Map<string, string | null>();
 const terminalResponses = new Set<string>();
+interface DurableMetaReservation { owner: string; model: string; fingerprint: string; conflicting: boolean; }
+// Creation alone is not durable evidence. Populate only from native snapshots.
+const durableReservations = new Map<string, DurableMetaReservation>();
+function validStoredMetaId(id: unknown): id is string {
+  return typeof id === "string" && !!id.trim() && id.length <= 256 && !Array.from(id).some(char => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127);
+}
+function recordDurableReservation(owner: string, id: unknown, model: unknown, fingerprint: unknown): void {
+  if (!validStoredMetaId(id) || typeof model !== "string" || !isMetaDirectModel(model) || !metaModelId(model) || typeof fingerprint !== "string" || !/^[0-9a-f]{16}$/.test(fingerprint) || terminalResponses.has(id)) return;
+  const prior = durableReservations.get(id);
+  if (prior) {
+    if (prior.owner !== owner || prior.model !== model || prior.fingerprint !== fingerprint) prior.conflicting = true;
+  } else durableReservations.set(id, { owner, model, fingerprint, conflicting: false });
+}
+function sameDurableBinding(id: string, binding: DurableMetaReservation | undefined, fingerprint: string, model: string): boolean {
+  return !!binding && !binding.conflicting && durableReservations.get(id) === binding && binding.fingerprint === fingerprint && binding.model === model && asyncReservations.get(binding.owner) === id;
+}
 const asyncCreating = new Set<string>();
 function wakeContributorWaiters() { for (const wake of contributorWaiters.splice(0)) wake(); }
 export function metaAsyncBusy(owner: string): boolean { return [...asyncReservations].some(([key, id]) => key !== owner || id !== null); }
@@ -114,6 +130,7 @@ export function synchronizeMetaReservations(operations: Record<string, import(".
     if (job?.provider !== "meta-responses") continue;
     const owner = state.run_id ?? key;
     const id = job.provider_batch_id;
+    if (id && (["pending", "submitting", "ambiguous_submission"].includes(job.phase) || [...asyncReservations.values()].includes(id))) recordDurableReservation(owner, id, job.model, job.account_fingerprint);
     if (id && !terminalResponses.has(id) && (job.phase === "pending" || job.phase === "submitting" || job.phase === "ambiguous_submission")) next.set(owner, id);
     else if (!id && (job.phase === "submitting" || job.phase === "ambiguous_submission" || job.ambiguous_since)) next.set(owner, null);
   }
@@ -125,6 +142,7 @@ export function synchronizeMetaReservations(operations: Record<string, import(".
 }
 function releaseTerminalMetaResponse(id: string) {
   terminalResponses.add(id);
+  durableReservations.delete(id);
   for (const [owner, saved] of asyncReservations) if (saved === id) asyncReservations.delete(owner);
   wakeContributorWaiters();
 }
@@ -310,8 +328,11 @@ export async function createStoredMetaResponse(apiKey: string, request: ChatComp
   }, reservationOwner);
 }
 
-export async function retrieveStoredMetaResponse(apiKey: string, id: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Record<string, unknown>> {
+export async function retrieveStoredMetaResponse(apiKey: string, id: string, timeoutMs = DEFAULT_TIMEOUT_MS, expectedModel?: string): Promise<Record<string, unknown>> {
   if ((!id.trim() || id.length > 256 || Array.from(id).some(char => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127))) throw new Error("Invalid saved Meta response ID");
+  const binding = expectedModel === undefined ? undefined : durableReservations.get(id);
+  const fingerprint = expectedModel === undefined ? undefined : accountFingerprint(apiKey);
+  if (expectedModel !== undefined && !sameDurableBinding(id, binding, fingerprint!, expectedModel)) throw new Error("Meta durable response binding does not match retrieval account/model");
   const requestOptions = {
     headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(timeoutMs), dispatcher: metaDispatcher,
   };
@@ -319,32 +340,57 @@ export async function retrieveStoredMetaResponse(apiKey: string, id: string, tim
   if (!response.ok) throw new MetaModelApiError(response.status, "Stored response retrieval failed");
   const body = await response.json() as Record<string, unknown>;
   if (body.id !== id) throw new Error("Meta returned a different response ID");
+  if (expectedModel !== undefined && body.model !== metaModelId(expectedModel)) throw new Error("Meta returned a different or missing response model");
+  if (expectedModel !== undefined && !sameDurableBinding(id, binding, fingerprint!, expectedModel)) throw new Error("Meta durable response binding changed during retrieval");
   if (["completed", "failed", "cancelled", "incomplete"].includes(String(body.status))) releaseTerminalMetaResponse(id);
   return body;
 }
 
 
 const pausedObservationAt = new Map<string, number>();
-/** Observe at most one paused known response per tick; never write operation or asset state. */
+/** One paused or durably bound orphan response per tick; never write native state. */
 export async function observePausedMetaResponse(
-  operations: Record<string, import("./types.js").OpState>, apiKey: string,
-  retrieve: typeof retrieveStoredMetaResponse = retrieveStoredMetaResponse, nowMs = Date.now(),
+  operations: Record<string, import("./types.js").OpState>,
+  apiKey: string,
+  retrieve: typeof retrieveStoredMetaResponse = retrieveStoredMetaResponse,
+  nowMs = Date.now(),
 ): Promise<boolean> {
   if (!apiKey) return false;
   const fingerprint = accountFingerprint(apiKey);
+  const referenced = new Set<string>();
+  const activeReferenced = new Set<string>();
+  const candidates = new Map<string, { model: string; durable?: DurableMetaReservation }>();
   for (const state of Object.values(operations)) {
     const job = state.external_job; const id = job?.provider_batch_id;
-    if (state.status === "running" || state.status === "queued" || job?.provider !== "meta-responses" || !id || job.account_fingerprint !== fingerprint || terminalResponses.has(id)) continue;
-    if (nowMs - (pausedObservationAt.get(id) ?? -Infinity) < 30_000) continue;
-    pausedObservationAt.set(id, nowMs);
-    try {
-      const response = await retrieve(apiKey, id, 60_000);
-      if (response.id === id && (response.model === undefined || response.model === metaModelId(String(job.model))) && ["completed", "failed", "incomplete", "cancelled"].includes(String(response.status))) {
-        releaseTerminalMetaResponse(id);
-        return true;
-      }
-    } catch { /* Refused or unavailable retrieval cannot release a reservation. */ }
-    return false;
+    if (job?.provider !== "meta-responses" || !validStoredMetaId(id)) continue;
+    referenced.add(id);
+    if (state.status === "running" || state.status === "queued") activeReferenced.add(id);
+    if (state.status === "running" || state.status === "queued" || job.account_fingerprint !== fingerprint || terminalResponses.has(id)) continue;
+    candidates.set(id, { model: String(job.model) });
   }
+  for (const [id, durable] of durableReservations) {
+    if (referenced.has(id) || terminalResponses.has(id) || durable.conflicting || durable.fingerprint !== fingerprint || asyncReservations.get(durable.owner) !== id) continue;
+    candidates.set(id, { model: durable.model, durable });
+  }
+  for (const id of candidates.keys()) if (activeReferenced.has(id) || durableReservations.get(id)?.conflicting) candidates.delete(id);
+  const eligible = [...candidates].filter(([id]) => nowMs - (pausedObservationAt.get(id) ?? -Infinity) >= 30_000);
+  eligible.sort(([a], [b]) => (pausedObservationAt.get(a) ?? -Infinity) - (pausedObservationAt.get(b) ?? -Infinity));
+  const selected = eligible[0];
+  if (!selected) return false;
+  const [id, candidate] = selected;
+  pausedObservationAt.set(id, nowMs);
+  try {
+    // Strict expected model is validated inside retrieval, before its terminal release.
+    const response = await retrieve(apiKey, id, 60_000, candidate.durable ? candidate.model : undefined);
+    const modelMatches = candidate.durable ? response.model === metaModelId(candidate.model) : response.model === undefined || response.model === metaModelId(candidate.model);
+    if (response.id !== id || !modelMatches || !["completed", "failed", "incomplete", "cancelled"].includes(String(response.status))) return false;
+    if (candidate.durable) {
+      const current = durableReservations.get(id);
+      // The default retrieval may already have released this exact terminal ID.
+      if (current ? !sameDurableBinding(id, candidate.durable, fingerprint, candidate.model) : !terminalResponses.has(id)) return false;
+    }
+    releaseTerminalMetaResponse(id); // Deletes only this ID, never an owner's replacement ID.
+    return true;
+  } catch { /* Refused, unknown or mismatched retrieval cannot release capacity. */ }
   return false;
 }
