@@ -67,7 +67,13 @@ describe("canonical licensor/property contract", () => {
     expect(coldlion).not.toContain("return {};");
     // Config errors must propagate out of the non-fatal ColdLion fallbacks.
     expect(parser).toContain("if (e instanceof ColdLionConfigError) throw e;");
-    expect(parser.match(/instanceof ColdLionConfigError/g)?.length).toBe(2);
+    expect(parser).toContain("instanceof ColdLionConfigError");
+    // The key is read before the circuit breaker, so a missing key is never masked.
+    const keyIdx = coldlion.indexOf("await getApiKey();\n  breaker.assertClosed");
+    expect(keyIdx).toBeGreaterThan(0);
+    const handlers = read("supabase/functions/_shared/admin-handlers/coldlion-handlers.ts");
+    expect(handlers).toContain("throw new ColdLionConfigError");
+    expect(handlers).not.toMatch(/throw new Error\("COLDLION_API_KEY is missing/);
   });
 
   it("keeps ColdLion MG codes scoped to their division", () => {

@@ -39,8 +39,10 @@ async function getApiKey(): Promise<string> {
       return _apiKey;
     }
   } catch (e) {
-    console.warn("Failed to read COLDLION_API_KEY from admin_config:", e);
+    // A failed read is transient (network, PostgREST, env): non-fatal like any ColdLion outage.
+    throw new Error(`COLDLION_API_KEY read failed: ${e instanceof Error ? e.message : e}`);
   }
+  // The key row is genuinely absent or empty: configuration, must surface.
   throw new ColdLionConfigError("COLDLION_API_KEY is missing from admin_config");
 }
 
@@ -68,8 +70,8 @@ async function fetchMgLookup(
   divisionCode: string,
   cacheKey: string,
 ): Promise<Record<string, string>> {
-  breaker.assertClosed(`${mgTypeCode}/${divisionCode}`);
   const apiKey = await getApiKey();
+  breaker.assertClosed(`${mgTypeCode}/${divisionCode}`);
   const url = `${COLDLION_BASE}/merchGroupDetails?companyCode=${COMPANY}` +
     `&mgTypeCode=${mgTypeCode}&divisionCode=${divisionCode}`;
 
@@ -110,8 +112,8 @@ const itemCache = new Map<string, ColdLionItemInfo | null>();
 export async function getColdLionItemInfo(itemNo: string): Promise<ColdLionItemInfo | null> {
   const key = itemNo.toUpperCase();
   if (itemCache.has(key)) return itemCache.get(key)!;
-  breaker.assertClosed(`items/${key}`);
   const apiKey = await getApiKey();
+  breaker.assertClosed(`items/${key}`);
   const url = `${COLDLION_BASE}/items?companyCode=${COMPANY}&itemNo=${encodeURIComponent(key)}`;
   let data;
   try {
