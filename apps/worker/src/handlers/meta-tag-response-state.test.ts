@@ -169,3 +169,67 @@ test("legacy prepared missing asset stays contract-held while typed catalog read
  d.prepare=async()=>{throw new AssetMissingError(id);};assert.equal((await handleMetaTagResponse(s,d)).error_code,"contract_error");
  d.prepare=async()=>{throw new CharacterCatalogDependencyError("57014");};assert.equal((await handleMetaTagResponse(s,d)).error_code,"dependency_timeout");
 });
+
+test("accepted output exhaustion checkpoints exactly one same-method budget retry and retains original ID until guarded clear", async () => {
+ const { metaCompletedTransition } = await import("./meta-tag-response-state.js");
+ const s=state();s.params={asset_ids:[id]};s.external_job!.meta_character_catalog_ids=[id];const d=deps();let posts=0,writes=0;d.create=async()=>{posts++;return "new";};d.apply=async()=>{writes++;};
+ d.retrieve=async()=>({id:"resp_test",status:"incomplete",incomplete_details:{reason:"max_output_tokens"},output:[{type:"message",content:[{type:"output_text",text:'{"answer":"ok"}'}]}]});
+ const result=await handleMetaTagResponse(s,d);assert.equal(result.failed,undefined);assert.equal(posts,0);assert.equal(writes,0);
+ const checkpoint={...s,external_job:result.external_job} as OpState;
+ assert.deepEqual(checkpoint.external_job?.meta_character_catalog_ids,[id]);assert.equal(checkpoint.external_job?.provider_batch_id,"resp_test");assert.equal(checkpoint.external_job?.meta_asset_terminal,false);
+ assert.deepEqual(checkpoint.external_job?.meta_next_attempt,{...attempt,same_model_retry:1,output_token_limit:32768,repair_error:"Previous response exhausted its output allowance. Return the complete full analysis matching the schema."});
+ const transition=metaCompletedTransition(checkpoint);assert.equal(transition?.cursor,0);assert.equal(transition?.meta_tag_attempt?.method_index,0);assert.equal(transition?.meta_tag_attempt?.same_model_retry,1);
+ // A restarted completed receipt requests the same guarded clear; it cannot create a generation.
+ delete checkpoint.external_job!.lease_token;checkpoint.external_job!.lease_expires_at=new Date(0).toISOString();
+ const clear=await handleMetaTagResponse(checkpoint,d);assert.equal(clear.nextOffset,0);assert.equal(clear.meta_tag_attempt && (clear.meta_tag_attempt as {output_token_limit:number}).output_token_limit,32768);assert.equal(posts,0);assert.equal(writes,0);
+ // Only after the exact clear may the new attempt be prepared; preparation still performs zero POSTs.
+ const next={...s,...transition,external_job:undefined} as OpState;
+ let preparedLimit:unknown;d.prepare=async (_id,_method,_repair,limit)=>{preparedLimit=limit;return {request:{model,messages:[],meta_max_output_tokens:limit},characterCatalogIds:[]};};
+ const prepared=await handleMetaTagResponse(next,d);assert.equal(preparedLimit,32768);assert.equal(prepared.nextOffset,0);assert.equal(posts,0);
+ assert.equal((await handleMetaTagResponse({...next,external_job:prepared.external_job} as OpState,d)).state_transition,"claim_submission");assert.equal(posts,0);
+});
+test("second exhaustion and unrelated terminal outcomes fail once without parsing, writing, or budget escalation", async()=>{
+ for(const status of ["failed","cancelled","incomplete"]){
+  const s=state();s.meta_tag_attempt={...attempt,same_model_retry:1,output_token_limit:32768};const d=deps();let writes=0;d.apply=async()=>{writes++;};
+  d.retrieve=async()=>({id:"resp_test",status,incomplete_details:{reason:"max_output_tokens"},output:[]});
+  const result=await handleMetaTagResponse(s,d);assert.equal(result.failed,1);assert.equal((result.external_job as OpState["external_job"])?.meta_next_attempt,undefined);assert.equal(writes,0);
+ }
+ for(const reason of ["content_filter",undefined,"unknown"]){const d=deps();d.retrieve=async()=>({id:"resp_test",status:"incomplete",incomplete_details:{reason}});const result=await handleMetaTagResponse(state(),d);assert.equal(result.failed,1);assert.equal((result.external_job as OpState["external_job"])?.meta_next_attempt,undefined);}
+ const d=deps();d.retrieve=async()=>({id:"wrong",status:"incomplete",incomplete_details:{reason:"max_output_tokens"}});assert.equal((await handleMetaTagResponse(state(),d)).ok,false);
+});
+test("budget transition rejects absent accepted ID, forged marker, changed method, or dropped/raised budget",async()=>{
+ const {metaCompletedTransition}=await import("./meta-tag-response-state.js");
+ const s=state("completed");s.params={asset_ids:[id]};s.external_job!.meta_asset_terminal=false;s.external_job!.meta_output_token_exhausted=true;s.external_job!.meta_next_attempt={...attempt,same_model_retry:1,output_token_limit:32768};
+ assert.ok(metaCompletedTransition(s));
+ for(const change of [{provider_batch_id:undefined},{meta_output_token_exhausted:undefined},{meta_next_attempt:{...attempt,method_index:1,same_model_retry:1,output_token_limit:32768}},{meta_next_attempt:{...attempt,same_model_retry:1}},{meta_next_attempt:{...attempt,same_model_retry:1,output_token_limit:65536}}]) assert.equal(metaCompletedTransition({...s,external_job:{...s.external_job,...change}} as OpState),null);
+});
+test("cached and rebuilt request must match the persisted retry budget before a POST",async()=>{
+ for(const cached of [true,false])for(const limit of [undefined,32768] as const){
+  const s=state("submitting");delete s.external_job!.provider_batch_id;s.meta_tag_attempt={...attempt,same_model_retry:1,output_token_limit:32768};let posts=0;const d=deps();d.create=async()=>{posts++;return "new-response";};
+  const prepared={request:{model,messages:[],meta_max_output_tokens:limit},characterCatalogIds:[]};
+  d.prepare=async(_id,_method,_repair,budget)=>{assert.equal(budget,32768);return prepared;};if(cached)s.transient_prepared_batch=prepared;
+  if(limit===undefined){await assert.rejects(handleMetaTagResponse(s,d),/output budget does not match/);assert.equal(posts,0);}
+  else{const result=await handleMetaTagResponse(s,d);assert.equal((result.external_job as OpState["external_job"])?.provider_batch_id,"new-response");assert.equal(posts,1);assert.deepEqual((result.external_job as OpState["external_job"])?.meta_character_catalog_ids,[]);}
+ }
+});
+test("malformed persisted retry budgets hold before preparation or retrieval",async()=>{
+ for(const budget of [0,65536,"32768",null]){const s=state();s.meta_tag_attempt={...attempt,same_model_retry:1,output_token_limit:budget} as unknown as NonNullable<OpState["meta_tag_attempt"]>;let reads=0;const d=deps();d.retrieve=async()=>{reads++;return {};};assert.equal((await handleMetaTagResponse(s,d)).error_code,"contract_error");assert.equal(reads,0);}
+ const s=state();s.meta_tag_attempt={...attempt,output_token_limit:32768};assert.equal((await handleMetaTagResponse(s,deps())).error_code,"contract_error");
+});
+
+test("an unbound pending receipt and unknown status never earn an output-limit retry",async()=>{
+ const s=state();delete s.external_job!.provider_batch_id;const d=deps();let reads=0,posts=0;d.retrieve=async()=>{reads++;return {status:"incomplete",incomplete_details:{reason:"max_output_tokens"}};};d.create=async()=>{posts++;return "new";};
+ assert.equal((await handleMetaTagResponse(s,d)).ok,false);assert.equal(reads,0);assert.equal(posts,0);
+ const unknown=deps();unknown.retrieve=async()=>({id:"resp_test",status:"unknown",incomplete_details:{reason:"max_output_tokens"}});const result=await handleMetaTagResponse(state(),unknown);assert.equal(result.ok,false);assert.equal((result.external_job as OpState["external_job"])?.meta_next_attempt,undefined);
+});
+test("structured corrections retain an authorized retry budget but cannot escalate it",async()=>{
+ const {metaCompletedTransition}=await import("./meta-tag-response-state.js");const s=state();s.params={asset_ids:[id]};s.meta_tag_attempt={...attempt,same_model_retry:1,output_token_limit:32768};const d=deps();d.validate=()=>{throw new Error("Model returned invalid character reference");};
+ const result=await handleMetaTagResponse(s,d);const completed={...s,external_job:result.external_job} as OpState;assert.equal(metaCompletedTransition(completed)?.meta_tag_attempt?.output_token_limit,32768);assert.equal(metaCompletedTransition(completed)?.meta_tag_attempt?.method_index,1);
+ completed.external_job!.meta_next_attempt={...attempt,method_index:1,same_model_retry:1};assert.equal(metaCompletedTransition(completed),null);
+});
+
+test("output-exhaustion budget policy is restricted to exact Contributor",async()=>{
+ const s=state();s.external_job!.model="meta-direct/other";const d=deps();d.model="meta-direct/other";d.retrieve=async()=>({id:"resp_test",status:"incomplete",incomplete_details:{reason:"max_output_tokens"}});
+ const result=await handleMetaTagResponse(s,d);assert.equal(result.failed,1);assert.equal((result.external_job as OpState["external_job"])?.meta_next_attempt,undefined);
+ s.meta_tag_attempt={...attempt,same_model_retry:1,output_token_limit:32768};assert.equal((await handleMetaTagResponse(s,d)).error_code,"contract_error");
+});
