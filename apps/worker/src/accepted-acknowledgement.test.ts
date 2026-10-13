@@ -59,3 +59,13 @@ for (const late of [false,true]) test(`bound receipt supports immediate poll/app
  assert.equal(await clearCompletedJobNow(ack.opKey,{ok:true,state_revision:12,operation:completed},boundProviderReceipt(ack.opKey,completed)!,async(_key,state)=>{clears++;assert.equal(state.external_job!.lease_token,ack.leaseToken);assert.equal(state.external_job!.clear_after_reconciliation,true);return {ok:true,reason:'cleared',state_revision:13,lease_receipt_issued:false,submission_owner:null,lease_expires_at:null,lease_token:null,operation:{...state,external_job:undefined}};}),true);
  assert.equal(clears,1);assert.equal(boundProviderReceipt(ack.opKey,completed),undefined);forgetSubmissionState(ack.opKey);
 });
+test('bound scope fences real account, output method, next cursor, pin and group identity while allowing group progress',async()=>{
+ const {boundProviderReceipt,forgetSubmissionState}=await import('./operation-loop.js');const ack=fixture('group-scope');
+ ack.claimed.external_job!.lease_expires_at=new Date(Date.now()+60000).toISOString();ack.submitted.external_job!.lease_expires_at=ack.claimed.external_job!.lease_expires_at;
+ Object.assign(ack.submitted.external_job!,{account_fingerprint:'account-original',output_method:'json_schema',next_cursor:9,provider_pin:'provider-original',group_items:[{style_group_id:'group-original',custom_id:'group-custom',sku:'sku-original',status:'submitted'}]});
+ await saveAcceptedAcknowledgement(ack,async(_,p)=>envelope(true,{...p.p_op_state as OpState,state_revision:11}),async()=>null);
+ const progressed=structuredClone(ack.submitted);progressed.progress={tagged:5};progressed.external_job!.phase='applying';(progressed.external_job!.group_items as Array<{status:string}>)[0].status='applied';assert.equal(boundProviderReceipt(ack.opKey,progressed),ack.leaseToken);
+ for(const field of ['account_fingerprint','output_method','next_cursor','provider_pin']){const changed=structuredClone(progressed);changed.external_job![field]='replacement';assert.equal(boundProviderReceipt(ack.opKey,changed),undefined,field);}
+ for(const field of ['style_group_id','custom_id','sku']){const changed=structuredClone(progressed);(changed.external_job!.group_items as Array<Record<string,unknown>>)[0][field]='replacement';assert.equal(boundProviderReceipt(ack.opKey,changed),undefined,field);}
+ forgetSubmissionState(ack.opKey);
+});

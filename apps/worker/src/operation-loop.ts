@@ -60,6 +60,11 @@ export const submissionOwnerForRun = createSubmissionOwnerFactory();
 const acceptedAcknowledgements = new Map<string, AcceptedProviderAcknowledgement>();
 // Accepted receipts prove only this exact bound job; they cannot authorize creation.
 const acceptedBindingReceipts = new Map<string, AcceptedProviderAcknowledgement>();
+function boundGroupIdentity(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.some(item => !item || typeof item !== "object" || typeof item.style_group_id !== "string" || typeof item.custom_id !== "string")) return null;
+  return value.map(item => [item.style_group_id, item.custom_id, item.sku]);
+}
 export function boundProviderReceipt(opKey: string, current: OpState): string | undefined {
   const ack = acceptedBindingReceipts.get(opKey);
   const original = ack?.submitted;
@@ -71,7 +76,10 @@ export function boundProviderReceipt(opKey: string, current: OpState): string | 
       job.provider !== bound.provider || job.model !== bound.model || job.prepared_at !== bound.prepared_at ||
       job.page_cursor !== bound.page_cursor || job.submission_owner !== ack.claimed.external_job?.submission_owner ||
       job.lease_proof !== ack.claimed.external_job?.lease_proof ||
-      job.meta_account_fingerprint !== bound.meta_account_fingerprint ||
+      job.account_fingerprint !== bound.account_fingerprint || job.output_method !== bound.output_method ||
+      job.next_cursor !== bound.next_cursor || job.provider_pin !== bound.provider_pin ||
+      boundGroupIdentity(job.group_items) === null || boundGroupIdentity(bound.group_items) === null ||
+      !isDeepStrictEqual(boundGroupIdentity(job.group_items), boundGroupIdentity(bound.group_items)) ||
       !isDeepStrictEqual(job.meta_character_catalog_ids, bound.meta_character_catalog_ids) ||
       !isDeepStrictEqual(job.items?.map(item => [item.asset_id, item.custom_id]), bound.items?.map(item => [item.asset_id, item.custom_id]))) return undefined;
   return ack.leaseToken;
