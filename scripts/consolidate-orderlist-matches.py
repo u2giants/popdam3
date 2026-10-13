@@ -111,8 +111,6 @@ def returned_decisions(path: Path) -> dict[int, dict]:
             if not values or values[indexes['Google row']] is None:
                 continue
             google_row = int(values[indexes['Google row']])
-            if excel_row in output:
-                raise ValueError('Returned workbook contains duplicate worksheet row')
             output[excel_row] = {
                 'google_row':google_row,
                 'decision': str(values[indexes["Yuchen's decision"]] or '').strip(),
@@ -329,8 +327,12 @@ def expected_fks_sql(conn):
 
 
 def private_write(path: Path, value) -> None:
-    path.write_text(json.dumps(value, sort_keys=True, indent=2, default=str))
-    path.chmod(0o600)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0)
+    fd = os.open(path, flags, 0o600)
+    with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+        handle.write(json.dumps(value, sort_keys=True, indent=2, default=str))
+        handle.flush()
+        os.fsync(handle.fileno())
 
 
 def cli():
@@ -353,7 +355,6 @@ SAFE_GUARD_MESSAGES = frozenset({
     'Duplicate or invalid returned workbook row binding','Invalid Google source row binding',
     'Incomplete ColdLion line binding','Incomplete Google line binding','Binding rows are not unique',
     'Returned workbook has no Potential overlaps sheet','Returned workbook headers changed',
-    'Returned workbook contains duplicate worksheet row',
     'Each approved row note must contain exactly one explicit Quantity N declaration','Invalid quantity note',
     'A bound row does not have the exact approved decision','Returned notes differ from the frozen decision binding',
     'Decision rows do not exactly match the frozen binding packet','Returned workbook row points to a different Google source row',

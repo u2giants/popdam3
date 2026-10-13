@@ -374,12 +374,40 @@ class SourceDispositionPlannerTests(unittest.TestCase):
         with self.assertRaises(dispositions.DispositionError):
             self._plan(spec_bytes=altered, spec_sha=altered_sha)
 
+    def test_genuine_non_overridden_rejection_is_counted_once_and_matches_plan_list(self) -> None:
+        spec = json.loads(self.spec_bytes)
+        changed_rows = list(self.rows)
+        index = next(i for i, row in enumerate(changed_rows) if row.sheet_row == 203)
+        original = changed_rows[index]
+        values = list(original.values)
+        values[imp.column_index("AR")] = "CHILD-A\nCHILD-B"
+        values[imp.column_index("O")] = "ASSORT-203"
+        changed = imp.SourceRow(sheet_row=203, values=tuple(values))
+        changed_rows[index] = changed
+        binding = next(
+            bound
+            for case in spec["cases"]
+            for bound in case["source_rows"]
+            if bound["source"]["sheet_row"] == 203
+        )
+        binding["current_preimage_sha256"] = dispositions._row_hash(changed)
+        altered = (json.dumps(spec, ensure_ascii=False, indent=2) + "\n").encode()
+        plan = self._plan(spec_bytes=altered, rows=changed_rows, spec_sha=hashlib.sha256(altered).hexdigest())
+        rejected = [item for item in plan.rejected_rows if item.sheet_row == 203]
+        self.assertEqual(len(rejected), 1)
+        self.assertEqual(plan.counters["rejected_rows"], len(plan.rejected_rows))
+        self.assertEqual(plan.counters["rejected_rows"], 1)
+        self.assertGreater(plan.provenance["canonical_parser_raw_rejected_rows_list_count"], 1)
+
     def test_all_75_case_categories_and_source_snapshot_provenance_are_retained(self) -> None:
         plan = self._plan()
         self.assertEqual(plan.provenance["approved_case_count"], 75)
         self.assertEqual(plan.provenance["source_rows_bound"], len(self.rows))
         self.assertFalse(plan.provenance["database_writer_invoked"])
         self.assertEqual(len(plan.rejected_rows), 0)
+        self.assertEqual(plan.counters["rejected_rows"], len(plan.rejected_rows))
+        self.assertGreater(plan.provenance["canonical_parser_raw_rejected_rows_list_count"], 0)
+        self.assertIn("canonical_parser_raw_counters", plan.provenance)
         self.assertEqual(len(plan.unresolved_fields), 21)
         self.assertEqual(len(plan.resolved_source_warnings), 3)
         for line in plan.lines:

@@ -25,6 +25,49 @@ def sample_line():
 
 
 class ConsolidationTests(unittest.TestCase):
+    def test_private_write_creates_mode_0600_exclusive_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'private.json'
+            c.private_write(path, {'value':'saved'})
+            self.assertEqual(json.loads(path.read_text()), {'value':'saved'})
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_private_write_does_not_change_existing_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'existing.json'
+            path.write_text('original')
+            with self.assertRaises(FileExistsError):
+                c.private_write(path, {'value':'replacement'})
+            self.assertEqual(path.read_text(), 'original')
+
+    def test_private_write_refuses_dangling_symlink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root/'target.json'
+            link = root/'private.json'
+            link.symlink_to(target)
+            with self.assertRaises(FileExistsError):
+                c.private_write(link, {'value':'must not follow link'})
+            self.assertTrue(link.is_symlink())
+            self.assertFalse(target.exists())
+
+    def test_binding_packet_rejects_duplicate_returned_excel_row(self):
+        row = {
+            'returned_excel_row':2, 'google_physical_row':22,
+            'original_cold_binding':{
+                'cold_line_uuid':'cold-line','line_source_id':'cold-source',
+                'component_source_hash':'cold-fingerprint'},
+            'original_google_binding':{
+                'google_line_source_id':'google-line',
+                'google_parent_source_id':'google-parent'},
+        }
+        packet = {'schema':'canonical-coldlion-binding-packet-v1','rows':[row,row.copy()]}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'bindings.json'
+            path.write_text(json.dumps(packet))
+            with self.assertRaisesRegex(ValueError,'Duplicate or invalid returned workbook row binding'):
+                c.load_bindings(path)
+
     def test_database_identity_and_history_fields_never_enter_line_updates(self):
         database_managed = {'id', 'created_at', 'updated_at'}
         self.assertTrue(database_managed.isdisjoint(c.m.LINE_COLUMNS))

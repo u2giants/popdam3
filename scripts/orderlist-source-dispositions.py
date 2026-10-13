@@ -673,6 +673,9 @@ def build_source_disposition_plan(
         "database_writer_invoked": False,
     }
     base_plan = IMPORTER.ImportPlan()
+    canonical_parser_raw_counters: Counter[str] = Counter()
+    canonical_parser_raw_rejected_rows = 0
+    custom_expected_rejections_suppressed = 0
     split_by_po: dict[str, set[tuple[Any, ...]]] = defaultdict(set)
     for key, rownums in grouped.items():
         for rownum in rownums:
@@ -696,6 +699,8 @@ def build_source_disposition_plan(
             # its expected no-component rejection.
             parsed_rows = source_rows_for_parser[:1]
         subplan = IMPORTER.build_plan(parsed_rows, catalog)
+        canonical_parser_raw_counters.update(subplan.counters)
+        canonical_parser_raw_rejected_rows += len(subplan.rejected_rows)
         if len(subplan.orders) != 1:
             plan.unresolved_fields.append({"source_rows": sorted(rownums), "status": "header_plan_cardinality_not_one", "count": len(subplan.orders)})
             continue
@@ -715,8 +720,10 @@ def build_source_disposition_plan(
                 },
                 "google_company_I_ignored_for_approved_conflicts": True,
                 "google_company_I_raw_by_source_row": {str(r.sheet_row): _raw_cell(r, "I") for r in originals},
-                "existing_google_header_refs": 0 if key[0] == "approved-conflict" else None,
-                "existing_google_line_refs": 0 if key[0] == "approved-conflict" else None,
+                # A pure source planner cannot prove canonical existence.
+                # The separately reviewed writer must read exact live refs.
+                "existing_google_header_refs": None,
+                "existing_google_line_refs": None,
             }
         )
         for rn, original in zip(sorted(rownums), originals):
@@ -783,6 +790,7 @@ def build_source_disposition_plan(
         expected_custom_rejections = set(parent_only_rows | direct_override_rows | per_style_rows | verified_assortment_rows).intersection(rownums)
         for rejected in subplan.rejected_rows:
             if rejected.sheet_row in expected_custom_rejections:
+                custom_expected_rejections_suppressed += 1
                 continue
             plan.rejected_rows.append(rejected)
         for line in subplan.lines:
@@ -854,17 +862,24 @@ def build_source_disposition_plan(
                 )
                 line.metadata["source_disposition"]["row_shape_override"] = "direct_with_latest_assortment_id_retained"
             plan.lines.append(line)
-        # Keep counts from the canonical parser but do not leave its intentional
-        # rejected-row count for our explicit parent/direct overrides.
-        for rejected in subplan.rejected_rows:
-            if rejected.sheet_row in expected_custom_rejections:
-                continue
-        plan.counters.update({name: plan.counters.get(name, 0) + value for name, value in subplan.counters.items()})
+        # Preserve raw parser diagnostics, while counting only rejections that survive
+        # the explicit source-bound disposition overrides as actionable planner rejects.
+        plan.counters.update(
+            {
+                name: plan.counters.get(name, 0) + value
+                for name, value in subplan.counters.items()
+                if name != "rejected_rows"
+            }
+        )
 
     # The custom line helpers above updated a separate base plan to collect match
     # counters; these counts are evidence only and never authorize matching/writes.
     for name, value in base_plan.counters.items():
         plan.counters[name] = plan.counters.get(name, 0) + value
+    plan.provenance["canonical_parser_raw_counters"] = dict(canonical_parser_raw_counters)
+    plan.provenance["canonical_parser_raw_rejected_rows_list_count"] = canonical_parser_raw_rejected_rows
+    plan.provenance["custom_expected_rejections_suppressed"] = custom_expected_rejections_suppressed
+    plan.counters["rejected_rows"] = len(plan.rejected_rows)
     plan.counters["source_rows_bound"] = len(bound_rows)
     plan.counters["source_rows_skipped"] = len(plan.skipped_rows)
     plan.counters["desired_orders"] = len(plan.orders)
