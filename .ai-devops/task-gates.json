@@ -39,6 +39,22 @@
       "class": "reviewer-safety"
     },
     {
+      "glob": "scripts/consolidate-orderlist-matches.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-consolidate-orderlist-matches.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/orderlist-source-dispositions.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-orderlist-source-dispositions.py",
+      "class": "reviewer-safety"
+    },
+    {
       "glob": "scripts/repair-style-tracker-overflow-dates.py",
       "class": "reviewer-safety"
     },
