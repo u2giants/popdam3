@@ -22,27 +22,35 @@ export class ColdLionConfigError extends Error {
   }
 }
 
-async function getApiKey(): Promise<string> {
+/**
+ * Reads COLDLION_API_KEY. Missing env or a missing/empty row is a configuration
+ * error (ColdLionConfigError, must surface). A failed read (network, PostgREST
+ * error object, thrown client) is transient and stays non-fatal like any outage.
+ */
+export async function readColdLionApiKey(): Promise<string> {
   if (_apiKey) return _apiKey;
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) {
+    throw new ColdLionConfigError("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set");
+  }
+  let data: { value?: unknown } | null;
   try {
-    const db = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-    const { data } = await db
+    const db = createClient(url, serviceKey);
+    const res = await db
       .from("admin_config")
       .select("value")
       .eq("key", "COLDLION_API_KEY")
       .maybeSingle();
-    if (data?.value && typeof data.value === "string" && data.value.trim()) {
-      _apiKey = data.value.trim();
-      return _apiKey;
-    }
+    if (res.error) throw new Error(res.error.message);
+    data = res.data;
   } catch (e) {
-    // A failed read is transient (network, PostgREST, env): non-fatal like any ColdLion outage.
     throw new Error(`COLDLION_API_KEY read failed: ${e instanceof Error ? e.message : e}`);
   }
-  // The key row is genuinely absent or empty: configuration, must surface.
+  if (data?.value && typeof data.value === "string" && data.value.trim()) {
+    _apiKey = data.value.trim();
+    return _apiKey;
+  }
   throw new ColdLionConfigError("COLDLION_API_KEY is missing from admin_config");
 }
 
@@ -70,7 +78,7 @@ async function fetchMgLookup(
   divisionCode: string,
   cacheKey: string,
 ): Promise<Record<string, string>> {
-  const apiKey = await getApiKey();
+  const apiKey = await readColdLionApiKey();
   breaker.assertClosed(`${mgTypeCode}/${divisionCode}`);
   const url = `${COLDLION_BASE}/merchGroupDetails?companyCode=${COMPANY}` +
     `&mgTypeCode=${mgTypeCode}&divisionCode=${divisionCode}`;
@@ -112,7 +120,7 @@ const itemCache = new Map<string, ColdLionItemInfo | null>();
 export async function getColdLionItemInfo(itemNo: string): Promise<ColdLionItemInfo | null> {
   const key = itemNo.toUpperCase();
   if (itemCache.has(key)) return itemCache.get(key)!;
-  const apiKey = await getApiKey();
+  const apiKey = await readColdLionApiKey();
   breaker.assertClosed(`items/${key}`);
   const url = `${COLDLION_BASE}/items?companyCode=${COMPANY}&itemNo=${encodeURIComponent(key)}`;
   let data;
