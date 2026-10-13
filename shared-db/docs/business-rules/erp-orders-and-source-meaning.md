@@ -12,6 +12,19 @@ Google OrderList rows and future ColdLion rows describe the same real orders. Th
 
 ## How a new order enters the system (OrderList intake)
 
+**Future production PO reuse is prohibited (Settled, Albert, 2026-10-13).**
+Albert said, verbatim, "going forward production PO numbers will NOT be reused
+and that has to be enforced" in the conversation for
+[popdam3#277](https://github.com/u2giants/popdam3/issues/277).
+One production PO number identifies one real production order. It cannot be
+assigned to a different customer, vendor, or order, including after cancellation
+or deletion. Multiple lines and separate source references for the same real
+order remain valid. Historical reuse reported by Yuchen stays recorded as
+history; reconciliation must preserve those distinct historical orders rather
+than infer that equal numbers establish equal orders. Enforcement delivery is
+tracked on [shared-db#4257](https://github.com/popcre/shared-db/issues/4257), with
+application acceptance on the original PopDAM issue.
+
 **Status:** Settled where marked; the named Unknowns are open. Authority: Albert, 2026-09-17,
 cross-checked against the live-workbook inspection of 2026-08-28 (shared-db issue #1772).
 
