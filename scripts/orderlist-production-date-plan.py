@@ -115,22 +115,24 @@ def _validate_capture(capture: dict) -> tuple[list[dict], str, str]:
         raise ValueError('Customer identity bridge rows must be an array')
     if len(customer_rows) > CUSTOMER_IDENTITY_SNAPSHOT_LIMIT:
         raise ValueError('Customer identity bridge snapshot exceeds the 2,000-row bound')
-    if capture.get('customer_identity_snapshot_complete') is True and (
+    if (capture.get('customer_identity_snapshot_complete') is not True or
             capture.get('customer_identity_snapshot_row_limit') != CUSTOMER_IDENTITY_SNAPSHOT_LIMIT):
-        raise ValueError('Complete customer identity bridge snapshot must pin the 2,000-row limit')
+        raise ValueError('Capture requires a complete customer identity bridge snapshot with the 2,000-row limit')
     for mapping in customer_rows:
         if not isinstance(mapping, dict) or any(field not in mapping for field in CUSTOMER_IDENTITY_FIELDS):
             raise ValueError('Customer identity bridge projection is incomplete')
         if not all(exact(mapping.get(field)) for field in ('company_code', 'customer_code', 'customer_id')):
             raise ValueError('Customer identity bridge key is incomplete')
+    captured_dt = _parse_timestamp(capture.get('captured_at'))
+    latest_dt = _parse_timestamp(capture.get('latest_source_observation_at'))
+    observation_times = [_parse_timestamp(r.get('source_observed_at')) for r in rows
+                    if isinstance(r, dict) and r.get('source_observed_at')]
+    if not observation_times or max(observation_times) != latest_dt:
+        raise ValueError('Latest source observation does not match captured source rows')
+    if latest_dt > captured_dt:
+        raise ValueError('Source observation is later than the capture time')
     captured_at = _timestamp(capture.get('captured_at'))
     latest = _timestamp(capture.get('latest_source_observation_at'))
-    observations = [_timestamp(r.get('source_observed_at')) for r in rows
-                    if isinstance(r, dict) and r.get('source_observed_at')]
-    if not observations or max(observations) != latest:
-        raise ValueError('Latest source observation does not match captured source rows')
-    if latest > captured_at:
-        raise ValueError('Source observation is later than the capture time')
     source_digest = capture.get('source_digest')
     if not isinstance(source_digest, str) or not re.fullmatch(r'[0-9a-f]{64}', source_digest):
         raise ValueError('Capture must include a source digest')
@@ -142,7 +144,7 @@ def _validate_capture(capture: dict) -> tuple[list[dict], str, str]:
     return rows, captured_at, latest
 
 
-def _timestamp(value) -> str:
+def _parse_timestamp(value) -> datetime:
     if not isinstance(value, str):
         raise ValueError('Capture timestamps must be supplied explicitly')
     try:
@@ -151,7 +153,11 @@ def _timestamp(value) -> str:
         raise ValueError('Capture timestamp is invalid') from exc
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError('Capture timestamps must include a timezone')
-    return parsed.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+    return parsed.astimezone(timezone.utc)
+
+
+def _timestamp(value) -> str:
+    return _parse_timestamp(value).isoformat().replace('+00:00', 'Z')
 
 
 def _source_order_key(row):

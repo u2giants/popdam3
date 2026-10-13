@@ -147,7 +147,11 @@ class BatchSnapshotConnection:
 
     def execute(self, query, params=()):
         self.queries.append((query, params))
-        if 'FROM plm.production_order AS t' in query:
+        if query == 'SHOW transaction_isolation':
+            return FakeCursor([('serializable',)])
+        elif query == 'SHOW transaction_read_only':
+            return FakeCursor([('on',)])
+        elif 'FROM plm.production_order AS t' in query:
             rows = self.snapshot['headers']
         elif 'FROM plm.production_order_line_source_ref AS t' in query:
             rows = self.snapshot['refs']
@@ -185,6 +189,38 @@ class FakeCursor:
 
 
 class ApplyProductionDatePlanTests(unittest.TestCase):
+    def test_transaction_mode_is_verified_before_application_reads(self):
+        class TransactionConnection:
+            def __init__(self, isolation='serializable', read_only='on'):
+                self.isolation = isolation
+                self.read_only = read_only
+                self.queries = []
+            def execute(self, query):
+                self.queries.append(query)
+                if query == 'SHOW transaction_isolation':
+                    return FakeCursor([(self.isolation,)])
+                if query == 'SHOW transaction_read_only':
+                    return FakeCursor([(self.read_only,)])
+                return FakeCursor([])
+
+        valid_read = TransactionConnection()
+        executor._begin(valid_read, apply=False)
+        self.assertEqual(valid_read.queries[-2:], [
+            'SHOW transaction_isolation', 'SHOW transaction_read_only'])
+
+        valid_write = TransactionConnection(read_only='off')
+        executor._begin(valid_write, apply=True)
+        self.assertEqual(valid_write.queries[-1], 'SHOW transaction_read_only')
+
+        for isolation, read_only, message in (
+                ('read committed', 'on', 'isolation is not serializable'),
+                ('serializable', 'off', 'read-only mode does not match')):
+            invalid = TransactionConnection(isolation, read_only)
+            with self.assertRaisesRegex(ValueError, message):
+                executor._begin(invalid, apply=False)
+            self.assertEqual(invalid.queries[-2:], [
+                'SHOW transaction_isolation', 'SHOW transaction_read_only'])
+
     def test_batched_scope_is_five_reads_and_supports_reused_d_with_distinct_dates(self):
         plan = batch_plan()
         connection = BatchSnapshotConnection(plan)
@@ -553,6 +589,16 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
         plan = frozen_plan()
         plan['proposals'].append(dict(plan['proposals'][0]))
         with self.assertRaisesRegex(ValueError, 'duplicate or blank target'):
+            executor._check_plan_scope(plan)
+
+    def test_frozen_plan_requires_complete_customer_identity_snapshot(self):
+        plan = frozen_plan()
+        plan['customer_identity_snapshot_complete'] = False
+        with self.assertRaisesRegex(ValueError, 'complete bounded ERP customer identity snapshot'):
+            executor._check_plan_scope(plan)
+        plan = frozen_plan()
+        plan['proposals'][0]['customer_identity_snapshot_complete'] = False
+        with self.assertRaisesRegex(ValueError, 'missing source or identity-scope preimages'):
             executor._check_plan_scope(plan)
 
 

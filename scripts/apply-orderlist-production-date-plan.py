@@ -17,10 +17,6 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = 'qsllyeztdwjgirsysgai'
 ADVISORY_LOCK = 852000728
-ORDER_TABLE = 'plm.production_order'
-LINE_TABLE = 'plm.production_order_line'
-REF_TABLE = 'plm.production_order_line_source_ref'
-SOURCE_TABLE = 'coldlion.prod_history_line'
 POOLER_HOST = 'aws-1-us-east-1.pooler.supabase.com'
 POOLER_PORT = 5432
 POOLER_USER = 'postgres.' + TARGET
@@ -499,6 +495,13 @@ def _begin(conn, apply: bool):
     conn.execute('BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE' + ('' if apply else ' READ ONLY'))
     conn.execute("SET LOCAL statement_timeout = '8000ms'")
     conn.execute("SET LOCAL lock_timeout = '2000ms'")
+    isolation = conn.execute('SHOW transaction_isolation').fetchone()[0]
+    read_only = conn.execute('SHOW transaction_read_only').fetchone()[0]
+    expected_read_only = 'off' if apply else 'on'
+    if str(isolation).casefold() != 'serializable':
+        raise ValueError('Database transaction isolation is not serializable')
+    if str(read_only).casefold() != expected_read_only:
+        raise ValueError('Database transaction read-only mode does not match the operation')
 
 
 def _afterimage_matches(before: dict, after: dict, expected_date: str) -> bool:

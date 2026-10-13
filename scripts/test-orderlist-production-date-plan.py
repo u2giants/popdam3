@@ -8,8 +8,10 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import tempfile
 import unittest
+from unittest import mock
 
 SCRIPT = Path(__file__).with_name('orderlist-production-date-plan.py')
 SPEC = importlib.util.spec_from_file_location('production_date_plan', SCRIPT)
@@ -70,10 +72,33 @@ class ProductionDatePlannerTests(unittest.TestCase):
             capture, actual = planmod._read_protected_capture(path, expected)
             self.assertEqual(capture, {'example': 'pinned bytes'})
             self.assertEqual(actual, expected)
-
             path.write_bytes(b'{"example":"later replacement"}\n')
             self.assertEqual(capture, {'example': 'pinned bytes'})
             self.assertEqual(actual, expected)
+
+    def test_protected_capture_rejects_descriptor_changes_during_read(self):
+        raw = b'{}'
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'capture.json'
+            path.write_bytes(raw)
+            path.chmod(0o600)
+            real_fstat = os.fstat
+            calls = 0
+
+            def changed_after_read(fd):
+                nonlocal calls
+                calls += 1
+                result = real_fstat(fd)
+                values = {name: getattr(result, name) for name in (
+                    'st_dev', 'st_ino', 'st_uid', 'st_mode', 'st_size',
+                    'st_mtime_ns', 'st_ctime_ns')}
+                if calls == 2:
+                    values['st_size'] += 1
+                return SimpleNamespace(**values)
+
+            with mock.patch.object(planmod.os, 'fstat', side_effect=changed_after_read):
+                with self.assertRaisesRegex(ValueError, 'changed while being read'):
+                    planmod._read_protected_capture(path, hashlib.sha256(raw).hexdigest())
 
     def test_protected_capture_rejects_symlinks_bad_permissions_and_malformed_json(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -97,6 +122,25 @@ class ProductionDatePlannerTests(unittest.TestCase):
             malformed.chmod(0o600)
             with self.assertRaisesRegex(ValueError, 'valid JSON'):
                 planmod._read_protected_capture(malformed, hashlib.sha256(b'{').hexdigest())
+
+    def test_capture_rejects_source_observation_fraction_after_capture(self):
+        capture = base_capture()
+        capture['captured_at'] = '2026-10-13T14:00:00Z'
+        capture['latest_source_observation_at'] = '2026-10-13T14:00:00.500Z'
+        capture['prod_history_rows'][0]['source_observed_at'] = '2026-10-13T14:00:00Z'
+        capture['prod_history_rows'][1]['source_observed_at'] = '2026-10-13T14:00:00.500Z'
+        with self.assertRaisesRegex(ValueError, 'later than the capture time'):
+            planmod.build_plan(capture)
+
+    def test_capture_selects_latest_observation_by_utc_instant_not_string_order(self):
+        capture = base_capture()
+        capture['captured_at'] = '2026-10-13T14:00:00.750Z'
+        capture['latest_source_observation_at'] = '2026-10-13T14:00:00.500Z'
+        capture['prod_history_rows'][0]['source_observed_at'] = '2026-10-13T14:00:00Z'
+        capture['prod_history_rows'][1]['source_observed_at'] = '2026-10-13T14:00:00.500Z'
+        plan = planmod.build_plan(capture)
+        self.assertEqual(plan['latest_source_observation_at'], '2026-10-13T14:00:00.500000Z')
+        self.assertEqual(plan['counts']['proposed'], 1)
 
     def test_exact_source_identity_proposes_only_order_date(self):
         capture = base_capture()
@@ -257,15 +301,17 @@ class ProductionDatePlannerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'projection is incomplete'):
             planmod.build_plan(capture)
 
-    def test_incomplete_customer_bridge_snapshot_cannot_authorize_alias_match(self):
+    def test_incomplete_customer_bridge_snapshot_cannot_produce_an_unusable_plan(self):
         capture = base_capture()
-        capture['headers'][0]['metadata']['customer_name'] = 'Acme Retail Alias'
-        capture['prod_history_rows'][0]['customer_desc'] = 'Legacy ERP customer label'
-        capture['prod_history_rows'][1]['customer_desc'] = 'Legacy ERP customer label'
         capture['customer_identity_snapshot_complete'] = False
-        result = planmod.build_plan(capture)
-        self.assertEqual(result['counts']['proposed'], 0)
-        self.assertIn('customer_identity_unverified', {row['reason'] for row in result['unresolved']})
+        with self.assertRaisesRegex(ValueError, 'requires a complete customer identity bridge snapshot'):
+            planmod.build_plan(capture)
+
+    def test_customer_bridge_snapshot_requires_the_declared_full_row_limit(self):
+        capture = base_capture()
+        capture['customer_identity_snapshot_row_limit'] = 100
+        with self.assertRaisesRegex(ValueError, 'requires a complete customer identity bridge snapshot'):
+            planmod.build_plan(capture)
 
     def test_source_ref_mismatch_is_a_contradiction_not_fallback(self):
         capture = base_capture()
