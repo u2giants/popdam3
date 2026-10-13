@@ -69,3 +69,23 @@ test('bound scope fences real account, output method, next cursor, pin and group
  for(const field of ['style_group_id','custom_id','sku']){const changed=structuredClone(progressed);(changed.external_job!.group_items as Array<Record<string,unknown>>)[0][field]='replacement';assert.equal(boundProviderReceipt(ack.opKey,changed),undefined,field);}
  forgetSubmissionState(ack.opKey);
 });
+test('completed generic job retains receipt at exact next cursor after transient clear failure',async()=>{
+ const {boundProviderReceipt,clearCompletedJobNow,forgetSubmissionState}=await import('./operation-loop.js');const ack=fixture('clear-retry-next');ack.claimed.external_job!.lease_expires_at=new Date(Date.now()+60000).toISOString();ack.submitted.external_job!.lease_expires_at=ack.claimed.external_job!.lease_expires_at;ack.submitted.external_job!.provider='openrouter';ack.submitted.external_job!.next_cursor=9;
+ await saveAcceptedAcknowledgement(ack,async(_,p)=>envelope(true,{...p.p_op_state as OpState,state_revision:11}),async()=>null);
+ const completed={...structuredClone(ack.submitted),cursor:9,external_job:{...ack.submitted.external_job!,phase:'completed' as const}};let calls=0;
+ const save=async(_key:string,state:OpState)=>{calls++;assert.equal(state.external_job!.lease_token,ack.leaseToken);if(calls===1)throw Error('transient clear');return {ok:true,reason:'cleared',state_revision:13,lease_receipt_issued:false,submission_owner:null,lease_expires_at:null,lease_token:null,operation:{...state,external_job:undefined}};};
+ assert.equal(boundProviderReceipt(ack.opKey,completed),ack.leaseToken);assert.equal(await clearCompletedJobNow(ack.opKey,{ok:true,state_revision:12,operation:completed},ack.leaseToken,save),false);assert.equal(boundProviderReceipt(ack.opKey,completed),ack.leaseToken);
+ assert.equal(boundProviderReceipt(ack.opKey,{...completed,cursor:10}),undefined);assert.equal(boundProviderReceipt(ack.opKey,{...completed,external_job:{...completed.external_job,phase:'applying'}}),undefined);
+ assert.equal(await clearCompletedJobNow(ack.opKey,{ok:true,state_revision:12,operation:completed},boundProviderReceipt(ack.opKey,completed)!,save),true);assert.equal(calls,2);forgetSubmissionState(ack.opKey);
+});
+test('only guarded receipt-proven known-ID write adopts verified account fingerprint',async()=>{
+ const {boundProviderReceipt,refreshBoundProviderAccount,forgetSubmissionState}=await import('./operation-loop.js');const ack=fixture('account-adoption');ack.claimed.external_job!.lease_expires_at=new Date(Date.now()+60000).toISOString();Object.assign(ack.submitted.external_job!,{provider:'openrouter',account_fingerprint:'old',lease_expires_at:ack.claimed.external_job!.lease_expires_at});
+ await saveAcceptedAcknowledgement(ack,async(_,p)=>envelope(true,{...p.p_op_state as OpState,state_revision:11}),async()=>null);
+ const adopted={...structuredClone(ack.submitted),external_job:{...ack.submitted.external_job!,account_fingerprint:'verified-new',lease_token:ack.leaseToken}};
+ assert.equal(boundProviderReceipt(ack.opKey,adopted),undefined);
+ assert.equal(refreshBoundProviderAccount(ack.opKey,ack.submitted,adopted,{ok:false,operation:adopted}),false);
+ assert.equal(refreshBoundProviderAccount(ack.opKey,ack.submitted,{...adopted,external_job:{...adopted.external_job,lease_token:'wrong'}},{ok:true,operation:adopted}),false);
+ assert.equal(refreshBoundProviderAccount(ack.opKey,ack.submitted,adopted,{ok:true,operation:{...adopted,external_job:{...adopted.external_job,provider_batch_id:'other'}}}),false);
+ assert.equal(refreshBoundProviderAccount(ack.opKey,ack.submitted,adopted,{ok:true,operation:{...adopted,external_job:{...adopted.external_job,lease_token:undefined}}}),true);
+ assert.equal(boundProviderReceipt(ack.opKey,adopted),ack.leaseToken);assert.equal(boundProviderReceipt(ack.opKey,{...adopted,external_job:{...adopted.external_job,account_fingerprint:'unverified'}}),undefined);forgetSubmissionState(ack.opKey);
+});

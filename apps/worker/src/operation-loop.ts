@@ -71,7 +71,8 @@ export function boundProviderReceipt(opKey: string, current: OpState): string | 
   const job = current.external_job;
   const bound = original?.external_job;
   if (!ack || !original || !job?.provider_batch_id || job.provider_batch_id !== bound?.provider_batch_id ||
-      current.run_id !== original.run_id || current.started_at !== original.started_at || current.cursor !== original.cursor ||
+      current.run_id !== original.run_id || current.started_at !== original.started_at ||
+      (current.cursor !== original.cursor && !(job.phase === "completed" && bound.next_cursor !== undefined && current.cursor === bound.next_cursor)) ||
       !isDeepStrictEqual(current.params, original.params) || !isDeepStrictEqual(current.meta_tag_attempt, original.meta_tag_attempt) ||
       job.provider !== bound.provider || job.model !== bound.model || job.prepared_at !== bound.prepared_at ||
       job.page_cursor !== bound.page_cursor || job.submission_owner !== ack.claimed.external_job?.submission_owner ||
@@ -83,6 +84,18 @@ export function boundProviderReceipt(opKey: string, current: OpState): string | 
       !isDeepStrictEqual(job.meta_character_catalog_ids, bound.meta_character_catalog_ids) ||
       !isDeepStrictEqual(job.items?.map(item => [item.asset_id, item.custom_id]), bound.items?.map(item => [item.asset_id, item.custom_id]))) return undefined;
   return ack.leaseToken;
+}
+/** Called exclusively after a successful receipt-proven guarded phase write. */
+export function refreshBoundProviderAccount(opKey: string, before: OpState, offered: OpState, saved: { ok: boolean; operation?: unknown }): boolean {
+  const ack = acceptedBindingReceipts.get(opKey);
+  const token = boundProviderReceipt(opKey, before);
+  const next = offered.external_job?.account_fingerprint;
+  const stored = saved.operation as OpState | undefined;
+  if (!ack || !token || (ack.submitted.external_job?.provider !== undefined && ack.submitted.external_job.provider !== "openrouter") || !saved.ok || offered.external_job?.lease_token !== token || typeof next !== "string" || !next || !stored) return false;
+  const check = (state: OpState) => boundProviderReceipt(opKey, { ...state, external_job: { ...state.external_job!, account_fingerprint: ack.submitted.external_job?.account_fingerprint } }) === token;
+  if (!check(offered) || !check(stored) || stored.external_job?.account_fingerprint !== next) return false;
+  ack.submitted = { ...ack.submitted, external_job: { ...ack.submitted.external_job!, account_fingerprint: next } };
+  return true;
 }
 function retainBoundAcknowledgement(ack: AcceptedProviderAcknowledgement): void {
   acceptedBindingReceipts.set(ack.opKey, ack);
@@ -1485,6 +1498,7 @@ export async function tick(): Promise<void> {
         expectedRevision: currentState.state_revision ?? 0,
       });
       if (!saved.ok) throw new Error(`Protected provider failure save refused: ${saved.reason}`);
+      refreshBoundProviderAccount(opKey, currentState, protectedErrorState, saved);
       // The guarded write only applies to a still-running operation at the
       // expected revision, so the terminal outcome is recorded exactly once.
       if (protectedErrorState.status === "failed") await recordStyleGroupTerminalOutcome(opKey, protectedErrorState, "failed");
@@ -1512,6 +1526,7 @@ export async function tick(): Promise<void> {
         return;
       }
       if (!saved.ok) throw new Error(`Protected provider state save refused: ${saved.reason}`);
+      refreshBoundProviderAccount(opKey, currentState, guardedState, saved);
       if (result.done || resultJob.clear_after_reconciliation) {
         acceptedBindingReceipts.delete(opKey);
         submissionLeaseTokens.delete(opKey);
