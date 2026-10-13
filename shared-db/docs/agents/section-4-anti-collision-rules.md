@@ -479,9 +479,11 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    For new assignments, the shared cursor (the sequence counter is shared; which
    reviewer a draw lands on depends on what the drawing machine can run) rotates GLM
    5.3 → Qwen 3.8 Max → Muse Spark 1.3 Contributor → Gemini 3.8 Flash High → DeepSeek
-   V4.1 Flash → StepFun Step 5 → repeat, with Grok 4.6 kept active as the fallback drawn
-   only when none of those preferred reviewers can take the exact review (owner
-   preference 2026-09-27, #3592; applies to slot 2 and failed-reviewer replacements too),
+   V4.1 Flash → StepFun Step 5 → repeat. Grok 4.6 was the fallback drawn only when
+   none of those preferred reviewers could take the exact review (owner preference
+   2026-09-27, #3592), but it is QUARANTINED since 2026-10-13 (xAI account out of
+   credit; owner instruction "take grok out of the reviewer pool for now") and is
+   not drawable, even as a fallback, until removed from `QUARANTINED_REVIEWERS`;
    skipping any reviewer whose engine matches the live orchestrator, and on a
    non-Linux machine skipping StepFun (its preflight is `unsupported-platform`). GLM 5.3
    was restored on 2026-09-30 (owner instruction: "add GLM back into the
@@ -527,7 +529,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    with `readsRepository: true`, so every durable verdict it already recorded
    still authorizes a merge. **Qwen 3.8 Max was UNQUARANTINED on 2026-09-07** by
    owner instruction (ai-devops PR #316, merge `795902d8`) and is drawable again;
-   `QUARANTINED_REVIEWERS` is empty. The retired `glm-5.2` label is paused until
+   `QUARANTINED_REVIEWERS` holds only `grok-4.6` (since 2026-10-13, out of credit). The retired `glm-5.2` label is paused until
    an explicit owner instruction restores it.
 
    **DeepSeek V4.1 Flash (`deepseek-v4.1-flash`) is ACTIVE as of 2026-09-23**

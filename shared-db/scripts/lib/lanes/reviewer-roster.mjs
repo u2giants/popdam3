@@ -320,7 +320,14 @@ export const RETIRED_REVIEWERS = Object.freeze(['glm-5.2', 'muse-spark-1.2-contr
 // OK` on the installed command, and two live review sessions on that commit each
 // returned a single well-formed verdict on model qwen3.8-max above a substantive
 // report. Restoring the quarantine is a one-name addition back to this list.
-export const QUARANTINED_REVIEWERS = Object.freeze([])
+//
+// QUARANTINED 2026-10-13 (owner instruction, Albert's chat: "take grok out of
+// the reviewer pool for now"): 'grok-4.6'. Reason: Grok's xAI account is out of
+// credit. TEMPORARY, not a retirement: its REVIEWERS row stays so every durable
+// verdict it recorded still authorizes. Reverse by deleting 'grok-4.6' from this
+// list (and from the popcre/ai-devops config/reviewer-registry.json mirror) once
+// the account has credit and one live well-formed review passes.
+export const QUARANTINED_REVIEWERS = Object.freeze(['grok-4.6'])
 
 // The single fact the gate was missing (#2078). A verdict is evidence only if the
 // reviewer could open the file. Unknown names fail closed.
