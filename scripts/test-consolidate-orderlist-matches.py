@@ -25,6 +25,35 @@ def sample_line():
 
 
 class ConsolidationTests(unittest.TestCase):
+    def test_database_identity_and_history_fields_never_enter_line_updates(self):
+        database_managed = {'id', 'created_at', 'updated_at'}
+        self.assertTrue(database_managed.isdisjoint(c.m.LINE_COLUMNS))
+
+        update_columns = [
+            field for field in c.m.LINE_COLUMNS
+            if field not in c.PROTECTED_LINE_FIELDS
+        ]
+        self.assertTrue(set(update_columns).issubset(set(c.m.LINE_COLUMNS)))
+        self.assertTrue(database_managed.isdisjoint(update_columns))
+        self.assertTrue(c.PROTECTED_LINE_FIELDS.isdisjoint(update_columns))
+
+        old = sample_line()
+        preserved_fields = (database_managed | c.PROTECTED_LINE_FIELDS) - {'production_order_id'}
+        original = {field: old.get(field) for field in preserved_fields}
+        item = {
+            'google_sku':'AB-12', 'google_customer_po':'PO 77', 'verified_quantity':'12',
+            'google_line_source_id':'order:row:22', 'google_parent_source_id':'order:po:77',
+            'google_payload':{
+                'sku':'AB-12', 'customer_po_number':'PO 77', 'quantity_ordered':12,
+                'id':'google-id', 'created_at':'google-created', 'updated_at':'google-updated',
+                'quantity_shipped':99, 'status':'closed', 'source_id':'google-source',
+            },
+            'google_metadata':{},
+        }
+        updated = c.cold_google_patch(old, item, 'google-header')
+        self.assertEqual({field: updated.get(field) for field in original}, original)
+        self.assertEqual(updated['production_order_id'], 'google-header')
+
     def test_header_rebind_does_not_require_same_parent(self):
         old=sample_line()
         item={'google_sku':'AB-12','google_customer_po':'PO 77','verified_quantity':'12',

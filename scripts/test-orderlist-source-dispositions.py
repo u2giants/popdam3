@@ -99,7 +99,7 @@ def _build_fixture() -> tuple[list[object], bytes, dict[str, str], dict[str, int
     case_number += 1
     for i in range(10):
         number = 210 + i
-        row = order_row(number, f"D{i + 2:04d}", P=f"CONFLICT{i}", AR=f"CONFLICT{i}")
+        row = order_row(number, None if i == 0 else f"D{i + 2:04d}", P=f"CONFLICT{i}", AR=f"CONFLICT{i}")
         cases.append(_case("Conflicting orders", "Use corrected values in notes", case_number, [row], [{"kind": "split_internal_source_groups_without_business_field_edits"}]))
         rows.append(row)
         case_number += 1
@@ -264,6 +264,15 @@ class SourceDispositionPlannerTests(unittest.TestCase):
         with self.assertRaises(dispositions.DispositionError):
             dispositions._exact_component_overrides(instruction, row)
 
+    def test_blank_business_po_is_ledgered_without_a_generated_order_or_fake_po(self) -> None:
+        plan = self._plan()
+        evidence = next(x for x in plan.unresolved_fields if x.get("source_row") == 210)
+        self.assertEqual(evidence["source_column"], "B")
+        self.assertEqual(evidence["status"], "blank_import_PO_no_business_number_invented")
+        self.assertFalse(any(210 in order.sheet_rows for order in plan.orders))
+        self.assertFalse(any(line.sheet_row == 210 for line in plan.lines))
+        self.assertFalse(any(order.payload.get("production_order_number") == "GOOGLE-ROW-210" for order in plan.orders))
+
     def test_parent_only_rows_keep_parent_values_without_child_identity_or_quantity(self) -> None:
         plan = self._plan()
         parents = [line for line in plan.lines if self.ranges["parent_start"] <= line.sheet_row <= self.ranges["parent_end"]]
@@ -356,13 +365,22 @@ class SourceDispositionPlannerTests(unittest.TestCase):
         with self.assertRaises(dispositions.DispositionError):
             self._plan(rows=changed)
 
+    def test_override_instruction_cannot_target_a_row_outside_its_bound_case(self) -> None:
+        spec = json.loads(self.spec_bytes)
+        case = next(c for c in spec["cases"] if c["workbook_section"] == "Rows needing correction" and c["instructions"][0].get("kind") == "row_bound_per_component_field_override")
+        case["instructions"][0]["source_sheet_row"] = 9998
+        altered = (json.dumps(spec, ensure_ascii=False, indent=2) + "\n").encode()
+        altered_sha = hashlib.sha256(altered).hexdigest()
+        with self.assertRaises(dispositions.DispositionError):
+            self._plan(spec_bytes=altered, spec_sha=altered_sha)
+
     def test_all_75_case_categories_and_source_snapshot_provenance_are_retained(self) -> None:
         plan = self._plan()
         self.assertEqual(plan.provenance["approved_case_count"], 75)
         self.assertEqual(plan.provenance["source_rows_bound"], len(self.rows))
         self.assertFalse(plan.provenance["database_writer_invoked"])
         self.assertEqual(len(plan.rejected_rows), 0)
-        self.assertEqual(len(plan.unresolved_fields), 20)
+        self.assertEqual(len(plan.unresolved_fields), 21)
         self.assertEqual(len(plan.resolved_source_warnings), 3)
         for line in plan.lines:
             self.assertEqual(len(line.metadata["source_disposition"]["source_row_snapshot_exact"]), 48)

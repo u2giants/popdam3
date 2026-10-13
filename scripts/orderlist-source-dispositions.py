@@ -106,7 +106,7 @@ def _source_row_snapshot(row: Any) -> dict[str, Any]:
 def _replace_cells(row: Any, edits: Mapping[str, Any]) -> Any:
     values = list(row.values)
     for column, value in edits.items():
-        if column not in {"E", "P", "AR", *PER_COMPONENT_COLUMNS}:
+        if column not in {"D", "E", "P", "AR", *PER_COMPONENT_COLUMNS}:
             raise DispositionError(f"source column {column!r} is outside the override whitelist")
         index = IMPORTER.column_index(column)
         if index >= len(values):
@@ -483,10 +483,31 @@ def _row_case_actions(case: Mapping[str, Any], row: Any) -> tuple[dict[str, Any]
     if section == "Other source warnings":
         if decision == "Use corrected value in notes":
             ins = _instruction(case, "use_latest_exact_source_cells_as_decided")
-            fields = ins.get("explicit_target_fields", {})
+        elif decision == "Keep original text as written":
+            ins = _instruction(case, "preserve_latest_source_text_without_normalization")
+        else:
+            raise DispositionError(f"unsupported warning decision in case {_case_id(case)!r}")
+        fields = ins.get("explicit_target_fields", {})
+        target_column = str(fields.get("Column", ""))
+        allowed_columns = {"D", "E"} if decision == "Use corrected value in notes" else {"D", "E", "AD"}
+        bound_rows = sorted(_rows_in_case(case))
+        instruction_rows = sorted(int(value) for value in ins.get("source_sheet_rows", []))
+        if instruction_rows != bound_rows or target_column not in allowed_columns:
+            raise DispositionError(f"warning instruction scope does not match its bound source rows in {_case_id(case)!r}")
+        evidence_rows: list[int] = []
+        for diff in ins.get("changed_cell_evidence", []):
+            if not isinstance(diff, dict):
+                raise DispositionError(f"warning evidence is malformed in {_case_id(case)!r}")
+            evidence_row = int(diff.get("row", -1))
+            if evidence_row not in bound_rows or diff.get("source_column") != target_column:
+                raise DispositionError(f"warning evidence falls outside its approved row/column in {_case_id(case)!r}")
+            if evidence_row == row.sheet_row and _raw_text(row, target_column) != str(diff.get("current_native_value")):
+                raise DispositionError(f"warning current value no longer matches its bound evidence on row {row.sheet_row}")
+            evidence_rows.append(evidence_row)
+        if evidence_rows and sorted(evidence_rows) != bound_rows:
+            raise DispositionError(f"warning evidence does not cover every bound row in {_case_id(case)!r}")
+        if decision == "Use corrected value in notes":
             notes = fields.get("Yuchen’s notes / corrected values", "")
-            bound_rows = sorted(_rows_in_case(case))
-            target_column = fields.get("Column")
             if target_column == "E":
                 match = re.match(
                     r"^Order E \(Sent PO Date\): use (\d{4}-\d{2}-\d{2}) for rows ([0-9,]+)\.\n",
@@ -514,17 +535,7 @@ def _row_case_actions(case: Mapping[str, Any], row: Any) -> tuple[dict[str, Any]
                 corrected_date = date.fromisoformat(match.group(1))
             except ValueError as error:
                 raise DispositionError(f"typed date correction is invalid in {_case_id(case)!r}") from error
-            return {"E": corrected_date}, False, False
-        elif decision == "Keep original text as written":
-            ins = _instruction(case, "preserve_latest_source_text_without_normalization")
-        else:
-            raise DispositionError(f"unsupported warning decision in case {_case_id(case)!r}")
-        allowed = {str(diff.get("source_column")) for diff in ins.get("changed_cell_evidence", []) if isinstance(diff, dict)}
-        for rownum in _rows_in_case(case):
-            if rownum != row.sheet_row and rownum not in {int(x.get("row", -1)) for x in ins.get("changed_cell_evidence", []) if isinstance(x, dict)}:
-                continue
-        if any(col not in {"D", "E", "AD"} for col in allowed):
-            raise DispositionError(f"warning case {_case_id(case)!r} targets a non-date warning column")
+            return {target_column: corrected_date}, False, False
         # The corrected answers already agree with the latest Google preimage; keep
         # every raw cell as captured and let the canonical parser's typed/raw rules run.
         return {}, False, False
@@ -548,6 +559,20 @@ def build_source_disposition_plan(
     spec, spec_sha = _validate_spec(spec_bytes, expected_spec_sha256, expected_source_hashes)
     cases = spec["cases"]
     bound_rows = _source_refs_by_row(cases)
+    plan = DispositionImportPlan()
+    plan.skipped_rows.extend(
+        {
+            "source_row": int(entry["source"]["sheet_row"]),
+            "case_id": f"{case['workbook_section']}:{case['workbook_sheet_row']}",
+            "reason": "unused row; skip only this incoming source row",
+            "existing_order_delete": False,
+            "existing_line_delete": False,
+            "source_preimage_sha256": entry["current_preimage_sha256"],
+        }
+        for case in cases
+        if case.get("decision_exact") == "Unused row — skip it"
+        for entry in case.get("source_rows", [])
+    )
     rows_by_number: dict[int, Any] = {}
     for row in source_rows:
         if not isinstance(row, IMPORTER.SourceRow):
@@ -567,7 +592,6 @@ def build_source_disposition_plan(
             raise DispositionError(f"exact current source preimage mismatch at Google row {rownum}")
 
     catalog = catalog or IMPORTER.MasterDataCatalog()
-    case_rows: dict[tuple[str, int], list[Any]] = defaultdict(list)
     row_case: dict[int, Mapping[str, Any]] = {}
     actions: dict[int, tuple[dict[str, Any], bool, bool]] = {}
     for case in cases:
@@ -578,9 +602,7 @@ def build_source_disposition_plan(
             row_case[rownum] = case
             row = rows_by_number[rownum]
             actions[rownum] = _row_case_actions(case, row)
-            case_rows[key].append(row)
 
-    skipped: list[dict[str, Any]] = []
     eligible: dict[int, Any] = {}
     edits_by_row: dict[int, dict[str, Any]] = {}
     direct_override_rows: set[int] = set()
@@ -592,16 +614,6 @@ def build_source_disposition_plan(
         case = row_case[rownum]
         edits_by_row[rownum] = edits
         if skip:
-            skipped.append(
-                {
-                    "source_row": rownum,
-                    "case_id": f"{case['workbook_section']}:{case['workbook_sheet_row']}",
-                    "reason": "unused row; skip only this incoming source row",
-                    "existing_order_delete": False,
-                    "existing_line_delete": False,
-                    "source_preimage_sha256": _row_hash(original),
-                }
-            )
             continue
         if case["decision_exact"] == "Assortment — list included styles in notes" and any(
             i.get("kind") == "parent_only_assortment_no_child_creation" for i in case.get("instructions", [])
@@ -632,16 +644,17 @@ def build_source_disposition_plan(
                 if normalized:
                     conflict_po_numbers.add(normalized)
     grouped: dict[tuple[Any, ...], list[int]] = defaultdict(list)
-    row_group_key: dict[int, tuple[Any, ...]] = {}
     for rownum, row in eligible.items():
         po_norm = IMPORTER.normalize_po_number(_raw_cell(rows_by_number[rownum], "B"))
         if po_norm is None:
             plan.unresolved_fields.append(
                 {
                     "source_row": rownum,
+                    "case_id": f"{row_case[rownum]['workbook_section']}:{row_case[rownum]['workbook_sheet_row']}",
                     "source_column": "B",
                     "status": "blank_import_PO_no_business_number_invented",
                     "raw_value": _raw_cell(rows_by_number[rownum], "B"),
+                    "source_preimage_sha256": _row_hash(rows_by_number[rownum]),
                 }
             )
             continue
@@ -651,10 +664,6 @@ def build_source_disposition_plan(
         else:
             key = ("ordinary", po_norm)
         grouped[key].append(rownum)
-        row_group_key[rownum] = key
-
-    plan = DispositionImportPlan()
-    plan.skipped_rows.extend(skipped)
     plan.provenance = {
         "spec_sha256": spec_sha,
         "source_hashes": dict(expected_source_hashes),
@@ -670,11 +679,9 @@ def build_source_disposition_plan(
             po_norm = IMPORTER.normalize_po_number(_raw_cell(rows_by_number[rownum], "B"))
             if key[0] == "approved-conflict" and po_norm:
                 split_by_po[po_norm].add(key)
-    group_to_sid: dict[tuple[Any, ...], str] = {}
     for key, rownums in grouped.items():
         originals = [rows_by_number[rn] for rn in sorted(rownums)]
         source_rows_for_parser = [eligible[rn] for rn in sorted(rownums)]
-        raw_po = [_raw_text(row, "B") for row in originals]
         po_norm = IMPORTER.normalize_po_number(_raw_cell(originals[0], "B"))
         original_sid = IMPORTER.header_source_id(po_norm, originals[0].sheet_row)
         if key[0] == "approved-conflict" and po_norm and len(split_by_po[po_norm]) > 1:
@@ -682,8 +689,6 @@ def build_source_disposition_plan(
             desired_sid = _opaque_group_source_id(original_sid, (po_norm, identity))
         else:
             desired_sid = original_sid
-        group_to_sid[key] = desired_sid
-        has_noncustom_rows = any(rn not in parent_only_rows and rn not in direct_override_rows for rn in rownums)
         parsed_rows = [eligible[rn] for rn in sorted(rownums) if rn not in parent_only_rows]
         if not parsed_rows:
             # parent-only line still needs an ordinary header generated from its
@@ -861,14 +866,14 @@ def build_source_disposition_plan(
     for name, value in base_plan.counters.items():
         plan.counters[name] = plan.counters.get(name, 0) + value
     plan.counters["source_rows_bound"] = len(bound_rows)
-    plan.counters["source_rows_skipped"] = len(skipped)
+    plan.counters["source_rows_skipped"] = len(plan.skipped_rows)
     plan.counters["desired_orders"] = len(plan.orders)
     plan.counters["desired_lines"] = len(plan.lines)
     plan.counters["unresolved_fields"] = len(plan.unresolved_fields)
     plan.source_disposition_counts = {
         "answer_cases": len(cases),
         "source_rows_bound": len(bound_rows),
-        "source_rows_skipped": len(skipped),
+        "source_rows_skipped": len(plan.skipped_rows),
         "desired_headers": len(plan.orders),
         "desired_lines": len(plan.lines),
         "rejected_rows": len(plan.rejected_rows),
