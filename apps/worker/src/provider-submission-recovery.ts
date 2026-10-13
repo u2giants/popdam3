@@ -1,3 +1,6 @@
+import { createHash, randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
+import { withDependencyTimeout, CONFIG_READ_TIMEOUT_MS } from "./bounded-dependency.js";
 import { DEFINITIVE_REJECTION_STATUSES, DefinitiveBatchRejectionError } from "./batch-submission-error.js";
 import { isGuardedEnvelope, type BulkOperationWriteEnvelope } from "./operation-lease.js";
 import type { OpState } from "./types.js";
@@ -296,4 +299,86 @@ export function failOperationWithoutResetContractNotSubmitted(
 ): Promise<OpState> {
   return failClaimedOperation(rpc, opKey, claimedState, claimRevision, "reset_contract_unavailable",
     `${new ResetContractUnavailableError().message} (${message})`, now);
+}
+
+
+/** One process nonce is stable for its lifetime; redeploy twins have different owners. */
+export function createSubmissionOwnerFactory(): (runId: string | undefined) => string {
+  const instance = randomUUID();
+  return runId => `railway:${runId ?? "unknown"}:${instance}`;
+}
+
+/** RAM only. This acknowledgement/receipt can authorize binding, never another POST. */
+export interface AcceptedProviderAcknowledgement {
+  opKey: string;
+  claimed: OpState;
+  submitted: OpState;
+  leaseToken: string;
+  owner: string;
+  attempts: number;
+}
+export type AcceptedAcknowledgementOutcome = { saved: boolean; reason: string };
+const ACK_LEASE_FIELDS = ["submission_owner", "lease_expires_at", "lease_claimed_at", "ambiguous_since", "ambiguous_reason", "ambiguous_prior_phase", "ambiguous_prior_owner", "lease_proof"] as const;
+function withoutLease(job: OpState["external_job"]): Record<string, unknown> | undefined {
+  if (!job) return undefined;
+  const result: Record<string, unknown> = JSON.parse(JSON.stringify(job));
+  for (const field of ACK_LEASE_FIELDS) delete result[field];
+  delete result.lease_token;
+  return result;
+}
+function sameAckContext(a: OpState, b: OpState, progress: OpState["progress"]): boolean {
+  return !!a.run_id && a.run_id === b.run_id && a.cursor === b.cursor && a.started_at === b.started_at &&
+    isDeepStrictEqual(a.params, b.params) && isDeepStrictEqual(a.meta_tag_attempt, b.meta_tag_attempt) && isDeepStrictEqual(a.progress, progress);
+}
+export function alreadyBoundAcceptedAcknowledgement(ack: AcceptedProviderAcknowledgement, current: OpState): boolean {
+  return sameAckContext(current, ack.submitted, ack.submitted.progress) &&
+    !!ack.submitted.external_job?.provider_batch_id && current.external_job?.provider_batch_id === ack.submitted.external_job.provider_batch_id &&
+    isDeepStrictEqual(withoutLease(current.external_job), withoutLease(ack.submitted.external_job));
+}
+function canRefenceAck(ack: AcceptedProviderAcknowledgement, current: OpState, nowMs: number): boolean {
+  const job = current.external_job; const claimedJob = ack.claimed.external_job;
+  const proof = createHash("md5").update(ack.leaseToken).digest("hex");
+  return sameAckContext(current, ack.claimed, ack.claimed.progress) && current.status === "running" &&
+    !!job && !!claimedJob && job.phase === "submitting" && !job.provider_batch_id && !["ambiguous_since", "ambiguous_reason", "ambiguous_prior_phase", "ambiguous_prior_owner"].some(field => Object.prototype.hasOwnProperty.call(job, field)) &&
+    Number.isSafeInteger(current.state_revision) && current.state_revision! >= 0 && Number.isSafeInteger(ack.claimed.state_revision) && ack.claimed.state_revision! >= 0 &&
+    job.submission_owner === ack.owner && claimedJob.submission_owner === ack.owner && job.lease_proof === proof && claimedJob.lease_proof === proof &&
+    Number.isFinite(Date.parse(job.lease_expires_at ?? "")) && Date.parse(job.lease_expires_at!) > nowMs &&
+    isDeepStrictEqual(withoutLease(job), withoutLease(claimedJob));
+}
+/** At most three CAS attempts, exclusively on explicit revision-conflict evidence. */
+export async function persistAcceptedProviderAcknowledgement(
+  rpc: RpcCall,
+  read: () => Promise<OpState | null>,
+  ack: AcceptedProviderAcknowledgement,
+  now = Date.now,
+  dependencyTimeoutMs = CONFIG_READ_TIMEOUT_MS,
+): Promise<AcceptedAcknowledgementOutcome> {
+  let current = ack.claimed;
+  if (typeof ack.submitted.external_job?.provider_batch_id !== "string" || !ack.submitted.external_job.provider_batch_id.trim() || !ack.leaseToken || !Number.isSafeInteger(ack.attempts) || ack.attempts < 0 || ack.attempts > 3) return { saved: false, reason: "invalid_acknowledgement" };
+  while (ack.attempts < 3) {
+    if (!canRefenceAck(ack, current, now())) return { saved: false, reason: "acknowledgement_context_changed" };
+    const job = { ...ack.submitted.external_job };
+    for (const field of ACK_LEASE_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(current.external_job, field)) (job as Record<string, unknown>)[field] = current.external_job![field];
+      else delete job[field];
+    }
+    job.lease_token = ack.leaseToken;
+    const offered: OpState = { ...current, status: ack.submitted.status, cursor: ack.submitted.cursor, progress: ack.submitted.progress, external_job: job, updated_at: new Date(now()).toISOString() };
+    ack.attempts++;
+    let result;
+    try { result = await withDependencyTimeout("Accepted acknowledgement save", rpc("update_bulk_operation", { p_op_key: ack.opKey, p_op_state: offered, p_only_if_status: "running", p_expected_revision: current.state_revision ?? 0 }), dependencyTimeoutMs); }
+    catch { return { saved: false, reason: "acknowledgement_save_unknown" }; }
+    if (result.error || !isGuardedEnvelope(result.data) || !Number.isSafeInteger(result.data.state_revision) || result.data.state_revision < 0) return { saved: false, reason: "acknowledgement_save_unknown" };
+    const envelope = result.data;
+    const stored = envelope.operation as OpState | undefined;
+    if (stored && alreadyBoundAcceptedAcknowledgement(ack, stored) && envelope.provider_batch_id === ack.submitted.external_job.provider_batch_id) return { saved: true, reason: "acknowledgement_bound" };
+    if (envelope.ok || envelope.reason !== "revision_conflict") return { saved: false, reason: "acknowledgement_save_refused" };
+    if (ack.attempts >= 3) return { saved: false, reason: "acknowledgement_conflicts_exhausted" };
+    let fresh;
+    try { fresh = await withDependencyTimeout("Accepted acknowledgement read", read(), dependencyTimeoutMs); } catch { return { saved: false, reason: "acknowledgement_read_unknown" }; }
+    if (!fresh) return { saved: false, reason: "acknowledgement_read_unknown" };
+    if (alreadyBoundAcceptedAcknowledgement(ack, fresh)) return { saved: true, reason: "acknowledgement_bound" };
+    current = fresh;
+  }
+  return { saved: false, reason: "acknowledgement_conflicts_exhausted" };
 }

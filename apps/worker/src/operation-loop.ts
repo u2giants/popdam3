@@ -34,7 +34,7 @@ import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
 import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
-import { awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, failOperationAfterNotSubmitted, failClaimedOperation, failOperationWithoutResetContract, failOperationWithoutResetContractNotSubmitted, finishInterruptedReset, ResetContractUnavailableError, type RpcCall } from "./provider-submission-recovery.js";
+import { alreadyBoundAcceptedAcknowledgement, createSubmissionOwnerFactory, persistAcceptedProviderAcknowledgement, type AcceptedProviderAcknowledgement, awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, failOperationAfterNotSubmitted, failClaimedOperation, failOperationWithoutResetContract, failOperationWithoutResetContractNotSubmitted, finishInterruptedReset, ResetContractUnavailableError, type RpcCall } from "./provider-submission-recovery.js";
 import { alertTerminalFailure, appendTerminalRun, type TerminalRun } from "./terminal-outcomes.js";
 import {
   getNextAutoResumeAt,
@@ -54,6 +54,28 @@ export const WAIT_HEARTBEAT_MS = 2 * 60 * 1000;
 const INTERRUPT_CHECK_EVERY = 10;
 const AUTO_RESUME_MAX_ATTEMPTS = 10;
 const submissionLeaseTokens = new Map<string, string>();
+export const submissionOwnerForRun = createSubmissionOwnerFactory();
+// RAM only; a known acknowledgement may never return to the submission path.
+const acceptedAcknowledgements = new Map<string, AcceptedProviderAcknowledgement>();
+export function holdsAcceptedAcknowledgement(opKey: string): boolean { return acceptedAcknowledgements.has(opKey); }
+export function reconcileHeldAcknowledgement(opKey: string, current: OpState): boolean {
+  const held = acceptedAcknowledgements.get(opKey);
+  if (held && alreadyBoundAcceptedAcknowledgement(held, current)) acceptedAcknowledgements.delete(opKey);
+  return acceptedAcknowledgements.has(opKey);
+}
+export async function saveAcceptedAcknowledgement(
+  ack: AcceptedProviderAcknowledgement,
+  rpc: RpcCall,
+  read: () => Promise<OpState | null>,
+) {
+  const held = acceptedAcknowledgements.get(ack.opKey);
+  if (held && held !== ack) return { saved: false, reason: "acknowledgement_already_held" };
+  acceptedAcknowledgements.set(ack.opKey, ack);
+  releaseReceiptAfterPost(ack.opKey, ack.claimed.external_job?.lease_expires_at);
+  const result = await persistAcceptedProviderAcknowledgement(rpc, read, ack);
+  if (result.saved) acceptedAcknowledgements.delete(ack.opKey);
+  return result;
+}
 const submissionLeaseRetryAfter = new Map<string, number>();
 // Pre-POST local failures while this worker holds a live receipt (count only
 // for logging). The receipt is never discarded for these: nothing was sent, so
@@ -972,11 +994,11 @@ export async function tick(): Promise<void> {
   }
 
   // Load all operations
-  const { data: configRow, error: configErr } = await client
+  const { data: configRow, error: configErr } = await withDependencyTimeout("Bulk operation acknowledgement reconciliation", client
     .from("admin_config")
     .select("value")
     .eq("key", CONFIG_KEY)
-    .maybeSingle();
+    .maybeSingle());
 
   if (configErr) {
     logger.error("tick: failed to load BULK_OPERATIONS", { error: configErr.message });
@@ -984,6 +1006,7 @@ export async function tick(): Promise<void> {
   }
 
   const allOps = (configRow?.value as Record<string, OpState>) || {};
+  for (const [key, state] of Object.entries(allOps)) reconcileHeldAcknowledgement(key, state);
   synchronizeMetaReservations(allOps);
   await observePausedMetaResponse(allOps, config.metaApiKey);
   const originalOps: Record<string, OpState> = { ...allOps };
@@ -1115,6 +1138,13 @@ export async function tick(): Promise<void> {
 
   const [opKey, opState] = runningEntries[0] as [string, OpState];
 
+  // A failed known-ID save is never re-dispatched or re-POSTed. Keep its original
+  // receipt/acknowledgement in RAM for owned reconciliation, even after three CASes.
+  if (acceptedAcknowledgements.has(opKey)) {
+    await heartbeatWhileWaiting(opKey, opState);
+    return;
+  }
+
   // Legacy op: no cursor — it cannot be resumed safely.
   if (opState.cursor === undefined) {
     const failedState: OpState = {
@@ -1195,7 +1225,7 @@ export async function tick(): Promise<void> {
       if (pendingReset?.kind === "definitive_rejection") {
         const failed = await failDefinitivelyRejectedSubmission(
           opKey, currentState, currentState.state_revision ?? 0,
-          `railway:${currentState.run_id ?? "unknown"}`, heldRetryToken, pendingReset.rejection,
+          submissionOwnerForRun(currentState.run_id), heldRetryToken, pendingReset.rejection,
         );
         await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
         return;
@@ -1204,7 +1234,7 @@ export async function tick(): Promise<void> {
       // rebuild plus renewal. Reset it as never-submitted while it is live.
       await failNeverSentSubmission(
         opKey, currentState, currentState.state_revision ?? 0,
-        `railway:${currentState.run_id ?? "unknown"}`, heldRetryToken,
+        submissionOwnerForRun(currentState.run_id), heldRetryToken,
         new PreSubmissionError("Submission lease cannot cover another preparation attempt"),
       );
       return;
@@ -1242,7 +1272,7 @@ export async function tick(): Promise<void> {
         if (!holdReceiptAfterPreSubmissionFailure(opKey, e, heldJob.lease_expires_at)) {
           await failNeverSentSubmission(
             opKey, currentState, currentState.state_revision ?? 0,
-            `railway:${currentState.run_id ?? "unknown"}`, heldReceiptToken, e,
+            submissionOwnerForRun(currentState.run_id), heldReceiptToken, e,
           );
         }
         return;
@@ -1269,7 +1299,7 @@ export async function tick(): Promise<void> {
     }
 
     if (result.state_transition === "claim_submission") {
-      const owner = `railway:${currentState.run_id ?? "unknown"}`;
+      const owner = submissionOwnerForRun(currentState.run_id);
       const claimState: OpState = {
         ...currentState,
         cursor,
@@ -1385,20 +1415,18 @@ export async function tick(): Promise<void> {
         external_job: result.external_job as OpState["external_job"],
         updated_at: new Date().toISOString(),
       };
-      let idSaved = false;
-      try {
-        const saved = await guardedPersistOpState(opKey, submittedState, {
-          expectedRevision: claim.state_revision,
+      const acknowledgement: AcceptedProviderAcknowledgement = { opKey, claimed: structuredClone(claimedState), submitted: structuredClone(submittedState), leaseToken, owner, attempts: 0 };
+      const savedAcknowledgement = await saveAcceptedAcknowledgement(acknowledgement,
+        (fn, params) => db().rpc(fn, params),
+        async () => {
+          const { data, error } = await db().from("admin_config").select("value").eq("key", CONFIG_KEY).maybeSingle();
+          if (error) throw new Error("Accepted acknowledgement read failed");
+          return (data?.value as Record<string, OpState> | undefined)?.[opKey] ?? null;
         });
-        idSaved = saved.ok && saved.provider_batch_id === submittedState.external_job?.provider_batch_id;
-      } finally {
-        if (!idSaved) {
-          // The POST happened. Never keep the receipt for a rebuild/resubmit:
-          // drop it so the lease lapses into the database's ambiguous state.
-          releaseReceiptAfterPost(opKey, claimedState.external_job?.lease_expires_at);
-        }
+      if (!savedAcknowledgement.saved) {
+        logger.error("tick: accepted provider acknowledgement remains held in memory; no new submission is authorized", { attempts: acknowledgement.attempts, reason: savedAcknowledgement.reason });
+        return;
       }
-      if (!idSaved) throw new Error("The provider accepted the batch but its ID could not be safely saved");
       preSubmissionRetries.delete(opKey);
       if (result.done) submissionLeaseTokens.delete(opKey);
       logger.info("tick: durable provider batch saved", {
