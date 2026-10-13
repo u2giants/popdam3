@@ -83,6 +83,10 @@
       "class": "reviewer-safety"
     },
     {
+      "glob": "contracts/orderlist-production-date-apply.json",
+      "class": "reviewer-safety"
+    },
+    {
       "glob": "scripts/test-task-gates.sh",
       "class": "reviewer-safety"
     },
