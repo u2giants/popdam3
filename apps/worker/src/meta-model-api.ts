@@ -1,5 +1,6 @@
+import { accountFingerprint } from "./batch-provider.js";
 import type { ChatCompletionRequest, ChatCompletionResult, ChatMessage, OpenRouterProviderInfo } from "./openrouter.js";
-import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, DefinitiveBatchRejectionError } from "./batch-submission-error.js";
+import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
 import { metaDispatcher } from "./meta-connection.js";
 
 // Contributor models are served only by the Responses API; Chat Completions
@@ -116,7 +117,7 @@ export function synchronizeMetaReservations(operations: Record<string, import(".
   }
   // An acknowledged but unbound response is retained conservatively until
   // its exact terminal state is observed; a stale snapshot cannot release it.
-  for (const [owner, id] of asyncReservations) if (id && !terminalResponses.has(id) && !next.has(owner)) next.set(owner, id);
+  for (const [owner, id] of asyncReservations) if (id && !terminalResponses.has(id) && (!next.has(owner) || next.get(owner) === null)) next.set(owner, id);
   asyncReservations.clear(); for (const entry of next) asyncReservations.set(...entry);
   wakeContributorWaiters();
 }
@@ -249,13 +250,20 @@ export function parseMetaResponse(raw: unknown, model: string): ChatCompletionRe
 
 
 /** One non-idempotent create. Any lost acknowledgement remains ambiguous. */
-export async function createStoredMetaResponse(apiKey: string, request: ChatCompletionRequest, timeoutMs = DEFAULT_TIMEOUT_MS, reservationOwner = "anonymous-meta-create"): Promise<string> {
-  if (metaAsyncBusy(reservationOwner) || asyncCreating.has(reservationOwner)) throw new Error("Another Meta generation is still pending");
+export async function createStoredMetaResponse(apiKey: string, request: ChatCompletionRequest, timeoutMs = DEFAULT_TIMEOUT_MS, reservationOwner = "anonymous-meta-create", beforePost?: () => void): Promise<string> {
+  if (metaAsyncBusy(reservationOwner) || asyncCreating.has(reservationOwner)) throw new PreSubmissionError("Another Meta generation is still pending");
   asyncReservations.set(reservationOwner, null);
   asyncCreating.add(reservationOwner);
   return withContributorSlot(request.model, async () => {
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     try {
+      // Slot wait may consume lease time; prove the live budget at the actual POST boundary.
+      try { beforePost?.(); } catch (error) {
+        if (asyncReservations.get(reservationOwner) === null) asyncReservations.delete(reservationOwner);
+        wakeContributorWaiters();
+        if (error instanceof PreSubmissionError) throw error;
+        throw new PreSubmissionError("Meta request failed its pre-POST guard");
+      }
       const requestOptions = {
         method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({ ...buildMetaResponsesBody(request), stream: true, store: true }),
@@ -287,6 +295,7 @@ export async function createStoredMetaResponse(apiKey: string, request: ChatComp
         }
       }
     } catch (error) {
+      if (error instanceof PreSubmissionError) throw error;
       if (error instanceof DefinitiveBatchRejectionError) { asyncReservations.delete(reservationOwner); wakeContributorWaiters(); throw error; }
       if (error instanceof MetaCapacityRejectionError || error instanceof AmbiguousBatchSubmissionError) throw error;
       throw new AmbiguousBatchSubmissionError("Meta");
@@ -309,4 +318,30 @@ export async function retrieveStoredMetaResponse(apiKey: string, id: string, tim
   if (body.id !== id) throw new Error("Meta returned a different response ID");
   if (["completed", "failed", "cancelled", "incomplete"].includes(String(body.status))) releaseTerminalMetaResponse(id);
   return body;
+}
+
+
+const pausedObservationAt = new Map<string, number>();
+/** Observe at most one paused known response per tick; never write operation or asset state. */
+export async function observePausedMetaResponse(
+  operations: Record<string, import("./types.js").OpState>, apiKey: string,
+  retrieve: typeof retrieveStoredMetaResponse = retrieveStoredMetaResponse, nowMs = Date.now(),
+): Promise<boolean> {
+  if (!apiKey) return false;
+  const fingerprint = accountFingerprint(apiKey);
+  for (const state of Object.values(operations)) {
+    const job = state.external_job; const id = job?.provider_batch_id;
+    if (state.status === "running" || state.status === "queued" || job?.provider !== "meta-responses" || !id || job.account_fingerprint !== fingerprint || terminalResponses.has(id)) continue;
+    if (nowMs - (pausedObservationAt.get(id) ?? -Infinity) < 30_000) continue;
+    pausedObservationAt.set(id, nowMs);
+    try {
+      const response = await retrieve(apiKey, id, 60_000);
+      if (response.id === id && (response.model === undefined || response.model === metaModelId(String(job.model))) && ["completed", "failed", "incomplete", "cancelled"].includes(String(response.status))) {
+        releaseTerminalMetaResponse(id);
+        return true;
+      }
+    } catch { /* Refused or unavailable retrieval cannot release a reservation. */ }
+    return false;
+  }
+  return false;
 }

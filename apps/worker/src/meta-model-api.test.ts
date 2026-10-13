@@ -204,3 +204,35 @@ test("pending async generation leaves exactly one synchronous Contributor slot a
   await retrieveStoredMetaResponse("test","reserved-id");synchronizeMetaReservations({});
  }finally{globalThis.fetch=original;}
 });
+
+test("paused matching-account response observation frees terminal capacity without changing operation; other cases remain held",async()=>{
+ const {observePausedMetaResponse,synchronizeMetaReservations,metaAsyncBusy}=await import("./meta-model-api.js");const {accountFingerprint}=await import("./batch-provider.js");
+ const paused={paused:{status:"failed" as const,run_id:"observer-owner",external_job:{provider:"meta-responses" as const,phase:"pending" as const,model:"meta-direct/muse-spark-1.3-contributor",provider_batch_id:"paused-observe-id",account_fingerprint:accountFingerprint("test")}}};
+ const before=JSON.stringify(paused);synchronizeMetaReservations(paused);let gets=0;
+ const live=async()=>{gets++;return {id:"paused-observe-id",status:"in_progress"};};
+ assert.equal(await observePausedMetaResponse(paused,"test",live,100_000),false);assert.equal(metaAsyncBusy("another-owner"),true);
+ assert.equal(await observePausedMetaResponse(paused,"test",live,100_100),false);assert.equal(gets,1);
+ const unknown=async()=>({id:"paused-observe-id",status:"unknown"});assert.equal(await observePausedMetaResponse(paused,"test",unknown,130_001),false);assert.equal(metaAsyncBusy("another-owner"),true);
+ const refused=async()=>{throw new Error("refused");};assert.equal(await observePausedMetaResponse(paused,"test",refused,160_002),false);assert.equal(metaAsyncBusy("another-owner"),true);
+ const terminal=async()=>({id:"paused-observe-id",status:"completed"});assert.equal(await observePausedMetaResponse(paused,"wrong-account",terminal,190_003),false);assert.equal(metaAsyncBusy("another-owner"),true);
+ assert.equal(await observePausedMetaResponse(paused,"test",terminal,190_003),true);synchronizeMetaReservations(paused);assert.equal(metaAsyncBusy("another-owner"),false);assert.equal(JSON.stringify(paused),before);
+ const other={other:{status:"failed" as const,external_job:{provider:"openrouter" as const,phase:"pending" as const,provider_batch_id:"other-id",account_fingerprint:accountFingerprint("test")}}};assert.equal(await observePausedMetaResponse(other,"test",terminal,220_004),false);
+});
+test("ephemeral acknowledged ID survives unbound snapshot downgrade and can be terminally released",async()=>{
+ const {createStoredMetaResponse,synchronizeMetaReservations,metaAsyncBusy,retrieveStoredMetaResponse}=await import("./meta-model-api.js");const original=globalThis.fetch;
+ globalThis.fetch=async(_url,init)=>init?.method==="POST"?new Response('data: {"type":"response.created","response":{"id":"ephemeral-id"}}\n\n'):new Response('{"id":"ephemeral-id","status":"completed"}');
+ try{
+  await createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]},60_000,"ephemeral-owner");
+  synchronizeMetaReservations({x:{status:"failed",run_id:"ephemeral-owner",external_job:{provider:"meta-responses",phase:"ambiguous_submission"}}});
+  assert.equal(metaAsyncBusy("ephemeral-owner"),true,"must retain actual ID rather than own unbound-null reservation");
+  await retrieveStoredMetaResponse("test","ephemeral-id");synchronizeMetaReservations({});assert.equal(metaAsyncBusy("another-owner"),false);
+ }finally{globalThis.fetch=original;}
+});
+test("busy create and expired actual pre-POST lease guard are never ambiguous and issue zero POSTs",async()=>{
+ const {createStoredMetaResponse,synchronizeMetaReservations}=await import("./meta-model-api.js");const {PreSubmissionError}=await import("./batch-submission-error.js");const original=globalThis.fetch;let posts=0;globalThis.fetch=async()=>{posts++;throw new Error("must not fetch");};
+ try{
+  synchronizeMetaReservations({x:{status:"failed",run_id:"busy-owner",external_job:{provider:"meta-responses",phase:"ambiguous_submission"}}});
+  await assert.rejects(createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]},60_000,"blocked-owner"),PreSubmissionError);synchronizeMetaReservations({});
+  await assert.rejects(createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]},60_000,"expired-owner",()=>{throw new PreSubmissionError("lease expired");}),/lease expired/);assert.equal(posts,0);
+ }finally{globalThis.fetch=original;synchronizeMetaReservations({});}
+});

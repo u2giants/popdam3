@@ -106,3 +106,33 @@ test("known capacity delay is checkpointed; retry requires existing-receipt rene
  renewed.external_job={...job,meta_capacity_retries:6};assert.equal((await handleMetaTagResponse(renewed,d)).error_code,"meta_capacity_exhausted");assert.equal(posts,3);
  const restarted={...renewed,external_job:{...renewed.external_job!}};delete restarted.external_job!.lease_token;assert.equal((await handleMetaTagResponse(restarted,d)).state_transition,"claim_submission");assert.equal(posts,3);
 });
+
+test("real unavailable and missing-asset predicates preserve per-item outcomes and transient DB reason",async()=>{
+ const {isVisualAnalysisUnavailableError,AssetMissingError}=await import("./ai-tagging.js");
+ const d=deps();d.unavailable=isVisualAnalysisUnavailableError;d.missing=error=>error instanceof AssetMissingError;
+ d.prepare=async()=>{throw new Error(`Asset has no thumbnail: ${id}`);};
+ const initial={status:"running" as const,cursor:0};const unavailable=await handleMetaTagResponse(initial,d);assert.equal(unavailable.visual_analysis_unavailable,1);assert.equal(unavailable.nextOffset,1);
+ d.prepare=async()=>{throw new AssetMissingError(id);};const missing=await handleMetaTagResponse(initial,d);assert.equal(missing.skipped,1);assert.equal(missing.nextOffset,1);assert.equal((missing.skip_samples as Array<{reason:string}>)[0].reason,"Asset no longer exists");
+ d.prepare=async()=>{throw new Error("Meta asset reload failed: canceling statement due to statement timeout (57014)");};const transient=await handleMetaTagResponse(initial,d);assert.equal(transient.error_code,"dependency_timeout");assert.match(String(transient.error),/57014/);assert.equal(transient.skipped,undefined);
+ d.prepare=async()=>{throw new Error("Meta asset reload failed: permission denied");};await assert.rejects(handleMetaTagResponse(initial,d),/permission denied/);
+});
+test("candidate cursor error keeps the original invalid_cursor code",async()=>{
+ const {AiTagCursorError}=await import("../ai-tag-cursor.js");const d=deps();d.candidate=async()=>{throw new AiTagCursorError("invalid_cursor","invalid fixture");};assert.equal((await handleMetaTagResponse({status:"running"},d)).error_code,"invalid_cursor");
+});
+
+test("actual reload classifier distinguishes empty and PGRST116 zero rows from nonmissing database errors",async()=>{
+ const {requireMetaAssetRow,AssetMissingError}=await import("./ai-tagging.js");
+ assert.throws(()=>requireMetaAssetRow(null,null,id),AssetMissingError);
+ assert.throws(()=>requireMetaAssetRow(null,{code:"PGRST116",message:"Cannot coerce",details:"The result contains 0 rows"},id),AssetMissingError);
+ assert.throws(()=>requireMetaAssetRow(null,{code:"PGRST116",message:"Cannot coerce",details:"The result contains 2 rows"},id),/Cannot coerce/);
+ assert.throws(()=>requireMetaAssetRow(null,{code:"42501",message:"permission denied"},id),/permission denied/);
+ assert.throws(()=>requireMetaAssetRow(null,{code:"57014",message:"statement timeout"},id),/statement timeout/);
+ assert.equal(requireMetaAssetRow({id},null,id).id,id);
+});
+
+test("active inference bound pauses exact ID without generation or cursor advance, and explicit resume retrieves same completion",async()=>{
+ const s=state();s.external_job!.submitted_at=new Date(1_000).toISOString();const d=deps();d.now=()=>1_000+30*60_000;let creates=0;d.create=async()=>{creates++;throw new Error("No new generation");};
+ d.retrieve=async()=>({id:"resp_test",status:"queued"});const paused=await handleMetaTagResponse(s,d);assert.equal(paused.error_code,"meta_inference_deadline");assert.equal(paused.nextOffset,undefined);assert.equal((paused.external_job as {provider_batch_id:string}).provider_batch_id,"resp_test");assert.equal(creates,0);
+ d.retrieve=deps().retrieve;const resumed=await handleMetaTagResponse({...s,status:"running"},d);assert.equal((resumed.external_job as {phase:string}).phase,"applying");assert.equal(creates,0);
+ delete s.external_job!.submitted_at;d.retrieve=async()=>({id:"resp_test",status:"in_progress"});assert.equal((await handleMetaTagResponse(s,d)).error_code,"contract_error");assert.equal(creates,0);
+});

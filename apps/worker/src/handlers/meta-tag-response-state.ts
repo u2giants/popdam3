@@ -1,3 +1,4 @@
+import { AiTagCursorError } from "../ai-tag-cursor.js";
 import { logger } from "../logger.js";
 import type { BatchResult, OpState, OpenRouterBatchJobState } from "../types.js";
 import type { ChatCompletionRequest } from "../openrouter.js";
@@ -19,6 +20,7 @@ export interface MetaTagDependencies {
   create?: typeof createStoredMetaResponse; retrieve?: typeof retrieveStoredMetaResponse;
   now?: () => number;
   unavailable?: (error: unknown) => boolean;
+  missing?: (error: unknown) => boolean;
 }
 
 /** One asset, one immutable provider response, the existing native receipt/clear protocol. */
@@ -33,15 +35,24 @@ export async function handleMetaTagResponse(state: OpState, deps: MetaTagDepende
   const owner = state.run_id ?? "unassigned-meta-operation";
   if ((!job || job.phase === "prepared" || job.phase === "submitting" && !job.provider_batch_id) && metaAsyncBusy(owner)) return { ok: true, done: false, nextOffset: cursor, state_transition: "yield_without_save" };
   if (!job) {
-    const candidate = await deps.candidate();
+    let candidate: MetaTagCandidate | null;
+    try { candidate = await deps.candidate(); }
+    catch (error) {
+      if (error instanceof AiTagCursorError) return { ok: false, done: false, error: error.message, error_code: error.code, error_stage: "candidate_fetch" };
+      throw error;
+    }
     if (!candidate) return { ok: true, done: true, nextOffset: cursor };
     if (attempt && attempt.asset_id !== candidate.asset_id) return { ok: false, done: false, error: "Saved Meta attempt targets a different asset", error_code: "contract_error" };
     const methodIndex = attempt?.method_index ?? 0;
     let request: ChatCompletionRequest | null;
     try { request = await deps.prepare(candidate.asset_id, META_TAG_METHODS[methodIndex], attempt?.repair_error); }
     catch (error) {
+      if (deps.missing?.(error)) return { ok: true, done: candidate.done, nextOffset: candidate.next_cursor, skipped: 1, meta_tag_attempt: null, skip_samples: [{ at: iso, asset_id: candidate.asset_id, reason: "Asset no longer exists" }] };
       if (deps.unavailable?.(error)) return { ok: true, done: candidate.done, nextOffset: candidate.next_cursor, visual_analysis_unavailable: 1, meta_tag_attempt: null };
-      throw new PreSubmissionError("Meta asset preparation failed before submission");
+      const message = error instanceof Error ? error.message : "Meta asset preparation failed before submission";
+      const transient = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError" || /timeout|timed out|fetch failed|57014|502|503|504|connection refused|too many connections/i.test(message));
+      if (transient) return { ok: false, done: false, error: `Dependency timed out before Meta submission: ${message}`, error_code: "dependency_timeout", error_stage: "asset_fetch" };
+      throw new PreSubmissionError(message, true);
     }
     if (!request) return { ok: true, done: candidate.done, nextOffset: candidate.next_cursor, skipped: 1, meta_tag_attempt: null };
     return { ok: true, done: false, nextOffset: cursor,
@@ -79,7 +90,7 @@ export async function handleMetaTagResponse(state: OpState, deps: MetaTagDepende
     if (!request || request.model !== deps.model) throw new PreSubmissionError("Prepared Meta request is unavailable", true);
     assertProviderSubmissionLeaseBudget(job.lease_expires_at);
     let id: string;
-    try { id = await (deps.create ?? createStoredMetaResponse)(deps.apiKey, request, 60_000, owner); }
+    try { id = await (deps.create ?? createStoredMetaResponse)(deps.apiKey, request, 60_000, owner, () => assertProviderSubmissionLeaseBudget(job.lease_expires_at)); }
     catch (error) {
       if (!(error instanceof MetaCapacityRejectionError)) throw error;
       const retries = Number(job.meta_capacity_retries ?? 0);
@@ -109,8 +120,13 @@ export async function handleMetaTagResponse(state: OpState, deps: MetaTagDepende
   }
   if (response.id !== action.batchId) return { ok: false, done: false, error: "Retrieved Meta response ID mismatch", error_code: "contract_error" };
   if (response.model !== undefined && response.model !== metaModelId(deps.model)) return { ok: false, done: false, error: "Retrieved Meta response model mismatch", error_code: "contract_error" };
-  if (response.status === "queued" || response.status === "in_progress") return { ok: true, done: false, nextOffset: cursor,
-    external_job: { ...job, next_poll_at: new Date(now + 10_000).toISOString(), transient_poll_failures: undefined }, last_stage: "model_inference" };
+  if (response.status === "queued" || response.status === "in_progress") {
+    const submittedMs = Date.parse(job.submitted_at ?? "");
+    if (!Number.isFinite(submittedMs) || submittedMs > now) return { ok: false, done: false, error: "Stored Meta response has invalid submission time", error_code: "contract_error", external_job: job };
+    if (now - submittedMs >= 30 * 60_000) return { ok: false, done: false, error: "Meta response remains active after the 30-minute observation bound; accepted ID retained for owned reconciliation", error_code: "meta_inference_deadline", external_job: job, last_stage: "model_inference" };
+    return { ok: true, done: false, nextOffset: cursor,
+      external_job: { ...job, next_poll_at: new Date(now + 10_000).toISOString(), transient_poll_failures: undefined }, last_stage: "model_inference" };
+  }
   const completed = (changes: Partial<OpenRouterBatchJobState>, counts: Record<string, unknown> = {}): BatchResult => ({ ok: true, done: false, nextOffset: cursor,
     external_job: { ...job, ...changes, meta_asset_terminal: !changes.meta_next_attempt, phase: "completed", next_poll_at: undefined }, ...counts, last_stage: "state_persist" });
   if (!["completed", "failed", "incomplete", "cancelled"].includes(String(response.status))) return { ok: false, done: false, error: "Stored Meta response has unknown status", error_code: "contract_error", external_job: job };

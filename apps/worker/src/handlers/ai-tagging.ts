@@ -307,8 +307,15 @@ interface AiTagHandlerDependencies {
   concurrency?: number;
 }
 
+export function requireMetaAssetRow<T>(asset: T | null, error: { message: string; code?: string; details?: string } | null, assetId: string): T {
+  if (!asset && (!error || error.code === "PGRST116" && /\b0 rows\b/i.test(error.details ?? error.message))) throw new AssetMissingError(assetId);
+  if (error) throw new Error(`Meta asset reload failed: ${error.message}`);
+  if (!asset) throw new AssetMissingError(assetId);
+  return asset;
+}
+
 /** The asset row no longer exists (deleted between paging and preparation). */
-class AssetMissingError extends Error {
+export class AssetMissingError extends Error {
   constructor(assetId: string) {
     super(`Asset no longer exists: ${assetId}`);
     this.name = "AssetMissingError";
@@ -1012,12 +1019,12 @@ export async function handleBulkAiTag(
     const ids = Array.isArray(opState.params?.asset_ids) ? opState.params.asset_ids as string[] : null;
     if (requireAssetIds && !ids?.length) return { ok: false, done: true, error: "Single-asset tag operation has no asset ID" };
     return handleMetaTagResponse(opState, {
-      model, apiKey: await getAiTaggingApiKey(model), unavailable: isVisualAnalysisUnavailableError, validate: value => validateTagAssetData(value, "structured"),
+      model, apiKey: await getAiTaggingApiKey(model), unavailable: isVisualAnalysisUnavailableError, missing: error => error instanceof AssetMissingError, validate: value => validateTagAssetData(value, "structured"),
       apply: (id, value, model) => applyBatchTagResult(id, value, model),
       candidate: async () => {
         if (ids?.length) {
           const offset = opState.cursor ?? 0;
-          if (typeof offset !== "number" || !Number.isSafeInteger(offset) || offset < 0 || offset > ids.length) throw new Error("Invalid explicit Meta tagging cursor");
+          if (typeof offset !== "number" || !Number.isSafeInteger(offset) || offset < 0 || offset > ids.length) throw new AiTagCursorError("invalid_cursor", "Invalid explicit Meta tagging cursor");
           return offset === ids.length ? null : { asset_id: ids[offset], next_cursor: offset + 1, done: offset + 1 === ids.length };
         }
         const cursor = decodeAiTagCursor(opState.cursor);
@@ -1029,10 +1036,10 @@ export async function handleBulkAiTag(
         return row ? { asset_id: row.id, next_cursor: encodeAiTagCursor({ tier: row.primary_sort_tier, id: row.id }), done: false } : null;
       },
       prepare: async (id, method, repairError) => {
-        const { data: asset, error } = await db().from("assets").select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, division_code, style_group_id").eq("id", id).single();
-        if (error || !asset) throw new Error("Meta asset reload failed");
+        const { data: loadedAsset, error } = await db().from("assets").select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, division_code, style_group_id").eq("id", id).maybeSingle();
+        const asset = requireMetaAssetRow(loadedAsset, error, id);
         if (!tagAll && asset.status === "tagged" && asset.ai_tagged_at) return null;
-        if (!asset.thumbnail_url) throw new Error("Asset has no thumbnail");
+        if (!asset.thumbnail_url) throw new Error(`Asset has no thumbnail: ${id}`);
         const image = await fetchImageData(asset.thumbnail_url);
         const messages = buildImageTaggingMessages(await buildImageTaggingPrompt(asset), image, "Analyze this design asset image and return structured tags matching the tag_asset schema.");
         const options = { model, messages, maxTokens: 4000, schemaName: "tag_asset", schema: TAG_ASSET_SCHEMA };

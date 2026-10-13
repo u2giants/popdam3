@@ -1,4 +1,5 @@
-import { synchronizeMetaReservations, MetaCapabilityRejectionError } from "./meta-model-api.js";
+import { config } from "./config.js";
+import { synchronizeMetaReservations, observePausedMetaResponse, MetaCapabilityRejectionError } from "./meta-model-api.js";
 import { metaCompletedTransition, advanceMetaCapabilityRejection } from "./handlers/meta-tag-response-state.js";
 /**
  * Operation loop — polls admin_config.BULK_OPERATIONS, dispatches to handlers,
@@ -640,7 +641,7 @@ export function classifyError(msg: string): string {
 }
 
 export function interruptionReason(result: BatchResult): string {
-  if (result.error_code === "legacy_cursor" || result.error_code === "invalid_cursor") {
+  if (result.error_code === "legacy_cursor" || result.error_code === "invalid_cursor" || result.error_code === "meta_inference_deadline") {
     return result.error_code;
   }
   return classifyError(normalizeBatchError(result.error));
@@ -984,6 +985,7 @@ export async function tick(): Promise<void> {
 
   const allOps = (configRow?.value as Record<string, OpState>) || {};
   synchronizeMetaReservations(allOps);
+  await observePausedMetaResponse(allOps, config.metaApiKey);
   const originalOps: Record<string, OpState> = { ...allOps };
 
   // Stale lock detection
