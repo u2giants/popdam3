@@ -501,7 +501,7 @@ def _check_plan_scope(plan: dict):
                 not all(isinstance(value, str) and value.strip() for value in partition) or
                 not isinstance(evidence, dict) or
                 not isinstance(evidence.get('production_order_number'), str) or
-                not evidence['production_order_number'].strip()):
+                evidence['production_order_number'] == ''):
             raise ValueError('Frozen plan has incomplete batch identity keys')
         if (not proposal.get('source_row_preimages') or
                 not proposal.get('identity_scope_source_preimages') or

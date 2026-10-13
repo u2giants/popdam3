@@ -388,12 +388,20 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
         }))
 
     def test_pinned_ca_is_verified_copied_private_and_used_with_verify_full(self):
-        certificate = executor.CA_FILE.read_bytes()
-        self.assertEqual(executor.sha_bytes(certificate), executor.CA_SHA256)
-        with executor._pinned_ca_file() as ca_path:
-            self.assertEqual(ca_path.read_bytes(), certificate)
-            self.assertEqual(ca_path.stat().st_mode & 0o777, 0o600)
-        self.assertFalse(ca_path.exists())
+        certificate = (b'-----BEGIN CERTIFICATE-----\n'
+                       b'SYNTHETIC TEST CA ONLY\n'
+                       b'-----END CERTIFICATE-----\n')
+        certificate_sha = executor.sha_bytes(certificate)
+        with tempfile.TemporaryDirectory() as folder:
+            test_ca = Path(folder) / 'synthetic-test-ca.pem'
+            test_ca.write_bytes(certificate)
+            test_ca.chmod(0o444)
+            with (mock.patch.object(executor, 'CA_FILE', test_ca),
+                  mock.patch.object(executor, 'CA_SHA256', certificate_sha)):
+                with executor._pinned_ca_file() as ca_path:
+                    self.assertEqual(ca_path.read_bytes(), certificate)
+                    self.assertEqual(ca_path.stat().st_mode & 0o777, 0o600)
+                self.assertFalse(ca_path.exists())
 
         class Connection:
             def __init__(self):
@@ -421,11 +429,17 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
             'host': executor.POOLER_HOST, 'user': executor.POOLER_USER,
             'port': '5432', 'dbname': 'postgres', 'sslmode': 'verify-full'}
         identity = types.SimpleNamespace(fingerprint=('db', 'addr', 'started'))
-        with (mock.patch.dict('sys.modules', {'psycopg': psycopg, 'psycopg.conninfo': conninfo}),
+        with tempfile.TemporaryDirectory() as folder:
+            test_ca = Path(folder) / 'synthetic-test-ca.pem'
+            test_ca.write_bytes(certificate)
+            test_ca.chmod(0o444)
+            with (mock.patch.object(executor, 'CA_FILE', test_ca),
+                  mock.patch.object(executor, 'CA_SHA256', certificate_sha),
+                  mock.patch.dict('sys.modules', {'psycopg': psycopg, 'psycopg.conninfo': conninfo}),
               mock.patch.dict('os.environ', {'PRODUCTION_DATABASE_URL': 'host=approved'}),
               mock.patch.object(executor.shared_db_importer, 'assert_server_is_target', return_value=identity),
               mock.patch.object(executor.shared_db_importer, 'read_server_identity', return_value=identity)):
-            returned, fingerprint = executor.connect()
+                returned, fingerprint = executor.connect()
         self.assertIs(returned, conn)
         self.assertEqual(fingerprint, identity.fingerprint)
         self.assertEqual(calls['sslmode'], 'verify-full')
@@ -446,9 +460,10 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
     def test_pinned_ca_rejects_writable_source_file(self):
         with tempfile.TemporaryDirectory() as folder:
             fake_ca = Path(folder) / 'root.crt'
-            fake_ca.write_bytes(executor.CA_FILE.read_bytes())
+            fake_ca.write_bytes(b'-----BEGIN CERTIFICATE-----\nSYNTHETIC\n-----END CERTIFICATE-----\n')
             fake_ca.chmod(0o664)
             with (mock.patch.object(executor, 'CA_FILE', fake_ca),
+                  mock.patch.object(executor, 'CA_SHA256', executor.sha_bytes(fake_ca.read_bytes())),
                   self.assertRaisesRegex(ValueError, 'unsafe ownership or permissions')):
                 with executor._pinned_ca_file():
                     self.fail('Writable certificate source was yielded to libpq')

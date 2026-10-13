@@ -53,7 +53,7 @@ def base_capture():
         'schema': planmod.CAPTURE_SCHEMA,
         'captured_at': '2026-10-13T14:02:00Z',
         'latest_source_observation_at': '2026-10-13T14:01:00Z',
-        'source_digest': 'f' * 64,
+        'source_digest': planmod.digest([issued, received]),
         'repository_head': '1' * 40,
         'headers': [header], 'lines': [line], 'line_source_refs': [],
         'held_header_ids': [], 'prod_history_rows': [issued, received],
@@ -62,7 +62,20 @@ def base_capture():
     }
 
 
+def build_plan(capture):
+    # Existing tests mutate source rows to exercise matching rules; keep their
+    # capture commitments internally valid unless a test explicitly targets drift.
+    capture['source_digest'] = planmod.digest(capture['prod_history_rows'])
+    return planmod.build_plan(capture)
+
+
 class ProductionDatePlannerTests(unittest.TestCase):
+    def test_capture_source_digest_must_bind_exact_history_rows(self):
+        capture = base_capture()
+        capture['prod_history_rows'][0]['prod_order_date'] = '2024-03-05'
+        with self.assertRaisesRegex(ValueError, 'source digest does not match'):
+            planmod._validate_capture(capture)
+
     def test_protected_capture_reads_hash_and_json_from_the_same_owned_file_bytes(self):
         raw = b'{"example":"pinned bytes"}\n'
         with tempfile.TemporaryDirectory() as folder:
@@ -145,7 +158,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
         capture['prod_history_rows'][0]['source_observed_at'] = '2026-10-13T14:00:00Z'
         capture['prod_history_rows'][1]['source_observed_at'] = '2026-10-13T14:00:00.500Z'
         with self.assertRaisesRegex(ValueError, 'later than the capture time'):
-            planmod.build_plan(capture)
+            build_plan(capture)
 
     def test_capture_selects_latest_observation_by_utc_instant_not_string_order(self):
         capture = base_capture()
@@ -153,13 +166,13 @@ class ProductionDatePlannerTests(unittest.TestCase):
         capture['latest_source_observation_at'] = '2026-10-13T14:00:00.500Z'
         capture['prod_history_rows'][0]['source_observed_at'] = '2026-10-13T14:00:00Z'
         capture['prod_history_rows'][1]['source_observed_at'] = '2026-10-13T14:00:00.500Z'
-        plan = planmod.build_plan(capture)
+        plan = build_plan(capture)
         self.assertEqual(plan['latest_source_observation_at'], '2026-10-13T14:00:00.500000Z')
         self.assertEqual(plan['counts']['proposed'], 1)
 
     def test_exact_source_identity_proposes_only_order_date(self):
         capture = base_capture()
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         self.assertEqual(result['counts']['proposed'], 1)
         proposal = result['proposals'][0]
         self.assertEqual(proposal['date'], '2024-03-04')
@@ -177,7 +190,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
             'source_system': 'coldlion',
             'source_id': 'coldlion:so:987:line:1:component:1',
         }]
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         self.assertEqual(result['counts']['proposed'], 1)
         self.assertEqual(result['proposals'][0]['match_route'], 'coldlion_sales_order_reference')
         self.assertEqual(result['proposals'][0]['source_line_source_refs'], capture['line_source_refs'])
@@ -194,7 +207,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
             'normalized_name': 'acme incorporated', 'erp_updated_at': '2026-10-12T12:00:00Z',
             'customer_updated_at': '2026-10-12T13:00:00Z',
         }]
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         self.assertEqual(result['counts']['proposed'], 1)
         self.assertEqual(result['proposals'][0]['match_route'], 'erp_customer_bridge')
         self.assertEqual(result['proposals'][0]['identity_scope_customer_identity_preimages'],
@@ -211,7 +224,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
             'customer_updated_at': '2026-10-12T13:00:00Z',
         }
         capture['customer_identity_rows'] = [mapping]
-        plan = planmod.build_plan(capture)
+        plan = build_plan(capture)
         self.assertEqual(plan['counts']['proposed'], 1)
         proposal = plan['proposals'][0]
         self.assertEqual(proposal['customer_identity_scope_pairs'], [['EDGEHOME', 'CUST-1']])
@@ -271,7 +284,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
         capture['captured_at'] = '2026-10-13T14:04:00Z'
         capture['latest_source_observation_at'] = '2026-10-13T14:03:00Z'
 
-        plan = planmod.build_plan(capture)
+        plan = build_plan(capture)
         self.assertEqual(plan['counts']['proposed'], 1)
         proposal = plan['proposals'][0]
         self.assertEqual(proposal['customer_identity_scope_pairs'], [
@@ -303,15 +316,15 @@ class ProductionDatePlannerTests(unittest.TestCase):
             'erp_updated_at': '2026-10-12T12:00:00Z', 'customer_updated_at': '2026-10-12T13:00:00Z',
         }
         capture['customer_identity_rows'] = []
-        self.assertEqual(planmod.build_plan(capture)['counts']['proposed'], 0)
+        self.assertEqual(build_plan(capture)['counts']['proposed'], 0)
         second_code = deepcopy(capture['prod_history_rows'][0])
         second_code.update(id='src-iss-second-code', customer_code='CUST-2',
                            source_observed_at='2026-10-13T14:00:30Z', line_source_hash='c' * 64)
         capture['prod_history_rows'].append(second_code)
         capture['customer_identity_rows'] = [mapping]
-        self.assertEqual(planmod.build_plan(capture)['counts']['proposed'], 0)
+        self.assertEqual(build_plan(capture)['counts']['proposed'], 0)
         capture['customer_identity_rows'].append({**mapping, 'customer_code': 'CUST-2', 'customer_id': 'customer-2'})
-        self.assertEqual(planmod.build_plan(capture)['counts']['proposed'], 0)
+        self.assertEqual(build_plan(capture)['counts']['proposed'], 0)
 
     def test_customer_bridge_rejects_alias_collision_across_customer_ids(self):
         capture = base_capture()
@@ -329,7 +342,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
             {**base_mapping, 'company_code': 'OTHERCO', 'customer_code': 'CUST-9',
              'customer_id': 'customer-2', 'display_name': 'Acme Retail Alias'},
         ]
-        self.assertEqual(planmod.build_plan(capture)['counts']['proposed'], 0)
+        self.assertEqual(build_plan(capture)['counts']['proposed'], 0)
 
     def test_unrelated_alias_owner_for_same_customer_id_is_safe_and_frozen(self):
         capture = base_capture()
@@ -348,7 +361,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
             {**base_mapping, 'company_code': 'OTHERCO', 'customer_code': 'CUST-9',
              'customer_id': 'customer-1', 'display_name': 'Acme Retail Alias'},
         ]
-        proposal = planmod.build_plan(capture)['proposals'][0]
+        proposal = build_plan(capture)['proposals'][0]
         self.assertEqual(proposal['match_route'], 'erp_customer_bridge')
         self.assertEqual(len(proposal['identity_scope_customer_identity_preimages']), 2)
         self.assertEqual({row['customer_code'] for row in proposal['identity_scope_customer_identity_preimages']},
@@ -358,29 +371,29 @@ class ProductionDatePlannerTests(unittest.TestCase):
         capture = base_capture()
         capture['customer_identity_rows'] = [{'company_code': 'EDGEHOME', 'customer_code': 'CUST-1'}]
         with self.assertRaisesRegex(ValueError, 'projection is incomplete'):
-            planmod.build_plan(capture)
+            build_plan(capture)
 
     def test_incomplete_customer_bridge_snapshot_cannot_produce_an_unusable_plan(self):
         capture = base_capture()
         capture['customer_identity_snapshot_complete'] = False
         with self.assertRaisesRegex(ValueError, 'requires a complete customer identity bridge snapshot'):
-            planmod.build_plan(capture)
+            build_plan(capture)
 
     def test_customer_bridge_snapshot_requires_the_declared_full_row_limit(self):
         capture = base_capture()
         capture['customer_identity_snapshot_row_limit'] = 100
         with self.assertRaisesRegex(ValueError, 'requires a complete customer identity bridge snapshot'):
-            planmod.build_plan(capture)
+            build_plan(capture)
 
     def test_held_header_ids_must_be_an_array_of_uuid_strings(self):
         capture = base_capture()
         capture['held_header_ids'] = 'not-an-array'
         with self.assertRaisesRegex(ValueError, 'must be an array'):
-            planmod.build_plan(capture)
+            build_plan(capture)
         capture = base_capture()
         capture['held_header_ids'] = ['not-a-uuid']
         with self.assertRaisesRegex(ValueError, 'UUID strings'):
-            planmod.build_plan(capture)
+            build_plan(capture)
 
     def test_source_ref_mismatch_is_a_contradiction_not_fallback(self):
         capture = base_capture()
@@ -388,7 +401,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
             'id': 'ref-1', 'production_order_line_id': 'line-1',
             'source_system': 'coldlion', 'source_id': 'coldlion:so:123:line:1:component:1',
         }]
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         self.assertEqual(result['counts']['proposed'], 0)
         self.assertIn('coldlion_source_ref_contradiction', {x['reason'] for x in result['unresolved']})
 
@@ -399,7 +412,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
                       source_observed_at='2026-10-13T14:00:30Z', line_source_hash='c' * 64)
         capture['prod_history_rows'].append(second)
         capture['latest_source_observation_at'] = '2026-10-13T14:01:00Z'
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         self.assertEqual(result['counts']['proposed'], 0)
         self.assertIn('multiple_source_orders_match', {x['reason'] for x in result['unresolved']})
 
@@ -431,7 +444,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
         capture['captured_at'] = '2026-10-13T14:04:00Z'
         capture['latest_source_observation_at'] = '2026-10-13T14:03:00Z'
 
-        proposal = planmod.build_plan(capture)['proposals'][0]
+        proposal = build_plan(capture)['proposals'][0]
         self.assertEqual(proposal['source_partition'], ['EDGEHOME', '555'])
         self.assertEqual(proposal['customer_identity_scope_pairs'], [['EDGEHOME', 'CUST-1']])
         self.assertEqual(proposal['identity_scope_customer_identity_preimages'], [selected_mapping])
@@ -444,7 +457,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
                       vendor_code='VENDOR-OTHER', item_no='STYLE-OTHER',
                       source_observed_at='2026-10-13T14:00:30Z', line_source_hash='c' * 64)
         capture['prod_history_rows'].append(second)
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         self.assertEqual(result['counts']['proposed'], 1)
         self.assertEqual(result['proposals'][0]['source_partition'], ['EDGEHOME', '555'])
         self.assertEqual(result['counts']['unresolved'], 0)
@@ -456,7 +469,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
                              prod_order_no=999, source_observed_at='2026-10-13T14:00:30Z',
                              line_source_hash='c' * 64)
         capture['prod_history_rows'].append(other_company)
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         proposal = result['proposals'][0]
         self.assertEqual(len(proposal['source_row_preimages']), 2)
         self.assertEqual(len(proposal['identity_scope_source_preimages']), 3)
@@ -480,23 +493,71 @@ class ProductionDatePlannerTests(unittest.TestCase):
                       prod_order_date='2025-03-04', source_observed_at='2026-10-13T14:00:30Z',
                       line_source_hash='c' * 64)
         capture['prod_history_rows'].append(second)
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         self.assertEqual(result['counts']['proposed'], 2)
         self.assertEqual({p['header_id'] for p in result['proposals']}, {'header-1', 'header-2'})
         self.assertEqual({p['date'] for p in result['proposals']}, {'2024-03-04', '2025-03-04'})
+
+    def test_padded_production_references_keep_distinct_exact_scopes_through_frozen_executor_plan(self):
+        capture = base_capture()
+        capture['headers'].append({
+            'id': 'header-padded', 'production_order_number': ' D-100 ', 'order_date': None,
+            'metadata': {'customer_name': 'Other Customer', 'vendor_id_raw': 'VENDOR-OTHER'},
+        })
+        capture['lines'].append({
+            'id': 'line-padded', 'production_order_id': 'header-padded', 'sku': 'STYLE-OTHER',
+            'customer_po_number': 'CPO-OTHER',
+        })
+        padded_rows = []
+        for original, suffix, stage in zip(capture['prod_history_rows'], ('iss', 'rec'), ('ISS', 'REC')):
+            row = deepcopy(original)
+            row.update(
+                id=f'src-padded-{suffix}', prod_order_no=556,
+                prod_reference_no=' D-100 ', customer_desc='Other Customer',
+                vendor_code='VENDOR-OTHER', item_no='STYLE-OTHER',
+                cust_po_number='CPO-OTHER' if stage == 'ISS' else None,
+                stage_code=stage, prod_order_date='2025-03-04',
+                source_observed_at='2026-10-13T14:02:00Z',
+                line_source_hash=('c' if stage == 'ISS' else 'd') * 64)
+            padded_rows.append(row)
+        capture['prod_history_rows'].extend(padded_rows)
+        capture['captured_at'] = '2026-10-13T14:03:00Z'
+        capture['latest_source_observation_at'] = '2026-10-13T14:02:00Z'
+        plan = build_plan(capture)
+        self.assertEqual(plan['counts']['proposed'], 2)
+        by_header = {item['header_id']: item for item in plan['proposals']}
+        self.assertEqual(by_header['header-1']['date'], '2024-03-04')
+        self.assertEqual(by_header['header-padded']['date'], '2025-03-04')
+        self.assertEqual([row['id'] for row in by_header['header-1']['identity_scope_header_preimages']],
+                         ['header-1'])
+        self.assertEqual([row['id'] for row in by_header['header-padded']['identity_scope_header_preimages']],
+                         ['header-padded'])
+        self.assertEqual(by_header['header-1']['evidence']['production_order_number'], 'D-100')
+        self.assertEqual(by_header['header-padded']['evidence']['production_order_number'], ' D-100 ')
+
+        frozen = planmod.build_plan(capture, 'b' * 64)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'frozen.json'
+            raw = planmod.canonical(frozen).encode()
+            path.write_bytes(raw)
+            path.chmod(0o600)
+            loaded = executormod.load_frozen_plan(path, hashlib.sha256(raw).hexdigest())
+        d_numbers, _, header_ids, _ = executormod._batch_scope_keys(loaded)
+        self.assertEqual(d_numbers, [' D-100 ', 'D-100'])
+        self.assertEqual(header_ids, ['header-1', 'header-padded'])
 
     def test_line_scoped_po_and_style_must_match_exactly(self):
         for field, wrong in (('customer_po_number', 'CPO-X'), ('sku', 'STYLE-X')):
             with self.subTest(field=field):
                 capture = base_capture()
                 capture['lines'][0][field] = wrong
-                result = planmod.build_plan(capture)
+                result = build_plan(capture)
                 self.assertEqual(result['counts']['proposed'], 0)
 
     def test_vendor_and_customer_identity_are_not_fuzzy(self):
         capture = base_capture()
         capture['headers'][0]['metadata']['vendor_id_raw'] = 'VENDOR-2'
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         self.assertEqual(result['counts']['proposed'], 0)
 
     def test_mixed_customer_names_with_same_d_number_stay_ambiguous_even_with_refs(self):
@@ -512,12 +573,12 @@ class ProductionDatePlannerTests(unittest.TestCase):
                       line_source_hash='c' * 64)
         capture['prod_history_rows'].append(second)
         capture['latest_source_observation_at'] = '2026-10-13T14:01:00Z'
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         self.assertEqual(result['counts']['proposed'], 0)
         self.assertIn('issued_customer_identity_conflict', {x['reason'] for x in result['unresolved']})
         capture = base_capture()
         capture['headers'][0]['metadata']['customer_name'] = 'a different business'
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         self.assertEqual(result['counts']['proposed'], 0)
 
     def test_date_drift_sentinel_and_ambiguous_partition_are_rejected(self):
@@ -530,7 +591,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
             with self.subTest(mutate=mutate):
                 capture = base_capture()
                 mutate(capture)
-                result = planmod.build_plan(capture)
+                result = build_plan(capture)
                 self.assertEqual(result['counts']['proposed'], 0)
 
     def test_conflicting_date_in_an_older_source_version_blocks_match(self):
@@ -539,7 +600,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
         older.update(id='src-iss-older-version', prod_order_date='2024-03-03',
                      source_observed_at='2026-10-12T14:00:00Z', line_source_hash='d' * 64)
         capture['prod_history_rows'].append(older)
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         self.assertEqual(result['counts']['proposed'], 0)
         self.assertIn('source_date_drift', {x['reason'] for x in result['unresolved']})
 
@@ -549,7 +610,7 @@ class ProductionDatePlannerTests(unittest.TestCase):
         newer.update(id='src-iss-new-version', source_observed_at='2026-10-13T14:00:30Z',
                      line_source_hash='e' * 64)
         capture['prod_history_rows'].append(newer)
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         self.assertEqual(result['counts']['proposed'], 1)
 
     def test_held_and_nonblank_orders_are_never_proposed(self):
@@ -557,17 +618,17 @@ class ProductionDatePlannerTests(unittest.TestCase):
         capture['headers'][0]['id'] = '00000000-0000-0000-0000-000000000001'
         capture['lines'][0]['production_order_id'] = capture['headers'][0]['id']
         capture['held_header_ids'] = [capture['headers'][0]['id']]
-        self.assertEqual(planmod.build_plan(capture)['counts']['proposed'], 0)
+        self.assertEqual(build_plan(capture)['counts']['proposed'], 0)
         capture = base_capture()
         capture['headers'][0]['order_date'] = '2020-02-03'
-        self.assertEqual(planmod.build_plan(capture)['counts']['proposed'], 0)
+        self.assertEqual(build_plan(capture)['counts']['proposed'], 0)
 
     def test_duplicate_target_identity_blocks_date(self):
         capture = base_capture()
         capture['headers'].append({**deepcopy(capture['headers'][0]), 'id': 'header-2'})
         capture['lines'].append({**deepcopy(capture['lines'][0]), 'id': 'line-2',
                                  'production_order_id': 'header-2'})
-        result = planmod.build_plan(capture)
+        result = build_plan(capture)
         self.assertEqual(result['counts']['proposed'], 0)
         self.assertIn('duplicate_target_identity', {x['reason'] for x in result['unresolved']})
 
@@ -575,11 +636,11 @@ class ProductionDatePlannerTests(unittest.TestCase):
         capture = base_capture()
         capture['latest_source_observation_at'] = '2026-10-13T13:59:00Z'
         with self.assertRaisesRegex(ValueError, 'Latest source observation'):
-            planmod.build_plan(capture)
+            build_plan(capture)
         capture = base_capture()
         capture['captured_at'] = '2026-10-13T13:59:00Z'
         with self.assertRaisesRegex(ValueError, 'later than the capture'):
-            planmod.build_plan(capture)
+            build_plan(capture)
 
 
 if __name__ == '__main__':

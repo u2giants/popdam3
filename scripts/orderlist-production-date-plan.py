@@ -92,6 +92,14 @@ def exact(value):
     return text if text else None
 
 
+def production_reference(value):
+    """Return a nonempty production reference without changing its spelling."""
+    if value is None:
+        return None
+    text = str(value)
+    return text if text != '' else None
+
+
 def parse_date(value):
     if isinstance(value, date) and not isinstance(value, datetime):
         parsed = value
@@ -152,6 +160,8 @@ def _validate_capture(capture: dict) -> tuple[list[dict], str, str]:
     source_digest = capture.get('source_digest')
     if not isinstance(source_digest, str) or not re.fullmatch(r'[0-9a-f]{64}', source_digest):
         raise ValueError('Capture must include a source digest')
+    if digest(rows) != source_digest:
+        raise ValueError('Capture source digest does not match its production-history rows')
     repository_head = capture.get('repository_head')
     if not isinstance(repository_head, str) or not re.fullmatch(r'[0-9a-f]{40}', repository_head):
         raise ValueError('Capture must pin the full repository head')
@@ -207,9 +217,9 @@ def _valid_source_partition(rows: list[dict]) -> tuple[str | None, list[dict], s
         return None, [], 'invalid_or_sentinel_source_date'
     if len(dates) != 1:
         return None, [], 'source_date_drift'
-    refs = {exact(row.get('prod_reference_no')) for row in rows}
+    refs = {production_reference(row.get('prod_reference_no')) for row in rows}
     refs.discard(None)
-    if len(refs) != 1 or any(not exact(row.get('prod_reference_no')) for row in rows):
+    if len(refs) != 1 or any(not production_reference(row.get('prod_reference_no')) for row in rows):
         return None, [], 'production_reference_missing_or_conflicting'
     # Customer PO is authoritative only on ISS. Later stages commonly omit it.
     issued = [row for row in rows if row.get('stage_code') == 'ISS']
@@ -386,7 +396,7 @@ def _matches(header: dict, target_lines: list[dict], all_headers: list[dict],
         return False, None, 'held_header', []
     if header.get('order_date') is not None:
         return False, None, 'date_already_set', []
-    if exact(header.get('production_order_number')) != exact(source_rows[0].get('prod_reference_no')):
+    if production_reference(header.get('production_order_number')) != production_reference(source_rows[0].get('prod_reference_no')):
         return False, None, 'production_number_mismatch', []
     source_date, issued, reason = _valid_source_partition(source_rows)
     if reason:
@@ -418,7 +428,7 @@ def _matches(header: dict, target_lines: list[dict], all_headers: list[dict],
         return False, None, 'vendor_identity_mismatch', issued
     # Fail if another production order has the same strong identity. Include held
     # and already-dated headers in the competition set so they cannot be ignored.
-    identity = (exact(header.get('production_order_number')), vendor_id,
+    identity = (production_reference(header.get('production_order_number')), vendor_id,
                 _line_identity_tuple(target_lines))
     competitors = []
     for other in all_headers:
@@ -426,7 +436,7 @@ def _matches(header: dict, target_lines: list[dict], all_headers: list[dict],
         if other_id == header_id:
             continue
         other_lines = lines_by_header.get(other_id, [])
-        other_identity = (exact(other.get('production_order_number')),
+        other_identity = (production_reference(other.get('production_order_number')),
                           folded((other.get('metadata') or {}).get('vendor_id_raw'))
                           if isinstance(other.get('metadata'), dict) else None,
                           _line_identity_tuple(other_lines))
@@ -455,7 +465,7 @@ def build_plan(capture: dict, capture_file_sha256: str | None = None) -> dict:
         refs_by_line[str(ref.get('production_order_line_id'))].append(ref)
     headers_by_number: dict[str, list[dict]] = defaultdict(list)
     for header in headers:
-        number = exact(header.get('production_order_number'))
+        number = production_reference(header.get('production_order_number'))
         if number:
             headers_by_number[number].append(header)
     source_groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
@@ -475,11 +485,11 @@ def build_plan(capture: dict, capture_file_sha256: str | None = None) -> dict:
             continue
         potential = []
         for key, source_rows in source_groups.items():
-            if exact(header.get('production_order_number')) != exact(source_rows[0].get('prod_reference_no')):
+            if production_reference(header.get('production_order_number')) != production_reference(source_rows[0].get('prod_reference_no')):
                 continue
             identity_scope_rows = [
                 row for row in rows
-                if (exact(row.get('prod_reference_no')) == exact(header.get('production_order_number')) or
+                if (production_reference(row.get('prod_reference_no')) == production_reference(header.get('production_order_number')) or
                     _source_order_key(row) == key)
             ]
             scope_pairs = {
@@ -493,7 +503,7 @@ def build_plan(capture: dict, capture_file_sha256: str | None = None) -> dict:
                 for mapping in all_identity_rows if isinstance(mapping, dict)
             ]
             ok, proposed_date, reason, issued = _matches(
-                header, target_lines, headers_by_number.get(exact(header.get('production_order_number')), []),
+                header, target_lines, headers_by_number.get(production_reference(header.get('production_order_number')), []),
                 lines_by_header, refs_by_line, source_rows, held, identity_rows,
                 capture.get('customer_identity_snapshot_complete') is True and
                 capture.get('customer_identity_snapshot_row_limit') == CUSTOMER_IDENTITY_SNAPSHOT_LIMIT,
@@ -545,13 +555,13 @@ def build_plan(capture: dict, capture_file_sha256: str | None = None) -> dict:
                     ref for line in target_lines for ref in refs_by_line.get(str(line.get('id')), [])
                 ]),
                 'identity_scope_header_preimages': deepcopy(
-                    headers_by_number.get(exact(header.get('production_order_number')), [])),
+                    headers_by_number.get(production_reference(header.get('production_order_number')), [])),
                 'identity_scope_line_preimages': deepcopy([
-                    line for other in headers_by_number.get(exact(header.get('production_order_number')), [])
+                    line for other in headers_by_number.get(production_reference(header.get('production_order_number')), [])
                     for line in lines_by_header.get(str(other.get('id')), [])
                 ]),
                 'identity_scope_ref_preimages': deepcopy([
-                    ref for other in headers_by_number.get(exact(header.get('production_order_number')), [])
+                    ref for other in headers_by_number.get(production_reference(header.get('production_order_number')), [])
                     for line in lines_by_header.get(str(other.get('id')), [])
                     for ref in refs_by_line.get(str(line.get('id')), [])
                 ]),
@@ -563,7 +573,7 @@ def build_plan(capture: dict, capture_file_sha256: str | None = None) -> dict:
                     else 'erp_customer_bridge'
                 ),
                 'evidence': {
-                    'production_order_number': exact(header.get('production_order_number')),
+                    'production_order_number': production_reference(header.get('production_order_number')),
                     'customer_po_number': exact(issued[0].get('cust_po_number')),
                     'vendor_id_raw': header_metadata.get('vendor_id_raw'),
                     'customer_name': header_metadata.get('customer_name'),
