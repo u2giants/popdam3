@@ -431,3 +431,22 @@ test("missing authoritative scheduled total never becomes an exact run count", (
   assert.equal(progress.rebuild_counts_exact, false);
   assert.equal(progress.rows_examined, null);
 });
+
+test("Meta guarded exact clear advances one asset or persists bounded retry, never malformed or refused state", async () => {
+ const {clearCompletedJobNow}=await import("./operation-loop.js");
+ const id="123e4567-e89b-42d3-a456-426614174000";
+ const stored:OpState={status:"running",cursor:0,params:{asset_ids:[id]},meta_tag_attempt:{asset_id:id,method_index:0,same_model_retry:0},external_job:{provider:"meta-responses",phase:"completed",provider_batch_id:"opaque-id",next_cursor:1,operation_done_after_clear:true,meta_asset_terminal:true,items:[{asset_id:id,custom_id:"x",status:"applied"}]}};
+ const writes:OpState[]=[];
+ const persist=(async(_key:string,state:OpState)=>{writes.push(state);return {ok:true,state_revision:2,reason:"ok"};}) as never;
+ assert.equal(await clearCompletedJobNow("meta",{ok:true,state_revision:1,operation:stored},"receipt",persist),true);
+ assert.equal(writes[0].cursor,1);assert.equal(writes[0].meta_tag_attempt,null);assert.equal(writes[0].status,"completed");
+ const retry={...stored,external_job:{...stored.external_job!,meta_asset_terminal:false,meta_next_attempt:{asset_id:id,method_index:1,same_model_retry:0}}};
+ assert.equal(await clearCompletedJobNow("meta",{ok:true,state_revision:1,operation:retry},"receipt",persist),true);
+ assert.equal(writes[1].cursor,0);assert.equal(writes[1].meta_tag_attempt?.method_index,1);assert.equal(writes[1].status,"running");
+ assert.equal(await clearCompletedJobNow("meta",{ok:true,state_revision:1,operation:{...stored,external_job:{...stored.external_job!,next_cursor:2}}},"receipt",persist),false);
+ assert.equal(await clearCompletedJobNow("meta",{ok:true,state_revision:1,operation:{...retry,external_job:{...retry.external_job!,meta_next_attempt:{asset_id:id,method_index:3,same_model_retry:0}}}},"receipt",persist),false);
+ assert.equal(writes.length,2);
+ const refused=(async()=>({ok:false,state_revision:1,reason:"revision_conflict"})) as never;
+ assert.equal(await clearCompletedJobNow("meta",{ok:true,state_revision:1,operation:stored},"receipt",refused),false);
+ assert.equal(stored.cursor,0);assert.equal(stored.external_job?.provider_batch_id,"opaque-id");
+});

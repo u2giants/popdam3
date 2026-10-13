@@ -57,7 +57,7 @@ export interface DefinitiveRejectionOutcome {
  * reset reasons; every guard (live unbound receipt, matching revision, no bound
  * job) lives in the SQL function, not here.
  */
-async function resetSubmissionLease(
+export async function resetSubmissionLease(
   rpc: RpcCall,
   receipt: SubmissionReceipt,
   reason: typeof DEFINITIVE_REJECTION_REASON | typeof NOT_SUBMITTED_REASON,

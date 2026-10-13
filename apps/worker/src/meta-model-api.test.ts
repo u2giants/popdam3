@@ -3,6 +3,22 @@ import test from "node:test";
 import { buildMetaResponsesBody, isMetaDirectModel, metaChatCompletion, metaModelId } from "./meta-model-api.js";
 import { metaDispatcher } from "./meta-connection.js";
 
+test("Meta's canonical authorization, billing and rate refusals consume no generation", async () => {
+  const { classifyMetaSubmissionFailure } = await import("./meta-model-api.js");
+  for (const [status, type, code] of [
+    [401, "authentication_error", "invalid_api_key"],
+    [402, "billing_error", "billing_not_configured"],
+    [403, "permission_error", null],
+    [429, "rate_limit_error", "rate_limit_exceeded"],
+  ] as const) {
+    const error = classifyMetaSubmissionFailure(status, JSON.stringify({ error: { type, code, message: "Refused" } }));
+    assert.equal(error.name, "DefinitiveBatchRejectionError");
+    assert.equal(error.status, status);
+  }
+  assert.equal(classifyMetaSubmissionFailure(503, JSON.stringify({ error: { message: "Unknown" } })).name, "AmbiguousBatchSubmissionError");
+  assert.equal(classifyMetaSubmissionFailure(401, JSON.stringify({ error: { type: "billing_error", message: "Mismatch" } })).name, "AmbiguousBatchSubmissionError");
+});
+
 test("recognizes and unwraps explicit direct Meta model IDs", () => {
   assert.equal(isMetaDirectModel("meta-direct/muse-spark-1.3-contributor"), true);
   assert.equal(isMetaDirectModel("meta/muse-spark-1.3"), false);
@@ -121,4 +137,70 @@ test("contributor calls are capped at two in flight within this worker", async (
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("stream creation extracts chunked creation ID and stops stream; same ID retrieval works", async () => {
+  const { createStoredMetaResponse, retrieveStoredMetaResponse } = await import("./meta-model-api.js");
+  const original = globalThis.fetch; let posts = 0, gets = 0;
+  globalThis.fetch = async (_url, init) => {
+    if (init?.method === "POST") {
+      posts++; const body = JSON.parse(String(init.body)); assert.equal(body.stream,true);assert.equal(body.store,true);assert.equal(body.background,undefined);
+      const pieces=['event: response.created\r\ndata: {"type":"response.created","response":{"id":"resp_', 'test"}}\r\n\r\n'];
+      return new Response(new ReadableStream({ start(controller) { for(const piece of pieces) controller.enqueue(new TextEncoder().encode(piece)); }}));
+    }
+    gets++;return new Response('{"id":"resp_test","status":"completed"}');
+  };
+  try {
+    assert.equal(await createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]}),"resp_test");
+    assert.equal((await retrieveStoredMetaResponse("test","resp_test")).id,"resp_test");assert.equal(posts,1);assert.equal(gets,1);
+  } finally {globalThis.fetch=original;}
+});
+test("stream lost before creation ID is ambiguous and never internally re-POSTs", async()=>{
+ const {createStoredMetaResponse}=await import("./meta-model-api.js");const original=globalThis.fetch;let posts=0;
+ globalThis.fetch=async()=>{posts++;throw new DOMException("timed out","TimeoutError");};
+ try{await assert.rejects(createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]}),/ambiguous/);assert.equal(posts,1);}finally{globalThis.fetch=original;}
+});
+
+test("creation accepts multiline LF SSE with split UTF8 and an opaque stored ID",async()=>{
+ const {createStoredMetaResponse}=await import("./meta-model-api.js");const original=globalThis.fetch;
+ const bytes=new TextEncoder().encode(': café\n\nevent: response.created\ndata: {"type":"response.created",\ndata: "response":{"id":"opaque-response-id"}}\n\n');
+ globalThis.fetch=async()=>new Response(new ReadableStream({start(c){for(let i=0;i<bytes.length;i++)c.enqueue(bytes.slice(i,i+1));}}));
+ try{assert.equal(await createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]}),"opaque-response-id");}finally{globalThis.fetch=original;}
+});
+
+test("pending asynchronous generation reserves capacity across restart and terminal proof releases it",async()=>{
+ const {synchronizeMetaReservations,metaAsyncBusy,retrieveStoredMetaResponse}=await import("./meta-model-api.js");
+ const original=globalThis.fetch;
+ synchronizeMetaReservations({a:{status:"failed",run_id:"owner-a",external_job:{provider:"meta-responses",phase:"pending",provider_batch_id:"opaque-response-id"}}});
+ assert.equal(metaAsyncBusy("owner-b"),true);assert.equal(metaAsyncBusy("owner-a"),true);
+ globalThis.fetch=async()=>new Response('{"id":"opaque-response-id","status":"completed"}');
+ try{await retrieveStoredMetaResponse("test","opaque-response-id");synchronizeMetaReservations({});assert.equal(metaAsyncBusy("owner-b"),false);}finally{globalThis.fetch=original;}
+ synchronizeMetaReservations({a:{status:"failed",run_id:"owner-a",external_job:{provider:"meta-responses",phase:"ambiguous_submission"}}});assert.equal(metaAsyncBusy("owner-b"),true);assert.equal(metaAsyncBusy("owner-a"),false);synchronizeMetaReservations({});
+});
+test("Meta typed output-format rejection is definitive; HTML,404,5xx and safety are never alternate authorization",async()=>{
+ const {classifyMetaSubmissionFailure,MetaCapabilityRejectionError}=await import("./meta-model-api.js");
+ const body=JSON.stringify({error:{type:"invalid_request_error",code:null,param:"text.format",message:"Unsupported schema"}});
+ assert.ok(classifyMetaSubmissionFailure(400,body) instanceof MetaCapabilityRejectionError);
+ for(const status of [404,500,503])assert.equal(classifyMetaSubmissionFailure(status,body).name,"AmbiguousBatchSubmissionError");
+ assert.equal(classifyMetaSubmissionFailure(400,"<html>no</html>").name,"AmbiguousBatchSubmissionError");
+ assert.equal(classifyMetaSubmissionFailure(400,JSON.stringify({error:{type:"invalid_request_error",code:"safety",param:"text.format",message:"Blocked"}})).name,"AmbiguousBatchSubmissionError");
+});
+
+test("only canonical typed Meta capacity envelopes authorize bounded capacity retry",async()=>{
+ const {classifyMetaSubmissionFailure,MetaCapacityRejectionError}=await import("./meta-model-api.js");
+ assert.ok(classifyMetaSubmissionFailure(404,JSON.stringify({error:{type:"invalid_request_error",code:"model_not_found"}})) instanceof MetaCapacityRejectionError);
+ for(const code of ["server_shutting_down","service_overloaded","backend_unavailable"])assert.ok(classifyMetaSubmissionFailure(503,JSON.stringify({error:{type:"server_error",code}})) instanceof MetaCapacityRejectionError);
+ for(const body of ["<html>overload</html>",JSON.stringify({error:{type:"server_error",code:"unknown"}}),JSON.stringify({error:{type:"invalid_request_error",code:"service_overloaded"}})])assert.equal(classifyMetaSubmissionFailure(503,body).name,"AmbiguousBatchSubmissionError");
+});
+
+test("pending async generation leaves exactly one synchronous Contributor slot and blocks second async creation",async()=>{
+ const {synchronizeMetaReservations,createStoredMetaResponse,retrieveStoredMetaResponse}=await import("./meta-model-api.js");const original=globalThis.fetch;
+ synchronizeMetaReservations({a:{status:"running",run_id:"pending-owner",external_job:{provider:"meta-responses",phase:"pending",provider_batch_id:"reserved-id"}}});
+ let active=0,peak=0,posts=0;
+ globalThis.fetch=async(_url,init)=>{if(init?.method==="POST"){posts++;active++;peak=Math.max(peak,active);await new Promise(resolve=>setTimeout(resolve,3));active--;return new Response('{"status":"completed","output":[]}');}return new Response('{"id":"reserved-id","status":"completed"}');};
+ try{
+  await assert.rejects(createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]},60_000,"another-owner"),/pending/);assert.equal(posts,0);
+  await Promise.all(Array.from({length:3},()=>metaChatCompletion("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]})));assert.equal(peak,1);
+  await retrieveStoredMetaResponse("test","reserved-id");synchronizeMetaReservations({});
+ }finally{globalThis.fetch=original;}
 });

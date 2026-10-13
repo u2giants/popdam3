@@ -28,6 +28,18 @@ export function isStrictCompatibleSchema(schema: Record<string, unknown>): boole
   return true;
 }
 
+export function buildStructuredOutputRequest(options: Pick<ExecuteStructuredOutputOptions<unknown>, "model" | "messages" | "maxTokens" | "provider" | "schema" | "schemaName">, method: StructuredOutputMethod): ChatCompletionRequest {
+  const request: ChatCompletionRequest = { model: options.model, messages: options.messages, max_tokens: options.maxTokens ?? 1500, provider: options.provider };
+  if (method.startsWith("tool_")) {
+    request.tools = [tool(options.schemaName, `Return structured ${options.schemaName} data.`, options.schema)];
+    request.tool_choice = method === "tool_named" ? { type: "function", function: { name: options.schemaName } } : method === "tool_required" ? "required" : "auto";
+  } else {
+    request.messages = [...options.messages, { role: "user", content: `Return only one valid JSON object matching this JSON Schema: ${JSON.stringify(options.schema)}. No markdown or commentary.` }];
+    request.response_format = method === "json_schema" ? { type: "json_schema", json_schema: { name: options.schemaName, strict: isStrictCompatibleSchema(options.schema), schema: options.schema } } : { type: "json_object" };
+  }
+  return request;
+}
+
 export async function executeStructuredOutput<T>(options: ExecuteStructuredOutputOptions<T>): Promise<{ value: T; outputMode: StructuredOutputMethod; attempts: OutputAttempt[]; usage?: unknown; providerInfo?: OpenRouterProviderInfo; repairCount: number }> {
   const completion = options.completion ?? chatCompletion;
   const isTerminalError = options.isTerminalError ?? isTerminalOpenRouterError;
@@ -39,14 +51,7 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
     const requestedForm = method === "tool_named" ? "tool_choice:named" : method === "tool_required" ? "tool_choice:required" : method === "tool_auto" ? "tool_choice:auto" : `response_format:${method}`;
     let stage: "transport" | "parse" | "validation" = "transport";
     try {
-      const request: ChatCompletionRequest = { model: options.model, messages: options.messages, max_tokens: options.maxTokens ?? 1500, provider: options.provider };
-      if (method.startsWith("tool_")) {
-        request.tools = [tool(options.schemaName, `Return structured ${options.schemaName} data.`, options.schema)];
-        request.tool_choice = method === "tool_named" ? { type: "function", function: { name: options.schemaName } } : method === "tool_required" ? "required" : "auto";
-      } else {
-        request.messages = [...options.messages, { role: "user", content: `Return only one valid JSON object matching this JSON Schema: ${JSON.stringify(options.schema)}. No markdown or commentary.` }];
-        request.response_format = method === "json_schema" ? { type: "json_schema", json_schema: { name: options.schemaName, strict: isStrictCompatibleSchema(options.schema), schema: options.schema } } : { type: "json_object" };
-      }
+      const request = buildStructuredOutputRequest(options, method);
       const result = await completion(options.apiKey, request, options.timeoutMs);
       stage = "parse";
       const candidate = result.toolCalls?.[0]?.arguments ?? parseStructuredJson(result.content);
@@ -90,6 +95,10 @@ export interface JsonRepairOptions<T> {
   isTerminalError?: (error: unknown) => boolean;
 }
 
+export function buildJsonRepairRequest(options: Omit<JsonRepairOptions<unknown>, "validate">): ChatCompletionRequest {
+  return { model: options.model, messages: [...options.messages, { role: "user", content: `A previous response failed validation: ${safe(options.repairSource)}. Return corrected JSON only.${options.schema ? ` Match this JSON Schema exactly: ${JSON.stringify(options.schema)}.` : ""}` }], response_format: { type: "json_object" }, max_tokens: options.maxTokens ?? 1500, temperature: 0, provider: options.provider };
+}
+
 /**
  * The single JSON-repair step: one json_object request on the SAME model,
  * parsed and validated. Shared by the synchronous ladder and the batch apply
@@ -104,7 +113,7 @@ export async function runJsonRepair<T>(options: JsonRepairOptions<T>): Promise<
   const method: StructuredOutputMethod = "json_repair"; const started = Date.now();
   let stage: "transport" | "parse" | "validation" = "transport";
   try {
-    const result = await completion(options.apiKey, { model: options.model, messages: [...options.messages, { role: "user", content: `A previous response failed validation: ${safe(options.repairSource)}. Return corrected JSON only.${options.schema ? ` Match this JSON Schema exactly: ${JSON.stringify(options.schema)}.` : ""}` }], response_format: { type: "json_object" }, max_tokens: options.maxTokens ?? 1500, temperature: 0, provider: options.provider }, options.timeoutMs);
+    const result = await completion(options.apiKey, buildJsonRepairRequest(options), options.timeoutMs);
     stage = "parse"; const candidate = parseStructuredJson(result.content); if (!candidate) throw new Error("No parsable JSON after repair");
     stage = "validation";
     const value = options.validate(candidate);

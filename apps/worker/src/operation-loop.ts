@@ -1,3 +1,5 @@
+import { synchronizeMetaReservations, MetaCapabilityRejectionError } from "./meta-model-api.js";
+import { metaCompletedTransition, advanceMetaCapabilityRejection } from "./handlers/meta-tag-response-state.js";
 /**
  * Operation loop — polls admin_config.BULK_OPERATIONS, dispatches to handlers,
  * persists state after each batch.
@@ -233,7 +235,9 @@ export async function failDefinitivelyRejectedSubmission(
   let outcome: { state: OpState };
   try {
     try {
-      outcome = await failOperationAfterDefinitiveRejection(
+      const advanced = rejection instanceof MetaCapabilityRejectionError ? await advanceMetaCapabilityRejection(rpc, { opKey, expectedRevision: revision, submissionOwner: owner, leaseToken }, state, rejection) : null;
+      if (advanced) outcome = { state: advanced };
+      else outcome = await failOperationAfterDefinitiveRejection(
         rpc,
         { opKey, expectedRevision: revision, submissionOwner: owner, leaseToken },
         rejection,
@@ -897,9 +901,12 @@ export async function clearCompletedJobNow(
   const stored = saved.operation as OpState | undefined;
   const storedJob = stored?.external_job;
   if (!stored || storedJob?.phase !== "completed" || !storedJob.provider_batch_id) return false;
+  const metaTransition = storedJob.provider === "meta-responses" ? metaCompletedTransition(stored) : {};
+  if (!metaTransition) return false;
   const clearState: OpState = {
     ...stored,
     status: storedJob.operation_done_after_clear === true ? "completed" : "running",
+    ...metaTransition,
     external_job: { ...storedJob, lease_token: leaseToken, clear_after_reconciliation: true },
     updated_at: new Date().toISOString(),
   };
@@ -976,6 +983,7 @@ export async function tick(): Promise<void> {
   }
 
   const allOps = (configRow?.value as Record<string, OpState>) || {};
+  synchronizeMetaReservations(allOps);
   const originalOps: Record<string, OpState> = { ...allOps };
 
   // Stale lock detection
@@ -1315,8 +1323,12 @@ export async function tick(): Promise<void> {
           // revision- and receipt-guarded). The receipt is kept until that lands.
           preSubmissionRetries.delete(opKey);
           const failed = await failDefinitivelyRejectedSubmission(opKey, claimedState, claim.state_revision, owner, leaseToken, error);
-          await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
-          logger.error("tick: provider definitively rejected the batch submission", { opKey, error: failed.error });
+          if (failed.status === "failed") {
+            await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
+            logger.error("tick: provider definitively rejected the batch submission", { opKey, error: failed.error });
+          } else {
+            logger.info("tick: advancing Meta structured-output method after a definitive rejection", { opKey });
+          }
           return;
         }
         submissionLeaseTokens.delete(opKey);
@@ -1419,6 +1431,7 @@ export async function tick(): Promise<void> {
         status: result.done ? "completed" : "running",
         cursor: (result.nextOffset as number | string | undefined) ?? cursor,
         progress: mergeProgress(opKey, progress, result),
+        meta_tag_attempt: result.meta_tag_attempt !== undefined ? result.meta_tag_attempt as OpState["meta_tag_attempt"] : currentState.meta_tag_attempt,
         external_job: resultJob,
         updated_at: new Date().toISOString(),
       };
@@ -1532,6 +1545,7 @@ export async function tick(): Promise<void> {
 
     currentState = {
       ...currentState,
+      meta_tag_attempt: result.meta_tag_attempt !== undefined ? result.meta_tag_attempt as OpState["meta_tag_attempt"] : currentState.meta_tag_attempt,
       external_job: result.clear_external_job
         ? undefined
         : (result.external_job as OpState["external_job"] | undefined) ?? currentState.external_job,

@@ -56,6 +56,7 @@ export function batchJobIdentity(
   if (!job) {
     return { batchProvider: batchProviderForModel(settings.primary), model: settings.primary, providerPin: settings.providerPin };
   }
+  if (job.provider === "meta-responses") throw new Error("Meta response is not a batch job");
   const model = typeof job.model === "string" && job.model ? job.model : settings.primary;
   const providerPin = "provider_pin" in job
     ? (typeof job.provider_pin === "string" && job.provider_pin ? job.provider_pin : null)
