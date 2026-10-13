@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Pure, row-bound planning for the returned #277 OrderList decisions.
+"""Row-bound planning for the returned #277 OrderList decisions.
 
-This module only uses the canonical OrderList parser's in-memory helpers. It does
-not read files, access a database/network, or apply a plan. Callers must pass the
-exact protected specification bytes and expected provenance hashes.
+Importing this module loads the fixed, bundled canonical OrderList importer source
+file. Planning does not read a source workbook, access a database/network, or apply
+a plan. Callers must pass the exact protected specification bytes and expected
+provenance hashes.
 """
 
 from __future__ import annotations
@@ -286,7 +287,13 @@ def _blank_approved_company_column(row: Any) -> Any:
     return IMPORTER.SourceRow(sheet_row=row.sheet_row, values=tuple(values))
 
 
-def _make_parent_only_line(row: Any, order_sid: str, catalog: Any, plan: Any) -> Any:
+def _make_parent_only_line(
+    row: Any,
+    order_sid: str,
+    catalog: Any,
+    plan: Any,
+    unresolved_fields: list[dict[str, Any]],
+) -> Any:
     if _raw_cell(row, "P") not in (None, "") or _raw_cell(row, "AR") not in (None, ""):
         raise DispositionError(f"parent-only row {row.sheet_row} also contains a product/component identifier")
     if IMPORTER.normalize_text(_raw_cell(row, "O")) is None:
@@ -294,7 +301,19 @@ def _make_parent_only_line(row: Any, order_sid: str, catalog: Any, plan: Any) ->
     line = IMPORTER._plan_direct_line(row, order_sid, catalog, plan)
     line.payload["sku"] = None
     line.payload["item_id"] = None
-    line.payload["quantity_ordered"] = IMPORTER.parse_number(_raw_cell(row, "U"))[0]
+    quantity, quantity_raw = IMPORTER.parse_number(_raw_cell(row, "U"))
+    line.payload["quantity_ordered"] = quantity
+    if quantity is None:
+        unresolved_fields.append(
+            {
+                "source_row": row.sheet_row,
+                "source_column": "U",
+                "status": "parent_quantity_missing_or_unparseable_preserved_unknown",
+                "raw_value": _raw_cell(row, "U"),
+                "parsed_raw_value": quantity_raw,
+                "source_preimage_sha256": _row_hash(row),
+            }
+        )
     line.payload["assortment_component_ordinal"] = None
     line.payload["assortment_id"] = row.text("O")
     line.metadata.setdefault("source_disposition", {}).update(
@@ -348,15 +367,26 @@ def _plan_per_style_components(
         )
         return []
 
-    values_by_sku = {
-        IMPORTER.normalize_sku(entry["component_sku_exact"]): (
-            None
-            if entry.get("exact_corrected_value") is None
-            or (isinstance(entry.get("exact_corrected_value"), str) and entry["exact_corrected_value"].strip().casefold() in _BLANK_MARKERS)
-            else str(entry["exact_corrected_value"])
-        )
-        for entry in instruction["component_values_in_exact_note_order"]
-    }
+    values_by_sku: dict[str, str | None] = {}
+    for entry in instruction["component_values_in_exact_note_order"]:
+        sku = entry.get("component_sku_exact")
+        if not isinstance(sku, str) or not sku.strip():
+            raise DispositionError(f"row {original_row.sheet_row} contains a blank note component key")
+        key = IMPORTER.normalize_sku(sku)
+        if not key or key in values_by_sku:
+            raise DispositionError(f"row {original_row.sheet_row} contains a blank or duplicate note component key")
+        if entry.get("target_column") != target:
+            raise DispositionError(f"row {original_row.sheet_row} contains a cross-column note override")
+        value = entry.get("exact_corrected_value")
+        if value is None or (isinstance(value, str) and value.strip().casefold() in _BLANK_MARKERS):
+            values_by_sku[key] = None
+        else:
+            values_by_sku[key] = str(value)
+    component_keys = [IMPORTER.normalize_sku(component.sku) for component in split.components]
+    if any(not key for key in component_keys) or len(set(component_keys)) != len(component_keys):
+        raise DispositionError(f"row {original_row.sheet_row} has blank or duplicate parsed component identities")
+    if set(values_by_sku) != set(component_keys):
+        raise DispositionError(f"row {original_row.sheet_row} note component keys do not match parsed component identities")
     planned = []
     for component in split.components:
         key = IMPORTER.normalize_sku(component.sku)
@@ -542,6 +572,129 @@ def _row_case_actions(case: Mapping[str, Any], row: Any) -> tuple[dict[str, Any]
     raise DispositionError(f"unsupported answer case {_case_id(case)!r}")
 
 
+def _is_expected_custom_parser_rejection(
+    rejected: Any,
+    row_number: int,
+    parent_only_rows: set[int],
+    direct_override_rows: set[int],
+    per_style_rows: set[int],
+    verified_assortment_rows: set[int],
+) -> bool:
+    """Only suppress the canonical rejection explicitly displaced by an answer."""
+    if row_number in parent_only_rows:
+        return (
+            rejected.shape == IMPORTER.ROW_SHAPE_NEITHER
+            and rejected.reason == "no_sku_and_no_assortment"
+        ) or (
+            rejected.shape == IMPORTER.ROW_SHAPE_ASSORTMENT
+            and rejected.reason == "assortment_structurally_invalid:no_component_skus"
+        )
+    if row_number in direct_override_rows:
+        return rejected.shape == IMPORTER.ROW_SHAPE_BOTH and rejected.reason == "both_shapes_pending_review"
+    if row_number in per_style_rows:
+        return (
+            rejected.shape == IMPORTER.ROW_SHAPE_BOTH
+            and rejected.reason == "both_shapes_pending_review"
+        ) or (
+            rejected.shape == IMPORTER.ROW_SHAPE_ASSORTMENT
+            and rejected.reason.startswith("assortment_structurally_invalid:")
+        )
+    if row_number in verified_assortment_rows:
+        return (
+            rejected.shape == IMPORTER.ROW_SHAPE_ASSORTMENT
+            and rejected.reason.startswith("assortment_structurally_invalid:")
+        )
+    return False
+
+
+def _derive_actionable_counters(
+    plan: DispositionImportPlan,
+    rows_by_number: Mapping[int, Any],
+) -> dict[str, int]:
+    """Count only final plan objects and scoped ledgers, never raw subplan tallies."""
+    skipped_rows = {int(item["source_row"]) for item in plan.skipped_rows}
+    active_rows = {row_number for row_number in rows_by_number if row_number not in skipped_rows}
+    nonblank_po = {
+        po
+        for row_number in active_rows
+        if (po := IMPORTER.normalize_po_number(_raw_cell(rows_by_number[row_number], "B")))
+    }
+    counters: Counter[str] = Counter(
+        {
+            "staged_rows": len(active_rows),
+            "source_rows_bound": len(rows_by_number),
+            "source_rows_skipped": len(skipped_rows),
+            "blank_po_rows": sum(
+                1 for item in plan.unresolved_fields
+                if item.get("source_column") == "B"
+                and item.get("status") == "blank_import_PO_no_business_number_invented"
+            ),
+            "normalized_po_numbers": len(nonblank_po),
+            "planned_orders": len(plan.orders),
+            "planned_lines": len(plan.lines),
+            "desired_orders": len(plan.orders),
+            "desired_lines": len(plan.lines),
+            "rejected_rows": len(plan.rejected_rows),
+            "unresolved_fields": len(plan.unresolved_fields),
+            "quarantined_orders": sum(1 for order in plan.orders if order.quarantined),
+            "quarantined_rows": sum(len(order.sheet_rows) for order in plan.orders if order.quarantined),
+            "header_field_conflicts": sum(
+                1 for item in plan.unresolved_fields
+                if item.get("status") == "conflicting_header_value_left_unset"
+            ),
+            "invalid_header_values": sum(
+                len(order.metadata.get("invalid_header_values", {})) for order in plan.orders
+            ),
+            "invalid_header_dates": sum(
+                1
+                for order in plan.orders
+                for column in order.metadata.get("invalid_header_values", {})
+                if column in {
+                    IMPORTER.COL_SEAL_CONTAINER_DAY,
+                    IMPORTER.COL_SENT_PO_DATE,
+                    IMPORTER.COL_VENDOR_DELIVERY,
+                    IMPORTER.COL_ETD,
+                    IMPORTER.COL_ETA,
+                    IMPORTER.COL_WAREHOUSE_DAY,
+                }
+            ),
+            "assortment_components": sum(1 for line in plan.lines if line.ordinal is not None),
+            "structurally_invalid_assortment_rows": sum(
+                1 for item in plan.rejected_rows
+                if item.reason.startswith("assortment_structurally_invalid")
+            ),
+            "rows_direct": len({
+                line.sheet_row for line in plan.lines if line.ordinal is None and line.payload.get("sku")
+            } | {
+                item.sheet_row for item in plan.rejected_rows
+                if item.shape == IMPORTER.ROW_SHAPE_DIRECT
+            }),
+            "rows_assortment": len({
+                line.sheet_row for line in plan.lines if line.ordinal is not None
+            } | {
+                item.sheet_row for item in plan.rejected_rows
+                if item.shape == IMPORTER.ROW_SHAPE_ASSORTMENT
+            }),
+            "rows_both": len({
+                item.sheet_row for item in plan.rejected_rows
+                if item.shape == IMPORTER.ROW_SHAPE_BOTH
+            }),
+            "rows_parent_only": len({
+                line.sheet_row for line in plan.lines
+                if line.metadata.get("source_disposition", {}).get("parent_only_assortment")
+            }),
+        }
+    )
+    for line in plan.lines:
+        match_status = line.payload.get("master_data_match_status")
+        if match_status:
+            counters[f"match_{match_status}"] += 1
+        resolution = line.metadata.get("master_data_resolution")
+        if resolution:
+            counters[f"resolution_{resolution}"] += 1
+    return dict(counters)
+
+
 def build_source_disposition_plan(
     source_rows: Sequence[Any],
     spec_bytes: bytes,
@@ -552,7 +705,7 @@ def build_source_disposition_plan(
 ) -> DispositionImportPlan:
     """Create an exception-only ImportPlan and skip/unresolved ledgers.
 
-    No database, network, source workbook, or Google API is accessed. A mismatch in
+    No database, network, caller source workbook, or Google API is accessed. A mismatch in
     the reviewed spec, any source hash, row binding, or exact row preimage refuses the
     entire plan before any candidate is generated.
     """
@@ -790,6 +943,18 @@ def build_source_disposition_plan(
         expected_custom_rejections = set(parent_only_rows | direct_override_rows | per_style_rows | verified_assortment_rows).intersection(rownums)
         for rejected in subplan.rejected_rows:
             if rejected.sheet_row in expected_custom_rejections:
+                if not _is_expected_custom_parser_rejection(
+                    rejected,
+                    rejected.sheet_row,
+                    parent_only_rows,
+                    direct_override_rows,
+                    per_style_rows,
+                    verified_assortment_rows,
+                ):
+                    raise DispositionError(
+                        f"approved row {rejected.sheet_row} has an unexpected canonical parser rejection: "
+                        f"{rejected.shape}/{rejected.reason}"
+                    )
                 custom_expected_rejections_suppressed += 1
                 continue
             plan.rejected_rows.append(rejected)
@@ -834,7 +999,9 @@ def build_source_disposition_plan(
                 plan.lines.extend(lines)
                 continue
             elif rn in parent_only_rows:
-                line = _make_parent_only_line(row_for_line, desired_sid, catalog, base_plan)
+                line = _make_parent_only_line(
+                    row_for_line, desired_sid, catalog, base_plan, plan.unresolved_fields
+                )
                 line.metadata["source_disposition"].update(
                     _original_source_metadata(original, row_case[rn], original_sid, desired_sid, spec_sha, edits_by_row[rn])
                 )
@@ -862,29 +1029,14 @@ def build_source_disposition_plan(
                 )
                 line.metadata["source_disposition"]["row_shape_override"] = "direct_with_latest_assortment_id_retained"
             plan.lines.append(line)
-        # Preserve raw parser diagnostics, while counting only rejections that survive
-        # the explicit source-bound disposition overrides as actionable planner rejects.
-        plan.counters.update(
-            {
-                name: plan.counters.get(name, 0) + value
-                for name, value in subplan.counters.items()
-                if name != "rejected_rows"
-            }
-        )
-
-    # The custom line helpers above updated a separate base plan to collect match
-    # counters; these counts are evidence only and never authorize matching/writes.
-    for name, value in base_plan.counters.items():
-        plan.counters[name] = plan.counters.get(name, 0) + value
+    # Keep raw parser/helper counters in provenance only. The inherited ImportPlan
+    # counters are actionable and are recomputed from final desired objects and
+    # source-bound ledgers below, never from row-group subplans or shared accumulators.
     plan.provenance["canonical_parser_raw_counters"] = dict(canonical_parser_raw_counters)
     plan.provenance["canonical_parser_raw_rejected_rows_list_count"] = canonical_parser_raw_rejected_rows
+    plan.provenance["custom_line_helper_raw_counters"] = dict(base_plan.counters)
     plan.provenance["custom_expected_rejections_suppressed"] = custom_expected_rejections_suppressed
-    plan.counters["rejected_rows"] = len(plan.rejected_rows)
-    plan.counters["source_rows_bound"] = len(bound_rows)
-    plan.counters["source_rows_skipped"] = len(plan.skipped_rows)
-    plan.counters["desired_orders"] = len(plan.orders)
-    plan.counters["desired_lines"] = len(plan.lines)
-    plan.counters["unresolved_fields"] = len(plan.unresolved_fields)
+    plan.counters = _derive_actionable_counters(plan, rows_by_number)
     plan.source_disposition_counts = {
         "answer_cases": len(cases),
         "source_rows_bound": len(bound_rows),

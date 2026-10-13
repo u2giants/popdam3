@@ -8,7 +8,9 @@ import importlib.util
 import json
 import sys
 import unittest
+from copy import deepcopy
 from pathlib import Path
+from unittest.mock import patch
 
 
 MODULE_PATH = Path(__file__).with_name("orderlist-source-dispositions.py")
@@ -264,6 +266,36 @@ class SourceDispositionPlannerTests(unittest.TestCase):
         with self.assertRaises(dispositions.DispositionError):
             dispositions._exact_component_overrides(instruction, row)
 
+    def test_per_style_planner_rejects_blank_or_duplicate_note_keys_itself(self) -> None:
+        spec = json.loads(self.spec_bytes)
+        case = next(
+            deepcopy(item)
+            for item in spec["cases"]
+            if item["instructions"][0].get("kind") == "row_bound_per_component_field_override"
+            and item["instructions"][0].get("source_sheet_row") == 300
+        )
+        row = next(row for row in self.rows if row.sheet_row == 300)
+        for mutate in (
+            lambda entries: entries[0].update(component_sku_exact="  "),
+            lambda entries: entries[1].update(component_sku_exact=entries[0]["component_sku_exact"]),
+        ):
+            invalid_case = deepcopy(case)
+            entries = invalid_case["instructions"][0]["component_values_in_exact_note_order"]
+            mutate(entries)
+            edits = dispositions._exact_component_overrides(case["instructions"][0], row)
+            amended = dispositions._replace_cells(row, edits)
+            with self.assertRaises(dispositions.DispositionError):
+                dispositions._plan_per_style_components(
+                    row,
+                    amended,
+                    invalid_case,
+                    "order:po:per-style-300",
+                    imp.MasterDataCatalog(),
+                    imp.ImportPlan(),
+                    self.spec_sha,
+                    edits,
+                )
+
     def test_blank_business_po_is_ledgered_without_a_generated_order_or_fake_po(self) -> None:
         plan = self._plan()
         evidence = next(x for x in plan.unresolved_fields if x.get("source_row") == 210)
@@ -290,6 +322,24 @@ class SourceDispositionPlannerTests(unittest.TestCase):
         four = [line for line in plan.lines if line.sheet_row == 600]
         self.assertEqual(len(four), 4)
         self.assertTrue(all(line.payload["quantity_ordered"] is None for line in four))
+
+    def test_parent_only_missing_or_unparseable_quantity_is_ledgered_unknown(self) -> None:
+        for raw_quantity in (None, "quantity pending"):
+            with self.subTest(raw_quantity=raw_quantity):
+                unresolved: list[dict] = []
+                row = _row(990, {"O": "PARENT-990", "U": raw_quantity})
+                line = dispositions._make_parent_only_line(
+                    row,
+                    "order:po:parent-990",
+                    imp.MasterDataCatalog(),
+                    imp.ImportPlan(),
+                    unresolved,
+                )
+                self.assertIsNone(line.payload["quantity_ordered"])
+                self.assertEqual(len(unresolved), 1)
+                self.assertEqual(unresolved[0]["source_column"], "U")
+                self.assertEqual(unresolved[0]["status"], "parent_quantity_missing_or_unparseable_preserved_unknown")
+                self.assertEqual(unresolved[0]["raw_value"], raw_quantity)
 
     def test_row_168_uses_direct_shape_but_retains_latest_assortment_id(self) -> None:
         plan = self._plan()
@@ -398,6 +448,50 @@ class SourceDispositionPlannerTests(unittest.TestCase):
         self.assertEqual(plan.counters["rejected_rows"], len(plan.rejected_rows))
         self.assertEqual(plan.counters["rejected_rows"], 1)
         self.assertGreater(plan.provenance["canonical_parser_raw_rejected_rows_list_count"], 1)
+
+    def test_unexpected_rejection_for_an_answered_custom_row_fails_closed(self) -> None:
+        canonical_build_plan = imp.build_plan
+
+        def inject_unexpected_rejection(rows, catalog):
+            subplan = canonical_build_plan(rows, catalog)
+            if any(row.sheet_row == 400 for row in rows):
+                subplan.rejected_rows.append(
+                    imp.RejectedRow(400, imp.ROW_SHAPE_DIRECT, "unexpected injected parser rejection", {})
+                )
+            return subplan
+
+        with patch.object(imp, "build_plan", side_effect=inject_unexpected_rejection):
+            with self.assertRaisesRegex(dispositions.DispositionError, "unexpected canonical parser rejection"):
+                self._plan()
+
+    def test_actionable_counters_are_recomputed_from_final_objects_only(self) -> None:
+        canonical_apply_match = imp._apply_match
+
+        def add_raw_probe_counter(payload, metadata, match, counter_plan):
+            canonical_apply_match(payload, metadata, match, counter_plan)
+            counter_plan.bump("raw_counter_namespace_probe")
+
+        with patch.object(imp, "_apply_match", side_effect=add_raw_probe_counter):
+            plan = self._plan()
+        self.assertEqual(plan.counters["planned_orders"], len(plan.orders))
+        self.assertEqual(plan.counters["planned_lines"], len(plan.lines))
+        self.assertEqual(plan.counters["rejected_rows"], len(plan.rejected_rows))
+        self.assertEqual(plan.counters["unresolved_fields"], len(plan.unresolved_fields))
+        self.assertEqual(
+            plan.counters["match_not_applicable"],
+            sum(line.payload.get("master_data_match_status") == "not_applicable" for line in plan.lines),
+        )
+        self.assertEqual(
+            plan.counters["resolution_no_type"],
+            sum(line.metadata.get("master_data_resolution") == "no_type" for line in plan.lines),
+        )
+        self.assertNotIn("raw_counter_namespace_probe", plan.counters)
+        self.assertGreater(plan.provenance["canonical_parser_raw_counters"]["raw_counter_namespace_probe"], 0)
+        self.assertGreater(plan.provenance["custom_line_helper_raw_counters"]["raw_counter_namespace_probe"], 0)
+        self.assertGreater(
+            plan.provenance["canonical_parser_raw_rejected_rows_list_count"],
+            plan.counters["rejected_rows"],
+        )
 
     def test_all_75_case_categories_and_source_snapshot_provenance_are_retained(self) -> None:
         plan = self._plan()
