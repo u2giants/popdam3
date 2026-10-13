@@ -26,6 +26,7 @@ export type OperationStage =
 
 export interface OpState {
   status: OpStatus;
+  meta_tag_attempt?: import("./handlers/meta-tag-response-state.js").MetaTagAttempt | null;
   cursor?: number | string;
   params?: Record<string, unknown>;
   progress?: Record<string, unknown>;
@@ -61,7 +62,7 @@ export type OpenRouterBatchPhase =
 export interface OpenRouterBatchJobState {
   version?: 1;
   /** Missing means OpenRouter for compatibility with already-persisted jobs. */
-  provider?: "openrouter" | "google-gemini";
+  provider?: "openrouter" | "google-gemini" | "meta-responses";
   phase: OpenRouterBatchPhase;
   model?: string;
   output_method?: "json_schema" | "json_object" | "tool_named" | "tool_required" | "tool_auto";
