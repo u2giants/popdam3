@@ -448,7 +448,8 @@ def build_plan(capture: dict, capture_file_sha256: str | None = None) -> dict:
                 capture.get('customer_identity_snapshot_row_limit') == CUSTOMER_IDENTITY_SNAPSHOT_LIMIT,
                 sorted(scope_pairs))
             if ok:
-                potential.append((key, source_rows, issued, proposed_date))
+                potential.append((key, source_rows, issued, proposed_date,
+                                  identity_scope_rows, scope_pairs))
             elif reason not in definite_nonmatches:
                 # Track only potentially relevant rows: exact production number.
                 unresolved.append({'header_id': header_id, 'reason': reason,
@@ -460,7 +461,8 @@ def build_plan(capture: dict, capture_file_sha256: str | None = None) -> dict:
                                'header_preimage': deepcopy(header), 'line_preimages': deepcopy(target_lines)})
             continue
         if len(potential) == 1:
-            key, source_rows, issued, proposed_date = potential[0]
+            (key, source_rows, issued, proposed_date,
+             identity_scope_rows, scope_pairs) = potential[0]
             header_metadata = header.get('metadata') if isinstance(header.get('metadata'), dict) else {}
             header_customer = folded(header_metadata.get('customer_name'))
             issued_customer_names = {folded(row.get('customer_desc')) for row in issued}

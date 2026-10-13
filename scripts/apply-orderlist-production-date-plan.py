@@ -253,97 +253,8 @@ def connect():
         raise ValueError('Protected database connection failed') from exc
 
 
-def _rows(conn, table: str, clause: str, params: tuple, lock: str = '') -> list[dict]:
-    if table not in (ORDER_TABLE, LINE_TABLE, REF_TABLE, SOURCE_TABLE):
-        raise ValueError('Unexpected table in frozen plan')
-    suffix = f' FOR {lock}' if lock else ''
-    query = f'SELECT to_jsonb(t) AS row FROM {table} AS t WHERE {clause} ORDER BY t.id{suffix}'
-    return [row[0] for row in conn.execute(query, params).fetchall()]
-
-
-def _header_scope(conn, production_order_number: str, lock: str) -> list[dict]:
-    return _rows(conn, ORDER_TABLE, 'production_order_number = %s',
-                 (production_order_number,), lock)
-
-
-def _scope_snapshot(conn, proposal: dict, lock: str = '') -> tuple[list[dict], list[dict], list[dict], list[dict]]:
-    d_number = proposal['evidence']['production_order_number']
-    headers = _header_scope(conn, d_number, lock)
-    ids = [str(row['id']) for row in headers]
-    lines = _rows(conn, LINE_TABLE, 'production_order_id = ANY(%s)', (ids,), lock) if ids else []
-    line_ids = [str(row['id']) for row in lines]
-    refs = _rows(conn, REF_TABLE, 'production_order_line_id = ANY(%s)', (line_ids,), lock) if line_ids else []
-    return headers, lines, refs, []
-
-
-def _source_snapshot(conn, proposal: dict, lock: str = '') -> list[dict]:
-    production_number = proposal['evidence']['production_order_number']
-    company, order_no = proposal['source_partition']
-    return _rows(conn, SOURCE_TABLE,
-                 '(prod_reference_no = %s OR (company_code = %s AND prod_order_no::text = %s))',
-                 (production_number, company, order_no), lock)
-
-
-def _customer_bridge_snapshot(conn, proposal: dict, lock: bool = False) -> list[dict]:
-    if (proposal.get('customer_identity_snapshot_complete') is not True or
-            proposal.get('customer_identity_snapshot_row_limit') != planner.CUSTOMER_IDENTITY_SNAPSHOT_LIMIT):
-        raise ValueError('A complete bounded ERP customer identity snapshot is required')
-    locking = ' FOR SHARE OF e, c' if lock else ''
-    query = (
-        'SELECT to_jsonb(mapped) AS row FROM ('
-        'SELECT e.company_code, e.customer_code, e.customer_id, '
-        'c.canonical_name, c.display_name, c.routing_aliases, c.normalized_name, '
-        'e.updated_at AS erp_updated_at, c.updated_at AS customer_updated_at '
-        'FROM plm.erp_customer AS e JOIN core.customer AS c ON c.id = e.customer_id '
-        f'ORDER BY e.company_code, e.customer_code LIMIT {planner.CUSTOMER_IDENTITY_SNAPSHOT_LIMIT + 1}{locking}'
-        ') AS mapped ORDER BY mapped.company_code, mapped.customer_code'
-    )
-    snapshot = [row[0] for row in conn.execute(query).fetchall()]
-    if len(snapshot) > planner.CUSTOMER_IDENTITY_SNAPSHOT_LIMIT:
-        raise ValueError('Live ERP customer identity snapshot exceeds the 2,000-row bound')
-    if (len(snapshot) != proposal.get('customer_identity_snapshot_count') or
-            planner.customer_identity_snapshot_digest(snapshot) !=
-            proposal.get('customer_identity_snapshot_digest')):
-        raise ValueError('Complete ERP customer identity snapshot changed since planning')
-    scoped = planner.customer_identity_scope_rows(
-        proposal['evidence'].get('customer_name'),
-        proposal.get('customer_identity_scope_pairs', []), snapshot)
-    if not _same_rows(scoped, proposal['identity_scope_customer_identity_preimages']):
-        raise ValueError('ERP customer identity bridge changed since planning')
-    return scoped
-
-
 def _same_rows(actual: list[dict], expected: list[dict]) -> bool:
     return sorted((planner.canonical(x) for x in actual)) == sorted((planner.canonical(x) for x in expected))
-
-
-def _verify_customer_bridge(conn, proposal: dict, lock: bool = False):
-    actual = _customer_bridge_snapshot(conn, proposal, lock)
-    if not _same_rows(actual, proposal['identity_scope_customer_identity_preimages']):
-        raise ValueError('ERP customer identity bridge changed since planning')
-    return actual
-
-
-def _verify_scope(conn, proposal: dict, lock: str = ''):
-    headers, lines, refs, _ = _scope_snapshot(conn, proposal, lock)
-    expected_headers = proposal['identity_scope_header_preimages']
-    expected_lines = proposal['identity_scope_line_preimages']
-    expected_refs = proposal['identity_scope_ref_preimages']
-    if not _same_rows(headers, expected_headers):
-        raise ValueError('Production-order identity scope changed since planning')
-    if not _same_rows(lines, expected_lines):
-        raise ValueError('Production-order line evidence changed since planning')
-    if not _same_rows(refs, expected_refs):
-        raise ValueError('Production-order source references changed since planning')
-    source_rows = _source_snapshot(conn, proposal, lock)
-    if not _same_rows(source_rows, proposal['identity_scope_source_preimages']):
-        raise ValueError('ColdLion production-history evidence changed since planning')
-    _verify_customer_bridge(conn, proposal, lock == 'SHARE')
-    target_header = [row for row in headers if str(row.get('id')) == proposal['header_id']]
-    if len(target_header) != 1 or target_header[0].get('order_date') is not None:
-        raise ValueError('Target header is missing or its production date is no longer blank')
-    if str(proposal['header_id']) in {str(x) for x in proposal.get('held_header_ids', [])}:
-        raise ValueError('A held header cannot be changed')
 
 
 def _dedupe_preimages(rows: list[dict], label: str) -> list[dict]:
@@ -667,22 +578,6 @@ def apply_plan(plan: dict) -> dict:
         raise
     finally:
         conn.close()
-
-
-def _verify_scope_after_update(conn, proposal: dict, planned_dates: dict[str, str]):
-    # Verify source refs, lines, source evidence and the complete header afterimage.
-    headers, lines, refs, _ = _scope_snapshot(conn, proposal)
-    if not _same_rows(lines, proposal['identity_scope_line_preimages']):
-        raise ValueError('Order lines changed during date update')
-    if not _same_rows(refs, proposal['identity_scope_ref_preimages']):
-        raise ValueError('Order source references changed during date update')
-    source_rows = _source_snapshot(conn, proposal)
-    if not _same_rows(source_rows, proposal['identity_scope_source_preimages']):
-        raise ValueError('ColdLion evidence changed during date update')
-    _verify_customer_bridge(conn, proposal)
-    if not _scope_headers_afterimage_matches(
-            proposal['identity_scope_header_preimages'], headers, planned_dates):
-        raise ValueError('Production-order header changed beyond approved order_date fields')
 
 
 def _verify_live_identity(conn, fingerprint: tuple[str, ...]):

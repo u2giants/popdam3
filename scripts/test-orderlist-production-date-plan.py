@@ -195,6 +195,39 @@ class ProductionDatePlannerTests(unittest.TestCase):
         self.assertEqual(result['counts']['proposed'], 0)
         self.assertIn('multiple_source_orders_match', {x['reason'] for x in result['unresolved']})
 
+    def test_matched_partition_identity_scope_does_not_leak_from_later_company(self):
+        capture = base_capture()
+        selected_mapping = {
+            'company_code': 'EDGEHOME', 'customer_code': 'CUST-1',
+            'customer_id': 'customer-1', 'canonical_name': 'Acme Customer',
+            'display_name': 'Acme Customer', 'routing_aliases': [],
+            'normalized_name': 'acme customer', 'erp_updated_at': '2026-10-12T12:00:00Z',
+            'customer_updated_at': '2026-10-12T13:00:00Z',
+        }
+        other_mapping = {
+            'company_code': 'OTHERCO', 'customer_code': 'CUST-9',
+            'customer_id': 'customer-9', 'canonical_name': 'Other Customer',
+            'display_name': 'Other Customer', 'routing_aliases': [],
+            'normalized_name': 'other customer', 'erp_updated_at': '2026-10-12T12:00:00Z',
+            'customer_updated_at': '2026-10-12T13:00:00Z',
+        }
+        capture['customer_identity_rows'] = [selected_mapping, other_mapping]
+        later_company_order = deepcopy(capture['prod_history_rows'][0])
+        later_company_order.update(
+            id='src-other-company', company_code='OTHERCO', prod_order_no=555,
+            prod_reference_no='D-200', customer_code='CUST-9',
+            cust_po_number='CPO-OTHER', customer_desc='Other Customer',
+            vendor_code='OTHER-VENDOR', item_no='OTHER-STYLE',
+            source_observed_at='2026-10-13T14:03:00Z', line_source_hash='c' * 64)
+        capture['prod_history_rows'].append(later_company_order)
+        capture['captured_at'] = '2026-10-13T14:04:00Z'
+        capture['latest_source_observation_at'] = '2026-10-13T14:03:00Z'
+
+        proposal = planmod.build_plan(capture)['proposals'][0]
+        self.assertEqual(proposal['source_partition'], ['EDGEHOME', '555'])
+        self.assertEqual(proposal['customer_identity_scope_pairs'], [['EDGEHOME', 'CUST-1']])
+        self.assertEqual(proposal['identity_scope_customer_identity_preimages'], [selected_mapping])
+
     def test_reused_d_across_distinct_customer_vendor_partitions_uses_full_identity(self):
         capture = base_capture()
         second = deepcopy(capture['prod_history_rows'][0])

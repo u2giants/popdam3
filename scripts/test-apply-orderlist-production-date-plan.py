@@ -330,108 +330,34 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
             'port': '5432', 'dbname': 'postgres', 'sslmode': 'verify-full',
         }))
 
-    def test_rows_decodes_default_psycopg_tuple_results(self):
-        class Cursor:
-            def fetchall(self):
-                return [({'id': 'line-1', 'sku': 'STYLE-1'},),
-                        ({'id': 'line-2', 'sku': 'STYLE-2'},)]
-
-        class Connection:
-            query = None
-            def execute(self, query, params):
-                self.query = (query, params)
-                return Cursor()
-
-        connection = Connection()
-        result = executor._rows(connection, executor.LINE_TABLE,
-                                'production_order_id = %s', ('header-1',))
-        self.assertEqual(result, [{'id': 'line-1', 'sku': 'STYLE-1'},
-                                  {'id': 'line-2', 'sku': 'STYLE-2'}])
-        self.assertIn('SELECT to_jsonb(t) AS row', connection.query[0])
-
-    def test_source_snapshot_covers_reference_competitors_and_full_partition_history(self):
-        class Cursor:
-            def fetchall(self):
-                return []
-
-        class Connection:
-            query = None
-            def execute(self, query, params):
-                self.query = (query, params)
-                return Cursor()
-
-        proposal = {
-            'evidence': {'production_order_number': 'D-1'},
-            'source_partition': ['EDGEHOME', '55'],
-        }
-        connection = Connection()
-        executor._source_snapshot(connection, proposal, lock='SHARE')
-        query, params = connection.query
-        self.assertIn('prod_reference_no = %s', query)
-        self.assertIn('company_code = %s AND prod_order_no::text = %s', query)
-        self.assertIn('FOR SHARE', query)
-        self.assertEqual(params, ('D-1', 'EDGEHOME', '55'))
-        captured = [{'id': 's1'}, {'id': 's2'}]
-        self.assertFalse(executor._same_rows([{'id': 's1'}, {'id': 'phantom'}], captured))
-
-    def test_customer_bridge_snapshot_is_bound_to_exact_pairs_and_locks_join_rows(self):
-        snapshot = [{
-            'company_code': 'EDGEHOME', 'customer_code': 'CUST-1',
-            'customer_id': 'customer-1', 'display_name': 'Customer One',
-        }]
-        class Cursor:
-            def fetchall(self):
-                return [(snapshot[0],)]
-
-        class Connection:
-            query = None
-            def execute(self, query, params=()):
-                self.query = (query, params)
-                return Cursor()
-
-        proposal = {
-            'customer_identity_scope_pairs': [['EDGEHOME', 'CUST-1']],
-            'identity_scope_customer_identity_preimages': snapshot,
-            'customer_identity_snapshot_complete': True,
-            'customer_identity_snapshot_row_limit': executor.planner.CUSTOMER_IDENTITY_SNAPSHOT_LIMIT,
-            'customer_identity_snapshot_count': 1,
-            'customer_identity_snapshot_digest': executor.planner.customer_identity_snapshot_digest(snapshot),
-            'evidence': {'customer_name': 'Customer One'},
-        }
-        connection = Connection()
-        self.assertEqual(executor._customer_bridge_snapshot(connection, proposal, lock=True),
-                         proposal['identity_scope_customer_identity_preimages'])
-        query, params = connection.query
-        self.assertIn('JOIN core.customer AS c ON c.id = e.customer_id', query)
-        self.assertIn('FOR SHARE OF e, c', query)
+    def test_live_batch_snapshot_locks_full_customer_bridge_and_binds_digest(self):
+        plan = batch_plan()
+        connection = BatchSnapshotConnection(plan)
+        snapshot = executor._batch_live_snapshot(connection, plan, lock='SHARE')
+        self.assertEqual(len(connection.queries), 5)
+        customer_query, params = connection.queries[4]
+        self.assertIn('JOIN core.customer AS c ON c.id = e.customer_id', customer_query)
+        self.assertIn('FOR SHARE OF e, c', customer_query)
+        self.assertIn('LIMIT 2001', customer_query)
         self.assertEqual(params, ())
-        self.assertIn('LIMIT 2001', query)
+        executor._assert_batch_snapshot(plan, snapshot)
 
-        class ChangedConnection(Connection):
-            def execute(self, query, params=()):
-                self.query = (query, params)
-                class ChangedCursor:
-                    def fetchall(self):
-                        return [(snapshot[0],), ({
-                            'company_code': 'OTHERCO', 'customer_code': 'CUST-9',
-                            'customer_id': 'customer-9', 'display_name': 'Unrelated Customer',
-                        },)]
-                return ChangedCursor()
+        changed = copy.deepcopy(snapshot)
+        changed['customer_rows'][1]['display_name'] = 'Changed customer mapping'
+        with self.assertRaisesRegex(ValueError, 'ERP customer identity bridge changed'):
+            executor._assert_batch_snapshot(plan, changed)
 
-        with self.assertRaisesRegex(ValueError, 'snapshot changed'):
-            executor._verify_customer_bridge(ChangedConnection(), proposal)
-
-        class OversizeConnection(Connection):
-            def execute(self, query, params=()):
-                self.query = (query, params)
-                class OversizeCursor:
-                    def fetchall(self):
-                        return [({'company_code': 'EDGEHOME', 'customer_code': str(i),
-                                  'customer_id': str(i)},) for i in range(2001)]
-                return OversizeCursor()
-
-        with self.assertRaisesRegex(ValueError, 'exceeds the 2,000-row bound'):
-            executor._customer_bridge_snapshot(OversizeConnection(), proposal)
+    def test_live_batch_source_query_covers_reference_and_selected_partitions(self):
+        plan = batch_plan()
+        connection = BatchSnapshotConnection(plan)
+        snapshot = executor._batch_live_snapshot(connection, plan, lock='SHARE')
+        source_query, params = connection.queries[3]
+        self.assertIn('prod_reference_no::text = ANY(%s::text[])', source_query)
+        self.assertIn('EXISTS (SELECT 1 FROM (VALUES ', source_query)
+        self.assertIn('FOR SHARE', source_query)
+        self.assertEqual(params[0], ['D-10'])
+        self.assertEqual(len(snapshot['source']), 4)
+        executor._assert_batch_snapshot(plan, snapshot)
 
     def test_frozen_plan_requires_both_file_and_internal_hashes(self):
         plan = frozen_plan()
