@@ -7,10 +7,161 @@ Registered from the #770 successor handoff
 
 ## STATUS
 
-Revision 9. Revisions 1–8 got DeepSeek plan-review REJECT (runs
+**Amendment B live result — October 12, 2026, 9:15:50 PM EDT.** The single fresh
+run started at 9:07:53 PM EDT and completed at 9:15:19 PM EDT. Production credentials
+were written and kept: backend, item_master, tracking, and data_sync each passed
+session-mode 5432 authentication, wrong-password rejection, and transaction-mode 6543
+authentication. All four same-pid server controls were exact provider `{REDACTED}`
+statements; all four separate statement-sink controls matched the exact current journal
+verifiers. Complete three-source and statement-sink scans passed with zero plaintext
+hits. Logging settings were unchanged. All four dedicated `supabase_runtime_password`
+fields are present, `pending_password` absent, and original fields unchanged.
+Independent postcheck confirmed all four stored verifier digests, journal DONE success,
+restart refusal, no passfile/raw-log files, and preservation of all consumed markers.
+
+Execution stayed on private backend head `7907d10aee3e5bce9fac40d196088f256dd9c5d4`;
+DeepSeek final-check `20261013T010124-3432093-28696` APPROVE with implementer codex,
+report SHA-256 `37fc550a1ab29415243485328f6c10ea1b5a0a81b7e12ee3c7f06a590a34a0b6`;
+native production gate passed. The executed package bound this amended plan at
+`2e5c2bcbcdcb8bb2fce4a1e92207b23a3fab46e5`; this later result-only documentation update
+is not a replacement approval or permission to replay. All 45 real-runtime tests passed
+without skips; reviewer snapshot ran 45 with one disclosed environment skip. Receipt
+SHA-256 `defbd3a4e077ce567996bd09ebb1ee096bc151b958fc8d89d3c93f1e0b457e0e`.
+No private code was pushed, no application was deployed or cut over, and no overall
+#770 acceptance is claimed. Claude owns landing this plan branch; do not merge here.
+
+**Amendment B — provider redaction (October 12, 2026).** Albert's current chat
+brief authorizes the amended positive control and ONE fresh one-shot; owner authority,
+verbatim: "yes, drop the old ban and proceed". The earlier run (Codex session 01a13297,
+[#770 comment 6135641172](https://github.com/popcre/shared-db/issues/770#issuecomment-6135641172))
+issued all four credentials and passed all four session/wrong-password/transaction proof
+sets, then expired at RETRY_WINDOW_EXPIRED and verified journal-owned undo. Claude
+independently re-verified all four passwords NULL at approximately 8:55 PM EDT.
+
+Provider finding, established by Claude's supported read-only Supabase logs query and
+supplied in Albert's chat brief: the provider log pipeline rewrites PASSWORD string
+literals before storage. The exact stored backend statement at **8:22:50.073 PM EDT** on
+October 12, 2026 is `statement: ALTER ROLE designflow_prod_backend_runtime PASSWORD '{REDACTED}'`.
+The ten-character operand is literally `{REDACTED}`. The four issuance lines are
+75/79/76/77 characters for backend/item_master/tracking/data_sync, respectively, too
+short to contain either the reported 43-character plaintext or the 133-character verifier.
+The current issuer produces 44 characters including base64 padding; this does not change
+the redaction finding or any control.
+Undo statements use `PASSWORD NULL`. This finding supersedes the earlier unknown
+classification of that ten-character operand; it establishes no plaintext leak.
+
+**Amended step 7 (blocking):** for each role require exactly one server-log statement
+from issuing session S's pid in the complete issuance window. The statement portion must
+be byte-exact `statement: ALTER ROLE <role> PASSWORD '{REDACTED}'`; standard provider
+prefixes may precede `statement:`. Also accept the verifier-form statement only if its
+operand equals that role's exact journal verifier. Any other operand/form, missing line,
+duplicate matching-role line, or wrong pid fails. Independently require the exact
+`ALTER ROLE <role> PASSWORD '<journal verifier>'` text in `pg_stat_statements` for
+**each** role; a normalized `$1`, another verifier, or another role cannot substitute.
+Retain complete count/read/count windows for all three sources and recursive plaintext
+scans over the entire window and statement sink: zero hits. No raw response persistence,
+log-setting change, logging suppression, permission change, credential exposure, or
+weakened undo/journal/privacy control is authorized. Tests exercise exact `{REDACTED}`,
+exact/mismatched verifier, all other forms, missing/duplicate/wrong-pid controls,
+per-role statement-sink equality, and whole-window plaintext rejection.
+
+The new private package requires fresh exact-head DeepSeek final-check APPROVE with
+`--implementer codex`, then the native production gate, before its sole fresh invocation.
+Every earlier marker stays consumed and immutable. Only dedicated `supabase_runtime_password`
+fields may be promoted; existing fields remain protected. This plan branch is updated
+without merge; Claude owns landing. Broader #770 cutover obligations remain separate.
+
+**Amendment A (2026-10-12, after the first stage-B launch).** The one-shot stage-B launch at
+4:18 PM EDT stopped at the admin connection with no write (#770 comment 6132379006, recorded
+classification verbatim: "admin-connection: STAGE_B_PREFLIGHT_ABORTED /
+CONNECTION_OR_PROTOCOL_FAILURE"; follow-up read-only diagnosis in the same comment: "the planned
+aws-0 pooler hostname does not match the project's current hostname" and "Direct connection
+still fails with network-unreachable errno 101"): the
+code used an `aws-0` pooler hostname, but the project's pooler is
+`aws-1-us-east-1.pooler.supabase.com` (Supabase pooler config; also
+`docs/agents/references-and-runbooks.md`), and the direct host
+`db.qsllyeztdwjgirsysgai.supabase.co` returned only an IPv6 address (`getent ahosts`,
+2026-10-12) while the execution host edge-dev3
+has no IPv6 route (errno 101). Amendment: every production connection in steps 4–8 uses the
+Supavisor pooler at `aws-1-us-east-1.pooler.supabase.com`, verify-full with the pinned root —
+**session mode, port 5432** replaces the "direct-port" connection for the issuer (user
+`postgres.qsllyeztdwjgirsysgai`), the step-8 undo connection (also as
+`postgres.qsllyeztdwjgirsysgai` — a runtime role cannot `ALTER ROLE`), and proofs 6(a)/(b) (user
+`designflow_prod_<service>_runtime.qsllyeztdwjgirsysgai`); **transaction mode, port 6543**
+remains blocking proof 6(c), which proves Supavisor transaction-mode SCRAM authentication for
+each runtime role. It is **not** a claim about the services' deployed binding: today's production
+contract forces Cloud SQL (`docs/production-promotion-app-tolerance-contract.md:82-86`) and the
+Supabase branch at :96-99 is the non-production one; the services' production Supabase port and
+user form are decided and proven in #770's separate four-service acceptance/cutover step (user
+`designflow_prod_<service>_runtime.qsllyeztdwjgirsysgai`; the `<role>.<project ref>` form is
+the one `docs/agents/references-and-runbooks.md:46` shows for the admin). The admin uses session mode
+5432 (not the runbook's 6543) because the pid recorded in preflight (3) must be the same
+backend that later runs the write; session mode keeps one backend for the whole client session,
+while transaction mode may switch backends between transactions (an *assumption* from Supavisor
+documentation; preflight (3) and the in-transaction pid re-check fail closed if it is wrong). Session mode on 5432 / transaction mode on 6543 is
+Supabase's documented Supavisor port split (in-repo:
+`docs/verification/supabase-pooler-idle-connection-drop-20260623.md:97` for 5432 and :99-100
+for 6543; `docs/intake-426-triage-20260803.md:41,291` for production on `aws-1`). The hostname is a **reviewed constant** in the
+issuer packet; it is not read at runtime. (The only provider API use in this action is the
+supported log API read in steps 4 and 7.)
+**Endpoint preflight (fail closed):** (0) libpq version >= 16 (so `require_auth` is
+honoured), else stop. (1) credential-free: a TCP connect from edge-dev3 to the hostname
+succeeds on 5432 and on 6543, and the raw probe socket's `getpeername()` is an IPv4 address; then, in the
+authenticated session of preflight (2), libpq `PQhostaddr` (psycopg `conn.info.hostaddr`) is IPv4
+(never `inet_server_addr()`, which through the pooler reports the backend side); no `hostaddr` pinning, consistent with repo doctrine in
+`tools/coldlion-sync-common.mjs:212,243`, and `host` stays set for verify-full and passfile
+matching); SSLRequest + TLS 1.3 verify-full against the
+pinned Supabase root succeeds on both. (2) **Cluster identity:** TLS alone cannot tell
+`aws-0` from `aws-1` (shared certificate), so the first authenticated step is a read-only
+admin session (`postgres.qsllyeztdwjgirsysgai`, session mode 5432, `require_auth`) that must
+succeed and must see exactly the four `designflow_prod_*_runtime` roles plus
+`current_database()='postgres'`; a wrong cluster rejects the tenant and the run stops with no
+write. (3) **pid validity:** in that same session, a harmless deliberately failing
+`SELECT` (no secret) is issued and its server-log line must carry that session's
+`pg_backend_pid()` (session mode binds one backend per client session), which also measures
+ingestion lag. If the pid does not match, stop before any write (no fallback): the step-7
+control is then unprovable and nothing is changed. **No cleartext to the pooler anywhere:** every connection that carries a password —
+the step-4 admin session (pre-state probe, setting/sink/log-access/ingestion-lag/pid
+preflights), the issuer, the undo, and all proof clients — uses `require_auth=scram-sha-256`
+and a protected passfile keyed `aws-1-us-east-1.pooler.supabase.com:<5432|6543>:postgres:<user>:<password>`
+(dbname `postgres`). **Passfile lifecycle:** written by the stage-B launcher only, mode 0600,
+owner the run user, at the fixed path `/run/user/<uid>/770-stage-b/` on the
+user runtime **tmpfs (memory-only)** (if `/run/user/<uid>` is absent or not tmpfs, stop before
+any password is written) (directory 0700, created by the launcher; never on disk,
+and cleared at logout/reboot), referenced by the `passfile` connection
+parameter (never `PGPASSFILE` env); removed on every normal exit path by the launcher's
+`finally`. **Residue sweep at start:** the launcher refuses to run if
+`/run/user/<uid>/770-stage-b/` exists or is non-empty, if any log-response file exists in the
+stage-B evidence directory, if any staged 1Password item has a `pending_password` or
+`supabase_runtime_password` field, or if the persistent run journal (below) shows an
+unfinished run; it
+reports the residue and stops. Residue triggers the requirement-1 **recovery mode** (database
+back to NULL if needed, run-created vault fields deleted, passfile shredded), never a new
+issuance. At the end the directory is removed. The first, consumed
+launch left none (Codex postcheck 4:42 PM EDT, #770 comment 6132379006: no residual passfiles
+or log-response files, `pending_password` absent). The passfile tests (0600 creation, tmpfs location,
+removal on abort, rollback and undo paths, `pending_password` cleanup on abort, residue-sweep
+refusal, and that a passfile entry for the wrong port or wrong user is not used) run
+**before production** as unit tests of the stage-B programs against isolated
+PG17 and a fake vault — never by provoking failures in production. Because stage A's isolated PG17 cannot exercise Supavisor, these live preflights are
+the evidence that the session-mode path works before the one-shot write; if any fails, stop
+with no write. **Their decision logic is unit-tested before production** with recorded/fake
+inputs: IPv6 vs IPv4 peer refused/accepted; wrong cluster (tenant-not-found error), three or
+five runtime roles, or wrong `current_database()` each refused; pid mismatch refused;
+unreadable Postgres or pooler log source refused; libpq < 16 refused. Changed by this amendment: endpoint, the "directly" wording in Success check,
+the preflights above, `require_auth` scope, passfile lifecycle, Method step 1 (new guard test),
+Method step 4 (endpoint and preflight order), the Supavisor preflight wording, and by
+reference every production connection in steps 6(b) and 8 (same endpoint, user form,
+`require_auth` and passfile as 6(a)). Preflight (3) is the ingestion-lag preflight; no
+separate failing statement is issued. Everything
+else is unchanged.
+A fresh one-shot packet and exact-input review are required; the consumed launcher is never
+replayed.
+
+Revision 9 + Amendments A and B (historical initial no-write launch in Amendment A; subsequent written/authenticated/undone run and current proof correction in Amendment B). Revisions 1–8 got DeepSeek plan-review REJECT (runs
 20261012T181315-1768589-27011, 20261012T181704-2222882-23133 and
 20261012T182121-2343611-840, 20261012T182543-2382833-1180, 20261012T182919-2411551-20984, 20261012T183435-2457811-16013, 20261012T183851-2493077-780, all "method sound in
-principle"); every finding is answered below. Nothing has been executed.
+principle"); every finding is answered below. Stage A has run (isolated only); stage B history and current scope are recorded in Amendments A and B.
 
 **Task classes.** (`ai-task-gates start --class CLASS [--reason TEXT] [--base REF]` is the
 installed toolkit's documented syntax.) Stage A runs in the private designflow-backend #770 worktree under
@@ -110,14 +261,95 @@ issue a DUMMY plaintext `ALTER ROLE dummy PASSWORD '<DUMMY>'` and show the DUMMY
 appear in the server log (success and failure) — proving plaintext issuance is unsafe and
 redaction is absent — then show a verifier issuance logs only the verifier.
 
+## Amendment A — binding implementation requirements
+
+These resolve the Amendment A review rounds and override any looser wording above.
+
+1. **Single process, in-memory secret path.** One stage-B process (the launcher) performs, in
+   order: residue sweep → credential-free preflights (0) and (1) → tmpfs directory creation →
+   admin password read from 1Password and written as the admin passfile entry → preflights
+   (2) and (3) → password generation → verifier build/guard → runtime-role passfile entries
+   appended → 1Password `pending_password` write → step 5 → steps 6–7 → **promotion**: rename
+   `pending_password` to a **new, dedicated field** `supabase_runtime_password` on each staged
+   item → passfile and directory removal. **No existing vault field is ever modified:**
+   production still runs Cloud SQL and the services' current secret fields stay untouched;
+   wiring services to `supabase_runtime_password` belongs to #770's cutover step. So no
+   pre-state snapshot is needed. Step 8 undo runs on any failure from step 5 on; if session S
+   has been dropped, undo opens a fresh admin session on 5432 (same endpoint, `require_auth`,
+   passfile) after re-proving cluster identity. **Promotion failure** (after a successful step
+   7): step 8 (database back to NULL), delete every `pending_password` and any
+   `supabase_runtime_password` this run created, tag `770-aborted-<timestamp>`, stop.
+   **Crash after commit:** the next launcher start finds residue (tmpfs directory or
+   `pending_password`) and enters **recovery mode** only — re-prove target and cluster
+   identity on a fresh admin session, read the four `rolpassword` values format-only; if any is
+   SCRAM, run step 8; delete `pending_password` and any run-created `supabase_runtime_password`;
+   tag `770-recovered-<timestamp>`; record on #770; stop. Recovery deliberately discards even a
+   possibly successful issuance (its log proof is incomplete); a fresh packet re-issues.
+   **Run journal:** before step 5 the launcher writes an append-only journal file in the
+   protected evidence mount (no secrets: run id, phase markers, item ids, field ids it
+   created). It is closed `DONE` only after a successful run or a *verified* undo (format-only
+   read shows all four NULL and run-created fields are gone). If undo itself fails, the journal
+   stays open, `pending_password` is **not** deleted, and the run stops `UNDO_FAILED`; the next
+   start sees the open journal and enters recovery mode (it is never skipped by a missing tmpfs
+   directory). "Run-created" fields are exactly those recorded in the journal; promotion refuses
+   if `supabase_runtime_password` already exists on any item (checked in the residue sweep).
+   **Vault operation:** promotion uses the 1Password SDK item edit that **adds** the field
+   `supabase_runtime_password` with the plaintext and then removes `pending_password`
+   (add-then-delete, never a label rename), re-reading the item and comparing digests between
+   the two calls, so no step leaves the item without a copy. A stage-A rehearsal runs this
+   exact sequence against a **dedicated throw-away item** in vault `vibe_coding` with DUMMY
+   values (created and archived by the rehearsal), proving the real SDK semantics.
+   Unit tests (fake vault + isolated PG17) cover: promotion failure on the 1st, 2nd and 4th
+   item; recovery mode after a simulated post-commit crash; undo with S dropped; and that no
+   pre-existing vault field is ever written. The plaintexts
+   never leave that process except into (a) the tmpfs passfile, written by that same process,
+   and (b) the 1Password SDK call. The admin password is read from 1Password by the same
+   process. Passfile fields are escaped per libpq (`\` before `:` and `\`); a test covers an
+   admin password containing `:`, `\` and a leading `*`.
+2. **Digest binding covers every module the launcher imports or executes.** Two digests
+   are recorded in the reviewed packet and recomputed by the launcher: (a) the package digest
+   below over the stage-B package directory, which also contains a copy of the stage-A
+   `scram_verifier` module; and (b) a runtime digest over the interpreter binary, the venv's
+   `psycopg` distribution `RECORD` file hashes, and the libpq shared object actually loaded
+   (`psycopg.pq.__impl__` and `pq.version()` plus file SHA-256). Either mismatch refuses
+   (preflights,
+   passfile writer, issuer, vault writer, proof clients, log scanner, undo). Algorithm: list
+   every regular file under the stage-B package directory (launcher included), sort by
+   POSIX-relative path bytes, and SHA-256 over `path\0sha256(file)\n` lines; symlinks or
+   non-regular files refuse. The reviewed packet records this value; a test tampers one byte
+   of one module and one added file and asserts refusal.
+3. **Memory hygiene.** The launcher sets `RLIMIT_CORE=0` and `PR_SET_DUMPABLE=0` at start; the
+   passfile lifecycle's "never on disk" wording is narrowed to: plaintext is not written to any file other than the tmpfs
+   passfile; host swap remains a stated residual (same-UID trusted host, as in the #770
+   handoff's existing residuals).
+4. **Preflight order and numbering** (supersedes the inline list): (0) libpq ≥ 16; (1)
+   credential-free TCP+TLS on 5432 and 6543, raw socket peer IPv4; (2) authenticated admin
+   session S on 5432: `PQhostaddr` IPv4, cluster identity (four runtime roles,
+   `current_database()='postgres'`); (3) in S, outside any transaction, one failing `SELECT`;
+   its Postgres log line must carry S's `pg_backend_pid()`. **Step-7 retry window:** poll every
+   60 s until max(15 minutes, 3× the lag measured in (3)); if that exceeds 60 minutes, stop at
+   preflight with no write.
+   Step 6(0)'s `pg_authid` read and step 8 run on session S.
+5. **Same connection.** Step 5 runs on session S (the same client connection as (2)–(3)); the
+   pid recorded in (3) is re-read inside the step-5 transaction and must be equal, else
+   rollback and stop. Pid matching is used only within the issuance window as corroboration
+   together with role names and the transaction's timestamps.
+6. **Service-path scope.** 6(c) proves that Supavisor transaction mode authenticates each role
+   by SCRAM; it is **not** the services' own node-postgres path, which belongs to the separate
+   four-service acceptance step of #770. If Supavisor ever requests cleartext, `require_auth`
+   aborts the proof and step 8 undoes — accepted, because a cleartext pooler path would itself
+   violate the Goal.
+7. **Verifier guard** is decode → re-encode equality plus key recomputation (as implemented in
+   `scram_verifier.parse`/`guard`), not the regex alone.
+
 ## Goal (stated precisely)
 
 No plaintext password ever appears in provider logs, pooler logs, client logs, argv, process
 environment (`PGPASSWORD`, `/proc/<pid>/environ`), connection strings/DSNs, transcripts or Git
 during this issuance action (steps 1–8). Later routine service logins are SCRAM exchanges in
 which the plaintext never leaves the client; the services' own handling of their secret is the
-existing DesignFlow secret-manager path and is out of this plan's scope — on success or failure. SCRAM verifiers do appear in the server log and
-`pg_stat_statements`; a verifier alone cannot log in, and becomes usable only together with a
+existing DesignFlow secret-manager path and is out of this plan's scope — on success or failure. SCRAM verifiers appear in `pg_stat_statements`; the provider server log stores
+`{REDACTED}` for PASSWORD literals (Amendment B), while isolated PG17 retains verifier text; a verifier alone cannot log in, and becomes usable only together with a
 successful server impersonation of a client. That residual is accepted **only** while every
 client verifies the pinned Supabase CA, which stage B makes a blocking gate on the deployed
 images. If any client stops verifying, the verifiers must be treated as compromised and the four
@@ -137,7 +369,14 @@ passwords rotated.
    **Guard tests (stage A deliverable):** accept the tool's own output; reject base64url
    alphabet, missing padding, wrong padding, non-canonical padding bits, salt not 16 bytes,
    key not 32 bytes, wrong iteration count, wrong prefix, tampered StoredKey/ServerKey,
-   trailing whitespace/newline, and a raw password string; plus an end-to-end test proving a
+   trailing whitespace/newline, and a raw password string; **`require_auth` test** (Amendment
+   A): against isolated PG17, (1) `hba` = `password` for a role with a SCRAM verifier, and (2)
+   `hba` = `md5` for a role whose stored password is an **MD5** verifier (stored by issuing that role's `ALTER ROLE ... PASSWORD`
+   in a session with `SET password_encryption='md5'`, so the server really requests MD5), in **both**
+   cases a client with `require_auth=scram-sha-256` must fail with libpq's `require_auth`
+   refusal error, and a wire capture on the isolated socket must show no
+   PasswordMessage sent by the client (libpq still sends the startup packet with
+   user/database); plus an end-to-end test proving a
    rejected verifier never opens a database connection (connection factory spy). **Send-path
    test:** the spy captures every outbound SQL text and parameter for an accepted run and
    asserts each `PASSWORD` operand matches the verifier grammar and that no plaintext byte
@@ -149,9 +388,9 @@ passwords rotated.
    and its literal logged).
 2. **Password generation and custody (stage B only; stage A uses DUMMY values and writes
    nothing to 1Password)** — new plaintexts are written to a **new field** `pending_password`
-   on each staged item, never over an existing value; on success (step 7 passes) the field is
-   promoted to the field name the stage-B packet proves each service's secret loader reads
-   (verified from each service's deployment secret mapping before stage B); on any abort before step 5, step-5 rollback, or step-8 undo the
+   on each staged item, never over an existing value; on success (step 7 passes) it is renamed
+   to the new dedicated field `supabase_runtime_password` (Amendment A requirement 1); no
+   field a deployed service reads today is touched; on any abort before step 5, step-5 rollback, or step-8 undo the
    `pending_password` field is deleted and the item is tagged `770-aborted-<timestamp>`, so the
    vault never claims a credential the database does not hold — one protected issuer process generates 32 random
    bytes from `secrets`, encodes them base64url (this is the password itself, not a verifier
@@ -171,7 +410,10 @@ passwords rotated.
    (never the plaintext) appears, for one success and one forced failure; plus the DUMMY
    plaintext premise proof above; plus an **isolated undo test** (set verifier, then
    `PASSWORD NULL`, assert `rolpassword IS NULL` and login refused).
-4. **Production issuer** — role `postgres` via the vault production admin item. Read-only
+4. **Production issuer** — role `postgres` via the vault production admin item, connecting as
+   `postgres.qsllyeztdwjgirsysgai` to `aws-1-us-east-1.pooler.supabase.com:5432` (session mode),
+   verify-full with the pinned root, `require_auth=scram-sha-256`, protected passfile; the
+   Amendment A endpoint preflights (0)–(3) run first, in this order, before anything below. Read-only
    evidence: `postgres` has `CREATEROLE` and `ADMIN OPTION` on all four runtime roles
    (`pg_auth_members`, 2026-10-12), which PostgreSQL 17 requires for `ALTER ROLE ... PASSWORD`.
    Before the write: prove target (`current_database`, pinned CA verify-full, project ref
@@ -182,13 +424,17 @@ passwords rotated.
    irrecoverably). Because the pre-state is proved NULL, undo to NULL is an exact restore.
    **Setting preflight:** re-read `password_encryption` (must be `scram-sha-256`) and
    `log_line_prefix` (must contain `%p`) immediately before step 5; otherwise stop.
-   **Supavisor preflight:** confirm from Supabase pooler documentation and the 2026-10-08 probe
-   that the pooler requests SCRAM from clients; the proof client's `require_auth` makes a
-   wrong assumption fail closed before any plaintext is sent.
-   **Ingestion-lag preflight:** before the write, run one harmless read-only statement that
-   is logged (a deliberately failing `SELECT` on a non-existent relation under
-   `log_min_error_statement=error`, containing no secret) and measure how long it takes to
-   appear in the log API; the step-7 retry window is at least 3× that.
+   **Supavisor preflight:** it is an *assumption*, from Supabase pooler documentation, that the
+   pooler requests SCRAM from clients (the 2026-10-08 probe was credential-free and cannot
+   show the auth method); it is proven by the live preflight (2) handshake; `require_auth` on every password-carrying
+   connection (admin session, issuer, undo, proof clients) makes a wrong assumption fail closed
+   before any password is sent.
+   **Ingestion-lag preflight:** this is Amendment A preflight (3) — its single deliberately
+   failing `SELECT` (no secret) is the only one issued; its log lag sets the step-7 window.
+   **Pooler logs:** no pooler-log gate. Every password-carrying connection uses
+   `require_auth=scram-sha-256`, so the pooler never receives a plaintext and cannot log one;
+   step 7 reads the Supavisor log window as **non-blocking corroboration** only (scanned for each
+   plaintext; any hit is still a failure → undo).
    **Sink preflight:** `pg_stat_statements` view exists in the target database and is readable by
    the proof user; if not, stop before the write. **Log-access preflight:** before the write, read one recent window of provider Postgres
    logs through the supported Supabase log API and confirm entries are returned; if not, stop
@@ -200,35 +446,33 @@ passwords rotated.
 6. **Production post-check** — (0) for each role read only
    `encode(sha256(convert_to(rolpassword,'UTF8')),'hex')` from `pg_authid` and assert it equals
    the locally computed SHA-256 of that role's verifier (proves verbatim storage without
-   echoing the verifier); then (a) direct-port
+   echoing the verifier); then (a) pooler session-mode (port 5432)
    login with the plaintext over SCRAM succeeds; (b) wrong password fails; (c) **blocking
    gate:** login through Supavisor pooler port 6543 succeeds, retried every 30 s for up to
-   10 minutes, each attempt on a **new** client connection (fresh pooler session), to absorb pooler auth-cache refresh before it counts as a failure. The 2026-10-08
+   10 minutes, each attempt on a **new** client connection (fresh pooler session), and the same retry policy applies to 6(a) on session mode 5432, to absorb pooler auth-cache refresh before it counts as a failure. The 2026-10-08
    `SUPAVISOR_AUTH_QUERY_SECRET_FORMAT` classification occurred when all four passwords were
    NULL; the inference (not proven) is that the auth query found no secret. This gate proves
    or disproves it. **No cleartext fallback:** the proof client uses libpq
    `require_auth=scram-sha-256` (PG16+ libpq; a preflight before step 4 asserts
    `psycopg.pq.version() >= 160000` and stops before any write otherwise), which refuses any server request for a cleartext
    password, so the plaintext never crosses the wire to the pooler. All proof clients (and the
-   issuer) receive the password only through a mode-0600 libpq `passfile` inside the protected
-   mount, never via `PGPASSWORD`, DSN or argv; a stage-A test asserts the child environment and
+   issuer) receive the password only through a mode-0600 libpq `passfile` in the Amendment A tmpfs
+   path, never via `PGPASSWORD`, DSN or argv; a stage-A test asserts the child environment and
    argv contain no plaintext; and step 7 also scans the
    Supavisor (pooler) logs from the supported log API for the same window. The pooler presents the same Supabase-rooted chain: the 2026-10-08
    credential-free probe completed TLS 1.3 verify-full against the pinned root on the pooler
    (`HANDOFF.d/2026-10-09T0400Z-...:60`), and each run of 6(c) uses verify-full with that
    pinned CA. Any failure = undo.
-7. **Log proof on production** — fetch the **entire** provider Postgres log window from
-   1 minute before the transaction to 5 minutes after (well inside retention) through the
-   supported log API into protected custody, and scan it locally. **Positive control first:**
-   exactly one `ALTER ROLE` statement line naming each of the four roles must be present,
-   matched by role name **and** by the issuing connection's backend pid (recorded at step 5)
-   so unrelated `ALTER ROLE` activity in the window cannot satisfy or break it (retry the
-   fetch every 60 s for up to 15 minutes to absorb ingestion lag). Then: each plaintext occurs
-   zero times; each of those lines contains its verifier and nothing password-like. Also read
-   the `pg_stat_statements` row(s) for `ALTER ROLE`: at least one row must exist; record its
-   stored text form (verbatim verifier or normalized `$1`) and scan it the same way. If the
-   positive control is not met in 15 minutes, or the window cannot be fetched in full, the
-   proof is failed: step 8 undo runs (fail closed), then stop.
+7. **Log proof on production** — fetch the **entire** provider Postgres and pooler log
+   windows from one minute before the transaction to five minutes after through the
+   supported API. Apply Amendment B's exact per-role, same-session-pid server-log
+   control: one literal `{REDACTED}` statement, or one exact journal-verifier statement.
+   Every other operand/form, missing/duplicate/wrong-pid control fails. Poll within
+   max(15 minutes, 3× measured preflight lag), retaining the existing bounds. Require
+   each role's exact journal verifier in `pg_stat_statements`, never normalized `$1`
+   alone. Scan all complete source windows and statement rows recursively for all
+   registered plaintext: zero hits. Keep raw response bodies in process memory only.
+   Unavailable/incomplete windows or unmet controls fail closed into step 8 undo.
 8. **Undo** — `ALTER ROLE <role> PASSWORD NULL` for the four roles returns exactly to the
    step-4 proved pre-state (all NULL); runs automatically if any step-6 or step-7 gate fails
    (a step-5 error inside the transaction rolls back and needs no undo; the format-only query
@@ -259,8 +503,8 @@ pinned CA.
 
 ## Success check
 
-All four roles authenticate directly and through Supavisor with their 1Password secrets; wrong
-passwords fail; provider logs show only verifiers; logging settings unchanged; the separately
+All four roles authenticate through Supavisor session mode (5432) and transaction mode (6543) with their 1Password secrets; wrong
+passwords fail; provider logs satisfy Amendment B and show no plaintext; logging settings unchanged; the separately
 closed credential incident untouched.
 
 ## Not in scope
@@ -342,10 +586,19 @@ service secret mapping in stage B. L6 pooler and ingestion-lag preflights before
 H1 (authority to retire the earlier AI-recorded prohibition): see Authority section; the owner
 ruled directly (quoted at the top of the Problem section).
 
+## Amendment A review rounds
+
+Plan-review runs 20261012T205156-4109415-26928, 205416-4125923-31354, 205713-244450-3085,
+210136-735259-14089, 210733-1594943-24368, 211249-1988165-19859, 211708-2374281-9048 and
+212118-2874533-23095 (all REJECT, each finding addressed in Amendment A and its binding
+requirements above).
+
 ## Question for the reviewer
 
 Judge the route on its technical merits against the Goal.
-Does this plan meet the privacy goal, and does it justify stage A (script + isolated steps
+For Amendment A: is the pooler route with the binding requirements sound for a fresh stage-B
+packet (to be separately exact-input reviewed)? Original question: does this plan meet the
+privacy goal, and does it justify stage A (script + isolated steps
 1–3 only)? APPROVE or name the specific remaining gap. Stage B is reviewed separately.
 
 Posted by Claude chat 16164463-0b2e-4ea7-a039-2d3d59cd5d21 on edge-dev3
