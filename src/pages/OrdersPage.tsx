@@ -33,7 +33,7 @@ import {
 import { IS_NON_PRODUCTION_DATABASE, POPDAM_SUPABASE_PROJECT_REF } from "@/lib/app-mode";
 import { refreshOrderListRows, refreshOrderListRowsInPlace } from "@/lib/order-list-grid-refresh";
 import { supabase } from "@/integrations/supabase/client";
-import { buildOrderListEdit, ORDER_LIST_COLUMNS } from "@/lib/order-list";
+import { buildOrderListEdit, ensureSalesOrderDateInSavedColumnState, ORDER_LIST_COLUMNS } from "@/lib/order-list";
 import { navigateToOrderListMatch } from "@/lib/order-list-find-navigation";
 import type { OrderListRow, OrderListSavedView } from "@/types/order-list";
 
@@ -283,7 +283,7 @@ export default function OrdersPage() {
     const api = gridRef.current?.api;
     if (!api) return;
     if (Array.isArray(view.column_state)) {
-      api.applyColumnState({ state: view.column_state as any, applyOrder: true });
+      api.applyColumnState({ state: ensureSalesOrderDateInSavedColumnState(view.column_state) as any, applyOrder: true });
     }
     api.setFilterModel((view.filter_model ?? null) as any);
     setActiveViewId(view.id);

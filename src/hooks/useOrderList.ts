@@ -48,7 +48,7 @@ export const ORDER_LIST_SELECT = Array.from(
     // during the 2026-08-26 human pass).
     "order_voided_at",
     "line_voided_at",
-    ...ORDER_LIST_COLUMNS.map((column) => column.field as string),
+    ...ORDER_LIST_COLUMNS.filter((column) => !column.virtual).map((column) => column.field as string),
   ]),
 ).join(",");
 
@@ -68,6 +68,41 @@ export type OrderListBlockRequest = {
  * treats that as "there is more", which is honest: it never invents a total.
  */
 export type OrderListBlock = { rows: OrderListRow[]; totalRowCount: number | null };
+
+export type OrderListSalesOrderDate = { order_line_id: string; sales_order_date: string | null };
+
+/** Match sidecar dates only by the exact canonical line ID returned by the RPC. */
+export function mergeOrderListSalesOrderDates(
+  rows: OrderListRow[],
+  dateRows: unknown,
+): OrderListRow[] {
+  if (!Array.isArray(dateRows)) throw new Error("Could not read OrderList Sales Order dates.");
+  const requestedIds = new Set(rows.map((row) => row.order_line_id));
+  const dates = new Map<string, string | null>();
+  for (const result of dateRows as OrderListSalesOrderDate[]) {
+    if (!result || typeof result.order_line_id !== "string" || !requestedIds.has(result.order_line_id)) {
+      throw new Error("Sales Order date lookup returned an unexpected OrderList line.");
+    }
+    if (dates.has(result.order_line_id)) {
+      throw new Error("Sales Order date lookup returned a duplicate OrderList line.");
+    }
+    if (result.sales_order_date !== null && typeof result.sales_order_date !== "string") {
+      throw new Error("Sales Order date lookup returned an invalid date.");
+    }
+    dates.set(result.order_line_id, result.sales_order_date);
+  }
+  return rows.map((row) => ({ ...row, sales_order_date: dates.get(row.order_line_id) ?? null }));
+}
+
+async function attachOrderListSalesOrderDates(rows: OrderListRow[]): Promise<OrderListRow[]> {
+  if (rows.length === 0) return rows;
+  if (rows.length > 1500) throw new Error("Sales Order date lookup exceeded its 1,500-line bound.");
+  const { data, error } = await (supabase as any).rpc("get_dam_order_sales_order_dates", {
+    p_line_ids: rows.map((row) => row.order_line_id),
+  });
+  if (error) throw error;
+  return mergeOrderListSalesOrderDates(rows, data ?? []);
+}
 
 export type OrderListFindRequest = Pick<OrderListBlockRequest, "filterModel" | "sortModel" | "search">;
 
@@ -155,8 +190,9 @@ export async function fetchOrderListBlock(request: OrderListBlockRequest): Promi
   const { data, error } = await rowQuery.range(request.startRow, Math.max(request.endRow - 1, request.startRow));
   if (error) throw error;
 
+  const rows = await attachOrderListSalesOrderDates((data ?? []) as OrderListRow[]);
   return {
-    rows: (data ?? []) as OrderListRow[],
+    rows,
     totalRowCount: null,
   };
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ORDER_LIST_COLUMNS,
   ORDER_LIST_SEARCH_COLUMNS,
+  ensureSalesOrderDateInSavedColumnState,
   ORDER_LIST_DEFAULT_PAGE_SIZE,
   ORDER_LIST_PAGE_SIZE_OPTIONS,
   buildOrderListFilters,
@@ -260,13 +261,51 @@ describe("OrderList columns", () => {
       .toBe("Production PO Date in ColdLion.");
   });
 
+  it("shows the ColdLion received SO date beside the production PO date without server query support", () => {
+    const prodIndex = ORDER_LIST_COLUMNS.findIndex((column) => column.field === "order_date");
+    const soDate = ORDER_LIST_COLUMNS[prodIndex + 1];
+    expect(soDate).toMatchObject({
+      field: "sales_order_date",
+      header: "SO Date",
+      headerTooltip: "Date ColdLion received the Sales Order.",
+      queryable: false,
+      virtual: true,
+    });
+    expect(soDate.hide).toBeUndefined();
+    expect(buildOrderListFilters({ sales_order_date: { type: "equals", dateFrom: "2026-10-01" }, eta: { type: "equals", dateFrom: "2026-10-02" } }))
+      .toEqual([{ column: "eta", operator: "eq", value: "2026-10-02" }]);
+    expect(buildOrderListSort([{ colId: "sales_order_date", sort: "desc" }]))
+      .toEqual([
+        { column: "start_ship_date", ascending: false },
+        { column: "order_line_id", ascending: true },
+      ]);
+    expect(ORDER_LIST_SEARCH_COLUMNS).not.toContain("sales_order_date" as any);
+  });
+
+  it("inserts SO Date beside Prod PO Date in saved layouts that predate the column", () => {
+    const oldState = [
+      { colId: "vendor_name" },
+      { colId: "order_date", sort: "desc" },
+      { colId: "sent_po_date", hide: true },
+    ];
+    expect(ensureSalesOrderDateInSavedColumnState(oldState)).toEqual([
+      { colId: "vendor_name" },
+      { colId: "order_date", sort: "desc" },
+      { colId: "sales_order_date", hide: false },
+      { colId: "sent_po_date", hide: true },
+    ]);
+    const alreadySaved = [...oldState, { colId: "sales_order_date", hide: true }];
+    expect(ensureSalesOrderDateInSavedColumnState(alreadySaved)).toEqual(alreadySaved);
+  });
+
   it("opens with the recognizable legacy sheet order", () => {
     const visible = ORDER_LIST_COLUMNS.filter((column) => !column.hide).map((column) => column.field);
-    expect(visible.slice(0, 9)).toEqual([
+    expect(visible.slice(0, 10)).toEqual([
       "order_status",
       "production_order_number",
       "vendor_name",
       "order_date",
+      "sales_order_date",
       "sent_po_date",
       "customer_name",
       "customer_po_number",
