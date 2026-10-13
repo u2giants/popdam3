@@ -1,6 +1,6 @@
-# Plan v5: rotate the hetz OS-user `ai` password (#179)
+# Plan v6: rotate the hetz OS-user `ai` password (#179)
 
-Supersedes v4 (commit cd889ce8, rejected by GLM plan-review 20261013T233131-3172856-4770). Earlier rounds (v3 by Gemini and DeepSeek final-check, v1-v2 by DeepSeek) are answered in the findings section below. Based on origin/main 9b8c1efe. No secret values appear here.
+Supersedes v5 (commit 1115649c, rejected by GLM plan-review 20261013T233759-3326759-1761: answers were in prose, not in the steps). Earlier rounds (v3 by Gemini and DeepSeek final-check, v1-v2 by DeepSeek) are answered in the findings section below. Based on origin/main 9b8c1efe. No secret values appear here.
 
 ## Scope
 - Host hetz (178.156.180.212), OS user `ai`, this one password only. Not NAS popdam (Not rotated, per Albert), not the hetzner_vps token (standing no-rotation), not the render account.
@@ -42,22 +42,25 @@ Supersedes v4 (commit cd889ce8, rejected by GLM plan-review 20261013T233131-3172
 - Askpass: value reaches ssh only through a 0600 file via `sshpass -f`, or a 0600 FIFO; never argv, env, or logs. Files shredded after use.
 - Sessions: terminate every ai login session except the executor's own pts. Count before and after.
 
-## Ordered steps
-0. Record executor tty and session ID. Confirm `ai-task-gates start --class production` in this worktree.
-1. Discovery (classified, paths and names only), per the carried list.
-2. Record sshd -T per port, faillock deny, fail2ban state, session list. (Before any login test.)
-3. Live proof: the stored value authenticates to 1904 (already observed on localhost on 2026-10-13; repeat per port via the protected-file method). If it fails, STOP and report Blocked.
-4. Rehearse the vault write on a throwaway item (carried procedure). Diff proof.
+## Executable steps (the only procedure; every answer above is a step here)
+0. Coordination: read #179 comments and the coordinator thread. Any competing rotation claim or in-flight #179 action STOPS the run (Blocked, named owner). Record executor tty, session ID, and `ai-task-gates start --class production` output.
+1. Discovery (classified, paths and names only) over the roots listed in the carried requirements, including /worksp, /tmp, /var/tmp, /dev/shm. Any successful ai password login from a source outside the known admin set STOPS the run (decision rule M1) and triggers the persistence check before anything else.
+2. Record `sshd -T -C user=ai,host=<h>,addr=<a>` per port (1904, 22); faillock deny N; fail2ban sshd maxretry; per-source failed-probe cap = min(N, maxretry) - 1; session list.
+2b. Ansible check: `grep -c 'password:' /worksp/ansible/roles/users/tasks/main.yml` must be 0 and the file must not set the ai password; if it does, STOP (Blocked: Ansible would revert the rotation).
+2c. Other sessions: inspect each other ai session (tty, start time, processes, uncommitted work in its checkout). Record. Any session with in-flight work is NOT killed; the run stops Blocked for its owner.
+2d. Hetzner console/rescue access verified, or the run stops Blocked with owner (M4).
+3. Live proof: the stored value authenticates to 1904 and 22 (where password auth is enabled) via the protected-file sshpass method. If it fails, STOP Blocked.
+4. Rehearsal on a throwaway vault item (field-only edit, round trip, interruption recovery, fingerprint equality). The rehearsal also proves an argv-free input form for `op` writes (template file or stdin). If no argv-free write form is proven, STOP Blocked. Full-item diff procedure is part of the rehearsal.
 5. Prove key login and key-based `sudo -n true` for ai from the admin path.
-6. Generate a new 32-character [A-Za-z0-9] value via `op`; assert length and charset; stage in `hetz-ai-ssh - pending rotation - attempt 1` as STAGED.
-7. Gate: `ai-task-gates check --before production --reviewer-approval <report>` must pass. Apply the staged value with `chpasswd` via pipe (break-glass declared).
-8. Verify new accepted, old refused on 1904, 22 (where password auth is enabled), and the Tailscale path, each within the lockout cap. Then terminate all ai sessions except the executor's pts; count before/after.
-9. Gate again before promotion. Promote the staged value to the canonical password field with the full-item diff proof and fingerprint equality to the host-applied value.
-10. Scrub each discovered copy by its own rule; shred backups; update and check each consumer. Open the Ansible PR in u2giants/ansible for the sshd/password-auth state.
-11. Delete the staging item(s) only when every consumer is verified or listed under Blocked with its owner, and the canonical fingerprint equals the host fingerprint. Record counts.
+6. Generate a new 32-character [A-Za-z0-9] value via `op`; assert length and charset. Stage in `hetz-ai-ssh - pending rotation - attempt 1` through the proven argv-free write form, state STAGED. Shred any template file.
+7. Gate: run `ai-task-gates check --before production --reviewer-approval <report>`; paste its output into #179; must pass. Then apply: `op read` of the staged item piped into `ssh` whose remote command is `chpasswd` (the value crosses only a pipe, never argv). Break-glass declared in #179 before this step.
+8. Verify new accepted and old refused on 1904, 22 (where enabled), and the Tailscale path, within the probe cap. Then terminate only ai sessions cleared in step 2c; record before/after counts.
+9. Gate again: run `ai-task-gates check --before production --reviewer-approval <report>`; paste output into #179. Promote the staged value to the canonical password field with the proven argv-free form from step 4, full-item diff proof, fingerprint equal to the host-applied value.
+10. Scrub only confirmed plaintext copies (L1); shred them; list unreadable backups under Blocked. Check each consumer with its own check. Open the Ansible PR in u2giants/ansible for sshd/password-auth state. Run scripts/test-task-gates.sh in this worktree (L4).
+11. Delete staging items only when every consumer is verified or listed under Blocked with owner, and the canonical fingerprint equals the host fingerprint. Record counts in #179.
 
 ## Rollback
-No rollback to the old value. If the new value is wrong, stage attempt N+1 and repeat from step 6 through the gate. If the key path is lost, report Blocked; no reset to the exposed value.
+No rollback to the old value. Wrong new value: stage attempt N+1 and repeat from step 6 through the gates. Key path lost: Blocked with owner, via Hetzner console (2d).
 
 ## Blocked (expected at completion)
 Remote machines, Coolify UI, GitHub, off-host backups, and any consumer without its own check. Each is listed with an owner.
