@@ -14,6 +14,14 @@ const cache: Record<string, Record<string, string>> = {};
 const inFlight = new Map<string, Promise<Record<string, string>>>();
 let _apiKey: string | null = null;
 
+/** Configuration failures must never be swallowed by per-lookup fallbacks. */
+export class ColdLionConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ColdLionConfigError";
+  }
+}
+
 async function getApiKey(): Promise<string> {
   if (_apiKey) return _apiKey;
   try {
@@ -33,7 +41,7 @@ async function getApiKey(): Promise<string> {
   } catch (e) {
     console.warn("Failed to read COLDLION_API_KEY from admin_config:", e);
   }
-  throw new Error("COLDLION_API_KEY is missing from admin_config");
+  throw new ColdLionConfigError("COLDLION_API_KEY is missing from admin_config");
 }
 
 export async function getMgLookup(
