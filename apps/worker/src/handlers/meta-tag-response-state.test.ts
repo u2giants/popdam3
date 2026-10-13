@@ -39,10 +39,10 @@ test("all server errors retry retrieval of the same accepted response; billing s
   assert.equal((result.external_job as { provider_batch_id: string }).provider_batch_id, "resp_test");
 });
 function state(phase = "pending"): OpState {
-  return { status: "running", cursor: 0, meta_tag_attempt: attempt, external_job: { provider: "meta-responses", phase: phase as "pending", model, output_method: "json_schema", provider_batch_id: "resp_test", page_cursor: 0, next_cursor: 1, lease_token: "receipt", lease_expires_at: new Date(Date.now()+120_000).toISOString(), items: [{asset_id:id,custom_id:"fixture",status:"submitted"}] } };
+  return { status: "running", cursor: 0, meta_tag_attempt: attempt, external_job: { provider: "meta-responses", meta_character_catalog_ids: [], phase: phase as "pending", model, output_method: "json_schema", provider_batch_id: "resp_test", page_cursor: 0, next_cursor: 1, lease_token: "receipt", lease_expires_at: new Date(Date.now()+120_000).toISOString(), items: [{asset_id:id,custom_id:"fixture",status:"submitted"}] } };
 }
 function deps(): MetaTagDependencies {
-  return { model, apiKey: "test", candidate: async () => ({ asset_id:id,next_cursor:1,done:true }), prepare: async () => ({model,messages:[]}), validate: value => {if(value.answer!=="ok") throw new Error("invalid");}, apply:async()=>{}, retrieve:async()=>({id:"resp_test",status:"completed",output:[{type:"message",content:[{type:"output_text",text:'{"answer":"ok"}'}]}]}), create:async()=>{throw new Error("Never submit saved response");} };
+  return { model, apiKey: "test", candidate: async () => ({ asset_id:id,next_cursor:1,done:true }), prepare: async () => ({request:{model,messages:[]},characterCatalogIds:[]}), validate: value => {if(value.answer!=="ok") throw new Error("invalid");}, apply:async()=>{}, retrieve:async()=>({id:"resp_test",status:"completed",output:[{type:"message",content:[{type:"output_text",text:'{"answer":"ok"}'}]}]}), create:async()=>{throw new Error("Never submit saved response");} };
 }
 test("restart with saved response retrieves without POST, checkpoints apply then completed", async()=>{
  const d=deps();let applies=0;d.apply=async()=>{applies++;};
@@ -135,4 +135,37 @@ test("active inference bound pauses exact ID without generation or cursor advanc
  d.retrieve=async()=>({id:"resp_test",status:"queued"});const paused=await handleMetaTagResponse(s,d);assert.equal(paused.error_code,"meta_inference_deadline");assert.equal(paused.nextOffset,undefined);assert.equal((paused.external_job as {provider_batch_id:string}).provider_batch_id,"resp_test");assert.equal(creates,0);
  d.retrieve=deps().retrieve;const resumed=await handleMetaTagResponse({...s,status:"running"},d);assert.equal((resumed.external_job as {phase:string}).phase,"applying");assert.equal(creates,0);
  delete s.external_job!.submitted_at;d.retrieve=async()=>({id:"resp_test",status:"in_progress"});assert.equal((await handleMetaTagResponse(s,d)).error_code,"contract_error");assert.equal(creates,0);
+});
+
+test("invalid semantic character references advance bounded correction with zero metadata writes",async()=>{
+ const {CharacterReferenceValidationError}=await import("./ai-tagging-shared.js");const s=state();const d=deps();let writes=0,creates=0;d.validate=async()=>{throw new CharacterReferenceValidationError();};d.apply=async()=>{writes++;};d.create=async()=>{creates++;throw new Error("No generation");};
+ const result=await handleMetaTagResponse(s,d);const job=result.external_job as NonNullable<OpState["external_job"]>;assert.equal(job.phase,"completed");assert.equal((job.meta_next_attempt as {method_index:number}).method_index,1);assert.match((job.meta_next_attempt as {repair_error:string}).repair_error,/supplied character catalog/);assert.equal(writes,0);assert.equal(creates,0);
+});
+test("semantic catalog database failure holds accepted ID without correction, writes or POST",async()=>{
+ const {CharacterCatalogDependencyError}=await import("./ai-tagging-shared.js");const s=state();const d=deps();let writes=0,creates=0;d.validate=async()=>{throw new CharacterCatalogDependencyError("57014");};d.apply=async()=>{writes++;};d.create=async()=>{creates++;throw new Error("No generation");};
+ const result=await handleMetaTagResponse(s,d);assert.equal(result.error_code,"dependency_timeout");assert.equal((result.external_job as {provider_batch_id:string}).provider_batch_id,"resp_test");assert.equal((result.external_job as {meta_next_attempt?:unknown}).meta_next_attempt,undefined);assert.equal(writes,0);assert.equal(creates,0);
+});
+test("legacy unsubmitted unleased prepared job checkpoints exact catalog before any claim or POST",async()=>{
+ const s=state("prepared");delete s.external_job!.provider_batch_id;delete s.external_job!.meta_character_catalog_ids;delete s.external_job!.lease_token;delete s.external_job!.lease_expires_at;const d=deps();let creates=0;d.create=async()=>{creates++;throw new Error("No generation");};
+ const result=await handleMetaTagResponse(s,d);assert.deepEqual((result.external_job as {meta_character_catalog_ids:string[]}).meta_character_catalog_ids,[]);assert.equal(result.state_transition,undefined);assert.equal(result.nextOffset,0);assert.equal(creates,0);
+});
+test("accepted old response without binding holds rather than guessing the original supplied catalog",async()=>{
+ const s=state();delete s.external_job!.meta_character_catalog_ids;const d=deps();let preparations=0;d.prepare=async()=>{preparations++;return {request:{model,messages:[]},characterCatalogIds:[]};};
+ const result=await handleMetaTagResponse(s,d);assert.equal(result.error_code,"contract_error");assert.equal(preparations,0);assert.equal((result.external_job as {provider_batch_id:string}).provider_batch_id,"resp_test");
+});
+test("restart rebuilt or cached request must match the persisted catalog before POST",async()=>{
+ const s=state("submitting");delete s.external_job!.provider_batch_id;s.external_job!.meta_character_catalog_ids=[id];const d=deps();let creates=0;d.create=async()=>{creates++;return "never";};
+ await assert.rejects(handleMetaTagResponse(s,d),/catalog changed/);assert.equal(creates,0);
+ s.transient_prepared_batch={request:{model,messages:[]},characterCatalogIds:[]};await assert.rejects(handleMetaTagResponse(s,d),/catalog changed/);assert.equal(creates,0);
+});
+
+test("catalog deletion discovered at apply reuses bounded semantic correction rather than retrying the same failing save",async()=>{
+ const {CharacterReferenceValidationError}=await import("./ai-tagging-shared.js");const s=state("applying");const d=deps();d.apply=async()=>{throw new CharacterReferenceValidationError();};
+ const result=await handleMetaTagResponse(s,d);const job=result.external_job as NonNullable<OpState["external_job"]>;assert.equal(job.phase,"completed");assert.equal((job.meta_next_attempt as {method_index:number}).method_index,1);assert.equal(job.meta_apply_failures,undefined);
+});
+test("legacy prepared missing asset stays contract-held while typed catalog read failure is a dependency hold",async()=>{
+ const {AssetMissingError}=await import("./ai-tagging.js");const {CharacterCatalogDependencyError}=await import("./ai-tagging-shared.js");
+ const s=state("prepared");delete s.external_job!.provider_batch_id;delete s.external_job!.meta_character_catalog_ids;delete s.external_job!.lease_token;delete s.external_job!.lease_expires_at;const d=deps();
+ d.prepare=async()=>{throw new AssetMissingError(id);};assert.equal((await handleMetaTagResponse(s,d)).error_code,"contract_error");
+ d.prepare=async()=>{throw new CharacterCatalogDependencyError("57014");};assert.equal((await handleMetaTagResponse(s,d)).error_code,"dependency_timeout");
 });

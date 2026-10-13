@@ -67,6 +67,7 @@ export interface OpenRouterBatchJobState {
   model?: string;
   output_method?: "json_schema" | "json_object" | "tool_named" | "tool_required" | "tool_auto";
   provider_batch_id?: string;
+  meta_character_catalog_ids?: string[];
   prepared_at?: string;
   submitted_at?: string;
   next_poll_at?: string;

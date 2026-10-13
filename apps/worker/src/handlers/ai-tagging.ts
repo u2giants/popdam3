@@ -51,6 +51,8 @@ import {
   buildImageTaggingMessages,
   buildBatchImageTaggingMessages,
   buildImageTaggingPrompt,
+  validateCharacterReferences,
+  AssetTagApplyError,
   callTagAssetModel,
   isRetryableTagTransportError,
   fetchImageData,
@@ -234,20 +236,23 @@ export async function applyBatchTagResult(
   tagData: Record<string, unknown>,
   model: string,
   injectedClient?: ReturnType<typeof db>,
+  characterCatalogIds?: string[],
 ): Promise<void> {
   validateTagAssetData(tagData, "batch");
   const client = injectedClient ?? db();
   const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku").eq("id", assetId).single();
-  if (assetError || !asset) throw new Error(`Asset reload failed: ${assetError?.message ?? assetId}`);
+  if (assetError || !asset) throw new AssetTagApplyError("asset_reload", assetError?.code);
+  const characterIds = await validateCharacterReferences(tagData.character_ids, characterCatalogIds, client);
   // Tags, character links and style-guide sources are written first; the
   // asset is marked "tagged" LAST, so a failure part-way never leaves an asset
   // that claims to be tagged with incomplete metadata.
-  await writeAssetAiTags(client, assetId, model, tagData);
-  if (Array.isArray(tagData.character_ids)) {
-    const rows = tagData.character_ids.filter(isValidUuid).map((character_id) => ({ asset_id: assetId, character_id }));
+  try { await writeAssetAiTags(client, assetId, model, tagData); }
+  catch (error) { throw new AssetTagApplyError("asset_tags", (error as { code?: string }).code); }
+  if (characterIds.length) {
+    const rows = characterIds.map((character_id) => ({ asset_id: assetId, character_id }));
     if (rows.length) {
       const savedCharacters = await client.from("asset_characters").upsert(rows, { onConflict: "asset_id,character_id" });
-      if (savedCharacters.error) throw new Error(`Character link write failed: ${savedCharacters.error.message}`);
+      if (savedCharacters.error) throw new AssetTagApplyError("character_links", savedCharacters.error.code);
     }
   }
   if (asset && isStyleGuideSourcePdf(asset) && asset.sku && Array.isArray(tagData.files_used)) {
@@ -256,7 +261,7 @@ export async function applyBatchTagResult(
       .map((name) => ({ sku: asset.sku, file_name: String(name).trim(), source: "ai_tag" }));
     if (rows.length) {
       const savedFiles = await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
-      if (savedFiles.error) throw new Error(`Style-guide source write failed: ${savedFiles.error.message}`);
+      if (savedFiles.error) throw new AssetTagApplyError("file_sources", savedFiles.error.code);
     }
   }
   const updates: Record<string, unknown> = { status: "tagged", ai_tagged_at: new Date().toISOString(), ai_model: model };
@@ -264,7 +269,7 @@ export async function applyBatchTagResult(
     if (tagData[key]) updates[key] = tagData[key];
   }
   const { error } = await client.from("assets").update(updates).eq("id", assetId);
-  if (error) throw new Error(`DB write failed: ${error.message}`);
+  if (error) throw new AssetTagApplyError("asset_metadata", error.code);
 }
 
 export function assetTagsForRpc(tagData: Record<string, unknown>) {
@@ -290,7 +295,7 @@ export async function writeAssetAiTags(
     p_model: model,
     p_tags: assetTagsForRpc(tagData),
   });
-  if (result.error) throw new Error(`Atomic AI tag write failed: ${result.error.message}`);
+  if (result.error) throw Object.assign(new Error(`Atomic AI tag write failed: ${result.error.message}`), { code: (result.error as { code?: string }).code });
 }
 
 export interface AiTagRpcClient {
@@ -1019,8 +1024,8 @@ export async function handleBulkAiTag(
     const ids = Array.isArray(opState.params?.asset_ids) ? opState.params.asset_ids as string[] : null;
     if (requireAssetIds && !ids?.length) return { ok: false, done: true, error: "Single-asset tag operation has no asset ID" };
     return handleMetaTagResponse(opState, {
-      model, apiKey: await getAiTaggingApiKey(model), unavailable: isVisualAnalysisUnavailableError, missing: error => error instanceof AssetMissingError, validate: value => validateTagAssetData(value, "structured"),
-      apply: (id, value, model) => applyBatchTagResult(id, value, model),
+      model, apiKey: await getAiTaggingApiKey(model), unavailable: isVisualAnalysisUnavailableError, missing: error => error instanceof AssetMissingError, validate: async (value, binding) => { validateTagAssetData(value, "structured"); await validateCharacterReferences(value.character_ids, binding); },
+      apply: (id, value, model, binding) => applyBatchTagResult(id, value, model, undefined, binding),
       candidate: async () => {
         if (ids?.length) {
           const offset = opState.cursor ?? 0;
@@ -1041,9 +1046,13 @@ export async function handleBulkAiTag(
         if (!tagAll && asset.status === "tagged" && asset.ai_tagged_at) return null;
         if (!asset.thumbnail_url) throw new Error(`Asset has no thumbnail: ${id}`);
         const image = await fetchImageData(asset.thumbnail_url);
-        const messages = buildImageTaggingMessages(await buildImageTaggingPrompt(asset), image, "Analyze this design asset image and return structured tags matching the tag_asset schema.");
+        let characterCatalogIds: string[] = [];
+        const prompt = await buildImageTaggingPrompt(asset, { requireCharacterReadSuccess: true, onCharacterCatalog: ids => { characterCatalogIds = ids; } });
+        const messages = buildImageTaggingMessages(prompt, image, "Analyze this design asset image and return structured tags matching the tag_asset schema.");
         const options = { model, messages, maxTokens: 4000, schemaName: "tag_asset", schema: TAG_ASSET_SCHEMA };
-        return method === "json_repair" ? buildJsonRepairRequest({ ...options, apiKey: "", repairSource: repairError ?? "Previous structured output failed validation" }) : buildStructuredOutputRequest(options, method);
+        const request = method === "json_repair" ? buildJsonRepairRequest({ ...options, apiKey: "", repairSource: repairError ?? "Previous structured output failed validation" }) : buildStructuredOutputRequest(options, method);
+        if (repairError && method !== "json_repair") request.messages = [...request.messages, { role: "user", content: `Correct the previous response: ${repairError}` }];
+        return { request, characterCatalogIds };
       },
     });
   }
