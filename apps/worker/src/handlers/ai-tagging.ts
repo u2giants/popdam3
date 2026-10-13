@@ -1040,7 +1040,7 @@ export async function handleBulkAiTag(
         const row = (result.data as Array<{ id: string; primary_sort_tier: number }> | null)?.[0];
         return row ? { asset_id: row.id, next_cursor: encodeAiTagCursor({ tier: row.primary_sort_tier, id: row.id }), done: false } : null;
       },
-      prepare: async (id, method, repairError) => {
+      prepare: async (id, method, repairError, outputTokenLimit) => {
         const { data: loadedAsset, error } = await db().from("assets").select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, division_code, style_group_id").eq("id", id).maybeSingle();
         const asset = requireMetaAssetRow(loadedAsset, error, id);
         if (!tagAll && asset.status === "tagged" && asset.ai_tagged_at) return null;
@@ -1052,6 +1052,7 @@ export async function handleBulkAiTag(
         const options = { model, messages, maxTokens: 4000, schemaName: "tag_asset", schema: TAG_ASSET_SCHEMA };
         const request = method === "json_repair" ? buildJsonRepairRequest({ ...options, apiKey: "", repairSource: repairError ?? "Previous structured output failed validation" }) : buildStructuredOutputRequest(options, method);
         if (repairError && method !== "json_repair") request.messages = [...request.messages, { role: "user", content: `Correct the previous response: ${repairError}` }];
+        if (outputTokenLimit !== undefined) request.meta_max_output_tokens = outputTokenLimit;
         return { request, characterCatalogIds };
       },
     });

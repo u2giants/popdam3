@@ -236,3 +236,24 @@ test("busy create and expired actual pre-POST lease guard are never ambiguous an
   await assert.rejects(createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]},60_000,"expired-owner",()=>{throw new PreSubmissionError("lease expired");}),/lease expired/);assert.equal(posts,0);
  }finally{globalThis.fetch=original;synchronizeMetaReservations({});}
 });
+
+test("healthy Meta request is byte-identical; the one internal budget override changes only the output limit", () => {
+  const request = { model: "meta-direct/muse-spark-1.3-contributor", messages: [{ role: "user" as const, content: "full original image analysis" }], max_tokens: 4000 };
+  const healthy = buildMetaResponsesBody(request);
+  assert.equal(JSON.stringify(healthy), JSON.stringify({ model: "muse-spark-1.3-contributor", input: [{ role: "user", content: "full original image analysis" }], max_output_tokens: 20384 }));
+  assert.deepEqual(buildMetaResponsesBody({ ...request, meta_max_output_tokens: 32768 }), { ...healthy, max_output_tokens: 32768 });
+});
+test("Meta retry budget rejects nonliteral overrides, other models, and reduction of a caller's budget before POST", () => {
+  const request = { model: "meta-direct/muse-spark-1.3-contributor", messages: [], max_tokens: 4000 };
+  for (const limit of [0, 20384, 32769, NaN, null, "32768"]) {
+    assert.throws(() => buildMetaResponsesBody({ ...request, meta_max_output_tokens: limit } as unknown as import("./openrouter.js").ChatCompletionRequest), /Invalid Meta output-exhaustion retry budget/);
+  }
+  assert.throws(() => buildMetaResponsesBody({ ...request, model: "meta-direct/other", meta_max_output_tokens: 32768 }), /Invalid Meta/);
+  assert.throws(() => buildMetaResponsesBody({ ...request, max_tokens: 20000, meta_max_output_tokens: 32768 }), /Invalid Meta/);
+  assert.throws(() => buildMetaResponsesBody({ ...request, max_tokens: NaN, meta_max_output_tokens: 32768 }), /Invalid Meta/);
+});
+
+test("invalid stored-response budget makes zero POSTs and leaves no phantom capacity reservation", async()=>{
+ const {createStoredMetaResponse,metaAsyncBusy,synchronizeMetaReservations}=await import("./meta-model-api.js");synchronizeMetaReservations({});const original=globalThis.fetch;let posts=0;
+ try{globalThis.fetch=async()=>{posts++;throw new Error("Unexpected POST");};await assert.rejects(createStoredMetaResponse("fixture-key",{model:"meta-direct/muse-spark-1.3-contributor",messages:[],max_tokens:20000,meta_max_output_tokens:32768},60000,"budget-owner"),/Invalid Meta/);assert.equal(posts,0);assert.equal(metaAsyncBusy("other-owner"),false);}finally{globalThis.fetch=original;synchronizeMetaReservations({});}
+});

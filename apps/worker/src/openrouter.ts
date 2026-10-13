@@ -77,6 +77,8 @@ export interface ChatCompletionRequest {
     };
   };
   max_tokens?: number;
+  /** Meta-only, persisted and bounded output-exhaustion retry budget. */
+  meta_max_output_tokens?: 32768;
   temperature?: number;
 }
 

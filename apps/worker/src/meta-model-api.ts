@@ -60,10 +60,12 @@ function toResponsesInput(messages: ChatMessage[]) {
 }
 
 export function buildMetaResponsesBody(request: ChatCompletionRequest): Record<string, unknown> {
+  const baseBudget = (request.max_tokens ?? 4096) + REASONING_TOKEN_RESERVE;
+  if (request.meta_max_output_tokens !== undefined && (request.meta_max_output_tokens !== 32768 || request.model !== META_MUSE_CONTRIBUTOR_MODEL || !Number.isFinite(baseBudget) || request.meta_max_output_tokens < baseBudget)) throw new PreSubmissionError("Invalid Meta output-exhaustion retry budget", true);
   const body: Record<string, unknown> = {
     model: metaModelId(request.model),
     input: toResponsesInput(request.messages),
-    max_output_tokens: (request.max_tokens ?? 4096) + REASONING_TOKEN_RESERVE,
+    max_output_tokens: request.meta_max_output_tokens ?? baseBudget,
   };
   if (request.temperature !== undefined) body.temperature = request.temperature;
   if (request.response_format?.type === "json_schema") {
@@ -251,6 +253,7 @@ export function parseMetaResponse(raw: unknown, model: string): ChatCompletionRe
 
 /** One non-idempotent create. Any lost acknowledgement remains ambiguous. */
 export async function createStoredMetaResponse(apiKey: string, request: ChatCompletionRequest, timeoutMs = DEFAULT_TIMEOUT_MS, reservationOwner = "anonymous-meta-create", beforePost?: () => void): Promise<string> {
+  const body = buildMetaResponsesBody(request); // Reject an invalid override before reserving any capacity.
   if (metaAsyncBusy(reservationOwner) || asyncCreating.has(reservationOwner)) throw new PreSubmissionError("Another Meta generation is still pending");
   asyncReservations.set(reservationOwner, null);
   asyncCreating.add(reservationOwner);
@@ -266,7 +269,7 @@ export async function createStoredMetaResponse(apiKey: string, request: ChatComp
       }
       const requestOptions = {
         method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ ...buildMetaResponsesBody(request), stream: true, store: true }),
+        body: JSON.stringify({ ...body, stream: true, store: true }),
         signal: AbortSignal.timeout(timeoutMs), dispatcher: metaDispatcher,
       };
       const response = await fetch(META_RESPONSES_URL, requestOptions);

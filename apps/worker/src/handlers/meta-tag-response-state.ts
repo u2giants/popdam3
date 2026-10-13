@@ -4,13 +4,19 @@ import { logger } from "../logger.js";
 import type { BatchResult, OpState, OpenRouterBatchJobState } from "../types.js";
 import type { ChatCompletionRequest } from "../openrouter.js";
 import { accountFingerprint, assertProviderSubmissionLeaseBudget } from "../batch-provider.js";
-import { createStoredMetaResponse, retrieveStoredMetaResponse, parseMetaResponse, isTerminalMetaModelApiError, metaModelId, metaAsyncBusy, MetaCapacityRejectionError, MODEL_NOT_FOUND_RETRY_DELAYS_MS } from "../meta-model-api.js";
+import { createStoredMetaResponse, retrieveStoredMetaResponse, parseMetaResponse, isTerminalMetaModelApiError, metaModelId, metaAsyncBusy, MetaCapacityRejectionError, MODEL_NOT_FOUND_RETRY_DELAYS_MS, META_MUSE_CONTRIBUTOR_MODEL } from "../meta-model-api.js";
 import { PreSubmissionError } from "../batch-submission-error.js";
 import { nextBatchAction, clearRequestJob, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 import { parseStructuredJson } from "../structured-output.js";
 
 export const META_TAG_METHODS = ["json_schema", "json_object", "tool_auto", "json_repair"] as const;
-export interface MetaTagAttempt { asset_id: string; method_index: number; same_model_retry: number; repair_error?: string; }
+export interface MetaTagAttempt { asset_id: string; method_index: number; same_model_retry: number; repair_error?: string; output_token_limit?: 32768; }
+function validOutputBudget(attempt: MetaTagAttempt): boolean {
+  return attempt.output_token_limit === undefined || attempt.output_token_limit === 32768 && attempt.same_model_retry === 1;
+}
+function matchingRequestBudget(prepared: PreparedMetaTagRequest, attempt: MetaTagAttempt | null | undefined): boolean {
+  return prepared.request.meta_max_output_tokens === attempt?.output_token_limit;
+}
 export interface MetaTagCandidate { asset_id: string; next_cursor: number | string; done: boolean; }
 export interface PreparedMetaTagRequest { request: ChatCompletionRequest; characterCatalogIds: string[]; }
 export const MAX_META_CHARACTER_CATALOG_IDS = 4096;
@@ -21,7 +27,7 @@ function matchingBinding(a: string[], b: string[]): boolean { return a.length ==
 export interface MetaTagDependencies {
   model: string; apiKey: string;
   candidate: () => Promise<MetaTagCandidate | null>;
-  prepare: (id: string, method: typeof META_TAG_METHODS[number], repairError?: string) => Promise<PreparedMetaTagRequest | null>;
+  prepare: (id: string, method: typeof META_TAG_METHODS[number], repairError?: string, outputTokenLimit?: 32768) => Promise<PreparedMetaTagRequest | null>;
   validate: (value: Record<string, unknown>, binding: string[]) => void | Promise<void>;
   apply: (id: string, value: Record<string, unknown>, model: string, binding: string[]) => Promise<void>;
   create?: typeof createStoredMetaResponse; retrieve?: typeof retrieveStoredMetaResponse;
@@ -36,7 +42,7 @@ export async function handleMetaTagResponse(state: OpState, deps: MetaTagDepende
   const now = deps.now?.() ?? Date.now(); const iso = new Date(now).toISOString();
   const cursor = state.cursor ?? 0; const job = state.external_job;
   const attempt = state.meta_tag_attempt;
-  if (attempt && (!Number.isSafeInteger(attempt.method_index) || attempt.method_index < 0 || attempt.method_index >= META_TAG_METHODS.length || !Number.isSafeInteger(attempt.same_model_retry) || attempt.same_model_retry < 0 || attempt.same_model_retry > 1)) {
+  if (attempt && (!Number.isSafeInteger(attempt.method_index) || attempt.method_index < 0 || attempt.method_index >= META_TAG_METHODS.length || !Number.isSafeInteger(attempt.same_model_retry) || attempt.same_model_retry < 0 || attempt.same_model_retry > 1 || !validOutputBudget(attempt) || attempt.output_token_limit !== undefined && deps.model !== META_MUSE_CONTRIBUTOR_MODEL)) {
     return { ok: false, done: false, error: "Invalid saved Meta tagging attempt", error_code: "contract_error" };
   }
   const owner = state.run_id ?? "unassigned-meta-operation";
@@ -52,7 +58,7 @@ export async function handleMetaTagResponse(state: OpState, deps: MetaTagDepende
     if (attempt && attempt.asset_id !== candidate.asset_id) return { ok: false, done: false, error: "Saved Meta attempt targets a different asset", error_code: "contract_error" };
     const methodIndex = attempt?.method_index ?? 0;
     let prepared: PreparedMetaTagRequest | null;
-    try { prepared = await deps.prepare(candidate.asset_id, META_TAG_METHODS[methodIndex], attempt?.repair_error); }
+    try { prepared = await deps.prepare(candidate.asset_id, META_TAG_METHODS[methodIndex], attempt?.repair_error, attempt?.output_token_limit); }
     catch (error) {
       if (deps.missing?.(error)) return { ok: true, done: candidate.done, nextOffset: candidate.next_cursor, skipped: 1, meta_tag_attempt: null, skip_samples: [{ at: iso, asset_id: candidate.asset_id, reason: "Asset no longer exists" }] };
       if (deps.unavailable?.(error)) return { ok: true, done: candidate.done, nextOffset: candidate.next_cursor, visual_analysis_unavailable: 1, meta_tag_attempt: null };
@@ -63,6 +69,7 @@ export async function handleMetaTagResponse(state: OpState, deps: MetaTagDepende
       throw new PreSubmissionError(message, true);
     }
     if (!prepared) return { ok: true, done: candidate.done, nextOffset: candidate.next_cursor, skipped: 1, meta_tag_attempt: null };
+    if (!matchingRequestBudget(prepared, attempt)) return { ok: false, done: false, error: "Prepared Meta output budget does not match saved attempt", error_code: "contract_error" };
     if (!validCatalogBinding(prepared.characterCatalogIds)) return { ok: false, done: false, error: "Invalid or oversized supplied character catalog binding", error_code: "contract_error" };
     return { ok: true, done: false, nextOffset: cursor,
       meta_tag_attempt: attempt ?? { asset_id: candidate.asset_id, method_index: 0, same_model_retry: 0 },
@@ -77,13 +84,13 @@ export async function handleMetaTagResponse(state: OpState, deps: MetaTagDepende
   if (!validCatalogBinding(job.meta_character_catalog_ids)) {
     if (job.meta_character_catalog_ids === undefined && job.phase === "prepared" && !job.provider_batch_id && !job.lease_token && !job.submission_owner && !job.lease_proof && !job.lease_expires_at && !job.lease_claimed_at) {
       let prepared: PreparedMetaTagRequest | null;
-      try { prepared = await deps.prepare(attempt.asset_id, META_TAG_METHODS[attempt.method_index], attempt.repair_error); }
+      try { prepared = await deps.prepare(attempt.asset_id, META_TAG_METHODS[attempt.method_index], attempt.repair_error, attempt.output_token_limit); }
       catch (error) {
         const transport = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError" || /timeout|timed out|fetch failed|57014|502|503|504|connection refused/i.test(error.message));
         if (error instanceof CharacterCatalogDependencyError || transport) return { ok: false, done: false, error: "Character catalog dependency failed before submission", error_code: "dependency_timeout", external_job: job };
         return { ok: false, done: false, error: "Legacy prepared Meta asset is unavailable or invalid; owned reconciliation required", error_code: "contract_error", external_job: job };
       }
-      if (!prepared || !validCatalogBinding(prepared.characterCatalogIds)) return { ok: false, done: false, error: "Cannot bind legacy prepared Meta catalog", error_code: "contract_error", external_job: job };
+      if (!prepared || !matchingRequestBudget(prepared, attempt) || !validCatalogBinding(prepared.characterCatalogIds)) return { ok: false, done: false, error: "Cannot bind legacy prepared Meta catalog", error_code: "contract_error", external_job: job };
       return { ok: true, done: false, nextOffset: cursor, transient_prepared_batch: prepared, external_job: { ...job, meta_character_catalog_ids: prepared.characterCatalogIds }, last_stage: "state_persist" };
     }
     return { ok: false, done: false, error: "Accepted or claimed Meta response lacks its supplied character catalog binding", error_code: "contract_error", external_job: job };
@@ -107,11 +114,12 @@ export async function handleMetaTagResponse(state: OpState, deps: MetaTagDepende
   if (action.type === "submit") {
     let prepared = state.transient_prepared_batch as PreparedMetaTagRequest | undefined;
     if (!prepared) {
-      try { prepared = await deps.prepare(attempt.asset_id, META_TAG_METHODS[attempt.method_index], attempt.repair_error) ?? undefined; }
+      try { prepared = await deps.prepare(attempt.asset_id, META_TAG_METHODS[attempt.method_index], attempt.repair_error, attempt.output_token_limit) ?? undefined; }
       catch { throw new PreSubmissionError("Meta preparation failed before submission"); }
     }
     if (!prepared || prepared.request.model !== deps.model) throw new PreSubmissionError("Prepared Meta request is unavailable", true);
     if (!validCatalogBinding(prepared.characterCatalogIds) || !matchingBinding(job.meta_character_catalog_ids, prepared.characterCatalogIds)) throw new PreSubmissionError("Rebuilt Meta prompt character catalog changed", true);
+    if (!matchingRequestBudget(prepared, attempt)) throw new PreSubmissionError("Prepared Meta output budget does not match saved attempt", true);
     const request = prepared.request;
     assertProviderSubmissionLeaseBudget(job.lease_expires_at);
     let id: string;
@@ -155,6 +163,13 @@ export async function handleMetaTagResponse(state: OpState, deps: MetaTagDepende
   const completed = (changes: Partial<OpenRouterBatchJobState>, counts: Record<string, unknown> = {}): BatchResult => ({ ok: true, done: false, nextOffset: cursor,
     external_job: { ...job, ...changes, meta_asset_terminal: !changes.meta_next_attempt, phase: "completed", next_poll_at: undefined }, ...counts, last_stage: "state_persist" });
   if (!["completed", "failed", "incomplete", "cancelled"].includes(String(response.status))) return { ok: false, done: false, error: "Stored Meta response has unknown status", error_code: "contract_error", external_job: job };
+  if (deps.model === META_MUSE_CONTRIBUTOR_MODEL && response.status === "incomplete" && (response.incomplete_details as { reason?: unknown } | undefined)?.reason === "max_output_tokens") {
+    if (attempt.same_model_retry === 0 && attempt.output_token_limit === undefined) {
+      return completed({ meta_output_token_exhausted: true, meta_next_attempt: { ...attempt, same_model_retry: 1, output_token_limit: 32768,
+        repair_error: "Previous response exhausted its output allowance. Return the complete full analysis matching the schema." } });
+    }
+    return completed({}, { failed: 1, failure_samples: [{ at: iso, asset_id: attempt.asset_id, error: "Meta response exhausted its output allowance after the bounded same-model retry" }] });
+  }
   if (response.status !== "completed") return completed({}, { failed: 1, failure_samples: [{ at: iso, asset_id: attempt.asset_id, error: "Meta response ended without completed output" }] });
   const invalidResult = (error: unknown): BatchResult => {
     const message = error instanceof Error && error.message.startsWith("Model returned invalid ") ? error.message.slice(0, 500) : "Previous structured output could not be parsed or validated";
@@ -203,8 +218,8 @@ export function metaCompletedTransition(stored: OpState): Partial<OpState> | nul
   const assetId = storedJob.items?.length === 1 ? storedJob.items[0].asset_id : null;
   const validAttempt = (value: OpState["meta_tag_attempt"]): boolean => !!value && value.asset_id === assetId &&
     Number.isSafeInteger(value.method_index) && value.method_index >= 0 && value.method_index < 4 &&
-    Number.isSafeInteger(value.same_model_retry) && value.same_model_retry >= 0 && value.same_model_retry <= 1;
-  if (!assetId || !validAttempt(attempt)) return null;
+    Number.isSafeInteger(value.same_model_retry) && value.same_model_retry >= 0 && value.same_model_retry <= 1 && validOutputBudget(value);
+  if (!assetId || !validAttempt(attempt) || attempt?.output_token_limit !== undefined && storedJob.model !== META_MUSE_CONTRIBUTOR_MODEL) return null;
   const ids = Array.isArray(stored.params?.asset_ids) ? stored.params!.asset_ids as unknown[] : null;
   if (ids?.length) {
     if (typeof stored.cursor !== "number" || !Number.isSafeInteger(stored.cursor) || ids[stored.cursor] !== assetId || storedJob.next_cursor !== stored.cursor + 1) return null;
@@ -213,8 +228,12 @@ export function metaCompletedTransition(stored: OpState): Partial<OpState> | nul
   }
   if (next !== undefined) {
     if (!validAttempt(next) || storedJob.meta_asset_terminal !== false || !attempt || !next || !(
-    next.same_model_retry === attempt.same_model_retry && next.method_index === attempt.method_index + 1 ||
-    attempt.method_index === 3 && attempt.same_model_retry === 0 && next.method_index === 0 && next.same_model_retry === 1
+    (storedJob.meta_output_token_exhausted === undefined && next.output_token_limit === attempt.output_token_limit && (
+      next.same_model_retry === attempt.same_model_retry && next.method_index === attempt.method_index + 1 ||
+      attempt.method_index === 3 && attempt.same_model_retry === 0 && next.method_index === 0 && next.same_model_retry === 1
+    )) ||
+    (storedJob.model === META_MUSE_CONTRIBUTOR_MODEL && storedJob.meta_output_token_exhausted === true && typeof storedJob.provider_batch_id === "string" && storedJob.provider_batch_id.trim().length > 0 && attempt.same_model_retry === 0 && attempt.output_token_limit === undefined &&
+      next.same_model_retry === 1 && next.method_index === attempt.method_index && next.output_token_limit === 32768)
     )) return null;
     return { meta_tag_attempt: next, cursor: stored.cursor, status: "running" };
   } else {
@@ -231,7 +250,7 @@ export async function advanceMetaCapabilityRejection(
   rejection: import("../meta-model-api.js").MetaCapabilityRejectionError,
 ): Promise<OpState | null> {
   const job = state.external_job; const attempt = state.meta_tag_attempt;
-  if (job?.provider !== "meta-responses" || job.provider_batch_id || !attempt || job.items?.length !== 1 || job.items[0].asset_id !== attempt.asset_id || attempt.method_index < 0 || attempt.method_index > 3 || attempt.same_model_retry < 0 || attempt.same_model_retry > 1) return null;
+  if (job?.provider !== "meta-responses" || job.provider_batch_id || !attempt || job.items?.length !== 1 || job.items[0].asset_id !== attempt.asset_id || attempt.method_index < 0 || attempt.method_index > 3 || attempt.same_model_retry < 0 || attempt.same_model_retry > 1 || !validOutputBudget(attempt)) return null;
   const next = attempt.method_index < 3 ? { ...attempt, method_index: attempt.method_index + 1 } : attempt.same_model_retry === 0 ? { ...attempt, method_index: 0, same_model_retry: 1 } : null;
   if (!next) return null;
   const { resetSubmissionLease, DEFINITIVE_REJECTION_REASON } = await import("../provider-submission-recovery.js");
