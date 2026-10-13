@@ -59,6 +59,30 @@
       "class": "reviewer-safety"
     },
     {
+      "glob": "scripts/orderlist-production-date-plan.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/apply-orderlist-production-date-plan.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-orderlist-production-date-plan.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-apply-orderlist-production-date-plan.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/capture-orderlist-production-date-source.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-capture-orderlist-production-date-source.py",
+      "class": "reviewer-safety"
+    },
+    {
       "glob": "scripts/test-task-gates.sh",
       "class": "reviewer-safety"
     },
