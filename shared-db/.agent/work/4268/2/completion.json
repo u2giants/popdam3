@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "work_issue": 4268,
+  "outcome": "ready-for-merge",
+  "reason": "Current-main dependency assertions and non-primary-ref negative fixture completed; current-head reviews, CI, governed promotion and live app proof remain gates.",
+  "contract_ref": "refs/db-contracts/4268/2",
+  "contract_sha256": "a0bc67c1527c28de0ff6d29a3de5d99f6cb316ed4394cc3aabeea84cb3a60570",
+  "head_sha": "1c27b79f53261b41aa7a56cfec966bbb4729b7c9",
+  "base_sha": "ef055e83ee3ec4bcc59516e38986f01a24dcb118",
+  "files_changed": [
+    ".github/live-proofs/4268.sql",
+    "supabase/migrations/20261013211042_popdam_sales_order_received_dates.sql",
+    "supabase/tests/popdam_sales_order_received_dates.sql"
+  ],
+  "db_reads": [
+    "view api.dam_order_list",
+    "table coldlion.order_history_line"
+  ],
+  "db_writes": [
+    "function public.get_dam_order_sales_order_dates"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Root executed on updated source; SQL/whitespace passed and application-return probe exemption was verified."
+    },
+    {
+      "command": "docker exec -i codex-po-no-reuse-01a12aec psql -U postgres -d so_date_test -v ON_ERROR_STOP=1 < supabase/tests/popdam_sales_order_received_dates.sql",
+      "exit_code": 0,
+      "evidence": "Root re-executed isolated PostgreSQL: primary ref wins despite secondary SO, auth/cap/date/unchanged checks PASS and ROLLBACK."
+    },
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "Root executed on updated source; SQL/whitespace passed and application-return probe exemption was verified."
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Root executed on updated source; SQL/whitespace passed and application-return probe exemption was verified."
+    }
+  ],
+  "assumptions_resolved": [
+    "Newest api.dam_order_list definition 20261009073649 filters primary refs; older migration cited by first reviewer was superseded. Regression with secondary ref to another SO passes.",
+    "Migration now asserts view kind/security_invoker, exact five typed dependencies and current primary-reference view contract.",
+    "Completion binds the latest implementation commit; evidence-only tail commits do not change source SQL.",
+    "No production or shared-preview writes during synthetic testing; current-head reviews and live app remain required."
+  ],
+  "stop_conditions_hit": [],
+  "pr": 4270,
+  "migration_versions": [
+    "20261013211042"
+  ]
+}
