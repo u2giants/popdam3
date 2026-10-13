@@ -123,7 +123,7 @@ def batch_plan():
             'evidence': {'production_order_number': 'D-10',
                          'customer_name': customer['canonical_name']},
         })
-    return {
+    plan = {
         'schema': executor.planner.SCHEMA,
         'database_project': executor.TARGET,
         'database_region': executor.planner.DB_REGION,
@@ -140,6 +140,8 @@ def batch_plan():
         'customer_identity_snapshot_digest': bridge_digest,
         'proposals': proposals,
     }
+    plan['plan_sha256'] = executor.planner.digest(plan)
+    return plan
 
 
 class BatchSnapshotConnection:
@@ -395,6 +397,9 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
             connection.events.append('fingerprint-read')
             return identity
         with (mock.patch.object(executor, 'connect', return_value=(connection, fingerprint)),
+              mock.patch.object(executor, 'current_head', return_value=plan['repository_head']),
+              mock.patch.object(executor, 'validate_public_apply_contract',
+                                side_effect=lambda candidate: executor.build_public_apply_contract(candidate)),
               mock.patch.object(executor.shared_db_importer, 'assert_server_is_target', side_effect=assert_target),
               mock.patch.object(executor.shared_db_importer, 'read_server_identity', side_effect=read_identity)):
             return executor.apply_plan(plan)
@@ -740,6 +745,111 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
                             plan, plan_raw, report, altered_raw,
                             hashlib.sha256(altered_raw).hexdigest())
 
+    def test_public_contract_builder_exposes_only_aggregate_bindings(self):
+        plan = frozen_plan()
+        contract = executor.build_public_apply_contract(plan)
+        self.assertEqual(contract['schema'], executor.PUBLIC_APPLY_CONTRACT_SCHEMA)
+        self.assertEqual(contract['action'], executor.PUBLIC_APPLY_ACTION)
+        self.assertEqual(contract['owner_issue'], '277')
+        self.assertEqual(contract['proposal_count'], 1)
+        self.assertEqual(contract['proposal_scope_sha256'], executor.planner.digest(plan['proposals']))
+        self.assertEqual(contract['customer_identity_snapshot_count'], 1)
+        self.assertEqual(set(contract), {
+            'schema', 'action', 'target', 'owner_issue', 'retirement', 'proposal_count',
+            'proposal_scope_sha256', 'database_fingerprint_sha256',
+            'customer_identity_snapshot_count', 'customer_identity_snapshot_sha256',
+            'planner_sha256', 'executor_sha256',
+        })
+        self.assertTrue({
+            'repository_head', 'source_capture_file_sha256', 'source_capture_digest', 'plan_sha256',
+        }.isdisjoint(contract))
+        rendered = json.dumps(contract, sort_keys=True)
+        for private_value in ('header-1', 'source-1', 'D-1', 'Customer One', '2024-03-04'):
+            self.assertNotIn(private_value, rendered)
+
+    def test_public_contract_proposal_hash_sorts_pairs_but_binds_full_preimages(self):
+        plan = batch_plan()
+        contract = executor.build_public_apply_contract(plan)
+        reversed_plan = copy.deepcopy(plan)
+        reversed_plan['proposals'].reverse()
+        digest_input = dict(reversed_plan)
+        digest_input.pop('plan_sha256')
+        reversed_plan['plan_sha256'] = executor.planner.digest(digest_input)
+        reversed_contract = executor.build_public_apply_contract(reversed_plan)
+        self.assertEqual(reversed_contract['proposal_scope_sha256'], contract['proposal_scope_sha256'])
+
+        changed_plan = copy.deepcopy(plan)
+        changed_plan['proposals'][0]['source_row_preimages'][0]['prod_reference_no'] = 'D-CHANGED'
+        digest_input = dict(changed_plan)
+        digest_input.pop('plan_sha256')
+        changed_plan['plan_sha256'] = executor.planner.digest(digest_input)
+        self.assertNotEqual(
+            executor.build_public_apply_contract(changed_plan)['proposal_scope_sha256'],
+            contract['proposal_scope_sha256'])
+
+    def test_public_contract_requires_exact_allowlist_and_plan_bindings(self):
+        plan = frozen_plan()
+        contract = executor.build_public_apply_contract(plan)
+        raw = json.dumps(contract, sort_keys=True, separators=(',', ':')).encode()
+        self.assertEqual(executor.validate_public_apply_contract(plan, raw), contract)
+
+        for key, bad_value in (
+                ('schema', 'unknown-contract'),
+                ('action', 'different-action'),
+                ('target', 'other-project'),
+                ('proposal_count', 2),
+                ('proposal_scope_sha256', 'f' * 64),
+                ('database_fingerprint_sha256', 'e' * 64),
+                ('customer_identity_snapshot_count', 2),
+                ('customer_identity_snapshot_sha256', 'd' * 64),
+                ('planner_sha256', 'c' * 64),
+                ('executor_sha256', 'b' * 64),
+                ('owner_issue', '278'),
+                ('retirement', 'reuse')):
+            altered = dict(contract, **{key: bad_value})
+            changed_raw = json.dumps(altered, sort_keys=True, separators=(',', ':')).encode()
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'does not bind'):
+                executor.validate_public_apply_contract(plan, changed_raw)
+
+        with self.assertRaisesRegex(ValueError, 'does not bind'):
+            executor.validate_public_apply_contract(plan, json.dumps({**contract, 'extra': 'value'}).encode())
+        incomplete = dict(contract)
+        del incomplete['customer_identity_snapshot_sha256']
+        with self.assertRaisesRegex(ValueError, 'does not bind'):
+            executor.validate_public_apply_contract(plan, json.dumps(incomplete).encode())
+
+    def test_committed_contract_is_loaded_from_head_blob_not_working_file(self):
+        contract_raw = b'{"schema":"fixture"}\n'
+        completed = SimpleNamespace(returncode=0, stdout=contract_raw)
+        with mock.patch.object(executor.subprocess, 'run', return_value=completed) as run:
+            self.assertEqual(executor.read_committed_public_apply_contract(), contract_raw)
+        self.assertEqual(run.call_args.args[0], [
+            'git', '--no-pager', 'show', f'HEAD:{executor.PUBLIC_APPLY_CONTRACT_PATH}',
+        ])
+
+    def test_readonly_cli_does_not_require_a_committed_action_contract(self):
+        with tempfile.TemporaryDirectory() as temp:
+            plan, plan_path, plan_raw, _, _, _, _ = self._review_inputs(Path(temp))
+            args = ['--plan', str(plan_path), '--plan-sha256', hashlib.sha256(plan_raw).hexdigest()]
+            with (mock.patch.object(executor, 'current_head', return_value=plan['repository_head']),
+                  mock.patch.object(executor, 'run_preflight', return_value={
+                      'mode': 'read-only-preflight', 'proposed': len(plan['proposals']), 'changed': 0}),
+                  mock.patch.object(executor, 'read_committed_public_apply_contract',
+                                    side_effect=AssertionError('read-only preflight must not require the contract'))):
+                self.assertEqual(executor.main(args), 0)
+
+    def test_apply_plan_rejects_public_contract_mismatch_before_connection(self):
+        plan = batch_plan()
+        contract = executor.build_public_apply_contract(plan)
+        contract['proposal_count'] += 1
+        contract_raw = json.dumps(contract, sort_keys=True, separators=(',', ':')).encode()
+        with (mock.patch.object(executor, 'current_head', return_value=plan['repository_head']),
+              mock.patch.object(executor, 'read_committed_public_apply_contract', return_value=contract_raw),
+              mock.patch.object(executor, 'connect') as connect):
+            with self.assertRaisesRegex(ValueError, 'does not bind'):
+                executor.apply_plan(plan)
+        connect.assert_not_called()
+
     def test_tampered_reviewer_report_fails_before_apply_connection(self):
         with tempfile.TemporaryDirectory() as temp:
             plan, plan_path, plan_raw, report, bundle, bundle_path, bundle_raw = self._review_inputs(Path(temp))
@@ -776,6 +886,26 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
                   mock.patch.object(executor, 'connect') as connect):
                 self.assertEqual(executor.main(args), 2)
                 apply.assert_not_called()
+                connect.assert_not_called()
+
+    def test_valid_reviewer_bundle_still_requires_committed_action_contract_before_connection(self):
+        with tempfile.TemporaryDirectory() as temp:
+            plan, plan_path, plan_raw, report, bundle, bundle_path, bundle_raw = self._review_inputs(Path(temp))
+            contract = executor.build_public_apply_contract(plan)
+            contract['proposal_scope_sha256'] = 'f' * 64
+            contract_raw = json.dumps(contract, sort_keys=True, separators=(',', ':')).encode()
+            args = [
+                '--plan', str(plan_path), '--plan-sha256', hashlib.sha256(plan_raw).hexdigest(),
+                '--apply', '--reviewer-approval', str(report), '--reviewer-bundle', str(bundle_path),
+                '--reviewer-bundle-sha256', hashlib.sha256(bundle_raw).hexdigest(),
+            ]
+            with (mock.patch.object(executor, 'current_head', return_value=plan['repository_head']),
+                  mock.patch.object(executor, '_verified_gate', return_value=(
+                      Path(bundle['task_gate_path']), bundle['task_gate_sha256'])),
+                  mock.patch.object(executor, 'verify_reviewer_gate'),
+                  mock.patch.object(executor, 'read_committed_public_apply_contract', return_value=contract_raw),
+                  mock.patch.object(executor, 'connect') as connect):
+                self.assertEqual(executor.main(args), 2)
                 connect.assert_not_called()
 
     def test_private_inputs_reject_symlinks_and_wrong_permissions(self):

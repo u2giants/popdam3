@@ -1,0 +1,14 @@
+{
+  "action": "fill-null-production-order-dates-from-coldlion-history",
+  "customer_identity_snapshot_count": 830,
+  "customer_identity_snapshot_sha256": "92c431e00ffab6ad466aec89c54401f668336db54fc61bf16f5f2a32c144b467",
+  "database_fingerprint_sha256": "1e6a663779c99ca8fb799138258ce2da0472f003a250701d8fbc5ac39bcfa018",
+  "executor_sha256": "b46750a19b699763d7871c893f1a636e179e1c926b6470d93e50e5b1f62c43da",
+  "owner_issue": "277",
+  "planner_sha256": "6fcf3cbb2e23adec4fbf6b63d954066fe6f075478ad3c71e202b0f7f2fc3ab6c",
+  "proposal_count": 601,
+  "proposal_scope_sha256": "eaf294fe10544a0307dd6204db0306d9f0a2fb6b1f2ebaae2903c09657869b57",
+  "retirement": "retain as audit record; do not reuse for another plan",
+  "schema": "orderlist-production-date-apply-contract-v1",
+  "target": "qsllyeztdwjgirsysgai"
+}

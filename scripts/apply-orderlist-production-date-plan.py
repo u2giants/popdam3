@@ -28,6 +28,10 @@ MAX_PROPOSALS = 1000
 MAX_BATCH_SCOPE_ROWS = 100000
 MAX_PROTECTED_INPUT_BYTES = 128 * 1024 * 1024
 REVIEW_BUNDLE_SCHEMA = 'orderlist-production-date-review-bundle-v1'
+PUBLIC_APPLY_CONTRACT_SCHEMA = 'orderlist-production-date-apply-contract-v1'
+PUBLIC_APPLY_CONTRACT_PATH = 'contracts/orderlist-production-date-apply.json'
+PUBLIC_APPLY_ACTION = 'fill-null-production-order-dates-from-coldlion-history'
+PUBLIC_APPLY_RETIREMENT = 'retain as audit record; do not reuse for another plan'
 GATE_LAUNCHER = Path('/usr/local/bin/ai-task-gates')
 GATE_RESOLVED_PATH = Path('/worksp/ai-devops/bin/ai-task-gates')
 
@@ -148,6 +152,76 @@ def current_head() -> str:
 def require_exact_head(plan: dict):
     if current_head() != plan['repository_head']:
         raise ValueError('Current repository head differs from frozen plan')
+
+
+def _canonical_proposal_scope(plan: dict) -> list[dict]:
+    proposals = plan.get('proposals')
+    if not isinstance(proposals, list) or not proposals or len(proposals) > MAX_PROPOSALS:
+        raise ValueError('Public apply contract requires a bounded nonempty proposal list')
+    if any(not isinstance(proposal, dict) or not isinstance(proposal.get('header_id'), str)
+           for proposal in proposals):
+        raise ValueError('Public apply contract proposals lack stable header bindings')
+    header_ids = [proposal['header_id'] for proposal in proposals]
+    if len(set(header_ids)) != len(header_ids):
+        raise ValueError('Public apply contract has duplicate proposal bindings')
+    return sorted(proposals, key=lambda proposal: proposal['header_id'])
+
+
+def build_public_apply_contract(plan: dict) -> dict:
+    """Build the aggregate-only, committed one-action descriptor for a frozen plan."""
+    proposals = _canonical_proposal_scope(plan)
+    fingerprint = plan.get('database_fingerprint')
+    if not _valid_database_fingerprint(fingerprint):
+        raise ValueError('Public apply contract cannot bind an invalid database fingerprint')
+    customer_count = plan.get('customer_identity_snapshot_count')
+    customer_digest = plan.get('customer_identity_snapshot_digest')
+    if (not isinstance(customer_count, int) or isinstance(customer_count, bool) or customer_count < 0 or
+            not isinstance(customer_digest, str) or not re.fullmatch(r'[0-9a-f]{64}', customer_digest)):
+        raise ValueError('Public apply contract cannot bind the customer identity snapshot')
+    for proposal in proposals:
+        if (proposal.get('customer_identity_snapshot_count') != customer_count or
+                proposal.get('customer_identity_snapshot_digest') != customer_digest):
+            raise ValueError('Proposal customer identity snapshots do not match the plan')
+    return {
+        'schema': PUBLIC_APPLY_CONTRACT_SCHEMA,
+        'action': PUBLIC_APPLY_ACTION,
+        'target': TARGET,
+        'owner_issue': '277',
+        'retirement': PUBLIC_APPLY_RETIREMENT,
+        'proposal_count': len(proposals),
+        'proposal_scope_sha256': planner.digest(proposals),
+        'database_fingerprint_sha256': planner.digest(fingerprint),
+        'customer_identity_snapshot_count': customer_count,
+        'customer_identity_snapshot_sha256': customer_digest,
+        'planner_sha256': sha_bytes(read_private_or_repo_file(ROOT / 'scripts' / 'orderlist-production-date-plan.py')),
+        'executor_sha256': sha_bytes(read_private_or_repo_file(Path(__file__).resolve())),
+    }
+
+
+def read_committed_public_apply_contract() -> bytes:
+    """Read only the committed contract blob; the working tree is not authority."""
+    try:
+        result = subprocess.run(
+            ['git', '--no-pager', 'show', f'HEAD:{PUBLIC_APPLY_CONTRACT_PATH}'],
+            cwd=ROOT, check=False, capture_output=True, timeout=10)
+    except Exception as exc:
+        raise ValueError('Committed one-action apply contract cannot be read') from exc
+    if result.returncode != 0 or len(result.stdout) > 64 * 1024:
+        raise ValueError('Committed one-action apply contract is unavailable or oversized')
+    return result.stdout
+
+
+def validate_public_apply_contract(plan: dict, raw: bytes | None = None) -> dict:
+    """Require the committed aggregate descriptor to match this exact plan and code."""
+    raw = read_committed_public_apply_contract() if raw is None else raw
+    try:
+        contract = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError, TypeError) as exc:
+        raise ValueError('Committed one-action apply contract is invalid') from exc
+    expected = build_public_apply_contract(plan)
+    if not isinstance(contract, dict) or set(contract) != set(expected) or contract != expected:
+        raise ValueError('Committed one-action apply contract does not bind this exact plan')
+    return contract
 
 
 def _verified_gate() -> tuple[Path, str]:
@@ -601,6 +675,8 @@ def run_preflight(plan: dict) -> dict:
 
 
 def apply_plan(plan: dict) -> dict:
+    require_exact_head(plan)
+    validate_public_apply_contract(plan)
     _check_plan_scope(plan)
     conn, fingerprint = connect()
     try:

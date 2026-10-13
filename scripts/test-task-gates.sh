@@ -18,6 +18,7 @@ expect_class scripts/test-orderlist-production-date-plan.py reviewer-safety 'Pro
 expect_class scripts/test-apply-orderlist-production-date-plan.py reviewer-safety 'Production-date executor guards receive protected review'
 expect_class scripts/capture-orderlist-production-date-source.py reviewer-safety 'Production-date source capture receives protected review'
 expect_class scripts/test-capture-orderlist-production-date-source.py reviewer-safety 'Production-date capture guards receive protected review'
+expect_class contracts/orderlist-production-date-apply.json reviewer-safety 'Production-date one-action contract receives protected review'
 expect_class README.md prose 'ordinary documentation uses the prose fast path'
 expect_class src/App.tsx ui-live-workflow 'browser behavior requires authenticated visual proof'
 expect_class AGENTS.md reviewer-safety 'agent rulebook receives protected full treatment'
