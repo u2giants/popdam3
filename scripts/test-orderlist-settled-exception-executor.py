@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -102,6 +103,18 @@ def fake_postimage():
     line_refs = {row["source_id"]: {"id": f"lref-{i}", "production_order_line_id": row["id"], "source_system": "google_order_list", "source_id": row["source_id"], "is_primary": True, "metadata": {}} for i, row in enumerate(lines)}
     catalog = {"schema": executor.CATALOG_SNAPSHOT_SCHEMA, "target": executor.TARGET, "requested_pairs": [], "rows": [], "po_reuse_guard_state": absent_guard_state()}
     return {
+        "schema": "orderlist-settled-exception-postimage-v1",
+        "target": executor.TARGET,
+        "review_plan_sha256": "1" * 64,
+        "source_preimages_file_sha256": "2" * 64,
+        "source_preimages_semantic_sha256": "3" * 64,
+        "canonical_importer_sha256": executor.sha256_bytes(executor.CANONICAL_IMPORTER_PATH.read_bytes()),
+        "counts": {
+            "headers_total": 76, "headers_insert": 40, "headers_update": 0, "headers_preserve": 36,
+            "lines_total": 296, "lines_insert": 253, "lines_update": 0, "lines_preserve": 43,
+            "header_refs_insert": 40, "line_refs_insert": 253, "po_admission_requirements": 0,
+        },
+        "deletes": 0,
         "orders": orders, "lines": lines,
         "order_source_ref_assertions": order_refs, "line_source_ref_assertions": line_refs,
         "order_source_refs_insert": list(order_refs.values()), "line_source_refs_insert": list(line_refs.values()),
@@ -151,6 +164,129 @@ class FakeGateway:
 
 
 class SettledExceptionExecutorTests(unittest.TestCase):
+    def test_public_apply_contract_is_scalar_exact_and_non_circular(self):
+        postimage = fake_postimage()
+        source_preimages = {"fixture": "frozen"}
+        semantic_sha = executor.PREFLIGHT.digest(source_preimages)
+        postimage["source_preimages_semantic_sha256"] = semantic_sha
+        plan = {
+            "preimages_sha256": semantic_sha,
+            "canonical_importer_sha256": postimage["canonical_importer_sha256"],
+        }
+        contract = executor.build_public_apply_contract(
+            plan, source_preimages, postimage,
+            review_plan_sha256="1" * 64,
+            source_preimages_file_sha256="2" * 64,
+        )
+        self.assertEqual(contract["schema"], executor.PUBLIC_APPLY_CONTRACT_SCHEMA)
+        self.assertEqual(contract["action"], executor.PUBLIC_APPLY_ACTION)
+        self.assertEqual(contract["target"], executor.TARGET)
+        self.assertEqual(contract["owner_issue"], 277)
+        self.assertEqual(contract["postimage_sha256"], executor.digest(postimage))
+        self.assertEqual(contract["headers_insert"], 40)
+        self.assertEqual(contract["lines_insert"], 253)
+        self.assertTrue(all(not isinstance(value, (dict, list)) for value in contract.values()))
+        self.assertNotIn("repository_head", contract)
+        self.assertNotIn("capture_file_sha256", contract)
+        self.assertNotIn("reviewer_report_sha256", contract)
+        executor.require_public_apply_contract(
+            contract, plan, source_preimages, postimage,
+            review_plan_sha256="1" * 64,
+            source_preimages_file_sha256="2" * 64,
+        )
+
+    def test_public_apply_contract_rejects_wrong_scope_and_unknown_fields(self):
+        postimage = fake_postimage()
+        source_preimages = {"fixture": "frozen"}
+        semantic_sha = executor.PREFLIGHT.digest(source_preimages)
+        postimage["source_preimages_semantic_sha256"] = semantic_sha
+        plan = {
+            "preimages_sha256": semantic_sha,
+            "canonical_importer_sha256": postimage["canonical_importer_sha256"],
+        }
+        contract = executor.build_public_apply_contract(
+            plan, source_preimages, postimage,
+            review_plan_sha256="1" * 64,
+            source_preimages_file_sha256="2" * 64,
+        )
+        for altered in (
+            {**contract, "review_plan_sha256": "4" * 64},
+            {**contract, "source_preimages_file_sha256": "4" * 64},
+            {**contract, "postimage_sha256": "4" * 64},
+            {**contract, "canonical_importer_sha256": "4" * 64},
+            {**contract, "executor_sha256": "4" * 64},
+            {**contract, "owner_issue": True},
+            {**contract, "headers_total": True},
+            {**contract, "unexpected": "field"},
+            {key: value for key, value in contract.items() if key != "deletes"},
+        ):
+            with self.subTest(contract=altered), self.assertRaisesRegex(executor.ApplyBlocked, "does not bind"):
+                executor.require_public_apply_contract(
+                    altered, plan, source_preimages, postimage,
+                    review_plan_sha256="1" * 64,
+                    source_preimages_file_sha256="2" * 64,
+                )
+
+    def test_public_contract_loader_reads_only_committed_head_blob_and_fails_closed(self):
+        completed = subprocess.CompletedProcess(
+            ["git"], 0, b'{"schema":"synthetic"}', b"",
+        )
+        with mock.patch.object(executor.subprocess, "run", return_value=completed) as run:
+            self.assertEqual(executor.read_committed_public_apply_contract(), {"schema": "synthetic"})
+        command = run.call_args.args[0]
+        self.assertEqual(command, ["git", "show", f"HEAD:{executor.PUBLIC_APPLY_CONTRACT_PATH}"])
+        self.assertEqual(run.call_args.kwargs["cwd"], executor.ROOT)
+
+        for failed in (
+            subprocess.CompletedProcess(["git"], 1, b"", b"missing"),
+            subprocess.CompletedProcess(["git"], 0, b"[]", b""),
+            subprocess.CompletedProcess(["git"], 0, b"{" + b" " * executor.PUBLIC_APPLY_CONTRACT_MAX_BYTES, b""),
+        ):
+            with mock.patch.object(executor.subprocess, "run", return_value=failed):
+                with self.assertRaisesRegex(executor.ApplyBlocked, "committed one-action contract"):
+                    executor.read_committed_public_apply_contract()
+
+    def test_apply_contract_mismatch_stops_before_output_or_database_connection(self):
+        preimages = {}
+        postimage = fake_postimage()
+        semantic_sha = executor.PREFLIGHT.digest(preimages)
+        postimage["source_preimages_semantic_sha256"] = semantic_sha
+        plan = {
+            "preimages_sha256": semantic_sha,
+            "canonical_importer_sha256": executor.sha256_bytes(executor.CANONICAL_IMPORTER_PATH.read_bytes()),
+        }
+        saved_postimage = json.dumps(postimage).encode()
+        private_bytes = {
+            Path("plan"): json.dumps(plan).encode(),
+            Path("preimages"): json.dumps(preimages).encode(),
+            Path("postimage"): saved_postimage,
+        }
+        args = mock.Mock(
+            review_plan=Path("plan"), source_preimages=Path("preimages"),
+            expected_review_plan_sha256="1" * 64,
+            expected_preimages_file_sha256="2" * 64,
+            apply=True, frozen_postimage=Path("postimage"),
+            catalog_snapshot=None, capture_catalog=False,
+            output_dir=Path("output"), reviewer_bundle=None, reviewer_report=None,
+        )
+        for contract_result in (
+            {},
+            executor.ApplyBlocked("committed one-action contract is unavailable"),
+        ):
+            with (
+                self.subTest(contract_result=type(contract_result).__name__),
+                mock.patch.object(executor, "_safe_read_private", side_effect=lambda path: private_bytes[path]),
+                mock.patch.object(executor, "_validate_review_plan", return_value={"orders": [], "lines": []}),
+                mock.patch.object(executor, "construct_postimage", return_value=postimage),
+                mock.patch.object(executor, "read_committed_public_apply_contract", side_effect=contract_result if isinstance(contract_result, BaseException) else None, return_value=contract_result if not isinstance(contract_result, BaseException) else None),
+                mock.patch.object(executor.PREFLIGHT, "open_private_directory") as open_directory,
+                mock.patch.object(executor, "_open_target") as open_target,
+            ):
+                with self.assertRaises(executor.ApplyBlocked):
+                    executor.run(args)
+            open_directory.assert_not_called()
+            open_target.assert_not_called()
+
     def test_original_importer_pin_is_required_and_checked_before_plan_build(self):
         current = executor.sha256_bytes(executor.CANONICAL_IMPORTER_PATH.read_bytes())
         self.assertEqual(executor._require_canonical_importer_pin({"canonical_importer_sha256": current}), current)

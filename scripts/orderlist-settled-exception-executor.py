@@ -52,6 +52,20 @@ NUMERIC_FIELDS = {
 INTEGER_FIELDS = {"assortment_component_ordinal"}
 REVIEW_BUNDLE_TYPE = "orderlist_settled_exception_apply_approval_v1"
 CATALOG_SNAPSHOT_SCHEMA = "orderlist-exact-master-data-catalog-v1"
+PUBLIC_APPLY_CONTRACT_PATH = "contracts/orderlist-settled-exception-apply.json"
+PUBLIC_APPLY_CONTRACT_SCHEMA = "orderlist-settled-exception-apply-contract-v1"
+PUBLIC_APPLY_ACTION = "apply-settled-55-google-orderlist-exceptions"
+PUBLIC_APPLY_RETIREMENT = "retain as audit record; do not reuse for another plan"
+PUBLIC_APPLY_CONTRACT_MAX_BYTES = 16 * 1024
+PUBLIC_APPLY_COUNTS = {
+    "headers_total": EXPECTED_HEADER_COUNT,
+    "headers_insert": 40,
+    "lines_total": EXPECTED_LINE_COUNT,
+    "lines_insert": 253,
+    "header_refs_insert": 40,
+    "line_refs_insert": 253,
+    "deletes": 0,
+}
 MANAGED_TASK_GATE_PATH = Path("/usr/local/bin/ai-task-gates")
 MATCH_PROVENANCE_METADATA_KEYS = (
     "master_data_resolution", "item_link_pending_reason", "master_data_candidate_count",
@@ -113,6 +127,102 @@ def canonical(value: Any) -> Any:
 
 def digest(value: Any) -> str:
     return sha256_bytes(json.dumps(canonical(value), sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode())
+
+
+def build_public_apply_contract(
+    review_plan: Mapping[str, Any],
+    source_preimages: Mapping[str, Any],
+    postimage: Mapping[str, Any],
+    *,
+    review_plan_sha256: str,
+    source_preimages_file_sha256: str,
+) -> dict[str, Any]:
+    """Build the stable, non-circular public descriptor for this exact action."""
+    plan_sha = PREFLIGHT._require_hash(review_plan_sha256, "review_plan_sha256")
+    preimages_sha = PREFLIGHT._require_hash(source_preimages_file_sha256, "preimages_file_sha256")
+    if PREFLIGHT.digest(source_preimages) != review_plan.get("preimages_sha256"):
+        raise ExecutorError("public action source preimages differ from the frozen review plan")
+    importer_sha = PREFLIGHT._require_hash(postimage.get("canonical_importer_sha256"), "canonical_importer_sha256")
+    if postimage.get("review_plan_sha256") != plan_sha or postimage.get("source_preimages_file_sha256") != preimages_sha:
+        raise ExecutorError("frozen postimage is not bound to the public action inputs")
+    if postimage.get("source_preimages_semantic_sha256") != review_plan.get("preimages_sha256"):
+        raise ExecutorError("frozen postimage semantic preimage binding differs from the review plan")
+    if importer_sha != review_plan.get("canonical_importer_sha256"):
+        raise ExecutorError("frozen importer binding differs from the review plan")
+    counts = postimage.get("counts")
+    if not isinstance(counts, dict) or any(counts.get(key) != value for key, value in PUBLIC_APPLY_COUNTS.items() if key != "deletes"):
+        raise ExecutorError("frozen action counts differ from the public action contract")
+    if postimage.get("deletes") != PUBLIC_APPLY_COUNTS["deletes"]:
+        raise ExecutorError("frozen action includes an unexpected deletion")
+    if postimage.get("target") != TARGET:
+        raise ExecutorError("frozen action target differs from the public action contract")
+    executor_sha = sha256_bytes(Path(__file__).read_bytes())
+    return {
+        "schema": PUBLIC_APPLY_CONTRACT_SCHEMA,
+        "action": PUBLIC_APPLY_ACTION,
+        "target": TARGET,
+        "region": "Virginia",
+        "owner_issue": 277,
+        "retirement": PUBLIC_APPLY_RETIREMENT,
+        "review_plan_sha256": plan_sha,
+        "source_preimages_file_sha256": preimages_sha,
+        "postimage_sha256": digest(postimage),
+        "headers_total": PUBLIC_APPLY_COUNTS["headers_total"],
+        "headers_insert": PUBLIC_APPLY_COUNTS["headers_insert"],
+        "lines_total": PUBLIC_APPLY_COUNTS["lines_total"],
+        "lines_insert": PUBLIC_APPLY_COUNTS["lines_insert"],
+        "header_refs_insert": PUBLIC_APPLY_COUNTS["header_refs_insert"],
+        "line_refs_insert": PUBLIC_APPLY_COUNTS["line_refs_insert"],
+        "deletes": PUBLIC_APPLY_COUNTS["deletes"],
+        "canonical_importer_sha256": importer_sha,
+        "executor_sha256": executor_sha,
+    }
+
+
+def read_committed_public_apply_contract() -> dict[str, Any]:
+    """Read only the committed descriptor; working-tree files cannot authorize apply."""
+    try:
+        result = subprocess.run(
+            ["git", "show", f"HEAD:{PUBLIC_APPLY_CONTRACT_PATH}"],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise ApplyBlocked("committed one-action contract is unavailable") from None
+    if result.returncode != 0 or len(result.stdout) > PUBLIC_APPLY_CONTRACT_MAX_BYTES:
+        raise ApplyBlocked("committed one-action contract is unavailable or oversized")
+    try:
+        value = json.loads(result.stdout)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise ApplyBlocked("committed one-action contract is invalid") from None
+    if not isinstance(value, dict):
+        raise ApplyBlocked("committed one-action contract is invalid")
+    return value
+
+
+def require_public_apply_contract(
+    contract: Mapping[str, Any],
+    review_plan: Mapping[str, Any],
+    source_preimages: Mapping[str, Any],
+    postimage: Mapping[str, Any],
+    *,
+    review_plan_sha256: str,
+    source_preimages_file_sha256: str,
+) -> dict[str, Any]:
+    expected = build_public_apply_contract(
+        review_plan, source_preimages, postimage,
+        review_plan_sha256=review_plan_sha256,
+        source_preimages_file_sha256=source_preimages_file_sha256,
+    )
+    if set(contract) != set(expected) or any(
+        type(contract[key]) is not type(value) or contract[key] != value
+        for key, value in expected.items()
+    ):
+        raise ApplyBlocked("committed one-action contract does not bind these exact frozen inputs")
+    return expected
 
 
 def deterministic_uuid(entity: str, source_id: str) -> str:
@@ -1272,6 +1382,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             expected_preimages_file_sha256=preimages_sha,
         )
     postimage_sha = digest(postimage)
+    if args.apply:
+        require_public_apply_contract(
+            read_committed_public_apply_contract(),
+            review_plan,
+            frozen_preimages,
+            postimage,
+            review_plan_sha256=plan_sha,
+            source_preimages_file_sha256=preimages_sha,
+        )
     output_dir_fd = PREFLIGHT.open_private_directory(args.output_dir)
     os.close(output_dir_fd)
     if args.apply:

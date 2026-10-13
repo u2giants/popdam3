@@ -12,6 +12,7 @@ expect_class scripts/test-orderlist-source-dispositions.py reviewer-safety 'Sour
 expect_class scripts/orderlist-source-disposition-writer.py reviewer-safety 'Order exception preflight and writer receives protected review'
 expect_class scripts/test-orderlist-source-disposition-writer.py reviewer-safety 'Order exception writer guards receive protected review'
 expect_class scripts/orderlist-settled-exception-executor.py reviewer-safety 'Settled exception executor receives protected review'
+expect_class contracts/orderlist-settled-exception-apply.json reviewer-safety 'Settled exception one-action contract receives protected review'
 expect_class scripts/test-orderlist-settled-exception-executor.py reviewer-safety 'Settled exception executor guards receive protected review'
 expect_class scripts/test-orderlist-settled-exception-postgres.py reviewer-safety 'Settled exception PostgreSQL fixture test receives protected review'
 expect_class scripts/load-orderlist-integration-inputs.py reviewer-safety 'Auxiliary input writer receives protected review'
