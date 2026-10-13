@@ -1,0 +1,62 @@
+{
+    "schema_version": 2,
+    "generation": 2,
+    "evidence_parent": {
+        "work_issue": 4274,
+        "generation": 1,
+        "contract_sha256": "e82f3d34b0ac246d07a47a66d932cdaa0b33cd2b97254ca08c190eace0735086"
+    },
+    "work_issue": 4274,
+    "work_type": "repo-maintenance",
+    "route": "repo-maintenance",
+    "goal": "Add a manually invoked, bounded, history-only path for one current or future ColdLion sales-order window.",
+    "base_sha": "8be5f2114c6f664a91381ca9b8ee65df81f91537",
+    "dispatcher": "Root coordinator thread",
+    "worker": "Codex acceptance subagent /root/acceptance",
+    "branch": "codex/bounded-forward-orderhistory-4274-g2-20261013",
+    "worktree": "/worksp/.worktrees/shared-db-bounded-forward-orderhistory-g2",
+    "allowed_paths": [
+        ".github/workflows/coldlion-history-backfill.yml",
+        "tools/coldlion-landing-history.test.mjs",
+        "tools/coldlion-landing/backfill-history.mjs",
+        ".agent/work/4274/2/contract.json",
+        ".agent/work/4274/2/completion.json"
+    ],
+    "file_writes": [
+        ".github/workflows/coldlion-history-backfill.yml",
+        "tools/coldlion-landing-history.test.mjs",
+        "tools/coldlion-landing/backfill-history.mjs",
+        ".agent/work/4274/2/contract.json",
+        ".agent/work/4274/2/completion.json"
+    ],
+    "db_reads": [],
+    "db_writes": [],
+    "prohibited_actions": [
+        "Do not copy or author implementation source before the coordinator publishes this generation-2 contract and explicitly releases the worker.",
+        "Do not treat prior generation-1 source drafts as authorized or claim they were made under a published contract; those drafts remain in their original worktree and are not authority.",
+        "Do not inherit structural authority from issue #4268; this source-authoring work is scoped to repo-maintenance issue #4274.",
+        "Do not access a database, call the ColdLion API, or perform any production or live operation.",
+        "Do not commit, push, publish, review, create or edit a pull request, or write to GitHub.",
+        "Do not change schema, application code, or files outside the listed paths."
+    ],
+    "required_checks": [
+        "node --test tools/coldlion-landing-history.test.mjs",
+        "node --check tools/coldlion-landing/backfill-history.mjs",
+        "python3 -c 'import yaml; yaml.safe_load(open(\".github/workflows/coldlion-history-backfill.yml\"))'",
+        "python3 -c 'import re, subprocess, yaml; w=yaml.safe_load(open(\".github/workflows/coldlion-history-backfill.yml\")); [subprocess.run([\"bash\", \"-n\"], input=re.sub(r\"\\$\\{\\{.*?\\}\\}\", \"placeholder\", s), text=True, check=True) for j in w[\"jobs\"].values() for s in (step.get(\"run\") for step in j.get(\"steps\", []) if step.get(\"run\"))]'",
+        "git diff --check"
+    ],
+    "assumptions": [
+        "Issue #4274 is the root-assigned repo-maintenance source-authoring route; issue #277 remains the application live-proof issue.",
+        "This generation starts from current upstream commit 8be5f2114c6f664a91381ca9b8ee65df81f91537 in a new worktree and branch.",
+        "Generation 1 is linked only through its supplied immutable contract digest; prior source drafts made before publication are not treated as authority or copied into this worktree.",
+        "The implementation will be copied or authored only after contract publication and explicit coordinator release.",
+        "No database or production action is authorized by this contract; any later runtime action requires separate root review and authorization."
+    ],
+    "stop_conditions": [
+        "Stop until the coordinator publishes this exact generation-2 contract and explicitly releases the worker.",
+        "Stop if any required offline check fails.",
+        "Stop if the work needs database access, ColdLion API calls, production activity, or files outside this contract.",
+        "Stop if issue #4274 does not remain the assigned repo-maintenance scope."
+    ]
+}
