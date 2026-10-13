@@ -227,7 +227,7 @@ def _valid_source_partition(rows: list[dict]) -> tuple[str | None, list[dict], s
         if any(key not in row or row.get(key) is not False for key in
                ('retention_identity_ambiguous', 'retention_ordering_ambiguous')):
             return None, [], 'source_partition_ambiguous'
-        if row.get('partition_ambiguous') is True:
+        if ('partition_ambiguous' in row and row.get('partition_ambiguous') is not False):
             return None, [], 'source_partition_ambiguous'
     dates = {parse_date(row.get('prod_order_date')) for row in rows}
     if None in dates:

@@ -101,6 +101,19 @@ class ProductionDatePlannerTests(unittest.TestCase):
             'company_code': ' EDGEHOME ', 'prod_order_no': ' 555 ',
         }), (' EDGEHOME ', ' 555 '))
 
+    def test_optional_partition_ambiguity_must_be_false_when_present(self):
+        capture = base_capture()
+        source_rows = capture['prod_history_rows']
+        self.assertIsNone(planmod._valid_source_partition(source_rows)[2])
+        for value in (None, True):
+            with self.subTest(value=value):
+                rows = deepcopy(source_rows)
+                rows[0]['partition_ambiguous'] = value
+                self.assertEqual(planmod._valid_source_partition(rows)[2], 'source_partition_ambiguous')
+        rows = deepcopy(source_rows)
+        rows[0]['partition_ambiguous'] = False
+        self.assertIsNone(planmod._valid_source_partition(rows)[2])
+
     def test_protected_capture_reads_hash_and_json_from_the_same_owned_file_bytes(self):
         raw = b'{"example":"pinned bytes"}\n'
         with tempfile.TemporaryDirectory() as folder:

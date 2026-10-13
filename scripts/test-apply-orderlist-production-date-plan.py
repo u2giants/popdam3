@@ -191,6 +191,72 @@ class BatchSnapshotConnection:
         pass
 
 
+class ApplyFlowConnection(BatchSnapshotConnection):
+    def __init__(self, plan, *, lock_allowed=True, corrupt_afterimage=False):
+        super().__init__(plan)
+        self.info = types.SimpleNamespace(
+            host=executor.POOLER_HOST, port=executor.POOLER_PORT,
+            user=executor.POOLER_USER, dbname=executor.DATABASE)
+        self.events = []
+        self.lock_allowed = lock_allowed
+        self.corrupt_afterimage = corrupt_afterimage
+        self.updated = False
+        self.header_reads = 0
+        self.update_params = None
+
+    def execute(self, query, params=()):
+        self.queries.append((query, params))
+        if query.startswith('BEGIN '):
+            self.events.append('begin')
+            return FakeCursor([])
+        if query.startswith('SET LOCAL'):
+            return FakeCursor([])
+        if query == 'SHOW transaction_isolation':
+            return FakeCursor([('serializable',)])
+        if query == 'SHOW transaction_read_only':
+            return FakeCursor([('on' if self.read_only else 'off',)])
+        if 'SELECT pg_try_advisory_xact_lock' in query:
+            self.events.append('advisory-lock')
+            return FakeCursor([(self.lock_allowed,)])
+        if query.startswith('LOCK TABLE '):
+            self.events.append('table-lock')
+            return FakeCursor([])
+        if query.startswith('UPDATE plm.production_order AS po '):
+            self.events.append('update')
+            self.update_params = params
+            by_id = {str(row['id']): row for row in self.snapshot['headers']}
+            updated = []
+            for header_id, order_date in zip(params[::2], params[1::2]):
+                row = by_id[str(header_id)]
+                row['order_date'] = order_date
+                row['updated_at'] = 'transaction timestamp'
+                updated.append(copy.deepcopy(row))
+            self.updated = True
+            return FakeCursor([(row,) for row in updated])
+        if 'FROM plm.production_order AS t' in query:
+            self.header_reads += 1
+            if self.corrupt_afterimage and self.updated and self.header_reads >= 2:
+                planned = self.plan['proposals'][0]['header_id']
+                next(row for row in self.snapshot['headers'] if str(row['id']) == str(planned))['order_date'] = '2099-01-01'
+            return FakeCursor([(row, row['id']) for row in self.snapshot['headers']])
+        if 'FROM plm.production_order_line_source_ref AS t' in query:
+            return FakeCursor([(row, row['id']) for row in self.snapshot['refs']])
+        if 'FROM plm.production_order_line AS t' in query:
+            return FakeCursor([(row, row['id']) for row in self.snapshot['lines']])
+        if 'FROM coldlion.prod_history_line AS s' in query:
+            self.events.append('source-read')
+            return FakeCursor([(row, row['id']) for row in self.snapshot['source']])
+        if 'FROM plm.erp_customer AS e' in query:
+            return FakeCursor([(row,) for row in self.snapshot['customer_rows']])
+        raise AssertionError('Unexpected query in apply orchestration fixture')
+
+    def rollback(self):
+        self.events.append('rollback')
+
+    def commit(self):
+        self.events.append('commit')
+
+
 class FakeCursor:
     def __init__(self, rows):
         self.rows = rows
@@ -318,6 +384,65 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'fingerprint differs from the captured target'):
                 executor.run_preflight(plan)
         self.assertEqual(connection.queries, [])
+
+    def _run_apply_with_fake_target_proof(self, plan, connection):
+        fingerprint = ('db', 'addr', 'started')
+        identity = SimpleNamespace(fingerprint=fingerprint)
+        def assert_target(conn, **kwargs):
+            connection.events.append('target-proof')
+            return identity
+        def read_identity(conn):
+            connection.events.append('fingerprint-read')
+            return identity
+        with (mock.patch.object(executor, 'connect', return_value=(connection, fingerprint)),
+              mock.patch.object(executor.shared_db_importer, 'assert_server_is_target', side_effect=assert_target),
+              mock.patch.object(executor.shared_db_importer, 'read_server_identity', side_effect=read_identity)):
+            return executor.apply_plan(plan)
+
+    def test_apply_plan_end_to_end_commits_only_after_locks_update_readback_and_identity_proof(self):
+        plan = batch_plan()
+        connection = ApplyFlowConnection(plan)
+        result = self._run_apply_with_fake_target_proof(plan, connection)
+        self.assertEqual(result, {'mode': 'applied', 'proposed': 2, 'changed': 2})
+        self.assertEqual(connection.read_only, False)
+        self.assertEqual(connection.update_params, (
+            '00000000-0000-0000-0000-000000000001', '2024-03-04',
+            '00000000-0000-0000-0000-000000000002', '2025-03-04'))
+        self.assertEqual([row['order_date'] for row in sorted(
+            connection.snapshot['headers'], key=lambda row: row['id'])],
+            ['2024-03-04', '2025-03-04'])
+        self.assertEqual(connection.events.count('target-proof'), 2)
+        self.assertEqual(connection.events.count('fingerprint-read'), 2)
+        update_index = connection.events.index('update')
+        commit_index = connection.events.index('commit')
+        self.assertTrue(all(index < update_index for index, event in enumerate(connection.events)
+                            if event == 'table-lock'))
+        self.assertGreater(connection.events.index('fingerprint-read', update_index), update_index)
+        self.assertEqual(commit_index, len(connection.events) - 1)
+        post_source_read = max(index for index, event in enumerate(connection.events)
+                               if event == 'source-read')
+        final_target_proof = max(index for index, event in enumerate(connection.events)
+                                 if event == 'fingerprint-read')
+        self.assertGreater(final_target_proof, post_source_read)
+
+    def test_apply_plan_corrupt_afterimage_rolls_back_without_commit(self):
+        plan = batch_plan()
+        connection = ApplyFlowConnection(plan, corrupt_afterimage=True)
+        with self.assertRaisesRegex(ValueError, 'header changed beyond approved'):
+            self._run_apply_with_fake_target_proof(plan, connection)
+        self.assertTrue(connection.updated)
+        self.assertIn('rollback', connection.events)
+        self.assertNotIn('commit', connection.events)
+
+    def test_apply_plan_lock_refusal_rolls_back_before_any_update(self):
+        plan = batch_plan()
+        connection = ApplyFlowConnection(plan, lock_allowed=False)
+        with self.assertRaisesRegex(ValueError, 'Another production-date plan is active'):
+            self._run_apply_with_fake_target_proof(plan, connection)
+        self.assertNotIn('update', connection.events)
+        self.assertNotIn('table-lock', connection.events)
+        self.assertIn('rollback', connection.events)
+        self.assertNotIn('commit', connection.events)
 
     def test_frozen_plan_requires_exact_virginia_target_fields(self):
         for field, bad_value in (
