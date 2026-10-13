@@ -6,9 +6,12 @@ from __future__ import annotations
 from decimal import Decimal
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
+import tempfile
 import unittest
+from unittest import mock
 
 
 MODULE_PATH = Path(__file__).with_name("orderlist-settled-exception-executor.py")
@@ -256,6 +259,55 @@ class SettledExceptionExecutorTests(unittest.TestCase):
         self.assertEqual(row["metadata"], {"raw_quantity": "600.0", "raw_line_number": "0007"})
         self.assertEqual(before, executor.digest(loaded))
 
+    def test_readback_allows_only_triggered_updated_at_at_transaction_time(self):
+        postimage = fake_postimage()
+        stamp = "2026-10-13T14:00:00+00:00"
+        prior = "2026-10-01T12:00:00+00:00"
+        row = postimage["orders"][0]
+        row.update({
+            "action": "update",
+            "database_generated_fields": ["updated_at"],
+            "assert_fields": {"id": row["id"], "created_at": prior, "updated_at": prior, "status": "in_production"},
+        })
+        readback = {
+            "transaction_timestamp": stamp,
+            "orders": [item["assert_fields"] for item in postimage["orders"]],
+            "lines": [item["assert_fields"] for item in postimage["lines"]],
+            "order_refs": list(postimage["order_source_ref_assertions"].values()),
+            "line_refs": list(postimage["line_source_ref_assertions"].values()),
+            "tracking": [], "snapshots": [],
+        }
+        readback["orders"][0] = {**row["assert_fields"], "updated_at": stamp}
+        executor.validate_readback(postimage, readback)
+
+        for field, value in (("updated_at", prior), ("created_at", stamp), ("status", "cancelled")):
+            bad = json.loads(json.dumps(readback))
+            bad["orders"][0][field] = value
+            with self.subTest(field=field), self.assertRaises(executor.ExecutorError):
+                executor.validate_readback(postimage, bad)
+
+    def test_readback_checks_insert_defaults_and_preserved_timestamps(self):
+        postimage = fake_postimage()
+        stamp = "2026-10-13T14:00:00+00:00"
+        prior = "2026-10-01T12:00:00+00:00"
+        insert = postimage["orders"][0]
+        insert["database_default_fields"] = ["created_at", "updated_at"]
+        insert["assert_fields"] = {"id": insert["id"], "created_at": stamp, "updated_at": stamp}
+        preserve = postimage["orders"][1]
+        preserve.update({"action": "preserve", "assert_fields": {"id": preserve["id"], "created_at": prior, "updated_at": prior}})
+        readback = {
+            "transaction_timestamp": stamp,
+            "orders": [row["assert_fields"] for row in postimage["orders"]],
+            "lines": [row["assert_fields"] for row in postimage["lines"]],
+            "order_refs": list(postimage["order_source_ref_assertions"].values()),
+            "line_refs": list(postimage["line_source_ref_assertions"].values()),
+            "tracking": [], "snapshots": [],
+        }
+        executor.validate_readback(postimage, readback)
+        readback["orders"][1] = {**preserve["assert_fields"], "updated_at": stamp}
+        with self.assertRaisesRegex(executor.ExecutorError, "readback differs"):
+            executor.validate_readback(postimage, readback)
+
     def test_database_identity_fingerprint_tuple_survives_private_json_roundtrip(self):
         identity = {
             "project_ref": executor.TARGET,
@@ -271,6 +323,100 @@ class SettledExceptionExecutorTests(unittest.TestCase):
         altered = {**frozen, "host": f"{executor.PREFLIGHT.TARGET_HOST}.attacker.invalid"}
         with self.assertRaisesRegex(executor.PREFLIGHT.PreflightError, "Virginia target"):
             executor.PREFLIGHT.validate_database_identity(altered)
+
+    def test_task_gate_uses_managed_absolute_path_when_path_is_hijacked(self):
+        report_digest = "a" * 64
+        managed = executor.validated_task_gate_identity()
+        binding = {
+            "task_gate_launcher_path": managed["path"],
+            "task_gate_launcher_sha256": managed["sha256"],
+            "report_sha256": report_digest,
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            hijack_dir = Path(temp_dir) / "bin"
+            hijack_dir.mkdir()
+            hijack = hijack_dir / "ai-task-gates"
+            hijack.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+            hijack.chmod(0o755)
+            report = Path(temp_dir) / "review.txt"
+            report.write_text("synthetic report", encoding="utf-8")
+            report.chmod(0o644)
+            binding["report_sha256"] = executor.sha256_bytes(report.read_bytes())
+            with mock.patch.dict(os.environ, {"PATH": str(hijack_dir)}), mock.patch.object(
+                executor.subprocess, "run", return_value=mock.Mock(returncode=0)
+            ) as run:
+                executor.check_task_gate(report, binding)
+            command = run.call_args.args[0]
+            self.assertEqual(command[0], managed["path"])
+            self.assertNotEqual(command[0], str(hijack))
+
+    def test_task_gate_hash_mismatch_blocks_before_execution(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            report = Path(temp_dir) / "review.txt"
+            report.write_text("synthetic report", encoding="utf-8")
+            report.chmod(0o644)
+            binding = {
+                "task_gate_launcher_path": executor.validated_task_gate_identity()["path"],
+                "task_gate_launcher_sha256": "0" * 64,
+                "report_sha256": executor.sha256_bytes(report.read_bytes()),
+            }
+            with mock.patch.object(executor.subprocess, "run") as run:
+                with self.assertRaisesRegex(executor.ApplyBlocked, "differs from the reviewed bundle"):
+                    executor.check_task_gate(report, binding)
+            run.assert_not_called()
+
+    def test_review_report_safe_reader_accepts_readonly_modes_and_rejects_symlinks_or_writes(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            directory = Path(temp_dir)
+            report = directory / "review.txt"
+            report.write_text("synthetic report", encoding="utf-8")
+            report.chmod(0o644)
+            self.assertEqual(executor._safe_read_review_report(report), b"synthetic report")
+            report.chmod(0o600)
+            self.assertEqual(executor._safe_read_review_report(report), b"synthetic report")
+            report.chmod(0o666)
+            with self.assertRaisesRegex(executor.ApplyBlocked, "permissions or ownership"):
+                executor._safe_read_review_report(report)
+            report.chmod(0o600)
+            link = directory / "review-link.txt"
+            link.symlink_to(report)
+            with self.assertRaisesRegex(executor.ApplyBlocked, "unavailable"):
+                executor._safe_read_review_report(link)
+
+    def test_review_approval_bundle_pins_launcher_path_and_hash(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            report = Path(temp_dir) / "review.txt"
+            report.write_text("synthetic reviewer report", encoding="utf-8")
+            report.chmod(0o644)
+            launcher = executor.validated_task_gate_identity()
+            bundle = {
+                "artifact_type": executor.REVIEW_BUNDLE_TYPE,
+                "verdict": "APPROVE",
+                "target": executor.TARGET,
+                "review_plan_sha256": "1" * 64,
+                "source_preimages_file_sha256": "2" * 64,
+                "source_preimages_semantic_sha256": "3" * 64,
+                "postimage_sha256": "4" * 64,
+                "executor_sha256": executor.sha256_bytes(Path(executor.__file__).read_bytes()),
+                "preflight_sha256": executor.sha256_bytes(executor.PREFLIGHT_PATH.read_bytes()),
+                "reviewer_report_sha256": executor.sha256_bytes(report.read_bytes()),
+                "task_gate_launcher_path": launcher["path"],
+                "task_gate_launcher_sha256": launcher["sha256"],
+                "po_reuse_guard_status_at_review": "absent",
+            }
+            binding = executor.require_review_approval(
+                bundle, report_path=report, review_plan_sha256="1" * 64,
+                preimages_file_sha256="2" * 64, preimages_semantic_sha256="3" * 64,
+                postimage_sha256="4" * 64,
+            )
+            self.assertEqual(binding["task_gate_launcher_path"], launcher["path"])
+            altered = {**bundle, "task_gate_launcher_sha256": "0" * 64}
+            with self.assertRaisesRegex(executor.ApplyBlocked, "does not bind"):
+                executor.require_review_approval(
+                    altered, report_path=report, review_plan_sha256="1" * 64,
+                    preimages_file_sha256="2" * 64, preimages_semantic_sha256="3" * 64,
+                    postimage_sha256="4" * 64,
+                )
 
     def test_parent_only_or_missing_sku_does_not_invent_catalog_lookup(self):
         lines = [{"source_id": "line:parent", "payload": {"sku": None, "source_style_type": "licensed"}}]

@@ -193,13 +193,28 @@ def main() -> None:
         + ",".join(sql.Literal(row["id"]).as_string() for row in seed_canonical_lines) + "]::uuid[]);"
     )
     readback_fields = []
+    readback_fields.extend((sql.Literal("transaction_timestamp").as_string(), "to_jsonb(transaction_timestamp())"))
     for key, table in (
         ("orders", "plm.production_order"), ("lines", "plm.production_order_line"),
         ("order_refs", "plm.production_order_source_ref"), ("line_refs", "plm.production_order_line_source_ref"),
         ("tracking", "dam.order_tracking_ext"), ("snapshots", "dam.production_order_snapshot"),
     ):
         readback_fields.extend((sql.Literal(key).as_string(), f"(select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) from {table} t)"))
-    program = "begin;\n" + "\n".join(seed_sql + timestamps + write_sql)
+    timestamp_trigger_fixture = [
+        "create or replace function app.set_updated_at() returns trigger language plpgsql as $$ "
+        "begin new.updated_at = now(); return new; end; $$;",
+        "drop trigger if exists settled55_test_updated_at on plm.production_order;",
+        "create trigger settled55_test_updated_at before update on plm.production_order "
+        "for each row execute function app.set_updated_at();",
+        "drop trigger if exists settled55_test_updated_at on plm.production_order_line;",
+        "create trigger settled55_test_updated_at before update on plm.production_order_line "
+        "for each row execute function app.set_updated_at();",
+    ]
+    updated_header_count = sum(row["action"] == "update" for row in postimage["orders"] if row["id"] in seed_header_ids.values())
+    updated_line_count = sum(row["action"] == "update" for row in postimage["lines"] if row["id"] in seed_line_ids)
+    if (updated_header_count, updated_line_count) != (36, 43):
+        raise RuntimeError("synthetic fixture does not exercise every seeded update trigger")
+    program = "begin;\n" + "\n".join(timestamp_trigger_fixture + seed_sql + timestamps + write_sql)
     program += "\nselect jsonb_build_object(" + ",".join(readback_fields) + ");\nrollback;\n"
     result = json.loads(psql(program).splitlines()[-2])
     try:
@@ -231,7 +246,8 @@ def main() -> None:
         "lines_read_back": len(result["lines"]), "existing_headers": 36, "existing_lines": 43,
         "new_headers": inserts[0], "new_lines": inserts[1], "metadata": "preserved",
         "private_freeze_reload_digest": "passed", "numeric_readback": "passed",
-        "line_number_text": "preserved", "rollback": "empty fixture",
+        "line_number_text": "preserved", "updated_at_trigger": "transaction timestamp verified",
+        "rollback": "empty fixture",
     }))
 
 

@@ -44,6 +44,7 @@ NUMERIC_FIELDS = {
 INTEGER_FIELDS = {"assortment_component_ordinal"}
 REVIEW_BUNDLE_TYPE = "orderlist_settled_exception_apply_approval_v1"
 CATALOG_SNAPSHOT_SCHEMA = "orderlist-exact-master-data-catalog-v1"
+MANAGED_TASK_GATE_PATH = Path("/usr/local/bin/ai-task-gates")
 MATCH_PROVENANCE_METADATA_KEYS = (
     "master_data_resolution", "item_link_pending_reason", "master_data_candidate_count",
 )
@@ -365,6 +366,7 @@ def construct_postimage(
             "write_values": {field: post.get(field) for field in write_fields} if action != "preserve" else {},
             "assert_fields": post,
             "database_default_fields": ["created_at", "updated_at"] if current is None else [],
+            "database_generated_fields": ["updated_at"] if action == "update" else [],
             "source_evidence_sha256": digest({"source_id": source_id, "sheet_rows": source_rows, "metadata": outer_metadata}),
         })
 
@@ -426,6 +428,7 @@ def construct_postimage(
             "write_values": {field: post.get(field) for field in write_fields} if action != "preserve" else {},
             "assert_fields": post,
             "database_default_fields": ["created_at", "updated_at"] if current is None else [],
+            "database_generated_fields": ["updated_at"] if action == "update" else [],
             "source_evidence_sha256": digest({
                 "source_id": source_id,
                 "sheet_row": line.get("sheet_row"),
@@ -753,7 +756,9 @@ def require_review_approval(
     preimages_file_sha256: str,
     preimages_semantic_sha256: str,
     postimage_sha256: str,
-) -> None:
+) -> dict[str, str]:
+    task_gate = validated_task_gate_identity()
+    report_bytes = _safe_read_review_report(report_path)
     expected = {
         "artifact_type": REVIEW_BUNDLE_TYPE,
         "verdict": "APPROVE",
@@ -764,17 +769,83 @@ def require_review_approval(
         "postimage_sha256": postimage_sha256,
         "executor_sha256": sha256_bytes(Path(__file__).read_bytes()),
         "preflight_sha256": sha256_bytes(PREFLIGHT_PATH.read_bytes()),
-        "reviewer_report_sha256": sha256_bytes(report_path.read_bytes()),
+        "reviewer_report_sha256": sha256_bytes(report_bytes),
+        "task_gate_launcher_path": task_gate["path"],
+        "task_gate_launcher_sha256": task_gate["sha256"],
         "po_reuse_guard_status_at_review": "absent",
     }
     if dict(bundle) != expected:
         raise ApplyBlocked("review approval does not bind these exact frozen inputs and executor")
+    return {
+        "report_sha256": expected["reviewer_report_sha256"],
+        "task_gate_launcher_path": task_gate["path"],
+        "task_gate_launcher_sha256": task_gate["sha256"],
+    }
 
 
-def check_task_gate(reviewer_report: Path) -> None:
+def validated_task_gate_identity(path: Path | None = None) -> dict[str, str]:
+    launcher = path if path is not None else MANAGED_TASK_GATE_PATH
+    try:
+        resolved = launcher.resolve(strict=True)
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(resolved, flags)
+        try:
+            info = os.fstat(fd)
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or not (info.st_mode & 0o111)
+                or stat.S_IMODE(info.st_mode) & 0o022
+            ):
+                raise ApplyBlocked("managed task gate launcher has unsafe file permissions")
+            digest_state = hashlib.sha256()
+            while chunk := os.read(fd, 1024 * 1024):
+                digest_state.update(chunk)
+            return {"path": str(resolved), "sha256": digest_state.hexdigest()}
+        finally:
+            os.close(fd)
+    except ApplyBlocked:
+        raise
+    except Exception:
+        raise ApplyBlocked("managed task gate launcher is unavailable") from None
+
+
+def _safe_read_review_report(path: Path) -> bytes:
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(path, flags)
+        try:
+            info = os.fstat(fd)
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.geteuid()
+                or stat.S_IMODE(info.st_mode) & 0o022
+            ):
+                raise ApplyBlocked("review report file permissions or ownership are unsafe")
+            with os.fdopen(fd, "rb") as handle:
+                fd = -1
+                return handle.read()
+        finally:
+            if fd >= 0:
+                os.close(fd)
+    except ApplyBlocked:
+        raise
+    except Exception:
+        raise ApplyBlocked("review report file is unavailable") from None
+
+
+def check_task_gate(reviewer_report: Path, approval_binding: Mapping[str, str]) -> None:
+    expected = {
+        "path": approval_binding.get("task_gate_launcher_path"),
+        "sha256": approval_binding.get("task_gate_launcher_sha256"),
+    }
+    if validated_task_gate_identity() != expected:
+        raise ApplyBlocked("managed task gate launcher differs from the reviewed bundle")
+    report_sha = approval_binding.get("report_sha256")
+    if not isinstance(report_sha, str) or sha256_bytes(_safe_read_review_report(reviewer_report)) != report_sha:
+        raise ApplyBlocked("review report differs from the reviewed bundle")
     try:
         result = subprocess.run(
-            ["ai-task-gates", "check", "--before", "database", "--reviewer-approval", str(reviewer_report)],
+            [expected["path"], "check", "--before", "database", "--reviewer-approval", str(reviewer_report)],
             cwd=ROOT,
             check=False,
             capture_output=True,
@@ -783,6 +854,10 @@ def check_task_gate(reviewer_report: Path) -> None:
         )
     except Exception:
         raise ApplyBlocked("database task gate could not be completed") from None
+    if validated_task_gate_identity() != expected:
+        raise ApplyBlocked("managed task gate launcher changed during its check")
+    if sha256_bytes(_safe_read_review_report(reviewer_report)) != report_sha:
+        raise ApplyBlocked("review report changed during the task gate check")
     if result.returncode != 0:
         raise ApplyBlocked("database task gate refused the frozen executor")
 
@@ -885,6 +960,9 @@ class PostgresExecutorGateway:
         all_order_ids = [row["id"] for row in postimage["orders"]]
         all_line_ids = [row["id"] for row in postimage["lines"]]
         return {
+            "transaction_timestamp": self.connection.execute(
+                "select to_jsonb(transaction_timestamp())"
+            ).fetchone()[0],
             "orders": [row[0] for row in self.connection.execute("select to_jsonb(t) from plm.production_order t where id=any(%s::uuid[]) order by id", (header_ids,)).fetchall()],
             "lines": [row[0] for row in self.connection.execute("select to_jsonb(t) from plm.production_order_line t where id=any(%s::uuid[]) order by id", (line_ids,)).fetchall()],
             "order_refs": [row[0] for row in self.connection.execute("select to_jsonb(t) from plm.production_order_source_ref t where source_system=%s and source_id=any(%s::text[]) order by source_id", (SOURCE_SYSTEM, header_sids)).fetchall()],
@@ -925,10 +1003,21 @@ def validate_readback(postimage: Mapping[str, Any], readback: Mapping[str, Any])
             raise ExecutorError("canonical UUID readback set differs from the frozen postimage")
         for row_id, expected_fields in expected.items():
             actual_row = actual[row_id]
+            plan_row = next(row for row in postimage[kind] if row["id"] == row_id)
+            defaults = set(plan_row.get("database_default_fields", []))
+            generated = set(plan_row.get("database_generated_fields", []))
+            if defaults - {"created_at", "updated_at"} or generated - {"updated_at"}:
+                raise ExecutorError("unsupported database-generated field declaration")
             for field, expected_value in expected_fields.items():
-                if field in {"created_at", "updated_at"} and row_id not in {
-                    r["id"] for r in postimage[kind] if r["action"] != "insert"
-                }:
+                if field in defaults:
+                    transaction_time = readback.get("transaction_timestamp")
+                    if transaction_time is None or _comparable(actual_row.get(field)) != _comparable(transaction_time):
+                        raise ExecutorError("database default timestamp differs from transaction timestamp")
+                    continue
+                if field in generated:
+                    transaction_time = readback.get("transaction_timestamp")
+                    if transaction_time is None or _comparable(actual_row.get(field)) != _comparable(transaction_time):
+                        raise ExecutorError("generated update timestamp differs from transaction timestamp")
                     continue
                 if _comparable_field(field, actual_row.get(field)) != _comparable_field(field, expected_value):
                     raise ExecutorError("canonical field readback differs from frozen postimage")
@@ -1040,14 +1129,14 @@ def _open_target(*, read_only: bool) -> tuple[Any, dict[str, Any]]:
         raise
 
 
-def _validate_approval_path(bundle_raw: bytes, report_path: Path, *, review_plan_sha: str, preimages_sha: str, preimages_semantic_sha: str, postimage_sha: str) -> None:
+def _validate_approval_path(bundle_raw: bytes, report_path: Path, *, review_plan_sha: str, preimages_sha: str, preimages_semantic_sha: str, postimage_sha: str) -> dict[str, str]:
     try:
         bundle = json.loads(bundle_raw)
     except (json.JSONDecodeError, UnicodeDecodeError):
         raise ApplyBlocked("review approval bundle is invalid") from None
     if not isinstance(bundle, dict):
         raise ApplyBlocked("review approval bundle is invalid")
-    require_review_approval(
+    return require_review_approval(
         bundle,
         report_path=report_path,
         review_plan_sha256=review_plan_sha,
@@ -1139,7 +1228,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         if not args.reviewer_bundle or not args.reviewer_report:
             raise ApplyBlocked("exact independent reviewer evidence is required before database apply")
         bundle_raw = _safe_read_private(args.reviewer_bundle)
-        _validate_approval_path(
+        approval_binding = _validate_approval_path(
             bundle_raw,
             args.reviewer_report,
             review_plan_sha=plan_sha,
@@ -1147,7 +1236,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             preimages_semantic_sha=review_plan["preimages_sha256"],
             postimage_sha=postimage_sha,
         )
-        check_task_gate(args.reviewer_report)
+        check_task_gate(args.reviewer_report, approval_binding)
         conn, identity = _open_target(read_only=False)
         try:
             if PREFLIGHT.digest(identity) != PREFLIGHT.digest(frozen_preimages.get("database_identity")):

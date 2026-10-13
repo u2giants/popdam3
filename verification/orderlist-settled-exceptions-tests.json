@@ -1,0 +1,39 @@
+{
+  "schema": "orderlist-settled-exceptions-source-test-evidence-v1",
+  "executed_at": "2026-10-13T20:38:28.928804+00:00",
+  "scope": "Owned isolated synthetic PostgreSQL fixture and offline tests only",
+  "source_file_sha256": {
+    ".ai-devops/task-gates.json": "35c2c9ed249a93d44ca6808f915fc23ce7c43a9ef1714602193a3cd23f483f40",
+    "scripts/test-task-gates.sh": "da6adb1400abb4c20887ad723f64b61de921d88724b8516dfab0b90f53fdb6fa",
+    "scripts/orderlist-source-disposition-writer.py": "4b91188c42675a3537635901d20814c24926ed5c71adb2230f815862e7de3a11",
+    "scripts/test-orderlist-source-disposition-writer.py": "deab882de7869dc635ae50c16bddefdf1a0e2c8056330beed61a732cc0d0c7ff",
+    "scripts/orderlist-settled-exception-executor.py": "d25ef61045174ac0c6696fe600d50e4ef96511ad0cd26838b56b46ca95d2566b",
+    "scripts/test-orderlist-settled-exception-executor.py": "774dc826cf1586ad62479b7caa44efd525b069a291ee3c1e86e4ac7b29769c3e",
+    "scripts/test-orderlist-settled-exception-postgres.py": "c9884c204263f79ed83f82130816cdbe2510a821bec04433fdaff7f0d8cc1ea2"
+  },
+  "canonical_importer_sha256": "7b499d63c4fc07b7c11896f226607b5d930a148bcef4e725ae90392ac91ea410",
+  "passing_suites": {
+    "executor": 23,
+    "preflight": 15,
+    "source_disposition_planner": 23,
+    "task_gates": 30
+  },
+  "postgres": {
+    "headers": 76,
+    "lines": 296,
+    "existing_headers": 36,
+    "existing_lines": 43,
+    "inserted_headers": 40,
+    "inserted_lines": 253,
+    "json_freeze_reload": "passed",
+    "numeric_readback": "passed",
+    "raw_metadata_and_text_line_number": "preserved",
+    "actual_contract_update_trigger": "new.updated_at = now()",
+    "generated_timestamp_readback": "transaction_timestamp exactly",
+    "rollback": "empty fixture"
+  },
+  "limitations": [
+    "Reviewer export cannot access Docker fixture; these execution results were produced and checked by the coordinator.",
+    "No production writes are represented by this test evidence."
+  ]
+}
