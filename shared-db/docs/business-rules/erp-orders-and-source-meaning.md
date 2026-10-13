@@ -283,21 +283,16 @@ Two technical constraints on the poll design:
   inside the window; the window is now capped at 7 days inclusive), so these fields cannot be
   queried by; they are read from rows already fetched. Novelty by `salesOrderNo` remains the
   detection rule; the timestamps are added evidence, not a replacement.
-  **Caveat — `createdTime` is not reliably the original customer-order entry date (measured
-  2026-10-09, 3,818 sales-order ↔ production-PO linked pairs).** Albert: a production PO is
-  written off the customer PO, so the two should fall within about a week of each other.
-  Measured: sales-order `createdTime` falls a median 59 days (mean 64) *after* the production
-  PO's order date, and within 7 days for only 3% of pairs. It instead lands on the **same day
-  the production PO is received** for 52% of pairs (within 1 day for 59%), which suggests the
-  ColdLion sales-order record is re-created or split when goods arrive. No date pair on the two
-  records showed the expected one-week creation pattern; customer start/cancel dates match 100%
-  only because the PO copies them from the sales order. **Unknown** until ColdLion explains what
-  `createdTime` records; do not use it as the customer-order entry date or for SO↔PO matching.
-  **Confirmed mismatch (JamieLynn, 2026-10-09):** for sales order 7127837 the ColdLion screen
-  shows CreatedTime 2026-05-05 4:25 PM, while the API returns 2026-08-06 15:35:53 on all 12
-  lines (each already carrying a pick ticket and an invoice). The screen value is the true
-  entry date; the API value comes from some later record. Asked ColdLion to expose the
-  screen's CreatedTime. **Times are New York time (EST/EDT) — Settled, Albert, 2026-10-09.**
+  **Fixed by ColdLion 2026-10-12 — `createdTime`/`modTime` now come from the order details, not
+  the invoice.** Re-verified live 2026-10-12: SO 7127837 now returns `createdTime`
+  2026-05-05 16:25:21, matching the ColdLion screen (JamieLynn). ColdLion also corrected the
+  time zone on some endpoints: PO 24105 `/proddetails` and `/prodtracking` moved from 20:09 to
+  16:09 (now New York time). Re-measured on 3,820 linked SO↔PO pairs (sales-order `createdTime`
+  vs production PO order date): the sales order is entered **first in 89%** of pairs; median
+  gap **10 days** (mean 16); within 7 days 37%, 14 days 65%, 30 days 89%; a few outliers run
+  past a year. *Historical (2026-10-09, superseded):* before the fix the API returned the
+  invoice record's time, which sat on the PO receive date for about half of pairs and made
+  sales orders look like they were entered ~59 days after their production PO.
   *Historical (2026-09-17):* a probe then found 63 fields and no created/entry timestamp; that
   statement is superseded by the above.
 - **The window filter keys on the ERP start date — verified live 2026-09-17.** Windows in
