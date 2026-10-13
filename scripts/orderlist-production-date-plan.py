@@ -16,12 +16,12 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import sys
 
 SCHEMA = 'orderlist-production-date-plan-v1'
 CAPTURE_SCHEMA = 'orderlist-production-date-capture-v1'
 DB_PROJECT = 'qsllyeztdwjgirsysgai'
-ADVISORY_LOCK = 852000728
 SO_REF = re.compile(r'^coldlion:so:([0-9]+):line:[0-9]+:component:[0-9]+$')
 DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 CUSTOMER_IDENTITY_FIELDS = (
@@ -40,8 +40,36 @@ def digest(value) -> str:
     return hashlib.sha256(canonical(value).encode('utf-8')).hexdigest()
 
 
-def file_sha(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def _read_protected_capture(path: Path, expected_sha256: str) -> tuple[dict, str]:
+    flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError as exc:
+        raise ValueError('Protected capture cannot be opened safely') from exc
+    try:
+        before = os.fstat(fd)
+        if (not stat.S_ISREG(before.st_mode) or before.st_uid != os.geteuid() or
+                stat.S_IMODE(before.st_mode) != 0o600):
+            raise ValueError('Protected capture must be an owned regular mode-0600 file')
+        with os.fdopen(fd, 'rb', closefd=False) as handle:
+            raw = handle.read()
+        after = os.fstat(fd)
+        stable_fields = ('st_dev', 'st_ino', 'st_uid', 'st_mode', 'st_size',
+                         'st_mtime_ns', 'st_ctime_ns')
+        if any(getattr(before, field) != getattr(after, field) for field in stable_fields):
+            raise ValueError('Protected capture changed while being read')
+    finally:
+        os.close(fd)
+    actual_sha256 = hashlib.sha256(raw).hexdigest()
+    if actual_sha256.lower() != expected_sha256.lower():
+        raise ValueError('Capture file checksum mismatch')
+    try:
+        capture = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError('Protected capture is not valid JSON') from exc
+    if not isinstance(capture, dict):
+        raise ValueError('Protected capture must contain a JSON object')
+    return capture, actual_sha256
 
 
 def folded(value):
@@ -293,13 +321,13 @@ def _customer_bridge_scope(customer_name: str | None, issued: list[dict],
     }
     if alias_owners != customer_ids:
         return ('ambiguous' if alias_owners else 'alias_mismatch',
-                scoped_rows, [list(pair) for pair in source_pairs])
+                scoped_rows, [list(pair) for pair in frozen_pairs])
     mapped_aliases = set().union(*(
         _customer_aliases(row) for row in identity_rows
         if exact(row.get('customer_id')) in customer_ids
     )) if customer_ids else set()
     return ('match' if wanted in mapped_aliases else 'alias_mismatch',
-            scoped_rows, [list(pair) for pair in source_pairs])
+            scoped_rows, [list(pair) for pair in frozen_pairs])
 
 
 def _source_ref_route_status(target_lines: list[dict], refs_by_line: dict[str, list[dict]],
@@ -568,10 +596,7 @@ def main(argv=None) -> int:
     parser.add_argument('--plan-output', type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        actual = file_sha(args.capture)
-        if actual.lower() != args.capture_sha256.lower():
-            raise ValueError('Capture file checksum mismatch')
-        capture = json.loads(args.capture.read_text())
+        capture, actual = _read_protected_capture(args.capture, args.capture_sha256)
         plan = build_plan(capture, actual)
         _write_private_exclusive(args.plan_output, (canonical(plan) + '\n').encode('utf-8'))
         print(json.dumps({'mode': 'plan-only', 'plan_sha256': plan['plan_sha256'],

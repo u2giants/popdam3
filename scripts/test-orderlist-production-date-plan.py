@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 import importlib.util
+import json
+import os
 from pathlib import Path
+import tempfile
 import unittest
 
 SCRIPT = Path(__file__).with_name('orderlist-production-date-plan.py')
 SPEC = importlib.util.spec_from_file_location('production_date_plan', SCRIPT)
 planmod = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(planmod)
+EXECUTOR_SCRIPT = Path(__file__).with_name('apply-orderlist-production-date-plan.py')
+EXECUTOR_SPEC = importlib.util.spec_from_file_location('apply_production_date_plan_regression', EXECUTOR_SCRIPT)
+executormod = importlib.util.module_from_spec(EXECUTOR_SPEC)
+EXECUTOR_SPEC.loader.exec_module(executormod)
 
 
 def base_capture():
@@ -52,6 +60,44 @@ def base_capture():
 
 
 class ProductionDatePlannerTests(unittest.TestCase):
+    def test_protected_capture_reads_hash_and_json_from_the_same_owned_file_bytes(self):
+        raw = b'{"example":"pinned bytes"}\n'
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'capture.json'
+            path.write_bytes(raw)
+            path.chmod(0o600)
+            expected = hashlib.sha256(raw).hexdigest()
+            capture, actual = planmod._read_protected_capture(path, expected)
+            self.assertEqual(capture, {'example': 'pinned bytes'})
+            self.assertEqual(actual, expected)
+
+            path.write_bytes(b'{"example":"later replacement"}\n')
+            self.assertEqual(capture, {'example': 'pinned bytes'})
+            self.assertEqual(actual, expected)
+
+    def test_protected_capture_rejects_symlinks_bad_permissions_and_malformed_json(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            target = root / 'target.json'
+            target.write_bytes(b'{}')
+            target.chmod(0o600)
+            link = root / 'capture-link.json'
+            link.symlink_to(target)
+            with self.assertRaisesRegex(ValueError, 'cannot be opened safely'):
+                planmod._read_protected_capture(link, hashlib.sha256(b'{}').hexdigest())
+
+            wide = root / 'wide.json'
+            wide.write_bytes(b'{}')
+            wide.chmod(0o644)
+            with self.assertRaisesRegex(ValueError, 'mode-0600'):
+                planmod._read_protected_capture(wide, hashlib.sha256(b'{}').hexdigest())
+
+            malformed = root / 'malformed.json'
+            malformed.write_bytes(b'{')
+            malformed.chmod(0o600)
+            with self.assertRaisesRegex(ValueError, 'valid JSON'):
+                planmod._read_protected_capture(malformed, hashlib.sha256(b'{').hexdigest())
+
     def test_exact_source_identity_proposes_only_order_date(self):
         capture = base_capture()
         result = planmod.build_plan(capture)
@@ -94,6 +140,53 @@ class ProductionDatePlannerTests(unittest.TestCase):
         self.assertEqual(result['proposals'][0]['match_route'], 'erp_customer_bridge')
         self.assertEqual(result['proposals'][0]['identity_scope_customer_identity_preimages'],
                          capture['customer_identity_rows'])
+
+    def test_reused_d_bridge_scope_round_trips_through_batch_executor_and_detects_drift(self):
+        capture = base_capture()
+        capture['headers'][0]['metadata']['customer_name'] = 'Acme Retail Alias'
+        capture['prod_history_rows'][0]['customer_desc'] = 'Legacy ERP customer label'
+        capture['prod_history_rows'][1]['customer_desc'] = 'Legacy ERP customer label'
+        selected_mapping = {
+            'company_code': 'EDGEHOME', 'customer_code': 'CUST-1',
+            'customer_id': 'customer-1', 'canonical_name': 'Acme Incorporated',
+            'display_name': 'Acme Retail Alias', 'routing_aliases': [],
+            'normalized_name': 'acme incorporated', 'erp_updated_at': '2026-10-12T12:00:00Z',
+            'customer_updated_at': '2026-10-12T13:00:00Z',
+        }
+        competitor_mapping = {
+            **selected_mapping, 'company_code': 'OTHERCO', 'customer_code': 'CUST-9',
+            'display_name': 'Legacy Other Label',
+        }
+        capture['customer_identity_rows'] = [selected_mapping, competitor_mapping]
+        competitor = deepcopy(capture['prod_history_rows'][0])
+        competitor.update(
+            id='src-reused-d-other-company', company_code='OTHERCO', prod_order_no=556,
+            customer_code='CUST-9', customer_desc='Legacy ERP customer label',
+            cust_po_number='CPO-OTHER', vendor_code='OTHER-VENDOR', item_no='OTHER-STYLE',
+            source_observed_at='2026-10-13T14:03:00Z', line_source_hash='c' * 64)
+        capture['prod_history_rows'].append(competitor)
+        capture['captured_at'] = '2026-10-13T14:04:00Z'
+        capture['latest_source_observation_at'] = '2026-10-13T14:03:00Z'
+
+        plan = planmod.build_plan(capture)
+        self.assertEqual(plan['counts']['proposed'], 1)
+        proposal = plan['proposals'][0]
+        self.assertEqual(proposal['customer_identity_scope_pairs'], [
+            ['EDGEHOME', 'CUST-1'], ['OTHERCO', 'CUST-9']])
+        self.assertEqual(proposal['identity_scope_customer_identity_preimages'],
+                         [selected_mapping, competitor_mapping])
+        snapshot = {
+            'headers': proposal['identity_scope_header_preimages'],
+            'lines': proposal['identity_scope_line_preimages'],
+            'refs': proposal['identity_scope_ref_preimages'],
+            'source': proposal['identity_scope_source_preimages'],
+            'customer_rows': capture['customer_identity_rows'],
+        }
+        executormod._assert_batch_snapshot(plan, snapshot)
+
+        snapshot['customer_rows'][1] = {**competitor_mapping, 'customer_updated_at': 'changed'}
+        with self.assertRaisesRegex(ValueError, 'ERP customer identity bridge changed'):
+            executormod._assert_batch_snapshot(plan, snapshot)
 
     def test_customer_bridge_requires_every_issued_code_and_one_customer(self):
         capture = base_capture()
