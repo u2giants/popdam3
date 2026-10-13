@@ -191,8 +191,55 @@ export async function fetchImageData(thumbnailUrl: string, timeoutMs = THUMBNAIL
   return { base64: bytes.toString("base64"), mimeType };
 }
 
-export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promise<string> {
-  const client = db();
+export class CharacterCatalogDependencyError extends Error {
+  readonly code: string;
+  constructor(code = "unknown") { super("Character catalog dependency failed; accepted response retained"); this.code = /^[A-Z0-9_]{1,16}$/i.test(code) ? code : "unknown"; this.name = "CharacterCatalogDependencyError"; }
+}
+export class AssetTagApplyError extends Error {
+  readonly code: string;
+  constructor(public readonly stage: "asset_reload" | "asset_tags" | "character_links" | "file_sources" | "asset_metadata", code?: string) {
+    super(stage === "asset_tags" ? "Atomic AI tag write failed" : `Asset tagging save failed at ${stage}`); this.name = "AssetTagApplyError";
+    this.code = code && /^[A-Z0-9_]{1,16}$/i.test(code) ? code : "unknown";
+  }
+}
+export class CharacterReferenceValidationError extends Error {
+  constructor() { super("Model returned invalid character references: character_ids must be UUIDs from the supplied character catalog and existing characters; select only exact visual matches"); this.name = "CharacterReferenceValidationError"; }
+}
+const CHARACTER_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function normalizeCharacterIds(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some(id => typeof id !== "string" || !CHARACTER_UUID.test(id))) throw new CharacterReferenceValidationError();
+  return [...new Set((value as string[]).map(id => id.toLowerCase()))];
+}
+export async function validateCharacterReferences(
+  value: unknown, binding: string[] | undefined, client: ReturnType<typeof db> = db(),
+): Promise<string[]> {
+  const ids = normalizeCharacterIds(value);
+  if (binding && ids.some(id => !binding.includes(id))) throw new CharacterReferenceValidationError();
+  if (!ids.length) return ids;
+  let response;
+  try { response = await client.from("characters").select("id").in("id", ids); }
+  catch { throw new CharacterCatalogDependencyError("transport"); }
+  const { data, error } = response;
+  if (error || !data) throw new CharacterCatalogDependencyError(error?.code);
+  if (!Array.isArray(data)) throw new CharacterCatalogDependencyError("catalog_contract");
+  let existing: Set<string>;
+  try { existing = new Set(normalizeCharacterIds(data.map(row => row.id))); } catch { throw new CharacterCatalogDependencyError("catalog_contract"); }
+  if (ids.some(id => !existing.has(id))) throw new CharacterReferenceValidationError();
+  return ids;
+}
+export interface TaggingPromptOptions {
+  onCharacterCatalog?: (ids: string[]) => void;
+  requireCharacterReadSuccess?: boolean;
+  client?: ReturnType<typeof db>;
+}
+
+export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options: TaggingPromptOptions = {}): Promise<string> {
+  const client = options.client ?? db();
+  const checkedCharacterRead = (error: { code?: string } | null, data: unknown) => { if (options.requireCharacterReadSuccess && (error || !Array.isArray(data))) throw new CharacterCatalogDependencyError(error?.code ?? "catalog_contract"); };
+  const checkedQuery = async <T>(query: PromiseLike<T>): Promise<T> => {
+    try { return await query; } catch (error) { if (options.requireCharacterReadSuccess) throw new CharacterCatalogDependencyError("transport"); throw error; }
+  };
 
   const { data: instrRow } = await client
     .from("admin_config")
@@ -201,10 +248,12 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
     .maybeSingle();
   const customInstructions = typeof instrRow?.value === "string" ? instrRow.value.trim() : null;
 
-  const [licensorsRes, propertiesRes] = await Promise.all([
+  const [licensorsRes, propertiesRes] = await checkedQuery(Promise.all([
     client.schema("core").from("licensor").select("id, name").limit(50),
     client.schema("core").from("property").select("id, name, licensor_id").limit(200),
-  ]);
+  ]));
+  checkedCharacterRead(licensorsRes.error, licensorsRes.data);
+  checkedCharacterRead(propertiesRes.error, propertiesRes.data);
   const licensors = licensorsRes.data ?? [];
   const properties = propertiesRes.data ?? [];
 
@@ -212,63 +261,74 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
   let usingPriorityOnly = false;
 
   if (asset.property_id) {
-    const { data: priorityChars } = await client
+    const { data: priorityChars, error: priorityError } = await checkedQuery(client
       .from("dam_character_catalog")
       .select("id, name")
       .eq("core_property_id", asset.property_id)
       .eq("is_priority", true)
-      .order("usage_count", { ascending: false });
+      .order("usage_count", { ascending: false }));
 
+    checkedCharacterRead(priorityError, priorityChars);
     if (priorityChars && priorityChars.length > 0) {
       characters = priorityChars;
       usingPriorityOnly = true;
     } else {
-      const { data: allChars } = await client
+      const { data: allChars, error: allError } = await checkedQuery(client
         .from("dam_character_catalog")
         .select("id, name")
         .eq("core_property_id", asset.property_id)
-        .order("name");
+        .order("name"));
+      checkedCharacterRead(allError, allChars);
       characters = allChars ?? [];
     }
   } else if (asset.licensor_id) {
-    const { data: propIds } = await client
+    const { data: propIds, error: propertyIdsError } = await checkedQuery(client
       .schema("core")
       .from("property")
       .select("id")
-      .eq("licensor_id", asset.licensor_id);
+      .eq("licensor_id", asset.licensor_id));
+    checkedCharacterRead(propertyIdsError, propIds);
     const ids = (propIds ?? []).map((p: { id: string }) => p.id);
 
     if (ids.length > 0) {
-      const { data: priorityChars } = await client
+      const { data: priorityChars, error: priorityError } = await checkedQuery(client
         .from("dam_character_catalog")
         .select("id, name")
         .in("core_property_id", ids)
         .eq("is_priority", true)
         .order("usage_count", { ascending: false })
-        .limit(200);
+        .limit(200));
 
+      checkedCharacterRead(priorityError, priorityChars);
       if (priorityChars && priorityChars.length > 0) {
         characters = priorityChars;
         usingPriorityOnly = true;
       } else {
-        const { data: allChars } = await client
+        const { data: allChars, error: allError } = await checkedQuery(client
           .from("dam_character_catalog")
           .select("id, name")
           .in("core_property_id", ids)
-          .limit(300);
+          .limit(300));
+        checkedCharacterRead(allError, allChars);
         characters = allChars ?? [];
       }
     }
   } else {
-    const { data: priorityChars } = await client
+    const { data: priorityChars, error: priorityError } = await checkedQuery(client
       .from("dam_character_catalog")
       .select("id, name")
       .eq("is_priority", true)
       .order("usage_count", { ascending: false })
-      .limit(150);
+      .limit(150));
+    checkedCharacterRead(priorityError, priorityChars);
     characters = priorityChars ?? [];
   }
 
+  if (options.onCharacterCatalog) {
+    let ids: string[];
+    try { ids = normalizeCharacterIds(characters.map(character => character.id)); } catch { throw new CharacterCatalogDependencyError("catalog_contract"); }
+    options.onCharacterCatalog(ids);
+  }
   const charContext = usingPriorityOnly
     ? "Priority characters for this property/licensor (match from this list first):\n"
     : "Characters (full list for this property):\n";

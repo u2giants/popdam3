@@ -1,3 +1,4 @@
+import { CharacterCatalogDependencyError, CharacterReferenceValidationError, AssetTagApplyError, normalizeCharacterIds } from "./ai-tagging-shared.js";
 import { AiTagCursorError } from "../ai-tag-cursor.js";
 import { logger } from "../logger.js";
 import type { BatchResult, OpState, OpenRouterBatchJobState } from "../types.js";
@@ -11,12 +12,18 @@ import { parseStructuredJson } from "../structured-output.js";
 export const META_TAG_METHODS = ["json_schema", "json_object", "tool_auto", "json_repair"] as const;
 export interface MetaTagAttempt { asset_id: string; method_index: number; same_model_retry: number; repair_error?: string; }
 export interface MetaTagCandidate { asset_id: string; next_cursor: number | string; done: boolean; }
+export interface PreparedMetaTagRequest { request: ChatCompletionRequest; characterCatalogIds: string[]; }
+export const MAX_META_CHARACTER_CATALOG_IDS = 4096;
+function validCatalogBinding(value: unknown): value is string[] {
+  try { return Array.isArray(value) && value.length <= MAX_META_CHARACTER_CATALOG_IDS && normalizeCharacterIds(value).length === value.length && value.every(id => typeof id === "string" && id === id.toLowerCase()); } catch { return false; }
+}
+function matchingBinding(a: string[], b: string[]): boolean { return a.length === b.length && a.every(id => b.includes(id)); }
 export interface MetaTagDependencies {
   model: string; apiKey: string;
   candidate: () => Promise<MetaTagCandidate | null>;
-  prepare: (id: string, method: typeof META_TAG_METHODS[number], repairError?: string) => Promise<ChatCompletionRequest | null>;
-  validate: (value: Record<string, unknown>) => void;
-  apply: (id: string, value: Record<string, unknown>, model: string) => Promise<void>;
+  prepare: (id: string, method: typeof META_TAG_METHODS[number], repairError?: string) => Promise<PreparedMetaTagRequest | null>;
+  validate: (value: Record<string, unknown>, binding: string[]) => void | Promise<void>;
+  apply: (id: string, value: Record<string, unknown>, model: string, binding: string[]) => Promise<void>;
   create?: typeof createStoredMetaResponse; retrieve?: typeof retrieveStoredMetaResponse;
   now?: () => number;
   unavailable?: (error: unknown) => boolean;
@@ -44,26 +51,42 @@ export async function handleMetaTagResponse(state: OpState, deps: MetaTagDepende
     if (!candidate) return { ok: true, done: true, nextOffset: cursor };
     if (attempt && attempt.asset_id !== candidate.asset_id) return { ok: false, done: false, error: "Saved Meta attempt targets a different asset", error_code: "contract_error" };
     const methodIndex = attempt?.method_index ?? 0;
-    let request: ChatCompletionRequest | null;
-    try { request = await deps.prepare(candidate.asset_id, META_TAG_METHODS[methodIndex], attempt?.repair_error); }
+    let prepared: PreparedMetaTagRequest | null;
+    try { prepared = await deps.prepare(candidate.asset_id, META_TAG_METHODS[methodIndex], attempt?.repair_error); }
     catch (error) {
       if (deps.missing?.(error)) return { ok: true, done: candidate.done, nextOffset: candidate.next_cursor, skipped: 1, meta_tag_attempt: null, skip_samples: [{ at: iso, asset_id: candidate.asset_id, reason: "Asset no longer exists" }] };
       if (deps.unavailable?.(error)) return { ok: true, done: candidate.done, nextOffset: candidate.next_cursor, visual_analysis_unavailable: 1, meta_tag_attempt: null };
+      if (error instanceof CharacterCatalogDependencyError) return { ok: false, done: false, error: "Character catalog dependency failed before submission", error_code: "dependency_timeout", error_stage: "asset_fetch" };
       const message = error instanceof Error ? error.message : "Meta asset preparation failed before submission";
       const transient = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError" || /timeout|timed out|fetch failed|57014|502|503|504|connection refused|too many connections/i.test(message));
       if (transient) return { ok: false, done: false, error: `Dependency timed out before Meta submission: ${message}`, error_code: "dependency_timeout", error_stage: "asset_fetch" };
       throw new PreSubmissionError(message, true);
     }
-    if (!request) return { ok: true, done: candidate.done, nextOffset: candidate.next_cursor, skipped: 1, meta_tag_attempt: null };
+    if (!prepared) return { ok: true, done: candidate.done, nextOffset: candidate.next_cursor, skipped: 1, meta_tag_attempt: null };
+    if (!validCatalogBinding(prepared.characterCatalogIds)) return { ok: false, done: false, error: "Invalid or oversized supplied character catalog binding", error_code: "contract_error" };
     return { ok: true, done: false, nextOffset: cursor,
       meta_tag_attempt: attempt ?? { asset_id: candidate.asset_id, method_index: 0, same_model_retry: 0 },
-      transient_prepared_batch: request,
-      external_job: { version: 1, provider: "meta-responses", model: deps.model, phase: "prepared", output_method: META_TAG_METHODS[methodIndex] === "json_repair" ? "json_object" : META_TAG_METHODS[methodIndex] as "json_schema" | "json_object" | "tool_auto", prepared_at: iso,
+      transient_prepared_batch: prepared,
+      external_job: { version: 1, meta_character_catalog_ids: prepared.characterCatalogIds, provider: "meta-responses", model: deps.model, phase: "prepared", output_method: META_TAG_METHODS[methodIndex] === "json_repair" ? "json_object" : META_TAG_METHODS[methodIndex] as "json_schema" | "json_object" | "tool_auto", prepared_at: iso,
         page_cursor: cursor, next_cursor: candidate.next_cursor, operation_done_after_clear: candidate.done,
         items: [{ asset_id: candidate.asset_id, custom_id: `meta:${state.run_id}:${candidate.asset_id}`, status: "prepared" }] }, last_stage: "state_persist" };
   }
   if (job.provider !== "meta-responses" || job.model !== deps.model || !attempt || job.items?.length !== 1 || job.items[0].asset_id !== attempt.asset_id || job.output_method !== (META_TAG_METHODS[attempt.method_index] === "json_repair" ? "json_object" : META_TAG_METHODS[attempt.method_index])) {
     return { ok: false, done: false, error: "Saved Meta response scope/model/attempt mismatch", error_code: "contract_error" };
+  }
+  if (!validCatalogBinding(job.meta_character_catalog_ids)) {
+    if (job.meta_character_catalog_ids === undefined && job.phase === "prepared" && !job.provider_batch_id && !job.lease_token && !job.submission_owner && !job.lease_proof && !job.lease_expires_at && !job.lease_claimed_at) {
+      let prepared: PreparedMetaTagRequest | null;
+      try { prepared = await deps.prepare(attempt.asset_id, META_TAG_METHODS[attempt.method_index], attempt.repair_error); }
+      catch (error) {
+        const transport = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError" || /timeout|timed out|fetch failed|57014|502|503|504|connection refused/i.test(error.message));
+        if (error instanceof CharacterCatalogDependencyError || transport) return { ok: false, done: false, error: "Character catalog dependency failed before submission", error_code: "dependency_timeout", external_job: job };
+        return { ok: false, done: false, error: "Legacy prepared Meta asset is unavailable or invalid; owned reconciliation required", error_code: "contract_error", external_job: job };
+      }
+      if (!prepared || !validCatalogBinding(prepared.characterCatalogIds)) return { ok: false, done: false, error: "Cannot bind legacy prepared Meta catalog", error_code: "contract_error", external_job: job };
+      return { ok: true, done: false, nextOffset: cursor, transient_prepared_batch: prepared, external_job: { ...job, meta_character_catalog_ids: prepared.characterCatalogIds }, last_stage: "state_persist" };
+    }
+    return { ok: false, done: false, error: "Accepted or claimed Meta response lacks its supplied character catalog binding", error_code: "contract_error", external_job: job };
   }
   if (job.account_fingerprint && job.account_fingerprint !== accountFingerprint(deps.apiKey)) return { ok: false, done: false, error: "Meta account changed during saved response", error_code: "credential_changed" };
   if (job.phase === "submitting" && !job.provider_batch_id && job.meta_capacity_required_revision !== undefined) {
@@ -82,12 +105,14 @@ export async function handleMetaTagResponse(state: OpState, deps: MetaTagDepende
       meta_tag_attempt: nextAttempt ?? null, external_job: clearRequestJob(job, action.leaseToken), last_stage: "state_persist" };
   }
   if (action.type === "submit") {
-    let request = state.transient_prepared_batch as ChatCompletionRequest | undefined;
-    if (!request) {
-      try { request = await deps.prepare(attempt.asset_id, META_TAG_METHODS[attempt.method_index], attempt.repair_error) ?? undefined; }
+    let prepared = state.transient_prepared_batch as PreparedMetaTagRequest | undefined;
+    if (!prepared) {
+      try { prepared = await deps.prepare(attempt.asset_id, META_TAG_METHODS[attempt.method_index], attempt.repair_error) ?? undefined; }
       catch { throw new PreSubmissionError("Meta preparation failed before submission"); }
     }
-    if (!request || request.model !== deps.model) throw new PreSubmissionError("Prepared Meta request is unavailable", true);
+    if (!prepared || prepared.request.model !== deps.model) throw new PreSubmissionError("Prepared Meta request is unavailable", true);
+    if (!validCatalogBinding(prepared.characterCatalogIds) || !matchingBinding(job.meta_character_catalog_ids, prepared.characterCatalogIds)) throw new PreSubmissionError("Rebuilt Meta prompt character catalog changed", true);
+    const request = prepared.request;
     assertProviderSubmissionLeaseBudget(job.lease_expires_at);
     let id: string;
     try { id = await (deps.create ?? createStoredMetaResponse)(deps.apiKey, request, 60_000, owner, () => assertProviderSubmissionLeaseBudget(job.lease_expires_at)); }
@@ -131,19 +156,23 @@ export async function handleMetaTagResponse(state: OpState, deps: MetaTagDepende
     external_job: { ...job, ...changes, meta_asset_terminal: !changes.meta_next_attempt, phase: "completed", next_poll_at: undefined }, ...counts, last_stage: "state_persist" });
   if (!["completed", "failed", "incomplete", "cancelled"].includes(String(response.status))) return { ok: false, done: false, error: "Stored Meta response has unknown status", error_code: "contract_error", external_job: job };
   if (response.status !== "completed") return completed({}, { failed: 1, failure_samples: [{ at: iso, asset_id: attempt.asset_id, error: "Meta response ended without completed output" }] });
-  let value: Record<string, unknown>;
-  try {
-    const parsed = parseMetaResponse(response, deps.model);
-    value = parsed.toolCalls?.[0]?.arguments ?? parseStructuredJson(parsed.content)!;
-    if (!value) throw new Error("No structured output");
-    deps.validate(value);
-  } catch (error) {
+  const invalidResult = (error: unknown): BatchResult => {
     const message = error instanceof Error && error.message.startsWith("Model returned invalid ") ? error.message.slice(0, 500) : "Previous structured output could not be parsed or validated";
     const next = attempt.method_index + 1 < META_TAG_METHODS.length
       ? { ...attempt, method_index: attempt.method_index + 1, repair_error: message }
       : attempt.same_model_retry < 1 ? { ...attempt, method_index: 0, same_model_retry: 1, repair_error: message } : undefined;
     if (next) return completed({ meta_next_attempt: next });
     return completed({}, { failed: 1, failure_samples: [{ at: iso, asset_id: attempt.asset_id, error: "Meta structured output attempts exhausted" }] });
+  };
+  let value: Record<string, unknown>;
+  try {
+    const parsed = parseMetaResponse(response, deps.model);
+    value = parsed.toolCalls?.[0]?.arguments ?? parseStructuredJson(parsed.content)!;
+    if (!value) throw new Error("No structured output");
+    await deps.validate(value, job.meta_character_catalog_ids);
+  } catch (error) {
+    if (error instanceof CharacterCatalogDependencyError) return { ok: false, done: false, error: error.message, error_code: "dependency_timeout", external_job: job };
+    return invalidResult(error);
   }
   if (job.phase === "pending") {
     const usage = response.usage && typeof response.usage === "object" ? response.usage as Record<string, unknown> : {};
@@ -154,8 +183,11 @@ export async function handleMetaTagResponse(state: OpState, deps: MetaTagDepende
   }
   // The pending-to-applying checkpoint prevents a restart from issuing a new POST.
   if (job.phase !== "applying") return { ok: true, done: false, nextOffset: cursor, external_job: { ...job, phase: "applying", next_poll_at: undefined }, last_stage: "tag_write" };
-  try { await deps.apply(attempt.asset_id, value, deps.model); }
-  catch {
+  try { await deps.apply(attempt.asset_id, value, deps.model, job.meta_character_catalog_ids); }
+  catch (error) {
+    if (error instanceof CharacterReferenceValidationError) return invalidResult(error);
+    if (error instanceof CharacterCatalogDependencyError) return { ok: false, done: false, error: error.message, error_code: "dependency_timeout", external_job: job };
+    logger.warn("meta-tag: result save failed", { stage: error instanceof AssetTagApplyError ? error.stage : "apply", error_code: error instanceof CharacterCatalogDependencyError || error instanceof AssetTagApplyError ? error.code : "unknown" });
     const failures = Number(job.meta_apply_failures ?? 0) + 1;
     if (failures >= 5) return completed({}, { failed: 1, failure_samples: [{ at: iso, asset_id: attempt.asset_id, error: "Meta result save failed after bounded retries" }] });
     return { ok: true, done: false, nextOffset: cursor, external_job: { ...job, meta_apply_failures: failures, next_poll_at: new Date(now + transientPollDelayMs(failures - 1)).toISOString() }, last_stage: "tag_write" };
