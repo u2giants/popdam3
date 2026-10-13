@@ -80,9 +80,9 @@ The summary counts (total, linked, ambiguous, not linked) are read as sequential
 count queries over the whole dataset, not derived from loaded rows. They start
 after visible rows have loaded so they cannot hold up the grid.
 
-The default view is sorted by newest **Order Date** first and shows 1,500 rows per
-page. Users can change the sort or page size, and saved views can restore their
-own sort.
+The default view is sorted by newest **Prod PO Date** first and shows 1,500 rows
+per page. **Sent PO** remains a separate field. Users can change the sort or page
+size, and saved views can restore their own sort.
 
 The grid virtualizes cells, so the browser does not create DOM text for every
 off-screen row. Ctrl+F is therefore captured and focuses the page's database-backed

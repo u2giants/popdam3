@@ -33,7 +33,7 @@ describe("OrderList strict value coercion", () => {
 
   it("refuses a date it cannot read, naming the column", () => {
     expect(() => coerceFieldValueStrict("order_date", "not-a-date")).toThrow(/is not a date/i);
-    expect(() => coerceFieldValueStrict("order_date", "not-a-date")).toThrow(/Order Date/);
+    expect(() => coerceFieldValueStrict("order_date", "not-a-date")).toThrow(/Prod PO Date/);
   });
 
   it("refuses a number it cannot read", () => {
