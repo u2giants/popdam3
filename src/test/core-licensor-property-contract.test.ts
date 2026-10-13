@@ -59,10 +59,15 @@ describe("canonical licensor/property contract", () => {
 
   it("fails loudly when ColdLion is unavailable", () => {
     const coldlion = read("supabase/functions/_shared/coldlion.ts");
+    const parser = read("supabase/functions/_shared/sku-parser.ts");
     expect(coldlion).toContain("COLDLION_API_KEY is missing");
-    expect(coldlion).toContain("throw new Error");
+    expect(coldlion).toContain("class ColdLionConfigError");
+    expect(coldlion).toContain("throw new ColdLionConfigError");
     expect(coldlion).not.toContain("HARDCODED_KEY");
     expect(coldlion).not.toContain("return {};");
+    // Config errors must propagate out of the non-fatal ColdLion fallbacks.
+    expect(parser).toContain("if (e instanceof ColdLionConfigError) throw e;");
+    expect(parser.match(/instanceof ColdLionConfigError/g)?.length).toBe(2);
   });
 
   it("keeps ColdLion MG codes scoped to their division", () => {

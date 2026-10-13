@@ -1,4 +1,4 @@
-import { getColdLionItemInfo, getMgLookup } from "./coldlion.ts";
+import { ColdLionConfigError, getColdLionItemInfo, getMgLookup } from "./coldlion.ts";
 import { getMg02Desc, getMg03Desc } from "./mg-lookup.ts";
 import { getLegacyMgDesc, MG_REWORK_CUTOFF } from "./mg-legacy.ts";
 
@@ -117,6 +117,7 @@ async function isLegacyItem(sku: string, fileDate?: string | null): Promise<{ le
   try {
     info = await getColdLionItemInfo(sku);
   } catch (e) {
+    if (e instanceof ColdLionConfigError) throw e;
     console.warn(`ColdLion item lookup failed for ${sku}:`, e);
   }
   if (info) return { legacy: info.createdTime.slice(0, 10) < MG_REWORK_CUTOFF, division: info.divisionCode };
@@ -127,6 +128,7 @@ async function getMgLookupOrEmpty(mgTypeCode: string, divisionCode: string): Pro
   try {
     return await getMgLookup(mgTypeCode, divisionCode);
   } catch (e) {
+    if (e instanceof ColdLionConfigError) throw e;
     console.warn(`ColdLion MG lookup unavailable for ${mgTypeCode}/${divisionCode}; names left unresolved:`, e instanceof Error ? e.message : e);
     return {};
   }
