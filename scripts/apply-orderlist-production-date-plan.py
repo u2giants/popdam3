@@ -82,16 +82,16 @@ def _read_fd(path: Path, *, allowed_uids: set[int], mode_0600: bool = False) -> 
 
 
 def read_private_input(path: Path) -> bytes:
-    return _read_fd(path, allowed_uids={os.getuid()}, mode_0600=True)
+    return _read_fd(path, allowed_uids={os.geteuid()}, mode_0600=True)
 
 
 def read_reviewer_report(path: Path) -> bytes:
-    return _read_fd(path, allowed_uids={os.getuid(), 0}, mode_0600=False)
+    return _read_fd(path, allowed_uids={os.geteuid(), 0}, mode_0600=False)
 
 
 @contextmanager
 def _pinned_ca_file():
-    ca_bytes = _read_fd(CA_FILE, allowed_uids={os.getuid(), 0})
+    ca_bytes = _read_fd(CA_FILE, allowed_uids={os.geteuid(), 0})
     if sha_bytes(ca_bytes) != CA_SHA256:
         raise ValueError('Pinned Virginia database certificate checksum mismatch')
     with tempfile.TemporaryDirectory(prefix='popdam-date-ca-') as ca_dir:
@@ -102,7 +102,7 @@ def _pinned_ca_file():
             ca_handle.write(ca_bytes)
             ca_handle.flush()
             os.fsync(ca_handle.fileno())
-        private_copy = _read_fd(ca_path, allowed_uids={os.getuid()}, mode_0600=True)
+        private_copy = _read_fd(ca_path, allowed_uids={os.geteuid()}, mode_0600=True)
         if sha_bytes(private_copy) != CA_SHA256:
             raise ValueError('Private Virginia database certificate copy failed verification')
         yield ca_path
@@ -115,6 +115,12 @@ def load_frozen_plan(path: Path, expected_sha: str, raw: bytes | None = None) ->
     plan = json.loads(raw)
     if plan.get('schema') != planner.SCHEMA or plan.get('database_project') != TARGET:
         raise ValueError('Unsupported plan or database target')
+    if (plan.get('database_region') != planner.DB_REGION or
+            plan.get('database_host') != POOLER_HOST or
+            plan.get('database_port') != POOLER_PORT or
+            plan.get('database_name') != DATABASE or
+            not _valid_database_fingerprint(plan.get('database_fingerprint'))):
+        raise ValueError('Frozen plan does not pin the approved Virginia database identity')
     plan_sha = plan.get('plan_sha256')
     digestable = dict(plan)
     digestable.pop('plan_sha256', None)
@@ -154,9 +160,9 @@ def _verified_gate() -> tuple[Path, str]:
         raise ValueError('Managed task-gate executable is unavailable') from exc
     if (not stat.S_ISREG(info.st_mode) or not info.st_mode & stat.S_IXUSR or
             info.st_mode & (stat.S_IWGRP | stat.S_IWOTH) or
-            info.st_uid not in {os.getuid(), 0}):
+            info.st_uid not in {os.geteuid(), 0}):
         raise ValueError('Managed task-gate executable has unsafe ownership or permissions')
-    return resolved, sha_bytes(_read_fd(resolved, allowed_uids={os.getuid(), 0}))
+    return resolved, sha_bytes(_read_fd(resolved, allowed_uids={os.geteuid(), 0}))
 
 
 def validate_reviewer_bundle(plan: dict, plan_raw: bytes, report: Path,
@@ -193,7 +199,7 @@ def validate_reviewer_bundle(plan: dict, plan_raw: bytes, report: Path,
 def read_private_or_repo_file(path: Path) -> bytes:
     # Code inputs are checked as regular, non-writable files and opened without
     # following a final-component symlink. Their bytes are what the bundle pins.
-    return _read_fd(path, allowed_uids={os.getuid(), 0}, mode_0600=False)
+    return _read_fd(path, allowed_uids={os.geteuid(), 0}, mode_0600=False)
 
 
 def verify_reviewer_gate(plan: dict, report: Path, bundle: dict,
@@ -260,6 +266,7 @@ def connect():
             conn = psycopg.connect(dsn, connect_timeout=8, sslmode='verify-full',
                                    sslrootcert=str(ca_path))
         try:
+            conn.isolation_level = psycopg.IsolationLevel.SERIALIZABLE
             # The first target proof is a read-only session. It cannot issue
             # application SQL even if a caller reaches this function directly.
             conn.read_only = True
@@ -473,6 +480,13 @@ def _bulk_update_dates(conn, plan: dict) -> dict[str, dict]:
 
 
 def _check_plan_scope(plan: dict):
+    if (plan.get('database_project') != TARGET or
+            plan.get('database_region') != planner.DB_REGION or
+            plan.get('database_host') != POOLER_HOST or
+            plan.get('database_port') != POOLER_PORT or
+            plan.get('database_name') != DATABASE or
+            not _valid_database_fingerprint(plan.get('database_fingerprint'))):
+        raise ValueError('Frozen plan does not pin the approved Virginia database identity')
     if not isinstance(plan.get('proposals'), list) or not plan['proposals'] or len(plan['proposals']) > MAX_PROPOSALS:
         raise ValueError('Frozen plan proposal count is outside the bounded batch limit')
     if (plan.get('customer_identity_snapshot_complete') is not True or
@@ -528,6 +542,7 @@ def _check_plan_scope(plan: dict):
 
 
 def _begin(conn, apply: bool):
+    conn.read_only = not apply
     conn.execute('BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE' + ('' if apply else ' READ ONLY'))
     conn.execute("SET LOCAL statement_timeout = '8000ms'")
     conn.execute("SET LOCAL lock_timeout = '2000ms'")
@@ -569,6 +584,7 @@ def run_preflight(plan: dict) -> dict:
     _check_plan_scope(plan)
     conn, fingerprint = connect()
     try:
+        _assert_captured_database_identity(plan, fingerprint)
         _begin(conn, apply=False)
         _verify_live_identity(conn, fingerprint)
         if not conn.execute('SELECT pg_try_advisory_xact_lock(%s)', (ADVISORY_LOCK,)).fetchone()[0]:
@@ -588,7 +604,7 @@ def apply_plan(plan: dict) -> dict:
     _check_plan_scope(plan)
     conn, fingerprint = connect()
     try:
-        conn.read_only = False
+        _assert_captured_database_identity(plan, fingerprint)
         _begin(conn, apply=True)
         _verify_live_identity(conn, fingerprint)
         if not conn.execute('SELECT pg_try_advisory_xact_lock(%s)', (ADVISORY_LOCK,)).fetchone()[0]:
@@ -627,6 +643,16 @@ def _verify_live_identity(conn, fingerprint: tuple[str, ...]):
             identity.fingerprint != fingerprint or
             shared_db_importer.read_server_identity(conn).fingerprint != fingerprint):
         raise ValueError('Production database identity changed during the date operation')
+
+
+def _valid_database_fingerprint(value) -> bool:
+    return (isinstance(value, list) and len(value) == 3 and
+            all(isinstance(part, str) and part for part in value))
+
+
+def _assert_captured_database_identity(plan: dict, fingerprint: tuple[str, ...]):
+    if tuple(plan['database_fingerprint']) != tuple(fingerprint):
+        raise ValueError('Connected database fingerprint differs from the captured target')
 
 
 def main(argv=None) -> int:

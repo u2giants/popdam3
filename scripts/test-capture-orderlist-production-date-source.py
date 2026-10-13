@@ -249,6 +249,18 @@ class CaptureTests(unittest.TestCase):
             existing.write_text('{}')
             with self.assertRaisesRegex(ValueError, 'already exists'):
                 capturemod._output_path(existing)
+            checkout = Path(folder) / 'checkout'
+            checkout.mkdir(mode=0o700)
+            (checkout / '.git').write_text('gitdir: /tmp/not-used')
+            nested = checkout / 'private'
+            nested.mkdir(mode=0o700)
+            with self.assertRaisesRegex(ValueError, 'under a Git checkout'):
+                capturemod._output_path(nested / 'capture.json')
+            public = Path(folder) / 'public'
+            public.mkdir(mode=0o700)
+            public.chmod(0o755)
+            with self.assertRaisesRegex(ValueError, 'parent has unsafe ownership or permissions'):
+                capturemod._output_path(public / 'capture.json')
 
     def test_bounded_query_rejects_limit_plus_one(self):
         class Oversized:

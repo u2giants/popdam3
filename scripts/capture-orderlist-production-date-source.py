@@ -61,17 +61,7 @@ def _load_held_ids(path: Path, expected_sha256: str) -> list[str]:
 
 
 def _output_path(path: Path) -> Path:
-    parent = path.parent.resolve(strict=True)
-    resolved = parent / path.name
-    try:
-        resolved.relative_to(ROOT)
-    except ValueError:
-        pass
-    else:
-        raise ValueError('Capture output must be outside the repository')
-    if resolved.exists() or resolved.is_symlink():
-        raise ValueError('Capture output already exists')
-    return resolved
+    return planner._validate_private_output_path(path)
 
 
 def _ids(rows: list[dict], field: str) -> list[str]:
@@ -189,7 +179,8 @@ def build_capture(headers: list[dict], lines: list[dict], refs: list[dict],
     captured = captured_at.astimezone(timezone.utc)
     if latest > captured:
         raise ValueError('A ColdLion source observation is later than capture time')
-    if len(database_fingerprint) != 3 or not all(database_fingerprint):
+    if (len(database_fingerprint) != 3 or
+            not all(isinstance(value, str) and value for value in database_fingerprint)):
         raise ValueError('Virginia database fingerprint is incomplete')
     if len(repository_head) != 40 or any(ch not in '0123456789abcdef' for ch in repository_head):
         raise ValueError('Current repository head is not a full Git SHA')

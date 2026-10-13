@@ -23,6 +23,10 @@ from uuid import UUID
 SCHEMA = 'orderlist-production-date-plan-v1'
 CAPTURE_SCHEMA = 'orderlist-production-date-capture-v1'
 DB_PROJECT = 'qsllyeztdwjgirsysgai'
+DB_REGION = 'us-east-1'
+DB_HOST = 'aws-1-us-east-1.pooler.supabase.com'
+DB_PORT = 5432
+DB_NAME = 'postgres'
 SO_REF = re.compile(r'^coldlion:so:([0-9]+):line:[0-9]+:component:[0-9]+$')
 DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 CUSTOMER_IDENTITY_FIELDS = (
@@ -32,6 +36,7 @@ CUSTOMER_IDENTITY_FIELDS = (
 )
 CUSTOMER_IDENTITY_SNAPSHOT_LIMIT = 2000
 MAX_PROTECTED_INPUT_BYTES = 128 * 1024 * 1024
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def canonical(value) -> str:
@@ -118,6 +123,16 @@ def parse_date(value):
 def _validate_capture(capture: dict) -> tuple[list[dict], str, str]:
     if not isinstance(capture, dict) or capture.get('schema') != CAPTURE_SCHEMA:
         raise ValueError('Unsupported or missing capture schema')
+    if (capture.get('database_project') != DB_PROJECT or
+            capture.get('database_region') != DB_REGION or
+            capture.get('database_host') != DB_HOST or
+            capture.get('database_port') != DB_PORT or
+            capture.get('database_name') != DB_NAME):
+        raise ValueError('Capture does not identify the approved Virginia database target')
+    fingerprint = capture.get('database_fingerprint')
+    if (not isinstance(fingerprint, list) or len(fingerprint) != 3 or
+            not all(isinstance(value, str) and value for value in fingerprint)):
+        raise ValueError('Capture database fingerprint is incomplete')
     rows = capture.get('prod_history_rows')
     headers = capture.get('headers')
     lines = capture.get('lines')
@@ -187,9 +202,11 @@ def _timestamp(value) -> str:
 
 
 def _source_order_key(row):
-    company = exact(row.get('company_code'))
-    number = exact(row.get('prod_order_no'))
-    if not company or not number:
+    company_value = row.get('company_code')
+    number_value = row.get('prod_order_no')
+    company = None if company_value is None else str(company_value)
+    number = None if number_value is None else str(number_value)
+    if company in (None, '') or number in (None, ''):
         return None
     return (company, number)
 
@@ -588,6 +605,11 @@ def build_plan(capture: dict, capture_file_sha256: str | None = None) -> dict:
     plan = {
         'schema': SCHEMA,
         'database_project': DB_PROJECT,
+        'database_region': capture['database_region'],
+        'database_host': capture['database_host'],
+        'database_port': capture['database_port'],
+        'database_name': capture['database_name'],
+        'database_fingerprint': list(capture['database_fingerprint']),
         'capture_digest': digest(capture),
         'capture_file_sha256': capture_file_sha256,
         'capture_source_digest': capture['source_digest'],
@@ -612,14 +634,67 @@ def build_plan(capture: dict, capture_file_sha256: str | None = None) -> dict:
 
 
 def _write_private_exclusive(path: Path, content: bytes):
+    path = _validate_private_output_path(path)
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if hasattr(os, 'O_NOFOLLOW'):
         flags |= os.O_NOFOLLOW
     fd = os.open(path, flags, 0o600)
-    with os.fdopen(fd, 'wb') as handle:
-        handle.write(content)
-        handle.flush()
-        os.fsync(handle.fileno())
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or
+                stat.S_IMODE(info.st_mode) != 0o600):
+            raise ValueError('Private output file has unsafe ownership or permissions')
+        with os.fdopen(fd, 'wb') as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+            written = os.fstat(handle.fileno())
+        final = path.lstat()
+        if (not stat.S_ISREG(final.st_mode) or final.st_uid != os.geteuid() or
+                stat.S_IMODE(final.st_mode) != 0o600 or final.st_size != len(content) or
+                (final.st_dev, final.st_ino) != (written.st_dev, written.st_ino)):
+            raise ValueError('Private output failed final ownership or permission verification')
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _validate_private_output_path(path: Path) -> Path:
+    path = Path(path)
+    try:
+        parent = path.parent.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError('Private output parent is unavailable') from exc
+    resolved = parent / path.name
+    if resolved == PROJECT_ROOT:
+        raise ValueError('Private output cannot be the repository root')
+    try:
+        resolved.relative_to(PROJECT_ROOT)
+    except ValueError:
+        pass
+    else:
+        raise ValueError('Private output must be outside the repository')
+    for ancestor in (parent, *parent.parents):
+        git_marker = ancestor / '.git'
+        if git_marker.exists() or git_marker.is_symlink():
+            raise ValueError('Private output cannot be under a Git checkout')
+    try:
+        info = parent.stat()
+    except OSError as exc:
+        raise ValueError('Private output parent is unavailable') from exc
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or
+            stat.S_IMODE(info.st_mode) != 0o700):
+        raise ValueError('Private output parent has unsafe ownership or permissions')
+    if resolved.exists() or resolved.is_symlink():
+        raise ValueError('Private output already exists')
+    return resolved
 
 
 def main(argv=None) -> int:

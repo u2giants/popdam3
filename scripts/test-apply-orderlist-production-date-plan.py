@@ -31,6 +31,11 @@ def frozen_plan():
     plan = {
         'schema': executor.planner.SCHEMA,
         'database_project': executor.TARGET,
+        'database_region': executor.planner.DB_REGION,
+        'database_host': executor.POOLER_HOST,
+        'database_port': executor.POOLER_PORT,
+        'database_name': executor.DATABASE,
+        'database_fingerprint': ['db', 'addr', 'started'],
         'repository_head': '1' * 40,
         'capture_file_sha256': '2' * 64,
         'capture_source_digest': '3' * 64,
@@ -121,6 +126,11 @@ def batch_plan():
     return {
         'schema': executor.planner.SCHEMA,
         'database_project': executor.TARGET,
+        'database_region': executor.planner.DB_REGION,
+        'database_host': executor.POOLER_HOST,
+        'database_port': executor.POOLER_PORT,
+        'database_name': executor.DATABASE,
+        'database_fingerprint': ['db', 'addr', 'started'],
         'repository_head': '1' * 40,
         'capture_file_sha256': '2' * 64,
         'capture_source_digest': '3' * 64,
@@ -174,10 +184,10 @@ class BatchSnapshotConnection:
     def rollback(self):
         pass
 
-    def commit(self):
+    def close(self):
         pass
 
-    def close(self):
+    def commit(self):
         pass
 
 
@@ -209,25 +219,29 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
 
     def test_transaction_mode_is_verified_before_application_reads(self):
         class TransactionConnection:
-            def __init__(self, isolation='serializable', read_only='on'):
+            def __init__(self, isolation='serializable', server_read_only=None):
                 self.isolation = isolation
-                self.read_only = read_only
+                self.read_only = None
+                self.server_read_only = server_read_only
                 self.queries = []
             def execute(self, query):
                 self.queries.append(query)
                 if query == 'SHOW transaction_isolation':
                     return FakeCursor([(self.isolation,)])
                 if query == 'SHOW transaction_read_only':
-                    return FakeCursor([(self.read_only,)])
+                    reported = self.server_read_only or ('on' if self.read_only else 'off')
+                    return FakeCursor([(reported,)])
                 return FakeCursor([])
 
         valid_read = TransactionConnection()
         executor._begin(valid_read, apply=False)
+        self.assertTrue(valid_read.read_only)
         self.assertEqual(valid_read.queries[-2:], [
             'SHOW transaction_isolation', 'SHOW transaction_read_only'])
 
-        valid_write = TransactionConnection(read_only='off')
+        valid_write = TransactionConnection()
         executor._begin(valid_write, apply=True)
+        self.assertFalse(valid_write.read_only)
         self.assertEqual(valid_write.queries[-1], 'SHOW transaction_read_only')
 
         for isolation, read_only, message in (
@@ -282,7 +296,7 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
     def test_readonly_preflight_uses_batch_snapshot_and_never_updates(self):
         plan = batch_plan()
         connection = BatchSnapshotConnection(plan)
-        with (mock.patch.object(executor, 'connect', return_value=(connection, ('target',))),
+        with (mock.patch.object(executor, 'connect', return_value=(connection, ('db', 'addr', 'started'))),
               mock.patch.object(executor, '_verify_live_identity')):
             result = executor.run_preflight(plan)
         self.assertEqual(result, {'mode': 'read-only-preflight', 'proposed': 2, 'changed': 0})
@@ -295,6 +309,28 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
         self.assertIn('c.name AS canonical_name', customer_query)
         self.assertNotIn('c.canonical_name', customer_query)
         self.assertFalse(any(q.lstrip().upper().startswith('UPDATE ') for q, _ in connection.queries))
+
+    def test_readonly_preflight_rejects_capture_fingerprint_before_database_queries(self):
+        plan = batch_plan()
+        connection = BatchSnapshotConnection(plan)
+        with mock.patch.object(executor, 'connect', return_value=(connection, ('other', 'addr', 'started'))), \
+             mock.patch.object(executor, '_verify_live_identity'):
+            with self.assertRaisesRegex(ValueError, 'fingerprint differs from the captured target'):
+                executor.run_preflight(plan)
+        self.assertEqual(connection.queries, [])
+
+    def test_frozen_plan_requires_exact_virginia_target_fields(self):
+        for field, bad_value in (
+                ('database_region', 'us-west-2'),
+                ('database_host', 'spoofed.example'),
+                ('database_port', 6432),
+                ('database_name', 'not-postgres'),
+                ('database_fingerprint', ['db', None, 'started'])):
+            with self.subTest(field=field):
+                plan = frozen_plan()
+                plan[field] = bad_value
+                with self.assertRaisesRegex(ValueError, 'approved Virginia database identity'):
+                    executor._check_plan_scope(plan)
 
     def test_bulk_update_uses_one_values_statement_and_rejects_partial_count(self):
         plan = batch_plan()
@@ -417,6 +453,7 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
         conn = Connection()
         calls = {}
         psycopg = types.ModuleType('psycopg')
+        psycopg.IsolationLevel = types.SimpleNamespace(SERIALIZABLE='serializable')
         def fake_connect(dsn, **kwargs):
             calls.update(kwargs)
             ca_path = Path(kwargs['sslrootcert'])
@@ -443,6 +480,8 @@ class ApplyProductionDatePlanTests(unittest.TestCase):
         self.assertIs(returned, conn)
         self.assertEqual(fingerprint, identity.fingerprint)
         self.assertEqual(calls['sslmode'], 'verify-full')
+        self.assertEqual(conn.isolation_level, psycopg.IsolationLevel.SERIALIZABLE)
+        self.assertTrue(conn.read_only)
         self.assertEqual(calls['ca_bytes'], certificate)
         self.assertEqual(calls['ca_mode'], 0o600)
         self.assertNotEqual(calls['sslrootcert'], 'system')

@@ -54,6 +54,12 @@ def base_capture():
         'captured_at': '2026-10-13T14:02:00Z',
         'latest_source_observation_at': '2026-10-13T14:01:00Z',
         'source_digest': planmod.digest([issued, received]),
+        'database_project': planmod.DB_PROJECT,
+        'database_region': planmod.DB_REGION,
+        'database_host': planmod.DB_HOST,
+        'database_port': planmod.DB_PORT,
+        'database_name': planmod.DB_NAME,
+        'database_fingerprint': ['db', 'addr', 'started'],
         'repository_head': '1' * 40,
         'headers': [header], 'lines': [line], 'line_source_refs': [],
         'held_header_ids': [], 'prod_history_rows': [issued, received],
@@ -75,6 +81,25 @@ class ProductionDatePlannerTests(unittest.TestCase):
         capture['prod_history_rows'][0]['prod_order_date'] = '2024-03-05'
         with self.assertRaisesRegex(ValueError, 'source digest does not match'):
             planmod._validate_capture(capture)
+
+    def test_capture_requires_exact_virginia_target_and_complete_fingerprint(self):
+        for field, bad_value in (
+                ('database_project', 'wrong-project'),
+                ('database_region', 'us-west-2'),
+                ('database_host', 'unapproved.example'),
+                ('database_port', 6543),
+                ('database_name', 'other'),
+                ('database_fingerprint', ['db', '', 'started'])):
+            with self.subTest(field=field):
+                capture = base_capture()
+                capture[field] = bad_value
+                with self.assertRaisesRegex(ValueError, 'approved Virginia database target|fingerprint is incomplete'):
+                    planmod._validate_capture(capture)
+
+    def test_source_order_partition_preserves_raw_company_and_order_strings(self):
+        self.assertEqual(planmod._source_order_key({
+            'company_code': ' EDGEHOME ', 'prod_order_no': ' 555 ',
+        }), (' EDGEHOME ', ' 555 '))
 
     def test_protected_capture_reads_hash_and_json_from_the_same_owned_file_bytes(self):
         raw = b'{"example":"pinned bytes"}\n'
@@ -150,6 +175,36 @@ class ProductionDatePlannerTests(unittest.TestCase):
             malformed.chmod(0o600)
             with self.assertRaisesRegex(ValueError, 'valid JSON'):
                 planmod._read_protected_capture(malformed, hashlib.sha256(b'{').hexdigest())
+
+    def test_private_output_requires_owned_0700_parent_and_no_git_ancestor(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            private = root / 'private'
+            private.mkdir(mode=0o700)
+            private.chmod(0o700)
+            checkout = private / 'checkout'
+            checkout.mkdir(mode=0o700)
+            (checkout / '.git').write_text('gitdir: /tmp/not-used')
+            with self.assertRaisesRegex(ValueError, 'under a Git checkout'):
+                planmod._validate_private_output_path(checkout / 'plan.json')
+            public = root / 'public'
+            public.mkdir(mode=0o700)
+            public.chmod(0o755)
+            with self.assertRaisesRegex(ValueError, 'parent has unsafe ownership or permissions'):
+                planmod._validate_private_output_path(public / 'plan.json')
+        with self.assertRaisesRegex(ValueError, 'repository root'):
+            planmod._validate_private_output_path(planmod.PROJECT_ROOT)
+        with self.assertRaisesRegex(ValueError, 'outside the repository'):
+            planmod._validate_private_output_path(planmod.PROJECT_ROOT / 'capture.json')
+
+    def test_private_output_is_exclusive_and_mode_0600(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'plan.json'
+            planmod._write_private_exclusive(path, b'protected')
+            self.assertEqual(path.read_bytes(), b'protected')
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+            with self.assertRaisesRegex(ValueError, 'already exists'):
+                planmod._write_private_exclusive(path, b'overwrite')
 
     def test_capture_rejects_source_observation_fraction_after_capture(self):
         capture = base_capture()
