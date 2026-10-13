@@ -255,6 +255,11 @@ describe("OrderList columns", () => {
     expect(ORDER_LIST_COLUMNS.find((column) => column.field === "sent_po_date")?.header).toBe("Sent PO");
   });
 
+  it("explains that the production PO date comes from ColdLion", () => {
+    expect(ORDER_LIST_COLUMNS.find((column) => column.field === "order_date")?.headerTooltip)
+      .toBe("Production PO Date in ColdLion.");
+  });
+
   it("opens with the recognizable legacy sheet order", () => {
     const visible = ORDER_LIST_COLUMNS.filter((column) => !column.hide).map((column) => column.field);
     expect(visible.slice(0, 9)).toEqual([

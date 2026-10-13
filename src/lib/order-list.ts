@@ -448,6 +448,7 @@ export function summarizeOrderListRows(rows: OrderListRow[], total?: number): Or
 export type OrderListColumn = {
   field: keyof OrderListRow;
   header: string;
+  headerTooltip?: string;
   width?: number;
   /** "masterData" columns are read-only and visually marked as Master Data. */
   kind: "order" | "line" | "masterData" | "link" | "diagnostic";
@@ -471,7 +472,7 @@ export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
   { field: "order_status", header: "PO Status", kind: "order", source: "automatic", type: "text", width: 130, pinned: "left" },
   { field: "production_order_number", header: "Import PO #", kind: "order", source: "helper", type: "text", width: 150, pinned: "left" },
   { field: "vendor_name", header: "Vendor", kind: "order", type: "text", width: 170 },
-  { field: "order_date", header: "Prod PO Date", kind: "order", type: "date", width: 130 },
+  { field: "order_date", header: "Prod PO Date", headerTooltip: "Production PO Date in ColdLion.", kind: "order", type: "date", width: 130 },
   { field: "sent_po_date", header: "Sent PO", kind: "order", type: "date", width: 130 },
   { field: "customer_name", header: "Customer", kind: "order", source: "input", type: "text", width: 170 },
   { field: "customer_po_number", header: "Customer PO", kind: "line", source: "input", type: "text", editable: true, width: 150 },
