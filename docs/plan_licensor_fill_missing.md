@@ -1,51 +1,51 @@
 # Run plan: licensor fill-in via reprocess-metadata (fill-missing-licensing mode)
 
-Issue: u2giants/popdam3#357. Code on main (4fb0b89c): PR #359 (ad5434f) fill-only mode, plus ColdLion fixes #372, #374, #375, #376.
+Issue: u2giants/popdam3#357. Code on main (4fb0b89c or later): PR #359 fill-only mode, plus ColdLion fixes #372, #374, #375, #376.
 
 ## Operation
-- Bulk operation key: `reprocess-metadata` (admin-api `update-bulk-op`), with `params.mode = fill-missing-licensing`.
+- Bulk operation key: `reprocess-metadata`, started through admin-api `update-bulk-op` with `params.mode = "fill-missing-licensing"`.
+- Do NOT use the app's "Reprocess Metadata" button. It sends no params and runs the full, unguarded mode, which also rewrites size, division, sku_sequence, mg01-03, is_licensed, and workflow_status.
 - Fill-only: writes only the six licensing columns, each guarded on the column still being NULL. Never touches SKU, MG codes, is_licensed, or workflow.
-- Scope: `is_deleted = false` AND `is_licensed = true` AND `licensor_id IS NULL`. Baseline at Oct 12 2026 2:15 PM EDT was 138,655 assets total and 124,183 licensed with no licensor. Re-count at run start and record it.
-- Walk: asset id keyset, ascending, using the operation's stored cursor.
-- Batch size: the worker sends batch_size 25 (apps/worker/src/handlers/metadata-reprocess.ts:21); the edge function caps at 200. The effective batch is 25. The run does not use a count cap.
+- Scope: `is_deleted = false AND is_licensed = true AND licensor_id IS NULL`. Baseline Oct 12 2026 2:15 PM EDT: 138,655 assets total, 124,183 licensed with no licensor. Re-count at run start and record it.
+- Walk: asset id keyset, ascending, using the stored cursor.
+- Batch size: the worker sends batch_size 25 (apps/worker/src/handlers/metadata-reprocess.ts:21). The edge function caps at 200. Effective batch is 25. No count cap.
+- Start seed: `{ "status": "running", "cursor": 0, "params": { "mode": "fill-missing-licensing" }, "progress": {} }`. Without `cursor` the worker fails the op as legacy_format.
 
-## Pre-run prerequisites
-1. The DAM scan (session 9381c755) has finished. Verify in admin_config SCAN_PROGRESS status is not running.
-2. `ai-task-gates check --before database --reviewer-approval <assigned AI reviewer exact-head APPROVE report>` passes, with target-database proof recorded on the issue. A run of this size is not a small owner entry.
-3. The stop control is verified: the worker stops only when the op's status in admin_config is no longer "running", checked every 10 batches (apps/worker/src/operation-loop.ts). `update-bulk-op` replaces op_state wholesale, so a stop reads the current op_state, changes only status to "interrupted", and writes the full object back.
-5. Freshness: the edge function and worker run the reviewed head (main 4fb0b89c or later), per the worker heartbeat. A 10-asset sample resolves a licensor from the current ColdLion mirror before the run.
-6. Conflict guard: no other asset-writing bulk operation is running. Resuming to "running" triggers the cross-lane guard.
-4. Full snapshot before any write: all six licensing columns plus SKU, MG codes, is_licensed, and workflow for the entire scope and for all licensed assets, saved to a local file outside the repo. This is the rollback source.
+## Prerequisites
+1. The DAM scan (session 9381c755) has finished. admin_config SCAN_PROGRESS is not "running".
+2. Freshness: the worker heartbeat `sha` (from RAILWAY_GIT_COMMIT_SHA or GIT_COMMIT_SHA) and the edge function deploy are main 4fb0b89c or later. A 10-asset sample resolves a licensor from the current ColdLion mirror.
+3. Conflict guard: no other metadata-lane operation (including backfill-sku-names) is running or queued. This is checked by hand; the server does not enforce it for a direct `running` write.
+4. Snapshot before any write: all six licensing columns plus size, division, sku_sequence, mg01-03, is_licensed, and workflow_status for every licensed asset, saved to a local file outside the repo. This is the rollback source for every column.
+5. `ai-task-gates check --before database --reviewer-approval <assigned AI reviewer exact-head APPROVE report>` passes, with target-database proof on the issue. This run is not a small owner entry.
 
 ## Pilot (500 assets)
-- Start the run. Stop by the read-modify-write in prerequisite 3 once the stored cursor passes the 500th asset id in scope. The stop is checked every 10 batches of 25, so the pilot may fill up to about 250 assets beyond 500. Verification covers every row filled between run start and the stop.
+- Start the run with the seed above. Stop by the stop procedure once the stored cursor passes the 500th asset id in scope. The stop is checked every 10 batches of 25, so the pilot may fill up to about 250 assets beyond 500. Verification covers every row filled from run start to stop.
 - Pass conditions, all required:
   - Fills greater than 0.
-  - Every pilot asset whose ColdLion licensor resolves now has one. Count unresolved assets and record them.
-  - No non-NULL licensing value changed, checked against the snapshot for the 500 pilot assets.
-  - No change to SKU, MG codes, is_licensed, or workflow on the pilot assets.
-- If any condition fails, stop and do not start the full run.
+  - Every pilot asset whose ColdLion licensor resolves now has one. Record the unresolved count.
+  - No non-NULL licensing value changed, checked against the snapshot.
+  - No change to any non-licensing column in the snapshot.
+- If any condition fails, do not start the full run.
+
+## Stop procedure
+- Read the current op_state, change only `status` to "interrupted" and `interruption_reason_code` to "user_stop", and write the full object back with update-bulk-op. Writing only the status can be auto-resumed.
 
 ## Full run
-- Resume the same operation from its stored cursor, not a manual id.
-- Stop by the same read-modify-write when the op status becomes "failed" or "interrupted" without the operator having paused it (the worker exhausted its own retries), or any non-NULL licensing value changed, or any non-licensing column changed. Transient errors the worker auto-resumes do not stop the run; the operator checks status and error at each stored-cursor check.
-- A cursor race can move the stored cursor backward by one batch on a stop. Re-scanning is idempotent because fill-only writes are guarded on NULL.
+- Resume the same operation from its stored cursor. Do not set a manual id.
+- Stop by the stop procedure when: the op status becomes "failed" or "interrupted" without an operator pause (the worker exhausted its retries); any non-NULL licensing value changed; or any non-licensing column changed.
+- Transient errors the worker auto-resumes do not stop the run. The operator checks status and error at each stored-cursor check.
+- A cursor race can move the cursor back one batch on a stop. Re-scanning is idempotent because fill-only writes are NULL-guarded.
 
 ## Verification (read-only)
 - Before the run: NULL-licensor count over the scope.
 - After the pilot and after the full run, against the full snapshot, not only the pilot:
-  - Count of rows where a non-NULL licensing value changed. Expect 0.
-  - Count of rows where SKU, MG codes, is_licensed, or workflow changed. Expect 0.
-  - NULL-licensor count after the run. Expect a fall equal to the number of rows filled, reported with the unresolved count.
-
-## Stop conditions
-- Pilot pass conditions fail.
-- Any batch error.
-- Any changed non-NULL licensing value or changed non-licensing column.
-- Scan still running at the time of the run.
+  - Rows where a non-NULL licensing value changed. Expect 0.
+  - Rows where a non-licensing column changed. Expect 0.
+  - NULL-licensor count after the run. Expect the fall to equal the number of rows filled. Report the unresolved count.
 
 ## Rollback
-- Fill-only means a previously non-NULL value is never overwritten, so overwrite cannot happen.
-- Undo for licensing columns is a targeted, column-level restore: for each asset and each of the six licensing columns that was NULL in the full snapshot and is non-NULL now, set only that column back to NULL. Assets where a licensor_code or licensor_name was already set are not treated as fully NULL; only the specific columns that were NULL at snapshot time are restored.
-- If any non-licensing column changed, restore that column from the full snapshot the same way.
-- The rollback runs only after proving the target database and as a guarded transaction that asserts the expected row count, through ai-task-gates check --before database.
+- Fill-only never overwrites a non-NULL value, so the run cannot overwrite data.
+- Undo for licensing columns is a column-level restore: for each asset and licensing column that was NULL in the snapshot and is non-NULL now, set only that column back to NULL.
+- If any non-licensing column changed, restore that column from the snapshot the same way.
+- The expected row count for the guarded transaction is the number of rows that differ between the snapshot and now, computed before the write.
+- Rollback runs only after proving the target database and passing `ai-task-gates check --before database` with the same approval rule as prerequisite 5.
