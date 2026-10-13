@@ -55,7 +55,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-const { fetchOrderListBlock } = await import("@/hooks/useOrderList");
+const { fetchOrderListBlock, updateOrderListSalesDateErrors } = await import("@/hooks/useOrderList");
 
 beforeEach(() => {
   recorded.length = 0;
@@ -105,24 +105,63 @@ describe("OrderList block loading", () => {
     expect(rpcCalls[0].args).toEqual({ p_line_ids: ["line-1", "line-2"] });
   });
 
-  it("does not request the virtual SO date through the OrderList view or swallow RPC errors", async () => {
+  it("keeps OrderList rows visible when the optional SO date RPC fails", async () => {
     const rpcError = new Error("date RPC unavailable");
     salesOrderDateBehaviour = async () => ({ data: null, error: rpcError });
 
-    await expect(fetchOrderListBlock({ startRow: 0, endRow: 1 })).rejects.toBe(rpcError);
+    const block = await fetchOrderListBlock({ startRow: 0, endRow: 1 });
+    expect(block.rows).toEqual([{ order_line_id: "line-1", sales_order_date: null }]);
+    expect(block.salesOrderDatesError).toMatch(/SO Date could not be loaded/);
 
     const rowSelect = recorded.find((r) => r.kind === "rows")?.select ?? "";
     expect(rowSelect).not.toContain("sales_order_date");
     expect(rowSelect).toContain("order_date");
+
+    salesOrderDateBehaviour = async (args) => ({
+      data: args.p_line_ids.map((order_line_id: string) => ({ order_line_id, sales_order_date: "2026-10-09" })),
+      error: null,
+    });
+    const retried = await fetchOrderListBlock({ startRow: 0, endRow: 1 });
+    expect(retried.rows[0].sales_order_date).toBe("2026-10-09");
+    expect(retried.salesOrderDatesError).toBeNull();
   });
 
-  it("keeps the sidecar request inside the RPC's 1,500-line limit", async () => {
+  it("turns invalid sidecar payloads into visible date warnings while keeping rows", async () => {
+    salesOrderDateBehaviour = async () => ({
+      data: [{ order_line_id: "line-1", sales_order_date: "2026-02-30" }],
+      error: null,
+    });
+    const block = await fetchOrderListBlock({ startRow: 0, endRow: 1 });
+    expect(block.rows).toEqual([{ order_line_id: "line-1", sales_order_date: null }]);
+    expect(block.salesOrderDatesError).toMatch(/SO Date could not be loaded/);
+  });
+
+  it("clears a block warning after a successful retry without clearing other failures", () => {
+    const failed = updateOrderListSalesDateErrors({}, "view-a", 0, "SO Date unavailable");
+    const anotherFailed = updateOrderListSalesDateErrors(failed, "view-a", 500, "SO Date unavailable");
+    expect(updateOrderListSalesDateErrors(anotherFailed, "view-a", 0, null)).toEqual({ "view-a:500": "SO Date unavailable" });
+    expect(updateOrderListSalesDateErrors({ "view-a:500": "SO Date unavailable" }, "view-a", 500, null)).toEqual({});
+    expect(updateOrderListSalesDateErrors(anotherFailed, "view-b", 0, null)).toEqual(anotherFailed);
+  });
+
+  it("keeps the sidecar request inside the RPC's 1,500-line limit and still returns rows", async () => {
     rowBehaviour = async () => ({
       data: Array.from({ length: 1501 }, (_, index) => ({ order_line_id: `line-${index}` })),
       error: null,
     });
 
-    await expect(fetchOrderListBlock({ startRow: 0, endRow: 1501 })).rejects.toThrow(/1,500-line bound/);
+    const block = await fetchOrderListBlock({ startRow: 0, endRow: 1501 });
+    expect(block.rows).toHaveLength(1501);
+    expect(block.rows.every((row) => row.sales_order_date === null)).toBe(true);
+    expect(block.salesOrderDatesError).toMatch(/SO Date could not be loaded/);
+    expect(rpcCalls).toEqual([]);
+  });
+
+  it("keeps primary OrderList failures fatal", async () => {
+    const rowError = new Error("OrderList rows unavailable");
+    rowBehaviour = async () => ({ data: [], error: rowError });
+
+    await expect(fetchOrderListBlock({ startRow: 0, endRow: 100 })).rejects.toBe(rowError);
     expect(rpcCalls).toEqual([]);
   });
 });

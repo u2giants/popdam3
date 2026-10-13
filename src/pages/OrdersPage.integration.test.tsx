@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   authLoading: false,
   gridRefresh: vi.fn(),
   setGridOption: vi.fn(),
+  datasource: undefined as { getRows: (params: any) => Promise<void> } | undefined,
   channels: [] as Array<{ handler?: () => void; on: ReturnType<typeof vi.fn>; subscribe: ReturnType<typeof vi.fn> }>,
   removedChannels: [] as unknown[],
 }));
@@ -14,6 +15,13 @@ vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: mocks.user, loading:
 vi.mock("@/hooks/useDamCustomers", () => ({ useDamCustomers: () => ({ data: [] }) }));
 vi.mock("@/hooks/useOrderList", () => ({
   fetchOrderListBlock: vi.fn(), findOrderListRow: vi.fn(),
+  updateOrderListSalesDateErrors: (current: Record<string, string>, scope: string, startRow: number, error: string | null) => {
+    const next = { ...current };
+    const key = `${scope}:${startRow}`;
+    if (error) next[key] = error;
+    else delete next[key];
+    return next;
+  },
   useCreateOrder: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateOrder: () => ({ mutate: vi.fn(), isPending: false }),
   useRelinkOrderLine: () => ({ mutate: vi.fn(), isPending: false }),
@@ -70,6 +78,10 @@ describe("OrdersPage integration wiring", () => {
     mocks.authLoading = false;
     mocks.channels.length = 0;
     mocks.removedChannels.length = 0;
+    mocks.datasource = undefined;
+    mocks.setGridOption.mockImplementation((_name: string, datasource: typeof mocks.datasource) => {
+      mocks.datasource = datasource;
+    });
   });
 
   afterEach(() => {
@@ -93,6 +105,34 @@ describe("OrdersPage integration wiring", () => {
     expect(screen.getByTestId("orderlist-grid")).toBeInTheDocument();
     fireEvent.click(within(nav).getByRole("button", { name: "OrderList" }));
     expect(screen.getByTestId("orderlist-grid").parentElement?.parentElement?.parentElement).not.toHaveClass("hidden");
+  });
+
+  it("shows SO-date lookup failures without hiding the grid and clears stale warnings after a successful new view load", async () => {
+    const { fetchOrderListBlock } = await import("@/hooks/useOrderList");
+    vi.mocked(fetchOrderListBlock).mockResolvedValue({
+      rows: [{ order_line_id: "line-1", sales_order_date: null } as any],
+      totalRowCount: null,
+      salesOrderDatesError: "SO Date could not be loaded. Refresh OrderList to try again.",
+    });
+    render(<OrdersPage />);
+    const params = {
+      startRow: 0,
+      endRow: 100,
+      sortModel: [],
+      filterModel: {},
+      successCallback: vi.fn(),
+      failCallback: vi.fn(),
+    };
+
+    await act(async () => { await mocks.datasource?.getRows(params); });
+    expect(screen.getByRole("status")).toHaveTextContent(/SO Date could not be loaded/);
+    expect(screen.getByTestId("orderlist-grid")).toBeInTheDocument();
+    expect(params.successCallback).toHaveBeenCalledOnce();
+    expect(params.failCallback).not.toHaveBeenCalled();
+
+    vi.mocked(fetchOrderListBlock).mockResolvedValue({ rows: [], totalRowCount: null, salesOrderDatesError: null });
+    await act(async () => { await mocks.datasource?.getRows({ ...params, filterModel: { sku_normalized: { filter: "SKU-1" } } }); });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("refreshes the visible OrderList block after successful tracking or settings changes", () => {
