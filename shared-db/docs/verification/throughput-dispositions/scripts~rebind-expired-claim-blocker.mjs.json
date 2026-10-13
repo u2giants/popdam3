@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "source": "scripts/rebind-expired-claim-blocker.mjs",
+  "sites": [
+    {
+      "source": "scripts/rebind-expired-claim-blocker.mjs",
+      "site": "scripts/rebind-expired-claim-blocker.mjs:139",
+      "semantic_key": "scripts/rebind-expired-claim-blocker.mjs:d294a1c134a60f8b96ca12433df8c9012c617602c50d0d9911110fadc31fe73f:context-5b725934ac5b1c5da9abbf9107efe3d6e49ed639832d77446b32eeded2c28ca7",
+      "legacy_semantic_key": "scripts/rebind-expired-claim-blocker.mjs:d294a1c134a60f8b96ca12433df8c9012c617602c50d0d9911110fadc31fe73f:1",
+      "line_sha256": "d294a1c134a60f8b96ca12433df8c9012c617602c50d0d9911110fadc31fe73f",
+      "disposition": "excluded",
+      "reason": "Issue3618 CLI input guard rejects unknown, duplicate or missing exact operator arguments; it is not a database absence assertion and cannot clear a database alarm."
+    }
+  ]
+}

@@ -1270,6 +1270,43 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
      Evidence capture does not authorize public storage of licensed, private, or
      sensitive source material.
 
+### Expired clean checkpoint blocker recovery (#3618)
+
+`scripts/rebind-expired-claim-blocker.mjs` is a separate preserve-only bridge for
+an OPEN source PR whose clean, explicitly relinquished author claim has naturally
+expired but still names its exact source checkpoint as its blocker and recovery.
+It changes only `blocked_on` to an independently qualified, exact open and ready
+repository-maintenance abandonment audit on that same route, with exactly one
+active audit fence. Never repurpose an earlier audit for another claim.
+Owner, branch, worktree, expiry,
+capacity state, recovery, objects, source PR and permanent version stay unchanged.
+Active/unexpired, dirty, remote, legacy and resumed claims refuse. An ordinary
+external dependency blocker cannot be rebound through this operation.
+
+Before use, independently prove the original author's explicit terminal handoff
+or unavailability; idle status or expiry alone is insufficient. Preserve original
+custody and record the evidence on the same existing maintenance issue with the
+exact `abandonment-audit` fence. Declare the actual current session and supply
+the user's verbatim recovery instruction through `--authorization-quote-file`.
+The receipt records that human identity was not independently authenticated.
+Exact source/version/parser/collision/stage/worktree/audit/main-lineage checks
+run before and under the canonical mutex, and again after receipt creation.
+A create-only receipt binds both complete claim bodies and the audit body.
+Readback must prove the exact one-field change; a failure rolls back only while
+the mutex is still owned. Lock loss reports partial state without foreign rollback.
+An unreadable lock is unknown ownership, not permission to roll back. The error
+preserves `MUTATION_EVIDENCE`, the receipt and whether a fresh read sees the
+original body, rebound body, other bytes or unreadable state.
+Cleanup uses the canonical owner-verified API/git fallback. If both channels
+fail after successful mutation, the error includes `OPERATION_COMPLETED` and the
+actual immutable receipt rather than hiding the completed change; repair the
+exact held lock before continuing and never repeat a different request blindly.
+
+The existing author-transfer operation remains a separate, unchanged gate after
+this metadata repair. Neither repair nor its source merge authorizes adoption,
+source merge, preview replay or production. Issue #3618 owns this narrow bridge;
+future consolidation into the canonical claim module requires separate review.
+
 ### Expired merged-source custody recovery (#3618)
 
 The explicit `scripts/transfer-expired-merged-claim-author.mjs` entry point handles only an expired-unconfirmed claim whose exact source pull request is already merged. The ordinary lane manager and ordinary open-source transfer remain unchanged. This capability does not establish abandonment or authorize live adoption by itself.

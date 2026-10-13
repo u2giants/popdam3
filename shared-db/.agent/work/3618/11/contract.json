@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "generation": 11,
+  "work_issue": 3618,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Preserve-only expired checkpoint audit rebind with exact ready maintenance scope, unambiguous audit, truthful guard catalogue and hardened owner-verified cleanup.",
+  "base_sha": "e5901b3ba546c7e1e202ead099b06f445b956671",
+  "dispatcher": "Codex coordinator chat01a13649-4c56-73d1-a886-9ab5e032769d",
+  "worker": "Codex chat01a13649-4c56-73d1-a886-9ab5e032769d on edge-dev3",
+  "branch": "codex/3618-expired-blocker-recovery",
+  "worktree": "/home/ahazan/.codex/worktrees/ownership-recovery/shared-db",
+  "allowed_paths": [
+    "scripts/rebind-expired-claim-blocker.mjs",
+    "scripts/rebind-expired-claim-blocker.test.mjs",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/verification/throughput-dispositions/scripts~rebind-expired-claim-blocker.mjs.json",
+    ".agent/work/3618/11/contract.json",
+    ".agent/work/3618/11/completion.json",
+    ".agent/work/3618/10/contract.json",
+    ".agent/work/3618/10/completion.json"
+  ],
+  "file_writes": [
+    "scripts/rebind-expired-claim-blocker.mjs",
+    "scripts/rebind-expired-claim-blocker.test.mjs",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/verification/throughput-dispositions/scripts~rebind-expired-claim-blocker.mjs.json",
+    ".agent/work/3618/11/contract.json",
+    ".agent/work/3618/11/completion.json",
+    ".agent/work/3618/10/contract.json",
+    ".agent/work/3618/10/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No live claim mutation before natural expiry and authentic abandonment evidence.",
+    "No adoption, resume, renewal, release, source rewrite, version change, merger, database or production write in this implementation.",
+    "Do not change the existing manager or its transfer predicate."
+  ],
+  "required_checks": [
+    "node --test scripts/rebind-expired-claim-blocker.test.mjs scripts/claim-author-transfer.test.mjs scripts/expired-merged-claim-adoption.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "Original owner explicitly stopped through its recorded wrap-up; idle status alone is insufficient abandonment evidence.",
+    "Only an expired nonlegacy explicitly relinquished clean original claim with exact source and audited current-session authority may qualify.",
+    "Only the blocked_on line can change; every other byte, source, permanent reservation and protection remains unchanged.",
+    "Root independently demonstrated blocked-audit acceptance in generation10; correct status/route and singular-audit refusal before effects.",
+    "StepFun6450 report is non-authorizing due duplicate approval lines; preserve it without refund or assumed verdict.",
+    "Use existing owner-verified quota-free mutex cleanup; report actual completed receipt if cleanup itself fails."
+  ],
+  "stop_conditions": [
+    "Refuse live application without exact terminal-author audit and natural expiry.",
+    "Refuse moving source, reservation, claim, worktree, audit, stages or collision facts.",
+    "No unauthorized rollback after coordination lock ownership is lost."
+  ],
+  "evidence_parent": {
+    "work_issue": 3618,
+    "generation": 10,
+    "contract_sha256": "933c944c8e9be908c8543e8fd53bdfe35c18d5fbeb95337ab203522e7e326ec5"
+  }
+}
