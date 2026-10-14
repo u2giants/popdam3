@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { AI_MODEL_ENDPOINTS, aiModelEndpoint, type AiModelEndpoint, type AiModelPool } from "@/lib/ai-model-options";
+import { AI_MODEL_ENDPOINTS, aiModelEndpoint, SCALEDOWN_SUMMARIZE_MODEL, type AiModelEndpoint, type AiModelPool } from "@/lib/ai-model-options";
 
 export interface ModelPoolOption {
   id: string;
@@ -18,11 +18,7 @@ const ENDPOINT_LABELS: Record<AiModelEndpoint, string> = {
   "scaledown-direct": "ScaleDown (direct)",
 };
 
-const BUILT_IN_DIRECT_MODELS: ModelPoolOption[] = [
-  { id: "google-direct/gemini-3.8-flash:batch", name: "Google Gemini 3.8 Flash Batch" },
-  { id: "meta-direct/muse-spark-1.3-contributor", name: "Meta Muse Spark 1.3 Contributor" },
-  { id: "scaledown/summarize", name: "ScaleDown: Summarize (direct API; bake-off only)" },
-];
+const BUILT_IN_DIRECT_MODELS: ModelPoolOption[] = [SCALEDOWN_SUMMARIZE_MODEL];
 
 export function ModelPoolEditor({
   models,
@@ -71,7 +67,7 @@ export function ModelPoolEditor({
       <div>
         <h3 className="text-xs font-semibold">Model Pool</h3>
         <p className="mt-1 text-[10px] text-muted-foreground">
-          Choose which models appear across Processing model dropdowns. Individual selections make a fixed list for that endpoint; use “Show all” to include future catalog additions. This only controls visibility; it does not change saved model selections.
+          Choose which models appear in Processing dropdowns where that provider is supported. Individual selections make a fixed list for that endpoint; use “Show all” to include future catalog additions. This only controls visibility; it does not change saved model selections.
         </p>
       </div>
       <Input

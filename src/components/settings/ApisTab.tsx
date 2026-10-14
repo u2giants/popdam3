@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CURRENT_APP } from "@/lib/app-mode";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, sameAiModelPool, preserveCatalogOnWarning, shouldLoadAiModelCatalog } from "@/lib/ai-model-options";
+import { includeCurrentModel, modelAllowedForTask, modelInPool, modelSelectorPresentation, normalizeAiModelPool, sameAiModelPool, preserveCatalogOnWarning, shouldLoadAiModelCatalog } from "@/lib/ai-model-options";
 import { toast } from "sonner";
 import { saveAiModelConfig, type AiModelConfigDraft } from "@/lib/ai-model-config-save";
 import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
@@ -602,7 +602,7 @@ export function AiModelsConfigSection() {
   const savedGoogleKey = unwrap(configData?.config?.GOOGLE_AI_API_KEY);
   const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
 
-  const modelQueryKey = ["vision-models", openRouterAccountFingerprint, Boolean(savedGoogleKey)] as const;
+  const modelQueryKey = ["vision-models", openRouterAccountFingerprint] as const;
   const {
     data: visionCatalog,
     isFetching: fetchingModels,
@@ -781,9 +781,10 @@ export function AiModelsConfigSection() {
               const filteredList = taskCandidatesBeforePool.filter((model) => modelInPool(model.id, modelPool));
               const poolHidAllTaskModels = taskCandidatesBeforePool.length > 0 && filteredList.length === 0;
               // If currentVal is set but not in filteredList, still show it (with a warning)
-              const currentModelMeetsRequirements = !currentVal || (modelAllowedForTask(currentVal, key)
-                && (!(requiresTools || requiresStructuredOutput || requiresVision) || modelMeetsRequirements(modelList.find((m) => m.id === currentVal))));
-              const allOptions = currentVal && modelAllowedForTask(currentVal, key) && !filteredList.some((m) => m.id === currentVal)
+              const currentModelAllowedForTask = !currentVal || modelAllowedForTask(currentVal, key);
+              const currentModelMeetsRequirements = currentModelAllowedForTask
+                && (!currentVal || (!(requiresTools || requiresStructuredOutput || requiresVision) || modelMeetsRequirements(modelList.find((m) => m.id === currentVal))));
+              const allOptions = currentVal && !filteredList.some((m) => m.id === currentVal)
                 ? includeCurrentModel(filteredList, modelList.find((m) => m.id === currentVal)
                   ?? { id: currentVal, name: currentVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] })
                 : filteredList;
@@ -793,14 +794,14 @@ export function AiModelsConfigSection() {
               const fallbackCandidatesBeforePool = taskCandidatesBeforePool.filter((model) => modelAllowedForTask(model.id, key, true));
               const poolHidAllFallbackModels = fallbackCandidatesBeforePool.length > 0 && fallbackModelList.length === 0;
               const fallbackOptions = fallbackKey
-                ? (fallbackVal && modelAllowedForTask(fallbackVal, key, true) && !fallbackModelList.some((m) => m.id === fallbackVal)
+                ? (fallbackVal && !fallbackModelList.some((m) => m.id === fallbackVal)
                   ? includeCurrentModel(fallbackModelList, modelList.find((m) => m.id === fallbackVal)
                     ?? { id: fallbackVal, name: fallbackVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] })
                   : fallbackModelList)
                 : [];
 
-              const renderSelect = (selectKey: string, value: string, options: typeof filteredList, placeholder: string, showEmptySelect = false, hasEligibleModels = options.length > 0) => (
-                options.length > 0 && (hasEligibleModels || showEmptySelect) ? (
+              const renderSelect = (selectKey: string, value: string, options: typeof filteredList, placeholder: string, showEmptySelect = false, hasEligibleModels = options.length > 0, isFallback = false) => (
+                modelSelectorPresentation(options.length, hasEligibleModels, showEmptySelect) === "select" ? (
                   <Select value={value} onValueChange={(val) => setTaskModels((prev) => ({ ...prev, [selectKey]: val }))}>
                     <SelectTrigger className="h-8 text-xs font-mono">
                       <SelectValue placeholder={placeholder} />
@@ -818,13 +819,13 @@ export function AiModelsConfigSection() {
                           : "";
                         return (
                           <SelectItem key={m.id} value={m.id} className="text-xs font-mono" suffix={formatOpenRouterPricing(m.pricing)}>
-                            {displayNames[m.id] || m.id}{!modelInPool(m.id, modelPool) ? " (outside Model Pool)" : ""}{modeLabel}{!modelMeetsRequirements(m) && requirementLabel ? " ⚠" : ""}
+                            {displayNames[m.id] || m.id}{!modelAllowedForTask(m.id, key, isFallback) ? " (unsupported for this task)" : !modelInPool(m.id, modelPool) ? " (outside Model Pool)" : ""}{modeLabel}{!modelMeetsRequirements(m) && requirementLabel ? " ⚠" : ""}
                           </SelectItem>
                         );
                       })}
                     </SelectContent>
                   </Select>
-                ) : showEmptySelect ? (
+                ) : modelSelectorPresentation(options.length, hasEligibleModels, showEmptySelect) === "pool-empty" ? (
                   <div aria-disabled="true" className="flex h-8 items-center rounded-md border border-input bg-muted/40 px-3 text-xs text-muted-foreground">
                     No eligible models are shown in the Model Pool
                   </div>
@@ -869,8 +870,11 @@ export function AiModelsConfigSection() {
                       Uses the existing Google AI API key and the restart-safe provider batch path. Thumbnails and asset metadata are sent to Google Batch; Google stores batch results for 6 weeks by default before deleting them.
                     </p>
                   )}
-                  {!currentModelMeetsRequirements && requirementLabel && (
-                    <p className="text-[10px] text-destructive">This model does not support {requirementLabel}; this task will fail. Select a different model.</p>
+                  {currentVal && !currentModelAllowedForTask && (
+                    <p className="text-[10px] text-destructive">This saved model is not supported by this task selector. Choose a model this task can use.</p>
+                  )}
+                  {currentModelAllowedForTask && !currentModelMeetsRequirements && requirementLabel && (
+                    <p className="text-[10px] text-destructive">This model does not support {requirementLabel}; this task will fail. {poolHidAllTaskModels ? "Show a model that meets these requirements in the Model Pool above." : "Select a different model."}</p>
                   )}
                   {currentVal && !modelInPool(currentVal, modelPool) && (
                     <p className="text-[10px] text-amber-600">This saved model is outside the Model Pool. It remains selected until you choose a model shown in the pool.</p>
@@ -878,12 +882,15 @@ export function AiModelsConfigSection() {
                   {fallbackKey && (
                     <div className="mt-1.5 space-y-1">
                       <Label className="text-[10px] text-muted-foreground">Fallback model (on content filter / provider rejection)</Label>
-                      {renderSelect(fallbackKey, fallbackVal, fallbackOptions, "None — mark as failed", poolHidAllFallbackModels, fallbackModelList.length > 0)}
+                      {renderSelect(fallbackKey, fallbackVal, fallbackOptions, "None — mark as failed", poolHidAllFallbackModels, fallbackModelList.length > 0, true)}
                       {poolHidAllFallbackModels && (
                         <p className="text-[10px] text-amber-600">All eligible fallback models are hidden by the Model Pool. Show one in the Model Pool above.</p>
                       )}
-                      {fallbackVal && !modelMeetsRequirements(modelList.find((m) => m.id === fallbackVal)) && modelList.length > 0 && requirementLabel && (
-                        <p className="text-[10px] text-destructive">Fallback model does not support {requirementLabel}.</p>
+                      {fallbackVal && !modelAllowedForTask(fallbackVal, key, true) && (
+                        <p className="text-[10px] text-destructive">This saved model is not supported as a fallback. Choose a model this fallback can use.</p>
+                      )}
+                      {fallbackVal && modelAllowedForTask(fallbackVal, key, true) && !modelMeetsRequirements(modelList.find((m) => m.id === fallbackVal)) && modelList.length > 0 && requirementLabel && (
+                        <p className="text-[10px] text-destructive">Fallback model does not support {requirementLabel}. {poolHidAllFallbackModels ? "Show a model that meets these requirements in the Model Pool above." : "Choose a different fallback."}</p>
                       )}
                       {fallbackVal && !modelInPool(fallbackVal, modelPool) && (
                         <p className="text-[10px] text-amber-600">This saved fallback is outside the Model Pool. It remains selected until you choose a model shown in the pool.</p>
@@ -1003,6 +1010,7 @@ export function AiModelsConfigSection() {
           onClick={() => save.mutate({
             modelsJson,
             taskModels: { ...taskModels },
+            savedTaskModels: { ...savedTaskModels },
             displayNames: { ...displayNames },
             modelPool,
             openRouterKey,

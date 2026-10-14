@@ -85,8 +85,36 @@ describe("saveAiModelConfig", () => {
     await expect(saveAiModelConfig(call, {
       ...draft,
       taskModels: { ...draft.taskModels, pdf_extraction: "google-direct/gemini-3.8-flash:batch" },
-    })).rejects.toThrow("only be selected as the primary Image Tagging model");
+    })).rejects.toThrow("not supported for that task");
     expect(call).not.toHaveBeenCalled();
+  });
+
+  it("rejects Meta Direct for ERP classification", async () => {
+    const call = vi.fn();
+    await expect(saveAiModelConfig(call, {
+      ...draft,
+      taskModels: { ...draft.taskModels, text_classification: "meta-direct/muse-spark-1.3-contributor" },
+    })).rejects.toThrow("not supported for that task");
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it("allows a Model Pool save without rewriting an already-saved unsupported task model", async () => {
+    const taskModels = { ...draft.taskModels, text_classification: "meta-direct/muse-spark-1.3-contributor" };
+    const modelPool = { "meta-direct": [] };
+    const call = vi.fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, config: {
+        AI_TASK_MODELS: { value: taskModels },
+        AI_MODEL_POOL: { value: modelPool },
+      } });
+
+    await expect(saveAiModelConfig(call, {
+      ...draft,
+      taskModels,
+      savedTaskModels: taskModels,
+      modelPool,
+    })).resolves.toBeTruthy();
+    expect(call.mock.calls[0][1].entries).toMatchObject({ AI_TASK_MODELS: taskModels, AI_MODEL_POOL: modelPool });
   });
 
   it("rejects direct Gemini Batch until a Google key is present", async () => {
@@ -114,7 +142,7 @@ describe("saveAiModelConfig", () => {
     await expect(saveAiModelConfig(call, {
       ...draft,
       taskModels: { ...draft.taskModels, vision_tagging_fallback: "google/gemini-3.7-flash:batch" },
-    })).rejects.toThrow("only be selected as the primary Image Tagging model");
+    })).rejects.toThrow("not supported for that task");
     expect(call).not.toHaveBeenCalled();
   });
   it("writes a cleared key as blank and verifies it was actually cleared", async () => {

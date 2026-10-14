@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Sparkles, Save, RefreshCw, Check } from "lucide-react";
 import { toast } from "sonner";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { catalogWarningOf, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
+import { catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
 import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
 
 export interface OpenRouterModel {
@@ -62,12 +62,11 @@ export function AiVisionConfigCard() {
   })();
   const visionModels = availableVisionModels.filter((model) => modelInPool(model.id, modelPool));
   const currentOutsidePool = !!savedModelId && !modelInPool(savedModelId, modelPool);
-  const currentOption = currentOutsidePool
+  const currentOption = savedModelId && !visionModels.some((model) => model.id === savedModelId)
     ? availableVisionModels.find((model) => model.id === savedModelId) ?? { id: savedModelId, name: savedModelId, context_length: null }
     : undefined;
-  const selectModels = currentOption && !visionModels.some((model) => model.id === currentOption.id)
-    ? [currentOption, ...visionModels]
-    : visionModels;
+  const selectModels = includeCurrentModel(visionModels, currentOption);
+  const savedModelMissingFromCatalog = !!savedModelId && !availableVisionModels.some((model) => model.id === savedModelId);
 
   const [selectedModelId, setSelectedModelId] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -118,9 +117,19 @@ export function AiVisionConfigCard() {
         {modelsData?.warning && (
           <p className="text-sm text-amber-600">{modelsData.warning}; showing the last available catalog.</p>
         )}
-        {!modelsLoading && !modelsError && availableVisionModels.length === 0 && !currentOutsidePool && (
+        {!modelsLoading && !modelsError && availableVisionModels.length === 0 && !savedModelId && (
           <p className="text-sm text-amber-600">
             No vision models returned. Check that <code className="text-xs">OPENROUTER_API_KEY</code> is set in admin_config.
+          </p>
+        )}
+        {!modelsLoading && savedModelMissingFromCatalog && !currentOutsidePool && (
+          <p className="text-sm text-amber-600">
+            The saved model is not in the current OpenRouter catalog. Its selection remains visible; refresh the catalog or check the OpenRouter API key.
+          </p>
+        )}
+        {!modelsLoading && !modelsError && currentOutsidePool && availableVisionModels.length === 0 && (
+          <p className="text-sm text-amber-600">
+            The saved model is outside the Model Pool and remains selected. No OpenRouter catalog models are currently available; check the API key or refresh the catalog.
           </p>
         )}
         {!modelsLoading && availableVisionModels.length > 0 && visionModels.length === 0 && (

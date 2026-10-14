@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
+import { catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning, SCALEDOWN_SUMMARIZE_MODEL } from "@/lib/ai-model-options";
 import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
 
 const SLOTS = ["a", "b", "c", "d", "e"] as const;
@@ -35,8 +35,7 @@ type VisionModel = {
 // The worker's scaledown.ts handles "scaledown/" ids with SCALEDOWN_API_KEY.
 const BAKEOFF_ONLY_MODELS: VisionModel[] = [
   {
-    id: "scaledown/summarize",
-    name: "ScaleDown: Summarize (direct API; bake-off only)",
+    ...SCALEDOWN_SUMMARIZE_MODEL,
     architecture: { input_modalities: ["text", "image"] },
     pricing: { prompt: "0.00000005", completion: "0" },
   },
@@ -346,7 +345,7 @@ export default function AiTagBakeoffTab() {
     }
     return [...byId.values()];
   }, [availableVisionModels, modelPool]);
-  const poolHidesAllBakeoffModels = !!savedOpenRouterKey && !modelsLoading && visionModels.length === 0
+  const poolHidesAllBakeoffModels = !modelsLoading && visionModels.length === 0
     && availableVisionModels.length + BAKEOFF_ONLY_MODELS.length > 0;
 
   async function refreshModels() {

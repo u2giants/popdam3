@@ -14,6 +14,7 @@ interface AdminApiResponse {
 export interface AiModelConfigDraft {
   modelsJson: string;
   taskModels: Record<string, string>;
+  savedTaskModels?: Record<string, string>;
   displayNames: Record<string, string>;
   modelPool: AiModelPool;
   openRouterKey: string;
@@ -70,8 +71,9 @@ export async function saveAiModelConfig(
   const expectedTaskModels = { ...draft.taskModels };
   const expectedModelPool = normalizeAiModelPool(draft.modelPool);
   for (const [taskKey, modelId] of Object.entries(expectedTaskModels)) {
-    if (!modelAllowedForTask(modelId, taskKey, taskKey.endsWith("_fallback"))) {
-      throw new Error("Batch-only models (including Direct Gemini Batch) may only be selected as the primary Image Tagging model.");
+    const selectionChanged = modelId !== (draft.savedTaskModels?.[taskKey] ?? "");
+    if (selectionChanged && !modelAllowedForTask(modelId, taskKey, taskKey.endsWith("_fallback"))) {
+      throw new Error("This provider-specific model is not supported for that task. Direct Gemini Batch and Meta Direct are only available for primary Image Tagging; ScaleDown is bake-off only.");
     }
   }
   const primaryVision = expectedTaskModels.vision_tagging?.trim() ?? "";

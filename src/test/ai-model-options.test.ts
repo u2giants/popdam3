@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aiModelEndpoint, catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning, sameAiModelPool, shouldLoadAiModelCatalog } from "@/lib/ai-model-options";
+import { aiModelEndpoint, catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, modelSelectorPresentation, normalizeAiModelPool, preserveCatalogOnWarning, sameAiModelPool, shouldLoadAiModelCatalog } from "@/lib/ai-model-options";
 import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, safeSecretFingerprint, upsertConfigRowsAtomically, withValidatedCounterparts } from "../../supabase/functions/_shared/direct-batch-model";
 
 describe("direct Gemini batch model scope", () => {
@@ -14,6 +14,16 @@ describe("direct Gemini batch model scope", () => {
 
   it("does not change normal provider choices", () => {
     expect(modelAllowedForTask("google/gemini-3.7-flash", "pdf_extraction")).toBe(true);
+  });
+
+  it("limits Meta Direct to primary Image Tagging and ScaleDown to bake-off", () => {
+    const meta = "meta-direct/muse-spark-1.3-contributor";
+    expect(modelAllowedForTask(meta, "vision_tagging")).toBe(true);
+    expect(modelAllowedForTask(meta, "vision_tagging", true)).toBe(false);
+    expect(modelAllowedForTask(meta, "text_classification")).toBe(false);
+    expect(modelAllowedForTask(meta, "pdf_extraction")).toBe(false);
+    expect(modelAllowedForTask("scaledown/summarize", "vision_tagging")).toBe(false);
+    expect(modelAllowedForTask(" scaledown/summarize ", "vision_tagging")).toBe(false);
   });
 
   it("is rejected server-side for bake-off and PDF but allowed for production tagging", () => {
@@ -102,6 +112,14 @@ describe("direct Gemini batch model scope", () => {
 });
 
 describe("AI Model Pool", () => {
+  it("chooses a dropdown, pool-empty status, or editable fallback for every selector state", () => {
+    expect(modelSelectorPresentation(2, true, false)).toBe("select");
+    expect(modelSelectorPresentation(1, false, true)).toBe("select");
+    expect(modelSelectorPresentation(0, false, true)).toBe("pool-empty");
+    expect(modelSelectorPresentation(0, false, false)).toBe("input");
+    expect(modelSelectorPresentation(1, false, false)).toBe("input");
+  });
+
   it("loads direct-provider choices after configuration is available without an OpenRouter key", () => {
     expect(shouldLoadAiModelCatalog(false, "", null)).toBe(false);
     expect(shouldLoadAiModelCatalog(true, "", null)).toBe(true);

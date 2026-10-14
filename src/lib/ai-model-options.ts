@@ -1,4 +1,8 @@
 export const AI_MODEL_ENDPOINTS = ["openrouter", "google-direct", "meta-direct", "scaledown-direct"] as const;
+export const SCALEDOWN_SUMMARIZE_MODEL = {
+  id: "scaledown/summarize",
+  name: "ScaleDown: Summarize (direct API; bake-off only)",
+} as const;
 
 export type AiModelEndpoint = (typeof AI_MODEL_ENDPOINTS)[number];
 export type AiModelPool = Partial<Record<AiModelEndpoint, string[]>> & Record<string, unknown>;
@@ -54,10 +58,19 @@ export function sameAiModelPool(left: unknown, right: unknown): boolean {
 }
 
 export function modelAllowedForTask(modelId: string, taskKey: string, fallback = false): boolean {
+  const normalizedModelId = modelId.trim();
+  if (normalizedModelId.startsWith("meta-direct/")) return taskKey === "vision_tagging" && !fallback;
+  if (normalizedModelId.startsWith("scaledown/")) return false;
   // Every `:batch` variant (OpenRouter or direct Gemini) needs the durable
   // asynchronous path, which only primary Image Tagging implements.
-  if (!modelId.trim().endsWith(":batch")) return true;
+  if (!normalizedModelId.endsWith(":batch")) return true;
   return taskKey === "vision_tagging" && !fallback;
+}
+
+export function modelSelectorPresentation(optionCount: number, hasEligibleModels: boolean, poolHidesAll: boolean): "select" | "pool-empty" | "input" {
+  if (optionCount > 0 && (hasEligibleModels || poolHidesAll)) return "select";
+  if (poolHidesAll) return "pool-empty";
+  return "input";
 }
 
 export function preserveCatalogOnWarning<T extends { id: string }>(
