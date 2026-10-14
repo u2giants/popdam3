@@ -216,6 +216,7 @@ begin
         and (tg.tgtype & 2) <> 0                           -- BEFORE
         and tg.tgfoid <> 'app.set_updated_at()'::regprocedure
         and tg.tgfoid <> 'core.require_support_edge_licensor_matches_endpoints()'::regprocedure
+        and tg.tgfoid <> 'core.lock_canonical_relationship_pair()'::regprocedure
     ) then
       raise exception 'an unexpected IMMEDIATE BEFORE UPDATE trigger exists on %, which is '
         'how same-source supersession was deadlocked before the round-5 fix', v_table;
@@ -297,6 +298,23 @@ begin
       {"t":"dam.asset_franchise_source_edge",        "g":"require_matching_licensor",
        "f":"core.require_support_edge_licensor_matches_endpoints",
        "a":"'dam.asset', 'asset_id', 'core.franchise', 'franchise_id'"}
+,
+      {"t": "core.property_character_associations", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'core.property_character_associations', 'property_id', 'character_id'"},
+      {"t": "core.property_character_source_edge", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'core.property_character_associations', 'property_id', 'character_id'"},
+      {"t": "core.property_style_guide", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'core.property_style_guide', 'property_id', 'style_guide_id'"},
+      {"t": "core.property_style_guide_source_edge", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'core.property_style_guide', 'property_id', 'style_guide_id'"},
+      {"t": "core.property_franchise", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'core.property_franchise', 'property_id', 'franchise_id'"},
+      {"t": "core.property_franchise_source_edge", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'core.property_franchise', 'property_id', 'franchise_id'"},
+      {"t": "core.style_guide_character", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'core.style_guide_character', 'style_guide_id', 'character_id'"},
+      {"t": "core.style_guide_character_source_edge", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'core.style_guide_character', 'style_guide_id', 'character_id'"},
+      {"t": "dam.asset_property", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'dam.asset_property', 'asset_id', 'property_id'"},
+      {"t": "dam.asset_property_source_edge", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'dam.asset_property', 'asset_id', 'property_id'"},
+      {"t": "dam.asset_character", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'dam.asset_character', 'asset_id', 'character_id'"},
+      {"t": "dam.asset_character_source_edge", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'dam.asset_character', 'asset_id', 'character_id'"},
+      {"t": "dam.asset_style_guide", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'dam.asset_style_guide', 'asset_id', 'style_guide_id'"},
+      {"t": "dam.asset_style_guide_source_edge", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'dam.asset_style_guide', 'asset_id', 'style_guide_id'"},
+      {"t": "dam.asset_franchise", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'dam.asset_franchise', 'asset_id', 'franchise_id'"},
+      {"t": "dam.asset_franchise_source_edge", "g": "lock_relationship_pair", "f": "core.lock_canonical_relationship_pair", "a": "'dam.asset_franchise', 'asset_id', 'franchise_id'"}
     ]$wiring$::jsonb)
   loop
     select oid into v_oid from pg_trigger
@@ -332,9 +350,9 @@ begin
   if exists (
     select 1 from information_schema.columns
     where table_schema = 'core' and table_name = 'property_character_associations'
-      and column_name not in ('property_id','character_id','created_at','updated_at')
+      and column_name not in ('property_id','character_id','created_at','updated_at','is_current','retired_at','retired_reason')
   ) then
-    raise exception '#2334 added a column to the live property_character_associations contract';
+    raise exception 'unexpected column outside preserved endpoints and selected lifecycle';
   end if;
 
   if 2 <> (select count(*) from pg_constraint
@@ -543,11 +561,12 @@ begin
   --     endpoints are ON DELETE CASCADE; #2334 must not alter that live table. Deleting
   --     the asset must nevertheless fail closed, because the cascade reaches current
   --     support and the guard aborts the whole transaction.
-  insert into dam.asset_character (asset_id, character_id) values (v_asset, v_character);
   insert into dam.asset_character_source_edge
     (asset_id, character_id, licensor_id, source_system, source_id, evidence_kind)
     values (v_asset, v_character, v_licensor, 'zz_fixture_2334', 'ac-1',
             'direct_source_assertion');
+  insert into dam.asset_character (asset_id, character_id) values (v_asset, v_character);
+
   v_raised := false;
   begin
     delete from dam.asset where id = v_asset;
@@ -1047,4 +1066,252 @@ begin
 end
 $contracts$;
 
+rollback;
+
+-- #2336: all-eight retained-summary behavior, synthetic source evidence only.
+begin;
+do $lifecycle$
+declare l uuid:=gen_random_uuid();p uuid:=gen_random_uuid();c uuid:=gen_random_uuid();s uuid:=gen_random_uuid();f uuid:=gen_random_uuid();a uuid:=gen_random_uuid(); rejected boolean; before_pair jsonb; after_pair jsonb;
+begin
+ insert into plm.licensing_write_authorization(backend_pid,transaction_id,target_table,write_kind,plan_id,plan_hash,actor,protected_columns,expires_at) values(pg_backend_pid(),txid_current(),'core.licensor','scrape_consolidation',gen_random_uuid(),repeat('a',64),'issue2336-test',array['name','code','status'],now()+interval '1 minute');
+ insert into core.licensor(id,name,code,status) values(l,'ZZ lifecycle','ZZ2336L','potential');
+ insert into plm.licensing_write_authorization(backend_pid,transaction_id,target_table,write_kind,plan_id,plan_hash,actor,protected_columns,expires_at) values(pg_backend_pid(),txid_current(),'core.property','licensing_review_create',gen_random_uuid(),repeat('b',64),'issue2336-test',array['licensor_id','name','code','status'],now()+interval '1 minute');
+ insert into core.property(id,licensor_id,name,code,status) values(p,l,'ZZ lifecycle','ZZ2336P','potential');
+ insert into core.character(id,licensor_id,name) values(c,l,'ZZ lifecycle');
+ insert into core.style_guide(id,licensor_id,property_id,name) values(s,l,p,'ZZ lifecycle');
+ insert into core.franchise(id,licensor_id,name,source_system,source_id) values(f,l,'ZZ lifecycle','manual','zz2336');
+ insert into dam.asset(id,title,source_system,source_id) values(a,'ZZ lifecycle','manual','zz2336');
+
+ rejected:=false;
+ begin insert into core.property_character_associations(property_id,character_id,is_current,retired_at,retired_reason) values(p,c,false,now(),' '); exception when check_violation then rejected:=true;end;
+ if not rejected then raise exception 'blank retirement reason accepted: core.property_character_associations';end if;
+ rejected:=false;
+ begin insert into core.property_character_associations(property_id,character_id) values(p,c); exception when sqlstate 'P0001' then rejected:=true;end;
+ if not rejected then raise exception 'unsupported current accepted: core.property_character_associations';end if;
+ insert into core.property_character_source_edge(property_id,character_id,licensor_id,source_system,source_id,evidence_kind) values(p,c,l,'synthetic-A','test-only','direct_source_assertion'),(p,c,l,'synthetic-B','test-only','direct_source_assertion');
+ insert into core.property_character_associations(property_id,character_id) values(p,c);
+ select to_jsonb(b) into before_pair from core.property_character_associations b where b.property_id=p and b.character_id=c;
+ update core.property_character_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test A' where b.property_id=p and b.character_id=c and source_system='synthetic-A';
+ set constraints all immediate;set constraints all deferred;
+ rejected:=false;
+ begin
+ update core.property_character_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.property_id=p and b.character_id=c and source_system='synthetic-B';
+ set constraints all immediate;
+ exception when sqlstate 'P0001' then rejected:=true;end;
+ set constraints all deferred;
+ if not rejected then raise exception 'last support loss accepted: core.property_character_associations';end if;
+ update core.property_character_associations b set is_current=false,retired_at=now(),retired_reason='test withdrawal' where b.property_id=p and b.character_id=c;
+ update core.property_character_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.property_id=p and b.character_id=c and source_system='synthetic-B';
+ set constraints all immediate;set constraints all deferred;
+ select to_jsonb(b) into after_pair from core.property_character_associations b where b.property_id=p and b.character_id=c;
+ if before_pair ? 'id' and before_pair->>'id'<>after_pair->>'id' then raise exception 'UUID history lost';end if;
+ if before_pair ? 'created_at' and before_pair->>'created_at'<>after_pair->>'created_at' then raise exception 'creation history lost';end if;
+ if exists(select 1 from core.property_character_associations_current b where b.property_id=p and b.character_id=c) then raise exception 'retired pair leaked into current view';end if;
+ insert into core.property_character_source_edge(property_id,character_id,licensor_id,source_system,source_id,evidence_kind) values(p,c,l,'synthetic-A','reactivated','direct_source_assertion');
+ update core.property_character_associations b set is_current=true,retired_at=null,retired_reason=null where b.property_id=p and b.character_id=c;
+ set constraints all immediate;set constraints all deferred;
+
+ rejected:=false;
+ begin insert into core.property_style_guide(property_id,style_guide_id,is_current,retired_at,retired_reason) values(p,s,false,now(),' '); exception when check_violation then rejected:=true;end;
+ if not rejected then raise exception 'blank retirement reason accepted: core.property_style_guide';end if;
+ rejected:=false;
+ begin insert into core.property_style_guide(property_id,style_guide_id) values(p,s); exception when sqlstate 'P0001' then rejected:=true;end;
+ if not rejected then raise exception 'unsupported current accepted: core.property_style_guide';end if;
+ insert into core.property_style_guide_source_edge(property_id,style_guide_id,licensor_id,source_system,source_id,evidence_kind) values(p,s,l,'synthetic-A','test-only','direct_source_assertion'),(p,s,l,'synthetic-B','test-only','direct_source_assertion');
+ insert into core.property_style_guide(property_id,style_guide_id) values(p,s);
+ select to_jsonb(b) into before_pair from core.property_style_guide b where b.property_id=p and b.style_guide_id=s;
+ update core.property_style_guide_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test A' where b.property_id=p and b.style_guide_id=s and source_system='synthetic-A';
+ set constraints all immediate;set constraints all deferred;
+ rejected:=false;
+ begin
+ update core.property_style_guide_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.property_id=p and b.style_guide_id=s and source_system='synthetic-B';
+ set constraints all immediate;
+ exception when sqlstate 'P0001' then rejected:=true;end;
+ set constraints all deferred;
+ if not rejected then raise exception 'last support loss accepted: core.property_style_guide';end if;
+ update core.property_style_guide b set is_current=false,retired_at=now(),retired_reason='test withdrawal' where b.property_id=p and b.style_guide_id=s;
+ update core.property_style_guide_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.property_id=p and b.style_guide_id=s and source_system='synthetic-B';
+ set constraints all immediate;set constraints all deferred;
+ select to_jsonb(b) into after_pair from core.property_style_guide b where b.property_id=p and b.style_guide_id=s;
+ if before_pair ? 'id' and before_pair->>'id'<>after_pair->>'id' then raise exception 'UUID history lost';end if;
+ if before_pair ? 'created_at' and before_pair->>'created_at'<>after_pair->>'created_at' then raise exception 'creation history lost';end if;
+ if exists(select 1 from core.property_style_guide_current b where b.property_id=p and b.style_guide_id=s) then raise exception 'retired pair leaked into current view';end if;
+ insert into core.property_style_guide_source_edge(property_id,style_guide_id,licensor_id,source_system,source_id,evidence_kind) values(p,s,l,'synthetic-A','reactivated','direct_source_assertion');
+ update core.property_style_guide b set is_current=true,retired_at=null,retired_reason=null where b.property_id=p and b.style_guide_id=s;
+ set constraints all immediate;set constraints all deferred;
+
+ rejected:=false;
+ begin insert into core.property_franchise(property_id,franchise_id,is_current,retired_at,retired_reason) values(p,f,false,now(),' '); exception when check_violation then rejected:=true;end;
+ if not rejected then raise exception 'blank retirement reason accepted: core.property_franchise';end if;
+ rejected:=false;
+ begin insert into core.property_franchise(property_id,franchise_id) values(p,f); exception when sqlstate 'P0001' then rejected:=true;end;
+ if not rejected then raise exception 'unsupported current accepted: core.property_franchise';end if;
+ insert into core.property_franchise_source_edge(property_id,franchise_id,licensor_id,source_system,source_id,evidence_kind) values(p,f,l,'synthetic-A','test-only','direct_source_assertion'),(p,f,l,'synthetic-B','test-only','direct_source_assertion');
+ insert into core.property_franchise(property_id,franchise_id) values(p,f);
+ select to_jsonb(b) into before_pair from core.property_franchise b where b.property_id=p and b.franchise_id=f;
+ update core.property_franchise_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test A' where b.property_id=p and b.franchise_id=f and source_system='synthetic-A';
+ set constraints all immediate;set constraints all deferred;
+ rejected:=false;
+ begin
+ update core.property_franchise_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.property_id=p and b.franchise_id=f and source_system='synthetic-B';
+ set constraints all immediate;
+ exception when sqlstate 'P0001' then rejected:=true;end;
+ set constraints all deferred;
+ if not rejected then raise exception 'last support loss accepted: core.property_franchise';end if;
+ update core.property_franchise b set is_current=false,retired_at=now(),retired_reason='test withdrawal' where b.property_id=p and b.franchise_id=f;
+ update core.property_franchise_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.property_id=p and b.franchise_id=f and source_system='synthetic-B';
+ set constraints all immediate;set constraints all deferred;
+ select to_jsonb(b) into after_pair from core.property_franchise b where b.property_id=p and b.franchise_id=f;
+ if before_pair ? 'id' and before_pair->>'id'<>after_pair->>'id' then raise exception 'UUID history lost';end if;
+ if before_pair ? 'created_at' and before_pair->>'created_at'<>after_pair->>'created_at' then raise exception 'creation history lost';end if;
+ if exists(select 1 from core.property_franchise_current b where b.property_id=p and b.franchise_id=f) then raise exception 'retired pair leaked into current view';end if;
+ insert into core.property_franchise_source_edge(property_id,franchise_id,licensor_id,source_system,source_id,evidence_kind) values(p,f,l,'synthetic-A','reactivated','direct_source_assertion');
+ update core.property_franchise b set is_current=true,retired_at=null,retired_reason=null where b.property_id=p and b.franchise_id=f;
+ set constraints all immediate;set constraints all deferred;
+
+ rejected:=false;
+ begin insert into core.style_guide_character(style_guide_id,character_id,is_current,retired_at,retired_reason) values(s,c,false,now(),' '); exception when check_violation then rejected:=true;end;
+ if not rejected then raise exception 'blank retirement reason accepted: core.style_guide_character';end if;
+ rejected:=false;
+ begin insert into core.style_guide_character(style_guide_id,character_id) values(s,c); exception when sqlstate 'P0001' then rejected:=true;end;
+ if not rejected then raise exception 'unsupported current accepted: core.style_guide_character';end if;
+ insert into core.style_guide_character_source_edge(style_guide_id,character_id,licensor_id,source_system,source_id,evidence_kind) values(s,c,l,'synthetic-A','test-only','direct_source_assertion'),(s,c,l,'synthetic-B','test-only','direct_source_assertion');
+ insert into core.style_guide_character(style_guide_id,character_id) values(s,c);
+ select to_jsonb(b) into before_pair from core.style_guide_character b where b.style_guide_id=s and b.character_id=c;
+ update core.style_guide_character_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test A' where b.style_guide_id=s and b.character_id=c and source_system='synthetic-A';
+ set constraints all immediate;set constraints all deferred;
+ rejected:=false;
+ begin
+ update core.style_guide_character_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.style_guide_id=s and b.character_id=c and source_system='synthetic-B';
+ set constraints all immediate;
+ exception when sqlstate 'P0001' then rejected:=true;end;
+ set constraints all deferred;
+ if not rejected then raise exception 'last support loss accepted: core.style_guide_character';end if;
+ update core.style_guide_character b set is_current=false,retired_at=now(),retired_reason='test withdrawal' where b.style_guide_id=s and b.character_id=c;
+ update core.style_guide_character_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.style_guide_id=s and b.character_id=c and source_system='synthetic-B';
+ set constraints all immediate;set constraints all deferred;
+ select to_jsonb(b) into after_pair from core.style_guide_character b where b.style_guide_id=s and b.character_id=c;
+ if before_pair ? 'id' and before_pair->>'id'<>after_pair->>'id' then raise exception 'UUID history lost';end if;
+ if before_pair ? 'created_at' and before_pair->>'created_at'<>after_pair->>'created_at' then raise exception 'creation history lost';end if;
+ if exists(select 1 from core.style_guide_character_current b where b.style_guide_id=s and b.character_id=c) then raise exception 'retired pair leaked into current view';end if;
+ insert into core.style_guide_character_source_edge(style_guide_id,character_id,licensor_id,source_system,source_id,evidence_kind) values(s,c,l,'synthetic-A','reactivated','direct_source_assertion');
+ update core.style_guide_character b set is_current=true,retired_at=null,retired_reason=null where b.style_guide_id=s and b.character_id=c;
+ set constraints all immediate;set constraints all deferred;
+
+ rejected:=false;
+ begin insert into dam.asset_property(asset_id,property_id,is_current,retired_at,retired_reason) values(a,p,false,now(),' '); exception when check_violation then rejected:=true;end;
+ if not rejected then raise exception 'blank retirement reason accepted: dam.asset_property';end if;
+ rejected:=false;
+ begin insert into dam.asset_property(asset_id,property_id) values(a,p); exception when sqlstate 'P0001' then rejected:=true;end;
+ if not rejected then raise exception 'unsupported current accepted: dam.asset_property';end if;
+ insert into dam.asset_property_source_edge(asset_id,property_id,licensor_id,source_system,source_id,evidence_kind) values(a,p,l,'synthetic-A','test-only','direct_source_assertion'),(a,p,l,'synthetic-B','test-only','direct_source_assertion');
+ insert into dam.asset_property(asset_id,property_id) values(a,p);
+ select to_jsonb(b) into before_pair from dam.asset_property b where b.asset_id=a and b.property_id=p;
+ update dam.asset_property_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test A' where b.asset_id=a and b.property_id=p and source_system='synthetic-A';
+ set constraints all immediate;set constraints all deferred;
+ rejected:=false;
+ begin
+ update dam.asset_property_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.asset_id=a and b.property_id=p and source_system='synthetic-B';
+ set constraints all immediate;
+ exception when sqlstate 'P0001' then rejected:=true;end;
+ set constraints all deferred;
+ if not rejected then raise exception 'last support loss accepted: dam.asset_property';end if;
+ update dam.asset_property b set is_current=false,retired_at=now(),retired_reason='test withdrawal' where b.asset_id=a and b.property_id=p;
+ update dam.asset_property_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.asset_id=a and b.property_id=p and source_system='synthetic-B';
+ set constraints all immediate;set constraints all deferred;
+ select to_jsonb(b) into after_pair from dam.asset_property b where b.asset_id=a and b.property_id=p;
+ if before_pair ? 'id' and before_pair->>'id'<>after_pair->>'id' then raise exception 'UUID history lost';end if;
+ if before_pair ? 'created_at' and before_pair->>'created_at'<>after_pair->>'created_at' then raise exception 'creation history lost';end if;
+ if exists(select 1 from dam.asset_property_current b where b.asset_id=a and b.property_id=p) then raise exception 'retired pair leaked into current view';end if;
+ insert into dam.asset_property_source_edge(asset_id,property_id,licensor_id,source_system,source_id,evidence_kind) values(a,p,l,'synthetic-A','reactivated','direct_source_assertion');
+ update dam.asset_property b set is_current=true,retired_at=null,retired_reason=null where b.asset_id=a and b.property_id=p;
+ set constraints all immediate;set constraints all deferred;
+
+ rejected:=false;
+ begin insert into dam.asset_character(asset_id,character_id,is_current,retired_at,retired_reason) values(a,c,false,now(),' '); exception when check_violation then rejected:=true;end;
+ if not rejected then raise exception 'blank retirement reason accepted: dam.asset_character';end if;
+ rejected:=false;
+ begin insert into dam.asset_character(asset_id,character_id) values(a,c); exception when sqlstate 'P0001' then rejected:=true;end;
+ if not rejected then raise exception 'unsupported current accepted: dam.asset_character';end if;
+ insert into dam.asset_character_source_edge(asset_id,character_id,licensor_id,source_system,source_id,evidence_kind) values(a,c,l,'synthetic-A','test-only','direct_source_assertion'),(a,c,l,'synthetic-B','test-only','direct_source_assertion');
+ insert into dam.asset_character(asset_id,character_id) values(a,c);
+ select to_jsonb(b) into before_pair from dam.asset_character b where b.asset_id=a and b.character_id=c;
+ update dam.asset_character_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test A' where b.asset_id=a and b.character_id=c and source_system='synthetic-A';
+ set constraints all immediate;set constraints all deferred;
+ rejected:=false;
+ begin
+ update dam.asset_character_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.asset_id=a and b.character_id=c and source_system='synthetic-B';
+ set constraints all immediate;
+ exception when sqlstate 'P0001' then rejected:=true;end;
+ set constraints all deferred;
+ if not rejected then raise exception 'last support loss accepted: dam.asset_character';end if;
+ update dam.asset_character b set is_current=false,retired_at=now(),retired_reason='test withdrawal' where b.asset_id=a and b.character_id=c;
+ update dam.asset_character_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.asset_id=a and b.character_id=c and source_system='synthetic-B';
+ set constraints all immediate;set constraints all deferred;
+ select to_jsonb(b) into after_pair from dam.asset_character b where b.asset_id=a and b.character_id=c;
+ if before_pair ? 'id' and before_pair->>'id'<>after_pair->>'id' then raise exception 'UUID history lost';end if;
+ if before_pair ? 'created_at' and before_pair->>'created_at'<>after_pair->>'created_at' then raise exception 'creation history lost';end if;
+ if exists(select 1 from dam.asset_character_current b where b.asset_id=a and b.character_id=c) then raise exception 'retired pair leaked into current view';end if;
+ insert into dam.asset_character_source_edge(asset_id,character_id,licensor_id,source_system,source_id,evidence_kind) values(a,c,l,'synthetic-A','reactivated','direct_source_assertion');
+ update dam.asset_character b set is_current=true,retired_at=null,retired_reason=null where b.asset_id=a and b.character_id=c;
+ set constraints all immediate;set constraints all deferred;
+
+ rejected:=false;
+ begin insert into dam.asset_style_guide(asset_id,style_guide_id,is_current,retired_at,retired_reason) values(a,s,false,now(),' '); exception when check_violation then rejected:=true;end;
+ if not rejected then raise exception 'blank retirement reason accepted: dam.asset_style_guide';end if;
+ rejected:=false;
+ begin insert into dam.asset_style_guide(asset_id,style_guide_id) values(a,s); exception when sqlstate 'P0001' then rejected:=true;end;
+ if not rejected then raise exception 'unsupported current accepted: dam.asset_style_guide';end if;
+ insert into dam.asset_style_guide_source_edge(asset_id,style_guide_id,licensor_id,source_system,source_id,evidence_kind) values(a,s,l,'synthetic-A','test-only','direct_source_assertion'),(a,s,l,'synthetic-B','test-only','direct_source_assertion');
+ insert into dam.asset_style_guide(asset_id,style_guide_id) values(a,s);
+ select to_jsonb(b) into before_pair from dam.asset_style_guide b where b.asset_id=a and b.style_guide_id=s;
+ update dam.asset_style_guide_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test A' where b.asset_id=a and b.style_guide_id=s and source_system='synthetic-A';
+ set constraints all immediate;set constraints all deferred;
+ rejected:=false;
+ begin
+ update dam.asset_style_guide_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.asset_id=a and b.style_guide_id=s and source_system='synthetic-B';
+ set constraints all immediate;
+ exception when sqlstate 'P0001' then rejected:=true;end;
+ set constraints all deferred;
+ if not rejected then raise exception 'last support loss accepted: dam.asset_style_guide';end if;
+ update dam.asset_style_guide b set is_current=false,retired_at=now(),retired_reason='test withdrawal' where b.asset_id=a and b.style_guide_id=s;
+ update dam.asset_style_guide_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.asset_id=a and b.style_guide_id=s and source_system='synthetic-B';
+ set constraints all immediate;set constraints all deferred;
+ select to_jsonb(b) into after_pair from dam.asset_style_guide b where b.asset_id=a and b.style_guide_id=s;
+ if before_pair ? 'id' and before_pair->>'id'<>after_pair->>'id' then raise exception 'UUID history lost';end if;
+ if before_pair ? 'created_at' and before_pair->>'created_at'<>after_pair->>'created_at' then raise exception 'creation history lost';end if;
+ if exists(select 1 from dam.asset_style_guide_current b where b.asset_id=a and b.style_guide_id=s) then raise exception 'retired pair leaked into current view';end if;
+ insert into dam.asset_style_guide_source_edge(asset_id,style_guide_id,licensor_id,source_system,source_id,evidence_kind) values(a,s,l,'synthetic-A','reactivated','direct_source_assertion');
+ update dam.asset_style_guide b set is_current=true,retired_at=null,retired_reason=null where b.asset_id=a and b.style_guide_id=s;
+ set constraints all immediate;set constraints all deferred;
+
+ rejected:=false;
+ begin insert into dam.asset_franchise(asset_id,franchise_id,is_current,retired_at,retired_reason) values(a,f,false,now(),' '); exception when check_violation then rejected:=true;end;
+ if not rejected then raise exception 'blank retirement reason accepted: dam.asset_franchise';end if;
+ rejected:=false;
+ begin insert into dam.asset_franchise(asset_id,franchise_id) values(a,f); exception when sqlstate 'P0001' then rejected:=true;end;
+ if not rejected then raise exception 'unsupported current accepted: dam.asset_franchise';end if;
+ insert into dam.asset_franchise_source_edge(asset_id,franchise_id,licensor_id,source_system,source_id,evidence_kind) values(a,f,l,'synthetic-A','test-only','direct_source_assertion'),(a,f,l,'synthetic-B','test-only','direct_source_assertion');
+ insert into dam.asset_franchise(asset_id,franchise_id) values(a,f);
+ select to_jsonb(b) into before_pair from dam.asset_franchise b where b.asset_id=a and b.franchise_id=f;
+ update dam.asset_franchise_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test A' where b.asset_id=a and b.franchise_id=f and source_system='synthetic-A';
+ set constraints all immediate;set constraints all deferred;
+ rejected:=false;
+ begin
+ update dam.asset_franchise_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.asset_id=a and b.franchise_id=f and source_system='synthetic-B';
+ set constraints all immediate;
+ exception when sqlstate 'P0001' then rejected:=true;end;
+ set constraints all deferred;
+ if not rejected then raise exception 'last support loss accepted: dam.asset_franchise';end if;
+ update dam.asset_franchise b set is_current=false,retired_at=now(),retired_reason='test withdrawal' where b.asset_id=a and b.franchise_id=f;
+ update dam.asset_franchise_source_edge b set is_current=false,superseded_at=now(),superseded_reason='test B' where b.asset_id=a and b.franchise_id=f and source_system='synthetic-B';
+ set constraints all immediate;set constraints all deferred;
+ select to_jsonb(b) into after_pair from dam.asset_franchise b where b.asset_id=a and b.franchise_id=f;
+ if before_pair ? 'id' and before_pair->>'id'<>after_pair->>'id' then raise exception 'UUID history lost';end if;
+ if before_pair ? 'created_at' and before_pair->>'created_at'<>after_pair->>'created_at' then raise exception 'creation history lost';end if;
+ if exists(select 1 from dam.asset_franchise_current b where b.asset_id=a and b.franchise_id=f) then raise exception 'retired pair leaked into current view';end if;
+ insert into dam.asset_franchise_source_edge(asset_id,franchise_id,licensor_id,source_system,source_id,evidence_kind) values(a,f,l,'synthetic-A','reactivated','direct_source_assertion');
+ update dam.asset_franchise b set is_current=true,retired_at=null,retired_reason=null where b.asset_id=a and b.franchise_id=f;
+ set constraints all immediate;set constraints all deferred;
+end $lifecycle$;
 rollback;

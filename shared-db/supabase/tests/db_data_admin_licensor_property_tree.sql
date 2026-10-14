@@ -72,6 +72,12 @@ begin
   values(v_property,v_licensor,'Issue 1400 Canonical Property','I1400-P','active');
   insert into core.character(id,licensor_id,name,code,status)
   values(v_character,v_licensor,'Issue 1400 Canonical Character','I1400-C','active');
+  -- Invented direct assertion for this exact pair; the real CURRENT support guard remains enabled.
+  insert into core.property_character_source_edge
+    (property_id,character_id,licensor_id,source_system,source_id,source_evidence,evidence_kind)
+  values(v_property,v_character,v_licensor,'synthetic-test','issue1400-exact-pair',
+    'Synthetic direct Property/Character assertion for the rolled-back tree fixture',
+    'direct_source_assertion');
   insert into core.property_character_associations(property_id,character_id)
   values(v_property,v_character);
 
