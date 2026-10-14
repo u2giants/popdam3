@@ -18,7 +18,8 @@
  *
  * Fallback chain for PSD files:
  *   1. Sharp        — fast, handles most .psd
- *   2. ImageMagick  — 16-bit, smart objects, complex layers
+ *   2. ImageMagick  — 16-bit, smart objects, complex layers; if it cannot decode a
+ *                     CMYK PSD, psd-tools (PSD_TOOLS_PYTHON, optional) decodes it
  *   3. Sibling image — any .jpg/.png in same folder with matching name
  *
  * Inkscape is NOT used for PSD (it doesn't read PSD natively).
@@ -37,6 +38,7 @@ import path from "node:path";
 import { logger } from "./logger";
 import { readFileWithinLimit } from "./common/bounded-read.js";
 import { isCompatAlertBuffer, createCompatAuditWorker } from "./compat-audit";
+import { compositePsdWithPsdTools, isPsdDecodeFailure, psdToolsPython } from "./psd-tools-fallback";
 
 // On Windows, paths longer than MAX_PATH (260) fail silently with Win32 APIs.
 // Prefixing with \\?\ enables extended-length paths in Node fs and Sharp (libvips).
@@ -488,21 +490,47 @@ async function renderWithImageMagick(
     // Windows drive letters (e.g. "y:") as format specifiers.
     // -colorspace sRGB converts CMYK/Lab PSDs to sRGB before compositing; no-op for sRGB files.
     const imInput = /^[A-Za-z]:/.test(filePath) ? `PSD:${filePath}[0]` : `${filePath}[0]`;
-    await execFileAsync(IM_EXE, [
-      imInput,
-      "-colorspace", "sRGB",
-      "-background", "white",
-      "-flatten",
-      "-resize", `${THUMB_MAX_DIM}x${THUMB_MAX_DIM}>`,
-      "-quality", "85",
-      outPath,
-    ], { timeout: 120_000 }); // PSDs can be slow
+    let renderedPath = outPath;
+    let usedFallback = false;
+    try {
+      await execFileAsync(IM_EXE, [
+        imInput,
+        "-colorspace", "sRGB",
+        "-background", "white",
+        "-flatten",
+        "-resize", `${THUMB_MAX_DIM}x${THUMB_MAX_DIM}>`,
+        "-quality", "85",
+        outPath,
+      ], { timeout: 120_000 }); // PSDs can be slow
 
-    if (!existsSync(outPath)) {
-      throw new Error("ImageMagick produced no output");
+      if (!existsSync(outPath)) {
+        throw new Error("ImageMagick produced no output");
+      }
+    } catch (imErr) {
+      // ImageMagick cannot decode some CMYK PSDs ("unable to decompress image").
+      // psd-tools decodes them; used only when PSD_TOOLS_PYTHON is configured.
+      const pyExe = psdToolsPython();
+      const imMessage = (imErr as Error).message;
+      if (!pyExe || !isPsdDecodeFailure(imMessage)) throw imErr;
+      const pngPath = path.join(tmpDir, "thumb-psdtools.png");
+      try {
+        await compositePsdWithPsdTools(pyExe, filePath, pngPath);
+      } catch (pyErr) {
+        // Keep the ImageMagick error as the reported cause; add the fallback's failure to it.
+        throw new Error(`${imMessage} | psd-tools: ${(pyErr as Error).message}`);
+      }
+      if (!existsSync(pngPath)) throw new Error("psd-tools produced no output");
+      logger.info("PSD decoded with psd-tools fallback", { filePath });
+      renderedPath = pngPath;
+      usedFallback = true;
     }
 
-    const buffer = await sharp(outPath, { limitInputPixels: false }).jpeg({ quality: 85 }).toBuffer();
+    // ImageMagick applies the 800px cap itself; the psd-tools PNG must be capped here.
+    const pipeline = sharp(renderedPath, { limitInputPixels: false });
+    const capped = usedFallback
+      ? pipeline.resize({ width: THUMB_MAX_DIM, height: THUMB_MAX_DIM, fit: "inside", withoutEnlargement: true })
+      : pipeline;
+    const buffer = await capped.jpeg({ quality: 85 }).toBuffer();
     const meta = await sharp(buffer).metadata();
 
     return {
