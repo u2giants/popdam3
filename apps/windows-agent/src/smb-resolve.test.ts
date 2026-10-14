@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { matchSmbName, normalizeSmbName, splitSmbRoot } from "./smb-resolve";
+import { matchMangledFile, matchSmbName, normalizeSmbName, splitSmbRoot } from "./smb-resolve";
 
 describe("normalizeSmbName", () => {
   it("maps catia private-use quotes to ASCII", () => {
@@ -40,5 +40,39 @@ describe("splitSmbRoot", () => {
 
   it("returns null for a relative path", () => {
     assert.equal(splitSmbRoot("Decor\\a.psd"), null);
+  });
+});
+
+describe("matchMangledFile", () => {
+  const exp = { size: 1000, mtimeMs: 1_700_000_000_000 };
+  const stats: Record<string, { size: number; mtimeMs: number }> = {
+    "4TQCYS~A.AI": { size: 1000, mtimeMs: 1_700_000_000_000 },
+    "59PKMD~9.AI": { size: 999, mtimeMs: 1_700_000_000_000 },
+    "5LYMWU~4.PSD": { size: 1000, mtimeMs: 1_700_000_000_000 },
+  };
+  const statOf = (n: string) => stats[n];
+
+  it("picks the single mangled same-extension entry with matching size and mtime", () => {
+    assert.equal(
+      matchMangledFile('4_POWERPUFF "x".ai', ["4TQCYS~A.AI", "59PKMD~9.AI"], statOf, exp),
+      "4TQCYS~A.AI",
+    );
+  });
+
+  it("refuses when no entry matches", () => {
+    assert.equal(matchMangledFile("a.ai", ["59PKMD~9.AI"], statOf, exp), null);
+  });
+
+  it("refuses a match with a different extension", () => {
+    assert.equal(matchMangledFile("a.ai", ["5LYMWU~4.PSD"], statOf, exp), null);
+  });
+
+  it("refuses when two entries match", () => {
+    const two = { "AAA~1.AI": exp, "BBB~2.AI": exp };
+    assert.equal(matchMangledFile("a.ai", ["AAA~1.AI", "BBB~2.AI"], (n) => two[n as keyof typeof two], exp), null);
+  });
+
+  it("ignores long names that are not mangled", () => {
+    assert.equal(matchMangledFile("a.ai", ["normal.ai"], () => exp, exp), null);
   });
 });
