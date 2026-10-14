@@ -4,22 +4,25 @@
  * Samba's catia/fruit mapping, and any other name translation on the share, can
  * change how a file name looks to Windows. Constructing the path from the
  * database name can then miss the file even though it is there. When the
- * constructed path does not exist, list the parent folder and match by a
- * normalized name, then open the name that is actually listed.
+ * constructed path does not exist, list the parent folder and match by normalized
+ * name, then open the name that is actually listed.
  */
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
+/** Windows path rules are used on every platform so the resolver behaves the same under test. */
+const win = path.win32;
+
 /** Private-use code points Samba catia uses for characters Windows forbids. */
 const CATIA_TO_ASCII: Record<string, string> = {
-  "": '"',
-  "": "*",
-  "": ":",
-  "": "<",
-  "": ">",
-  "": "?",
-  "": "\\",
-  "": "|",
+  "\uF022": '"',
+  "\uF02A": "*",
+  "\uF03A": ":",
+  "\uF03C": "<",
+  "\uF03E": ">",
+  "\uF03F": "?",
+  "\uF05C": "\\",
+  "\uF07C": "|",
 };
 
 /** Map private-use catia characters back to ASCII. */
@@ -29,23 +32,27 @@ export function normalizeSmbName(name: string): string {
   return out;
 }
 
-/** Same as normalizeSmbName, with the Windows-forbidden characters removed (last-resort key). */
-function looseKey(name: string): string {
-  return normalizeSmbName(name).replace(/["*:<>?\\|]/g, "");
-}
-
 /**
- * Pick the listed name that matches `requested`. Exact (normalized) match first;
- * a loose match only when it is unique. Returns null when nothing matches.
+ * Pick the listed name whose normalized form equals the requested normalized name.
+ * No loose matching: on the NAS `10"Wall.psd` and `10Wall.psd` are different files,
+ * so a near match must never stand in for the requested file.
  */
 export function matchSmbName(requested: string, listed: string[]): string | null {
   const want = normalizeSmbName(requested);
   const exact = listed.filter((n) => normalizeSmbName(n) === want);
-  if (exact.length === 1) return exact[0];
-  if (exact.length > 1) return null;
-  const wantLoose = looseKey(requested);
-  const loose = listed.filter((n) => looseKey(n) === wantLoose);
-  return loose.length === 1 ? loose[0] : null;
+  return exact.length === 1 ? exact[0] : null;
+}
+
+/**
+ * Split a Windows path into its root (drive `Z:\` or UNC `\\host\share\`) and the
+ * segments under it. Returns null when the path has neither form.
+ */
+export function splitSmbRoot(windowsPath: string): { root: string; segments: string[] } | null {
+  const drive = /^[A-Za-z]:\\/.exec(windowsPath);
+  const unc = /^\\\\[^\\]+\\[^\\]+\\/.exec(windowsPath);
+  const root = drive ? drive[0] : unc ? unc[0] : null;
+  if (!root) return null;
+  return { root, segments: windowsPath.slice(root.length).split("\\").filter((p) => p.length > 0) };
 }
 
 /**
@@ -54,12 +61,11 @@ export function matchSmbName(requested: string, listed: string[]): string | null
  */
 export function resolveExistingSmbPath(windowsPath: string): string {
   if (existsSync(windowsPath)) return windowsPath;
-  const drive = /^[A-Za-z]:\\/.exec(windowsPath);
-  if (!drive) return windowsPath;
-  const parts = windowsPath.slice(drive[0].length).split("\\").filter((p) => p.length > 0);
-  let cur = drive[0];
-  for (const seg of parts) {
-    const direct = path.join(cur, seg);
+  const split = splitSmbRoot(windowsPath);
+  if (!split) return windowsPath;
+  let cur = split.root;
+  for (const seg of split.segments) {
+    const direct = win.join(cur, seg);
     if (existsSync(direct)) {
       cur = direct;
       continue;
@@ -72,7 +78,7 @@ export function resolveExistingSmbPath(windowsPath: string): string {
     }
     const match = matchSmbName(seg, listed);
     if (!match) return windowsPath;
-    cur = path.join(cur, match);
+    cur = win.join(cur, match);
   }
   return cur;
 }
