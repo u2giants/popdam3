@@ -39,6 +39,9 @@ export const config = {
   // "meta-direct/..." model such as Muse Spark 1.3 Contributor.
   metaApiKey: optional("META_API_KEY", ""),
 
+  // ScaleDown (scaledown.ai) key — bake-off only, "scaledown/..." models.
+  scaledownApiKey: optional("SCALEDOWN_API_KEY", ""),
+
   // Direct DeepSeek API key — used ONLY for cacheable high-volume batch work
   // (rich-PDF extraction) where DeepSeek's automatic prefix caching beats the
   // OpenRouter path on cost. Value lives in 1Password ai-provider-api-keys

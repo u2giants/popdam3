@@ -31,6 +31,17 @@ type VisionModel = {
   pricing?: OpenRouterPricing | null;
 };
 
+// Direct (non-OpenRouter) models only the bake-off worker can call.
+// The worker's scaledown.ts handles "scaledown/" ids with SCALEDOWN_API_KEY.
+const BAKEOFF_ONLY_MODELS: VisionModel[] = [
+  {
+    id: "scaledown/summarize",
+    name: "ScaleDown Summarize (direct API; bake-off only)",
+    architecture: { input_modalities: ["text", "image"] },
+    pricing: { prompt: "0.00000005", completion: "0" },
+  },
+];
+
 type OpenRouterModelResponse = {
   id: string;
   name?: string;
@@ -322,7 +333,7 @@ export default function AiTagBakeoffTab() {
       if (a.supports_structured_outputs !== b.supports_structured_outputs) return a.supports_structured_outputs ? -1 : 1;
       if (a.supports_response_format !== b.supports_response_format) return a.supports_response_format ? -1 : 1;
       return a.id.localeCompare(b.id);
-    });
+    }).concat(BAKEOFF_ONLY_MODELS);
   }, [modelData]);
 
   async function refreshModels() {
