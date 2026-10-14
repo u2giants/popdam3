@@ -389,11 +389,11 @@ async function handleHeartbeat(
     if (sgPassErr) console.error("get_sg_nas_password failed:", sgPassErr.message);
     else configMap.WINDOWS_AGENT_SG_NAS_PASS = typeof sgPass === "string" ? sgPass : "";
     // Z: (mac share) password: Vault-backed once shared-db migration
-    // 20261014043757 is live. Falls back to the admin_config row only if the
-    // RPC errors, so the render agent keeps working until cutover removes the row.
+    // 20261014043757 is live. Falls back to the admin_config row when the RPC
+    // errors or returns empty, so the render agent keeps working until cutover removes the row.
     const { data: zPass, error: zPassErr } = await db.rpc("get_render_z_nas_password");
     if (zPassErr) console.error("get_render_z_nas_password failed:", zPassErr.message);
-    else configMap.WINDOWS_AGENT_NAS_PASS = typeof zPass === "string" ? zPass : "";
+    else if (typeof zPass === "string" && zPass !== "") configMap.WINDOWS_AGENT_NAS_PASS = zPass;
   }
 
   // Spaces
