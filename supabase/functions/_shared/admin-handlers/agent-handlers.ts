@@ -587,7 +587,7 @@ export async function handleRequeueRenderJob(body: Record<string, unknown>) {
 
   const { data, error } = await db
     .from("render_queue")
-    .update({ status: "pending", error_message: null, claimed_by: null, claimed_at: null, completed_at: null })
+    .update({ status: "pending", error_message: null, claimed_by: null, claimed_at: null, completed_at: null, attempts: 0 })
     .eq("id", jobId)
     .eq("status", "failed")
     .select("id")
@@ -810,7 +810,7 @@ export async function handleRetryFailedRenders() {
 
   const { data, error } = await db
     .from("render_queue")
-    .update({ status: "pending", claimed_by: null, claimed_at: null, error_message: null })
+    .update({ status: "pending", claimed_by: null, claimed_at: null, error_message: null, attempts: 0 })
     .in("id", safeToRetry)
     .select("id");
 
