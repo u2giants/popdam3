@@ -12,6 +12,7 @@
  * Rendering uses Sharp + Ghostscript. Hygiene scans use Illustrator ExtendScript.
  */
 
+import { toSmbClientRelativePath } from "./smb-names";
 import { config } from "./config";
 import { getLogTail, logger } from "./logger";
 import * as api from "./api-client";
@@ -177,7 +178,8 @@ async function doPairing() {
  */
 function toUncPath(relativePath: string): string {
   assertSafeRelativePath(relativePath);
-  const windowsPath = relativePath.replace(/\//g, "\\");
+  // Samba (catia) shows forbidden Windows characters as private-use code points.
+  const windowsPath = toSmbClientRelativePath(relativePath).replace(/\//g, "\\");
 
   // If a local mount path is configured (e.g. Z:), use it
   const mountPath = (cloudNasMountPath || "").trim()
@@ -198,7 +200,8 @@ function toUncPath(relativePath: string): string {
  */
 function toSgUncPath(relativePath: string): string {
   assertSafeRelativePath(relativePath);
-  const windowsPath = relativePath.replace(/\//g, "\\");
+  // Samba (catia) shows forbidden Windows characters as private-use code points.
+  const windowsPath = toSmbClientRelativePath(relativePath).replace(/\//g, "\\");
   const mountPath = (cloudSgNasMountPath || cloudNasMountPath || "").trim()
     .replace(/\\+$/, "");
   if (mountPath) {
