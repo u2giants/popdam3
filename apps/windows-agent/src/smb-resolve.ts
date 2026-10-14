@@ -7,7 +7,7 @@
  * constructed path does not exist, list the parent folder and match by normalized
  * name, then open the name that is actually listed.
  */
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 /** Windows path rules are used on every platform so the resolver behaves the same under test. */
@@ -43,6 +43,38 @@ export function matchSmbName(requested: string, listed: string[]): string | null
   return exact.length === 1 ? exact[0] : null;
 }
 
+/** NAS-reported size and modified time for the asset being rendered. */
+export interface ExpectedFile {
+  size: number;
+  mtimeMs: number;
+}
+
+/** Windows 8.3 short names look like `4TQCYS~A.AI`: they contain `~`. */
+function isMangledName(name: string): boolean {
+  return name.includes("~");
+}
+
+/**
+ * When Samba lists a long name only as an 8.3 short name, pick the entry whose size and
+ * modified time equal the NAS values. Restricted to mangled names with the same extension.
+ * Returns null unless exactly one entry matches (refuses 0 and more-than-one).
+ */
+export function matchMangledFile(
+  requested: string,
+  listed: string[],
+  statOf: (name: string) => { size: number; mtimeMs: number },
+  expected: ExpectedFile,
+): string | null {
+  const ext = win.extname(requested).toLowerCase();
+  if (!ext) return null;
+  const hits = listed.filter((n) => {
+    if (!isMangledName(n) || win.extname(n).toLowerCase() !== ext) return false;
+    const st = statOf(n);
+    return st.size === expected.size && Math.abs(st.mtimeMs - expected.mtimeMs) <= 2000;
+  });
+  return hits.length === 1 ? hits[0] : null;
+}
+
 /**
  * Split a Windows path into its root (drive `Z:\` or UNC `\\host\share\`) and the
  * segments under it. Returns null when the path has neither form.
@@ -59,12 +91,14 @@ export function splitSmbRoot(windowsPath: string): { root: string; segments: str
  * Return the path with each segment replaced by the name the share actually lists.
  * Returns the input unchanged when it already exists or when a segment cannot be matched.
  */
-export function resolveExistingSmbPath(windowsPath: string): string {
+export function resolveExistingSmbPath(windowsPath: string, expected?: ExpectedFile): string {
   if (existsSync(windowsPath)) return windowsPath;
   const split = splitSmbRoot(windowsPath);
   if (!split) return windowsPath;
   let cur = split.root;
-  for (const seg of split.segments) {
+  const last = split.segments.length - 1;
+  for (let i = 0; i <= last; i++) {
+    const seg = split.segments[i];
     const direct = win.join(cur, seg);
     if (existsSync(direct)) {
       cur = direct;
@@ -76,7 +110,18 @@ export function resolveExistingSmbPath(windowsPath: string): string {
     } catch {
       return windowsPath;
     }
-    const match = matchSmbName(seg, listed);
+    let match = matchSmbName(seg, listed);
+    if (!match && i === last && expected) {
+      match = matchMangledFile(
+        seg,
+        listed,
+        (n) => {
+          const st = statSync(win.join(cur, n));
+          return { size: st.size, mtimeMs: st.mtimeMs };
+        },
+        expected,
+      );
+    }
     if (!match) return windowsPath;
     cur = win.join(cur, match);
   }

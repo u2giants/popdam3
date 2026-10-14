@@ -1629,7 +1629,7 @@ async function handleClaimRender(body: Record<string, unknown>) {
   const assetIds = claimedJobs.map((j: Record<string, unknown>) => j.asset_id);
   const { data: assets } = await db
     .from("assets")
-    .select("id, relative_path, file_type, filename")
+    .select("id, relative_path, file_type, filename, file_size, modified_at")
     .in("id", assetIds);
 
   const assetMap = new Map((assets || []).map((a: Record<string, unknown>) => [a.id, a]));
@@ -1642,6 +1642,8 @@ async function handleClaimRender(body: Record<string, unknown>) {
       relative_path: asset?.relative_path || null,
       file_type: asset?.file_type || null,
       filename: asset?.filename || null,
+      file_size: asset?.file_size ?? null,
+      modified_at: asset?.modified_at ?? null,
       attempts: j.attempts,
       lease_expires_at: j.lease_expires_at,
     };

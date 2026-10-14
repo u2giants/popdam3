@@ -166,6 +166,9 @@ export interface RenderJob {
   relative_path: string;
   file_type: string;
   filename: string;
+  /** NAS-reported size and modified time, used to pick the 8.3 name Windows lists. */
+  file_size?: number | null;
+  modified_at?: string | null;
 }
 
 export interface SgRenderJob {

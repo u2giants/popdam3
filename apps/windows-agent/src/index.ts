@@ -467,7 +467,10 @@ function waitForIdleThenRestart() {
 async function processJob(job: api.RenderJob): Promise<void> {
   let uncPath: string;
   try {
-    uncPath = resolveExistingSmbPath(toUncPath(job.relative_path));
+    const expected = typeof job.file_size === "number" && job.modified_at
+      ? { size: job.file_size, mtimeMs: Date.parse(job.modified_at) }
+      : undefined;
+    uncPath = resolveExistingSmbPath(toUncPath(job.relative_path), expected);
   } catch (e) {
     logger.warn("Rejected unsafe render path", { jobId: job.job_id, relativePath: job.relative_path });
     await api.completeRender(job.job_id, false, undefined, (e as Error).message.slice(0, 500));
