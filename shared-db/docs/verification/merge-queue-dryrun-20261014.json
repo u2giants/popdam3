@@ -1,0 +1,45 @@
+{
+  "_why": "Dated dry-run record (#2530 Step 8 re-activation, 2026-10-14): configure-merge-queue.mjs proposed payload before apply. Lane gate: the five LANE_REFS (author-acquisition, preview, merge, production, promotion-freeze) were free at capture instant 2026-10-14T16:48:44Z, so assertNoMutationLane passed and this payload is the real dry-run output. A separate undated observation of author-acquisition held by issue #2336 / PR #4206 was taken at a different moment and is not the state at capture. Settings mutations authorized by owner (2026-10-14).",
+  "mode": "DRY RUN",
+  "repo": "popcre/shared-db",
+  "capturedIso": "2026-10-14T16:48:44Z",
+  "repository": { "id": 1275568548, "ownerType": "Organization", "visibility": "public" },
+  "existingRulesetId": null,
+  "desired": {
+    "name": "main merge queue",
+    "target": "branch",
+    "enforcement": "active",
+    "conditions": { "ref_name": { "include": ["refs/heads/main"], "exclude": [] } },
+    "rules": [
+      {
+        "type": "merge_queue",
+        "parameters": {
+          "check_response_timeout_minutes": 30,
+          "grouping_strategy": "ALLGREEN",
+          "max_entries_to_build": 1,
+          "max_entries_to_merge": 1,
+          "merge_method": "MERGE",
+          "min_entries_to_merge": 1,
+          "min_entries_to_merge_wait_minutes": 0
+        }
+      }
+    ]
+  },
+  "requiredContexts": [
+    "SQL migration guards",
+    "supabase/tests against an ephemeral database",
+    "Cross-PR object collision",
+    "Destructive SQL outside migrations",
+    "Migration guarded merge authorization",
+    "Cancelled work guard",
+    "Domain ownership",
+    "Handoff contract",
+    "Intake pointer guard",
+    "Migration author lease",
+    "Promotion contract tests (offline)",
+    "Tools offline tests",
+    "Merge queue gate",
+    "Queue-sensitive checks (aggregate)"
+  ],
+  "strict": false
+}
