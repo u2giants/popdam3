@@ -4472,6 +4472,13 @@ export type Database = {
           material: string
         }[]
       }
+      get_dam_order_sales_order_dates: {
+        Args: { p_line_ids: string[] }
+        Returns: {
+          order_line_id: string
+          sales_order_date: string
+        }[]
+      }
       get_dam_order_tracking: {
         Args: {
           p_limit?: number
