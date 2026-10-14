@@ -822,6 +822,8 @@ export const githubIo = {
     const commits=readGitCommits(rows.map(row=>row.sha))
     return rows.map(row=>({...row,commit:commits.get(row.sha)}))
   },
+  // #4290: the merge base a newer reviewed head had with the PR base, so an older head
+  // can be classified against it exactly as when that newer head was drawn.
   reviewContentComparison(before,after,pr,context={}) {
     const base=context.base??this.getPr(pr)?.base?.sha
     context.base=base

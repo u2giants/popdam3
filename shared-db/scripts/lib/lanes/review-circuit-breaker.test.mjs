@@ -701,3 +701,64 @@ test('resolved metadata requires a valid source hash and all other bytes',t=>{
   assert.throws(()=>derivePaidContentProof(f.before,f.git(['rev-parse','HEAD']).trim(),f.main,f.git),/provenance refused/)
  }
 })
+
+// #4290 / PR #4206: after a branch refresh from main, an older reviewed head cannot be
+// re-merged against the moved main (merge gap), so its direct proof throws. It is
+// classified through a newer reviewed head whose direct proof holds; the link is derived
+// at the same operation base. Unprovable chains and non-gap failures still refuse.
+const GAP='review budget Git provenance refused: review budget conflict is outside the one canonical test append'
+function chainIo({heads,proofs,fail={}}){
+  const rows=heads.map((h,i)=>row(i+1,h)),bases=new Set()
+  return {listRefs:()=>rows,getCommit:sha=>({message:message(Number(sha),heads[Number(sha)-1])}),bases,
+    reviewContentComparison:(before,after,pr,ctx)=>{ctx.base??=head;bases.add(ctx.base);const key=`${before[0]}>${after[0]}`
+      if(fail[key])throw new Error(fail[key]);const kind=proofs[key];if(!kind)throw new Error(GAP)
+      return {before:digest,after:digest,budgetProof:{schema:1,before,after,protectedMain:ctx.base,kind,historyCount:1}}}}
+}
+const old='e'.repeat(40),reviewed='f'.repeat(40),fresh='9'.repeat(40),mid='8'.repeat(40)
+const capacity=(x)=>assertPaidReviewCapacity({...request,headSha:fresh},x)
+test('an older head behind the merge gap composes through a newer direct proof (substantive older edit)',()=>{
+  const x=chainIo({heads:[old,reviewed],proofs:{'f>9':'unchanged','e>f':'substantive'}})
+  assert.equal(capacity(x).paidAttempts,1);assert.deepEqual([...x.bases],[head],'one base for every comparison')
+})
+test('unchanged composition is still counted: two unchanged starts refuse a third draw',()=>{
+  assert.throws(()=>capacity(chainIo({heads:[old,reviewed],proofs:{'f>9':'unchanged','e>f':'unchanged'}})),/third draw refused/)
+})
+test('a substantive newer head makes the composed older head substantive',()=>{
+  assert.equal(capacity(chainIo({heads:[old,reviewed],proofs:{'f>9':'substantive','e>f':'unchanged'}})).paidAttempts,0)
+})
+test('two substantive steps prove nothing (a revert) and the refusal stands',()=>{
+  assert.throws(()=>capacity(chainIo({heads:[old,reviewed],proofs:{'f>9':'substantive','e>f':'substantive'}})),/conflict is outside the one canonical test append/)
+})
+test('without a provable chain the original refusal stands',()=>{
+  assert.throws(()=>capacity(chainIo({heads:[old,reviewed],proofs:{'f>9':'unchanged'}})),/conflict is outside/)
+  assert.throws(()=>capacity(chainIo({heads:[old],proofs:{}})),/conflict is outside/)
+})
+test('disagreeing chains are counted conservatively, independent of draw order',()=>{
+  for(const heads of [[old,mid,reviewed],[old,reviewed,mid]])
+    assert.throws(()=>capacity(chainIo({heads,proofs:{'f>9':'unchanged','8>9':'unchanged','e>f':'substantive','e>8':'unchanged'}})),/third draw refused/)
+})
+test('a chained result is never an intermediate (no multi-hop)',()=>{
+  const o1='3'.repeat(40)
+  assert.throws(()=>capacity(chainIo({heads:[o1,mid,reviewed],proofs:{'f>9':'unchanged','8>f':'substantive','3>8':'substantive'}})),/conflict is outside/)
+})
+for(const message of ['review budget Git provenance refused: review budget historical evidence mutated generation','review budget Git provenance refused: review budget canonical blob bytes unreadable or oversized','review budget Git provenance refused: review budget foreign intermediate evidence pair refused']){
+  test(`a non-gap direct refusal is never bridged: ${message.slice(37)}`,()=>{
+    assert.throws(()=>capacity(chainIo({heads:[old,reviewed],proofs:{'f>9':'unchanged','e>f':'substantive'},fail:{'e>9':message}})),new RegExp(message.slice(37)))
+  })
+  test(`a non-gap link refusal refuses instead of trying the next chain: ${message.slice(37)}`,()=>{
+    assert.throws(()=>capacity(chainIo({heads:[old,mid,reviewed],proofs:{'f>9':'unchanged','8>9':'unchanged','e>8':'substantive'},fail:{'e>f':message}})),new RegExp(message.slice(37)))
+  })
+}
+test('a malformed returned proof is never bridged',()=>{
+  const x=chainIo({heads:[old,reviewed],proofs:{'f>9':'unchanged','e>f':'substantive'}}),compare=x.reviewContentComparison
+  x.reviewContentComparison=(b,a,pr,ctx)=>b[0]==='e'&&a[0]==='9'?{before:digest,after:digest,budgetProof:{schema:1,before:reviewed,after:a,protectedMain:head,kind:'unchanged'}}:compare(b,a,pr,ctx)
+  assert.throws(()=>capacity(x),/author-owned Git provenance proof unreadable/)
+})
+test('a proof naming a base other than the operation base refuses',()=>{
+  const x=chainIo({heads:[old,reviewed],proofs:{'f>9':'unchanged','e>f':'substantive'}}),compare=x.reviewContentComparison
+  x.reviewContentComparison=(b,a,pr,ctx)=>{const r=compare(b,a,pr,ctx);if(b[0]==='e')r.budgetProof.protectedMain='4'.repeat(40);return r}
+  assert.throws(()=>capacity(x),/author-owned Git provenance proof unreadable/)
+})
+test('duplicate-head starts are each counted',()=>{
+  assert.throws(()=>capacity(chainIo({heads:[old,old,reviewed],proofs:{'f>9':'substantive','e>f':'substantive','e>9':'unchanged'}})),/third draw refused/)
+})

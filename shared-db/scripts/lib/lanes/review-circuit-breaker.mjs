@@ -509,18 +509,66 @@ export function assertPaidReviewCapacity(request, io) {
   const starts = rows.map(row=>paidStart(row,row.commit ?? io.getCommit(row.sha))).filter(row=>row && row.pr === request.pr && row.slot === request.slot)
   let count=0,reinstated=0
   const comparisonContext={}
-  starts.sort((a,b)=>a.sequence-b.sequence)
-  for (const start of starts) {
-    let same=start.headSha === request.headSha
-    if (!same) {
-      if (typeof io.reviewContentComparison !== 'function') throw new LaneError('review circuit breaker: substantive content comparison unavailable')
-      const comparison=io.reviewContentComparison(start.headSha,request.headSha,request.pr,comparisonContext)
-      if (!comparison || !/^[0-9a-f]{64}$/.test(comparison.before) || !/^[0-9a-f]{64}$/.test(comparison.after)) throw new LaneError('review circuit breaker: substantive content proof unreadable')
-      const proof=comparison.budgetProof
-      if(!proof || proof.schema!==1 || proof.before!==start.headSha || proof.after!==request.headSha || !/^[0-9a-f]{40}$/.test(proof.protectedMain??'') || !['unchanged','substantive'].includes(proof.kind)) throw new LaneError('review circuit breaker: author-owned Git provenance proof unreadable')
-      if(proof.kind==='substantive' && (!Number.isInteger(proof.historyCount)||proof.historyCount<1||proof.historyCount>=1000)) throw new LaneError('review circuit breaker: complete substantive history proof unreadable')
-      same=proof.kind==='unchanged'
+  // One proven classification of before->after content: 'unchanged' or 'substantive'.
+  const classify=(beforeHead,afterHead)=>{
+    const context=comparisonContext
+    if (typeof io.reviewContentComparison !== 'function') throw new LaneError('review circuit breaker: substantive content comparison unavailable')
+    const comparison=io.reviewContentComparison(beforeHead,afterHead,request.pr,context)
+    if (!comparison || !/^[0-9a-f]{64}$/.test(comparison.before) || !/^[0-9a-f]{64}$/.test(comparison.after)) throw new LaneError('review circuit breaker: substantive content proof unreadable')
+    const proof=comparison.budgetProof
+    if(!proof || proof.schema!==1 || proof.before!==beforeHead || proof.after!==afterHead || !/^[0-9a-f]{40}$/.test(proof.protectedMain??'') || (context.base!==undefined && proof.protectedMain!==context.base) || !['unchanged','substantive'].includes(proof.kind)) throw new LaneError('review circuit breaker: author-owned Git provenance proof unreadable')
+    if(proof.kind==='substantive' && (!Number.isInteger(proof.historyCount)||proof.historyCount<1||proof.historyCount>=1000)) throw new LaneError('review circuit breaker: complete substantive history proof unreadable')
+    return proof.kind
+  }
+  // #4290/#4206: after the branch is refreshed from main, an OLDER reviewed head can no
+  // longer be re-merged against the moved main (its stale copies of files main has since
+  // changed conflict), so its direct classification is unprovable. It is then classified
+  // THROUGH a newer reviewed head of the same PR whose own classification is proven:
+  // older->newer (pre-refresh, directly comparable) composed with newer->request. Only a
+  // fully proven chain counts; anything else still refuses.
+  const proven=new Map()
+  // Only the moved-main MERGE gap may be bridged: re-merging an older head against the
+  // current main conflicts outside the canonical append forms. Every other provenance
+  // refusal (evidence lineage, blob integrity, foreign pairs, ...) keeps refusing.
+  const provenanceGap=(error)=>/^review budget Git provenance refused: review budget (conflict is outside the one canonical test append|canonical append requires exactly one conflict|append marker ambiguity|append must be one EOF conflict|append cannot modify old lines or omit a parent)$/.test(String(error?.message??''))
+  // Composition table: unchanged after unchanged is unchanged; a substantive step on
+  // either side with an unchanged step on the other is substantive. Two substantive
+  // steps prove nothing (the second may revert the first), so that chain is skipped.
+  const compose=(link,kind)=>link==='unchanged'?kind:kind==='unchanged'?'substantive':null
+  // Returns {kind, direct}. A start whose direct proof hits the merge gap is classified
+  // through newer starts with DIRECT proofs; the older->newer link is derived at the same
+  // protected base as every other comparison in this operation (a reviewed head that has
+  // not absorbed main re-merges cleanly), so no second base is ever introduced. Chained
+  // results are counted but never serve as intermediates (no multi-hop).
+  const classifyStart=(start)=>{
+    try{return {kind:classify(start.headSha,request.headSha),direct:true}}catch(error){
+      if(!provenanceGap(error))throw error
+      const results=new Set()
+      for(const [head,kind] of proven.entries()){
+        if(head===start.headSha)continue
+        let link
+        try{link=classify(start.headSha,head)}catch(linkError){if(provenanceGap(linkError))continue;throw linkError}
+        const composed=compose(link,kind)
+        if(composed)results.add(composed)
+      }
+      if(!results.size)throw error
+      // Every provable chain must agree; on disagreement count conservatively (as
+      // unchanged), which can only spend capacity, never grant an extra paid review.
+      return {kind:results.size===1?[...results][0]:'unchanged',direct:false}
     }
+  }
+  starts.sort((a,b)=>a.sequence-b.sequence)
+  // Prove newest first so an older head can compose through a newer proven one.
+  const kinds=new Map()
+  for (const start of [...starts].reverse()) {
+    if(start.headSha===request.headSha)continue
+    const result=classifyStart(start)
+    // Only DIRECT proofs serve as chain intermediates (no multi-hop): every link is then
+    // one step from a head whose classification against the request was proven directly.
+    kinds.set(start,result.kind);if(result.direct)proven.set(start.headSha,result.kind)
+  }
+  for (const start of starts) {
+    const same=start.headSha===request.headSha||kinds.get(start)==='unchanged'
     if(!same)continue
     if(reinstated<REINSTATEMENT_CEILING && reinstatedByFailure(start,io)){reinstated++;continue}
     count++
