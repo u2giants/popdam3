@@ -67,6 +67,7 @@ import {
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
+import { pickWindowsNasPassword } from "../_shared/windows-nas-password.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
 
@@ -393,7 +394,7 @@ async function handleHeartbeat(
     // errors or returns empty, so the render agent keeps working until cutover removes the row.
     const { data: zPass, error: zPassErr } = await db.rpc("get_render_z_nas_password");
     if (zPassErr) console.error("get_render_z_nas_password failed:", zPassErr.message);
-    else if (typeof zPass === "string" && zPass !== "") configMap.WINDOWS_AGENT_NAS_PASS = zPass;
+    else configMap.WINDOWS_AGENT_NAS_PASS = pickWindowsNasPassword(zPass, configMap.WINDOWS_AGENT_NAS_PASS);
   }
 
   // Spaces

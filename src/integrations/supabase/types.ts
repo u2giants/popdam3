@@ -4544,7 +4544,6 @@ export type Database = {
       }
       get_render_z_nas_password: { Args: never; Returns: string }
       get_sg_nas_password: { Args: never; Returns: string }
-      get_render_z_nas_password: { Args: never; Returns: string }
       get_sg_preview_stats: { Args: never; Returns: Json }
       get_sg_render_queue_stats: { Args: never; Returns: Json }
       get_style_guide_deterministic_tag_batch: {
@@ -5066,7 +5065,6 @@ export type Database = {
       }
       set_render_z_nas_password: { Args: { p_password: string }; Returns: undefined }
       set_sg_nas_password: { Args: { p_password: string }; Returns: undefined }
-      set_render_z_nas_password: { Args: { p_password: string }; Returns: undefined }
       set_style_group_cover: {
         Args: { p_asset_id: string; p_group_id: string }
         Returns: undefined

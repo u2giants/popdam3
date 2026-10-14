@@ -104,7 +104,6 @@ export function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () =
         "WINDOWS_AGENT_NAS_MOUNT_PATH",
         "WINDOWS_AGENT_SG_NAS_MOUNT_PATH",
         "WINDOWS_AGENT_NAS_USER",
-        "WINDOWS_AGENT_NAS_PASS",
         "WINDOWS_AGENT_RENDER_CONCURRENCY",
       ],
     }),
@@ -121,8 +120,6 @@ export function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () =
   const [nasMountPath, setNasMountPath] = useState("");
   const [sgNasMountPath, setSgNasMountPath] = useState("");
   const [nasUser, setNasUser] = useState("");
-  const [nasPass, setNasPass] = useState("");
-  const [showNasPass, setShowNasPass] = useState(false);
   const [renderConcurrency, setRenderConcurrency] = useState("6");
   const [initialized, setInitialized] = useState(false);
 
@@ -133,7 +130,6 @@ export function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () =
       setNasMountPath(getConfigVal("WINDOWS_AGENT_NAS_MOUNT_PATH"));
       setSgNasMountPath(getConfigVal("WINDOWS_AGENT_SG_NAS_MOUNT_PATH"));
       setNasUser(getConfigVal("WINDOWS_AGENT_NAS_USER"));
-      setNasPass(getConfigVal("WINDOWS_AGENT_NAS_PASS"));
       setRenderConcurrency(getConfigVal("WINDOWS_AGENT_RENDER_CONCURRENCY") || "6");
       setInitialized(true);
     }
@@ -150,7 +146,6 @@ export function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () =
           WINDOWS_AGENT_NAS_MOUNT_PATH: nasMountPath.trim().replace(/\\+$/, ''),
           WINDOWS_AGENT_SG_NAS_MOUNT_PATH: sgNasMountPath.trim().replace(/\\+$/, ''),
           WINDOWS_AGENT_NAS_USER: nasUser,
-          WINDOWS_AGENT_NAS_PASS: nasPass,
           WINDOWS_AGENT_RENDER_CONCURRENCY: String(Math.min(32, Math.max(1, parseInt(renderConcurrency) || 6))),
         },
       });
@@ -332,17 +327,7 @@ export function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () =
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground font-medium">NAS Password</label>
-            <div className="relative">
-              <Input type={showNasPass ? "text" : "password"} placeholder="••••••••" value={nasPass} onChange={(e) => setNasPass(e.target.value)} className="font-mono text-xs pr-10" />
-              <button
-                type="button"
-                onClick={() => setShowNasPass(!showNasPass)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showNasPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">Stored in your private database. Delivered to the agent automatically — no file editing required.</p>
+            <p className="text-xs text-muted-foreground">Managed in the server Vault. Not editable here.</p>
           </div>
           <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} title={saveMutation.isPending ? "Saving…" : undefined}>
             Save NAS Settings
