@@ -18,14 +18,20 @@ export function isPsdDecodeFailure(message: string): boolean {
   return /unable to decompress image|ReadPSDChannel/.test(message);
 }
 
-/** Python program: argv[1] = source .psd, argv[2] = output .png. Composite of merged image. */
+/** Python program: argv[1] = source .psd, argv[2] = output .png. Composite of the merged image, flattened on white like the other engines. */
 export const PSD_TOOLS_SCRIPT = [
   "import sys",
   "from psd_tools import PSDImage",
+  "from PIL import Image",
   "img = PSDImage.open(sys.argv[1]).composite()",
   "if img is None:",
   "    raise SystemExit('psd_tools: no composite image')",
-  "img.convert('RGB').save(sys.argv[2], 'PNG')",
+  "bg = Image.new('RGB', img.size, (255, 255, 255))",
+  "if img.mode in ('RGBA', 'LA'):",
+  "    bg.paste(img.convert('RGBA'), mask=img.convert('RGBA').split()[3])",
+  "else:",
+  "    bg.paste(img.convert('RGB'))",
+  "bg.save(sys.argv[2], 'PNG')",
 ].join("\n");
 
 /** Returns the configured Python executable, or null when the fallback is off. */

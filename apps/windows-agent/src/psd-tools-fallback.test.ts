@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { isPsdDecodeFailure, PSD_TOOLS_SCRIPT } from "./psd-tools-fallback.ts";
+import { isPsdDecodeFailure, PSD_TOOLS_SCRIPT } from "./psd-tools-fallback";
 
 describe("isPsdDecodeFailure", () => {
   it("matches the ImageMagick PSD channel decode error", () => {

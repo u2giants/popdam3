@@ -18,7 +18,8 @@
  *
  * Fallback chain for PSD files:
  *   1. Sharp        — fast, handles most .psd
- *   2. ImageMagick  — 16-bit, smart objects, complex layers
+ *   2. ImageMagick  — 16-bit, smart objects, complex layers; if it cannot decode a
+ *                     CMYK PSD, psd-tools (PSD_TOOLS_PYTHON, optional) decodes it
  *   3. Sibling image — any .jpg/.png in same folder with matching name
  *
  * Inkscape is NOT used for PSD (it doesn't read PSD natively).
@@ -490,6 +491,7 @@ async function renderWithImageMagick(
     // -colorspace sRGB converts CMYK/Lab PSDs to sRGB before compositing; no-op for sRGB files.
     const imInput = /^[A-Za-z]:/.test(filePath) ? `PSD:${filePath}[0]` : `${filePath}[0]`;
     let renderedPath = outPath;
+    let usedFallback = false;
     try {
       await execFileAsync(IM_EXE, [
         imInput,
@@ -511,13 +513,24 @@ async function renderWithImageMagick(
       const imMessage = (imErr as Error).message;
       if (!pyExe || !isPsdDecodeFailure(imMessage)) throw imErr;
       const pngPath = path.join(tmpDir, "thumb-psdtools.png");
-      await compositePsdWithPsdTools(pyExe, filePath, pngPath);
+      try {
+        await compositePsdWithPsdTools(pyExe, filePath, pngPath);
+      } catch (pyErr) {
+        // Keep the ImageMagick error as the reported cause; add the fallback's failure to it.
+        throw new Error(`${imMessage} | psd-tools: ${(pyErr as Error).message}`);
+      }
       if (!existsSync(pngPath)) throw new Error("psd-tools produced no output");
       logger.info("PSD decoded with psd-tools fallback", { filePath });
       renderedPath = pngPath;
+      usedFallback = true;
     }
 
-    const buffer = await sharp(renderedPath, { limitInputPixels: false }).jpeg({ quality: 85 }).toBuffer();
+    // ImageMagick applies the 800px cap itself; the psd-tools PNG must be capped here.
+    const pipeline = sharp(renderedPath, { limitInputPixels: false });
+    const capped = usedFallback
+      ? pipeline.resize({ width: THUMB_MAX_DIM, height: THUMB_MAX_DIM, fit: "inside", withoutEnlargement: true })
+      : pipeline;
+    const buffer = await capped.jpeg({ quality: 85 }).toBuffer();
     const meta = await sharp(buffer).metadata();
 
     return {
