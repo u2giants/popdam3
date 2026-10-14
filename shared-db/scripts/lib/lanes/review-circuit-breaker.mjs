@@ -16,6 +16,10 @@ import { parseTerminalFailureEvidence, reviewerFailureRef } from './review-repla
 // no review and does not spend the unchanged-content budget. Hard ceiling per
 // slot across the unchanged-content group so crashes can never loop forever.
 export const REINSTATABLE_FAILURE_CODES = Object.freeze(['wrapper_terminal_failure','provider_unavailable','insufficient_quota','turn_limit_cancelled'])
+// Released failure codes that describe the provider, its wallet, or the local
+// wrapper rather than the reviewed bytes (#4284): the replacement draw retries
+// such a name last instead of excluding it from the head forever.
+export const RETRYABLE_RELEASED_FAILURE_CODES = Object.freeze([...REINSTATABLE_FAILURE_CODES,'reviewer_cannot_emit_governed_verdict'])
 export const REINSTATEMENT_CEILING = 2
 
 function reinstatedByFailure(start,io){

@@ -39,7 +39,8 @@ import { HISTORICAL_RESTORATIONS, validateHistoricalRestorationFile } from './hi
 import { AdmissionError, SERVICE_CLASSES, CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, STRUCTURAL_ROUTES, parseImpactBlock, evaluateAdmission, inspectPrStructuralChange, structuralWritesMatch, structuralWritesCovered } from './orchestrator-flow/admission.mjs'
 import { assertNamedHold, conflicts, describeLeaseHolder, formatHoldReason, HoldReasonError } from './lib/hold-reason.mjs'
 import { OUTCOME_STATES, OutcomeError, advanceOutcome, completeOutcome, verifyOutcomeAcceptance, outcomeEvent, outcomeHistory, repairOutcomeHistory } from './orchestrator-flow/outcome-lifecycle.mjs'
-import { assertPaidReviewCapacity, pauseActualReviewFailure, derivePaidContentProof } from './lib/lanes/review-circuit-breaker.mjs'
+import { assertPaidReviewCapacity, pauseActualReviewFailure, derivePaidContentProof, RETRYABLE_RELEASED_FAILURE_CODES } from './lib/lanes/review-circuit-breaker.mjs'
+export { RETRYABLE_RELEASED_FAILURE_CODES }
 const paidBudgetContractCaches=new WeakMap()
 import { isContentPreservingRefresh, prContentDigest, verifiedEvidencePaths } from './lib/pr-content-equivalence.mjs'
 import { wrapperEmitsGovernedVerdict } from './lib/reviewer-capabilities.mjs'
@@ -3049,11 +3050,20 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     // #2224 shape, a claim about the world recorded as permanent -- deadlocks
     // the slot once every other name has failed on the same head (#3492 on PR
     // #3309: 4 of 5 failed, the fifth holds the other slot). Such a sequence is
-    // re-eligible here. Every other terminal failure code, and any failure whose
-    // evidence is the replacement record itself (`failure-ref=self`), stays
-    // excluded fail-closed.
+    // re-eligible here. Any failure whose evidence is the replacement record
+    // itself (`failure-ref=self`) stays excluded fail-closed, and so does every
+    // terminal failure code outside RETRYABLE_RELEASED_FAILURE_CODES (#4284,
+    // below), which are retried only last and only from a real release record.
     const silenceReleasedSequences=new Set()
     if(releasedFailure?.failureCode==='silent_worker_observed')silenceReleasedSequences.add(request.failedSequence)
+    // #4284: a released failure whose code describes the provider, wallet or
+    // local wrapper (quota, outage, wrapper fault, malformed verdict line) says
+    // nothing about these bytes. Excluding it forever on this head emptied the
+    // pool: 4 of 6 "failed", one held slot 1, one was unfunded. Such a name is
+    // retried LAST -- only when no never-failed reviewer is drawable -- and is
+    // still subject to live preflight usability and the paid circuit breaker.
+    const retryableSequences=new Set()
+    if(releasedFailure&&!releasedFailure.selfReplacement&&RETRYABLE_RELEASED_FAILURE_CODES.includes(releasedFailure.failureCode))retryableSequences.add(request.failedSequence)
     const bySequence=new Map([[initial.sequence,initial.reviewer],...parsedReplacements.map((row)=>[row.sequence,row.reviewer])])
     for(const row of parsedReplacements){
       if(!row.failureSha||row.failureSha===row.assignmentSha)continue
@@ -3065,15 +3075,24 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
       // failed sequence or reviewer differs never restores a name.
       if(release.issue!==request.issue||release.pr!==request.pr||release.headSha!==request.headSha||release.failedSequence!==row.failedSequence||release.reviewer!==bySequence.get(row.failedSequence))continue
       if(release.failureCode==='silent_worker_observed')silenceReleasedSequences.add(row.failedSequence)
+      if(RETRYABLE_RELEASED_FAILURE_CODES.includes(release.failureCode))retryableSequences.add(row.failedSequence)
     }
-    const failedNames=new Set()
-    if(!silenceReleasedSequences.has(request.failedSequence))failedNames.add(original.reviewer)
-    for(const row of parsedReplacements){const name=bySequence.get(row.failedSequence);if(name&&!silenceReleasedSequences.has(row.failedSequence))failedNames.add(name)}
+    const failedNames=new Set(),hardFailedNames=new Set()
+    const noteFailure=(name,failedSequence)=>{
+      if(!name||silenceReleasedSequences.has(failedSequence))return
+      failedNames.add(name)
+      if(!retryableSequences.has(failedSequence))hardFailedNames.add(name)
+    }
+    noteFailure(original.reviewer,request.failedSequence)
+    for(const row of parsedReplacements)noteFailure(bySequence.get(row.failedSequence),row.failedSequence)
     let sequence=null, reviewer=null
-    for(const [offset,candidate] of drawOrder(cursor.sequence+1,io).entries()){
-      const candidateSequence=cursor.sequence+1+offset
-      if(!eligibleNames.has(candidate.name)||!reviewerEmitsGovernedVerdict(candidate.name)||failedNames.has(candidate.name)||(!concurrentLeases&&preflightBusy.has(candidate.name))||excludedProviders.has(candidate.name)||preflightExclusions.has(candidate.name))continue
-      sequence=candidateSequence;reviewer=candidate;break
+    for(const excluded of [failedNames,hardFailedNames]){
+      for(const [offset,candidate] of drawOrder(cursor.sequence+1,io).entries()){
+        const candidateSequence=cursor.sequence+1+offset
+        if(!eligibleNames.has(candidate.name)||!reviewerEmitsGovernedVerdict(candidate.name)||excluded.has(candidate.name)||(!concurrentLeases&&preflightBusy.has(candidate.name))||excludedProviders.has(candidate.name)||preflightExclusions.has(candidate.name))continue
+        sequence=candidateSequence;reviewer=candidate;break
+      }
+      if(reviewer)break
     }
     // Owner ruling 2026-10-02: no independent replacement left on a merged PR's
     // post-merge slot >= 2 -> reuse a reviewer holding another slot here. Failed,
@@ -3096,14 +3115,14 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
       if(overflow){sequence=cursor.sequence+1+ACTIVE_REVIEWERS.length;reviewer=overflow}
     }
     if(!reviewer){
-      const failedList=[...failedNames].filter((name)=>ACTIVE_REVIEWERS.some((row)=>row.name===name))
+      const failedList=[...hardFailedNames].filter((name)=>ACTIVE_REVIEWERS.some((row)=>row.name===name))
       // #3130 / owner ruling 2026-09-16: with per-review lease refs a live
       // lease never makes a reviewer unavailable, so "busy" is reported only
       // for the legacy single-lease layout, only for ACTIVE (drawable)
       // reviewers, and only when busy is the sole reason. A provider excluded
       // for independence or eligibility is named under that real reason.
-      const busyList=(concurrentLeases?[]:[...preflightBusy]).filter((name)=>!failedNames.has(name)&&ACTIVE_REVIEWERS.some((row)=>row.name===name)&&eligibleNames.has(name)&&!excludedProviders.has(name)&&!preflightExclusions.has(name)).map((name)=>{const rows=preflightBusy.byReviewer?.get(name)??(preflightBusy.leases.get(name)?[preflightBusy.leases.get(name)]:[]);return `${name}${rows.map((row)=>` #${row.lease.issue}/PR #${row.lease.pr}`).join('')}`})
-      const unavailable=ACTIVE_REVIEWERS.map((row)=>row.name).filter((name)=>!failedNames.has(name)&&(!eligibleNames.has(name)||excludedProviders.has(name)||preflightExclusions.has(name))).map((name)=>`${name} (${!eligibleNames.has(name)?(unusable.has(name)?`unusable by ai-review-preflight (${unusable.get(name)?.status})`:'ineligible'):excludedProviders.has(name)?'holds another slot on this pull request':'excluded for this issue'})`)
+      const busyList=(concurrentLeases?[]:[...preflightBusy]).filter((name)=>!hardFailedNames.has(name)&&ACTIVE_REVIEWERS.some((row)=>row.name===name)&&eligibleNames.has(name)&&!excludedProviders.has(name)&&!preflightExclusions.has(name)).map((name)=>{const rows=preflightBusy.byReviewer?.get(name)??(preflightBusy.leases.get(name)?[preflightBusy.leases.get(name)]:[]);return `${name}${rows.map((row)=>` #${row.lease.issue}/PR #${row.lease.pr}`).join('')}`})
+      const unavailable=ACTIVE_REVIEWERS.map((row)=>row.name).filter((name)=>!hardFailedNames.has(name)&&(!eligibleNames.has(name)||excludedProviders.has(name)||preflightExclusions.has(name))).map((name)=>`${name} (${!eligibleNames.has(name)?(unusable.has(name)?`unusable by ai-review-preflight (${unusable.get(name)?.status})`:'ineligible'):excludedProviders.has(name)?'holds another slot on this pull request':'excluded for this issue'})`)
       const releaseCommand=failedReviewerReleaseCommand(request,{failureCode,failingCheck})
       const compatiblePrefix=request.slot===1?'no other reviewer is available':'no other independent reviewer is available for slot '+request.slot
       throw new LaneError(`${compatiblePrefix}; no replacement reviewer is available: ${failedList.length} of ${ACTIVE_REVIEWERS.length} already failed on this exact head (${failedList.join(', ')||'none'}); ${busyList.length} of ${ACTIVE_REVIEWERS.length} hold other live leases (${busyList.join(', ')||'none'}); ${unavailable.length} are otherwise ineligible or excluded (${unavailable.join(', ')||'none'}). If this failed holder must be freed before another terminal holder can be reclaimed, run ${releaseCommand}.`)
