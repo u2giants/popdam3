@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { matchMangledFile, matchSmbName, normalizeSmbName, splitSmbRoot } from "./smb-resolve";
+import { longPath, matchMangledFile, matchSmbName, normalizeSmbName, splitSmbRoot } from "./smb-resolve";
 
 describe("normalizeSmbName", () => {
   it("maps catia private-use quotes to ASCII", () => {
@@ -74,5 +74,20 @@ describe("matchMangledFile", () => {
 
   it("ignores long names that are not mangled", () => {
     assert.equal(matchMangledFile("a.ai", ["normal.ai"], () => exp, exp), null);
+  });
+});
+
+describe("longPath", () => {
+  it("adds the extended-length prefix to a drive path on Windows", () => {
+    assert.equal(longPath("Z:\\Decor\\a.ai", "win32"), "\\\\?\\Z:\\Decor\\a.ai");
+  });
+
+  it("uses the UNC extended form for a share path on Windows", () => {
+    assert.equal(longPath("\\\\host\\mac\\a.ai", "win32"), "\\\\?\\UNC\\host\\mac\\a.ai");
+  });
+
+  it("leaves paths alone off Windows and when already prefixed", () => {
+    assert.equal(longPath("Z:\\a.ai", "linux"), "Z:\\a.ai");
+    assert.equal(longPath("\\\\?\\Z:\\a.ai", "win32"), "\\\\?\\Z:\\a.ai");
   });
 });

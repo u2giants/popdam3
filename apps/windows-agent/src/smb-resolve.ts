@@ -13,6 +13,17 @@ import path from "node:path";
 /** Windows path rules are used on every platform so the resolver behaves the same under test. */
 const win = path.win32;
 
+/**
+ * Windows MAX_PATH (260) applies to fs calls unless the path uses the extended-length prefix.
+ * Long NAS paths (over 230 characters) must be prefixed for existsSync/readdirSync/statSync.
+ */
+export function longPath(p: string, platform: NodeJS.Platform = process.platform): string {
+  if (platform !== "win32" || p.startsWith("\\\\?\\")) return p;
+  if (/^[A-Za-z]:\\/.test(p)) return "\\\\?\\" + p;
+  if (p.startsWith("\\\\")) return "\\\\?\\UNC\\" + p.slice(2);
+  return p;
+}
+
 /** Private-use code points Samba catia uses for characters Windows forbids. */
 const CATIA_TO_ASCII: Record<string, string> = {
   "\uF022": '"',
@@ -92,7 +103,7 @@ export function splitSmbRoot(windowsPath: string): { root: string; segments: str
  * Returns the input unchanged when it already exists or when a segment cannot be matched.
  */
 export function resolveExistingSmbPath(windowsPath: string, expected?: ExpectedFile): string {
-  if (existsSync(windowsPath)) return windowsPath;
+  if (existsSync(longPath(windowsPath))) return windowsPath;
   const split = splitSmbRoot(windowsPath);
   if (!split) return windowsPath;
   let cur = split.root;
@@ -100,13 +111,13 @@ export function resolveExistingSmbPath(windowsPath: string, expected?: ExpectedF
   for (let i = 0; i <= last; i++) {
     const seg = split.segments[i];
     const direct = win.join(cur, seg);
-    if (existsSync(direct)) {
+    if (existsSync(longPath(direct))) {
       cur = direct;
       continue;
     }
     let listed: string[];
     try {
-      listed = readdirSync(cur);
+      listed = readdirSync(longPath(cur));
     } catch {
       return windowsPath;
     }
@@ -116,7 +127,7 @@ export function resolveExistingSmbPath(windowsPath: string, expected?: ExpectedF
         seg,
         listed,
         (n) => {
-          const st = statSync(win.join(cur, n));
+          const st = statSync(longPath(win.join(cur, n)));
           return { size: st.size, mtimeMs: st.mtimeMs };
         },
         expected,
