@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { catalogWarningOf, modelAllowedForTask, preserveCatalogOnWarning } from "@/lib/ai-model-options";
+import { aiModelEndpoint, catalogWarningOf, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning, sameAiModelPool } from "@/lib/ai-model-options";
 import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, safeSecretFingerprint, upsertConfigRowsAtomically, withValidatedCounterparts } from "../../supabase/functions/_shared/direct-batch-model";
 
 describe("direct Gemini batch model scope", () => {
@@ -98,5 +98,33 @@ describe("direct Gemini batch model scope", () => {
       expect(directGeminiBatchSelectionHasKey(table.AI_TASK_MODELS, table.GOOGLE_AI_API_KEY)).toBe(true);
     }
     expect(withValidatedCounterparts({ A: 1 }, { A: 2, B: null })).toEqual({ A: 1 });
+  });
+});
+
+describe("AI Model Pool", () => {
+  it("groups built-in models by their API endpoint", () => {
+    expect(aiModelEndpoint("google-direct/gemini-3.8-flash:batch")).toBe("google-direct");
+    expect(aiModelEndpoint("meta-direct/muse-spark-1.3-contributor")).toBe("meta-direct");
+    expect(aiModelEndpoint("scaledown/summarize")).toBe("scaledown-direct");
+    expect(aiModelEndpoint("anthropic/claude-haiku-4.5")).toBe("openrouter");
+  });
+
+  it("shows all models before an endpoint has a saved selection", () => {
+    expect(modelInPool("openai/gpt-5", {})).toBe(true);
+    expect(modelInPool("meta-direct/muse-spark-1.3-contributor", {})).toBe(true);
+  });
+
+  it("filters only the endpoint with an explicit model selection", () => {
+    const pool = normalizeAiModelPool({ openrouter: ["anthropic/claude-haiku-4.5"] });
+    expect(modelInPool("anthropic/claude-haiku-4.5", pool)).toBe(true);
+    expect(modelInPool("openai/gpt-5", pool)).toBe(false);
+    expect(modelInPool("google-direct/gemini-3.8-flash:batch", pool)).toBe(true);
+  });
+
+  it("normalizes duplicate and invalid model IDs and compares endpoint selections", () => {
+    const pool = normalizeAiModelPool({ openrouter: ["b/model", "a/model", "a/model", 2], invalid: ["x"] });
+    expect(pool).toEqual({ openrouter: ["a/model", "b/model"] });
+    expect(sameAiModelPool(pool, { openrouter: ["b/model", "a/model"] })).toBe(true);
+    expect(sameAiModelPool(pool, { openrouter: ["a/model"] })).toBe(false);
   });
 });

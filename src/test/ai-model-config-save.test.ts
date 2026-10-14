@@ -8,6 +8,7 @@ const draft: AiModelConfigDraft = {
     vision_tagging_fallback: "",
   },
   displayNames: {},
+  modelPool: {},
   openRouterKey: "",
   googleKey: "",
   anthropicKey: "",
@@ -20,7 +21,7 @@ describe("saveAiModelConfig", () => {
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({
         ok: true,
-        config: { AI_TASK_MODELS: { value: draft.taskModels } },
+        config: { AI_TASK_MODELS: { value: draft.taskModels }, AI_MODEL_POOL: { value: {} } },
       });
 
     await expect(saveAiModelConfig(call, draft)).resolves.toBeTruthy();
@@ -28,7 +29,22 @@ describe("saveAiModelConfig", () => {
       entries: expect.objectContaining({ AI_TASK_MODELS: draft.taskModels }),
     });
     expect(call).toHaveBeenNthCalledWith(2, "get-config", {
-      keys: ["AI_TASK_MODELS"],
+      keys: ["AI_TASK_MODELS", "AI_MODEL_POOL"],
+    });
+  });
+
+  it("saves and reads back endpoint-specific Model Pool selections", async () => {
+    const modelPool = { openrouter: ["a/model"], "meta-direct": [] } as const;
+    const call = vi.fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, config: {
+        AI_TASK_MODELS: { value: draft.taskModels },
+        AI_MODEL_POOL: { value: { "meta-direct": [], openrouter: ["a/model"] } },
+      } });
+
+    await expect(saveAiModelConfig(call, { ...draft, modelPool })).resolves.toBeTruthy();
+    expect(call).toHaveBeenNthCalledWith(1, "set-config", {
+      entries: expect.objectContaining({ AI_MODEL_POOL: { "meta-direct": [], openrouter: ["a/model"] } }),
     });
   });
 
@@ -41,6 +57,7 @@ describe("saveAiModelConfig", () => {
           AI_TASK_MODELS: {
             value: { vision_tagging: "meta-direct/muse-spark-1.3-contributor" },
           },
+          AI_MODEL_POOL: { value: {} },
         },
       });
 
@@ -89,7 +106,7 @@ describe("saveAiModelConfig", () => {
   it("writes a cleared key as blank and verifies it was actually cleared", async () => {
     const call = vi.fn()
       .mockResolvedValueOnce({ ok: true })
-      .mockResolvedValueOnce({ ok: true, config: { AI_TASK_MODELS: { value: draft.taskModels }, OPENAI_API_KEY: { value: "" } } });
+      .mockResolvedValueOnce({ ok: true, config: { AI_TASK_MODELS: { value: draft.taskModels }, AI_MODEL_POOL: { value: {} }, OPENAI_API_KEY: { value: "" } } });
     await expect(saveAiModelConfig(call, {
       ...draft,
       openRouterKey: "or-saved",
@@ -99,13 +116,13 @@ describe("saveAiModelConfig", () => {
     const entries = call.mock.calls[0][1].entries as Record<string, unknown>;
     expect(entries.OPENAI_API_KEY).toBe("");
     expect(entries).not.toHaveProperty("OPENROUTER_API_KEY");
-    expect(call).toHaveBeenNthCalledWith(2, "get-config", { keys: ["AI_TASK_MODELS", "OPENAI_API_KEY"] });
+    expect(call).toHaveBeenNthCalledWith(2, "get-config", { keys: ["AI_TASK_MODELS", "AI_MODEL_POOL", "OPENAI_API_KEY"] });
   });
 
   it("does not report success when a cleared key is still stored", async () => {
     const call = vi.fn()
       .mockResolvedValueOnce({ ok: true })
-      .mockResolvedValueOnce({ ok: true, config: { AI_TASK_MODELS: { value: draft.taskModels }, ANTHROPIC_API_KEY: { value: "old-anthropic" } } });
+      .mockResolvedValueOnce({ ok: true, config: { AI_TASK_MODELS: { value: draft.taskModels }, AI_MODEL_POOL: { value: {} }, ANTHROPIC_API_KEY: { value: "old-anthropic" } } });
     await expect(saveAiModelConfig(call, {
       ...draft,
       savedKeys: { anthropicKey: "old-anthropic" },
@@ -115,7 +132,7 @@ describe("saveAiModelConfig", () => {
     const taskModels = { vision_tagging: "a/model", vision_tagging_fallback: "b/model", pdf_extraction: "c/model" };
     const call = vi.fn()
       .mockResolvedValueOnce({ ok: true })
-      .mockResolvedValueOnce({ ok: true, config: { AI_TASK_MODELS: { value: { pdf_extraction: "c/model", vision_tagging_fallback: "b/model", vision_tagging: "a/model" } } } });
+      .mockResolvedValueOnce({ ok: true, config: { AI_TASK_MODELS: { value: { pdf_extraction: "c/model", vision_tagging_fallback: "b/model", vision_tagging: "a/model" } }, AI_MODEL_POOL: { value: {} } } });
     await expect(saveAiModelConfig(call, { ...draft, taskModels })).resolves.toBeTruthy();
   });
 

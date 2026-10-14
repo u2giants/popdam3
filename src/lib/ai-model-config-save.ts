@@ -1,4 +1,4 @@
-import { modelAllowedForTask } from "./ai-model-options";
+import { modelAllowedForTask, normalizeAiModelPool, sameAiModelPool, type AiModelPool } from "./ai-model-options";
 
 export type AdminApiCall = (
   action: string,
@@ -15,6 +15,7 @@ export interface AiModelConfigDraft {
   modelsJson: string;
   taskModels: Record<string, string>;
   displayNames: Record<string, string>;
+  modelPool: AiModelPool;
   openRouterKey: string;
   googleKey: string;
   anthropicKey: string;
@@ -67,6 +68,7 @@ export async function saveAiModelConfig(
   // The click handler passes a snapshot so a later React render cannot change
   // which task-model selection is sent while the request is in flight.
   const expectedTaskModels = { ...draft.taskModels };
+  const expectedModelPool = normalizeAiModelPool(draft.modelPool);
   for (const [taskKey, modelId] of Object.entries(expectedTaskModels)) {
     if (!modelAllowedForTask(modelId, taskKey, taskKey.endsWith("_fallback"))) {
       throw new Error("Batch-only models (including Direct Gemini Batch) may only be selected as the primary Image Tagging model.");
@@ -80,6 +82,7 @@ export async function saveAiModelConfig(
     AI_MODELS: models,
     AI_TASK_MODELS: expectedTaskModels,
     AI_MODEL_DISPLAY_NAMES: { ...draft.displayNames },
+    AI_MODEL_POOL: expectedModelPool,
   };
   const expectedKeys: Record<string, string> = {};
   for (const [field, row] of KEY_ROWS) {
@@ -98,10 +101,14 @@ export async function saveAiModelConfig(
   // Do not report success from the write response alone. Read the authoritative
   // values back through the same admin contract and prove the selected models
   // and every changed (including cleared) key are what production stored.
-  const confirmed = await call("get-config", { keys: ["AI_TASK_MODELS", ...Object.keys(expectedKeys)] });
+  const confirmed = await call("get-config", { keys: ["AI_TASK_MODELS", "AI_MODEL_POOL", ...Object.keys(expectedKeys)] });
   const storedTaskModels = unwrapConfigValue(confirmed?.config?.AI_TASK_MODELS) ?? {};
   if (!sameTaskModels(storedTaskModels, expectedTaskModels)) {
     throw new Error("AI model selection was not persisted. Please retry.");
+  }
+  const storedModelPool = unwrapConfigValue(confirmed?.config?.AI_MODEL_POOL) ?? {};
+  if (!sameAiModelPool(storedModelPool, expectedModelPool)) {
+    throw new Error("Model Pool was not persisted. Please retry.");
   }
   for (const [row, value] of Object.entries(expectedKeys)) {
     const stored = unwrapConfigValue(confirmed?.config?.[row]);

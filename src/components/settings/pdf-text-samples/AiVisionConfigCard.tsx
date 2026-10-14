@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Sparkles, Save, RefreshCw, Check } from "lucide-react";
 import { toast } from "sonner";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { catalogWarningOf, modelAllowedForTask, preserveCatalogOnWarning } from "@/lib/ai-model-options";
+import { catalogWarningOf, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
 import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
 
 export interface OpenRouterModel {
@@ -25,8 +25,8 @@ export function AiVisionConfigCard() {
   const queryClient = useQueryClient();
 
   const { data: configData } = useQuery({
-    queryKey: ["admin-config", "PDF_EXTRACTION_CONFIG", "OPENROUTER_API_KEY"],
-    queryFn: () => call("get-config", { keys: ["PDF_EXTRACTION_CONFIG", "OPENROUTER_API_KEY"] }),
+    queryKey: ["admin-config", "PDF_EXTRACTION_CONFIG", "OPENROUTER_API_KEY", "AI_MODEL_POOL"],
+    queryFn: () => call("get-config", { keys: ["PDF_EXTRACTION_CONFIG", "OPENROUTER_API_KEY", "AI_MODEL_POOL"] }),
   });
   const savedOpenRouterKey = ((configData?.config?.OPENROUTER_API_KEY as Record<string, unknown> | undefined)?.value
     ?? configData?.config?.OPENROUTER_API_KEY
@@ -50,13 +50,24 @@ export function AiVisionConfigCard() {
     staleTime: 5 * 60_000,
   });
 
-  const visionModels: OpenRouterModel[] = ((modelsData?.models ?? []) as OpenRouterModel[])
+  const modelPool = normalizeAiModelPool(
+    (configData?.config?.AI_MODEL_POOL as Record<string, unknown> | undefined)?.value
+      ?? configData?.config?.AI_MODEL_POOL,
+  );
+  const availableVisionModels: OpenRouterModel[] = ((modelsData?.models ?? []) as OpenRouterModel[])
     .filter((m) => !hasUnavailableOpenRouterPricing(m.pricing) && modelAllowedForTask(m.id, "pdf_extraction"));
-
   const savedModelId: string = (() => {
     const raw = configData?.config?.PDF_EXTRACTION_CONFIG?.value ?? configData?.config?.PDF_EXTRACTION_CONFIG;
     return (raw as Record<string, string> | null)?.ai_vision_model_id ?? "";
   })();
+  const visionModels = availableVisionModels.filter((model) => modelInPool(model.id, modelPool));
+  const currentOutsidePool = !!savedModelId && !modelInPool(savedModelId, modelPool);
+  const currentOption = currentOutsidePool
+    ? availableVisionModels.find((model) => model.id === savedModelId) ?? { id: savedModelId, name: savedModelId, context_length: null }
+    : undefined;
+  const selectModels = currentOption && !visionModels.some((model) => model.id === currentOption.id)
+    ? [currentOption, ...visionModels]
+    : visionModels;
 
   const [selectedModelId, setSelectedModelId] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -107,12 +118,15 @@ export function AiVisionConfigCard() {
         {modelsData?.warning && (
           <p className="text-sm text-amber-600">{modelsData.warning}; showing the last available catalog.</p>
         )}
-        {!modelsLoading && !modelsError && visionModels.length === 0 && (
+        {!modelsLoading && !modelsError && availableVisionModels.length === 0 && !currentOutsidePool && (
           <p className="text-sm text-amber-600">
             No vision models returned. Check that <code className="text-xs">OPENROUTER_API_KEY</code> is set in admin_config.
           </p>
         )}
-        {visionModels.length > 0 && (
+        {!modelsLoading && availableVisionModels.length > 0 && visionModels.length === 0 && !currentOutsidePool && (
+          <p className="text-sm text-amber-600">All PDF models are hidden by the Model Pool. Add one in Settings → Processing → AI Tagging.</p>
+        )}
+        {selectModels.length > 0 && (
           <div className="flex items-end gap-3">
             <div className="flex-1 space-y-1.5">
               <div className="flex items-center gap-2">
@@ -134,14 +148,18 @@ export function AiVisionConfigCard() {
                   <SelectValue placeholder="Select a vision model…" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72 sm:min-w-[34rem]">
-                  {visionModels.map((m) => (
+                  {selectModels.map((m) => (
                     <SelectItem key={m.id} value={m.id} className="text-xs" suffix={formatOpenRouterPricing(m.pricing)}>
                       {m.name}
                       <span className="ml-2 text-muted-foreground text-[10px]">{m.id}</span>
+                      {currentOutsidePool && m.id === savedModelId && <span className="ml-2 text-amber-600 text-[10px]">outside Model Pool</span>}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {currentOutsidePool && selectedModelId === savedModelId && (
+                <p className="text-[10px] text-amber-600">The saved model is outside the Model Pool and remains selected until you choose a model shown in the pool.</p>
+              )}
             </div>
             <Button
               size="sm"

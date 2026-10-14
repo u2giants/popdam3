@@ -13,10 +13,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CURRENT_APP } from "@/lib/app-mode";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { modelAllowedForTask, preserveCatalogOnWarning } from "@/lib/ai-model-options";
+import { modelAllowedForTask, modelInPool, normalizeAiModelPool, sameAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
 import { toast } from "sonner";
 import { saveAiModelConfig, type AiModelConfigDraft } from "@/lib/ai-model-config-save";
 import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
+import { ModelPoolEditor } from "@/components/settings/ModelPoolEditor";
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -535,7 +536,7 @@ export function AiModelsConfigSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
-  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "AI_MODEL_DISPLAY_NAMES", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
+  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "AI_MODEL_DISPLAY_NAMES", "AI_MODEL_POOL", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
 
   const { data: configData } = useQuery({
     queryKey: ["admin-config", ...configKeys],
@@ -556,6 +557,7 @@ export function AiModelsConfigSection() {
   const [jsonError, setJsonError] = useState("");
   const [taskModels, setTaskModels] = useState<Record<string, string>>({});
   const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
+  const [modelPool, setModelPool] = useState<ReturnType<typeof normalizeAiModelPool>>({});
   const [loaded, setLoaded] = useState(false);
 
   const unwrap = (v: unknown) => ((v as Record<string, unknown>)?.value ?? v ?? "") as string;
@@ -573,6 +575,7 @@ export function AiModelsConfigSection() {
     setTaskModels(savedTasks);
     const savedDisplayNames = ((cfg.AI_MODEL_DISPLAY_NAMES as Record<string, unknown>)?.value ?? cfg.AI_MODEL_DISPLAY_NAMES ?? {}) as Record<string, string>;
     setDisplayNames(savedDisplayNames);
+    setModelPool(normalizeAiModelPool((cfg.AI_MODEL_POOL as Record<string, unknown>)?.value ?? cfg.AI_MODEL_POOL));
     setLoaded(true);
   }, [configData, loaded]);
 
@@ -662,6 +665,7 @@ export function AiModelsConfigSection() {
   const savedModelsJson = savedModels ? JSON.stringify(savedModels, null, 2) : "";
   const savedTaskModels = ((configData?.config?.AI_TASK_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_TASK_MODELS ?? {}) as Record<string, string>;
   const savedDisplayNames = ((configData?.config?.AI_MODEL_DISPLAY_NAMES as Record<string, unknown>)?.value ?? configData?.config?.AI_MODEL_DISPLAY_NAMES ?? {}) as Record<string, string>;
+  const savedModelPool = normalizeAiModelPool((configData?.config?.AI_MODEL_POOL as Record<string, unknown> | undefined)?.value ?? configData?.config?.AI_MODEL_POOL);
   const isDirty = loaded && (
     openRouterKey !== savedOpenRouterKey ||
     googleKey !== savedGoogleKey ||
@@ -669,7 +673,8 @@ export function AiModelsConfigSection() {
     openaiKey !== savedOpenaiKey ||
     modelsJson !== savedModelsJson ||
     JSON.stringify(taskModels) !== JSON.stringify(savedTaskModels) ||
-    JSON.stringify(displayNames) !== JSON.stringify(savedDisplayNames)
+    JSON.stringify(displayNames) !== JSON.stringify(savedDisplayNames) ||
+    !sameAiModelPool(modelPool, savedModelPool)
   );
 
   return (
@@ -708,6 +713,13 @@ export function AiModelsConfigSection() {
             A valid OpenRouter key is 73 characters (sk-or-v1- + 64 hex chars). Toggle the eye icon to verify the full key is visible.
           </p>
         </div>
+
+        <ModelPoolEditor
+          models={visionCatalog?.models ?? []}
+          pool={modelPool}
+          onChange={setModelPool}
+          loading={loadingModels || fetchingModels}
+        />
 
         {/* Task Model Selection */}
         <div className="space-y-3">
@@ -762,10 +774,12 @@ export function AiModelsConfigSection() {
                   : requiresVision
                     ? "image input"
                     : "";
-              const taskModelList = modelList.filter((model) => modelAllowedForTask(model.id, key));
-              const filteredList = (requiresTools || requiresStructuredOutput || requiresVision)
-                ? taskModelList.filter(modelMeetsRequirements)
-                : taskModelList;
+              const taskCandidates = modelList.filter((model) => modelAllowedForTask(model.id, key));
+              const taskCandidatesBeforePool = (requiresTools || requiresStructuredOutput || requiresVision)
+                ? taskCandidates.filter(modelMeetsRequirements)
+                : taskCandidates;
+              const filteredList = taskCandidatesBeforePool.filter((model) => modelInPool(model.id, modelPool));
+              const poolHidAllTaskModels = taskCandidatesBeforePool.length > 0 && filteredList.length === 0;
               // If currentVal is set but not in filteredList, still show it (with a warning)
               const currentModelMeetsRequirements = !currentVal || (modelAllowedForTask(currentVal, key)
                 && (!(requiresTools || requiresStructuredOutput || requiresVision) || modelMeetsRequirements(modelList.find((m) => m.id === currentVal))));
@@ -775,14 +789,16 @@ export function AiModelsConfigSection() {
 
               const fallbackVal = fallbackKey ? (taskModels[fallbackKey] || "") : "";
               const fallbackModelList = filteredList.filter((model) => modelAllowedForTask(model.id, key, true));
+              const fallbackCandidatesBeforePool = taskCandidatesBeforePool.filter((model) => modelAllowedForTask(model.id, key, true));
+              const poolHidAllFallbackModels = fallbackCandidatesBeforePool.length > 0 && fallbackModelList.length === 0;
               const fallbackOptions = fallbackKey
                 ? (fallbackVal && modelAllowedForTask(fallbackVal, key, true) && !fallbackModelList.some((m) => m.id === fallbackVal)
                   ? [{ id: fallbackVal, name: fallbackVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] }, ...fallbackModelList]
                   : fallbackModelList)
                 : [];
 
-              const renderSelect = (selectKey: string, value: string, options: typeof filteredList, placeholder: string) => (
-                filteredList.length > 0 ? (
+              const renderSelect = (selectKey: string, value: string, options: typeof filteredList, placeholder: string, showEmptySelect = false) => (
+                options.length > 0 || showEmptySelect ? (
                   <Select value={value} onValueChange={(val) => setTaskModels((prev) => ({ ...prev, [selectKey]: val }))}>
                     <SelectTrigger className="h-8 text-xs font-mono">
                       <SelectValue placeholder={placeholder} />
@@ -800,7 +816,7 @@ export function AiModelsConfigSection() {
                           : "";
                         return (
                           <SelectItem key={m.id} value={m.id} className="text-xs font-mono" suffix={formatOpenRouterPricing(m.pricing)}>
-                            {displayNames[m.id] || m.id}{modeLabel}{!modelMeetsRequirements(m) && requirementLabel ? " ⚠" : ""}
+                            {displayNames[m.id] || m.id}{!modelInPool(m.id, modelPool) ? " (outside Model Pool)" : ""}{modeLabel}{!modelMeetsRequirements(m) && requirementLabel ? " ⚠" : ""}
                           </SelectItem>
                         );
                       })}
@@ -833,7 +849,7 @@ export function AiModelsConfigSection() {
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
-                  {renderSelect(key, currentVal, allOptions, defaultModel)}
+                  {renderSelect(key, currentVal, allOptions, defaultModel, poolHidAllTaskModels)}
                   {key === "vision_tagging" && currentVal === "meta-direct/muse-spark-1.3-contributor" && (
                     <p className="text-[10px] text-amber-600 dark:text-amber-400">
                       Contributor pricing allows Meta to use submitted thumbnails, prompts, and model outputs to train its models.
@@ -847,12 +863,18 @@ export function AiModelsConfigSection() {
                   {!currentModelMeetsRequirements && requirementLabel && (
                     <p className="text-[10px] text-destructive">This model does not support {requirementLabel}; this task will fail. Select a different model.</p>
                   )}
+                  {currentVal && !modelInPool(currentVal, modelPool) && (
+                    <p className="text-[10px] text-amber-600">This saved model is outside the Model Pool. It remains selected until you choose a model shown in the pool.</p>
+                  )}
                   {fallbackKey && (
                     <div className="mt-1.5 space-y-1">
                       <Label className="text-[10px] text-muted-foreground">Fallback model (on content filter / provider rejection)</Label>
-                      {renderSelect(fallbackKey, fallbackVal, fallbackOptions, "None — mark as failed")}
+                      {renderSelect(fallbackKey, fallbackVal, fallbackOptions, "None — mark as failed", poolHidAllFallbackModels)}
                       {fallbackVal && !modelMeetsRequirements(modelList.find((m) => m.id === fallbackVal)) && modelList.length > 0 && requirementLabel && (
                         <p className="text-[10px] text-destructive">Fallback model does not support {requirementLabel}.</p>
+                      )}
+                      {fallbackVal && !modelInPool(fallbackVal, modelPool) && (
+                        <p className="text-[10px] text-amber-600">This saved fallback is outside the Model Pool. It remains selected until you choose a model shown in the pool.</p>
                       )}
                     </div>
                   )}
@@ -970,6 +992,7 @@ export function AiModelsConfigSection() {
             modelsJson,
             taskModels: { ...taskModels },
             displayNames: { ...displayNames },
+            modelPool,
             openRouterKey,
             googleKey,
             anthropicKey,
