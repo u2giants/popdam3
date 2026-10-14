@@ -1,7 +1,7 @@
 export const AI_MODEL_ENDPOINTS = ["openrouter", "google-direct", "meta-direct", "scaledown-direct"] as const;
 
 export type AiModelEndpoint = (typeof AI_MODEL_ENDPOINTS)[number];
-export type AiModelPool = Partial<Record<AiModelEndpoint, string[]>>;
+export type AiModelPool = Partial<Record<AiModelEndpoint, string[]>> & Record<string, unknown>;
 
 export function aiModelEndpoint(modelId: string): AiModelEndpoint {
   if (modelId.startsWith("google-direct/")) return "google-direct";
@@ -13,7 +13,9 @@ export function aiModelEndpoint(modelId: string): AiModelEndpoint {
 export function normalizeAiModelPool(value: unknown): AiModelPool {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const raw = value as Record<string, unknown>;
-  const pool: AiModelPool = {};
+  // Preserve unknown keys so a future endpoint or typo is not erased by an
+  // unrelated settings save. Only known endpoint arrays are normalized.
+  const pool = { ...raw } as AiModelPool;
   for (const endpoint of AI_MODEL_ENDPOINTS) {
     const models = raw[endpoint];
     if (!Array.isArray(models)) continue;
@@ -24,17 +26,27 @@ export function normalizeAiModelPool(value: unknown): AiModelPool {
 
 export function modelInPool(modelId: string, pool: AiModelPool): boolean {
   const endpointModels = pool[aiModelEndpoint(modelId)];
-  return endpointModels === undefined || endpointModels.includes(modelId);
+  return !Array.isArray(endpointModels) || endpointModels.includes(modelId);
+}
+
+export function includeCurrentModel<T extends { id: string }>(models: T[], current?: T): T[] {
+  if (!current || models.some((model) => model.id === current.id)) return models;
+  return [current, ...models];
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+    return `{${entries.map(([key, nested]) => `${JSON.stringify(key)}:${stableJson(nested)}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "undefined";
 }
 
 export function sameAiModelPool(left: unknown, right: unknown): boolean {
   const a = normalizeAiModelPool(left);
   const b = normalizeAiModelPool(right);
-  const aKeys = Object.keys(a).sort();
-  const bKeys = Object.keys(b).sort();
-  return aKeys.length === bKeys.length
-    && aKeys.every((key, index) => key === bKeys[index]
-      && JSON.stringify(a[key as AiModelEndpoint]) === JSON.stringify(b[key as AiModelEndpoint]));
+  return stableJson(a) === stableJson(b);
 }
 
 export function modelAllowedForTask(modelId: string, taskKey: string, fallback = false): boolean {

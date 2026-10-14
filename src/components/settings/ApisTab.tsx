@@ -850,6 +850,9 @@ export function AiModelsConfigSection() {
                     </Button>
                   </div>
                   {renderSelect(key, currentVal, allOptions, defaultModel, poolHidAllTaskModels)}
+                  {poolHidAllTaskModels && (
+                    <p className="text-[10px] text-amber-600">All models that meet this task’s requirements are hidden by the Model Pool. Show at least one in the Model Pool above.</p>
+                  )}
                   {key === "vision_tagging" && currentVal === "meta-direct/muse-spark-1.3-contributor" && (
                     <p className="text-[10px] text-amber-600 dark:text-amber-400">
                       Contributor pricing allows Meta to use submitted thumbnails, prompts, and model outputs to train its models.
@@ -870,6 +873,9 @@ export function AiModelsConfigSection() {
                     <div className="mt-1.5 space-y-1">
                       <Label className="text-[10px] text-muted-foreground">Fallback model (on content filter / provider rejection)</Label>
                       {renderSelect(fallbackKey, fallbackVal, fallbackOptions, "None — mark as failed", poolHidAllFallbackModels)}
+                      {poolHidAllFallbackModels && (
+                        <p className="text-[10px] text-amber-600">All eligible fallback models are hidden by the Model Pool. Show one in the Model Pool above.</p>
+                      )}
                       {fallbackVal && !modelMeetsRequirements(modelList.find((m) => m.id === fallbackVal)) && modelList.length > 0 && requirementLabel && (
                         <p className="text-[10px] text-destructive">Fallback model does not support {requirementLabel}.</p>
                       )}

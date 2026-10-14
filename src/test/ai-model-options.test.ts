@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aiModelEndpoint, catalogWarningOf, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning, sameAiModelPool } from "@/lib/ai-model-options";
+import { aiModelEndpoint, catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning, sameAiModelPool } from "@/lib/ai-model-options";
 import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, safeSecretFingerprint, upsertConfigRowsAtomically, withValidatedCounterparts } from "../../supabase/functions/_shared/direct-batch-model";
 
 describe("direct Gemini batch model scope", () => {
@@ -121,10 +121,35 @@ describe("AI Model Pool", () => {
     expect(modelInPool("google-direct/gemini-3.8-flash:batch", pool)).toBe(true);
   });
 
+  it("treats an explicit empty endpoint selection as hiding every model", () => {
+    const pool = normalizeAiModelPool({ openrouter: [] });
+    expect(modelInPool("openai/gpt-5", pool)).toBe(false);
+    expect(modelInPool("google-direct/gemini-3.8-flash:batch", pool)).toBe(true);
+  });
+
   it("normalizes duplicate and invalid model IDs and compares endpoint selections", () => {
-    const pool = normalizeAiModelPool({ openrouter: ["b/model", "a/model", "a/model", 2], invalid: ["x"] });
-    expect(pool).toEqual({ openrouter: ["a/model", "b/model"] });
-    expect(sameAiModelPool(pool, { openrouter: ["b/model", "a/model"] })).toBe(true);
+    const pool = normalizeAiModelPool({
+      openrouter: ["b/model", "a/model", "a/model", 2],
+      "future-endpoint": ["future/model"],
+      future_metadata: { version: 1, options: { enabled: true } },
+    });
+    expect(pool).toEqual({
+      openrouter: ["a/model", "b/model"],
+      "future-endpoint": ["future/model"],
+      future_metadata: { version: 1, options: { enabled: true } },
+    });
+    expect(sameAiModelPool(pool, {
+      future_metadata: { options: { enabled: true }, version: 1 },
+      "future-endpoint": ["future/model"],
+      openrouter: ["b/model", "a/model"],
+    })).toBe(true);
     expect(sameAiModelPool(pool, { openrouter: ["a/model"] })).toBe(false);
+  });
+
+  it("keeps a selected model visible while retaining the filtered catalog", () => {
+    const selected = { id: "hidden/model", name: "Hidden model" };
+    const visible = [{ id: "visible/model", name: "Visible model" }];
+    expect(includeCurrentModel(visible, selected)).toEqual([selected, ...visible]);
+    expect(includeCurrentModel(visible, visible[0])).toEqual(visible);
   });
 });

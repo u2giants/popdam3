@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { catalogWarningOf, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
+import { catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
 import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
 
 const SLOTS = ["a", "b", "c", "d", "e"] as const;
@@ -346,6 +346,8 @@ export default function AiTagBakeoffTab() {
     }
     return [...byId.values()];
   }, [availableVisionModels, modelPool]);
+  const poolHidesAllBakeoffModels = visionModels.length === 0
+    && availableVisionModels.length + BAKEOFF_ONLY_MODELS.length > 0;
 
   async function refreshModels() {
     const toastId = toast.loading("Refreshing OpenRouter vision models...");
@@ -455,40 +457,52 @@ export default function AiTagBakeoffTab() {
   const opDone = ((opProgress.evaluated as number) || 0) + ((opProgress.failed as number) || 0);
   const progressPct = opTotal > 0 ? Math.min(100, Math.round((opDone / opTotal) * 100)) : 0;
 
-  const modelSelect = (idx: number) => (
-    <div key={SLOTS[idx]} className="space-y-1">
-      <Label className="text-xs">{SLOT_LABELS[SLOTS[idx]]}</Label>
-      {visionModels.length > 0 || availableVisionModels.length + BAKEOFF_ONLY_MODELS.length > 0 ? (
-        <Select value={models[idx]} onValueChange={(value) => setModels((prev) => {
-          const next = [...prev];
-          next[idx] = value;
-          return next;
-        })}>
-          <SelectTrigger className="h-8 font-mono text-xs">
-            <SelectValue placeholder={modelsLoading ? "Loading..." : "Select model"} />
-          </SelectTrigger>
-          <SelectContent className="sm:min-w-[28rem]">
-            {visionModels.map((model) => (
-              <SelectItem key={model.id} value={model.id} className="font-mono text-xs" suffix={formatOpenRouterPricing(model.pricing)}>
-                {fmtModel(model.id)}{model.supports_tools ? model.tool_choice_modes?.includes("named") ? " (tool named)" : model.tool_choice_modes?.includes("required") ? " (tool required)" : " (tool auto)" : model.supports_structured_outputs ? " (schema)" : " (json)"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : (
-        <Input
-          value={models[idx]}
-          onChange={(e) => setModels((prev) => {
+  const modelSelect = (idx: number) => {
+    const selectedId = models[idx];
+    const selectedOutsidePool = !!selectedId && !modelInPool(selectedId, modelPool);
+    const currentOption = selectedId
+      ? availableVisionModels.find((model) => model.id === selectedId)
+        ?? BAKEOFF_ONLY_MODELS.find((model) => model.id === selectedId)
+        ?? { id: selectedId, name: selectedId }
+      : undefined;
+    const visibleModelsForSlot = includeCurrentModel(visionModels, currentOption);
+
+    return (
+      <div key={SLOTS[idx]} className="space-y-1">
+        <Label className="text-xs">{SLOT_LABELS[SLOTS[idx]]}</Label>
+        {visibleModelsForSlot.length > 0 ? (
+          <Select value={models[idx]} onValueChange={(value) => setModels((prev) => {
             const next = [...prev];
-            next[idx] = e.target.value;
+            next[idx] = value;
             return next;
-          })}
-          className="h-8 font-mono text-xs"
-          placeholder="provider/model"
-        />
-      )}
-    </div>
-  );
+          })}>
+            <SelectTrigger className="h-8 font-mono text-xs">
+              <SelectValue placeholder={modelsLoading ? "Loading..." : "Select model"} />
+            </SelectTrigger>
+            <SelectContent className="sm:min-w-[28rem]">
+              {visibleModelsForSlot.map((model) => (
+                <SelectItem key={model.id} value={model.id} className="font-mono text-xs" suffix={formatOpenRouterPricing(model.pricing)}>
+                  {fmtModel(model.id)}{selectedOutsidePool && model.id === selectedId ? " (outside Model Pool)" : ""}{model.supports_tools ? model.tool_choice_modes?.includes("named") ? " (tool named)" : model.tool_choice_modes?.includes("required") ? " (tool required)" : " (tool auto)" : model.supports_structured_outputs ? " (schema)" : " (json)"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="text-[10px] text-amber-600">
+            {poolHidesAllBakeoffModels
+              ? "All bake-off models are hidden by the Model Pool. Add one in Settings → Processing → AI Tagging."
+              : "No bake-off models are available."}
+          </p>
+        )}
+        {selectedOutsidePool && (
+          <p className="text-[10px] text-amber-600">This selected model is outside the Model Pool and remains available until you replace it.</p>
+        )}
+        {poolHidesAllBakeoffModels && selectedId && (
+          <p className="text-[10px] text-amber-600">No other bake-off models are shown. Add one in Settings → Processing → AI Tagging.</p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">

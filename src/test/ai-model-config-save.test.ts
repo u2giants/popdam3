@@ -34,18 +34,32 @@ describe("saveAiModelConfig", () => {
   });
 
   it("saves and reads back endpoint-specific Model Pool selections", async () => {
-    const modelPool = { openrouter: ["a/model"], "meta-direct": [] } as const;
+    const modelPool = { openrouter: ["a/model"], "meta-direct": [], "future-endpoint": ["future/model"] };
     const call = vi.fn()
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({ ok: true, config: {
         AI_TASK_MODELS: { value: draft.taskModels },
-        AI_MODEL_POOL: { value: { "meta-direct": [], openrouter: ["a/model"] } },
+        AI_MODEL_POOL: { value: { "future-endpoint": ["future/model"], "meta-direct": [], openrouter: ["a/model"] } },
       } });
 
     await expect(saveAiModelConfig(call, { ...draft, modelPool })).resolves.toBeTruthy();
     expect(call).toHaveBeenNthCalledWith(1, "set-config", {
-      entries: expect.objectContaining({ AI_MODEL_POOL: { "meta-direct": [], openrouter: ["a/model"] } }),
+      entries: expect.objectContaining({ AI_MODEL_POOL: { "future-endpoint": ["future/model"], "meta-direct": [], openrouter: ["a/model"] } }),
     });
+  });
+
+  it("does not report success when the Model Pool was not persisted", async () => {
+    const call = vi.fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, config: {
+        AI_TASK_MODELS: { value: draft.taskModels },
+        AI_MODEL_POOL: { value: {} },
+      } });
+
+    await expect(saveAiModelConfig(call, {
+      ...draft,
+      modelPool: { openrouter: ["a/model"] },
+    })).rejects.toThrow("Model Pool was not persisted");
   });
 
   it("does not report success when production still has the previous model", async () => {

@@ -123,8 +123,12 @@ export function AiVisionConfigCard() {
             No vision models returned. Check that <code className="text-xs">OPENROUTER_API_KEY</code> is set in admin_config.
           </p>
         )}
-        {!modelsLoading && availableVisionModels.length > 0 && visionModels.length === 0 && !currentOutsidePool && (
-          <p className="text-sm text-amber-600">All PDF models are hidden by the Model Pool. Add one in Settings → Processing → AI Tagging.</p>
+        {!modelsLoading && availableVisionModels.length > 0 && visionModels.length === 0 && (
+          <p className="text-sm text-amber-600">
+            {currentOutsidePool
+              ? "All PDF catalog models are hidden by the Model Pool; the saved selection remains available. Add another in Settings → Processing → AI Tagging."
+              : "All PDF models are hidden by the Model Pool. Add one in Settings → Processing → AI Tagging."}
+          </p>
         )}
         {selectModels.length > 0 && (
           <div className="flex items-end gap-3">

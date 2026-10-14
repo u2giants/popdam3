@@ -52,11 +52,18 @@ export function ModelPoolEditor({
   const query = search.trim().toLowerCase();
 
   function selectedIds(endpoint: AiModelEndpoint, ids: string[]) {
-    return pool[endpoint] ?? ids;
+    const endpointPool = pool[endpoint];
+    return Array.isArray(endpointPool) ? endpointPool : ids;
   }
 
   function updateEndpoint(endpoint: AiModelEndpoint, ids: string[]) {
     onChange({ ...pool, [endpoint]: [...new Set(ids)].sort() });
+  }
+
+  function showAll(endpoint: AiModelEndpoint) {
+    const next = { ...pool };
+    delete next[endpoint];
+    onChange(next);
   }
 
   return (
@@ -64,7 +71,7 @@ export function ModelPoolEditor({
       <div>
         <h3 className="text-xs font-semibold">Model Pool</h3>
         <p className="mt-1 text-[10px] text-muted-foreground">
-          Choose which models appear in PopDAM model dropdowns. This only controls visibility; it does not change saved model selections.
+          Choose which models appear in PopDAM model dropdowns. “Show all” also keeps future catalog additions visible. This only controls visibility; it does not change saved model selections.
         </p>
       </div>
       <Input
@@ -92,7 +99,7 @@ export function ModelPoolEditor({
               </summary>
               <div className="space-y-1 border-t border-border/70 p-2">
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => updateEndpoint(endpoint, [...checked, ...options.map((model) => model.id)])}>
+                  <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => showAll(endpoint)}>
                     Show all
                   </Button>
                   <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => updateEndpoint(endpoint, [])}>
@@ -125,8 +132,8 @@ export function ModelPoolEditor({
           );
         })}
       </div>
-      {groups.length === 0 && !loading && (
-        <p className="text-[10px] text-muted-foreground">No model catalog is available yet. Save an API key and refresh the model list.</p>
+      {models.length === 0 && !loading && (
+        <p className="text-[10px] text-muted-foreground">OpenRouter models appear after its API key is saved and the catalog loads. Direct provider models are listed above.</p>
       )}
     </section>
   );
