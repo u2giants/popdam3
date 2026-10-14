@@ -23,6 +23,7 @@ import { createWorker } from "tesseract.js";
 import Anthropic from "@anthropic-ai/sdk";
 import { callAiVision, type AiConfig } from "./pdf-text-sampler.js";
 import { isAiWithoutPdfCompat } from "./thumbnailer.js";
+import { indraPython, ocrPngWithIndra } from "./common/indra-ocr.js";
 
 const PDF_SIZE_LIMIT_BYTES = 100 * 1024 * 1024;
 const THUMBNAIL_WIDTH = 800;
@@ -126,16 +127,28 @@ async function processOne(
     };
   }
 
-  // Step 3: OCR via tesseract.js
+  // Step 3: OCR via Indra (tesseract.js only where Indra is not installed)
   let ocrText = "";
   if (pngBuffer) {
-    try {
-      const worker = await createWorker("eng");
-      const result = await worker.recognize(pngBuffer);
-      await worker.terminate();
-      ocrText = result.data.text.trim();
-    } catch (e) {
-      logger.warn("PDF backfill: OCR failed", { filename: asset.filename, error: (e as Error).message });
+    const indra = indraPython();
+    let indraFailed = false;
+    if (indra) {
+      try {
+        ocrText = await ocrPngWithIndra(indra, pngBuffer);
+      } catch (e) {
+        indraFailed = true;
+        logger.warn("PDF backfill: Indra OCR failed, falling back to tesseract.js", { filename: asset.filename, error: (e as Error).message });
+      }
+    }
+    if (!indra || indraFailed) {
+      try {
+        const worker = await createWorker("eng");
+        const result = await worker.recognize(pngBuffer);
+        await worker.terminate();
+        ocrText = result.data.text.trim();
+      } catch (e) {
+        logger.warn("PDF backfill: OCR failed", { filename: asset.filename, error: (e as Error).message });
+      }
     }
   }
 

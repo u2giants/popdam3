@@ -4,7 +4,7 @@
  * Reads each PDF asset from the NAS and extracts text using a cascade:
  *
  *   1. mupdf  — native text extraction (primary; robust C library)
- *   2. OCR    — tesseract.js on a mupdf-rendered page image (scanned PDFs)
+ *   2. OCR    — Indra (tesseract.js fallback) on a mupdf-rendered page image (scanned PDFs)
  *   3. AI     — vision model from PDF_EXTRACTION_CONFIG/AI_MODELS catalog
  *
  * Reports per-file progress back to the cloud so the UI shows real-time status.
@@ -20,6 +20,7 @@ import { inspectAiPage } from "./ai-sentinel-detect.js";
 import * as mupdf from "mupdf";
 import { createWorker } from "tesseract.js";
 import Anthropic from "@anthropic-ai/sdk";
+import { indraPython, ocrPngWithIndra } from "./common/indra-ocr.js";
 
 export interface PdfSampleAsset {
   id: string;
@@ -311,19 +312,29 @@ async function processSinglePdf(
     });
   }
 
-  // ── Step 3: OCR via tesseract.js ────────────────────────────────────
+  // ── Step 3: OCR via Indra (tesseract.js only where Indra is not installed) ────────────────────────────────────
   let ocrText = "";
   if (pngBuffer) {
     await reportProgress(index, total, asset.filename, "ocr", fileResults);
-    try {
-      const worker = await createWorker("eng");
-      const ocrResult = await worker.recognize(pngBuffer);
-      await worker.terminate();
-      ocrText = ocrResult.data.text.trim();
-    } catch (ocrErr) {
-      logger.warn("PDF text sample: OCR failed", {
-        filename: asset.filename, error: (ocrErr as Error).message,
-      });
+    const indra = indraPython();
+    let indraFailed = false;
+    if (indra) {
+      try {
+        ocrText = await ocrPngWithIndra(indra, pngBuffer);
+      } catch (e) {
+        indraFailed = true;
+        logger.warn("PDF text sample: Indra OCR failed, falling back to tesseract.js", { filename: asset.filename, error: (e as Error).message });
+      }
+    }
+    if (!indra || indraFailed) {
+      try {
+        const worker = await createWorker("eng");
+        const ocrResult = await worker.recognize(pngBuffer);
+        await worker.terminate();
+        ocrText = ocrResult.data.text.trim();
+      } catch (ocrErr) {
+        logger.warn("PDF text sample: OCR failed", { filename: asset.filename, error: (ocrErr as Error).message });
+      }
     }
   }
 
