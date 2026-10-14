@@ -134,7 +134,7 @@ export function AiVisionConfigCard() {
           <div className="flex items-end gap-3">
             <div className="flex-1 space-y-1.5">
               <div className="flex items-center gap-2">
-                <Label className="text-xs">Vision model ({visionModels.length} available)</Label>
+                <Label className="text-xs">Vision model ({selectModels.length} available)</Label>
                 <Button
                   type="button"
                   variant="ghost"

@@ -71,7 +71,7 @@ export function ModelPoolEditor({
       <div>
         <h3 className="text-xs font-semibold">Model Pool</h3>
         <p className="mt-1 text-[10px] text-muted-foreground">
-          Choose which models appear in PopDAM model dropdowns. “Show all” also keeps future catalog additions visible. This only controls visibility; it does not change saved model selections.
+          Choose which models appear across Processing model dropdowns. Individual selections make a fixed list for that endpoint; use “Show all” to include future catalog additions. This only controls visibility; it does not change saved model selections.
         </p>
       </div>
       <Input

@@ -494,11 +494,14 @@ export default function AiTagBakeoffTab() {
               : "No bake-off models are available."}
           </p>
         )}
-        {selectedOutsidePool && (
-          <p className="text-[10px] text-amber-600">This selected model is outside the Model Pool and remains available until you replace it.</p>
-        )}
-        {poolHidesAllBakeoffModels && selectedId && (
-          <p className="text-[10px] text-amber-600">No other bake-off models are shown. Add one in Settings → Processing → AI Tagging.</p>
+        {visibleModelsForSlot.length > 0 && (selectedOutsidePool || poolHidesAllBakeoffModels) && (
+          <p className="text-[10px] text-amber-600">
+            {selectedOutsidePool
+              ? poolHidesAllBakeoffModels
+                ? "This selected model is outside the Model Pool and remains available. No other bake-off models are shown; add one in Settings → Processing → AI Tagging."
+                : "This selected model is outside the Model Pool and remains available until you replace it."
+              : "No other bake-off models are shown. Add one in Settings → Processing → AI Tagging."}
+          </p>
         )}
       </div>
     );

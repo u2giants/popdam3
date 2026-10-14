@@ -800,7 +800,7 @@ export function AiModelsConfigSection() {
                 : [];
 
               const renderSelect = (selectKey: string, value: string, options: typeof filteredList, placeholder: string, showEmptySelect = false) => (
-                options.length > 0 || showEmptySelect ? (
+                options.length > 0 ? (
                   <Select value={value} onValueChange={(val) => setTaskModels((prev) => ({ ...prev, [selectKey]: val }))}>
                     <SelectTrigger className="h-8 text-xs font-mono">
                       <SelectValue placeholder={placeholder} />
@@ -824,6 +824,10 @@ export function AiModelsConfigSection() {
                       })}
                     </SelectContent>
                   </Select>
+                ) : showEmptySelect ? (
+                  <div aria-disabled="true" className="flex h-8 items-center rounded-md border border-input bg-muted/40 px-3 text-xs text-muted-foreground">
+                    No eligible models are shown in the Model Pool
+                  </div>
                 ) : (
                   <Input
                     value={value}
