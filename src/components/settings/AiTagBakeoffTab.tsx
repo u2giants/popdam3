@@ -346,7 +346,7 @@ export default function AiTagBakeoffTab() {
     }
     return [...byId.values()];
   }, [availableVisionModels, modelPool]);
-  const poolHidesAllBakeoffModels = visionModels.length === 0
+  const poolHidesAllBakeoffModels = !!savedOpenRouterKey && !modelsLoading && visionModels.length === 0
     && availableVisionModels.length + BAKEOFF_ONLY_MODELS.length > 0;
 
   async function refreshModels() {

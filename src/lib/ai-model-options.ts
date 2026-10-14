@@ -10,6 +10,10 @@ export function aiModelEndpoint(modelId: string): AiModelEndpoint {
   return "openrouter";
 }
 
+export function shouldLoadAiModelCatalog(configLoaded: boolean, openRouterKey: string, accountFingerprint: string | null): boolean {
+  return configLoaded && (!openRouterKey || accountFingerprint !== null);
+}
+
 export function normalizeAiModelPool(value: unknown): AiModelPool {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const raw = value as Record<string, unknown>;

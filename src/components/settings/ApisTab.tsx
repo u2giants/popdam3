@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CURRENT_APP } from "@/lib/app-mode";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, sameAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
+import { includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, sameAiModelPool, preserveCatalogOnWarning, shouldLoadAiModelCatalog } from "@/lib/ai-model-options";
 import { toast } from "sonner";
 import { saveAiModelConfig, type AiModelConfigDraft } from "@/lib/ai-model-config-save";
 import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
@@ -623,7 +623,7 @@ export function AiModelsConfigSection() {
     warning?: string | null;
   }>({
     queryKey: modelQueryKey,
-    enabled: (!!savedOpenRouterKey || !!savedGoogleKey) && (!savedOpenRouterKey || openRouterAccountFingerprint !== null),
+    enabled: shouldLoadAiModelCatalog(!!configData, savedOpenRouterKey, openRouterAccountFingerprint),
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
       const items = (data?.models ?? []) as Array<{ id: string; name?: string; supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; tool_choice_modes?: string[]; input_modalities?: string[]; pricing?: OpenRouterPricing }>;
@@ -753,7 +753,7 @@ export function AiModelsConfigSection() {
               <span className="text-[10px] text-amber-600">{visionCatalog.warning}; showing the last available catalog.</span>
             )}
             {!savedOpenRouterKey && !savedGoogleKey && (
-              <span className="text-[10px] text-muted-foreground">Save an OpenRouter or Google AI API key to load model list</span>
+              <span className="text-[10px] text-muted-foreground">OpenRouter models require an OpenRouter API key; direct-provider models may still appear.</span>
             )}
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -799,8 +799,8 @@ export function AiModelsConfigSection() {
                   : fallbackModelList)
                 : [];
 
-              const renderSelect = (selectKey: string, value: string, options: typeof filteredList, placeholder: string, showEmptySelect = false) => (
-                options.length > 0 ? (
+              const renderSelect = (selectKey: string, value: string, options: typeof filteredList, placeholder: string, showEmptySelect = false, hasEligibleModels = options.length > 0) => (
+                options.length > 0 && (hasEligibleModels || showEmptySelect) ? (
                   <Select value={value} onValueChange={(val) => setTaskModels((prev) => ({ ...prev, [selectKey]: val }))}>
                     <SelectTrigger className="h-8 text-xs font-mono">
                       <SelectValue placeholder={placeholder} />
@@ -855,7 +855,7 @@ export function AiModelsConfigSection() {
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
-                  {renderSelect(key, currentVal, allOptions, defaultModel, poolHidAllTaskModels)}
+                  {renderSelect(key, currentVal, allOptions, defaultModel, poolHidAllTaskModels, filteredList.length > 0)}
                   {poolHidAllTaskModels && (
                     <p className="text-[10px] text-amber-600">All models that meet this task’s requirements are hidden by the Model Pool. Show at least one in the Model Pool above.</p>
                   )}
@@ -878,7 +878,7 @@ export function AiModelsConfigSection() {
                   {fallbackKey && (
                     <div className="mt-1.5 space-y-1">
                       <Label className="text-[10px] text-muted-foreground">Fallback model (on content filter / provider rejection)</Label>
-                      {renderSelect(fallbackKey, fallbackVal, fallbackOptions, "None — mark as failed", poolHidAllFallbackModels)}
+                      {renderSelect(fallbackKey, fallbackVal, fallbackOptions, "None — mark as failed", poolHidAllFallbackModels, fallbackModelList.length > 0)}
                       {poolHidAllFallbackModels && (
                         <p className="text-[10px] text-amber-600">All eligible fallback models are hidden by the Model Pool. Show one in the Model Pool above.</p>
                       )}

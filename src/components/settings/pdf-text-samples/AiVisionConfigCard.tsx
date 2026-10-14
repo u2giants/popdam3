@@ -103,7 +103,7 @@ export function AiVisionConfigCard() {
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
           Used as the final fallback when mupdf text extraction and OCR both fail (e.g. scanned PDFs with no machine-readable text).
-          Sourced live from OpenRouter — all models that accept image input are shown.
+          Sourced from OpenRouter. The Model Pool in Settings → Processing → AI Tagging controls which models appear here; a saved selection outside the pool remains visible.
         </p>
         {modelsLoading && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -134,7 +134,7 @@ export function AiVisionConfigCard() {
           <div className="flex items-end gap-3">
             <div className="flex-1 space-y-1.5">
               <div className="flex items-center gap-2">
-                <Label className="text-xs">Vision model ({selectModels.length} available)</Label>
+                <Label className="text-xs">Vision model ({visionModels.length} in Model Pool)</Label>
                 <Button
                   type="button"
                   variant="ghost"

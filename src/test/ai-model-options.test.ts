@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aiModelEndpoint, catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning, sameAiModelPool } from "@/lib/ai-model-options";
+import { aiModelEndpoint, catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning, sameAiModelPool, shouldLoadAiModelCatalog } from "@/lib/ai-model-options";
 import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, safeSecretFingerprint, upsertConfigRowsAtomically, withValidatedCounterparts } from "../../supabase/functions/_shared/direct-batch-model";
 
 describe("direct Gemini batch model scope", () => {
@@ -102,6 +102,13 @@ describe("direct Gemini batch model scope", () => {
 });
 
 describe("AI Model Pool", () => {
+  it("loads direct-provider choices after configuration is available without an OpenRouter key", () => {
+    expect(shouldLoadAiModelCatalog(false, "", null)).toBe(false);
+    expect(shouldLoadAiModelCatalog(true, "", null)).toBe(true);
+    expect(shouldLoadAiModelCatalog(true, "openrouter-key", null)).toBe(false);
+    expect(shouldLoadAiModelCatalog(true, "openrouter-key", "account-fingerprint")).toBe(true);
+  });
+
   it("groups built-in models by their API endpoint", () => {
     expect(aiModelEndpoint("google-direct/gemini-3.8-flash:batch")).toBe("google-direct");
     expect(aiModelEndpoint("meta-direct/muse-spark-1.3-contributor")).toBe("meta-direct");
