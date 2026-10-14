@@ -17,25 +17,56 @@
 // reconstructed change history, and the retention guard refuses to prune it.
 
 import { readColdlionApiKey } from "../coldlion-sync-common.mjs";
-import { isoDate, lastClosedWindowIndex, windowAtIndex, windowRange } from "./lib/grid.mjs";
-import { proveTarget } from "./lib/db.mjs";
-import { COMPANY_CODE, PAGE_SIZE, PROD_STAGES } from "./lib/scopes.mjs";
+import {
+  isoDate,
+  lastClosedWindowIndex,
+  parseIsoDate,
+  windowAtIndex,
+  windowContaining,
+  windowRange,
+} from "./lib/grid.mjs";
+import { PRODUCTION_PROJECT_REF, proveTarget } from "./lib/db.mjs";
+import { COMPANY_CODE, ORDER_HISTORY, PAGE_SIZE, PROD_STAGES } from "./lib/scopes.mjs";
 import { allScopes, assertHistoryShape, ledgerKey, loadWindowScope, loadedWindows, scopeLabel } from "./lib/run-history.mjs";
+import { forwardCapDate } from "./lib/order-intake-windows.mjs";
 
-export function parseArgs(argv) {
-  const args = { limit: Infinity, company: COMPANY_CODE, pageSize: PAGE_SIZE, dryRun: false };
+const newYorkDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+export function newYorkToday(now = new Date()) {
+  const parts = Object.fromEntries(
+    newYorkDateFormatter.formatToParts(now).map(({ type, value }) => [type, value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+export function parseArgs(argv, { now = new Date() } = {}) {
+  const args = {
+    limit: Infinity,
+    company: COMPANY_CODE,
+    pageSize: PAGE_SIZE,
+    dryRun: false,
+    unsealedOrderWindow: false,
+    now,
+    toProvided: false,
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     const value = argv[index + 1];
     switch (flag) {
       case "--from": args.from = value; index += 1; break;
-      case "--to": args.to = value; index += 1; break;
+      case "--to": args.to = value; args.toProvided = true; index += 1; break;
       case "--limit": args.limit = Number(value); index += 1; break;
       case "--company": args.company = value; index += 1; break;
       case "--endpoint": args.endpoint = value; index += 1; break;
       case "--stage": args.stage = String(value).toUpperCase(); index += 1; break;
       case "--page-size": args.pageSize = Number(value); index += 1; break;
       case "--dry-run": args.dryRun = true; break;
+      case "--unsealed-order-window": args.unsealedOrderWindow = true; break;
       default:
         throw new Error(`unknown argument ${flag}`);
     }
@@ -44,8 +75,10 @@ export function parseArgs(argv) {
   // The end of the newest window that has CLOSED, never today. A backfill that reached
   // into the current week would seal a window on the first of its seven days, and a
   // sealed window can never be added to: the rest of that week would be lost silently.
-  const lastClosed = windowAtIndex(lastClosedWindowIndex(isoDate(new Date())));
-  if (!args.to || args.to > lastClosed.to) args.to = lastClosed.to;
+  if (!args.unsealedOrderWindow) {
+    const lastClosed = windowAtIndex(lastClosedWindowIndex(isoDate(new Date())));
+    if (!args.to || args.to > lastClosed.to) args.to = lastClosed.to;
+  }
   if (!Number.isFinite(args.limit) && args.limit !== Infinity) {
     throw new Error("--limit must be a number");
   }
@@ -58,7 +91,44 @@ export function parseArgs(argv) {
   if (args.stage && !PROD_STAGES.includes(args.stage)) {
     throw new Error(`--stage must be one of ${PROD_STAGES.join(", ")}`);
   }
+  if (args.unsealedOrderWindow) validateUnsealedOrderWindow(args);
   return args;
+}
+
+/** Validate one exact, current-or-future /orderHistory grid window. */
+export function validateUnsealedOrderWindow(args) {
+  if (!args.from || !args.toProvided || !args.to) {
+    throw new Error("--unsealed-order-window requires both explicit --from and --to");
+  }
+  parseIsoDate(args.from, "--from");
+  parseIsoDate(args.to, "--to");
+  if (args.endpoint !== ORDER_HISTORY.endpoint) {
+    throw new Error("--unsealed-order-window requires --endpoint /orderHistory");
+  }
+  if (args.stage) throw new Error("--unsealed-order-window does not accept --stage");
+  if (args.company !== COMPANY_CODE) {
+    throw new Error(`--unsealed-order-window requires company ${COMPANY_CODE}`);
+  }
+  if (args.limit !== Infinity) {
+    throw new Error("--unsealed-order-window loads exactly one window; --limit is not accepted");
+  }
+
+  const window = windowContaining(args.from);
+  if (args.from !== window.from || args.to !== window.to) {
+    throw new Error("--unsealed-order-window requires one exact, grid-aligned seven-day --from/--to range");
+  }
+
+  const today = newYorkToday(args.now);
+  const current = windowContaining(today);
+  if (window.index < current.index) {
+    throw new Error(
+      "--unsealed-order-window refuses closed windows; use the sealed history backfill for unloaded closed windows",
+    );
+  }
+  if (window.from > forwardCapDate(today)) {
+    throw new Error("--unsealed-order-window exceeds the existing 18-month forward-scan horizon");
+  }
+  return window;
 }
 
 export function selectScopes({ endpoint, stage }) {
@@ -68,8 +138,43 @@ export function selectScopes({ endpoint, stage }) {
   );
 }
 
-export async function main(argv = process.argv.slice(2)) {
-  const args = parseArgs(argv);
+export async function runUnsealedOrderWindow(args, deps = {}) {
+  const window = validateUnsealedOrderWindow(args);
+  const proveTargetFn = deps.proveTarget ?? proveTarget;
+  const assertHistoryShapeFn = deps.assertHistoryShape ?? assertHistoryShape;
+  const loadedWindowsFn = deps.loadedWindows ?? loadedWindows;
+  const readApiKeyFn = deps.readColdlionApiKey ?? readColdlionApiKey;
+  const loadWindowScopeFn = deps.loadWindowScope ?? loadWindowScope;
+
+  const target = proveTargetFn({ expectedProjectRef: PRODUCTION_PROJECT_REF });
+  assertHistoryShapeFn();
+  const done = loadedWindowsFn({ companyCode: COMPANY_CODE });
+  if (done.has(ledgerKey(ORDER_HISTORY, window))) {
+    throw new Error(`window ${window.from} for ${ORDER_HISTORY.endpoint} is already sealed`);
+  }
+  console.log(`target ${target.database} at ${target.host} (${target.coldlionTables} coldlion tables)`);
+  console.log(`one unsealed window ${window.from}..${window.to} ${scopeLabel(ORDER_HISTORY)}`);
+  if (args.dryRun) return { loaded: 0, window, dryRun: true };
+
+  const result = await loadWindowScopeFn({
+    ...deps.loaderOptions,
+    scope: ORDER_HISTORY,
+    window,
+    apiKey: readApiKeyFn(),
+    companyCode: COMPANY_CODE,
+    pageSize: args.pageSize,
+    requestedBy: "coldlion-landing bounded unsealed orderHistory window",
+    sealed: false,
+  });
+  console.log(
+    `${window.from}..${window.to} ${scopeLabel(ORDER_HISTORY)} ${result.fetched.rows} row(s) ${result.summary.lines} line(s)`,
+  );
+  return { loaded: 1, window, result };
+}
+
+export async function main(argv = process.argv.slice(2), deps = {}) {
+  const args = parseArgs(argv, { now: deps.now ?? new Date() });
+  if (args.unsealedOrderWindow) return runUnsealedOrderWindow(args, deps);
   const scopes = selectScopes(args);
   if (scopes.length === 0) throw new Error("no scope matches the given --endpoint/--stage");
 

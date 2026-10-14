@@ -6,21 +6,22 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { GRID_ANCHOR, isoDate, lastClosedWindowIndex, recentClosedWindows, windowAtIndex, windowContaining, windowRange, windowsEndingAt } from "./coldlion-landing/lib/grid.mjs";
 import { ORDER_HISTORY, allScopes, prodHistoryScope } from "./coldlion-landing/lib/scopes.mjs";
 import { assertPagesComplete, buildPageUrl, fetchPage, fetchWindowScope, isPermanentStatus, requestParams, validatePage } from "./coldlion-landing/lib/http.mjs";
-import { assertExpectedTarget } from "./coldlion-landing/lib/db.mjs";
+import { assertExpectedTarget, PRODUCTION_PROJECT_REF } from "./coldlion-landing/lib/db.mjs";
 import { bigint, canonical, date, num, sourceHash, splitTokens, sqlText, text } from "./coldlion-landing/lib/values.mjs";
 import { projectOrderHistoryWindow, splitInvoiceTokens, wallClockTimestamp } from "./coldlion-landing/lib/project-order-history.mjs";
 import { aggregateStamps, buildStampUpdateSql, parseArgs as parseStampArgs } from "./coldlion-landing/backfill-order-stamps.mjs";
 import { projectProdHistoryWindow, quantitiesAgree, selectLookup } from "./coldlion-landing/lib/project-prod-history.mjs";
 import { buildOrderHistoryLoadSql, buildProdHistoryLoadSql } from "./coldlion-landing/lib/load-window.mjs";
-import { assertHistoryShape, hasOrderStampColumns, historyShapeSql, interpretOrderStampColumns, loadedWindowsSql, orderStampColumnsSql } from "./coldlion-landing/lib/run-history.mjs";
+import { assertHistoryShape, hasOrderStampColumns, historyShapeSql, interpretOrderStampColumns, loadedWindowsSql, loadWindowScope, orderStampColumnsSql } from "./coldlion-landing/lib/run-history.mjs";
 import { createHash } from "node:crypto";
-import { parseArgs as parseBackfillArgs, selectScopes } from "./coldlion-landing/backfill-history.mjs";
+import { newYorkToday, parseArgs as parseBackfillArgs, runUnsealedOrderWindow, selectScopes, validateUnsealedOrderWindow } from "./coldlion-landing/backfill-history.mjs";
 import { forwardScan, parseArgs as parseSyncArgs } from "./coldlion-landing/sync-history.mjs";
 
 // ---------------------------------------------------------------------------------
@@ -654,6 +655,97 @@ test("the backfill can be narrowed to one endpoint or one stage", () => {
   assert.throws(() => parseBackfillArgs(["--from", "2019-01-01", "--stage", "NOPE"]), /--stage must be one of/);
 });
 
+test("the unsealed order-history option accepts only one exact current/future EDGEHOME window", () => {
+  const now = new Date("2026-10-13T16:00:00-04:00");
+  const current = ["--from", "2026-10-13", "--to", "2026-10-19", "--endpoint", "/orderHistory", "--unsealed-order-window"];
+  const future = ["--from", "2027-07-13", "--to", "2027-07-19", "--endpoint", "/orderHistory", "--company", "EDGEHOME", "--unsealed-order-window"];
+  assert.deepEqual(validateUnsealedOrderWindow(parseBackfillArgs(current, { now })), windowContaining("2026-10-13"));
+  assert.deepEqual(validateUnsealedOrderWindow(parseBackfillArgs(future, { now })), windowContaining("2027-07-13"));
+  assert.equal(newYorkToday(new Date("2026-10-13T03:59:59Z")), "2026-10-12", "the open/closed boundary follows New York time");
+  assert.throws(() => parseBackfillArgs(["--from", "2026-10-13", "--endpoint", "/orderHistory", "--unsealed-order-window"], { now }), /explicit --from and --to/);
+  assert.throws(() => parseBackfillArgs(["--from", "2026-10-14", "--to", "2026-10-20", "--endpoint", "/orderHistory", "--unsealed-order-window"], { now }), /exact, grid-aligned seven-day/);
+  assert.throws(() => parseBackfillArgs(["--from", "2026-10-13", "--to", "2026-10-20", "--endpoint", "/orderHistory", "--unsealed-order-window"], { now }), /exact, grid-aligned seven-day/);
+  assert.throws(() => parseBackfillArgs(["--from", "2026-10-06", "--to", "2026-10-12", "--endpoint", "/orderHistory", "--unsealed-order-window"], { now }), /refuses closed windows/);
+  assert.throws(() => parseBackfillArgs(["--from", "2028-04-04", "--to", "2028-04-10", "--endpoint", "/orderHistory", "--unsealed-order-window"], { now }), /18-month forward-scan horizon/);
+  assert.throws(() => parseBackfillArgs(["--from", "2026-10-13", "--to", "2026-10-19", "--endpoint", "/prodHistory", "--unsealed-order-window"], { now }), /requires --endpoint \/orderHistory/);
+  assert.throws(() => parseBackfillArgs(["--from", "2026-10-13", "--to", "2026-10-19", "--endpoint", "/orderHistory", "--stage", "ISS", "--unsealed-order-window"], { now }), /does not accept --stage/);
+  assert.throws(() => parseBackfillArgs(["--from", "2026-10-13", "--to", "2026-10-19", "--endpoint", "/orderHistory", "--company", "OTHERCO", "--unsealed-order-window"], { now }), /requires company EDGEHOME/);
+  assert.throws(() => parseBackfillArgs(["--from", "2026-10-13", "--to", "2026-10-19", "--endpoint", "/orderHistory", "--limit", "1", "--unsealed-order-window"], { now }), /--limit is not accepted/);
+});
+
+test("one unsealed order-history run proves the target, fetches one exact window, and writes only ColdLion history", async () => {
+  const now = new Date("2026-10-13T16:00:00-04:00");
+  const args = parseBackfillArgs(["--from", "2026-10-13", "--to", "2026-10-19", "--endpoint", "/orderHistory", "--unsealed-order-window"], { now });
+  const events = [];
+  const urls = [];
+  const sql = [];
+  const result = await runUnsealedOrderWindow(args, {
+    now,
+    proveTarget: ({ expectedProjectRef }) => { events.push("target"); assert.equal(expectedProjectRef, PRODUCTION_PROJECT_REF); return { database: "synthetic", host: "test.invalid", coldlionTables: 5, expectedProjectRef }; },
+    assertHistoryShape: () => { events.push("shape"); },
+    loadedWindows: ({ companyCode }) => { events.push("ledger-read"); assert.equal(companyCode, "EDGEHOME"); return new Set(); },
+    readColdlionApiKey: () => { events.push("api-key"); return "synthetic-test-key"; },
+    loaderOptions: {
+      orderStampColumns: true,
+      fetchImpl: async (url) => {
+        events.push("api-fetch");
+        urls.push(url);
+        return { ok: true, status: 200, text: async () => JSON.stringify(envelope([orderRow({ companyCode: "EDGEHOME", salesOrderNo: "4001", salesOrderLineNo: "1" })])) };
+      },
+      execute: (statement) => { events.push("db-write"); sql.push(statement); },
+    },
+  });
+  assert.equal(result.loaded, 1);
+  assert.deepEqual(events, ["target", "shape", "ledger-read", "api-key", "api-fetch", "db-write"]);
+  assert.equal(urls.length, 1);
+  assert.equal(urls[0].searchParams.get("companyCode"), "EDGEHOME");
+  assert.equal(urls[0].searchParams.get("fromDate"), "2026-10-13");
+  assert.equal(urls[0].searchParams.get("toDate"), "2026-10-19");
+  assert.equal(urls[0].pathname, "/EhpApi/orderHistory");
+  assert.equal(sql.length, 1);
+  assert.match(sql[0], /insert into coldlion\.order_history_line/);
+  assert.match(sql[0], /unsealedForward/);
+  assert.doesNotMatch(sql[0], /insert into coldlion\.(?:window_ledger|history_page_ledger)/);
+  assert.doesNotMatch(sql[0], /insert into plm\.|update plm\.|sync-masters|prod_detail|prepack_detail/);
+  assert.match(sql[0], /already loaded \(sealed\); a forward load may not touch it/, "the transaction rechecks the sealed-window guard after the preflight read");
+});
+
+test("the unsealed order-history mode refuses a sealed ledger window before API access", async () => {
+  const now = new Date("2026-10-13T16:00:00-04:00");
+  const args = parseBackfillArgs(["--from", "2026-10-13", "--to", "2026-10-19", "--endpoint", "/orderHistory", "--unsealed-order-window"], { now });
+  let fetches = 0;
+  await assert.rejects(runUnsealedOrderWindow(args, {
+    now,
+    proveTarget: () => ({ database: "synthetic", host: "test.invalid", coldlionTables: 5 }),
+    assertHistoryShape: () => {},
+    loadedWindows: () => new Set(["/orderHistory||2026-10-13"]),
+    readColdlionApiKey: () => "synthetic-test-key",
+    loadWindowScope: async () => { fetches += 1; },
+  }), /already sealed/);
+  assert.equal(fetches, 0);
+});
+
+test("dry-run and target refusal never reach the API loader", async () => {
+  const now = new Date("2026-10-13T16:00:00-04:00");
+  const args = parseBackfillArgs(["--from", "2026-10-13", "--to", "2026-10-19", "--endpoint", "/orderHistory", "--unsealed-order-window", "--dry-run"], { now });
+  let apiCalls = 0;
+  const readOnly = {
+    proveTarget: ({ expectedProjectRef }) => ({ database: "synthetic", host: "test.invalid", coldlionTables: 5, expectedProjectRef }),
+    assertHistoryShape: () => {},
+    loadedWindows: () => new Set(),
+    readColdlionApiKey: () => { apiCalls += 1; return "synthetic-test-key"; },
+    loadWindowScope: async () => { apiCalls += 1; },
+  };
+  const dryRun = await runUnsealedOrderWindow(args, readOnly);
+  assert.equal(dryRun.dryRun, true);
+  assert.equal(apiCalls, 0);
+  await assert.rejects(runUnsealedOrderWindow({ ...args, dryRun: false }, {
+    ...readOnly,
+    proveTarget: ({ expectedProjectRef }) => { assert.equal(expectedProjectRef, PRODUCTION_PROJECT_REF); throw new Error("target mismatch"); },
+  }), /target mismatch/);
+  assert.equal(apiCalls, 0);
+});
+
 test("the scheduled sync trails more than one window by default", () => {
   const args = parseSyncArgs([]);
   assert.ok(args.windows >= 2, "an order edited days later falls in an older window");
@@ -808,6 +900,65 @@ const both = [
   ["the scheduled sync", sync],
   ["the backfill", backfill],
 ];
+
+test("production history backfill exposes a separate endpoint-limited open/future window operation", () => {
+  assert.match(backfill, /options: \['history', 'order-stamps', 'order-history-window'\]/);
+  assert.match(backfill, /order-history-window requires an explicit to date/);
+  assert.match(backfill, /order-history-window is limited to \/orderHistory/);
+  assert.match(backfill, /order-history-window has no stage dimension/);
+  const branch = backfill.slice(backfill.indexOf('if [ "${JOB:-history}" = "order-history-window" ]'), backfill.indexOf("node tools/coldlion-landing/backfill-history.mjs \"${ARGS\[@\]}\"", backfill.indexOf('if [ "${JOB:-history}" = "order-history-window" ]')));
+  assert.match(branch, /--from "\$FROM" --to "\$TO" --endpoint \/orderHistory --company EDGEHOME --unsealed-order-window/);
+  assert.doesNotMatch(branch, /sync-masters|sync-prepack|sync-prod-details|sync-coldlion-items/);
+  assert.ok(backfill.indexOf("order-history-window") < backfill.indexOf('ARGS=(--from "$FROM" --limit'), "the new branch exits before the broad closed-window backfill");
+});
+
+test("the early workflow guard receives and enforces the selected job, endpoint and stage", () => {
+  const checkStep = backfill.slice(
+    backfill.indexOf("- name: Check the inputs before spending an hour on them"),
+    backfill.indexOf("\n      - name: Backfill"),
+  );
+  assert.notEqual(checkStep.indexOf("- name: Check the inputs before spending an hour on them"), -1);
+  for (const [name, input] of [["JOB", "job"], ["ENDPOINT", "endpoint"], ["STAGE", "stage"]]) {
+    assert.match(checkStep, new RegExp(`^\\s+${name}: \\$\\{\\{ github\\.event\\.inputs\\.${input} \\}\\}$`, "m"));
+  }
+
+  const runStart = checkStep.indexOf("        run: |\n");
+  assert.notEqual(runStart, -1, "the input guard must remain in the preflight step");
+  const runLines = checkStep.slice(runStart).split("\n").slice(1);
+  const scriptLines = [];
+  for (const line of runLines) {
+    if (line && !line.startsWith("          ")) break;
+    scriptLines.push(line.replace(/^          /, ""));
+  }
+  const script = scriptLines.join("\n");
+  const runGuard = (overrides = {}) => {
+    try {
+      execFileSync("bash", ["-c", script], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          FROM: "2026-10-06",
+          TO: "2026-10-12",
+          DATABASE_URL: "synthetic",
+          COLDLION_API_KEY: "synthetic",
+          JOB: "order-history-window",
+          ENDPOINT: "/orderHistory",
+          STAGE: "all",
+          ...overrides,
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      return { accepted: true, output: "" };
+    } catch (error) {
+      return { accepted: false, output: `${error.stdout ?? ""}${error.stderr ?? ""}` };
+    }
+  };
+
+  assert.equal(runGuard().accepted, true, "the bounded /orderHistory case should pass preflight");
+  assert.match(runGuard({ ENDPOINT: "/prodHistory" }).output, /limited to \/orderHistory/);
+  assert.match(runGuard({ STAGE: "ISS" }).output, /has no stage dimension/);
+  assert.match(runGuard({ TO: "" }).output, /requires an explicit to date/);
+});
 
 test("neither workflow can be reached by a push, a pull request or a fork", () => {
   for (const [name, workflow] of both) {

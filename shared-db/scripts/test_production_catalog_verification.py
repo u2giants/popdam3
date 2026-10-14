@@ -1635,6 +1635,28 @@ class BehavioralSidecarTests(unittest.TestCase):
         with temp, self.assertRaisesRegex(GuardError, "unsupported check kind"):
             self.load(root, migration)
 
+    def test_licensing_forward_contract_builds_select_only_and_has_exact_supersession_objects(self):
+        def change(sidecar):
+            sidecar["checks"] = [{"id": "licensing_support_forward", "kind": "catalog_contract",
+                "contract": "licensing_support_forward_v2", "expected_count": 1}]
+        temp, root, migration = self.fixture(change)
+        with temp:
+            sql = build_behavior_sql(self.load(root, migration))
+        self.assertTrue(sql.lower().startswith("select "))
+        expression = CATALOG_CONTRACTS["licensing_support_forward_v2"]
+        # The real CASE operand must be scalar boolean; a bare SELECT 1
+        # relation passes select-only checks but PostgreSQL rejects its type.
+        self.assertRegex(expression, r"(?s)^\s*select exists \(\s*with .*select 1 where.*\)\s*$")
+        self.assertIn("case when (" + expression + ") then 1 else 0 end::bigint", sql)
+        # EXISTS belongs inside the operand. Wrapping the resulting boolean
+        # row again in EXISTS would turn false into true.
+        self.assertNotIn("case when (exists (select exists", sql.lower())
+        objects = catalog_contract_objects(CATALOG_CONTRACTS["licensing_support_forward_v2"])
+        self.assertIn("relation:core.property_character_associations", objects)
+        self.assertNotIn("relation:core.property_character", objects)
+        self.assertIn("routine:api.db_data_admin_licensor_property_tree(text,boolean,text,integer)", objects)
+        self.assertIn("routine:plm.apply_licensing_support_operation(uuid,text,jsonb)", objects)
+
     def test_catalog_contract_is_named_hash_bound_and_select_only(self):
         def change(sidecar):
             sidecar["checks"] = [{

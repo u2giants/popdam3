@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "work_issue": 4274,
+  "outcome": "ready-for-merge",
+  "pr": 4275,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4274/2",
+  "contract_sha256": "3b8b5a641910e93aa0a94637d46570d787b3a26a37155f6e86e28de9c251b006",
+  "base_sha": "8be5f2114c6f664a91381ca9b8ee65df81f91537",
+  "head_sha": "2c75fd0bd666221b4050612f34320346d8ad2183",
+  "files_changed": [
+    ".agent/work/4274/2/completion.json",
+    ".agent/work/4274/2/contract.json",
+    ".github/workflows/coldlion-history-backfill.yml",
+    "tools/coldlion-landing-history.test.mjs",
+    "tools/coldlion-landing/backfill-history.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test tools/coldlion-landing-history.test.mjs",
+      "exit_code": 0,
+      "evidence": "83 tests passed; 0 failed, cancelled, skipped, or todo. Includes execution of the workflow early guard with accepted and rejected synthetic inputs."
+    },
+    {
+      "command": "node --check tools/coldlion-landing/backfill-history.mjs",
+      "exit_code": 0,
+      "evidence": "Node.js syntax check passed."
+    },
+    {
+      "command": "python3 -c 'import yaml; yaml.safe_load(open(\".github/workflows/coldlion-history-backfill.yml\"))'",
+      "exit_code": 0,
+      "evidence": "PyYAML parsed the workflow successfully."
+    },
+    {
+      "command": "python3 -c 'import re, subprocess, yaml; w=yaml.safe_load(open(\".github/workflows/coldlion-history-backfill.yml\")); [subprocess.run([\"bash\", \"-n\"], input=re.sub(r\"\\$\\{\\{.*?\\}\\}\", \"placeholder\", s), text=True, check=True) for j in w[\"jobs\"].values() for s in (step.get(\"run\") for step in j.get(\"steps\", []) if step.get(\"run\"))]'",
+      "exit_code": 0,
+      "evidence": "Bash syntax check passed for every workflow run block after substituting GitHub expressions."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 2 was published before the source files were copied, and the coordinator explicitly released the worker for that copy.",
+    "The earlier source drafts remain in their original worktree and were not treated as authority or copied as a pre-publication change.",
+    "The implementation commit was made by the coordinator after publication; this worker did not commit, write to GitHub, access a database, or perform a production action.",
+    "Issue #4274 is the repo-maintenance source-authoring route; issue #277 remains the application live-proof issue.",
+    "Muse identified missing dispatch-input bindings in the Check step. The same three-file source scope was corrected and the actual shell guard is now exercised; no route or data-write scope changed."
+  ],
+  "stop_conditions_hit": []
+}

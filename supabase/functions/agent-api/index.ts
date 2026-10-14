@@ -67,6 +67,7 @@ import {
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
+import { pickWindowsNasPassword } from "../_shared/windows-nas-password.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
 
@@ -388,6 +389,12 @@ async function handleHeartbeat(
     const { data: sgPass, error: sgPassErr } = await db.rpc("get_sg_nas_password");
     if (sgPassErr) console.error("get_sg_nas_password failed:", sgPassErr.message);
     else configMap.WINDOWS_AGENT_SG_NAS_PASS = typeof sgPass === "string" ? sgPass : "";
+    // Z: (mac share) password: Vault-backed once shared-db migration
+    // 20261014043757 is live. Falls back to the admin_config row when the RPC
+    // errors or returns empty, so the render agent keeps working until cutover removes the row.
+    const { data: zPass, error: zPassErr } = await db.rpc("get_render_z_nas_password");
+    if (zPassErr) console.error("get_render_z_nas_password failed:", zPassErr.message);
+    else configMap.WINDOWS_AGENT_NAS_PASS = pickWindowsNasPassword(zPass, configMap.WINDOWS_AGENT_NAS_PASS);
   }
 
   // Spaces
@@ -1562,10 +1569,55 @@ async function handleQueueRender(body: Record<string, unknown>) {
 
 // ── Route: claim-render ─────────────────────────────────────────────
 
+// Jobs whose last attempt died with the agent, at the attempt cap, are never
+// reclaimed by claim_render_jobs (it only claims attempts < max). Without this
+// sweep they stay 'claimed' forever. Fail them so they surface as failed renders.
+// A sweep problem must not stop claiming, so every error is logged and swallowed.
+async function failExhaustedRenderJobs(db: ReturnType<typeof serviceClient>, now: string) {
+  try {
+    const { data, error } = await db
+      .from("render_queue")
+      .select("id, asset_id, attempts")
+      .eq("status", "claimed")
+      .lt("lease_expires_at", now)
+      .gte("attempts", MAX_RENDER_ATTEMPTS)
+      .order("created_at")
+      .limit(200);
+    if (error) {
+      console.error(`[claim-render] exhausted-job listing failed: ${error.message}`);
+      return;
+    }
+    for (const job of data ?? []) {
+      const message = `lease expired after ${job.attempts} attempts (agent stopped mid-render)`;
+      const { count, error: writeErr } = await db
+        .from("render_queue")
+        .update({ status: "failed", completed_at: now, error_message: message, lease_expires_at: null }, { count: "exact" })
+        .eq("id", job.id)
+        .eq("status", "claimed")
+        .lt("lease_expires_at", now);
+      if (writeErr) {
+        console.error(`[claim-render] exhausted job ${job.id}: ${writeErr.message}`);
+        continue;
+      }
+      if (!count) continue; // completed or reclaimed meanwhile
+      const { error: assetErr } = await db
+        .from("assets")
+        .update({ thumbnail_error: "no_preview_or_render_failed" })
+        .eq("id", job.asset_id)
+        .is("thumbnail_url", null);
+      if (assetErr) console.error(`[claim-render] asset ${job.asset_id}: ${assetErr.message}`);
+    }
+  } catch (e) {
+    console.error(`[claim-render] exhausted-job sweep threw: ${(e as Error).message}`);
+  }
+}
+
 async function handleClaimRender(body: Record<string, unknown>) {
   const agentId = requireString(body, "agent_id");
   const batchSize = Math.min((body.batch_size as number) || 1, MAX_CLAIM_BATCH);
   const db = serviceClient();
+
+  await failExhaustedRenderJobs(db, new Date().toISOString());
 
   // Use raw SQL via rpc for FOR UPDATE SKIP LOCKED — not available in PostgREST
   // Select pending jobs OR expired-lease claimed jobs, atomically claim them
@@ -1584,7 +1636,7 @@ async function handleClaimRender(body: Record<string, unknown>) {
   const assetIds = claimedJobs.map((j: Record<string, unknown>) => j.asset_id);
   const { data: assets } = await db
     .from("assets")
-    .select("id, relative_path, file_type, filename")
+    .select("id, relative_path, file_type, filename, file_size, modified_at")
     .in("id", assetIds);
 
   const assetMap = new Map((assets || []).map((a: Record<string, unknown>) => [a.id, a]));
@@ -1597,6 +1649,8 @@ async function handleClaimRender(body: Record<string, unknown>) {
       relative_path: asset?.relative_path || null,
       file_type: asset?.file_type || null,
       filename: asset?.filename || null,
+      file_size: asset?.file_size ?? null,
+      modified_at: asset?.modified_at ?? null,
       attempts: j.attempts,
       lease_expires_at: j.lease_expires_at,
     };

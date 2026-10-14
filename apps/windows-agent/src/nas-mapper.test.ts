@@ -5,11 +5,12 @@ import { buildSmbMappingScript } from "./nas-mapper";
 test("mapping script reads credentials from env, not literals", () => {
   const s = buildSmbMappingScript(true, true);
   assert.match(s, /\$env:POPDAM_NAS_PASS/);
-  assert.match(s, /\$p\.LocalPath=\$env:POPDAM_NAS_DRIVE/);
-  assert.match(s, /New-SmbMapping @p/);
+  assert.match(s, /net use \$d \$u \/user:\$usr \$pw/);
+  assert.doesNotMatch(s, /New-SmbMapping/);
 });
 
 test("UNC mode without username omits LocalPath and credentials", () => {
   const s = buildSmbMappingScript(false, false);
-  assert.doesNotMatch(s, /LocalPath|Password|UserName/);
+  assert.doesNotMatch(s, /LocalPath|Password|UserName|\/user:/);
+  assert.match(s, /net use \$u \/persistent:no/);
 });

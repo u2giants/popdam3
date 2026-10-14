@@ -1,0 +1,76 @@
+{
+  "_why": "Dated verification record (#2530 Step 8 re-activation, 2026-10-14): read-back of the re-activated main merge queue ruleset and main branch protection. Prior activation ruleset 24024180 (2026-09-25) was deactivated (404). New ruleset id 25099164 created and read back field-by-field. Mirror note: docs/verification/main-required-status-checks.json still records the 2026-09-25 16-context capture (kept so check-merge-queue-workflows.test.mjs stays green via RETIRED_MIRROR_CONTEXTS); live protection is 14 contexts as recorded here. The 16 to 14 path dropped the two advisory contexts (Agent work contract, Orchestrator marker guard) per owner ruling section 0.5; the intermediate 12-context state during deactivation is not separately committed.",
+  "repo": "popcre/shared-db",
+  "capturedIso": "2026-10-14T16:49:31Z",
+  "ruleset": {
+    "id": 25099164,
+    "name": "main merge queue",
+    "target": "branch",
+    "enforcement": "active",
+    "bypass_actors": [],
+    "conditions": {
+      "ref_name": {
+        "exclude": [],
+        "include": ["refs/heads/main"]
+      }
+    },
+    "rules": [
+      {
+        "type": "merge_queue",
+        "parameters": {
+          "merge_method": "MERGE",
+          "max_entries_to_build": 1,
+          "min_entries_to_merge": 1,
+          "max_entries_to_merge": 1,
+          "min_entries_to_merge_wait_minutes": 0,
+          "grouping_strategy": "ALLGREEN",
+          "check_response_timeout_minutes": 30
+        }
+      }
+    ]
+  },
+  "readbackMatch": true,
+  "branchProtection": {
+    "enforce_admins": true,
+    "strict": false,
+    "requiredContextCount": 14,
+    "requiredContexts": [
+      "SQL migration guards",
+      "supabase/tests against an ephemeral database",
+      "Cross-PR object collision",
+      "Destructive SQL outside migrations",
+      "Migration guarded merge authorization",
+      "Cancelled work guard",
+      "Domain ownership",
+      "Handoff contract",
+      "Intake pointer guard",
+      "Migration author lease",
+      "Promotion contract tests (offline)",
+      "Tools offline tests",
+      "Merge queue gate",
+      "Queue-sensitive checks (aggregate)"
+    ]
+  },
+  "history": {
+    "firstActivation": {
+      "date": "2026-09-25",
+      "rulesetId": 24024180,
+      "evidence": "docs/verification/merge-queue-activation-20260925.json",
+      "requiredContextCount": 16
+    },
+    "deactivation": {
+      "observed": "2026-10-14",
+      "detail": "gh api repos/popcre/shared-db/rulesets returned []; ruleset 24024180 returned 404"
+    },
+    "reactivation": {
+      "date": "2026-10-14",
+      "rulesetId": 25099164,
+      "requiredContextCount": 14
+    }
+  },
+  "rollback": {
+    "command": "node scripts/configure-merge-queue.mjs --rollback --apply --expect-id 25099164",
+    "fallbackCommand": "gh api -X DELETE repos/popcre/shared-db/rulesets/25099164",
+    "scope": "deletes exactly ruleset 25099164 (main merge queue) via the governed path (expect-id guard, no-ambiguous-ruleset check, post-delete read-back). The raw gh api form is the literal-id fallback if the script is unavailable. Branch protection and required contexts are not touched."
+  }
+}

@@ -10,6 +10,7 @@ import { getOpenRouterApiKey } from "../openrouter-key.js";
 import { logger } from "../logger.js";
 import { OpenRouterError, type OpenRouterProviderInfo } from "../openrouter.js";
 import type { BatchResult, OpState } from "../types.js";
+import { isScaleDownModel, SCALEDOWN_PRICE_PER_TOKEN, scaleDownTagImage } from "../scaledown.js";
 import {
   buildImageTaggingMessages,
   buildImageTaggingPrompt,
@@ -344,13 +345,15 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
 
   const started = Date.now();
   try {
-    const apiKey = await getOpenRouterApiKey();
-    const messages = buildImageTaggingMessages(
-      prompt,
-      image,
-      "Analyze this design asset image and return structured tags matching the tag_asset schema.",
-    );
-    const { tagData: output, usage, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(apiKey, modelId, messages, AI_TIMEOUT_MS, 4000);
+    const { tagData: output, usage, outputMode, providerInfo, retryCount, attempts } = isScaleDownModel(modelId)
+      ? { ...(await scaleDownTagImage(modelId, prompt, image, AI_TIMEOUT_MS)), outputMode: "scaledown_summary_json", providerInfo: undefined, retryCount: 0, attempts: [] }
+      : await callTagAssetModel(
+        await getOpenRouterApiKey(),
+        modelId,
+        buildImageTaggingMessages(prompt, image, "Analyze this design asset image and return structured tags matching the tag_asset schema."),
+        AI_TIMEOUT_MS,
+        4000,
+      );
 
     const tags = normalizeTags(
       Array.isArray(output.asset_tags)
@@ -535,7 +538,7 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
     try {
       const [prompt, image] = await Promise.all([buildImageTaggingPrompt(asset), fetchImageData(source.url)]);
       for (const [slot, modelId] of models) {
-        const result = await runModel(runId, asset, slot, modelId, prompt, image, source.rendition, prices.get(modelId));
+        const result = await runModel(runId, asset, slot, modelId, prompt, image, source.rendition, isScaleDownModel(modelId) ? { prompt: SCALEDOWN_PRICE_PER_TOKEN, completion: 0 } : prices.get(modelId));
         if (result.ok) evaluated++;
         else {
           failed++;

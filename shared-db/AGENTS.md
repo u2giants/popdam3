@@ -203,7 +203,17 @@ to "spend" only one review.
   bound to an earlier head does not authorize a later head, and the only
   equivalence permitted is the narrow, already-enforced #2758 rule
   (`scripts/lib/pr-content-equivalence.mjs`): an ancestor head whose pull-request
-  diff is byte-identical, ignoring only `.agent/` evidence files.
+  diff is byte-identical, ignoring only `.agent/` evidence files. A tree-identical
+  re-push keeps every existing review (slot 1 is not re-drawn); slot 2 may draw on
+  the new head using the carried slot-1 assignment, and the gate composes the
+  ancestor's slot 1 with the new head's slot 2 only when that ancestor has a
+  newest valid slot-1 assignment for equivalent content. A returned or refused
+  slot cannot be revived from an older assignment; the newest valid assignment
+  at each required slot controls. Each composed approval still needs its own
+  exact-head APPROVE and distinct reviewers. Migrations still need two
+  independent exact-head APPROVEs; scripts/docs/CI need one. The combined
+  recovery and carry implementation is delivered as one independently reviewed
+  PR #4294; imported source retains its original history and attribution.
 - **The proposal in #3002 to accept a review bound to a head whose only later
   change is test or evidence files is REFUSED.** Tests are code: a changed test
   changes what the change proves, and a reviewer who never saw it never reviewed

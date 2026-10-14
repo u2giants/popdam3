@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "work_issue": 3618,
+  "outcome": "ready-for-merge",
+  "pr": 4276,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3618/26",
+  "contract_sha256": "04c37a52e19b41bfff72cff55bb207be41bd93494c17f8e9c8e12c05a1082fb0",
+  "base_sha": "9c44e6e0af301c04bb2a3bfe33c1ce5827973bb3",
+  "head_sha": "fa7f45eada67bf74f322058fb615a87c4c96519a",
+  "files_changed": [
+    "docs/verification/2026-10-13-2336-frozen-version-recovery.md",
+    "scripts/historical-migration-restorations.mjs",
+    "scripts/historical-migration-restorations.test.mjs",
+    "scripts/test-fixtures/historical_2336_original.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/historical-migration-restorations.test.mjs scripts/check-applied-migration-edit.test.mjs scripts/check-migration-pr-lease.test.mjs",
+      "exit_code": 0,
+      "evidence": "77 tests PASS, zero failures/skips; exact golden-byte positive and hostile cases retain claim/check-in and production refusal."
+    },
+    {
+      "command": "node --test scripts/check-sql.test.mjs",
+      "exit_code": 0,
+      "evidence": "70 SQL guard tests PASS, zero failures/skips."
+    },
+    {
+      "command": "exact original artifact/SQL hashes and newer-migration object overlap qualification",
+      "exit_code": 0,
+      "evidence": "Fresh original successful run/artifact ZIP and SQL file/statement hashes match; native assertLaneAvailable PASS for full 102 claimed objects against all three newer migrations at main9c44e6e0."
+    },
+    {
+      "command": "native canonical contract/completion and Git evidence validation",
+      "exit_code": 0,
+      "evidence": "Native sealed Git evidence verification PASS at provisional1e8ac0624; final canonical validation and pair-only seal verified before pushing final reviewed head."
+    }
+  ],
+  "assumptions_resolved": [
+    "Original preview run38428069849 SUCCESS artifact11829452658 ZIPsha2f49bc74aeab3097506ec1035301597a78f9a96eb0f74539eeafc7769002ab81 verified fresh. Dispatchdc6636aadc871597b3ef77067d0650a00ed77691, appliedb2f08b55f3fed5b368c95552acf6fd5640bb9e90, configured previewmvpkijzfmfcxhnzqogzs, one original version20261013130102.",
+    "Exact sourceeeda SQL LF SHA14a97f1f999fa1ea9a70fe12362ced166a9cba317a6fd40db74763bc8c0a328d; statement149214 bytes SHA1ca2696a37075d622116933ad791f22ebc69fbd2810e1579f40b54020d95aa13.",
+    "Native original version already applied preview765\u2192766, cannot safely rename/reapply. Existing approved registry supports exact premerge protected original pins with no production sourcePr/sourceMergeCommit.",
+    "Golden fixture necessity: original SQL is not yet onmain so offline exact-byte positive/hostile tests need its public source specimen. Root owns it; after4206 actual merge retire duplicate fixture into actual main SQL path in subsequent production-provenance registry PR.",
+    "All existing guards stay. Source PR still must use actual102-object current owner claim, <=10m confirmation, source2/2 approvals and guarded source merge; no fake historical code-truth exemption.",
+    "Actual source merge commit is unknown and MUST be omitted in first registry pin. After it exists, exact original producer provenance requires a separately reviewed pin update.",
+    "Before shipping root must verify parser scope of all3 newer migrations and assess actual overlap; source SQL cannot be assumed fresh merely because hashesmatch."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Control record and temporary test specimen only. No preview/production write; no production eligibility until separately reviewed actual source merge provenance. Existing source claim/confirmation/review/promotion gates retained. Fixture owner root; consolidate into actual main migration after source4206 merges."
+}

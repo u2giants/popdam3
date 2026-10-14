@@ -30,7 +30,7 @@ test('one-field repair preserves original protections, permits unchanged later t
   assert.equal(io.readRef('refs/db-claims/'+VERSION),RESERVATION)
   assert.equal(rebindExpiredClaimBlocker(args,NOW,io).idempotent,true);assert.equal(io.writes,1)
   io.localClean=()=>true;io.localHead=()=>HEAD;io.localBranch=()=>args.branch
-  const adoption={...args,newOwner:'new-author',targetWorktree:'/new-clean',worktreeState:'clean',recoveryArtifact:ARTIFACT,leaseHours:1};delete adoption.expectedBlockedOn
+  const adoption={...args,newOwner:'new-author',targetWorktree:'/new-clean',worktreeState:'clean',recoveryArtifact:ARTIFACT,leaseHours:0.5};delete adoption.expectedBlockedOn
   assert.equal(transferClaimAuthor(adoption,NOW,io).owner,'new-author')
 })
 test('one millisecond before expiry refuses before any commit/ref/write; exact expiry passes without changing clock',()=>{
@@ -121,7 +121,7 @@ test('unknown mutation and unreadable claim state remain explicit when update tr
 })
 test('CLI and API reject malformed, duplicate, unknown or incomplete requests',()=>{
   for(const argv of [['--unknown','x'],['--issue'],['--issue','1','--issue','2']])assert.throws(()=>parseArgs(argv))
-  assert.throws(()=>validateRequest({...args,leaseHours:1}));assert.throws(()=>validateRequest({...args,expectedBlockedOn:'bad\nowner: foreign'}));assert.throws(()=>validateRequest({...args,authorizationQuote:'short'}))
+  assert.throws(()=>validateRequest({...args,leaseHours:0.5}));assert.throws(()=>validateRequest({...args,expectedBlockedOn:'bad\nowner: foreign'}));assert.throws(()=>validateRequest({...args,authorizationQuote:'short'}))
   const dir=mkdtempSync(join(tmpdir(),'blocker-rebind-'))
   try{const file=join(dir,'quote');writeFileSync(file,args.authorizationQuote);const flags={'issue':'--issue','claim':'--claim-number','pr':'--pr','headSha':'--head-sha','oldOwner':'--old-owner','branch':'--branch','worktree':'--worktree','expectedBlockedOn':'--expected-blocked-on','abandonmentIssue':'--abandonment-issue','authorizationChatId':'--authorization-chat-id'};const argv=Object.entries(flags).flatMap(([key,flag])=>[flag,String(args[key])]);assert.deepEqual(parseArgs([...argv,'--authorization-quote-file',file]),args)}finally{rmSync(dir,{recursive:true})}
 })

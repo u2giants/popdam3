@@ -50,6 +50,7 @@ Always start with:
 
 Active plans (read STATUS first; do not re-derive completed steps):
 
+- plan_hetz_ai_password_rotation_179.md — rotation of the hetz OS-user ai password (#179); production gate; not yet approved
 - plan_master_data_designflow_reference_cutover.md — converge shared Master Data vs DesignFlow Item Details
 - plan_openrouter_batch_restart_recovery.md — Image Tagging batches survive Railway restarts
 - plan_ai_model_interaction_reliability.md — capability-driven model contract (replaces name guessing)

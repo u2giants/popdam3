@@ -12,6 +12,8 @@
  * Rendering uses Sharp + Ghostscript. Hygiene scans use Illustrator ExtendScript.
  */
 
+import { toSmbClientRelativePath } from "./smb-names";
+import { resolveExistingSmbPath } from "./smb-resolve";
 import { config } from "./config";
 import { getLogTail, logger } from "./logger";
 import * as api from "./api-client";
@@ -22,7 +24,7 @@ import { getUpdateState, initUpdater, postRestartHealthCheck, RESTART_EXIT_CODE,
 import { compressTiff, deleteOriginalBackup, scanTiffFiles, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
 import { inspectAiFile } from "./ai-raster-inspector";
 import { captureTimestamps } from "./tiff-timestamps";
-import { ensureNasMapped } from "./nas-mapper";
+import { createNasMountGuard, ensureNasMapped } from "./nas-mapper";
 import { nasReadyForClaim, sgReadyForClaim } from "./claim-gate";
 import { resetSkipWarnings, shouldSkipPath } from "@popdam/path-filters";
 import { startJanitor } from "./janitor";
@@ -177,7 +179,8 @@ async function doPairing() {
  */
 function toUncPath(relativePath: string): string {
   assertSafeRelativePath(relativePath);
-  const windowsPath = relativePath.replace(/\//g, "\\");
+  // Samba (catia) shows forbidden Windows characters as private-use code points.
+  const windowsPath = toSmbClientRelativePath(relativePath).replace(/\//g, "\\");
 
   // If a local mount path is configured (e.g. Z:), use it
   const mountPath = (cloudNasMountPath || "").trim()
@@ -198,7 +201,8 @@ function toUncPath(relativePath: string): string {
  */
 function toSgUncPath(relativePath: string): string {
   assertSafeRelativePath(relativePath);
-  const windowsPath = relativePath.replace(/\//g, "\\");
+  // Samba (catia) shows forbidden Windows characters as private-use code points.
+  const windowsPath = toSmbClientRelativePath(relativePath).replace(/\//g, "\\");
   const mountPath = (cloudSgNasMountPath || cloudNasMountPath || "").trim()
     .replace(/\\+$/, "");
   if (mountPath) {
@@ -463,7 +467,10 @@ function waitForIdleThenRestart() {
 async function processJob(job: api.RenderJob): Promise<void> {
   let uncPath: string;
   try {
-    uncPath = toUncPath(job.relative_path);
+    const expected = typeof job.file_size === "number" && job.modified_at
+      ? { size: job.file_size, mtimeMs: Date.parse(job.modified_at) }
+      : undefined;
+    uncPath = resolveExistingSmbPath(toUncPath(job.relative_path), expected);
   } catch (e) {
     logger.warn("Rejected unsafe render path", { jobId: job.job_id, relativePath: job.relative_path });
     await api.completeRender(job.job_id, false, undefined, (e as Error).message.slice(0, 500));
@@ -598,6 +605,8 @@ async function processSgJob(job: api.SgRenderJob): Promise<void> {
 function startPolling() {
   const maxConcurrency = config.renderConcurrency;
 
+  // Backoff + remount-on-change for the main Z: share (see nas-mapper.ts).
+  const cloudNasGuard = createNasMountGuard();
   const loop = async () => {
     if (!configReceived) {
       logger.debug("Skipping poll — waiting for cloud config (NAS host + Spaces credentials)");
@@ -618,7 +627,7 @@ function startPolling() {
           // credentials the latest heartbeat delivered from admin_config. If that still
           // fails, no PopDAM job is claimed (so none is consumed as a failure).
           const zGate = await nasReadyForClaim(cloudNasHost, () =>
-            ensureNasMapped(cloudNasMountPath, {
+            cloudNasGuard(cloudNasMountPath, {
               host: cloudNasHost,
               share: cloudNasShare,
               username: cloudNasUsername,

@@ -1,0 +1,46 @@
+{
+    "allowed_paths": [
+        "docs/verification/throughput-dispositions/scripts~lib~lanes~reviewer-roster.mjs.json",
+        "scripts/lib/lanes/reviewer-roster.mjs",
+        "scripts/manage-migration-author-lanes.test.mjs",
+        ".agent/work/4280/3/completion.json",
+        ".agent/work/4280/3/contract.json"
+    ],
+    "assumptions": [
+        "Quarantine is reversible membership scope, not retirement; durable verdicts naming qwen/gemini/grok keep resolving through REVIEWERS."
+    ],
+    "base_sha": "08d0b593a1f3eeb95623b703373345b7a412b11b",
+    "branch": "mimo/1714-quarantine-qwen-gemini",
+    "db_reads": [],
+    "db_writes": [],
+    "dispatcher": "MiMo chat unknown on edge-dev",
+    "file_writes": [
+        "docs/verification/throughput-dispositions/scripts~lib~lanes~reviewer-roster.mjs.json",
+        "scripts/lib/lanes/reviewer-roster.mjs",
+        "scripts/manage-migration-author-lanes.test.mjs",
+        ".agent/work/4280/3/completion.json",
+        ".agent/work/4280/3/contract.json"
+    ],
+    "generation": 3,
+    "goal": "Quarantine qwen-3.8-max and gemini-3.8-flash-high in the shared-db reviewer roster so ACTIVE_REVIEWERS is exactly Muse, DeepSeek, GLM, and StepFun (owner instruction 2026-10-13, popcre/ai-devops#1714).",
+    "prohibited_actions": [
+        "Do not change any migration, database object, workflow schedule, or live database row.",
+        "Do not retire or delete REVIEWERS rows.",
+        "Do not touch other issues code paths or claim other objects."
+    ],
+    "required_checks": [
+        "node --test scripts/manage-migration-author-lanes.test.mjs",
+        "node scripts/check-throughput-truth-audit.mjs"
+    ],
+    "route": "repo-maintenance",
+    "schema_version": 1,
+    "stop_conditions": [
+        "Stop if the change would need to touch a file outside allowed_paths.",
+        "Stop if allocator tests fail for a reason unrelated to the roster membership change.",
+        "Stop on any gate refusal rather than weakening the gate."
+    ],
+    "work_issue": 4280,
+    "work_type": "repo-maintenance",
+    "worker": "MiMo",
+    "worktree": "C:\reposshared-db-worktreeswt-1714-roster"
+}

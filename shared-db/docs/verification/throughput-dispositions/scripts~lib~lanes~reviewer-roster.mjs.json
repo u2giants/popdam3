@@ -3,15 +3,15 @@
   "source": "scripts/lib/lanes/reviewer-roster.mjs",
   "sites": [
     {
-      "site": "scripts/lib/lanes/reviewer-roster.mjs:492",
+      "site": "scripts/lib/lanes/reviewer-roster.mjs:521",
       "semantic_key": "scripts/lib/lanes/reviewer-roster.mjs:10203ad02cbf2b582359cb072ce142147e2970c7b9c0aee6318b80c1daf3c1f0:context-6a7ef0d137d6d1efab14f63de69c0e1a70821311566fb8cd826d0c6f9679eca2",
       "line_sha256": "10203ad02cbf2b582359cb072ce142147e2970c7b9c0aee6318b80c1daf3c1f0",
       "disposition": "excluded",
       "reason": "Excluded: validates local reviewer admission evidence before assignment; missing or malformed admission is not a database absence claim."
     },
     {
-      "site": "scripts/lib/lanes/reviewer-roster.mjs:332",
-      "semantic_key": "scripts/lib/lanes/reviewer-roster.mjs:435a6abb51443c34755210b1f1927ce87702403e85b83c894a9d0ee9a1b367f8:context-5d25353a8e0be3ac8ba74e0ffa8236613effcc64ff51915706b23d362a8929d7",
+      "site": "scripts/lib/lanes/reviewer-roster.mjs:346",
+      "semantic_key": "scripts/lib/lanes/reviewer-roster.mjs:435a6abb51443c34755210b1f1927ce87702403e85b83c894a9d0ee9a1b367f8:context-31dc2fcb43ccd18ff820ea419ebbb672fdc6abf0c23f17bfbdb2c9a50e44c1d5",
       "line_sha256": "435a6abb51443c34755210b1f1927ce87702403e85b83c894a9d0ee9a1b367f8",
       "disposition": "excluded",
       "reason": "Prose comment explaining the #2078 reviewer-repository-access gate; the word matches the discovery pattern but the line is not a throughput call site and carries no derivation behavior."

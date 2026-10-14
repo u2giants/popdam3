@@ -3,6 +3,43 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 import { HISTORICAL_RESTORATIONS, validateHistoricalProductionProvenance, validateHistoricalRestorationFile } from './historical-migration-restorations.mjs'
+import { dispatchObjectKeys } from './check-pr-object-collisions.mjs'
+import { validateMigrationLease } from './check-migration-pr-lease.mjs'
+import { claimBody } from './manage-migration-author-lanes.mjs'
+
+test('pins #2336 exact preview-applied pre-merge SQL without registering production provenance',()=>{
+  const row=HISTORICAL_RESTORATIONS['20261013130102']
+  const raw=readFileSync(new URL('./test-fixtures/historical_2336_original.sql',import.meta.url),'utf8')
+  assert.equal(row.filename,'supabase/migrations/20261013130102_licensing_support_forward.sql')
+  assert.equal(row.name,'licensing_support_forward')
+  assert.equal(row.previewProject,'mvpkijzfmfcxhnzqogzs')
+  assert.equal(row.previewApplyRun,'38428069849')
+  assert.equal(row.previewDispatchCommit,'dc6636aadc871597b3ef77067d0650a00ed77691')
+  assert.equal(row.previewAppliedCommit,'b2f08b55f3fed5b368c95552acf6fd5640bb9e90')
+  assert.equal(row.statementBytes,149214)
+  assert.equal(row.statementSha256,'1ca2696a37075d622116933ad791f22ebc69fbd2810e1579f40b54020d95aa13')
+  assert.equal(row.fileSha256,'14a97f1f999fa1ea9a70fe12362ced166a9cba317a6fd40db74763bc8c0a328d')
+  assert.equal(row.objects.length,67)
+  assert.deepEqual(row.objects,[...dispatchObjectKeys(raw)].sort())
+  assert.equal(Object.isFrozen(row),true);assert.equal(Object.isFrozen(row.objects),true)
+  assert.equal(row.sourcePr,undefined);assert.equal(row.sourceMergeCommit,undefined);assert.equal(row.codeTruthOnly,undefined)
+  assert.equal(validateHistoricalRestorationFile(row.filename,raw),row)
+  assert.throws(()=>validateHistoricalRestorationFile('supabase/migrations/20261013130102_wrong.sql',raw),/not an approved exact historical restoration/)
+  assert.throws(()=>validateHistoricalRestorationFile(row.filename,raw+'-- modified body\n'),/file hash mismatch for 20261013130102/)
+  const knownPreviewEvidence={version:'20261013130102',previewApplyRun:row.previewApplyRun,previewDispatchCommit:row.previewDispatchCommit,previewAppliedCommit:row.previewAppliedCommit,artifactFileSha256:row.fileSha256}
+  assert.throws(()=>validateHistoricalProductionProvenance(row.filename,raw,knownPreviewEvidence),/not registered for production producer provenance/)
+  assert.throws(()=>validateHistoricalRestorationFile('supabase/migrations/20261013130103_licensing_support_forward.sql',raw),/not an approved exact historical restoration/)
+})
+
+test('#2336 historical byte pin still requires an active claim and current owner confirmation',()=>{
+  const row=HISTORICAL_RESTORATIONS['20261013130102']
+  const raw=readFileSync(new URL('./test-fixtures/historical_2336_original.sql',import.meta.url),'utf8')
+  const branch='codex/2336-frozen-version-recovery',now=new Date('2026-10-13T16:00:00Z')
+  const input={claims:[],branch,files:[{filename:row.filename,status:'added',sql:raw}],now,reservationExists:()=>true,pr:4206,headSha:'eeda52f55b6cb17bfab18fe266700a23b35366c1'}
+  assert.throws(()=>validateMigrationLease(input),/must have exactly one active ref-backed claim; found 0/)
+  const holder={number:4152,body:claimBody({version:'20261013130102',writes:row.objects,owner:'original-owner',branch,worktree:'C:/2336-source',expiresAt:new Date('2026-10-13T16:30:00Z')})}
+  assert.throws(()=>validateMigrationLease({...input,claims:[holder]}),/needs a current owner check-in/)
+})
 
 test('pins the issue 2792 reissue preview apply with complete production provenance',()=>{
   const row=HISTORICAL_RESTORATIONS['20260915023506']

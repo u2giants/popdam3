@@ -100,7 +100,7 @@ test('guarded relinquish and resume preserve the claim and write replayable even
   const relinquished=relinquishAuthorLease({claim:77,owner:'owner-77',blockedOn:'issue:#900'},NOW,io)
   assert.equal(relinquished.capacityState,'relinquished')
   assert.equal(parseAuthorLease(io.issues.get(77).body,NOW).capacityActive,false)
-  const resumed=resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12},NOW,io)
+  const resumed=resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5},NOW,io)
   assert.equal(resumed.capacityState,'active')
   assert.equal(parseAuthorLease(io.issues.get(77).body,NOW).active,true)
   assert.equal(io.comments.length,4)
@@ -110,7 +110,7 @@ test('resume excludes only the protected claim own open pull request',()=>{
   const io=memoryIo()
   relinquishAuthorLease({claim:77,owner:'owner-77',blockedOn:'issue:#900'},NOW,io)
   io.prSources=()=>[{label:'PR #78',branch:'branch-77',objects:['table test.t_77'],versions:['20260828000077']}]
-  const resumed=resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12},NOW,io)
+  const resumed=resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5},NOW,io)
   assert.equal(resumed.capacityState,'active')
   assert.equal(parseAuthorLease(io.issues.get(77).body,NOW).capacityActive,true)
 })
@@ -129,7 +129,7 @@ test('resume preserves every foreign claim and pull-request collision',()=>{
         {label:'PR #89',branch:'branch-89',objects:['table test.t_77'],versions:['20260828000089']},
       ]
     }
-    assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12},NOW,io),/object collision/)
+    assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5},NOW,io),/object collision/)
     assert.equal(parseAuthorLease(io.issues.get(77).body,NOW).capacityState,'relinquished')
   }
 })
@@ -143,7 +143,7 @@ test('resume refuses ambiguous or version-mismatched self pull-request identity'
       {label:'PR #79',branch:'branch-77',objects:['table test.t_77'],versions:['20260828000077']},
     ] : [{label:'PR #78',branch:'branch-77',objects:['table test.t_77'],versions:['20260828000078']}]
     assert.throws(
-      ()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12},NOW,io),
+      ()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5},NOW,io),
       identity==='ambiguous' ? /multiple open pull-request sources/ : /does not carry the permanent claim version/,
     )
     assert.equal(parseAuthorLease(io.issues.get(77).body,NOW).capacityState,'relinquished')
@@ -187,7 +187,7 @@ test('idempotence binds blocker, worktree state, and recovery artifact',()=>{
 test('legacy relinquishment metadata must be reconciled before resume',()=>{
   const io=memoryIo()
   io.issues.get(77).body=body(77,{capacityState:'relinquished',blockedOn:'issue:#900'}).replace(/^worktree_state:.*\r?\n/m,'')
-  assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12},NOW,io),/must be reconciled/)
+  assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5},NOW,io),/must be reconciled/)
   const reconciled=relinquishAuthorLease({claim:77,owner:'owner-77',blockedOn:'issue:#900'},NOW,io)
   assert.equal(reconciled.idempotent,false)
   assert.equal(parseAuthorLease(io.issues.get(77).body,NOW).worktreeState,'clean')
@@ -200,13 +200,13 @@ test('resume from non-clean evidence requires current clean proof or a dereferen
   for(const state of ['dirty','absent','remote']){
     const io=memoryIo();io.localWorktreeState=()=>({state});io.artifacts.add(REAL_ARTIFACT)
     relinquishAuthorLease({claim:77,owner:'owner-77',blockedOn:'issue:#900',worktreeState:state},NOW,io)
-    assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12},NOW,io),state==='remote'?/resume from remote requires --recovery-artifact/:/requires a proven-clean worktree or --recovery-artifact/)
-    assert.equal(resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12,recoveryArtifact:REAL_ARTIFACT},NOW,io).capacityState,'active')
+    assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5},NOW,io),state==='remote'?/resume from remote requires --recovery-artifact/:/requires a proven-clean worktree or --recovery-artifact/)
+    assert.equal(resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5,recoveryArtifact:REAL_ARTIFACT},NOW,io).capacityState,'active')
   }
   const recovered=memoryIo();recovered.localWorktreeState=()=>({state:'dirty'})
   relinquishAuthorLease({claim:77,owner:'owner-77',blockedOn:'issue:#900',worktreeState:'dirty'},NOW,recovered)
   recovered.localWorktreeState=()=>({state:'clean'})
-  assert.equal(resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12},NOW,recovered).capacityState,'active')
+  assert.equal(resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5},NOW,recovered).capacityState,'active')
 })
 
 // HIGH 2 (muse REVISE at 8e94f114): the gate used to accept ANY well-formed
@@ -216,9 +216,9 @@ test('an invented recovery reference of the right shape cannot unblock a dirty r
   const io=memoryIo();io.localWorktreeState=()=>({state:'dirty'});io.artifacts.add(REAL_ARTIFACT)
   assert.throws(()=>relinquishAuthorLease({claim:77,owner:'owner-77',blockedOn:'issue:#900',worktreeState:'dirty',recoveryArtifact:INVENTED_ARTIFACT},NOW,io),/cannot be dereferenced/)
   relinquishAuthorLease({claim:77,owner:'owner-77',blockedOn:'issue:#900',worktreeState:'dirty'},NOW,io)
-  assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12,recoveryArtifact:INVENTED_ARTIFACT},NOW,io),/cannot be dereferenced/)
+  assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5,recoveryArtifact:INVENTED_ARTIFACT},NOW,io),/cannot be dereferenced/)
   assert.equal(parseAuthorLease(io.issues.get(77).body,NOW).capacityState,'relinquished')
-  assert.equal(resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12,recoveryArtifact:REAL_ARTIFACT},NOW,io).capacityState,'active')
+  assert.equal(resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5,recoveryArtifact:REAL_ARTIFACT},NOW,io).capacityState,'active')
 })
 
 // An https recovery reference is well-formed but not dereferenceable here, and
@@ -239,10 +239,10 @@ test('an unreadable worktree blocks resume even with a stored recovery artifact'
   const io=memoryIo();io.localWorktreeState=()=>({state:'dirty'});io.artifacts.add(REAL_ARTIFACT)
   relinquishAuthorLease({claim:77,owner:'owner-77',blockedOn:'issue:#900',worktreeState:'dirty',recoveryArtifact:REAL_ARTIFACT},NOW,io)
   io.localWorktreeState=()=>{throw new Error('access denied')}
-  assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12},NOW,io),/inspection is ambiguous/)
-  assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12,recoveryArtifact:REAL_ARTIFACT},NOW,io),/inspection is ambiguous/)
+  assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5},NOW,io),/inspection is ambiguous/)
+  assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5,recoveryArtifact:REAL_ARTIFACT},NOW,io),/inspection is ambiguous/)
   io.localWorktreeState=()=>({state:'nonsense'})
-  assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12},NOW,io),/inspection is ambiguous/)
+  assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5},NOW,io),/inspection is ambiguous/)
   assert.equal(parseAuthorLease(io.issues.get(77).body,NOW).capacityState,'relinquished')
 })
 
@@ -253,9 +253,9 @@ test('a clean local tree never satisfies a remote relinquishment',()=>{
   const io=memoryIo();io.localWorktreeState=()=>({state:'absent'});io.artifacts.add(REAL_ARTIFACT)
   relinquishAuthorLease({claim:77,owner:'owner-77',blockedOn:'issue:#900',worktreeState:'remote'},NOW,io)
   io.localWorktreeState=()=>({state:'clean'})
-  assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12},NOW,io),/resume from remote requires --recovery-artifact/)
+  assert.throws(()=>resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5},NOW,io),/resume from remote requires --recovery-artifact/)
   assert.equal(parseAuthorLease(io.issues.get(77).body,NOW).capacityState,'relinquished')
-  assert.equal(resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12,recoveryArtifact:REAL_ARTIFACT},NOW,io).capacityState,'active')
+  assert.equal(resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5,recoveryArtifact:REAL_ARTIFACT},NOW,io).capacityState,'active')
 })
 
 // MEDIUM 5 (muse REVISE at 8e94f114): the legacy-metadata freeze was enforced
@@ -272,8 +272,8 @@ test('legacy relinquishment metadata freezes every claim mutator, not just resum
   const legacyIo=(expiresAt)=>{const io=memoryIo();io.issues.get(77).body=legacyBody(expiresAt);io.issues.get(42).body=workScope;return io}
   const identity={owner:'owner-77',branch:'branch-77',worktree:'C:/work/77'}
   const mutators=[
-    ()=>renewExpiredClaim({claim:77,issue:42,...identity,pr:78,headSha:'a'.repeat(40),leaseHours:12},NOW,legacyIo(EXPIRED)),
-    ()=>recoverExpiredClaimFromPr({claim:77,issue:42,...identity,pr:78,headSha:'a'.repeat(40),leaseHours:12},NOW,legacyIo(EXPIRED)),
+    ()=>renewExpiredClaim({claim:77,issue:42,...identity,pr:78,headSha:'a'.repeat(40),leaseHours:0.5},NOW,legacyIo(EXPIRED)),
+    ()=>recoverExpiredClaimFromPr({claim:77,issue:42,...identity,pr:78,headSha:'a'.repeat(40),leaseHours:0.5},NOW,legacyIo(EXPIRED)),
     ()=>expandActiveClaimFromPr({claim:77,issue:42,...identity,pr:78,headSha:'a'.repeat(40)},NOW,legacyIo(ACTIVE)),
     ()=>expandActiveClaimFromIssue({claim:77,issue:42,...identity},NOW,legacyIo(ACTIVE)),
   ]
@@ -316,7 +316,7 @@ test('the capacity lifecycle reaches for no worktree-mutating capability',()=>{
   }})
   const io=memoryIo();io.localWorktreeState=()=>({state:'dirty'});io.artifacts.add(REAL_ARTIFACT)
   relinquishAuthorLease({claim:77,owner:'owner-77',blockedOn:'issue:#900',worktreeState:'dirty',recoveryArtifact:REAL_ARTIFACT},NOW,guard(io))
-  assert.equal(resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:12,recoveryArtifact:REAL_ARTIFACT},NOW,guard(io)).capacityState,'active')
+  assert.equal(resumeAuthorLease({claim:77,owner:'owner-77',leaseHours:0.5,recoveryArtifact:REAL_ARTIFACT},NOW,guard(io)).capacityState,'active')
   assert.deepEqual(reached,[])
   // Positive control: prove the guard can actually fail before trusting it.
   assert.throws(()=>guard(io).cleanWorktree,/reached for mutating capability cleanWorktree/)

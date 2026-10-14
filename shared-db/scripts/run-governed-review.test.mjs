@@ -3,13 +3,14 @@ import { currentRepository, expectedOperatorAssociation } from './lib/repository
 // Fixtures follow the resolved repository identity and its operator association (#3255).
 const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAssociation()
 import test from 'node:test'
-import { parseArgs, runGovernedReview as executeGovernedReview,resolveReviewSource, reserveReviewReceipt, validateSourceReceipt, wrapperFailureReason, redactWrapperStderr, wrapperFailureLogText, writeWrapperFailureLog, wrapperSourceContractArgs, wrapperVerdictContractArgs, wrapperBaseName, codexReportPath, codexGovernedBody, verdictFromOutput, neutraliseVerdictLine, extraVerdictLines, PRESERVED_HEADER, resolveReplacementSequence } from './run-governed-review.mjs'
+import { parseArgs, runGovernedReview as executeGovernedReview, resolveReviewSource, reserveReviewReceipt, validateSourceReceipt, wrapperFailureReason, redactWrapperStderr, wrapperFailureLogText, writeWrapperFailureLog, wrapperSourceContractArgs, wrapperVerdictContractArgs, wrapperBaseName, codexReportPath, codexGovernedBody, verdictFromOutput, neutraliseVerdictLine, extraVerdictLines, PRESERVED_HEADER, resolveReplacementSequence } from './run-governed-review.mjs'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { anyVerdictFor } from './lib/review-verdict.mjs'
+import { assignNextReviewer, reviewLeaseStillHeld, releaseFailedReviewer, reviewActiveRef, REVIEW_ACTIVE_CUTOVER_REF, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_PARALLEL_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX } from './manage-migration-author-lanes.mjs'
 
 const options={issue:1824,pr:2000,headSha:'a'.repeat(40),reviewer:'glm-5.3',wrapper:'ai-glm',worktree:'C:/review',slot:1,wrapperArgs:['review']}
 const fixtureFiles=[{filename:'source.txt',status:'modified'}]
@@ -940,9 +941,10 @@ test('#498-17 live head is injected, a stale named head or stale prompt verdict 
 // Issue #3027 Step 7: the durable start marker is written before the provider launches and fails closed.
 import { recordReviewStart, reviewStartedRef, validateReviewContinuation, persistentReviewCommand } from './run-governed-review.mjs'
 test('review start marker is recorded before the provider spawns, and a failed record starts nothing',()=>{
-  const order=[]
-  assert.throws(()=>runGovernedReview(options,{preflight:()=>{},resolve:(name)=>name,recordStart:()=>{order.push('start');throw new Error('review start marker could not be recorded; no reviewer was started')},spawn:()=>{order.push('spawn');return{status:1,stdout:''}},record:()=>assert.fail('must not record')}),/no reviewer was started/)
+  const order=[];let releaseCalls=0
+  assert.throws(()=>runGovernedReview(options,{preflight:()=>{},resolve:(name)=>name,recordStart:()=>{order.push('start');throw new Error('review start marker could not be recorded; no reviewer was started')},readHeldReviewerLease:()=>assert.fail('pre-start refusal must not inspect a paid-start lease'),releaseFailedReviewer:()=>{releaseCalls++;return{}},spawn:()=>{order.push('spawn');return{status:1,stdout:''}},record:()=>assert.fail('must not record')}),/no reviewer was started/)
   assert.deepEqual(order,['start'])
+  assert.equal(releaseCalls,0)
   order.length=0
   try{runGovernedReview(options,{preflight:()=>{},resolve:(name)=>name,recordStart:()=>{order.push('start');return 'ref'},spawn:()=>{order.push('spawn');return{status:1,stdout:''}},record:()=>{}})}catch{}
   assert.deepEqual(order.slice(0,2),['start','spawn'])
@@ -967,6 +969,177 @@ test('review start marker is recorded before the provider spawns, and a failed r
   assert.throws(()=>runGovernedReview(options,{preflight:()=>{},resolve:(name)=>name,recordStart:undefined,spawn:()=>{order.push('spawn');return{status:1,stdout:''}},record:()=>{}}),/start recorder is required/)
   assert.deepEqual(order,[])
   assert.throws(()=>reviewStartedRef({issue:1,pr:2,headSha:'short'},1),/exact issue/)
+})
+
+test('a verified terminal failure releases only the exact paid-start lease sequence',()=>{
+  for (const failureCode of ['turn_limit_cancelled','reviewer_cannot_read_repository']) {
+  const sequence=73,heldReads=[],releaseCalls=[]
+  const error=(()=>{
+    try{
+      runGovernedReview(options,{
+        recordStart:()=>reviewStartedRef(options,sequence),
+        readHeldReviewerLease:(request)=>{heldReads.push({...request});return {...request}},
+        releaseFailedReviewer:(request)=>{releaseCalls.push({...request});return {releasedLeaseSha:'f'.repeat(40)}},
+        preflight:()=>{},resolve:(name)=>name,
+        spawn:()=>({status:1,stderr:`reason: ${failureCode} private-value`,stdout:''}),
+        record:()=>assert.fail('a terminal failure cannot record a verdict'),
+      })
+    }catch(caught){return caught}
+    assert.fail('the terminal failure must remain a refusal')
+  })()
+  if (failureCode === 'turn_limit_cancelled') assert.ok(error instanceof GovernedReviewRerouteError)
+  else assert.ok(error instanceof Error)
+  assert.deepEqual(heldReads,[{issue:options.issue,pr:options.pr,headSha:options.headSha,slot:options.slot,reviewer:options.reviewer,sequence}])
+  assert.deepEqual(releaseCalls,[{issue:options.issue,pr:options.pr,headSha:options.headSha,slot:options.slot,reviewer:options.reviewer,failedSequence:sequence,failureCode,confirmNoVerdict:true,confirmNoArtifact:true}])
+  if (failureCode === 'turn_limit_cancelled') assert.equal(error.automaticRelease.releasedLeaseSha,'f'.repeat(40))
+  assert.match(error.message,/exact paid-start reviewer lease at sequence 73 was released/)
+  }
+})
+
+test('quoted or stray verdict-like output blocks terminal release and reroute claims',()=>{
+  for(const line of [`> VERDICT: REJECT ${options.headSha}`,`## REVISE ${options.headSha}`,`**APPROVE** ${options.headSha}`]){
+    let releaseCalls=0
+    assert.throws(()=>runGovernedReview(options,{
+      recordStart:()=>reviewStartedRef(options,74),
+      readHeldReviewerLease:(request)=>({...request}),
+      releaseFailedReviewer:()=>{releaseCalls++;return{}},
+      preflight:()=>{},resolve:(name)=>name,
+      spawn:()=>({status:1,stderr:'reason: turn_limit_cancelled',stdout:line}),
+      record:()=>assert.fail('a failed wrapper cannot record a verdict'),
+    }),(error)=>{
+      assert.ok(!(error instanceof GovernedReviewRerouteError))
+      assert.equal(error.startDecision,undefined)
+      assert.match(error.message,/verdict-like decision text/)
+      return true
+    })
+    assert.equal(releaseCalls,0,line)
+  }
+})
+
+test('unknown or conflicting wrapper failures do not invoke terminal release',()=>{
+  for(const stderr of [
+    'opaque provider diagnostic without a recognized terminal code',
+    'AI_REVIEWER_OUT_OF_CREDIT provider=grok code=insufficient_quota\nOUT OF CREDIT: the account is out of credits\nprovider-unavailable',
+  ]){
+    let releaseCalls=0
+    assert.throws(()=>runGovernedReview(options,{
+      recordStart:()=>reviewStartedRef(options,75),
+      readHeldReviewerLease:(request)=>({...request}),
+      releaseFailedReviewer:()=>{releaseCalls++;return{}},
+      preflight:()=>{},resolve:(name)=>name,
+      spawn:()=>({status:1,stderr,stdout:''}),
+      record:()=>assert.fail('an unknown failure cannot record a verdict'),
+    }),(error)=>{assert.ok(!error.message.includes('released'));return true})
+    assert.equal(releaseCalls,0,stderr)
+  }
+})
+
+test('a refused terminal release keeps the original failure and does not report rerouting',()=>{
+  let releaseCalls=0
+  assert.throws(()=>runGovernedReview(options,{
+    recordStart:()=>reviewStartedRef(options,76),
+    readHeldReviewerLease:(request)=>({...request}),
+    releaseFailedReviewer:()=>{releaseCalls++;throw new Error('reviewer lease changed after mutex acquisition')},
+    preflight:()=>{},resolve:(name)=>name,
+    spawn:()=>({status:1,stderr:'reason: turn_limit_cancelled private-value',stdout:''}),
+    record:()=>assert.fail('a terminal failure cannot record a verdict'),
+  }),(error)=>{
+    assert.ok(!(error instanceof GovernedReviewRerouteError))
+    assert.equal(error.startDecision,undefined)
+    assert.match(error.message,/turn_limit_cancelled/)
+    assert.match(error.message,/automatic reviewer release was refused: reviewer lease changed after mutex acquisition/)
+    assert.ok(!error.message.includes('eligible for a same-head replacement'))
+    return true
+  })
+  assert.equal(releaseCalls,1)
+})
+
+function terminalReleaseMemoryIo({issue,pr,headSha}){
+  const refs=new Map([[REVIEW_ACTIVE_CUTOVER_REF,'cutover-complete']]),commits=new Map();let nextCommit=0,currentHead=headSha
+  const io={refs,
+    makeOwnerCommit:(message)=>{const sha=(++nextCommit).toString(16).padStart(40,'0');commits.set(sha,{message,committedDate:'2026-10-14T12:00:00.000Z'});return sha},
+    getCommit:(sha)=>commits.get(sha)??null,
+    readRef:(ref)=>refs.get(ref)??null,
+    createRef:(ref,sha)=>{if(refs.has(ref))return false;refs.set(ref,sha);return true},
+    updateRef:(ref,sha)=>refs.set(ref,sha),
+    deleteRef:(ref)=>refs.delete(ref),
+    listRefs:(prefix)=>[...refs].filter(([ref])=>ref.startsWith(prefix)).map(([ref,sha])=>({ref,sha})),
+    readActiveReviewLeases:()=>new Map([...refs].filter(([ref])=>ref.startsWith(REVIEW_ACTIVE_REF_PREFIX)||ref.startsWith(REVIEW_ACTIVE_PARALLEL_REF_PREFIX)).map(([ref,sha])=>[ref,{sha,commit:commits.get(sha)}])),
+    readReviewStates:(rows)=>new Map(rows.map((row)=>[`${row.issue}:${row.pr}`,{issue:{number:Number(row.issue),state:'open'},pr:{number:Number(row.pr),state:'open',head:{sha:currentHead,ref:'codex/4297'}},evidence:[]} ])),
+    readPaidReviewStarts:(prefix)=>[...refs].filter(([ref])=>ref.startsWith(prefix)).map(([ref,sha])=>({ref,sha,commit:commits.get(sha)})),
+    readReviewRefs:(names)=>new Map(names.map((ref)=>[ref,refs.get(ref)??null])),
+    atomicReviewRefs:(changes)=>{for(const change of changes)if((refs.get(change.ref)??null)!==(change.expected??null))throw new Error(`fixture CAS failed: ${change.ref}`);for(const change of changes){if(change.sha===null)refs.delete(change.ref);else refs.set(change.ref,change.sha)}},
+    getIssue:(number)=>({number:Number(number),state:'open'}),
+    getPr:(number)=>({number:Number(number),state:'open',head:{sha:currentHead,ref:'codex/4297'}}),
+    getIssueComments:()=>[],getPrReviews:()=>[],pauseReviewerFailure:()=>{},
+    resolveOrchestratorEngine:()=> 'claude',
+    reviewerUsability:(reviewers)=>new Map(reviewers.map((row)=>[row.provider,{provider:row.provider,status:'ready',usable:true,admission:{schema_version:1,provider:row.provider,state:'unknown',reason:'unscopable',quota_state:'unknown',reset_at:null,credential_profile_scope:null,model_scope:null}}])),
+    requiresExactReviewHeadSha:true,
+    setHead:(sha)=>{currentHead=sha},
+    addForeignVerdict:()=>{const ref=`refs/db-review-verdicts/${Number(issue)}-${Number(pr)}-${String(headSha).toLowerCase()}`;refs.set(ref,io.makeOwnerCommit(`db-review-verdict {"issue":${Number(issue)},"pr":${Number(pr)},"head_sha":"${String(headSha).toLowerCase()}"}`));return ref},
+  }
+  return io
+}
+
+test('runner terminal release uses the real start, lease and CAS release lifecycle in memory',()=>{
+  const issue=1824,pr=2000,headSha='a'.repeat(40),base={issue,pr,headSha,slot:1}
+  const executeFailure=(io,{afterLeaseRead}={})=>{
+    const assignment=assignNextReviewer(base,io)
+    const input={...options,...base,reviewer:assignment.reviewer,wrapper:assignment.wrapper,wrapperArgs:['review']}
+    let startMarker=null,releaseCalls=0,providerCalls=0
+    let thrown
+    try{
+      runGovernedReview(input,{
+        recordStart:(row)=>{startMarker=recordReviewStart(row,io,Date.parse('2026-10-14T12:00:00Z'),reviewLeaseStillHeld);return startMarker},
+        readHeldReviewerLease:(request)=>{const held=reviewLeaseStillHeld(request,io);afterLeaseRead?.(io);return held},
+        releaseFailedReviewer:(request)=>{releaseCalls++;return releaseFailedReviewer(request,io)},
+        preflight:()=>{},resolve:(name)=>name,measureReviewSize:()=>1,
+        spawn:()=>{providerCalls++;return{status:1,stderr:'reason: turn_limit_cancelled',stdout:''}},
+        record:()=>assert.fail('terminal wrapper failure cannot record a verdict'),
+      })
+    }catch(error){thrown=error}
+    assert.ok(thrown,'the terminal wrapper failure remains visible')
+    assert.equal(providerCalls,1,'only the local deterministic wrapper fixture ran')
+    return {assignment,input,startMarker,releaseCalls,thrown}
+  }
+
+  const releasedIo=terminalReleaseMemoryIo(base),success=executeFailure(releasedIo)
+  const failureRef=`${REVIEW_FAILURE_REF_PREFIX}/${issue}-${pr}-${headSha}-${success.assignment.sequence}`
+  const leaseRef=reviewActiveRef(success.assignment.reviewer,success.assignment)
+  assert.equal(success.startMarker,reviewStartedRef(success.input,success.assignment.sequence),'the real start marker binds the assigned sequence')
+  assert.equal(success.releaseCalls,1)
+  assert.ok(success.thrown instanceof GovernedReviewRerouteError)
+  assert.equal(success.thrown.automaticRelease.failureSha,releasedIo.refs.get(failureRef),'immutable failure evidence is stored at the exact started sequence')
+  assert.match(releasedIo.getCommit(releasedIo.refs.get(failureRef)).message,new RegExp(`failed-sequence=${success.assignment.sequence} code=turn_limit_cancelled verdict=none artifact=none replacement=none`))
+  assert.equal(releasedIo.refs.has(leaseRef),false,'the exact held lease is removed by the manager CAS')
+
+  for(const race of ['moved-head','foreign-verdict']){
+    const io=terminalReleaseMemoryIo(base)
+    const result=executeFailure(io,{afterLeaseRead:(fixture)=>race==='moved-head'?fixture.setHead('b'.repeat(40)):fixture.addForeignVerdict()})
+    const ref=`${REVIEW_FAILURE_REF_PREFIX}/${issue}-${pr}-${headSha}-${result.assignment.sequence}`
+    assert.equal(result.releaseCalls,1,`${race} reaches the real release preflight after a real held-lease read`)
+    assert.ok(!(result.thrown instanceof GovernedReviewRerouteError),`${race} must not claim successful recovery`)
+    assert.match(result.thrown.message,/turn_limit_cancelled/,'the original provider diagnostic is preserved')
+    assert.equal(io.refs.has(ref),false,`${race} creates no immutable release evidence`)
+    assert.ok(io.refs.has(reviewActiveRef(result.assignment.reviewer,result.assignment)),`${race} leaves the active lease untouched`)
+  }
+})
+
+test('a normal exact-head review is unchanged and never calls the release seam',()=>{
+  let releaseCalls=0,heldReads=0
+  const result=runGovernedReview(options,{
+    recordStart:()=>reviewStartedRef(options,77),
+    readHeldReviewerLease:()=>{heldReads++;return null},
+    releaseFailedReviewer:()=>{releaseCalls++;return{}},
+    preflight:()=>{},resolve:(name)=>name,
+    spawn:(command)=>command==='gh'
+      ?{status:0,stdout:JSON.stringify({html_url:'https://github.com/popcre/shared-db/pull/2000#issuecomment-123'})}
+      :{status:0,stdout:`Coverage: all assigned files reviewed.\nVERDICT: APPROVE ${options.headSha}`},
+    record:()=>({ref:'refs/db-review-verdicts/normal',sha:'e'.repeat(40)}),
+  })
+  assert.equal(result.artifact.ref,'refs/db-review-verdicts/normal')
+  assert.equal(heldReads,0)
+  assert.equal(releaseCalls,0)
 })
 
 // ---------------------------------------------------------------------------

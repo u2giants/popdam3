@@ -11,6 +11,29 @@
 
 ## 0. Shared-db gatekeeper rule for consumer repos
 
+### Stopped-session ownership and confirmation (2026-10-13, #3618)
+
+Albert's direct chat instruction: "sessions can't be locking the database for
+4 hours at a time. that system has to change now." He also required lock release
+to be part of wrap-up as a fallback and asked whether a session should confirm
+that it still needs the reservation. This changes execution ownership, never
+removes permanent migration reservations or protection for unfinished source.
+
+The coordinator implements thirty-minute fresh author permissions and explicit
+confirmation every ten minutes, including a hard confirmation check before
+protected migration admission. These bounds are implementation choices, not a
+verbatim owner-specified duration. A stopped owner immediately publishes native
+handoff-ready consent; a qualified actual successor takes over without waiting
+for the former deadline or impersonating the old chat. Normal completion/stop
+performs this cleanup, and wrap-up repeats and verifies it as a fallback.
+
+The original session independently confirmed that it requested twelve hours at
+8:46 AM EDT and relinquished execution capacity at 12:40 PM EDT on October13,
+but did not verify immediate successor readiness. Its reason for selecting
+twelve hours remains unverified. Neither silence nor time alone proves a safe
+release. Cooperative owner-issued consent and abandoned-source recovery remain
+different routes; all source, custody, collision, review and production gates bind.
+
 `shared-db` is the gatekeeper for every database schema change in the shared
 Supabase project, including DesignFlow PLM tables that still appear in app repos
 as Sequelize models or legacy inline startup migrations.
