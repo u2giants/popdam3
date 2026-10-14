@@ -1,7 +1,17 @@
 # PopDAM Windows Agent — Operator Runbook
 
 This guide covers how to uninstall, reinstall, and verify the Windows Render Agent.
-All commands must be run in **PowerShell as Administrator**.
+All commands must be run in **PowerShell as Administrator** (prefer **pwsh 7**).
+
+Two install modes exist:
+
+| Mode | How it runs | Use when |
+|------|-------------|----------|
+| **Scheduled Task** (`install-scheduled-task.ps1`) | Interactive logon session | You need Adobe Illustrator COM (the current agent build does **not** use Illustrator) |
+| **Windows Service** (`install-service.ps1`) | Boot-time service via NSSM, **no login** | Headless render PC — this is the preferred production mode |
+
+**PDF text extraction works in both modes** (mupdf + tesseract.js + AI vision are in-process).
+Illustrator COM automation does **not** work in service mode (Session 0 has no interactive desktop).
 
 ---
 
@@ -16,7 +26,7 @@ cd "C:\path\to\scripts\windows-agent"
 
 **What it removes:**
 - Scheduled task
-- Legacy service (if present)
+- Windows service `PopDAMWindowsAgent` (if present)
 - Install directory (`C:\Program Files\PopDAM\WindowsAgent`)
 - Temp artifacts, shortcuts, registry entries
 
@@ -37,7 +47,7 @@ cd "C:\path\to\scripts\windows-agent"
 
 That's it — deep-clean is the **default**. Everything PopDAM-related is removed:
 - Scheduled task
-- Legacy service
+- Windows service `PopDAMWindowsAgent`
 - Install directory
 - Config, logs, and all settings
 - Temp files left by rendering tools
@@ -74,17 +84,32 @@ The installer reads `popdam-agent.ini` (template: `scripts/windows-agent/popdam-
 1. Run the deep-clean uninstall first
 2. Copy the new agent files to `C:\Program Files\PopDAM\WindowsAgent\`
 3. Create your `.env` file or `agent-config.json` with your pairing code
-4. Run the install script:
+4. Run **one** of the install scripts:
 
 ```powershell
+# Headless (preferred): Windows service, runs with no login
+.\install-service.ps1
+
+# Interactive: Scheduled Task (only if you need Illustrator COM)
 .\install-scheduled-task.ps1
 ```
 
-The install script automatically performs a **preflight scrub**:
-- Removes any existing scheduled task
-- Removes any legacy service
+Both install scripts automatically perform a **preflight scrub**:
+- Removes any existing scheduled task (exports its XML to `%ProgramData%\PopDAM\backup\` first)
+- Removes any previous `PopDAMWindowsAgent` service
 - Cleans stale temp files
 - Recreates config/log directories
+
+### Service-mode notes (`install-service.ps1`)
+
+- The service is named **`PopDAMWindowsAgent`** and wraps `popdam-launcher.bat` with [NSSM](https://nssm.cc).
+- Default account is **LocalSystem** — no password, starts at boot, survives logoff/reboot.
+- Pairing is preserved: `%ProgramData%\PopDAM\agent-config.json` is never touched.
+- **PDF text extraction and thumbnail rendering work.** Ghostscript, Poppler, ImageMagick, Inkscape, and tesseract.js all run in Session 0.
+- **Adobe Illustrator COM does not work** in service mode (no interactive desktop). The current agent build does not use Illustrator anyway.
+- `popdam-launcher.bat` uses `ping` (not `timeout`) for its restart delay so it works without a console.
+- Rollback to the interactive task: `.\install-scheduled-task.ps1` (the service is removed first).
+- Remove the service: `.\uninstall-service.ps1 -KeepConfig`.
 
 ---
 
@@ -167,10 +192,13 @@ This script stops the agent task, deletes all stale PopDAM/ImageMagick temp arti
 |--------|---------|
 | Deep-clean uninstall | `.\uninstall-service.ps1` |
 | Uninstall (keep config) | `.\uninstall-service.ps1 -KeepConfig` |
-| Install | `.\install-scheduled-task.ps1` |
+| Install (headless service) | `.\install-service.ps1` |
+| Install (interactive task) | `.\install-scheduled-task.ps1` |
 | Verify | `.\verify-agent.ps1` |
-| Start agent now | `Start-ScheduledTask -TaskName "PopDAM Windows Render Agent"` |
-| Stop agent | `Stop-ScheduledTask -TaskName "PopDAM Windows Render Agent"` |
+| Start service | `Start-Service PopDAMWindowsAgent` |
+| Stop service | `Stop-Service PopDAMWindowsAgent` |
+| Start scheduled task | `Start-ScheduledTask -TaskName "PopDAM Windows Render Agent"` |
+| Stop scheduled task | `Stop-ScheduledTask -TaskName "PopDAM Windows Render Agent"` |
 | View error log | `Get-Content "$env:ProgramData\PopDAM\logs\agent-error.log" -Tail 50` |
 | Clean temp files | `.\cleanup-temp.ps1` |
 
@@ -223,6 +251,7 @@ Only one machine should run the agent at a time. Pairing uses the same agent nam
 | 11 | A long log grep over SSH on edge-alien hung for more than 120 s | Large log files read over SSH | Use `-Tail` on the logs. Don't run `Select-String` over whole log files remotely. |
 | 12 | The agent's cmd window floods with JSON logs it never showed on edge-alien | The release installer's launcher redirects stdout/stderr to `%ProgramData%\PopDAM\logs\agent.log` and `agent-error.log`. The manual-install `scripts/windows-agent/popdam-launcher.bat` used to print to the console instead. | Use the fixed launcher (redirects like the installer), or prefer `popdam-windows-agent-setup.exe`. The visible window is normal for the interactive task; it should stay almost empty. |
 | 13 | `agent.log` fills with the same idle lines every few seconds | The 3s poll loop logs "NAS already accessible" and "No render jobs available" at debug. `LOG_LEVEL` defaults to `info`, which hides them. | Leave `LOG_LEVEL` unset (or `info`) in production. Set `LOG_LEVEL=debug` in the install-dir `.env` only while troubleshooting. |
+| 20 | As a Windows service, NAS preflight fails with `NAS mapped but path "Z:\" not readable: ENOENT` even though credentials are correct | `New-SmbMapping` is unreliable in Session 0 (service context): it can leave no DOS drive letter that Node's `fs.access` can see. `net use` creates a real device. | `buildSmbMappingScript` in `apps/windows-agent/src/nas-mapper.ts` now uses `net use` (secrets still passed via child env, never in agent argv). If an old dist is still installed, patch `dist\nas-mapper.js` the same way or ship a new agent build. `nas-mapper.js.bak-pre-netuse` is the pre-patch backup. |
 
 ### Pairing code without the UI
 
@@ -234,6 +263,7 @@ Insert a row into `agent_pairings` (application row data, not a schema change) w
 - Don't pair under a new agent name unless you mean to keep two agents. A second name creates a second registration.
 - Don't leave the old machine's task enabled. It restarts at logon.
 - Don't run `install-scheduled-task.ps1` with Windows PowerShell 5.1.
+- Don't run the scheduled task and the `PopDAMWindowsAgent` service at the same time — pick one install mode.
 - Don't trust `admin_config` NAS credentials without testing them first with `net use`.
 
 ### Moving back to edge-alien (fresh Windows) — done 2026-10-05

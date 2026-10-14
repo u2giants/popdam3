@@ -47,13 +47,31 @@ function normalizeDrive(s: string): string {
 
 /**
  * PowerShell script that maps the share. Every value (including the password)
- * is read from environment variables so nothing secret lands in argv.
+ * is read from environment variables so nothing secret lands in the parent
+ * process argv.
+ *
+ * Session 0 (Windows service) note: `New-SmbMapping` is unreliable there — it
+ * can report success while leaving no DOS drive letter that Node's `fs.access`
+ * can see, and PowerShell's InitializeDefaultDrives provider error is fatal
+ * under `$ErrorActionPreference='Stop'`. `net use` creates a real device the
+ * service process can read. The password is still only in the child's env,
+ * never in node's argv; redactSecret scrubs it from any net.exe stderr.
  */
 export function buildSmbMappingScript(useDrive: boolean, useCreds: boolean): string {
-  const parts = ["$ErrorActionPreference='Stop'", "$p=@{RemotePath=$env:POPDAM_NAS_UNC}"];
-  if (useDrive) parts.push("$p.LocalPath=$env:POPDAM_NAS_DRIVE", "$p.Persistent=$false");
-  if (useCreds) parts.push("$p.UserName=$env:POPDAM_NAS_USER", "$p.Password=$env:POPDAM_NAS_PASS");
-  parts.push("New-SmbMapping @p | Out-Null");
+  const parts = [
+    "$ErrorActionPreference='SilentlyContinue'",
+    "$u=$env:POPDAM_NAS_UNC",
+    "$d=$env:POPDAM_NAS_DRIVE",
+    "$usr=$env:POPDAM_NAS_USER",
+    "$pw=$env:POPDAM_NAS_PASS",
+  ];
+  if (useDrive && useCreds) parts.push("net use $d $u /user:$usr $pw /persistent:no");
+  else if (useDrive) parts.push("net use $d $u /persistent:no");
+  else if (useCreds) parts.push("net use $u /user:$usr $pw /persistent:no");
+  else parts.push("net use $u /persistent:no");
+  // net use exit 2 = "This network connection does not exist" on delete; for
+  // map, non-zero with "already connected" is handled by the caller.
+  parts.push("exit $LASTEXITCODE");
   return parts.join("; ");
 }
 
@@ -127,10 +145,11 @@ export async function ensureNasMapped(
   }
 
   // 3. Map the share.
-  // The password must never appear on a process command line (readable by any
-  // local user via WMI / Task Manager). `net use` and `cmdkey` both take it in
-  // argv, so map via PowerShell New-SmbMapping and pass every value through the
-  // child's environment instead.
+  // The password must never appear on the agent process command line (readable
+  // by any local user via WMI / Task Manager). Map via a PowerShell child and
+  // pass every value through that child's environment instead. `net use` is
+  // used inside the child because New-SmbMapping is unreliable in Session 0
+  // (service context) — see buildSmbMappingScript.
   try {
     const { stderr } = await execFileAsync(
       "powershell.exe",
