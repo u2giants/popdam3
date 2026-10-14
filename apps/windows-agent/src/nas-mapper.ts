@@ -12,6 +12,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { access } from "node:fs/promises";
 import { constants } from "node:fs";
+import { createHash } from "node:crypto";
 import { logger } from "./logger";
 
 const execFileAsync = promisify(execFile);
@@ -67,6 +68,7 @@ export function buildSmbMappingScript(useDrive: boolean, useCreds: boolean): str
 export async function ensureNasMapped(
   mountPath: string | undefined,
   creds: NasCredentials,
+  options: { force?: boolean } = {},
 ): Promise<{ ok: boolean; error?: string }> {
   const { host, share, username, password } = creds;
 
@@ -99,13 +101,16 @@ export async function ensureNasMapped(
   const driveLetter = useDrive ? normalizeDrive(mountPath!) : null;
   const verifyPath = driveLetter ? `${driveLetter}\\` : uncPath;
 
-  // 1. Quick check — already accessible?
-  try {
-    await access(verifyPath, constants.R_OK);
-    logger.debug("NAS already accessible", { path: verifyPath });
-    return { ok: true };
-  } catch {
-    // Not accessible yet — proceed to map
+  // 1. Quick check — already accessible? A forced remap (new mapping or new
+  // credentials) skips this so the session is rebuilt with the current values.
+  if (!options.force) {
+    try {
+      await access(verifyPath, constants.R_OK);
+      logger.debug("NAS already accessible", { path: verifyPath });
+      return { ok: true };
+    } catch {
+      // Not accessible yet — proceed to map
+    }
   }
 
   // 2. If drive-letter mode, delete any stale mapping first
@@ -174,4 +179,56 @@ export async function ensureNasMapped(
       error: `NAS mapped but path "${verifyPath}" not readable: ${(e as Error).message}`,
     };
   }
+}
+
+/**
+ * Stateful wrapper around ensureNasMapped for the render claim loop.
+ *
+ *  - Failures back off exponentially (5 s doubling to a 5 min cap), so a dead
+ *    share is not retried on every poll. Repeated failed logins can get the NAS
+ *    to auto-block the agent's IP.
+ *  - A change in the configured mount path, host, share, user or password forces
+ *    an immediate remap with the new values, bypassing the backoff.
+ *  - Credentials are only compared as a SHA-256 digest; they are never stored
+ *    or logged in plain text.
+ */
+export const NAS_REMAP_BASE_MS = 5_000;
+export const NAS_REMAP_MAX_MS = 300_000;
+
+export function createNasMountGuard(now: () => number = Date.now) {
+  let appliedKey: string | null = null;
+  let failures = 0;
+  let nextAttemptAt = 0;
+  let lastError: string | undefined;
+
+  return async function ensure(
+    mountPath: string | undefined,
+    creds: NasCredentials,
+  ): Promise<{ ok: boolean; error?: string; backingOff?: boolean }> {
+    const key = createHash("sha256")
+      .update(JSON.stringify([mountPath || "", creds.host, creds.share, creds.username, creds.password]))
+      .digest("hex");
+    const changed = key !== appliedKey;
+
+    if (!changed && failures > 0 && now() < nextAttemptAt) {
+      return { ok: false, error: lastError, backingOff: true };
+    }
+
+    const result = await ensureNasMapped(mountPath, creds, { force: changed || failures > 0 });
+    if (result.ok) {
+      appliedKey = key;
+      failures = 0;
+      nextAttemptAt = 0;
+      lastError = undefined;
+      return { ok: true };
+    }
+
+    // Remember the values we tried so a later change still forces a remap.
+    appliedKey = key;
+    failures += 1;
+    const delay = Math.min(NAS_REMAP_MAX_MS, NAS_REMAP_BASE_MS * 2 ** (failures - 1));
+    nextAttemptAt = now() + delay;
+    lastError = result.error;
+    return { ok: false, error: result.error, backingOff: false };
+  };
 }
