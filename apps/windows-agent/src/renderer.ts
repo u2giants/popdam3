@@ -37,6 +37,7 @@ import path from "node:path";
 import { logger } from "./logger";
 import { readFileWithinLimit } from "./common/bounded-read.js";
 import { isCompatAlertBuffer, createCompatAuditWorker } from "./compat-audit";
+import { compositePsdWithPsdTools, isPsdDecodeFailure, psdToolsPython } from "./psd-tools-fallback";
 
 // On Windows, paths longer than MAX_PATH (260) fail silently with Win32 APIs.
 // Prefixing with \\?\ enables extended-length paths in Node fs and Sharp (libvips).
@@ -488,21 +489,35 @@ async function renderWithImageMagick(
     // Windows drive letters (e.g. "y:") as format specifiers.
     // -colorspace sRGB converts CMYK/Lab PSDs to sRGB before compositing; no-op for sRGB files.
     const imInput = /^[A-Za-z]:/.test(filePath) ? `PSD:${filePath}[0]` : `${filePath}[0]`;
-    await execFileAsync(IM_EXE, [
-      imInput,
-      "-colorspace", "sRGB",
-      "-background", "white",
-      "-flatten",
-      "-resize", `${THUMB_MAX_DIM}x${THUMB_MAX_DIM}>`,
-      "-quality", "85",
-      outPath,
-    ], { timeout: 120_000 }); // PSDs can be slow
+    let renderedPath = outPath;
+    try {
+      await execFileAsync(IM_EXE, [
+        imInput,
+        "-colorspace", "sRGB",
+        "-background", "white",
+        "-flatten",
+        "-resize", `${THUMB_MAX_DIM}x${THUMB_MAX_DIM}>`,
+        "-quality", "85",
+        outPath,
+      ], { timeout: 120_000 }); // PSDs can be slow
 
-    if (!existsSync(outPath)) {
-      throw new Error("ImageMagick produced no output");
+      if (!existsSync(outPath)) {
+        throw new Error("ImageMagick produced no output");
+      }
+    } catch (imErr) {
+      // ImageMagick cannot decode some CMYK PSDs ("unable to decompress image").
+      // psd-tools decodes them; used only when PSD_TOOLS_PYTHON is configured.
+      const pyExe = psdToolsPython();
+      const imMessage = (imErr as Error).message;
+      if (!pyExe || !isPsdDecodeFailure(imMessage)) throw imErr;
+      const pngPath = path.join(tmpDir, "thumb-psdtools.png");
+      await compositePsdWithPsdTools(pyExe, filePath, pngPath);
+      if (!existsSync(pngPath)) throw new Error("psd-tools produced no output");
+      logger.info("PSD decoded with psd-tools fallback", { filePath });
+      renderedPath = pngPath;
     }
 
-    const buffer = await sharp(outPath, { limitInputPixels: false }).jpeg({ quality: 85 }).toBuffer();
+    const buffer = await sharp(renderedPath, { limitInputPixels: false }).jpeg({ quality: 85 }).toBuffer();
     const meta = await sharp(buffer).metadata();
 
     return {
