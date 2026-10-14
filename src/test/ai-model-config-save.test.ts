@@ -89,16 +89,30 @@ describe("saveAiModelConfig", () => {
     expect(call).not.toHaveBeenCalled();
   });
 
-  it("rejects Meta Direct for ERP classification", async () => {
-    const call = vi.fn();
+  it("allows Meta Direct selections for supported PDF and text-classification routes", async () => {
+    const call = vi.fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, config: {
+        AI_TASK_MODELS: { value: {
+          ...draft.taskModels,
+          pdf_extraction: "meta-direct/muse-spark-1.3-contributor",
+          text_classification: "meta-direct/muse-spark-1.3-contributor",
+        } },
+        AI_MODEL_POOL: { value: {} },
+      } });
+    const taskModels = {
+      ...draft.taskModels,
+      pdf_extraction: "meta-direct/muse-spark-1.3-contributor",
+      text_classification: "meta-direct/muse-spark-1.3-contributor",
+    };
     await expect(saveAiModelConfig(call, {
       ...draft,
-      taskModels: { ...draft.taskModels, text_classification: "meta-direct/muse-spark-1.3-contributor" },
-    })).rejects.toThrow("not supported for that task");
-    expect(call).not.toHaveBeenCalled();
+      taskModels,
+    })).resolves.toBeTruthy();
+    expect(call.mock.calls[0][1].entries).toMatchObject({ AI_TASK_MODELS: taskModels });
   });
 
-  it("allows a Model Pool save without rewriting an already-saved unsupported task model", async () => {
+  it("allows a Model Pool save without rewriting an unchanged task selection", async () => {
     const taskModels = { ...draft.taskModels, text_classification: "meta-direct/muse-spark-1.3-contributor" };
     const modelPool = { "meta-direct": [] };
     const call = vi.fn()

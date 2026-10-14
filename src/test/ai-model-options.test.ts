@@ -16,12 +16,12 @@ describe("direct Gemini batch model scope", () => {
     expect(modelAllowedForTask("google/gemini-3.7-flash", "pdf_extraction")).toBe(true);
   });
 
-  it("limits Meta Direct to primary Image Tagging and ScaleDown to bake-off", () => {
+  it("keeps Meta Direct available to supported task routes and reserves ScaleDown for bake-off", () => {
     const meta = "meta-direct/muse-spark-1.3-contributor";
     expect(modelAllowedForTask(meta, "vision_tagging")).toBe(true);
-    expect(modelAllowedForTask(meta, "vision_tagging", true)).toBe(false);
-    expect(modelAllowedForTask(meta, "text_classification")).toBe(false);
-    expect(modelAllowedForTask(meta, "pdf_extraction")).toBe(false);
+    expect(modelAllowedForTask(meta, "vision_tagging", true)).toBe(true);
+    expect(modelAllowedForTask(meta, "text_classification")).toBe(true);
+    expect(modelAllowedForTask(meta, "pdf_extraction")).toBe(true);
     expect(modelAllowedForTask("scaledown/summarize", "vision_tagging")).toBe(false);
     expect(modelAllowedForTask(" scaledown/summarize ", "vision_tagging")).toBe(false);
   });

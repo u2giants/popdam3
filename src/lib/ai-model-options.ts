@@ -59,7 +59,6 @@ export function sameAiModelPool(left: unknown, right: unknown): boolean {
 
 export function modelAllowedForTask(modelId: string, taskKey: string, fallback = false): boolean {
   const normalizedModelId = modelId.trim();
-  if (normalizedModelId.startsWith("meta-direct/")) return taskKey === "vision_tagging" && !fallback;
   if (normalizedModelId.startsWith("scaledown/")) return false;
   // Every `:batch` variant (OpenRouter or direct Gemini) needs the durable
   // asynchronous path, which only primary Image Tagging implements.

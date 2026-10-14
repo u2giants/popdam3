@@ -73,7 +73,7 @@ export async function saveAiModelConfig(
   for (const [taskKey, modelId] of Object.entries(expectedTaskModels)) {
     const selectionChanged = modelId !== (draft.savedTaskModels?.[taskKey] ?? "");
     if (selectionChanged && !modelAllowedForTask(modelId, taskKey, taskKey.endsWith("_fallback"))) {
-      throw new Error("This provider-specific model is not supported for that task. Direct Gemini Batch and Meta Direct are only available for primary Image Tagging; ScaleDown is bake-off only.");
+      throw new Error("This provider-specific model is not supported for that task. Direct Gemini Batch is only available for primary Image Tagging; ScaleDown is bake-off only.");
     }
   }
   const primaryVision = expectedTaskModels.vision_tagging?.trim() ?? "";
