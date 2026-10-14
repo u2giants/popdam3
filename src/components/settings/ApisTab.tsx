@@ -13,10 +13,9 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CURRENT_APP } from "@/lib/app-mode";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { includeCurrentModel, modelAllowedForTask, modelInPool, modelSelectorPresentation, normalizeAiModelPool, sameAiModelPool, preserveCatalogOnWarning, shouldLoadAiModelCatalog } from "@/lib/ai-model-options";
+import { includeCurrentModel, modelAllowedForTask, modelInPool, modelSelectorPresentation, normalizeAiModelPool, sameAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
 import { toast } from "sonner";
-import { saveAiModelConfig, type AiModelConfigDraft } from "@/lib/ai-model-config-save";
-import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
+import { saveAiModelConfig, saveAiModelPool, type AiModelConfigDraft, type AiModelKeyField } from "@/lib/ai-model-config-save";
 import { ModelPoolEditor } from "@/components/settings/ModelPoolEditor";
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -28,6 +27,13 @@ interface SyncSource {
   apiKey?: string;
   enabled: boolean;
 }
+
+const AI_KEY_CONFIG_NAMES: Record<AiModelKeyField, string> = {
+  openRouterKey: "OPENROUTER_API_KEY",
+  googleKey: "GOOGLE_AI_API_KEY",
+  anthropicKey: "ANTHROPIC_API_KEY",
+  openaiKey: "OPENAI_API_KEY",
+};
 
 const DEFAULT_SOURCES: SyncSource[] = [
   { code: "DS", name: "Disney", apiUrl: "https://api.sandbox.designflow.app/api/autofill/properties-and-characters/DS", enabled: true },
@@ -558,6 +564,7 @@ export function AiModelsConfigSection() {
   const [taskModels, setTaskModels] = useState<Record<string, string>>({});
   const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
   const [modelPool, setModelPool] = useState<ReturnType<typeof normalizeAiModelPool>>({});
+  const [keysToClear, setKeysToClear] = useState<Set<AiModelKeyField>>(() => new Set());
   const [loaded, setLoaded] = useState(false);
 
   const unwrap = (v: unknown) => ((v as Record<string, unknown>)?.value ?? v ?? "") as string;
@@ -565,10 +572,6 @@ export function AiModelsConfigSection() {
   useEffect(() => {
     if (!configData || loaded) return;
     const cfg = configData.config ?? {};
-    setOpenRouterKey(unwrap(cfg.OPENROUTER_API_KEY));
-    setGoogleKey(unwrap(cfg.GOOGLE_AI_API_KEY));
-    setAnthropicKey(unwrap(cfg.ANTHROPIC_API_KEY));
-    setOpenaiKey(unwrap(cfg.OPENAI_API_KEY));
     const models = (cfg.AI_MODELS as Record<string, unknown>)?.value ?? cfg.AI_MODELS;
     setModelsJson(models ? JSON.stringify(models, null, 2) : "");
     const savedTasks = ((cfg.AI_TASK_MODELS as Record<string, unknown>)?.value ?? cfg.AI_TASK_MODELS ?? {}) as Record<string, string>;
@@ -589,19 +592,63 @@ export function AiModelsConfigSection() {
     }
   }
 
+  function updateApiKey(field: AiModelKeyField, value: string) {
+    const setters: Record<AiModelKeyField, (next: string) => void> = {
+      openRouterKey: setOpenRouterKey,
+      googleKey: setGoogleKey,
+      anthropicKey: setAnthropicKey,
+      openaiKey: setOpenaiKey,
+    };
+    setters[field](value);
+    setKeysToClear((previous) => {
+      if (!previous.has(field)) return previous;
+      const next = new Set(previous);
+      next.delete(field);
+      return next;
+    });
+  }
+
+  function toggleClearKey(field: AiModelKeyField) {
+    setKeysToClear((previous) => {
+      const next = new Set(previous);
+      if (next.has(field)) next.delete(field);
+      else next.add(field);
+      return next;
+    });
+  }
+
   const save = useMutation({
     mutationFn: (draft: AiModelConfigDraft) => saveAiModelConfig(call, draft),
     onSuccess: () => {
       toast.success("AI configuration saved");
+      setOpenRouterKey("");
+      setGoogleKey("");
+      setAnthropicKey("");
+      setOpenaiKey("");
+      setKeysToClear(new Set());
+      queryClient.invalidateQueries({ queryKey: ["admin-config"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const savePool = useMutation({
+    mutationFn: (pool: ReturnType<typeof normalizeAiModelPool>) => saveAiModelPool(call, pool),
+    onSuccess: () => {
+      toast.success("Model Pool saved");
       queryClient.invalidateQueries({ queryKey: ["admin-config"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const savedOpenRouterKey = unwrap(configData?.config?.OPENROUTER_API_KEY);
-  const savedGoogleKey = unwrap(configData?.config?.GOOGLE_AI_API_KEY);
-  const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
-
+  const keyConfigured = (field: AiModelKeyField) =>
+    (configData?.config?.[AI_KEY_CONFIG_NAMES[field]] as { configured?: unknown } | undefined)?.configured === true;
+  const openRouterKeyConfigured = keyConfigured("openRouterKey");
+  const googleKeyConfigured = keyConfigured("googleKey");
+  const anthropicKeyConfigured = keyConfigured("anthropicKey");
+  const openaiKeyConfigured = keyConfigured("openaiKey");
+  const openRouterKeyRevision = (configData?.config?.OPENROUTER_API_KEY as { updated_at?: unknown } | undefined)?.updated_at;
+  const openRouterAccountFingerprint = typeof openRouterKeyRevision === "string" ? openRouterKeyRevision : "unset";
   const modelQueryKey = ["vision-models", openRouterAccountFingerprint] as const;
   const {
     data: visionCatalog,
@@ -623,7 +670,7 @@ export function AiModelsConfigSection() {
     warning?: string | null;
   }>({
     queryKey: modelQueryKey,
-    enabled: shouldLoadAiModelCatalog(!!configData, savedOpenRouterKey, openRouterAccountFingerprint),
+    enabled: !!configData,
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
       const items = (data?.models ?? []) as Array<{ id: string; name?: string; supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; tool_choice_modes?: string[]; input_modalities?: string[]; pricing?: OpenRouterPricing }>;
@@ -659,18 +706,18 @@ export function AiModelsConfigSection() {
     }
   }
 
-  const savedAnthropicKey = unwrap(configData?.config?.ANTHROPIC_API_KEY);
-  const savedOpenaiKey = unwrap(configData?.config?.OPENAI_API_KEY);
   const savedModels = (configData?.config?.AI_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_MODELS;
   const savedModelsJson = savedModels ? JSON.stringify(savedModels, null, 2) : "";
   const savedTaskModels = ((configData?.config?.AI_TASK_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_TASK_MODELS ?? {}) as Record<string, string>;
   const savedDisplayNames = ((configData?.config?.AI_MODEL_DISPLAY_NAMES as Record<string, unknown>)?.value ?? configData?.config?.AI_MODEL_DISPLAY_NAMES ?? {}) as Record<string, string>;
   const savedModelPool = normalizeAiModelPool((configData?.config?.AI_MODEL_POOL as Record<string, unknown> | undefined)?.value ?? configData?.config?.AI_MODEL_POOL);
+  const modelPoolIsDirty = loaded && !sameAiModelPool(modelPool, savedModelPool);
   const isDirty = loaded && (
     openRouterKey !== savedOpenRouterKey ||
-    googleKey !== savedGoogleKey ||
-    anthropicKey !== savedAnthropicKey ||
-    openaiKey !== savedOpenaiKey ||
+    googleKey.length > 0 ||
+    anthropicKey.length > 0 ||
+    openaiKey.length > 0 ||
+    keysToClear.size > 0 ||
     modelsJson !== savedModelsJson ||
     JSON.stringify(taskModels) !== JSON.stringify(savedTaskModels) ||
     JSON.stringify(displayNames) !== JSON.stringify(savedDisplayNames) ||
@@ -698,8 +745,8 @@ export function AiModelsConfigSection() {
             <Input
               type={showOpenRouter ? "text" : "password"}
               value={openRouterKey}
-              onChange={(e) => setOpenRouterKey(e.target.value)}
-              placeholder="sk-or-…"
+              onChange={(e) => updateApiKey("openRouterKey", e.target.value)}
+              placeholder={openRouterKeyConfigured ? "Enter a replacement key" : "sk-or-…"}
               className="h-8 text-xs pr-16 font-mono"
             />
             <div className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground tabular-nums pointer-events-none">
@@ -710,8 +757,13 @@ export function AiModelsConfigSection() {
             </button>
           </div>
           <p className="text-[10px] text-muted-foreground">
-            A valid OpenRouter key is 73 characters (sk-or-v1- + 64 hex chars). Toggle the eye icon to verify the full key is visible.
+            {openRouterKeyConfigured ? "A saved key is configured. Leave this blank to keep it, or enter a replacement." : "A valid OpenRouter key is 73 characters (sk-or-v1- + 64 hex chars)."}
           </p>
+          {openRouterKeyConfigured && (
+            <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => toggleClearKey("openRouterKey")}>
+              {keysToClear.has("openRouterKey") ? "Keep saved key" : "Clear saved key when saving"}
+            </Button>
+          )}
         </div>
 
         <ModelPoolEditor
@@ -719,6 +771,9 @@ export function AiModelsConfigSection() {
           pool={modelPool}
           onChange={setModelPool}
           loading={loadingModels || fetchingModels}
+          hasChanges={modelPoolIsDirty}
+          saving={savePool.isPending || save.isPending}
+          onSave={() => savePool.mutate({ ...modelPool })}
         />
 
         {/* Task Model Selection */}
@@ -730,20 +785,18 @@ export function AiModelsConfigSection() {
                 {loadingModels ? "Loading models..." : "Refreshing models..."}
               </span>
             )}
-            {savedOpenRouterKey && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                title="Refresh model list from OpenRouter"
-                aria-label="Refresh model list from OpenRouter"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                disabled={fetchingModels}
-                onClick={refreshOpenRouterModels}
-              >
-                <RefreshCw className={`h-3 w-3 ${fetchingModels ? "animate-spin" : ""}`} />
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title="Refresh model list from OpenRouter"
+              aria-label="Refresh model list from OpenRouter"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              disabled={fetchingModels}
+              onClick={refreshOpenRouterModels}
+            >
+              <RefreshCw className={`h-3 w-3 ${fetchingModels ? "animate-spin" : ""}`} />
+            </Button>
             {modelsError && (
               <span className="text-[10px] text-destructive">
                 Failed to load models: {(modelsError as Error).message}
@@ -752,8 +805,8 @@ export function AiModelsConfigSection() {
             {visionCatalog?.warning && (
               <span className="text-[10px] text-amber-600">{visionCatalog.warning}; showing the last available catalog.</span>
             )}
-            {!savedOpenRouterKey && !savedGoogleKey && (
-              <span className="text-[10px] text-muted-foreground">OpenRouter models require an OpenRouter API key; direct-provider models may still appear.</span>
+            {!openRouterKeyConfigured && (
+              <span className="text-[10px] text-muted-foreground">OpenRouter models require a saved OpenRouter API key; direct-provider models may still appear.</span>
             )}
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -936,14 +989,16 @@ export function AiModelsConfigSection() {
                   <Input
                     type={showGoogle ? "text" : "password"}
                     value={googleKey}
-                    onChange={(e) => setGoogleKey(e.target.value)}
-                    placeholder="AIza…"
+                    onChange={(e) => updateApiKey("googleKey", e.target.value)}
+                    placeholder={googleKeyConfigured ? "Enter a replacement key" : "AIza…"}
                     className="h-8 text-xs pr-8 font-mono"
                   />
                   <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowGoogle((v) => !v)}>
                     {showGoogle ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
                 </div>
+                {googleKeyConfigured && <p className="text-[10px] text-muted-foreground">A saved key is configured. Leave blank to keep it.</p>}
+                {googleKeyConfigured && <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => toggleClearKey("googleKey")}>{keysToClear.has("googleKey") ? "Keep saved key" : "Clear saved key when saving"}</Button>}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Anthropic API Key</Label>
@@ -951,14 +1006,16 @@ export function AiModelsConfigSection() {
                   <Input
                     type={showAnthropic ? "text" : "password"}
                     value={anthropicKey}
-                    onChange={(e) => setAnthropicKey(e.target.value)}
-                    placeholder="sk-ant-…"
+                    onChange={(e) => updateApiKey("anthropicKey", e.target.value)}
+                    placeholder={anthropicKeyConfigured ? "Enter a replacement key" : "sk-ant-…"}
                     className="h-8 text-xs pr-8 font-mono"
                   />
                   <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowAnthropic((v) => !v)}>
                     {showAnthropic ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
                 </div>
+                {anthropicKeyConfigured && <p className="text-[10px] text-muted-foreground">A saved key is configured. Leave blank to keep it.</p>}
+                {anthropicKeyConfigured && <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => toggleClearKey("anthropicKey")}>{keysToClear.has("anthropicKey") ? "Keep saved key" : "Clear saved key when saving"}</Button>}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">OpenAI API Key</Label>
@@ -966,14 +1023,16 @@ export function AiModelsConfigSection() {
                   <Input
                     type={showOpenai ? "text" : "password"}
                     value={openaiKey}
-                    onChange={(e) => setOpenaiKey(e.target.value)}
-                    placeholder="sk-proj-…"
+                    onChange={(e) => updateApiKey("openaiKey", e.target.value)}
+                    placeholder={openaiKeyConfigured ? "Enter a replacement key" : "sk-proj-…"}
                     className="h-8 text-xs pr-8 font-mono"
                   />
                   <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowOpenai((v) => !v)}>
                     {showOpenai ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
                 </div>
+                {openaiKeyConfigured && <p className="text-[10px] text-muted-foreground">A saved key is configured. Leave blank to keep it.</p>}
+                {openaiKeyConfigured && <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => toggleClearKey("openaiKey")}>{keysToClear.has("openaiKey") ? "Keep saved key" : "Clear saved key when saving"}</Button>}
               </div>
             </div>
           )}
@@ -1017,14 +1076,15 @@ export function AiModelsConfigSection() {
             googleKey,
             anthropicKey,
             openaiKey,
-            savedKeys: {
-              openRouterKey: savedOpenRouterKey,
-              googleKey: savedGoogleKey,
-              anthropicKey: savedAnthropicKey,
-              openaiKey: savedOpenaiKey,
+            configuredKeys: {
+              openRouterKey: openRouterKeyConfigured,
+              googleKey: googleKeyConfigured,
+              anthropicKey: anthropicKeyConfigured,
+              openaiKey: openaiKeyConfigured,
             },
+            clearKeys: [...keysToClear],
           })}
-          disabled={save.isPending || !!jsonError || !isDirty}
+          disabled={save.isPending || savePool.isPending || !!jsonError || !isDirty}
         >
           <Save className="h-3.5 w-3.5" />
           {save.isPending ? "Saving…" : "Save"}

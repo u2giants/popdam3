@@ -14,7 +14,6 @@ import { Progress } from "@/components/ui/progress";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
 import { catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning, SCALEDOWN_SUMMARIZE_MODEL } from "@/lib/ai-model-options";
-import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
 
 const SLOTS = ["a", "b", "c", "d", "e"] as const;
 type Slot = typeof SLOTS[number];
@@ -120,10 +119,6 @@ function supportsImageTaggingContract(model: VisionModel) {
     Array.isArray(model.architecture?.input_modalities) &&
     model.architecture.input_modalities.includes("image")
   );
-}
-
-function unwrapConfigString(value: unknown) {
-  return ((value as Record<string, unknown>)?.value ?? value ?? "") as string;
 }
 
 function runModelId(run: BakeoffRun, slot: Slot) {
@@ -288,12 +283,13 @@ export default function AiTagBakeoffTab() {
     queryFn: () => call("get-config", { keys: ["OPENROUTER_API_KEY", "AI_MODEL_POOL"] }),
     staleTime: 30_000,
   });
-  const savedOpenRouterKey = unwrapConfigString(openRouterConfig?.config?.OPENROUTER_API_KEY);
+  const openRouterKeyStatus = openRouterConfig?.config?.OPENROUTER_API_KEY as { configured?: unknown; updated_at?: unknown } | undefined;
+  const openRouterKeyConfigured = openRouterKeyStatus?.configured === true;
+  const openRouterAccountFingerprint = typeof openRouterKeyStatus?.updated_at === "string" ? openRouterKeyStatus.updated_at : "unset";
   const modelPool = normalizeAiModelPool(
     (openRouterConfig?.config?.AI_MODEL_POOL as Record<string, unknown> | undefined)?.value
       ?? openRouterConfig?.config?.AI_MODEL_POOL,
   );
-  const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
 
   const bakeoffModelQueryKey = ["openrouter-vision-models-bakeoff", openRouterAccountFingerprint] as const;
   const {
@@ -304,7 +300,7 @@ export default function AiTagBakeoffTab() {
     refetch: refetchModels,
   } = useQuery<{ models: VisionModel[]; warning: string | null }>({
     queryKey: bakeoffModelQueryKey,
-    enabled: !!savedOpenRouterKey && openRouterAccountFingerprint !== null,
+    enabled: !!openRouterConfig,
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
       const warning = catalogWarningOf(data);
@@ -519,7 +515,7 @@ export default function AiTagBakeoffTab() {
             size="icon"
             className="h-7 w-7"
             title="Refresh model list from OpenRouter"
-            disabled={!savedOpenRouterKey || modelsFetching}
+            disabled={!openRouterKeyConfigured || modelsFetching}
             onClick={refreshModels}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${modelsFetching ? "animate-spin" : ""}`} />

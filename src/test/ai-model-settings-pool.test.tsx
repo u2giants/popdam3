@@ -51,6 +51,16 @@ describe("AI Model Pool settings integration", () => {
             tool_choice_modes: ["named"],
           },
           {
+            id: "google-direct/gemini-3.8-flash:batch",
+            name: "Google Gemini 3.8 Flash Batch",
+            supports_tools: false,
+            supports_structured_outputs: true,
+            supports_response_format: true,
+            input_modalities: ["image"],
+            tool_choice_modes: [],
+            pricing: null,
+          },
+          {
             id: "openai/hidden-model",
             name: "Hidden by pool",
             supports_tools: true,
@@ -70,7 +80,10 @@ describe("AI Model Pool settings integration", () => {
     renderSettings();
 
     await waitFor(() => expect(call).toHaveBeenCalledWith("get-openrouter-vision-models"));
+    fireEvent.click(await screen.findByRole("button", { name: /Meta AI \(direct\)/ }));
     expect(await screen.findByText("Muse Spark Contributor")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Google AI \(direct\)/ }));
+    expect(await screen.findByText("Google Gemini 3.8 Flash Batch")).toBeInTheDocument();
     expect(screen.queryByText("This saved model is not supported by this task selector.")).not.toBeInTheDocument();
 
     const taskSelectors = screen.getAllByRole("combobox");
