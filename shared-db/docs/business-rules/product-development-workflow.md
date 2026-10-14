@@ -62,6 +62,31 @@ A licensing item may move backwards only when **all** of the following hold:
 
 If any condition is missing, the status does not move backwards.
 
+### Verified delegated requests
+
+**Status: Settled. Authority: Albert Hazan, direct human reply in the
+coordinating Codex chat, 2026-10-14.** Source reference: question call
+`call_6614409938fe4a20b440bf6d2004976a`, item 0 (no clock time recorded).
+
+**Exact business question:** “For licensing requests, may an authorized
+employee submit on behalf of a named Sales or Design employee, provided that
+person’s identity and role are verified?”
+
+**Albert’s exact answer:** “Yes, allow verified requests on their behalf.”
+
+An authorized employee may submit a licensing request for a named Sales or
+Design requester when that person’s identity and role are verified. The named
+person is the requester for condition 3 above; the employee submitting the
+request does not supply or replace that person’s role.
+
+#### What this changes
+
+This settles the requester side of the licensing-status rule: a verified
+delegate may submit for a named Sales or Design requester. It leaves the other
+conditions above unchanged, including the requirement that a Licensing Manager
+approve and apply a backwards move. The business decision does not prescribe a
+technical verification method.
+
 ### What this changes
 
 This is the only controlling rule for backwards licensing-status movement. It
