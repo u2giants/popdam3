@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 4281,
+    "generation": 4,
+    "contract_sha256": "d029d9313930092d15bbf73a3cb199f4b7ee7e153c57f54182d4cb58440b8e60"
+  },
+  "work_issue": 4281,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Vault-backed server-only getter/setter for the Z: NAS password (claim #4283, version 20261014043757). Generation 5 strengthens the live-proof probe to the #4168 pattern (per-function existence, volatility and return type, decrypted_secrets privileges, secret existence) and tests the empty-string clear path, from the PR #4284 review findings.",
+  "base_sha": "08d0b593a1f3eeb95623b703373345b7a412b11b",
+  "dispatcher": "Claude chat 7623097e-a8da-4712-8cab-fb86b5076289",
+  "worker": "same session",
+  "branch": "popdam/179-z-nas-vault",
+  "worktree": "popdam 179 z-vault worktree",
+  "allowed_paths": [
+    "supabase/migrations/20261014043757_render_z_nas_password_vault.sql",
+    "supabase/tests/render_z_nas_password_vault_contracts.sql",
+    ".github/live-proofs/4281.sql",
+    ".agent/work/4281/5/contract.json",
+    ".agent/work/4281/5/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261014043757_render_z_nas_password_vault.sql",
+    "supabase/tests/render_z_nas_password_vault_contracts.sql",
+    ".github/live-proofs/4281.sql",
+    ".agent/work/4281/5/contract.json",
+    ".agent/work/4281/5/completion.json"
+  ],
+  "db_reads": [
+    "table public.admin_config (WINDOWS_AGENT_NAS_PASS value, read once and copied into Vault)",
+    "table vault.secrets (row popdam_render_z_nas_password, written only by set_render_z_nas_password)",
+    "table vault.decrypted_secrets (read by get_render_z_nas_password)"
+  ],
+  "db_writes": [
+    "function public.get_render_z_nas_password",
+    "function public.set_render_z_nas_password"
+  ],
+  "prohibited_actions": [
+    "Do not apply DDL or data writes to preview or production from this PR except through the governed post-merge workflow.",
+    "Do not print or log any secret value.",
+    "Do not change files outside allowed_paths."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check origin/main...HEAD",
+    "node scripts/check-live-proof-probe.mjs",
+    "psql --set ON_ERROR_STOP=1 -f supabase/tests/render_z_nas_password_vault_contracts.sql"
+  ],
+  "assumptions": [
+    "Objects are public.get_render_z_nas_password() (stable) and public.set_render_z_nas_password(text) (volatile), both security definer, service_role only.",
+    "Clearing deletes the vault row; no empty rows are left.",
+    "Generations 1 to 3 are superseded and remain published as history."
+  ],
+  "stop_conditions": [
+    "Stop if a required check fails.",
+    "Stop if preview or production apply is needed from this branch before merge."
+  ]
+}
