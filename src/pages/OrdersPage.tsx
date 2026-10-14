@@ -23,6 +23,7 @@ import { useDamCustomers } from "@/hooks/useDamCustomers";
 import {
   fetchOrderListBlock,
   findOrderListRow,
+  updateOrderListSalesDateErrors,
   useCreateOrder,
   useOrderListLinkCandidates,
   useOrderListSavedViews,
@@ -33,9 +34,16 @@ import {
 import { IS_NON_PRODUCTION_DATABASE, POPDAM_SUPABASE_PROJECT_REF } from "@/lib/app-mode";
 import { refreshOrderListRows, refreshOrderListRowsInPlace } from "@/lib/order-list-grid-refresh";
 import { supabase } from "@/integrations/supabase/client";
-import { buildOrderListEdit, ORDER_LIST_COLUMNS } from "@/lib/order-list";
+import { buildOrderListEdit, ensureSalesOrderDateInSavedColumnState, ORDER_LIST_COLUMNS } from "@/lib/order-list";
 import { navigateToOrderListMatch } from "@/lib/order-list-find-navigation";
 import type { OrderListRow, OrderListSavedView } from "@/types/order-list";
+
+function orderListSalesDateScope(
+  generation: number,
+  request: { sortModel?: unknown; filterModel?: unknown; search?: string },
+) {
+  return `${generation}:${JSON.stringify({ sortModel: request.sortModel ?? [], filterModel: request.filterModel ?? {}, search: request.search ?? "" })}`;
+}
 
 export default function OrdersPage() {
   const { user, loading: authLoading } = useAuth();
@@ -52,6 +60,10 @@ export default function OrdersPage() {
   const [selectedRows, setSelectedRows] = useState<OrderListRow[]>([]);
   const [hasLoadedRows, setHasLoadedRows] = useState(false);
   const [summaryCountsEnabled, setSummaryCountsEnabled] = useState(false);
+  const [salesOrderDateErrors, setSalesOrderDateErrors] = useState<Record<string, string>>({});
+  const [activeSalesOrderDateScope, setActiveSalesOrderDateScope] = useState<string | null>(null);
+  const salesOrderDateGeneration = useRef(0);
+
 
   const authReady = Boolean(user) && !authLoading;
   const savedViewsQuery = useOrderListSavedViews(user?.id);
@@ -62,6 +74,9 @@ export default function OrdersPage() {
 
   /** Reloads the rows the grid is showing, without re-reading the whole list. */
   const refreshRows = useCallback(() => {
+    salesOrderDateGeneration.current += 1;
+    setActiveSalesOrderDateScope(null);
+    setSalesOrderDateErrors({});
     refreshOrderListRows(gridRef.current?.api);
   }, []);
 
@@ -69,7 +84,14 @@ export default function OrdersPage() {
   const refreshRowsQuietly = useCallback(() => {
     void refreshOrderListRowsInPlace(
       gridRef.current?.api,
-      async (request) => (await fetchOrderListBlock({ ...request, search: "" })).rows,
+      async (request) => {
+        const fullRequest = { ...request, search: "" };
+        const scope = orderListSalesDateScope(salesOrderDateGeneration.current, fullRequest);
+        setActiveSalesOrderDateScope(scope);
+        const block = await fetchOrderListBlock(fullRequest);
+        setSalesOrderDateErrors((current) => updateOrderListSalesDateErrors(current, scope, request.startRow, block.salesOrderDatesError));
+        return block.rows;
+      },
       (row) => row.order_line_id,
     ).catch(() => refreshRows());
   }, [refreshRows]);
@@ -109,13 +131,17 @@ export default function OrdersPage() {
     () => ({
       getRows: async (params) => {
         try {
-          const block = await fetchOrderListBlock({
+          const request = {
             startRow: params.startRow,
             endRow: params.endRow,
             sortModel: params.sortModel as Array<{ colId: string; sort: string }>,
             filterModel: params.filterModel as Record<string, unknown>,
             search: "",
-          });
+          };
+          const scope = orderListSalesDateScope(salesOrderDateGeneration.current, request);
+          setActiveSalesOrderDateScope(scope);
+          const block = await fetchOrderListBlock(request);
+          setSalesOrderDateErrors((current) => updateOrderListSalesDateErrors(current, scope, params.startRow, block.salesOrderDatesError));
           setLoadError(null);
           setHasLoadedRows(true);
           setFilteredCount(block.totalRowCount);
@@ -283,7 +309,7 @@ export default function OrdersPage() {
     const api = gridRef.current?.api;
     if (!api) return;
     if (Array.isArray(view.column_state)) {
-      api.applyColumnState({ state: view.column_state as any, applyOrder: true });
+      api.applyColumnState({ state: ensureSalesOrderDateInSavedColumnState(view.column_state) as any, applyOrder: true });
     }
     api.setFilterModel((view.filter_model ?? null) as any);
     setActiveViewId(view.id);
@@ -379,6 +405,12 @@ export default function OrdersPage() {
       {loadError && (
         <div className="border-b border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
           Could not load OrderList: {loadError}
+        </div>
+      )}
+
+      {activeTab === "orders" && activeSalesOrderDateScope && Object.keys(salesOrderDateErrors).some((key) => key.startsWith(`${activeSalesOrderDateScope}:`)) && (
+        <div role="status" className="border-b border-amber-500/40 bg-amber-500/10 p-2 text-sm text-foreground">
+          SO Date could not be loaded for some rows. Refresh OrderList to try again.
         </div>
       )}
 

@@ -69,6 +69,7 @@ export function buildOrderListFilters(filterModel: Record<string, any> | null | 
     const conditions = Array.isArray(model?.conditions) && model.conditions.length > 0 ? model.conditions : [model];
     for (const condition of conditions) {
       if (!condition) continue;
+      if (!isOrderListFieldQueryable(column)) continue;
       const type = condition.type as string | undefined;
       const filterValue = condition.filter;
       const dateFrom = typeof condition.dateFrom === "string" ? condition.dateFrom.slice(0, 10) : undefined;
@@ -141,6 +142,7 @@ export type OrderListSort = { column: string; ascending: boolean };
 export function buildOrderListSort(sortModel: Array<{ colId: string; sort: string }> | null | undefined): OrderListSort[] {
   const sorts = (sortModel ?? [])
     .filter((entry) => entry.colId && entry.sort)
+    .filter((entry) => isOrderListFieldQueryable(entry.colId))
     .map((entry) => ({ column: entry.colId, ascending: entry.sort === "asc" }));
   if (sorts.length === 0) sorts.push({ column: "start_ship_date", ascending: false });
   sorts.push({ column: "order_line_id", ascending: true });
@@ -460,6 +462,8 @@ export type OrderListColumn = {
   pinned?: "left";
   /** New output fields are outside the bounded Find/filter contract. */
   queryable?: boolean;
+  /** Loaded from a bounded sidecar RPC, not from `api.dam_order_list`. */
+  virtual?: boolean;
 };
 
 /**
@@ -473,6 +477,7 @@ export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
   { field: "production_order_number", header: "Import PO #", kind: "order", source: "helper", type: "text", width: 150, pinned: "left" },
   { field: "vendor_name", header: "Vendor", kind: "order", type: "text", width: 170 },
   { field: "order_date", header: "Prod PO Date", headerTooltip: "Production PO Date in ColdLion.", kind: "order", type: "date", width: 130 },
+  { field: "sales_order_date", header: "SO Date", headerTooltip: "Date ColdLion received the Sales Order.", kind: "order", type: "date", width: 130, queryable: false, virtual: true },
   { field: "sent_po_date", header: "Sent PO", kind: "order", type: "date", width: 130 },
   { field: "customer_name", header: "Customer", kind: "order", source: "input", type: "text", width: 170 },
   { field: "customer_po_number", header: "Customer PO", kind: "line", source: "input", type: "text", editable: true, width: 150 },
@@ -544,6 +549,21 @@ export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
   { field: "snapshot_professional_photos", header: "Photos (at import)", kind: "diagnostic", type: "text", hide: true, queryable: false, width: 190 },
   { field: "snapshot_contractual_sample_reorder", header: "Reorder (at import)", kind: "diagnostic", type: "boolean", hide: true, queryable: false, width: 190 },
 ];
+
+function isOrderListFieldQueryable(field: string) {
+  return ORDER_LIST_COLUMNS.some((column) => column.field === field && column.queryable !== false && !column.virtual);
+}
+
+/** Inserts the new default-visible date into older saved layouts without changing their other choices. */
+export function ensureSalesOrderDateInSavedColumnState(state: unknown): unknown {
+  if (!Array.isArray(state) || state.some((entry) => entry?.colId === "sales_order_date")) return state;
+  const next = state.map((entry) => ({ ...entry }));
+  const orderDateIndex = next.findIndex((entry) => entry?.colId === "order_date");
+  const sentPoDateIndex = next.findIndex((entry) => entry?.colId === "sent_po_date");
+  const insertAt = orderDateIndex >= 0 ? orderDateIndex + 1 : sentPoDateIndex >= 0 ? sentPoDateIndex : next.length;
+  next.splice(insertAt, 0, { colId: "sales_order_date", hide: false });
+  return next;
+}
 
 export function isMasterDataColumn(column: OrderListColumn) {
   return column.kind === "masterData";
