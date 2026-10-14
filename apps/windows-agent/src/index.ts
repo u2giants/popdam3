@@ -22,7 +22,7 @@ import { getUpdateState, initUpdater, postRestartHealthCheck, RESTART_EXIT_CODE,
 import { compressTiff, deleteOriginalBackup, scanTiffFiles, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
 import { inspectAiFile } from "./ai-raster-inspector";
 import { captureTimestamps } from "./tiff-timestamps";
-import { ensureNasMapped } from "./nas-mapper";
+import { createNasMountGuard, ensureNasMapped } from "./nas-mapper";
 import { nasReadyForClaim, sgReadyForClaim } from "./claim-gate";
 import { resetSkipWarnings, shouldSkipPath } from "@popdam/path-filters";
 import { startJanitor } from "./janitor";
@@ -598,6 +598,8 @@ async function processSgJob(job: api.SgRenderJob): Promise<void> {
 function startPolling() {
   const maxConcurrency = config.renderConcurrency;
 
+  // Backoff + remount-on-change for the main Z: share (see nas-mapper.ts).
+  const cloudNasGuard = createNasMountGuard();
   const loop = async () => {
     if (!configReceived) {
       logger.debug("Skipping poll — waiting for cloud config (NAS host + Spaces credentials)");
@@ -618,7 +620,7 @@ function startPolling() {
           // credentials the latest heartbeat delivered from admin_config. If that still
           // fails, no PopDAM job is claimed (so none is consumed as a failure).
           const zGate = await nasReadyForClaim(cloudNasHost, () =>
-            ensureNasMapped(cloudNasMountPath, {
+            cloudNasGuard(cloudNasMountPath, {
               host: cloudNasHost,
               share: cloudNasShare,
               username: cloudNasUsername,
