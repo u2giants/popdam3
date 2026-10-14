@@ -18,6 +18,7 @@ import { logger } from "./logger";
 import * as api from "./api-client";
 import { uploadPdfPage, uploadThumbnail } from "./uploader";
 import { type AiConfig, callAiVision } from "./pdf-text-sampler";
+import { indraPython, ocrPngWithIndra } from "./common/indra-ocr.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const dynamicImport = new Function("m", "return import(m)") as (m: string) => Promise<any>;
@@ -154,20 +155,33 @@ export async function processOne(
     };
   }
 
-  // Step 3: OCR via tesseract.js
+  // Step 3: OCR via Indra (tesseract.js only where Indra is not installed)
   let ocrText = "";
   if (pngBuffer) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tesseractLib: any = await dynamicImport("tesseract.js").catch(() => null);
-      if (!tesseractLib) throw new Error("tesseract.js not installed");
-      const worker = await tesseractLib.createWorker("eng");
-      const result = await worker.recognize(pngBuffer);
-      await worker.terminate();
-      ocrText = (result.data.text as string).trim();
-    } catch (e) {
-      extractionErrors.push(`ocr: ${(e as Error).message}`);
-      logger.warn("PDF backfill: OCR failed", { filename: asset.filename, error: (e as Error).message });
+    const indra = indraPython();
+    let indraFailed = false;
+    if (indra) {
+      try {
+        ocrText = await ocrPngWithIndra(indra, pngBuffer);
+      } catch (e) {
+        indraFailed = true;
+        extractionErrors.push(`indra: ${(e as Error).message}`);
+        logger.warn("PDF backfill: Indra OCR failed, falling back to tesseract.js", { filename: asset.filename, error: (e as Error).message });
+      }
+    }
+    if (!indra || indraFailed) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tesseractLib: any = await dynamicImport("tesseract.js").catch(() => null);
+        if (!tesseractLib) throw new Error("tesseract.js not installed");
+        const worker = await tesseractLib.createWorker("eng");
+        const result = await worker.recognize(pngBuffer);
+        await worker.terminate();
+        ocrText = (result.data.text as string).trim();
+      } catch (e) {
+        extractionErrors.push(`ocr: ${(e as Error).message}`);
+        logger.warn("PDF backfill: OCR failed", { filename: asset.filename, error: (e as Error).message });
+      }
     }
   }
 

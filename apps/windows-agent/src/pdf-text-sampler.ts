@@ -4,7 +4,7 @@
  * Reads each PDF asset from the NAS and extracts text using a cascade:
  *
  *   1. mupdf  — native text extraction (primary; robust C library)
- *   2. OCR    — tesseract.js on a mupdf-rendered page image (scanned PDFs)
+ *   2. OCR    — Indra (tesseract.js fallback) on a mupdf-rendered page image (scanned PDFs)
  *   3. AI     — vision model from PDF_EXTRACTION_CONFIG/AI_MODELS catalog
  *
  * Reports per-file progress back to the cloud so the UI shows real-time status.
@@ -15,6 +15,7 @@ import { resolveUnderRoot } from "./common/path-containment.js";
 import { logger } from "./logger";
 import * as api from "./api-client";
 import { uploadPdfPage } from "./uploader";
+import { indraPython, ocrPngWithIndra } from "./common/indra-ocr.js";
 
 // OTA-safe: mupdf, tesseract.js, and @anthropic-ai/sdk are only available after
 // a full installer run, not OTA dist updates. Load them lazily inside the function.
@@ -316,22 +317,32 @@ async function processSinglePdf(
     });
   }
 
-  // ── Step 3: OCR via tesseract.js ────────────────────────────────────
+  // ── Step 3: OCR via Indra (tesseract.js only where Indra is not installed) ────────────────────────────────────
   let ocrText = "";
   if (pngBuffer) {
     await reportProgress(index, total, asset.filename, "ocr", fileResults);
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tesseractLib: any = await dynamicImport("tesseract.js").catch(() => null);
-      if (!tesseractLib) throw new Error("tesseract.js not installed");
-      const worker = await tesseractLib.createWorker("eng");
-      const ocrResult = await worker.recognize(pngBuffer);
-      await worker.terminate();
-      ocrText = (ocrResult.data.text as string).trim();
-    } catch (ocrErr) {
-      logger.warn("PDF text sample: OCR failed", {
-        filename: asset.filename, error: (ocrErr as Error).message,
-      });
+    const indra = indraPython();
+    let indraFailed = false;
+    if (indra) {
+      try {
+        ocrText = await ocrPngWithIndra(indra, pngBuffer);
+      } catch (e) {
+        indraFailed = true;
+        logger.warn("PDF text sample: Indra OCR failed, falling back to tesseract.js", { filename: asset.filename, error: (e as Error).message });
+      }
+    }
+    if (!indra || indraFailed) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tesseractLib: any = await dynamicImport("tesseract.js").catch(() => null);
+        if (!tesseractLib) throw new Error("tesseract.js not installed");
+        const worker = await tesseractLib.createWorker("eng");
+        const ocrResult = await worker.recognize(pngBuffer);
+        await worker.terminate();
+        ocrText = (ocrResult.data.text as string).trim();
+      } catch (ocrErr) {
+        logger.warn("PDF text sample: OCR failed", { filename: asset.filename, error: (ocrErr as Error).message });
+      }
     }
   }
 

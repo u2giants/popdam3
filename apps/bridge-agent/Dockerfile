@@ -83,6 +83,18 @@ RUN mkdir -p /usr/local/lib/docker/cli-plugins \
      -o /usr/local/lib/docker/cli-plugins/docker-compose \
   && chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
+# Indra OCR (scanned-PDF text step; see src/common/indra-ocr.ts). Own venv, models
+# baked into the image so the NAS never downloads at run time. Model license
+# OpenRAIL-M (free under $20M revenue); code Apache-2.0.
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv \
+  && rm -rf /var/lib/apt/lists/* \
+  && python3 -m venv /opt/indra \
+  && /opt/indra/bin/pip install --no-cache-dir indra-ocr==0.3.1 \
+  && /opt/indra/bin/python -c "from huggingface_hub import snapshot_download; snapshot_download('datalab-to/indra-ocr', revision='v3.1', allow_patterns=['det.onnx','rec.onnx','rec.int8.onnx','order.onnx','meta.json'], local_dir='/opt/indra/models')" \
+  && /opt/indra/bin/python -c "from indra_ocr import OrtOCR; OrtOCR('/opt/indra/models'); print('RUNTIME CHECK: indra-ocr OK')"
+ENV INDRA_OCR_PYTHON=/opt/indra/bin/python
+ENV INDRA_OCR_MODEL_DIR=/opt/indra/models
+
 WORKDIR /app
 
 # Copy only production artifacts
