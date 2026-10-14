@@ -1,20 +1,129 @@
 // Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { LaneError } from './claims.mjs'
-import { MUTEX_REF, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, REVIEW_QUEUE_TTL_HOURS, REVIEW_REPLACEMENT_REF_PREFIX } from './constants.mjs'
-import { parseAssignmentRef, parseReviewCursor, readReviewReturns } from './review-records.mjs'
+import { MUTEX_REF, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, REVIEW_QUEUE_TTL_HOURS, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_RETURN_REF_PREFIX } from './constants.mjs'
+import { parseAssignmentRef, parseReviewCursor, parseReviewReturn, reviewReturnRef, readReviewReturns } from './review-records.mjs'
+import { parseReviewReplacement, requireReplacementEvidence } from './review-replacement.mjs'
 import { assertReviewerAllowlistConsistency } from './reviewer-roster.mjs'
 import { reviewLeaseAgeHours } from './review-leases.mjs'
 import { releaseOwnedRef, requireOwnedRef } from './holds-and-refs.mjs'
 import { assignNextReviewer, githubIo } from '../../manage-migration-author-lanes.mjs'
 
-// One shared set of namespace listings resolves slot 1 (fail-fast + allowlist
-// for slot 2+) AND every other live peer slot for this exact head. Combining
-// the two reads keeps the 25-request wire budget: the assignment and
-// replacement listings are paid once and answer both questions. This is the
-// symmetry fix for #3427 -- previously slot 2's fill skipped higher peers and
-// a draw order like 1→3→2 could duplicate a provider.
-export function resolvePeerSlots(issue,pr,headSha,slot,io){
+// One shared set of namespace listings resolves the requesting slot's durable
+// policy, the earliest other live peer's task policy, and every other live
+// peer slot for this exact head. Combining the reads keeps the 25-request wire
+// budget: assignment and replacement listings are paid once and answer all
+// three questions. This is the symmetry fix for #3427 -- previously slot 2's
+// fill skipped higher peers and a draw order like 1→3→2 could duplicate a provider.
+export function resolvePeerSlots(issue,pr,headSha,slot,io,{fresh=false}={}){
+// When slot 1 is absent at the request head but already assigned at a
+// tree-identical ancestor (or content-equivalent) head of the same pull
+// request, that assignment carries forward for peer independence and allowlist
+// inheritance. The owner asked for slot 2 to be drawn without re-drawing slot 1
+// (verbatim 2026-10-13: "use stepfun"); a tree-identical re-push must not burn
+// a third paid slot-1 attempt just to re-pin the same bytes.
+function sameReviewContent(before,after,pr,io){
+  const leftHead=String(before).toLowerCase(),rightHead=String(after).toLowerCase()
+  if(leftHead===rightHead)return true
+  const treeOf=(sha)=>{
+    const commit=io.getCommit?.(sha)
+    return commit?.tree?.sha??commit?.commit?.tree?.sha??null
+  }
+  const left=treeOf(leftHead),right=treeOf(rightHead)
+  if(left&&right&&left===right)return true
+  if(typeof io.reviewContentComparison!=='function')return false
+  try{
+    const comparison=io.reviewContentComparison(leftHead,rightHead,pr,{})
+    return comparison?.budgetProof?.kind==='unchanged'
+  }catch{return false}
+}
+function findCarriedSlotOne(issue,pr,head,io,{fresh=false}={}){
+  const base=`${Number(issue)}-${Number(pr)}-`
+  const assignmentPrefix=`${REVIEW_ASSIGNMENT_REF_PREFIX}/${base}`
+  const replacementPrefix=`${REVIEW_REPLACEMENT_REF_PREFIX}/${base}`
+  let records=null,rows=[]
+  if(typeof io.readReviewRecords==='function'){
+    const failurePrefix=`${REVIEW_FAILURE_REF_PREFIX}/${Number(issue)}-${Number(pr)}-`
+    records=io.readReviewRecords([],replacementPrefix,failurePrefix,assignmentPrefix)
+    rows=records.matching??[]
+  }else{
+    const list=fresh&&typeof io.__freshListRefs==='function'?io.__freshListRefs:io.listRefs?.bind(io)
+    const listPrefix=(prefix)=>{
+      if(list)return list(prefix)??[]
+      if(typeof io.gitRemoteRefs==='function')return [...(io.gitRemoteRefs([`${prefix}*`])??[])].map(([ref,sha])=>({ref,sha}))
+      return []
+    }
+    rows=[...listPrefix(assignmentPrefix),...listPrefix(replacementPrefix)]
+  }
+  const candidates=[]
+  const historicalHeads=new Set()
+  for(const row of rows){
+    const named=parseAssignmentRef(row.ref)
+    if(!named||named.issue!==Number(issue)||named.pr!==Number(pr)||named.slot!==1||named.replacement)continue
+    historicalHeads.add(named.headSha)
+    if(String(named.headSha).toLowerCase()===head)continue
+    const parsed=parseReviewCursor(row.commit??records?.get(row.ref)?.commit??io.getCommit(row.sha))
+    if(parsed.issue!==named.issue||parsed.pr!==named.pr||String(parsed.headSha).toLowerCase()!==named.headSha||(parsed.slot??1)!==1)throw new LaneError('historical slot 1 assignment does not match its ref identity')
+    candidates.push({...parsed,sha:row.sha,carriedFrom:named.headSha,replacementSequence:null})
+  }
+  for(const row of rows){
+    const named=parseAssignmentRef(row.ref)
+    const legacyHead=[...historicalHeads].find((candidate)=>row.ref===`${replacementPrefix}${candidate}`)
+    const identity=named??(legacyHead?{replacement:true,issue:Number(issue),pr:Number(pr),headSha:legacyHead,slot:1,replacementSequence:null}:null)
+    if(!identity?.replacement||identity.issue!==Number(issue)||identity.pr!==Number(pr)||identity.slot!==1||!historicalHeads.has(identity.headSha)||identity.headSha===head)continue
+    const commit=row.commit??records?.get(row.ref)?.commit??io.getCommit(row.sha)
+    const parsed=parseReviewCursor(commit)
+    if(parsed.issue!==identity.issue||parsed.pr!==identity.pr||String(parsed.headSha).toLowerCase()!==identity.headSha||(parsed.slot!==null&&parsed.slot!==1))throw new LaneError('historical slot 1 replacement does not match its ref identity')
+    const replacement=parseReviewReplacement(commit)
+    if(replacement.issue!==identity.issue||replacement.pr!==identity.pr||String(replacement.headSha).toLowerCase()!==identity.headSha||replacement.sequence!==parsed.sequence||identity.replacementSequence!==null&&replacement.failedSequence!==identity.replacementSequence)throw new LaneError('historical slot 1 replacement does not match its failure record')
+    requireReplacementEvidence({...replacement,recordSha:row.sha},io,records)
+    candidates.push({...parsed,sha:row.sha,carriedFrom:identity.headSha,replacementSequence:replacement.failedSequence})
+  }
+  // Newest slot-1 first: the latest drawn holder is the one a re-push of the
+  // same bytes left standing. Stop at the first content match so a long history
+  // of older heads never forces a full paid-content comparison walk.
+  candidates.sort((a,b)=>b.sequence-a.sequence)
+  const checkedHeads=new Set()
+  for(const candidate of candidates){
+    if(checkedHeads.has(candidate.carriedFrom))continue
+    checkedHeads.add(candidate.carriedFrom)
+    if(!sameReviewContent(candidate.carriedFrom,head,Number(pr),io))continue
+    assertReviewerAllowlistConsistency(candidates.filter((row)=>row.carriedFrom===candidate.carriedFrom))
+    let returns
+    const returnPrefix=`${REVIEW_RETURN_REF_PREFIX}/${Number(issue)}-${Number(pr)}-${candidate.carriedFrom}`
+    const list=fresh&&typeof io.__freshListRefs==='function'?io.__freshListRefs:io.listRefs?.bind(io)
+    const listRows=(prefix)=>list?list(prefix)??[]:typeof io.gitRemoteRefs==='function'?[...(io.gitRemoteRefs([`${prefix}*`])??[])].map(([ref,sha])=>({ref,sha})):[]
+    if(typeof io.readReviewRecords==='function'&&list){
+      const returnRows=listRows(returnPrefix)
+      const returnRecords=returnRows.length?io.readReviewRecords(returnRows.map((row)=>row.ref)):new Map()
+      returns=returnRows.map((row)=>{
+        const record=returnRecords.get(row.ref)
+        if(record?.sha&&record.sha!==row.sha)throw new LaneError('durable reviewer return changed during its batched read')
+        const parsed=parseReviewReturn(record?.commit??io.getCommit(row.sha))
+        if(parsed.issue!==Number(issue)||parsed.pr!==Number(pr)||parsed.headSha!==candidate.carriedFrom||row.ref!==reviewReturnRef(parsed))throw new LaneError('durable reviewer return does not match its ref identity')
+        return parsed
+      })
+    }else{
+      const returnRows=listRows(returnPrefix)
+      returns=returnRows.map((row)=>{
+        const parsed=parseReviewReturn(row.commit??io.getCommit(row.sha))
+        if(parsed.issue!==Number(issue)||parsed.pr!==Number(pr)||parsed.headSha!==candidate.carriedFrom||row.ref!==reviewReturnRef(parsed))throw new LaneError('durable reviewer return does not match its ref identity')
+        return parsed
+      })
+    }
+    const returned=returns.some((record)=>{
+      if(record.slot!==1)return false
+      if(record.assignmentSha===candidate.sha)return true
+      const assignment=parseReviewCursor(io.getCommit(record.assignmentSha))
+      if(assignment.issue!==Number(issue)||assignment.pr!==Number(pr)||String(assignment.headSha).toLowerCase()!==candidate.carriedFrom||(assignment.slot!==null&&assignment.slot!==1)||assignment.reviewer!==record.reviewer||(record.sequence!==null&&record.sequence!==assignment.sequence))throw new LaneError('historical reviewer return does not match its assignment record')
+      const sequence=record.sequence??assignment.sequence
+      return sequence>candidate.sequence
+    })
+    return returned?null:candidate
+  }
+  return null
+}
+
   const head=String(headSha).toLowerCase()
   const requesting=Number(slot)
   if(!Number.isInteger(requesting)||requesting<1)throw new LaneError('review assignment slot must be a positive integer')
@@ -24,32 +133,67 @@ export function resolvePeerSlots(issue,pr,headSha,slot,io){
   // Other consumers intentionally keep the shared parser strict, so only this
   // peer resolver admits that legacy link into slot-one history.
   const namedPeerRef=(ref)=>parseAssignmentRef(ref)??(ref===replacementBase?{replacement:true,issue:Number(issue),pr:Number(pr),headSha:head,slot:1,replacementSequence:null}:null)
-  const missingSlotOne=()=>new LaneError(`slot ${requesting} requires slot 1 to already be assigned for issue #${issue} PR #${pr} head ${head}. Run --assign-reviewer --issue ${issue} --pr ${pr} --head-sha ${head} (default --review-slot 1) first, then request --review-slot ${requesting}.`)
+  const returnsForHead=(targetHead)=>{
+    const prefix=`${REVIEW_RETURN_REF_PREFIX}/${Number(issue)}-${Number(pr)}-${targetHead}`
+    const list=fresh&&typeof io.__freshListRefs==='function'?io.__freshListRefs:io.listRefs?.bind(io)
+    if(!list)return readReviewReturns(issue,pr,targetHead,io)
+    const rows=list(prefix)??[]
+    const records=typeof io.readReviewRecords==='function'&&rows.length?io.readReviewRecords(rows.map((row)=>row.ref)):null
+    return rows.map((row)=>{
+      const record=records?.get(row.ref)
+      if(record?.sha&&record.sha!==row.sha)throw new LaneError('durable reviewer return changed during its batched read')
+      const parsed=parseReviewReturn(record?.commit??row.commit??io.getCommit(row.sha))
+      if(parsed.issue!==Number(issue)||parsed.pr!==Number(pr)||parsed.headSha!==targetHead||row.ref!==reviewReturnRef(parsed))throw new LaneError('durable reviewer return does not match its ref identity')
+      return parsed
+    })
+  }
   const returned=new Set()
   const peers=new Map()
+  const peerPolicyHistory=new Map()
   let slotOne=null
   const slotOneHistory=[]
+  let ownPolicy=null
+  const ownPolicyHistory=[]
   const accept=(row,named,parsed)=>{
     if(!named||named.issue!==Number(issue)||named.pr!==Number(pr)||named.headSha!==head)return
     if(parsed.issue!==named.issue||parsed.pr!==named.pr||String(parsed.headSha).toLowerCase()!==named.headSha||(parsed.slot??1)!==named.slot)throw new LaneError(`other reviewer slot ${named.slot} has an invalid durable assignment`)
-    if(named.slot===1){
-      if(requesting===1)return
-      slotOneHistory.push(parsed)
-      const previous=slotOne&&slotOne.sequence
-      if(!slotOne||parsed.sequence>previous)slotOne={...parsed,sha:row.sha}
+    if(named.slot===requesting){
+      ownPolicyHistory.push(parsed)
+      if(!ownPolicy||parsed.sequence>ownPolicy.sequence)ownPolicy={...parsed,sha:row.sha,slot:named.slot}
       return
     }
-    if(named.slot===requesting)return
+    if(named.slot===1){
+      slotOneHistory.push(parsed)
+      const previous=slotOne&&slotOne.sequence
+      if(!slotOne||parsed.sequence>previous)slotOne={...parsed,sha:row.sha,slot:1}
+      return
+    }
+    const history=peerPolicyHistory.get(named.slot)??[]
+    history.push(parsed)
+    peerPolicyHistory.set(named.slot,history)
     const previous=peers.get(named.slot)
-    if(!previous||parsed.sequence>previous.sequence)peers.set(named.slot,{...parsed,sha:row.sha})
+    if(!previous||parsed.sequence>previous.sequence)peers.set(named.slot,{...parsed,sha:row.sha,slot:named.slot})
   }
   // Returns are only consulted when peer candidates exist. Slot 1's record is
   // not filtered by returns (matching slot 1's historical behaviour), and a
-  // slot-2 draw with no higher peers pays no listing for them.
+  // draw with no other peer slots pays no listing for them.
   const filterReturned=()=>{
     if(!peers.size)return
-    for(const row of readReviewReturns(issue,pr,head,io))returned.add(row.assignmentSha)
+    for(const row of returnsForHead(head))returned.add(row.assignmentSha)
     for(const [slotNum,record] of [...peers])if(returned.has(record.sha))peers.delete(slotNum)
+  }
+  const finish=()=>{
+    assertReviewerAllowlistConsistency(slotOneHistory)
+    assertReviewerAllowlistConsistency(ownPolicyHistory)
+    for(const history of peerPolicyHistory.values())assertReviewerAllowlistConsistency(history)
+    filterReturned()
+    if(requesting>=2&&!slotOne){
+      slotOne=findCarriedSlotOne(issue,pr,head,io,{fresh})
+      if(slotOne)slotOneHistory.push(slotOne)
+    }
+    assertReviewerAllowlistConsistency(slotOneHistory)
+    const policyPeer=[...(slotOne?[slotOne]:[]),...peers.values()].sort((a,b)=>a.sequence-b.sequence||a.slot-b.slot)[0]??null
+    return {slotOne,peers,policyPeer,ownPolicy}
   }
   if(typeof io.readReviewRecords==='function'){
     // The batched reader lists both namespaces and hydrates all matching
@@ -59,7 +203,6 @@ export function resolvePeerSlots(issue,pr,headSha,slot,io){
     for(const row of (records.matching??[])){
       const named=namedPeerRef(row.ref)
       if(!named||named.headSha!==head)continue
-      if(named.slot===requesting&&!named.replacement)continue
       if(returned.has(row.sha))continue
       const parsed=parseReviewCursor(row.commit??io.getCommit(row.sha))
       accept(row,named,parsed)
@@ -68,32 +211,26 @@ export function resolvePeerSlots(issue,pr,headSha,slot,io){
       const record=records.get(ref)
       if(!record?.sha)continue
       const named=parseAssignmentRef(ref)
-      if(named?.slot===requesting)continue
       const parsed=parseReviewCursor(record.commit??io.getCommit(record.sha))
       accept({ref,sha:record.sha},named,parsed)
     }
-    assertReviewerAllowlistConsistency(slotOneHistory)
-    filterReturned()
-    if(requesting>=2&&!slotOne)throw missingSlotOne()
-    return {slotOne,peers}
+    return finish()
   }
   if(typeof io.listRefs!=='function')throw new LaneError('peer review slot records cannot be listed; independent draw refused')
-  const assignmentRows=io.listRefs(assignmentBase)
+  const list=fresh&&typeof io.__freshListRefs==='function'?io.__freshListRefs:io.listRefs.bind(io)
+  const assignmentRows=list(assignmentBase)
   for(const row of assignmentRows){
     const named=namedPeerRef(row.ref)
-    if(named?.replacement||named?.slot===requesting)continue
+    if(named?.replacement)continue
     accept(row,named,parseReviewCursor(row.commit??io.getCommit(row.sha)))
   }
-  const replacementRows=io.listRefs(replacementBase)
+  const replacementRows=list(replacementBase)
   for(const row of replacementRows){
     const named=namedPeerRef(row.ref)
     if(!named?.replacement)continue
     accept(row,named,parseReviewCursor(row.commit??io.getCommit(row.sha)))
   }
-  assertReviewerAllowlistConsistency(slotOneHistory)
-  filterReturned()
-  if(requesting>=2&&!slotOne)throw missingSlotOne()
-  return {slotOne,peers}
+  return finish()
 }
 
 // AGENTS.md section 4 rule 2 is merge-first, so a migration reaching main and only

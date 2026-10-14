@@ -14,7 +14,14 @@ import { githubIo } from '../../manage-migration-author-lanes.mjs'
 export function parseReviewCursor(commit) {
   if (!commit) return null
   const message=commit.message ?? commit.commit?.message ?? ''
-  const match=/^db-coordination reviewer-cursor sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))?(?: allowlist=([a-z0-9.,-]+))?$/i.exec(message)??/^db-coordination reviewer-(?:failure-)?replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))?(?: allowlist=([a-z0-9.,-]+))? /i.exec(message)
+  // The cursor subject is one line. An owner-quoted allowlist widening records
+  // the verbatim quote as the commit body after a blank line, so the subject
+  // parser must match the first line only — single-line historical messages
+  // are unchanged because their first line is the whole message.
+  const lines=String(message).split(/\r?\n/)
+  const subject=lines[0]??''
+  const body=lines.slice(1).join('\n').replace(/^\s*\n/,'').trim()
+  const match=/^db-coordination reviewer-cursor sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))?(?: allowlist=([a-z0-9.,-]+))?$/i.exec(subject)??/^db-coordination reviewer-(?:failure-)?replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))?(?: allowlist=([a-z0-9.,-]+))? /i.exec(subject)
   if (!match) throw new LaneError('reviewer cursor does not point to a recognized assignment')
   // `slot` is NULL when the message does not state one, never a guessed 1.
   // Replacement messages written before PR #2077 carry no `slot=` token at all,
@@ -23,7 +30,7 @@ export function parseReviewCursor(commit) {
   // the authority on which slot a record belongs to -- see parseAssignmentRef --
   // and this parser now says "not stated" so a caller cannot mistake a default
   // for evidence.
-  return {sequence:Number(match[1]),reviewer:match[2],issue:Number(match[3]),pr:Number(match[4]),headSha:match[5],slot:match[6]?Number(match[6]):null,...(match[7]?{reviewerAllowlist:parseRecordedReviewerAllowlist(match[7])}:{})}
+  return {sequence:Number(match[1]),reviewer:match[2],issue:Number(match[3]),pr:Number(match[4]),headSha:match[5],slot:match[6]?Number(match[6]):null,...(match[7]?{reviewerAllowlist:parseRecordedReviewerAllowlist(match[7])}:{}),...(body?{ownerQuote:body}:{})}
 }
 
 // #2430. KEY ORDER IS NOT IDENTITY. Two verdict payloads carrying the same fields
@@ -414,6 +421,11 @@ export function resolveAssignmentLeaseRef(assignment,parallel,io,busy=null){
 export function parseReviewLease(commit){
   if(!commit)return null
   const message=commit.message??commit.commit?.message??''
+  // Same subject/body split as parseReviewCursor: an owner-quoted allowlist
+  // widening stores the verbatim quote as the commit body, so every assignment
+  // parser must match the first line only. Single-line historical messages are
+  // unchanged because their first line is the whole message.
+  const subject=String(message).split(/\r?\n/)[0]??''
   // #2208 FOLLOW-UP (codex-gpt-5.6-sol REJECT, high finding). The lease's SLOT is
   // now carried out of the message, because `findBusyReviewers` has to ask
   // "does MY slot have a verdict", not "has some sibling slot finished". It is
@@ -440,9 +452,9 @@ export function parseReviewLease(commit){
   // it so a verdict left on a superseded predecessor is not read as "this
   // assignment already judged". Captured, never guessed: a cursor/legacy lease
   // states no failed-sequence and owns the UNSEALED verdict ref (null).
-  const leaseMatch=/^db-coordination reviewer-lease generation=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40}) sequence=(\d+)$/i.exec(message)
-  const cursorMatch=leaseMatch?null:/^db-coordination reviewer-cursor sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))?(?: allowlist=[a-z0-9.,-]+)?$/i.exec(message)
-  const replacementMatch=(leaseMatch||cursorMatch)?null:/^db-coordination reviewer-(?:failure-)?replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))?(?: allowlist=[a-z0-9.,-]+)? failed-sequence=(\d+)/i.exec(message)
+  const leaseMatch=/^db-coordination reviewer-lease generation=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40}) sequence=(\d+)$/i.exec(subject)
+  const cursorMatch=leaseMatch?null:/^db-coordination reviewer-cursor sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))?(?: allowlist=[a-z0-9.,-]+)?$/i.exec(subject)
+  const replacementMatch=(leaseMatch||cursorMatch)?null:/^db-coordination reviewer-(?:failure-)?replacement sequence=(\d+) reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{7,40})(?: slot=(\d+))?(?: allowlist=[a-z0-9.,-]+)? failed-sequence=(\d+)/i.exec(subject)
   const match=leaseMatch??cursorMatch??replacementMatch
   if(!match)throw new LaneError('active reviewer lease is malformed')
   const cursorForm=!leaseMatch

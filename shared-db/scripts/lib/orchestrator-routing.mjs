@@ -101,6 +101,16 @@ export const ENGINES = {
     idPattern: /^sess_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     idDescription: 'a ZCode session id such as `sess_<uuid>`, as reported by the harness (`ZCODE_SESSION_ID`)',
   },
+  mimo: {
+    /**
+     * A MiMo Desktop session id as reported by `$MIMO_SESSION_ID`, e.g.
+     * `ses_<id>`. The `ses_` prefix is part of the id. MiMo is not a rotation
+     * reviewer and has no same-engine reviewer to exclude; the entry exists so
+     * a MiMo authoring session can declare its engine and draw independently.
+     */
+    idPattern: /^ses_[A-Za-z0-9_-]{6,}$/,
+    idDescription: 'a MiMo session id such as `ses_<id>`, as reported by `$MIMO_SESSION_ID`',
+  },
 }
 
 /**

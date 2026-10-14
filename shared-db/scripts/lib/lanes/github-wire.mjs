@@ -120,8 +120,9 @@ export function parseGitCommitBatch(output){
     if(match[2]!=='commit')throw new LaneError(`git object ${match[1]} is a ${match[2]}, not a commit`)
     const text=raw.toString('utf8'),split=text.indexOf('\n\n')
     const headers=split<0?text:text.slice(0,split),message=split<0?'':text.slice(split+2)
+    const tree=/^tree ([0-9a-f]{40})$/m.exec(headers)
     const committer=/^committer .* (\d+) ([+-]\d{4})$/m.exec(headers)
-    commits.set(match[1],{message,committedDate:committer?new Date(Number(committer[1])*1000).toISOString():null})
+    commits.set(match[1],{message,committedDate:committer?new Date(Number(committer[1])*1000).toISOString():null,...(tree?{tree:{sha:tree[1]}}:{})})
   }
   return {commits,unfetched}
 }

@@ -1,0 +1,91 @@
+{
+  "schema_version": 2,
+  "work_issue": 4297,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Complete the combined owner-authorized review-service recovery and inherited widening approach on the existing PR4294 delivery branch under independent exact-head review and guarded merge",
+  "base_sha": "9595a63fcc0c616687d858b0eef1b3864a9d265e",
+  "dispatcher": "Codex coordinator 01a13b6d-f095-72f1-ab6b-fce664912065",
+  "worker": "codex",
+  "branch": "mimo/allowlist-widen-slot2",
+  "worktree": "/home/ahazan/.codex/worktrees/review-dependency-4294/shared-db",
+  "allowed_paths": [
+    "AGENTS.md",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/merge-protocol.md",
+    "docs/agents/review-recovery-policy.md",
+    "docs/agents/standing-facts.md",
+    "plan_review_recovery_4297.md",
+    "scripts/check-exact-head-approval.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    "scripts/lib/lanes/github-wire.mjs",
+    "scripts/lib/lanes/review-assignment.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "scripts/lib/lanes/review-records.mjs",
+    "scripts/lib/lanes/reviewer-roster.mjs",
+    "scripts/lib/orchestrator-routing.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs"
+  ],
+  "file_writes": [
+    "AGENTS.md",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/merge-protocol.md",
+    "docs/agents/review-recovery-policy.md",
+    "docs/agents/standing-facts.md",
+    "plan_review_recovery_4297.md",
+    "scripts/check-exact-head-approval.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    "scripts/lib/lanes/github-wire.mjs",
+    "scripts/lib/lanes/review-assignment.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "scripts/lib/lanes/review-records.mjs",
+    "scripts/lib/lanes/reviewer-roster.mjs",
+    "scripts/lib/orchestrator-routing.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database or production writes",
+    "No fabricated historical failure proof or deleted review history",
+    "No weakening exact-head approvals, reviewer independence, required checks or actor-engine exclusions",
+    "No edits to other sessions worktrees, no force push, and no invalidation of an active paid review by this coordinator; additive reconciled publication on canonical PR4294 is authorized."
+  ],
+  "required_checks": [
+    "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/run-governed-review.test.mjs",
+    "node --test scripts/check-exact-head-approval.test.mjs"
+  ],
+  "assumptions": [
+    "Albert authorizes coordinator completion of the whole job in his current chat.",
+    "PR4294 is retained as the delivery card so the existing MiMo approach continues; root PR4299 combined source8c6590ee6c7be4363e39cf665d24265234d8176d and MiMo source451a4f8a897b837cdfcfe08777f59ec7c292e491 are explicitly inherited and preserved as ancestors, not claimed to have been originally authored under this new contract.",
+    "Only additive fast-forward delivery of the combined tested repair is allowed; preserve every existing source commit and do not force push or mutate another worktree.",
+    "The combined source retains finite service-failure bounds, own-slot policy, validated replacements/returns, private approval-carry proof, narrow ancestor .agent-only equivalence, required review counts and independent identities.",
+    "Only this generation current keyed pair appears in the final candidate delta; superseded candidate evidence is preserved in history and immutable refs.",
+    "Claude PR4301 remains closed under its separate owner and will reconcile after this delivery; no source or evidence is borrowed as approval for our code.",
+    "This successor corrects the predecessor prose generation label; source and file scope are unchanged and original consolidation remains authorized prospectively under generation9.",
+    "Prospectively reconcile MiMo31a79b07e135218f57613e9bd1077903172bc196. Preserve its carry fixes through the more thoroughly validated combined replacements/returns implementation, and classify exact-bound verdictless reviewer_cannot_read_repository as a service failure with the same two-failure per-provider bound. Keep genuine local_dependency_unavailable hard exclusions and exercise them with truthful fixtures. No old review approves the added implementation.",
+    "Generation11 corrects inherited contradictory PR4294 prohibition and stale generation wording; all earlier immutable contracts and source histories remain unchanged."
+  ],
+  "stop_conditions": [
+    "Any foreign head movement must be captured and reconciled before marking that proposal superseded; no overwrite or force push.",
+    "An active governed review on a superseded proposal must be preserved and resolved before administrative closure.",
+    "No database or production writes, no fabricated history or evidence, no weakened required checks, independent review or finite spending limits.",
+    "Any additional source path requires a published scope successor before edits."
+  ],
+  "generation": 11,
+  "evidence_parent": {
+    "work_issue": 4297,
+    "generation": 10,
+    "contract_sha256": "8cd016f15e41da5330f35f5caebc31830c3b2900c4090ba93c36abe6ffe6947f"
+  }
+}
