@@ -55,6 +55,30 @@
       "class": "reviewer-safety"
     },
     {
+      "glob": "scripts/orderlist-source-disposition-writer.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-orderlist-source-disposition-writer.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/orderlist-settled-exception-executor.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "contracts/orderlist-settled-exception-apply.json",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-orderlist-settled-exception-executor.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-orderlist-settled-exception-postgres.py",
+      "class": "reviewer-safety"
+    },
+    {
       "glob": "scripts/repair-style-tracker-overflow-dates.py",
       "class": "reviewer-safety"
     },

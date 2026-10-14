@@ -1,0 +1,20 @@
+{
+  "action": "apply-settled-55-google-orderlist-exceptions",
+  "canonical_importer_sha256": "7b499d63c4fc07b7c11896f226607b5d930a148bcef4e725ae90392ac91ea410",
+  "deletes": 0,
+  "executor_sha256": "7650df32ea95b9a7665c5647d37d94663d6419df6ff5b66d947bc8715676b5c2",
+  "header_refs_insert": 40,
+  "headers_insert": 40,
+  "headers_total": 76,
+  "line_refs_insert": 253,
+  "lines_insert": 253,
+  "lines_total": 296,
+  "owner_issue": 277,
+  "postimage_sha256": "d80c99c276aac8f8423865bb50da823fbe90ad630c223ed19e7ecb39c70c43c6",
+  "region": "Virginia",
+  "retirement": "retain as audit record; do not reuse for another plan",
+  "review_plan_sha256": "5e9f618739c711e5426a1f3652f65fea0b83b0018622dd9f682e5c7dc25f06c0",
+  "schema": "orderlist-settled-exception-apply-contract-v1",
+  "source_preimages_file_sha256": "c26779a66cfe1e4669a5241c7ae8903ae0b8d818f31efb72621ca70c279e3d97",
+  "target": "qsllyeztdwjgirsysgai"
+}
