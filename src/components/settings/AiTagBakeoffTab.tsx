@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { catalogWarningOf, modelAllowedForTask, preserveCatalogOnWarning } from "@/lib/ai-model-options";
+import { catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning, SCALEDOWN_SUMMARIZE_MODEL } from "@/lib/ai-model-options";
 import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
 
 const SLOTS = ["a", "b", "c", "d", "e"] as const;
@@ -35,8 +35,7 @@ type VisionModel = {
 // The worker's scaledown.ts handles "scaledown/" ids with SCALEDOWN_API_KEY.
 const BAKEOFF_ONLY_MODELS: VisionModel[] = [
   {
-    id: "scaledown/summarize",
-    name: "ScaleDown Summarize (direct API; bake-off only)",
+    ...SCALEDOWN_SUMMARIZE_MODEL,
     architecture: { input_modalities: ["text", "image"] },
     pricing: { prompt: "0.00000005", completion: "0" },
   },
@@ -285,11 +284,15 @@ export default function AiTagBakeoffTab() {
   const [models, setModels] = useState<string[]>(["", "", "", "", ""]);
 
   const { data: openRouterConfig } = useQuery({
-    queryKey: ["admin-config", "OPENROUTER_API_KEY"],
-    queryFn: () => call("get-config", { keys: ["OPENROUTER_API_KEY"] }),
+    queryKey: ["admin-config", "OPENROUTER_API_KEY", "AI_MODEL_POOL"],
+    queryFn: () => call("get-config", { keys: ["OPENROUTER_API_KEY", "AI_MODEL_POOL"] }),
     staleTime: 30_000,
   });
   const savedOpenRouterKey = unwrapConfigString(openRouterConfig?.config?.OPENROUTER_API_KEY);
+  const modelPool = normalizeAiModelPool(
+    (openRouterConfig?.config?.AI_MODEL_POOL as Record<string, unknown> | undefined)?.value
+      ?? openRouterConfig?.config?.AI_MODEL_POOL,
+  );
   const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
 
   const bakeoffModelQueryKey = ["openrouter-vision-models-bakeoff", openRouterAccountFingerprint] as const;
@@ -326,15 +329,24 @@ export default function AiTagBakeoffTab() {
   });
 
   const modelData = modelCatalog?.models;
+  const availableVisionModels = useMemo(() => (modelData ?? [])
+    .filter((model) => supportsImageTaggingContract(model) && modelAllowedForTask(model.id, "vision_tagging", true)), [modelData]);
   const visionModels = useMemo(() => {
-    const list = (modelData ?? []).filter((model) => supportsImageTaggingContract(model) && modelAllowedForTask(model.id, "vision_tagging", true));
-    return [...list].sort((a, b) => {
+    const list = availableVisionModels.filter((model) => modelInPool(model.id, modelPool));
+    const ordered = [...list].sort((a, b) => {
       if (a.supports_tools !== b.supports_tools) return a.supports_tools ? -1 : 1;
       if (a.supports_structured_outputs !== b.supports_structured_outputs) return a.supports_structured_outputs ? -1 : 1;
       if (a.supports_response_format !== b.supports_response_format) return a.supports_response_format ? -1 : 1;
       return a.id.localeCompare(b.id);
-    }).concat(BAKEOFF_ONLY_MODELS);
-  }, [modelData]);
+    });
+    const byId = new Map(ordered.map((model) => [model.id, model]));
+    for (const model of BAKEOFF_ONLY_MODELS) {
+      if (modelInPool(model.id, modelPool)) byId.set(model.id, model);
+    }
+    return [...byId.values()];
+  }, [availableVisionModels, modelPool]);
+  const poolHidesAllBakeoffModels = !modelsLoading && visionModels.length === 0
+    && availableVisionModels.length + BAKEOFF_ONLY_MODELS.length > 0;
 
   async function refreshModels() {
     const toastId = toast.loading("Refreshing OpenRouter vision models...");
@@ -444,40 +456,55 @@ export default function AiTagBakeoffTab() {
   const opDone = ((opProgress.evaluated as number) || 0) + ((opProgress.failed as number) || 0);
   const progressPct = opTotal > 0 ? Math.min(100, Math.round((opDone / opTotal) * 100)) : 0;
 
-  const modelSelect = (idx: number) => (
-    <div key={SLOTS[idx]} className="space-y-1">
-      <Label className="text-xs">{SLOT_LABELS[SLOTS[idx]]}</Label>
-      {visionModels.length > 0 ? (
-        <Select value={models[idx]} onValueChange={(value) => setModels((prev) => {
-          const next = [...prev];
-          next[idx] = value;
-          return next;
-        })}>
-          <SelectTrigger className="h-8 font-mono text-xs">
-            <SelectValue placeholder={modelsLoading ? "Loading..." : "Select model"} />
-          </SelectTrigger>
-          <SelectContent className="sm:min-w-[28rem]">
-            {visionModels.map((model) => (
-              <SelectItem key={model.id} value={model.id} className="font-mono text-xs" suffix={formatOpenRouterPricing(model.pricing)}>
-                {fmtModel(model.id)}{model.supports_tools ? model.tool_choice_modes?.includes("named") ? " (tool named)" : model.tool_choice_modes?.includes("required") ? " (tool required)" : " (tool auto)" : model.supports_structured_outputs ? " (schema)" : " (json)"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : (
-        <Input
-          value={models[idx]}
-          onChange={(e) => setModels((prev) => {
+  const modelSelect = (idx: number) => {
+    const selectedId = models[idx];
+    const selectedOutsidePool = !!selectedId && !modelInPool(selectedId, modelPool);
+    const currentOption = selectedId
+      ? availableVisionModels.find((model) => model.id === selectedId)
+        ?? BAKEOFF_ONLY_MODELS.find((model) => model.id === selectedId)
+        ?? { id: selectedId, name: selectedId }
+      : undefined;
+    const visibleModelsForSlot = includeCurrentModel(visionModels, currentOption);
+
+    return (
+      <div key={SLOTS[idx]} className="space-y-1">
+        <Label className="text-xs">{SLOT_LABELS[SLOTS[idx]]}</Label>
+        {visibleModelsForSlot.length > 0 ? (
+          <Select value={models[idx]} onValueChange={(value) => setModels((prev) => {
             const next = [...prev];
-            next[idx] = e.target.value;
+            next[idx] = value;
             return next;
-          })}
-          className="h-8 font-mono text-xs"
-          placeholder="provider/model"
-        />
-      )}
-    </div>
-  );
+          })}>
+            <SelectTrigger className="h-8 font-mono text-xs">
+              <SelectValue placeholder={modelsLoading ? "Loading..." : "Select model"} />
+            </SelectTrigger>
+            <SelectContent className="sm:min-w-[28rem]">
+              {visibleModelsForSlot.map((model) => (
+                <SelectItem key={model.id} value={model.id} className="font-mono text-xs" suffix={formatOpenRouterPricing(model.pricing)}>
+                  {fmtModel(model.id)}{selectedOutsidePool && model.id === selectedId ? " (outside Model Pool)" : ""}{model.supports_tools ? model.tool_choice_modes?.includes("named") ? " (tool named)" : model.tool_choice_modes?.includes("required") ? " (tool required)" : " (tool auto)" : model.supports_structured_outputs ? " (schema)" : " (json)"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="text-[10px] text-amber-600">
+            {poolHidesAllBakeoffModels
+              ? "All bake-off models are hidden by the Model Pool. Add one in Settings → Processing → AI Tagging."
+              : "No bake-off models are available."}
+          </p>
+        )}
+        {visibleModelsForSlot.length > 0 && (selectedOutsidePool || poolHidesAllBakeoffModels) && (
+          <p className="text-[10px] text-amber-600">
+            {selectedOutsidePool
+              ? poolHidesAllBakeoffModels
+                ? "This selected model is outside the Model Pool and remains available. No other bake-off models are shown; add one in Settings → Processing → AI Tagging."
+                : "This selected model is outside the Model Pool and remains available until you replace it."
+              : "No other bake-off models are shown. Add one in Settings → Processing → AI Tagging."}
+          </p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
