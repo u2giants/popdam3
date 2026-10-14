@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CURRENT_APP } from "@/lib/app-mode";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { modelAllowedForTask, modelInPool, normalizeAiModelPool, sameAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
+import { includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, sameAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
 import { toast } from "sonner";
 import { saveAiModelConfig, type AiModelConfigDraft } from "@/lib/ai-model-config-save";
 import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
@@ -784,7 +784,8 @@ export function AiModelsConfigSection() {
               const currentModelMeetsRequirements = !currentVal || (modelAllowedForTask(currentVal, key)
                 && (!(requiresTools || requiresStructuredOutput || requiresVision) || modelMeetsRequirements(modelList.find((m) => m.id === currentVal))));
               const allOptions = currentVal && modelAllowedForTask(currentVal, key) && !filteredList.some((m) => m.id === currentVal)
-                ? [{ id: currentVal, name: currentVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] }, ...filteredList]
+                ? includeCurrentModel(filteredList, modelList.find((m) => m.id === currentVal)
+                  ?? { id: currentVal, name: currentVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] })
                 : filteredList;
 
               const fallbackVal = fallbackKey ? (taskModels[fallbackKey] || "") : "";
@@ -793,7 +794,8 @@ export function AiModelsConfigSection() {
               const poolHidAllFallbackModels = fallbackCandidatesBeforePool.length > 0 && fallbackModelList.length === 0;
               const fallbackOptions = fallbackKey
                 ? (fallbackVal && modelAllowedForTask(fallbackVal, key, true) && !fallbackModelList.some((m) => m.id === fallbackVal)
-                  ? [{ id: fallbackVal, name: fallbackVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] }, ...fallbackModelList]
+                  ? includeCurrentModel(fallbackModelList, modelList.find((m) => m.id === fallbackVal)
+                    ?? { id: fallbackVal, name: fallbackVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] })
                   : fallbackModelList)
                 : [];
 

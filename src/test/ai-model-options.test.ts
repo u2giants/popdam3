@@ -147,9 +147,11 @@ describe("AI Model Pool", () => {
   });
 
   it("keeps a selected model visible while retaining the filtered catalog", () => {
-    const selected = { id: "hidden/model", name: "Hidden model" };
-    const visible = [{ id: "visible/model", name: "Visible model" }];
-    expect(includeCurrentModel(visible, selected)).toEqual([selected, ...visible]);
+    const selected = { id: "hidden/model", name: "Hidden model", supportsTools: true };
+    const visible = [{ id: "visible/model", name: "Visible model", supportsTools: false }];
+    const withCurrent = includeCurrentModel(visible, selected);
+    expect(withCurrent).toEqual([selected, ...visible]);
+    expect(withCurrent[0].supportsTools).toBe(true);
     expect(includeCurrentModel(visible, visible[0])).toEqual(visible);
   });
 });
