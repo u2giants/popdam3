@@ -1,17 +1,19 @@
-# Plan v12: rotate the hetz OS-user `ai` password (#179)
+# Plan v13: rotate the hetz OS-user `ai` password (#179)
 
-Supersedes v11 (commit eb3e09b2). Reviews on record: GLM 20261013T233759-3326759-1761, 20261013T234438-3485893-11289; Gemini 20261013T235505-3728866-4419, 20261014T000451-3886229-19465, 20261014T001840-4074085-28799; DeepSeek 20261013T235105-3638091-26324, 20261014T000019-3807599-14958, 20261014T001352-4037250-9191. No secret values appear here.
+Supersedes v12 (commit ad9c21d6). Reviews on record: GLM 20261013T233759-3326759-1761, 20261013T234438-3485893-11289; Gemini 20261013T235505-3728866-4419, 20261014T000451-3886229-19465, 20261014T001840-4074085-28799; DeepSeek 20261013T235105-3638091-26324, 20261014T000019-3807599-14958, 20261014T001352-4037250-9191. No secret values appear here.
 
 ## STATUS
-Not executed. v12 under review. No host, vault, or NAS change has happened.
+Not executed. v13 final-check requested on the plan commit. No host, vault, or NAS change has happened.
 
 ## Scope
 - Host hetz (public 178.156.180.212; Tailscale IPv4 recorded in step 0a), OS user `ai`, this one password only. Not NAS popdam (not rotated, per Albert), not the hetzner_vps token (standing no-rotation), not the render account.
 - Canonical vault item: `hetz-ai-ssh` (id 5xukphmemjyt6cp67qo5qdawby, vault vibe_coding). Its password field is edited in place; the item is never re-created.
 - Staging items: `hetz-ai-ssh - pending rotation - <ATTEMPT_ID>`. ATTEMPT_ID = UTC timestamp plus 6 random hex, computed before the item is created. Items are never overwritten. Notes marker `STAGED` is set in the creation step. Retirement changes only the title suffix to `- retired <ATTEMPT_ID>`, after step 11.
 - Privilege evidence: on 2026-10-13 `sudo -n -l` as `ai` on hetz listed `(ALL) NOPASSWD: ALL`. Step 5 repeats this check and records it; discovery and setter checks rely on it.
-- Task class: `production`. Evidence: `ai-task-gates start --class production` recorded the class in a worktree with no plan file; `check --before production` there reported the required gate `exact-resource-and-action-ai-reviewer-approval`. The gate runs at steps 7 and 9 with `--reviewer-approval <REPORT>`, where REPORT is the path of the APPROVE report that `ai-review` writes under `.ai/reviews/` in the execution worktree (the path it prints). The gate output is pasted into #179.
-- Execution location: this plan is merged to main through its docs-only PR first. Execution runs in a fresh worktree at origin/main whose change set contains no plan or prose file (a `plan_*.md` file classifies the worktree as reviewer-safety, which forbids production; reproduced by DeepSeek).
+- Task class: `production` (`ai-task-gates start --class production`).
+- Reviewer approval (settled by Albert's standing rules): a `final-check` APPROVE on the exact plan commit, from an in-rotation reviewer whose engine differs from the implementer (Claude), run with `ai-review <engine> final-check --implementer claude`. The executor verifies it by hand before steps 7 and 9: the report exists, its verdict line is APPROVE, and its reviewed commit equals the executing commit (`git rev-parse HEAD` in the execution worktree). Only then is it passed as `--reviewer-approval <REPORT>`. The gate tool is NOT relied on to enforce this (a separate helper is fixing the gate bug); the hand check is the control.
+- Gate output for steps 7 and 9 is pasted into #179.
+- Execution location: execution runs in a fresh worktree checked out at the exact reviewed plan commit (detached HEAD at that SHA). Any change to the plan after approval requires a new review.
 - Executor: its own shell and pts. Its tty and session ID are recorded in step 0a and it is never terminated.
 
 ## Budget (failure-based)
@@ -64,6 +66,11 @@ Not executed. v12 under review. No host, vault, or NAS change has happened.
 
 ## Rollback
 No rollback to the old value. Wrong new value: a new attempt from step 6 through the gates. Key path lost: Blocked with owner via Hetzner console (2d).
+
+## Approval record (filled in by the executor)
+- Final-check report path: <path under .ai/reviews/>
+- Verdict line: <APPROVE>
+- Reviewed commit: <SHA>, equal to `git rev-parse HEAD` at execution: <yes/no>
 
 ## Blocked (expected at completion)
 Remote machines, Coolify UI, GitHub, off-host backups, and any consumer without its own check. Each with an owner.
