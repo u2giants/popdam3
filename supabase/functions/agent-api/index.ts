@@ -67,6 +67,7 @@ import {
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
+import { pickWindowsNasPassword } from "../_shared/windows-nas-password.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
 
@@ -388,6 +389,12 @@ async function handleHeartbeat(
     const { data: sgPass, error: sgPassErr } = await db.rpc("get_sg_nas_password");
     if (sgPassErr) console.error("get_sg_nas_password failed:", sgPassErr.message);
     else configMap.WINDOWS_AGENT_SG_NAS_PASS = typeof sgPass === "string" ? sgPass : "";
+    // Z: (mac share) password: Vault-backed once shared-db migration
+    // 20261014043757 is live. Falls back to the admin_config row when the RPC
+    // errors or returns empty, so the render agent keeps working until cutover removes the row.
+    const { data: zPass, error: zPassErr } = await db.rpc("get_render_z_nas_password");
+    if (zPassErr) console.error("get_render_z_nas_password failed:", zPassErr.message);
+    else configMap.WINDOWS_AGENT_NAS_PASS = pickWindowsNasPassword(zPass, configMap.WINDOWS_AGENT_NAS_PASS);
   }
 
   // Spaces
