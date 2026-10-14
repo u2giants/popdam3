@@ -1,5 +1,5 @@
-import { config } from "./config.js";
 import { synchronizeMetaReservations, observePausedMetaResponse, MetaCapabilityRejectionError } from "./meta-model-api.js";
+import { getMetaApiKey } from "./provider-api-key.js";
 import { metaCompletedTransition, advanceMetaCapabilityRejection } from "./handlers/meta-tag-response-state.js";
 /**
  * Operation loop — polls admin_config.BULK_OPERATIONS, dispatches to handlers,
@@ -1058,7 +1058,7 @@ export async function tick(): Promise<void> {
   const allOps = (configRow?.value as Record<string, OpState>) || {};
   for (const [key, state] of Object.entries(allOps)) reconcileHeldAcknowledgement(key, state);
   synchronizeMetaReservations(allOps);
-  await observePausedMetaResponse(allOps, config.metaApiKey);
+  await observePausedMetaResponse(allOps, await getMetaApiKey());
   const originalOps: Record<string, OpState> = { ...allOps };
 
   // Stale lock detection

@@ -892,7 +892,7 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
     const apiKey = await getAiTaggingApiKey(model);
     if (!apiKey) {
       const keyName = model.startsWith("meta-direct/") ? "META_API_KEY" : "OPENROUTER_API_KEY";
-      return { outcome: "failed", error: `No AI API key configured (set ${keyName} in Railway)` };
+      return { outcome: "failed", error: `No AI API key configured (set ${keyName} in Settings)` };
     }
     for (let sameModelRetry = 0; sameModelRetry <= SAME_MODEL_STRUCTURED_RETRY_COUNT; sameModelRetry++) {
       // Call through the provider selected by the model ID.

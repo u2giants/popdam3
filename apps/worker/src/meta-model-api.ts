@@ -195,7 +195,7 @@ export async function metaChatCompletion(
   timeoutMs = DEFAULT_TIMEOUT_MS,
   retryDelaysMs: number[] = MODEL_NOT_FOUND_RETRY_DELAYS_MS,
 ): Promise<ChatCompletionResult> {
-  if (!apiKey) throw new MetaModelApiError(401, "META_API_KEY is not configured in Railway");
+  if (!apiKey) throw new MetaModelApiError(401, "Meta API key is not configured in Settings");
 
   let response: Response;
   let bodyText: string;

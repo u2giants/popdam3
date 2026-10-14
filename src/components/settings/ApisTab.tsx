@@ -13,10 +13,9 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CURRENT_APP } from "@/lib/app-mode";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { includeCurrentModel, modelAllowedForTask, modelInPool, modelSelectorPresentation, normalizeAiModelPool, sameAiModelPool, preserveCatalogOnWarning, shouldLoadAiModelCatalog } from "@/lib/ai-model-options";
+import { includeCurrentModel, modelAllowedForTask, modelInPool, modelSelectorPresentation, normalizeAiModelPool, sameAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
 import { toast } from "sonner";
-import { saveAiModelConfig, type AiModelConfigDraft } from "@/lib/ai-model-config-save";
-import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
+import { saveAiModelConfig, saveAiModelPool, type AiModelConfigDraft, type AiModelKeyField } from "@/lib/ai-model-config-save";
 import { ModelPoolEditor } from "@/components/settings/ModelPoolEditor";
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -27,6 +26,76 @@ interface SyncSource {
   apiUrl: string;
   apiKey?: string;
   enabled: boolean;
+}
+
+const AI_KEY_CONFIG_NAMES: Record<AiModelKeyField, string> = {
+  openRouterKey: "OPENROUTER_API_KEY",
+  googleKey: "GOOGLE_AI_API_KEY",
+  metaKey: "META_API_KEY",
+  scaleDownKey: "SCALEDOWN_API_KEY",
+  anthropicKey: "ANTHROPIC_API_KEY",
+  openaiKey: "OPENAI_API_KEY",
+};
+
+function ProviderApiKeyField({
+  field,
+  label,
+  value,
+  placeholder,
+  configured,
+  visible,
+  clearScheduled,
+  onChange,
+  onToggleVisibility,
+  onToggleClear,
+}: {
+  field: AiModelKeyField;
+  label: string;
+  value: string;
+  placeholder: string;
+  configured: boolean;
+  visible: boolean;
+  clearScheduled: boolean;
+  onChange: (value: string) => void;
+  onToggleVisibility: () => void;
+  onToggleClear: (field: AiModelKeyField) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-xs">{label}</Label>
+        <Badge variant={configured ? "secondary" : "outline"} className="text-[10px]">
+          {configured ? "Saved in Settings" : "Not saved in Settings"}
+        </Badge>
+      </div>
+      <div className="relative">
+        <Input
+          aria-label={label}
+          type={visible ? "text" : "password"}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={configured ? "Enter a replacement key" : placeholder}
+          className="h-8 text-xs pr-8 font-mono"
+        />
+        <button
+          type="button"
+          aria-label={visible ? `Hide ${label}` : `Show ${label}`}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          onClick={onToggleVisibility}
+        >
+          {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        {configured ? "Saved value stays hidden. Leave blank to keep it." : "Enter a key to enable this endpoint."}
+      </p>
+      {configured && (
+        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => onToggleClear(field)}>
+          {clearScheduled ? "Keep saved key" : "Clear saved key when saving"}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 const DEFAULT_SOURCES: SyncSource[] = [
@@ -451,7 +520,7 @@ WHAT THIS TASK DOES
 Looks at one asset image (licensed-character artwork, a product photo, a tech pack or style-guide page, etc.) plus its file metadata and returns structured catalog metadata: descriptive tags, a one-sentence description, a short product-label "cover description", a scene description, asset type and art source, design style/reference, matched character / licensor / property IDs from a controlled in-house taxonomy, designer / technical-designer / freelancer names read off title blocks, and a deduplicated list of "Files Used" pulled from any attached tech-pack text. It runs as a single-turn image+text request (no chat history, no multi-step agent loop), at bulk-job scale across the whole library.
 
 HOW THE CODE INVOKES THE MODEL
-Most calls go through OpenRouter (OpenAI-compatible Chat Completions). The explicit meta-direct/muse-spark-1.3-contributor choice instead uses Meta Model API directly and requires META_API_KEY in Railway. The worker asks for structured output through a fallback ladder and takes whichever the model supports: (1) a forced tag_asset tool/function call; (2) json_schema structured outputs; (3) plain JSON mode with schema instructions in the prompt. It then validates that the required fields are present. So a model does NOT need native tool calling to qualify — it needs to reliably return valid JSON matching the schema through at least one of those mechanisms. It DOES need real image input; a text-only model cannot do this task.
+Most calls go through OpenRouter (OpenAI-compatible Chat Completions). The explicit meta-direct/muse-spark-1.3-contributor choice instead uses Meta Model API directly and requires a Meta API key below (with Railway environment fallback). The worker asks for structured output through a fallback ladder and takes whichever the model supports: (1) a forced tag_asset tool/function call; (2) json_schema structured outputs; (3) plain JSON mode with schema instructions in the prompt. It then validates that the required fields are present. So a model does NOT need native tool calling to qualify — it needs to reliably return valid JSON matching the schema through at least one of those mechanisms. It DOES need real image input; a text-only model cannot do this task.
 
 WHAT IS FED TO THE MODEL
 - One image: the asset's THUMBNAIL, not the full-resolution original — an already-compressed, downscaled raster sent inline. There is no separate high-res pass, so the model must read small detail (style numbers, fine print in title blocks, near-identical character variants) off a low-resolution image.
@@ -536,7 +605,7 @@ export function AiModelsConfigSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
-  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "AI_MODEL_DISPLAY_NAMES", "AI_MODEL_POOL", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
+  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "AI_MODEL_DISPLAY_NAMES", "AI_MODEL_POOL", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "META_API_KEY", "SCALEDOWN_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
 
   const { data: configData } = useQuery({
     queryKey: ["admin-config", ...configKeys],
@@ -547,17 +616,21 @@ export function AiModelsConfigSection() {
   const [openRouterKey, setOpenRouterKey] = useState("");
   const [showOpenRouter, setShowOpenRouter] = useState(false);
   const [googleKey, setGoogleKey] = useState("");
+  const [metaKey, setMetaKey] = useState("");
+  const [scaleDownKey, setScaleDownKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
   const [showGoogle, setShowGoogle] = useState(false);
+  const [showMeta, setShowMeta] = useState(false);
+  const [showScaleDown, setShowScaleDown] = useState(false);
   const [showAnthropic, setShowAnthropic] = useState(false);
   const [showOpenai, setShowOpenai] = useState(false);
-  const [showLegacyKeys, setShowLegacyKeys] = useState(false);
   const [modelsJson, setModelsJson] = useState("");
   const [jsonError, setJsonError] = useState("");
   const [taskModels, setTaskModels] = useState<Record<string, string>>({});
   const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
   const [modelPool, setModelPool] = useState<ReturnType<typeof normalizeAiModelPool>>({});
+  const [keysToClear, setKeysToClear] = useState<Set<AiModelKeyField>>(() => new Set());
   const [loaded, setLoaded] = useState(false);
 
   const unwrap = (v: unknown) => ((v as Record<string, unknown>)?.value ?? v ?? "") as string;
@@ -565,10 +638,6 @@ export function AiModelsConfigSection() {
   useEffect(() => {
     if (!configData || loaded) return;
     const cfg = configData.config ?? {};
-    setOpenRouterKey(unwrap(cfg.OPENROUTER_API_KEY));
-    setGoogleKey(unwrap(cfg.GOOGLE_AI_API_KEY));
-    setAnthropicKey(unwrap(cfg.ANTHROPIC_API_KEY));
-    setOpenaiKey(unwrap(cfg.OPENAI_API_KEY));
     const models = (cfg.AI_MODELS as Record<string, unknown>)?.value ?? cfg.AI_MODELS;
     setModelsJson(models ? JSON.stringify(models, null, 2) : "");
     const savedTasks = ((cfg.AI_TASK_MODELS as Record<string, unknown>)?.value ?? cfg.AI_TASK_MODELS ?? {}) as Record<string, string>;
@@ -589,19 +658,69 @@ export function AiModelsConfigSection() {
     }
   }
 
+  function updateApiKey(field: AiModelKeyField, value: string) {
+    const setters: Record<AiModelKeyField, (next: string) => void> = {
+      openRouterKey: setOpenRouterKey,
+      googleKey: setGoogleKey,
+      metaKey: setMetaKey,
+      scaleDownKey: setScaleDownKey,
+      anthropicKey: setAnthropicKey,
+      openaiKey: setOpenaiKey,
+    };
+    setters[field](value);
+    setKeysToClear((previous) => {
+      if (!previous.has(field)) return previous;
+      const next = new Set(previous);
+      next.delete(field);
+      return next;
+    });
+  }
+
+  function toggleClearKey(field: AiModelKeyField) {
+    setKeysToClear((previous) => {
+      const next = new Set(previous);
+      if (next.has(field)) next.delete(field);
+      else next.add(field);
+      return next;
+    });
+  }
+
   const save = useMutation({
     mutationFn: (draft: AiModelConfigDraft) => saveAiModelConfig(call, draft),
     onSuccess: () => {
       toast.success("AI configuration saved");
+      setOpenRouterKey("");
+      setGoogleKey("");
+      setMetaKey("");
+      setScaleDownKey("");
+      setAnthropicKey("");
+      setOpenaiKey("");
+      setKeysToClear(new Set());
+      queryClient.invalidateQueries({ queryKey: ["admin-config"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const savePool = useMutation({
+    mutationFn: (pool: ReturnType<typeof normalizeAiModelPool>) => saveAiModelPool(call, pool),
+    onSuccess: () => {
+      toast.success("Model Pool saved");
       queryClient.invalidateQueries({ queryKey: ["admin-config"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const savedOpenRouterKey = unwrap(configData?.config?.OPENROUTER_API_KEY);
-  const savedGoogleKey = unwrap(configData?.config?.GOOGLE_AI_API_KEY);
-  const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
-
+  const keyConfigured = (field: AiModelKeyField) =>
+    (configData?.config?.[AI_KEY_CONFIG_NAMES[field]] as { configured?: unknown } | undefined)?.configured === true;
+  const openRouterKeyConfigured = keyConfigured("openRouterKey");
+  const googleKeyConfigured = keyConfigured("googleKey");
+  const metaKeyConfigured = keyConfigured("metaKey");
+  const scaleDownKeyConfigured = keyConfigured("scaleDownKey");
+  const anthropicKeyConfigured = keyConfigured("anthropicKey");
+  const openaiKeyConfigured = keyConfigured("openaiKey");
+  const openRouterKeyRevision = (configData?.config?.OPENROUTER_API_KEY as { updated_at?: unknown } | undefined)?.updated_at;
+  const openRouterAccountFingerprint = typeof openRouterKeyRevision === "string" ? openRouterKeyRevision : "unset";
   const modelQueryKey = ["vision-models", openRouterAccountFingerprint] as const;
   const {
     data: visionCatalog,
@@ -623,7 +742,7 @@ export function AiModelsConfigSection() {
     warning?: string | null;
   }>({
     queryKey: modelQueryKey,
-    enabled: shouldLoadAiModelCatalog(!!configData, savedOpenRouterKey, openRouterAccountFingerprint),
+    enabled: !!configData,
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
       const items = (data?.models ?? []) as Array<{ id: string; name?: string; supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; tool_choice_modes?: string[]; input_modalities?: string[]; pricing?: OpenRouterPricing }>;
@@ -659,18 +778,20 @@ export function AiModelsConfigSection() {
     }
   }
 
-  const savedAnthropicKey = unwrap(configData?.config?.ANTHROPIC_API_KEY);
-  const savedOpenaiKey = unwrap(configData?.config?.OPENAI_API_KEY);
   const savedModels = (configData?.config?.AI_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_MODELS;
   const savedModelsJson = savedModels ? JSON.stringify(savedModels, null, 2) : "";
   const savedTaskModels = ((configData?.config?.AI_TASK_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_TASK_MODELS ?? {}) as Record<string, string>;
   const savedDisplayNames = ((configData?.config?.AI_MODEL_DISPLAY_NAMES as Record<string, unknown>)?.value ?? configData?.config?.AI_MODEL_DISPLAY_NAMES ?? {}) as Record<string, string>;
   const savedModelPool = normalizeAiModelPool((configData?.config?.AI_MODEL_POOL as Record<string, unknown> | undefined)?.value ?? configData?.config?.AI_MODEL_POOL);
+  const modelPoolIsDirty = loaded && !sameAiModelPool(modelPool, savedModelPool);
   const isDirty = loaded && (
     openRouterKey !== savedOpenRouterKey ||
-    googleKey !== savedGoogleKey ||
-    anthropicKey !== savedAnthropicKey ||
-    openaiKey !== savedOpenaiKey ||
+    googleKey.length > 0 ||
+    metaKey.length > 0 ||
+    scaleDownKey.length > 0 ||
+    anthropicKey.length > 0 ||
+    openaiKey.length > 0 ||
+    keysToClear.size > 0 ||
     modelsJson !== savedModelsJson ||
     JSON.stringify(taskModels) !== JSON.stringify(savedTaskModels) ||
     JSON.stringify(displayNames) !== JSON.stringify(savedDisplayNames) ||
@@ -687,8 +808,8 @@ export function AiModelsConfigSection() {
       <CardContent className="space-y-4">
         <p className="text-xs text-muted-foreground">
           AI calls normally go through OpenRouter. Image Tagging can also use Meta Model API directly,
-          or Direct Gemini Batch with the Google AI API key below.
-          Direct Muse requires <code className="text-[10px]">META_API_KEY</code> in Railway.
+          Direct Gemini Batch, or ScaleDown for bake-offs. Saved key values are hidden; use these fields
+          to add a key, replace it, or clear it.
         </p>
 
         {/* OpenRouter API Key */}
@@ -698,8 +819,8 @@ export function AiModelsConfigSection() {
             <Input
               type={showOpenRouter ? "text" : "password"}
               value={openRouterKey}
-              onChange={(e) => setOpenRouterKey(e.target.value)}
-              placeholder="sk-or-…"
+              onChange={(e) => updateApiKey("openRouterKey", e.target.value)}
+              placeholder={openRouterKeyConfigured ? "Enter a replacement key" : "sk-or-…"}
               className="h-8 text-xs pr-16 font-mono"
             />
             <div className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground tabular-nums pointer-events-none">
@@ -710,8 +831,91 @@ export function AiModelsConfigSection() {
             </button>
           </div>
           <p className="text-[10px] text-muted-foreground">
-            A valid OpenRouter key is 73 characters (sk-or-v1- + 64 hex chars). Toggle the eye icon to verify the full key is visible.
+            {openRouterKeyConfigured ? "A saved key is configured. Leave this blank to keep it, or enter a replacement." : "A valid OpenRouter key is 73 characters (sk-or-v1- + 64 hex chars)."}
           </p>
+          {openRouterKeyConfigured && (
+            <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => toggleClearKey("openRouterKey")}>
+              {keysToClear.has("openRouterKey") ? "Keep saved key" : "Clear saved key when saving"}
+            </Button>
+          )}
+        </div>
+
+        <div className="border-t pt-3 space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-foreground">Direct endpoint API keys</p>
+            <p className="text-[10px] text-muted-foreground">These match the direct-provider tabs in Model Pool. Saved values are never shown.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ProviderApiKeyField
+              field="googleKey"
+              label="Google AI API Key"
+              value={googleKey}
+              placeholder="AIza…"
+              configured={googleKeyConfigured}
+              visible={showGoogle}
+              clearScheduled={keysToClear.has("googleKey")}
+              onChange={(value) => updateApiKey("googleKey", value)}
+              onToggleVisibility={() => setShowGoogle((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+            <ProviderApiKeyField
+              field="metaKey"
+              label="Meta Model API Key"
+              value={metaKey}
+              placeholder="Enter Meta API key"
+              configured={metaKeyConfigured}
+              visible={showMeta}
+              clearScheduled={keysToClear.has("metaKey")}
+              onChange={(value) => updateApiKey("metaKey", value)}
+              onToggleVisibility={() => setShowMeta((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+            <ProviderApiKeyField
+              field="scaleDownKey"
+              label="ScaleDown API Key"
+              value={scaleDownKey}
+              placeholder="Enter ScaleDown API key"
+              configured={scaleDownKeyConfigured}
+              visible={showScaleDown}
+              clearScheduled={keysToClear.has("scaleDownKey")}
+              onChange={(value) => updateApiKey("scaleDownKey", value)}
+              onToggleVisibility={() => setShowScaleDown((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+          </div>
+        </div>
+
+        <div className="border-t pt-3 space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-foreground">Other provider API keys</p>
+            <p className="text-[10px] text-muted-foreground">Saved values are never shown. Leave a field blank to keep its saved key.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ProviderApiKeyField
+              field="anthropicKey"
+              label="Anthropic API Key"
+              value={anthropicKey}
+              placeholder="sk-ant-…"
+              configured={anthropicKeyConfigured}
+              visible={showAnthropic}
+              clearScheduled={keysToClear.has("anthropicKey")}
+              onChange={(value) => updateApiKey("anthropicKey", value)}
+              onToggleVisibility={() => setShowAnthropic((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+            <ProviderApiKeyField
+              field="openaiKey"
+              label="OpenAI API Key"
+              value={openaiKey}
+              placeholder="sk-proj-…"
+              configured={openaiKeyConfigured}
+              visible={showOpenai}
+              clearScheduled={keysToClear.has("openaiKey")}
+              onChange={(value) => updateApiKey("openaiKey", value)}
+              onToggleVisibility={() => setShowOpenai((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+          </div>
         </div>
 
         <ModelPoolEditor
@@ -719,6 +923,9 @@ export function AiModelsConfigSection() {
           pool={modelPool}
           onChange={setModelPool}
           loading={loadingModels || fetchingModels}
+          hasChanges={modelPoolIsDirty}
+          saving={savePool.isPending || save.isPending}
+          onSave={() => savePool.mutate({ ...modelPool })}
         />
 
         {/* Task Model Selection */}
@@ -730,20 +937,18 @@ export function AiModelsConfigSection() {
                 {loadingModels ? "Loading models..." : "Refreshing models..."}
               </span>
             )}
-            {savedOpenRouterKey && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                title="Refresh model list from OpenRouter"
-                aria-label="Refresh model list from OpenRouter"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                disabled={fetchingModels}
-                onClick={refreshOpenRouterModels}
-              >
-                <RefreshCw className={`h-3 w-3 ${fetchingModels ? "animate-spin" : ""}`} />
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title="Refresh model list from OpenRouter"
+              aria-label="Refresh model list from OpenRouter"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              disabled={fetchingModels}
+              onClick={refreshOpenRouterModels}
+            >
+              <RefreshCw className={`h-3 w-3 ${fetchingModels ? "animate-spin" : ""}`} />
+            </Button>
             {modelsError && (
               <span className="text-[10px] text-destructive">
                 Failed to load models: {(modelsError as Error).message}
@@ -752,8 +957,8 @@ export function AiModelsConfigSection() {
             {visionCatalog?.warning && (
               <span className="text-[10px] text-amber-600">{visionCatalog.warning}; showing the last available catalog.</span>
             )}
-            {!savedOpenRouterKey && !savedGoogleKey && (
-              <span className="text-[10px] text-muted-foreground">OpenRouter models require an OpenRouter API key; direct-provider models may still appear.</span>
+            {!openRouterKeyConfigured && (
+              <span className="text-[10px] text-muted-foreground">OpenRouter models require a saved OpenRouter API key; direct-provider models may still appear.</span>
             )}
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -918,76 +1123,9 @@ export function AiModelsConfigSection() {
           </div>
         </div>
 
-        {/* Direct and legacy provider keys (collapsed) */}
-        <div className="border-t pt-3">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setShowLegacyKeys((v) => !v)}
-          >
-            {showLegacyKeys ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            Direct and Legacy Provider API Keys
-          </button>
-          {showLegacyKeys && (
-            <div className="grid gap-3 sm:grid-cols-3 mt-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Google AI API Key</Label>
-                <div className="relative">
-                  <Input
-                    type={showGoogle ? "text" : "password"}
-                    value={googleKey}
-                    onChange={(e) => setGoogleKey(e.target.value)}
-                    placeholder="AIza…"
-                    className="h-8 text-xs pr-8 font-mono"
-                  />
-                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowGoogle((v) => !v)}>
-                    {showGoogle ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Anthropic API Key</Label>
-                <div className="relative">
-                  <Input
-                    type={showAnthropic ? "text" : "password"}
-                    value={anthropicKey}
-                    onChange={(e) => setAnthropicKey(e.target.value)}
-                    placeholder="sk-ant-…"
-                    className="h-8 text-xs pr-8 font-mono"
-                  />
-                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowAnthropic((v) => !v)}>
-                    {showAnthropic ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">OpenAI API Key</Label>
-                <div className="relative">
-                  <Input
-                    type={showOpenai ? "text" : "password"}
-                    value={openaiKey}
-                    onChange={(e) => setOpenaiKey(e.target.value)}
-                    placeholder="sk-proj-…"
-                    className="h-8 text-xs pr-8 font-mono"
-                  />
-                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowOpenai((v) => !v)}>
-                    {showOpenai ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Model catalog JSON (collapsed) */}
         <div className="border-t pt-3">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setShowLegacyKeys((v) => !v)}
-          >
-            Agent Model Catalog (JSON)
-          </button>
+          <p className="text-xs text-muted-foreground">Agent Model Catalog (JSON)</p>
           <div className="space-y-1.5 mt-2">
             <Textarea
               value={modelsJson}
@@ -1015,16 +1153,21 @@ export function AiModelsConfigSection() {
             modelPool,
             openRouterKey,
             googleKey,
+            metaKey,
+            scaleDownKey,
             anthropicKey,
             openaiKey,
-            savedKeys: {
-              openRouterKey: savedOpenRouterKey,
-              googleKey: savedGoogleKey,
-              anthropicKey: savedAnthropicKey,
-              openaiKey: savedOpenaiKey,
+            configuredKeys: {
+              openRouterKey: openRouterKeyConfigured,
+              googleKey: googleKeyConfigured,
+              metaKey: metaKeyConfigured,
+              scaleDownKey: scaleDownKeyConfigured,
+              anthropicKey: anthropicKeyConfigured,
+              openaiKey: openaiKeyConfigured,
             },
+            clearKeys: [...keysToClear],
           })}
-          disabled={save.isPending || !!jsonError || !isDirty}
+          disabled={save.isPending || savePool.isPending || !!jsonError || !isDirty}
         >
           <Save className="h-3.5 w-3.5" />
           {save.isPending ? "Saving…" : "Save"}
