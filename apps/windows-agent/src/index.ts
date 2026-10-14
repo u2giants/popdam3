@@ -13,6 +13,7 @@
  */
 
 import { toSmbClientRelativePath } from "./smb-names";
+import { resolveExistingSmbPath } from "./smb-resolve";
 import { config } from "./config";
 import { getLogTail, logger } from "./logger";
 import * as api from "./api-client";
@@ -466,7 +467,7 @@ function waitForIdleThenRestart() {
 async function processJob(job: api.RenderJob): Promise<void> {
   let uncPath: string;
   try {
-    uncPath = toUncPath(job.relative_path);
+    uncPath = resolveExistingSmbPath(toUncPath(job.relative_path));
   } catch (e) {
     logger.warn("Rejected unsafe render path", { jobId: job.job_id, relativePath: job.relative_path });
     await api.completeRender(job.job_id, false, undefined, (e as Error).message.slice(0, 500));
