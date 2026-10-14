@@ -227,24 +227,79 @@ class SettledExceptionExecutorTests(unittest.TestCase):
                     source_preimages_file_sha256="2" * 64,
                 )
 
-    def test_public_contract_loader_reads_only_committed_head_blob_and_fails_closed(self):
-        completed = subprocess.CompletedProcess(
-            ["git"], 0, b'{"schema":"synthetic"}', b"",
-        )
-        with mock.patch.object(executor.subprocess, "run", return_value=completed) as run:
-            self.assertEqual(executor.read_committed_public_apply_contract(), {"schema": "synthetic"})
-        command = run.call_args.args[0]
-        self.assertEqual(command, ["git", "show", f"HEAD:{executor.PUBLIC_APPLY_CONTRACT_PATH}"])
-        self.assertEqual(run.call_args.kwargs["cwd"], executor.ROOT)
+    def _git_fixture(self, root: Path, payload: bytes) -> None:
+        env = {"PATH": "/usr/bin:/bin", "HOME": str(root), "GIT_CONFIG_NOSYSTEM": "1"}
+        run = lambda *args: subprocess.run(["/usr/bin/git", "-C", str(root), *args], env=env, check=True, capture_output=True)
+        run("init", "-q")
+        run("config", "user.name", "Fixture")
+        run("config", "user.email", "fixture@example.invalid")
+        target = root / executor.PUBLIC_APPLY_CONTRACT_PATH
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(payload)
+        run("add", "--", executor.PUBLIC_APPLY_CONTRACT_PATH)
+        run("commit", "-qm", "fixture")
 
-        for failed in (
-            subprocess.CompletedProcess(["git"], 1, b"", b"missing"),
-            subprocess.CompletedProcess(["git"], 0, b"[]", b""),
-            subprocess.CompletedProcess(["git"], 0, b"{" + b" " * executor.PUBLIC_APPLY_CONTRACT_MAX_BYTES, b""),
-        ):
-            with mock.patch.object(executor.subprocess, "run", return_value=failed):
+    def test_public_contract_loader_reads_committed_head_blob_not_working_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._git_fixture(root, b'{"schema":"committed"}')
+            (root / executor.PUBLIC_APPLY_CONTRACT_PATH).write_bytes(b'{"schema":"working-tree"}')
+            with mock.patch.object(executor, "ROOT", root):
+                self.assertEqual(executor.read_committed_public_apply_contract(), {"schema": "committed"})
+
+    def test_public_contract_loader_ignores_hostile_path_git(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            root.mkdir()
+            self._git_fixture(root, b'{"schema":"committed"}')
+            fake_bin = Path(tmp) / "bin"
+            fake_bin.mkdir()
+            fake = fake_bin / "git"
+            fake.write_text('#!/bin/sh\necho \'{"schema":"forged"}\'\n')
+            fake.chmod(0o755)
+            with mock.patch.object(executor, "ROOT", root), mock.patch.dict(
+                os.environ, {"PATH": f"{fake_bin}:{os.environ.get('PATH', '')}"},
+            ):
+                self.assertEqual(executor.read_committed_public_apply_contract(), {"schema": "committed"})
+
+    def test_public_contract_loader_ignores_inherited_git_dir_and_work_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            hostile = Path(tmp) / "hostile"
+            root.mkdir()
+            hostile.mkdir()
+            self._git_fixture(root, b'{"schema":"committed"}')
+            self._git_fixture(hostile, b'{"schema":"forged"}')
+            with mock.patch.object(executor, "ROOT", root), mock.patch.dict(os.environ, {
+                "GIT_DIR": str(hostile / ".git"),
+                "GIT_WORK_TREE": str(hostile),
+                "GIT_INDEX_FILE": str(hostile / ".git" / "index"),
+                "GIT_OBJECT_DIRECTORY": str(hostile / ".git" / "objects"),
+                "GIT_CONFIG_PARAMETERS": "'core.worktree=/'",
+            }):
+                self.assertEqual(executor.read_committed_public_apply_contract(), {"schema": "committed"})
+
+    def test_public_contract_loader_bounds_read_and_fails_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._git_fixture(root, b"{" + b" " * (executor.PUBLIC_APPLY_CONTRACT_MAX_BYTES * 64) + b"}")
+            with mock.patch.object(executor, "ROOT", root):
                 with self.assertRaisesRegex(executor.ApplyBlocked, "committed one-action contract"):
                     executor.read_committed_public_apply_contract()
+        for payload in (b"[]", b"not json"):
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self._git_fixture(root, payload)
+                with mock.patch.object(executor, "ROOT", root):
+                    with self.assertRaisesRegex(executor.ApplyBlocked, "committed one-action contract"):
+                        executor.read_committed_public_apply_contract()
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(executor, "ROOT", Path(tmp)):
+                with self.assertRaisesRegex(executor.ApplyBlocked, "committed one-action contract"):
+                    executor.read_committed_public_apply_contract()
+        with mock.patch.object(executor, "TRUSTED_GIT_PATHS", ("/nonexistent/git",)):
+            with self.assertRaisesRegex(executor.ApplyBlocked, "committed one-action contract"):
+                executor.read_committed_public_apply_contract()
 
     def test_apply_contract_mismatch_stops_before_output_or_database_connection(self):
         preimages = {}

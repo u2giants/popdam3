@@ -179,23 +179,79 @@ def build_public_apply_contract(
     }
 
 
+TRUSTED_GIT_PATHS = ("/usr/bin/git",)
+
+
+def _trusted_git_executable() -> str:
+    """Resolve git from a fixed root-owned path; PATH never chooses the binary."""
+    for candidate in TRUSTED_GIT_PATHS:
+        try:
+            info = os.stat(candidate)
+        except OSError:
+            continue
+        if (
+            stat.S_ISREG(info.st_mode)
+            and info.st_uid == 0
+            and not info.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+            and os.access(candidate, os.X_OK)
+        ):
+            return candidate
+    raise ApplyBlocked("committed one-action contract is unavailable")
+
+
+def _sanitized_git_environment() -> dict[str, str]:
+    """Drop inherited repository/config redirection so ROOT alone selects the repository."""
+    env = {
+        key: value for key, value in os.environ.items()
+        if not key.startswith("GIT_") and key not in {"PATH", "HOME", "XDG_CONFIG_HOME"}
+    }
+    env.update({
+        "PATH": "/usr/bin:/bin",
+        "HOME": "/nonexistent",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CEILING_DIRECTORIES": str(ROOT.parent),
+        "GIT_TERMINAL_PROMPT": "0",
+        "LC_ALL": "C",
+    })
+    return env
+
+
 def read_committed_public_apply_contract() -> dict[str, Any]:
     """Read only the committed descriptor; working-tree files cannot authorize apply."""
     try:
-        result = subprocess.run(
-            ["git", "show", f"HEAD:{PUBLIC_APPLY_CONTRACT_PATH}"],
+        process = subprocess.Popen(
+            [
+                _trusted_git_executable(), "-C", str(ROOT),
+                "--no-replace-objects", "show", "--no-textconv",
+                f"HEAD:{PUBLIC_APPLY_CONTRACT_PATH}",
+            ],
             cwd=ROOT,
+            env=_sanitized_git_environment(),
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            check=False,
-            timeout=10,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError:
         raise ApplyBlocked("committed one-action contract is unavailable") from None
-    if result.returncode != 0 or len(result.stdout) > PUBLIC_APPLY_CONTRACT_MAX_BYTES:
+    try:
+        assert process.stdout is not None
+        payload = process.stdout.read(PUBLIC_APPLY_CONTRACT_MAX_BYTES + 1)
+        oversized = len(payload) > PUBLIC_APPLY_CONTRACT_MAX_BYTES
+        if oversized:
+            process.kill()
+        returncode = process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+        raise ApplyBlocked("committed one-action contract is unavailable") from None
+    finally:
+        if process.stdout is not None:
+            process.stdout.close()
+    if oversized or returncode != 0:
         raise ApplyBlocked("committed one-action contract is unavailable or oversized")
     try:
-        value = json.loads(result.stdout)
+        value = json.loads(payload)
     except (json.JSONDecodeError, UnicodeDecodeError):
         raise ApplyBlocked("committed one-action contract is invalid") from None
     if not isinstance(value, dict):
