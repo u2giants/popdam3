@@ -5,7 +5,7 @@ import { tmpdir, homedir } from 'node:os'
 import { join, resolve as resolvePath } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
-import { REPO, REVIEW_REPLACEMENT_REF_PREFIX, parseReviewCursor, reviewSlotSuffix, REVIEW_STARTED_REF_PREFIX, reviewStartedMarkerRef, reviewLeaseStillHeld, recordReviewVerdict, reviewerExecutionPreflight, resolveCommandPath, githubIo, withMergedPrIssueBinding } from './manage-migration-author-lanes.mjs'
+import { REPO, REVIEW_REPLACEMENT_REF_PREFIX, parseReviewCursor, reviewSlotSuffix, REVIEW_STARTED_REF_PREFIX, reviewStartedMarkerRef, reviewLeaseStillHeld, recordReviewVerdict, releaseFailedReviewer, reviewerExecutionPreflight, resolveCommandPath, githubIo, withMergedPrIssueBinding } from './manage-migration-author-lanes.mjs'
 import { lineOpensWithVerdictWord, isVerdictFor } from './lib/review-verdict.mjs'
 // Issue #2342: one shared transport owns the never-replay-a-write policy.
 import { runGitHubCommand, spawnGitHub } from './lib/github-transport.mjs'
@@ -16,6 +16,7 @@ import { withTurnBudget, changedMigrationLines, turnBudgetDiagnostic } from './l
 import { REVIEW_CALLER_VARIABLES, reviewCallerEnvironment } from './lib/reviewer-caller-env.mjs'
 import { loadReviewBrief, storeReviewBrief } from './lib/review-packet.mjs'
 import { GOVERNED_VERDICT_WRAPPERS, VERDICT_CONTRACT_FLAG_WRAPPERS, forbiddenGovernedSubcommand, wrapperBaseName } from './lib/reviewer-capabilities.mjs'
+import { REINSTATABLE_FAILURE_CODES } from './lib/lanes/review-circuit-breaker.mjs'
 
 export const GOVERNED_REVIEW_OPTIONS=Object.freeze(['issue','pr','headSha','reviewer','wrapper','worktree','reviewSlot','replacementSequence','assignmentId','skipDoctor'])
 export function parseArgs(argv){
@@ -410,6 +411,7 @@ export function wrapperFailureReason(run,wrapper){
   if(run.error)reasons.push('the wrapper process could not complete')
   if(run.signal)reasons.push('the wrapper process was terminated by a signal')
   if(/unknown option/i.test(stderr))reasons.push('the wrapper rejected an unsupported option; check its --help')
+  if(hasReason('reviewer_cannot_read_repository'))reasons.push('reviewer_cannot_read_repository: the reviewer wrapper could not read the reviewed repository')
   if(hasReason('turn_limit_cancelled'))reasons.push('turn_limit_cancelled: the provider exhausted its declared turn budget')
   else if(hasReason('provider_cancelled')||/cancelled without a final answer/i.test(stderr))reasons.push('provider_cancelled: the provider cancelled without a final answer')
   if(hasReason('unknown_terminal_reason'))reasons.push('unknown_terminal_reason: the provider returned an unrecognized terminal state')
@@ -490,7 +492,7 @@ export function writeWrapperFailureLog(text,{dir=wrapperFailureLogDir(),pr,headS
 // the decision to its refusal so the lane manager can act on it.
 export const DOCTOR_TIMEOUT=/doctor did not answer within/i
 export class GovernedReviewRerouteError extends Error{
-  constructor(message,{startDecision,lifecycle}){super(message);this.name='GovernedReviewRerouteError';this.startDecision=startDecision;this.lifecycle=lifecycle}
+  constructor(message,{startDecision,lifecycle,automaticRelease}){super(message);this.name='GovernedReviewRerouteError';this.startDecision=startDecision;this.lifecycle=lifecycle;this.automaticRelease=automaticRelease}
 }
 export function reviewAssignmentIdentity(options){
   const head=String(options.headSha??'').toLowerCase()
@@ -505,6 +507,41 @@ function lifecycleEvent(deps,assignment,type,extra={}){
 function startDecisionFor(assignment,lifecycle,deps){
   const at=nowOf(deps)
   return reviewerStartDecision({...assignment,assigned_at:at},{now:at,provider_state:'confirmed-not-started',lifecycle})
+}
+function hasVerdictLikeOutput(run){
+  return [run?.stdout,run?.stderr].some((text)=>String(text??'').split(/\r?\n/).some(lineOpensWithVerdictWord))
+}
+function automaticReleaseCode(reason){
+  const matches=REINSTATABLE_FAILURE_CODES.filter((code)=>String(reason).split('; ').some((part)=>part.startsWith(`${code}:`)))
+  return matches.length===1?matches[0]:null
+}
+function startedSequence(marker,options){
+  const ref=typeof marker==='string'?marker:typeof marker?.ref==='string'?marker.ref:null
+  if(!ref)return null
+  const normalized={issue:Number(options.issue),pr:Number(options.pr),headSha:String(options.headSha??'').toLowerCase(),slot:Number(options.slot??1)}
+  const prefix=`${REVIEW_STARTED_REF_PREFIX}/${normalized.issue}-${normalized.pr}-${normalized.headSha}-slot${normalized.slot}-seq`
+  if(!ref.startsWith(prefix))return null
+  const raw=ref.slice(prefix.length)
+  if(!/^[1-9]\d*$/.test(raw))return null
+  const sequence=Number(raw)
+  if(!Number.isSafeInteger(sequence)||reviewStartedRef(normalized,sequence)!==ref)return null
+  return sequence
+}
+function exactHeldReviewLease(lease,options,sequence){
+  return Boolean(lease&&Number(lease.issue)===Number(options.issue)&&Number(lease.pr)===Number(options.pr)&&
+    String(lease.headSha??'').toLowerCase()===String(options.headSha??'').toLowerCase()&&
+    Number(lease.slot??1)===Number(options.slot??1)&&Number(lease.sequence)===sequence&&lease.reviewer===options.reviewer)
+}
+function automaticTerminalRelease(options,marker,failureCode,deps){
+  if(typeof deps.readHeldReviewerLease!=='function'||typeof deps.releaseFailedReviewer!=='function')return null
+  const sequence=startedSequence(marker,options)
+  if(sequence===null)return {error:new Error('durable reviewer start marker did not bind an exact sequence')}
+  const request={issue:Number(options.issue),pr:Number(options.pr),headSha:String(options.headSha).toLowerCase(),slot:Number(options.slot??1),reviewer:String(options.reviewer??''),sequence}
+  let held
+  try{held=deps.readHeldReviewerLease(request)}catch(error){return {sequence,error}}
+  if(!exactHeldReviewLease(held,request,sequence))return {sequence,error:new Error('the exact started reviewer lease is no longer held')}
+  const releaseRequest={issue:request.issue,pr:request.pr,headSha:request.headSha,slot:request.slot,reviewer:request.reviewer,failedSequence:sequence,failureCode,confirmNoVerdict:true,confirmNoArtifact:true}
+  try{return {sequence,result:deps.releaseFailedReviewer(releaseRequest)}}catch(error){return {sequence,error}}
 }
 export function preflightWithTimeoutRetry(args,assignment,deps,lifecycle=[]){
   for(;;){
@@ -545,7 +582,8 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
   // written BEFORE the provider is launched and fails closed: a review whose start cannot be
   // recorded is not started, so the watcher can never reroute a review that is running.
   if(typeof deps.recordStart!=='function')throw new Error('review start recorder is required; no reviewer was started')
-  lifecycle.push(lifecycleEvent(deps,assignment,'review_started',{marker:deps.recordStart({...options,wrapperArgs:brief.wrapperArgs,sourceIdentity,sourceReceiptPath:receipt.path})}))
+  const startMarker=deps.recordStart({...options,wrapperArgs:brief.wrapperArgs,sourceIdentity,sourceReceiptPath:receipt.path})
+  lifecycle.push(lifecycleEvent(deps,assignment,'review_started',{marker:startMarker}))
   // Issue #2678: the wrapper is told WHO is calling it in the environment this
   // runner spawns, not left to whatever an operator happened to export first. A
   // programmatic caller of this function now gets the same environment the CLI does.
@@ -582,10 +620,20 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
     }
     const message=`review wrapper did not produce a recordable terminal verdict (exit ${run.status??'unknown'}): ${reason}.${turnBudgetDiagnostic(turnBudget)}${logNote}`.trimEnd()
     const terminal=NON_VERDICT_TERMINAL_REASONS.find((code)=>reason.split('; ').some((part)=>part.startsWith(`${code}:`)))
+    const failureCode=automaticReleaseCode(reason)
+    const verdictLike=hasVerdictLikeOutput(run)
+    const release= failureCode&&!verdictLike?automaticTerminalRelease(options,startMarker,failureCode,deps):null
     if(terminal){
+      if(verdictLike)throw new Error(`${message}; automatic release and same-head reroute were withheld because stdout or stderr contains verdict-like decision text`)
       lifecycle.push(lifecycleEvent(deps,assignment,'terminal_non_verdict',{reason:terminal,head_sha:assignment.head_sha}))
-      throw new GovernedReviewRerouteError(`${message}; this is a terminal non-verdict, so the assignment is eligible for a same-head replacement`,{startDecision:startDecisionFor(assignment,lifecycle,deps),lifecycle:[...lifecycle]})
+      if(release?.error)throw new Error(`${message}; automatic reviewer release was refused: ${sanitizeVoidReason(release.error.message)}`)
+      const released=release&&Object.hasOwn(release,'result')
+      const releaseNote=released?`; the exact paid-start reviewer lease at sequence ${release.sequence} was released`:''
+      throw new GovernedReviewRerouteError(`${message}; this is a terminal non-verdict, so the assignment is eligible for a same-head replacement${releaseNote}`,{startDecision:startDecisionFor(assignment,lifecycle,deps),lifecycle:[...lifecycle],automaticRelease:released?release.result:undefined})
     }
+    if(failureCode&&verdictLike)throw new Error(`${message}; automatic reviewer release was withheld because stdout or stderr contains verdict-like decision text`)
+    if(release?.error)throw new Error(`${message}; automatic reviewer release was refused: ${sanitizeVoidReason(release.error.message)}`)
+    if(release&&Object.hasOwn(release,'result'))throw new Error(`${message}; the exact paid-start reviewer lease at sequence ${release.sequence} was released`)
     throw new Error(message)
   }
   if(JSON.stringify(resolveSource(options))!==JSON.stringify(sourceIdentity))throw new Error('pull request source changed during review; no verdict was published or recorded')
@@ -804,7 +852,7 @@ export function recordReviewStart(options,io,at=Date.now(),leaseHeld=reviewLease
 export function governedReviewDeps(env=process.env){
   const value=String(env.SHARED_DB_MERGED_PR_ISSUE_BINDING??'').trim()
   const io=value?withMergedPrIssueBinding(githubIo,value):githubIo
-  return {spawn:spawnSync,preflight:(o)=>reviewerExecutionPreflight(o,io),recordStart:(o)=>recordReviewStart(o,io),record:(o)=>recordReviewVerdict(o,io),resolve:resolveCommandPath,readReport:(path)=>readFileSync(path,'utf8'),writeFailureLog:(text,meta)=>writeWrapperFailureLog(text,{...meta,dir:wrapperFailureLogDir(env)}),io}
+  return {spawn:spawnSync,preflight:(o)=>reviewerExecutionPreflight(o,io),recordStart:(o)=>recordReviewStart(o,io),readHeldReviewerLease:(o)=>reviewLeaseStillHeld(o,io),releaseFailedReviewer:(o)=>releaseFailedReviewer(o,io),record:(o)=>recordReviewVerdict(o,io),resolve:resolveCommandPath,readReport:(path)=>readFileSync(path,'utf8'),writeFailureLog:(text,meta)=>writeWrapperFailureLog(text,{...meta,dir:wrapperFailureLogDir(env)}),io}
 }
 // #498 items 16-17 (popcre/ai-devops): refuse or repair paperwork faults BEFORE any
 // reviewer starts, so no review round is spent without a recordable verdict.

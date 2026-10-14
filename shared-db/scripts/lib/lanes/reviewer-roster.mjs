@@ -434,15 +434,30 @@ export function parseRecordedReviewerAllowlist(value){
 }
 export function reviewerAllowlistSuffix(allowlist){return allowlist?` allowlist=${allowlist.join(',')}`:''}
 export function sameReviewerAllowlist(left,right){return left===null&&right===null||Array.isArray(left)&&Array.isArray(right)&&left.length===right.length&&left.every((name,index)=>name===right[index])}
-export function inheritReviewerAllowlist(requested,recorded){
+// Strict superset: every recorded name is kept and at least one name is added.
+// A subset, a disjoint set, or a same-size rewrite is never a widening.
+export function isReviewerAllowlistSuperset(requested,recorded){
+  if(!Array.isArray(requested)||!Array.isArray(recorded)||requested.length<=recorded.length)return false
+  const have=new Set(requested)
+  return recorded.every((name)=>have.has(name))
+}
+// Owner-quoted allowlist widening (Albert, 2026-10-13, verbatim: "use stepfun"):
+// when the requested policy is a strict superset of the durable one and a
+// verbatim owner quote is supplied, the widened policy is used for THIS draw.
+// The quote is recorded on the assignment. Slot one's durable policy is never
+// rewritten, and a same-slot retry that already carries the widened durable
+// policy does not need the quote again (it matches exactly).
+export function inheritReviewerAllowlist(requested,recorded,options={}){
   recorded??=null
   if(recorded===null){
     if(requested!==null)throw new LaneError('reviewer allowlist does not match the durable unrestricted assignment')
     return null
   }
   if(requested===null)return recorded
-  if(!sameReviewerAllowlist(requested,recorded))throw new LaneError(`reviewer allowlist does not match the durable assignment (${recorded.join(',')})`)
-  return recorded
+  if(sameReviewerAllowlist(requested,recorded))return recorded
+  const ownerQuote=typeof options.ownerQuote==='string'?options.ownerQuote.trim():''
+  if(ownerQuote&&isReviewerAllowlistSuperset(requested,recorded))return Object.freeze([...requested])
+  throw new LaneError(`reviewer allowlist does not match the durable assignment (${recorded.join(',')})`)
 }
 export function reviewerAllowed(name,allowlist){return allowlist===null||allowlist.includes(name)}
 export function assertReviewerAllowlistConsistency(records){
@@ -491,7 +506,7 @@ export function inheritReturnedReviewerAllowlist(requested,request,io){
 // than as an import from the routing module, so editing the routing contract
 // does not enter this manager's import closure and become a global evidence
 // invalidator (config/orchestrator-global-invalidators-v1.json).
-export const ENGINE_REVIEWER_EXCLUSION=Object.freeze({codex:'codex',claude:'claude',zcode:'glm'})
+export const ENGINE_REVIEWER_EXCLUSION=Object.freeze({codex:'codex',claude:'claude',zcode:'glm',mimo:'mimo'})
 
 // The authoring engine is MANDATORY and fails closed (#3874 review): an unset,
 // blank, malformed or unknown value refuses rather than silently excluding no

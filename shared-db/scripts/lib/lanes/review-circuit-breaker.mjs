@@ -13,14 +13,17 @@ import { parseTerminalFailureEvidence, reviewerFailureRef } from './review-repla
 // Cause-bound reinstatement (#3536/#3999). A paid start whose immutable
 // terminal failure record proves a verdict-less REVIEWER-SIDE failure, bound to
 // the exact issue/PR/head/sequence/reviewer (and slot when recorded), produced
-// no review and does not spend the unchanged-content budget. Hard ceiling per
-// slot across the unchanged-content group so crashes can never loop forever.
-export const REINSTATABLE_FAILURE_CODES = Object.freeze(['wrapper_terminal_failure','provider_unavailable','insufficient_quota','turn_limit_cancelled'])
+// no review and does not spend the unchanged-content decision budget. Failure
+// history is counted per reviewer so selectors can exclude a repeatedly failing
+// provider without exhausting the finite pool's review-decision allowance.
+// Exact-bound verdictless repository-read failures are service failures too;
+// unknown causes and any review decision remain conservatively charged.
+export const REINSTATABLE_FAILURE_CODES = Object.freeze(['wrapper_terminal_failure','provider_unavailable','insufficient_quota','turn_limit_cancelled','reviewer_cannot_read_repository'])
 // Released failure codes that describe the provider, its wallet, or the local
 // wrapper rather than the reviewed bytes (#4284): the replacement draw retries
 // such a name last instead of excluding it from the head forever.
 export const RETRYABLE_RELEASED_FAILURE_CODES = Object.freeze([...REINSTATABLE_FAILURE_CODES,'reviewer_cannot_emit_governed_verdict'])
-export const REINSTATEMENT_CEILING = 2
+export const REVIEWER_FAILURE_CEILING = 2
 
 function reinstatedByFailure(start,io){
   if(typeof io.readRef!=='function')return false
@@ -501,13 +504,14 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
 }
 
 export function assertPaidReviewCapacity(request, io) {
-  if(!Number.isInteger(request.pr)||request.pr<1||!Number.isInteger(request.slot)||request.slot<1)throw new LaneError('review circuit breaker: exact positive PR and slot required')
+  if(!Number.isInteger(request.issue)||request.issue<1||!Number.isInteger(request.pr)||request.pr<1||!Number.isInteger(request.slot)||request.slot<1)throw new LaneError('review circuit breaker: exact positive issue, PR and slot required')
   const prefix=`${REVIEW_STARTED_REF_PREFIX}/`
   const rows = typeof io.readPaidReviewStarts === 'function' ? io.readPaidReviewStarts(prefix,request.pr) : io.listRefs(prefix)
   if (!Array.isArray(rows)) throw new LaneError('review circuit breaker: immutable start listing unreadable')
   if(rows.length>=REVIEW_REF_ROW_LIMIT)throw new LaneError('review circuit breaker: bounded start listing may be truncated')
   const starts = rows.map(row=>paidStart(row,row.commit ?? io.getCommit(row.sha))).filter(row=>row && row.pr === request.pr && row.slot === request.slot)
   let count=0,reinstated=0
+  const failuresByReviewer=new Map()
   const comparisonContext={}
   // One proven classification of before->after content: 'unchanged' or 'substantive'.
   const classify=(beforeHead,afterHead)=>{
@@ -570,11 +574,20 @@ export function assertPaidReviewCapacity(request, io) {
   for (const start of starts) {
     const same=start.headSha===request.headSha||kinds.get(start)==='unchanged'
     if(!same)continue
-    if(reinstated<REINSTATEMENT_CEILING && reinstatedByFailure(start,io)){reinstated++;continue}
+    if(reinstatedByFailure(start,io)){
+      reinstated++
+      failuresByReviewer.set(start.reviewer,(failuresByReviewer.get(start.reviewer)??0)+1)
+      continue
+    }
     count++
   }
   if(count>=2) throw new LaneError(`review circuit breaker: two paid attempts already started for unchanged reviewed content in slot ${request.slot}; third draw refused pending substantive repair or supported cause-bound reinstatement proof`)
-  return reinstated?{paidAttempts:count,remaining:2-count,reinstated}:{paidAttempts:count,remaining:2-count}
+  const result={paidAttempts:count,remaining:2-count,...(reinstated?{reinstated}:{})}
+  if(failuresByReviewer.size){
+    result.failedReviewers=[...failuresByReviewer.keys()].sort()
+    result.exhaustedReviewers=[...failuresByReviewer].filter(([,failures])=>failures>=REVIEWER_FAILURE_CEILING).map(([reviewer])=>reviewer).sort()
+  }
+  return result
 }
 
 // Provider outage/quota evidence differs from a local preparation failure.
