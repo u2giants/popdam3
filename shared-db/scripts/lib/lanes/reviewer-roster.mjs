@@ -327,7 +327,21 @@ export const RETIRED_REVIEWERS = Object.freeze(['glm-5.2', 'muse-spark-1.2-contr
 // verdict it recorded still authorizes. Reverse by deleting 'grok-4.6' from this
 // list (and from the popcre/ai-devops config/reviewer-registry.json mirror) once
 // the account has credit and one live well-formed review passes.
-export const QUARANTINED_REVIEWERS = Object.freeze(['grok-4.6'])
+//
+// QUARANTINED 2026-10-13 (owner instruction, Albert's chat, issue
+// popcre/ai-devops#1714: "only review shared-db work; rotation pool = Muse,
+// DeepSeek, GLM, StepFun (\"Grok got expensive. use Stepfun as the 4th.\"); stop
+// maintaining other reviewers' tooling in ai-devops but leave installed so they
+// can be called by name"): 'qwen-3.8-max' and 'gemini-3.8-flash-high'.
+// TEMPORARY membership scope, not a retirement and not a quality fault: their
+// REVIEWERS rows stay so every durable verdict they recorded still authorizes.
+// They remain installed and callable by name outside the allocator. Reverse by
+// deleting each name from this list (and from the popcre/ai-devops
+// config/reviewer-registry.json mirror) under a later owner instruction.
+// Maintained rotation pool is exactly Muse, DeepSeek, GLM, and StepFun
+// (owner instruction 2026-10-13, popcre/ai-devops#1714). Grok, Qwen, and
+// Gemini stay installed and callable by name but are not drawn.
+export const QUARANTINED_REVIEWERS = Object.freeze(['grok-4.6', 'qwen-3.8-max', 'gemini-3.8-flash-high'])
 
 // The single fact the gate was missing (#2078). A verdict is evidence only if the
 // reviewer could open the file. Unknown names fail closed.
