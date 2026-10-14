@@ -31,9 +31,72 @@ interface SyncSource {
 const AI_KEY_CONFIG_NAMES: Record<AiModelKeyField, string> = {
   openRouterKey: "OPENROUTER_API_KEY",
   googleKey: "GOOGLE_AI_API_KEY",
+  metaKey: "META_API_KEY",
+  scaleDownKey: "SCALEDOWN_API_KEY",
   anthropicKey: "ANTHROPIC_API_KEY",
   openaiKey: "OPENAI_API_KEY",
 };
+
+function ProviderApiKeyField({
+  field,
+  label,
+  value,
+  placeholder,
+  configured,
+  visible,
+  clearScheduled,
+  onChange,
+  onToggleVisibility,
+  onToggleClear,
+}: {
+  field: AiModelKeyField;
+  label: string;
+  value: string;
+  placeholder: string;
+  configured: boolean;
+  visible: boolean;
+  clearScheduled: boolean;
+  onChange: (value: string) => void;
+  onToggleVisibility: () => void;
+  onToggleClear: (field: AiModelKeyField) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-xs">{label}</Label>
+        <Badge variant={configured ? "secondary" : "outline"} className="text-[10px]">
+          {configured ? "Saved in Settings" : "Not saved in Settings"}
+        </Badge>
+      </div>
+      <div className="relative">
+        <Input
+          aria-label={label}
+          type={visible ? "text" : "password"}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={configured ? "Enter a replacement key" : placeholder}
+          className="h-8 text-xs pr-8 font-mono"
+        />
+        <button
+          type="button"
+          aria-label={visible ? `Hide ${label}` : `Show ${label}`}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          onClick={onToggleVisibility}
+        >
+          {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        {configured ? "Saved value stays hidden. Leave blank to keep it." : "Enter a key to enable this endpoint."}
+      </p>
+      {configured && (
+        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => onToggleClear(field)}>
+          {clearScheduled ? "Keep saved key" : "Clear saved key when saving"}
+        </Button>
+      )}
+    </div>
+  );
+}
 
 const DEFAULT_SOURCES: SyncSource[] = [
   { code: "DS", name: "Disney", apiUrl: "https://api.sandbox.designflow.app/api/autofill/properties-and-characters/DS", enabled: true },
@@ -457,7 +520,7 @@ WHAT THIS TASK DOES
 Looks at one asset image (licensed-character artwork, a product photo, a tech pack or style-guide page, etc.) plus its file metadata and returns structured catalog metadata: descriptive tags, a one-sentence description, a short product-label "cover description", a scene description, asset type and art source, design style/reference, matched character / licensor / property IDs from a controlled in-house taxonomy, designer / technical-designer / freelancer names read off title blocks, and a deduplicated list of "Files Used" pulled from any attached tech-pack text. It runs as a single-turn image+text request (no chat history, no multi-step agent loop), at bulk-job scale across the whole library.
 
 HOW THE CODE INVOKES THE MODEL
-Most calls go through OpenRouter (OpenAI-compatible Chat Completions). The explicit meta-direct/muse-spark-1.3-contributor choice instead uses Meta Model API directly and requires META_API_KEY in Railway. The worker asks for structured output through a fallback ladder and takes whichever the model supports: (1) a forced tag_asset tool/function call; (2) json_schema structured outputs; (3) plain JSON mode with schema instructions in the prompt. It then validates that the required fields are present. So a model does NOT need native tool calling to qualify — it needs to reliably return valid JSON matching the schema through at least one of those mechanisms. It DOES need real image input; a text-only model cannot do this task.
+Most calls go through OpenRouter (OpenAI-compatible Chat Completions). The explicit meta-direct/muse-spark-1.3-contributor choice instead uses Meta Model API directly and requires a Meta API key below (with Railway environment fallback). The worker asks for structured output through a fallback ladder and takes whichever the model supports: (1) a forced tag_asset tool/function call; (2) json_schema structured outputs; (3) plain JSON mode with schema instructions in the prompt. It then validates that the required fields are present. So a model does NOT need native tool calling to qualify — it needs to reliably return valid JSON matching the schema through at least one of those mechanisms. It DOES need real image input; a text-only model cannot do this task.
 
 WHAT IS FED TO THE MODEL
 - One image: the asset's THUMBNAIL, not the full-resolution original — an already-compressed, downscaled raster sent inline. There is no separate high-res pass, so the model must read small detail (style numbers, fine print in title blocks, near-identical character variants) off a low-resolution image.
@@ -542,7 +605,7 @@ export function AiModelsConfigSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
-  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "AI_MODEL_DISPLAY_NAMES", "AI_MODEL_POOL", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
+  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "AI_MODEL_DISPLAY_NAMES", "AI_MODEL_POOL", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "META_API_KEY", "SCALEDOWN_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
 
   const { data: configData } = useQuery({
     queryKey: ["admin-config", ...configKeys],
@@ -553,12 +616,15 @@ export function AiModelsConfigSection() {
   const [openRouterKey, setOpenRouterKey] = useState("");
   const [showOpenRouter, setShowOpenRouter] = useState(false);
   const [googleKey, setGoogleKey] = useState("");
+  const [metaKey, setMetaKey] = useState("");
+  const [scaleDownKey, setScaleDownKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
   const [showGoogle, setShowGoogle] = useState(false);
+  const [showMeta, setShowMeta] = useState(false);
+  const [showScaleDown, setShowScaleDown] = useState(false);
   const [showAnthropic, setShowAnthropic] = useState(false);
   const [showOpenai, setShowOpenai] = useState(false);
-  const [showLegacyKeys, setShowLegacyKeys] = useState(false);
   const [modelsJson, setModelsJson] = useState("");
   const [jsonError, setJsonError] = useState("");
   const [taskModels, setTaskModels] = useState<Record<string, string>>({});
@@ -596,6 +662,8 @@ export function AiModelsConfigSection() {
     const setters: Record<AiModelKeyField, (next: string) => void> = {
       openRouterKey: setOpenRouterKey,
       googleKey: setGoogleKey,
+      metaKey: setMetaKey,
+      scaleDownKey: setScaleDownKey,
       anthropicKey: setAnthropicKey,
       openaiKey: setOpenaiKey,
     };
@@ -623,6 +691,8 @@ export function AiModelsConfigSection() {
       toast.success("AI configuration saved");
       setOpenRouterKey("");
       setGoogleKey("");
+      setMetaKey("");
+      setScaleDownKey("");
       setAnthropicKey("");
       setOpenaiKey("");
       setKeysToClear(new Set());
@@ -645,6 +715,8 @@ export function AiModelsConfigSection() {
     (configData?.config?.[AI_KEY_CONFIG_NAMES[field]] as { configured?: unknown } | undefined)?.configured === true;
   const openRouterKeyConfigured = keyConfigured("openRouterKey");
   const googleKeyConfigured = keyConfigured("googleKey");
+  const metaKeyConfigured = keyConfigured("metaKey");
+  const scaleDownKeyConfigured = keyConfigured("scaleDownKey");
   const anthropicKeyConfigured = keyConfigured("anthropicKey");
   const openaiKeyConfigured = keyConfigured("openaiKey");
   const openRouterKeyRevision = (configData?.config?.OPENROUTER_API_KEY as { updated_at?: unknown } | undefined)?.updated_at;
@@ -715,6 +787,8 @@ export function AiModelsConfigSection() {
   const isDirty = loaded && (
     openRouterKey !== savedOpenRouterKey ||
     googleKey.length > 0 ||
+    metaKey.length > 0 ||
+    scaleDownKey.length > 0 ||
     anthropicKey.length > 0 ||
     openaiKey.length > 0 ||
     keysToClear.size > 0 ||
@@ -734,8 +808,8 @@ export function AiModelsConfigSection() {
       <CardContent className="space-y-4">
         <p className="text-xs text-muted-foreground">
           AI calls normally go through OpenRouter. Image Tagging can also use Meta Model API directly,
-          or Direct Gemini Batch with the Google AI API key below.
-          Direct Muse requires <code className="text-[10px]">META_API_KEY</code> in Railway.
+          Direct Gemini Batch, or ScaleDown for bake-offs. Saved key values are hidden; use these fields
+          to add a key, replace it, or clear it.
         </p>
 
         {/* OpenRouter API Key */}
@@ -764,6 +838,84 @@ export function AiModelsConfigSection() {
               {keysToClear.has("openRouterKey") ? "Keep saved key" : "Clear saved key when saving"}
             </Button>
           )}
+        </div>
+
+        <div className="border-t pt-3 space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-foreground">Direct endpoint API keys</p>
+            <p className="text-[10px] text-muted-foreground">These match the direct-provider tabs in Model Pool. Saved values are never shown.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ProviderApiKeyField
+              field="googleKey"
+              label="Google AI API Key"
+              value={googleKey}
+              placeholder="AIza…"
+              configured={googleKeyConfigured}
+              visible={showGoogle}
+              clearScheduled={keysToClear.has("googleKey")}
+              onChange={(value) => updateApiKey("googleKey", value)}
+              onToggleVisibility={() => setShowGoogle((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+            <ProviderApiKeyField
+              field="metaKey"
+              label="Meta Model API Key"
+              value={metaKey}
+              placeholder="Enter Meta API key"
+              configured={metaKeyConfigured}
+              visible={showMeta}
+              clearScheduled={keysToClear.has("metaKey")}
+              onChange={(value) => updateApiKey("metaKey", value)}
+              onToggleVisibility={() => setShowMeta((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+            <ProviderApiKeyField
+              field="scaleDownKey"
+              label="ScaleDown API Key"
+              value={scaleDownKey}
+              placeholder="Enter ScaleDown API key"
+              configured={scaleDownKeyConfigured}
+              visible={showScaleDown}
+              clearScheduled={keysToClear.has("scaleDownKey")}
+              onChange={(value) => updateApiKey("scaleDownKey", value)}
+              onToggleVisibility={() => setShowScaleDown((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+          </div>
+        </div>
+
+        <div className="border-t pt-3 space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-foreground">Other provider API keys</p>
+            <p className="text-[10px] text-muted-foreground">Saved values are never shown. Leave a field blank to keep its saved key.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ProviderApiKeyField
+              field="anthropicKey"
+              label="Anthropic API Key"
+              value={anthropicKey}
+              placeholder="sk-ant-…"
+              configured={anthropicKeyConfigured}
+              visible={showAnthropic}
+              clearScheduled={keysToClear.has("anthropicKey")}
+              onChange={(value) => updateApiKey("anthropicKey", value)}
+              onToggleVisibility={() => setShowAnthropic((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+            <ProviderApiKeyField
+              field="openaiKey"
+              label="OpenAI API Key"
+              value={openaiKey}
+              placeholder="sk-proj-…"
+              configured={openaiKeyConfigured}
+              visible={showOpenai}
+              clearScheduled={keysToClear.has("openaiKey")}
+              onChange={(value) => updateApiKey("openaiKey", value)}
+              onToggleVisibility={() => setShowOpenai((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+          </div>
         </div>
 
         <ModelPoolEditor
@@ -971,82 +1123,9 @@ export function AiModelsConfigSection() {
           </div>
         </div>
 
-        {/* Direct and legacy provider keys (collapsed) */}
-        <div className="border-t pt-3">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setShowLegacyKeys((v) => !v)}
-          >
-            {showLegacyKeys ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            Direct and Legacy Provider API Keys
-          </button>
-          {showLegacyKeys && (
-            <div className="grid gap-3 sm:grid-cols-3 mt-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Google AI API Key</Label>
-                <div className="relative">
-                  <Input
-                    type={showGoogle ? "text" : "password"}
-                    value={googleKey}
-                    onChange={(e) => updateApiKey("googleKey", e.target.value)}
-                    placeholder={googleKeyConfigured ? "Enter a replacement key" : "AIza…"}
-                    className="h-8 text-xs pr-8 font-mono"
-                  />
-                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowGoogle((v) => !v)}>
-                    {showGoogle ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-                {googleKeyConfigured && <p className="text-[10px] text-muted-foreground">A saved key is configured. Leave blank to keep it.</p>}
-                {googleKeyConfigured && <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => toggleClearKey("googleKey")}>{keysToClear.has("googleKey") ? "Keep saved key" : "Clear saved key when saving"}</Button>}
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Anthropic API Key</Label>
-                <div className="relative">
-                  <Input
-                    type={showAnthropic ? "text" : "password"}
-                    value={anthropicKey}
-                    onChange={(e) => updateApiKey("anthropicKey", e.target.value)}
-                    placeholder={anthropicKeyConfigured ? "Enter a replacement key" : "sk-ant-…"}
-                    className="h-8 text-xs pr-8 font-mono"
-                  />
-                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowAnthropic((v) => !v)}>
-                    {showAnthropic ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-                {anthropicKeyConfigured && <p className="text-[10px] text-muted-foreground">A saved key is configured. Leave blank to keep it.</p>}
-                {anthropicKeyConfigured && <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => toggleClearKey("anthropicKey")}>{keysToClear.has("anthropicKey") ? "Keep saved key" : "Clear saved key when saving"}</Button>}
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">OpenAI API Key</Label>
-                <div className="relative">
-                  <Input
-                    type={showOpenai ? "text" : "password"}
-                    value={openaiKey}
-                    onChange={(e) => updateApiKey("openaiKey", e.target.value)}
-                    placeholder={openaiKeyConfigured ? "Enter a replacement key" : "sk-proj-…"}
-                    className="h-8 text-xs pr-8 font-mono"
-                  />
-                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowOpenai((v) => !v)}>
-                    {showOpenai ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-                {openaiKeyConfigured && <p className="text-[10px] text-muted-foreground">A saved key is configured. Leave blank to keep it.</p>}
-                {openaiKeyConfigured && <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => toggleClearKey("openaiKey")}>{keysToClear.has("openaiKey") ? "Keep saved key" : "Clear saved key when saving"}</Button>}
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Model catalog JSON (collapsed) */}
         <div className="border-t pt-3">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setShowLegacyKeys((v) => !v)}
-          >
-            Agent Model Catalog (JSON)
-          </button>
+          <p className="text-xs text-muted-foreground">Agent Model Catalog (JSON)</p>
           <div className="space-y-1.5 mt-2">
             <Textarea
               value={modelsJson}
@@ -1074,11 +1153,15 @@ export function AiModelsConfigSection() {
             modelPool,
             openRouterKey,
             googleKey,
+            metaKey,
+            scaleDownKey,
             anthropicKey,
             openaiKey,
             configuredKeys: {
               openRouterKey: openRouterKeyConfigured,
               googleKey: googleKeyConfigured,
+              metaKey: metaKeyConfigured,
+              scaleDownKey: scaleDownKeyConfigured,
               anthropicKey: anthropicKeyConfigured,
               openaiKey: openaiKeyConfigured,
             },

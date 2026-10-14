@@ -11,6 +11,8 @@ const draft: AiModelConfigDraft = {
   modelPool: {},
   openRouterKey: "",
   googleKey: "",
+  metaKey: "",
+  scaleDownKey: "",
   anthropicKey: "",
   openaiKey: "",
 };
@@ -89,7 +91,7 @@ describe("saveAiModelConfig", () => {
     expect(call).not.toHaveBeenCalled();
   });
 
-  it("allows Meta Direct selections for supported PDF and text-classification routes", async () => {
+  it("allows Meta Direct selections for supported PDF and text-classification routes when a key is configured", async () => {
     const call = vi.fn()
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({ ok: true, config: {
@@ -108,6 +110,7 @@ describe("saveAiModelConfig", () => {
     await expect(saveAiModelConfig(call, {
       ...draft,
       taskModels,
+      configuredKeys: { metaKey: true },
     })).resolves.toBeTruthy();
     expect(call.mock.calls[0][1].entries).toMatchObject({ AI_TASK_MODELS: taskModels });
   });
@@ -127,6 +130,7 @@ describe("saveAiModelConfig", () => {
       taskModels,
       savedTaskModels: taskModels,
       modelPool,
+      configuredKeys: { metaKey: true },
     })).resolves.toBeTruthy();
     expect(call.mock.calls[0][1].entries).toMatchObject({ AI_TASK_MODELS: taskModels, AI_MODEL_POOL: modelPool });
   });
@@ -139,6 +143,37 @@ describe("saveAiModelConfig", () => {
       googleKey: "",
     })).rejects.toThrow("Save a Google AI API key");
     expect(call).not.toHaveBeenCalled();
+  });
+
+  it("requires a saved Meta API key before selecting a Meta Direct model", async () => {
+    const call = vi.fn();
+    await expect(saveAiModelConfig(call, {
+      ...draft,
+      taskModels: { ...draft.taskModels, vision_tagging: "meta-direct/muse-spark-1.3-contributor" },
+    })).rejects.toThrow("Save a Meta Model API key");
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it("saves and verifies Meta and ScaleDown endpoint keys without returning their values", async () => {
+    const call = vi.fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, config: {
+        AI_TASK_MODELS: { value: draft.taskModels },
+        AI_MODEL_POOL: { value: {} },
+        META_API_KEY: { value: "", configured: true },
+        SCALEDOWN_API_KEY: { value: "", configured: true },
+      } });
+    await expect(saveAiModelConfig(call, {
+      ...draft,
+      metaKey: "meta-replacement",
+      scaleDownKey: "scaledown-replacement",
+    })).resolves.toBeTruthy();
+    const entries = call.mock.calls[0][1].entries as Record<string, unknown>;
+    expect(entries.META_API_KEY).toBe("meta-replacement");
+    expect(entries.SCALEDOWN_API_KEY).toBe("scaledown-replacement");
+    expect(call).toHaveBeenNthCalledWith(2, "get-config", {
+      keys: ["AI_TASK_MODELS", "AI_MODEL_POOL", "META_API_KEY", "SCALEDOWN_API_KEY"],
+    });
   });
 
   it("does not let whitespace padding bypass the Google key check", async () => {

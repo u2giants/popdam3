@@ -201,14 +201,19 @@ Runs on Railway. Environment variables are set in the Railway project dashboard.
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
 | `OPENROUTER_API_KEY` | No | Fallback when database-managed `OPENROUTER_API_KEY` is empty or unreadable |
-| `META_API_KEY` | No | Railway: direct Meta Image Tagging. Supabase `agent-api` environment: content-lease-bound PopSG PDF transcription; never returned to agents. |
+| `META_API_KEY` | No | Fallback for direct Meta Image Tagging and content-lease-bound PopSG PDF transcription when no saved Settings key exists or the database read fails. |
 | `GOOGLE_AI_API_KEY` | No | Fallback when database-managed `GOOGLE_AI_API_KEY` is empty or unreadable |
+| `SCALEDOWN_API_KEY` | No | Fallback for direct ScaleDown Vision Bake-Off when no saved Settings key exists or the database read fails |
 | `BULK_OPERATION_ALERT_WEBHOOK_URL` | Yes once the `bulk-operation-alert` function is deployed | Receives terminal `rebuild-style-groups` failure alerts; an unset value is logged as an undelivered alert, never treated as success. Set it to the deployed `bulk-operation-alert` function URL including its `?key=` shared secret (see below). |
 
-**Critical:** the worker resolves OpenRouter and Google keys from `admin_config`
-first, with a 60-second cache. Matching Railway environment variables are only
-fallbacks during an empty or failed database read. Meta direct access remains
-Railway-environment-only.
+**Critical:** the worker resolves OpenRouter, Google, Meta, and ScaleDown keys
+from `admin_config` first, with a 60-second cache. For Meta and ScaleDown, a
+saved row is authoritative, including an explicitly blank row; Railway values
+are used only when the row is missing or unreadable. The PopSG transcription
+edge function uses the saved Meta key and falls back to its environment only
+when the Settings row is missing. Settings → Processing → AI Tagging shows the
+OpenRouter, Google, Meta, ScaleDown, Anthropic, and OpenAI key fields. Reads
+report only whether a key is saved; key values remain hidden.
 
 ---
 

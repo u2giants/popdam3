@@ -5,6 +5,8 @@ describe("admin-config secret response handling", () => {
   it("recognizes API keys, secrets, tokens, and passwords by config key suffix", () => {
     for (const key of [
       "OPENROUTER_API_KEY",
+      "META_API_KEY",
+      "SCALEDOWN_API_KEY",
       "DO_SPACES_SECRET",
       "WINDOWS_AGENT_NAS_PASS",
       "SERVICE_ACCESS_TOKEN",
@@ -25,9 +27,13 @@ describe("admin-config secret response handling", () => {
   it("redacts secret rows in diagnostic config while preserving nonsecret settings", () => {
     expect(redactAdminConfigValues([
       { key: "OPENROUTER_API_KEY", value: "sensitive-value" },
+      { key: "META_API_KEY", value: "meta-sensitive-value" },
+      { key: "SCALEDOWN_API_KEY", value: "scaledown-sensitive-value" },
       { key: "AI_MODEL_POOL", value: { openrouter: ["openai/gpt-5"] } },
     ])).toEqual({
       OPENROUTER_API_KEY: { value: "", configured: true },
+      META_API_KEY: { value: "", configured: true },
+      SCALEDOWN_API_KEY: { value: "", configured: true },
       AI_MODEL_POOL: { openrouter: ["openai/gpt-5"] },
     });
   });

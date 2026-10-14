@@ -31,7 +31,7 @@ This document covers two distinct things: (1) which AI models are used inside th
 
 ### Production Image Tagging (Railway worker)
 - Code path: `apps/worker/src/handlers/ai-tagging.ts` plus the shared contract in `apps/worker/src/handlers/ai-tagging-shared.ts`.
-- Uses OpenRouter through `OPENROUTER_API_KEY` for normal model IDs. Selecting `meta-direct/muse-spark-1.3-contributor` uses Meta Model API directly. Selecting `google-direct/<model>:batch` uses Google's multimodal Batch API directly through `GOOGLE_AI_API_KEY`; it never sends that key to OpenRouter. The on-prem agents also use the Google key for PDF text extraction (see `docs/KNOWN_QUIRKS.md` #63).
+- Uses OpenRouter through `OPENROUTER_API_KEY` for normal model IDs. Selecting `meta-direct/muse-spark-1.3-contributor` uses Meta Model API directly. Selecting `google-direct/<model>:batch` uses Google's multimodal Batch API directly through `GOOGLE_AI_API_KEY`; it never sends that key to OpenRouter. The on-prem agents also use the Google key for PDF text extraction (see `docs/KNOWN_QUIRKS.md` #63). Direct Meta and ScaleDown keys can be set in Settings → Processing → AI Tagging; saved values are redacted and the worker uses the saved settings with Railway environment fallback.
 - **Exacto routing (default):** every OpenRouter call is sent with the `:exacto` model variant (`withExactoRouting()` in `openrouter.ts`, applied inside `chatCompletion`), routing to the provider endpoint with the best measured tool-calling accuracy. Free virtual variant, no price premium. A slug with an explicit `:variant` suffix opts out. This is the routing-layer fix for the endpoint-flip failures; see `docs/KNOWN_QUIRKS.md` #62. Applies to all OpenRouter paths (tagging, bake-off, ERP). **Exception:** `minimax/minimax-m3` is excluded from Exacto and hard-pinned to the `minimax` provider via `MODEL_ROUTING_OVERRIDES` (Exacto regressed it ~14%→89% because its only tool-capable endpoint truncates JSON; commit `f532c08`, see #62).
 - Model config: `admin_config.AI_TASK_MODELS.vision_tagging`, cached by the worker for 60 seconds. Optional fallback: `vision_tagging_fallback`.
 - A production model ending in `:batch` uses a provider asynchronous Batch API.
@@ -43,7 +43,7 @@ This document covers two distinct things: (1) which AI models are used inside th
   request and are never saved in `BULK_OPERATIONS`. Vision Bake-Off excludes
   `:batch` variants because it has no durable job state.
 - Default when unset: `qwen/qwen3-vl-32b-instruct` — a hardcoded last-resort in `ai-tagging.ts`, NOT the configured default (the DB row is what runs). Live config as of 2026-07-14: `vision_tagging` = `qwen/qwen3-vl-32b-instruct`, `vision_tagging_fallback` = `minimax/minimax-m3`, `pdf_extraction` = `deepseek/deepseek-v4-flash`, `text_classification` = `deepseek/deepseek-v4-pro`. No Google/Gemini model runs through the worker unless Image Tagging explicitly selects the direct batch route `google-direct/<model>:batch`, which uses `GOOGLE_AI_API_KEY`.
-- To change the model: Settings → AI Models. This updates `admin_config.AI_TASK_MODELS`; the selected provider key must be present in Settings → APIs (Railway environment remains the fallback).
+- To change the model: Settings → Processing → AI Tagging. This updates `admin_config.AI_TASK_MODELS`; provider keys can be set on that screen, and the Railway environment remains a fallback for direct Meta and ScaleDown.
 - Output contract: every model must return `tags`, `ai_description`, `scene_description`, and `content_type`. The worker accepts OpenRouter tool calling, JSON-schema structured outputs, or JSON mode, then validates the required fields before storing a result.
 - Description contract: `ai_description` is not a creative caption; it is a concise, search-friendly sentence for designers/salespeople looking for reusable licensed product assets. `scene_description` is a literal visual sentence.
 - Tag contract: return 6-18 distinct lowercase search tags. The worker rejects blank tags, case-insensitive duplicates, and results outside that range. Avoid filler such as `image`, `design`, `art`, `asset`, `colorful`, and `product` by themselves. Visual categories and views must be supported by the image; filename/path/ERP evidence may supply product context but must not invent a visual classification.
@@ -53,8 +53,8 @@ This document covers two distinct things: (1) which AI models are used inside th
 
 PopSG PDF transcription also honors a direct Meta selection. The Windows agent
 uses an authenticated, active-content-lease-bound `agent-api` request for the
-rendered PNG page; the Meta credential remains in the edge function's
-`META_API_KEY` environment. This route uses Responses, literal transcription,
+rendered PNG page; the edge function reads the saved `admin_config.META_API_KEY`
+and uses its `META_API_KEY` environment only when no Settings row exists. This route uses Responses, literal transcription,
 bounded same-model Contributor-capacity retries, and the existing 60-second
 client ceiling. It never sends a `meta-direct/` identifier to OpenRouter and
 never changes the selected model. A direct Meta selection requires a PopSG content

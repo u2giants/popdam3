@@ -19,17 +19,21 @@ export interface AiModelConfigDraft {
   modelPool: AiModelPool;
   openRouterKey: string;
   googleKey: string;
+  metaKey: string;
+  scaleDownKey: string;
   anthropicKey: string;
   openaiKey: string;
   configuredKeys?: Partial<Record<AiModelKeyField, boolean>>;
   clearKeys?: AiModelKeyField[];
 }
 
-export type AiModelKeyField = "openRouterKey" | "googleKey" | "anthropicKey" | "openaiKey";
+export type AiModelKeyField = "openRouterKey" | "googleKey" | "metaKey" | "scaleDownKey" | "anthropicKey" | "openaiKey";
 
 const KEY_ROWS: ReadonlyArray<[AiModelKeyField, string]> = [
   ["openRouterKey", "OPENROUTER_API_KEY"],
   ["googleKey", "GOOGLE_AI_API_KEY"],
+  ["metaKey", "META_API_KEY"],
+  ["scaleDownKey", "SCALEDOWN_API_KEY"],
   ["anthropicKey", "ANTHROPIC_API_KEY"],
   ["openaiKey", "OPENAI_API_KEY"],
 ];
@@ -92,6 +96,14 @@ export async function saveAiModelConfig(
     && (draft.googleKey.trim().length > 0 || draft.configuredKeys?.googleKey === true);
   if (primaryVision.startsWith("google-direct/") && primaryVision.endsWith(":batch") && !googleKeyWillBeConfigured) {
     throw new Error("Save a Google AI API key before selecting Direct Gemini Batch.");
+  }
+  const metaKeyWillBeConfigured = !clearKeys.has("metaKey")
+    && (draft.metaKey.trim().length > 0 || draft.configuredKeys?.metaKey === true);
+  const selectsMetaDirect = Object.values(expectedTaskModels).some((model) =>
+    typeof model === "string" && model.trim().startsWith("meta-direct/")
+  );
+  if (selectsMetaDirect && !metaKeyWillBeConfigured) {
+    throw new Error("Save a Meta Model API key before selecting a Meta Direct model.");
   }
   const entries: Record<string, unknown> = {
     AI_MODELS: models,
