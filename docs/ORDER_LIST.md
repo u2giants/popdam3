@@ -93,13 +93,14 @@ so this column is **not yet published to production**. The bounded reader uses
 only exact primary ColdLion source references and one consistent non-null full
 source timestamp per Sales Order, displayed in America/New_York. Ambiguous or
 missing source dates return blank; reader failure preserves the primary rows and
-shows a warning. The source intake now has consistent dates for 148 of 149
-referenced Sales Orders (472 of 478 primary references); this is source readiness,
-not proof that the unpublished column works live.
+shows a warning. SO Date is live (October 14, 2026): shared-db version
+20261013211042 is in production and the column shows ColdLion SO received dates
+with the tooltip **Date ColdLion received the Sales Order.**
 
-Remaining date/source delivery and acceptance stay on
-https://github.com/u2giants/popdam3/issues/277. Coordinator continuation:
-https://github.com/u2giants/popdam3/blob/main/HANDOFF.d/2026-10-14T0038Z-hetz-codex-orderlist-dates-exceptions.md.
+Also live October 14, 2026: the 55 settled source corrections, future production
+PO non-reuse enforcement (20261013201822), and Yuchen's 20 special-assortment
+pairs shown once under D3682–D3689. Proof is on
+https://github.com/u2giants/popdam3/issues/277.
 
 The default view is sorted by newest **Prod PO Date** first and shows 1,500 rows
 per page. **Sent PO** remains a separate field. Users can change the sort or page

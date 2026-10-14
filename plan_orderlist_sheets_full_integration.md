@@ -6,11 +6,10 @@
 
 **October 13, 2026 continuity:** these nine integration steps remain complete;
 do not replay them. Subsequent #277 work verified the Production PO tooltip and
-601 populated dates live. The separate SO Date column and future production PO
-non-reuse enforcement are prepared but not yet live; settled55 source corrections
-are unapplied and their runtime descriptor review requires revision. Continue
-from the exact states and acceptance gates in
-https://github.com/u2giants/popdam3/blob/main/HANDOFF.d/2026-10-14T0038Z-hetz-codex-orderlist-dates-exceptions.md.
+601 populated dates live. On October 14, 2026 the SO Date column, future
+production PO non-reuse enforcement, the settled55 source corrections and the
+20 confirmed special-assortment pairs went live; proof is on
+https://github.com/u2giants/popdam3/issues/277.
 This does not reopen the completed integration or Jessica's choices.
 
 Historical integration acceptance production was PR #289 merge `9883315c7d64b9ed274cc92ae3c1d0c73cc6597b`.
