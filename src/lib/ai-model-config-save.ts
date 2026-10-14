@@ -102,7 +102,12 @@ export async function saveAiModelConfig(
   const selectsMetaDirect = Object.values(expectedTaskModels).some((model) =>
     typeof model === "string" && model.trim().startsWith("meta-direct/")
   );
-  if (selectsMetaDirect && !metaKeyWillBeConfigured) {
+  const changesToMetaDirect = Object.entries(expectedTaskModels).some(([taskKey, model]) =>
+    typeof model === "string"
+      && model.trim().startsWith("meta-direct/")
+      && model.trim() !== (draft.savedTaskModels?.[taskKey] ?? "").trim()
+  );
+  if ((changesToMetaDirect && !metaKeyWillBeConfigured) || (selectsMetaDirect && clearKeys.has("metaKey"))) {
     throw new Error("Save a Meta Model API key before selecting a Meta Direct model.");
   }
   const entries: Record<string, unknown> = {

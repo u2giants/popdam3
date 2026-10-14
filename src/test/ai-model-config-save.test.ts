@@ -130,7 +130,6 @@ describe("saveAiModelConfig", () => {
       taskModels,
       savedTaskModels: taskModels,
       modelPool,
-      configuredKeys: { metaKey: true },
     })).resolves.toBeTruthy();
     expect(call.mock.calls[0][1].entries).toMatchObject({ AI_TASK_MODELS: taskModels, AI_MODEL_POOL: modelPool });
   });
