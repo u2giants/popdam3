@@ -237,6 +237,19 @@ Write-Host "      Command : $LauncherBat"
 & $NssmExe set $ServiceName Start SERVICE_AUTO_START 2>&1 | Out-Null
 & $NssmExe set $ServiceName Description "PopDAM Windows Render Agent - headless render/PDF agent. No interactive desktop; Illustrator COM unavailable." 2>&1 | Out-Null
 
+# Indra OCR for scanned PDFs (see packages/agent-common/src/indra-ocr.ts). Own venv + pinned
+# models under ProgramData, mirroring the bridge image. Without it the agent falls back to tesseract.js.
+$IndraRoot = "C:\ProgramData\PopDAM\indra"
+$SystemPython = Get-Command python.exe -ErrorAction SilentlyContinue | Where-Object { $_.Source -notlike "*WindowsApps*" } | Select-Object -First 1 -ExpandProperty Source
+if ($SystemPython) {
+    & $SystemPython -m venv $IndraRoot
+    & "$IndraRoot\Scripts\python.exe" -m pip install --quiet --disable-pip-version-check indra-ocr==0.3.1
+    & "$IndraRoot\Scripts\python.exe" -c "from huggingface_hub import snapshot_download; snapshot_download('datalab-to/indra-ocr', revision='v3.1', allow_patterns=['det.onnx','rec.onnx','rec.int8.onnx','order.onnx','meta.json'], local_dir=r'$IndraRoot\models')"
+    & $NssmExe set $ServiceName AppEnvironmentExtra "INDRA_OCR_PYTHON=$IndraRoot\Scripts\python.exe" "INDRA_OCR_MODEL_DIR=$IndraRoot\models" 2>&1 | Out-Null
+} else {
+    Write-Warning "Python not found; Indra OCR not installed (agent will use tesseract.js)."
+}
+
 if ($ServiceAccount -ne "LocalSystem") {
     $pass = Read-Host -AsSecureString "Password for $ServiceAccount"
     $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($pass)
