@@ -1342,9 +1342,25 @@ An actual recipient uses `--handoff-claim-author` with exact original/successor
 custody, its real identity, recipient identity, user instruction and ready ref.
 Without a ready ref only the actual original owner can execute the direct
 cooperative handoff. This is not abandonment and requires no elapsed deadline.
-Original and successor must genuinely be clean at the same source branch/head;
-use independent repository/worktree custody when Git cannot attach a branch
-twice. Never force a duplicate checkout or discard the original.
+Original and successor must genuinely be clean at the same source branch/head
+(except under remote custody below, where the original's clean state is the one
+the owner signed and its path must be absent on the accepting machine); use
+independent repository/worktree custody when Git cannot attach a branch twice.
+Never force a duplicate checkout or discard the original.
+
+**Remote custody (#4288).** When the original owner stopped on another machine,
+the recipient adds `--remote-custody` (valid only with `--handoff-claim-author`
+and a ready ref). It is accepted only when the owner-signed ready receipt binds
+the exact source, the recovery point is exactly the pushed PR head
+(`artifact:<head>`), the live PR head/branch are unchanged, and the original
+worktree path is genuinely **absent** on the accepting machine; the successor
+worktree must still be clean at the exact head. The handoff receipt records
+`original_worktree_custody: remote`. Never recreate the original path to satisfy
+local custody. All other handoff inputs stay mandatory: `--worktree-state clean`
+(the owner-signed state of the original, not an observation from this machine),
+`--worktree <recorded original path>`, `--target-worktree`, `--recipient-chat-id`,
+`--request-id`, `--recovery-artifact artifact:<head>`, `--authorization-chat-id`
+and `--authorization-quote-file`.
 
 Acceptance re-proves source/version/parser/custody/main ancestry, scope, entire
 claim body, ready evidence, permanent reservation, foreign collisions and stages

@@ -16,7 +16,8 @@ every ten minutes and before protected actions; the migration gate verifies the
 actual confirmation timestamp. At normal completion, an external-block stop, or
 wrap-up, stop writers and finish native release or `--stop-author` readiness.
 An actual successor consumes the create-only ready receipt immediately through
-`--handoff-claim-author`; it never waits out the former owner's deadline. Preserve
+`--handoff-claim-author` (with `--remote-custody` when the original worktree is on
+another machine and absent here, #4288); it never waits out the former owner's deadline. Preserve
 object/version/source protection. See the current procedure in the full text.
 
 1. **There is no limit on how many unrelated migrations may be authored at once. Preview, merges,
