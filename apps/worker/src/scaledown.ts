@@ -8,10 +8,10 @@
  * and parse the `summary` text. Billing is flat per input token
  * (list price $0.05 per 1M tokens, verified 2026-10-14).
  *
- * Key: SCALEDOWN_API_KEY in the Railway worker env (1Password vibe_coding,
- * "scaledown.ai API key for popdam image tagging").
+ * Key: admin_config.SCALEDOWN_API_KEY, managed in Settings → Processing → AI
+ * Tagging. The Railway environment value remains a rollout fallback.
  */
-import { config } from "./config.js";
+import { getScaleDownApiKey } from "./provider-api-key.js";
 
 export const SCALEDOWN_PREFIX = "scaledown/";
 export const SCALEDOWN_SUMMARIZE_MODEL = `${SCALEDOWN_PREFIX}summarize`;
@@ -58,12 +58,13 @@ export async function scaleDownTagImage(
   systemPrompt: string,
   image: { base64: string; mimeType: string },
   timeoutMs: number,
-  apiKey: string = config.scaledownApiKey,
+  apiKey?: string,
 ): Promise<{ tagData: Record<string, unknown>; usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } }> {
-  if (!apiKey) throw new Error("ScaleDown API key not configured (set SCALEDOWN_API_KEY in Railway)");
+  const selectedApiKey = apiKey ?? await getScaleDownApiKey();
+  if (!selectedApiKey) throw new Error("ScaleDown API key is not configured in Settings");
   const resp = await fetch(SCALEDOWN_URL, {
     method: "POST",
-    headers: { "x-api-key": apiKey, "content-type": "application/json" },
+    headers: { "x-api-key": selectedApiKey, "content-type": "application/json" },
     body: JSON.stringify({
       model: model.trim().slice(SCALEDOWN_PREFIX.length),
       messages: [

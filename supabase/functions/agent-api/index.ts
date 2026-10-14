@@ -3603,13 +3603,19 @@ async function handleTranscribeStyleGuidePdfPage(body: Record<string, unknown>, 
     return err((error as Error).message, 400);
   }
   const db = serviceClient();
-  const [{ data: lease, error: leaseError }, { data: file, error: fileError }, { data: models, error: modelError }] = await Promise.all([
+  const [
+    { data: lease, error: leaseError },
+    { data: file, error: fileError },
+    { data: models, error: modelError },
+    { data: metaKeyRow, error: metaKeyError },
+  ] = await Promise.all([
     db.from("style_guide_pdf_text").select("status,claimed_by,claim_expires_at,content_identity")
       .eq("style_guide_file_id", fileId).maybeSingle(),
     db.from("style_guide_files").select("is_active,file_extension").eq("id", fileId).maybeSingle(),
     db.from("admin_config").select("value").eq("key", "AI_TASK_MODELS").maybeSingle(),
+    db.from("admin_config").select("value").eq("key", "META_API_KEY").maybeSingle(),
   ]);
-  if (leaseError || fileError || modelError) return err("PopSG PDF transcription eligibility could not be verified", 503);
+  if (leaseError || fileError || modelError || metaKeyError) return err("PopSG PDF transcription eligibility could not be verified", 503);
   if (!file?.is_active || !["pdf", ".pdf"].includes(String(file.file_extension).toLowerCase())) {
     return err("PopSG PDF transcription requires an active PDF", 409);
   }
@@ -3619,7 +3625,8 @@ async function handleTranscribeStyleGuidePdfPage(body: Record<string, unknown>, 
     return err((error as Error).message, 409);
   }
   const model = String((models?.value as Record<string, unknown> | null)?.pdf_extraction ?? "").trim();
-  const apiKey = Deno.env.get("META_API_KEY") ?? "";
+  const settingsKey = typeof metaKeyRow?.value === "string" ? metaKeyRow.value.trim() : "";
+  const apiKey = metaKeyRow ? settingsKey : Deno.env.get("META_API_KEY") ?? "";
   if (!apiKey) return err("PopSG PDF transcription provider is not configured", 503);
   let text: string;
   try {

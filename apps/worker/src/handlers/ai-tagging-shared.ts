@@ -1,8 +1,8 @@
-import { config } from "../config.js";
 import { isMetaDirectModel, isTerminalMetaModelApiError, metaChatCompletion } from "../meta-model-api.js";
 import { db } from "../supabase.js";
 import { getOpenRouterApiKey } from "../openrouter-key.js";
 import { getGoogleAiApiKey } from "../google-ai-key.js";
+import { getMetaApiKey } from "../provider-api-key.js";
 import { isDirectGeminiBatchModel } from "../gemini-batch.js";
 import { imageContent, publicImageContent, tool, OpenRouterError, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
 import { getRuntimeModelCapabilities } from "../model-capabilities.js";
@@ -429,8 +429,8 @@ export async function callTagAssetModel(
   provider?: ChatCompletionRequest["provider"],
 ): Promise<TagAssetCompletionResult> {
   const directMeta = isMetaDirectModel(model);
-  const selectedApiKey = directMeta ? config.metaApiKey : apiKey;
-  if (directMeta && !selectedApiKey) throw new Error("Meta Model API key not configured (set META_API_KEY in Railway)");
+  const selectedApiKey = directMeta ? await getMetaApiKey() : apiKey;
+  if (directMeta && !selectedApiKey) throw new Error("Meta Model API key is not configured in Settings");
   const capabilities = directMeta ? {
     modelId: model,
     imageInput: true,
@@ -455,5 +455,5 @@ export async function callTagAssetModel(
 
 export function getAiTaggingApiKey(model?: string): Promise<string> {
   if (model && isDirectGeminiBatchModel(model)) return getGoogleAiApiKey();
-  return model && isMetaDirectModel(model) ? Promise.resolve(config.metaApiKey) : getOpenRouterApiKey();
+  return model && isMetaDirectModel(model) ? getMetaApiKey() : getOpenRouterApiKey();
 }

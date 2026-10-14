@@ -27,6 +27,8 @@ export function SpacesConfigSettings() {
 
   const currentKey = (data?.config?.DO_SPACES_KEY?.value ?? data?.config?.DO_SPACES_KEY ?? "") as string;
   const currentSecret = (data?.config?.DO_SPACES_SECRET?.value ?? data?.config?.DO_SPACES_SECRET ?? "") as string;
+  const currentKeyConfigured = data?.config?.DO_SPACES_KEY?.configured === true;
+  const currentSecretConfigured = data?.config?.DO_SPACES_SECRET?.configured === true;
 
   const [form, setForm] = useState<Record<string, string> | null>(null);
   const [keyForm, setKeyForm] = useState<string | null>(null);
@@ -74,16 +76,20 @@ export function SpacesConfigSettings() {
           <div className="space-y-1.5">
             <Label className="text-xs">Spaces Access Key</Label>
             <div className="flex gap-1.5">
-              <Input className="font-mono text-xs flex-1" type={showKey ? "text" : "password"} value={keyValue} onChange={(e) => setKeyForm(e.target.value)} placeholder="DO00..." />
+              <Input className="font-mono text-xs flex-1" type={showKey ? "text" : "password"} value={keyValue} onChange={(e) => setKeyForm(e.target.value)} placeholder={currentKeyConfigured ? "Enter a replacement key" : "DO00..."} />
               <Button variant="ghost" size="sm" className="h-9 px-2 text-xs" onClick={() => setShowKey(!showKey)}>{showKey ? "Hide" : "Show"}</Button>
             </div>
+            {currentKeyConfigured && <p className="text-[10px] text-muted-foreground">A saved key is configured. Leave blank to keep it.</p>}
+            {currentKeyConfigured && <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => setKeyForm((current) => current === "" ? null : "")}>{keyForm === "" ? "Keep saved key" : "Clear saved key when saving"}</Button>}
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Spaces Secret Key</Label>
             <div className="flex gap-1.5">
-              <Input className="font-mono text-xs flex-1" type={showSecret ? "text" : "password"} value={secretValue} onChange={(e) => setSecretForm(e.target.value)} placeholder="••••••••" />
+              <Input className="font-mono text-xs flex-1" type={showSecret ? "text" : "password"} value={secretValue} onChange={(e) => setSecretForm(e.target.value)} placeholder={currentSecretConfigured ? "Enter a replacement key" : "Enter a secret key"} />
               <Button variant="ghost" size="sm" className="h-9 px-2 text-xs" onClick={() => setShowSecret(!showSecret)}>{showSecret ? "Hide" : "Show"}</Button>
             </div>
+            {currentSecretConfigured && <p className="text-[10px] text-muted-foreground">A saved key is configured. Leave blank to keep it.</p>}
+            {currentSecretConfigured && <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => setSecretForm((current) => current === "" ? null : "")}>{secretForm === "" ? "Keep saved key" : "Clear saved key when saving"}</Button>}
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Bucket</Label>

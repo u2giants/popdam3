@@ -19,22 +19,21 @@ export interface AiModelConfigDraft {
   modelPool: AiModelPool;
   openRouterKey: string;
   googleKey: string;
+  metaKey: string;
+  scaleDownKey: string;
   anthropicKey: string;
   openaiKey: string;
-  /**
-   * The key values the form was loaded with. When present, a key whose field
-   * now differs (including a field cleared to blank) is written and then read
-   * back; unchanged keys are not rewritten. Without it, only non-blank keys are
-   * written (legacy behavior).
-   */
-  savedKeys?: Partial<Record<KeyField, string>>;
+  configuredKeys?: Partial<Record<AiModelKeyField, boolean>>;
+  clearKeys?: AiModelKeyField[];
 }
 
-type KeyField = "openRouterKey" | "googleKey" | "anthropicKey" | "openaiKey";
+export type AiModelKeyField = "openRouterKey" | "googleKey" | "metaKey" | "scaleDownKey" | "anthropicKey" | "openaiKey";
 
-const KEY_ROWS: ReadonlyArray<[KeyField, string]> = [
+const KEY_ROWS: ReadonlyArray<[AiModelKeyField, string]> = [
   ["openRouterKey", "OPENROUTER_API_KEY"],
   ["googleKey", "GOOGLE_AI_API_KEY"],
+  ["metaKey", "META_API_KEY"],
+  ["scaleDownKey", "SCALEDOWN_API_KEY"],
   ["anthropicKey", "ANTHROPIC_API_KEY"],
   ["openaiKey", "OPENAI_API_KEY"],
 ];
@@ -55,6 +54,21 @@ function unwrapConfigValue(value: unknown): unknown {
   return value;
 }
 
+export async function saveAiModelPool(
+  call: AdminApiCall,
+  pool: AiModelPool,
+): Promise<AdminApiResponse> {
+  const expectedModelPool = normalizeAiModelPool(pool);
+  await call("set-config", { entries: { AI_MODEL_POOL: expectedModelPool } });
+
+  const confirmed = await call("get-config", { keys: ["AI_MODEL_POOL"] });
+  const storedModelPool = unwrapConfigValue(confirmed?.config?.AI_MODEL_POOL) ?? {};
+  if (!sameAiModelPool(storedModelPool, expectedModelPool)) {
+    throw new Error("Model Pool was not persisted. Please retry.");
+  }
+  return confirmed;
+}
+
 export async function saveAiModelConfig(
   call: AdminApiCall,
   draft: AiModelConfigDraft,
@@ -70,6 +84,7 @@ export async function saveAiModelConfig(
   // which task-model selection is sent while the request is in flight.
   const expectedTaskModels = { ...draft.taskModels };
   const expectedModelPool = normalizeAiModelPool(draft.modelPool);
+  const clearKeys = new Set(draft.clearKeys ?? []);
   for (const [taskKey, modelId] of Object.entries(expectedTaskModels)) {
     const selectionChanged = modelId !== (draft.savedTaskModels?.[taskKey] ?? "");
     if (selectionChanged && !modelAllowedForTask(modelId, taskKey, taskKey.endsWith("_fallback"))) {
@@ -77,8 +92,23 @@ export async function saveAiModelConfig(
     }
   }
   const primaryVision = expectedTaskModels.vision_tagging?.trim() ?? "";
-  if (primaryVision.startsWith("google-direct/") && primaryVision.endsWith(":batch") && !draft.googleKey.trim()) {
+  const googleKeyWillBeConfigured = !clearKeys.has("googleKey")
+    && (draft.googleKey.trim().length > 0 || draft.configuredKeys?.googleKey === true);
+  if (primaryVision.startsWith("google-direct/") && primaryVision.endsWith(":batch") && !googleKeyWillBeConfigured) {
     throw new Error("Save a Google AI API key before selecting Direct Gemini Batch.");
+  }
+  const metaKeyWillBeConfigured = !clearKeys.has("metaKey")
+    && (draft.metaKey.trim().length > 0 || draft.configuredKeys?.metaKey === true);
+  const selectsMetaDirect = Object.values(expectedTaskModels).some((model) =>
+    typeof model === "string" && model.trim().startsWith("meta-direct/")
+  );
+  const changesToMetaDirect = Object.entries(expectedTaskModels).some(([taskKey, model]) =>
+    typeof model === "string"
+      && model.trim().startsWith("meta-direct/")
+      && model.trim() !== (draft.savedTaskModels?.[taskKey] ?? "").trim()
+  );
+  if ((changesToMetaDirect && !metaKeyWillBeConfigured) || (selectsMetaDirect && clearKeys.has("metaKey"))) {
+    throw new Error("Save a Meta Model API key before selecting a Meta Direct model.");
   }
   const entries: Record<string, unknown> = {
     AI_MODELS: models,
@@ -86,15 +116,13 @@ export async function saveAiModelConfig(
     AI_MODEL_DISPLAY_NAMES: { ...draft.displayNames },
     AI_MODEL_POOL: expectedModelPool,
   };
-  const expectedKeys: Record<string, string> = {};
+  const expectedKeys: Record<string, boolean> = {};
   for (const [field, row] of KEY_ROWS) {
     const value = draft[field].trim();
-    const changed = draft.savedKeys
-      ? value !== (draft.savedKeys[field] ?? "").trim()
-      : value.length > 0;
-    if (changed) {
-      entries[row] = value;
-      expectedKeys[row] = value;
+    const shouldWrite = clearKeys.has(field) || value.length > 0;
+    if (shouldWrite) {
+      entries[row] = clearKeys.has(field) ? "" : value;
+      expectedKeys[row] = !clearKeys.has(field);
     }
   }
 
@@ -113,8 +141,8 @@ export async function saveAiModelConfig(
     throw new Error("Model Pool was not persisted. Please retry.");
   }
   for (const [row, value] of Object.entries(expectedKeys)) {
-    const stored = unwrapConfigValue(confirmed?.config?.[row]);
-    if ((typeof stored === "string" ? stored : "") !== value) {
+    const stored = confirmed?.config?.[row] as { configured?: unknown } | undefined;
+    if (stored?.configured !== value) {
       throw new Error(value ? "An API key change was not persisted. Please retry." : "An API key was not cleared. Please retry.");
     }
   }

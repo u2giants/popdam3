@@ -9,7 +9,6 @@ import { Loader2, Sparkles, Save, RefreshCw, Check } from "lucide-react";
 import { toast } from "sonner";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
 import { catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
-import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
 
 export interface OpenRouterModel {
   id: string;
@@ -28,16 +27,14 @@ export function AiVisionConfigCard() {
     queryKey: ["admin-config", "PDF_EXTRACTION_CONFIG", "OPENROUTER_API_KEY", "AI_MODEL_POOL"],
     queryFn: () => call("get-config", { keys: ["PDF_EXTRACTION_CONFIG", "OPENROUTER_API_KEY", "AI_MODEL_POOL"] }),
   });
-  const savedOpenRouterKey = ((configData?.config?.OPENROUTER_API_KEY as Record<string, unknown> | undefined)?.value
-    ?? configData?.config?.OPENROUTER_API_KEY
-    ?? "") as string;
-  const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
+  const openRouterKeyStatus = configData?.config?.OPENROUTER_API_KEY as { updated_at?: unknown } | undefined;
+  const openRouterAccountFingerprint = typeof openRouterKeyStatus?.updated_at === "string" ? openRouterKeyStatus.updated_at : "unset";
 
   // Fetch vision models live from OpenRouter and saved selection in parallel
   const pdfModelQueryKey = ["openrouter-vision-models", openRouterAccountFingerprint] as const;
   const { data: modelsData, isLoading: modelsLoading, error: modelsError } = useQuery<{ models: OpenRouterModel[]; warning: string | null }>({
     queryKey: pdfModelQueryKey,
-    enabled: !!savedOpenRouterKey && openRouterAccountFingerprint !== null,
+    enabled: !!configData,
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
       const warning = catalogWarningOf(data);

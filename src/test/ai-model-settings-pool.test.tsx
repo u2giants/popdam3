@@ -33,10 +33,12 @@ describe("AI Model Pool settings integration", () => {
           } },
           AI_MODEL_DISPLAY_NAMES: { value: {} },
           AI_MODEL_POOL: { value: { "meta-direct": [metaModelId], openrouter: [] } },
-          OPENROUTER_API_KEY: { value: "" },
-          GOOGLE_AI_API_KEY: { value: "" },
-          ANTHROPIC_API_KEY: { value: "" },
-          OPENAI_API_KEY: { value: "" },
+          OPENROUTER_API_KEY: { value: "", configured: false },
+          GOOGLE_AI_API_KEY: { value: "", configured: false },
+          META_API_KEY: { value: "", configured: true },
+          SCALEDOWN_API_KEY: { value: "", configured: false },
+          ANTHROPIC_API_KEY: { value: "", configured: false },
+          OPENAI_API_KEY: { value: "", configured: false },
         } };
       }
       if (action === "get-openrouter-vision-models") {
@@ -49,6 +51,16 @@ describe("AI Model Pool settings integration", () => {
             supports_response_format: true,
             input_modalities: ["image"],
             tool_choice_modes: ["named"],
+          },
+          {
+            id: "google-direct/gemini-3.8-flash:batch",
+            name: "Google Gemini 3.8 Flash Batch",
+            supports_tools: false,
+            supports_structured_outputs: true,
+            supports_response_format: true,
+            input_modalities: ["image"],
+            tool_choice_modes: [],
+            pricing: null,
           },
           {
             id: "openai/hidden-model",
@@ -69,8 +81,17 @@ describe("AI Model Pool settings integration", () => {
   it("loads direct models without an OpenRouter key and keeps supported Meta task choices selectable", async () => {
     renderSettings();
 
+    expect(await screen.findByLabelText("Google AI API Key")).toBeInTheDocument();
+    expect(screen.getByLabelText("Meta Model API Key")).toBeInTheDocument();
+    expect(screen.getByLabelText("ScaleDown API Key")).toBeInTheDocument();
+    expect(screen.getByLabelText("Anthropic API Key")).toBeInTheDocument();
+    expect(screen.getByLabelText("OpenAI API Key")).toBeInTheDocument();
+    expect(screen.getByText("Saved in Settings")).toBeInTheDocument();
     await waitFor(() => expect(call).toHaveBeenCalledWith("get-openrouter-vision-models"));
+    fireEvent.click(await screen.findByRole("button", { name: /Meta AI \(direct\)/ }));
     expect(await screen.findByText("Muse Spark Contributor")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Google AI \(direct\)/ }));
+    expect(await screen.findByText("Google Gemini 3.8 Flash Batch")).toBeInTheDocument();
     expect(screen.queryByText("This saved model is not supported by this task selector.")).not.toBeInTheDocument();
 
     const taskSelectors = screen.getAllByRole("combobox");

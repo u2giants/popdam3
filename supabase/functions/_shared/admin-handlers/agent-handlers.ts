@@ -7,6 +7,7 @@
  */
 
 import { err, formatPostgrestError, json, optionalString, requireString, serviceClient } from "../admin-utils.ts";
+import { redactAdminConfigValues } from "../admin-config-secret.ts";
 
 // ── generate-agent-key ──────────────────────────────────────────────
 
@@ -1271,10 +1272,7 @@ export async function handleDoctor() {
 
   // ── Config (non-sensitive) ──
   const { data: configRows } = await db.from("admin_config").select("key, value, updated_at");
-  const config: Record<string, unknown> = {};
-  for (const row of configRows ?? []) {
-    config[row.key] = row.value;
-  }
+  const config = redactAdminConfigValues(configRows);
 
   // ── Additional issue checks ──
   const { count: staleJobs } = await db

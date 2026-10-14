@@ -12,6 +12,7 @@ import {
   upsertConfigRowsAtomically,
   withValidatedCounterparts,
 } from "../_shared/direct-batch-model.ts";
+import { isAdminConfigSecretKey, redactAdminConfigSecret } from "../_shared/admin-config-secret.ts";
 
 // ── Extracted handler modules ───────────────────────────────────────
 import {
@@ -315,7 +316,8 @@ async function handleGetConfig(body: Record<string, unknown>) {
 
   const config: Record<string, unknown> = {};
   for (const row of data || []) {
-    config[row.key] = { value: row.value, updated_at: row.updated_at };
+    const value = isAdminConfigSecretKey(row.key) ? redactAdminConfigSecret(row.value) : { value: row.value };
+    config[row.key] = { ...value, updated_at: row.updated_at };
   }
   return json({ ok: true, config });
 }
