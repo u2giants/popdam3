@@ -80,6 +80,27 @@ The summary counts (total, linked, ambiguous, not linked) are read as sequential
 count queries over the whole dataset, not derived from loaded rows. They start
 after visible rows have loaded so they cannot hold up the grid.
 
+**Date authority (October 13, 2026):** **Prod PO Date** is the Production PO
+Date in ColdLion; its live header tooltip says “Production PO Date in ColdLion.”
+The reviewed source backfill populated 601 previously blank dates and preserved
+42 held headers exactly. Missing or ambiguous dates remain blank.
+
+**SO Date** is a separate read-only column for the date ColdLion received the
+Sales Order, with tooltip “Date ColdLion received the Sales Order.” Its frontend
+is prepared in https://github.com/u2giants/popdam3/pull/377; the shared reader is
+merged in https://github.com/popcre/shared-db/pull/4270 but is not yet promoted,
+so this column is **not yet published to production**. The bounded reader uses
+only exact primary ColdLion source references and one consistent non-null full
+source timestamp per Sales Order, displayed in America/New_York. Ambiguous or
+missing source dates return blank; reader failure preserves the primary rows and
+shows a warning. The source intake now has consistent dates for 148 of 149
+referenced Sales Orders (472 of 478 primary references); this is source readiness,
+not proof that the unpublished column works live.
+
+Remaining date/source delivery and acceptance stay on
+https://github.com/u2giants/popdam3/issues/277. Coordinator continuation:
+https://github.com/u2giants/popdam3/blob/main/HANDOFF.d/2026-10-14T0038Z-hetz-codex-orderlist-dates-exceptions.md.
+
 The default view is sorted by newest **Prod PO Date** first and shows 1,500 rows
 per page. **Sent PO** remains a separate field. Users can change the sort or page
 size, and saved views can restore their own sort.
