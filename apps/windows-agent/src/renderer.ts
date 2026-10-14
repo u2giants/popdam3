@@ -39,16 +39,11 @@ import { logger } from "./logger";
 import { readFileWithinLimit } from "./common/bounded-read.js";
 import { isCompatAlertBuffer, createCompatAuditWorker } from "./compat-audit";
 import { compositePsdWithPsdTools, isPsdDecodeFailure, psdToolsPython } from "./psd-tools-fallback";
+import { longPath as withLongPathPrefix } from "./smb-resolve";
 
 // On Windows, paths longer than MAX_PATH (260) fail silently with Win32 APIs.
 // Prefixing with \\?\ enables extended-length paths in Node fs and Sharp (libvips).
 // Shell tools (GS, IM, Inkscape) don't support this prefix — they get the short temp copy instead.
-function withLongPathPrefix(p: string): string {
-  if (process.platform !== "win32" || p.startsWith("\\\\?\\")) return p;
-  if (/^[A-Za-z]:\\/.test(p)) return `\\\\?\\${p}`;
-  if (p.startsWith("\\\\")) return `\\\\?\\UNC\\${p.slice(2)}`;
-  return p;
-}
 
 export type CompatWorker = Awaited<ReturnType<typeof createCompatAuditWorker>>;
 
