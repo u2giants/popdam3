@@ -33,9 +33,9 @@ The order-timeline stages fall into five business lists: Design, Licensing, Samp
   | Production | Yuchen |
   | Design | Marcel |
   | Sampling | Yuchen and Ilona |
-  | Shipping | Unknown (no maintainer named yet) |
+  | Shipping | Yuchen |
 
-- Admins may maintain every list.
+- A list's maintainers can edit that list (add, rename, delete, reorder stages, set durations). Admins may edit every list.
 
 **Stage order (Unknown).** The current Production order (Material Arrival first) is wrong. Material Arrival is about the fourth production step. The correct order will be set by the list maintainers on the stage-list screen. Until then, no order is Settled.
 
