@@ -84,6 +84,12 @@ Do not open, edit or delete these candidates as part of #96. No worktree cleanup
 - **Rely on CI or a healthy deployment as proof of completion.** PR #368’s tests and deployment prove the preventive code is present; they do not resume the interrupted run, recover the lost ID, or establish saved metadata for the remaining positions.
 - **Claim continuous monitoring or background progress.** There is no authorized detached monitor or generation process for this workstream. Do not promise future activity after the session ends.
 
+### Closing-tool observations and previously disclosed unrelated merge
+
+The first closeout review preflight was refused before provider dispatch because root supplied an abbreviated rather than full source SHA. It yielded no review verdict or production authority; retry only with the exact full source head. During that preflight, the installed review tool also reported older legacy review snapshots whose ownership or packet seals could not be verified. It retained their evidence rather than deleting it. Those machine-wide review-storage candidates are unrelated to #96 and were deferred under the wrap-up scope freeze; a separately authorized toolkit maintenance session must use the tool’s supported evidence-reconciliation path after proving exact ownership. Do not remove or reseal them to make this closeout look clean.
+
+On October 13, root previously selected the wrong PR number and unintentionally normally merged the already-reviewed [PR #369](https://github.com/u2giants/popdam3/pull/369), an unrelated OrderList production-date label change owned by Codex chat `01a12aec-192c-7703-a62c-b2671e88c11d`. Root disclosed the error in that PR and to Albert. Required checks were green, and the change touched no tagging worker, provider configuration or database structure. It was retained rather than reverted; that owner retains its separate live-UI acceptance/date-population scope. This is a recorded mistake, not authority to take over the other workstream.
+
 ## 5. Root causes and key findings
 
 The failure was a cross-process ownership race. Overlapping Railway workers reused the same logical `railway:<run>` owner. A renewal changed the native revision while the incumbent was awaiting Meta. Meta accepted the request, but the old-revision acknowledgement save failed, and the generic error omitted the returned ID. The worker correctly preserved ambiguity instead of authorizing a duplicate POST, but its previous recovery mechanism could not durably attach an acknowledgement after the renewal.
