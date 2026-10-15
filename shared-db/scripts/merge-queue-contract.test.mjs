@@ -5,6 +5,8 @@ import {
   MergeQueueModeUnknown,
   PREVIEW_REHEARSAL_CONTEXT,
   QUEUE_RULE,
+  REQUIRED_STATUS_CHECKS_RULE,
+  REQUIRED_STATUS_CHECK_CONTEXTS,
   RULESET_NAME,
   assertOldestMigration,
   assertProductionInterlock,
@@ -19,6 +21,7 @@ import {
   queueMode,
   queueRulesetMatches,
   queueParametersEqual,
+  requiredStatusChecksEqual,
   readOpenPullRequests,
   readPullRequestFiles,
   recheckQueueInterlock,
@@ -119,7 +122,7 @@ const approvedDetail = {
   target: 'branch',
   enforcement: 'active',
   conditions: { ref_name: { include: ['refs/heads/main'], exclude: [] } },
-  rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters } }],
+  rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters } }, { type: 'required_status_checks', parameters: { ...REQUIRED_STATUS_CHECKS_RULE.parameters, required_status_checks: [...REQUIRED_STATUS_CHECKS_RULE.parameters.required_status_checks] } }],
 }
 
 test('the approved rule is exactly one all-green PR built and merged at a time', () => {
@@ -132,10 +135,24 @@ test('the approved rule is exactly one all-green PR built and merged at a time',
     min_entries_to_merge: 1,
     min_entries_to_merge_wait_minutes: 0,
   })
+  assert.equal(REQUIRED_STATUS_CHECK_CONTEXTS.length, 14)
+  assert.equal(REQUIRED_STATUS_CHECKS_RULE.parameters.required_status_checks.length, 14)
+  assert.ok(REQUIRED_STATUS_CHECK_CONTEXTS.includes('Merge queue gate'))
+  assert.ok(REQUIRED_STATUS_CHECK_CONTEXTS.includes('Queue-sensitive checks (aggregate)'))
   assert.equal(queueRulesetMatches(approvedDetail), true)
   assert.equal(queueRulesetMatches({ ...approvedDetail, enforcement: 'evaluate' }), false)
   assert.equal(queueRulesetMatches({ ...approvedDetail, conditions: { ref_name: { include: ['refs/heads/develop'] } } }), false)
-  assert.equal(queueRulesetMatches({ ...approvedDetail, rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters, max_entries_to_build: 2 } }] }), false)
+  assert.equal(queueRulesetMatches({ ...approvedDetail, rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters, max_entries_to_build: 2 } }, REQUIRED_STATUS_CHECKS_RULE] }), false)
+  // A merge_queue-only ruleset is not the approved dual-rule shape (#2530).
+  assert.equal(queueRulesetMatches({ ...approvedDetail, rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters } }] }), false)
+  // required_status_checks drift (missing context) refuses.
+  assert.equal(queueRulesetMatches({
+    ...approvedDetail,
+    rules: [
+      { type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters } },
+      { type: 'required_status_checks', parameters: { ...REQUIRED_STATUS_CHECKS_RULE.parameters, required_status_checks: [{ context: 'only-one' }] } },
+    ],
+  }), false)
 })
 
 test('queue mode: active only for the exact approved ruleset', () => {
@@ -176,7 +193,7 @@ test('queue mode: unknown, never guessed, on duplicates, foreign queues, or shap
   const drifted = (args) => {
     const target = args.at(-1)
     if (target.endsWith('includes_parents=false')) return [{ id: 42, name: RULESET_NAME, enforcement: 'active' }]
-    if (target.endsWith('rulesets/42')) return { ...approvedDetail, rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters, grouping_strategy: 'HEADGREEN' } }] }
+    if (target.endsWith('rulesets/42')) return { ...approvedDetail, rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters, grouping_strategy: 'HEADGREEN' } }, REQUIRED_STATUS_CHECKS_RULE] }
     throw new Error(`unexpected read ${target}`)
   }
   assert.throws(() => queueMode({ repo: REPO, read: drifted }), /not the exact approved one-PR queue/)
@@ -430,7 +447,7 @@ const GITHUB_ORDER_PARAMETERS = { merge_method: 'MERGE', max_entries_to_build: 1
 test('queue parameters compare by key and value, not by key order (#3566)', () => {
   assert.notEqual(JSON.stringify(GITHUB_ORDER_PARAMETERS), JSON.stringify(QUEUE_RULE.parameters), 'fixture must reproduce the differing order')
   assert.equal(queueParametersEqual(GITHUB_ORDER_PARAMETERS), true)
-  assert.equal(queueRulesetMatches({ ...approvedDetail, rules: [{ type: 'merge_queue', parameters: GITHUB_ORDER_PARAMETERS }] }), true)
+  assert.equal(queueRulesetMatches({ ...approvedDetail, rules: [{ type: 'merge_queue', parameters: GITHUB_ORDER_PARAMETERS }, REQUIRED_STATUS_CHECKS_RULE] }), true)
   assert.equal(queueParametersEqual({ ...GITHUB_ORDER_PARAMETERS, max_entries_to_build: 2 }), false)
   assert.equal(queueParametersEqual({ ...GITHUB_ORDER_PARAMETERS, extra: 1 }), false)
   const { grouping_strategy, ...absent } = GITHUB_ORDER_PARAMETERS
@@ -438,4 +455,29 @@ test('queue parameters compare by key and value, not by key order (#3566)', () =
   assert.equal(queueParametersEqual({ ...GITHUB_ORDER_PARAMETERS, max_entries_to_build: '1' }), false)
   assert.equal(queueParametersEqual(null), false)
   assert.equal(queueParametersEqual([]), false)
+})
+
+test('required_status_checks compare: policy flags exact, contexts by name set, integration_id when echoed', () => {
+  const expected = REQUIRED_STATUS_CHECKS_RULE.parameters
+  assert.equal(requiredStatusChecksEqual(expected), true)
+  // GitHub key order / echoed integration_id still matches.
+  assert.equal(requiredStatusChecksEqual({
+    strict_required_status_checks_policy: false,
+    do_not_enforce_on_create: false,
+    required_status_checks: expected.required_status_checks.map((r) => ({ integration_id: r.integration_id, context: r.context })),
+  }), true)
+  // Absent integration_id is tolerated.
+  assert.equal(requiredStatusChecksEqual({
+    ...expected,
+    required_status_checks: expected.required_status_checks.map((r) => ({ context: r.context })),
+  }), true)
+  assert.equal(requiredStatusChecksEqual({ ...expected, strict_required_status_checks_policy: true }), false)
+  assert.equal(requiredStatusChecksEqual({ ...expected, do_not_enforce_on_create: true }), false)
+  assert.equal(requiredStatusChecksEqual({ ...expected, required_status_checks: expected.required_status_checks.slice(1) }), false)
+  assert.equal(requiredStatusChecksEqual({
+    ...expected,
+    required_status_checks: expected.required_status_checks.map((r) => (r.context === 'Merge queue gate' ? { context: 'Merge queue gate', integration_id: 999 } : r)),
+  }), false)
+  assert.equal(requiredStatusChecksEqual(null), false)
+  assert.equal(requiredStatusChecksEqual([]), false)
 })

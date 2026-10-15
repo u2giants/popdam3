@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "work_issue": 2530,
+  "outcome": "ready-for-merge",
+  "pr": 4305,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2530/6",
+  "contract_sha256": "1578d32c168e7bef7490ce22200828aef96a9cc4fcc607967d72bfd873f60496",
+  "head_sha": "03a5773a8cfa113e59a863854068e677cf761a02",
+  "base_sha": "d55c69499121705268ffded099087ab45ba1abf1",
+  "files_changed": [
+    ".github/workflows/coldlion-promotion-contract-tests.yml",
+    ".github/workflows/database-contract-tests.yml",
+    ".github/workflows/documents-fast-ci.yml",
+    ".github/workflows/merge-queue-gate.yml",
+    ".github/workflows/migration-author-lease.yml",
+    ".github/workflows/pr-guards.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "scripts/documents-fast-ci-workflow.test.mjs",
+    "scripts/merge-queue-contract.mjs",
+    "scripts/merge-queue-contract.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-merge-queue-workflows.test.mjs scripts/configure-merge-queue.test.mjs scripts/merge-queue-contract.test.mjs scripts/documents-fast-ci-workflow.test.mjs",
+      "exit_code": 0,
+      "evidence": "Linux CI green on prior head of this file set; bare merge_group and dual-rule assertions pass."
+    }
+  ],
+  "assumptions_resolved": [
+    "Bare merge_group confirmed.",
+    "14 live contexts confirmed."
+  ],
+  "stop_conditions_hit": []
+}

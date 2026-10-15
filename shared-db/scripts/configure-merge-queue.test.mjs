@@ -19,7 +19,7 @@ import {
   readMainTip,
   verifyReadback,
 } from './configure-merge-queue.mjs'
-import { QUEUE_RULE, RULESET_NAME, PREVIEW_REHEARSAL_CONTEXT } from './merge-queue-contract.mjs'
+import { QUEUE_RULE, REQUIRED_STATUS_CHECKS_RULE, RULESET_NAME, PREVIEW_REHEARSAL_CONTEXT } from './merge-queue-contract.mjs'
 
 const SHA_A = 'a'.repeat(40)
 const SHA_B = 'b'.repeat(40)
@@ -37,7 +37,11 @@ test('queue is exactly one all-green PR built and merged at a time', () => {
   assert.deepEqual(desiredRuleset().conditions.ref_name.include, ['refs/heads/main'])
   assert.equal(desiredRuleset().target, 'branch')
   assert.equal(desiredRuleset().enforcement, 'active')
-  assert.equal(desiredRuleset().rules.length, 1)
+  // Two rules: merge_queue + required_status_checks (#2530 dispatch hardening).
+  assert.equal(desiredRuleset().rules.length, 2)
+  assert.equal(desiredRuleset().rules[0]?.type, 'merge_queue')
+  assert.equal(desiredRuleset().rules[1]?.type, 'required_status_checks')
+  assert.equal(REQUIRED_STATUS_CHECKS_RULE.parameters.required_status_checks.length, 14)
 })
 
 test('repository identity gate: organization, public, and the transferred object ID', () => {
@@ -131,16 +135,18 @@ test('read-back: every field must equal the desired document', () => {
   assert.equal(verifyReadback(written).id, 7)
   assert.throws(() => verifyReadback({ ...written, enforcement: 'evaluate' }), /read-back mismatch: enforcement/)
   assert.throws(() => verifyReadback({ ...written, conditions: { ref_name: { include: ['~ALL'], exclude: [] } } }), /read-back mismatch: conditions/)
-  assert.throws(() => verifyReadback({ ...written, rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters, max_entries_to_merge: 2 } }] }), /read-back mismatch: queue parameters/)
-  assert.throws(() => verifyReadback({ ...written, rules: [] }), /exactly one merge_queue rule/)
+  assert.throws(() => verifyReadback({ ...written, rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters, max_entries_to_merge: 2 } }, REQUIRED_STATUS_CHECKS_RULE] }), /read-back mismatch: queue parameters/)
+  assert.throws(() => verifyReadback({ ...written, rules: [] }), /exactly two rules/)
+  assert.throws(() => verifyReadback({ ...written, rules: [QUEUE_RULE] }), /exactly two rules/)
+  assert.throws(() => verifyReadback({ ...written, rules: [QUEUE_RULE, { type: 'required_status_checks', parameters: { ...REQUIRED_STATUS_CHECKS_RULE.parameters, required_status_checks: [{ context: 'only-one' }] } }] }), /read-back mismatch: required_status_checks/)
   assert.throws(() => verifyReadback({ name: RULESET_NAME }), /did not read back with an ID/)
 })
 
 test('read-back accepts GitHub key order for identical queue parameters (#3566, ruleset 24024180)', () => {
   const githubOrder = { merge_method: 'MERGE', max_entries_to_build: 1, min_entries_to_merge: 1, max_entries_to_merge: 1, min_entries_to_merge_wait_minutes: 0, grouping_strategy: 'ALLGREEN', check_response_timeout_minutes: 30 }
-  const written = { id: 24024180, ...desiredRuleset(), rules: [{ type: 'merge_queue', parameters: githubOrder }] }
+  const written = { id: 24024180, ...desiredRuleset(), rules: [{ type: 'merge_queue', parameters: githubOrder }, REQUIRED_STATUS_CHECKS_RULE] }
   assert.equal(verifyReadback(written).id, 24024180)
-  assert.throws(() => verifyReadback({ ...written, rules: [{ type: 'merge_queue', parameters: { ...githubOrder, grouping_strategy: 'HEADGREEN' } }] }), /read-back mismatch: queue parameters/)
+  assert.throws(() => verifyReadback({ ...written, rules: [{ type: 'merge_queue', parameters: { ...githubOrder, grouping_strategy: 'HEADGREEN' } }, REQUIRED_STATUS_CHECKS_RULE] }), /read-back mismatch: queue parameters/)
 })
 
 test('rollback names only the recorded main merge queue ruleset', () => {

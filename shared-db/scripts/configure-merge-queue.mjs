@@ -31,7 +31,7 @@ import { pathToFileURL } from 'node:url'
 import { createTreeReader } from './lib/github-tree.mjs'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { resolveRepositoryIdentity, RepositoryIdentityError } from './lib/repository-identity.mjs'
-import { PREVIEW_REHEARSAL_CONTEXT, QUEUE_RULE, queueParametersEqual, RULESET_NAME, baseNeedsPreview, migrationVersions, readAuthorizationStatuses, rehearsalState } from './merge-queue-contract.mjs'
+import { PREVIEW_REHEARSAL_CONTEXT, QUEUE_RULE, REQUIRED_STATUS_CHECKS_RULE, queueParametersEqual, requiredStatusChecksEqual, RULESET_NAME, baseNeedsPreview, migrationVersions, readAuthorizationStatuses, rehearsalState } from './merge-queue-contract.mjs'
 
 export class ConfigureQueueError extends Error {}
 
@@ -55,7 +55,9 @@ export function desiredRuleset() {
     target: 'branch',
     enforcement: 'active',
     conditions: { ref_name: { include: ['refs/heads/main'], exclude: [] } },
-    rules: [QUEUE_RULE],
+    // Two rules: the approved one-PR merge queue, plus required_status_checks
+    // listing the 14 live contexts so the queue knows what to wait for (#2530).
+    rules: [QUEUE_RULE, REQUIRED_STATUS_CHECKS_RULE],
   }
 }
 
@@ -199,11 +201,18 @@ export function verifyReadback(written, desired = desiredRuleset()) {
     throw new ConfigureQueueError(`read-back mismatch: conditions ${JSON.stringify(written.conditions)} do not target exactly refs/heads/main`)
   }
   const rules = written.rules
-  if (!Array.isArray(rules) || rules.length !== 1 || rules[0]?.type !== 'merge_queue') {
-    throw new ConfigureQueueError('read-back mismatch: ruleset does not carry exactly one merge_queue rule')
+  if (!Array.isArray(rules) || rules.length !== 2) {
+    throw new ConfigureQueueError('read-back mismatch: ruleset does not carry exactly two rules (merge_queue + required_status_checks)')
   }
-  if (!queueParametersEqual(rules[0].parameters)) {
-    throw new ConfigureQueueError(`read-back mismatch: queue parameters ${JSON.stringify(rules[0]?.parameters)} != approved ${JSON.stringify(QUEUE_RULE.parameters)}`)
+  const queue = rules.find((rule) => rule?.type === 'merge_queue')
+  if (!queue) throw new ConfigureQueueError('read-back mismatch: ruleset does not carry a merge_queue rule')
+  if (!queueParametersEqual(queue.parameters)) {
+    throw new ConfigureQueueError(`read-back mismatch: queue parameters ${JSON.stringify(queue.parameters)} != approved ${JSON.stringify(QUEUE_RULE.parameters)}`)
+  }
+  const required = rules.find((rule) => rule?.type === 'required_status_checks')
+  if (!required) throw new ConfigureQueueError('read-back mismatch: ruleset does not carry a required_status_checks rule')
+  if (!requiredStatusChecksEqual(required.parameters)) {
+    throw new ConfigureQueueError(`read-back mismatch: required_status_checks ${JSON.stringify(required.parameters?.required_status_checks?.map((r) => r?.context))} != approved ${JSON.stringify(REQUIRED_STATUS_CHECKS_RULE.parameters.required_status_checks.map((r) => r.context))}`)
   }
   return written
 }

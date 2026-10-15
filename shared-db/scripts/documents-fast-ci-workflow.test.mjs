@@ -24,7 +24,8 @@ const promotion = read('coldlion-promotion-contract-tests.yml')
 test('the route workflow runs trusted base code and never the pull request head', () => {
   assert.match(route, /pull_request_target:/)
   assert.match(route, /merge_group:/)
-  assert.match(route, /types: \[checks_requested\]/)
+  // Bare merge_group: — a types pin is a known dispatch footgun (#2530).
+  assert.doesNotMatch(route, /types: \[checks_requested\]/)
   // Base identity is proven BEFORE checkout.
   const proveBase = route.indexOf('name: Prove the protected base identity before checkout')
   const checkout = route.indexOf('name: Check out trusted base code only')

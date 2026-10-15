@@ -58,6 +58,43 @@ export const QUEUE_RULE = Object.freeze({
   }),
 })
 
+// The 14 live required contexts (classic branch protection read-back
+// 2026-10-14, app_id 15368 = GitHub Actions). The merge-queue ruleset must
+// carry these as required_status_checks so the queue knows which checks to
+// wait for; a ruleset that omits them is not the approved shape (#2530).
+// Retired mirror contexts (Orchestrator marker guard, Agent work contract)
+// are deliberately absent.
+export const REQUIRED_STATUS_CHECK_CONTEXTS = Object.freeze([
+  'Cancelled work guard',
+  'Cross-PR object collision',
+  'Destructive SQL outside migrations',
+  'Domain ownership',
+  'Handoff contract',
+  'Intake pointer guard',
+  'Merge queue gate',
+  'Migration author lease',
+  'Migration guarded merge authorization',
+  'Promotion contract tests (offline)',
+  'Queue-sensitive checks (aggregate)',
+  'SQL migration guards',
+  'Tools offline tests',
+  'supabase/tests against an ephemeral database',
+])
+
+// GitHub Actions integration id, matching classic protection's app binding.
+export const GITHUB_ACTIONS_INTEGRATION_ID = 15368
+
+export const REQUIRED_STATUS_CHECKS_RULE = Object.freeze({
+  type: 'required_status_checks',
+  parameters: Object.freeze({
+    do_not_enforce_on_create: false,
+    strict_required_status_checks_policy: false,
+    required_status_checks: Object.freeze(
+      REQUIRED_STATUS_CHECK_CONTEXTS.map((context) => Object.freeze({ context, integration_id: GITHUB_ACTIONS_INTEGRATION_ID })),
+    ),
+  }),
+})
+
 // ---------------------------------------------------------------------------
 // Queue ref parsing and PR identity
 // ---------------------------------------------------------------------------
@@ -174,7 +211,10 @@ export function queueRulesetMatches(detail) {
   if (!Array.isArray(rules)) return false
   const queue = rules.filter((rule) => rule?.type === 'merge_queue')
   if (queue.length !== 1) return false
-  return queueParametersEqual(queue[0].parameters)
+  if (!queueParametersEqual(queue[0].parameters)) return false
+  const required = rules.filter((rule) => rule?.type === 'required_status_checks')
+  if (required.length !== 1) return false
+  return requiredStatusChecksEqual(required[0].parameters)
 }
 
 // Key-order-independent equality of queue parameters (#3566). GitHub returns the
@@ -185,6 +225,26 @@ export function queueParametersEqual(actual, expected = QUEUE_RULE.parameters) {
   const a = Object.keys(actual).sort(), e = Object.keys(expected).sort()
   if (a.length !== e.length || a.some((key, i) => key !== e[i])) return false
   return e.every((key) => actual[key] === expected[key])
+}
+
+// required_status_checks comparison: the two policy flags must equal exactly,
+// and the check list must name the same contexts. integration_id is compared
+// when present (GitHub echoes it back on read) and tolerated when absent.
+export function requiredStatusChecksEqual(actual, expected = REQUIRED_STATUS_CHECKS_RULE.parameters) {
+  if (!actual || typeof actual !== 'object' || Array.isArray(actual)) return false
+  if (actual.do_not_enforce_on_create !== expected.do_not_enforce_on_create) return false
+  if (actual.strict_required_status_checks_policy !== expected.strict_required_status_checks_policy) return false
+  const a = actual.required_status_checks, e = expected.required_status_checks
+  if (!Array.isArray(a) || !Array.isArray(e) || a.length !== e.length) return false
+  const names = (rows) => rows.map((row) => row?.context).filter(Boolean).sort()
+  const an = names(a), en = names(e)
+  if (an.length !== en.length || an.some((name, i) => name !== en[i])) return false
+  // When GitHub echoes integration_id, it must match the approved binding.
+  return a.every((row, i) => {
+    const match = e.find((item) => item.context === row?.context)
+    if (row.integration_id !== undefined && row.integration_id !== match.integration_id) return false
+    return true
+  })
 }
 
 // queueMode() returns 'active' only for the exact approved rule, 'inactive'

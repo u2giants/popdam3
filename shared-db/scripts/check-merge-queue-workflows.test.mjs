@@ -168,13 +168,17 @@ test('the emitter check matches exact job names, not substrings or comments', ()
   assert.equal(names.has('Tools offline tests'), true)
 })
 
-test('every check-run emitter triggers on pull_request AND merge_group checks_requested', () => {
+test('every check-run emitter triggers on pull_request AND merge_group (bare trigger, no types pin)', () => {
   for (const [context, spec] of Object.entries(CONTEXT_MAP)) {
     if (spec.kind !== 'check-run') continue
     const text = readWorkflow(spec.workflow)
     assert.match(text, /^ {2}pull_request:$/m, `${spec.workflow} (${context}) lost its pull_request trigger`)
     assert.match(text, /^ {2}merge_group:$/m, `${spec.workflow} (${context}) does not trigger for merge_group`)
-    assert.match(text, /^ {4}types: \[checks_requested\]$/m, `${spec.workflow} (${context}) does not pin merge_group checks_requested`)
+    // Bare merge_group: — GitHub's official merge-queue CI example uses bare
+    // on: merge_group:. A types: [checks_requested] pin is a known dispatch
+    // footgun (#2530 canary #4298: zero Actions runs on a valid merge group).
+    assert.doesNotMatch(text, /^ {2}merge_group:\r?\n {4}types:/m, `${spec.workflow} (${context}) still pins merge_group types; use bare merge_group:`)
+    assert.doesNotMatch(text, /types: \[checks_requested\]/, `${spec.workflow} (${context}) still declares types: [checks_requested]`)
     // Exact object: a job whose display name (literal, or the default branch of a
     // lane-capable name expression) equals the context. A substring or comment is not enough.
     assert.ok(emittedJobNames(text).has(spec.job), `${spec.workflow} does not emit a job named exactly "${spec.job}"`)
@@ -221,6 +225,9 @@ test('no required-context workflow is path-filtered (a filtered required check s
     const text = readWorkflow(spec.workflow)
     const onBlock = /^on:\n([\s\S]*?)^\w/m.exec(text)?.[1] ?? ''
     assert.ok(!/^ {4}paths(-ignore)?:/m.test(onBlock), `${spec.workflow} (${context}) has a paths filter on a required context`)
+    // merge_group must stay bare: on.merge_group does not support paths, and
+    // any child key there is a dispatch footgun (#2530).
+    assert.doesNotMatch(text, /^ {2}merge_group:\r?\n {4}\S/m, `${spec.workflow} (${context}) has child keys under merge_group; use bare merge_group:`)
   }
 })
 
