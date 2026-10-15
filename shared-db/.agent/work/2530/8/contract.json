@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 2530,
+  "generation": 8,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Closeout handoff + live dispatch-probe evidence for merge-queue Steps 8-10 (issue #2530).",
+  "base_sha": "d0c99556fe5364d5ce67066cc206c66ec2619ba2",
+  "dispatcher": "MiMo chat ffe5ec4d8a438ffeMsuIzWTbV4 on edge-dev",
+  "worker": "MiMo",
+  "branch": "mimo/2530-mq-closeout-20261015",
+  "worktree": "D:\\\\repos\\\\shared-db-worktrees\\\\2530-canary-20261015",
+  "allowed_paths": [
+    ".agent/work/2530/8/completion.json",
+    ".agent/work/2530/8/contract.json",
+    "HANDOFF.d/2026-10-15T1107Z-edge-dev-mimo-2530-merge-queue-steps8-10.md",
+    "docs/verification/merge-queue-live-dispatch-probe-20261015.json",
+    "docs/verification/merge-queue-ruleset-api-20261015.json",
+    "docs/verification/merge-queue-ruleset-readback-20261015.json"
+  ],
+  "file_writes": [
+    ".agent/work/2530/8/completion.json",
+    ".agent/work/2530/8/contract.json",
+    "HANDOFF.d/2026-10-15T1107Z-edge-dev-mimo-2530-merge-queue-steps8-10.md",
+    "docs/verification/merge-queue-live-dispatch-probe-20261015.json",
+    "docs/verification/merge-queue-ruleset-api-20261015.json",
+    "docs/verification/merge-queue-ruleset-readback-20261015.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database, migration, or live-queue mutation in this closeout PR."
+  ],
+  "required_checks": [
+    "true"
+  ],
+  "assumptions": [
+    "Handoff and verification JSONs are the closeout deliverable."
+  ],
+  "stop_conditions": [
+    "Do not merge unfinished implementation PRs from this closeout."
+  ]
+}
