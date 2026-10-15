@@ -26,6 +26,7 @@ import {
   readPullRequestFiles,
   recheckQueueInterlock,
   rehearsalState,
+  resolveAuthorizedHead,
   verifyQueuePullRequest,
 } from './merge-queue-contract.mjs'
 
@@ -480,4 +481,152 @@ test('required_status_checks compare: policy flags exact, contexts by name set, 
   }), false)
   assert.equal(requiredStatusChecksEqual(null), false)
   assert.equal(requiredStatusChecksEqual([]), false)
+})
+
+// Authorized head under the verifyGitEvidence ancestor+tail rule (canary #4321).
+// Authorization binds to the implementation commit; the live tip may carry only
+// this PR's own evidence pair after it.
+test('resolveAuthorizedHead: the tip itself when it carries authorization', () => {
+  const tip = 'a'.repeat(40)
+  const resolved = resolveAuthorizedHead(tip, {
+    isAncestor: () => true,
+    changedFiles: () => [],
+    firstParent: () => 'b'.repeat(40),
+    readAuthorizationState: (sha) => (sha === tip ? 'success' : 'none'),
+  })
+  assert.deepEqual(resolved, { authorizedHead: tip, evidenceTail: [], mode: 'exact' })
+})
+
+test('resolveAuthorizedHead: implementation head when the tip is a pure evidence tail', () => {
+  const impl = '1'.repeat(40)
+  const tip = '2'.repeat(40)
+  const pair = [
+    '.agent/work/2530/7/completion.json',
+    '.agent/work/2530/7/contract.json',
+  ]
+  const resolved = resolveAuthorizedHead(tip, {
+    isAncestor: (ancestor, descendant) => ancestor === impl && descendant === tip,
+    changedFiles: (from, to) => (from === impl && to === tip ? pair : []),
+    firstParent: (sha) => (sha === tip ? impl : null),
+    readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+  })
+  assert.equal(resolved.authorizedHead, impl)
+  assert.equal(resolved.mode, 'evidence-tail')
+  assert.deepEqual(resolved.evidenceTail, pair)
+})
+
+test('resolveAuthorizedHead: legacy evidence pair is also a lawful tail', () => {
+  const impl = '3'.repeat(40)
+  const tip = '4'.repeat(40)
+  const pair = ['.agent/completion.json', '.agent/contract.json']
+  const resolved = resolveAuthorizedHead(tip, {
+    isAncestor: () => true,
+    changedFiles: () => pair,
+    firstParent: (sha) => (sha === tip ? impl : null),
+    readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+  })
+  assert.equal(resolved.authorizedHead, impl)
+  assert.equal(resolved.mode, 'evidence-tail')
+})
+
+test('resolveAuthorizedHead: refuses a non-evidence tail over an authorized parent', () => {
+  const impl = '5'.repeat(40)
+  const tip = '6'.repeat(40)
+  assert.throws(
+    () => resolveAuthorizedHead(tip, {
+      isAncestor: () => true,
+      changedFiles: () => ['scripts/merge-queue-contract.mjs'],
+      firstParent: (sha) => (sha === tip ? impl : null),
+      readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+    }),
+    /no authorized PR head found/,
+  )
+})
+
+test('resolveAuthorizedHead: refuses a complete pair plus an extra non-evidence file', () => {
+  const impl = 'a'.repeat(40)
+  const tip = 'b'.repeat(40)
+  assert.throws(
+    () => resolveAuthorizedHead(tip, {
+      isAncestor: () => true,
+      changedFiles: () => ['.agent/completion.json', '.agent/contract.json', 'scripts/merge-queue-contract.mjs'],
+      firstParent: (sha) => (sha === tip ? impl : null),
+      readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+    }),
+    /no authorized PR head found/,
+  )
+})
+
+test('resolveAuthorizedHead: refuses a complete pair plus an extra .agent file', () => {
+  const impl = 'c'.repeat(40)
+  const tip = 'd'.repeat(40)
+  assert.throws(
+    () => resolveAuthorizedHead(tip, {
+      isAncestor: () => true,
+      changedFiles: () => ['.agent/completion.json', '.agent/contract.json', '.agent/work/2530/1/completion.json'],
+      firstParent: (sha) => (sha === tip ? impl : null),
+      readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+    }),
+    /no authorized PR head found/,
+  )
+})
+
+test('resolveAuthorizedHead: refuses when neither tip nor parent is authorized', () => {
+  const impl = '7'.repeat(40)
+  const tip = '8'.repeat(40)
+  assert.throws(
+    () => resolveAuthorizedHead(tip, {
+      isAncestor: () => true,
+      changedFiles: () => [],
+      firstParent: (sha) => (sha === tip ? impl : null),
+      readAuthorizationState: () => 'failure',
+    }),
+    /no authorized PR head found/,
+  )
+})
+
+test('resolveAuthorizedHead: refuses a malformed tip and missing IO', () => {
+  assert.throws(() => resolveAuthorizedHead('nope', {
+    isAncestor: () => true, changedFiles: () => [], firstParent: () => null, readAuthorizationState: () => 'success',
+  }), /40-character live tip/)
+  assert.throws(() => resolveAuthorizedHead('a'.repeat(40), {}), /requires isAncestor/)
+})
+
+test('resolveAuthorizedHead: refuses a keyed pair from another work issue when workIssue is bound', () => {
+  const impl = '9'.repeat(40)
+  const tip = 'a1'.repeat(20)
+  const foreign = ['.agent/work/9999/1/completion.json', '.agent/work/9999/1/contract.json']
+  assert.throws(
+    () => resolveAuthorizedHead(tip, {
+      isAncestor: () => true,
+      changedFiles: () => foreign,
+      firstParent: (sha) => (sha === tip ? impl : null),
+      readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+      workIssue: 2530,
+    }),
+    /no authorized PR head found/,
+  )
+  const own = ['.agent/work/2530/9/completion.json', '.agent/work/2530/9/contract.json']
+  const ok = resolveAuthorizedHead(tip, {
+    isAncestor: () => true,
+    changedFiles: () => own,
+    firstParent: (sha) => (sha === tip ? impl : null),
+    readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+    workIssue: 2530,
+  })
+  assert.equal(ok.mode, 'evidence-tail')
+})
+
+test('resolveAuthorizedHead: empty tree span over an authorized ancestor is mode=ancestor, never exact', () => {
+  const impl = 'b1'.repeat(20)
+  const tip = 'c1'.repeat(20)
+  const resolved = resolveAuthorizedHead(tip, {
+    isAncestor: () => true,
+    changedFiles: () => [],
+    firstParent: (sha) => (sha === tip ? impl : null),
+    readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+  })
+  assert.equal(resolved.authorizedHead, impl)
+  assert.equal(resolved.mode, 'ancestor')
+  assert.notEqual(resolved.authorizedHead, tip)
 })
