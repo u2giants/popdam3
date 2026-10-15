@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "work_issue": 3298,
+  "outcome": "ready-for-merge",
+  "pr": 4221,
+  "migration_versions": [
+    "20261015132149"
+  ],
+  "contract_ref": "refs/db-contracts/3298/7",
+  "contract_sha256": "b503177ee8fe01d82acf7836e4b594d9e01d3e826fa044902a885549969a0365",
+  "head_sha": "93802ca33ae10196e33b550ab37dbf2c87edbdf7",
+  "base_sha": "5d876ca1b5302369925dd11a01c71c60ca4a9421",
+  "files_changed": [
+    "supabase/migrations/20261015132149_pm_jev_activity_triage_contract_a.sql",
+    "supabase/tests/jev_activity_triage_contract_a.sql",
+    ".agent/work/3298/7/contract.json",
+    ".agent/work/3298/7/completion.json"
+  ],
+  "db_reads": [
+    "table app.activity",
+    "table app.notification",
+    "table app.profile",
+    "table pim.product"
+  ],
+  "db_writes": [
+    "column app.comment.body_revision",
+    "function api.pm_accept_activity_triage",
+    "function api.pm_add_product_comment",
+    "function api.pm_begin_activity_triage",
+    "function api.pm_cancel_product_comment_reservation",
+    "function api.pm_complete_activity_triage",
+    "function api.pm_create_decision",
+    "function api.pm_create_dependency",
+    "function api.pm_create_reminder",
+    "function api.pm_dismiss_activity_triage",
+    "function api.pm_fail_activity_triage",
+    "function api.pm_get_activity_triage",
+    "function api.pm_list_active_jev_triage",
+    "function api.pm_list_reviewed_jev_triage",
+    "function api.pm_record_jev_suggestion_impression",
+    "function api.pm_recover_product_comment_handle",
+    "function api.pm_repair_comment_triage_queue",
+    "function api.pm_reserve_product_comment_operation",
+    "function api.pm_update_dependency_status",
+    "function api.pm_update_reminder_status",
+    "function api.pm_verify_jev_runtime_fence",
+    "function app.comment_body_revision_trg_fn",
+    "function pim.pm_complete_activity_triage_worker",
+    "function pim.pm_fail_activity_triage_worker",
+    "function pim.pm_jev_require_admin_pm_writer",
+    "function pim.pm_jev_source_changed_trg_fn",
+    "function pim.pm_validate_comment_body",
+    "function pim.pm_verify_jev_hmac_envelope",
+    "index app.app_comment_poppim_client_operation_uq",
+    "index pim.ai_activity_triage_comment_idempotency_key",
+    "index pim.ai_activity_triage_eligibility_comment_idx",
+    "index pim.ai_activity_triage_eligibility_token_idx",
+    "index pim.ai_activity_triage_live_comment_idx",
+    "index pim.ai_activity_triage_requester_idx",
+    "index pim.ai_activity_triage_state_idx",
+    "policy pm_ai_activity_triage_admin_audit on pim.ai_activity_triage",
+    "policy pm_ai_activity_triage_eligibility_admin_audit on pim.ai_activity_triage_eligibility",
+    "policy pm_ai_activity_triage_eligibility_select_own on pim.ai_activity_triage_eligibility",
+    "policy pm_ai_activity_triage_eligibility_worker_all on pim.ai_activity_triage_eligibility",
+    "policy pm_ai_activity_triage_select_own on pim.ai_activity_triage",
+    "policy pm_ai_activity_triage_worker_all on pim.ai_activity_triage",
+    "role pm_jev_triage_worker",
+    "schema pim",
+    "table app.comment",
+    "table pim.ai_activity_triage",
+    "table pim.ai_activity_triage_eligibility",
+    "trigger app_comment_body_revision on app.comment",
+    "trigger pm_jev_source_changed on app.comment"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards passed"
+    },
+    {
+      "command": "supabase/tests/jev_activity_triage_contract_a.sql against ephemeral database",
+      "exit_code": 0,
+      "evidence": "CI contract-test job"
+    }
+  ],
+  "assumptions_resolved": [
+    "Pilot v1 admin-only matrix applied in RPCs.",
+    "Live preview proof deferred to issue #3298."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Migration A additive contract, generation 5. Supersedes generation 2 to correct evidence paths and the post-REVISE index set (live_comment_id, reservation_token_hash). Stale-lease takeover, advisory-locked rate limit, unique_violation replay, and envelope-rejection tests address DeepSeek sequence 6329 REVISE findings."
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
