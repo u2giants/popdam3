@@ -4705,9 +4705,15 @@ class MainLineCustodyOnlyProducerDriftTests(unittest.TestCase):
         with self.assertRaisesRegex(RiskGateError, "atomic_migration_apply.py absent where"):
             self.prove(self.api(absent_at_ref=("scripts/atomic_migration_apply.py",)))
 
-    def test_authored_merge_target_gets_no_custody_tolerance(self):
-        with self.assertRaisesRegex(RiskGateError, "different scripts/check-main-tip-freshness.mjs"):
-            self.prove(self.api(changed=("scripts/check-main-tip-freshness.mjs",)),
+    def test_authored_merge_target_tolerates_custody_only_but_not_apply_shaping(self):
+        # Owner-authorized 2026-10-14 ("i authorize loosening that rule"):
+        # custody-only producers may drift on an authored-merge target too, so a
+        # preview taken before tooling-only merges can still promote.
+        self.prove(self.api(changed=("scripts/check-main-tip-freshness.mjs",)),
+                   target=authored_merge(self.MAIN))
+        # Apply-shaping producers still refuse on an authored-merge target.
+        with self.assertRaisesRegex(RiskGateError, "different scripts/production_migration_guard.py"):
+            self.prove(self.api(changed=("scripts/production_migration_guard.py",)),
                        target=authored_merge(self.MAIN))
 
     def test_recovery_script_tolerates_only_the_repository_identity_move(self):

@@ -1368,7 +1368,13 @@ def prove_preview_producer_matches_main(
             )
             # A custody-only helper added or removed on main after a main-line
             # preview (#3168: repository identity helpers arrived after 426cca7c).
-            if target.kind != "exact-main" or path not in PREVIEW_CUSTODY_ONLY_PATHS:
+            # Owner-authorized 2026-10-14 ("i authorize loosening that rule"):
+            # the same allowance applies on the historical-recovery lane, which
+            # pins to the authored merge commit rather than exact main.
+            # PREVIEW_CUSTODY_ONLY_PATHS already declares these producers safe
+            # to drift; without this, a preview taken before tooling-only merges
+            # can never promote.
+            if path not in PREVIEW_CUSTODY_ONLY_PATHS:
                 raise mismatch
             if not main_line_proved:
                 try:
@@ -1383,7 +1389,11 @@ def prove_preview_producer_matches_main(
             mismatch = PreviewProducerMismatch(
                 f"{what} produced evidence with a different {path} than {against}"
             )
-            if target.kind != "exact-main" or (
+            # Owner-authorized 2026-10-14 ("i authorize loosening that rule"):
+            # custody-only / workflow / recovery producers may drift on BOTH
+            # exact-main and authored-merge targets. Apply-shaping producers
+            # still refuse everywhere.
+            if (
                 path not in PREVIEW_CUSTODY_ONLY_PATHS
                 and path not in {PREVIEW_WORKFLOW, HISTORICAL_RECOVERY_PRODUCER}
             ):
