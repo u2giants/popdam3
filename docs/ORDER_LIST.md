@@ -97,7 +97,7 @@ shows a warning. SO Date is live (October 14, 2026): shared-db version
 20261013211042 is in production and the column shows ColdLion SO received dates
 with the tooltip **Date ColdLion received the Sales Order.**
 
-**Default 12-month window (October 15, 2026):** `/orders` shows only orders whose window date is in the last 12 months (New York calendar). The window date is the SO Date, else Sent PO, else Start Ship. Orders with no window date stay visible. **Show old** lifts the limit in the same table; **Hide old** restores it. The window is applied in the database view (`api.dam_order_list.order_window_date`, shared-db #4336 / claim #4337), so the row count follows it.
+**Default 12-month window (October 15, 2026):** `/orders` shows only orders whose window date is in the last 12 months (New York calendar). The window date is the SO Date, else Sent PO, else Start Ship, else Prod PO Date. Orders with no window date at all stay visible. **Show old** lifts the limit in the same table; **Hide old** restores it. The window is applied in the database view (`api.dam_order_list.order_window_date`, shared-db #4336 / claim #4337), so the row count follows it.
 
 Also live October 14, 2026: the 55 settled source corrections, future production
 PO non-reuse enforcement (20261013201822), and Yuchen's 20 special-assortment
