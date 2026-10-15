@@ -8,6 +8,370 @@
 
 # AGENTS.md — cross-app coordination playbook
 
+## Project summary
+
+This repository is the **shape-of-database** source of truth for POP Creations'
+shared Supabase project. It holds timestamped migrations, schema/API contracts,
+the business-rule library, generation tooling for `types/database.types.ts`,
+and the operating rules every AI session must follow when changing shared
+structure. CRM, DAM, PM/PIM, and DesignFlow PLM all read the same tables. The
+outcome that matters: a schema change lands once, is reviewed and rehearsed, and
+does not break a consumer app that another session built months ago.
+
+## Multi-model AI note
+
+There is no universal ignore-file standard across AI coding tools.
+
+`.claudeignore` works for Claude Code.
+
+When using any other AI tool, paste this file as your first message and follow the instructions in the "What to ignore" section.
+
+## Documentation map: what to read for each task
+
+Always start with:
+
+- `AGENTS.md`
+
+Then load additional docs only when relevant:
+
+| Task / question | Read these docs | Usually do not need |
+|---|---|---|
+| Quick repo orientation | `README.md`, `AGENTS.md` | Deep docs under `docs/` unless the task requires them |
+| Current route / policy matrix | `AGENTS.md`, [current-workflow.md](docs/agents/current-workflow.md) | Historical plans |
+| Structural / schema change | `AGENTS.md`, [`docs/agents/anti-collision-summary.md`](docs/agents/anti-collision-summary.md), [`docs/agents/merge-protocol.md`](docs/agents/merge-protocol.md), [`docs/agents/worktrees-and-handoffs.md`](docs/agents/worktrees-and-handoffs.md) | Business-rule topics you do not touch |
+| Business meaning, permissions, workflows, calculations | [`docs/business-rules/application-map.md`](docs/business-rules/application-map.md) then only the topics involved | Other business-rule files |
+| Architecture / entity ownership / data flow | `docs/architecture.md`, [`docs/unified-supabase-schema-map.md`](docs/unified-supabase-schema-map.md) | Deployment docs |
+| Local setup, tests, lint, migration authoring | `docs/development.md` | Deployment docs |
+| Env vars, config files, project refs, secrets *names* | `docs/configuration.md`, [`docs/agents/runbooks-credentials-cli-and-gotchas.md`](docs/agents/runbooks-credentials-cli-and-gotchas.md) | Architecture docs |
+| Deploy, sync to consumer repos, production promotion, rollback | `docs/deployment.md`, [`docs/agents/merge-protocol.md`](docs/agents/merge-protocol.md), [`docs/production-promotion-procedure.md`](docs/production-promotion-procedure.md) | Local dev docs |
+| Owner rulings / what belongs in this repo | [`docs/agents/owner-rulings.md`](docs/agents/owner-rulings.md) | Long-form §4/§6 unless the task is that rule |
+| In-flight collision check before starting | [`docs/agents/in-flight-check.md`](docs/agents/in-flight-check.md) | Unrelated folder READMEs |
+| Continue unfinished work | `HANDOFF.md` (pointer) → open files in `HANDOFF.d/` newest-first by **parsed** timestamp | Docs unrelated to the handoff |
+| Investigate an incident / near-miss | `AGENTS.md` Critical incidents, [`docs/incidents/`](docs/incidents/), relevant `docs/verification/` folder | Every verification folder |
+| App migration / consumer impact | [`docs/app-migration-notes/`](docs/app-migration-notes/) for that app | Other apps' notes |
+| Work in a subfolder with its own README | `AGENTS.md`, that folder README, and only broader docs it names | Other folder READMEs |
+| Claude Code session | `CLAUDE.md`, then `AGENTS.md` | Other docs unless the task requires them |
+| Documentation-only cleanup | `AGENTS.md`, `README.md`, affected docs under `docs/` | Source files except to verify accuracy |
+
+Rules: this map is task-based; do not load every `.md` file. Historical
+`plan_*.md` and `fix_*.md` at the repository root are **records of past work**,
+not current instructions — load one only when a current doc or issue names it.
+`docs/verification/` is evidence, not policy. `docs/archive/` is history.
+
+### Task router — rulebook sections (when a citation says "AGENTS.md §X")
+
+This file is a router. The full rulebook text moved **verbatim**, with its original headings and
+section numbers, into `docs/agents/`. A rule there binds exactly as it did here; nothing was
+reworded. Read only the files your task needs. When a document cites "AGENTS.md §X", find §X in
+the map below.
+
+| Read this | When | Sections |
+|---|---|---|
+| [`docs/agents/active-contracts-and-plans.md`](docs/agents/active-contracts-and-plans.md) | Before touching any area with an active plan or contract; historical MG classification | Historical item MG classification; Active contracts and implementation plans |
+| [`docs/agents/owner-rulings.md`](docs/agents/owner-rulings.md) | Deciding whether work belongs here; any consumer-repo schema question; data vs structure; secrets ownership; DB Data Admin; grid filters; Scraped Properties; Master Data editing | §0, §0.0-A, §0.0-B, §0.1, §0.1-A, §0.2, §0.3, §0.3-A, §0.4 |
+| [`docs/agents/orchestrator.md`](docs/agents/orchestrator.md) | Admission test for structural work and safety reference (orchestrator role retired, §0.0-D; marker/dispatch text historical) | §0.0-C, §11b, §11c, §11d |
+| [`docs/agents/worktrees-and-handoffs.md`](docs/agents/worktrees-and-handoffs.md) | Before any edit (worktree setup and retirement); writing or retiring a HANDOFF.d file; host/server boundary | §2.1-W, §2.1-W.1, §2.1-H, §2.1 |
+| [`docs/agents/anti-collision-summary.md`](docs/agents/anti-collision-summary.md) | Any database change: the five anti-collision rules, author lanes, extension tables | §4, §4.1, §4.2, §4.3 |
+| [`docs/agents/section-4-anti-collision-rules.md`](docs/agents/section-4-anti-collision-rules.md) | The long-form §4 rules and procedures | §4 long form |
+| [`docs/agents/merge-protocol.md`](docs/agents/merge-protocol.md) | Opening, reviewing, or merging any PR here; rulebook/guarded-merge lane; production promotion; red checks | §5, §5.0-D, §5.0-E, §5.1, §5.2, §5.2-A, §5.2-B |
+| [`docs/agents/in-flight-check.md`](docs/agents/in-flight-check.md) | Before starting a change, to see whether it is already in flight | §6 (long form: [`section-6-in-flight-long-form.md`](docs/agents/section-6-in-flight-long-form.md)) |
+| [`docs/agents/references-and-runbooks.md`](docs/agents/references-and-runbooks.md) | Project refs, exposed schemas, Supabase CLI and credentials, further reading, known traps | §8, §8.1, §9, §10, §10.1–10.3 and §11 (full runbook: [`runbooks-credentials-cli-and-gotchas.md`](docs/agents/runbooks-credentials-cli-and-gotchas.md)) |
+| [`docs/agents/standing-facts.md`](docs/agents/standing-facts.md) | Starting any session in this repo | §12, §12.1 |
+
+Kept in this file: task declaration, companywide business rules, Disney DCP
+Vault withdrawal answers, session wrap-up convention, §1, §2, §3, §5.0-C, §7.
+
+## Repository structure
+
+| Path | Role |
+|---|---|
+| `supabase/migrations/` | Timestamped SQL migrations (project-owned schema). Never edit one that may already be applied. |
+| `supabase/ci-bootstrap/` | Intentional **non-migration** bootstrap for clean-slate CI replay of objects that predate this repo. |
+| `supabase/tests/` | SQL contract tests. |
+| `scripts/` | Project-owned Node (`.mjs`) and Python (`.py`) gates, lanes, promotion guards, evidence tools. |
+| `scripts/lib/` | Shared libraries for those scripts (including `documents-only-change.mjs`, lane packages). |
+| `types/database.types.ts` | **Generated** TypeScript contract. Never hand-edit. |
+| `config/` | Repository policy JSON (allowlists, risk policy, contracts). |
+| `docs/` | Durable documentation. `docs/agents/` holds verbatim rulebook long form. `docs/business-rules/` is the companywide rule library. `docs/verification/` is evidence. `docs/archive/` is history. |
+| `docs/agents/` | Verbatim §-numbered rulebook chapters (issue #3481 split). |
+| `tools/` | Operational loaders/reconcilers (ColdLion, ClickUp, taxonomy, etc.). |
+| `tests/` | Longer acceptance/verification write-ups (not unit tests). |
+| `HANDOFF.md`, `HANDOFF.d/` | Static pointer + one write-once file per open session workstream. |
+| `plan_*.md`, `fix_*.md` | Historical plans and fix records at repo root. Not current instructions unless named. |
+| `.github/workflows/` | CI, guarded merge, promotion, sync-to-consumers, observability. |
+| `.github/live-proofs/` | Per-issue live-proof SQL. |
+| `node_modules/`, `supabase/.temp/`, `__pycache__/`, `.ai/`, `.claude/` | Local/generated/scratch — do not commit, do not load. |
+
+There is no application runtime in this repository and no `package.json`. Node
+scripts are run directly (`node scripts/...`). Generated code is only
+`types/database.types.ts`. Third-party code is not vendored here.
+
+## Prime Directive: custom-code boundary
+
+Our custom code lives here:
+
+- `supabase/migrations/`
+- `scripts/` and `scripts/lib/`
+- `tools/`
+- `config/`
+- `docs/`
+- `.github/workflows/`
+- `types/` (generated output only — regenerate, do not hand-edit)
+
+Everything else requires justification before touching.
+
+## Core modification inventory
+
+| File | Change made | Why it was necessary | Risk during upgrades |
+|---|---|---|---|
+| _(none)_ | This repository does not patch framework, vendor, or OS files. | N/A | N/A |
+
+`types/database.types.ts` is generated and is not a core modification.
+
+## Task-to-file navigation: what to edit for common changes
+
+| Task | Files to touch | Files not to touch |
+|---|---|---|
+| Change database shape (table/column/view/function/RLS/index) | New `supabase/migrations/<timestamp>_<name>.sql` only | Any migration already on a ledger; consumer-repo schema copies |
+| Change shared API contract / browser view | New migration + `docs/architecture.md` / schema map if ownership changes | Ad-hoc SQL against production |
+| Change CI, merge, promotion, or task gates | Relevant `.github/workflows/*.yml`, `scripts/` guards + tests | Live production settings except via reviewed workflow |
+| Change author-lane / claim / review mechanics | `scripts/manage-migration-author-lanes.mjs`, `scripts/lib/lanes/**`, tests | Bypassing `check-exact-head-approval.mjs` |
+| Change business meaning / permissions / workflows | `docs/business-rules/` topic file via the business-rules process | Competing copies inside app repos |
+| Change operating rules / owner rulings | `AGENTS.md` and the matching `docs/agents/` chapter **together** | Silent edits that contradict `scripts/check-*.mjs` guards |
+| Add or change a tool/loader | `tools/**` + its `*.test.mjs` | Hand-built Windows direct-invocation guards without testing |
+| Regenerate database types | Generate-database-types workflow / path in `docs/development.md` | Hand-editing `types/database.types.ts` |
+| Session handoff | Your own new `HANDOFF.d/<UTC>-<machine>-<agent>-<slug>.md` | Rewriting `HANDOFF.md`; another session's `HANDOFF.d/` file |
+
+## Data model and external identifiers
+
+| Entity/System | Identifier | Where defined | Notes |
+|---|---|---|---|
+| Supabase production project | `qsllyeztdwjgirsysgai` | Supabase / runbook §8 | Do not write a preview ref down; read `PREVIEW_PROJECT_REF` |
+| Preview project | repository variable `PREVIEW_PROJECT_REF` | GitHub Actions repo variable | Historical literals are not authority |
+| Sandbox / DesignFlow migration project | `xupnyeifmpsacrqahwwm` | workflow constants | Verify in the invoking workflow before use |
+| Migration versions | 14-digit UTC timestamp `YYYYMMDDHHMMSS` | `supabase/migrations/` filenames | Duplicate versions silently skip; reserve via lane tool |
+| Curated Master Data | `core.licensor`, `core.property`, `core.character`, `core.customer`, `core.factory` (+ `*_ext`) | migrations / business rules | Outside-sourced bulk load stays gated |
+| Property code uniqueness | `(licensor_id, code)` | `supabase/migrations/20260621150815_app_core.sql` | Licensor codes are globally unique; property codes are **not** |
+| App-owned boundary schemas | `{crm, pim, dam, plm}` | `scripts/check-self-service-additive-lane.mjs` | Self-service additive lane boundary (owner ruling 2026-09-25) |
+| PostgREST exposed schemas | `public, graphql_public, api, crm, pim, core, app` | runbook §8.1 | `dam` is intentionally **not** exposed |
+| Generated TS contract | `types/database.types.ts` | generate-database-types workflow | Mirrored to consumers as `shared-db/types/database.types.ts` |
+| Consumer sync destination | `shared-db/` folder in each consumer repo | `.github/workflows/sync.yml` | Entire tree mirrored on push to `main` |
+| DB Data Admin hostname | `https://data.designflow.app` | [`docs/db-data-admin-domain-ownership.md`](docs/db-data-admin-domain-ownership.md) | App lives in `u2giants/popdam3` `apps/db-data-admin/` |
+
+## Container and service inventory
+
+This repository does not run application containers. Runtime services are
+external:
+
+| Container/service | Purpose | Managed by | App/project ID | Image/source |
+|---|---|---|---|---|
+| Supabase production | Shared Postgres + PostgREST + Auth for all apps | Supabase | `qsllyeztdwjgirsysgai` | Hosted Supabase |
+| Supabase preview branch | Rehearsal / preview apply target | Supabase branches | `PREVIEW_PROJECT_REF` (repo variable) | Hosted Supabase |
+| GitHub Actions | CI, guarded merge, promotion, sync | GitHub | `popcre/shared-db` | Workflow YAML in `.github/workflows/` |
+| Consumer app hosts (Coolify/Cloud Build, etc.) | Deploy the apps, not this repo | Each app repo | See each app's docs | Out of scope here |
+
+## What to ignore
+
+Do not load these into context (also reflected in `.claudeignore` / `.cursorignore` and `.gitignore`):
+
+- `node_modules/`
+- `supabase/.temp/`
+- `__pycache__/`, `*.pyc`, `.pytest_cache/`
+- `.ai/`, `.ai-review/`, `.ai-review*.txt` (scratch and review packets; a short named allowlist of committed reviews is intentional — see `.gitignore`)
+- `.claude/`, `.playwright-mcp/`, `.agents/`, `.mimocode/`
+- `tmp/`, `outputs/`
+- `docs/verification/**` evidence bulk (load only the folder an issue names)
+- `docs/archive/`
+- Root `plan_*.md` / `fix_*.md` unless a current doc or issue names the file
+- Generated local CSV/XLSX audit artifacts listed in `.gitignore`
+
+## Credentials and environment
+
+| Variable | Purpose | Stored where | Required in dev | Required in prod |
+|---|---|---|---|---|
+| `SUPABASE_ACCESS_TOKEN` | Supabase CLI login | 1Password `vibe_coding` | for CLI | for CI where configured |
+| `PROD_DB_PASSWORD` / production DB password | `supabase link` to production | 1Password `vibe_coding` | for prod link | yes |
+| `PREVIEW_DB_PASSWORD` | `supabase link` to preview | 1Password preview item (address by item ID) | for preview work | n/a |
+| `PREVIEW_PROJECT_REF` | Preview target identity | GitHub repository variable | when previewing | workflows |
+| `PRODUCTION_PROJECT_REF` / `qsllyeztdwjgirsysgai` | Production target identity | this document / runbook | when promoting | yes |
+| `SHARED_DB_TEST_TOKEN` | Post-batch app verification | workflow secret | n/a | when verification runs |
+| `GITHUB_TOKEN` / `GH_TOKEN` | GitHub API from Actions or `gh` | Actions / user auth | for PR automation | for CI |
+| `SHARED_DB_AUTHOR_ENGINE` | Authoring engine id for reviewer exclusion | set by the session | structural sessions | n/a |
+| `SHARED_DB_SESSION_ID` | Claim-first session authority | set by the session | preview prep / abandonment | n/a |
+| `ANTHROPIC_API_KEY` | Advisory model review in production apply | **not configured** — step is a silent no-op (standing fact 12) | n/a | n/a |
+
+Never commit anon keys, service-role keys, database passwords, or `.env` files.
+Secret values live only in 1Password vault `vibe_coding`. Fetch items serially.
+Full CLI/credential traps: [`docs/agents/runbooks-credentials-cli-and-gotchas.md`](docs/agents/runbooks-credentials-cli-and-gotchas.md).
+
+## Deployment
+
+There is no application deploy from this repo. What "shipping" means here:
+
+1. **Branch + PR + guarded merge** into `main` (see [`docs/agents/merge-protocol.md`](docs/agents/merge-protocol.md)).
+2. **`sync.yml` mirrors the entire tree** into each consumer repo's `shared-db/` folder on push to `main`.
+3. **Database shape** is applied via the Supabase migration lane: preview rehearsal first, then the bounded production apply workflow (`shared-supabase-migrations.yml` / production apply evidence), never by hand-editing production.
+4. **Rollback** of schema is a new forward migration; rollback of a bad `main` commit is revert + merge. There is no SSH deploy path and no container tag.
+
+Details: [`docs/deployment.md`](docs/deployment.md).
+
+## Critical incidents
+
+Known disasters and near-misses are recorded under [`docs/incidents/`](docs/incidents/) and in the §-numbered rulebook chapters. Standing lessons already encoded as rules:
+
+### [2026-07-17] DesignFlow production DB port
+
+What happened: production DB port exposure / incorrect environment contract.
+
+Impact: production risk; remediation and evidence in
+[`docs/incidents/20260717-designflow-production-db-port.md`](docs/incidents/20260717-designflow-production-db-port.md).
+
+Root cause / recovery / rule: see that postmortem. Do not reopen the issue from
+memory; the document is authoritative.
+
+### [2026-07-31] Four-way migration collision (duplicate versions)
+
+What happened: competing `CREATE OR REPLACE` migrations shared version
+`20260731170000`; duplicate 14-digit versions **silently skip**.
+
+Impact: one migration applies, the other is ignored with no error.
+
+Root cause: parallel chip-spawned sessions without claims/reservation.
+
+Recovery: fix forward; CI now blocks duplicate and backdated versions.
+
+Rule added: never spawn background task chips here; reserve versions through
+`scripts/manage-migration-author-lanes.mjs --claim` (standing facts 4–5).
+
+### [2026-08-11] Production apply pin refused two approved runs
+
+What happened: PRs merged between staging and the owner's click; the
+`origin/main` SHA pin refused the apply.
+
+Impact: two owner approvals wasted; nothing was written.
+
+Root cause: no merge freeze around the apply window.
+
+Recovery: third run landed under a deliberate freeze.
+
+Rule added: freeze merges before every production apply (standing fact 14).
+
+If there is no known incident for a new area, say so explicitly in the change
+that introduces risk; do not invent history.
+
+## Intentional quirks and non-obvious decisions
+
+### AGENTS.md is a router, not the full rulebook
+
+Looks like:
+A new session might expect every rule in this file, or might load every `docs/` file to find §X.
+
+Actually:
+Issue #3481 moved §-numbered chapters **verbatim** into `docs/agents/`. Citations of "AGENTS.md §X" resolve there. Section numbers never change.
+
+Why:
+This file is loaded in full at session start; it was cut from 234 KB to a router so sessions are not forced to ingest the whole history.
+
+Do not change because:
+CI and `scripts/production_migration_guard.py` cite those section numbers; renumbering breaks them. Where wording differs, `AGENTS.md` wins.
+
+### Rulebook files are not "documents-only"
+
+Looks like:
+A PR that only touches `AGENTS.md`, `CLAUDE.md`, `skills/`, or `plan_*.md` looks like a docs PR.
+
+Actually:
+`scripts/lib/documents-only-change.mjs` excludes those paths. They get full engineering treatment (branch, checks, independent review).
+
+Why:
+Agent instructions change behavior. Treating them as prose would skip the review that keeps instructions from drifting from enforcement.
+
+Do not change because:
+The merge lane and `check-exact-head-approval.mjs` depend on this classification.
+
+### Migration history is not a clean replay
+
+Looks like:
+Someone tries to apply every migration to an empty database and expects success.
+
+Actually:
+About 170 files are intentional empty markers aligning the ledger with objects created before this repo was canonical. Clean-slate replay is unsupported; use `supabase/ci-bootstrap/` for CI.
+
+Why:
+Adoption-on-populated-database. A file inserted at the front of an applied sequence can never re-run.
+
+Do not change because:
+"Fixing" the empty markers would rewrite history and break ledgers (standing fact 13, §10.1).
+
+### Preview and production have diverged in both directions
+
+Looks like:
+"Preview is production plus/minus N migrations."
+
+Actually:
+Verified object-by-object they diverge both ways (standing fact 11). A passing preview means "worked on preview", not "will work in production".
+
+Why:
+Independent apply histories and a production-only canary.
+
+Do not change because:
+Post-apply verification against production is mandatory; assuming parity is how sessions get misled.
+
+### `dam` is not in PostgREST schemas
+
+Looks like:
+A missing `dam` schema in `pgrst.db_schemas` is a bug to fix.
+
+Actually:
+It is deliberate. Workers reach `dam.*` via `public` `SECURITY DEFINER` functions.
+
+Why:
+Broader exposure would require RLS on every `dam` table and widen the shared API (§8.1).
+
+Do not change because:
+Adding `dam` to `pgrst.db_schemas` is a security surface change, not a fix.
+
+### Property codes are not globally unique
+
+Looks like:
+Resolve property by `code` alone.
+
+Actually:
+Unique is `(licensor_id, code)`. Licensor codes are global; property codes repeat across licensors (standing fact 9).
+
+Why:
+Parent-child licensor→property model confirmed by the owner 2026-08-06.
+
+Do not change because:
+Code-only resolution produces nonsense re-parenting instructions.
+
+### Supabase MCP may be bound to production
+
+Looks like:
+An MCP tool call is aimed at preview.
+
+Actually:
+The Supabase MCP server takes no project parameter and may be bound to **production**. Call `get_project_url` first (standing fact 6).
+
+Why:
+Hosted tool configuration.
+
+Do not change because:
+A wrong-target MCP write is a production write.
+
+## Pending work
+
+Open work lives in **GitHub Issues** and open `HANDOFF.d/` files, not here.
+
+| Status | Item | Owner/next action |
+|---|---|---|
+| open | See `gh issue list --repo popcre/shared-db --label db-work` | Claim-first per issue `db-work-scope` |
+| open | `HANDOFF.d/` files with a contract still pointing at an open issue | Owning session / successor |
+| stale | 6 `HANDOFF.d/` files whose issue is closed and nothing open cites them | Retire in a PR that says so (see Handoff report; do not delete silently) |
+| done | Docs overhaul of AGENTS.md router + required topic docs (this change) | Completed in the docs-overhaul PR |
+
+Re-derive state from `git` and `gh`. A heading in a markdown file is not a backlog.
+
 ## Current operating route
 
 - [current-workflow.md](docs/agents/current-workflow.md)
@@ -44,11 +408,6 @@ Before interpreting `full_item_master.csv`, changing item-description parsing, o
 The withdrawal-confirmation question is **settled** in [`docs/business-rules/licensing-master-data.md`](docs/business-rules/licensing-master-data.md) under "Disney DCP Vault artwork withdrawal signals" (recorded 2026-09-25, provenance on issue #3347). Read that rule before answering or acting on it — the question is not open. If anyone relays a later statement about Disney/DCP Vault artwork withdrawal, removal status or missing artwork — including an ambiguous one, or one from an unnamed or non-Laura/Ilona speaker — read [`docs/disney-dcp-withdrawal-answer-routing.md`](docs/disney-dcp-withdrawal-answer-routing.md) first: record the sanitized answer and its provenance at the durable issue named there, apply it only to the behavior it actually settles, and classify any follow-up from its own scope. Never contact anyone on Albert's behalf.
 
 ## How this file is organized (issue #3481)
-
-This file is a router. The full rulebook text moved **verbatim**, with its original headings and
-section numbers, into `docs/agents/`. A rule there binds exactly as it did here; nothing was
-reworded. Read only the files your task needs. When a document cites "AGENTS.md §X", find §X in
-the map below.
 
 ### The owner rulings, one line each (full text in the linked file)
 
@@ -93,27 +452,13 @@ the map below.
   structural lane keeps only work that changes the database's SHAPE (plus curated Master Data
   routing). Repository maintenance, proofs, documentation, tooling, and monitoring are not
   structural-lane jobs. [`orchestrator.md`](docs/agents/orchestrator.md)
+  An eligible additive change wholly inside `{crm, pim, dam, plm}` may use
+  `route: self-service-additive` instead of triage; the boundary is enforced at
+  merge time by `check-self-service-additive-lane.mjs` (see
+  [`ephemeral-route-hop-table.md`](docs/agents/ephemeral-route-hop-table.md)).
 - **§2.1-W — worktree-only.** Every session works in its own
   `git worktree` cut from `origin/main`. The shared checkout is for reading and `git fetch` only.
   [`worktrees-and-handoffs.md`](docs/agents/worktrees-and-handoffs.md)
-
-### Task router — where each section lives and when to read it
-
-| Read this | When | Sections |
-|---|---|---|
-| [`docs/agents/active-contracts-and-plans.md`](docs/agents/active-contracts-and-plans.md) | Before touching any area with an active plan or contract; historical MG classification | Historical item MG classification; Active contracts and implementation plans |
-| [`docs/agents/owner-rulings.md`](docs/agents/owner-rulings.md) | Deciding whether work belongs here; any consumer-repo schema question; data vs structure; secrets ownership; DB Data Admin; grid filters; Scraped Properties; Master Data editing | §0, §0.0-A, §0.0-B, §0.1, §0.1-A, §0.2, §0.3, §0.3-A, §0.4 |
-| [`docs/agents/orchestrator.md`](docs/agents/orchestrator.md) | Admission test for structural work and safety reference (orchestrator role retired, §0.0-D; marker/dispatch text historical) | §0.0-C, §11b, §11c, §11d |
-| [`docs/agents/worktrees-and-handoffs.md`](docs/agents/worktrees-and-handoffs.md) | Before any edit (worktree setup and retirement); writing or retiring a HANDOFF.d file; host/server boundary | §2.1-W, §2.1-W.1, §2.1-H, §2.1 |
-| [`docs/agents/anti-collision-summary.md`](docs/agents/anti-collision-summary.md) | Any database change: the five anti-collision rules, author lanes, extension tables | §4, §4.1, §4.2, §4.3 |
-| [`docs/agents/section-4-anti-collision-rules.md`](docs/agents/section-4-anti-collision-rules.md) | The long-form §4 rules and procedures | §4 long form |
-| [`docs/agents/merge-protocol.md`](docs/agents/merge-protocol.md) | Opening, reviewing, or merging any PR here; rulebook/guarded-merge lane; production promotion; red checks | §5, §5.0-D, §5.0-E, §5.1, §5.2, §5.2-A, §5.2-B |
-| [`docs/agents/in-flight-check.md`](docs/agents/in-flight-check.md) | Before starting a change, to see whether it is already in flight | §6 (long form: [`section-6-in-flight-long-form.md`](docs/agents/section-6-in-flight-long-form.md)) |
-| [`docs/agents/references-and-runbooks.md`](docs/agents/references-and-runbooks.md) | Project refs, exposed schemas, Supabase CLI and credentials, further reading, known traps | §8, §8.1, §9, §10, §10.1–10.3 and §11 (full runbook: [`runbooks-credentials-cli-and-gotchas.md`](docs/agents/runbooks-credentials-cli-and-gotchas.md)) |
-| [`docs/agents/standing-facts.md`](docs/agents/standing-facts.md) | Starting any session in this repo | §12, §12.1 |
-
-Kept in this file: task declaration, companywide business rules, Disney DCP
-Vault withdrawal answers, session wrap-up convention, §1, §2, §3, §5.0-C, §7.
 
 ## Session wrap-up convention
 
@@ -203,17 +548,7 @@ to "spend" only one review.
   bound to an earlier head does not authorize a later head, and the only
   equivalence permitted is the narrow, already-enforced #2758 rule
   (`scripts/lib/pr-content-equivalence.mjs`): an ancestor head whose pull-request
-  diff is byte-identical, ignoring only `.agent/` evidence files. A tree-identical
-  re-push keeps every existing review (slot 1 is not re-drawn); slot 2 may draw on
-  the new head using the carried slot-1 assignment, and the gate composes the
-  ancestor's slot 1 with the new head's slot 2 only when that ancestor has a
-  newest valid slot-1 assignment for equivalent content. A returned or refused
-  slot cannot be revived from an older assignment; the newest valid assignment
-  at each required slot controls. Each composed approval still needs its own
-  exact-head APPROVE and distinct reviewers. Migrations still need two
-  independent exact-head APPROVEs; scripts/docs/CI need one. The combined
-  recovery and carry implementation is delivered as one independently reviewed
-  PR #4294; imported source retains its original history and attribution.
+  diff is byte-identical, ignoring only `.agent/` evidence files.
 - **The proposal in #3002 to accept a review bound to a head whose only later
   change is test or evidence files is REFUSED.** Tests are code: a changed test
   changes what the change proves, and a reviewer who never saw it never reviewed

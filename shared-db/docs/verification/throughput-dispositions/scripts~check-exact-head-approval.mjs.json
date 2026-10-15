@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-exact-head-approval.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-exact-head-approval.mjs:283",
+      "semantic_key": "scripts/check-exact-head-approval.mjs:f6817fceba54902c96b05284d17ef999157ce37ca74c09d64e67d5e7517c0907:context-cf100eeb048b607416ad19312f6581ab51b27735769cd70d3ad82868ba583820",
+      "line_sha256": "f6817fceba54902c96b05284d17ef999157ce37ca74c09d64e67d5e7517c0907",
+      "disposition": "excluded",
+      "reason": "Refusal string for undrawn review slots uses the word missing in user guidance; not a throughput-truth missing-object site and outside this disposition class.",
+      "legacy_semantic_key": "scripts/check-exact-head-approval.mjs:f6817fceba54902c96b05284d17ef999157ce37ca74c09d64e67d5e7517c0907:1"
+    }
+  ]
+}

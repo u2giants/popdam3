@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "work_issue": 4320,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Overhaul AGENTS.md into a five-minute operating guide and add required topic docs without breaking guarded rulebook strings",
+  "base_sha": "eb8077fadcbde7754e98bce4f22e46d72c655c57",
+  "dispatcher": "MiMo docs-overhaul session for issue #4320",
+  "worker": "mimo",
+  "branch": "docs/repo-docs-overhaul",
+  "worktree": "D:/repos/shared-db-worktrees/docs-overhaul",
+  "allowed_paths": [
+    "AGENTS.md",
+    "README.md",
+    "CLAUDE.md",
+    ".claudeignore",
+    ".cursorignore",
+    "docs/architecture.md",
+    "docs/configuration.md",
+    "docs/deployment.md",
+    "docs/development.md",
+    "docs/verification/throughput-dispositions/scripts~check-exact-head-approval.mjs.json",
+    ".agent/work/4320/1/contract.json",
+    ".agent/work/4320/1/completion.json"
+  ],
+  "file_writes": [
+    "AGENTS.md",
+    "README.md",
+    "CLAUDE.md",
+    ".claudeignore",
+    ".cursorignore",
+    "docs/architecture.md",
+    "docs/configuration.md",
+    "docs/deployment.md",
+    "docs/development.md",
+    "docs/verification/throughput-dispositions/scripts~check-exact-head-approval.mjs.json",
+    ".agent/work/4320/1/contract.json",
+    ".agent/work/4320/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not change database shape or rows",
+    "do not rewrite HANDOFF.md or another session HANDOFF.d file",
+    "do not add secrets"
+  ],
+  "required_checks": [
+    "node --test scripts/check-lane-route-sync.test.mjs scripts/check-review-parallelism-brief.test.mjs scripts/check-current-workflow-policy.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "guarded rulebook strings must keep passing",
+    "historical plan and fix files stay records not instructions"
+  ],
+  "stop_conditions": [
+    "stop if a rulebook guard fails and cannot be fixed without changing enforcement",
+    "stop if secrets would be written"
+  ],
+  "generation": 1
+}
