@@ -1235,10 +1235,12 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                     promoted_versions=[promoted_v], repo_root=root)
 
             later_sql.write_text("create table orders.list (id int);\n", encoding="utf-8")
-            with self.assertRaisesRegex(RiskGateError, "absent where exact main has it present"):
-                prove_preview_producer_matches_main(
-                    ref, exact_main(main), main, absent_at_ref(promoted_sidecar),
-                    promoted_versions=[promoted_v], repo_root=root)
+            # Owner-authorized 2026-10-14 ("i authorize loosening that rule"):
+            # a promoted version's own sidecar is authored in the same PR, so a
+            # pre-merge preview may lack it.
+            prove_preview_producer_matches_main(
+                ref, exact_main(main), main, absent_at_ref(promoted_sidecar),
+                promoted_versions=[promoted_v], repo_root=root)
             with self.assertRaisesRegex(RiskGateError, "absent where exact main has it present"):
                 prove_preview_producer_matches_main(ref, exact_main(main), main, absent_at_ref(later))
 
@@ -4677,10 +4679,25 @@ class MainLineCustodyOnlyProducerDriftTests(unittest.TestCase):
             return {"truncated": False, "tree": entries}
         return api
 
-    def prove(self, api, target=None):
+    def prove(self, api, target=None, promoted_versions=None):
         prove_preview_producer_matches_main(
             self.REF, target or exact_main(self.MAIN), self.MAIN, api,
-            promoted_versions=[], repo_root=Path("."))
+            promoted_versions=promoted_versions or [], repo_root=Path("."))
+
+    def test_review_tooling_and_sidecar_registry_are_custody_only(self):
+        # Owner-authorized 2026-10-14 ("i authorize loosening that rule").
+        self.prove(self.api(changed=(
+            "scripts/run-governed-review.mjs",
+            "config/production-verification-sidecar-registry.json",
+        )))
+
+    def test_promoted_versions_own_sidecar_may_arrive_with_its_pr(self):
+        # Owner-authorized 2026-10-14: a promoted version's own sidecar is
+        # authored in the same PR, so a pre-merge preview cannot carry it.
+        self.prove(
+            self.api(absent_at_ref=("scripts/production-verification-sidecars/20261013130102.json",)),
+            promoted_versions=["20261013130102"],
+        )
 
     def test_custody_only_edits_and_additions_after_a_main_line_preview_pass(self):
         self.prove(self.api(
