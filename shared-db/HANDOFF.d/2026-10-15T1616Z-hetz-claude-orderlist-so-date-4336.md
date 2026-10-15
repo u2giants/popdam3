@@ -43,7 +43,7 @@ The owner (Albert Hazan) asked for `/orders` to show only orders from the last 1
   - `659e4a1d` fix: adds `-- derived-from: 20261009073649` header (the view body comes from that migration). This cleared the "SQL migration guards" check.
 - PR popcre/shared-db#4339 (OPEN, MERGEABLE, head `659e4a1d`, body `Closes #4336`, claim #4337). Checks at 16:16 UTC:
   - PASS: SQL migration guards, Cross-PR object collision, Merge queue gate, documents checks, and others.
-  - FAIL: **Migration author lease** — needs an owner check-in that requires the retired marker (see Dead ends).
+  - FAIL: **Migration author lease** — the owner check-in refuses claim #4337 because the claim was created with the owner label `claude-chat-<session>@hetz`, which the check-in did not accept (correction 2026-10-15 16:50 UTC: this was not a retired-role requirement; see Dead ends item 7). Fix in review: popcre/shared-db#4346 (issue #4345).
   - FAIL: **Tools offline tests** — main's baseline is red (see Dead ends). It also fails on open PRs #4328, #4331, #4335, #4338.
   - FAIL: Queue-sensitive checks (aggregate), because it wraps Tools offline tests.
   - Reviewer: Muse Spark 1.3 Contributor (wrapper `ai-muse`), drawn by the allocator for slot 1, sequence 6554, at head `61702d66`. **No verdict was visible at 16:16 UTC.** The head has since moved to `659e4a1d`, so the review must be re-drawn or re-confirmed on the new head.
@@ -72,7 +72,7 @@ The owner (Albert Hazan) asked for `/orders` to show only orders from the last 1
 4. **Reviewer draw needs `SHARED_DB_AUTHOR_ENGINE=claude` and `SHARED_DB_SESSION_ID`** (both set to this session's values). With `Refs #4336` the draw refused: "one current keyed canonical evidence pair is required". Structural PRs in this repo use `Closes #<issue>` (precedent: #4270, #4143). Changed the body to that.
 5. **Preview push.** `supabase db push --linked` (dry run) tried to apply about 25 older migrations (see Preview section). Not run. Rehearsal used a rolled-back transaction instead.
 6. **Supabase CLI shim.** The npm-installed shim could not find `supabase-go`. Fixed by installing the matching release tarball.
-7. **Author check-in (`--check-in-author`) and stop-author (`--stop-author`)** both refuse with "must execute in the actual owner session". Source (`requireCheckinOwner` and `prepareAuthorHandoff` in `scripts/manage-migration-author-lanes.mjs`): both call the marker adapter `resolveMarker()` (the adapter name is in the code, not repeated here) and require a live marker, which the owner ruling says is retired. **This is the blocker for both the CI "Migration author lease" check and native release of claim #4337.**
+7. **Author check-in (`--check-in-author`) and stop-author (`--stop-author`)** both refuse with "must execute in the actual owner session". Root cause (found 2026-10-15 16:50 UTC, corrects the earlier note): the check-in's authority check accepts only the label form `Claude chat <session> on <machine>`. Claim #4337 was created with `--owner claude-chat-<session>@hetz`, which the claim path accepts but the check-in does not, so no check-in can pass for it. The "marker" in the code is only the session-ID check, not a live orchestrator. Repair in review: popcre/shared-db#4346 (issue #4345). Stop-author for this claim is also refused until that fix is merged. Do not edit the claim body or forge a check-in.
 8. **Main baseline red.** `scripts/throughput-guard/check-throughput-truth-audit.test.mjs:153` (`current_repository_catalogues_follow_current_discovery`) fails with "truth-audit semantic inventory drift in scripts/check-exact-head-approval.mjs: contains stale semantic site scripts/check-exact-head-approval.mjs:283". It fails **without** this migration too (verified by moving the migration aside). Fix needs a reviewed disposition for that site; it is not a one-line edit.
 9. **Claim lease timing.** Claim #4337 lease expired 16:10 UTC. Expiry does not unlock objects, but any future check-in needs a fresh permission.
 10. **Git commit identity** on hetz is fine (`Albert Hazan <u2giants@users.noreply.github.com>`).
@@ -90,7 +90,8 @@ The owner (Albert Hazan) asked for `/orders` to show only orders from the last 1
    - You'll know it worked when the rehearsal shows `window_null` drops and the SQL migration guard stays green.
 2. **Fix the main baseline (separate maintenance PR, not this one).** Add a reviewed disposition for `scripts/check-exact-head-approval.mjs:283` (run the truth audit, review the site, update the catalogue), and confirm `Tools offline tests` passes on a clean main-based branch.
    - You'll know it worked when `node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs` passes on a branch from `origin/main`, and PR #4339 shows Tools offline tests passing.
-3. **Resolve the marker dependency.** Decide with an AI reviewer whether `requireCheckinOwner` and `prepareAuthorHandoff` should accept the session identity alone (owner ruling retired markers). This is a technical gate change, so it goes to an assigned AI reviewer. Do not forge check-ins or write a marker by hand.
+   - Status 16:50 UTC: fix is PR popcre/shared-db#4344 (issue #4343). Reviewer draw requested. The offline guard suite passes 72/72 locally when a `python` command is on PATH (the sandbox lacked it).
+3. **Land the owner-label fix (popcre/shared-db#4346, issue #4345).** It makes the check-in accept the `claude-chat-<session>@machine` label, bound to the same session ID. Needs an assigned AI reviewer's APPROVE. Then run the check-in for claim 4337 from a clean worktree of merged main, as this session with owner `claude-chat-250902fb-e85f-45d3-a62c-9c18cb217d1e@hetz`. Do not forge a check-in or edit the claim body by hand.
    - You'll know it worked when `--check-in-author` for claim 4337 returns a renewed lease, and "Migration author lease" passes on PR #4339.
 4. **Get the reviewer verdict on the current head `659e4a1d`.** Re-draw the reviewer if the Muse draw is for an old head. Use `--assign-reviewer --admit-issue 4336 --issue 4336 --pr 4339 --head-sha <head>` with the author engine and session variables set.
    - You'll know it worked when the PR has an exact-head APPROVE from an assigned reviewer.
@@ -103,7 +104,7 @@ The owner (Albert Hazan) asked for `/orders` to show only orders from the last 1
 
 ## 7. Constraints and gotchas in force
 
-- Shared-db structural work is claim-first, with no marker (owner ruling 2026-10-02).
+- Shared-db structural work is claim-first, with no marker (owner ruling 2026-10-02). Owner labels must be the exact form the check-in accepts: `Claude chat <session> on <machine>`, or `claude-chat-<session>@<machine>` after popcre/shared-db#4346 merges.
 - Preview is shared and not clean. Always check the target before any write: `cat supabase/.temp/project-ref` must equal `supabase_shared_preview_ref`.
 - The Supabase MCP may be bound to production; use the CLI or `psql` for preview work.
 - Never edit an applied migration; fix forward.
