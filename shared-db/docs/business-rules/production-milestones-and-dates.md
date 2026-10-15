@@ -17,6 +17,50 @@ Licensing history is Item/SKU-specific. Current factory-production dates are Pur
 
 True per-SKU production dates require their own business events and data. They must not be manufactured by copying a Purchase Order date into separate-looking SKU records.
 
+## Stage lists and who maintains them
+
+**Status:** Settled for ownership and list rules (Albert Hazan, 2026-10-15). Stage order, durations, and dependencies below are Unknown or Proposed as marked.
+
+The order-timeline stages fall into five business lists: Design, Licensing, Sampling, Production, and Shipping. Stage names, order, and durations are business data that the people running each process maintain. They are not fixed program rules.
+
+- Only an admin may create or remove a whole list. Other authorized users work only with the stages inside the five lists.
+- Production stages are maintained by production coordinators and licensing managers.
+- Licensing stages are maintained by licensing managers.
+- Sampling stages are maintained by production coordinators, licensing managers, and creative designers.
+- Design stages are maintained by production coordinators, licensing managers, and creative designers.
+- Shipping stages are maintained by production coordinators.
+- Admins may maintain every list.
+
+**Stage order (Unknown).** The current Production order (Material Arrival first) is wrong. Material Arrival is about the fourth production step. The correct order will be set by the list maintainers on the stage-list screen. Until then, no order is Settled.
+
+**Source of initial durations (Historical).** The first durations came from the "Order Timeline Calculator" spreadsheet, Version 1.0, updated 10/9/2024. That spreadsheet added Design, Licensing, Sampling, and Mass Production one after another. That serial model is not the business rule (see the next section).
+
+### Licensor coverage (Settled, Albert Hazan, 2026-10-15)
+
+- Care Bears and ZAG (Miraculous Ladybug) are no longer licensed. They carry no licensing stage times.
+- Ford is kept with empty licensing stage times until its licensor portal is set up and someone enters them.
+- Lenticular Art is a single product type, not two.
+
+## Stages run concurrently, with hard and soft dependencies
+
+**Status:** Settled that the lists are not serial (Albert Hazan, 2026-10-15). The dependency map itself is Unknown.
+
+The five lists do not run one after another. Parts of each list run at the same time as parts of others. Some links between stages are hard dependencies: the later stage cannot start until the earlier one is done. Others are soft dependencies: the later stage normally waits, but the team can start it early to save time when it judges the risk acceptable. Adding stage durations end to end therefore overstates lead time and must not be presented as the business schedule.
+
+Unknown, to collect stage by stage from the list maintainers:
+
+- For each stage, which earlier stages it depends on.
+- Whether each dependency is hard or soft.
+- For soft dependencies, how much early start is normal and who may decide it.
+- Which stages can overlap fully.
+
+## Conditional stages
+
+**Status:** Settled for re-sampling and re-design (Albert Hazan, 2026-10-15). Linesheet is Unknown.
+
+- **Re-sampling and re-design** happen only when the licensor returns a Resubmit at the concept stage or the pre-production-sample stage. They are not planned on every order and do not count toward a normal lead time.
+- **Linesheet submission and linesheet resubmission** apply only to certain licensors. Which licensors is Unknown and must be confirmed with Ilona.
+
 ## History
 
 Needed dates are plans. Completed-at dates and actual production events are separate facts. Recalculation of a planned schedule must not rewrite completed history.
