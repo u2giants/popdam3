@@ -24,7 +24,7 @@
 **All steps are complete. Nothing remains for a fresh session.** The original handoff is retired. Do not redo this plan; use the verification document and current tests for any future regression investigation.
 
 > **Amendment 2026-08-29 — the ceiling is 22, not 19 (issue #1812, PR #1813).**
-> This plan was written for a single reviewer slot. The mandatory second
+> This plan was written for a single reviewer slot. The then-mandatory second (retired by owner ruling 2026-10-14: one review)
 > independent reviewer (`--review-slot 2`, added in #1793) costs 3 more
 > pre-mutex requests than slot 1, so the original 19 refused every slot-2
 > assignment outright. `REVIEW_OPERATION_REQUEST_LIMIT` is now **22**, with the
@@ -77,7 +77,7 @@ The incident is reproduced without touching GitHub by constructing an in-memory 
 
 ## 5. Current state of the code
 
-**Updated 2026-08-30:** the bounded allocator is merged and active on `main`. PR #1777 (`74a6e00a`) completed the allocator hardening after independent review found defects in the first implementation; PR #1813 (`2a0d357f`) raised the normal slot-2 ceiling from 19 to 22 after the mandatory second reviewer added three irreducible pre-mutex reads. The 10,000-history fixture still uses 18 lowest-boundary test operations and never scans historical assignment refs. Issue #1767 is closed, all recorded required checks passed, and the temporary handoff is deleted.
+**Updated 2026-08-30:** the bounded allocator is merged and active on `main`. PR #1777 (`74a6e00a`) completed the allocator hardening after independent review found defects in the first implementation; PR #1813 (`2a0d357f`) raised the normal slot-2 ceiling from 19 to 22 after the then-mandatory second reviewer added three irreducible pre-mutex reads. The 10,000-history fixture still uses 18 lowest-boundary test operations and never scans historical assignment refs. Issue #1767 is closed, all recorded required checks passed, and the temporary handoff is deleted.
 
 The bullets below are the **historical pre-implementation state retained to explain the fix**. They are not current instructions and must not be reimplemented:
 
@@ -129,7 +129,7 @@ That historical state was resolved by PRs #1774 and #1777, with the later slot-2
 - **2026-08-28:** The complete `--assign-reviewer` command, including quota preflight, live reconciliation, locking, writes, readbacks, and mutex release, must use fewer than 20 counted GitHub requests in the worst tested five-lease case. Set an explicit constant no greater than 19 and make the counter throw before request 20.
 - **SUPERSEDED 2026-08-29 (issue #1812, PR #1813):** the ceiling is now **22**, not 19,
   and `REVIEW_OPERATION_REQUEST_LIMIT = 22`. The 19 above was correct only for a
-  single reviewer slot. `--review-slot 2` (the mandatory second independent
+  single reviewer slot. `--review-slot 2` (the then-mandatory second independent
   reviewer, added in #1793) calls `resolveSlotOneReviewer`, which costs **3 extra
   pre-mutex requests** (`listRefs` + `readRef` + `getCommit`) to find which
   provider already holds slot 1. Worst-case accounting, verified empirically by
@@ -383,3 +383,6 @@ still go to Albert; this is neither.
 3. **Is the goal clear enough for correct judgment when a step is wrong? Yes.** §1 makes bounded cost, preserved evidence, correct lease release, quota safety, and mutex cleanup the controlling outcome; §8 separates locked decisions from implementation judgment.
 
 All 13 required sections are present. Every implementation step names concrete functions/files and ends in a verification gate; tests, constraints, access, landing, rollback, and Definition of Done are explicit. The self-audit passes.
+
+
+

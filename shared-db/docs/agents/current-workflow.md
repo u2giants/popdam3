@@ -13,7 +13,7 @@ It documents existing authority; it does not activate a new release route.
 | ordinary-rows | application-owner | AGENTS.md section 0.0-B |
 | authors | unlimited | Owner ruling 2026-09-16 |
 | reviewer-concurrency | unlimited | Owner ruling 2026-09-16 |
-| migration-reviews | 2 | scripts/check-exact-head-approval.mjs |
+| migration-reviews | 1 | scripts/check-exact-head-approval.mjs |
 | governed-code-reviews | 1 | scripts/check-exact-head-approval.mjs |
 | standalone-plans | documentation | scripts/lib/documents-only-change.mjs |
 | agent-instructions | guarded | scripts/lib/documents-only-change.mjs |

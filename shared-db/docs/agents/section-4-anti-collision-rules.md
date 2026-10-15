@@ -636,7 +636,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    `already-reviewed` reason is retired. A new exclusion with it is refused, and a
    historical record of it still parses but never bars a draw -- the same
    reviewer may review the same pull request any number of times. Slot 2 of one
-   exact head must still be a different provider from slot 1 (two approvals).
+   exact head must still be a different provider from slot 1 (distinct reviewers when more than one slot is drawn).
    `independence-conflict` is an INDEPENDENCE guarantee -- a provider that is the
    orchestrating or authoring engine is never drawn, and no later evidence
    changes that. It is
@@ -1390,3 +1390,4 @@ The operator must independently prove the exact open repository-maintenance aban
 The operation acquires the canonical mutex, records a create-only recovery receipt before changing the claim, rechecks the complete evidence under that mutex, verifies the resulting claim and permanent reservation, and preserves its receipt for exact replay. A partial claim update is rolled back only while mutex ownership still holds. It never applies database changes or releases a protected production claim. The receipt explicitly records that human identity was not independently authenticated.
 
 Owner: work issue #3618. This narrow standalone module is the recovery boundary; future consolidation into the canonical transfer module requires separately reviewed scope. No original claim may be adopted merely because this tooling is installed.
+

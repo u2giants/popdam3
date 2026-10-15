@@ -691,7 +691,7 @@ test('#4206 composed carry: slot 1 at an equivalent ancestor plus slot 2 at the 
   assert.equal(result.approved, true)
   assert.equal(result.head_sha, CARRY_NEW)
   assert.equal(result.carried_from, CARRY_OLD)
-  assert.equal(result.required_slots, 2)
+  assert.equal(result.required_slots, 1)
   assert.equal(result.assignments, 2)
   assert.equal(result.approvals, 2)
 })
@@ -743,7 +743,7 @@ test('#4206 composed carry: ordinary caller fields cannot inject ancestor assign
   assert.throws(() => evaluateRaw(input), /owes required review slot\(s\) 1/)
 })
 
-test('#4206 composed carry: a governed-code PR can compose a valid slot without migration quorum', () => {
+test('#4206 composed carry: a governed-code PR can compose a valid slot with a single required slot', () => {
   const input = composedCarryInput({ migrations: false })
   const result = evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) })
   assert.equal(result.approved, true)
@@ -752,7 +752,7 @@ test('#4206 composed carry: a governed-code PR can compose a valid slot without 
   assert.equal(result.approvals, 2)
 })
 
-test('#4206 composed carry: an undrawn slot 2 on a migration PR is still refused', () => {
+test('#4206 composed carry: a drawn slot 2 without its own APPROVE is still refused', () => {
   const input = composedCarryInput({ slot2Approved: false })
   assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /slot 2 has no durable APPROVE|owes required review slot/)
 })
@@ -916,33 +916,34 @@ test('an absent or unreadable changed-file list never grants the exemption', () 
   assert.throws(() => evaluateExactHeadApproval({ pr: 2102, headSha: NEW, assignments: [], verdicts: [], changedFiles: null }), /no reviewer was ever assigned head/)
 })
 
-// THE MINIMUM SLOT COUNT (issue #2837). PR #2746 (issue #2478) merged
-// production-bound bytes with exactly one approval because slot 2 was never
-// drawn across any of its nine heads: the loop over visible slots passed, since
-// a never-drawn slot is a slot the gate cannot see. A migration change must now
-// require two slots, judged from the pull request's own changed files, and the
-// refusal must name the missing slot number.
-test('a migration change refuses on a single slot: slot 2 was never drawn', () => {
-  assert.throws(() => evaluateExactHeadApproval({
+// OWNER RULING (Albert Hazan, 2026-10-14: "change the rules so that we don't
+// need 2 reviews"). One independent exact-head APPROVE is enough for every
+// change, including migrations. The former two-slot migration minimum is
+// retired.
+test('a migration change passes with a single slot', () => {
+  const result = evaluateExactHeadApproval({
     pr: 2746, headSha: NEW,
     assignments: [{ issue: 2478, pr: 2746, headSha: NEW, slot: 1 }],
     evidence: [{ body: `APPROVE ${NEW}` }],
     changedFiles: ['supabase/migrations/20260911212849_shared_style_group_sku_key.sql'],
-  }), (error) => error instanceof ApprovalCheckError && /owes required review slot\(s\) 2/.test(error.message) && /requires 2 independent review slot/.test(error.message) && /Draw each missing required slot at this exact head in either order.*each assignment must record its own APPROVE/.test(error.message))
+  })
+  assert.equal(result.approved, true)
+  assert.equal(result.required_slots, 1)
+  assert.equal(result.assignments, 1)
 })
 
-test('a migration rename still requires two slots: the previous name counts', () => {
-  // The flattened form `changedPathsFromPullRequestFiles` produces for a rename
-  // row -- both the new name and the previous one reach the classifier.
-  assert.throws(() => evaluateExactHeadApproval({
+test('a migration rename also needs only one slot', () => {
+  const result = evaluateExactHeadApproval({
     pr: 2746, headSha: NEW,
     assignments: [{ issue: 2478, pr: 2746, headSha: NEW, slot: 1 }],
     evidence: [{ body: `APPROVE ${NEW}` }],
     changedFiles: ['docs/moved.md', 'supabase/migrations/20260902120000_add_thing.sql'],
-  }), /owes required review slot\(s\) 2/)
+  })
+  assert.equal(result.approved, true)
+  assert.equal(result.required_slots, 1)
 })
 
-test('a migration change with both slots approved passes and reports the required count', () => {
+test('a migration change with both slots approved still passes and reports the required count', () => {
   const result = evaluateExactHeadApproval({
     pr: 2746, headSha: NEW,
     assignments: [{ issue: 2478, pr: 2746, headSha: NEW, slot: 1 }, { issue: 2478, pr: 2746, headSha: NEW, slot: 2 }],
@@ -950,7 +951,7 @@ test('a migration change with both slots approved passes and reports the require
     changedFiles: ['supabase/migrations/20260911212849_shared_style_group_sku_key.sql'],
   })
   assert.equal(result.approved, true)
-  assert.equal(result.required_slots, 2)
+  assert.equal(result.required_slots, 1)
   assert.equal(result.assignments, 2)
 })
 
@@ -1246,3 +1247,4 @@ test('#3505: the advisory context is distinct from the real grant context', () =
     /is not a lawful authorization/,
   )
 })
+

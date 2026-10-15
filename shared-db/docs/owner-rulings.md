@@ -2124,3 +2124,13 @@ number releases an unreadable record, by design, so it can never wedge merges); 
 --owner <text>` (or `--pr <n>`) ends it, and the production job's always() cleanup releases the
 freeze for its source PR. Release ownership is an accident guard, not a security boundary: the production
 job must be able to release a freeze it did not set.
+
+### 6.27 OWNER RULING — one independent review is enough for every change (Albert Hazan, 2026-10-14)
+
+Verbatim from Albert's chat (2026-10-14):
+
+> "change the rules so that we don't need 2 reviews"
+
+**Effect.** scripts/check-exact-head-approval.mjs requires **one** independent exact-head APPROVE for every pull request, including migrations. The former two-slot migration minimum is retired. No gate, test or helper may demand two slots. A drawn slot still owes its own APPROVE; a returned or refused slot is never revived. Branch protection is never disabled.
+
+Posted by MiMo chat ffe5ed27-27a0-dffe-92fd-227bed167df0 on EDGE-DEV

@@ -100,7 +100,7 @@ Line references below are anchored to the baseline above; locate symbols after r
 | Isolated route | Existing conservative production evidence alternative, not universally adequate baseline proof | `scripts/production_business_risk_gate.py`; `scripts/test_production_preview_skip.py`; `docs/agents/ephemeral-route-hop-table.md` |
 | Automatic promotion | Existing narrow workflow runs after successful merged-main preview; no-preview automatic dispatch is not generally authorized | `shared-supabase-migrations.yml:1002+`; hop table above |
 | Probe qualification | Premerge SQL presence/syntax checks; exact result and permissions are only proven by later execution | `scripts/check-live-proof-probe.mjs:35-37`; `scripts/shared_db_live_proof.py` |
-| Second reviews | Every migration requires two independent slots; ordinary governed code requires one | `scripts/check-exact-head-approval.mjs:229-241` |
+| Second reviews | One independent slot for every change (owner ruling 2026-10-14) | `scripts/check-exact-head-approval.mjs` |
 
 Completed throughput plans record prior improvements and should be treated as implementation references. Their stale “Fresh implementation starts at Step 1” text is a documentation defect, not authority to redo them. The current ai-devops checkout search did **not** find a separate task-evidence validator; shared-db owns the concrete validator. Do not invent a cross-repository code dependency for Step 1.
 
@@ -144,14 +144,14 @@ This planning publication contains prose only. No implementation code, deployed 
 - Reuse existing lifecycle, route classifier, guards, transport, locks, CI baseline and canonical skill infrastructure. Any new module below exists to consolidate an identified responsibility, with a named owner and retirement path for its predecessor.
 - Unknown, truncated, stale, mismatched or unauthorized evidence cannot yield success. Make conservative routing visible; never silently downgrade safeguards.
 - Bind evidence to repository identity, task, source PR/content, selected migrations, baseline where relevant, policy and producer. Reuse supported equivalents only after verifying those bindings.
-- Keep two migration reviewers until an approved policy amendment is activated. Keep recorded refusals effective regardless of later tier reclassification.
+- Owner ruling 2026-10-14: one review is enough; the two-reviewer minimum is retired. Keep recorded refusals effective regardless of later tier reclassification.
 - Preserve one writer per shared target and merge/production freeze interactions. Queue-splitting alone does not relax target ownership.
 - Keep production post-apply assertions even after pre-promotion qualification. Keep application return outcomes owned by their application.
 - Issue opener retains closure authority under current rules. Dependency readiness may use a valid required-stage record while administrative closure is pending; changing automated closure authority requires a separately reviewed explicit policy amendment.
 
 ### Proposed policy changes — not active instructions
 
-**P1: Risk-tiered reviewer count.** Step 13 may recommend one independent reviewer for a tightly defined mechanically verified additive class. Until evidence and explicit policy adoption exist, keep two. A defensible retain-two decision satisfies the evaluation deliverable; it must not be mislabeled as removal of review overhead.
+**P1: Risk-tiered reviewer count.** Step 13 may recommend one independent reviewer for a tightly defined mechanically verified additive class. Owner ruling 2026-10-14 activated one independent reviewer for every change.
 
 **P2: No-preview automatic production transition.** Step 11 first supports the existing governed isolated route. Extending the standing automatic promotion exception to accept direct isolated evidence would be a change to the present hop-table ruling. Prepare the complete technical proposal and dispatch contract for independent review under Albert's standing technical-approval policy. Only an explicit, durable approval within the authority applicable to the exact change can activate it. No session-made production dispatch, new trigger or resource creation is authorized by this plan alone. If approval is absent, finish and prove the existing supported route and record automation as blocked with an owner; do not block Steps 1–10 or hide the limitation.
 
@@ -451,7 +451,7 @@ Isolated databases may omit production dependencies/data semantics. Unknown cove
 | Exact active owner for each existing overlapping issue | Step 0 implementation session, using current issue/PR activity and explicit acceptance | Take a non-overlapping step; do not take over silently |
 | Whether maintenance completion gap persists | Step 3 implementer, reproducing fixture against current main | Preserve guards; fix only confirmed unsupported path |
 | Whether no-preview automatic transition should replace the deliberate hop | Step 11 proposer and independent authorized technical reviewer; P2 exact scope/dispatch contract | Use the existing governed isolated route; no new production automation |
-| Whether second review is dispensable for a narrow class | Step 13 proposer plus explicit policy adoption, measured defect/latency evidence | Keep two; improve briefs and reuse |
+| Whether second review is dispensable | Owner ruling 2026-10-14 | One review for every change |
 | Whether historical children can close | Original issue owner, exact acceptance and completion evidence | Report delivered-closeout-pending only when proven; preserve genuinely unmet outcomes |
 | Whether isolated baseline covers a change | Deterministic classifier/closure proof with qualified engineer review of unsupported cases | Shared preview, with reason and owner |
 | Whether performance improved | Step 14 owner, comparable sufficient samples | Report insufficient sample and continue measuring without blocking safe delivery |
@@ -467,3 +467,7 @@ All thirteen required sections were present at original publication. The STATUS 
 3. **Is the ultimate goal sufficient to guide a correct judgment call? Yes.** §1 prioritizes verified application delivery over both bureaucratic waiting and false success; §§8/13 turn that goal into invariant safeguards, conservative defaults and measurable acceptance. A step that adds an artificial program-wide dependency conflicts with that goal and must be corrected.
 
 **Self-audit result: PASS for the planning artifact.** Implementation, policy activation and live acceptance remain the separately tracked open work above.
+
+
+
+

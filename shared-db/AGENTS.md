@@ -416,6 +416,9 @@ The withdrawal-confirmation question is **settled** in [`docs/business-rules/lic
 - **Albert is not a technical reviewer, now or in the future (Albert Hazan, 2026-09-30).**
   Production risk classes are accepted by the allocator-assigned AI reviewer's durable exact-head
   assessment, never by Albert. Full text: [`owner-rulings.md` §6.23](docs/owner-rulings.md).
+- **One independent review is enough for every change (Albert Hazan, 2026-10-14, verbatim:
+  "change the rules so that we don't need 2 reviews").** The two-slot migration minimum is
+  retired. Full text: [`owner-rulings.md` §6.27](docs/owner-rulings.md).
 
 - **§0.0-D — there is no orchestrator; structural work is claim-first (Albert Hazan,
   2026-10-02, verbatim: "there is no longer an orchestrator").** No session is the orchestrator.
@@ -548,7 +551,11 @@ to "spend" only one review.
   bound to an earlier head does not authorize a later head, and the only
   equivalence permitted is the narrow, already-enforced #2758 rule
   (`scripts/lib/pr-content-equivalence.mjs`): an ancestor head whose pull-request
-  diff is byte-identical, ignoring only `.agent/` evidence files.
+  diff is byte-identical, ignoring only `.agent/` evidence files. A tree-identical
+  re-push keeps every existing review (slot 1 is not re-drawn). A returned or refused
+  slot cannot be revived from an older assignment; the newest valid assignment
+  controls. **Owner ruling 2026-10-14: one independent exact-head APPROVE is
+  enough for every change, including migrations.**
 - **The proposal in #3002 to accept a review bound to a head whose only later
   change is test or evidence files is REFUSED.** Tests are code: a changed test
   changes what the change proves, and a reviewer who never saw it never reviewed

@@ -34,35 +34,27 @@ merge them promptly.
 ### Review slots and carried reviews (owner 2026-10-14)
 
 `scripts/check-exact-head-approval.mjs` is the single authority for how many
-independent exact-head APPROVEs a pull request needs. It reads the pull
-request's own changed files: a change touching `supabase/migrations/` needs
-**two**; every other change (scripts, docs, CI, tooling) needs **one**. No
-gate, test or helper may demand two slots for a non-migration pull request.
-Migration PRs still need two independent exact-head APPROVEs before merge and
-production; branch protection is never disabled.
+independent exact-head APPROVEs a pull request needs. **Owner ruling (Albert
+Hazan, 2026-10-14: "change the rules so that we don't need 2 reviews"): one
+independent exact-head APPROVE is enough for every change, including
+migrations.** No gate, test or helper may demand two slots. Branch protection
+is never disabled.
 
 A **tree-identical re-push** — same git tree, or same pull request diff ignoring
 `.agent/` — keeps valid existing reviews. Slot 1 is not re-drawn and no paid
 attempt is burned to re-pin the same bytes. For equivalent content, the newest
 valid historical slot-1 assignment may carry forward; a replacement must have
 its exact failure binding verified. A returned or refused slot cannot be
-revived from an older assignment. The gate composes the ancestor's slot 1 with
-the new head's slot 2 only when both required slots have their own APPROVE and
-the reviewers are distinct. The newest valid assignment at each slot controls;
-a return or refusal blocks that slot until a newer valid assignment resolves
+revived from an older assignment. The newest valid assignment controls; a
+return or refusal blocks that slot until a newer valid assignment resolves
 it. An ancestor approval never fills a returned or refused new-head slot.
 Carried reviews do not consume another paid attempt.
 
-**Owner-quoted allowlist widening** (source history includes PR #4294; combined
-implementation in PR #4294): either required slot may be assigned first. The
-earliest live peer anchors policy for a new slot. A fresh slot 2-or-later draw
-may widen that policy only with a recorded verbatim owner quote and a strict
-superset allowlist; the quote is stored only when widening occurs. A slot's own
-durable policy remains exact on retry and replacement. Narrowing, disjoint
-policies, unquoted widening, and restricting an unrestricted peer are refused.
-Fresh peer, carried-history, and policy reads are rechecked under the assignment
-mutex. The combined source is delivered and independently reviewed in one
-atomic PR #4294; no separate dependency merge is required.
+**Owner-quoted allowlist widening**: a fresh later draw may widen the earliest
+live peer's policy only with a recorded verbatim owner quote and a strict
+superset allowlist. A slot's own durable policy remains exact on retry and
+replacement. Narrowing, disjoint policies, unquoted widening, and restricting
+an unrestricted peer are refused.
 
 ### 5.0-D Declare what a re-derived migration was derived from — `-- derived-from:` (issue #1608, added 2026-08-26)
 

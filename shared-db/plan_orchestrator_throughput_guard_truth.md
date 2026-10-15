@@ -176,7 +176,7 @@ A preliminary case-insensitive audit found that roughly 44% of the 554 migration
 - All database reads reuse the existing read-only Management API path; unavailable evidence exits 2.
 - File, ledger, preview and production outcomes remain separate; no single combined verdict hides the sources.
 - False alarms are executable fixtures.
-- Migrations, production/data movement and security/RLS work keep two independent reviewers. Scripts/docs/CI-only work requires one.
+- Owner ruling 2026-10-14: one independent reviewer is enough for every change.
 - Reviewer replacement follows the existing tool-enforced route: never replace a substantive `REVISE`; skip providers already failed on the exact head; after all active rotation providers fail, use Codex overflow once; if overflow also fails, refuse and return the exact blocker to the owner.
 
 **Implementer judgment**
@@ -487,3 +487,4 @@ No owner decision is required before implementation. Language/module boundaries 
 3. **Is the goal sufficient for judgment calls? Yes.** §1 makes truthful evidence without weakened refusal controlling; §§4, 8 and 13 require fail-loud behavior and route any acceptance change to a new issue.
 
 All 13 required sections are present. Every implementation step names files or functions, behavior, dependencies and a verification gate. Tests are behavior-specific; secrets are locations only; definition of done includes commit, merge and post-merge proof.
+
