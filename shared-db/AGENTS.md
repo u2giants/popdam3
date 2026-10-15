@@ -367,7 +367,7 @@ Open work lives in **GitHub Issues** and open `HANDOFF.d/` files, not here.
 |---|---|---|
 | open | See `gh issue list --repo popcre/shared-db --label db-work` | Claim-first per issue `db-work-scope` |
 | open | `HANDOFF.d/` files with a contract still pointing at an open issue | Owning session / successor |
-| stale | 6 `HANDOFF.d/` files whose issue is closed and nothing open cites them | Retire in a PR that says so (see Handoff report; do not delete silently) |
+| done | Five uncited closed-issue `HANDOFF.d/` files retired 2026-10-15 (owner-authorized; all #2336: `…licensing-forward-repair`, `…ten-issues-recovery`, `…eight-issues-acceptance`, `…eight-issues-preview-recovery`, `…2336-production-live-proof`) | Retire any new ones in a PR that names each file (see Handoff report; never delete silently) |
 | done | Docs overhaul of AGENTS.md router + required topic docs (this change) | Completed in the docs-overhaul PR |
 
 Re-derive state from `git` and `gh`. A heading in a markdown file is not a backlog.

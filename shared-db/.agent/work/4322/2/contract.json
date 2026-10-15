@@ -1,0 +1,55 @@
+{
+  "schema_version": 2,
+  "work_issue": 4322,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Retire five uncited closed-issue HANDOFF.d files and update AGENTS.md pending-work",
+  "base_sha": "d0c99556fe5364d5ce67066cc206c66ec2619ba2",
+  "dispatcher": "MiMo handoff-retirement session for issue #4322",
+  "worker": "mimo",
+  "branch": "docs/retire-stale-handoffs",
+  "worktree": "D:/repos/shared-db-worktrees/retire-stale-handoffs",
+  "allowed_paths": [
+    "AGENTS.md",
+    "HANDOFF.d/2026-10-11T1309Z-edge-dev3-codex-licensing-forward-repair.md",
+    "HANDOFF.d/2026-10-12T0008Z-edge-dev3-codex-ten-issues-recovery.md",
+    "HANDOFF.d/2026-10-12T1203Z-edge-dev3-codex-eight-issues-acceptance.md",
+    "HANDOFF.d/2026-10-13T1649Z-edge-dev3-codex-eight-issues-preview-recovery.md",
+    "HANDOFF.d/2026-10-14T2247Z-edge-dev-mimo-2336-production-live-proof.md",
+    ".agent/work/4322/1/contract.json",
+    ".agent/work/4322/1/completion.json"
+  ],
+  "file_writes": [
+    "AGENTS.md",
+    "HANDOFF.d/2026-10-11T1309Z-edge-dev3-codex-licensing-forward-repair.md",
+    "HANDOFF.d/2026-10-12T0008Z-edge-dev3-codex-ten-issues-recovery.md",
+    "HANDOFF.d/2026-10-12T1203Z-edge-dev3-codex-eight-issues-acceptance.md",
+    "HANDOFF.d/2026-10-13T1649Z-edge-dev3-codex-eight-issues-preview-recovery.md",
+    "HANDOFF.d/2026-10-14T2247Z-edge-dev-mimo-2336-production-live-proof.md",
+    ".agent/work/4322/1/contract.json",
+    ".agent/work/4322/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not retire handoffs still cited by open issues",
+    "do not rewrite HANDOFF.md",
+    "do not touch database"
+  ],
+  "required_checks": [
+    "node --test scripts/check-handoff-contract.test.mjs",
+    "node scripts/report-stale-handoffs.mjs"
+  ],
+  "assumptions": [
+    "owner authorized retirement of uncited closed-issue handoffs"
+  ],
+  "stop_conditions": [
+    "stop if an open issue still cites a file being deleted"
+  ],
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 4322,
+    "generation": 1,
+    "contract_sha256": "59a1a33706bfd307c2da43511504b8d0944b1d47f1b4a62c65f91c58cdd6575d"
+  }
+}
