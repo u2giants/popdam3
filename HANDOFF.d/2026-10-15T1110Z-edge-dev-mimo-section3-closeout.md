@@ -165,3 +165,12 @@ Checked 2026-10-15 ~7:05 AM EDT unless noted.
 See §6 for each agent block (general-1 through general-8). Blocks are separated per agent and include "Deliberately did NOT do".
 
 Self-audit: sections 0–9 present; §0 holds owner decisions + the one human look; dead ends in §4; next steps have verification gates; file/commit refs use GitHub URLs where possible (machine-local Muse logs and NAS paths called out explicitly); secrets by vault name only; sub-agent blocks in part (b).
+
+### Agent: general-8 / private-data gates (PARTIAL — stopped 2026-10-15 ~7:30 AM EDT)
+- **Asked to do:** enforce `no-raw-content-read`, `licensed-row-containment`, `privacy-classification` in popcre/ai-devops.
+- **Actually did:** worktree `C:/repos/.worktrees/ai-devops-private-data-gates` branch `mimo/private-data-gates` from `origin/main`. `bin/ai-task-gates` classify_paths inits `RAW_PRIVATE_PATHS=""` and `LICENSED_ESCAPE_PATHS=""`. Pattern analysis done (mirror #1747 never-open-raw-transcript-archives + #1754 local-tests). No PR.
+- **Remaining:** add `raw_private_content_path` / `refuse_raw_private_content` (secrets shapes: `.env` non-example, `*.pem`, `*.p12`, `*.pfx`, `id_rsa`); add `licensed_row_name` / `licensed_row_containment_breach` / `refuse_licensed_row_escape` (licensed stem under `scripts/`/`scraper/` or disguised as code); `privacy-classification` check; wire into `cmd_check` early + post-prepare, `cmd_explain`, `GATE_ENFORCED_RE`; tests; PR.
+- **Owner decision needed:** `privacy-classification` "recorded" semantics (declared task class vs repository-coverage `privacy` field vs path-shape PII vocabulary) — docs do not define it precisely.
+- **Findings:** base on `origin/main` (has #1754); `GATE_ENFORCED_RE` is the checked/unchecked split (#1743); never name the task-gates unit test path in comments (reviewer-ci-paths walker).
+- **PR / branch:** none yet. Worktree LIVE — resumable. Do not delete.
+- **Deliberately did NOT do:** finish matchers/refusals — stopped in a shell loop.
