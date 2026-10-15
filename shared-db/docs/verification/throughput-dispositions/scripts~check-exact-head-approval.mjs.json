@@ -3,12 +3,11 @@
   "source": "scripts/check-exact-head-approval.mjs",
   "sites": [
     {
-      "site": "scripts/check-exact-head-approval.mjs:283",
-      "semantic_key": "scripts/check-exact-head-approval.mjs:f6817fceba54902c96b05284d17ef999157ce37ca74c09d64e67d5e7517c0907:context-cf100eeb048b607416ad19312f6581ab51b27735769cd70d3ad82868ba583820",
-      "line_sha256": "f6817fceba54902c96b05284d17ef999157ce37ca74c09d64e67d5e7517c0907",
+      "semantic_key": "scripts/check-exact-head-approval.mjs:728dc02f2ab46339c02e1bc72233f817b356731bf5416cca44f8169830b01c9f:context-d3c293f1554b341d0cd47af42183e5082a21dad3093700b78ec67ab17e23be3d",
+      "site": "scripts/check-exact-head-approval.mjs:271",
+      "line_sha256": "728dc02f2ab46339c02e1bc72233f817b356731bf5416cca44f8169830b01c9f",
       "disposition": "excluded",
-      "reason": "Refusal string for undrawn review slots uses the word missing in user guidance; not a throughput-truth missing-object site and outside this disposition class.",
-      "legacy_semantic_key": "scripts/check-exact-head-approval.mjs:f6817fceba54902c96b05284d17ef999157ce37ca74c09d64e67d5e7517c0907:1"
+      "reason": "Refusal string for undrawn review slots uses the word missing in user guidance; not a throughput-truth missing-object site and outside this disposition class. Re-reviewed 2026-10-15 after the 2026-10-14 reworded refusal moved it to this line."
     }
   ]
 }
