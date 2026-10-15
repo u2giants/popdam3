@@ -10,7 +10,7 @@ Two install modes exist:
 | **Scheduled Task** (`install-scheduled-task.ps1`) | Interactive logon session | You need Adobe Illustrator COM (the current agent build does **not** use Illustrator) |
 | **Windows Service** (`install-service.ps1`) | Boot-time service via NSSM, **no login** | Headless render PC — this is the preferred production mode |
 
-**PDF text extraction works in both modes** (mupdf + tesseract.js + AI vision are in-process).
+**PDF text extraction works in both modes** (mupdf + Indra OCR (tesseract.js fallback) + AI vision are in-process).
 Illustrator COM automation does **not** work in service mode (Session 0 has no interactive desktop).
 
 ---
@@ -105,7 +105,7 @@ Both install scripts automatically perform a **preflight scrub**:
 - The service is named **`PopDAMWindowsAgent`** and wraps `popdam-launcher.bat` with [NSSM](https://nssm.cc).
 - Default account is **LocalSystem** — no password, starts at boot, survives logoff/reboot.
 - Pairing is preserved: `%ProgramData%\PopDAM\agent-config.json` is never touched.
-- **PDF text extraction and thumbnail rendering work.** Ghostscript, Poppler, ImageMagick, Inkscape, and tesseract.js all run in Session 0.
+- **PDF text extraction and thumbnail rendering work.** Ghostscript, Poppler, ImageMagick, Inkscape, Indra OCR and tesseract.js all run in Session 0.
 - **Adobe Illustrator COM does not work** in service mode (no interactive desktop). The current agent build does not use Illustrator anyway.
 - `popdam-launcher.bat` uses `ping` (not `timeout`) for its restart delay so it works without a console.
 - Rollback to the interactive task: `.\install-scheduled-task.ps1` (the service is removed first).
@@ -270,7 +270,7 @@ Insert a row into `agent_pairings` (application row data, not a schema change) w
 
 The agent is back on edge-alien (0.16.4.165, same `agent_registrations.id` `d287e3f9-…`). edge-dev's task is stopped and **disabled**. The checklist was:
 
-1. Install the tools: winget `Inkscape.Inkscape`, `ImageMagick.ImageMagick`, `oschwartz10612.Poppler`, `UB-Mannheim.TesseractOCR`, `Microsoft.VCRedist.2015+.x64`, plus Ghostscript from Artifex. Also Git, Node and pwsh 7.
+1. Install the tools: winget `Inkscape.Inkscape`, `ImageMagick.ImageMagick`, `oschwartz10612.Poppler`, `UB-Mannheim.TesseractOCR`, `Microsoft.VCRedist.2015+.x64`, plus Ghostscript from Artifex. Also Git, Node, pwsh 7 and Python 3.13 (the service installer builds the Indra OCR venv at `C:\ProgramData\PopDAM\indra` from it).
 2. Enable OpenSSH Server and add the `916-alien` public key (1Password) to `C:\ProgramData\ssh\administrators_authorized_keys`.
 3. On edge-dev, run `schtasks /end` and `/change /disable` for the task.
 4. Pair with the release installer, add `POPPLER_PATH` to the install-dir `.env`, restart the task, test the NAS and queue a test job.

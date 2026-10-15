@@ -78,7 +78,7 @@ OpenRouter. Regular OpenRouter PDF extraction is unchanged when selected.
 - Do not recreate it. Batch tagging belongs in the Railway worker: OpenRouter `:batch` models, or the settings-selected direct Gemini Batch route (`google-direct/<model>:batch`, primary Image Tagging only) that uses the durable provider-batch state machine.
 
 ### PDF Text Extraction (`pdf-text-sampler.ts` in bridge/windows agents)
-- Uses a cascade: mupdf text extraction → OCR (tesseract.js) → AI vision fallback.
+- Uses a cascade: mupdf text extraction → OCR (Indra OCR via INDRA_OCR_PYTHON; tesseract.js only where Indra is not installed) → AI vision fallback. `.ai` files take a separate path (mupdf text only, no OCR).
 - The AI vision fallback calls Google's `generativelanguage.googleapis.com` **directly** (not through OpenRouter) using `GOOGLE_AI_API_KEY`, which the agents read via `agent-api`'s config passthrough. The Railway worker also uses this key only when a `google-direct/*:batch` Image Tagging model is selected. See `docs/KNOWN_QUIRKS.md` #63.
 - The AI vision fallback is configurable separately from production image tagging. See `admin_config.AI_TASK_MODELS.pdf_extraction` and the bridge/windows sampler code before changing it.
 - The AI prompt requires literal transcription of visually legible text in reading order. It forbids inferring, completing, correcting, or inventing unclear text, omits unreadable text, and requests only the transcription. Keep this contract aligned in the bridge sample, bridge backfill, and Windows sample paths.
