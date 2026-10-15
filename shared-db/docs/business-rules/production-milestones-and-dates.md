@@ -24,11 +24,17 @@ True per-SKU production dates require their own business events and data. They m
 The order-timeline stages fall into five business lists: Design, Licensing, Sampling, Production, and Shipping. Stage names, order, and durations are business data that the people running each process maintain. They are not fixed program rules.
 
 - Only an admin may create or remove a whole list. Other authorized users work only with the stages inside the five lists.
-- Production stages are maintained by production coordinators and licensing managers.
-- Licensing stages are maintained by licensing managers.
-- Sampling stages are maintained by production coordinators, licensing managers, and creative designers.
-- Design stages are maintained by production coordinators, licensing managers, and creative designers.
-- Shipping stages are maintained by production coordinators.
+- Everyone can see every list.
+- Named list maintainers (Albert Hazan, 2026-10-15; supersedes the earlier role-based list):
+
+  | List | Maintainer |
+  |---|---|
+  | Licensing | Ilona |
+  | Production | Yuchen |
+  | Design | Marcel |
+  | Sampling | Yuchen and Ilona |
+  | Shipping | Unknown (no maintainer named yet) |
+
 - Admins may maintain every list.
 
 **Stage order (Unknown).** The current Production order (Material Arrival first) is wrong. Material Arrival is about the fourth production step. The correct order will be set by the list maintainers on the stage-list screen. Until then, no order is Settled.
@@ -59,7 +65,11 @@ Unknown, to collect stage by stage from the list maintainers:
 **Status:** Settled for re-sampling and re-design (Albert Hazan, 2026-10-15). Linesheet is Unknown.
 
 - **Re-sampling and re-design** happen only when the licensor returns a Resubmit at the concept stage or the pre-production-sample stage. They are not planned on every order and do not count toward a normal lead time.
-- **Linesheet submission and linesheet resubmission** apply only to certain licensors. Which licensors is Unknown and must be confirmed with Ilona.
+- **Linesheet submission and linesheet resubmission** (Settled, Ilona via Albert Hazan, 2026-10-15) are sometimes needed, only on retail projects, for these licensors: Disney, NBC Universal, Warner Brothers, Steal a Brain Rot, Aardman Animations, Coca-Cola, Star Wars (Lucasfilm), Marvel. The system tracks linesheets so the licensing team can follow them, but linesheet time is **never included in timeline estimates**.
+
+### No waits between stages (Settled, Yuchen via Albert Hazan, 2026-10-15)
+
+There is no planned waiting time between one stage and the next. Each stage's needed date follows directly from the next stage's needed date and the stage's own duration. The fixed waits currently built into DesignFlow (for example 3 days before QC, 7 days for assembly, 1 day between licensing steps) were a mistake and are Historical.
 
 ## History
 
