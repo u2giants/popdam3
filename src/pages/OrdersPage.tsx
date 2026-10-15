@@ -34,7 +34,7 @@ import {
 import { IS_NON_PRODUCTION_DATABASE, POPDAM_SUPABASE_PROJECT_REF } from "@/lib/app-mode";
 import { refreshOrderListRows, refreshOrderListRowsInPlace } from "@/lib/order-list-grid-refresh";
 import { supabase } from "@/integrations/supabase/client";
-import { buildOrderListEdit, ensureSalesOrderDateInSavedColumnState, ORDER_LIST_COLUMNS } from "@/lib/order-list";
+import { buildOrderListEdit, ensureSalesOrderDateInSavedColumnState, ORDER_LIST_COLUMNS, orderWindowStart } from "@/lib/order-list";
 import { navigateToOrderListMatch } from "@/lib/order-list-find-navigation";
 import type { OrderListRow, OrderListSavedView } from "@/types/order-list";
 
@@ -63,7 +63,9 @@ export default function OrdersPage() {
   const [salesOrderDateErrors, setSalesOrderDateErrors] = useState<Record<string, string>>({});
   const [activeSalesOrderDateScope, setActiveSalesOrderDateScope] = useState<string | null>(null);
   const salesOrderDateGeneration = useRef(0);
-
+  // Default view shows the last 12 months by window date; "Show old" lifts that limit.
+  const [showOld, setShowOld] = useState(false);
+  const showOldRef = useRef(false);
 
   const authReady = Boolean(user) && !authLoading;
   const savedViewsQuery = useOrderListSavedViews(user?.id);
@@ -79,6 +81,12 @@ export default function OrdersPage() {
     setSalesOrderDateErrors({});
     refreshOrderListRows(gridRef.current?.api);
   }, []);
+
+  const toggleShowOld = useCallback(() => {
+    showOldRef.current = !showOldRef.current;
+    setShowOld(showOldRef.current);
+    refreshRows();
+  }, [refreshRows]);
 
   /** Background refresh: updates on-screen rows in place so the grid never blinks. */
   const refreshRowsQuietly = useCallback(() => {
@@ -137,6 +145,7 @@ export default function OrdersPage() {
             sortModel: params.sortModel as Array<{ colId: string; sort: string }>,
             filterModel: params.filterModel as Record<string, unknown>,
             search: "",
+            orderWindowStart: showOldRef.current ? null : orderWindowStart(),
           };
           const scope = orderListSalesDateScope(salesOrderDateGeneration.current, request);
           setActiveSalesOrderDateScope(scope);
@@ -390,6 +399,10 @@ export default function OrdersPage() {
         <Button type="button" size="sm" variant="outline" className="h-8" onClick={refreshRows}>
           <RefreshCw className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
           Refresh
+        </Button>
+
+        <Button type="button" size="sm" variant={showOld ? "default" : "outline"} className="h-8" onClick={toggleShowOld} aria-pressed={showOld}>
+          {showOld ? "Hide old" : "Show old"}
         </Button>
 
         <Button type="button" size="sm" className="h-8" onClick={() => setEditor({ mode: "create", row: null })}>
