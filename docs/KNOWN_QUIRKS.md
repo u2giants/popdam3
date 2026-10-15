@@ -1260,3 +1260,9 @@ select list and a test asserts they stay there. More generally, anything the gri
 *reasons about* has to be in that list, not just what it *shows* — and component
 tests will not catch the omission, because they hand the grid a row object that
 already carries every field.
+
+## 78. Re-running a PDF text sample on a missing file erases its stored text
+
+**What it looks like**: A targeted `PDF_TEXT_SAMPLE_REQUEST` re-run turns a good `pdf_text_samples` row into `extraction_method = 'failed'`, `extracted_text = null`, `extraction_error = 'ENOENT…'`.
+**Why**: The result upsert replaces the whole row. If the file has moved on disk since the asset was indexed, the failure overwrites the earlier text.
+**What to do**: Back up the rows (asset_id, extracted_text, char_count, extraction_method, sampled_at) before any bulk re-run, and restore failed rows from the backup afterwards. Done this way in #410 (Indra OCR re-run, 2026-10-14): 3 of 899 files were missing and kept their old text.
