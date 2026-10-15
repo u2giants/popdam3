@@ -1953,6 +1953,7 @@ def prove_historical_original_apply_runs(
                     commit, authored_merge(merge_sha), main_sha, api,
                     what=f"original apply run {run_id} {role} {commit}",
                     against=f"the merge commit {merge_sha} of the pull request that authored {version}",
+                    promoted_versions=[version], repo_root=repo_root,
                 )
             except PreviewProducerMismatch as producer_error:
                 texts = texts or artifact_texts(artifact, downloader)
