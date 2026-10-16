@@ -40,7 +40,7 @@ export function requireReplacementEvidence(replacement,io,records=null){
 // Never soften this into a warning and never drop the check name: a pause that
 // cannot say what failed is a guess, and the last guess cost two days.
 export function reviewerExecutionPreflight({reviewer,wrapper,worktree,headSha,skipDoctor},io=githubIo){
-  const approved=reviewersForOrchestrator(io.resolveOrchestratorEngine?.()).find((row)=>row.name===reviewer)
+  const approved=reviewersForOrchestrator(io.resolveReviewEngine?.()).find((row)=>row.name===reviewer)
   if(!approved||approved.wrapper!==wrapper)throw new LaneError('reviewer preflight requires an approved reviewer and its exact wrapper')
   if(!/^[0-9a-f]{40}$/i.test(String(headSha??''))||!worktree)throw new LaneError('reviewer preflight requires an exact 40-character head SHA and worktree')
   if(!io.commandAvailable?.(wrapper))throw new LaneError(`reviewer preflight cannot execute ${wrapper}`)

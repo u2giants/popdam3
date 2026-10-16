@@ -1211,7 +1211,7 @@ function terminalReleaseMemoryIo({issue,pr,headSha}){
     getIssue:(number)=>({number:Number(number),state:'open'}),
     getPr:(number)=>({number:Number(number),state:'open',head:{sha:currentHead,ref:'codex/4297'}}),
     getIssueComments:()=>[],getPrReviews:()=>[],pauseReviewerFailure:()=>{},
-    resolveOrchestratorEngine:()=> 'claude',
+    resolveReviewEngine:()=> 'claude',
     reviewerUsability:(reviewers)=>new Map(reviewers.map((row)=>[row.provider,{provider:row.provider,status:'ready',usable:true,admission:{schema_version:1,provider:row.provider,state:'unknown',reason:'unscopable',quota_state:'unknown',reset_at:null,credential_profile_scope:null,model_scope:null}}])),
     requiresExactReviewHeadSha:true,
     setHead:(sha)=>{currentHead=sha},

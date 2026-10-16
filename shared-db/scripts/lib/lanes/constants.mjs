@@ -112,7 +112,7 @@ export const REVIEW_SILENCE_RELEASE_REF_PREFIX = 'refs/db-review-silences'
 export const REVIEW_QUEUE_REF_PREFIX = 'refs/db-review-queue'
 export const REVIEW_EXCLUSION_REF_PREFIX = 'refs/db-review-exclusions'
 export const REVIEW_EXCLUSION_REASONS = new Set(['already-reviewed','independence-conflict','terminal-unavailable'])
-// NO LIMIT ON REUSING A REVIEWER (owner ruling, orchestrator marker #2893,
+// NO LIMIT ON REUSING A REVIEWER (owner ruling, claim-first session identity #2893,
 // 2026-09-14). `already-reviewed` barred a provider from a pull request merely
 // because it had reviewed an earlier head. That is a reuse cap, not a safety
 // rule, and it is retired: it still PARSES so historical records stay readable,

@@ -1,6 +1,6 @@
 // Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
-import { sha256, canonicalJson } from '../../orchestrator-flow/evidence-bundle.mjs'
+import { sha256, canonicalJson } from '../../db-flow/evidence-bundle.mjs'
 import { LaneError } from './claims.mjs'
 
 export function parseSilenceRelease(commit){

@@ -42,22 +42,23 @@
 export const AUTHORIZATION_FIELD = 'authorization'
 
 /**
- * The fixed session identifier for the sole shared-db orchestrator.
+ * The fixed session identifier for the legacy coordinator identifier (retired).
  * Owner instruction, Albert Hazan, 2026-08-26.
  *
  * It is a CONSTANT, not a naming suggestion. A session display name must begin
  * with it so a human, and any tool that can only see session titles, can pick
- * the orchestrator out of a session list. It is a discovery HINT only — the
+ * the retired coordinator out of a session list. It is a discovery HINT only — the
  * open marker remains the sole authority. Titles are neither unique nor
  * enforced by anything, so never route on a name alone.
  */
 export const ORCHESTRATOR_IDENTIFIER = 'shared-db.orch'
 
 /** The fenced block that carries the contract, matching this repo's `db-claim` / `db-work-scope` convention. */
-export const ROUTING_BLOCK = 'orchestrator-routing'
+export const ROUTING_BLOCK = 'engine-routing'
+export const LEGACY_ROUTING_BLOCK = 'orchestrator-routing'
 
 /**
- * Engines that can hold the orchestrator, and the SHAPE each one's id takes.
+ * Engines that can hold the retired coordinator, and the SHAPE each one's id takes.
  *
  * ⚠️ "Routable" throughout this file means "shaped like an address a session
  * could be sent to", never "proven reachable". Nothing here can prove the
@@ -161,7 +162,7 @@ export const REQUIRED_FIELDS = [
  */
 export function parseRoutingBlock(body) {
   if (typeof body !== 'string') return null
-  const fence = new RegExp('```' + ROUTING_BLOCK + '\\s*\\n([\\s\\S]*?)```').exec(body)
+  const fence = (new RegExp('```' + ROUTING_BLOCK + '\\s*\\n([\\s\\S]*?)```').exec(body)) || (new RegExp('```' + LEGACY_ROUTING_BLOCK + '\\s*\\n([\\s\\S]*?)```').exec(body))
   if (!fence) return null
 
   const fields = {}
@@ -305,7 +306,7 @@ function freeze(fields, engine, routeId) {
      *
      * ⚠️ Validation here is SHAPE ONLY. Nothing in this repository can check
      * that the session exists, is running, belongs to the declared owner or
-     * machine, is the shared-db orchestrator, or can receive a message -- there
+     * machine, is the legacy coordinator (retired), or can receive a message -- there
      * is no session API to ask. A fabricated UUID with otherwise valid fields
      * resolves identically to a real one. Flagged by independent Codex GPT-5.6
      * review, 2026-08-26; the wording is exact rather than reassuring because

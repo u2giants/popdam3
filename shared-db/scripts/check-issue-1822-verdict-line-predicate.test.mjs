@@ -153,7 +153,7 @@ const REAL_REFUSAL_COMMENT = [
   "exactly this PR's head. It passed head-pinning cleanly.",
   '',
   'It was refused anyway, because it reviewed the wrong content. Its findings cited',
-  '`scripts/orchestrator-flow/reconcile.mjs:16`. That file has **zero lines** in this',
+  '`scripts/db-flow/reconcile.mjs:16`. That file has **zero lines** in this',
 ].join('\n')
 
 test('a public wrong-scope refusal comment does not lock the head it names', () => {

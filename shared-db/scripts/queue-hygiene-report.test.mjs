@@ -64,7 +64,7 @@ const KNOWN_READ_HOOKS = new Set([
   'verifyLiveAssertion', 'verifyGeneratedTypes', 'readArtifactJson', 'readArtifactFiles', 'reversionFiles',
   'localHead', 'localClean', 'localBranch', 'localWorktreeState', 'verifyArtifact',
   'currentMaxVersion', 'commandAvailable', 'reviewerDoctor', 'reviewerAdmissionOverrides',
-  'reviewerUsability', 'resolveOrchestratorEngine', 'orchestratorFlowAdapter', 'flowSnapshot',
+  'reviewerUsability', 'resolveReviewEngine', 'flowAdapter', 'flowSnapshot',
 ])
 
 function fixtureIo({ issues, claims = [], openPulls = [], branchPulls = {} }) {

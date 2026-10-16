@@ -51,9 +51,10 @@ object/version/source protection. See the current procedure in the full text.
      team's applied work. Land or coordinate the other branch instead. A migration left
      rehearsed-but-unmerged blocks everyone, so **open its PR the same session.**
    - Every open `db-work` issue carries one authoritative `db-work-scope` block. Only
-     `ready + structural + shared-db-orchestrator` (or `route: self-service-additive` for additive
-     work confined to `{crm,pim,dam,plm}` — merge-time-classifier-enforced, no orchestrator triage) can enter an author lane, and it must name
-     every exact object. Outside-sourced writes into curated `core.*` Master Data use
+     `ready + structural + claim-first` (or `route: self-service-additive` for additive
+     work confined to `{crm,pim,dam,plm}` — merge-time-classifier-enforced, no central triage) can enter an author lane, and it must name
+     every exact object. `route: shared-db-orchestrator` remains accepted only as a
+     legacy alias for old issues (#3874); it names no session. Outside-sourced writes into curated `core.*` Master Data use
      `curated-master-data` / `curated-master-data-governance` — §6.4 governance. It normally stays
      outside author lanes, but a fork that ships `supabase/migrations/*` must claim a lane before
      authoring so version reservation and exact-object collision locking remain enforced.
@@ -78,7 +79,7 @@ object/version/source protection. See the current procedure in the full text.
     GLM 5.3, Qwen 3.8 Max, Muse Spark 1.3 Contributor,
     Gemini 3.8 Flash High, DeepSeek V4.1 Flash, and StepFun Step 5 (Linux machines only), minus the authoring engine (automation still keys this on the marker; see #3874) — exactly
     `ACTIVE_REVIEWERS` in `scripts/manage-migration-author-lanes.mjs`.
-    **Preference (owner, 2026-09-27, non-orchestrator issue #3592):** the allocator rotates
+    **Preference (owner, 2026-09-27, issue #3592):** the allocator rotates
     among eligible non-Grok reviewers first; Grok was drawn only when that
     preferred pool could not take the exact review (also for slot 2 and replacements), and is
     QUARANTINED since 2026-10-13 (xAI account out of credit), so it is not drawn at all. Gemini
@@ -149,7 +150,7 @@ object/version/source protection. See the current procedure in the full text.
    (#1321): that lane cannot recover a POST-merge rehearsal** — it pins producer files to the
    authoring PR's merge commit, so a later main tip fails the pin, and the only way through is to
    supersede the migration with byte-identical SQL. Read the full text before relying on either.
-   ⚠️ **NARROWED, 2026-08-20 (orchestrator marker #1338): the lane DOES recover a post-merge
+   ⚠️ **NARROWED, 2026-08-20 (marker #1338): the lane DOES recover a post-merge
    rehearsal when the rehearsal ran AT the authoring merge commit.** Recovered cleanly that day for
    `20260820165926` (preview recovery run 32402833543, then production apply 32402996954) with
    `historical_preview_source_pr` + `historical_preview_original_run_map`. **The discriminator is

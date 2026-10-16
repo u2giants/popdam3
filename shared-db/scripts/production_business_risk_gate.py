@@ -2945,7 +2945,7 @@ def decide_business_risk(
 
 
 # ---------------------------------------------------------------------------
-# PRODUCTION WITHOUT A SHARED-PREVIEW APPLY (orchestrator marker #2758).
+# PRODUCTION WITHOUT A SHARED-PREVIEW APPLY (claim-first session #2758).
 #
 # OWNER REQUEST: a merged migration may go to production without a preview
 # rehearsal when the exact merged SQL already passed the ephemeral database CI

@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
 import { runGitHubCommand } from './lib/github-transport.mjs';
 import { resolveRepositoryIdentity } from './lib/repository-identity.mjs';
 
-// Issue #1868. The reaper refused to run AT ALL while any orchestrator marker was
+// Issue #1868. The reaper refused to run AT ALL while any claim-first session identity was
 // open, and a marker is open nearly all the time, so the reap never happened: the
 // worktree count went 31 -> 47 -> 75 -> 81 on this machine while the issue sat
 // open. The refusal was right about the hazard and wrong about the remedy. Its
@@ -292,7 +292,7 @@ export function main({
     );
   } catch (err) {
     markersReadable = false;
-    error(`::warning::could not read orchestrator markers: ${err.message}`);
+    error(`::warning::could not read claim-first session identities: ${err.message}`);
   }
   let claims = [];
   let claimsReadable = true;

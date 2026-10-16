@@ -263,6 +263,25 @@ export function projectReviewerOperationRouteSnapshot(data){
 }
 
 export function completeReviewerOperationRouteSnapshot(data,readRestFiles){
+  const row=data?.data?.repository?.pullRequest
+  const filesConn=row?.files
+  // A pull request over one GraphQL file page (first:100) is still routable:
+  // REST getPrFiles returns the complete inventory. project() refuses a
+  // partial page so a silent truncation can never hide a migration; complete()
+  // is the caller that owns the full read.
+  if(filesConn?.pageInfo?.hasNextPage===true){
+    if(typeof readRestFiles!=='function')throw new LaneError('reviewer operation routing snapshot is incomplete or paginated')
+    const restFiles=readRestFiles()
+    if(!Array.isArray(restFiles)||!restFiles.length)throw new LaneError('reviewer operation routing snapshot is incomplete or paginated')
+    if(restFiles.some((file)=>file?.status==='renamed'&&typeof file.previous_filename!=='string'))throw new LaneError('reviewer operation routing snapshot is incomplete: a renamed file prior filename is unreadable')
+    const linked=row.closingIssuesReferences
+    if(!Array.isArray(linked?.nodes)||linked.pageInfo?.hasNextPage!==false)throw new LaneError('reviewer operation routing snapshot is incomplete or paginated')
+    return {
+      pr:{state:String(row.state??'').toLowerCase(),merged_at:row.merged===true?row.mergedAt:null,head:{sha:row.headRefOid}},
+      files:restFiles.map(({filename,status,previous_filename})=>previous_filename===undefined?{filename,status}:{filename,status,previous_filename}),
+      linkedIssues:linked.nodes.map((item)=>({number:item?.number,state:String(item?.state??'').toLowerCase(),body:item?.body,createdAt:item?.createdAt})),
+    }
+  }
   let snapshot=projectReviewerOperationRouteSnapshot(data)
   // GraphQL has no prior filename. A rename needs the complete REST inventory
   // before either side of its path can be classified under the reviewer mutex.
@@ -304,7 +323,7 @@ export const MERGE_ANCESTRY_MEMO=new WeakMap()
 export function reviewEligibilityCause(request,issue,pr){
   const parts=[]
   const issueState=String(issue?.state??'unreadable'),prState=String(pr?.state??'unreadable')
-  if(issueState!=='open'&&prState==='open')parts.push(`work issue #${request.issue} is ${issueState} while PR #${request.pr} is still open -- a reviewer needs an open work issue, or a pull request already merged into main. Reopen issue #${request.issue}, or merge the pull request first. If #${request.issue} is an orchestrator marker rather than the work issue, re-run with the work issue number`)
+  if(issueState!=='open'&&prState==='open')parts.push(`work issue #${request.issue} is ${issueState} while PR #${request.pr} is still open -- a reviewer needs an open work issue, or a pull request already merged into main. Reopen issue #${request.issue}, or merge the pull request first. If #${request.issue} is a claim-first session identity rather than the work issue, re-run with the work issue number`)
   else if(issueState!=='open')parts.push(`work issue #${request.issue} is ${issueState} and PR #${request.pr} (${prState}) is not proven merged into main`)
   const head=String(pr?.head?.sha??'')
   if(!head)parts.push(`PR #${request.pr} head could not be read`)
@@ -322,7 +341,7 @@ export function reviewActiveLeaseCause(reviewer,activeSha,expected,io,activeRef=
     const cursor=parseReviewCursor(io.getCommit(activeSha))
     held=`the assignment for issue #${cursor.issue}, PR #${cursor.pr}, head ${cursor.headSha}`
   }catch{/* an unreadable lease commit still names the SHA above */}
-  return ` -- reviewer ${reviewer}'s active lease${activeRef?` (${activeRef})`:''} holds ${held}, but this verdict is for issue #${expected.issue}, PR #${expected.pr}, head ${expected.headSha}. Where the issue numbers differ you passed the wrong one: an orchestrator marker is not the work issue. Re-run against the issue the reviewer was actually assigned`
+  return ` -- reviewer ${reviewer}'s active lease${activeRef?` (${activeRef})`:''} holds ${held}, but this verdict is for issue #${expected.issue}, PR #${expected.pr}, head ${expected.headSha}. Where the issue numbers differ you passed the wrong one: a claim-first session identity is not the work issue. Re-run against the issue the reviewer was actually assigned`
 }
 
 export function reviewerQueueRef(request){return `${REVIEW_QUEUE_REF_PREFIX}/${request.issue}-${request.pr}-${request.slot}`}

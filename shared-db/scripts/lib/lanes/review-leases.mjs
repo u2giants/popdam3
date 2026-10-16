@@ -380,7 +380,7 @@ export function reviewerCapacityReportOperation(io,now){
 }
 
 // ISSUE #3027 STEP 7 -- read-only lease view for the reviewer start watcher
-// (scripts/orchestrator-flow/reviewer-start-watch.mjs). Every lease reports its exact
+// (scripts/db-flow/reviewer-start-watch.mjs). Every lease reports its exact
 // slot, draw time, whether a durable start marker exists after the draw, and the last
 // PR activity. Anything unreadable is reported as `unknown`, which the watcher never
 // reroutes. Leases younger than the start SLO are listed without further reads.

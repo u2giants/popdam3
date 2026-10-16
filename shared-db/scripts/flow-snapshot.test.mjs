@@ -5,8 +5,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { coordinationEvent, formatEventComment } from './db-coordination-events.mjs'
 import { expectedOperatorAssociation } from './lib/repository-identity.mjs'
-import { buildOrchestratorSnapshot, verifyOrchestratorSnapshot } from './orchestrator-flow/orchestrator-snapshot.mjs'
-import { claimTitleIssues, defaultIo, fileEventStore, gatherLiveInput, gh, main, outcomeEventsFromComments, readyRequestCandidates, runSnapshotCycle, stalledOutcomes, stalledRequests } from './orchestrator-snapshot.mjs'
+import { buildFlowSnapshot, verifyFlowSnapshot } from './db-flow/snapshot.mjs'
+import { claimTitleIssues, defaultIo, fileEventStore, gatherLiveInput, gh, main, outcomeEventsFromComments, readyRequestCandidates, runSnapshotCycle, stalledOutcomes, stalledRequests } from './flow-snapshot.mjs'
 
 const NOW = '2026-09-15T12:00:00.000Z'
 const minutesAgo = (m) => new Date(Date.parse(NOW) - m * 60000).toISOString()
@@ -34,7 +34,7 @@ function fakeIo({ comments = {}, claims = [[900, 'CLAIM: #800 thing'], [901, 'CL
 
 test('issue 3148 only a request the queue audit itself would admit alarms after 30 minutes', () => {
   const admission = 'service_class: standard-application\nchange_type: migration\napplication_return_to: u2giants/example-app\nlive_assertion: authenticated create-and-read succeeds\ngenerated_types: not-applicable\npriority: 5\n'
-  const scope = (status, extra = '', fields = admission) => '```db-work-scope\nstatus: ' + status + '\nwork_type: structural\nroute: shared-db-orchestrator\n' + fields + extra + 'writes:\n  - table core.a\n```'
+  const scope = (status, extra = '', fields = admission) => '```db-work-scope\nstatus: ' + status + '\nwork_type: structural\nroute: claim-first\n' + fields + extra + 'writes:\n  - table core.a\n```'
   const base = fakeIo()
   const issues = [
     { number: 950, body: scope('ready'), created_at: minutesAgo(31), labels: [{ name: 'db-work' }], comments: 0 },
@@ -45,7 +45,7 @@ test('issue 3148 only a request the queue audit itself would admit alarms after 
     { number: 955, body: scope('ready'), created_at: minutesAgo(30), labels: [], comments: 0 },
     { number: 956, body: scope('ready'), created_at: minutesAgo(600), labels: [{ name: 'db-claim' }], comments: 0 },
     { number: 957, body: scope('ready').replace('work_type: structural', 'work_type: repo-maintenance'), created_at: minutesAgo(600), labels: [], comments: 0 },
-    { number: 958, body: scope('ready').replace('route: shared-db-orchestrator', 'route: repo-maintenance'), created_at: minutesAgo(600), labels: [], comments: 0 },
+    { number: 958, body: scope('ready').replace('route: claim-first', 'route: repo-maintenance'), created_at: minutesAgo(600), labels: [], comments: 0 },
     { number: 959, body: scope('ready') + '\n' + scope('ready'), created_at: minutesAgo(600), labels: [], comments: 0 },
     { number: 960, body: scope('ready', 'depends_on: #9999\n'), created_at: minutesAgo(600), labels: [], comments: 0 },
     { number: 961, body: scope('ready', '', 'priority: 5\n'), created_at: minutesAgo(600), labels: [], comments: 0 },
@@ -119,8 +119,8 @@ test('successor reconstructs the exact active map from the live snapshot and ver
   assert.equal(successor.state.reviewer_leases.length, 1)
   assert.deepEqual(successor.state.eligible_queue, [{ issue: 700, labels: ['now'] }])
   assert.equal(successor.state.outcome_events.length, 1)
-  assert.deepEqual(verifyOrchestratorSnapshot(successor, { readCurrent: () => gatherLiveInput('o/r', io).input, now: NOW }).status, 'CURRENT')
-  assert.equal(buildOrchestratorSnapshot(gatherLiveInput('o/r', io).input).snapshot_id, successor.snapshot_id)
+  assert.deepEqual(verifyFlowSnapshot(successor, { readCurrent: () => gatherLiveInput('o/r', io).input, now: NOW }).status, 'CURRENT')
+  assert.equal(buildFlowSnapshot(gatherLiveInput('o/r', io).input).snapshot_id, successor.snapshot_id)
 })
 
 test('unchanged state produces zero output and no report; each transition wakes exactly once', () => {
@@ -128,7 +128,7 @@ test('unchanged state produces zero output and no report; each transition wakes 
   try {
     const comments = { 800: [ownerComment(event(800, 'dispatched', 100))] }
     const lines = []
-    const run = (now) => main(['--orchestrator-snapshot', '--state-dir', dir, '--now', now], { io: fakeIo({ comments }), stdout: (line) => lines.push(JSON.parse(line)), stderr: (line) => lines.push(line) })
+    const run = (now) => main(['--flow-snapshot', '--state-dir', dir, '--now', now], { io: fakeIo({ comments }), stdout: (line) => lines.push(JSON.parse(line)), stderr: (line) => lines.push(line) })
     assert.equal(run(NOW), 0)
     assert.equal(lines.length, 1)
     assert.deepEqual(lines[0].wakes.map((w) => w.wake), ['state_changed', 'zero_closures_4h'])
@@ -227,7 +227,7 @@ test('a corrupt last-report.json re-emits exactly once and is replaced atomicall
   const dir = mkdtempSync(path.join(os.tmpdir(), 'orch-corrupt-'))
   try {
     const lines = []
-    const run = () => main(['--orchestrator-snapshot', '--state-dir', dir, '--now', NOW], { io: fakeIo(), stdout: (line) => lines.push(line), stderr: (line) => lines.push(line) })
+    const run = () => main(['--flow-snapshot', '--state-dir', dir, '--now', NOW], { io: fakeIo(), stdout: (line) => lines.push(line), stderr: (line) => lines.push(line) })
     writeFileSync(path.join(dir, 'last-report.json'), '{not json')
     assert.equal(run(), 0)
     assert.equal(lines.length, 1)
@@ -247,8 +247,8 @@ test('refuses without the flag', () => {
 test('#3874 with the orchestrator retired the CLI still reports, with marker: null', () => {
   const out = []
   const io = { ...fakeIo(), resolveMarker: defaultIo.resolveMarker }
-  assert.equal(main(['--orchestrator-snapshot'], { io, stdout: (l) => out.push(l), stderr: () => {} }), 0)
+  assert.equal(main(['--flow-snapshot'], { io, stdout: (l) => out.push(l), stderr: () => {} }), 0)
   assert.equal(JSON.parse(out[0]).status, 'no-orchestrator')
   const errors = []
-  assert.equal(main(['--orchestrator-snapshot'], { io: { ...fakeIo(), resolveMarker: () => { throw new Error('gh failed') } }, stdout: () => {}, stderr: (l) => errors.push(l) }), 2, 'a real read failure still refuses')
+  assert.equal(main(['--flow-snapshot'], { io: { ...fakeIo(), resolveMarker: () => { throw new Error('gh failed') } }, stdout: () => {}, stderr: (l) => errors.push(l) }), 2, 'a real read failure still refuses')
 })

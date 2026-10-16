@@ -8,7 +8,7 @@
 // Why this file exists (#1816): the guarded-migration-merge workflow proved head
 // identity, base currency, object collisions and the author lease, but never once
 // asked whether the bytes being merged had been approved. The exact-head rule was
-// enforced by convention in the orchestrator's instructions and by the PREVIEW
+// enforced by convention in claim-first instructions and by the PREVIEW
 // gate -- which, under merge-first (AGENTS.md section 4 rule 2), only runs AFTER
 // the merge. So the sequence
 //
@@ -45,7 +45,7 @@
 // forgery, but that still does not bind the assigned provider to the commenter. The word
 // "independent" here describes the assignment PROCESS -- the rotation in
 // `manage-migration-author-lanes.mjs`, which picks the reviewer and refuses the
-// live orchestrator's own engine -- and is not a property this file verifies.
+// live session engine -- and is not a property this file verifies.
 // One deliberate limit remains: fenced or indented code containing a verdict line
 // counts.
 //
@@ -580,7 +580,7 @@ export function gatherApprovalInput(env = process.env, deps = { json, pages }) {
   return { pr, headSha, evidence, assignments, returns, verdicts, changedFiles, priorHeads, mergeAudit: null, mergedAtHead }
 }
 
-// A MERGE FROM MAIN DOES NOT VOID AN APPROVAL (orchestrator marker #2758, 2026-09-11).
+// A MERGE FROM MAIN DOES NOT VOID AN APPROVAL (claim-first session identity #2758, 2026-09-11).
 //
 // Every merge to main forced every other open pull request to merge main, and the
 // new head voided its APPROVE, so each needed a fresh draw and review after every

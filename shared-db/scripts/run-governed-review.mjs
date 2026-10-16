@@ -10,7 +10,7 @@ import { lineOpensWithVerdictWord, isVerdictFor } from './lib/review-verdict.mjs
 // Issue #2342: one shared transport owns the never-replay-a-write policy.
 import { runGitHubCommand, spawnGitHub } from './lib/github-transport.mjs'
 // Issue #2729 Step 7: one lifecycle source of truth decides retry versus reroute.
-import { reviewerStartDecision, NON_VERDICT_TERMINAL_REASONS } from './orchestrator-flow/start-reroute.mjs'
+import { reviewerStartDecision, NON_VERDICT_TERMINAL_REASONS } from './db-flow/start-reroute.mjs'
 // Issue #2492: size the reviewer's turn budget to the migration it must read.
 import { withTurnBudget, changedMigrationLines, turnBudgetDiagnostic } from './lib/reviewer-turn-budget.mjs'
 import { REVIEW_CALLER_VARIABLES, reviewCallerEnvironment } from './lib/reviewer-caller-env.mjs'

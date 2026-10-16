@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Reviewer start watcher (issue #3027, programme popcre/ai-devops#401 Step 7).
 //
-//   node scripts/orchestrator-flow/reviewer-start-watch.mjs [--apply --drawn-since <ISO>] [--repo owner/name]
+//   node scripts/db-flow/reviewer-start-watch.mjs [--apply --drawn-since <ISO>] [--repo owner/name]
 //
 // Every reviewer lease is read through the lane manager (--reviewer-start-watch-leases).
 // run-governed-review.mjs writes a durable refs/db-review-started marker before it launches a

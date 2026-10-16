@@ -268,7 +268,7 @@ test('legacy relinquishment metadata freezes every claim mutator, not just resum
   assert.equal(parseAuthorLease(legacyBody(EXPIRED),NOW).relinquishmentMetadataLegacy,true)
   // The work issue carries a real ready structural scope so each mutator reaches
   // its lease check instead of stopping on an unrelated scope refusal.
-  const workScope=['```db-work-scope','status: ready','work_type: structural','route: shared-db-orchestrator','priority: 1','writes:','  - table test.t_77','```'].join('\n')
+  const workScope=['```db-work-scope','status: ready','work_type: structural','route: claim-first','priority: 1','writes:','  - table test.t_77','```'].join('\n')
   const legacyIo=(expiresAt)=>{const io=memoryIo();io.issues.get(77).body=legacyBody(expiresAt);io.issues.get(42).body=workScope;return io}
   const identity={owner:'owner-77',branch:'branch-77',worktree:'C:/work/77'}
   const mutators=[

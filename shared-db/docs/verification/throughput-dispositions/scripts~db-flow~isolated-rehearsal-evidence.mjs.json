@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/db-flow/isolated-rehearsal-evidence.mjs",
+  "sites": [
+    {
+      "site": "scripts/db-flow/isolated-rehearsal-evidence.mjs:26",
+      "semantic_key": "scripts/db-flow/isolated-rehearsal-evidence.mjs:22b6b1196272d50403eed880b3073b27b8c99e8c7e136a1e56dec1a672eb2cbd:context-1136dd5e290c01b1be8ab72410438dff1b30773663e42047501ae50468c3d380",
+      "line_sha256": "22b6b1196272d50403eed880b3073b27b8c99e8c7e136a1e56dec1a672eb2cbd",
+      "disposition": "excluded",
+      "reason": "Local input-validation diagnostic: it refuses an isolated-rehearsal manifest with an empty or duplicate contract-test list. It makes no claim about any database, migration or catalog object being absent."
+    },
+    {
+      "site": "scripts/db-flow/isolated-rehearsal-evidence.mjs:22",
+      "semantic_key": "scripts/db-flow/isolated-rehearsal-evidence.mjs:241a413843accafbbc8605d3cd47ee9be58b88b1e6a7f345a60d848586e1ee3d:context-a1e3d7558a50ab272a977ddee74cd0af772345914514d3fb85a9d62f2eabb4b2",
+      "line_sha256": "241a413843accafbbc8605d3cd47ee9be58b88b1e6a7f345a60d848586e1ee3d",
+      "disposition": "excluded",
+      "reason": "Local input-validation diagnostic: it refuses an in-process isolated-rehearsal manifest whose identity lacks one of five required hex digests. It makes no claim about any database, migration or catalog object being absent."
+    }
+  ]
+}

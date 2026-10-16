@@ -108,7 +108,7 @@ export function validateEvent(event) {
     // routine `dispatched` or `refused` comment could retire arbitrary earlier
     // events, so any author who can post one event could suppress the history
     // that contradicts it. `recovery_completed` is the single governed repair
-    // verb (OUTCOME_REPAIR_EVENT_TYPE in orchestrator-flow/outcome-lifecycle.mjs,
+    // verb (OUTCOME_REPAIR_EVENT_TYPE in db-flow/outcome-lifecycle.mjs,
     // named literally here to keep this module free of a circular import).
     if (event.event_type !== 'recovery_completed') throw new EventError('only a recovery_completed event may supersede earlier events')
     if (!Array.isArray(event.supersedes) || !event.supersedes.length) throw new EventError('event supersedes must be a non-empty array of event_ids when present')

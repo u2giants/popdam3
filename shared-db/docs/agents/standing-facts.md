@@ -156,8 +156,8 @@ have already happened in this repo, more than once.
 
     (Historical:) This ruling narrowed the boundary rather than restating it. Until 2026-08-21 all three exited
     by `fork`, which reads as "the orchestrator hands this out", and on that basis an orchestrator
-    session accepted a repository-maintenance planning task. Do not route such work back to the
-    orchestrator, and do not read a `fork` in an old document as current.
+    session accepted a repository-maintenance planning task. Do not route such work into the
+    structural lane, and do not read a `fork` in an old document as current.
 
     **It did not touch curated Master Data.** `curated-master-data` still exits by `fork` under
     §6.4 and is still governed inside this repository. Extending the ruling to it needs a separate

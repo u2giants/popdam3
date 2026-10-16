@@ -1,9 +1,9 @@
 // Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { isTrustedOperatorComment } from '../../lib/repository-identity.mjs'
-import { AdmissionError, STRUCTURAL_ROUTES, evaluateAdmission, parseImpactBlock, inspectPrStructuralChange, inspectPrCuratedDataChange, structuralWritesMatch, NON_STRUCTURAL_CHANGE_TYPES } from '../../orchestrator-flow/admission.mjs'
+import { AdmissionError, STRUCTURAL_ROUTES, evaluateAdmission, parseImpactBlock, inspectPrStructuralChange, inspectPrCuratedDataChange, structuralWritesMatch, NON_STRUCTURAL_CHANGE_TYPES } from '../../db-flow/admission.mjs'
 import { findCompletionRecord } from '../../lib/work-dependencies.mjs'
-import { outcomeHistory, OutcomeError, OUTCOME_STATES, advanceOutcome } from '../../orchestrator-flow/outcome-lifecycle.mjs'
+import { outcomeHistory, OutcomeError, OUTCOME_STATES, advanceOutcome } from '../../db-flow/outcome-lifecycle.mjs'
 import { coordinationEvent, formatEventComment } from '../../db-coordination-events.mjs'
 import { isEvidencePath, resolveEvidencePair } from '../../lib/agent-evidence-paths.mjs'
 import { validateGenerationLineage, refuseCommittedMutation } from '../../lib/evidence-generation-lineage.mjs'

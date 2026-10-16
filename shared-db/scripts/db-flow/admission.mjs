@@ -12,15 +12,15 @@ export class AdmissionError extends Error {
 
 export const SERVICE_CLASSES = Object.freeze(['urgent-application', 'standard-application', 'maintenance'])
 // The two ROUTES a structural change may be admitted under (issue #3199 Phase
-// B2). `shared-db-orchestrator` is the full triage path; `self-service-additive`
-// admits the same structural work WITHOUT orchestrator triage when the merge-time
+// B2). `claim-first` is the full triage path; `self-service-additive`
+// admits the same structural work WITHOUT coordinator triage when the merge-time
 // boundary classifier (scripts/check-self-service-additive-lane.mjs) holds —
 // additive objects confined to the app-owned {crm,pim,dam,plm} schemas. Every other
 // gate (claim, object locks, version reservation, reviewers, serial lanes,
 // guarded merge) is unchanged for both routes.
-// `claim-first` is the canonical structural route since the orchestrator role was
+// `claim-first` is the canonical structural route since the coordinator role was
 // retired (owner ruling 2026-10-02, AGENTS.md §0.0-D, issue #3874).
-// `shared-db-orchestrator` stays accepted as a legacy alias for existing issues.
+// `shared-db-orchestrator` stays accepted as a legacy alias for existing issues (retired role name kept only for parse compatibility).
 export const STRUCTURAL_ROUTES = Object.freeze(['claim-first', 'shared-db-orchestrator', 'self-service-additive'])
 export const STRUCTURAL_CHANGE_TYPES = Object.freeze([
   'schema', 'table', 'column', 'type', 'view', 'function', 'trigger',
@@ -187,7 +187,7 @@ function evaluateCuratedAdmission(issue, scope, impact) {
 
 // The curated counterpart of inspectPrStructuralChange. Every migration must be
 // newly added and readable, the shared structural detectors must find nothing,
-// and the curated allowlist (scripts/orchestrator-flow/curated-admission.mjs)
+// and the curated allowlist (scripts/db-flow/curated-admission.mjs)
 // must prove the SQL is only bounded row writes into curated Master Data.
 // `issue`/`scope` give refusals a durable curated coordination event.
 export function inspectPrCuratedDataChange(prFiles = [], issue = null, scope = null) {

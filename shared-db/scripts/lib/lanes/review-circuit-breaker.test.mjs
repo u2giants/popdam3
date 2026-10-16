@@ -648,7 +648,7 @@ function namedImportFixture(t,{variant='',repair=false,revert=false}={}){
  const dir=mkdtempSync(path.join(tmpdir(),'review-budget-import-real-'));t.after(()=>rmSync(dir,{recursive:true,force:true}))
  const git=args=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']})
  git(['init','-q','-b','main']);git(['config','user.name','Fixture']);git(['config','user.email','fixture@example.test']);git(['config','core.autocrlf','false']);git(['config','core.fileMode','false'])
- const file='scripts/orchestrator-flow/admission-outcome.test.mjs';mkdirSync(path.join(dir,'scripts/orchestrator-flow'),{recursive:true})
+ const file='scripts/db-flow/admission-outcome.test.mjs';mkdirSync(path.join(dir,'scripts/db-flow'),{recursive:true})
  const bindings='evaluateAdmission, parseImpactBlock, STRUCTURAL_CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, assertPrCarriesStructuralChange, inspectPrStructuralChange'
  const line=extra=>`import { ${bindings}${extra} } from './admission.mjs'\n`
  const body='\n// stable protected body\n'

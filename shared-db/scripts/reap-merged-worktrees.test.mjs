@@ -110,7 +110,7 @@ test('main aborts on merged read failure and refuses apply when live claims are 
     exit: (code) => bothExits.push(code),
   });
   assert.deepEqual(bothExits, [1]);
-  assert.match(bothReadFailures.join('\n'), /could not read orchestrator markers/);
+  assert.match(bothReadFailures.join('\n'), /could not read claim-first session identities/);
   assert.match(bothReadFailures.join('\n'), /could not read open database claims/);
 });
 
@@ -172,7 +172,7 @@ test("dirtiness outranks every other reason in the message", () => {
 
 // --- the live-agent guard (issue #1868) ------------------------------------
 //
-// The old guard refused the WHOLE RUN whenever an orchestrator marker was open,
+// The old guard refused the WHOLE RUN whenever a claim-first session identity was open,
 // so the reap never ran at all and the worktree count climbed from the 31 the
 // issue reported to 81. These tests hold the replacement to a higher bar than
 // the thing it replaces: a held worktree must survive, an unmeasurable one must

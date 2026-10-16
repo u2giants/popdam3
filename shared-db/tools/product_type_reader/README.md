@@ -50,7 +50,7 @@ Albert's Phase A ruling: descriptions explicitly mixing different products are
 unreadable, with **mixed products** recorded as the private review reason. A single
 constructed product with accessories is not automatically a mixed assortment.
 Database population remains Phase B and requires Albert's acceptance on #3024
-(non-orchestrator work).
+(non-coordinator work).
 
 Strict mode also requires `--live-recheck FILE`: a public aggregate JSON
 (`checked_at` with timezone, `sha256`, `source_row_count`, `distinct_descriptions`,

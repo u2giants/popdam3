@@ -94,7 +94,7 @@ const MIRROR = JSON.parse(readFileSync(new URL('../docs/verification/main-requir
 // dated readback artifact below (16 contexts, strict false), so nothing is pending.
 const KNOWN_LIVE_ADDITIONS = []
 // Contexts still present in the dated mirror but no longer live-required and no
-// longer emitted: the orchestrator marker guard was retired with the role (#3874);
+// longer emitted: the Orchestrator marker guard was retired with the role (#3874);
 // live branch protection already omitted it (made advisory 2026-09-28).
 const RETIRED_MIRROR_CONTEXTS = new Set(['Orchestrator marker guard', 'Agent work contract'])
 

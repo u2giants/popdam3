@@ -1,8 +1,8 @@
 // Claim-first session authority (issue #3874).
 //
-// The orchestrator role was retired by owner ruling (Albert Hazan, 2026-10-02:
+// The coordinator role was retired by owner ruling (Albert Hazan, 2026-10-02:
 // "there is no longer an orchestrator"; AGENTS.md §0.0-D). Paths that used to
-// require "a matching live sole-orchestrator marker" now require a declared,
+// require "a matching live claim-first session identity" now require a declared,
 // well-formed session identity instead, and -- when the operation acts on the
 // session's OWN claim (preview preparation with --claim-number) -- that the
 // claim's lease owner IS that session.

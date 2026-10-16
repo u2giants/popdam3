@@ -43,7 +43,7 @@ const CANDIDATE_DIRS = process.env.AI_DEVOPS_DIR ? [process.env.AI_DEVOPS_DIR] :
 ].filter(Boolean);
 
 const SKILLS = ['shared-db-orchestrator', 'shared-db-change', 'shared-db-handover'];
-const ORCHESTRATOR_REQUIREMENTS = [
+const CLAIM_FIRST_REQUIREMENTS = [
   // CAP-AGNOSTIC ON PURPOSE. The rule is that the skill must STATE an author cap
   // and point at the enforced constant -- not that the cap is any particular
   // number. Hardcoding "three" here made a legitimate owner-approved raise to
@@ -98,13 +98,13 @@ const CONTRADICTIONS = [
     why: 'COORDINATOR_INTAKE.md is a 37-line pointer. Work goes in GitHub issues, and a required check fails any PR that regrows the file.',
   },
   {
-    id: 'retired-orchestrator-routing',
-    // The orchestrator role was retired (owner ruling 2026-10-02, AGENTS.md §0.0-D,
+    id: 'retired-coordinator-routing',
+    // The coordinator role was retired (owner ruling 2026-10-02, AGENTS.md §0.0-D,
     // issue #3874). A skill that still tells a session to stop because it is not the
-    // orchestrator, or to resolve the orchestrator marker before routing, is drift.
+    // coordinator, or to resolve the claim-first session identity before routing, is drift.
     pattern: /not started as the orchestrator|check-orchestrator-marker\.mjs\s+--resolve|--label\s+coordinator-marker/i,
     agents: 'AGENTS.md §0.0-D — there is no orchestrator; structural work is claim-first',
-    why: 'Sessions following orchestrator routing stop and wait for a role that no longer exists, so structural work never starts.',
+    why: 'Sessions following retired routing stop and wait for a role that no longer exists, so structural work never starts.',
   },
   {
     id: 'marker-query-without-repo',
@@ -113,7 +113,7 @@ const CONTRADICTIONS = [
     // purpose: these commands are written on one line, and letting it span newlines would
     // match a --repo belonging to a DIFFERENT command further down.
     pattern: /gh issue list(?![^\n]*--repo)[^\n]*--label\s+(orchestrator-marker|db-claim|db-work)/,
-    agents: 'AGENTS.md §2 — coordination issues (claims, db-work, and the still-live orchestrator-marker label used by tooling) live in popcre/shared-db specifically',
+    agents: 'AGENTS.md §2 — coordination issues (claims, db-work, and the retired coordinator-marker label used by tooling) live in popcre/shared-db specifically',
     why: 'These skills load into sessions working in OTHER repositories. Without --repo, gh queries whatever repo you are standing in, EXITS 0, and returns zero claims — indistinguishable from a clear board, so a session can take objects another session already claimed. Found 2026-08-11 by an independent Codex review (#530).',
   },
   {
@@ -191,7 +191,7 @@ async function main() {
       );
     }
     if (skill === 'shared-db-orchestrator') {
-      for (const [id, pattern] of ORCHESTRATOR_REQUIREMENTS) {
+      for (const [id, pattern] of CLAIM_FIRST_REQUIREMENTS) {
         if (!pattern.test(text)) problems.push(`${skill}/SKILL.md [missing-${id}]: required safety rule is absent.`);
       }
     }

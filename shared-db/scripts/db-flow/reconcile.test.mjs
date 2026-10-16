@@ -13,7 +13,7 @@ test('no matching marker is report only',()=>{const io=fake();io.resolveMarker=(
 test('matching marker performs guarded transitions rather than only describing them',()=>{const io=fake(),called=[];io.relinquishCapacity=(row)=>called.push(['relinquish',row.issue]);io.resumeCapacity=(row)=>called.push(['resume',row.issue]);io.persistReady=(row)=>called.push(['ready',row.issue]);const result=reconcileFlow({issues:[{issue:1,capacity_state:'active',blocker:{durable:true}},{issue:2,capacity_state:'relinquished',blocker:{resolved:true}},{issue:3,preview_edge_satisfied:true}]},io);assert.equal(result.status,'RECONCILED');assert.deepEqual(called,[['relinquish',1],['resume',2],['ready',3]])})
 test('unreadable live preview evidence is explicit and fails closed',()=>{const io=fake(),result=reconcileFlow({issues:[{issue:7,preview_error:'required CI unreadable'}]},io);assert.equal(result.status,'UNVERIFIABLE');assert.equal(result.actions[0].reason,'required CI unreadable')})
 test('preview preparation rechecks session authority inside the mutex before writing',()=>{const io=fake();let writes=0;io.withMutex=(fn)=>{io.resolveMarker=()=>({live:true,task:'successor',calling_task:'displaced'});return fn()};io.appendEvent=()=>{writes++};io.createRef=()=>{writes++;return true};assert.throws(()=>preparePreviewDispatch(7,io),/claim-first session authority is required/);assert.equal(writes,0)})
-test('manager passes admission into the preview operation without taking a second mutex',()=>{assert.equal(typeof githubIo.orchestratorFlowAdapter,'function');const adapter=fake();adapter.state.ready=[{record:readyRecord(base)}];let mutexCalls=0,outerMutexCalls=0;adapter.withMutex=(fn)=>{mutexCalls++;return fn()};const refs=new Map(),io={enforceAdmission:true,orchestratorFlowAdapter:(_claim,admission)=>{assert.equal(Number(admission.admitIssue),7);return adapter},makeOwnerCommit:()=> 'owner',readRef:(ref)=>refs.get(ref)??null,createRef:(ref,sha)=>{outerMutexCalls++;refs.set(ref,sha);return true},deleteRef:(ref)=>refs.delete(ref)};assert.equal(managerMain(['--prepare-preview-dispatch','7','--admit-issue','7','--pr','8'],new Date(),io),0);assert.equal(mutexCalls,1);assert.equal(outerMutexCalls,0)})
+test('manager passes admission into the preview operation without taking a second mutex',()=>{assert.equal(typeof githubIo.flowAdapter,'function');const adapter=fake();adapter.state.ready=[{record:readyRecord(base)}];let mutexCalls=0,outerMutexCalls=0;adapter.withMutex=(fn)=>{mutexCalls++;return fn()};const refs=new Map(),io={enforceAdmission:true,flowAdapter:(_claim,admission)=>{assert.equal(Number(admission.admitIssue),7);return adapter},makeOwnerCommit:()=> 'owner',readRef:(ref)=>refs.get(ref)??null,createRef:(ref,sha)=>{outerMutexCalls++;refs.set(ref,sha);return true},deleteRef:(ref)=>refs.delete(ref)};assert.equal(managerMain(['--prepare-preview-dispatch','7','--admit-issue','7','--pr','8'],new Date(),io),0);assert.equal(mutexCalls,1);assert.equal(outerMutexCalls,0)})
 test('every historical rebind manifest is complete and dispatchable',()=>{
   const manifest={target:'preview',preview_allowlist:'20260828232207',claim_pr:'1809',claim_head_sha:h,commit_sha:h,historical_preview_source_pr:'1809',historical_preview_original_run_map:'20260828232207:33308168016'}
   const input={...base,route:'historical_rebind',route_context:h,manifest}
@@ -202,7 +202,7 @@ test('the suggested worktree states are the states the command actually accepts'
 
 test('reconcile exit codes are deterministic per domain',()=>{
   const adapter={resolveMarker:()=>null}
-  const run=(issues)=>managerMain(['--reconcile-flow'],new Date(),{flowSnapshot:()=>({issues}),orchestratorFlowAdapter:()=>adapter})
+  const run=(issues)=>managerMain(['--reconcile-flow'],new Date(),{flowSnapshot:()=>({issues}),flowAdapter:()=>adapter})
   assert.equal(run([{issue:1,preview_edge_satisfied:true}]),0)
   assert.equal(run([{issue:1,preview_error:'unreadable'}]),2,'a preview-domain failure alone is exit 2')
   assert.equal(run([{issue:1,capacity_error:'unreadable'}]),2,'a capacity-domain failure alone is exit 2')
@@ -243,7 +243,7 @@ test('expiry and unreadability are different exit codes, and neither is clean',(
   // ignore that number. Expiry needs a decision; an unreadable state means the
   // instrument is broken and must fail closed, so they are 2 and 3, never 0.
   const adapter={resolveMarker:()=>({live:true,task:'t',calling_task:'t'})}
-  const run=(issues)=>managerMain(['--abandonment-audit'],new Date(),{flowSnapshot:()=>({issues}),orchestratorFlowAdapter:()=>adapter})
+  const run=(issues)=>managerMain(['--abandonment-audit'],new Date(),{flowSnapshot:()=>({issues}),flowAdapter:()=>adapter})
   assert.equal(run([{issue:1,preview_edge_satisfied:true}]),0)
   assert.equal(run([expiredRow()]),2,'a non-empty expired claim must be visible, not silent')
   assert.equal(run([{issue:1,capacity_error:'unreadable'}]),3,'an unreadable capacity row must be distinguishable from expiry')
@@ -256,7 +256,7 @@ test('scheduled abandonment audit requests capacity facts without preview reads'
   let options=null
   const io={
     flowSnapshot:(_now,requested)=>{options=requested;return {issues:[expiredRow({preview_error:'historical preview evidence is unreadable'})]}},
-    orchestratorFlowAdapter:()=>({resolveMarker:()=>null}),
+    flowAdapter:()=>({resolveMarker:()=>null}),
   }
   assert.equal(managerMain(['--abandonment-audit'],new Date(),io),2)
   assert.deepEqual(options,{capacityOnly:true})
@@ -287,7 +287,7 @@ test('the scheduled audit reports the claim and queued-behind count an operator 
   const capture=(issues)=>{
     const lines=[],write=console.log
     console.log=(text)=>lines.push(text)
-    try{managerMain(['--abandonment-audit'],new Date(),{flowSnapshot:()=>({issues}),orchestratorFlowAdapter:()=>adapter})}
+    try{managerMain(['--abandonment-audit'],new Date(),{flowSnapshot:()=>({issues}),flowAdapter:()=>adapter})}
     finally{console.log=write}
     return JSON.parse(lines.join('\n'))
   }
@@ -323,7 +323,7 @@ function laneIo({auditWorkType='repo-maintenance',auditOverrides={},pulls=[{numb
     updateIssue:(number,{body:newBody})=>{issues.get(Number(number)).body=newBody},
     localClean:()=>true,verifyArtifact:()=>null,prSources:()=>[],
     branchPulls:()=>pulls,
-    orchestratorFlowAdapter:()=>({resolveMarker:()=>marker}),
+    flowAdapter:()=>({resolveMarker:()=>marker}),
     commentIssue:(number,comment)=>comments.push({number,body:comment})}
 }
 const lease77={owner:'gone-agent',branch:'branch-77'}
@@ -339,7 +339,7 @@ test('the guarded command revalidates the whole abandonment tuple before it writ
     'a reclassified audit issue':{auditWorkType:'documentation'},
     'an audit naming a different claim':{auditOverrides:{claim:'#99'}},
     'an audit naming a different owner':{auditOverrides:{owner:'somebody-else'}},
-    'no live orchestrator marker':{marker:{live:false,task:'t',calling_task:'t'}},
+    'no live claim-first session identity':{marker:{live:false,task:'t',calling_task:'t'}},
     'a displaced marker':{marker:{live:true,task:'successor',calling_task:'displaced'}},
   }
   for(const [name,override] of Object.entries(refusals))

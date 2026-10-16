@@ -2,7 +2,7 @@
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { normalizeObject } from '../../check-dispatch-collision.mjs'
 import { coordinationEvent, formatEventComment } from '../../db-coordination-events.mjs'
-import { STRUCTURAL_ROUTES } from '../../orchestrator-flow/admission.mjs'
+import { STRUCTURAL_ROUTES } from '../../db-flow/admission.mjs'
 import { validateCompletionRecord, DependencyError, findCompletionRecord, COMPLETION_FENCE } from '../../lib/work-dependencies.mjs'
 import { LaneError, parseAuthorLease } from './claims.mjs'
 import { COORDINATION_LABELS, QUEUE_STATUSES, parseQueueScope } from './queue-routing.mjs'

@@ -25,7 +25,7 @@ import { contractHash, reconcileReportWithContract, validateContract } from './a
 import { auditTimeline } from './db-coordination-events.mjs'
 
 const NOW = new Date('2026-08-23T12:00:00Z')
-const scope = (body) => ['```db-work-scope', 'status: ready', 'work_type: structural', 'route: shared-db-orchestrator', 'service_class: standard-application', 'change_type: migration', 'application_return_to: u2giants/example-app', 'live_assertion: authenticated create-and-read succeeds', 'generated_types: not-applicable', 'priority: 5', 'depends_on:', body, '```'].join('\n')
+const scope = (body) => ['```db-work-scope', 'status: ready', 'work_type: structural', 'route: claim-first', 'service_class: standard-application', 'change_type: migration', 'application_return_to: u2giants/example-app', 'live_assertion: authenticated create-and-read succeeds', 'generated_types: not-applicable', 'priority: 5', 'depends_on:', body, '```'].join('\n')
 
 test('abandoned absent work frees only capacity and cannot resume without recovery',()=>{
   const version='20260908123232',claimNumber=2574,refs=new Map([[`refs/db-claims/${version}`,'reservation']]),issues=new Map()
@@ -186,8 +186,8 @@ for (const row of DEPENDENCY_SCENARIOS) {
 
 test('dependency: a cycle can never start', () => {
   const cyclic = buildDynamicQueues([
-    { number: 20, title: 'a', body: ['```db-work-scope', 'status: ready', 'work_type: structural', 'route: shared-db-orchestrator', 'priority: 5', 'depends_on: #21', 'writes:', '  - table core.a', '```'].join('\n') },
-    { number: 21, title: 'b', body: ['```db-work-scope', 'status: ready', 'work_type: structural', 'route: shared-db-orchestrator', 'priority: 5', 'depends_on: #20', 'writes:', '  - table core.b', '```'].join('\n') },
+    { number: 20, title: 'a', body: ['```db-work-scope', 'status: ready', 'work_type: structural', 'route: claim-first', 'priority: 5', 'depends_on: #21', 'writes:', '  - table core.a', '```'].join('\n') },
+    { number: 21, title: 'b', body: ['```db-work-scope', 'status: ready', 'work_type: structural', 'route: claim-first', 'priority: 5', 'depends_on: #20', 'writes:', '  - table core.b', '```'].join('\n') },
   ], [], NOW, [20, 21], {})
   assert.equal(cyclic.dependencyCycles.length, 1, 'neither task is startable, and no open/closed test can see that')
   assert.equal(cyclic.fullyAudited, false)
@@ -196,7 +196,7 @@ test('dependency: a cycle can never start', () => {
 // --- CONTRACT SCENARIOS ----------------------------------------------------
 
 const baseContract = validateContract({
-  schema_version: 1, work_issue: 42, work_type: 'structural', route: 'shared-db-orchestrator',
+  schema_version: 1, work_issue: 42, work_type: 'structural', route: 'claim-first',
   goal: 'add one table', base_sha: 'abc1234', dispatcher: 'orchestrator', worker: 'codex',
   branch: 'codex/42', worktree: '.claude/worktrees/42',
   allowed_paths: ['supabase/migrations/**'], file_writes: ['supabase/migrations/20260823120000_a.sql'],
@@ -279,7 +279,7 @@ for (const row of CONTRACT_SCENARIOS) {
 const at = (m) => new Date(Date.UTC(2026, 7, 23, 12, m)).toISOString()
 const ev = (type, minute, over = {}) => ({
   schema_version: 1, event_id: `${type}-${minute}`, event_type: type, timestamp: at(minute),
-  work_issue: 42, actor: 'orchestrator', result: 'succeeded', ...over,
+  work_issue: 42, actor: 'claim-first', result: 'succeeded', ...over,
 })
 
 const TIMELINE_SCENARIOS = [

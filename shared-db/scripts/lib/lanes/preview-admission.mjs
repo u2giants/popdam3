@@ -1,15 +1,15 @@
 // Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
-import { parseAbandonmentAudit, MODE_SEQUENCE, readyRecord, terminalizeReady } from '../../orchestrator-flow/reconcile.mjs'
+import { parseAbandonmentAudit, MODE_SEQUENCE, readyRecord, terminalizeReady } from '../../db-flow/reconcile.mjs'
 import { execFileSync } from 'node:child_process'
-import { sha256, canonicalJson, buildEvidenceBundle } from '../../orchestrator-flow/evidence-bundle.mjs'
-import { bindSenderPreviewClassification, validatePreviewClassification, databasePreviewRequiredFromEvidenceBundle, selectPreviewRoute } from '../../orchestrator-flow/select-preview-route.mjs'
+import { sha256, canonicalJson, buildEvidenceBundle } from '../../db-flow/evidence-bundle.mjs'
+import { bindSenderPreviewClassification, validatePreviewClassification, databasePreviewRequiredFromEvidenceBundle, selectPreviewRoute } from '../../db-flow/select-preview-route.mjs'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { inspectPrStructuralChange, inspectPrCuratedDataChange, structuralWritesCovered } from '../../orchestrator-flow/admission.mjs'
+import { inspectPrStructuralChange, inspectPrCuratedDataChange, structuralWritesCovered } from '../../db-flow/admission.mjs'
 import { LaneError, parseAuthorLease } from './claims.mjs'
 import { parseQueueScope } from './queue-routing.mjs'
-import { CURATED_LEDGER_TABLES } from '../../orchestrator-flow/curated-admission.mjs'
+import { CURATED_LEDGER_TABLES } from '../../db-flow/curated-admission.mjs'
 import { REPO } from './constants.mjs'
 import { claimTitleIssues, claimTitleWorkIssue, claimWorkIssue } from './claim-maintenance.mjs'
 import { githubIo, main, validateOriginalPreviewApplyEvidence } from '../../manage-migration-author-lanes.mjs'
@@ -61,7 +61,7 @@ export function flowCapacityFacts(claim,issue,now,io,queuedBehindFor=()=>null){
 
 export function livePreviewLedger({workflowPreviewRef}={}){
   const ledgerOptions=workflowPreviewRef===undefined?'':'{readRepoVariable:(name)=>readRepoVariable(name,{workflowPreviewRef:process.env.AUDIT_WORKFLOW_PREVIEW_REF})}'
-  const code=`import {readPreviewLedger,readRepoVariable} from './scripts/orchestrator-flow/read-preview-ledger.mjs';try{console.log(JSON.stringify(await readPreviewLedger(${ledgerOptions})))}catch(e){console.error(e.message);process.exit(2)}`
+  const code=`import {readPreviewLedger,readRepoVariable} from './scripts/db-flow/read-preview-ledger.mjs';try{console.log(JSON.stringify(await readPreviewLedger(${ledgerOptions})))}catch(e){console.error(e.message);process.exit(2)}`
   const env=workflowPreviewRef===undefined?process.env:{...process.env,AUDIT_WORKFLOW_PREVIEW_REF:String(workflowPreviewRef)}
   try{return JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',code],{encoding:'utf8',stdio:['ignore','pipe','pipe'],env}))}catch(error){throw new LaneError(`fresh preview ledger is unavailable (${String(error.stderr??error.message).trim()})`)}
 }
@@ -207,8 +207,8 @@ export function deriveLivePreviewCandidate(issue,io,{claimNumber=null}={}){
 
 export function terminalizeHistoricalPreviewReady({readyId,issue,runId,artifactId,artifactDigest,manifestDigest},io=githubIo){
   if(!/^[0-9a-f]{64}$/i.test(String(readyId??''))||!/^\d+$/.test(String(issue??''))||!/^\d+$/.test(String(runId??''))||!/^\d+$/.test(String(artifactId??''))||!/^sha256:[0-9a-f]{64}$/i.test(String(artifactDigest??''))||!/^[0-9a-f]{64}$/i.test(String(manifestDigest??'')))throw new LaneError('historical preview terminalization requires exact ready id, issue, run id, artifact id, artifact digest, and manifest digest')
-  if(typeof io.orchestratorFlowAdapter!=='function'||typeof io.previewApplyRun!=='function')throw new LaneError('historical preview terminalization runtime adapter is unavailable')
-  const flow=io.orchestratorFlowAdapter(),marker=flow.resolveMarker?.()
+  if(typeof io.flowAdapter!=='function'||typeof io.previewApplyRun!=='function')throw new LaneError('historical preview terminalization runtime adapter is unavailable')
+  const flow=io.flowAdapter(),marker=flow.resolveMarker?.()
   if(!marker?.live||marker.calling_task!==marker.task)throw new LaneError(sessionAuthorityRefusal(marker))
   const readyRef=`refs/db-preview-ready/${readyId}`,outcomeRef=`refs/db-preview-ready-outcomes/${readyId}`,stored=flow.readRef(readyRef),record=stored?.record
   let normalized;try{normalized=readyRecord(record??{})}catch{throw new LaneError('live historical preview-ready record does not exactly match the requested immutable identity')}

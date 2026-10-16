@@ -4166,7 +4166,7 @@ class ForeignTargetScopeTest(unittest.TestCase):
 # the repository's canonical workflow-policy test, rather than left to review.
 #
 # The mutating counterpart, `--reconcile-flow`, is a real command that a human
-# runs deliberately while holding a sole-orchestrator marker. The one thing that
+# runs deliberately while holding a claim-first session identity. The one thing that
 # must never happen is a SCHEDULED run reaching it, so the absence of every
 # mutating flag from every scheduled workflow is asserted, not assumed.
 # ===========================================================================
@@ -4287,7 +4287,7 @@ class AbandonmentAuditWorkflowPolicyTests(unittest.TestCase):
 
     def test_the_audit_runs_the_guards_own_tests_before_trusting_it(self) -> None:
         self.assertIn(
-            "node --test scripts/orchestrator-flow/reconcile.test.mjs", self.jobs
+            "node --test scripts/db-flow/reconcile.test.mjs", self.jobs
         )
 
     def test_the_audit_distinguishes_unreadable_from_expired(self) -> None:
@@ -4357,7 +4357,7 @@ class AbandonmentDocumentationAgreementTests(unittest.TestCase):
             encoding="utf-8"
         )
         cls.reconcile = (
-            REPO / "scripts" / "orchestrator-flow" / "reconcile.mjs"
+            REPO / "scripts" / "db-flow" / "reconcile.mjs"
         ).read_text(encoding="utf-8")
         # SCOPE THE SEARCH, OR THE TEST IS A LOTTERY. AGENTS.md is ~1750 lines and
         # section 4 is ~1100; the bare words "clean", "dirty", "remote", "3" and

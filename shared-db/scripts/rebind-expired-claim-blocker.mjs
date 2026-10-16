@@ -12,7 +12,7 @@ import { MUTEX_REF } from './lib/lanes/constants.mjs'
 import { EXCLUSIVE_REFS, parseQueueScope } from './lib/lanes/queue-routing.mjs'
 import { acquireMutex, requireOwnedRef, releaseMutexOnExit, readRefAfterWrite } from './lib/lanes/holds-and-refs.mjs'
 import { normalizeObject } from './check-dispatch-collision.mjs'
-import { canonicalJson, sha256 } from './orchestrator-flow/evidence-bundle.mjs'
+import { canonicalJson, sha256 } from './db-flow/evidence-bundle.mjs'
 
 export const BLOCKER_REBIND_REF_PREFIX='refs/db-expired-claim-blocker-rebindings/'
 const PREFIX='db-coordination expired-claim-blocker-rebind '
@@ -51,7 +51,7 @@ function prove(request,now,io,prior=null){
   if(prior&&(lease.version!==prior.record.version||sha256(claim.body)!==(rebound?prior.record.rebound_body_sha256:prior.record.original_body_sha256)))fail('claim body differs from immutable receipt')
   assertClaimNotRetired(lease.version,'rebound',io)
   renewalIssueScope(io.getIssue(request.issue),lease,[request.issue],{allowClaimSuperset:true})
-  const authority=io.orchestratorFlowAdapter().resolveMarker()
+  const authority=io.flowAdapter().resolveMarker()
   if(!authority?.live||authority.task!==request.authorizationChatId||authority.calling_task!==authority.task)fail('actual current session and quote must agree')
   const audit=io.getIssue(request.abandonmentIssue),scope=parseQueueScope(audit?.body??'')
   if(scope?.workType!=='repo-maintenance'||scope.status!=='ready'||scope.route!=='repo-maintenance'||scope.writes.length||scope.reads.length)fail('audit must be ready repository maintenance without database claims')

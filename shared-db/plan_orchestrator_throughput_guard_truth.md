@@ -1,12 +1,17 @@
 # Implementation plan — make throughput guards tell the truth
 
+> **SUPERSEDED 2026-10-15 (issue #4348).** The orchestrator role is retired
+> (owner ruling 2026-10-02, AGENTS.md §0.0-D). Structural work is claim-first and
+> that is canonical. Text below that names an orchestrator session, marker, or
+> dispatch is historical narrative of this completed plan — do not follow it.
+
 **Repository:** `u2giants/shared-db`
 **Tracking issue:** [#1680](https://github.com/u2giants/shared-db/issues/1680)
 **Work class:** repository maintenance only
 **Created:** 2026-08-27; consensus revision 2026-08-28 after Claude Opus 5 and Grok 4.6 adjudication
 **Handoff:** [`HANDOFF.d/2026-08-28T0230Z-edge-dev-codex-throughput-plan-consensus.md`](HANDOFF.d/2026-08-28T0230Z-edge-dev-codex-throughput-plan-consensus.md)
 
-This plan changes scripts, tests, workflows and documentation. It authorizes no migration, database write, preview apply, production apply, infrastructure mutation or new credential. Under `AGENTS.md` §0.0-C, a repository-maintenance session owns it; the schema orchestrator does not.
+This plan changes scripts, tests, workflows and documentation. It authorizes no migration, database write, preview apply, production apply, infrastructure mutation or new credential. Under `AGENTS.md` §0.0-C, a repository-maintenance session owns it; it is not structural-lane work.
 
 ## STATUS — read first
 

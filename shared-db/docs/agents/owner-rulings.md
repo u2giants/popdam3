@@ -6,7 +6,9 @@
 > "the orchestrator", read "the session doing the structural work". Instructions to resolve a
 > marker, route or hand over to an orchestrator, or wait for dispatch are historical. Text that
 > describes what current automation does (the `route: shared-db-orchestrator` value, marker reads,
-> engine exclusion) describes code, not a role; retiring that code is open on #3874.
+> engine exclusion) describes code, not a role. New structural issues use `route: claim-first`;
+> `route: shared-db-orchestrator` is accepted only as a legacy alias for old issues and names no
+> session (#3874).
 > Moved verbatim from `AGENTS.md` by issue #3481 so that file stays a short router. Section numbers and headings are unchanged; a citation of "AGENTS.md §X" resolves here. Relative link targets were re-pointed from this folder; no rule text changed.
 
 ## 0. Shared-db gatekeeper rule for consumer repos

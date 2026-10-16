@@ -42,6 +42,6 @@ test('real invalidator inventory names only existing files and covers manager im
   assert.ok(inventory.files.includes('scripts/lib/review-verdict-artifact.mjs'),'verdict artifact policy must invalidate reviewed evidence globally')
   assert.ok(closure.includes('scripts/lib/sql-role-operations.mjs'), 'role accounting must be a live manager dependency')
   assert.ok(inventory.files.includes('scripts/lib/sql-role-operations.mjs'), 'role accounting changes must invalidate reviewed evidence globally')
-  const uncovered=closure.filter((file)=>!inventory.files.includes(file)&&!file.startsWith('scripts/orchestrator-flow/'))
+  const uncovered=closure.filter((file)=>!inventory.files.includes(file)&&!file.startsWith('scripts/db-flow/'))
   assert.deepEqual(uncovered,[])
 })

@@ -56,18 +56,18 @@ test('missing atomic/exclusive wording fails', () => {
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
 
-test('#3874 a skill that still routes to the retired orchestrator fails', () => {
+test('#3874 a skill that still routes to the retired coordinator fails', () => {
   const root = fixture()
   const skill = path.join(root, 'skills', 'claude', 'shared-db-change', 'SKILL.md')
   writeFileSync(skill, execFileSync(process.execPath, ['-e', `process.stdout.write(require('fs').readFileSync(${JSON.stringify(skill)},'utf8'))`], { encoding: 'utf8' }) + '\n> Working IN the shared-db repo and you were not started as the orchestrator? STOP.\n')
   try {
     const result = run(root)
     assert.notEqual(result.status, 0)
-    assert.match(result.stdout + result.stderr, /retired-orchestrator-routing/)
+    assert.match(result.stdout + result.stderr, /retired-coordinator-routing/)
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
 
-test('#3874 an orchestrator-marker query without --repo is still flagged', () => {
+test('#3874 a retired-marker query without --repo is still flagged', () => {
   const root = fixture()
   const skill = path.join(root, 'skills', 'claude', 'shared-db-change', 'SKILL.md')
   writeFileSync(skill, execFileSync(process.execPath, ['-e', `process.stdout.write(require('fs').readFileSync(${JSON.stringify(skill)},'utf8'))`], { encoding: 'utf8' }) + '\n`gh issue list --label orchestrator-marker --state open`\n')

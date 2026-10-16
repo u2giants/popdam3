@@ -3,7 +3,7 @@
   "source": ".github/workflows/database-contract-tests.yml",
   "sites": [
     {
-      "site": ".github/workflows/database-contract-tests.yml:602",
+      "site": ".github/workflows/database-contract-tests.yml:650",
       "semantic_key": ".github/workflows/database-contract-tests.yml:055ae4c0e46c2e2eb3dd101dadfdcd2a316e380e0aa25473a597febe9263dda7:context-b6d35312cc98988e36777280ddd0db28b54b0aaf013bbaee6305010b9c82eb99",
       "line_sha256": "055ae4c0e46c2e2eb3dd101dadfdcd2a316e380e0aa25473a597febe9263dda7",
       "disposition": "excluded",
@@ -11,7 +11,23 @@
       "legacy_semantic_key": ".github/workflows/database-contract-tests.yml:055ae4c0e46c2e2eb3dd101dadfdcd2a316e380e0aa25473a597febe9263dda7:1"
     },
     {
-      "site": ".github/workflows/database-contract-tests.yml:459",
+      "site": ".github/workflows/database-contract-tests.yml:514",
+      "semantic_key": ".github/workflows/database-contract-tests.yml:083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4:context-9c396b03df00fa99e563ff60fbcf9f7dbe26e7550f65364cc46c2f1b46effe68",
+      "line_sha256": "083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4",
+      "disposition": "excluded",
+      "reason": "Exact never-installed unit6 ephemeral replay skip refuses when HARD_BLOCKED, never-installed retirement receipt, or exact successor file proof is absent. This is an offline replay admission refusal, not a live catalog absence finding. Both embedded guards execute fail-closed negative cases in Unit6NeverInstalledReplayTests; all other replay behavior is unchanged.",
+      "legacy_semantic_key": ".github/workflows/database-contract-tests.yml:083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4:2"
+    },
+    {
+      "site": ".github/workflows/database-contract-tests.yml:352",
+      "semantic_key": ".github/workflows/database-contract-tests.yml:083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4:context-c7dc7951925c3993d48195f9299fb79dada930739ec814085379eed31b3a9d34",
+      "line_sha256": "083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4",
+      "disposition": "excluded",
+      "reason": "Exact never-installed unit6 ephemeral replay skip refuses when HARD_BLOCKED, never-installed retirement receipt, or exact successor file proof is absent. This is an offline replay admission refusal, not a live catalog absence finding. Both embedded guards execute fail-closed negative cases in Unit6NeverInstalledReplayTests; all other replay behavior is unchanged.",
+      "legacy_semantic_key": ".github/workflows/database-contract-tests.yml:083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4:2"
+    },
+    {
+      "site": ".github/workflows/database-contract-tests.yml:483",
       "semantic_key": ".github/workflows/database-contract-tests.yml:86cc651a2db46e47a1d0df11a473209357e19a5b7d63e526cc1e28bc6fd30d6f:context-bc768090b0608ac9fd9f23f2507b995c64d35471d6269c520f0caa5d3bb13ce5",
       "line_sha256": "86cc651a2db46e47a1d0df11a473209357e19a5b7d63e526cc1e28bc6fd30d6f",
       "disposition": "excluded",
@@ -19,28 +35,12 @@
       "legacy_semantic_key": ".github/workflows/database-contract-tests.yml:86cc651a2db46e47a1d0df11a473209357e19a5b7d63e526cc1e28bc6fd30d6f:1"
     },
     {
-      "site": ".github/workflows/database-contract-tests.yml:422",
+      "site": ".github/workflows/database-contract-tests.yml:446",
       "semantic_key": ".github/workflows/database-contract-tests.yml:bb5aed84ab4f5bd487ba52b2937a453c0449276949e5e0a49386b1aa24560c3b:context-54c7f80abf765aaf4cd061559b200a4a400580391ac1522fa00ac23748e340d8",
       "line_sha256": "bb5aed84ab4f5bd487ba52b2937a453c0449276949e5e0a49386b1aa24560c3b",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "legacy_semantic_key": ".github/workflows/database-contract-tests.yml:bb5aed84ab4f5bd487ba52b2937a453c0449276949e5e0a49386b1aa24560c3b:1"
-    },
-    {
-      "site": ".github/workflows/database-contract-tests.yml:353",
-      "semantic_key": ".github/workflows/database-contract-tests.yml:083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4:context-c7dc7951925c3993d48195f9299fb79dada930739ec814085379eed31b3a9d34",
-      "legacy_semantic_key": ".github/workflows/database-contract-tests.yml:083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4:1",
-      "line_sha256": "083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4",
-      "disposition": "excluded",
-      "reason": "Exact never-installed unit6 ephemeral replay skip refuses when HARD_BLOCKED, never-installed retirement receipt, or exact successor file proof is absent. This is an offline replay admission refusal, not a live catalog absence finding. Both embedded guards execute fail-closed negative cases in Unit6NeverInstalledReplayTests; all other replay behavior is unchanged."
-    },
-    {
-      "site": ".github/workflows/database-contract-tests.yml:515",
-      "semantic_key": ".github/workflows/database-contract-tests.yml:083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4:context-9c396b03df00fa99e563ff60fbcf9f7dbe26e7550f65364cc46c2f1b46effe68",
-      "legacy_semantic_key": ".github/workflows/database-contract-tests.yml:083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4:2",
-      "line_sha256": "083dc100b3b8f521ebcc99ad620f16d9c88489dac27ba17eb34c11a43273a0f4",
-      "disposition": "excluded",
-      "reason": "Exact never-installed unit6 ephemeral replay skip refuses when HARD_BLOCKED, never-installed retirement receipt, or exact successor file proof is absent. This is an offline replay admission refusal, not a live catalog absence finding. Both embedded guards execute fail-closed negative cases in Unit6NeverInstalledReplayTests; all other replay behavior is unchanged."
     }
   ]
 }

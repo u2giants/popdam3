@@ -1,5 +1,10 @@
 # Implementation plan — orchestrator throughput Phase 2: eliminate cross-issue invalidation
 
+> **SUPERSEDED 2026-10-15 (issue #4348).** The orchestrator role is retired
+> (owner ruling 2026-10-02, AGENTS.md §0.0-D). Structural work is claim-first and
+> that is canonical. Text below that names an orchestrator session, marker, or
+> dispatch is historical narrative of this completed plan — do not follow it.
+
 **Repository:** `u2giants/shared-db`
 **Tracking issue:** [#1738](https://github.com/u2giants/shared-db/issues/1738)
 **Work class:** repository maintenance only
@@ -54,7 +59,7 @@ No safety coverage is reduced. Exact object exclusivity remains. Migration bytes
 
 The single orchestrator coordinates up to five author workstreams using Git refs and `scripts/manage-migration-author-lanes.mjs`. Object claims prevent conflicting schema work. Reviewer assignments, preview, merge and production have durable coordination refs. Preview is one shared mutable database; merge and production are serialized. The relevant operating contract is `AGENTS.md` §0.0-C and `docs/agents/section-4-anti-collision-rules.md`.
 
-This plan is repository-maintenance work. A separate repository session implements it; the structural orchestrator only consumes the finished tooling after it lands.
+This plan is repository-maintenance work. A separate repository session implements it; the structural lane only consumes the finished tooling after it lands.
 
 ## 3. Trigger and transcript evidence
 
@@ -593,7 +598,7 @@ Run focused tests after each step and the repository-required suites on a frozen
 
 ## 11. Constraints, standing rules and gotchas
 
-- This plan is repository maintenance; never dispatch it through the structural orchestrator.
+- This plan is repository maintenance; never dispatch it through the structural lane.
 - Work in isolated worktrees from current `origin/main`; stage only owned files.
 - Claims protect objects until explicit completion/reversion. Lease expiry is never claim expiry.
 - Existing `db-author-lease` clock expiry is not capacity relinquishment. Capacity changes only through a typed, durable transition.

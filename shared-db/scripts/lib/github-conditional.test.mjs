@@ -13,7 +13,7 @@ import {
   nextPageEndpoint, parseHttpResponse, pollDelayMs, sharedConditionalGet, singleFlight,
 } from './github-conditional.mjs'
 import { hostQuotaLatch, runGitHubCommand } from './github-transport.mjs'
-import { fetchCheckRuns } from '../orchestrator-flow/runner-lanes.mjs'
+import { fetchCheckRuns } from '../db-flow/runner-lanes.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const scratch = () => mkdtempSync(path.join(tmpdir(), 'gh-2773-'))

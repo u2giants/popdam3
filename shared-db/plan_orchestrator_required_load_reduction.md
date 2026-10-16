@@ -1,5 +1,10 @@
 # Implementation plan — reduce what MUST pass through the orchestrator, without reducing safety
 
+> **SUPERSEDED 2026-10-15 (issue #4348).** The orchestrator role is retired
+> (owner ruling 2026-10-02, AGENTS.md §0.0-D). Structural work is claim-first and
+> that is canonical. Text below that names an orchestrator session, marker, or
+> dispatch is historical narrative of this completed plan — do not follow it.
+
 Tracking issue: [#3199](https://github.com/u2giants/shared-db/issues/3199) (`db-work` label; `db-work-scope` block with `work_type: repo-maintenance`, `route: repo-maintenance`).
 
 Companion plan (do NOT re-plan it here): [`plan_shared_db_popcre_transfer_merge_queue.md`](plan_shared_db_popcre_transfer_merge_queue.md) — issue #2530, the org transfer + native merge queue.

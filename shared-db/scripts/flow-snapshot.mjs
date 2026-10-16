@@ -3,10 +3,10 @@
  * Read-only production caller for the orchestrator snapshot library (issue #2728,
  * programme popcre/ai-devops#401 Step 4).
  *
- *   node scripts/orchestrator-snapshot.mjs --orchestrator-snapshot [--repo owner/name]
+ *   node scripts/flow-snapshot.mjs --flow-snapshot [--repo owner/name]
  *        [--state-dir <absolute dir>] [--now <ISO>]
  *
- * It reads the live orchestrator marker, open claims, open PR heads and check
+ * It reads the live claim-first session identity, open claims, open PR heads and check
  * rollups, reviewer lease refs, exclusive stage lock refs, outcome events on the
  * owned issues, and the now/next eligible queue. It never writes to GitHub.
  *
@@ -21,9 +21,9 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { canonicalJson } from './orchestrator-flow/evidence-bundle.mjs'
-import { buildOrchestratorSnapshot, publishSnapshotTransition } from './orchestrator-flow/orchestrator-snapshot.mjs'
-import { OUTCOME_STATES, trustedOutcomeComments } from './orchestrator-flow/outcome-lifecycle.mjs'
+import { canonicalJson } from './db-flow/evidence-bundle.mjs'
+import { buildFlowSnapshot, publishSnapshotTransition } from './db-flow/snapshot.mjs'
+import { OUTCOME_STATES, trustedOutcomeComments } from './db-flow/outcome-lifecycle.mjs'
 import { formatHoldReason } from './lib/hold-reason.mjs'
 import { parseEventComment } from './db-coordination-events.mjs'
 import { runGitHubCommand } from './lib/github-transport.mjs'
@@ -192,7 +192,7 @@ export function fileEventStore(dir) {
 export function runSnapshotCycle(input, { now, previous = null, store = null, sessionStarted = null } = {}) {
   const ownedIssues = [...new Set([...(input.claims ?? []).flatMap((claim) => [claim.issue, ...(claim.work_issues ?? [])])])]
   const alarms = stalledOutcomes(input.outcome_events, { now, ownedIssues, sessionStarted })
-  const snapshot = buildOrchestratorSnapshot(input, { capturedAt: now })
+  const snapshot = buildFlowSnapshot(input, { capturedAt: now })
   const key = reportKey(snapshot, alarms)
   const current = { report_key: key, snapshot_id: snapshot.snapshot_id, stalled: alarms.stalled_outcomes.map((row) => row.work_issue).sort((a, b) => a - b), zero_closures_4h: alarms.zero_closures_4h, snapshot }
   if (previous && previous.report_key === key) return { output: null, state: previous }
@@ -217,7 +217,7 @@ export const defaultIo = {
   // NO_ORCHESTRATOR, and both the CLI and the no-progress alarm call
   // gatherLiveInput with allowNoMarker so they report with marker: null.
   resolveMarker() {
-    throw new SnapshotCallerError('orchestrator marker did not resolve (exit 3): the orchestrator role is retired (#3874)')
+    throw new SnapshotCallerError('claim-first session identity did not resolve (exit 3): the orchestrator role is retired (#3874)')
   },
   // The queue audit's own dependency proof, including merge-in-main evidence for closed dependencies.
   dependencyStates(numbers) {
@@ -267,7 +267,7 @@ function checkSummary(rollup = []) {
 }
 
 // Exit 3 from the marker resolver, or a resolved marker with no route, means no orchestrator is running.
-export const NO_ORCHESTRATOR = /marker did not resolve \(exit 3\)|no open routable orchestrator marker/
+export const NO_ORCHESTRATOR = /marker did not resolve \(exit 3\)|claim-first session identity did not resolve \(exit 3\)|no open routable claim-first session identity/
 
 // allowNoMarker: the no-progress alarm must still evaluate stalls with no orchestrator, so it gets
 // marker: null. Every other caller keeps refusing, and any other read failure still throws.
@@ -275,7 +275,7 @@ export function gatherLiveInput(repo, io = defaultIo, { allowNoMarker = false } 
   let resolved = null
   try {
     resolved = io.resolveMarker(repo)
-    if (!Number.isInteger(resolved?.marker) || !resolved?.routing?.routeId) throw new SnapshotCallerError('no open routable orchestrator marker')
+    if (!Number.isInteger(resolved?.marker) || !resolved?.routing?.routeId) throw new SnapshotCallerError('no open routable claim-first session identity')
   } catch (error) {
     if (!allowNoMarker || !NO_ORCHESTRATOR.test(String(error?.message))) throw error
     resolved = null
@@ -323,12 +323,12 @@ export function gatherLiveInput(repo, io = defaultIo, { allowNoMarker = false } 
 export function main(argv = process.argv.slice(2), { io = defaultIo, stdout = console.log, stderr = console.error } = {}) {
   try {
     const value = (name) => { const index = argv.indexOf(name); return index >= 0 && argv[index + 1] ? argv[index + 1] : null }
-    if (!argv.includes('--orchestrator-snapshot')) throw new SnapshotCallerError('--orchestrator-snapshot is required')
+    if (!argv.includes('--flow-snapshot') && !argv.includes('--orchestrator-snapshot')) throw new SnapshotCallerError('--flow-snapshot is required')
     const repo = currentRepository(value('--repo'))
     const now = value('--now') ?? new Date().toISOString()
     const stateDir = value('--state-dir')
     if (stateDir && !path.isAbsolute(stateDir)) throw new SnapshotCallerError('--state-dir must be an absolute path')
-    // The orchestrator marker is retired (#3874): the CLI reports with no marker.
+    // The claim-first session identity is retired (#3874): the CLI reports with no marker.
     const { input, sessionStarted } = gatherLiveInput(repo, io, { allowNoMarker: true })
     // A sealed orchestrator snapshot is bound to a marker, and there is none any
     // more. Say so plainly and exit 0 instead of failing every run; stall

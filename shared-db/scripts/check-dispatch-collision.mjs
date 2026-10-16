@@ -260,7 +260,7 @@ export function findDispatchConflicts(proposed, inFlight) {
  * file, a second agent doing the same read gets the same answer.
  *
  * That read-then-write window is exactly why `--allocate-version` was WITHDRAWN
- * on 2026-08-07: it printed this candidate as a suggestion, so two orchestrators
+ * on 2026-08-07: it printed this candidate as a suggestion, so two sessions
  * running it in the same minute were handed the same number.
  *
  * It is kept because `reserveVersion` below uses it to pick the CANDIDATE that
@@ -828,7 +828,7 @@ Options:
                        and jammed the gate for every later dispatch (#669).
   --reserve-version    ACQUIRE a migration version atomically (#670). Creates
                        refs/db-claims/<version> server-side, which is a
-                       create-if-absent, so two orchestrators racing in the same
+                       create-if-absent, so two sessions racing in the same
                        minute CANNOT both receive the same number. Starts at
                        --version if given, else the current UTC stamp, and walks
                        forward past any unavailable or already reserved. THIS MUTATES THE

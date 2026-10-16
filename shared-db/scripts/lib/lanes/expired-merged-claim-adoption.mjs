@@ -9,7 +9,7 @@ import { workstreamKey, migrationVersions, renewalIssueScope, assertMergeCommitI
 import { assertClaimNotRetired, assertRetirementIdentityAvailable } from './retirement.mjs'
 import { acquireMutex, requireOwnedRef, releaseOwnedRef, readRefAfterWrite } from './holds-and-refs.mjs'
 import { normalizeObject } from '../../check-dispatch-collision.mjs'
-import { canonicalJson, sha256 } from '../../orchestrator-flow/evidence-bundle.mjs'
+import { canonicalJson, sha256 } from '../../db-flow/evidence-bundle.mjs'
 import { githubIo, assertAbandonmentEvidence } from '../../manage-migration-author-lanes.mjs'
 
 export const MERGED_ADOPTION_REF_PREFIX='refs/db-merged-claim-author-adoptions/'
@@ -47,7 +47,7 @@ export function proveExpiredMergedAdoption(request,now,io,prior=null){
   if(prior&&(lease.version!==prior.record.version||sha256(claim.body)!==(adopted?prior.record.adopted_body_sha256:prior.record.original_body_sha256)))refuse('claim body changed from immutable receipt')
   assertClaimNotRetired(lease.version,'adopted',io)
   renewalIssueScope(io.getIssue(request.issue),lease,[request.issue],{allowClaimSuperset:true})
-  const authority=io.orchestratorFlowAdapter().resolveMarker()
+  const authority=io.flowAdapter().resolveMarker()
   if(!authority?.live||authority.task!==request.authorizationChatId||authority.calling_task!==authority.task)refuse('current declared session and authorization chat must agree')
   if(!adopted){
     const abandonmentAudit=assertAbandonmentEvidence({claim:request.claim,blockedOn:`issue:#${request.abandonmentIssue}`,worktreeState:request.worktreeState},lease,`issue:#${request.abandonmentIssue}`,io)

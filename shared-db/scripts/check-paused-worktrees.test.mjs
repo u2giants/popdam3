@@ -77,7 +77,7 @@ test('a clean, unlocked, fully merged worktree is still protected if it is marke
   // distinguished it. Only the marker does.
   const paused = collectPaused([{ path: '/clean', branch: 'done', detached: false }], {
     exists: () => true,
-    read: () => 'AGENT: paused-agent\nRESUME-WHEN: the orchestrator re-dispatches issue #601\n',
+    read: () => 'AGENT: paused-agent\nRESUME-WHEN: claim-first re-claims issue #601\n',
   });
   assert.equal(paused.length, 1);
   assert.deepEqual(paused[0].problems, []);

@@ -20,12 +20,12 @@ creating issues or labels without the owner's say-so.
 
 | Label | Colour | Description | Why it exists |
 | --- | --- | --- | --- |
-| `db-work` | `#1D76DB` | Unclassified shared-db intake. This label never grants orchestrator ownership. | A historical inbox label only. Machine-readable status, work type, and route in the issue body decide ownership. |
+| `db-work` | `#1D76DB` | Unclassified shared-db intake. This label never grants ownership of structural work. | A historical inbox label only. Machine-readable status, work type, and route in the issue body decide ownership. |
 | `needs-albert` | `#D93F0B` | Blocked on an owner decision. Nobody may act on it without a fresh answer in the current chat. | The queue used a ⛔ prefix for this. It is the one distinction that changes who can act. |
 | `blocked` | `#B60205` | Blocked on something other than the owner — another work item, an upstream system, or a machine nobody has access to. | Distinguishes "waiting on Albert" from "waiting on a thing", which the queue conflated. |
 
 **Already exist. Leave them alone:** `orchestrator-marker`, `db-claim`. They belong to the
-dispatch protocol, not to this migration.
+retired dispatch protocol (marker role retired 2026-10-02, AGENTS.md §0.0-D), not to this migration.
 
 **Labels do not route work.** Every open `db-work` issue carries one strict
 `db-work-scope` block with separate `status`, `work_type`, and `route` fields.
@@ -37,8 +37,12 @@ Only this exact combination can enter the migration-author queue:
 ```text
 status: ready
 work_type: structural
-route: shared-db-orchestrator
+route: claim-first
 ```
+
+`route: shared-db-orchestrator` is accepted only as a legacy alias for old
+issues (#3874); it names no session. Structural work is claim-first: claim the
+exact objects on the existing issue and start (AGENTS.md §0.0-D).
 
 Structural work must list exact database objects. Pure data and source-review work must
 not list objects. Outside-sourced writes into curated `core.*` Master Data retain the

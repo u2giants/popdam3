@@ -17,7 +17,7 @@
 // on customer PO is expected and must never quarantine. Every google_order_list
 // ref stays untouched.
 //
-// NO database routines are created here (non-orchestrator work): all SQL lives
+// NO database routines are created here (non-coordinator work): all SQL lives
 // in this file as statements. Read-only helpers the plan names (winner
 // selection, decode, run summary) are inline CTEs, so the §8 STABLE-never-
 // IMMUTABLE volatility rule for new routines applies to nothing this adds.

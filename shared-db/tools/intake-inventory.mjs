@@ -60,7 +60,7 @@ export const CLASSIFICATION = [
 
   // ---- REQUEST QUEUE — 2026-08-06 al8960ofc batch ----
   X('FIRST ACTION: push and merge FIVE unpushed',
-    'Landed. The five branches reached `main` as PRs #455-#460, all MERGED, and orchestrator marker issue #453 is CLOSED. Both verified live 2026-08-07 with `gh pr list --state all` and `gh issue view 453`.'),
+    'Landed. The five branches reached `main` as PRs #455-#460, all MERGED, and claim-first session identity issue #453 is CLOSED. Both verified live 2026-08-07 with `gh pr list --state all` and `gh issue view 453`.'),
   M('Collect the `csv-export` agent', 'WI-13 Collect the csv-export agent output left on the Desktop'),
   M('how should an ownerless property be stored', 'WI-14 OWNER: how should an ownerless property be stored?'),
   M('the remaining licensor/property cutover decisions', 'WI-15 OWNER: the six remaining licensor/property cutover decisions'),

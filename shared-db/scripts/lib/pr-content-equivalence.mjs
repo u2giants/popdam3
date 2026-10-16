@@ -1,6 +1,6 @@
 // Is the pull request's OWN change the same at two points in time?
 //
-// WHY THIS EXISTS (orchestrator marker #2758, owner-authorized 2026-09-11)
+// WHY THIS EXISTS (claim-first session identity #2758, owner-authorized 2026-09-11)
 // ------------------------------------------------------------------------
 // Every merge to main forced every other open pull request to merge main, and
 // that new head voided its reviewer APPROVE and its merge dispatch. With ~10

@@ -5,11 +5,13 @@
 > "the orchestrator", read "the session doing the structural work". Instructions to resolve a
 > marker, route or hand over to an orchestrator, or wait for dispatch are historical. Text that
 > describes what current automation does (the `route: shared-db-orchestrator` value, marker reads,
-> engine exclusion) describes code, not a role; retiring that code is open on #3874.
+> engine exclusion) describes code, not a role. New structural issues use `route: claim-first`;
+`route: shared-db-orchestrator` is accepted only as a legacy alias for old issues and names no
+session (#3874).
 
 - [current-workflow.md](current-workflow.md)
 
-> **Active hardening plan:** [`../../plan_multi_agent_database_coordination_hardening.md`](../../plan_multi_agent_database_coordination_hardening.md), issue #1366. Read its STATUS table first. It preserves the rules below while adding read/write dependencies, proven prerequisites, provider-neutral work contracts, lifecycle traces, recoverable fenced stage leases, and an opt-in Supabase branch pilot. Its implementation is repository maintenance outside the structure/schema orchestrator.
+> **Active hardening plan:** [`../../plan_multi_agent_database_coordination_hardening.md`](../../plan_multi_agent_database_coordination_hardening.md), issue #1366. Read its STATUS table first. It preserves the rules below while adding read/write dependencies, proven prerequisites, provider-neutral work contracts, lifecycle traces, recoverable fenced stage leases, and an opt-in Supabase branch pilot. Its implementation is repository maintenance outside the structural lane.
 >
 > **Completed reviewer API-budget plan:** [`../../plan_reviewer_assignment_api_budget.md`](../../plan_reviewer_assignment_api_budget.md), issue #1767. Read its STATUS table and verification link before changing reviewer assignment. It replaced historical availability scans with a bounded active-reviewer index, strict pre-lock quota/request checks, cached PR/verdict reads, and exhaustive mutex-cleanup tests. The current fixed per-operation ceiling is 25 requests; see the dated re-derivations and #2550 repair in the verification record.
 
@@ -17,7 +19,7 @@ Reviewer availability is the bounded active-lease index. Before the parallel-rev
 
 An exact-head verdict, terminal failure/replacement, moved head, merged PR, or closed PR makes a lease stale; a verdict additionally releases the lease it was recorded against, so the stale classification is the fallback for leases no verdict path reclaimed. Stale leases are deleted only while the global mutex is owned and the fixed ref still matches its expected SHA. If release cannot be proved, preserve the named ref/SHA and use the guarded `recover-author-mutex.yml` procedure.
 
-Phase 2 rules: protected object claims and active-author capacity are separate; relinquishment never releases a claim. The follow-on abandonment/recovery lifecycle is planned in [`../../plan_author_lane_abandonment_lifecycle.md`](../../plan_author_lane_abandonment_lifecycle.md); read its STATUS table before changing author-capacity behavior. Preview dependencies produce `PREVIEW_WAIT`, never a successful workflow. Immediately before manual preview dispatch, run `node scripts/manage-migration-author-lanes.mjs --prepare-preview-dispatch <issue>`, rerun the read-only selector/fresh-ledger check, and dispatch only its matching stored instruction. Historical recovery is `mode=apply` only; historical dry-run proves nothing. Use `--repair-preview-ready <ready-id> --issue <n>` only for a v2-bound stale wrong digest; a corrupt live digest requires an owner decision and no mutation. Reviewer reservations are per exact review, never per provider: one reviewer may run any number of reviews at once and there is no busy state or `review-wait` (issue #3130). The live orchestrator engine is excluded from review; Gemini 3.8 Flash High re-entered the active rotation on 2026-09-06 (PR #2438, ai-devops issue #285) after a recorded live re-qualification, Kimi K3 was unpaused on 2026-09-07 (PR #2483) but is paused again as of 2026-09-22 (issue #3423), and Codex GPT-5.6 Sol was retired on 2026-09-06 (issue #2485) by owner instruction so it is not drawable. **With zero open orchestrator markers (`state: none`) the exclusion list is empty and the whole rotation stays drawable** (issue #2127): the exclusion is a same-engine conflict guard, and with no live engine there is no conflict, so closing a marker must not freeze merging repository-wide. `ambiguous`, `invalid` and `unsafe` marker states still refuse. The marker resolver exits non-zero for answers it is certain of (3 for `none`, 1 for the refusing states), so a non-zero exit carrying parseable JSON is an ANSWER; only unreadable output is a resolver fault, and the refusal names which it was.
+Phase 2 rules: protected object claims and active-author capacity are separate; relinquishment never releases a claim. The follow-on abandonment/recovery lifecycle is planned in [`../../plan_author_lane_abandonment_lifecycle.md`](../../plan_author_lane_abandonment_lifecycle.md); read its STATUS table before changing author-capacity behavior. Preview dependencies produce `PREVIEW_WAIT`, never a successful workflow. Immediately before manual preview dispatch, run `node scripts/manage-migration-author-lanes.mjs --prepare-preview-dispatch <issue>`, rerun the read-only selector/fresh-ledger check, and dispatch only its matching stored instruction. Historical recovery is `mode=apply` only; historical dry-run proves nothing. Use `--repair-preview-ready <ready-id> --issue <n>` only for a v2-bound stale wrong digest; a corrupt live digest requires an owner decision and no mutation. Reviewer reservations are per exact review, never per provider: one reviewer may run any number of reviews at once and there is no busy state or `review-wait` (issue #3130). The authoring engine is excluded from review (the authoring session declares it in `SHARED_DB_AUTHOR_ENGINE`; #3874); Gemini 3.8 Flash High re-entered the active rotation on 2026-09-06 (PR #2438, ai-devops issue #285) after a recorded live re-qualification, Kimi K3 was unpaused on 2026-09-07 (PR #2483) but is paused again as of 2026-09-22 (issue #3423), and Codex GPT-5.6 Sol was retired on 2026-09-06 (issue #2485) by owner instruction so it is not drawable. The exclusion is a same-engine conflict guard keyed on the authoring engine, not a marker (issue #2127; marker-resolver text below is historical).
 
 Relocated from `AGENTS.md` on 2026-08-20 (issue #1331, PR #1212) so the router stays under its
 80 KB ceiling. **Text unchanged, section number unchanged.** `AGENTS.md` §4 carries the operative
@@ -85,7 +87,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    ```
 
    It prints the same report as `--reconcile-flow` but cannot write: the
-   sole-orchestrator marker reads as gone and every mutation hook throws before
+   marker/claim-authority gate reads as absent and every mutation hook throws before
    the reconciler can reach it, so a regression fails loudly instead of writing.
    Its exit code is the answer — `0` no expired lane, `2` at least one expired
    lane needs a decision, `3` unverifiable — author-capacity state could not be read and
@@ -124,8 +126,8 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    `writes:` and `reads:` are empty on purpose. An abandonment audit claims no
    database object; claiming one would collide with the very claim it is
    investigating. It is `repo-maintenance` work on the `repo-maintenance` route,
-   not orchestrator structural work: it changes no database structure, and
-   `route: shared-db-orchestrator` is refused for this work type.
+   not structural-lane work: it changes no database structure, and
+   `route: claim-first` (and its legacy alias) is refused for this work type.
 
    The issue also carries a second, REQUIRED fence — the machine-readable half of
    the record:
@@ -214,7 +216,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    ```db-work-scope
    status: ready
    work_type: structural
-   route: shared-db-orchestrator
+   route: claim-first
    priority: 100
    depends_on:
    objects:
@@ -243,7 +245,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    ```db-work-scope
    status: ready
    work_type: structural
-   route: shared-db-orchestrator
+   route: claim-first
    priority: 40
    depends_on:
    writes:
@@ -390,7 +392,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    `blocked`, and `owner-decision`. Allowed work types are `structural`,
    `curated-master-data`, `application-data`, `source-data`, `repo-maintenance`,
    `documentation`, and `security-settings`. There is no default route. Only
-   `ready + structural + shared-db-orchestrator` normally enters a
+   `ready + structural + claim-first` normally enters a
    migration-author lane, and it must name every exact database object. The
    narrow exception is a `curated-master-data` fork that ships
    `supabase/migrations/*`: it must claim a lane before authoring and name the
@@ -481,7 +483,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    inherits it and an explicit mismatch refuses. Later slots inherit slot one's
    set, and returning an assignment never erases
    its permission restriction when that slot is redrawn.
-   The set grants permission only: live preflight, quarantine, orchestrator independence, per-PR exclusions and
+   The set grants permission only: live preflight, quarantine, authoring-engine independence, per-PR exclusions and
    slot independence still decide who is usable. It creates no concurrency cap.
 
    For new assignments, the shared cursor (the sequence counter is shared; which
@@ -492,7 +494,8 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    2026-09-27, #3592), but it is QUARANTINED since 2026-10-13 (xAI account out of
    credit; owner instruction "take grok out of the reviewer pool for now") and is
    not drawable, even as a fallback, until removed from `QUARANTINED_REVIEWERS`;
-   skipping any reviewer whose engine matches the live orchestrator, and on a
+   skipping any reviewer whose engine matches the authoring session's engine
+   (`SHARED_DB_AUTHOR_ENGINE`), and on a
    non-Linux machine skipping StepFun (its preflight is `unsupported-platform`). GLM 5.3
    was restored on 2026-09-30 (owner instruction: "add GLM back into the
    reviewer rotation") after its 2026-09-18 weekly-usage pause. Kimi K3
@@ -505,12 +508,12 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    which is `REVIEWERS` minus `RETIRED_REVIEWERS` and `QUARANTINED_REVIEWERS`;
    the code is the truth and this sentence must be re-derived from it, never the
    other way round.
-   Codex cannot review when Codex orchestrates; Claude cannot review when Claude
-   orchestrates; and GLM cannot review when a ZCode orchestrator runs, because
+   Codex cannot review a Codex-authored change; Claude cannot review a Claude-authored
+   change; and GLM cannot review a change authored through a ZCode harness, because
    ZCode's engine is GLM-5.3 — the exclusion follows the model engine behind the
    harness, not the harness name (owner ruling 2026-09-17, "I never want GLM
    reviewing GLM code", enforced by PR #3232: the glm rows carry
-   `orchestratorEngine:'glm'`, a marker may declare `engine: zcode` with a
+   `orchestratorEngine:'glm'`, a session may declare `engine: zcode` with a
    `sess_<uuid>` id, and `ENGINE_REVIEWER_EXCLUSION` maps zcode → glm before the
    draw, while codex and claude map to themselves unchanged). ZCode is not a
    reviewer; adding it as one was permanently rejected by the same ruling.
@@ -584,7 +587,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    reviews at the same time; each exact review (issue, PR, head, slot) holds its
    own lease ref, so a live review never makes its provider wait, reroute, or
    queue. Independence still applies per head (slot 2 never draws slot 1's
-   provider), a reviewer never reviews its own orchestrator engine, and a
+   provider), a reviewer never reviews a change authored by its own engine, and a
    provider `ai-review-preflight` does not report `usable` is not drawn.
 
    A reviewer that is truthfully unusable for one pull request is excluded with
@@ -750,14 +753,14 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
      under time pressure.
 
    **Reviewer transport failures never pause the queue.** Run reviewer wrappers
-   from the full-access orchestrator process, not from a delegated sandbox. Before
+   from the full-access session process, not from a delegated sandbox. Before
    starting, prove the selected wrapper can read its own authentication file and
    create its session directory. A permission denial, missing authentication,
    provider quota error, or wrapper timeout with no verdict is a transport failure,
    not a review. Stop that process, record `verdict=none` and `artifact=none`, and
    immediately use `--replace-failed-reviewer` with the matching terminal failure
    code. Continue with the manager-selected replacement from the full-access
-   orchestrator in the same turn. Never leave an author, preview, merge, or
+   session in the same turn. Never leave an author, preview, merge, or
    production lane waiting on a reviewer process that cannot authenticate or
    write its own state. A real `REVISE` verdict is not a transport failure and
    must never be replaced.

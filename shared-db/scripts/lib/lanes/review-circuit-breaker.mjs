@@ -301,7 +301,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
   }
   // Budget-only reconstruction of the one independently additive test import.
   const canonicalImportUnion = (a,b,base,stages) => {
-    const file='scripts/orchestrator-flow/admission-outcome.test.mjs'
+    const file='scripts/db-flow/admission-outcome.test.mjs'
     const rows=[base,a,b].map(commit=>entry(commit,file))
     if(rows.some(row=>row.mode!=='100644'||/^(?:<{7}|\|{7}|={7}|>{7})/m.test(row.text)||row.text.includes('\0')) || stages.some((line,i)=>line!==`100644 ${rows[i].blob} ${i+1}\t${file}`))throw new LaneError('review budget import stage or regular bytes refused')
     const protectedSides=[a,b].map(commit=>ancestor(commit,protectedMain))
@@ -401,7 +401,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
       if(!sha.test(resultTree) || stages.length!==3)throw new LaneError('review budget conflict is outside the one canonical test append')
       if(stages.every((line,i)=>new RegExp(`^(100644|100755) [0-9a-f]{40} ${i+1}\\tscripts/manage-migration-author-lanes\\.test\\.mjs$`).test(line)))return withMetadata(canonicalAppend(a,b,base))
       if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tscripts/production_business_risk_gate\\.py$`).test(line)))return withMetadata(canonicalPinOverlap(a,b,base))
-      if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tscripts/orchestrator-flow/admission-outcome\\.test\\.mjs$`).test(line)))return withMetadata(canonicalImportUnion(a,b,base,stages))
+      if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tscripts/db-flow/admission-outcome\\.test\\.mjs$`).test(line)))return withMetadata(canonicalImportUnion(a,b,base,stages))
       if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tconfig/production-verification-sidecar-registry\\.json$`).test(line)))return withMetadata(canonicalRegistryUnion(a,b,base,stages))
       throw new LaneError('review budget conflict is outside the one canonical test append')
     }
@@ -484,7 +484,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
         }
       } else throw new LaneError('review budget ambiguous merge provenance refused')
     }
-    const witnessExcludes=[...(canonicalAppends.length?[':(top,literal,exclude)scripts/manage-migration-author-lanes.test.mjs']:[]),...(canonicalPinOverlaps.length?[':(top,literal,exclude)scripts/production_business_risk_gate.py']:[]),...(canonicalImportUnions.length?[':(top,literal,exclude)scripts/orchestrator-flow/admission-outcome.test.mjs']:[]),...(canonicalRegistryUnions.length?[':(top,literal,exclude)config/production-verification-sidecar-registry.json']:[])]
+    const witnessExcludes=[...(canonicalAppends.length?[':(top,literal,exclude)scripts/manage-migration-author-lanes.test.mjs']:[]),...(canonicalPinOverlaps.length?[':(top,literal,exclude)scripts/production_business_risk_gate.py']:[]),...(canonicalImportUnions.length?[':(top,literal,exclude)scripts/db-flow/admission-outcome.test.mjs']:[]),...(canonicalRegistryUnions.length?[':(top,literal,exclude)config/production-verification-sidecar-registry.json']:[])]
     const netPaths=run(['diff','--name-only',tree(expected),after,'--',...paths,...witnessExcludes]).split('\n').filter(Boolean)
     if(netPaths.some(file=>file.startsWith('.agent/')))throw new LaneError('review budget unverified evidence cannot witness authored repair')
     const managerFile='scripts/manage-migration-author-lanes.mjs'

@@ -215,7 +215,7 @@ function domainStatus(unverifiable,mutating){return unverifiable?'UNVERIFIABLE':
 
 // #2301 Step 5. A SCHEDULED audit must be read-only BY CONSTRUCTION, not by
 // luck of its environment. `reconcileFlow` decides whether to mutate from the
-// live sole-orchestrator marker, and a hosted runner happens not to hold one --
+// live claim-first session identity, and a hosted runner happens not to hold one --
 // but "happens not to" is exactly the guarantee that stops holding the day
 // somebody grants the workflow a token or a marker leaks into CI. This wrapper
 // removes the capability instead of relying on its absence: the marker reads as

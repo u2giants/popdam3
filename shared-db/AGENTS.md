@@ -457,7 +457,7 @@ The withdrawal-confirmation question is **settled** in [`docs/business-rules/lic
   routing). Repository maintenance, proofs, documentation, tooling, and monitoring are not
   structural-lane jobs. [`orchestrator.md`](docs/agents/orchestrator.md)
   An eligible additive change wholly inside `{crm, pim, dam, plm}` may use
-  `route: self-service-additive` instead of triage; the boundary is enforced at
+  `route: self-service-additive` instead of the ordinary claim-first path; the boundary is enforced at
   merge time by `check-self-service-additive-lane.mjs` (see
   [`ephemeral-route-hop-table.md`](docs/agents/ephemeral-route-hop-table.md)).
 - **§2.1-W — worktree-only.** Every session works in its own

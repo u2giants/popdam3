@@ -79,7 +79,7 @@ test('the migrations workflow verifies a train dispatch in validate, which every
   assert.ok(inputs.length<=25,`workflow_dispatch allows at most 25 inputs; found ${inputs.length}`)
   const validate=workflow.slice(workflow.indexOf('\n  validate:'),workflow.indexOf('\n    needs:'))
   assert.match(validate,/if: github\.event_name == 'workflow_dispatch' && inputs\.migration_train_ref != ''[\s\S]*?node scripts\/manage-migration-author-lanes\.mjs --verify-train-dispatch "\$TRAIN_REF"/)
-  assert.match(validate,/node --test scripts\/orchestrator-flow\/migration-train\.test\.mjs/)
+  assert.match(validate,/node --test scripts\/db-flow\/migration-train\.test\.mjs/)
   const needs=workflow.match(/^    needs: .+$/gm)
   assert.ok(needs.length>=5&&needs.every((line)=>/validate/.test(line)))
 })
