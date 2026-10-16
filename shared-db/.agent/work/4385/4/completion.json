@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 4385,
+  "outcome": "ready-for-merge",
+  "reason": "Required source checks are complete. Independent current-head review, PR CI and guarded merge are separate pending gates.",
+  "pr": 4408,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4385/4",
+  "contract_sha256": "abae78c330cab35abda7a5e98b0c01a2deca46f09bb6ebc741ecf9c3d1facdc1",
+  "head_sha": "c1c4c553a6ccd32a601b04843e1c6c749a071d30",
+  "base_sha": "a125688726fbd4041efb0bd61a98a607ee0b795a",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "917 pass at c1c4c553a6cc"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK at c1c4c553a6cc"
+    }
+  ],
+  "assumptions_resolved": [
+    "Exactly PR #4386 admitted, open state only."
+  ],
+  "stop_conditions_hit": []
+}
