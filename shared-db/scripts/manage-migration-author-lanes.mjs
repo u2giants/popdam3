@@ -215,14 +215,43 @@ export function runGitHubCommand(args,{executor=execFileSync,wait=(ms)=>Atomics.
     wrapError:(detail)=>new LaneError(`GitHub command failed: ${detail}`),
   })
 }
-function ghPaginated(endpoint) {
+const ADMISSION_ISSUE_COMMENT_MAX_PAGES=5, GITHUB_REST_PAGE_SIZE=100
+function isAdmissionIssueCommentEndpoint(endpoint){
+  const value=String(endpoint)
+  return value.startsWith(`repos/${REPO}/issues/`)&&/^repos\/[^/]+\/[^/]+\/issues\/[1-9]\d*\/comments\?per_page=100$/.test(value)
+}
+function readAdmissionIssueCommentPages(endpoint,readJson){
+  const comments=[],commentIds=new Set(),pageSignatures=new Set()
+  for(let pageNumber=1;pageNumber<=ADMISSION_ISSUE_COMMENT_MAX_PAGES;pageNumber++){
+    const pageEndpoint=`${endpoint}&page=${pageNumber}`
+    const page=readJson(['api',pageEndpoint])
+    if(!Array.isArray(page)||page.length>GITHUB_REST_PAGE_SIZE)throw new LaneError(`GitHub admission comment page ${pageNumber} for ${endpoint} was incomplete or malformed`)
+    const ids=page.map((comment)=>{
+      const id=String(comment?.id??'')
+      if(!/^[1-9]\d*$/.test(id))throw new LaneError(`GitHub admission comment page ${pageNumber} for ${endpoint} contains a row without a valid comment id`)
+      return id
+    })
+    const signature=JSON.stringify(ids)
+    if(pageSignatures.has(signature))throw new LaneError(`GitHub admission comment page ${pageNumber} for ${endpoint} repeats an earlier page`)
+    pageSignatures.add(signature)
+    for(const id of ids){
+      if(commentIds.has(id))throw new LaneError(`GitHub admission comment pages for ${endpoint} contain duplicate comment id ${id}`)
+      commentIds.add(id)
+    }
+    comments.push(...page)
+    if(page.length<GITHUB_REST_PAGE_SIZE)return comments
+  }
+  throw new LaneError(`GitHub admission comment history for ${endpoint} reached the ${ADMISSION_ISSUE_COMMENT_MAX_PAGES}-page limit without a short final page; refusing incomplete history`)
+}
+function ghPaginated(endpoint,{readJson=ghJson}={}) {
   if(reviewWireBudget){
-    const page=ghJson(['api',endpoint])
+    if(String(reviewWireBudget.operation??'').endsWith('-admission-gate')&&isAdmissionIssueCommentEndpoint(endpoint))return readAdmissionIssueCommentPages(endpoint,readJson)
+    const page=readJson(['api',endpoint])
     if(!Array.isArray(page))throw new LaneError(`GitHub page for ${endpoint} was incomplete or malformed`)
-    if(page.length>=100)throw new LaneError(`GitHub page for ${endpoint} reached 100 rows; reviewer operation refuses possible pagination`)
+    if(page.length>=GITHUB_REST_PAGE_SIZE)throw new LaneError(`GitHub page for ${endpoint} reached 100 rows; reviewer operation refuses possible pagination`)
     return page
   }
-  const pages = ghJson(['api', '--paginate', '--slurp', endpoint])
+  const pages = readJson(['api', '--paginate', '--slurp', endpoint])
   if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page))) throw new LaneError(`GitHub pagination for ${endpoint} was incomplete or malformed`)
   return pages.flat()
 }
@@ -1020,7 +1049,7 @@ export const githubIo = {
   createClaim(title, body) { return gh(['issue', 'create', '--repo', REPO, '--label', 'db-claim', '--title', `CLAIM: ${title}`, '--body', body]).trim() },
   createIssueIn(repo, title, body) { return gh(['issue','create','--repo',repo,'--title',title,'--body',body]).trim() },
   commentIssue(number, body) { gh(['issue','comment',String(number),'--repo',REPO,'--body',body]) },
-  issueComments(number) { return ghPaginated(`repos/${REPO}/issues/${number}/comments?per_page=100`).map((c)=>({ body:c.body, author_association:c.author_association, author:c.user?.login, id:c.id, created_at:c.created_at, updated_at:c.updated_at })) },
+  issueComments(number,{readJson=ghJson}={}) { return ghPaginated(`repos/${REPO}/issues/${number}/comments?per_page=100`,{readJson}).map((c)=>({ body:c.body, author_association:c.author_association, author:c.user?.login, id:c.id, created_at:c.created_at, updated_at:c.updated_at })) },
   readOutcomeEvidence(ref) {
     let path
     try{path=repositoryCommentApiPath(ref,REPO)}catch(error){throw new LaneError(`outcome evidence refused: ${error.message}`)}
@@ -3741,8 +3770,31 @@ function requirePrOperationRoute(options,io,args){
   if(io.enforceAdmission!==true)return null
   return withoutReviewRequestBudget(()=>requirePrOperationRouteGate(options,io,args))
 }
+function proveLightweightDocumentsOnlyMerge(prNumber,headSha,io){
+  // Preserve the existing owner exemption for ordinary prose merges without
+  // supplying database authority. Every uncertainty falls through to normal
+  // structural/nonclosing routing, which remains fail-closed.
+  try{
+    const identity=(pr)=>({number:pr?.number,state:pr?.state,headSha:pr?.head?.sha,headRef:pr?.head?.ref,
+      headRepo:pr?.head?.repo?.full_name,baseSha:pr?.base?.sha,baseRef:pr?.base?.ref,baseRepo:pr?.base?.repo?.full_name})
+    const first=io.getPr?.(prNumber),before=identity(first),baseSha=before.baseSha
+    if(Number(before.number)!==Number(prNumber)||before.state!=='open'||before.headSha!==headSha||
+      !/^[0-9a-f]{40}$/.test(String(headSha))||!before.headRef||before.headRepo!==REPO||
+      !/^[0-9a-f]{40}$/.test(String(baseSha))||before.baseRef!=='main'||before.baseRepo!==REPO)return false
+    const closing=io.closingIssuesForPr?.(prNumber)
+    if(!Array.isArray(closing)||closing.length!==0)return false
+    const files=io.comparePullRequestFiles?.(baseSha,headSha)
+    if(!Array.isArray(files)||!classifyLightweightMergePullRequestFiles(files).documentsOnly)return false
+    const after=identity(io.getPr?.(prNumber))
+    return JSON.stringify(after)===JSON.stringify(before)
+  }catch{return false}
+}
 function requirePrOperationRouteGate(options,io,{pr,headSha,issue,mutexOwner,allowMerged=false,reviewSnapshot=false,resolveStructuralIssue=false}){
   if(mutexOwner)requireOwnedRef(MUTEX_REF,mutexOwner,io)
+  if(resolveStructuralIssue&&proveLightweightDocumentsOnlyMerge(pr,headSha,io)){
+    requireOwnedRef(MUTEX_REF,mutexOwner,io)
+    return {route:'documents-only',issue:null,headSha}
+  }
   const snapshot=reviewSnapshot&&typeof io.readReviewerOperationRoute==='function'?io.readReviewerOperationRoute(pr):null
   const route=derivePrOperationRoute(pr,io,{headSha,issue,allowMerged,snapshot})
   if(route.route==='repo-maintenance')return route

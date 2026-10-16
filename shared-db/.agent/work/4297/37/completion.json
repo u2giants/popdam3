@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "work_issue": 4297,
+  "outcome": "ready-for-merge",
+  "pr": 4370,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4297/37",
+  "contract_sha256": "9e366b5a18e2abe93881422640c7218243d74dac78f0c3f5472092b64ed55205",
+  "head_sha": "1fe0f9ceb0ca1b0b7f3303688233beb9bc2f1044",
+  "base_sha": "e241459ab805a1219b76534d425741e1f87fa44c",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node scripts/agent-work-contract.mjs --validate-contract --contract-file .agent/work/4297/37/contract.json",
+      "exit_code": 0,
+      "evidence": "Prospective generation37 contract validated; published before the added prose-admission implementation. Original pager source remains authorized by immutable generation28."
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/reviewer-wire-budget.test.mjs",
+      "exit_code": 0,
+      "evidence": "917 passed,0 failed; derived request ceilings and reserve unchanged."
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_business_risk_gate",
+      "exit_code": 0,
+      "evidence": "224 passed,0 failed."
+    },
+    {
+      "command": "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs scripts/run-governed-review.test.mjs scripts/check-exact-head-approval.test.mjs",
+      "exit_code": 0,
+      "evidence": "418 passed,1 existing skipped,0 failed."
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 passed,0 failed."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Native truth audit353 callsites98sources digest7d5729fa5373."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Original pager head0c2f0726e3b959eb1dff055695ef7f16e84a5010 remains an ancestor; its generation28 ref and source history are unchanged. Current main e241459ab805a1219b76534d425741e1f87fa44c merged without a source conflict.",
+    "Generation37 was prospectively published at4c0b44e4414b77ab4b3a1036a0fcf3960ebb85b9 before adding the demonstrated documents-only exclusive merge admission correction; immutable evidence lineage links37\u219236\u219228.",
+    "Pure prose with no closing work issue is proven from live same-repository main-base/head inventory under the author mutex using the existing classifier. Unknown/code/instruction/migration or moved identities retain ordinary admission; exclusive locks, production freeze and downstream authorization remain.",
+    "Local tests are source/synthetic evidence only. Actual successful reviewer admission for2336 and actual checkpoint4378 merge remain separate live proofs; no database write occurred.",
+    "Other sessions4357/4362 remain untouched. Root owns shared-source requalification and serialized landing."
+  ],
+  "stop_conditions_hit": []
+}
