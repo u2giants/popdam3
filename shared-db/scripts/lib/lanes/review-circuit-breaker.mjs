@@ -362,15 +362,23 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     if(!sha.test(base))throw new LaneError('review budget merge base unreadable')
     const changed=[...new Set([a,b].flatMap(tip=>raw(['diff','--name-only','-z',base,tip]).split('\0').filter(Boolean)))]
     if(changed.length>=1000)throw new LaneError('review budget merge path bound refused')
+    let protectedRename=false
     for(const tip of [base,a,b,null]) {
       const attributes=changed.length?raw(['check-attr',...(tip?[`--source=${tip}`]:[]),'-z','merge','filter','working-tree-encoding','--',...changed]).split('\0'):[]
       for(let i=2;i<attributes.length;i+=3)if(attributes[i]!=='unspecified')throw new LaneError('review budget custom merge/filter/encoding attributes refused')
-      if(tip && raw(['diff','--name-status','-M',base,tip]).split('\n').some(line=>/^R[0-9]+\t/.test(line)))throw new LaneError('review budget renamed merge source refused')
+      if(tip && raw(['diff','--name-status','-M',base,tip]).split('\n').some(line=>/^R[0-9]+\t/.test(line))){
+        // #4397: a rename already on reviewed protected main is accepted only when
+        // git resolves the replay cleanly. A pull-request-side rename always refuses,
+        // and so does any conflicted replay with a rename on either side.
+        if(tip===base || !ancestor(tip,protectedMain))throw new LaneError('review budget renamed merge source refused')
+        protectedRename=true
+      }
     }
     let result
     try { result=run(['merge-tree','--write-tree',a,b]) }
     catch(error) {
       if(error?.status!==1 || typeof error.stdout!=='string')throw error
+      if(protectedRename)throw new LaneError('review budget renamed merge source refused')
       const lines=error.stdout.split('\n'),resultTree=lines[0]
       let stages=lines.slice(1).filter(line=>/^[0-9]{6} /.test(line))
       const metadataOverrides=new Map()

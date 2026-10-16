@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 4397,
+  "outcome": "ready-for-merge",
+  "reason": "Required source checks are complete. Independent current-head review, PR CI and guarded merge are separate pending gates.",
+  "pr": 4398,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4397/1",
+  "contract_sha256": "3f9623a206e49845e0be92c76ee8a2bc828a2f48f12f8f1239fd01c92b284f8d",
+  "head_sha": "f6b7d989575472a82f4e0d9e6fbc4864eed12425",
+  "base_sha": "55d1afb1556c6fb75060ab0ddc16b0a995609893",
+  "files_changed": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "{\"passed\": 1109, \"failed\": 0} at f6b7d989"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK at f6b7d989"
+    }
+  ],
+  "assumptions_resolved": [
+    "New #4397 test fails without the fix (renamed merge source refused) and passes with it; PR-side rename still refuses."
+  ],
+  "stop_conditions_hit": []
+}

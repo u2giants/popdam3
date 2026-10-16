@@ -919,3 +919,22 @@ test('a proof naming a base other than the operation base refuses',()=>{
 test('duplicate-head starts are each counted',()=>{
   assert.throws(()=>capacity(chainIo({heads:[old,old,reviewed],proofs:{'f>9':'substantive','e>f':'substantive','e>9':'unchanged'}})),/third draw refused/)
 })
+
+test('#4397 a clean refresh across a rename made on protected main keeps the paid budget proof',t=>{
+ const dir=mkdtempSync(path.join(tmpdir(),'review-budget-rename-'));t.after(()=>rmSync(dir,{recursive:true,force:true}))
+ const git=args=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']})
+ git(['init','-q','-b','main']);git(['config','user.name','Fixture']);git(['config','user.email','fixture@example.test']);git(['config','core.autocrlf','false'])
+ const commit=(file,text)=>{writeFileSync(path.join(dir,file),text);git(['add',file]);git(['commit','-qm','fixture']);return git(['rev-parse','HEAD']).trim()}
+ commit('lib.txt','library\nshared\nbody\n');commit('app.txt','context\nauthor\nend\n');git(['switch','-qc','feature'])
+ const before=commit('app.txt','context\nfixed\nend\n')
+ git(['switch','main']);git(['mv','lib.txt','moved.txt']);git(['commit','-qm','protected rename']);const main=git(['rev-parse','HEAD']).trim()
+ git(['switch','feature']);git(['merge','-qm','main refresh','main']);const after=git(['rev-parse','HEAD']).trim()
+ assert.equal(derivePaidContentProof(before,after,main,git).kind,'unchanged')
+})
+
+test('#4397 a rename inside the pull request still refuses the budget replay',t=>{
+ const f=realGitFixture(t);f.git(['switch','main']);const main=f.commit('other.txt','other\n')
+ f.git(['switch','feature']);f.git(['mv','app.txt','renamed.txt']);f.git(['commit','-qm','pr rename']);const renamed=f.git(['rev-parse','HEAD']).trim()
+ f.git(['merge','-qm','main refresh','main']);const after=f.git(['rev-parse','HEAD']).trim()
+ assert.throws(()=>derivePaidContentProof(renamed,after,main,f.git),/renamed merge source refused/)
+})

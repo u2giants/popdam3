@@ -1,0 +1,45 @@
+{
+  "schema_version": 2,
+  "work_issue": 4397,
+  "generation": 1,
+  "evidence_parent": null,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Let the review-budget merge replay accept renames made on protected main when git merge-tree resolves cleanly; keep refusing PR-side renames and any conflicted replay with renames",
+  "base_sha": "55d1afb1556c6fb75060ab0ddc16b0a995609893",
+  "dispatcher": "Claude chat b6410b17-053b-4ff2-adc8-f25b053cb611 on edge-dev3",
+  "worker": "claude",
+  "branch": "claude/review-budget-main-renames",
+  "worktree": "/home/ahazan/repos/shared-db-renames",
+  "allowed_paths": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-circuit-breaker.mjs.json",
+    ".agent/work/4397/1/contract.json",
+    ".agent/work/4397/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-circuit-breaker.mjs.json",
+    ".agent/work/4397/1/contract.json",
+    ".agent/work/4397/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not weaken PR-side rename refusal or any conflicted-merge reconstruction guard",
+    "do not touch any migration or database object"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "owner-directed (Albert, verbatim: \"every chat says it's waiting on the other 2 and so nothing is progressing. so i think you need to take over all of them and complete everything.\"); this unblocks PR #4388"
+  ],
+  "stop_conditions": [
+    "stop if the fix would need to accept a rename inside the pull request itself",
+    "stop if a required check fails for an unrelated reason"
+  ]
+}
