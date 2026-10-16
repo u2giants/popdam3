@@ -378,7 +378,9 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     try { result=run(['merge-tree','--write-tree',a,b]) }
     catch(error) {
       if(error?.status!==1 || typeof error.stdout!=='string')throw error
-      if(protectedRename)throw new LaneError('review budget renamed merge source refused')
+      // #4397 generation 2: a conflicted replay across a protected-main rename is the
+      // moved-main merge gap, bridged only conservatively (it can spend, never grant).
+      if(protectedRename)throw new LaneError('review budget protected rename merge gap')
       const lines=error.stdout.split('\n'),resultTree=lines[0]
       let stages=lines.slice(1).filter(line=>/^[0-9]{6} /.test(line))
       const metadataOverrides=new Map()
@@ -578,7 +580,7 @@ export function assertPaidReviewCapacity(request, io) {
   // Only the moved-main MERGE gap may be bridged: re-merging an older head against the
   // current main conflicts outside the canonical append forms. Every other provenance
   // refusal (evidence lineage, blob integrity, foreign pairs, ...) keeps refusing.
-  const provenanceGap=(error)=>/^review budget Git provenance refused: review budget (conflict is outside the one canonical test append|canonical append requires exactly one conflict|append marker ambiguity|append must be one EOF conflict|append cannot modify old lines or omit a parent)$/.test(String(error?.message??''))
+  const provenanceGap=(error)=>/^review budget Git provenance refused: review budget (protected rename merge gap|conflict is outside the one canonical test append|canonical append requires exactly one conflict|append marker ambiguity|append must be one EOF conflict|append cannot modify old lines or omit a parent)$/.test(String(error?.message??''))
   // Composition table: unchanged after unchanged is unchanged; a substantive step on
   // either side with an unchanged step on the other is substantive. Two substantive
   // steps prove nothing (the second may revert the first), so that chain is skipped.

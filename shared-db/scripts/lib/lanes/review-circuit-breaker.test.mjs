@@ -875,6 +875,13 @@ test('two substantive links do not compose and the older unresolved start spends
 test('one unresolved merge-gap start consumes one existing attempt conservatively',()=>{
   assert.deepEqual(capacity(chainIo({heads:[old],proofs:{}})),{paidAttempts:1,remaining:null,uncapped:true,conservativeHeads:[old]})
 })
+test('#4397 a conflicted replay across a protected-main rename is bridged as the conservative merge gap',()=>{
+  const RENAME_GAP='review budget Git provenance refused: review budget protected rename merge gap'
+  const x=chainIo({heads:[old],proofs:{},fail:{'e>9':RENAME_GAP}})
+  assert.deepEqual(capacity(x),{paidAttempts:1,remaining:null,uncapped:true,conservativeHeads:[old]})
+  const pr=chainIo({heads:[old],proofs:{},fail:{'e>9':'review budget Git provenance refused: review budget renamed merge source refused'}})
+  assert.throws(()=>capacity(pr),/renamed merge source refused/,'a pull-request-side rename is never a gap')
+})
 test('exact-bound reviewer failure refunds an unresolved merge-gap start without conservative charging',()=>{
   const x=chainIo({heads:[old,reviewed],proofs:{'f>9':'unchanged','e>f':'unchanged'}})
   const failureSha='f'.repeat(39)+'1'
@@ -937,4 +944,17 @@ test('#4397 a rename inside the pull request still refuses the budget replay',t=
  f.git(['switch','feature']);f.git(['mv','app.txt','renamed.txt']);f.git(['commit','-qm','pr rename']);const renamed=f.git(['rev-parse','HEAD']).trim()
  f.git(['merge','-qm','main refresh','main']);const after=f.git(['rev-parse','HEAD']).trim()
  assert.throws(()=>derivePaidContentProof(renamed,after,main,f.git),/renamed merge source refused/)
+})
+
+test('#4397 a conflicted protected-rename replay reports the merge gap, not a hard refusal',t=>{
+ const dir=mkdtempSync(path.join(tmpdir(),'review-budget-rename-gap-'));t.after(()=>rmSync(dir,{recursive:true,force:true}))
+ const git=args=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']})
+ git(['init','-q','-b','main']);git(['config','user.name','Fixture']);git(['config','user.email','fixture@example.test']);git(['config','core.autocrlf','false'])
+ const commit=(file,text)=>{writeFileSync(path.join(dir,file),text);git(['add',file]);git(['commit','-qm','fixture']);return git(['rev-parse','HEAD']).trim()}
+ commit('lib.txt','library\nshared\nbody\n');commit('app.txt','context\nauthor\nend\n');git(['switch','-qc','feature'])
+ const before=commit('app.txt','context\nfeature edit\nend\n')
+ git(['switch','main']);git(['mv','lib.txt','moved.txt']);git(['commit','-qm','protected rename']);const main=commit('app.txt','context\nmain edit\nend\n')
+ git(['switch','feature']);try{git(['merge','-q','main'])}catch{}
+ writeFileSync(path.join(dir,'app.txt'),'context\nfeature edit\nmain edit\nend\n');git(['add','app.txt']);git(['commit','-qm','resolved main refresh']);const after=git(['rev-parse','HEAD']).trim()
+ assert.throws(()=>derivePaidContentProof(before,after,main,git),/protected rename merge gap/)
 })
