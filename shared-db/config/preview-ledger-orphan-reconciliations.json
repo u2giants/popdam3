@@ -1,6 +1,7 @@
 {
   "schema": "shared-db-preview-ledger-orphan-reconciliations/v1",
   "cases": [
+    {"issue":4373,"claim":4382,"source_pr":4386,"mode":"byte_identical_rename","orphan_version":"20261016012631","replacement_version":"20261016042600","orphan_run_head":"154361984687def51366c2c539d7467b1ad64098","orphan_commit_sha":"56f09184269abde4a7a8c85a2b1e617e249260b7","preview_run_id":38839047707,"preview_artifact_id":12020143683,"preview_artifact_digest":"sha256:d7123954f3fb949b63eb5e78055d98a9277986af43d472747d09177c15be33b4","issue_state":"open","claim_state":"open"},
     {"issue":1090,"claim":1100,"source_pr":1108,"mode":"replacement_already_applied"},
     {"issue":1211,"claim":1371,"source_pr":1372,"mode":"replacement_pending","orphan_version":"20260824002102","replacement_version":"20260824004025","orphan_run_head":"24a39f3f66ff26a8eee825b4acf54531a128f654"},
     {"issue":1211,"claim":1371,"source_pr":1372,"mode":"rehearsal_reset","orphan_version":"20260824004025","replacement_version":"20260824004025","original_run_head":"88ebd0272a163d32aefe748d59c7096c8fe54d0e"},

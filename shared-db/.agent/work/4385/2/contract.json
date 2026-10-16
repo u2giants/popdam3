@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 4385,
+    "generation": 1,
+    "contract_sha256": "4053d3db32c69696cbd5fdeefccb4857172a07b2daaf7f6fd7997338be27e8ba"
+  },
+  "work_issue": 4385,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Prospectively qualify one existing native byte_identical_rename case for issue4373 claim4382 PR4386, preview-only old20261016012631 to new20261016042600, without changing validators or historical authority.",
+  "base_sha": "d9c2ba5f3a40debde2a8c314d6d4c90301615c11",
+  "dispatcher": "Claude chat b6410b17-053b-4ff2-adc8-f25b053cb611 on edge-dev3",
+  "worker": "claude",
+  "branch": "codex/stage-preview-ledger-rename",
+  "worktree": "/home/ahazan/repos/shared-db-4387",
+  "allowed_paths": [
+    ".agent/work/4385/1/completion.json",
+    ".agent/work/4385/1/contract.json",
+    ".agent/work/4385/2/completion.json",
+    ".agent/work/4385/2/contract.json",
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py",
+    "scripts/test_preview_ledger_orphan_reconcile_postgres.py"
+  ],
+  "file_writes": [
+    ".agent/work/4385/1/completion.json",
+    ".agent/work/4385/1/contract.json",
+    ".agent/work/4385/2/completion.json",
+    ".agent/work/4385/2/contract.json",
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py",
+    "scripts/test_preview_ledger_orphan_reconcile_postgres.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No implementation before genuine native publication/readback.",
+    "No native validator/workflow/generic mode change, source migration, borrowed case, grandfather, manual ledger SQL, production target, or credential operation.",
+    "No false prework claim for original4377 or old reviews; preserve all original archives/source/tombstones.",
+    "No live reconciliation or source merge without separate root exact-input review/normal workflow gates."
+  ],
+  "required_checks": [
+    "git diff --check",
+    "python3 scripts/test_preview_ledger_orphan_reconcile.py",
+    "PREVIEW_LEDGER_RECONCILE_POSTGRES_TEST=1 python3 scripts/test_preview_ledger_orphan_reconcile_postgres.py"
+  ],
+  "assumptions": [
+    "Original run38839047707 succeeded: producer154361984687def51366c2c539d7467b1ad64098, applied56f09184269abde4a7a8c85a2b1e617e249260b7; artifact12020143683 ZIP/API SHA256d7123954f3fb949b63eb5e78055d98a9277986af43d472747d09177c15be33b4.",
+    "Original and successor SQL must have fileSHA2568d08ca45a69838df822b0b90e616bc26e4d0f5a2ab774a3f99ab226b4a3884ec and10-statement-arraySHA256a7cd0e732ca70406e8be191465dae4e58311b08414b251dcf093cbd494a41875; historical SQL comments are not current authority.",
+    "Only shared previewmvpkijzfmfcxhnzqogzs has old version. Actual sandboxxup/shared productionqslly have neither version; no action on those targets in this maintenance work.",
+    "Tests may use exclusively owned network-none pinned PostgreSQL17 disposable fixtures, with no live credentials or databases; those fixtures are not shared database writes. Required proof includes actual execution with zero skipped tests.",
+    "Successor sourcePR4386 must be exact open current head with claim4382 open/current; fresh runtime governance rebinds that current source and exact migration bytes. Case source is not deployment authorization.",
+    "Independent exact-head source review including Muse, normalCI/merge, fresh preview-recovery lease, governed check/apply and post-apply proof are LATER gates, never claimed as completed by implementation evidence.",
+    "generation 2: owner-directed takeover (Albert, verbatim: \"every chat says it's waiting on the other 2 and so nothing is progressing. so i think you need to take over all of them and complete everything.\"); integrates current main only; the original completed-unrecordable seq 6603 review stays non-authorizing and is not imported"
+  ],
+  "stop_conditions": [
+    "Any source/run/artifact/statement/tuple/target mismatch, unsupported case shape, or need to edit a validator/workflow or outside allowed paths.",
+    "SourcePR4386 missing/closed/merged unexpectedly, claim4382 not current, or case selecting any production/application-sandbox action.",
+    "Any required check failure or skipped PostgreSQL suite; no success claim or invented evidence.",
+    "Any live-write attempt without separate fresh reviewed normal workflow authority."
+  ]
+}

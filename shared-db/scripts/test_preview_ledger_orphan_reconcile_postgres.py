@@ -30,6 +30,24 @@ create trigger break_reconciliation before delete on supabase_migrations.schema_
             reconcile.reconcile(self.url(),os.environ.copy(),args,self.statements,self.statements,'replacement_already_applied')
         self.assertEqual(self.psql(f"select string_agg(version,',' order by version) from supabase_migrations.schema_migrations where version in ('{self.old}','{self.replacement}')"),f'{self.old},{self.replacement}')
 
+    def test_stage_catalog_rename_preserves_schema_history_and_other_ledger_rows(self):
+        """Run the production reconciler SQL, without executing any migration DDL."""
+        old='20261016012631'; new='20261016042600'
+        self.psql("drop trigger if exists break_reconciliation on supabase_migrations.schema_migrations; drop function if exists public.break_reconciliation();")
+        self.psql(f"delete from supabase_migrations.schema_migrations where version in ('{old}','{new}'); insert into supabase_migrations.schema_migrations values ('{old}',array['select 1'],'original'); create table if not exists public.stage_reconcile_history(id integer primary key,note text); insert into public.stage_reconcile_history values(1,'preserve') on conflict do nothing;")
+        args=type('A',(),{'orphan_version':old,'replacement_version':new,'replacement_migration':pathlib.Path(new+'_plm_stage_tracker_order_options.sql'),'mode':'check'})()
+        before=self.psql('select row_to_json(t)::text from public.stage_reconcile_history t order by id')
+        reconcile.reconcile(self.url(),os.environ.copy(),args,['select 1'],['select 1'],'byte_identical_rename')
+        self.assertEqual(self.psql(f"select count(*) from supabase_migrations.schema_migrations where version='{old}'"),'1')
+        args.mode='apply'
+        reconcile.reconcile(self.url(),os.environ.copy(),args,['select 1'],['select 1'],'byte_identical_rename')
+        self.assertEqual(self.psql(f"select count(*) from supabase_migrations.schema_migrations where version='{new}' and statements=array['select 1'] and name='plm_stage_tracker_order_options'"),'1')
+        self.assertEqual(self.psql(f"select count(*) from supabase_migrations.schema_migrations where version='{old}'"),'0')
+        self.assertEqual(before,self.psql('select row_to_json(t)::text from public.stage_reconcile_history t order by id'))
+        self.assertEqual(self.psql(f"select count(*) from supabase_migrations.schema_migrations where version='{self.replacement}' and name='replacement'"),'1')
+        with self.assertRaises(reconcile.Refusal):reconcile.reconcile(self.url(),os.environ.copy(),args,['select 1'],['select 1'],'byte_identical_rename')
+        self.psql(f"delete from supabase_migrations.schema_migrations where version='{new}'; drop table public.stage_reconcile_history;")
+
     def test_byte_identical_rename_rolls_back_when_statements_change_after_initial_read(self):
         self.psql(f"""drop trigger if exists break_reconciliation on supabase_migrations.schema_migrations;
 delete from supabase_migrations.schema_migrations where version in ('{self.old}','{self.replacement}');

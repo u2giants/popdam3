@@ -10,7 +10,44 @@ class Tests(unittest.TestCase):
         workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
         self.assertIn('config/preview-ledger-orphan-reconciliations.json',workflow)
         self.assertNotIn('case "$ISSUE:$CLAIM:$SOURCE_PR:$ORPHAN:$REPLACEMENT"',workflow)
-        self.assertEqual(len(M.SUPPORTED_CASES),14)
+        self.assertEqual(len(M.SUPPORTED_CASES),15)
+
+    def test_stage_catalog_open_successor_governance_and_substitution_refusals(self):
+        """Execute real governance, distinguishing producer from applied-source commits."""
+        from types import SimpleNamespace
+        import copy
+        main='e241459ab805a1219b76534d425741e1f87fa44c'
+        producer='154361984687def51366c2c539d7467b1ad64098'
+        applied='56f09184269abde4a7a8c85a2b1e617e249260b7'
+        current='63d421685469f136f38f12a8419e1cb898fc07b1'
+        digest='sha256:d7123954f3fb949b63eb5e78055d98a9277986af43d472747d09177c15be33b4'
+        with tempfile.TemporaryDirectory() as directory:
+            root=pathlib.Path(directory); (root/'supabase/migrations').mkdir(parents=True)
+            orphan=root/'old.sql'; orphan.write_text('-- historical bytes\nselect 1;')
+            replacement=root/'20261016042600_plm_stage_tracker_order_options.sql'; replacement.write_bytes(orphan.read_bytes())
+            evidence=root/'evidence'; evidence.mkdir()
+            (evidence/'preview-ledger-before.txt').write_text(json.dumps([{'version':'20261015193344'}]))
+            (evidence/'preview-ledger-after.txt').write_text(json.dumps([{'version':'20261015193344'},{'version':'20261016012631'}]))
+            (evidence/'preview-apply.txt').write_text('Applying migration 20261016012631_plm_stage_tracker_order_options.sql')
+            rows={'issue':{'number':4373,'state':'open'},'claim':{'number':4382,'state':'open','title':'#4373 prospective','body':'version: 20261016042600'},'pr':{'number':4386,'state':'open','merged':False,'head':{'sha':current}},'pr_files':[{'filename':'supabase/migrations/'+replacement.name}], 'run':{'id':38839047707,'status':'completed','conclusion':'success','event':'workflow_dispatch','path':'.github/workflows/shared-supabase-migrations.yml','head_sha':producer},'artifact':{'id':12020143683,'workflow_run':{'id':38839047707},'digest':digest,'expired':False,'name':'preview-migration-apply-'+applied}}
+            args=SimpleNamespace(repo=root,main_sha=main,issue=4373,claim=4382,source_pr=4386,orphan_version='20261016012631',replacement_version='20261016042600',source_pr_dir=root/'source',orphan_source_dir=root/'orphan',orphan_migration=orphan,replacement_migration=replacement,preview_evidence_dir=evidence,preview_run_id=38839047707,preview_artifact_id=12020143683,preview_artifact_digest=digest)
+            for key in rows:setattr(args,key+'_json',root/(key+'.json'))
+            def git(where,*command):
+                if where==args.source_pr_dir:return current
+                if where==args.orphan_source_dir:return applied
+                return main
+            def execute(data,old=('select 1',),new=('select 1',)):
+                for key,value in data.items():getattr(args,key+'_json').write_text(json.dumps(value))
+                with patch.object(M,'git',side_effect=git):return M.validate_governance(args,list(old),list(new))
+            self.assertEqual(execute(rows)['case_mode'],'byte_identical_rename')
+            mutations=[('producer-confused-with-applied',lambda d:d['run'].update(head_sha=applied)),('artifact-confused-with-producer',lambda d:d['artifact'].update(name='preview-migration-apply-'+producer)),('wrong-source-head',lambda d:d['pr']['head'].update(sha=producer)),('wrong-run',lambda d:d['run'].update(id=1)),('wrong-artifact',lambda d:d['artifact'].update(id=1)),('wrong-digest',lambda d:d['artifact'].update(digest='sha256:0')),('closed-replacement',lambda d:d['pr'].update(state='closed')),('wrong-claim',lambda d:d['claim'].update(number=4376))]
+            for label,mutate in mutations:
+                with self.subTest(label=label):
+                    changed=copy.deepcopy(rows);mutate(changed)
+                    with self.assertRaises(M.Refusal):execute(changed)
+            with self.assertRaises(M.Refusal):execute(rows,new=('select 2',))
+            args.claim=4376
+            with self.assertRaises(M.Refusal):execute(rows)
 
     def test_issue_3458_byte_identical_rename_is_narrowly_evidence_bound(self):
         case=M.SUPPORTED_CASES[(3458,3483,3672)]
