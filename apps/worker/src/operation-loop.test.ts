@@ -1,10 +1,43 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { buildResultMessage, classifyError, interruptionReason, isProtectedExternalJob, mergeProgress, nextAutoResumeAt, normalizeBatchError, qualifyRebuildRowCounts, scopeSingleAssetTag } from "./operation-loop.js";
+import { buildResultMessage, classifyError, interruptionReason, isProtectedExternalJob, mergeProgress, nextAutoResumeAt, normalizeBatchError, qualifyRebuildRowCounts, rebuildCursorReceipt, scopeSingleAssetTag } from "./operation-loop.js";
+import { hashCursorCheckpoint } from "./handlers/style-groups.js";
 import type { OpState } from "./types.js";
 
 const ASSET_ID = "123e4567-e89b-42d3-a456-426614174000";
+
+test("rebuild operation receipts hash typed cursors and keep only approved watermark metadata", () => {
+  const marker = "sentinel-private-asset-uuid-123e4567-e89b-42d3-a456-426614174000";
+  const state: OpState = {
+    status: "interrupted",
+    run_id: "rebuild-safe-run",
+    params: {
+      watermark_protocol: 1,
+      rebuild_mode: "incremental",
+      changed_since: "2026-10-14T06:00:00.000Z",
+      changed_cutoff: "2026-10-15T06:00:00.000Z",
+      private_name: marker,
+      private_tag: marker,
+    },
+  };
+  const receipt = rebuildCursorReceipt("rebuild-style-groups", state, marker, null);
+  assert.deepEqual(receipt, {
+    run_id: "rebuild-safe-run",
+    changed_since: "2026-10-14T06:00:00.000Z",
+    changed_cutoff: "2026-10-15T06:00:00.000Z",
+    rebuild_mode: "incremental",
+    operation_cursor_sha256: hashCursorCheckpoint("operation", "rebuild-style-groups", "cursor", marker),
+    operation_last_successful_cursor_sha256: hashCursorCheckpoint("operation", "rebuild-style-groups", "last_successful_cursor", null),
+  });
+  assert.doesNotMatch(JSON.stringify(receipt), /sentinel-private-asset-uuid/);
+  const numericZero = hashCursorCheckpoint("operation", "rebuild-style-groups", "cursor", 0);
+  const stringZero = hashCursorCheckpoint("operation", "rebuild-style-groups", "cursor", "0");
+  const nullCursor = hashCursorCheckpoint("operation", "rebuild-style-groups", "cursor", null);
+  assert.notEqual(numericZero, stringZero, "numeric and string cursors must retain distinct identities");
+  assert.notEqual(nullCursor, numericZero, "a null cursor must not collide with numeric zero");
+  assert.deepEqual(rebuildCursorReceipt("other-operation", state, marker, null), {});
+});
 
 test("a live provider job is protected from being cleared; an idle one is not", () => {
   // Live phases the guarded writer refuses to drop (shared-db migration

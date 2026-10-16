@@ -24,6 +24,19 @@ test("every assignment direction triggers a failure", () => {
   }
 });
 
+test("sampled effective-tag drift fails the observation and names its sample", async () => {
+  const result = assessDriftRow([{ ...base, effective_tag_sample_assets: 5000,
+    effective_tag_drifted_assets: 2 }]);
+  assert.deepEqual(result.failures, ["effective_tag_drifted_assets=2 of 5000 sampled assets"]);
+
+  const report = await observe({ url, key: "protected", fetchImpl: async () => ({
+    ok: true, json: async () => [{ ...base, effective_tag_sample_assets: 5000,
+      effective_tag_drifted_assets: 2 }],
+  }) });
+  assert.equal(report.ok, false);
+  assert.deepEqual(report.failures, result.failures);
+});
+
 test("missing or malformed aggregate fails closed", () => {
   for (const rows of [[], [{ ...base, live_assets: null }], [{ ...base, effective_tag_rows: null }],
     [{ ...base, live_assets: -1 }],
