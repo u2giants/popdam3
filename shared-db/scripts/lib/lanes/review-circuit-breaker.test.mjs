@@ -9,12 +9,12 @@ function message(seq=1,h=head,slot=1){return`db-coordination review-started issu
 function reviewerRow(seq,reviewer,h=head,slot=1){return{...row(seq,h,slot),commit:{message:message(seq,h,slot).replace('reviewer=glm-5.3',`reviewer=${reviewer}`)}}}
 function issueRow(seq,issue){return{...row(seq),ref:row(seq).ref.replace('3536-',`${issue}-`),commit:{message:message(seq).replace('issue=3536',`issue=${issue}`)}}}
 function io(rows){return{listRefs:()=>rows,getCommit:sha=>({message:message(Number(sha))}),reviewContentComparison:()=>({before:digest,after:digest,budgetProof:{schema:1,before:head,after:next,protectedMain:head,kind:'unchanged'}})}}
-test('zero and one paid attempts retain capacity',()=>{assert.deepEqual(assertPaidReviewCapacity(request,io([])),{paidAttempts:0,remaining:2});assert.equal(assertPaidReviewCapacity(request,io([row()])).remaining,1)})
-test('third paid draw refuses unchanged exact head',()=>assert.throws(()=>assertPaidReviewCapacity(request,io([row(),row(2)])),/third draw refused/))
-test('evidence-only or empty-head refresh cannot reset cap',()=>assert.throws(()=>assertPaidReviewCapacity({...request,headSha:next},io([row(),row(2)])),/third draw refused/))
-test('substantive byte change starts another round',()=>{const x=io([row(),row(2)]);x.reviewContentComparison=()=>({before:digest,after:'d'.repeat(64),budgetProof:{schema:1,before:head,after:next,protectedMain:head,kind:'substantive',historyCount:1}});assert.equal(assertPaidReviewCapacity({...request,headSha:next},x).remaining,2)})
+test('zero and one paid attempts retain capacity',()=>{assert.deepEqual(assertPaidReviewCapacity(request,io([])),{paidAttempts:0,remaining:null,uncapped:true});assert.equal(assertPaidReviewCapacity(request,io([row()])).paidAttempts,1)})
+test('third paid draw is allowed (owner 2026-10-16 uncapped spend)',()=>assert.doesNotThrow(()=>assertPaidReviewCapacity(request,io([row(),row(2)]))))
+test('evidence-only or empty-head refresh does not create a spend refusal',()=>assert.doesNotThrow(()=>assertPaidReviewCapacity({...request,headSha:next},io([row(),row(2)]))))
+test('substantive byte change starts another round',()=>{const x=io([row(),row(2)]);x.reviewContentComparison=()=>({before:digest,after:'d'.repeat(64),budgetProof:{schema:1,before:head,after:next,protectedMain:head,kind:'substantive',historyCount:1}});assert.equal(assertPaidReviewCapacity({...request,headSha:next},x).paidAttempts,0)})
 test('unknown, malformed and failed comparison cannot reset',()=>{for(const proof of [null,{before:'unknown',after:digest}]){const x=io([row(),row(2)]);x.reviewContentComparison=()=>proof;assert.throws(()=>assertPaidReviewCapacity({...request,headSha:next},x),/proof unreadable/)}const x=io([row()]);x.reviewContentComparison=()=>{throw Error('fetch failed')};assert.throws(()=>assertPaidReviewCapacity({...request,headSha:next},x),/fetch failed/)})
-test('independent slots have separate paid caps',()=>{const x=io([row(1,head,2),row(2,head,2)]);x.getCommit=sha=>({message:message(Number(sha),head,2)});assert.equal(assertPaidReviewCapacity(request,x).remaining,2)})
+test('independent slots have separate paid caps',()=>{const x=io([row(1,head,2),row(2,head,2)]);x.getCommit=sha=>({message:message(Number(sha),head,2)});assert.equal(assertPaidReviewCapacity(request,x).paidAttempts,0)})
 // A carried slot 1 (assignment standing at a tree-identical ancestor) is not a
 // paid draw. Drawing slot 2 at the new head must not be blocked by slot 1's
 // exhausted unchanged-content cap: the caps are per slot, and the carry writes
@@ -24,13 +24,13 @@ test('carried slot 1 plus a new slot 2 draw on tree-identical content is allowed
   x.getCommit=sha=>({message:message(Number(sha),head,Number(sha)===1||Number(sha)===2?1:2)})
   x.reviewContentComparison=()=>({before:digest,after:digest,budgetProof:{schema:1,before:head,after:next,protectedMain:head,kind:'unchanged'}})
   // Slot 1 has two paid starts on unchanged content: a third slot-1 draw refuses.
-  assert.throws(()=>assertPaidReviewCapacity({...request,slot:1,headSha:next},x),/third draw refused/)
+  assert.doesNotThrow(()=>assertPaidReviewCapacity({...request,slot:1,headSha:next},x))
   // Slot 2 is empty at both heads: the first slot-2 draw is allowed.
-  assert.equal(assertPaidReviewCapacity({...request,slot:2,headSha:next},x).remaining,2)
+  assert.equal(assertPaidReviewCapacity({...request,slot:2,headSha:next},x).paidAttempts,0)
 })
 test('tampered scope, time or record refuses',()=>{for(const text of [message().replace('pr=4000','pr=4001'),message().replace('2026-10-06T18:00:00.000Z','unknown'),'PASS doctor repaired'])assert.throws(()=>paidStart(row(),{message:text}),/binding mismatch|unrecognized/)})
 test('unstarted atomic reclaim is not a paid attempt',()=>{const text=`db-coordination reviewer-silence-release reviewer=glm-5.3 issue=3536 pr=4000 head=${head} sequence=1 code=silent_worker_observed probe=${'e'.repeat(40)} observed-at=2026-10-06T17:00:00Z confirmed-at=2026-10-06T18:00:00Z verdict=none artifact=none replacement=none`;assert.equal(paidStart(row(),{message:text}),null);assert.throws(()=>paidStart(row(),{message:text.replace('sequence=1','sequence=2')}),/unrecognized/)})
-test('quoted or repeated doctor PASS never provides a reset',()=>{const x=io([row(),row(2)]);x.reinstatement=()=>({output:'PASS',fresh:true});assert.throws(()=>assertPaidReviewCapacity(request,x),/third draw refused/)})
+test('doctor PASS is irrelevant: spend is uncapped',()=>{const x=io([row(),row(2)]);x.reinstatement=()=>({output:'PASS',fresh:true});assert.doesNotThrow(()=>assertPaidReviewCapacity(request,x))})
 
 test('pre-start independent-slot conflict is skipped only with exact scope',()=>{
  const text=`db-coordination reviewer-failure-replacement sequence=3 reviewer=stepfun-step-5-preview issue=3536 pr=4000 head=${head} slot=1 failed-sequence=1 prior-sequence=2 failure-ref=self failed-reviewer=glm-5.3 code=slot_independence_conflict verdict=none artifact=none`
@@ -41,7 +41,7 @@ test('pre-start independent-slot conflict is skipped only with exact scope',()=>
 
 test('changing work issue cannot reset the same PR paid cap and issue must be exact',()=>{
  const x=io([row(),row(2)])
- assert.throws(()=>assertPaidReviewCapacity({...request,issue:3537},x),/third draw refused/)
+ assert.doesNotThrow(()=>assertPaidReviewCapacity({...request,issue:3537},x))
  for(const issue of [NaN,'3536',0,-1])assert.throws(()=>assertPaidReviewCapacity({...request,issue},x),/exact positive issue/)
 })
 
@@ -68,7 +68,7 @@ test('inline replacement pauses actual failed provider using immutable self fail
 test('all historical substantive comparisons share one operation base context',()=>{
  const x=io([row(),row(2)]);let shared,calls=0
  x.reviewContentComparison=(before,after,pr,context)=>{calls++;if(shared)assert.equal(context,shared);else shared=context;return{before:digest,after:'d'.repeat(64),budgetProof:{schema:1,before:head,after:next,protectedMain:head,kind:'substantive',historyCount:1}}}
- assert.equal(assertPaidReviewCapacity({...request,headSha:next},x).remaining,2);assert.equal(calls,2)
+ assert.equal(assertPaidReviewCapacity({...request,headSha:next},x).paidAttempts,0);assert.equal(calls,2)
 })
 
 test('provider pause refuses unknown immutable timestamp and reports expired original window honestly',()=>{
@@ -105,7 +105,7 @@ test('real Git main-context merge retains two spent attempts despite changed rev
  const proof=derivePaidContentProof(f.before,after,main,f.git)
  assert.equal(proof.kind,'unchanged')
  const rows=[1,2].map(n=>({...row(n,f.before),commit:{message:message(n,f.before)}}))
- assert.throws(()=>assertPaidReviewCapacity({...request,headSha:after},{listRefs:()=>rows,reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}),/third draw refused/)
+ assert.doesNotThrow(()=>assertPaidReviewCapacity({...request,headSha:after},{listRefs:()=>rows,reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}))
 })
 test('real Git genuine author fix resets while net revert and empty commits retain budget',t=>{
  const f=realGitFixture(t);const changed=f.commit('app.txt','context\nrepaired\nend\n')
@@ -185,7 +185,7 @@ test('forward canonical checkpoint permits a later standalone repair without acc
  const alreadySeen=derivePaidContentProof(f.mixed,after,f.main,f.git)
  assert.equal(alreadySeen.kind,'unchanged')
  const starts=[1,2].map(n=>({...row(n,f.mixed),commit:{message:message(n,f.mixed)}}))
- assert.throws(()=>assertPaidReviewCapacity({...request,headSha:after},{...io(starts),reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:alreadySeen})}),/third draw refused/)
+ assert.doesNotThrow(()=>assertPaidReviewCapacity({...request,headSha:after},{...io(starts),reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:alreadySeen})}))
 })
 test('forward restoration alone, empty commits and evidence-only followups retain both charged rounds',t=>{
  const f=forwardCheckpointFixture(t);f.restore()
@@ -194,7 +194,7 @@ test('forward restoration alone, empty commits and evidence-only followups retai
   const after=f.git(['rev-parse','HEAD']).trim(),proof=derivePaidContentProof(f.before,after,f.main,f.git,['evidence.txt'])
   assert.equal(proof.kind,'unchanged')
   const api={...io(starts),reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}
-  assert.throws(()=>assertPaidReviewCapacity({...request,headSha:after},api),/third draw refused/)
+  assert.doesNotThrow(()=>assertPaidReviewCapacity({...request,headSha:after},api))
   assert.equal(starts.length,2)
  }
  check();f.git(['commit','--allow-empty','-qm','empty followup']);check();f.commit('evidence.txt','evidence only\n');check()
@@ -261,7 +261,7 @@ test('canonical independent EOF test appends cannot reset two spent attempts',t=
  const f=appendFixture(t),proof=derivePaidContentProof(f.before,f.after,f.main,f.git)
  assert.equal(proof.kind,'unchanged');assert.equal(proof.canonicalAppends.length,1)
  const rows=[1,2].map(n=>({...row(n,f.before),commit:{message:message(n,f.before)}}))
- assert.throws(()=>assertPaidReviewCapacity({...request,headSha:f.after},{listRefs:()=>rows,reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}),/third draw refused/)
+ assert.doesNotThrow(()=>assertPaidReviewCapacity({...request,headSha:f.after},{listRefs:()=>rows,reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}))
 })
 test('canonical test reconciliation permits only a surviving conflict-free author source fix',t=>{
  const f=appendFixture(t,{repair:true}),proof=derivePaidContentProof(f.before,f.after,f.main,f.git)
@@ -443,7 +443,7 @@ test('ordinary canonical retirement refuses unrelated unknown agent metadata',t=
 test('actual Git312 to317 to319 authentic intermediate pair permits surviving source repair',t=>{
  const f=generationsFixture(t),proof=f.proof();assert.equal(proof.kind,'substantive');assert.equal(proof.witness.path,'app.txt')
  const starts=[1,2].map(n=>({...row(n,f.before),commit:{message:message(n,f.before)}}))
- assert.deepEqual(assertPaidReviewCapacity({...request,pr:3999,headSha:f.after},{readPaidReviewStarts:()=>starts.map(x=>({...x,ref:x.ref.replace('-4000-','-3999-'),commit:{message:x.commit.message.replace('pr=4000','pr=3999')}})),reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}),{paidAttempts:0,remaining:2})
+ assert.deepEqual(assertPaidReviewCapacity({...request,pr:3999,headSha:f.after},{readPaidReviewStarts:()=>starts.map(x=>({...x,ref:x.ref.replace('-4000-','-3999-'),commit:{message:x.commit.message.replace('pr=4000','pr=3999')}})),reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}),{paidAttempts:0,remaining:null,uncapped:true})
 })
 for(const [name,input] of [['evidence/main only',{repair:false}],['net reverted repair',{repair:true,revert:true}]])test(`actual Git historical pairs never reset ${name}`,t=>{assert.equal(generationsFixture(t,input).proof().kind,'unchanged')})
 for(const bad of ['hash','pr','issue','mode','custom'])test(`actual Git historical ${bad} forgery refuses fresh capacity`,t=>{assert.throws(()=>generationsFixture(t,{bad}).proof(),/historical|foreign|noncanonical|unverified|scope|ancestor|tail|hash|identity/)} )
@@ -507,7 +507,7 @@ test('exact producer closure pin comments retain two spent starts and never witn
  assert.equal(proof.kind,'unchanged');assert.equal(proof.canonicalPinOverlaps.length,1)
  assert.equal(proof.canonicalPinOverlaps[0].canonicalBlob,f.git(['rev-parse',`${f.main}:${producerPinFile}`]).trim())
  const rows=[1,2].map(n=>({...row(n,f.before),commit:{message:message(n,f.before)}}))
- assert.throws(()=>assertPaidReviewCapacity({...request,headSha:f.after},{listRefs:()=>rows,reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}),/third draw refused/)
+ assert.doesNotThrow(()=>assertPaidReviewCapacity({...request,headSha:f.after},{listRefs:()=>rows,reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}))
 })
 test('exact producer closure overlap preserves a separate genuine surviving runtime repair witness',t=>{
  const f=producerPinFixture(t,{repair:true}),proof=derivePaidContentProof(f.before,f.after,f.main,f.git)
@@ -589,7 +589,7 @@ test('producer pin overlap accepts protected lines interleaved inside the pin bl
 // Cause-bound reinstatement (#3536/#3999).
 function failureMsg(seq,{code='wrapper_terminal_failure',reviewer='glm-5.3',h=head,issue=3536,pr=4000,slot=1}={}){return`db-coordination reviewer-failure-replacement sequence=${seq+100} reviewer=kimi-k3 issue=${issue} pr=${pr} head=${h} slot=${slot} failed-sequence=${seq} prior-sequence=${seq} failure-ref=self failed-reviewer=${reviewer} code=${code} verdict=none artifact=none`}
 function reinstateIo(rows,failures){const x=io(rows);x.readRef=ref=>{const m=/^refs\/db-review-failures\/(\d+)-(\d+)-[0-9a-f]{40}-(\d+)$/.exec(ref);return m&&failures[m[3]]?'f'.repeat(39)+m[3].slice(-1):null};const base=x.getCommit;x.getCommit=sha=>sha.startsWith('f'.repeat(39))?{message:Object.entries(failures).find(([k])=>k.slice(-1)===sha.slice(-1))[1]}:base(sha);return x}
-test('reinstated verdict-less reviewer crash is not counted',()=>{const r=assertPaidReviewCapacity(request,reinstateIo([row(1),row(2)],{1:failureMsg(1),2:`db-coordination reviewer-failure-release reviewer=glm-5.3 issue=3536 pr=4000 head=${head} failed-sequence=2 code=provider_unavailable verdict=none artifact=none replacement=none`}));assert.equal(r.remaining,2);assert.equal(r.reinstated,2)})
+test('reinstated verdict-less reviewer crash is not counted',()=>{const r=assertPaidReviewCapacity(request,reinstateIo([row(1),row(2)],{1:failureMsg(1),2:`db-coordination reviewer-failure-release reviewer=glm-5.3 issue=3536 pr=4000 head=${head} failed-sequence=2 code=provider_unavailable verdict=none artifact=none replacement=none`}));assert.equal(r.paidAttempts,0);assert.equal(r.reinstated,2)})
 test('native historical 6531 preparation failure is removed while earlier 6526 verdict remains charged',()=>{
  const issue=4297,pr=4308,reviewed='d'.repeat(40),current='e'.repeat(40),startSha=String(6531).padStart(40,'0'),failureSha='2'.repeat(40)
  const starts=[6526,6531].map((sequence)=>({ref:`refs/db-review-started/${issue}-${pr}-${reviewed}-slot1-seq${sequence}`,sha:String(sequence).padStart(40,'0'),commit:{message:`db-coordination review-started issue=${issue} pr=${pr} head=${reviewed} slot=1 sequence=${sequence} reviewer=deepseek-v4.1-flash at=2026-10-15T03:32:${sequence===6526?'20':'32'}.171Z session=historical receipt-path=sha256:${'a'.repeat(64)} source=sha256:${'b'.repeat(64)}`}}))
@@ -597,15 +597,15 @@ test('native historical 6531 preparation failure is removed while earlier 6526 v
  const failureMessage=`db-coordination reviewer-failure-release reviewer=deepseek-v4.1-flash issue=${issue} pr=${pr} head=${reviewed} slot=1 failed-sequence=6531 code=wrapper_terminal_failure proof=historical-terminal-v1 verdict=none artifact=none replacement=none\nhistorical-terminal-failure-proof=${JSON.stringify(proof)}`
  const x={listRefs:()=>starts,readRef:ref=>ref.endsWith('-6531')?failureSha:null,getCommit:sha=>sha===failureSha?{message:failureMessage}:starts.find(start=>start.sha===sha)?.commit,reviewContentComparison:()=>({before:digest,after:digest,budgetProof:{schema:1,before:reviewed,after:current,protectedMain:reviewed,kind:'unchanged'}})}
  const actualRequest={issue,pr,headSha:current,slot:1},result=assertPaidReviewCapacity(actualRequest,x)
- assert.deepEqual({paidAttempts:result.paidAttempts,remaining:result.remaining,reinstated:result.reinstated},{paidAttempts:1,remaining:1,reinstated:1})
+ assert.deepEqual({paidAttempts:result.paidAttempts,remaining:result.remaining,uncapped:result.uncapped,reinstated:result.reinstated},{paidAttempts:1,remaining:null,uncapped:true,reinstated:1})
 })
 test('cause-bound failures exceed the former global cap and count separately per reviewer',()=>{
  const failed={1:failureMsg(1),2:failureMsg(2,{code:'provider_unavailable'}),3:failureMsg(3,{code:'insufficient_quota',reviewer:'stepfun-step-5-preview'}),4:failureMsg(4,{code:'turn_limit_cancelled',reviewer:'muse-spark-1.3-contributor'})}
  const starts=[reviewerRow(1,'glm-5.3'),reviewerRow(2,'glm-5.3'),reviewerRow(3,'stepfun-step-5-preview'),reviewerRow(4,'muse-spark-1.3-contributor')]
  const result=assertPaidReviewCapacity(request,reinstateIo(starts,failed))
- assert.deepEqual(result,{paidAttempts:0,remaining:2,reinstated:4,failedReviewers:['glm-5.3','muse-spark-1.3-contributor','stepfun-step-5-preview'],exhaustedReviewers:['glm-5.3']})
+ assert.deepEqual(result,{paidAttempts:0,remaining:null,uncapped:true,reinstated:4,failedReviewers:['glm-5.3','muse-spark-1.3-contributor','stepfun-step-5-preview'],exhaustedReviewers:[]})
 })
-test('exact-bound repository-read failures refund starts and exhaust the reviewer at two',()=>{
+test('exact-bound repository-read failures refund starts and never exhaust the reviewer',()=>{
  const reviewer='qwen-code'
  const failed={
   1:failureMsg(1,{code:'reviewer_cannot_read_repository',reviewer}),
@@ -613,7 +613,7 @@ test('exact-bound repository-read failures refund starts and exhaust the reviewe
  }
  const starts=[reviewerRow(1,reviewer),reviewerRow(2,reviewer)]
  assert.deepEqual(assertPaidReviewCapacity(request,reinstateIo(starts,failed)),{
-  paidAttempts:0,remaining:2,reinstated:2,failedReviewers:[reviewer],exhaustedReviewers:[reviewer]
+  paidAttempts:0,remaining:null,uncapped:true,reinstated:2,failedReviewers:[reviewer],exhaustedReviewers:[]
  })
 })
 test('repository-read failure with verdict or mismatched reviewer binding is refused',()=>{
@@ -625,24 +625,24 @@ test('repository-read failure with verdict or mismatched reviewer binding is ref
 })
 test('unrecognized failure stays counted and adds no new failure fields',()=>{
  const x=reinstateIo([row(1)],{1:failureMsg(1,{code:'local_dependency_unavailable'})})
- assert.deepEqual(assertPaidReviewCapacity(request,x),{paidAttempts:1,remaining:1})
+ assert.deepEqual(assertPaidReviewCapacity(request,x),{paidAttempts:1,remaining:null,uncapped:true})
 })
-test('verified failures on an unchanged refreshed head stay bound and provider exhaustion persists',()=>{
+test('verified failures on an unchanged refreshed head stay bound; no pool exhaustion',()=>{
  const starts=[reviewerRow(1,'glm-5.3'),reviewerRow(2,'glm-5.3')]
  const result=assertPaidReviewCapacity({...request,headSha:next},reinstateIo(starts,{1:failureMsg(1),2:failureMsg(2)}))
- assert.deepEqual(result,{paidAttempts:0,remaining:2,reinstated:2,failedReviewers:['glm-5.3'],exhaustedReviewers:['glm-5.3']})
+ assert.deepEqual(result,{paidAttempts:0,remaining:null,uncapped:true,reinstated:2,failedReviewers:['glm-5.3'],exhaustedReviewers:[]})
 })
-test('exhausted provider failure counts carry across issue switches with original start binding',()=>{
+test('provider failure counts carry across issue switches with original start binding',()=>{
  const starts=[issueRow(1,3536),issueRow(2,3536)]
  const result=assertPaidReviewCapacity({...request,issue:3537},reinstateIo(starts,{1:failureMsg(1),2:failureMsg(2)}))
- assert.deepEqual(result,{paidAttempts:0,remaining:2,reinstated:2,failedReviewers:['glm-5.3'],exhaustedReviewers:['glm-5.3']})
+ assert.deepEqual(result,{paidAttempts:0,remaining:null,uncapped:true,reinstated:2,failedReviewers:['glm-5.3'],exhaustedReviewers:[]})
 })
 test('substantive content change drops old failure counts without adding failure fields',()=>{
  const x=reinstateIo([reviewerRow(1,'glm-5.3')],{1:failureMsg(1)})
  x.reviewContentComparison=()=>({before:digest,after:'d'.repeat(64),budgetProof:{schema:1,before:head,after:next,protectedMain:head,kind:'substantive',historyCount:1}})
- assert.deepEqual(assertPaidReviewCapacity({...request,headSha:next},x),{paidAttempts:0,remaining:2})
+ assert.deepEqual(assertPaidReviewCapacity({...request,headSha:next},x),{paidAttempts:0,remaining:null,uncapped:true})
 })
-test('start without reinstatable failure (verdict-bearing or non-reviewer cause) still counts',()=>{assert.throws(()=>assertPaidReviewCapacity(request,reinstateIo([row(1),row(2)],{})),/third draw refused/);assert.throws(()=>assertPaidReviewCapacity(request,reinstateIo([row(1),row(2)],{1:failureMsg(1,{code:'local_dependency_unavailable'})})),/third draw refused/)})
+test('start without reinstatable failure still counts toward paidAttempts but never refuses (uncapped)',()=>{assert.equal(assertPaidReviewCapacity(request,reinstateIo([row(1),row(2)],{})).paidAttempts,2);assert.equal(assertPaidReviewCapacity(request,reinstateIo([row(1),row(2)],{1:failureMsg(1,{code:'local_dependency_unavailable'})})).paidAttempts,2)})
 test('mismatched or unreadable reinstatement binding refuses',()=>{for(const text of [failureMsg(1,{reviewer:'kimi-k3'}),failureMsg(1,{slot:2}),failureMsg(1,{h:next}),failureMsg(1).replace('verdict=none','verdict=APPROVE'),'garbage'])assert.throws(()=>assertPaidReviewCapacity(request,reinstateIo([row(1)],{1:text})),/reinstatement failure (binding mismatch|evidence unreadable)/)})
 function namedImportFixture(t,{variant='',repair=false,revert=false}={}){
  const dir=mkdtempSync(path.join(tmpdir(),'review-budget-import-real-'));t.after(()=>rmSync(dir,{recursive:true,force:true}))
@@ -683,7 +683,7 @@ test('exact protected and author named imports preserve unchanged paid starts',t
  const f=namedImportFixture(t),proof=derivePaidContentProof(f.before,f.after,f.main,f.git)
  assert.equal(proof.kind,'unchanged');assert.equal(proof.canonicalImportUnions.length,1)
  const rows=[1,2].map(n=>({...row(n,f.before),commit:{message:message(n,f.before)}}))
- assert.throws(()=>assertPaidReviewCapacity({...request,headSha:f.after},{listRefs:()=>rows,reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}),/third draw refused/)
+ assert.doesNotThrow(()=>assertPaidReviewCapacity({...request,headSha:f.after},{listRefs:()=>rows,reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}))
 })
 test('named import union retains genuine surviving repair and refuses a reverted reset',t=>{
  for(const revert of [false,true]){const f=namedImportFixture(t,{repair:true,revert});const proof=derivePaidContentProof(f.before,f.after,f.main,f.git);assert.equal(proof.kind,revert?'unchanged':'substantive');if(!revert)assert.equal(proof.witness.path,'app.txt')}
@@ -764,7 +764,7 @@ test('canonical sidecar append union preserves spent attempts',t=>{
  const f=sidecarRegistryFixture(t),proof=derivePaidContentProof(f.before,f.after,f.main,f.git)
  assert.equal(proof.kind,'unchanged');assert.equal(proof.canonicalRegistryUnions.length,1)
  const rows=[1,2].map(n=>({...row(n,f.before),commit:{message:message(n,f.before)}}))
- assert.throws(()=>assertPaidReviewCapacity({...request,headSha:f.after},{listRefs:()=>rows,reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}),/third draw refused/)
+ assert.doesNotThrow(()=>assertPaidReviewCapacity({...request,headSha:f.after},{listRefs:()=>rows,reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}))
 })
 test('sidecar union authenticates genuine surviving source repair',t=>{
  const f=sidecarRegistryFixture(t,{repair:true}),proof=derivePaidContentProof(f.before,f.after,f.main,f.git)
@@ -814,7 +814,7 @@ test('shipped reader refuses oversized provenance without returning partial witn
 test('registered authenticated hash conflict plus exact registry union preserves paid caps',t=>{
  const f=sidecarRegistryFixture(t,{metadata:'valid'}),proof=derivePaidContentProof(f.before,f.after,f.main,f.git)
  assert.equal(proof.kind,'unchanged');assert.equal(proof.canonicalRegistryUnions.length,1)
- assert.throws(()=>assertPaidReviewCapacity({...request,headSha:f.after},{...io([row(),row(2)]),reviewContentComparison:()=>({before:digest,after:digest,budgetProof:{...proof,before:head}})}),/third draw refused/)
+ assert.doesNotThrow(()=>assertPaidReviewCapacity({...request,headSha:f.after},{...io([row(),row(2)]),reviewContentComparison:()=>({before:digest,after:digest,budgetProof:{...proof,before:head}})}))
 })
 test('registered hash conflict cannot conceal substantive authored repair',t=>{
  const f=sidecarRegistryFixture(t,{metadata:'valid',repair:true}),proof=derivePaidContentProof(f.before,f.after,f.main,f.git)
@@ -862,18 +862,18 @@ test('an older head behind the merge gap composes through a newer direct proof (
   const x=chainIo({heads:[old,reviewed],proofs:{'f>9':'unchanged','e>f':'substantive'}})
   assert.equal(capacity(x).paidAttempts,1);assert.deepEqual([...x.bases],[head],'one base for every comparison')
 })
-test('unchanged composition is still counted: two unchanged starts refuse a third draw',()=>{
-  assert.throws(()=>capacity(chainIo({heads:[old,reviewed],proofs:{'f>9':'unchanged','e>f':'unchanged'}})),/third draw refused/)
+test('unchanged composition is still counted; extra draws are allowed (uncapped)',()=>{
+  assert.doesNotThrow(()=>capacity(chainIo({heads:[old,reviewed],proofs:{'f>9':'unchanged','e>f':'unchanged'}})))
 })
 test('a substantive newer head makes the composed older head substantive',()=>{
   assert.equal(capacity(chainIo({heads:[old,reviewed],proofs:{'f>9':'substantive','e>f':'unchanged'}})).paidAttempts,0)
 })
 test('two substantive links do not compose and the older unresolved start spends one attempt',()=>{
   const x=chainIo({heads:[old,reviewed],proofs:{'f>9':'substantive','e>f':'substantive'}})
-  assert.deepEqual(capacity(x),{paidAttempts:1,remaining:1,conservativeHeads:[old]})
+  assert.deepEqual(capacity(x),{paidAttempts:1,remaining:null,uncapped:true,conservativeHeads:[old]})
 })
 test('one unresolved merge-gap start consumes one existing attempt conservatively',()=>{
-  assert.deepEqual(capacity(chainIo({heads:[old],proofs:{}})),{paidAttempts:1,remaining:1,conservativeHeads:[old]})
+  assert.deepEqual(capacity(chainIo({heads:[old],proofs:{}})),{paidAttempts:1,remaining:null,uncapped:true,conservativeHeads:[old]})
 })
 test('exact-bound reviewer failure refunds an unresolved merge-gap start without conservative charging',()=>{
   const x=chainIo({heads:[old,reviewed],proofs:{'f>9':'unchanged','e>f':'unchanged'}})
@@ -886,17 +886,17 @@ test('exact-bound reviewer failure refunds an unresolved merge-gap start without
   assert.deepEqual(result.failedReviewers,['glm-5.3'])
   assert.equal('conservativeHeads' in result,false)
 })
-test('two unresolved merge-gap starts consume the full cap and refuse a third draw',()=>{
-  assert.throws(()=>capacity(chainIo({heads:[old,reviewed],proofs:{}})),/third draw refused/)
+test('two unresolved merge-gap starts are counted; further draws are allowed (uncapped)',()=>{
+  assert.doesNotThrow(()=>capacity(chainIo({heads:[old,reviewed],proofs:{}})))
 })
 test('disagreeing chains are counted conservatively, independent of draw order',()=>{
   for(const heads of [[old,mid,reviewed],[old,reviewed,mid]])
-    assert.throws(()=>capacity(chainIo({heads,proofs:{'f>9':'unchanged','8>9':'unchanged','e>f':'substantive','e>8':'unchanged'}})),/third draw refused/)
+    assert.doesNotThrow(()=>capacity(chainIo({heads,proofs:{'f>9':'unchanged','8>9':'unchanged','e>f':'substantive','e>8':'unchanged'}})))
 })
 test('a chained result is never an intermediate (no multi-hop)',()=>{
   const o1='3'.repeat(40)
   const x=chainIo({heads:[o1,mid,reviewed],proofs:{'f>9':'unchanged','8>f':'substantive','3>8':'unchanged'}})
-  assert.throws(()=>capacity(x),/third draw refused/)
+  assert.doesNotThrow(()=>capacity(x))
 })
 for(const message of ['git fetch failed','review budget Git provenance refused: review budget historical evidence mutated generation','review budget Git provenance refused: review budget canonical blob bytes unreadable or oversized','review budget Git provenance refused: review budget foreign intermediate evidence pair refused','review budget Git provenance refused: review budget noncanonical or foreign merge refused']){
   test(`a non-gap direct refusal is never bridged: ${message.slice(37)}`,()=>{
@@ -917,7 +917,7 @@ test('a proof naming a base other than the operation base refuses',()=>{
   assert.throws(()=>capacity(x),/author-owned Git provenance proof unreadable/)
 })
 test('duplicate-head starts are each counted',()=>{
-  assert.throws(()=>capacity(chainIo({heads:[old,old,reviewed],proofs:{'f>9':'substantive','e>f':'substantive','e>9':'unchanged'}})),/third draw refused/)
+  assert.equal(capacity(chainIo({heads:[old,old,reviewed],proofs:{'f>9':'substantive','e>f':'substantive','e>9':'unchanged'}})).paidAttempts,2)
 })
 
 test('#4397 a clean refresh across a rename made on protected main keeps the paid budget proof',t=>{

@@ -629,11 +629,16 @@ export function assertPaidReviewCapacity(request, io) {
     if(unprovedHeads.has(start.headSha))conservativeHeads.add(start.headSha)
     count++
   }
-  if(count>=2) throw new LaneError(`review circuit breaker: two paid attempts already started for unchanged reviewed content in slot ${request.slot}; third draw refused pending substantive repair or supported cause-bound reinstatement proof`)
-  const result={paidAttempts:count,remaining:2-count,...(reinstated?{reinstated}:{}),...(conservativeHeads.size?{conservativeHeads:[...conservativeHeads].sort()}: {})}
+  // Owner 2026-10-16 (#4399): spend on the same content is uncapped. Unlimited
+  // concurrent reviewer slots landed in #3130; this third-draw refusal was a leftover
+  // spend brake that reported the pool exhausted. Keep counting paidAttempts for
+  // diagnostics only; never refuse a draw on a numeric start ceiling.
+  const result={paidAttempts:count,remaining:null,uncapped:true,...(reinstated?{reinstated}:{}),...(conservativeHeads.size?{conservativeHeads:[...conservativeHeads].sort()}: {})}
   if(failuresByReviewer.size){
     result.failedReviewers=[...failuresByReviewer.keys()].sort()
-    result.exhaustedReviewers=[...failuresByReviewer].filter(([,failures])=>failures>=REVIEWER_FAILURE_CEILING).map(([reviewer])=>reviewer).sort()
+    // Owner 2026-10-16 (#4399): no per-reviewer failure ceiling. Failures stay visible
+    // in failedReviewers for diagnostics; they never remove a name from the draw.
+    result.exhaustedReviewers=[]
   }
   return result
 }

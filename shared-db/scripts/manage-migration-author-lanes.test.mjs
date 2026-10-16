@@ -3202,7 +3202,7 @@ test('a chained replacement skips TWO already-failed providers to reach the last
   assert.deepEqual(replaceFailedReviewer({...replacementRequest,failedSequence:first.sequence},io),second)
 })
 
-test('replacement exhausts the active rotation, then refuses',()=>{
+test('replacement exhausts the active rotation, then refuses (hard exclusions stay fail-closed)',()=>{
   const io=failedReviewIo()
   const seen=['glm-5.3']
   let failedSequence=replacementRequest.failedSequence
@@ -3212,6 +3212,7 @@ test('replacement exhausts the active rotation, then refuses',()=>{
     seen.push(step.reviewer);failedSequence=step.sequence
   }
   assert.deepEqual(seen,ACTIVE_REVIEWERS.map((r)=>r.name))
+  // failure-ref=self replacements are hard exclusions (#4284) and stay fail-closed.
   assert.throws(()=>replaceFailedReviewer({...replacementRequest,failedSequence},io),/no other reviewer is available/)
 })
 
@@ -6662,19 +6663,19 @@ function addVerifiedServiceFailures(io,request,reviewers){
   }
 }
 
-test('#4297 multiple service failures retain healthy independent review capacity',()=>{
+test('#4297 multiple service failures retain review capacity (uncapped; failures never remove names)',()=>{
   const io=reviewIo(),request={issue:201,pr:301,headSha:'b'.repeat(40)}
   const failed=ACTIVE_REVIEWERS.slice(0,2).map(row=>row.name)
   addVerifiedServiceFailures(io,request,failed)
   const assigned=assignNextReviewer(request,io)
-  assert.ok(!failed.includes(assigned.reviewer))
+  assert.ok(ACTIVE_REVIEWERS.some((row)=>row.name===assigned.reviewer),'capacity is retained after service failures (owner 2026-10-16)')
 })
 
 test('#4297 exhausting every reviewer refuses without spending a new paid start',()=>{
   const io=reviewIo(),request={issue:201,pr:301,headSha:'b'.repeat(40)}
   addVerifiedServiceFailures(io,request,ACTIVE_REVIEWERS.map(row=>row.name))
   const before=[...io.refs].filter(([ref])=>ref.startsWith('refs/db-review-started/'))
-  assert.throws(()=>assignNextReviewer(request,io),/two verified service failures/)
+  assert.doesNotThrow(()=>assignNextReviewer(request,io))
   assert.deepEqual([...io.refs].filter(([ref])=>ref.startsWith('refs/db-review-started/')),before)
 })
 
@@ -12088,7 +12089,7 @@ test('conservative review-budget evidence is returned for fresh assignment and r
   for(const atomic of [false,true]){
     const issue=4600+Number(atomic),pr=4700+Number(atomic),headSha='c'.repeat(40)
     const {io,priorHead}=conservativeBudgetFixture({atomic,issue,pr,headSha})
-    const expected={paidAttempts:1,remaining:1,conservativeHeads:[priorHead]}
+    const expected={paidAttempts:1,remaining:null,conservativeHeads:[priorHead]}
     const assigned=assignNextReviewer({issue,pr,headSha},io)
     assert.deepEqual(assigned.budgetEvidence,expected,`${atomic?'atomic':'fallback'} fresh assignment reports the conservative head`)
     const assignmentRef=`${REVIEW_ASSIGNMENT_REF_PREFIX}/${issue}-${pr}-${headSha}`
@@ -12111,13 +12112,13 @@ test('conservative review-budget evidence is returned for fresh assignment and r
   assert.equal(Object.hasOwn(replacement,'budgetEvidence'),false,'no conservative history preserves the ordinary replacement response')
 })
 
-test('two conservatively classified paid starts still refuse assignment and replacement before mutation',()=>{
+test('two conservatively classified paid starts do not refuse assignment or replacement (uncapped spend)',()=>{
   for(const atomic of [false,true]){
     const issue=4900+Number(atomic),pr=5000+Number(atomic),headSha='e'.repeat(40)
     const assignmentCase=conservativeBudgetFixture({atomic,issue,pr,headSha,paidAttempts:2})
     const beforeAssignment=[...assignmentCase.io.refs]
-    assert.throws(()=>assignNextReviewer({issue,pr,headSha},assignmentCase.io),/two paid attempts already started for unchanged reviewed content/)
-    assert.deepEqual([...assignmentCase.io.refs],beforeAssignment,'two uncertain starts refuse before creating durable assignment state')
+    assert.ok(assignNextReviewer({issue,pr,headSha},assignmentCase.io).reviewer)
+    assert.notDeepEqual([...assignmentCase.io.refs],beforeAssignment,'uncapped spend creates durable assignment state')
 
     const replacementIo=reviewIo()
     if(atomic)withAtomicRefs(replacementIo)
@@ -12125,12 +12126,12 @@ test('two conservatively classified paid starts still refuse assignment and repl
     const assigned=assignNextReviewer({issue,pr,headSha},replacementIo)
     addConservativePaidStarts(replacementIo,{issue,pr,paidAttempts:2})
     const beforeReplacement=[...replacementIo.refs]
-    assert.throws(()=>replaceFailedReviewer({issue,pr,headSha,failedSequence:assigned.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},replacementIo),/two paid attempts already started for unchanged reviewed content/)
-    assert.deepEqual([...replacementIo.refs],beforeReplacement,'two uncertain starts refuse before creating durable replacement state')
+    assert.ok(replaceFailedReviewer({issue,pr,headSha,failedSequence:assigned.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},replacementIo).reviewer)
+    assert.notDeepEqual([...replacementIo.refs],beforeReplacement,'uncapped spend creates durable replacement state')
   }
 })
 
-test('assignment refuses third paid draw after evidence-only head change, but substantive change starts a round',()=>{
+test('assignment allows further paid draws after evidence-only head change; substantive change also starts',()=>{
   const io=reviewIo(),request={issue:1767,pr:1800,headSha:'a'.repeat(40),slot:1}
   for(const sequence of [1,2]) {
     const priorHead='b'.repeat(40)
@@ -12138,7 +12139,7 @@ test('assignment refuses third paid draw after evidence-only head change, but su
     io.refs.set(reviewStartedMarkerRef({...request,headSha:priorHead,sequence}),sha)
   }
   io.reviewContentComparison=()=>({before:'c'.repeat(64),after:'c'.repeat(64),budgetProof:{schema:1,before:'b'.repeat(40),after:request.headSha,protectedMain:'f'.repeat(40),kind:'unchanged'}})
-  assert.throws(()=>assignNextReviewer(request,io),/third draw refused/)
+  assert.doesNotThrow(()=>assignNextReviewer(request,io))
   io.reviewContentComparison=()=>({before:'c'.repeat(64),after:'d'.repeat(64),budgetProof:{schema:1,before:'b'.repeat(40),after:request.headSha,protectedMain:'f'.repeat(40),kind:'substantive',historyCount:1}})
   assert.ok(assignNextReviewer(request,io).reviewer)
 })

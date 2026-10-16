@@ -3404,6 +3404,9 @@ function replaceFailedReviewerOperation({issue,pr,headSha,failedSequence,failure
     noteFailure(original.reviewer,request.failedSequence)
     for(const row of parsedReplacements)noteFailure(bySequence.get(row.failedSequence),row.failedSequence)
     let sequence=null, reviewer=null
+    // Prefer never-failed names first, then retryable released failures (#4284).
+    // Hard exclusions (confirmed unfixable local dependency, failure-ref=self)
+    // stay fail-closed and are never redrawn.
     for(const excluded of [failedNames,hardFailedNames]){
       for(const [offset,candidate] of drawOrder(cursor.sequence+1,io).entries()){
         const candidateSequence=cursor.sequence+1+offset
