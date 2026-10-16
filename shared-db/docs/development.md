@@ -71,6 +71,18 @@ CI is the authority for the full matrix (`tools-offline-tests.yml`,
 `database-contract-tests.yml`, `pr-guards.yml`, `guarded-migration-merge.yml`).
 Do not assume a green laptop equals a green PR.
 
+### Generated database types
+
+The ordinary `database-types` download is generated from the configured preview
+project for a reviewed consumer update; it is not production completion evidence.
+Only the optional issue-bound production mode of
+`.github/workflows/generate-database-types.yml` emits `db-generated-types-proof.json`.
+That mode requires an open shared-db issue with `generated_types: required`, binds
+to the exact current `main` commit, verifies the canonical production project
+through the Supabase Management API, and hashes the fresh TypeScript bytes in its
+temporary output. It uses `SUPABASE_ACCESS_TOKEN` from the workflow environment
+and runs only `supabase gen types`; it does not link a project or run a migration.
+
 ## Authoring a migration
 
 1. Confirm it is **structure** (or gated curated Master Data), not ordinary rows.

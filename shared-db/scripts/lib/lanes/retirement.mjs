@@ -8,6 +8,7 @@ import { assertReviewerDrawIsWarranted, assertReviewerDrawReadiness } from './gi
 import { RETIREMENT_LEGACY_SCHEMA_VERSIONS, RETIREMENT_PRESERVATION_FIELDS, RETIREMENT_PRESERVATION_STATES } from './constants.mjs'
 import { assertDrawPromptContract } from '../reviewer-draw-readiness.mjs'
 import { preDrawHandoffChecks } from '../reviewer-draw-readiness.mjs'
+import { GENERATED_TYPES_SCHEMAS, PRODUCTION_PROJECT_REF, PRODUCTION_PROJECT_URL, generatedTypesSha256, validateGeneratedTypesOutput } from '../../generated-types-proof.mjs'
 
 // ISSUE #2998 — THE ONE PRE-DRAW HANDOFF READINESS RESULT.
 //
@@ -255,5 +256,11 @@ export function matchesLiveProof(proof,evidence){
   return proof?.schema_version===1&&proof.work_issue===evidence.work_issue&&proof.application_commit_sha===evidence.application_commit_sha&&proof.live_assertion===evidence.live_assertion&&proof.environment===evidence.environment&&proof.result==='passed'&&proof.observed_at===evidence.verified_at&&!Number.isNaN(Date.parse(proof.observed_at))
 }
 export function matchesGeneratedTypesProof(proof,evidence){
-  return proof?.schema_version===1&&proof.work_issue===evidence.work_issue&&proof.application_commit_sha===evidence.application_commit_sha&&proof.result==='passed'&&proof.generated_types_sha256===evidence.generated_types_output_digest
+  return proof?.schema_version===1&&proof.work_issue===evidence.work_issue&&proof.application_commit_sha===evidence.application_commit_sha&&proof.result==='passed'&&proof.generated_types_sha256===evidence.generated_types_output_digest&&proof.environment==='production'&&proof.source_project_ref===PRODUCTION_PROJECT_REF&&proof.source_project_url===PRODUCTION_PROJECT_URL&&Array.isArray(proof.schemas)&&JSON.stringify(proof.schemas)===JSON.stringify(GENERATED_TYPES_SCHEMAS)
+}
+export function matchesGeneratedTypesArtifact(proof,typescriptBytes,evidence){
+  const bytes=Buffer.isBuffer(typescriptBytes)?typescriptBytes:Buffer.from(typescriptBytes??'')
+  try{validateGeneratedTypesOutput(bytes,proof?.schemas)}catch{return false}
+  const digest=generatedTypesSha256(bytes)
+  return bytes.length>0&&digest===evidence.generated_types_output_digest&&matchesGeneratedTypesProof(proof,evidence)
 }

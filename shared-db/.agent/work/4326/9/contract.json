@@ -1,0 +1,75 @@
+{
+  "schema_version": 2,
+  "work_issue": 4326,
+  "generation": 9,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Preserve and qualify the combined issue #4326 implementation: the production generated-types producer, its producer pin, and the proof-runner lexer import repair; bind refreshed evidence to the canonical PR branch after generation-8 metadata correction, with source unchanged.",
+  "base_sha": "b66fbf1d328314469508ddda21f0b020174e46f2",
+  "dispatcher": "Codex chat 01a14221-9c2c-7dd3-9047-dfaced175779 on edge-dev3",
+  "worker": "Codex bounded source transplant; coordinator retains decisions and verification",
+  "branch": "codex/2336-types-proof",
+  "worktree": "/home/ahazan/.codex/worktrees/types-proof-pr4330/shared-db",
+  "allowed_paths": [
+    ".agent/work/4326/9/completion.json",
+    ".agent/work/4326/9/contract.json",
+    ".github/workflows/generate-database-types.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/development.md",
+    "scripts/generated-types-proof.mjs",
+    "scripts/generated-types-proof.test.mjs",
+    "scripts/lib/lanes/retirement.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "scripts/production_business_risk_gate.py",
+    "scripts/shared_db_live_proof.py",
+    "scripts/test_shared_db_live_proof.py"
+  ],
+  "file_writes": [
+    ".agent/work/4326/9/completion.json",
+    ".agent/work/4326/9/contract.json",
+    ".github/workflows/generate-database-types.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/development.md",
+    "scripts/generated-types-proof.mjs",
+    "scripts/generated-types-proof.test.mjs",
+    "scripts/lib/lanes/retirement.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "scripts/production_business_risk_gate.py",
+    "scripts/shared_db_live_proof.py",
+    "scripts/test_shared_db_live_proof.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change the published contract after publication or write completion evidence before the coordinator verifies the exact diff and checks.",
+    "Delegated worker must not perform database calls, production workflow run, secrets, paid review, claims, commits, push, PR creation, or merge. Coordinator handles the authorized review, publication and delivery steps through their native gates.",
+    "Preserve every production-target, exact-main, issue-binding, generated-byte, role, workflow, retention, and preview-source safeguard in the existing producer.",
+    "Do not edit or relabel generated database types, weaken guards, change PR4330 history, or modify prior generations and evidence."
+  ],
+  "required_checks": [
+    "node --test scripts/generated-types-proof.test.mjs scripts/orchestrator-flow/admission-outcome.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/orchestrator-flow/evidence-bundle.test.mjs",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "python3 -m unittest scripts.test_production_business_risk_gate.ProductionBusinessRiskGateTests.test_preview_producer_paths_cover_the_whole_executed_closure",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check",
+    "python3 -m unittest discover -s scripts -p test_shared_db_live_proof.py",
+    "node --test scripts/check-live-proof-probe.test.mjs"
+  ],
+  "assumptions": [
+    "Published generation 8 is immutable at refs/db-contracts/4326/8 with contract SHA-256 b5610724b54f3560b9490a94fbc04492445600a99fd8ccfa62c13953d7415a19; this generation is an evidence successor correcting the exact PR branch binding.",
+    "Canonical PR #4330 branch is codex/2336-types-proof. The current source implementation head is 5f66a295863e39b41d55843e012b64ea647cdfc5; the source diff remains the same combined producer, producer pin, proof-runner import repair, and regression coverage. Source digest is checked independently and no source file is changed in this refresh.",
+    "Current base is b66fbf1d328314469508ddda21f0b020174e46f2. Pager #4370 manager changes and tests are already present from current main; inherited #4297 generation-37 evidence remains preserved and outside this PR source diff.",
+    "Local checks from the exact unchanged implementation source remain reusable only if the source-only digest matches the previously verified 64f539e232c06068127ab26bda64047e7dde9adeb73e8a5a1dafa0437685c796. No hosted generated-types execution, production acceptance, live proof, database access, or review approval is claimed."
+  ],
+  "stop_conditions": [
+    "Stop if existing source integration widens beyond the two real implementations, changes safeguards, loses immutable source/history or a native gate refuses."
+  ],
+  "evidence_parent": {
+    "work_issue": 4326,
+    "generation": 8,
+    "contract_sha256": "b5610724b54f3560b9490a94fbc04492445600a99fd8ccfa62c13953d7415a19"
+  }
+}

@@ -14,7 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from shared_db_live_proof import (LiveProofError, build_proof, execute_bounded_probe,
                                   build_qualification, verify_qualification, qualification_main,
                                   execute_management_probe, MANAGEMENT_ROLE_POLICY, _digest,
-                                  validate_probe_with_repository_parser, management_query)  # noqa: E402
+                                  validate_probe_with_repository_parser, validated_probe_statement,
+                                  management_query)  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 SHA = "c" * 40
@@ -444,6 +445,20 @@ class ManagementQualificationTests(unittest.TestCase):
             self.assertIn('PROBE_SQL_LEXER_VERSION!==2', args[0][3])
         with patch('shared_db_live_proof.subprocess.run', return_value=SimpleNamespace(returncode=0, stdout=json.dumps({'statement':'SELECT true AS passed'}))):
             self.assertTrue(validate_probe_with_repository_parser(self.sql))
+
+    def test_current_2336_probe_imports_real_repository_node_lexer(self):
+        probe = ROOT / '.github' / 'live-proofs' / '2336.sql'
+        self.assertTrue(probe.is_file(), 'the committed #2336 live-proof probe must exist')
+
+        statement = validated_probe_statement(probe.read_text(encoding='utf-8'))
+
+        self.assertTrue(statement.lstrip().startswith('-- Issue2336'))
+        self.assertIn('select exists (', statement.lower())
+        self.assertTrue(statement.rstrip().endswith('as passed'))
+
+    def test_real_repository_node_lexer_rejects_hostile_sql(self):
+        with self.assertRaisesRegex(LiveProofError, 'qualified repository SQL lexer'):
+            validated_probe_statement('SELECT true AS passed; DROP TABLE public.probe_test')
 
 
 if __name__ == "__main__":

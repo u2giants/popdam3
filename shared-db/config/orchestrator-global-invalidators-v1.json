@@ -17,6 +17,7 @@
     "scripts/check-pr-object-collisions.mjs",
     "scripts/check-pr-source-collisions.mjs",
     "scripts/db-coordination-events.mjs",
+    "scripts/generated-types-proof.mjs",
     "scripts/gh-read.mjs",
     "scripts/historical-migration-restorations.mjs",
     "scripts/lib/agent-evidence-paths.mjs",

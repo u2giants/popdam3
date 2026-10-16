@@ -6,7 +6,8 @@ import assert from 'node:assert/strict'
 import { evaluateAdmission, parseImpactBlock, STRUCTURAL_CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, assertPrCarriesStructuralChange, inspectPrStructuralChange, structuralWritesMatch, inspectPrCuratedDataChange } from './admission.mjs'
 import { OutcomeError, advanceOutcome, completeOutcome, outcomeEvent, outcomeHistory, repairOutcomeHistory, trustedOutcomeComments, OUTCOME_STATES, parseOutcomeEvidence } from './outcome-lifecycle.mjs'
 import { coordinationEvent, formatEventComment, parseEventComment } from '../db-coordination-events.mjs'
-import { admitIssue, buildDynamicQueues, claimBody, derivePrOperationRoute, EXCLUSIVE_REFS, main as managerMain, matchesGeneratedTypesProof, matchesLiveProof, MUTEX_REF, parseQueueScope, resolveAdmittedIssueForPr } from '../manage-migration-author-lanes.mjs'
+import { admitIssue, buildDynamicQueues, claimBody, derivePrOperationRoute, EXCLUSIVE_REFS, main as managerMain, matchesGeneratedTypesArtifact, matchesGeneratedTypesProof, matchesLiveProof, MUTEX_REF, parseQueueScope, resolveAdmittedIssueForPr } from '../manage-migration-author-lanes.mjs'
+import { generatedTypesSha256, PRODUCTION_PROJECT_REF, PRODUCTION_PROJECT_URL, GENERATED_TYPES_SCHEMAS } from '../generated-types-proof.mjs'
 import { findCompletionRecord } from '../lib/work-dependencies.mjs'
 
 const columnInspection=(content)=>inspectPrStructuralChange([{filename:'supabase/migrations/20261011125719_example.sql',status:'added',content}])
@@ -479,13 +480,21 @@ test('multi-target DDL binds every structural object',()=>{
 })
 
 test('downloaded proof contents bind live assertion and generated types to exact issue, app head, and instant',()=>{
-  const evidence={work_issue:41,application_commit_sha:'a'.repeat(40),live_assertion:'create works',environment:'production',verified_at:'2026-09-11T01:00:00Z',generated_types_output_digest:`sha256:${'b'.repeat(64)}`}
+  const typescript=Buffer.from('export type Database = { public: { Tables: {} } }\n')
+  const generatedDigest=generatedTypesSha256(typescript)
+  const evidence={work_issue:41,application_commit_sha:'a'.repeat(40),live_assertion:'create works',environment:'production',verified_at:'2026-09-11T01:00:00Z',generated_types_output_digest:generatedDigest}
   const live={schema_version:1,work_issue:41,application_commit_sha:'a'.repeat(40),live_assertion:'create works',environment:'production',result:'passed',observed_at:'2026-09-11T01:00:00Z'}
-  const types={schema_version:1,work_issue:41,application_commit_sha:'a'.repeat(40),result:'passed',generated_types_sha256:`sha256:${'b'.repeat(64)}`}
+  const types={schema_version:1,work_issue:41,application_commit_sha:'a'.repeat(40),result:'passed',generated_types_sha256:generatedDigest,environment:'production',source_project_ref:PRODUCTION_PROJECT_REF,source_project_url:PRODUCTION_PROJECT_URL,schemas:[...GENERATED_TYPES_SCHEMAS]}
   assert.equal(matchesLiveProof(live,evidence),true);assert.equal(matchesGeneratedTypesProof(types,evidence),true)
   assert.equal(matchesLiveProof({...live,live_assertion:'something else'},evidence),false)
   assert.equal(matchesLiveProof({...live,observed_at:'2026-09-11T01:01:00Z'},evidence),false)
   assert.equal(matchesGeneratedTypesProof({...types,application_commit_sha:'c'.repeat(40)},evidence),false)
+  assert.equal(matchesGeneratedTypesArtifact(types,typescript,evidence),true)
+  assert.equal(matchesGeneratedTypesArtifact(types,Buffer.from('export type Database = {}'),evidence),false)
+  assert.equal(matchesGeneratedTypesArtifact({...types,environment:'preview'},typescript,evidence),false)
+  assert.equal(matchesGeneratedTypesArtifact({...types,source_project_ref:'x'.repeat(20)},typescript,evidence),false)
+  assert.equal(matchesGeneratedTypesArtifact({...types,source_project_url:'https://preview.invalid'},typescript,evidence),false)
+  assert.equal(matchesGeneratedTypesArtifact({...types,schemas:['public']},typescript,evidence),false)
 })
 
 test('full capacity records urgent waiting without revoking active work', () => {
