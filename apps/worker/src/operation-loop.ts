@@ -22,7 +22,7 @@ import { hasSubmissionLeaseReceipt, isGuardedEnvelope } from "./operation-lease.
 import { handleBulkAiTag } from "./handlers/ai-tagging.js";
 import { handleAiTagBakeoff } from "./handlers/ai-tag-bakeoff.js";
 import { handleStyleGroupProfiles } from "./handlers/ai-style-group-profile.js";
-import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "./handlers/style-groups.js";
+import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileStyleGroupStats, hashCursorCheckpoint, safeRebuildWatermark } from "./handlers/style-groups.js";
 import { handleRelinkOrphanedAssets } from "./handlers/relink-orphaned.js";
 import { handleLegacyPropagationAlias, handleRefreshGroupMetadata } from "./handlers/group-metadata-refresh.js";
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handlers/erp.js";
@@ -54,6 +54,16 @@ export const STALE_RUN_MS = STALE_RUN_MINUTES * 60 * 1000;
 export const WAIT_HEARTBEAT_MS = 2 * 60 * 1000;
 const INTERRUPT_CHECK_EVERY = 10;
 const AUTO_RESUME_MAX_ATTEMPTS = 10;
+
+export function rebuildCursorReceipt(opKey: string, state: OpState, cursor: number | string | null | undefined, lastSuccessful: number | string | null | undefined) {
+  if (opKey !== "rebuild-style-groups") return {};
+  const safeWatermark = safeRebuildWatermark(state);
+  return {
+    ...safeWatermark,
+    operation_cursor_sha256: hashCursorCheckpoint("operation", opKey, "cursor", cursor ?? null),
+    operation_last_successful_cursor_sha256: hashCursorCheckpoint("operation", opKey, "last_successful_cursor", lastSuccessful ?? null),
+  };
+}
 const submissionLeaseTokens = new Map<string, string>();
 export const submissionOwnerForRun = createSubmissionOwnerFactory();
 // RAM only; a known acknowledgement may never return to the submission path.
@@ -1111,7 +1121,12 @@ export async function tick(): Promise<void> {
       !crossLaneBusy
     ) {
       const attempts = (op.auto_resume_attempts ?? 0) + 1;
-      logger.info("tick: auto-resuming interrupted op", { opKey: key, attempts, reason: op.interruption_reason_code });
+      logger.info("tick: auto-resuming interrupted op", {
+        opKey: key,
+        attempts,
+        reason: op.interruption_reason_code,
+        ...(key === "rebuild-style-groups" ? { run_id: op.run_id, ...rebuildCursorReceipt(key, op, op.cursor, op.last_successful_cursor) } : {}),
+      });
       allOps[key] = {
         ...op,
         status: "running",
@@ -1577,6 +1592,9 @@ export async function tick(): Promise<void> {
         cursor_version: typeof cursor === "string" ? cursor.split(":", 1)[0] : "numeric",
         elapsed_ms: result.elapsed_ms,
         postgres_code: result.postgres_code,
+        // The loop cursor reflects the latest operation checkpoint whose save returned true;
+        // currentState still holds the prior persisted snapshot until the next iteration.
+        ...rebuildCursorReceipt(opKey, currentState, cursor, cursor),
       });
       const failureState: OpState = {
         ...currentState,
@@ -1627,6 +1645,9 @@ export async function tick(): Promise<void> {
       return;
     }
 
+    const operationCursorBeforeBatch = cursor;
+    const wasAutoResumed = opKey === "rebuild-style-groups" && (currentState.auto_resume_attempts ?? 0) > 0;
+    const autoResumeAttempts = currentState.auto_resume_attempts ?? 0;
     currentState = {
       ...currentState,
       meta_tag_attempt: result.meta_tag_attempt !== undefined ? result.meta_tag_attempt as OpState["meta_tag_attempt"] : currentState.meta_tag_attempt,
@@ -1667,6 +1688,17 @@ export async function tick(): Promise<void> {
     if (!stillRunning) {
       logger.info("tick: op stopped externally — aborting after batch", { opKey, batchCount });
       return;
+    }
+
+    if (wasAutoResumed) {
+      logger.info("tick: resumed rebuild batch persisted", {
+        opKey,
+        run_id: currentState.run_id,
+        attempts: autoResumeAttempts,
+        ...rebuildCursorReceipt(opKey, currentState, cursor, cursor),
+        operation_cursor_before_sha256: hashCursorCheckpoint("operation", opKey, "cursor", operationCursorBeforeBatch ?? null),
+        operation_cursor_after_sha256: hashCursorCheckpoint("operation", opKey, "cursor", cursor ?? null),
+      });
     }
 
     // Reload the database-assigned revision before attempting the submission
