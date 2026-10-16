@@ -1,0 +1,59 @@
+{
+  "schema_version": 2,
+  "work_issue": 4297,
+  "generation": 32,
+  "evidence_parent": {
+    "work_issue": 4297,
+    "generation": 31,
+    "contract_sha256": "0a3e2c7bca646ccda3502ffcc41df4de5aab886800d2a1b64f0dfe2234ba3ed7"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Clarify immutable recovery-contract prohibitions without changing the recovery implementation; independent review remains required.",
+  "base_sha": "154361984687def51366c2c539d7467b1ad64098",
+  "branch": "codex/4297-canonical-checkpoint-recovery",
+  "worktree": "/worksp/.worktrees/shared-db-4297-checkpoint",
+  "dispatcher": "Codex chat 01a1402d-8c8d-79f3-945e-2713340e13d6 on edge-dev3",
+  "worker": "Codex chat 01a1402d-8c8d-79f3-945e-2713340e13d6 on edge-dev3",
+  "allowed_paths": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "docs/agents/review-recovery-policy.md",
+    ".agent/work/4297/31/contract.json",
+    ".agent/work/4297/31/completion.json",
+    ".agent/work/4297/32/contract.json",
+    ".agent/work/4297/32/completion.json"
+  ],
+  "file_writes": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "docs/agents/review-recovery-policy.md",
+    ".agent/work/4297/31/contract.json",
+    ".agent/work/4297/31/completion.json",
+    ".agent/work/4297/32/contract.json",
+    ".agent/work/4297/32/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Never force-push; never rewrite source history; never reset paid starts or fabricate evidence.",
+    "Never accept foreign merges, unsupported conflict resolution or unverified metadata exclusions.",
+    "Never change databases, production or dependent application code in this repair."
+  ],
+  "required_checks": [
+    "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/run-governed-review.test.mjs",
+    "node --test scripts/check-exact-head-approval.test.mjs scripts/lib/pr-content-equivalence.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "This is repository maintenance with no database writes.",
+    "Existing review history and budgets remain immutable and fully charged.",
+    "Only a byte-exact clean canonical checkpoint can neutralize one mixed merge; it cannot itself witness authored capacity."
+  ],
+  "stop_conditions": [
+    "Stop if the exact canonical checkpoint cannot be proved from Git and existing verified evidence.",
+    "Stop if negative/unchanged rounds become refunded or a checkpoint alone creates capacity."
+  ]
+}

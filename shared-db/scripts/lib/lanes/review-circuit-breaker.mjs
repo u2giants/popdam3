@@ -442,12 +442,42 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     if(intermediate.length && equal(expected,after))return {schema:1,before,after,protectedMain,kind:'unchanged',canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions,...(supersededCheckPrefixes.length?{supersededCheckPrefixes}:{})}
 
     if (index < 0 || index >= 1000) throw new LaneError('review budget complete first-parent ancestry unavailable')
+    const history=rows.slice(0,index).map((commit,position)=>({commit,position,parents:run(['rev-list','--parents','-n','1',commit]).split(' ').slice(1)}))
+    const mixed=[]
+    for(const row of history){
+      if(row.parents.length===2){
+        // A later restoration never makes foreign ancestry trustworthy.
+        if(!ancestor(row.parents[1],protectedMain))throw new LaneError('review budget noncanonical or foreign merge refused')
+        if(!equal(merge(...row.parents),row.commit))mixed.push(row)
+      }else if(row.parents.length!==1)throw new LaneError('review budget ambiguous merge provenance refused')
+    }
+    let canonicalRecovery=null
+    if(mixed.length){
+      if(mixed.length!==1)throw new LaneError('review budget noncanonical or foreign merge refused')
+      const row=mixed[0],anchor=row.parents[0],projection=merge(anchor,incorporatedMain)
+      // Forward recovery must first restore the COMPLETE clean canonical source
+      // tree. A conflict-specific projection, partial revert, or caller-supplied
+      // checkpoint cannot stand in for that proof. Metadata exclusions above
+      // have already passed their immutable contract/evidence checks.
+      if(typeof projection!=='string'||!sha.test(projection))throw new LaneError('review budget noncanonical or foreign merge refused')
+      for(let position=row.position-1;position>=0;position-=1){
+        if(equal(projection,rows[position])){
+          canonicalRecovery={anchor,mixedMerge:row.commit,checkpoint:rows[position],checkpointPosition:position,mergePosition:row.position,incorporatedMain}
+          break
+        }
+      }
+      if(!canonicalRecovery)throw new LaneError('review budget noncanonical or foreign merge refused')
+    }
     const authorCandidates=[]
     let authored = false,witness=null
-    for (const commit of rows.slice(0,index)) {
-      const parents = run(['rev-list','--parents','-n','1',commit]).split(' ').slice(1)
+    for (const {commit,position,parents} of history) {
+      // Neither the mixed merge nor the commits that neutralized it can supply
+      // authored capacity. Earlier valid edits and later standalone edits still
+      // need the existing surviving-source witness. All historical paid starts
+      // remain in the accounting input; the checkpoint refunds nothing.
+      if(canonicalRecovery&&position>=canonicalRecovery.checkpointPosition&&position<=canonicalRecovery.mergePosition)continue
       if (parents.length === 2) {
-        if (!ancestor(parents[1],protectedMain) || !equal(merge(...parents),commit)) throw new LaneError('review budget noncanonical or foreign merge refused')
+        if (!equal(merge(...parents),commit)) throw new LaneError('review budget noncanonical or foreign merge refused')
       } else if (parents.length === 1) {
         if (!ancestor(commit,protectedMain)) {
           authorCandidates.push({commit,parent:parents[0]})
@@ -502,7 +532,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
       }
     }
     if (!authored) throw new LaneError('review budget surviving author source edit unavailable')
-    return {schema:1,before,after,protectedMain,kind:'substantive',historyCount:index,witness,canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions,...(supersededCheckPrefixes.length?{supersededCheckPrefixes}:{})}
+    return {schema:1,before,after,protectedMain,kind:'substantive',historyCount:index,witness,canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions,...(canonicalRecovery?{canonicalRecovery}:{}),...(supersededCheckPrefixes.length?{supersededCheckPrefixes}:{})}
   } catch (error) {
     throw new LaneError(`review budget Git provenance refused: ${String(error?.message??error).split('\n')[0]}`)
   }

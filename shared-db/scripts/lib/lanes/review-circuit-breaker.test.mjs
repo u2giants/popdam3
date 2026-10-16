@@ -153,6 +153,82 @@ test('real Git source-equivalent rewrite preserves count while a custom merge re
  const after=f.git(['rev-parse','HEAD']).trim()
  assert.throws(()=>derivePaidContentProof(f.before,after,main,f.git),/noncanonical/)
 })
+
+function forwardCheckpointFixture(t,{foreign=false,earlierFix=false}={}){
+ const f=realGitFixture(t)
+ const anchor=earlierFix?f.commit('earlier-fix.txt','valid earlier author fix\n'):f.before
+ f.git(['switch','main']);const main=f.commit('main-only.txt','protected main\n')
+ let incoming='main'
+ if(foreign){f.git(['switch','-qc','foreign']);f.commit('foreign.txt','untrusted ancestry\n');incoming='foreign'}
+ f.git(['switch','feature']);f.git(['merge','--no-commit',incoming])
+ writeFileSync(path.join(f.dir,'mixed.txt'),'unreviewed edit inside merge\n');f.git(['add','mixed.txt']);f.git(['commit','-qm','mixed upstream merge'])
+ const mixed=f.git(['rev-parse','HEAD']).trim()
+ const restore=({partial=false,mode=null,unverified=false}={})=>{
+  f.git(['rm','mixed.txt']);if(foreign)f.git(['rm','foreign.txt'])
+  if(partial){writeFileSync(path.join(f.dir,'leftover.txt'),'not restored\n');f.git(['add','leftover.txt'])}
+  if(mode){const blob=f.git(['rev-parse','HEAD:app.txt']).trim();f.git(['update-index','--cacheinfo',`${mode},${blob},app.txt`])}
+  if(unverified){mkdirSync(path.join(f.dir,'.agent'),{recursive:true});writeFileSync(path.join(f.dir,'.agent/unverified.txt'),'not a contract\n');f.git(['add','.agent/unverified.txt'])}
+  f.git(['commit','-qm','restore canonical source without rewriting history']);return f.git(['rev-parse','HEAD']).trim()
+ }
+ return {...f,anchor,main,mixed,restore}
+}
+test('forward canonical checkpoint permits a later standalone repair without accepting the mixed merge',t=>{
+ const f=forwardCheckpointFixture(t)
+ assert.throws(()=>derivePaidContentProof(f.before,f.mixed,f.main,f.git),/noncanonical/)
+ const checkpoint=f.restore(),after=f.commit('mixed.txt','unreviewed edit inside merge\n')
+ const proof=derivePaidContentProof(f.before,after,f.main,f.git)
+ assert.equal(proof.kind,'substantive');assert.equal(proof.canonicalRecovery.anchor,f.anchor)
+ assert.equal(proof.canonicalRecovery.mixedMerge,f.mixed);assert.equal(proof.canonicalRecovery.checkpoint,checkpoint)
+ assert.equal(proof.witness.commit,after);assert.notEqual(proof.witness.commit,f.mixed)
+ // Even if a historical review already saw the mixed source, restoring and
+ // replaying those same bytes cannot manufacture a fresh content group.
+ const alreadySeen=derivePaidContentProof(f.mixed,after,f.main,f.git)
+ assert.equal(alreadySeen.kind,'unchanged')
+ const starts=[1,2].map(n=>({...row(n,f.mixed),commit:{message:message(n,f.mixed)}}))
+ assert.throws(()=>assertPaidReviewCapacity({...request,headSha:after},{...io(starts),reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:alreadySeen})}),/third draw refused/)
+})
+test('forward restoration alone, empty commits and evidence-only followups retain both charged rounds',t=>{
+ const f=forwardCheckpointFixture(t);f.restore()
+ const starts=[1,2].map(n=>({...row(n,f.before),commit:{message:message(n,f.before)}}))
+ const check=()=>{
+  const after=f.git(['rev-parse','HEAD']).trim(),proof=derivePaidContentProof(f.before,after,f.main,f.git,['evidence.txt'])
+  assert.equal(proof.kind,'unchanged')
+  const api={...io(starts),reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}
+  assert.throws(()=>assertPaidReviewCapacity({...request,headSha:after},api),/third draw refused/)
+  assert.equal(starts.length,2)
+ }
+ check();f.git(['commit','--allow-empty','-qm','empty followup']);check();f.commit('evidence.txt','evidence only\n');check()
+})
+test('forward recovery also proves historical paid heads before valid earlier authored fixes',t=>{
+ const f=forwardCheckpointFixture(t,{earlierFix:true}),checkpoint=f.restore(),after=f.commit('later-fix.txt','standalone fix\n')
+ const proof=derivePaidContentProof(f.before,after,f.main,f.git)
+ assert.equal(proof.kind,'substantive');assert.equal(proof.canonicalRecovery.anchor,f.anchor)
+ assert.notEqual(f.before,f.anchor);assert.equal(proof.canonicalRecovery.checkpoint,checkpoint)
+ for(const before of [f.before,f.anchor])assert.equal(derivePaidContentProof(before,after,f.main,f.git).kind,'substantive')
+})
+test('partial forward restoration cannot hide a mixed merge behind a genuine later edit',t=>{
+ const f=forwardCheckpointFixture(t);f.restore({partial:true});const after=f.commit('later-fix.txt','genuine later edit\n')
+ assert.throws(()=>derivePaidContentProof(f.before,after,f.main,f.git),/noncanonical/)
+})
+for(const mode of ['100755','120000'])test(`forward checkpoint refuses source mode drift ${mode}`,t=>{
+ const f=forwardCheckpointFixture(t);f.restore({mode});const after=f.commit('later-fix.txt','genuine later edit\n')
+ assert.throws(()=>derivePaidContentProof(f.before,after,f.main,f.git),/noncanonical/)
+})
+test('foreign merge remains refused even after exact source restoration and a standalone repair',t=>{
+ const f=forwardCheckpointFixture(t,{foreign:true});f.restore();const after=f.commit('later-fix.txt','genuine later edit\n')
+ assert.throws(()=>derivePaidContentProof(f.before,after,f.main,f.git),/foreign merge/)
+})
+test('unverified agent bytes cannot be excluded to create a forward checkpoint',t=>{
+ const f=forwardCheckpointFixture(t);f.restore({unverified:true});const after=f.commit('later-fix.txt','genuine later edit\n')
+ assert.throws(()=>derivePaidContentProof(f.before,after,f.main,f.git),/unverified|historical|evidence|noncanonical/)
+})
+test('two mixed merges remain refused after complete forward restoration',t=>{
+ const f=forwardCheckpointFixture(t)
+ f.git(['switch','main']);const main=f.commit('main-next.txt','protected next change\n')
+ f.git(['switch','feature']);f.git(['merge','--no-commit','main']);writeFileSync(path.join(f.dir,'mixed-next.txt'),'second mixed edit\n');f.git(['add','mixed-next.txt']);f.git(['commit','-qm','second mixed merge'])
+ f.git(['rm','mixed.txt','mixed-next.txt']);f.git(['commit','-qm','restore both mixed merges']);const after=f.commit('later-fix.txt','standalone repair\n')
+ assert.throws(()=>derivePaidContentProof(f.before,after,main,f.git),/noncanonical/)
+})
 test('real Git offset-only main merge preserves count, but conflicting main ancestry refuses',t=>{
  const f=realGitFixture(t);f.git(['switch','main']);const main=f.commit('app.txt','inserted\ncontext\nseparator1\nseparator2\nauthor\nend\n')
  f.git(['switch','feature']);f.git(['merge','-qm','offset refresh','main']);const after=f.git(['rev-parse','HEAD']).trim()
