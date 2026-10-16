@@ -293,8 +293,8 @@ Two technical constraints on the poll design:
   "entered before/after" comparisons against production orders (`/prodtracking` and
   `/proddetails` already carry their own `createdTime`). What it does not change: the
   `fromDate`/`toDate` filter still keys on the start date (re-verified 2026-10-09: all rows
-  inside the window; the window is now capped at 7 days inclusive), so these fields cannot be
-  queried by; they are read from rows already fetched. Novelty by `salesOrderNo` remains the
+  inside the window; the window is now capped at 7 days inclusive), *Historical (2026-10-09):* these
+  fields could not then be queried by — superseded 2026-10-16, see the next bullet. Novelty by `salesOrderNo` remains the
   detection rule; the timestamps are added evidence, not a replacement.
   **Fixed by ColdLion 2026-10-12 — `createdTime`/`modTime` now come from the order details, not
   the invoice.** Re-verified live 2026-10-12: SO 7127837 now returns `createdTime`
@@ -308,6 +308,26 @@ Two technical constraints on the poll design:
   sales orders look like they were entered ~59 days after their production PO.
   *Historical (2026-09-17):* a probe then found 63 fields and no created/entry timestamp; that
   statement is superseded by the above.
+- **`/orderHistory` can now be filtered by entry and change date — verified live 2026-10-16.**
+  Why we asked: filling the new timestamps into 116,252 historical lines (#4150) meant
+  re-reading every order back to 2019 one start-date week at a time, which took hours, and
+  new-order detection had to scan forward week by week. We told ColdLion we would skip their
+  proposed Order Header API if `/orderHistory` gained `/prodtracking`-style date filters.
+  ColdLion's answer (2026-10-16, ColdLion, quoted): "I've added createdFrom/createdTo and
+  modifiedFrom/modifiedTo filters to /orderHistory". They also said the filters apply to the
+  **sales order header**, and `createdTime`/`createdUser`/`modTime`/`modUser` are now returned
+  from the header instead of the detail. Live probe the same day:
+  - The four filters appear in the API spec and work: `createdFrom=2026-10-01&createdTo=2026-10-15`
+    returned 38 lines / 14 orders, all created 2026-10-01..10-13; `modifiedFrom=2026-10-14&
+    modifiedTo=2026-10-16` returned 97 lines / 15 orders, all changed 2026-10-14..10-15.
+  - `fromDate`/`toDate` (start date) are **still required** — omitting them returns HTTP 400.
+    The 7-day cap is gone: a 2026-01-01..2027-12-31 start window was accepted. So pass a wide
+    start window and narrow by `createdFrom`/`modifiedFrom`.
+  - Filters combine (AND) with the start window. Page size max is 200.
+  - Timestamps stay order-level: no order had differing values across its lines.
+  Consequence: changed-order and new-order detection can query by `modifiedFrom`/`createdFrom`
+  directly; the Order Header API is not needed. Novelty by `salesOrderNo` remains the
+  detection rule.
 - **The window filter keys on the ERP start date — verified live 2026-09-17.** Windows in
   October, November and December 2026 return live rows today (a November window held 42 rows,
   a December window 117), and every returned row's `startDate` falls inside its requested
