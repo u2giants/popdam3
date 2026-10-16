@@ -2,6 +2,7 @@ import { accountFingerprint } from "./batch-provider.js";
 import type { ChatCompletionRequest, ChatCompletionResult, ChatMessage, OpenRouterProviderInfo } from "./openrouter.js";
 import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
 import { metaDispatcher } from "./meta-connection.js";
+import { isTransientInterruption } from "./operation-retry.js";
 
 // Contributor models are served only by the Responses API; Chat Completions
 // returns 404 model_not_found for them (verified 2026-09-23).
@@ -105,6 +106,7 @@ const contributorWaiters: Array<() => void> = [];
 const asyncReservations = new Map<string, string | null>();
 const terminalResponses = new Set<string>();
 interface DurableMetaReservation { owner: string; model: string; fingerprint: string; conflicting: boolean; }
+interface MetaReservationSupersession { op_key: string; run_id: string; state_revision: number; interruption_reason_code: string; replacement_run_id: string; }
 // Creation alone is not durable evidence. Populate only from native snapshots.
 const durableReservations = new Map<string, DurableMetaReservation>();
 function validStoredMetaId(id: unknown): id is string {
@@ -121,9 +123,104 @@ function sameDurableBinding(id: string, binding: DurableMetaReservation | undefi
   return !!binding && !binding.conflicting && durableReservations.get(id) === binding && binding.fingerprint === fingerprint && binding.model === model && asyncReservations.get(binding.owner) === id;
 }
 const asyncCreating = new Set<string>();
+const loggedMetaSupersessionDecisions = new Set<string>();
 function wakeContributorWaiters() { for (const wake of contributorWaiters.splice(0)) wake(); }
 export function metaAsyncBusy(owner: string): boolean { return [...asyncReservations].some(([key, id]) => key !== owner || id !== null); }
+function logMetaSupersessionDecision(decision: "accepted" | "refused", replacementKey: string, originalKey: string, reason: string): void {
+  const signature = JSON.stringify([decision, replacementKey, originalKey, reason]);
+  if (loggedMetaSupersessionDecisions.has(signature)) return;
+  loggedMetaSupersessionDecisions.add(signature);
+  console.warn("Meta reservation supersession decision", { decision, replacement_key: replacementKey, original_key: originalKey, reason });
+}
 export function synchronizeMetaReservations(operations: Record<string, import("./types.js").OpState>): void {
+  // An admin may explicitly start a replacement run while an earlier Meta
+  // submission remains ambiguous. Keep that override narrow and durable: it
+  // names the exact interrupted operation/run and only waives its ID-less
+  // ambiguous reservation. A bound provider response is never superseded.
+  const supersededOwners = new Set<string>();
+  const replacementOwners = new Set<string>();
+  for (const [replacementKey, replacement] of Object.entries(operations)) {
+    const replacementParams = replacement.params;
+    const rawMarker = replacementParams?.meta_reservation_supersedes;
+    if (rawMarker === undefined) continue;
+    if (!rawMarker || typeof rawMarker !== "object" || Array.isArray(rawMarker)) {
+      logMetaSupersessionDecision("refused", replacementKey, "unknown", "invalid_marker");
+      continue;
+    }
+    const marker = rawMarker as Partial<MetaReservationSupersession>;
+    const originalKey = typeof marker.op_key === "string" ? marker.op_key : "unknown";
+    const reject = (reason: string) => logMetaSupersessionDecision("refused", replacementKey, originalKey, reason);
+    if (typeof marker.op_key !== "string" || !marker.op_key.trim() || typeof marker.run_id !== "string" || !marker.run_id.trim() || !Number.isSafeInteger(marker.state_revision) || typeof marker.interruption_reason_code !== "string" || !marker.interruption_reason_code.trim() || typeof marker.replacement_run_id !== "string" || !marker.replacement_run_id.trim()) {
+      reject("invalid_marker");
+      continue;
+    }
+    const replacementOwner = replacement.run_id;
+    const rawAssetIds = replacementParams?.asset_ids;
+    const hasExplicitAssetIds = Array.isArray(rawAssetIds) && rawAssetIds.length > 0
+      && rawAssetIds.every((id): id is string => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+      && new Set(rawAssetIds).size === rawAssetIds.length;
+    if (replacementKey !== "ai-tag-all" || replacement.status !== "running" || typeof replacementOwner !== "string" || !replacementOwner.trim() || replacementOwner !== marker.replacement_run_id || !hasExplicitAssetIds) {
+      reject("replacement_scope_status_or_identity_mismatch");
+      continue;
+    }
+    const replacementJob = replacement.external_job;
+    if (replacementJob && (replacementJob.provider !== "meta-responses" || typeof replacementJob.model !== "string" || !isMetaDirectModel(replacementJob.model) || !metaModelId(replacementJob.model))) {
+      reject("replacement_is_not_a_meta_direct_run");
+      continue;
+    }
+    if (Object.entries(operations).some(([otherKey, other]) => otherKey !== replacementKey && (other.run_id ?? otherKey) === replacementOwner)) {
+      reject("replacement_run_id_is_shared");
+      continue;
+    }
+    const original = operations[marker.op_key];
+    if (!original) {
+      reject("original_operation_missing");
+      continue;
+    }
+    if (marker.op_key === replacementKey || (replacement.run_id ?? replacementKey) === (original.run_id ?? marker.op_key)) {
+      reject("replacement_is_original_owner");
+      continue;
+    }
+    if (original.status !== "interrupted" || original.run_id !== marker.run_id || original.state_revision !== marker.state_revision) {
+      reject("original_identity_or_revision_changed");
+      continue;
+    }
+    if (original.interruption_reason_code !== marker.interruption_reason_code || isTransientInterruption(original.interruption_reason_code) || original.next_auto_resume_at) {
+      reject("original_reason_changed_or_auto_resume_eligible");
+      continue;
+    }
+    const job = original.external_job;
+    if (job?.provider !== "meta-responses" || job.phase !== "ambiguous_submission" || job.provider_batch_id !== undefined && job.provider_batch_id !== null) {
+      reject("original_not_idless_ambiguous_meta_submission");
+      continue;
+    }
+    const originalOwner = original.run_id ?? marker.op_key;
+    const inMemoryId = asyncReservations.get(originalOwner);
+    if (inMemoryId !== undefined && inMemoryId !== null) {
+      reject("provider_id_present_in_worker_memory");
+      continue;
+    }
+    if (asyncCreating.has(originalOwner)) {
+      reject("original_submission_still_in_progress");
+      continue;
+    }
+    const sharedOwner = Object.entries(operations).some(([otherKey, other]) => {
+      if (otherKey === marker.op_key || otherKey === replacementKey || (other.run_id ?? otherKey) !== originalOwner) return false;
+      const otherJob = other.external_job;
+      return otherJob?.provider === "meta-responses" && (validStoredMetaId(otherJob.provider_batch_id) || ["pending", "submitting", "ambiguous_submission"].includes(otherJob.phase) || !!otherJob.ambiguous_since);
+    });
+    if (sharedOwner) {
+      reject("another_meta_operation_shares_original_owner");
+      continue;
+    }
+    if (supersededOwners.has(originalOwner)) {
+      reject("another_replacement_already_supersedes_original_owner");
+      continue;
+    }
+    supersededOwners.add(originalOwner);
+    replacementOwners.add(replacementOwner);
+    logMetaSupersessionDecision("accepted", replacementKey, marker.op_key, "exact_idless_ambiguous_reservation_superseded");
+  }
   const next = new Map<string, string | null>();
   for (const [key, state] of Object.entries(operations)) {
     const job = state.external_job;
@@ -132,11 +229,15 @@ export function synchronizeMetaReservations(operations: Record<string, import(".
     const id = job.provider_batch_id;
     if (id && (["pending", "submitting", "ambiguous_submission"].includes(job.phase) || [...asyncReservations.values()].includes(id))) recordDurableReservation(owner, id, job.model, job.account_fingerprint);
     if (id && !terminalResponses.has(id) && (job.phase === "pending" || job.phase === "submitting" || job.phase === "ambiguous_submission")) next.set(owner, id);
-    else if (!id && (job.phase === "submitting" || job.phase === "ambiguous_submission" || job.ambiguous_since)) next.set(owner, null);
+    else if (!id && (job.phase === "submitting" || job.phase === "ambiguous_submission" || job.ambiguous_since) && !supersededOwners.has(owner)) next.set(owner, null);
   }
+  // Keep the released capacity reserved for the one named replacement until
+  // its marker stops matching. This prevents a different Meta operation from
+  // taking the slot during the replacement's initial preparation step.
+  for (const owner of replacementOwners) if (!next.has(owner)) next.set(owner, null);
   // An acknowledged but unbound response is retained conservatively until
   // its exact terminal state is observed; a stale snapshot cannot release it.
-  for (const [owner, id] of asyncReservations) if (id && !terminalResponses.has(id) && (!next.has(owner) || next.get(owner) === null)) next.set(owner, id);
+  for (const [owner, id] of asyncReservations) if (id && !terminalResponses.has(id) && (!next.has(owner) || next.get(owner) === null) && !supersededOwners.has(owner)) next.set(owner, id);
   asyncReservations.clear(); for (const entry of next) asyncReservations.set(...entry);
   wakeContributorWaiters();
 }
