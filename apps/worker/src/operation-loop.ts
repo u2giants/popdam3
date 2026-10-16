@@ -1472,33 +1472,43 @@ export async function tick(): Promise<void> {
         });
         return;
       }
-      const submittedState: OpState = {
-        ...claimedState,
-        status: result.done ? "completed" : "running",
-        cursor: (result.nextOffset as number | string | undefined) ?? claimedState.cursor,
-        progress: mergeProgress(opKey, progress, result),
-        external_job: result.external_job as OpState["external_job"],
-        updated_at: new Date().toISOString(),
-      };
-      const acknowledgement: AcceptedProviderAcknowledgement = { opKey, claimed: structuredClone(claimedState), submitted: structuredClone(submittedState), leaseToken, owner, attempts: 0 };
-      const savedAcknowledgement = await saveAcceptedAcknowledgement(acknowledgement,
-        (fn, params) => db().rpc(fn, params),
-        async () => {
-          const { data, error } = await db().from("admin_config").select("value").eq("key", CONFIG_KEY).maybeSingle();
-          if (error) throw new Error("Accepted acknowledgement read failed");
-          return (data?.value as Record<string, OpState> | undefined)?.[opKey] ?? null;
+      if (claimedState.external_job?.provider_batch_id) {
+        // A reattached known-ID job was polled/applied, not submitted. Its
+        // returned phase may already be completed, so it must use the normal
+        // receipt-proven phase writer below, not the new-POST acknowledgement
+        // binder (which requires the old state to be unbound/submitting).
+        // Continue from the freshly claimed revision; never reuse the pre-claim
+        // revision or mint another submission acknowledgement for this job.
+        currentState = claimedState;
+      } else {
+        const submittedState: OpState = {
+          ...claimedState,
+          status: result.done ? "completed" : "running",
+          cursor: (result.nextOffset as number | string | undefined) ?? claimedState.cursor,
+          progress: mergeProgress(opKey, progress, result),
+          external_job: result.external_job as OpState["external_job"],
+          updated_at: new Date().toISOString(),
+        };
+        const acknowledgement: AcceptedProviderAcknowledgement = { opKey, claimed: structuredClone(claimedState), submitted: structuredClone(submittedState), leaseToken, owner, attempts: 0 };
+        const savedAcknowledgement = await saveAcceptedAcknowledgement(acknowledgement,
+          (fn, params) => db().rpc(fn, params),
+          async () => {
+            const { data, error } = await db().from("admin_config").select("value").eq("key", CONFIG_KEY).maybeSingle();
+            if (error) throw new Error("Accepted acknowledgement read failed");
+            return (data?.value as Record<string, OpState> | undefined)?.[opKey] ?? null;
+          });
+        if (!savedAcknowledgement.saved) {
+          logger.error("tick: accepted provider acknowledgement remains held in memory; no new submission is authorized", { attempts: acknowledgement.attempts, reason: savedAcknowledgement.reason });
+          return;
+        }
+        preSubmissionRetries.delete(opKey);
+        if (result.done) submissionLeaseTokens.delete(opKey);
+        logger.info("tick: durable provider batch saved", {
+          opKey,
+          batchId: submittedState.external_job?.provider_batch_id,
         });
-      if (!savedAcknowledgement.saved) {
-        logger.error("tick: accepted provider acknowledgement remains held in memory; no new submission is authorized", { attempts: acknowledgement.attempts, reason: savedAcknowledgement.reason });
         return;
       }
-      preSubmissionRetries.delete(opKey);
-      if (result.done) submissionLeaseTokens.delete(opKey);
-      logger.info("tick: durable provider batch saved", {
-        opKey,
-        batchId: submittedState.external_job?.provider_batch_id,
-      });
-      return;
     }
     if (result.state_transition === "yield_without_save") {
       await heartbeatWhileWaiting(opKey, currentState);
