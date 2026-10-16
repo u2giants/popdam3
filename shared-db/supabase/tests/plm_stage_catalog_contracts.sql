@@ -26,9 +26,18 @@ begin
      or (select count(*) from plm.stage where counts_toward_total) <> 10 then
     raise exception 'stage catalog seed counts are wrong';
   end if;
-  if exists (select 1 from plm.stage_list where version <> 1) then
-    raise exception 'seeded lists must start at version 1';
+  -- shared-db#4373 (claim #4402): the tracker-order/options migration updates 14
+  -- seeded stage rows, so each list's version reflects exactly those bumps.
+  if (select string_agg(key || '=' || version, ',' order by key) from plm.stage_list)
+     <> 'design=1,licensing=4,production=7,sampling=5,shipping=2' then
+    raise exception 'seeded list versions after #4373 are wrong: %',
+      (select string_agg(key || '=' || version, ',' order by key) from plm.stage_list);
   end if;
+  -- Re-baseline to 1 (inside this rolled-back test only) so the trigger-path
+  -- arithmetic below keeps proving exactly one bump per change.
+  alter table plm.stage_list disable trigger stage_list_bump_version;
+  update plm.stage_list set version = 1;
+  alter table plm.stage_list enable trigger stage_list_bump_version;
   if (select maintainers from plm.stage_list where key = 'sampling') <> '{36,41}'::integer[] then
     raise exception 'sampling maintainers must be Yuchen (36) and Ilona (41)';
   end if;

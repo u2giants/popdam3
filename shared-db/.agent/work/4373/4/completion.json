@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "work_issue": 4373,
+  "outcome": "ready-for-merge",
+  "reason": "Required source checks are complete. Independent current-head review, PR CI, preview reconciliation and guarded merge are separate pending gates.",
+  "pr": 4386,
+  "migration_versions": [
+    "20261016210024"
+  ],
+  "contract_ref": "refs/db-contracts/4373/4",
+  "contract_sha256": "3c970694f6d2a44fe4eeae765ba6f00b1a08635bbb2ab892398bd2af90c273c8",
+  "head_sha": "0ecc26e6220e3ebd4f1570fe4f6480410654fba5",
+  "base_sha": "d097a45ec2726a293760d066bd3a39e76414c6a2",
+  "files_changed": [
+    "HANDOFF.d/2026-10-16T1150Z-edge-dev3-codex-stage-catalog-coordination.md",
+    "supabase/migrations/20261016210024_plm_stage_tracker_order_options.sql",
+    "supabase/tests/20261016012631_plm_stage_tracker_order_options.sql",
+    "supabase/tests/plm_stage_catalog_contracts.sql"
+  ],
+  "db_reads": [
+    "table plm.stage_list",
+    "table plm.stage"
+  ],
+  "db_writes": [
+    "table plm.prod_stage_option",
+    "table plm.stage",
+    "column plm.stage.tracker_position",
+    "column plm.stage.done_signal"
+  ],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean at 0ecc26e6220e"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at 0ecc26e6220e"
+    }
+  ],
+  "assumptions_resolved": [
+    "Handoff retired (Handoff contract rule 2b) after carrying its link and open obligations to #4379 and designflow-tracking#124."
+  ],
+  "stop_conditions_hit": []
+}

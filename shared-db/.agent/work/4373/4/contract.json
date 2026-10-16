@@ -1,0 +1,74 @@
+{
+  "schema_version": 2,
+  "generation": 4,
+  "evidence_parent": {
+    "work_issue": 4373,
+    "generation": 3,
+    "contract_sha256": "86319e8d3a2f30b6d044e5e865ae9ded57d15bf3177f7938b96652ce492bea58"
+  },
+  "work_issue": 4373,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Prospectively reimplement and qualify the exact stage catalog tracker-order/options need under fresh claim4382/version20261016042600, preserving original missing-prework evidence.",
+  "base_sha": "46fbb9194216dca4a5af76fa76c1b7fd226495e4",
+  "dispatcher": "Claude chat b6410b17-053b-4ff2-adc8-f25b053cb611 on edge-dev3",
+  "worker": "claude",
+  "branch": "codex/stage-catalog-order-options-prospective",
+  "worktree": "/home/ahazan/repos/shared-db-4386",
+  "allowed_paths": [
+    "supabase/migrations/20261016210024_plm_stage_tracker_order_options.sql",
+    "supabase/tests/20261016012631_plm_stage_tracker_order_options.sql",
+    ".agent/work/4373/4/contract.json",
+    ".agent/work/4373/4/completion.json",
+    "supabase/tests/plm_stage_catalog_contracts.sql",
+    "HANDOFF.d/2026-10-16T1150Z-edge-dev3-codex-stage-catalog-coordination.md"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261016210024_plm_stage_tracker_order_options.sql",
+    "supabase/tests/20261016012631_plm_stage_tracker_order_options.sql",
+    ".agent/work/4373/4/contract.json",
+    ".agent/work/4373/4/completion.json",
+    "supabase/tests/plm_stage_catalog_contracts.sql",
+    "HANDOFF.d/2026-10-16T1150Z-edge-dev3-codex-stage-catalog-coordination.md"
+  ],
+  "db_reads": [
+    "table plm.stage_list",
+    "table plm.stage"
+  ],
+  "db_writes": [
+    "table plm.prod_stage_option",
+    "table plm.stage",
+    "column plm.stage.tracker_position",
+    "column plm.stage.done_signal"
+  ],
+  "prohibited_actions": [
+    "No source implementation or copying before genuine native contract publication and readback.",
+    "No expanded DDL/object scope; no alteration of original source/ref/reviews/artifacts or retired versions.",
+    "No manual ledger edits, production commands, case-extension configuration, contract backdating or grandfather exemption.",
+    "No source push/new PR/review/deployment without coordinator sequencing."
+  ],
+  "required_checks": [
+    "git diff --check",
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "Original PR4377/head56f09184269abde4a7a8c85a2b1e617e249260b7 and retired claim4376/version20261016012631 are historical NONAUTHORIZING input only; original implementation predated genuine prework publication and was refused.",
+    "Fresh native claim4382 is authoritative only for its exact admitted four objects; original retired version is never reused.",
+    "Original statements currently exist only shared preview mvpkijzfmfcxhnzqogzs; a separately contracted and independently reviewed native preview-only case extension is required before successor preview.",
+    "Two Concept completion signals use actual existing business events; PPS remains Licensing and global tracker order remains intertwined. No new business interpretation.",
+    "Original guarded run38839047707 producerhead154361984687def51366c2c539d7467b1ad64098 differs from appliedsource56f09184269abde4a7a8c85a2b1e617e249260b7; artifact12020143683 digestsha256:d7123954f3fb949b63eb5e78055d98a9277986af43d472747d09177c15be33b4 is historical evidence only.",
+    "Independent local fixture dependencies: create isolated plm schema and anon/authenticated/service_role roles; apply canonical phase1 20261015193344 and its baseline contract before successor extension. No external business rows or user table reads. Original dated extension test filename is historical test identity, not a reused migration version.",
+    "Required checks are actual executable local commands run after implementation and before completion; successful report.check.command must exactly match each string and actual exit0. Private test harnesses already exist and parse successfully; scripts read future source after genuine publication, never claim tests already executed on absent implementation.",
+    "Allocator-assigned exact-head review, user-required Muse, normal CI, guarded preview, actual target live proof and application production4251 are SEPARATE later gates, not completion-check success claims.",
+    "generation 2: resumed from parked claim #4382 under new claim #4402 per the documented park/resume rule (new claim, new version 20261016210024; 20261016042600 stays reserved forever); migration bytes are unchanged, only the filename version moves; owner-directed takeover (Albert, verbatim: \"every chat says it's waiting on the other 2 and so nothing is progressing. so i think you need to take over all of them and complete everything.\")",
+    "the preview-ledger reconciliation case for orphan 20261016012631 must be updated to claim #4402 / version 20261016210024 in a separate config change before preview",
+    "generation 3 addresses governed GLM REJECT seq 6653: re-baselines supabase/tests/plm_stage_catalog_contracts.sql to the post-migration list versions (migration bytes stay identical for preview reconciliation) and hardens the new test against vacuous NULL asserts; disclosed: the two test edits were drafted before this generation was published and are committed only after it; the full supabase/tests run is proven by the PR CI job \"supabase/tests against an ephemeral database\"",
+    "generation 4: the Handoff contract guard requires the handoff anchored on #4373 to change in the PR that closes #4373; the handoff itself forbids retirement until production acceptance, so its frontmatter is re-anchored to the still-open sibling need #4379 and its owner updated to the current coordinator, with no other text change"
+  ],
+  "stop_conditions": [
+    "Any claim/admission/version/collision refusal, stale author lease, base movement, scope expansion or mismatched original statement bytes.",
+    "Missing publication/readback or unsupported original-preview reconciliation; never bypass.",
+    "Source/local tests do not prove live or actual application production4251 acceptance.",
+    "Before any local PostgreSQL execution, protected shared-db task declaration/database gate must authorize exact new head and source digest. Historical334 approval cannot authorize prospective source; obtain fresh native seal as required. Do not run if refused."
+  ]
+}
