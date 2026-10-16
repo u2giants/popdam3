@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   authLoading: false,
   gridRefresh: vi.fn(),
   setGridOption: vi.fn(),
+  getColumnState: vi.fn(),
+  getFilterModel: vi.fn(),
   datasource: undefined as { getRows: (params: any) => Promise<void> } | undefined,
   channels: [] as Array<{ handler?: () => void; on: ReturnType<typeof vi.fn>; subscribe: ReturnType<typeof vi.fn> }>,
   removedChannels: [] as unknown[],
@@ -56,6 +58,8 @@ vi.mock("@/components/orders/OrderListGrid", async () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
       setGridOption: mocks.setGridOption,
+      getColumnState: mocks.getColumnState,
+      getFilterModel: mocks.getFilterModel,
     } }));
     return <div data-testid="orderlist-grid">Existing OrderList grid</div>;
   }) };
@@ -79,6 +83,8 @@ describe("OrdersPage integration wiring", () => {
     mocks.channels.length = 0;
     mocks.removedChannels.length = 0;
     mocks.datasource = undefined;
+    mocks.getColumnState.mockReturnValue([]);
+    mocks.getFilterModel.mockReturnValue({});
     mocks.setGridOption.mockImplementation((_name: string, datasource: typeof mocks.datasource) => {
       mocks.datasource = datasource;
     });
@@ -105,6 +111,46 @@ describe("OrdersPage integration wiring", () => {
     expect(screen.getByTestId("orderlist-grid")).toBeInTheDocument();
     fireEvent.click(within(nav).getByRole("button", { name: "OrderList" }));
     expect(screen.getByTestId("orderlist-grid").parentElement?.parentElement?.parentElement).not.toHaveClass("hidden");
+  });
+
+  it.each([
+    {
+      name: "sort priority differs from visible column order",
+      columns: [
+        { colId: "order_date", sort: "asc", sortIndex: 1 },
+        { colId: "sku", sort: null, sortIndex: null },
+        { colId: "start_ship_date", sort: "desc", sortIndex: 0 },
+      ],
+      expected: [
+        { colId: "start_ship_date", sort: "desc" },
+        { colId: "order_date", sort: "asc" },
+      ],
+    },
+    {
+      name: "older column states have no sort priority",
+      columns: [
+        { colId: "order_date", sort: "desc" },
+        { colId: "start_ship_date", sort: "asc" },
+      ],
+      expected: [
+        { colId: "order_date", sort: "desc" },
+        { colId: "start_ship_date", sort: "asc" },
+      ],
+    },
+  ])("Find preserves the grid's ordering when $name", async ({ columns, expected }) => {
+    const { findOrderListRow } = await import("@/hooks/useOrderList");
+    vi.mocked(findOrderListRow).mockResolvedValue(null);
+    const columnSnapshot = structuredClone(columns);
+    const filterModel = { sku: { filterType: "text", type: "contains", filter: "TEST" } };
+    mocks.getColumnState.mockReturnValue(columns);
+    mocks.getFilterModel.mockReturnValue(filterModel);
+    render(<OrdersPage />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Find in orders" }), { target: { value: "TEST" } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+
+    expect(findOrderListRow).toHaveBeenCalledExactlyOnceWith({ search: "TEST", filterModel, sortModel: expected });
+    expect(columns).toEqual(columnSnapshot);
   });
 
   it("shows SO-date lookup failures without hiding the grid and clears stale warnings after a successful new view load", async () => {
