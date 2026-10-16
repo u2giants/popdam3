@@ -185,7 +185,10 @@ export default function OrdersPage() {
         const match = await findOrderListRow({
           search: term,
           filterModel: api.getFilterModel(),
-          sortModel: api.getColumnState().filter((column) => column.sort).map((column) => ({ colId: column.colId, sort: column.sort! })),
+          sortModel: api.getColumnState()
+            .filter((column) => column.sort)
+            .sort((left, right) => (left.sortIndex ?? 0) - (right.sortIndex ?? 0))
+            .map((column) => ({ colId: column.colId, sort: column.sort! })),
         });
         if (cancelled) return;
         if (!match) {
