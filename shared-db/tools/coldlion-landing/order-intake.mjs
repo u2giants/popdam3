@@ -35,13 +35,15 @@ import { COMPANY_CODE } from "./lib/scopes.mjs";
 import { proveTarget, queryRows, runSql } from "./lib/db.mjs";
 import { stageIntakeWindow } from "./lib/order-intake-run.mjs";
 import { buildDecodeSql } from "./lib/order-intake-decode.mjs";
-import { buildIntakeObjectAssertionSql } from "./lib/order-intake-stage.mjs";
+import { buildHeaderTrackReadinessSql, buildIntakeObjectAssertionSql } from "./lib/order-intake-stage.mjs";
 import {
   trailingWindows,
   forwardWindows,
   forwardStopReached,
   recordStagedWindow,
   closesStagedMonth,
+  HEADER_TRACKS,
+  headerTrackWindow,
 } from "./lib/order-intake-windows.mjs";
 
 export function parseArgs(argv) {
@@ -115,6 +117,12 @@ export function missingObjectsFromRows(rows) {
   return row?.[0] ?? "";
 }
 
+/** The readiness query's single boolean cell. */
+export function headerTracksAdmitted(rows) {
+  const [row] = Array.isArray(rows) ? rows : [];
+  return row?.[0] === "t";
+}
+
 async function main() {
   const apiKey = process.env.COLDLION_API_KEY;
   if (!apiKey) {
@@ -172,8 +180,9 @@ async function main() {
     if (track === "forward") {
       recordStagedWindow(stagedByMonth, window, stagedRowCount(result));
     }
+    const filterNote = window.filters ? ` [${Object.entries(window.filters).map(([key, value]) => `${key}=${value}`).join(" ")}]` : "";
     console.log(
-      `${track} ${window.from}..${window.to}: fetched=${result.fetched.rows} lines+${result.lines_inserted}/~${result.lines_updated} components+${result.components_inserted}/~${result.components_updated} ep001=${result.excludedEp001} new=${result.new_orders}${result.sliced ? ` (limit-sliced to ${result.ordersKept} orders)` : ""}${options.dryRun ? " (dry run — nothing written)" : ""}`,
+      `${track} ${window.from}..${window.to}${filterNote}: fetched=${result.fetched.rows} lines+${result.lines_inserted}/~${result.lines_updated} components+${result.components_inserted}/~${result.components_updated} ep001=${result.excludedEp001} new=${result.new_orders}${result.sliced ? ` (limit-sliced to ${result.ordersKept} orders)` : ""}${options.dryRun ? " (dry run — nothing written)" : ""}`,
     );
   };
 
@@ -208,6 +217,19 @@ async function main() {
       }
     }
   }
+  // Header tracks: every order CREATED or MODIFIED in the lookback with a start date in
+  // 2019-01-01..2099-12-31 (ColdLion /orderHistory header filters, 2026-10-16).
+  // Skipped, loudly, only while the database's track domain predates them.
+  const headerTracksReady = options.dryRun || headerTracksAdmitted(queryRows(buildHeaderTrackReadinessSql(), {}));
+  if (!headerTracksReady) {
+    console.log("::warning::header tracks skipped: coldlion.intake_window_state track domain does not admit 'created'/'modified' yet (migration 20261016214635 not applied to this database)");
+  }
+  for (const track of headerTracksReady ? HEADER_TRACKS : []) {
+    if (limitReached) break;
+    await scan(headerTrackWindow(asOf, track), track);
+    if (limitReachedNow()) limitReached = true;
+  }
+
   if (limitReached) {
     console.log(`--limit ${options.limit} reached after staging ${summary.stagedOrders} order(s) (${summary.newOrders} new); scan stopped early (B0 bounded enablement)`);
   }

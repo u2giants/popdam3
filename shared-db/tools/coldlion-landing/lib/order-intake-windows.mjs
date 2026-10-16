@@ -107,3 +107,52 @@ export function recordStagedWindow(stagedByMonth, window, stagedRows) {
   stagedByMonth[month] = (stagedByMonth[month] ?? 0) + stagedRows;
   return stagedByMonth;
 }
+
+
+// ---------------------------------------------------------------------------------
+// Header-timestamp tracks (ColdLion added createdFrom/createdTo and
+// modifiedFrom/modifiedTo to /orderHistory on 2026-10-16; live-probed the same day).
+// The filters key on the sales order HEADER, so one call finds every order entered or
+// changed recently whatever its ERP start date: new orders beyond the forward cap, and
+// edits to orders older than the trailing weeks, which the start-date tracks miss.
+// fromDate/toDate stay required by the vendor, so the start window is held wide:
+// 2019-01-01..2099-12-31 (live-probed 2026-10-16: HTTP 200, same rows as a toDate at
+// the forward cap). It deliberately does NOT stop at the 18-month forward cap, so a
+// new order starting beyond the cap is caught here.
+// These tracks ADD to trailing + forward; detection is still salesOrderNo novelty.
+// ---------------------------------------------------------------------------------
+
+export const HEADER_TRACKS = Object.freeze(["created", "modified"]);
+export const HEADER_LOOKBACK_DAYS = 5;
+export const HEADER_START_WINDOW_FROM = "2019-01-01";
+export const HEADER_START_WINDOW_TO = "2099-12-31";
+
+function addDays(isoValue, days) {
+  const value = parseIsoDate(isoValue, "date");
+  value.setUTCDate(value.getUTCDate() + days);
+  return isoDate(value);
+}
+
+/**
+ * The window for one header track. `from`/`to` are the HEADER filter range (the last
+ * HEADER_LOOKBACK_DAYS through tomorrow, so an inclusive or exclusive vendor upper bound
+ * both include today); they are what sync_run and intake_window_state record, and they
+ * stay inside those tables' 7-day span checks (to - from = lookback + 1 <= 6). The
+ * vendor-required start-date window is sent separately as requestFrom/requestTo and held
+ * wide. The lookback re-covers missed hourly runs.
+ */
+export function headerTrackWindow(asOfIso, track, { lookbackDays = HEADER_LOOKBACK_DAYS } = {}) {
+  if (!HEADER_TRACKS.includes(track)) throw new Error(`unknown header track ${track}`);
+  if (!Number.isInteger(lookbackDays) || lookbackDays < 0 || lookbackDays > 5) {
+    throw new Error("header lookback must be 0..5 days so the recorded window fits the 7-day span checks");
+  }
+  const from = addDays(asOfIso, -lookbackDays);
+  const to = addDays(asOfIso, 1);
+  return {
+    from,
+    to,
+    requestFrom: HEADER_START_WINDOW_FROM,
+    requestTo: HEADER_START_WINDOW_TO,
+    filters: { [`${track}From`]: from, [`${track}To`]: to },
+  };
+}

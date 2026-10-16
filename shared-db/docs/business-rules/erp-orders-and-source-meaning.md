@@ -321,7 +321,9 @@ Two technical constraints on the poll design:
     returned 38 lines / 14 orders, all created 2026-10-01..10-13; `modifiedFrom=2026-10-14&
     modifiedTo=2026-10-16` returned 97 lines / 15 orders, all changed 2026-10-14..10-15.
   - `fromDate`/`toDate` (start date) are **still required** — omitting them returns HTTP 400.
-    The 7-day cap is gone: a 2026-01-01..2027-12-31 start window was accepted. So pass a wide
+    The 7-day cap is gone: a 2026-01-01..2027-12-31 start window was accepted, and a second
+    probe the same day (#4405) accepted 2019-01-01..2099-12-31 with `createdFrom` (HTTP 200, 191 rows,
+    identical to a toDate at the 18-month forward cap). So pass a wide
     start window and narrow by `createdFrom`/`modifiedFrom`.
   - Filters combine (AND) with the start window. Page size max is 200.
   - Timestamps stay order-level: no order had differing values across its lines.

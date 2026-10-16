@@ -78,10 +78,11 @@ Parameters, from the live spec (`/EhpApi/v2/api-docs`, API v1.5.1) and confirmed
 (`prodOrderNo` on `prodHistory` appeared with the 2026-08-17 changes; it was not in the spec on
 2026-08-14. Useful for spot-checking one order without scanning a window.)
 
-> ### ⚠️ Hard 7-day window cap (since 2026-08-17)
-> `fromDate` and `toDate` **must be within 7 days, inclusive**, on **both** endpoints. This is
-> ColdLion's own limit, set deliberately at our request so a bulk pull cannot overload them.
-> A wider window is refused outright — no partial data, no truncation.
+> ### ⚠️ Hard 7-day window cap (since 2026-08-17) — lifted for `/orderHistory` on 2026-10-16 (a 2019-01-01..2099-12-31 window was accepted); still assumed for `/prodHistory` (unprobed)
+> Until 2026-10-16, `fromDate` and `toDate` **had to be within 7 days, inclusive**, on **both**
+> endpoints (ColdLion's own limit, set at our request so a bulk pull cannot overload them; a wider
+> window was refused outright). Since 2026-10-16 `/orderHistory` accepts wide windows; treat
+> `/prodHistory` as still capped until probed.
 >
 > Verified: `2026-01-01..2026-01-07` → **HTTP 200**. `2026-01-01..2026-01-08` → **refused**.
 > A full month → **refused**. A single day (`from == to`) → **HTTP 200**, so equal dates are fine.
@@ -188,7 +189,7 @@ Roughly **0.5–1.5 MB per endpoint per month**, so a full multi-year history is
 hundreds of MB, not gigabytes.
 
 Practical consequences for the bulk load:
-- **Iterate in 7-day windows.** Anything wider is refused (§2). Do not "optimize" by widening.
+- **Iterate in 7-day windows.** Anything wider is refused on `/prodHistory` (§2); `/orderHistory` accepts wide windows since 2026-10-16, which the order-intake header tracks rely on. Do not "optimize" by widening.
 - Use **one request at a time**, never parallel. The 7-day cap exists so we do not overload them;
   firing 20 capped windows at once defeats its purpose and breaks the spirit of the agreement.
 - Keep a **generous per-request timeout** (≥60s) even though windows are now fast — one 6.4s
@@ -497,7 +498,7 @@ now that the feed is known to span four divisions — see
 | Question | Answer | Verified |
 |---|---|---|
 | **Production-order line number** (was the one true blocker) | `prodLineSeq` **added**; the duplicated prod reference number was the cause; ColdLion now selects the maximum `lastProdDate` | Yes — §4.3. Present on 1,475/1,475 rows; order 90001 went from 8 rows to 4 |
-| **Paging / rate limits for a bulk pull** | `fromDate`–`toDate` must be **within 7 days (inclusive)**; ~2 seconds per 7-day window from their office | Yes — §2 (8 days refused, 7 accepted) and §3 (0.1–1.4s typical here) |
+| **Paging / rate limits for a bulk pull** | `fromDate`–`toDate` must be **within 7 days (inclusive)** (`/orderHistory`: lifted 2026-10-16); ~2 seconds per 7-day window from their office | Yes — §2 (8 days refused, 7 accepted) and §3 (0.1–1.4s typical here) |
 | **Is `subUpc` ever populated?** | Rarely. UPCs are not usually assigned to prepack components; one known case, a Walmart assortment | Consistent with 0/1,985 measured — **keep the column**, see §5.1 |
 | **What does a `COS` production PO mean?** | Sample production: extra pieces of a customer's item made for the licensor (contractual samples) or internally (DAVID samples) | Yes — quantities 3–15, median 4, all unlinked. [`business-rules-erp-data.md`](business-rules-erp-data.md) §1 |
 

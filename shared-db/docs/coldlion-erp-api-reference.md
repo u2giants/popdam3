@@ -221,7 +221,7 @@ Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,
 | `/prodtracking` | Production tracking | prodOrderNo, created/modifiedFrom/To |
 | `/order` | **POST** — insert a sales order | body = `OrderHeader` (with `OrderDetail[]`) |
 | `/prodHistory` | **Purchase history** — orders we placed with factories, one row per production-order line × prepack component (133 fields incl. `prodLineSeq`). **Not paged; 7-day window cap.** See [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | companyCode *(req)*, fromDate *(req)*, toDate *(req)*, prodOrderNo, stageCode |
-| `/orderHistory` | **Sales history** — orders customers placed with us, one row per sales-order line × prepack component (59 fields). **Not paged; 7-day window cap.** See [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | companyCode *(req)*, fromDate *(req)*, toDate *(req)*, divisionCode, salesOrderNo |
+| `/orderHistory` | **Sales history** — orders customers placed with us, one row per sales-order line × prepack component (59 fields). **Paged (size max 200). The 7-day start-window cap is gone (2026-10-16 probe; a 2019-01-01..2099-12-31 window was accepted).** See [`coldlion-history-endpoints-shape.md`](coldlion-history-endpoints-shape.md) | companyCode *(req)*, fromDate *(req)*, toDate *(req)*, divisionCode, salesOrderNo, createdFrom, createdTo, modifiedFrom, modifiedTo (header timestamps, 2026-10-16) |
 
 > **Matching rule (Settled, Albert, 2026-10-09):** link production to sales by the customer PO number (`customerPONo`/`custPONumber` = `poNumber`, same customer), **never** by `salesOrderNo`. See [`business-rules/erp-orders-and-source-meaning.md`](business-rules/erp-orders-and-source-meaning.md).
 
