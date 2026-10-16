@@ -1,0 +1,96 @@
+{
+  "schema_version": 2,
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 4350,
+    "generation": 4,
+    "contract_sha256": "a625064a625f29e8473d71e0ba98941e39f042f9343e27d82ce51b11e09cee53"
+  },
+  "work_issue": 4350,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Stage Catalog tables in plm plus structural seed for designflow-tracking#125 (claim #4355, version 20261015193344): 5 lists, 24 stages, 637 durations, 32 Linesheet option rows (16 enabled), 0 dependencies. Generation 3 lists the exact parsed objects (columns, indexes, triggers) the claim expansion recorded; generation 2 superseded generation 1 (claim #4351 released: its owner label could not pass author check-in) and adds the DB Data Admin coverage manifest entry the SQL guard requires. Generation 4 answers the first review (REVISE on 6d5e198): drops the redundant index plm.stage_duration_stage_id_idx and strengthens the test and live proof. Generation 5 also allows retiring the reviewed generation-3 evidence files.",
+  "base_sha": "f479d4571c7307854ebf56fa5ec74fbdf14b3c00",
+  "dispatcher": "Claude chat be82e4e9-d351-4f32-85db-e01a8e3ff608 on edge-dev3",
+  "worker": "same session",
+  "branch": "plm/stage-catalog-4350-b",
+  "worktree": "/home/ahazan/repos/shared-db-wt/stage-catalog-4350",
+  "allowed_paths": [
+    "supabase/migrations/20261015193344_plm_stage_catalog.sql",
+    "supabase/tests/plm_stage_catalog_contracts.sql",
+    ".github/live-proofs/4350.sql",
+    "config/db-data-admin-property-source-coverage.json",
+    ".agent/work/4350/5/contract.json",
+    ".agent/work/4350/5/completion.json",
+    ".agent/work/4350/3/contract.json",
+    ".agent/work/4350/3/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261015193344_plm_stage_catalog.sql",
+    "supabase/tests/plm_stage_catalog_contracts.sql",
+    ".github/live-proofs/4350.sql",
+    "config/db-data-admin-property-source-coverage.json",
+    ".agent/work/4350/5/contract.json",
+    ".agent/work/4350/5/completion.json",
+    ".agent/work/4350/3/contract.json",
+    ".agent/work/4350/3/completion.json"
+  ],
+  "db_reads": [
+    "table dflow.users (ids of Ilona, Yuchen, Marcel)",
+    "table plm.LicensingTime (live licensing durations win over the sheet)",
+    "table plm.ProdOrderHeader (key type only)"
+  ],
+  "db_writes": [
+    "function plm.stage_catalog_bump_version",
+    "table plm.licensor_stage_option",
+    "table plm.prod_stage_progress",
+    "table plm.stage",
+    "table plm.stage_dependency",
+    "table plm.stage_duration",
+    "table plm.stage_list",
+    "column plm.prod_stage_progress.sku",
+    "column plm.stage.applies_to",
+    "column plm.stage.counts_toward_total",
+    "column plm.stage.default_duration",
+    "column plm.stage.done_signal",
+    "column plm.stage.name",
+    "column plm.stage.pending_label",
+    "column plm.stage.shown_on_tracker",
+    "column plm.stage.updated_by",
+    "column plm.stage_list.maintainers",
+    "column plm.stage_list.version",
+    "index plm.licensor_stage_option_stage_id_idx",
+    "index plm.prod_stage_progress_order_sku_stage_key",
+    "index plm.prod_stage_progress_stage_id_idx",
+    "index plm.stage_dependency_depends_on_idx",
+    "trigger licensor_stage_option_bump_version on plm.licensor_stage_option",
+    "trigger stage_bump_version on plm.stage",
+    "trigger stage_dependency_bump_version on plm.stage_dependency",
+    "trigger stage_duration_bump_version on plm.stage_duration",
+    "trigger stage_list_bump_version on plm.stage_list"
+  ],
+  "prohibited_actions": [
+    "Do not apply DDL or data writes to preview or production from this PR except through the governed post-merge workflow.",
+    "Do not change files outside allowed_paths."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check origin/main...HEAD",
+    "node scripts/check-live-proof-probe.mjs",
+    "psql --set ON_ERROR_STOP=1 -f supabase/tests/plm_stage_catalog_contracts.sql"
+  ],
+  "assumptions": [
+    "maintainers is integer[] of dflow.users.id (users.id is integer).",
+    "No foreign key to plm.ProdOrderHeader (sync-owned).",
+    "Audit reuses app.AuditLog rows; no audit table.",
+    "RLS enabled with no policies; owner-only access as plm.FactoryTime.",
+    "Generation 1 is superseded and remains published as history.",
+    "Generation 2 is superseded and remains published as history.",
+    "Generation 3 is superseded and remains published as history.",
+    "Generation 4 is superseded and remains published as history."
+  ],
+  "stop_conditions": [
+    "Stop if a required check fails.",
+    "Stop if preview or production apply is needed from this branch before merge."
+  ]
+}

@@ -369,6 +369,14 @@
       "disposition": "not_applicable_no_source_property_vocabulary",
       "table_names": ["prod_order_milestone_schedule"],
       "reason": "Application data (#3091): needed/estimated/actual dates per production order milestone written by designflow-tracking; not a licensor portal Property vocabulary."
+    },
+    {
+      "family": "production_tracking_stage_catalog",
+      "licensor": "POP Creations application data",
+      "business_purpose": "DesignFlow Production Tracking editable stage lists (Stage Catalog)",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_names": ["stage_list", "stage", "stage_duration", "stage_dependency", "licensor_stage_option", "prod_stage_progress"],
+      "reason": "Application data (#4350): stage lists, stages, durations, dependencies, per-licensor stage options and user-ticked stage progress maintained by designflow-tracking; not a licensor portal Property vocabulary."
     }
   ]
 }
