@@ -10,7 +10,7 @@ import { completeReviewerOperationRouteSnapshot, derivePrOperationRoute, reconci
 import { validateHoldReasonRecord } from './lib/hold-reason.mjs'
 import { ENGINES } from './lib/orchestrator-routing.mjs'
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { REVIEW_VERDICT_REF_PREFIX, verdictRef } from './lib/review-verdict-artifact.mjs'
 import { OWN_START_ONLY_ACTIVITY, ENGINE_REVIEWER_EXCLUSION } from './manage-migration-author-lanes.mjs'
 import { assignWithMutexRetry } from './manage-migration-author-lanes.mjs'
@@ -24,12 +24,14 @@ import { parseAssignmentRef } from './manage-migration-author-lanes.mjs'
 import { setScopeStatus, wrongOwnerMessage } from './manage-migration-author-lanes.mjs'
 import { readyRecord, persistInitialReady } from './orchestrator-flow/reconcile.mjs'
 import { canonicalJson, sha256 } from './orchestrator-flow/evidence-bundle.mjs'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { assertUnambiguousClaimTitle, claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewerCapacityReport, reviewLeaseAgeHours, activityFingerprintForLease, probeSilentReviewer, reclaimSilentReviewer, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, assertDurableReviewApproval, buildDynamicQueues, claimBody, closedClaimAuthoredOnMain, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverExpiredClaimFromPr, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, releaseFailedReviewer, replaceFailedReviewer, failedReviewerReleaseCommand, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, doctorTimeoutFailingChecks, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, REVIEWER_PREFLIGHT_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, excludeReviewerForPr, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, reinstateReviewerExclusion, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, reviewerEmitsGovernedVerdict, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, markLeaseReadFailure, isLeaseReadFailure, REVIEW_TARGET_SUPERSEDED, reapAbandonedReviewLeases, withArchivedVerdictMirror, legacyLeaseTerminalReason, isCommandSizeFailure, archiveOldReviewVerdicts, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, reviewerStartWatchLeases, RETURNED_COPY_MARKER, returnedCopyProvenance, REPO, noteHeldMutex, clearHeldMutex, releaseHeldMutexOnProcessExit } from './manage-migration-author-lanes.mjs'
 import { readDatabasePreviewClassificationFile, withDatabasePreviewClassificationFile, databasePreviewAdmission, buildDatabasePreviewFileSnapshot } from './manage-migration-author-lanes.mjs'
+import { parseReviewRelease } from './lib/lanes/review-replacement.mjs'
+import { qualifyHistoricalReviewerFailure } from './manage-migration-author-lanes.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
 
@@ -2292,6 +2294,134 @@ test('an existing verdict at the merged head still refuses a new assignment',()=
 const failedReview={issue:9,pr:109,headSha:'abcdef9000000000000000000000000000000000'}
 function failedReviewIo(){const io=reviewIo();io.getPr=()=>({state:'open',head:{sha:failedReview.headSha}});assignNextReviewer(failedReview,io);return io}
 const replacementRequest={...failedReview,failedSequence:1,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true}
+
+function historicalFailureFixture(t){
+ const repo=mkdtempSync(path.join(tmpdir(),'historical-review-source-')),git=args=>execFileSync('git',args,{cwd:repo,encoding:'utf8',stdio:['ignore','pipe','pipe']})
+ git(['init','-q']);git(['config','user.name','Fixture']);git(['config','user.email','fixture@example.test'])
+ writeFileSync(path.join(repo,'.gitignore'),'.ai/\n');git(['add','.gitignore']);git(['commit','-qm','fixture base']);const base=git(['rev-parse','HEAD']).trim()
+ writeFileSync(path.join(repo,'source.txt'),'original source\n');git(['add','source.txt']);git(['commit','-qm','fixture reviewed source']);const oldHead=git(['rev-parse','HEAD']).trim()
+ writeFileSync(path.join(repo,'source.txt'),'advanced source\n');git(['add','source.txt']);git(['commit','-qm','advance PR head']);const currentHead=git(['rev-parse','HEAD']).trim();git(['reset','--hard','-q',oldHead])
+ const reviews=path.join(repo,'.ai','reviews');mkdirSync(reviews,{recursive:true,mode:0o775});chmodSync(path.dirname(reviews),0o700);chmodSync(reviews,0o775)
+ const receiptPath=path.join(reviews,`governed-source-${randomUUID()}.json`),sourceDigest='d'.repeat(64),receipt={schema_version:1,identity:{repository:repo,head:oldHead,base,merge_base:base,source_digest:sourceDigest},packet_sha256:'e'.repeat(64)}
+ writeFileSync(receiptPath,JSON.stringify(receipt),{mode:0o600})
+ const logRoot=path.join(homedir(),'.cache','shared-db','review-wrapper-failures');mkdirSync(logRoot,{recursive:true,mode:0o700})
+ const rootStat=lstatSync(logRoot);assert.ok(rootStat.isDirectory()&&!rootStat.isSymbolicLink()&&(rootStat.mode&0o002)===0,'diagnostic fixture root is owned and not world-writable')
+ const startAt='2026-10-15T03:32:32.171Z',diagnosticAt='2026-10-15T03:32:56.625Z',stderr=[
+  'reviewer event recording: sandbox evidence requirement is missing; cleanup refused',
+  'ai-review-sandbox: sandbox evidence is not reconciled; retained for local recovery',
+  'ai-review-sandbox: 16 orphan examination cap reached; remaining orphans wait for the next parent run',
+  'ai-review-engine: step task-gate','ai-review-engine: step identity','ai-review-engine: step lifecycle-begin','ai-review-engine: step sandbox','ai-review-engine: step packet-build',
+  'ai-review-packet: error: source-receipt-conflict','ai-review-engine: error: source evidence verification failed.'
+ ].join('\n')
+ const logPath=path.join(logRoot,`pr109-${oldHead.slice(0,7)}-2026-10-15T03-32-56-625Z-${randomUUID().slice(0,8)}.log`)
+ const log=`time: ${diagnosticAt}\nwrapper: ai-deepseek-agent\npr: 109\nhead: ${oldHead}\nexit_status: 1\nsignal: none\nspawn_error: none\nrecognized_reason: wrapper stderr was present but its reason was not recognized; inspect the exact wrapper session\nstderr_bytes: ${Buffer.byteLength(stderr)}\nstderr_tail (last 8192 chars, redacted):\n${stderr}\n`
+ writeFileSync(logPath,log,{mode:0o600});t.after(()=>{rmSync(repo,{recursive:true,force:true});rmSync(logPath,{force:true})})
+ const io=reviewIo(),deepseek=ACTIVE_REVIEWERS.find(row=>row.name==='deepseek-v4.1-flash')
+ io.reviewerOrder=()=>[deepseek,...ACTIVE_REVIEWERS.filter(row=>row!==deepseek)]
+ io.getPr=()=>({number:109,state:'open',head:{sha:oldHead,ref:'codex/historical-fixture'}})
+ const request={issue:9,pr:109,headSha:oldHead};assignNextReviewer(request,io)
+ io.getPr=()=>({number:109,state:'open',head:{sha:currentHead,ref:'codex/historical-fixture'}})
+ const startSha=io.makeOwnerCommit(`db-coordination review-started issue=9 pr=109 head=${oldHead} slot=1 sequence=1 reviewer=deepseek-v4.1-flash at=${startAt} session=- receipt-path=sha256:${createHash('sha256').update(receiptPath).digest('hex')} source=sha256:${sourceDigest}`)
+ io.refs.set(reviewStartedMarkerRef({...request,sequence:1},1),startSha)
+ io.isCommitAncestor=(ancestor,descendant)=>ancestor===oldHead&&descendant===currentHead
+ io.readReviewStates=leases=>new Map(leases.map(lease=>[`${lease.issue}:${lease.pr}`,{issue:{state:'open'},pr:{number:109,state:'open',head:{sha:currentHead,ref:'codex/historical-fixture'}},evidence:[]}]))
+ io.readReviewRefs=refs=>new Map(refs.map(ref=>[ref,io.refs.get(ref)??null]))
+ io.atomicReviewRefs=changes=>{for(const change of changes)assert.equal(io.refs.get(change.ref)??null,change.expected??null);for(const change of changes){if(change.sha===null)io.refs.delete(change.ref);else io.refs.set(change.ref,change.sha)}}
+ io.atomicReviewMutexRelease=ownerSha=>io.atomicReviewRefs([{ref:MUTEX_REF,expected:ownerSha,sha:null}])
+ return {io,request:{...request,failedSequence:1,failureCode:'wrapper_terminal_failure',confirmNoVerdict:true,confirmNoArtifact:true,historicalTerminalFailureLog:logPath,historicalSourceReceipt:receiptPath},oldHead,currentHead,startSha,receiptPath,logPath,logRoot,log,stderr}
+}
+function rewriteHistoricalStderr(fixture,stderr){
+ const marker='stderr_tail (last 8192 chars, redacted):\n',at=fixture.log.indexOf(marker)
+ const header=fixture.log.slice(0,at).replace(/stderr_bytes: \d+\n$/m,`stderr_bytes: ${Buffer.byteLength(stderr)}\n`)
+ writeFileSync(fixture.logPath,`${header}${marker}${stderr}\n`)
+}
+
+function forbidHistoricalDryRunWrites(io){
+ let writes=0
+ for(const name of ['makeOwnerCommit','createRef','updateRef','deleteRef','atomicReviewRefs','atomicReviewMutexRelease','pauseReviewerFailure'])io[name]=()=>{writes++;throw new Error(`dry-run called forbidden ${name}`)}
+ return ()=>writes
+}
+
+test('historical failure dry-run qualifies genuine fixture evidence without creating or reconciling refs',t=>{
+ const fixture=historicalFailureFixture(t),{io,request}=fixture,before=[...io.refs],writes=forbidHistoricalDryRunWrites(io)
+ const output=[],log=console.log;let code
+ try{console.log=value=>output.push(value);code=main(['--historical-failure-dry-run','--issue','9','--pr','109','--head-sha',request.headSha,'--failed-sequence','1','--review-slot','1','--failure-code','wrapper_terminal_failure','--confirm-no-verdict','--confirm-no-artifact','--historical-terminal-failure-log',request.historicalTerminalFailureLog,'--historical-source-receipt',request.historicalSourceReceipt],new Date(),io)}finally{console.log=log}
+ const result=JSON.parse(output[0])
+ assert.equal(code,0)
+ assert.equal(result.qualified,true);assert.equal(result.authorization,false);assert.equal(result.mutex_acquired,false)
+ assert.equal(result.proof.start_ref,reviewStartedMarkerRef({...request,sequence:1},1));assert.deepEqual([...io.refs],before);assert.equal(writes(),0)
+})
+
+test('historical failure dry-run refuses bad evidence without any write calls',t=>{
+ const fixture=historicalFailureFixture(t);rewriteHistoricalStderr(fixture,fixture.stderr.replace('source-receipt-conflict','unclassified-error'))
+ const before=[...fixture.io.refs],writes=forbidHistoricalDryRunWrites(fixture.io)
+ assert.throws(()=>qualifyHistoricalReviewerFailure(fixture.request,fixture.io),/does not prove a verdict-less/)
+ assert.deepEqual([...fixture.io.refs],before);assert.equal(writes(),0)
+})
+
+test('historical failure dry-run refuses an existing release without reconciliation writes',t=>{
+ const fixture=historicalFailureFixture(t),releaseRef=`${REVIEW_FAILURE_REF_PREFIX}/9-109-${fixture.oldHead}-1`
+ fixture.io.refs.set(releaseRef,'f'.repeat(40));const before=[...fixture.io.refs],writes=forbidHistoricalDryRunWrites(fixture.io)
+ assert.throws(()=>qualifyHistoricalReviewerFailure(fixture.request,fixture.io),/already-recorded failure/)
+ assert.deepEqual([...fixture.io.refs],before);assert.equal(writes(),0)
+})
+
+test('historical dry-run and release reject an open PR marked merged before any writes',t=>{
+ for(const operation of ['dry-run','release']){
+  const fixture=historicalFailureFixture(t),{io,request}=fixture,before=[...io.refs],writes=forbidHistoricalDryRunWrites(io),readStates=io.readReviewStates
+  io.readReviewStates=leases=>new Map([...readStates(leases)].map(([key,state])=>[key,{...state,pr:{...state.pr,state:'open',merged:true,merged_at:'2026-10-15T04:00:00Z',merge_commit_sha:'f'.repeat(40)}}]))
+  if(operation==='dry-run')assert.throws(()=>qualifyHistoricalReviewerFailure(request,io),/eligible open PR/)
+  else assert.throws(()=>releaseFailedReviewer(request,io),/open current PR head/)
+  assert.deepEqual([...io.refs],before);assert.equal(writes(),0)
+ }
+})
+
+test('historical wrapper-preparation release records strict unique-temporal proof without rewriting the paid start',t=>{
+ const fixture=historicalFailureFixture(t),{io,request,oldHead,currentHead,startSha}=fixture
+ const startedRef=reviewStartedMarkerRef({...request,sequence:1},1),leaseRef=reviewActiveRef('deepseek-v4.1-flash')
+ const beforeStart=io.refs.get(startedRef),beforeLease=io.refs.get(leaseRef)
+ const result=releaseFailedReviewer(request,io),failureRef=`${REVIEW_FAILURE_REF_PREFIX}/9-109-${oldHead}-1`,commit=io.getCommit(result.failureSha)
+ assert.equal(result.failureCode,'wrapper_terminal_failure');assert.equal(io.refs.get(failureRef),result.failureSha)
+ assert.equal(io.refs.get(startedRef),beforeStart);assert.equal(io.refs.get(leaseRef)??null,null);assert.equal(beforeStart,startSha);assert.ok(beforeLease)
+ const evidence=parseReviewRelease(commit)
+ assert.equal(evidence.headSha,oldHead);assert.equal(evidence.historicalProof.binding_kind,'unique-temporal');assert.equal(evidence.historicalProof.current_head_sha,currentHead)
+ assert.equal(evidence.historicalProof.provider_activity,'none');assert.equal(evidence.historicalProof.verdict,'none');assert.equal(evidence.historicalProof.artifact,'none')
+ assert.doesNotMatch(commit.message,/(?:\/home\/|review-wrapper-failures|governed-source-[a-z0-9-]+\.json)/,'immutable evidence stores hashes, not private filesystem paths')
+ const duplicateKey=commit.message.replace('{"schema_version":1,','{"schema_version":1,"schema_version":1,')
+ assert.throws(()=>parseReviewRelease({message:duplicateKey}),/unreadable/,'duplicate JSON keys cannot shadow proof fields')
+ assert.throws(()=>parseReviewRelease({message:commit.message.replace('reviewer=deepseek-v4.1-flash','reviewer=muse-spark-1.3-contributor')}),/binding mismatch/,'historical proof cannot be relabeled to another provider')
+ assert.throws(()=>parseReviewRelease({message:commit.message.replace('diagnostic_wrapper":"ai-deepseek-agent','diagnostic_wrapper":"ai-muse')}),/binding mismatch/,'historical proof requires the exact native wrapper')
+})
+
+for(const [name,mutate,pattern] of [
+ ['unknown stderr text',f=>rewriteHistoricalStderr(f,f.stderr.replace('ai-review-engine: step packet-build','unclassified provider output\nai-review-engine: step packet-build')),/does not prove a verdict-less/],
+ ['wrong lifecycle order',f=>rewriteHistoricalStderr(f,f.stderr.replace('step task-gate','step packet-build')),/does not prove a verdict-less/],
+ ['verdict-like text',f=>rewriteHistoricalStderr(f,f.stderr.replace('ai-review-engine: step packet-build','VERDICT: APPROVE\nai-review-engine: step packet-build')),/does not prove a verdict-less/],
+ ['duplicate original start',f=>{const old=f.io.getCommit(f.startSha).message.replace('sequence=1','sequence=2').replace(f.request.headSha,f.request.headSha).replace('at=2026-10-15T03:32:32.171Z','at=2026-10-15T03:32:40.000Z');const sha=f.io.makeOwnerCommit(old);f.io.refs.set(reviewStartedMarkerRef({...f.request,sequence:2},2),sha)},/does not map uniquely/],
+ ['duplicate diagnostic in the original interval',f=>{const duplicate=path.join(f.logRoot,`pr109-${f.oldHead.slice(0,7)}-2026-10-15T03-32-56-625Z-${randomUUID().slice(0,8)}.log`);writeFileSync(duplicate,f.log,{mode:0o600});f.duplicate=duplicate},/temporally ambiguous/],
+ ['tampered receipt identity',f=>{const receipt=JSON.parse(readFileSync(f.receiptPath,'utf8'));receipt.identity.source_digest='f'.repeat(64);writeFileSync(f.receiptPath,JSON.stringify(receipt))},/identity differs/],
+])test(`historical reviewer release refuses ${name} without changing refs`,t=>{
+ const fixture=historicalFailureFixture(t);mutate(fixture);if(fixture.duplicate)t.after(()=>rmSync(fixture.duplicate,{force:true}))
+ const before=[...fixture.io.refs]
+ assert.throws(()=>releaseFailedReviewer(fixture.request,fixture.io),pattern)
+ assert.deepEqual([...fixture.io.refs],before)
+})
+
+test('historical reviewer release refuses a changed current PR head under the mutex',t=>{
+ const fixture=historicalFailureFixture(t),{io,request,oldHead}=fixture,unexpected='f'.repeat(40),readStates=io.readReviewStates;let reads=0
+ io.readReviewStates=leases=>{reads++;const map=readStates(leases);if(reads>1){for(const [key,state] of map)map.set(key,{...state,pr:{...state.pr,head:{...state.pr.head,sha:unexpected}}})}return map}
+ const before=[...io.refs]
+ assert.throws(()=>releaseFailedReviewer(request,io),/changed after mutex acquisition/)
+ assert.deepEqual([...io.refs],before,'the mutex is released and the old reviewer lease remains intact')
+ assert.ok(reads>=2)
+})
+
+test('historical reviewer release refuses an open-but-merged PR on mutex revalidation',t=>{
+ const fixture=historicalFailureFixture(t),{io,request}=fixture,readStates=io.readReviewStates,before=[...io.refs];let reads=0
+ io.readReviewStates=leases=>{reads++;const rows=readStates(leases);if(reads>1)for(const [key,state] of rows)rows.set(key,{...state,pr:{...state.pr,state:'open',merged:true,merged_at:'2026-10-15T04:00:00Z',merge_commit_sha:'f'.repeat(40)}});return rows}
+ assert.throws(()=>releaseFailedReviewer(request,io),/changed after mutex acquisition/)
+ assert.deepEqual([...io.refs],before);assert.ok(reads>=2)
+})
 
 test('terminal provider failure advances exactly once and retry is idempotent',()=>{
   const io=failedReviewIo(), first=replaceFailedReviewer(replacementRequest,io), second=replaceFailedReviewer(replacementRequest,io)
@@ -11748,6 +11878,70 @@ test('--ttl-minutes is refused with --release-promotion-freeze',()=>{
   try{assert.notEqual(main(['--release-promotion-freeze','--owner','x','--ttl-minutes','5'],NOW,io),0)}finally{console.log=oldLog;console.error=oldError}
 })
 
+
+function addConservativePaidStarts(io,{issue,pr,paidAttempts}){
+  const priorHead='b'.repeat(40)
+  for(let sequence=1;sequence<=paidAttempts;sequence++){
+    const sha=io.makeOwnerCommit(`db-coordination review-started issue=${issue} pr=${pr} head=${priorHead} slot=1 sequence=${sequence} reviewer=glm-5.3 at=2026-10-06T18:00:00Z`)
+    io.refs.set(reviewStartedMarkerRef({issue,pr,headSha:priorHead,slot:1,sequence}),sha)
+  }
+  io.reviewContentComparison=()=>{throw new LaneError('review budget Git provenance refused: review budget conflict is outside the one canonical test append')}
+  return priorHead
+}
+
+function conservativeBudgetFixture({atomic=false,issue,pr,headSha,paidAttempts=1}){
+  const io=reviewIo()
+  if(atomic)withAtomicRefs(io)
+  io.getPr=(number)=>({number:Number(number),state:'open',head:{sha:headSha,ref:'codex/budget'}})
+  const priorHead=addConservativePaidStarts(io,{issue,pr,paidAttempts})
+  return {io,priorHead}
+}
+
+test('conservative review-budget evidence is returned for fresh assignment and replacement draws only',()=>{
+  for(const atomic of [false,true]){
+    const issue=4600+Number(atomic),pr=4700+Number(atomic),headSha='c'.repeat(40)
+    const {io,priorHead}=conservativeBudgetFixture({atomic,issue,pr,headSha})
+    const expected={paidAttempts:1,remaining:1,conservativeHeads:[priorHead]}
+    const assigned=assignNextReviewer({issue,pr,headSha},io)
+    assert.deepEqual(assigned.budgetEvidence,expected,`${atomic?'atomic':'fallback'} fresh assignment reports the conservative head`)
+    const assignmentRef=`${REVIEW_ASSIGNMENT_REF_PREFIX}/${issue}-${pr}-${headSha}`
+    const assignmentSha=io.refs.get(assignmentRef),assignmentMessage=io.getCommit(assignmentSha).message
+    assert.match(assignmentMessage,new RegExp(`^db-coordination reviewer-cursor sequence=${assigned.sequence} reviewer=${assigned.reviewer} issue=${issue} pr=${pr} head=${headSha}$`))
+
+    const request={issue,pr,headSha,failedSequence:assigned.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true}
+    const replacement=replaceFailedReviewer(request,io)
+    assert.deepEqual(replacement.budgetEvidence,expected,`${atomic?'atomic':'fallback'} fresh replacement reports the conservative head`)
+    assert.equal(io.refs.get(assignmentRef),assignmentSha,'adding diagnostics cannot change the assignment ref')
+    assert.equal(io.getCommit(io.refs.get(assignmentRef)).message,assignmentMessage,'adding diagnostics cannot change the immutable assignment body')
+    assert.match(io.getCommit(replacement.replacementSha).message,/^db-coordination reviewer-failure-replacement /,'replacement evidence remains its established immutable record')
+  }
+
+  const ordinary=reviewIo(),headSha='d'.repeat(40)
+  ordinary.getPr=(number)=>({number:Number(number),state:'open',head:{sha:headSha,ref:'codex/budget'}})
+  const assigned=assignNextReviewer({issue:4800,pr:4801,headSha},ordinary)
+  assert.equal(Object.hasOwn(assigned,'budgetEvidence'),false,'no conservative history preserves the ordinary assignment response')
+  const replacement=replaceFailedReviewer({issue:4800,pr:4801,headSha,failedSequence:assigned.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},ordinary)
+  assert.equal(Object.hasOwn(replacement,'budgetEvidence'),false,'no conservative history preserves the ordinary replacement response')
+})
+
+test('two conservatively classified paid starts still refuse assignment and replacement before mutation',()=>{
+  for(const atomic of [false,true]){
+    const issue=4900+Number(atomic),pr=5000+Number(atomic),headSha='e'.repeat(40)
+    const assignmentCase=conservativeBudgetFixture({atomic,issue,pr,headSha,paidAttempts:2})
+    const beforeAssignment=[...assignmentCase.io.refs]
+    assert.throws(()=>assignNextReviewer({issue,pr,headSha},assignmentCase.io),/two paid attempts already started for unchanged reviewed content/)
+    assert.deepEqual([...assignmentCase.io.refs],beforeAssignment,'two uncertain starts refuse before creating durable assignment state')
+
+    const replacementIo=reviewIo()
+    if(atomic)withAtomicRefs(replacementIo)
+    replacementIo.getPr=(number)=>({number:Number(number),state:'open',head:{sha:headSha,ref:'codex/budget'}})
+    const assigned=assignNextReviewer({issue,pr,headSha},replacementIo)
+    addConservativePaidStarts(replacementIo,{issue,pr,paidAttempts:2})
+    const beforeReplacement=[...replacementIo.refs]
+    assert.throws(()=>replaceFailedReviewer({issue,pr,headSha,failedSequence:assigned.sequence,failureCode:'insufficient_quota',confirmNoVerdict:true,confirmNoArtifact:true},replacementIo),/two paid attempts already started for unchanged reviewed content/)
+    assert.deepEqual([...replacementIo.refs],beforeReplacement,'two uncertain starts refuse before creating durable replacement state')
+  }
+})
 
 test('assignment refuses third paid draw after evidence-only head change, but substantive change starts a round',()=>{
   const io=reviewIo(),request={issue:1767,pr:1800,headSha:'a'.repeat(40),slot:1}

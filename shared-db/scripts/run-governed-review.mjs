@@ -2,10 +2,10 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync, readdirSync, mkdirSync, mkdtempSync, lstatSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir, homedir } from 'node:os'
-import { join, resolve as resolvePath } from 'node:path'
+import { isAbsolute, join, relative, resolve as resolvePath, sep } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
-import { REPO, REVIEW_REPLACEMENT_REF_PREFIX, parseReviewCursor, reviewSlotSuffix, REVIEW_STARTED_REF_PREFIX, reviewStartedMarkerRef, reviewLeaseStillHeld, recordReviewVerdict, releaseFailedReviewer, reviewerExecutionPreflight, resolveCommandPath, githubIo, withMergedPrIssueBinding } from './manage-migration-author-lanes.mjs'
+import { ACTIVE_REVIEWERS, REPO, REVIEW_REPLACEMENT_REF_PREFIX, parseReviewCursor, reviewSlotSuffix, REVIEW_STARTED_REF_PREFIX, reviewStartedMarkerRef, reviewLeaseStillHeld, recordReviewVerdict, releaseFailedReviewer, reviewerExecutionPreflight, resolveCommandPath, githubIo, withMergedPrIssueBinding } from './manage-migration-author-lanes.mjs'
 import { lineOpensWithVerdictWord, isVerdictFor } from './lib/review-verdict.mjs'
 // Issue #2342: one shared transport owns the never-replay-a-write policy.
 import { runGitHubCommand, spawnGitHub } from './lib/github-transport.mjs'
@@ -18,10 +18,10 @@ import { loadReviewBrief, storeReviewBrief } from './lib/review-packet.mjs'
 import { GOVERNED_VERDICT_WRAPPERS, VERDICT_CONTRACT_FLAG_WRAPPERS, forbiddenGovernedSubcommand, wrapperBaseName } from './lib/reviewer-capabilities.mjs'
 import { REINSTATABLE_FAILURE_CODES } from './lib/lanes/review-circuit-breaker.mjs'
 
-export const GOVERNED_REVIEW_OPTIONS=Object.freeze(['issue','pr','headSha','reviewer','wrapper','worktree','reviewSlot','replacementSequence','assignmentId','skipDoctor'])
+export const GOVERNED_REVIEW_OPTIONS=Object.freeze(['--issue','--pr','--head-sha','--reviewer','--wrapper','--worktree','--review-slot','--replacement-sequence','--assignment-id','--skip-doctor','--tests'])
 export function parseArgs(argv){
   const split=argv.indexOf('--'),own=split<0?argv:argv.slice(0,split),wrapperArgs=split<0?[]:argv.slice(split+1),out={wrapperArgs,slot:1}
-  for(let i=0;i<own.length;i+=2){const raw=own[i];if(typeof raw==='string'&&raw.startsWith('--')){const name=raw.slice(2).replace(/-([a-z])/g,(_,c)=>c.toUpperCase());if(!GOVERNED_REVIEW_OPTIONS.includes(name))throw new Error(`unknown governed review argument ${raw}${name==='slot'?' (use --review-slot)':''}; supported: ${GOVERNED_REVIEW_OPTIONS.map((k)=>`--${k.replace(/[A-Z]/g,(c)=>`-${c.toLowerCase()}`)}`).join(', ')}`)}else throw new Error('governed review arguments must be --name value pairs followed by -- and wrapper arguments')
+  for(let i=0;i<own.length;i+=2){const raw=own[i];if(typeof raw==='string'&&raw.startsWith('--')){const name=raw.slice(2).replace(/-([a-z])/g,(_,c)=>c.toUpperCase()),canonicalFlag=`--${name.replace(/[A-Z]/g,(c)=>`-${c.toLowerCase()}`)}`;if(!GOVERNED_REVIEW_OPTIONS.includes(canonicalFlag))throw new Error(`unknown governed review argument ${raw}${name==='slot'?' (use --review-slot)':''}; supported: ${GOVERNED_REVIEW_OPTIONS.join(', ')}`)}else throw new Error('governed review arguments must be --name value pairs followed by -- and wrapper arguments')
     const key=raw.slice(2).replace(/-([a-z])/g,(_,c)=>c.toUpperCase());if(!key||i+1>=own.length)throw new Error('governed review arguments must be --name value pairs followed by -- and wrapper arguments');out[key]=own[i+1]}
   out.issue=Number(out.issue);out.pr=Number(out.pr);out.slot=Number(out.reviewSlot??1)
   return out
@@ -371,6 +371,81 @@ export function wrapperSpawnPlan(resolved,args,platform=process.platform){
   if(platform==='win32'&&/\.(cmd|bat)$/i.test(resolved))return{file:process.env.ComSpec||'cmd.exe',args:['/d','/s','/c',resolved,...args]}
   return{file:resolved,args}
 }
+
+const LIFECYCLE_POOL_PROVIDERS=new Set(['muse','deepseek','glm','stepfun'])
+function portableReviewPath(value,platform=process.platform){
+  let path=String(value??'').replace(/\\/g,'/')
+  if(platform==='win32')path=path.replace(/^\/([a-z])\//i,'$1:/').toLowerCase()
+  return path.replace(/\/$/,'')
+}
+function nativeReviewPath(value,platform=process.platform){
+  const path=portableReviewPath(value,platform)
+  return platform==='win32'?path.replace(/\//g,'\\'):path
+}
+export function lifecyclePoolProvider(options){
+  const row=ACTIVE_REVIEWERS.find((reviewer)=>reviewer.name===String(options?.reviewer??'')&&reviewer.wrapper===String(options?.wrapper??''))
+  return row&&LIFECYCLE_POOL_PROVIDERS.has(row.provider)?row.provider:null
+}
+export function lifecyclePoolImplementer(env=process.env){
+  return String(env.AI_IMPLEMENTER_ENGINE||(env.CLAUDECODE==='1'||env.CLAUDE_CODE_SESSION_ID?'claude':(env.CODEX_THREAD_ID||env.CODEX_SANDBOX)?'codex':'')).trim()
+}
+export function lifecyclePoolDispatch(options,source,implementer){
+  const provider=lifecyclePoolProvider(options)
+  if(!provider)return null
+  if(!/^[a-z0-9-]+$/.test(String(implementer??'')))throw new Error('lifecycle-metered review requires a known implementing engine before the reviewer starts')
+  const args=[provider,'final-check','--base',source.mergeBase,'--assert-head',source.headSha,'--implementer',implementer]
+  if(options.tests!==undefined){if(typeof options.tests!=='string'||!options.tests.trim())throw new Error('top-level --tests requires a nonempty command');args.push('--tests',options.tests)}
+  return {file:'ai-review',args,env:{AI_REVIEW_IMPLEMENTER:implementer,AI_POOL_CALLER:implementer},provider}
+}
+export function lifecyclePoolReportBody(stdout,{headSha,provider,worktree,sourceDigest,readReport=(path)=>readFileSync(path,'utf8')}={}){
+  // `ai-review` prints its terminal lifecycle record (pretty JSON) and then the
+  // report path on its last line. Accept a bare path, or exactly one completed
+  // lifecycle record that names the same path, provider and head; anything else
+  // still refuses. The record's report digest is checked against the bytes below.
+  const output=String(stdout??'').trim(),lines=output.split(/\r?\n/),pathLine=lines.at(-1)??'',reported=nativeReviewPath(pathLine)
+  let lifecycleRecord=null
+  if(lines.length>1){
+    try{lifecycleRecord=JSON.parse(lines.slice(0,-1).join('\n'))}catch{lifecycleRecord=null}
+    const ok=lifecycleRecord&&typeof lifecycleRecord==='object'&&!Array.isArray(lifecycleRecord)&&lifecycleRecord.status==='completed'&&
+      (lifecycleRecord.verdict==='APPROVE'||lifecycleRecord.verdict==='REJECT')&&lifecycleRecord.report_path===pathLine&&
+      lifecycleRecord.provider===provider&&String(lifecycleRecord.head??'').toLowerCase()===String(headSha??'').toLowerCase()&&
+      /^[0-9a-f]{64}$/.test(String(lifecycleRecord.report_sha256??''))
+    if(!ok)throw new Error('lifecycle review did not return exactly one absolute report path')
+  }
+  if(!reported||!isAbsolute(reported))throw new Error('lifecycle review did not return exactly one absolute report path')
+  const reportRoot=resolvePath(worktree,'.ai','reviews'),reportPath=resolvePath(reported),leaf=relative(reportRoot,reportPath)
+  if(!leaf||leaf==='..'||leaf.startsWith(`..${sep}`)||isAbsolute(leaf))throw new Error('lifecycle review report is outside the worktree review directory')
+  const stat=lstatSync(reportPath)
+  if(stat.isSymbolicLink()||!stat.isFile()||portableReviewPath(realpathSync.native(reportPath))!==portableReviewPath(reportPath))throw new Error('lifecycle review report is linked or not a regular file')
+  const report=String(readReport(reportPath))
+  if(lifecycleRecord&&createHash('sha256').update(report).digest('hex')!==lifecycleRecord.report_sha256)throw new Error('lifecycle review record digest differs from the report bytes')
+  const exact=(label,value)=>report.split(/\r?\n/).some((line)=>{
+    const prefix=`| ${label} | \``,suffix='` |'
+    if(!line.startsWith(prefix)||!line.endsWith(suffix))return false
+    const field=line.slice(prefix.length,-suffix.length)
+    return label==='repository'?portableReviewPath(field)===portableReviewPath(realpathSync.native(worktree)):field===String(value)
+  })
+  const exactOnce=(label,value)=>{
+    const prefix=`| ${label} | \``,suffix='` |'
+    const fields=report.split(/\r?\n/).filter((line)=>line.startsWith(prefix)&&line.endsWith(suffix)).map((line)=>line.slice(prefix.length,-suffix.length))
+    return fields.length===1&&fields[0]===String(value)
+  }
+  const exactNativeRunnerOnce=()=>{
+    const rows=report.split(/\r?\n/).filter((line)=>/^\s*\|\s*runner\s*\|/i.test(line))
+    return rows.length===1&&rows[0]==='| runner | `ai-review-engine` (review-lifecycle-core/1) |'
+  }
+  const legacy=report.startsWith(`# ${provider} pool review — final-check\n`)
+  const nativeHeader=/^# ([a-z][a-z0-9-]*) final-check — (\d{8}T\d{6}-\d+-\d+)\r?\n/.exec(report)
+  const native=Boolean(nativeHeader&&nativeHeader[1]===provider&&exactOnce('run',nativeHeader[2])&&exactNativeRunnerOnce())
+  if((!legacy&&!native)||!exact('provider',provider)||!exact('repository',worktree)||!exact('reviewed commit',String(headSha).toLowerCase())||!exact('source digest',sourceDigest))throw new Error('lifecycle review report does not bind the assigned provider, repository, exact head, and source digest')
+  const verdicts=[...report.matchAll(/^## Verdict\s*\r?\n\s*(APPROVE|REJECT|BLOCKED)\s*$/gm)]
+  if(verdicts.length!==1)throw new Error('lifecycle review report must contain exactly one terminal verdict')
+  const section=report.indexOf('\n## Result\n')
+  if(section<0||verdicts[0].index<section)throw new Error('lifecycle review report has no analysis section')
+  const body=report.slice(section+'\n## Result\n'.length,verdicts[0].index).trim()
+  if(!body||!body.includes(String(headSha).toLowerCase()))throw new Error('lifecycle review analysis is empty or does not name the reviewed head')
+  return {body:`${body}\n\nVERDICT: ${verdicts[0][1]} ${String(headSha).toLowerCase()}`,reportPath}
+}
 // OUT OF CREDIT (owner requirement, 2026-09-24): a session whose reviewer failed
 // because the provider account ran out of credit must know that, and tell Albert in
 // the same reply. The ai-devops rotation wrappers exit 92 and print two stderr lines:
@@ -559,8 +634,9 @@ export function preflightWithTimeoutRetry(args,assignment,deps,lifecycle=[]){
 export function runGovernedReview(options,deps={spawn:spawnSync,preflight:reviewerExecutionPreflight,record:recordReviewVerdict,resolve:resolveCommandPath,readReport:(path)=>readFileSync(path,'utf8')}){
   const resolveSource=deps.sourceResolver??resolveReviewSource
   const sourceIdentity=resolveSource(options)
-  const brief=(deps.briefPreparer??prepareCompleteReviewBrief)(options,sourceIdentity)
-  const contractArgs=wrapperSourceContractArgs(options.wrapper,wrapperVerdictContractArgs(options.wrapper,brief.wrapperArgs,options.headSha),sourceIdentity)
+  const poolProvider=deps.lifecyclePool===false?null:lifecyclePoolProvider(options)
+  const brief=poolProvider?{wrapperArgs:[],env:{}}:(deps.briefPreparer??prepareCompleteReviewBrief)(options,sourceIdentity)
+  const contractArgs=poolProvider?[]:wrapperSourceContractArgs(options.wrapper,wrapperVerdictContractArgs(options.wrapper,brief.wrapperArgs,options.headSha),sourceIdentity)
   // ISSUE #2492 — SIZE THE TURN BUDGET BEFORE THE REVIEWER IS LAUNCHED.
   // A large migration exhausts the wrapper's 20-turn default and ends with no
   // verdict at all, which spends a reviewer slot, a release and a replacement.
@@ -569,20 +645,25 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
   // `--max-turns` they were not written to understand.
   let measuredLines=null
   try{measuredLines=(deps.measureReviewSize??changedMigrationLines)({worktree:options.worktree},deps.spawnSync??execFileSync)}catch{measuredLines=null}
-  const turnBudget=withTurnBudget(options.wrapper,contractArgs,measuredLines)
+  const turnBudget=poolProvider?{args:[],maxTurns:null}:withTurnBudget(options.wrapper,contractArgs,measuredLines)
   const wrapperArgs=turnBudget.args
   const skipDoctor=options.skipDoctor===true||options.skipDoctor==='true'
   const assignment=reviewAssignmentIdentity(options),lifecycle=[]
   preflightWithTimeoutRetry({reviewer:options.reviewer,wrapper:options.wrapper,worktree:options.worktree,headSha:options.headSha,skipDoctor},assignment,deps,lifecycle)
-  const resolved=(deps.resolve??resolveCommandPath)(options.wrapper)
-  if(!resolved)throw new Error(`review wrapper ${options.wrapper} is not executable`)
+  const env=deps.env??process.env
+  const implementer=lifecyclePoolImplementer(env)
+  const poolDispatch=poolProvider?lifecyclePoolDispatch(options,sourceIdentity,implementer):null
+  const command=poolDispatch?'ai-review':options.wrapper
+  const resolved=(deps.resolve??resolveCommandPath)(command)
+  if(!resolved)throw new Error(`${poolDispatch?'lifecycle review front door':'review wrapper'} ${command} is not executable`)
   const receipt=(deps.receiptFactory??reserveReviewReceipt)(options)
-  const plan=wrapperSpawnPlan(resolved,wrapperArgs)
+  const dispatchArgs=poolDispatch?poolDispatch.args:wrapperArgs
+  const plan=wrapperSpawnPlan(resolved,dispatchArgs)
   // Issue #3027 Step 7: the durable start marker the reviewer start watcher reads. It is
   // written BEFORE the provider is launched and fails closed: a review whose start cannot be
   // recorded is not started, so the watcher can never reroute a review that is running.
   if(typeof deps.recordStart!=='function')throw new Error('review start recorder is required; no reviewer was started')
-  const startMarker=deps.recordStart({...options,wrapperArgs:brief.wrapperArgs,sourceIdentity,sourceReceiptPath:receipt.path})
+  const startMarker=deps.recordStart({...options,wrapperArgs:poolDispatch?poolDispatch.args:brief.wrapperArgs,sourceIdentity,sourceReceiptPath:receipt.path})
   lifecycle.push(lifecycleEvent(deps,assignment,'review_started',{marker:startMarker}))
   // Issue #2678: the wrapper is told WHO is calling it in the environment this
   // runner spawns, not left to whatever an operator happened to export first. A
@@ -592,8 +673,8 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
   // SECOND time here -- after the start marker is written and the reviewer is
   // committed -- would turn an environment question into a started-but-failed
   // review, so this only carries the caller through when there is one to carry.
-  const callerEnv=reviewCallerEnvironment(options.wrapper,process.env,{required:false})
-  const run=deps.spawn(plan.file,plan.args,{cwd:options.worktree,env:{...process.env,...callerEnv,...brief.env,AI_REVIEW_SOURCE_RECEIPT_FILE:receipt.path},encoding:'utf8',maxBuffer:64*1024*1024,stdio:['ignore','pipe','pipe']})
+  const callerEnv=poolDispatch?{}:reviewCallerEnvironment(options.wrapper,env,{required:false})
+  const run=deps.spawn(plan.file,plan.args,{cwd:options.worktree,env:{...env,...callerEnv,...brief.env,...(poolDispatch?.env??{}),AI_REVIEW_SOURCE_RECEIPT_FILE:receipt.path},encoding:'utf8',maxBuffer:64*1024*1024,stdio:['ignore','pipe','pipe']})
   let rawBody=String(run.stdout??'').trim()
   // Issue #2244: the codex wrapper's verdict lives in its published report, not on
   // standard output. Transcribe it into this runner's grammar BEFORE parsing, and
@@ -605,6 +686,13 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
       const read=deps.readReport??((file)=>readFileSync(file,'utf8'))
       rawBody=codexGovernedBody(read(path),options.headSha,path.replace(/\\/g,'/').split('/').pop())
     }catch(error){throw new Error(`review wrapper did not produce a recordable terminal verdict (exit ${run.status??'unknown'}): ${sanitizeVoidReason(error.message)}`)}
+  }
+  let lifecycleReportPath=null
+  if(!run.error&&run.status===0&&poolDispatch){
+    try{
+      const parsed=lifecyclePoolReportBody(rawBody,{headSha:sourceIdentity.headSha,provider:poolDispatch.provider,worktree:options.worktree,sourceDigest:sourceIdentity.sourceDigest,readReport:deps.readReport})
+      rawBody=parsed.body;lifecycleReportPath=parsed.reportPath
+    }catch(error){throw new Error(`lifecycle review report was not recordable for this exact assignment: ${sanitizeVoidReason(error.message)}`)}
   }
   const verdict=verdictFromOutput(rawBody,options.headSha)
   if(run.error||run.status!==0||!verdict){
@@ -765,7 +853,7 @@ The preceding findings comment (${comment.html_url}) has been left UNTOUCHED on 
     if(stillLive)throw new Error(`${error.message} — and the voiding edit ${voidStatus}; a parseable verdict line is still live on comment ${comment.id} and must be neutralised by hand`)
     throw error
   }
-  return {artifact,body,sourceIdentity,sourceEvidence}
+  return {artifact,body,sourceIdentity,sourceEvidence,...(lifecycleReportPath?{lifecycleReportPath}:{})}
 }
 export function reviewStartedRef(options,sequence){
   return reviewStartedMarkerRef({issue:options.issue,pr:options.pr,headSha:options.headSha,slot:options.slot??1,sequence})
@@ -1014,8 +1102,11 @@ export function prepareGovernedReview(options,{env=process.env,github=readGitHub
   const live=readLivePullRequestHead(options.pr,github)
   const named=String(options.headSha??'').trim().toLowerCase()
   if(named&&named!==live)throw new Error(`--head-sha ${named} is stale: pull request #${Number(options.pr)} is now at ${live}. No reviewer was started. Omit --head-sha to use the live head, after the reviewer assignment is moved to it.`)
-  const callerEnv=reviewCallerEnvironment(options.wrapper,env)
-  return {options:{...options,headSha:live,wrapperArgs:promptHeadContract(options.wrapperArgs??[],live,files,options.wrapper)},callerEnv}
+  const poolProvider=lifecyclePoolProvider(options)
+  if(options.tests!==undefined&&!poolProvider)throw new Error('top-level --tests is supported only for lifecycle-metered pool reviewers; no reviewer was started')
+  if(poolProvider&&!/^[a-z0-9-]+$/.test(lifecyclePoolImplementer(env)))throw new Error('lifecycle-metered review requires a known implementing engine before the reviewer starts')
+  const callerEnv=poolProvider?{}:reviewCallerEnvironment(options.wrapper,env)
+  return {options:{...options,headSha:live,wrapperArgs:poolProvider?[]:promptHeadContract(options.wrapperArgs??[],live,files,options.wrapper)},callerEnv}
 }
 // Issue #3799. A replacement assignment is recorded under the REPLACED reviewer's
 // sequence (refs/db-review-replacements/<issue>-<pr>-<head><slot>-<failedSequence>),
@@ -1044,6 +1135,6 @@ export function resolveReplacementSequence(options,io){
   return {...options,replacementSequence:[...matches.values()][0]}
 }
 export function main(argv=process.argv.slice(2)){
-  try{const prepared=prepareGovernedReview(parseArgs(argv));Object.assign(process.env,prepared.callerEnv);const deps=governedReviewDeps();const result=runGovernedReview(resolveReplacementSequence(prepared.options,deps.io),deps);process.stdout.write(`${result.body}\n\nDURABLE VERDICT: ${result.artifact.ref} ${result.artifact.sha}\nSOURCE EVIDENCE: ${JSON.stringify(result.sourceEvidence)}\n`);return 0}catch(error){if(error?.startDecision)process.stderr.write(`REROUTE: ${JSON.stringify(error.startDecision)}\n`);process.stderr.write(`REFUSED: ${error.message}\n`);return 2}
+  try{const prepared=prepareGovernedReview(parseArgs(argv));Object.assign(process.env,prepared.callerEnv);const deps=governedReviewDeps();const result=runGovernedReview(resolveReplacementSequence(prepared.options,deps.io),deps);process.stdout.write(`${result.body}\n\nDURABLE VERDICT: ${result.artifact.ref} ${result.artifact.sha}\nSOURCE EVIDENCE: ${JSON.stringify(result.sourceEvidence)}\n${result.lifecycleReportPath?`LIFECYCLE APPROVAL REPORT: ${result.lifecycleReportPath}\n`:''}`);return 0}catch(error){if(error?.startDecision)process.stderr.write(`REROUTE: ${JSON.stringify(error.startDecision)}\n`);process.stderr.write(`REFUSED: ${error.message}\n`);return 2}
 }
 if(import.meta.url===pathToFileURL(process.argv[1]??'').href)process.exitCode=main()

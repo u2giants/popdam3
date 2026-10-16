@@ -3,11 +3,12 @@
   "source": "scripts/check-exact-head-approval.mjs",
   "sites": [
     {
-      "semantic_key": "scripts/check-exact-head-approval.mjs:728dc02f2ab46339c02e1bc72233f817b356731bf5416cca44f8169830b01c9f:context-d3c293f1554b341d0cd47af42183e5082a21dad3093700b78ec67ab17e23be3d",
       "site": "scripts/check-exact-head-approval.mjs:271",
+      "semantic_key": "scripts/check-exact-head-approval.mjs:728dc02f2ab46339c02e1bc72233f817b356731bf5416cca44f8169830b01c9f:context-d3c293f1554b341d0cd47af42183e5082a21dad3093700b78ec67ab17e23be3d",
       "line_sha256": "728dc02f2ab46339c02e1bc72233f817b356731bf5416cca44f8169830b01c9f",
       "disposition": "excluded",
-      "reason": "Refusal string for undrawn review slots uses the word missing in user guidance; not a throughput-truth missing-object site and outside this disposition class. Re-reviewed 2026-10-15 after the 2026-10-14 reworded refusal moved it to this line."
+      "reason": "Undrawn required review slots are an approval-policy refusal, not a measured missing throughput object; exclude this diagnostic from the throughput count.",
+      "legacy_semantic_key": "scripts/check-exact-head-approval.mjs:728dc02f2ab46339c02e1bc72233f817b356731bf5416cca44f8169830b01c9f:1"
     }
   ]
 }

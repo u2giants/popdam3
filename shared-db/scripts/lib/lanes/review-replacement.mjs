@@ -1,6 +1,7 @@
 // Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { LaneError } from './claims.mjs'
+import { parseStrictJson } from '../../proofs/shared-db-2870-observation.mjs'
 import { parseRecordedReviewerAllowlist, reviewersForOrchestrator } from './reviewer-roster.mjs'
 import { REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, REVIEW_REPLACEMENT_REF_PREFIX } from './constants.mjs'
 import { SLOT_INDEPENDENCE_CONFLICT, TERMINAL_FAILURE_CODES } from './queue-routing.mjs'
@@ -83,6 +84,24 @@ export function reviewerFailureRef(request){return `${REVIEW_FAILURE_REF_PREFIX}
 
 export function parseReviewRelease(commit){
   const message=commit?.message??commit?.commit?.message??''
+  const lines=String(message).split('\n')
+  const historical=/^db-coordination reviewer-failure-release reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{40}) slot=(\d+) failed-sequence=(\d+) code=wrapper_terminal_failure proof=historical-terminal-v1 verdict=none artifact=none replacement=none$/i.exec(lines[0]??'')
+  if(historical){
+    const proofMatch=lines.length===2?/^historical-terminal-failure-proof=(\{[^\r\n]*\})$/.exec(lines[1]):null
+    if(!proofMatch)throw new LaneError('historical reviewer failure proof is missing or ambiguous')
+    let proof
+    try{proof=parseStrictJson(proofMatch[1])}catch{throw new LaneError('historical reviewer failure proof is unreadable')}
+    const keys=['schema_version','binding_kind','slot','start_ref','start_sha','started_at','current_head_sha','receipt_path_sha256','source_receipt_sha256','source_digest','diagnostic_path_sha256','diagnostic_sha256','diagnostic_at','diagnostic_wrapper','exit_status','signal','spawn_error','phase','error','provider_activity','verdict','artifact']
+    if(!proof||typeof proof!=='object'||Array.isArray(proof)||Object.keys(proof).sort().join('|')!==keys.slice().sort().join('|')||
+      proof.schema_version!==1||proof.binding_kind!=='unique-temporal'||proof.slot!==Number(historical[5])||
+      proof.start_ref!==`refs/db-review-started/${historical[2]}-${historical[3]}-${historical[4]}-slot${historical[5]}-seq${historical[6]}`||
+      !/^[0-9a-f]{40}$/.test(proof.start_sha??'')||!/^refs\/db-review-started\/[1-9]\d*-[1-9]\d*-[0-9a-f]{40}-slot[1-9]\d*-seq[1-9]\d*$/.test(proof.start_ref??'')||
+      !/^[0-9a-f]{40}$/.test(proof.current_head_sha??'')||
+      !['receipt_path_sha256','source_receipt_sha256','source_digest','diagnostic_path_sha256','diagnostic_sha256'].every(key=>/^[0-9a-f]{64}$/.test(proof[key]??''))||
+      !Number.isFinite(Date.parse(proof.started_at??''))||!Number.isFinite(Date.parse(proof.diagnostic_at??''))||Date.parse(proof.diagnostic_at)<Date.parse(proof.started_at)||
+      historical[1]!=='deepseek-v4.1-flash'||proof.current_head_sha===historical[4]||proof.diagnostic_wrapper!=='ai-deepseek-agent'||proof.exit_status!==1||proof.signal!=='none'||proof.spawn_error!=='none'||proof.phase!=='packet-build'||proof.error!=='source-receipt-conflict'||proof.provider_activity!=='none'||proof.verdict!=='none'||proof.artifact!=='none')throw new LaneError('historical reviewer failure proof binding mismatch')
+    return {reviewer:historical[1],issue:Number(historical[2]),pr:Number(historical[3]),headSha:historical[4],slot:Number(historical[5]),failedSequence:Number(historical[6]),failureCode:'wrapper_terminal_failure',failingCheck:null,historicalProof:proof}
+  }
   const match=/^db-coordination reviewer-failure-release reviewer=([a-z0-9.-]+) issue=(\d+) pr=(\d+) head=([0-9a-f]{40}) failed-sequence=(\d+) code=([a-z_]+)(?: failing-check=([^ ]+))? verdict=none artifact=none replacement=none$/i.exec(message)
   if(!match)throw new LaneError('reviewer release evidence is unreadable')
   return {reviewer:match[1],issue:Number(match[2]),pr:Number(match[3]),headSha:match[4],failedSequence:Number(match[5]),failureCode:match[6],failingCheck:match[7]??null}
