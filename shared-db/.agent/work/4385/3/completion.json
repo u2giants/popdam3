@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 4385,
+  "outcome": "ready-for-merge",
+  "reason": "Required source checks are complete. Independent current-head review, PR CI and guarded merge are separate pending gates.",
+  "pr": 4404,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4385/3",
+  "contract_sha256": "6ab35f52013b443c61ab92956766959447fb923b2217863c986eedc36a212997",
+  "head_sha": "0a79c998daae233112644b38a5447b0ca11a7bfd",
+  "base_sha": "46fbb9194216dca4a5af76fa76c1b7fd226495e4",
+  "files_changed": [
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py",
+    "scripts/test_preview_ledger_orphan_reconcile_postgres.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean at 0a79c998daae"
+    },
+    {
+      "command": "python3 scripts/test_preview_ledger_orphan_reconcile.py",
+      "exit_code": 0,
+      "evidence": "Ran 40 tests OK at 0a79c998daae"
+    },
+    {
+      "command": "PREVIEW_LEDGER_RECONCILE_POSTGRES_TEST=1 python3 scripts/test_preview_ledger_orphan_reconcile_postgres.py",
+      "exit_code": 0,
+      "evidence": "Ran 6 tests OK on disposable postgres:17 network none at 0a79c998daae"
+    }
+  ],
+  "assumptions_resolved": [
+    "Only the claim number and replacement version of the #4373 case changed."
+  ],
+  "stop_conditions_hit": []
+}

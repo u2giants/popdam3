@@ -24,13 +24,13 @@ class Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=pathlib.Path(directory); (root/'supabase/migrations').mkdir(parents=True)
             orphan=root/'old.sql'; orphan.write_text('-- historical bytes\nselect 1;')
-            replacement=root/'20261016042600_plm_stage_tracker_order_options.sql'; replacement.write_bytes(orphan.read_bytes())
+            replacement=root/'20261016210024_plm_stage_tracker_order_options.sql'; replacement.write_bytes(orphan.read_bytes())
             evidence=root/'evidence'; evidence.mkdir()
             (evidence/'preview-ledger-before.txt').write_text(json.dumps([{'version':'20261015193344'}]))
             (evidence/'preview-ledger-after.txt').write_text(json.dumps([{'version':'20261015193344'},{'version':'20261016012631'}]))
             (evidence/'preview-apply.txt').write_text('Applying migration 20261016012631_plm_stage_tracker_order_options.sql')
-            rows={'issue':{'number':4373,'state':'open'},'claim':{'number':4382,'state':'open','title':'#4373 prospective','body':'version: 20261016042600'},'pr':{'number':4386,'state':'open','merged':False,'head':{'sha':current}},'pr_files':[{'filename':'supabase/migrations/'+replacement.name}], 'run':{'id':38839047707,'status':'completed','conclusion':'success','event':'workflow_dispatch','path':'.github/workflows/shared-supabase-migrations.yml','head_sha':producer},'artifact':{'id':12020143683,'workflow_run':{'id':38839047707},'digest':digest,'expired':False,'name':'preview-migration-apply-'+applied}}
-            args=SimpleNamespace(repo=root,main_sha=main,issue=4373,claim=4382,source_pr=4386,orphan_version='20261016012631',replacement_version='20261016042600',source_pr_dir=root/'source',orphan_source_dir=root/'orphan',orphan_migration=orphan,replacement_migration=replacement,preview_evidence_dir=evidence,preview_run_id=38839047707,preview_artifact_id=12020143683,preview_artifact_digest=digest)
+            rows={'issue':{'number':4373,'state':'open'},'claim':{'number':4402,'state':'open','title':'#4373 prospective','body':'version: 20261016210024'},'pr':{'number':4386,'state':'open','merged':False,'head':{'sha':current}},'pr_files':[{'filename':'supabase/migrations/'+replacement.name}], 'run':{'id':38839047707,'status':'completed','conclusion':'success','event':'workflow_dispatch','path':'.github/workflows/shared-supabase-migrations.yml','head_sha':producer},'artifact':{'id':12020143683,'workflow_run':{'id':38839047707},'digest':digest,'expired':False,'name':'preview-migration-apply-'+applied}}
+            args=SimpleNamespace(repo=root,main_sha=main,issue=4373,claim=4402,source_pr=4386,orphan_version='20261016012631',replacement_version='20261016210024',source_pr_dir=root/'source',orphan_source_dir=root/'orphan',orphan_migration=orphan,replacement_migration=replacement,preview_evidence_dir=evidence,preview_run_id=38839047707,preview_artifact_id=12020143683,preview_artifact_digest=digest)
             for key in rows:setattr(args,key+'_json',root/(key+'.json'))
             def git(where,*command):
                 if where==args.source_pr_dir:return current

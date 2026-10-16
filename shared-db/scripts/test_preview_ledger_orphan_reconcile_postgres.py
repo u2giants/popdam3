@@ -32,7 +32,7 @@ create trigger break_reconciliation before delete on supabase_migrations.schema_
 
     def test_stage_catalog_rename_preserves_schema_history_and_other_ledger_rows(self):
         """Run the production reconciler SQL, without executing any migration DDL."""
-        old='20261016012631'; new='20261016042600'
+        old='20261016012631'; new='20261016210024'
         self.psql("drop trigger if exists break_reconciliation on supabase_migrations.schema_migrations; drop function if exists public.break_reconciliation();")
         self.psql(f"delete from supabase_migrations.schema_migrations where version in ('{old}','{new}'); insert into supabase_migrations.schema_migrations values ('{old}',array['select 1'],'original'); create table if not exists public.stage_reconcile_history(id integer primary key,note text); insert into public.stage_reconcile_history values(1,'preserve') on conflict do nothing;")
         args=type('A',(),{'orphan_version':old,'replacement_version':new,'replacement_migration':pathlib.Path(new+'_plm_stage_tracker_order_options.sql'),'mode':'check'})()
