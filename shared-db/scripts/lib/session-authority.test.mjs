@@ -101,3 +101,11 @@ test('#3536 adoption recognition never accepts arbitrary aliases or ambiguous la
   ])assert.equal(resolveSessionAuthority({env:env(ownChat),claimOwner:owner}).live,false);
   assert.equal(readSessionId(env(`codex/${ownChat}-2421`)).malformed,true);
 });
+
+test('claude-chat owner label is accepted only for the exact session UUID', () => {
+  const id = '250902fb-e85f-45d3-a62c-9c18cb217d1e';
+  const env = { SHARED_DB_SESSION_ID: id };
+  assert.equal(resolveSessionAuthority({ env, claimOwner: `claude-chat-${id}@hetz` }).live, true);
+  assert.equal(resolveSessionAuthority({ env, claimOwner: `claude-chat-00000000-e85f-45d3-a62c-9c18cb217d1e@hetz` }).live, false);
+  assert.equal(resolveSessionAuthority({ env, claimOwner: `claude-chat-${id}-extra@hetz` }).live, false);
+});

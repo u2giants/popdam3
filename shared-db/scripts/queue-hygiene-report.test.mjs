@@ -43,7 +43,7 @@ const MUTATION_HOOKS = [
   'postCommitStatus', 'updateIssue', 'makeOwnerCommit', 'makeReviewVerdictCommit', 'pauseReviewerFailure',
   'createRef', 'deleteRef', 'releaseRefOverGit', 'updateRef', 'atomicReviewRefs', 'atomicReviewMutexRelease',
   'reserveVersion', 'createClaim', 'createIssueIn', 'commentIssue', 'closeIssue',
-  'closeClaim', 'contentPreservingRefresh', 'rewriteVersion', 'commitAndPushReversion',
+  'closeClaim', 'closePull', 'contentPreservingRefresh', 'rewriteVersion', 'commitAndPushReversion',
 ]
 // Every OTHER function on githubIo, classified by name as a read. A new githubIo
 // hook appears in NEITHER list and fails the classification test below until

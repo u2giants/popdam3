@@ -28,7 +28,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, 
 import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assertUnambiguousClaimTitle, claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewerCapacityReport, reviewLeaseAgeHours, activityFingerprintForLease, probeSilentReviewer, reclaimSilentReviewer, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, assertDurableReviewApproval, buildDynamicQueues, claimBody, closedClaimAuthoredOnMain, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverExpiredClaimFromPr, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, releaseFailedReviewer, replaceFailedReviewer, failedReviewerReleaseCommand, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, doctorTimeoutFailingChecks, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, REVIEWER_PREFLIGHT_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, excludeReviewerForPr, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, reinstateReviewerExclusion, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, reviewerEmitsGovernedVerdict, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, markLeaseReadFailure, isLeaseReadFailure, REVIEW_TARGET_SUPERSEDED, reapAbandonedReviewLeases, withArchivedVerdictMirror, legacyLeaseTerminalReason, isCommandSizeFailure, archiveOldReviewVerdicts, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, reviewerStartWatchLeases, RETURNED_COPY_MARKER, returnedCopyProvenance, REPO, noteHeldMutex, clearHeldMutex, releaseHeldMutexOnProcessExit } from './manage-migration-author-lanes.mjs'
+import { assertUnambiguousClaimTitle, claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewerCapacityReport, reviewLeaseAgeHours, activityFingerprintForLease, probeSilentReviewer, reclaimSilentReviewer, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireAuthorLane, acquireExclusive, assertLaneAvailable, assignNextReviewer, assertDurableReviewApproval, buildDynamicQueues, claimBody, closedClaimAuthoredOnMain, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, expandActiveClaimFromIssue, expandActiveClaimFromPr, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverExpiredClaimFromPr, recoverSameOwnerSplit, recoverStaleAuthorMutex, reissueMergedStrandedClaim, releaseOwnedRef, releaseFailedReviewer, replaceFailedReviewer, failedReviewerReleaseCommand, requireOwnedRef, renewExpiredClaim, reviewerExecutionPreflight, reversionActiveClaim, runGitHubCommand, withReviewRequestBudget, supersedeActiveClaimVersion, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, doctorTimeoutFailingChecks, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, REVIEWER_PREFLIGHT_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, activateReviewCutover, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, excludeReviewerForPr, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, reinstateReviewerExclusion, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, reviewerEmitsGovernedVerdict, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, markLeaseReadFailure, isLeaseReadFailure, REVIEW_TARGET_SUPERSEDED, reapAbandonedReviewLeases, withArchivedVerdictMirror, legacyLeaseTerminalReason, isCommandSizeFailure, archiveOldReviewVerdicts, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, reviewerStartWatchLeases, RETURNED_COPY_MARKER, returnedCopyProvenance, REPO, noteHeldMutex, clearHeldMutex, releaseHeldMutexOnProcessExit, sameOwnerLabel, parkComment } from './manage-migration-author-lanes.mjs'
 import { readDatabasePreviewClassificationFile, withDatabasePreviewClassificationFile, databasePreviewAdmission, buildDatabasePreviewFileSnapshot } from './manage-migration-author-lanes.mjs'
 import { parseReviewRelease } from './lib/lanes/review-replacement.mjs'
 import { qualifyHistoricalReviewerFailure } from './manage-migration-author-lanes.mjs'
@@ -4705,6 +4705,56 @@ test('explicit claim release is mutex-protected, owner-confirmed, and refuses an
   closed=null;io.openPulls=()=>[{head:{ref:'codex/7'}}]
   assert.equal(main(['--release-claim','7','--owner','agent-7','--confirm-finished'],NOW,io),2)
   assert.equal(closed,null)
+})
+
+test('--park closes (never deletes) the open PR with a resume note, then releases under the same guards',()=>{
+  const io=memoryIo();const events=[]
+  io.openClaims=()=>[{number:7,body:body(['table core.x'],'7')}]
+  io.openPulls=()=>[{number:2409,head:{ref:'codex/7'}},{number:2410,head:{ref:'other'}}]
+  io.closeClaim=(n,r)=>events.push(['claim',n,r])
+  io.closePull=(n,c)=>{assert.equal(io.refs.has(MUTEX_REF),true);events.push(['pr',n,c])}
+  // wrong owner still refuses before anything is touched
+  assert.equal(main(['--release-claim','7','--owner','agent-9','--confirm-finished','--park'],NOW,io),2)
+  assert.deepEqual(events,[])
+  // park + retire is refused
+  assert.equal(main(['--release-claim','7','--owner','agent-7','--confirm-finished','--park','--retire','owner-terminated'],NOW,io),2)
+  assert.deepEqual(events,[])
+  assert.equal(main(['--release-claim','7','--owner','agent-7','--confirm-finished','--park'],NOW,io),0)
+  assert.deepEqual(events.map(e=>e.slice(0,2)),[['pr',2409],['claim',7]])
+  assert.match(events[0][2],/Reopen pull request #2409/)
+  assert.match(events[0][2],/stays permanently reserved/)
+  assert.match(events[0][2],/branch `codex\/7` is kept/)
+  assert.equal(events[1][2],CLAIM_CLOSE_REASONS.explicitRelease)
+  assert.equal(io.refs.has(MUTEX_REF),false)
+  // without --park the refusal names the way out
+  events.length=0
+  const o=memoryIo();o.openClaims=io.openClaims;o.openPulls=io.openPulls;o.closeClaim=()=>{assert.fail('closed without --park')}
+  const refused=refusalText(['--release-claim','7','--owner','agent-7','--confirm-finished'],o)
+  assert.equal(refused.code,2);assert.match(refused.text,/add --park/)
+})
+
+test('--park with no open PR is an ordinary release',()=>{
+  const io=memoryIo();let pulls=0,closed=null
+  io.openClaims=()=>[{number:7,body:body(['table core.x'],'7')}]
+  io.closePull=()=>{pulls++};io.closeClaim=(n)=>{closed=n}
+  assert.equal(main(['--release-claim','7','--owner','agent-7','--confirm-finished','--park'],NOW,io),0)
+  assert.equal(pulls,0);assert.equal(closed,7)
+})
+
+test('both Claude owner-label spellings name the same exact session and nothing else',()=>{
+  const id='250902fb-e85f-45d3-a62c-9c18cb217d1e'
+  assert.equal(sameOwnerLabel(`claude-chat-${id}@hetz`,`Claude chat ${id} on hetz`),true)
+  assert.equal(sameOwnerLabel(`Claude chat ${id} on hetz`,`claude-chat-${id}@hetz`),true)
+  assert.equal(sameOwnerLabel(`claude-chat-${id}@hetz`,`Claude chat ${id} on edge-dev3`),false)
+  assert.equal(sameOwnerLabel(`claude-chat-${id}@hetz`,`Claude chat 00000000-e85f-45d3-a62c-9c18cb217d1e on hetz`),false)
+  assert.equal(sameOwnerLabel(`claude-chat-${id}@hetz`,`claude chat ${id} on hetz`),false)
+  assert.equal(sameOwnerLabel('agent-7','agent-7'),true)
+  assert.equal(sameOwnerLabel('',''),false)
+  const io=memoryIo();let closed=null
+  io.openClaims=()=>[{number:7,body:claimBody({version:'20260814200007',objects:['table core.x'],owner:`claude-chat-${id}@hetz`,branch:'codex/7',worktree:'C:/w/7',expiresAt:new Date('2026-08-15T08:00:00.000Z')})}]
+  io.closeClaim=(n)=>{closed=n}
+  assert.equal(main(['--release-claim','7','--owner',`Claude chat ${id} on hetz`,'--confirm-finished'],NOW,io),0)
+  assert.equal(closed,7)
 })
 
 // ISSUE #2454. Duplicate claims on one branch cannot be cleared by the ordinary
@@ -12711,4 +12761,13 @@ test('targeted v2 reap keeps exact CAS guard against replacement after under-loc
  const f=exactReapFixture(),atomic=f.io.atomicReviewRefs.bind(f.io),replacement=f.io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=2 reviewer=${f.options.reviewer} issue=3536 pr=4171 head=${f.options.headSha}`)
  f.io.atomicReviewRefs=edits=>{if(edits.some(row=>row.ref===f.ref&&row.sha===null))f.io.refs.set(f.ref,replacement);return atomic(edits)}
  assert.throws(()=>reapAbandonedReviewLeases({...f.options,applyRecovery:true},new Date(),f.io));assert.equal(f.io.refs.get(f.ref),replacement);assert.equal(f.io.refs.has(MUTEX_REF),false)
+})
+
+test('#4365: the park note signs a Claude owner in signature form; --park alone is refused',()=>{
+  const id='250902fb-e85f-45d3-a62c-9c18cb217d1e'
+  const note=parkComment({claim:7,pr:9,lease:{branch:'b',version:'1',objects:[],owner:`claude-chat-${id}@hetz`}})
+  assert.match(note,new RegExp(`^Posted by Claude chat ${id} on hetz \\(owner of claim #7\\)`,'m'))
+  assert.match(parkComment({claim:7,pr:9,lease:{branch:'b',version:'1',objects:[],owner:'agent-7'}}),/^Posted by agent-7 \(owner/m)
+  const refused=refusalText(['--park'],memoryIo())
+  assert.equal(refused.code,2);assert.match(refused.text,/--park only applies to --release-claim/)
 })

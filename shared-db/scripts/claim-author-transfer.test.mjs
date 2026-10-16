@@ -686,3 +686,31 @@ test('remote custody binds the accepting session to the recipient and the new ow
   {const {io,request,accept}=remoteHandoff()
     unchanged(io,request.claim,()=>handoffClaimAuthor({...accept,newOwner:'impostor'},NOW,io),/./)}
 })
+
+// #4365: the owner on record and the --owner supplied may be the two spellings
+// of one exact Claude session; stop-author and check-in accept both end to end.
+const CLAUDE_ID='250902fb-e85f-45d3-a62c-9c18cb217d1e'
+test('stop-author accepts the other Claude owner spelling for the same exact session',()=>{
+  const {io,request}=voluntaryFixture(),recorded=`claude-chat-${CLAUDE_ID}@hetz`
+  io.issues.get(3378).body=io.issues.get(3378).body.replace('capacity_state: relinquished','capacity_state: active').replace(/^(blocked_on|worktree_state|recovery):.*\n/gm,'').replace(new RegExp(`^owner: ${request.oldOwner}$`,'m'),`owner: ${recorded}`)
+  io.issueComments=()=>[];io.commentIssue=()=>({id:1})
+  io.orchestratorFlowAdapter=()=>({resolveMarker:()=>({live:true,task:CLAUDE_ID,calling_task:CLAUDE_ID})})
+  const stop={issue:request.issue,claim:request.claim,pr:request.pr,headSha:HEAD,branch:request.branch,worktree:request.worktree}
+  assert.throws(()=>prepareAuthorHandoff({...stop,owner:`Claude chat ${CLAUDE_ID} on edge-dev3`},NOW,io),/different owner|custody differs/)
+  const result=prepareAuthorHandoff({...stop,owner:`Claude chat ${CLAUDE_ID} on hetz`},NOW,io)
+  assert.ok(io.readRef(result.handoffReadyRef));assert.equal(parseAuthorLease(io.getIssue(3378).body,NOW).capacityActive,false)
+  // the receipt names the on-record owner, so voluntary handoff can consume it
+  io.orchestratorFlowAdapter=()=>({resolveMarker:()=>({live:true,task:'new-author',calling_task:'new-author'})})
+  const accepted=handoffClaimAuthor({...request,oldOwner:recorded,authorizationChatId:'new-author',handoffReadyRef:result.handoffReadyRef},NOW,io)
+  assert.equal(accepted.owner,'new-author')
+})
+test('check-in accepts the other Claude owner spelling for the same exact session',()=>{
+  const {io,request}=voluntaryFixture(),recorded=`claude-chat-${CLAUDE_ID}@hetz`
+  handoffClaimAuthor(request,NOW,io)
+  io.issues.get(3378).body=io.issues.get(3378).body.replace(new RegExp(`^owner: ${request.newOwner}$`,'m'),`owner: ${recorded}`)
+  io.orchestratorFlowAdapter=()=>({resolveMarker:()=>({live:true,task:CLAUDE_ID,calling_task:CLAUDE_ID})})
+  const at=new Date(NOW.valueOf()+10*60000)
+  const options={issue:request.issue,claim:request.claim,pr:request.pr,headSha:HEAD,owner:`Claude chat ${CLAUDE_ID} on hetz`,branch:request.branch,worktree:request.targetWorktree}
+  const result=checkInAuthor(options,at,io)
+  assert.equal(result.checkedInAt,at.toISOString());assert.equal(parseAuthorLease(io.getIssue(3378).body,at).owner,recorded)
+})

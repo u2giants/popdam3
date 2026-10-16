@@ -169,6 +169,14 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
       `--resume-author-lease --claim-number <n> --owner <owner> --lease-hours <hours>`,
       which re-runs every current collision, capacity and version check.
 
+   **Parking a stuck claim** (the work should return later, but the session cannot
+   finish it now): `--release-claim <n> --owner <exact owner> --confirm-finished --park`
+   closes — never deletes — the claim branch's open pull request with a resume note,
+   then performs the ordinary release under the same owner, mutex and claim checks.
+   To resume: reopen the pull request, take a new claim on the same objects, and move
+   the migration to a new version (the parked version stays reserved forever).
+   `--park` never combines with `--retire`.
+
    **Procedure 2 — terminal retirement** (the work cannot or should not return):
 
    1. Record the evidence that the work is terminal on the audit issue.

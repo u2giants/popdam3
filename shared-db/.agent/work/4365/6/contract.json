@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "work_issue": 4365,
+  "generation": 6,
+  "evidence_parent": {
+    "work_issue": 4365,
+    "generation": 5,
+    "contract_sha256": "c6ef27b815f7cb17ee94fffca616b2b07d4e2354bdfbbab7c0d9697c918a78f8"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add --park to --release-claim (close the claim branch's open PR without deleting it, with a resume note, then the ordinary guarded release) and accept both Claude owner-label spellings for release, check-in and stop-author",
+  "base_sha": "1c731f87ee8caf5ca94099485f77e49ca6290693",
+  "dispatcher": "Claude chat 1a74625c-9226-4d2b-a34b-829125ae1af0 on edge-dev3",
+  "worker": "claude",
+  "branch": "claude/release-claim-park",
+  "worktree": "/var/tmp/ai-sessions-1000/claude-1a74625c-9226-4d2b-a34b-829125ae1af0/sdb-park",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/lib/session-authority.mjs",
+    "scripts/lib/session-authority.test.mjs",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/queue-hygiene-report.test.mjs",
+    "scripts/queue-hygiene-report.mjs",
+    "scripts/claim-author-transfer.test.mjs",
+    ".agent/work/4365/5/contract.json",
+    ".agent/work/4365/5/completion.json",
+    ".agent/work/4365/6/contract.json",
+    ".agent/work/4365/6/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/lib/session-authority.mjs",
+    "scripts/lib/session-authority.test.mjs",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/queue-hygiene-report.test.mjs",
+    "scripts/queue-hygiene-report.mjs",
+    "scripts/claim-author-transfer.test.mjs",
+    ".agent/work/4365/5/contract.json",
+    ".agent/work/4365/5/completion.json",
+    ".agent/work/4365/6/contract.json",
+    ".agent/work/4365/6/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not delete any branch or ref when parking",
+    "do not weaken the exact-owner, mutex or tombstone-ordering guards",
+    "do not touch any migration or database object"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs scripts/lib/session-authority.test.mjs scripts/queue-hygiene-report.test.mjs scripts/claim-author-transfer.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "a first draft of this change was pushed as PR #4357 before this contract; the implementation is re-committed on top of main after publication so the declared scope precedes the reviewed commit",
+    "generation 2 supersedes generation 1 to add the queue-hygiene mutation-hook classification CI required for the new closePull hook",
+    "generation 3 adds the queue-hygiene wrapper refusal for closePull, required by its dirty-first test",
+    "generation 4 addresses governed DeepSeek REJECT (seq 6599, head 62602c7e): stop-author and check-in must accept both Claude owner spellings end to end; park note signature and --park without --release-claim",
+    "generation 5 adds scripts/claim-author-transfer.test.mjs, where the stop-author and check-in fixtures live; disclosed: the generation-4 source edits were drafted before this generation was published and are committed only after it",
+    "generation 6 addresses governed GLM REJECT M1 (seq 6601, head 2d3f83e8): the stop-author ready receipt must record the on-record owner so a mixed-spelling stop remains consumable by voluntary handoff"
+  ],
+  "stop_conditions": [
+    "stop if parking would require deleting a branch",
+    "stop if a test fails for a reason unrelated to these files"
+  ]
+}

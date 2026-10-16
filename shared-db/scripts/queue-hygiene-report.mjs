@@ -59,6 +59,7 @@ export function hygieneReportIo(io) {
     commentIssue: refuse('commentIssue'),
     closeIssue: refuse('closeIssue'),
     closeClaim: refuse('closeClaim'),
+    closePull: refuse('closePull'),
     contentPreservingRefresh: refuse('contentPreservingRefresh'),
     // Found by the governed Grok review of head fd7d1327 (REVISE, 2026-09-17):
     // these two also write — one rewrites files in a worktree, the other runs
