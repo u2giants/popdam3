@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 type Recorded = { kind: "rows" | "count"; select: string; head: boolean };
 const recorded: Recorded[] = [];
 const rpcCalls: Array<{ name: string; args: any }> = [];
+const orCalls: string[] = [];
 
 let rowBehaviour: () => Promise<{ data: any[]; error: unknown }> = async () => ({
   data: [{ order_line_id: "line-1" }],
@@ -29,7 +30,10 @@ function builder(kind: "rows" | "count", head: boolean) {
     is: () => chain,
     not: () => chain,
     filter: () => chain,
-    or: () => chain,
+    or: (clause: string) => {
+      orCalls.push(clause);
+      return chain;
+    },
     order: () => chain,
     range: async () => rowBehaviour(),
     then: (resolve: any, reject: any) => countBehaviour().then(resolve, reject),
@@ -60,6 +64,7 @@ const { fetchOrderListBlock, updateOrderListSalesDateErrors } = await import("@/
 beforeEach(() => {
   recorded.length = 0;
   rpcCalls.length = 0;
+  orCalls.length = 0;
   rowBehaviour = async () => ({ data: [{ order_line_id: "line-1" }], error: null });
   salesOrderDateBehaviour = async (args) => ({
     data: args.p_line_ids.map((order_line_id: string) => ({ order_line_id, sales_order_date: null })),
@@ -163,5 +168,19 @@ describe("OrderList block loading", () => {
 
     await expect(fetchOrderListBlock({ startRow: 0, endRow: 100 })).rejects.toBe(rowError);
     expect(rpcCalls).toEqual([]);
+  });
+});
+
+describe("OrderList 12-month window", () => {
+  it("hides orders older than the window start but keeps orders with no window date", async () => {
+    await fetchOrderListBlock({ startRow: 0, endRow: 100, orderWindowStart: "2025-10-15" });
+
+    expect(orCalls).toEqual(["order_window_date.is.null,order_window_date.gte.2025-10-15"]);
+  });
+
+  it("adds no window clause when old orders are shown", async () => {
+    await fetchOrderListBlock({ startRow: 0, endRow: 100, orderWindowStart: null });
+
+    expect(orCalls).toEqual([]);
   });
 });
