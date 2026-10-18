@@ -18,7 +18,7 @@ import { loadReviewBrief, storeReviewBrief } from './lib/review-packet.mjs'
 import { GOVERNED_VERDICT_WRAPPERS, VERDICT_CONTRACT_FLAG_WRAPPERS, forbiddenGovernedSubcommand, wrapperBaseName } from './lib/reviewer-capabilities.mjs'
 import { REINSTATABLE_FAILURE_CODES } from './lib/lanes/review-circuit-breaker.mjs'
 
-export const GOVERNED_REVIEW_OPTIONS=Object.freeze(['--issue','--pr','--head-sha','--reviewer','--wrapper','--worktree','--review-slot','--replacement-sequence','--assignment-id','--skip-doctor','--tests'])
+export const GOVERNED_REVIEW_OPTIONS=Object.freeze(['--issue','--pr','--head-sha','--reviewer','--wrapper','--worktree','--review-slot','--replacement-sequence','--assignment-id','--skip-doctor','--tests','--production-risk-main','--production-risk-classes','--production-risk-allowlist'])
 export function parseArgs(argv){
   const split=argv.indexOf('--'),own=split<0?argv:argv.slice(0,split),wrapperArgs=split<0?[]:argv.slice(split+1),out={wrapperArgs,slot:1}
   for(let i=0;i<own.length;i+=2){const raw=own[i];if(typeof raw==='string'&&raw.startsWith('--')){const name=raw.slice(2).replace(/-([a-z])/g,(_,c)=>c.toUpperCase()),canonicalFlag=`--${name.replace(/[A-Z]/g,(c)=>`-${c.toLowerCase()}`)}`;if(!GOVERNED_REVIEW_OPTIONS.includes(canonicalFlag))throw new Error(`unknown governed review argument ${raw}${name==='slot'?' (use --review-slot)':''}; supported: ${GOVERNED_REVIEW_OPTIONS.join(', ')}`)}else throw new Error('governed review arguments must be --name value pairs followed by -- and wrapper arguments')

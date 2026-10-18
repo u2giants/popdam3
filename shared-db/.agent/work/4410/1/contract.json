@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "work_issue": 4410,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Give the governed review brief a runner-verified, trusted production-risk-assessment request section (opt-in via --production-risk-main and --production-risk-classes on a merged source PR) so drawn reviewers can emit the owner-ruling 6.23 block instead of declining it as untrusted evidence",
+  "base_sha": "b31e17c02194c6006a1bd256d6154a324a5114d7",
+  "dispatcher": "Claude subagent of chat b6410b17-053b-4ff2-adc8-f25b053cb611 on edge-dev3",
+  "worker": "claude",
+  "branch": "claude/4410-trusted-risk-request",
+  "worktree": "/home/ahazan/repos/shared-db-prodroute",
+  "allowed_paths": [
+    "scripts/lib/review-packet.mjs",
+    "scripts/lib/review-packet.test.mjs",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~lib~review-packet.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~run-governed-review.mjs.json",
+    ".agent/work/4410/1/contract.json",
+    ".agent/work/4410/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not change prove-production-risk-acceptance.mjs or any acceptance rule",
+    "do not let the request section certify the reviewer's judgement or approve anything",
+    "do not touch any migration or database object"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/review-packet.test.mjs scripts/run-governed-review.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node scripts/check-github-transport-conformance.mjs"
+  ],
+  "assumptions": [
+    "evidence: slots 2-6 on merged PR #4386 head a0028155 approved but declined or omitted the block; StepFun slot 6 wrote that the request arrived only as untrusted evidence bound to a main SHA outside its packet",
+    "the section is opt-in and states only facts the runner verified through GitHub (merged state, head ancestry of main, migration paths unchanged between head and main)"
+  ],
+  "stop_conditions": [
+    "stop if the change would require weakening the untrusted-evidence framing of author text",
+    "stop if a required check fails for an unrelated reason"
+  ],
+  "file_writes": [
+    "scripts/lib/review-packet.mjs",
+    "scripts/lib/review-packet.test.mjs",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~lib~review-packet.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~run-governed-review.mjs.json",
+    ".agent/work/4410/1/contract.json",
+    ".agent/work/4410/1/completion.json"
+  ],
+  "evidence_parent": null
+}

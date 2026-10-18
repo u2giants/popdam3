@@ -1706,3 +1706,12 @@ test('GLM diagnostic cannot attribute quota to another or unbound wrapper',()=>{
   for(const wrapper of ['ai-stepfun','ai-muse',undefined])assert.equal(wrapperFailureReason({stderr:ACTUAL_GLM_QUOTA_DIAGNOSTIC},wrapper),'wrapper stderr was present but its reason was not recognized; inspect the exact wrapper session')
   assert.match(wrapperFailureReason({stderr:ACTUAL_GLM_QUOTA_DIAGNOSTIC},'ai-glm'),/^insufficient_quota:/)
 })
+
+test('issue #4410: production-risk request options parse as runner options, not wrapper arguments', () => {
+  const main = 'e'.repeat(40)
+  const parsed = parseArgs(['--pr', '4386', '--issue', '4373', '--production-risk-main', main, '--production-risk-classes', 'expected_downtime', '--production-risk-allowlist', '20261016210024', '--', 'new', 's'])
+  assert.equal(parsed.productionRiskMain, main)
+  assert.equal(parsed.productionRiskClasses, 'expected_downtime')
+  assert.equal(parsed.productionRiskAllowlist, '20261016210024')
+  assert.deepEqual(parsed.wrapperArgs, ['new', 's'])
+})
