@@ -180,3 +180,18 @@ describe("AI Model Pool", () => {
     expect(includeCurrentModel(visible, visible[0])).toEqual(visible);
   });
 });
+
+describe("system config attribution", () => {
+  it("uses nullable system attribution while preserving ordinary users and atomic writes", async () => {
+    const calls: Array<Array<Record<string, unknown>>> = [];
+    const client = { from: (_table: "admin_config") => ({ upsert: async (rows: Array<Record<string, unknown>>) => { calls.push(rows); return { error: null }; } }) };
+    const user = "123e4567-e89b-42d3-a456-426614174000";
+    const rows = [{ key: "AI_TAG_PARALLEL_RUN", value: {enabled: false}, updated_by: "system" }, {key: "OTHER", value: "preserved", updated_by: user}];
+    expect(await upsertConfigRowsAtomically(client, rows)).toEqual({error:null});
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toEqual({...rows[0],updated_by:null});
+    expect(calls[0][1]).toEqual(rows[1]);
+    expect(rows[0].updated_by).toBe("system");
+    expect(calls[0][0].value).toEqual({enabled:false});
+  });
+});
