@@ -31,3 +31,32 @@ test("a bake-off with a batch-only model is marked failed, never left running", 
     globalThis.fetch = original;
   }
 });
+
+test("a re-queued bake-off skips answers that already succeeded", async () => {
+  const modelCalls: string[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const method = (init?.method ?? "GET").toUpperCase();
+    const accept = new Headers(init?.headers).get("accept") ?? "";
+    const reply = (rows: unknown[]) => new Response(JSON.stringify(accept.includes("pgrst.object") ? (rows[0] ?? null) : rows), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes("/rest/v1/admin_config")) return reply([{ value: "test-key" }]);
+    if (url.includes("/rest/v1/ai_tag_bakeoff_runs")) {
+      if (method === "PATCH") return new Response(null, { status: 204 });
+      return reply([{ id: "run-1", model_a: "qwen/qwen3-vl-32b-instruct", model_b: "openai/gpt-5.6", model_c: null, model_d: null, model_e: null, asset_ids: ["a1"] }]);
+    }
+    if (url.includes("/rest/v1/ai_tag_bakeoff_results") && method === "GET") return reply([{ asset_id: "a1", model_slot: "a" }, { asset_id: "a1", model_slot: "b" }]);
+    if (url.includes("/rest/v1/assets")) return reply([{ id: "a1", filename: "f.png", relative_path: "x/f.png", thumbnail_url: "https://example.test/t.png" }]);
+    if (url.includes("openrouter.ai") || url.includes("example.test")) modelCalls.push(url);
+    return reply([]);
+  }) as typeof fetch;
+  try {
+    const result = await handleAiTagBakeoff({ status: "running", cursor: 0, params: { run_id: "run-1" } } as unknown as OpState);
+    assert.equal(result.ok, true);
+    assert.equal(result.evaluated, 2);
+    assert.equal(result.failed, 0);
+    assert.deepEqual(modelCalls.filter((u) => !u.includes("/models")), []);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

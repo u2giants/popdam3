@@ -528,16 +528,29 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
     }
   }
 
+  // A re-queued run only fills in answers that have not succeeded yet, so a
+  // retry never re-pays for (or overwrites) a model's existing answer.
+  const { data: doneRows } = await client
+    .from("ai_tag_bakeoff_results")
+    .select("asset_id, model_slot")
+    .eq("run_id", runId)
+    .eq("status", "succeeded")
+    .in("asset_id", batchIds);
+  const succeeded = new Set((doneRows ?? []).map((r: { asset_id: string; model_slot: string }) => `${r.asset_id}:${r.model_slot}`));
+
   for (const asset of (assets ?? []) as BakeoffAsset[]) {
+    const pending = models.filter(([slot]) => !succeeded.has(`${asset.id}:${slot}`));
+    evaluated += models.length - pending.length;
+    if (pending.length === 0) continue;
     const source = await resolveBakeoffImageUrl(asset);
     if (!source) {
-      failed += models.length;
+      failed += pending.length;
       failureSamples.push({ at: new Date().toISOString(), asset_id: asset.id, filename: asset.filename ?? "", relative_path: asset.relative_path ?? "", error: "No image URL" });
       continue;
     }
     try {
       const [prompt, image] = await Promise.all([buildImageTaggingPrompt(asset), fetchImageData(source.url)]);
-      for (const [slot, modelId] of models) {
+      for (const [slot, modelId] of pending) {
         const result = await runModel(runId, asset, slot, modelId, prompt, image, source.rendition, isScaleDownModel(modelId) ? { prompt: SCALEDOWN_PRICE_PER_TOKEN, completion: 0 } : prices.get(modelId));
         if (result.ok) evaluated++;
         else {
@@ -547,7 +560,7 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      failed += models.length;
+      failed += pending.length;
       failureSamples.push({ at: new Date().toISOString(), asset_id: asset.id, filename: asset.filename ?? "", relative_path: asset.relative_path ?? "", error: msg.slice(0, 500) });
     }
   }

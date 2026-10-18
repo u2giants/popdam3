@@ -408,6 +408,20 @@ export default function AiTagBakeoffTab() {
   }, [currentRun, results, reviews]);
   const providerPatternSummary = useMemo(() => providerPatterns(results), [results]);
 
+  // Re-queues an existing run; the worker only calls models whose answer for
+  // an image has not succeeded yet.
+  const retryFailed = useMutation({
+    mutationFn: async (runId: string) => {
+      await op.queue({
+        params: { run_id: runId },
+        initialProgress: { evaluated: 0, failed: 0, total: summary.totalResponses },
+        forceRestart: true,
+      });
+    },
+    onSuccess: () => toast.success("Retrying failed answers"),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const createRun = useMutation({
     mutationFn: async () => {
       const selectedModels = models.map((m) => m.trim());
@@ -588,6 +602,18 @@ export default function AiTagBakeoffTab() {
                   ))}
                 </SelectContent>
               </Select>
+              {currentRun && summary.failed > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  disabled={retryFailed.isPending || op.isActive || op.isQueued}
+                  onClick={() => retryFailed.mutate(currentRun.id)}
+                >
+                  {retryFailed.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                  Retry {summary.failed} failed
+                </Button>
+              )}
               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => {
                 queryClient.invalidateQueries({ queryKey: ["ai-tag-bakeoff-runs"] });
                 if (activeRunId) queryClient.invalidateQueries({ queryKey: ["ai-tag-bakeoff-run", activeRunId] });
