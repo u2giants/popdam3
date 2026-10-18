@@ -99,7 +99,7 @@ export function AiVisionConfigCard() {
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
           Used as the final fallback when mupdf text extraction and OCR both fail (e.g. scanned PDFs with no machine-readable text).
-          Sourced from OpenRouter. The Model Pool in Settings → Processing → AI Tagging controls which models appear here; a saved selection outside the pool remains visible.
+          Sourced from OpenRouter. Available models in Settings → Processing → AI Tagging controls which models appear here; a saved selection that is turned off remains visible.
         </p>
         {modelsLoading && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -126,21 +126,21 @@ export function AiVisionConfigCard() {
         )}
         {!modelsLoading && !modelsError && currentOutsidePool && availableVisionModels.length === 0 && (
           <p className="text-sm text-amber-600">
-            The saved model is outside the Model Pool and remains selected. No OpenRouter catalog models are currently available; check the API key or refresh the catalog.
+            The saved model is turned off in Available models and remains selected. No OpenRouter catalog models are currently available; check the API key or refresh the catalog.
           </p>
         )}
         {!modelsLoading && availableVisionModels.length > 0 && visionModels.length === 0 && (
           <p className="text-sm text-amber-600">
             {currentOutsidePool
-              ? "All PDF catalog models are hidden by the Model Pool; the saved selection remains available. Add another in Settings → Processing → AI Tagging."
-              : "All PDF models are hidden by the Model Pool. Add one in Settings → Processing → AI Tagging."}
+              ? "All PDF catalog models are turned off in Available models; the saved selection remains available. Turn one on in Settings → Processing → AI Tagging."
+              : "All PDF models are turned off in Available models. Turn one on in Settings → Processing → AI Tagging."}
           </p>
         )}
         {selectModels.length > 0 && (
           <div className="flex items-end gap-3">
             <div className="flex-1 space-y-1.5">
               <div className="flex items-center gap-2">
-                <Label className="text-xs">Vision model ({visionModels.length} in Model Pool)</Label>
+                <Label className="text-xs">Vision model ({visionModels.length} available · needs vision input)</Label>
                 <Button
                   type="button"
                   variant="ghost"
@@ -162,13 +162,13 @@ export function AiVisionConfigCard() {
                     <SelectItem key={m.id} value={m.id} className="text-xs" suffix={formatOpenRouterPricing(m.pricing)}>
                       {m.name}
                       <span className="ml-2 text-muted-foreground text-[10px]">{m.id}</span>
-                      {currentOutsidePool && m.id === savedModelId && <span className="ml-2 text-amber-600 text-[10px]">outside Model Pool</span>}
+                      {currentOutsidePool && m.id === savedModelId && <span className="ml-2 text-amber-600 text-[10px]">turned off</span>}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {currentOutsidePool && selectedModelId === savedModelId && (
-                <p className="text-[10px] text-amber-600">The saved model is outside the Model Pool and remains selected until you choose a model shown in the pool.</p>
+                <p className="text-[10px] text-amber-600">The saved model is turned off in Available models and remains selected until you choose a model that is turned on.</p>
               )}
             </div>
             <Button

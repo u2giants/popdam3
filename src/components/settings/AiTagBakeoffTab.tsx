@@ -491,7 +491,7 @@ export default function AiTagBakeoffTab() {
             <SelectContent className="sm:min-w-[28rem]">
               {visibleModelsForSlot.map((model) => (
                 <SelectItem key={model.id} value={model.id} className="font-mono text-xs" suffix={formatOpenRouterPricing(model.pricing)}>
-                  {fmtModel(model.id)}{selectedOutsidePool && model.id === selectedId ? " (outside Model Pool)" : ""}{model.supports_tools ? model.tool_choice_modes?.includes("named") ? " (tool named)" : model.tool_choice_modes?.includes("required") ? " (tool required)" : " (tool auto)" : model.supports_structured_outputs ? " (schema)" : " (json)"}
+                  {fmtModel(model.id)}{selectedOutsidePool && model.id === selectedId ? " (turned off)" : ""}{model.supports_tools ? model.tool_choice_modes?.includes("named") ? " · tool named" : model.tool_choice_modes?.includes("required") ? " · tool required" : " · tool auto" : model.supports_structured_outputs ? " · schema" : " · json"}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -499,7 +499,7 @@ export default function AiTagBakeoffTab() {
         ) : (
           <p className="text-[10px] text-amber-600">
             {poolHidesAllBakeoffModels
-              ? "All bake-off models are hidden by the Model Pool. Add one in Settings → Processing → AI Tagging."
+              ? "All bake-off models are turned off in Available models. Turn one on in Settings → Processing → AI Tagging."
               : "No bake-off models are available."}
           </p>
         )}
@@ -507,8 +507,8 @@ export default function AiTagBakeoffTab() {
           <p className="text-[10px] text-amber-600">
             {selectedOutsidePool
               ? poolHidesAllBakeoffModels
-                ? "This selected model is outside the Model Pool and remains available. No other bake-off models are shown; add one in Settings → Processing → AI Tagging."
-                : "This selected model is outside the Model Pool and remains available until you replace it."
+                ? "This selected model is turned off in Available models and remains available. No other bake-off models are shown; turn one on in Settings → Processing → AI Tagging."
+                : "This selected model is turned off in Available models and remains available until you replace it."
               : "No other bake-off models are shown. Add one in Settings → Processing → AI Tagging."}
           </p>
         )}

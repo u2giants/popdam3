@@ -2,12 +2,26 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AI_MODEL_ENDPOINTS, aiModelEndpoint, SCALEDOWN_SUMMARIZE_MODEL, type AiModelEndpoint, type AiModelPool } from "@/lib/ai-model-options";
+import { Switch } from "@/components/ui/switch";
+import {
+  CAPABILITY_CHIP_LABELS,
+  modelCapabilityChips,
+  modelEndpointOf,
+  modelPricingLabel,
+  modelStructuredOutputSummary,
+  type AiCapabilityChip,
+  type AiCatalogModel,
+} from "@/lib/ai-model-catalog";
+import {
+  AI_MODEL_ENDPOINTS,
+  modelInPool,
+  normalizeAiModelPool,
+  SCALEDOWN_SUMMARIZE_MODEL,
+  type AiModelEndpoint,
+  type AiModelPool,
+} from "@/lib/ai-model-options";
 
-export interface ModelPoolOption {
-  id: string;
-  name: string;
-}
+export type ModelPoolOption = AiCatalogModel & { id: string; name: string };
 
 const ENDPOINT_LABELS: Record<AiModelEndpoint, string> = {
   openrouter: "OpenRouter",
@@ -16,7 +30,30 @@ const ENDPOINT_LABELS: Record<AiModelEndpoint, string> = {
   "scaledown-direct": "ScaleDown (direct)",
 };
 
-const BUILT_IN_DIRECT_MODELS: ModelPoolOption[] = [SCALEDOWN_SUMMARIZE_MODEL];
+const BUILT_IN_DIRECT_MODELS: ModelPoolOption[] = [
+  {
+    ...SCALEDOWN_SUMMARIZE_MODEL,
+    supportsTools: false,
+    supportsStructuredOutputs: false,
+    supportsResponseFormat: false,
+    toolChoiceModes: [],
+    inputModalities: ["text"],
+    imageInput: false,
+    pricing: null,
+    capabilitySource: "direct_provider",
+  },
+];
+
+type EndpointFilter = "all" | AiModelEndpoint;
+type CapabilityFilter = "all" | AiCapabilityChip;
+
+function endpointModelIds(endpoint: AiModelEndpoint, models: ModelPoolOption[]): string[] {
+  return models.filter((model) => modelEndpointOf(model.id) === endpoint).map((model) => model.id);
+}
+
+function endpointUsesAllModels(pool: AiModelPool, endpoint: AiModelEndpoint): boolean {
+  return !Array.isArray(pool[endpoint]);
+}
 
 export function ModelPoolEditor({
   models,
@@ -36,202 +73,221 @@ export function ModelPoolEditor({
   onSave: () => void;
 }) {
   const [search, setSearch] = useState("");
-  const [activeEndpoint, setActiveEndpoint] = useState<AiModelEndpoint>("openrouter");
-  const groups = useMemo(() => {
+  const [endpointFilter, setEndpointFilter] = useState<EndpointFilter>("all");
+  const [capabilityFilter, setCapabilityFilter] = useState<CapabilityFilter>("all");
+
+  const catalog = useMemo(() => {
     const unique = new Map<string, ModelPoolOption>();
     for (const model of models) unique.set(model.id, model);
     for (const model of BUILT_IN_DIRECT_MODELS) {
       if (!unique.has(model.id)) unique.set(model.id, model);
     }
-    return AI_MODEL_ENDPOINTS.map((endpoint) => ({
-      endpoint,
-      options: [...unique.values()]
-        .filter((model) => aiModelEndpoint(model.id) === endpoint)
-        .sort((a, b) => a.id.localeCompare(b.id)),
-    }));
+    return [...unique.values()].sort((a, b) => a.id.localeCompare(b.id));
   }, [models]);
-  const activeGroup = groups.find((group) => group.endpoint === activeEndpoint);
-  const endpointOptions = activeGroup?.options ?? [];
-  const endpointPool = pool[activeEndpoint];
-  const includesFutureModels = !Array.isArray(endpointPool);
-  const selectedIds = Array.isArray(endpointPool) ? endpointPool : endpointOptions.map((model) => model.id);
-  const selectedCount = endpointOptions.filter((model) => selectedIds.includes(model.id)).length;
+
+  const normalizedPool = useMemo(() => normalizeAiModelPool(pool), [pool]);
   const query = search.trim().toLowerCase();
-  const matchingModels = query
-    ? endpointOptions.filter((model) => `${model.name} ${model.id}`.toLowerCase().includes(query))
-    : endpointOptions;
-  const shownModels = matchingModels.filter((model) => selectedIds.includes(model.id));
-  const availableModels = matchingModels.filter((model) => !selectedIds.includes(model.id));
 
-  function updateEndpoint(endpoint: AiModelEndpoint, ids: string[]) {
-    onChange({ ...pool, [endpoint]: [...new Set(ids)].sort() });
+  const filtered = catalog.filter((model) => {
+    if (endpointFilter !== "all" && modelEndpointOf(model.id) !== endpointFilter) return false;
+    if (capabilityFilter !== "all" && !modelCapabilityChips(model).includes(capabilityFilter)) return false;
+    if (query && !`${model.name} ${model.id}`.toLowerCase().includes(query)) return false;
+    return true;
+  });
+
+  const enabledCount = catalog.filter((model) => modelInPool(model.id, normalizedPool)).length;
+  const anyAllMode = AI_MODEL_ENDPOINTS.some((endpoint) => endpointUsesAllModels(normalizedPool, endpoint));
+  const anyCustomList = AI_MODEL_ENDPOINTS.some((endpoint) => Array.isArray(normalizedPool[endpoint]));
+
+  function materializeEndpoint(endpoint: AiModelEndpoint, enabledIds: string[]) {
+    onChange({ ...normalizedPool, [endpoint]: [...new Set(enabledIds)].sort() });
   }
 
-  function setModelShown(modelId: string, shown: boolean) {
-    updateEndpoint(activeEndpoint, shown
-      ? [...selectedIds, modelId]
-      : selectedIds.filter((id) => id !== modelId));
+  function setModelAvailable(modelId: string, available: boolean) {
+    const endpoint = modelEndpointOf(modelId);
+    const currentIds = endpointModelIds(endpoint, catalog);
+    const base = endpointUsesAllModels(normalizedPool, endpoint)
+      ? currentIds
+      : (normalizedPool[endpoint] ?? []).filter((id) => currentIds.includes(id) || id === modelId);
+    const nextIds = available
+      ? [...new Set([...base, modelId])]
+      : base.filter((id) => id !== modelId);
+    materializeEndpoint(endpoint, nextIds);
   }
 
-  function addAllAvailable() {
-    updateEndpoint(activeEndpoint, endpointOptions.map((model) => model.id));
+  function setFilteredAvailable(available: boolean) {
+    const next = { ...normalizedPool };
+    for (const endpoint of AI_MODEL_ENDPOINTS) {
+      const endpointIds = endpointModelIds(endpoint, catalog);
+      const changed = filtered.filter((model) => modelEndpointOf(model.id) === endpoint);
+      if (changed.length === 0) continue;
+      const base = endpointUsesAllModels(normalizedPool, endpoint)
+        ? endpointIds
+        : (normalizedPool[endpoint] ?? []).filter((id) => endpointIds.includes(id));
+      const changedIds = new Set(changed.map((model) => model.id));
+      const nextIds = available
+        ? [...new Set([...base, ...changedIds])]
+        : base.filter((id) => !changedIds.has(id));
+      next[endpoint] = [...new Set(nextIds)].sort();
+    }
+    onChange(next);
   }
 
-  function removeAll() {
-    updateEndpoint(activeEndpoint, []);
-  }
-
-  function showFutureModels() {
-    const next = { ...pool };
-    delete next[activeEndpoint];
+  function resetToAllModels() {
+    const next: AiModelPool = { ...normalizedPool };
+    for (const endpoint of AI_MODEL_ENDPOINTS) delete next[endpoint];
     onChange(next);
   }
 
   return (
-    <section className="space-y-3 rounded-md border border-border p-3" aria-label="Model Pool">
-      <div>
-        <h3 className="text-xs font-semibold">Model Pool</h3>
-        <p className="mt-1 text-[10px] text-muted-foreground">
-          Add or remove models from each endpoint’s dropdowns. Save Model Pool to apply your changes. The default includes new catalog models automatically.
-        </p>
+    <section className="space-y-3 rounded-md border border-border p-3" aria-label="Available models">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="text-xs font-semibold">Available models</h3>
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            Every model this app can reach, with the capabilities that matter here and OpenRouter pricing per 1M tokens.
+            Turn a model off to hide it from every AI dropdown. Save when done.
+          </p>
+        </div>
+        <Badge variant="outline" className="text-[10px]">
+          {enabledCount} of {catalog.length} available
+          {anyAllMode ? " · all + future" : ""}
+        </Badge>
       </div>
 
-      <div className="grid grid-cols-2 gap-1 sm:grid-cols-4" role="group" aria-label="Model Pool endpoints">
-        {groups.map(({ endpoint, options }) => {
-          const endpointSelection = pool[endpoint];
-          const allModelsShown = !Array.isArray(endpointSelection);
-          const chosenIds = allModelsShown ? options.map((model) => model.id) : endpointSelection;
-          const count = options.filter((model) => chosenIds.includes(model.id)).length;
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter models by endpoint">
+        <Button
+          type="button"
+          size="sm"
+          variant={endpointFilter === "all" ? "default" : "outline"}
+          className="h-7 px-2 text-[10px]"
+          onClick={() => setEndpointFilter("all")}
+          disabled={saving}
+        >
+          All endpoints
+        </Button>
+        {AI_MODEL_ENDPOINTS.map((endpoint) => {
+          const count = catalog.filter((model) => modelEndpointOf(model.id) === endpoint).length;
           return (
-            <button
+            <Button
               key={endpoint}
               type="button"
-              aria-pressed={activeEndpoint === endpoint}
-              onClick={() => setActiveEndpoint(endpoint)}
+              size="sm"
+              variant={endpointFilter === endpoint ? "default" : "outline"}
+              className="h-7 px-2 text-[10px]"
+              onClick={() => setEndpointFilter(endpoint)}
               disabled={saving}
-              className={`rounded border px-2 py-1.5 text-left text-[10px] transition-colors ${activeEndpoint === endpoint
-                ? "border-primary bg-primary/10 text-foreground"
-                : "border-border/70 text-muted-foreground hover:bg-muted/60"}`}
             >
-              <span className="block font-medium">{ENDPOINT_LABELS[endpoint]}</span>
-              <span className="block">{allModelsShown ? "All + future" : `${count} of ${options.length} shown`}</span>
-            </button>
+              {ENDPOINT_LABELS[endpoint]} ({count})
+            </Button>
           );
         })}
       </div>
 
-      <section aria-label={`${ENDPOINT_LABELS[activeEndpoint]} dropdown models`} className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <h4 className="text-xs font-semibold">{ENDPOINT_LABELS[activeEndpoint]} dropdown choices</h4>
-            <p className="mt-1 text-[10px] text-muted-foreground">
-              {includesFutureModels
-                ? "All available models are included, and new catalog models will appear automatically. Removing or adding a model creates a fixed list for this endpoint."
-                : `${selectedCount} of ${endpointOptions.length} currently available models are included.`}
-            </p>
-          </div>
-          <Badge variant="outline" className="text-[10px]">
-            {includesFutureModels ? "All models + future" : `${selectedCount}/${endpointOptions.length} included`}
-          </Badge>
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={addAllAvailable} disabled={saving || endpointOptions.length === 0}>
-            Add all available models
-          </Button>
-          <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={removeAll} disabled={saving}>
-            Remove all models
-          </Button>
-          <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-[10px]" onClick={showFutureModels} disabled={saving || includesFutureModels}>
-            Include future models automatically
-          </Button>
-        </div>
-
+      <div className="flex flex-wrap items-center gap-2">
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder={`Search ${ENDPOINT_LABELS[activeEndpoint]} models`}
-          className="h-8 text-xs"
-          aria-label={`Search ${ENDPOINT_LABELS[activeEndpoint]} models`}
+          placeholder="Search by name or model id"
+          className="h-8 max-w-xs text-xs"
+          aria-label="Search available models"
           disabled={saving}
         />
-        {loading && <p className="text-[10px] text-muted-foreground">Refreshing available model catalogs…</p>}
+        <select
+          className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+          value={capabilityFilter}
+          onChange={(event) => setCapabilityFilter(event.target.value as CapabilityFilter)}
+          disabled={saving}
+          aria-label="Filter models by capability"
+        >
+          <option value="all">All capabilities</option>
+          {(Object.keys(CAPABILITY_CHIP_LABELS) as AiCapabilityChip[]).map((chip) => (
+            <option key={chip} value={chip}>{CAPABILITY_CHIP_LABELS[chip]}</option>
+          ))}
+        </select>
+        <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={() => setFilteredAvailable(true)} disabled={saving || filtered.length === 0}>
+          Turn on shown
+        </Button>
+        <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={() => setFilteredAvailable(false)} disabled={saving || filtered.length === 0}>
+          Turn off shown
+        </Button>
+        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-[10px]" onClick={resetToAllModels} disabled={saving || !anyCustomList}>
+          Reset to all models
+        </Button>
+      </div>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded border border-border/70 p-2">
-            <h5 className="mb-1 text-[10px] font-semibold">Shown in dropdowns ({shownModels.length})</h5>
-            <div className="max-h-56 space-y-1 overflow-y-auto" aria-label={`${ENDPOINT_LABELS[activeEndpoint]} models shown in dropdowns`}>
-              {shownModels.map((model) => (
-                <div key={model.id} className="flex items-start gap-2 rounded px-1.5 py-1 hover:bg-muted/60">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs">{model.name}</span>
-                    <code className="block truncate text-[10px] text-muted-foreground">{model.id}</code>
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 shrink-0 px-2 text-[10px]"
-                    onClick={() => setModelShown(model.id, false)}
-                    disabled={saving}
-                    aria-label={`Remove ${model.name} from dropdowns`}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              ))}
-              {shownModels.length === 0 && (
-                <p className="px-1.5 py-2 text-[10px] text-muted-foreground">
-                  {query ? "No shown models match this search." : "No models from this endpoint are currently shown."}
-                </p>
-              )}
-            </div>
-          </div>
+      {loading && <p className="text-[10px] text-muted-foreground">Refreshing model catalogs…</p>}
 
-          <div className="rounded border border-border/70 p-2">
-            <h5 className="mb-1 text-[10px] font-semibold">Available to add ({availableModels.length})</h5>
-            <div className="max-h-56 space-y-1 overflow-y-auto" aria-label={`${ENDPOINT_LABELS[activeEndpoint]} models available to add`}>
-              {availableModels.map((model) => (
-                <div key={model.id} className="flex items-start gap-2 rounded px-1.5 py-1 hover:bg-muted/60">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs">{model.name}</span>
-                    <code className="block truncate text-[10px] text-muted-foreground">{model.id}</code>
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-6 shrink-0 px-2 text-[10px]"
-                    onClick={() => setModelShown(model.id, true)}
-                    disabled={saving}
-                    aria-label={`Add ${model.name} to dropdowns`}
-                  >
-                    Add
-                  </Button>
-                </div>
-              ))}
-              {availableModels.length === 0 && (
-                <p className="px-1.5 py-2 text-[10px] text-muted-foreground">
-                  {query ? "No available models match this search." : "All available models are already shown."}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
+      <div className="max-h-[28rem] overflow-y-auto rounded border border-border/70">
+        <table className="w-full text-left text-xs">
+          <thead className="sticky top-0 bg-muted/80 text-[10px] text-muted-foreground">
+            <tr>
+              <th className="px-2 py-1.5 font-medium">Available</th>
+              <th className="px-2 py-1.5 font-medium">Model</th>
+              <th className="px-2 py-1.5 font-medium">Endpoint</th>
+              <th className="px-2 py-1.5 font-medium">Capabilities</th>
+              <th className="px-2 py-1.5 font-medium">Structured output</th>
+              <th className="px-2 py-1.5 font-medium">Pricing / 1M tokens</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((model) => {
+              const available = modelInPool(model.id, normalizedPool);
+              const endpoint = modelEndpointOf(model.id);
+              return (
+                <tr key={model.id} className="border-t border-border/50 align-top hover:bg-muted/40">
+                  <td className="px-2 py-1.5">
+                    <Switch
+                      checked={available}
+                      onCheckedChange={(checked) => setModelAvailable(model.id, checked)}
+                      disabled={saving}
+                      aria-label={`${available ? "Disable" : "Enable"} ${model.name}`}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <span className="block font-medium">{model.name}</span>
+                    <code className="block text-[10px] text-muted-foreground">{model.id}</code>
+                  </td>
+                  <td className="px-2 py-1.5 text-[10px] text-muted-foreground">{ENDPOINT_LABELS[endpoint]}</td>
+                  <td className="px-2 py-1.5">
+                    <span className="flex flex-wrap gap-1">
+                      {modelCapabilityChips(model).map((chip) => (
+                        <Badge key={chip} variant="secondary" className="text-[9px]">{CAPABILITY_CHIP_LABELS[chip]}</Badge>
+                      ))}
+                    </span>
+                  </td>
+                  <td className="px-2 py-1.5 text-[10px] text-muted-foreground">
+                    {modelStructuredOutputSummary(model) || "plain text"}
+                  </td>
+                  <td className="px-2 py-1.5 font-mono text-[10px]">
+                    {modelPricingLabel(model)}
+                  </td>
+                </tr>
+              );
+            })}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-2 py-4 text-[10px] text-muted-foreground">
+                  {loading ? "Loading models…" : "No models match these filters."}
+                  {endpointFilter === "openrouter" && catalog.length <= BUILT_IN_DIRECT_MODELS.length && !loading
+                    ? " OpenRouter models appear after its API key is saved."
+                    : ""}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
-        {activeEndpoint === "openrouter" && endpointOptions.length === 0 && !loading && (
-          <p className="text-[10px] text-muted-foreground">OpenRouter models appear after its API key is saved and the account catalog loads.</p>
-        )}
-
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-2">
-          <p className="text-[10px] text-muted-foreground" aria-live="polite">
-            {hasChanges ? "Unsaved Model Pool changes" : "Model Pool saved"}
-          </p>
-          <Button type="button" size="sm" className="h-8 text-xs" onClick={onSave} disabled={!hasChanges || saving}>
-            {saving ? "Saving Model Pool…" : "Save Model Pool"}
-          </Button>
-        </div>
-      </section>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-2">
+        <p className="text-[10px] text-muted-foreground" aria-live="polite">
+          {hasChanges ? "Unsaved availability changes" : "Model availability saved"}
+          {anyAllMode ? " · new catalog models stay available until you customize a list" : ""}
+        </p>
+        <Button type="button" size="sm" className="h-8 text-xs" onClick={onSave} disabled={!hasChanges || saving}>
+          {saving ? "Saving…" : "Save available models"}
+        </Button>
+      </div>
     </section>
   );
 }

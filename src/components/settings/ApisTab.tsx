@@ -12,8 +12,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CURRENT_APP } from "@/lib/app-mode";
-import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
+import { hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
 import { includeCurrentModel, modelAllowedForTask, modelInPool, modelSelectorPresentation, normalizeAiModelPool, sameAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
+import {
+  modelCapabilityChips,
+  modelMeetsTaskRequirements,
+  modelPricingLabel,
+  modelStructuredOutputSummary,
+  taskRequirementChips,
+  type AiCatalogModel,
+} from "@/lib/ai-model-catalog";
 import { toast } from "sonner";
 import { saveAiModelConfig, saveAiModelPool, type AiModelConfigDraft, type AiModelKeyField } from "@/lib/ai-model-config-save";
 import { ModelPoolEditor } from "@/components/settings/ModelPoolEditor";
@@ -492,7 +500,7 @@ const TASK_MODEL_LABELS: Record<string, {
 }> = {
   vision_tagging: {
     label: "Image Tagging",
-    description: "Vision model for analyzing thumbnails and generating tags, descriptions, characters. Must support image input plus tools, structured outputs, or JSON mode.",
+    description: "Looks at one asset thumbnail and returns structured catalog tags, descriptions, and taxonomy IDs. Runs at bulk scale across the whole library.",
     defaultModel: "qwen/qwen3-vl-32b-instruct",
     requiresVision: true,
     requiresStructuredOutput: true,
@@ -501,14 +509,15 @@ const TASK_MODEL_LABELS: Record<string, {
   },
   text_classification: {
     label: "ERP Classification",
-    description: "Text model for classifying products into categories (Wall, Tabletop, etc.). Must support tool use.",
+    description: "Text-only classifier for product categories (Wall, Tabletop, etc.). Only used when deterministic ERP codes cannot resolve a category.",
     defaultModel: "anthropic/claude-haiku-4.5",
     requiresTools: true,
   },
   pdf_extraction: {
     label: "PDF Text Extraction",
-    description: "Vision model for extracting text from PDF pages (agent fallback after OCR)",
+    description: "Last-resort vision reader for PDF/AI pages after native text extraction and local OCR both fail. Returns plain raw text.",
     defaultModel: "google/gemini-2.5-flash",
+    requiresVision: true,
     requiresTools: false,
   },
 };
@@ -704,7 +713,7 @@ export function AiModelsConfigSection() {
   const savePool = useMutation({
     mutationFn: (pool: ReturnType<typeof normalizeAiModelPool>) => saveAiModelPool(call, pool),
     onSuccess: () => {
-      toast.success("Model Pool saved");
+      toast.success("Available models saved");
       queryClient.invalidateQueries({ queryKey: ["admin-config"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -729,15 +738,12 @@ export function AiModelsConfigSection() {
     error: modelsError,
     refetch: refetchOpenRouterModels,
   } = useQuery<{
-    models: Array<{
-    id: string;
-    name: string;
-    supportsTools: boolean;
-    supportsStructuredOutputs: boolean;
-    supportsResponseFormat: boolean;
-    toolChoiceModes: string[];
-    inputModalities: string[];
-    pricing?: OpenRouterPricing;
+    models: Array<AiCatalogModel & {
+      supportsTools: boolean;
+      supportsStructuredOutputs: boolean;
+      supportsResponseFormat: boolean;
+      toolChoiceModes: string[];
+      inputModalities: string[];
     }>;
     warning?: string | null;
   }>({
@@ -745,7 +751,7 @@ export function AiModelsConfigSection() {
     enabled: !!configData,
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
-      const items = (data?.models ?? []) as Array<{ id: string; name?: string; supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; tool_choice_modes?: string[]; input_modalities?: string[]; pricing?: OpenRouterPricing }>;
+      const items = (data?.models ?? []) as Array<{ id: string; name?: string; supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; tool_choice_modes?: string[]; input_modalities?: string[]; image_input?: boolean | null; context_length?: number | null; capability_source?: string; pricing?: OpenRouterPricing }>;
       const incoming = items
         .filter((m) => !hasUnavailableOpenRouterPricing(m.pricing))
         .map((m) => ({
@@ -756,6 +762,9 @@ export function AiModelsConfigSection() {
           supportsResponseFormat: m.supports_response_format === true,
           toolChoiceModes: m.tool_choice_modes ?? [],
           inputModalities: m.input_modalities ?? [],
+          imageInput: m.image_input ?? ((m.input_modalities ?? []).includes("image") ? true : ((m.input_modalities ?? []).length ? false : null)),
+          contextLength: m.context_length ?? null,
+          capabilitySource: m.capability_source,
           pricing: m.pricing,
         }))
         .sort((a, b) => a.id.localeCompare(b.id));
@@ -843,7 +852,7 @@ export function AiModelsConfigSection() {
         <div className="border-t pt-3 space-y-3">
           <div>
             <p className="text-xs font-semibold text-foreground">Direct endpoint API keys</p>
-            <p className="text-[10px] text-muted-foreground">These match the direct-provider tabs in Model Pool. Saved values are never shown.</p>
+            <p className="text-[10px] text-muted-foreground">These match the direct-provider entries in Available models. Saved values are never shown.</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <ProviderApiKeyField
@@ -931,7 +940,7 @@ export function AiModelsConfigSection() {
         {/* Task Model Selection */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <Label className="text-xs font-medium">Model per Task</Label>
+            <Label className="text-xs font-medium">Model per task</Label>
             {fetchingModels && (
               <span className="text-[10px] text-muted-foreground">
                 {loadingModels ? "Loading models..." : "Refreshing models..."}
@@ -961,16 +970,18 @@ export function AiModelsConfigSection() {
               <span className="text-[10px] text-muted-foreground">OpenRouter models require a saved OpenRouter API key; direct-provider models may still appear.</span>
             )}
           </div>
+          <p className="text-[10px] text-muted-foreground">
+            Each dropdown lists only models that are turned on above and meet that task’s capability requirements.
+            Prices are OpenRouter rates per 1M input/output tokens.
+          </p>
           <div className="grid gap-3 sm:grid-cols-3">
             {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel, requiresTools, requiresVision, requiresStructuredOutput, fallbackKey, providerPinKey }]) => {
               const currentVal = taskModels[key] || "";
               const modelList = visionCatalog?.models ?? [];
+              const requirements = { requiresVision, requiresTools, requiresStructuredOutput };
               const modelMeetsRequirements = (m: typeof modelList[number] | undefined) => {
                 if (!m) return false;
-                if (requiresTools && !m.supportsTools) return false;
-                if (requiresStructuredOutput && !(m.supportsTools || m.supportsStructuredOutputs || m.supportsResponseFormat)) return false;
-                if (requiresVision && !m.inputModalities.includes("image")) return false;
-                return true;
+                return modelMeetsTaskRequirements(m, requirements);
               };
               const requirementLabel = requiresStructuredOutput
                 ? "image input plus tool calls, structured outputs, or JSON mode"
@@ -979,6 +990,7 @@ export function AiModelsConfigSection() {
                   : requiresVision
                     ? "image input"
                     : "";
+              const requirementChips = taskRequirementChips(requirements);
               const taskCandidates = modelList.filter((model) => modelAllowedForTask(model.id, key));
               const taskCandidatesBeforePool = (requiresTools || requiresStructuredOutput || requiresVision)
                 ? taskCandidates.filter(modelMeetsRequirements)
@@ -991,7 +1003,7 @@ export function AiModelsConfigSection() {
                 && (!currentVal || (!(requiresTools || requiresStructuredOutput || requiresVision) || modelMeetsRequirements(modelList.find((m) => m.id === currentVal))));
               const allOptions = currentVal && !filteredList.some((m) => m.id === currentVal)
                 ? includeCurrentModel(filteredList, modelList.find((m) => m.id === currentVal)
-                  ?? { id: currentVal, name: currentVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] })
+                  ?? { id: currentVal, name: currentVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [], pricing: null })
                 : filteredList;
 
               const fallbackVal = fallbackKey ? (taskModels[fallbackKey] || "") : "";
@@ -1013,18 +1025,15 @@ export function AiModelsConfigSection() {
                     </SelectTrigger>
                     <SelectContent>
                       {options.map((m) => {
-                        const modeLabel = requiresStructuredOutput
-                          ? m.supportsTools
-                            ? m.toolChoiceModes.includes("named") ? " (tool named)" : m.toolChoiceModes.includes("required") ? " (tool required)" : " (tool auto)"
-                            : m.supportsStructuredOutputs
-                              ? " (schema)"
-                              : m.supportsResponseFormat
-                                ? " (json)"
-                                : ""
-                          : "";
+                        const chips = modelCapabilityChips(m).map((chip) => chip === "vision" ? "vision" : chip === "json-schema" ? "schema" : chip === "json-mode" ? "json" : chip === "tool-choice" ? null : chip).filter(Boolean).join(" · ");
+                        const structured = modelStructuredOutputSummary(m);
                         return (
-                          <SelectItem key={m.id} value={m.id} className="text-xs font-mono" suffix={formatOpenRouterPricing(m.pricing)}>
-                            {displayNames[m.id] || m.id}{!modelAllowedForTask(m.id, key, isFallback) ? " (unsupported for this task)" : !modelInPool(m.id, modelPool) ? " (outside Model Pool)" : ""}{modeLabel}{!modelMeetsRequirements(m) && requirementLabel ? " ⚠" : ""}
+                          <SelectItem key={m.id} value={m.id} className="text-xs font-mono" suffix={modelPricingLabel(m)}>
+                            {displayNames[m.id] || m.id}
+                            {!modelAllowedForTask(m.id, key, isFallback) ? " · unsupported for this task" : !modelInPool(m.id, modelPool) ? " · off in Available models" : ""}
+                            {chips ? ` · ${chips}` : ""}
+                            {structured ? ` · ${structured}` : ""}
+                            {!modelMeetsRequirements(m) && requirementLabel ? " · ⚠ missing requirements" : ""}
                           </SelectItem>
                         );
                       })}
@@ -1032,7 +1041,7 @@ export function AiModelsConfigSection() {
                   </Select>
                 ) : modelSelectorPresentation(options.length, hasEligibleModels, showEmptySelect) === "pool-empty" ? (
                   <div aria-disabled="true" className="flex h-8 items-center rounded-md border border-input bg-muted/40 px-3 text-xs text-muted-foreground">
-                    No eligible models are shown in the Model Pool
+                    No eligible models are turned on in Available models
                   </div>
                 ) : (
                   <Input
@@ -1061,9 +1070,21 @@ export function AiModelsConfigSection() {
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
+                  <p className="text-[10px] text-muted-foreground">{description}</p>
+                  {requirementChips.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {requirementChips.map((chip) => (
+                        <Badge key={chip} variant="secondary" className="text-[9px]">Needs {chip}</Badge>
+                      ))}
+                    </div>
+                  )}
                   {renderSelect(key, currentVal, allOptions, defaultModel, poolHidAllTaskModels, filteredList.length > 0)}
+                  <p className="text-[10px] text-muted-foreground">
+                    {filteredList.length} eligible model{filteredList.length === 1 ? "" : "s"} available here
+                    {requirementChips.length ? ` (needs ${requirementChips.join(", ")})` : ""}.
+                  </p>
                   {poolHidAllTaskModels && (
-                    <p className="text-[10px] text-amber-600">All models that meet this task’s requirements are hidden by the Model Pool. Show at least one in the Model Pool above.</p>
+                    <p className="text-[10px] text-amber-600">All models that meet this task’s requirements are turned off in Available models. Turn on at least one above.</p>
                   )}
                   {key === "vision_tagging" && currentVal === "meta-direct/muse-spark-1.3-contributor" && (
                     <p className="text-[10px] text-amber-600 dark:text-amber-400">
@@ -1079,26 +1100,26 @@ export function AiModelsConfigSection() {
                     <p className="text-[10px] text-destructive">This saved model is not supported by this task selector. Choose a model this task can use.</p>
                   )}
                   {currentModelAllowedForTask && !currentModelMeetsRequirements && requirementLabel && (
-                    <p className="text-[10px] text-destructive">This model does not support {requirementLabel}; this task will fail. {poolHidAllTaskModels ? "Show a model that meets these requirements in the Model Pool above." : "Select a different model."}</p>
+                    <p className="text-[10px] text-destructive">This model does not support {requirementLabel}; this task will fail. {poolHidAllTaskModels ? "Turn on a model that meets these requirements in Available models above." : "Select a different model."}</p>
                   )}
                   {currentVal && !modelInPool(currentVal, modelPool) && (
-                    <p className="text-[10px] text-amber-600">This saved model is outside the Model Pool. It remains selected until you choose a model shown in the pool.</p>
+                    <p className="text-[10px] text-amber-600">This saved model is turned off in Available models. It remains selected until you choose a model that is turned on.</p>
                   )}
                   {fallbackKey && (
                     <div className="mt-1.5 space-y-1">
                       <Label className="text-[10px] text-muted-foreground">Fallback model (on content filter / provider rejection)</Label>
                       {renderSelect(fallbackKey, fallbackVal, fallbackOptions, "None — mark as failed", poolHidAllFallbackModels, fallbackModelList.length > 0, true)}
                       {poolHidAllFallbackModels && (
-                        <p className="text-[10px] text-amber-600">All eligible fallback models are hidden by the Model Pool. Show one in the Model Pool above.</p>
+                        <p className="text-[10px] text-amber-600">All eligible fallback models are turned off in Available models. Turn one on above.</p>
                       )}
                       {fallbackVal && !modelAllowedForTask(fallbackVal, key, true) && (
                         <p className="text-[10px] text-destructive">This saved model is not supported as a fallback. Choose a model this fallback can use.</p>
                       )}
                       {fallbackVal && modelAllowedForTask(fallbackVal, key, true) && !modelMeetsRequirements(modelList.find((m) => m.id === fallbackVal)) && modelList.length > 0 && requirementLabel && (
-                        <p className="text-[10px] text-destructive">Fallback model does not support {requirementLabel}. {poolHidAllFallbackModels ? "Show a model that meets these requirements in the Model Pool above." : "Choose a different fallback."}</p>
+                        <p className="text-[10px] text-destructive">Fallback model does not support {requirementLabel}. {poolHidAllFallbackModels ? "Turn on a model that meets these requirements in Available models above." : "Choose a different fallback."}</p>
                       )}
                       {fallbackVal && !modelInPool(fallbackVal, modelPool) && (
-                        <p className="text-[10px] text-amber-600">This saved fallback is outside the Model Pool. It remains selected until you choose a model shown in the pool.</p>
+                        <p className="text-[10px] text-amber-600">This saved fallback is turned off in Available models. It remains selected until you choose a model that is turned on.</p>
                       )}
                     </div>
                   )}
@@ -1116,7 +1137,6 @@ export function AiModelsConfigSection() {
                       </p>
                     </div>
                   )}
-                  <p className="text-[10px] text-muted-foreground">{description}</p>
                 </div>
               );
             })}
