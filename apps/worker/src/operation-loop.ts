@@ -419,6 +419,7 @@ const OP_LANES: Record<string, string> = {
   "ai-tag-untagged": "ai-tagging",
   "ai-tag-all": "ai-tagging",
   "ai-tag-groups": "ai-tagging",
+  "ai-tag-parallel": "ai-parallel",
   "ai-tag-group-profiles": "ai-tagging",
   "ai-tag-bakeoff": "ai-tagging",
   "rebuild-style-groups": "style-groups",
@@ -444,16 +445,17 @@ const OP_LANES: Record<string, string> = {
 //   supabase/functions/_shared/operation-constants.ts  (backend enforcement)
 //   src/components/settings/diagnostics/types.ts       (UI pre-flight check)
 const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
-  "ai-tag-untagged":      ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-all":           ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-groups":        ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-group-profiles": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "refresh-group-metadata"],
+  "ai-tag-untagged":      ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-all":           ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-groups":        ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-parallel":        ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-group-profiles": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "refresh-group-metadata"],
   "ai-tag-bakeoff":       ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "ai-tag-group-profiles"],
-  "refresh-group-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "ai-tag-group-profiles"],
-  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "rich-pdf-extract", "ai-tag-group-profiles"],
+  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "ai-tag-group-profiles"],
+  "refresh-group-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "ai-tag-group-profiles"],
+  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "rich-pdf-extract", "ai-tag-group-profiles"],
   "rich-pdf-extract":     ["rebuild-style-groups"],
-  "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "erp-enrichment", "ai-tag-group-profiles"],
+  "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "erp-enrichment", "ai-tag-group-profiles"],
   "backfill-sku-names":   ["erp-enrichment"],
   "erp-enrichment":       ["reprocess-metadata", "backfill-sku-names"],
 };
@@ -496,7 +498,8 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
   switch (normalizedKey) {
     case "ai-tag-untagged":
     case "ai-tag-all":
-    case "ai-tag-groups": {
+    case "ai-tag-groups":
+    case "ai-tag-parallel": {
       const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples as unknown[] : [];
       const batchFail = Array.isArray(batch.failure_samples) ? batch.failure_samples as unknown[] : [];
       const prevSkip = Array.isArray(prev.skip_samples) ? prev.skip_samples as unknown[] : [];
@@ -858,6 +861,8 @@ export async function dispatch(opKey: string, opState: OpState): Promise<BatchRe
     case "ai-tag-all":
     case "ai-tag-groups":
       return handleBulkAiTag(opState, true);
+    case "ai-tag-parallel":
+      return handleBulkAiTag(opState, true, {}, true, true);
     case "ai-tag-bakeoff":
       return handleAiTagBakeoff(opState);
     case "ai-tag-group-profiles":

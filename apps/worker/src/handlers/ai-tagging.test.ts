@@ -268,3 +268,11 @@ test("parallel trial holds at the saved boundary without fetching or submitting 
   });
   assert.equal(submissions, 0); assert.equal(result.state_transition, "yield_without_save"); assert.equal(result.done, false);
 });
+
+test("parallel operation refuses to infer without its matching configuration", async () => {
+  let submitted = false;
+  const result = await handleBulkAiTag({run_id: "parallel", status: "running", cursor: 0, params: {asset_ids: IDS}}, true, {
+    client: fakeClient([], []), tagAsset: async () => { submitted = true; return {outcome: "tagged"}; },
+  }, true, true);
+  assert.equal(result.ok, false); assert.equal(submitted, false);
+});

@@ -1029,6 +1029,7 @@ export async function handleBulkAiTag(
   tagAll: boolean,
   dependencies: AiTagHandlerDependencies = {},
   requireAssetIds = false,
+  requireParallel = false,
 ): Promise<BatchResult> {
   const client = (dependencies.client ?? db()) as AiTagRpcClient;
   const configuredBatchSize = dependencies.batchSize ?? config.aiBatchSize;
@@ -1049,6 +1050,7 @@ export async function handleBulkAiTag(
     catch (error) { return { ok: false, done: false, error: String(error), error_stage: "candidate_fetch" }; }
     if (parallel) CONCURRENCY = parallel.concurrency;
   }
+  if (requireParallel && !parallel) return {ok: false, done: false, error: "Parallel operation requires its exact-run model configuration and no provider receipt"};
   if (opState.external_job?.provider === "meta-responses" || (!opState.external_job && isMetaDirectModel(configuredModels.primary) && !parallel && !dependencies.tagAsset)) {
     const model = opState.external_job?.model ?? configuredModels.primary;
     const ids = Array.isArray(opState.params?.asset_ids) ? opState.params.asset_ids as string[] : null;
