@@ -339,3 +339,14 @@ test("an ID referenced by a live job or conflicting paused binding never enters 
   const allPaused={paused:{...duplicate.paused}};m.synchronizeMetaReservations(allPaused);assert.equal(await m.observePausedMetaResponse(allPaused,"orphan-fixture-key",async()=>{gets++;return {};},2_000_001),false);assert.equal(gets,0);assert.equal(m.metaAsyncBusy("another"),true);
  }finally{await releaseFixture("referenced-response");}
 });
+
+test("expired ID-less ambiguous Meta reservations stop holding a Contributor slot", async () => {
+  const { synchronizeMetaReservations, metaAsyncBusy, IDLESS_RESERVATION_TTL_MS } = await import("./meta-model-api.js");
+  const since = "2026-10-18T17:10:50.000Z";
+  const ops = { "ai-tag-all": { status: "interrupted", run_id: "stuck-owner", external_job: { provider: "meta-responses", phase: "ambiguous_submission", ambiguous_since: since } } } as never;
+  synchronizeMetaReservations(ops, Date.parse(since) + 60_000);
+  assert.equal(metaAsyncBusy("other"), true);
+  synchronizeMetaReservations(ops, Date.parse(since) + IDLESS_RESERVATION_TTL_MS);
+  assert.equal(metaAsyncBusy("other"), false);
+  synchronizeMetaReservations({});
+});
