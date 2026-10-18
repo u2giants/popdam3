@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { runningTagConflict, tick } from "./operation-loop.js";
+import { runningTagConflict, tick, operationBatchLimit } from "./operation-loop.js";
 test("parallel tag conflict covers manual single retags in both directions", () => {
   assert.equal(runningTagConflict("ai-tag-parallel", ["ai-tag-single-123e4567-e89b-42d3-a456-426614174000"]), true);
   assert.equal(runningTagConflict("ai-tag-single-123e4567-e89b-42d3-a456-426614174000", ["ai-tag-parallel"]), true);
@@ -36,4 +36,12 @@ test("real tick queues a direct-RPC running manual retag before any provider dis
   };
   try {await tick();assert.equal(queued,1);assert.equal(providerCalls,0,JSON.stringify(remoteCalls));assert.equal(ops[key].cursor,0);assert.equal(ops[key].run_id,"single");}
   finally {globalThis.fetch=original;}
+});
+
+test("slow benchmark answers yield without starving parallel tagging", () => {
+  assert.equal(operationBatchLimit("ai-tag-bakeoff",1),1);
+  assert.equal(operationBatchLimit("ai-tag-bakeoff",2),1);
+  assert.equal(operationBatchLimit("ai-tag-parallel",2),1);
+  assert.equal(operationBatchLimit("ai-tag-parallel",1),50);
+  assert.equal(operationBatchLimit("erp-enrichment",2),50);
 });

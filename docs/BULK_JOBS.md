@@ -23,6 +23,7 @@ The worker polls `admin_config.BULK_OPERATIONS` every **1 second** by default (`
 | `ai-tag-untagged` | ai-tagging | assets, asset_tags, asset_characters | manual |
 | `ai-tag-all` | ai-tagging | assets, asset_tags, asset_characters | manual |
 | `ai-tag-groups` | ai-tagging | assets, asset_tags, asset_characters | manual |
+| `ai-tag-parallel` | ai-parallel | assets, asset_tags, asset_characters, sku_files_used | exact-run explicit IDs |
 | `ai-tag-bakeoff` | ai-tagging | ai_tag_bakeoff_runs, ai_tag_bakeoff_results | manual |
 | `propagate-group-tags` | style-groups | assets, asset_tags, asset_characters | manual |
 | `rebuild-style-groups` | style-groups | assets (style_group_id), style_groups | manual |
@@ -38,6 +39,8 @@ The worker polls `admin_config.BULK_OPERATIONS` every **1 second** by default (`
 ---
 
 ## Explicit asset lists
+
+The benchmark yields after each saved answer so a long model response cannot retain the worker for 50 answers. Parallel file tagging yields after a saved page when another operation is active; other operations retain their normal batch limit. No accepted provider response or saved checkpoint is discarded by that yield.
 
 Synchronous Image Tagging jobs with `params.asset_ids` process a bounded page per worker tick, at most50 IDs, and checkpoint a numeric list offset. The next tick resumes the same ordered list at that offset; completion occurs only at its end. Invalid, negative, fractional, string or out-of-range offsets stop before tagging. Existing single-asset forced re-tags still process only their exact ID and finish in one tick. Provider asynchronous batches and discovered-candidate cursors retain their existing behavior. `retry_page_size` can narrow the ordinary page (minimum10); it cannot raise this explicit-list cap beyond50.
 
