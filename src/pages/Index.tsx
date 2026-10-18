@@ -1,4 +1,5 @@
-import { ShieldOff } from "lucide-react";
+import SearchAccessNotice from "@/components/library/SearchAccessNotice";
+import { searchAccessStatus } from "@/lib/dam-search";
 import { useState, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStyleGroups, useStyleGroupAssetCount, useStyleGroupCount, useUngroupedCount, useTotalAssetCount, type StyleGroup } from "@/hooks/useStyleGroups";
@@ -236,12 +237,8 @@ export default function LibraryPage() {
         )}
 
         <div className="flex flex-1 flex-col overflow-auto min-w-[400px]">
-          {isDamAccessDenied(isGroupsMode ? sgError : assetError) ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <ShieldOff className="mb-4 h-12 w-12 text-muted-foreground/30" />
-              <p className="font-medium">You don't have PopDAM access yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">Ask an administrator to grant you access to PopDAM.</p>
-            </div>
+          {isDamAccessDenied(isGroupsMode ? sgError : assetError) || searchAccessStatus(isGroupsMode ? sgError : assetError) === 401 ? (
+            <SearchAccessNotice expired={searchAccessStatus(isGroupsMode ? sgError : assetError) === 401} />
           ) : isGroupsMode ? (
             viewMode === "grid" ? (
               <StyleGroupGrid

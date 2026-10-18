@@ -4,7 +4,7 @@ import type { Json } from "@/integrations/supabase/types";
 import type { Asset, AssetFilters, SortField, SortDirection, FacetCounts } from "@/types/assets";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
-import { buildDamSearchFilters, expandFallbackTerms, fetchHybridSearchPage, fetchSearchIds, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
+import { searchAccessStatus, buildDamSearchFilters, expandFallbackTerms, fetchHybridSearchPage, fetchSearchIds, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
 
 const PAGE_SIZE = 200;
 const FULL_TEXT_SEARCH_LIMIT = 500;
@@ -89,10 +89,11 @@ async function resolveAssetSearch(
 export function isDamAccessDenied(error: unknown): boolean {
   const err = error as { code?: string; message?: string } | null | undefined;
   if (!err) return false;
-  return err.code === "42501" || (err.message ?? "").includes("DAM access is required");
+  return searchAccessStatus(error) === 403 || (err.message ?? "").includes("DAM access is required");
 }
 
 function shouldFallbackFromFullTextRpc(error: unknown) {
+  if (searchAccessStatus(error)) return false;
   const err = error as { code?: string; message?: string; details?: string };
   const text = `${err.message ?? ""} ${err.details ?? ""}`.toLowerCase();
   return (
@@ -398,7 +399,8 @@ export function useAssets(
             pageSize: effectivePageSize,
             page,
           };
-        } catch {
+        } catch (error) {
+          if (searchAccessStatus(error)) throw error;
           // Preserve the existing keyword path if semantic search is unavailable.
         }
       }
@@ -477,7 +479,8 @@ export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
             filters: buildDamSearchFilters(filters),
           });
           return ranked.totalCount;
-        } catch {
+        } catch (error) {
+          if (searchAccessStatus(error)) throw error;
           // Continue through keyword fallback.
         }
       }
@@ -515,7 +518,8 @@ export function useFilterCounts(filters: AssetFilters) {
             filters: buildDamSearchFilters(filters),
           });
           return parseDamSearchFacets(ranked.facets);
-        } catch {
+        } catch (error) {
+          if (searchAccessStatus(error)) throw error;
           // Continue through keyword fallback.
         }
       }

@@ -1,5 +1,17 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { AssetFilters, FacetCounts } from "@/types/assets";
+import { searchAccessStatus } from "../../supabase/functions/_shared/search-access";
+export { searchAccessStatus };
+
+export const SEMANTIC_QUERY_TIMEOUT_MS = 6000;
+
+async function invokeSearch(body: Record<string, unknown>) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SEMANTIC_QUERY_TIMEOUT_MS);
+  try {
+    return await supabase.functions.invoke("dam-search-ai", { body, signal: controller.signal });
+  } finally { clearTimeout(timeout); }
+}
 
 export type SearchMode = "keyword" | "hybrid";
 export type DamDocumentType = "asset" | "style_group";
@@ -67,13 +79,14 @@ export function getSearchMode(): Promise<SearchMode> {
   if (!searchModePromise || Date.now() >= searchModeExpiresAt) {
     searchModeExpiresAt = Date.now() + SEARCH_MODE_TTL_MS;
     searchModePromise = (async () => {
-      const { data, error } = await supabase
-        .from("admin_config")
-        .select("value")
-        .eq("key", "SEARCH_MODE")
-        .maybeSingle();
-      if (error) return "keyword";
-      return parseSearchMode(data?.value);
+      try {
+        const { data, error } = await invokeSearch({ action: "search-modes" });
+        if (error) throw error;
+        return parseSearchMode(data?.modes?.dam);
+      } catch (error) {
+        if (searchAccessStatus(error)) throw error;
+        return "keyword";
+      }
     })();
   }
   return searchModePromise;
@@ -92,16 +105,14 @@ export async function fetchHybridSearchPage({
   filters = {},
   minRank = 0,
 }: DamSearchRequest): Promise<DamSearchPage> {
-  const { data, error } = await supabase.functions.invoke("dam-search-ai", {
-    body: {
-      action: "search",
-      query,
-      limit,
-      offset,
-      filters,
-      min_rank: minRank,
-      document_types: [documentType],
-    },
+  const { data, error } = await invokeSearch({
+    action: "search",
+    query,
+    limit,
+    offset,
+    filters,
+    min_rank: minRank,
+    document_types: [documentType],
   });
   if (error) throw error;
   const results = Array.isArray(data?.results) ? data.results : [];
@@ -141,7 +152,8 @@ export async function fetchSearchIds(
   if (mode === "hybrid") {
     try {
       return await fetchHybridSearchIds(query, documentType, limit);
-    } catch {
+    } catch (error) {
+      if (searchAccessStatus(error)) throw error;
       // A cold or unavailable edge function must degrade to keyword search.
     }
   }
