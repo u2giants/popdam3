@@ -1,3 +1,4 @@
+import { isMetaDirectModel } from "../meta-model-api.js";
 /**
  * AI tag model bake-off handler.
  *
@@ -19,6 +20,8 @@ import {
 } from "./ai-tagging-shared.js";
 
 const AI_TIMEOUT_MS = 60_000;
+// Muse reasons before answering and routinely needs well over a minute.
+const META_TIMEOUT_MS = 300_000;
 const ASSETS_PER_BATCH = 2;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -351,7 +354,7 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
         await getOpenRouterApiKey(),
         modelId,
         buildImageTaggingMessages(prompt, image, "Analyze this design asset image and return structured tags matching the tag_asset schema."),
-        AI_TIMEOUT_MS,
+        isMetaDirectModel(modelId) ? META_TIMEOUT_MS : AI_TIMEOUT_MS,
         4000,
       );
 
