@@ -3744,6 +3744,10 @@ PREVIEW_PRODUCER_PATHS += (
     # protected static check cannot be changed independently of the PR head.
     "scripts/check-expected-count-patterns.mjs",
     "scripts/check-migration-verify-cost.mjs",
+    # Read by scripts/check-exact-head-approval.mjs (owner no-reviewer policy,
+    # docs/owner-rulings.md §6.28). That gate runs in the preview/merge jobs,
+    # so the policy file is a producer input and is pinned like the gate itself.
+    "config/owner-no-reviewer-policy.json",
 )
 
 # THE SINGLE SIDECAR DECLARATION REGISTRY (#3028, popcre/ai-devops#401 Step 5).

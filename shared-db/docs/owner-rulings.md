@@ -2134,3 +2134,17 @@ Verbatim from Albert's chat (2026-10-14):
 **Effect.** scripts/check-exact-head-approval.mjs requires **one** independent exact-head APPROVE for every pull request, including migrations. The former two-slot migration minimum is retired. No gate, test or helper may demand two slots. A drawn slot still owes its own APPROVE; a returned or refused slot is never revived. Branch protection is never disabled.
 
 Posted by MiMo chat ffe5ed27-27a0-dffe-92fd-227bed167df0 on EDGE-DEV
+
+### 6.28 OWNER RULING — no external reviewer for popcre/shared-db; skip merge-gate assignment when none are working (Albert Hazan, 2026-10-15 and 2026-10-16)
+
+Verbatim from Albert's chat:
+
+> "the new rules say this repo does not get reveiwers anymore" (2026-10-15)
+
+> "if there are no reviewers currently working then skip the merge-gate assignment" (2026-10-16)
+
+> "i allow one assignment to bootstrap that policy onto main" (2026-10-16)
+
+**Effect.** For `popcre/shared-db` only: this repository has no working reviewers (standing premise from the 2026-10-15 quote), so the exact-head approval gate (`scripts/check-exact-head-approval.mjs`) skips the external reviewer APPROVE requirement. This is not a per-run liveness probe. This ruling does not by itself change `--assign-reviewer` drawing rules. The exemption is from the reviewer POOL only. Every other required check, the guarded merge lane, the merge lock, and a durable refusal already recorded at the head still bind. One assignment is authorized to bootstrap this policy onto main. The policy is the committed file `config/owner-no-reviewer-policy.json` (schema-1) so the decision is auditable and cannot be toggled by a pull-request author or environment variable. This retires the one-review minimum from §6.27 for this repository only; §6.27 remains the rule for every other repository.
+
+Posted by MiMo chat 0ffe5ebedd0b70ffe on edge-dev

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "active": true,
+  "scope": "popcre/shared-db",
+  "owner": "Albert Hazan",
+  "decided_at": "2026-10-16",
+  "quote": "if there are no reviewers currently working then skip the merge-gate assignment",
+  "prior_quote": "the new rules say this repo does not get reveiwers anymore",
+  "effect": "Standing premise of popcre/shared-db (Albert 2026-10-15: this repo does not get reveiwers anymore): no reviewers work this repository, so the exact-head gate does not require an external reviewer APPROVE. Not a per-run liveness probe. Merge remains gated by every other required check, the guarded merge lane, and the merge lock. A durable reviewer refusal already recorded at the head still blocks.",
+  "authority": "docs/owner-rulings.md §6.28",
+  "bootstrap": "i allow one assignment to bootstrap that policy onto main",
+  "supersedes": "owner ruling 2026-10-14 one-review minimum for this repository only (docs/owner-rulings.md §6.27)"
+}

@@ -1248,3 +1248,61 @@ test('#3505: the advisory context is distinct from the real grant context', () =
   )
 })
 
+
+test('owner no-reviewer policy: inactive or missing policy still requires an assignment', () => {
+  const input = { pr: 2102, headSha: NEW, assignments: [], verdicts: [], ownerNoReviewerPolicy: { active: false, reason: 'off' } }
+  assert.throws(() => evaluateRaw(input), /no reviewer was ever assigned head/)
+})
+
+test('owner no-reviewer policy: active policy approves with no assignment and records the reason', () => {
+  const input = {
+    pr: 2102, headSha: NEW, assignments: [], verdicts: [],
+    ownerNoReviewerPolicy: { active: true, reason: 'owner ruling 2026-10-16: if there are no reviewers currently working then skip the merge-gate assignment' },
+  }
+  const result = evaluateRaw(input)
+  assert.equal(result.approved, true)
+  assert.equal(result.owner_no_reviewer, true)
+  assert.equal(result.assignments, 0)
+})
+
+test('owner no-reviewer policy: a durable refusal at the head still blocks (non-documents fixture)', () => {
+  // Non-documents path: omit changedFiles so the owner-policy branch at
+  // check-exact-head-approval.mjs is the one under test, not documents-only.
+  const base = gatherApprovalInput({ PR_NUMBER: String(DOC_PR) }, documentsOnlyGithub({
+    files: [{ filename: 'docs/notes.md' }], recorded: { reviewer: 'grok-4.6', verdict: 'REVISE' },
+  }))
+  assert.equal(isValidatedVerdictArtifact(base.verdicts[0]), true)
+  const input = {
+    pr: base.pr, headSha: base.headSha, assignments: [], verdicts: base.verdicts,
+    changedFiles: ['supabase/migrations/20261016120000_not_real.sql'],
+    ownerNoReviewerPolicy: { active: true, reason: 'owner ruling 2026-10-16: skip merge-gate assignment' },
+  }
+  assert.throws(() => evaluateRaw(input), (error) => error instanceof ApprovalCheckError
+    && /carries a durable reviewer refusal/.test(error.message)
+    && /owner no-reviewer|exempt from DRAWING/.test(error.message)
+    && !/without artifact validation/.test(error.message))
+})
+
+test('owner no-reviewer policy file is schema-1 active and cites owner-rulings §6.28', () => {
+  const policy = JSON.parse(readFileSync(new URL('../config/owner-no-reviewer-policy.json', import.meta.url), 'utf8'))
+  assert.equal(policy.schema_version, 1)
+  assert.equal(policy.active, true)
+  assert.equal(policy.scope, 'popcre/shared-db')
+  assert.match(policy.quote, /no reviewers currently working/)
+  assert.match(String(policy.authority), /owner-rulings\.md/)
+})
+
+test('owner no-reviewer loader: live file is active and scoped to this repository', async () => {
+  const { readOwnerNoReviewerPolicy } = await import('./check-exact-head-approval.mjs')
+  const live = readOwnerNoReviewerPolicy()
+  assert.equal(live.active, true)
+  assert.match(live.reason, /owner ruling/)
+})
+
+test('owner no-reviewer loader: a caller-supplied inactive policy does not exempt', () => {
+  const input = {
+    pr: 2102, headSha: NEW, assignments: [], verdicts: [],
+    ownerNoReviewerPolicy: { active: false, reason: 'wrong scope or malformed' },
+  }
+  assert.throws(() => evaluateRaw(input), /no reviewer was ever assigned head/)
+})
