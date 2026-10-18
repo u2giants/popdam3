@@ -55,6 +55,7 @@ Active plans (read STATUS first; do not re-derive completed steps):
 - plan_openrouter_batch_restart_recovery.md — Image Tagging batches survive Railway restarts
 - plan_ai_model_interaction_reliability.md — capability-driven model contract (replaces name guessing)
 - plan_hybrid_search_rollout.md — keyword + pgvector discovery
+- plan_semantic_search_popdam_popsg.md — combined semantic-search delivery plan and package assessment; read STATUS first
 - plan_style_group_scoped_ai_metadata.md — product vs file-level AI metadata
 - plan_popsg_production_readiness.md — PopSG library truthfulness and search
 - plan_master_data_orderlist_loading_performance.md — first-paint and OrderList Find performance
