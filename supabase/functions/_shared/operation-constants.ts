@@ -120,10 +120,26 @@ export function classifyInterruptionReason(
 //   licensor/property code columns on assets and style_groups → data races.
 
 export const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
-  "ai-tag-untagged": ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-untagged": [
+    "ai-tag-parallel",
+    "rebuild-style-groups",
+    "reprocess-metadata",
+    "propagate-group-tags",
+    "ai-tag-group-profiles",
+    "refresh-group-metadata",
+  ],
   "ai-tag-all": ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
   "ai-tag-groups": ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-parallel": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-parallel": [
+    "ai-tag-untagged",
+    "ai-tag-all",
+    "ai-tag-groups",
+    "rebuild-style-groups",
+    "reprocess-metadata",
+    "propagate-group-tags",
+    "ai-tag-group-profiles",
+    "refresh-group-metadata",
+  ],
   "ai-tag-group-profiles": [
     "rebuild-style-groups",
     "reprocess-metadata",
