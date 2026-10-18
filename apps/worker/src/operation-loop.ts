@@ -387,10 +387,10 @@ async function failNeverSentSubmissionOnce(
  *  worker has no timeout, so 50 keeps ops running hot while still yielding often
  *  enough to check for user interruptions and serve other lanes. */
 const MAX_BATCHES_PER_TICK = 50;
-export function operationBatchLimit(opKey: string, activeOperations: number): number {
-  // One benchmark answer may take five minutes. Check the queue after it,
-  // and interleave parallel-tag pages when another operation is active.
-  return opKey === "ai-tag-bakeoff" || (opKey === "ai-tag-parallel" && activeOperations > 1) ? 1 : MAX_BATCHES_PER_TICK;
+export function operationBatchLimit(opKey: string): number {
+  // Yield after one persisted benchmark page (up to two assets/five models).
+  // Tagging keeps its normal full turn so slow benchmarks cannot dominate it.
+  return opKey === "ai-tag-bakeoff" ? 1 : MAX_BATCHES_PER_TICK;
 }
 
 async function recordStyleGroupTerminalOutcome(
@@ -1769,7 +1769,7 @@ export async function tick(): Promise<void> {
     }
 
     // Yield after MAX_BATCHES_PER_TICK so other operations get a turn
-    if (batchCount >= operationBatchLimit(opKey, runningEntries.length)) {
+    if (batchCount >= operationBatchLimit(opKey)) {
       logger.info("tick: yielding after max batches", { opKey, batches: batchCount, cursor });
       return; // State already saved above; main loop re-enters tick()
     }

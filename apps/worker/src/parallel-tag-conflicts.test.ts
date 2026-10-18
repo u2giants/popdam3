@@ -38,10 +38,8 @@ test("real tick queues a direct-RPC running manual retag before any provider dis
   finally {globalThis.fetch=original;}
 });
 
-test("slow benchmark answers yield without starving parallel tagging", () => {
-  assert.equal(operationBatchLimit("ai-tag-bakeoff",1),1);
-  assert.equal(operationBatchLimit("ai-tag-bakeoff",2),1);
-  assert.equal(operationBatchLimit("ai-tag-parallel",2),1);
-  assert.equal(operationBatchLimit("ai-tag-parallel",1),50);
-  assert.equal(operationBatchLimit("erp-enrichment",2),50);
+test("benchmark pages yield while tagging retains its full processing turn", () => {
+  assert.equal(operationBatchLimit("ai-tag-bakeoff"),1);
+  assert.equal(operationBatchLimit("ai-tag-parallel"),50);
+  assert.equal(operationBatchLimit("erp-enrichment"),50);
 });
