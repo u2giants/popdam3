@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/stopped-merged-claim-adoption.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/lanes/stopped-merged-claim-adoption.mjs:192",
+      "semantic_key": "scripts/lib/lanes/stopped-merged-claim-adoption.mjs:6ba93c6845e77acdb487b3194b5a43193c87d6be968f2a20995402e49dd2bc8f:context-89a0f36706b8977260e0559f63e0a0aa17f078c727343422acb0ee29ab32fa59",
+      "legacy_semantic_key": "scripts/lib/lanes/stopped-merged-claim-adoption.mjs:6ba93c6845e77acdb487b3194b5a43193c87d6be968f2a20995402e49dd2bc8f:1",
+      "line_sha256": "6ba93c6845e77acdb487b3194b5a43193c87d6be968f2a20995402e49dd2bc8f",
+      "disposition": "excluded",
+      "reason": "This is a preservation-artifact refusal, not a database-object absence claim. The operation requires a regular non-symlink bundle, exact reviewed hash, successful bounded Git verification and exact advertised source head."
+    },
+    {
+      "site": "scripts/lib/lanes/stopped-merged-claim-adoption.mjs:32",
+      "semantic_key": "scripts/lib/lanes/stopped-merged-claim-adoption.mjs:83c2b270da0dcba88a5bcaecfeda95c0f80f3a4867db6fae2b506db59c7890f3:context-813f51a9c29a60debcd2b36c5fffc2205c59a29201517758fd9b4de03954caba",
+      "legacy_semantic_key": "scripts/lib/lanes/stopped-merged-claim-adoption.mjs:83c2b270da0dcba88a5bcaecfeda95c0f80f3a4867db6fae2b506db59c7890f3:1",
+      "line_sha256": "83c2b270da0dcba88a5bcaecfeda95c0f80f3a4867db6fae2b506db59c7890f3",
+      "disposition": "excluded",
+      "reason": "This validates the exact request, observation or manifest field set. It refuses malformed input before custody changes and makes no assertion that database structure is absent."
+    }
+  ]
+}

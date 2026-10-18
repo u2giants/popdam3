@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "work_issue": 3618,
+  "outcome": "ready-for-merge",
+  "pr": 4438,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3618/29",
+  "contract_sha256": "a5a81dc56b0324d8afaf75aa89769e773624f1a4788e07935eecee3419cceb01",
+  "base_sha": "65e68f6f285f8a0079a5237b5b47c03e110bad86",
+  "head_sha": "8d04e12ec74afcc2b141918c872fadefc3b9906d",
+  "files_changed": [
+    ".github/workflows/pr-guards.yml",
+    "docs/agents/stopped-merged-claim-recovery.md",
+    "docs/verification/claim4158-recovery/manifest.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~stopped-merged-claim-adoption.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~transfer-stopped-merged-claim-author.mjs.json",
+    "scripts/lib/lanes/stopped-merged-claim-adoption.mjs",
+    "scripts/stopped-merged-claim-adoption.test.mjs",
+    "scripts/transfer-stopped-merged-claim-author.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/stopped-merged-claim-adoption.test.mjs scripts/expired-merged-claim-adoption.test.mjs scripts/claim-author-transfer.test.mjs",
+      "exit_code": 0,
+      "evidence": "124 tests pass,42 new source/operation cases plus unchanged expired/cooperative regressions; fresh bounded retry, immutable attempts, physical alias refusal and actual minted mutex recovery exercised."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "SQL guard passed; no SQL changed."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Staged five-file whitespace check passed."
+    },
+    {
+      "command": "node --test scripts/throughput-guard/*.test.mjs",
+      "exit_code": 0,
+      "evidence": "72 tests pass, zero failures/skips."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "357 sites across100 sources pass; each of3 new diagnostic sites has its own substantive reviewed disposition."
+    }
+  ],
+  "assumptions_resolved": [
+    "Existing routes correctly refuse this exact relinquished merged-source state; none modified.",
+    "Exact user-authorized request descriptor prospectively published and reviewed before any ownership mutation.",
+    "Original source preserved in untouched clean original copy, clean independent successor clone and separately verified source bundle.",
+    "Operator stopped-session observation and declared session are explicitly self-declared attestations, not provider-authenticated human or owner consent.",
+    "Generation28 was published before catalogue changes; generation29 before retry/CI workflow changes; immutable parent chain preserves original27 publication and rejected source.",
+    "DeepSeek REJECT d17426af90967fa0350b298e876c58ee73fe28d0 retained; corrective head needs fresh exact-head review.",
+    "Retry preserves original grant deadline and full bodies while recording fresh observations/current main in separate immutable attempts; expired/stopped/changed custody cannot reactivate.",
+    "Actual operation uses existing recoverable mutex kind; new direct Git calls are bounded; new suite and unchanged expired suite are wired into existing CI status.",
+    "Only immutable SHA-bound commit/file reads are cached within one real invocation; mutable authority and filesystem evidence are always fresh."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Source-only corrective delivery. No ownership or database mutation and no repair closure. Generation27 pair remains in history/immutable refs; final active pair is generation29. Original/clone/bundle intact. Actual reviewed live recovery and ordered4427–4430 outcomes remain pending."
+}
