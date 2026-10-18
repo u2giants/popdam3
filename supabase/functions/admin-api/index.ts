@@ -1115,7 +1115,11 @@ async function fetchGoogleDirectModels(
   if (!googleApiKey?.trim()) {
     return FALLBACK_GOOGLE_DIRECT_MODELS.map((model) => ({
       ...model,
-      pricing: findOpenRouterPricing(openRouterItems, googleTwinCandidates(String(model.id).replace(/^google-direct\//, "").replace(/:batch$/, "")), publicPricing),
+      pricing: findOpenRouterPricing(
+        openRouterItems,
+        googleTwinCandidates(String(model.id).replace(/^google-direct\//, "").replace(/:batch$/, "")),
+        publicPricing,
+      ),
     }));
   }
   try {
