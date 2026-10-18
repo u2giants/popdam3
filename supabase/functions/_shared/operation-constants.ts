@@ -147,7 +147,7 @@ export const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
 
 /** Returns the ops that `opKey` cannot run alongside (empty array if none). */
 export function getConflicts(opKey: string): readonly string[] {
-  return OP_CONFLICTS[opKey] ?? [];
+  return OP_CONFLICTS[opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey] ?? [];
 }
 
 /**
@@ -158,6 +158,9 @@ export function findRunningConflict(
   opKey: string,
   allOps: Record<string, { status: string }>,
 ): string | null {
+  if (opKey === "ai-tag-parallel") {
+    for (const [key, op] of Object.entries(allOps)) if (key.startsWith("ai-tag-single-") && op.status === "running") return key;
+  }
   for (const conflictKey of getConflicts(opKey)) {
     if (allOps[conflictKey]?.status === "running") return conflictKey;
   }

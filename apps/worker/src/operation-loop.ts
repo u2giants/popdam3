@@ -460,6 +460,13 @@ const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
   "erp-enrichment":       ["reprocess-metadata", "backfill-sku-names"],
 };
 
+export function runningTagConflict(opKey: string, running: Iterable<string>): boolean {
+  const normalized = opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey;
+  const keys = [...running];
+  return (normalized === "ai-tag-parallel" && keys.some(key => key.startsWith("ai-tag-single-"))) ||
+    (OP_CONFLICTS[normalized] ?? []).some(key => keys.includes(key));
+}
+
 function getLane(opKey: string): string {
   if (opKey.startsWith("ai-tag-single-")) return "ai-tagging";
   return OP_LANES[opKey] ?? opKey;
@@ -794,6 +801,7 @@ export function buildResultMessage(opKey: string, progress: Record<string, unkno
     case "ai-tag-untagged":
     case "ai-tag-all":
     case "ai-tag-groups":
+    case "ai-tag-parallel":
       return `Tagged ${progress.tagged}. ${(Number(progress.visual_analysis_unavailable) || 0) + (Number(progress.image_unusable) || 0)} visual analyses unavailable. ${progress.skipped || 0} skipped. ${progress.failed || 0} failed${progress.image_unusable ? ` (${progress.image_unusable} with unusable images)` : ""}.`;
     case "ai-tag-group-profiles":
       return `Profiled ${progress.profiled || 0} style groups. ${(Number(progress.visual_analysis_unavailable) || 0) + (Number(progress.image_unusable) || 0)} without usable representative images. ${progress.failed || 0} failed${progress.image_unusable ? ` (${progress.image_unusable} with unusable images)` : ""}.`;
@@ -1114,7 +1122,7 @@ export async function tick(): Promise<void> {
   for (const [key, op] of Object.entries(allOps)) {
     const lane = getLane(key);
     const laneBusy = [...autoResumeRunningKeys].some((runningKey) => getLane(runningKey) === lane);
-    const crossLaneBusy = (OP_CONFLICTS[key] ?? []).some((conflictKey) => autoResumeRunningKeys.has(conflictKey));
+    const crossLaneBusy = runningTagConflict(key, autoResumeRunningKeys);
     if (
       op.status === "interrupted" &&
       op.interruption_reason_code !== "user_stop" &&
@@ -1173,8 +1181,7 @@ export async function tick(): Promise<void> {
     if (activeLanes.has(lane)) continue;
 
     // Cross-lane conflict check: skip if any currently-running op conflicts with this one
-    const crossConflicts = OP_CONFLICTS[nextOpKey] ?? [];
-    const hasConflict = crossConflicts.some((conflictKey) => runningKeys.has(conflictKey));
+    const hasConflict = runningTagConflict(nextOpKey, runningKeys);
     if (hasConflict) continue;
 
     logger.info("tick: promoting queued op", { opKey: nextOpKey, lane });

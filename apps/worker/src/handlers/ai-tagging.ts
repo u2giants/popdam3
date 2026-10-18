@@ -920,7 +920,10 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
 
         if (parallelModel) {
           try { await applyBatchTagResult(assetId, tagData, model, client, characterCatalogIds); }
-          catch { return { outcome: "failed", error: "Parallel tagging result could not be fully saved" }; }
+          catch (error) {
+            logger.warn("ai-tag: parallel save failed", {assetId, model, stage: error instanceof AssetTagApplyError ? error.stage : "validation", code: error instanceof AssetTagApplyError ? error.code : "unknown"});
+            return { outcome: "failed", error: error instanceof AssetTagApplyError ? `Parallel tagging save failed at ${error.stage} (${error.code})` : "Parallel tagging result validation failed" };
+          }
           return { outcome: "tagged" };
         }
 
@@ -1041,7 +1044,7 @@ export async function handleBulkAiTag(
   let parallel = null;
   if (!opState.external_job) {
     let setting = dependencies.parallelConfig;
-    if (!dependencies.tagAsset && setting === undefined) {
+    if (!dependencies.tagAsset && setting === undefined && requireParallel) {
       const result = await withDependencyTimeout("Parallel tagging config read", db().from("admin_config").select("value").eq("key", "AI_TAG_PARALLEL_RUN").maybeSingle());
       if (result.error) return { ok: false, done: false, error: "Parallel tagging config unavailable" };
       setting = result.data?.value;
@@ -1117,7 +1120,7 @@ export async function handleBulkAiTag(
       const chunk = page.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         chunk.map(async (id) => {
-          const result = await tagAsset(id, tagAll, parallel ? parallelModel(parallel, id) : undefined, parallel ? [...parallel.models, configuredModels.primary] : undefined);
+          const result = await tagAsset(id, tagAll, parallel ? parallelModel(parallel, id) : undefined, parallel ? [...parallel.models, "meta-direct/muse-spark-1.3-contributor"] : undefined);
           return { ...result, asset_id: id };
         }),
       );

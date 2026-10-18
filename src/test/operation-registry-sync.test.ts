@@ -116,3 +116,12 @@ describe("ai-tag-group-profiles registration", () => {
     }
   });
 });
+
+describe("parallel file tagging dynamic conflicts", () => {
+  const single = "ai-tag-single-123e4567-e89b-42d3-a456-426614174000";
+  it("prevents manual retag overlap in both native start directions", () => {
+    expect(findRunningConflict("ai-tag-parallel", {[single]: {status:"running"}})).toBe(single);
+    expect(findRunningConflict(single, {"ai-tag-parallel": {status:"running"}})).toBe("ai-tag-parallel");
+    expect(findRunningConflict("ai-tag-parallel", {"ai-tag-bakeoff": {status:"running"}})).toBeNull();
+  });
+});
