@@ -220,26 +220,30 @@ function providerPatterns(results: BakeoffResult[]) {
 }
 
 /**
- * The bake-off mirrors production tagging, so it must show the same structured
- * asset-only shape production writes: "tag (category)". Categories live in the
- * stored raw_output; result.tags is the flattened compatibility array.
+ * Bake-off tags are search terms only. Categories live in raw_output and must
+ * not be printed beside the tag.
  */
+const TAG_CATEGORY_SUFFIX = /\s*\((?:file_type|view|scene|color|visible_content|technique|other|legacy_unscoped|product_type|theme|style|occasion|audience)\)\s*$/i;
+
+function displayTagText(tag: string): string {
+  return tag.replace(TAG_CATEGORY_SUFFIX, "").trim();
+}
+
 export function structuredTagSummary(result: Pick<BakeoffResult, "tags" | "raw_output">): string {
   const structured = result.raw_output?.asset_tags;
   if (Array.isArray(structured) && structured.length > 0) {
-    const labelled = structured
+    const tags = structured
       .map((item) => {
         if (!item || typeof item !== "object") return null;
         const row = item as Record<string, unknown>;
-        const tag = typeof row.tag === "string" ? row.tag.trim() : "";
-        if (!tag) return null;
-        const category = typeof row.category === "string" ? row.category.trim() : "";
-        return category ? `${tag} (${category})` : tag;
+        const tag = typeof row.tag === "string" ? displayTagText(row.tag.trim()) : "";
+        return tag || null;
       })
       .filter((value): value is string => Boolean(value));
-    if (labelled.length > 0) return labelled.join(", ");
+    if (tags.length > 0) return tags.join(", ");
   }
-  return result.tags.length ? result.tags.join(", ") : "No tags";
+  const flat = result.tags.map((tag) => displayTagText(String(tag).trim())).filter(Boolean);
+  return flat.length ? flat.join(", ") : "No tags";
 }
 
 function fieldValue(result: BakeoffResult | undefined, field: Field) {
