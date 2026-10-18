@@ -1215,6 +1215,15 @@ export async function tick(): Promise<void> {
 
   const [opKey, opState] = runningEntries[0] as [string, OpState];
 
+  // Old UI bundles can create an already-running manual tag through the RPC.
+  // Queue it before any dispatch; it promotes normally after the parallel run.
+  if (opKey.startsWith("ai-tag-single-") && runningKeys.has("ai-tag-parallel")) {
+    await persistOpState(opKey, {...opState, status: "queued", updated_at: new Date().toISOString()}, {
+      onlyIfRunning: true, expectedRevision: opState.state_revision ?? 0,
+    });
+    return;
+  }
+
   // A failed known-ID save is never re-dispatched or re-POSTed. Keep its original
   // receipt/acknowledgement in RAM for owned reconciliation, even after three CASes.
   if (acceptedAcknowledgements.has(opKey)) {
