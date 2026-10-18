@@ -336,7 +336,96 @@ insert into plm.source_resolution(source_system,entity_kind,source_id,core_prope
 insert into plm.source_resolution(source_system,entity_kind,source_id,core_character_id,resolution_status) values('paramount','character','0008','23360000-0000-0000-0000-000000000004','matched');
 insert into plm.source_resolution(source_system,entity_kind,source_id,core_style_guide_id,resolution_status) values('paramount','style_guide','0009','23360000-0000-0000-0000-000000000005','matched');
 insert into plm.licensing_source_scope values('23360000-0000-0000-0000-000000000001','paramount','canonical_identity','entity','property',now(),'synthetic test'),('23360000-0000-0000-0000-000000000001','paramount','canonical_identity','entity','character',now(),'synthetic test'),('23360000-0000-0000-0000-000000000001','paramount','canonical_identity','entity','style_guide',now(),'synthetic test'),('23360000-0000-0000-0000-000000000001','paramount','relationship_evidence','relationship','property_character',now(),'synthetic test'),('23360000-0000-0000-0000-000000000001','paramount','relationship_evidence','relationship','property_style_guide',now(),'synthetic test');
-do $test$ declare p plm.licensing_consolidation_plan;q plm.licensing_consolidation_plan;r plm.licensing_consolidation_plan;rejected boolean:=false;native_capture uuid;native_table text;phase integer;pair_id uuid;pair_created timestamptz;baseline jsonb;begin
+do $test$ declare p plm.licensing_consolidation_plan;q plm.licensing_consolidation_plan;r plm.licensing_consolidation_plan;rejected boolean:=false;native_capture uuid;native_table text;phase integer;pair_id uuid;pair_created timestamptz;baseline jsonb;m1_capture_time timestamptz;m1_seen timestamptz;m1_expected_seen timestamptz;m1_tid tid;m1_op jsonb;m1_state jsonb;m1_text text;m1_source_table text;m1_source_id text;begin
+ -- M1 regression: an old, complete native capture inserts exact source timestamps;
+ -- its inverse retires without refreshing last_seen_at; a filtered plan of that same
+ -- capture reactivates the existing row and the real timestamp trigger may advance
+ -- last_seen_at to transaction_timestamp(). The applied audit must reflect that exact
+ -- trigger result without changing first_seen_at or any other planned source field.
+ -- This nested block rolls its full synthetic lifecycle back before later fixtures.
+ begin
+  select completed_at into m1_capture_time from plm.pmt_capture where capture_id='23360000-0000-0000-0000-000000000020';
+  p:=plm.plan_licensing_consolidation('paramount','23360000-0000-0000-0000-000000000020');
+  if p.plan_status<>'preview' then raise exception 'M1 original native capture did not produce a preview';end if;
+  select count(*),(array_agg(value))[1] into phase,m1_op from jsonb_array_elements(p.operations) where value->>'kind'='entity_source' and value->>'entity_kind'='property'
+   and value->'owners' @> '[{"table":"core.property","id":"23360000-0000-0000-0000-000000000002"}]'::jsonb;
+  if phase<>1 or m1_op->'before'->'rows' is distinct from '[]'::jsonb then raise exception 'M1 original plan must contain exactly one true-insert property source operation';end if;
+  m1_source_table:=m1_op->'identity'->>'source_table';m1_source_id:=m1_op->'identity'->>'source_id';
+  if m1_source_table is null or m1_source_id is null then raise exception 'M1 property source operation lacks its full planner identity';end if;
+  q:=plm.apply_licensing_consolidation(p.id,p.plan_hash);
+  select last_seen_at into m1_seen from core.taxonomy_source_ref where source_system='paramount' and source_table=m1_source_table and source_id=m1_source_id;
+  if q.plan_status<>'applied' or m1_seen is distinct from m1_capture_time then raise exception 'M1 insert path changed the native capture timestamp';end if;
+
+  r:=plm.plan_licensing_consolidation_rollback(q.id,encode(extensions.digest(q.applied_state::text,'sha256'),'hex'));
+  r:=plm.apply_licensing_consolidation(r.id,r.plan_hash);
+  select last_seen_at into m1_seen from core.taxonomy_source_ref where source_system='paramount' and source_table=m1_source_table and source_id=m1_source_id;
+  if r.plan_status<>'applied' or not exists(select 1 from core.taxonomy_source_ref where source_system='paramount' and source_table=m1_source_table and source_id=m1_source_id and missing_since is not null)
+     or m1_seen is distinct from m1_capture_time then raise exception 'M1 retirement path changed the source timestamp';end if;
+
+  -- A metadata-only correction is outside the actual UPDATE OF trigger columns.
+  update core.taxonomy_source_ref set source_name='Synthetic original metadata correction'
+   where source_system='paramount' and source_table=m1_source_table and source_id=m1_source_id;
+  select last_seen_at into m1_seen from core.taxonomy_source_ref where source_system='paramount' and source_table=m1_source_table and source_id=m1_source_id;
+  if m1_seen is distinct from m1_capture_time then raise exception 'M1 non-trigger metadata update changed last_seen_at';end if;
+
+  -- The same capture and selected entity now exercise an existing-row UPDATE. Each
+  -- hostile source fact is changed under the real table/apply guards and must refuse
+  -- before the planned operation can write; the exception block rolls that tamper back.
+  p:=plm.plan_licensing_consolidation('paramount','23360000-0000-0000-0000-000000000020','0007');
+  if p.plan_status<>'preview' then raise exception 'M1 filtered same-capture replan did not produce a preview';end if;
+
+  begin
+   update core.taxonomy_source_ref set source_name='malicious source name'
+    where source_system='paramount' and source_table=m1_source_table and source_id=m1_source_id;
+   perform plm.apply_licensing_consolidation(p.id,p.plan_hash);
+   raise exception 'source_name tamper unexpectedly applied';
+  exception when serialization_failure then null;end;
+  begin
+   update core.taxonomy_source_ref set raw=raw||jsonb_build_object('malicious_native_provenance',true)
+    where source_system='paramount' and source_table=m1_source_table and source_id=m1_source_id;
+   perform plm.apply_licensing_consolidation(p.id,p.plan_hash);
+   raise exception 'raw tamper unexpectedly applied';
+  exception when serialization_failure then null;end;
+  begin
+   update core.taxonomy_source_ref set source_id=m1_source_id||'-malicious-identity'
+    where source_system='paramount' and source_table=m1_source_table and source_id=m1_source_id;
+   perform plm.apply_licensing_consolidation(p.id,p.plan_hash);
+   raise exception 'identity tamper unexpectedly applied';
+  exception when serialization_failure then null;end;
+  begin
+   update core.taxonomy_source_ref set last_seen_at=m1_capture_time+interval '1 second'
+    where source_system='paramount' and source_table=m1_source_table and source_id=m1_source_id;
+   perform plm.apply_licensing_consolidation(p.id,p.plan_hash);
+   raise exception 'timestamp tamper unexpectedly applied';
+  exception when serialization_failure then null;end;
+
+  m1_expected_seen:=greatest(m1_capture_time,transaction_timestamp());
+  select value into m1_op from jsonb_array_elements(p.operations) where value->>'kind'='entity_source' and value->'identity'->>'source_table'=m1_source_table and value->'identity'->>'source_id'=m1_source_id;
+  if m1_op is null then raise exception 'M1 filtered plan lost the exact property source operation';end if;
+  q:=plm.apply_licensing_consolidation(p.id,p.plan_hash);
+  select last_seen_at into m1_seen from core.taxonomy_source_ref where source_system='paramount' and source_table=m1_source_table and source_id=m1_source_id;
+  select value->'state' into m1_state from jsonb_array_elements(q.applied_state->'operations') where value->>'op_key'=m1_op->>'op_key';
+  if q.plan_status<>'applied' or m1_seen is distinct from m1_expected_seen
+     or (m1_state->'rows'->0->>'last_seen_at')::timestamptz is distinct from m1_expected_seen
+     or (m1_state->'rows'->0->>'first_seen_at')::timestamptz is distinct from m1_capture_time
+     or m1_state->'rows'->0->>'source_name' is distinct from m1_op->'after'->>'source_name'
+     or m1_state->'rows'->0->'raw' is distinct from m1_op->'after'->'raw' then
+    raise exception 'M1 exact trigger timestamp or non-timestamp source fields differ from the guarded plan';
+  end if;
+
+  -- A true retry of the just-applied filtered plan must return its immutable audit
+  -- before running another UPDATE. The ctid check detects even a same-transaction
+  -- rewrite, for which transaction_timestamp() itself would not advance.
+  select ctid into m1_tid from core.taxonomy_source_ref where source_system='paramount' and source_table=m1_source_table and source_id=m1_source_id;
+  r:=plm.apply_licensing_consolidation(q.id,q.plan_hash);
+  select last_seen_at into m1_seen from core.taxonomy_source_ref where source_system='paramount' and source_table=m1_source_table and source_id=m1_source_id;
+  if not exists(select 1 from core.taxonomy_source_ref where source_system='paramount' and source_table=m1_source_table and source_id=m1_source_id and ctid=m1_tid) then raise exception 'M1 second-apply no-op rewrote the source row';end if;
+  if r.applied_state is distinct from q.applied_state or r.entity_operation_count is distinct from q.entity_operation_count
+     or m1_seen is distinct from m1_expected_seen then raise exception 'M1 exact second-apply no-op changed state, count, or timestamp';end if;
+  raise notice 'M1 same-capture apply/rollback/filtered replan/apply retry, trigger-only timestamp, insert/retirement/non-trigger and tamper guards PASS';
+  raise exception using errcode='Z2336',message='roll back isolated M1 timestamp regression fixture';
+ exception when sqlstate 'Z2336' then null;end;
+
  -- Native output boundary: 505 additional matched characters plus seven base
  -- operations makes exactly512. One further result refuses the entire plan;
  -- input qualification is unchanged and no actual consolidation is performed.

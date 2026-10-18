@@ -1,0 +1,102 @@
+{
+  "allowed_paths": [
+    "supabase/migrations/20261018134615_licensing_recovery_timestamp.sql",
+    "supabase/tests/licensing_consolidation_contracts.sql",
+    ".github/live-proofs/2336.sql",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20261018134615.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    ".agent/work/2336/33/contract.json",
+    ".agent/work/2336/33/completion.json"
+  ],
+  "assumptions": [
+    "Fresh claim4417 and permanent version20261018134615 belong to actual successor; closed claim4367 and version20261016003614 are never reused.",
+    "Recover only source diff from base778dc192 to parked f46c9e2, keeping SQL bytes SHA25614bbbec4565275a7ee5ba11e1ef3f3df59e8ee184fac9ed90786e67b1190f73b exactly; rename migration and bind probe/sidecar/registry/verifier/tests to the fresh version.",
+    "Current upstream b31e17c02194c6006a1bd256d6154a324a5114d7 is the base; preserve all peer source and frozen3998/4170 and original20261013130102.",
+    "Every prior review is historical; new native exact-source review, hosted preview, bounded promotion and functional live/type acceptance remain required.",
+    "Refresh incorporates main845a92d77 production-risk request repair; predecessor generation32 and failed6701/6703 starts remain immutable. No review or paid budget is revived."
+  ],
+  "base_sha": "b31e17c02194c6006a1bd256d6154a324a5114d7",
+  "branch": "codex/eight-resume-01a14f42",
+  "db_reads": [
+    "function core.bump_taxonomy_source_ref_last_seen",
+    "function plm.apply_licensing_consolidation",
+    "function plm.apply_licensing_support_operation",
+    "function plm.licensing_consolidation_operation_state",
+    "function plm.licensing_operation_identity_predicate",
+    "function plm.plan_licensing_consolidation",
+    "function plm.plan_licensing_consolidation_rollback",
+    "table core.character",
+    "table core.franchise",
+    "table core.property",
+    "table core.property_alias",
+    "table core.property_character_associations",
+    "table core.property_character_source_edge",
+    "table core.property_franchise",
+    "table core.property_franchise_source_edge",
+    "table core.property_style_guide",
+    "table core.property_style_guide_source_edge",
+    "table core.style_guide",
+    "table core.style_guide_character",
+    "table core.style_guide_character_source_edge",
+    "table core.taxonomy_source_ref",
+    "table dam.asset",
+    "table dam.asset_character",
+    "table dam.asset_character_source_edge",
+    "table dam.asset_franchise",
+    "table dam.asset_franchise_source_edge",
+    "table dam.asset_property",
+    "table dam.asset_property_source_edge",
+    "table dam.asset_style_guide",
+    "table dam.asset_style_guide_source_edge",
+    "table plm.licensing_consolidation_plan"
+  ],
+  "db_writes": [
+    "function plm.licensing_consolidation_plan_immutable"
+  ],
+  "dispatcher": "Codex chat 01a14f42-9919-77a1-b9c9-3b1d6883d66f on edge-dev3",
+  "evidence_parent": {
+    "work_issue": 2336,
+    "generation": 32,
+    "contract_sha256": "8326cc9f005ae7cef30e6ac1b6573072092112009dea28a493cf0fcecb90993e"
+  },
+  "file_writes": [
+    "supabase/migrations/20261018134615_licensing_recovery_timestamp.sql",
+    "supabase/tests/licensing_consolidation_contracts.sql",
+    ".github/live-proofs/2336.sql",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20261018134615.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    ".agent/work/2336/33/contract.json",
+    ".agent/work/2336/33/completion.json"
+  ],
+  "generation": 33,
+  "goal": "Complete preserved #2336 recovery with consistent post-apply live proof: resolve the genuine Muse6610 rejection by binding every immutable-function proof condition to the exact frozen recovery body, then fresh review, guarded rehearsal/promotion and actual live acceptance.",
+  "prohibited_actions": [
+    "Never edit/replay frozen20261013130102 SQL or original2336/3998/4170 source/reviews/budgets/claims.",
+    "No broad omission of last_seen_at or any other planned integrity field; no changed grants/roles/volatility/targets/history/deletion.",
+    "No production/preview/manual SQL, credentials, curated merge, paid review, claim manipulation or source publication by subagents.",
+    "No fake full-native success from reduced PG model; all required CI/live gates remain separate.",
+    "Do not broaden the normalization predicate, alter old applied source, weaken integrity guards, or mark quarantined expected failures as ordinary passing tests.",
+    "Do not relax timestamp/audit/no-op/retry/tamper assertions or change canonical production source identities to fit the old erroneous fixture."
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts.test_production_catalog_verification scripts.test_shared_db_live_proof scripts.test_migration_derivation",
+    "node scripts/check-production-verification-sidecars.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "route": "claim-first",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop source changes if scope widens, frozen bytes differ, native gate refuses or owner check-in is older than ten minutes."
+  ],
+  "work_issue": 2336,
+  "work_type": "structural",
+  "worker": "Codex chat 01a14f42-9919-77a1-b9c9-3b1d6883d66f on edge-dev3 performs recovery and verification; Luna 6 High supplies bounded preparation",
+  "worktree": "/home/ahazan/.codex/worktrees/6f9d/shared-db"
+}
