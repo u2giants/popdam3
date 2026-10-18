@@ -17,7 +17,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { readdirSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { emittedJobNames, jobBlockByName, jobBlocks, jobEvents, stepBlock } from './lib/workflow-jobs.mjs'
 
 const readWorkflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
@@ -47,6 +49,50 @@ printf 'workflow-head=%s\\n' "$GITHUB_SHA"
       GITHUB_REPOSITORY: 'popcre/shared-db', GITHUB_WORKSPACE: '/synthetic',
       FIXTURE_JSON: JSON.stringify(pr), FETCH_FAILS: fetchFails ? '1' : '0' },
   })
+}
+
+function guardedQueueDecision(mode, { readFails = false } = {}) {
+  const workflow = readWorkflow('guarded-migration-merge.yml')
+  const step = stepBlock(workflow, 'Re-prove the head and merge while the lock is held')
+  const start = step.indexOf('queue_mode="$(node "$GITHUB_WORKSPACE/trusted-policy/scripts/merge-queue-contract.mjs" --queue-mode)"')
+  const endMarker = `test "$merged" = '1'`
+  const end = step.indexOf(endMarker, start)
+  assert.ok(start >= 0 && end > start, 'the actual queue decision block must be present in the guarded merge step')
+  const decision = step.slice(start, end + endMarker.length)
+    .replaceAll('${{ inputs.pull_request }}', '$PR_NUMBER')
+    .replaceAll('${{ inputs.head_sha }}', '$REQUESTED_SHA')
+  const script = `set -euo pipefail
+merge_calls=0
+trap 'echo MERGE_CALL_COUNT=$merge_calls' EXIT
+node() {
+  if [ "$1" = "$GITHUB_WORKSPACE/trusted-policy/scripts/merge-queue-contract.mjs" ] && [ "$2" = '--queue-mode' ]; then
+    [ "$QUEUE_READ_FAILS" = 0 ] || return 1
+    printf '%s' "$QUEUE_MODE"
+  else
+    command node "$@"
+  fi
+}
+gh() {
+  [ "$1" = pr ] && [ "$2" = merge ] || return 91
+  merge_calls=$((merge_calls + 1))
+  return 0
+}
+prove_retained_all14() { return 0; }
+${decision}
+`
+  const runnerTemp = mkdtempSync(join(tmpdir(), 'guarded-queue-decision-'))
+  try {
+    const result = spawnSync('bash', ['-c', script], {
+      encoding: 'utf8', timeout: 10000,
+      env: { ...process.env, QUEUE_MODE: mode, QUEUE_READ_FAILS: readFails ? '1' : '0',
+        PR_NUMBER: '7', REQUESTED_SHA: 'a'.repeat(40), GITHUB_REPOSITORY: 'popcre/shared-db',
+        GITHUB_WORKSPACE: '/synthetic', RUNNER_TEMP: runnerTemp },
+    })
+    const count = /MERGE_CALL_COUNT=(\d+)/.exec(result.stdout)?.[1]
+    return { ...result, mergeCalls: count === undefined ? null : Number(count) }
+  } finally {
+    rmSync(runnerTemp, { recursive: true, force: true })
+  }
 }
 
 const guardedCollisionPull = () => ({ number: 7, state: 'open', head: { sha: 'a'.repeat(40), repo: { full_name: 'popcre/shared-db' } }, base: { ref: 'main', repo: { full_name: 'popcre/shared-db' } } })
@@ -355,7 +401,28 @@ test('every authorization status reader uses the shared paginated helper, not co
   assert.ok(contract.includes('--paginate') && contract.includes('--slurp'), 'the shared reader must paginate')
 })
 
-test('the guarded merge lane is dual-mode and never uses --admin', () => {
+test('the actual guarded queue decision queues active, directly merges inactive, and refuses unknown before gh', () => {
+  const active = guardedQueueDecision('active')
+  assert.equal(active.status, 0, active.stderr)
+  assert.equal(active.mergeCalls, 1)
+  assert.match(active.stdout, /Queue admission complete/)
+
+  const inactive = guardedQueueDecision('inactive')
+  assert.equal(inactive.status, 0, inactive.stderr)
+  assert.equal(inactive.mergeCalls, 1)
+  assert.doesNotMatch(inactive.stdout, /Queue admission complete/)
+
+  const unknown = guardedQueueDecision('unknown')
+  assert.equal(unknown.status, 1)
+  assert.equal(unknown.mergeCalls, 0)
+  assert.match(unknown.stderr + unknown.stdout, /unknown; refusing before any merge attempt/)
+
+  const unreadable = guardedQueueDecision('', { readFails: true })
+  assert.equal(unreadable.status, 1)
+  assert.equal(unreadable.mergeCalls, 0)
+})
+
+test('the guarded merge lane pins exact heads and never uses --admin', () => {
   const text = readWorkflow('guarded-migration-merge.yml')
   assert.ok(text.includes('--queue-mode'), 'the guarded lane does not read live queue state')
   assert.ok(!text.includes('--admin'), 'the guarded lane must never bypass with --admin')

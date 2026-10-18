@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "work_issue": 2530,
+  "generation": 22,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Prospectively reapply and deliver the bounded recovered queue repair source 35fd7169db8e6b0c81ef21d045a78c901869e749 under current generation-22 authority: preserve exact existing bypass actors, refuse unreadable/drifted queue admission, verify the six-path source, obtain independent exact-head review, and use guarded publication. This contract is published after that earlier source preparation and is not evidence of pre-work authority for commit 35fd7169.",
+  "base_sha": "7ec7639f4d8b1678d49cce19f254dfb86fcc5e6b",
+  "dispatcher": "Codex coordinator chat 01a14f42-9919-77a1-b9c9-3b1d6883d66f",
+  "worker": "Codex root chat 01a14f42-9919-77a1-b9c9-3b1d6883d66f; recovered mechanical Luna source is input only",
+  "branch": "codex/2530-queue-admitted-01a14f42",
+  "worktree": "/home/ahazan/.codex/worktrees/queue-admitted-2530/shared-db",
+  "allowed_paths": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "docs/merge-queue-operation.md",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "scripts/merge-queue-contract.test.mjs",
+    ".agent/work/2530/22/contract.json",
+    ".agent/work/2530/22/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "docs/merge-queue-operation.md",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "scripts/merge-queue-contract.test.mjs",
+    ".agent/work/2530/22/contract.json",
+    ".agent/work/2530/22/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change GitHub rulesets, branch protection, queue activation state, credentials, database objects, claims, stages, frozen PR #3998 or #4170, or files outside the six source paths and generation-22 evidence pair.",
+    "Do not use --admin, infer active/inactive state after an unreadable or drifted queue-mode read, or bypass guarded admission.",
+    "Do not claim full issue Steps 10/11, settings activation, live queue proof, production action, or database authority from this source contract. Root alone performs publication and technical decisions after independent review."
+  ],
+  "required_checks": [
+    "node --check scripts/configure-merge-queue.test.mjs && node --check scripts/check-merge-queue-workflows.test.mjs",
+    "node --test scripts/configure-merge-queue.test.mjs scripts/merge-queue-contract.test.mjs scripts/check-merge-queue-workflows.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Fresh origin/main at draft time is 7ec7639f4d8b1678d49cce19f254dfb86fcc5e6b; implementation commit 35fd7169db8e6b0c81ef21d045a78c901869e749 is based directly on that main commit.",
+    "The source diff is exactly the six listed source paths; no database, GitHub settings, claim, or stage mutation is part of the source repair.",
+    "The latest published #2530 contract ref at draft time is refs/db-contracts/2530/21 with contract SHA-256 f6ca3f19b163846eac26e0b2072d99e6a3d6e170ec8d2f15051ec2b660c2331d; generation 22 names it as its explicit predecessor.",
+    "Issue #2530 was created 2026-09-07, before the 2026-09-11T18:00:00Z admission cutover. Its live scope lacks change_type; current code admits this legacy repo-maintenance route from issue age. If issue scope is refreshed, change_type must be repo-maintenance.",
+    "PR #3998 remains open at 592e16c7acd27b8ff81df87bfa9988f94ff803c1 and PR #4170 remains draft/open at cddf31e10361dbfc43a722801deed78dc936cc44; they are not modified or used as authority for this source change.",
+    "Original source35fd7169 was prepared before this contract; it remains preserved on its own clean branch/worktree as source only. New implementation reapplication and all delivery steps occur after this publication with actual timestamps; no history is rewritten or backdated."
+  ],
+  "stop_conditions": [
+    "Stop if any source path outside the six approved paths is needed.",
+    "Stop if active, inactive, unknown, or unreadable queue-mode behavior differs from the approved bounded cases.",
+    "Stop if existing bypass actors cannot be read, same-ID identity changes, or actor drift occurs before PUT; do not replace or broaden the actor list.",
+    "Stop before live settings or database operations; those require separately exact technical action evidence and stronger gates. Do not invent a migration or reuse frozen source as a canary."
+  ],
+  "evidence_parent": {
+    "work_issue": 2530,
+    "generation": 21,
+    "contract_sha256": "f6ca3f19b163846eac26e0b2072d99e6a3d6e170ec8d2f15051ec2b660c2331d"
+  }
+}

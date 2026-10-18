@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 2530,
+  "outcome": "ready-for-merge",
+  "pr": 4445,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2530/22",
+  "contract_sha256": "92b6f9cc3e6cb4eae1f3a1c35c10c100bf830236482b98119481e56ae46b84df",
+  "head_sha": "8d52c7e95be4d6b434c08618bfe3faf5af082179",
+  "files_changed": [
+    ".github/workflows/guarded-migration-merge.yml",
+    "docs/merge-queue-operation.md",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "scripts/merge-queue-contract.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --check scripts/configure-merge-queue.test.mjs && node --check scripts/check-merge-queue-workflows.test.mjs",
+      "exit_code": 0,
+      "evidence": "Both syntax checks passed in the focused verification run."
+    },
+    {
+      "command": "node --test scripts/configure-merge-queue.test.mjs scripts/merge-queue-contract.test.mjs scripts/check-merge-queue-workflows.test.mjs",
+      "exit_code": 0,
+      "evidence": "89 tests passed, 0 failed. Actual extracted guarded workflow shell decision with stubbed gh: active mode made 1 merge call; inactive mode made 1; unknown and unreadable modes made 0. Existing-ruleset tests cover exact bypass actor readback and no PUT/POST for missing/unreadable detail or pre-write drift."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Passed with no whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Unknown or unreadable queue mode is not interpreted as inactive; it refuses before gh pr merge.",
+    "Existing ruleset bypass actors are copied exactly into the update payload, re-read under the same ruleset ID before PUT, and verified exactly on write readback.",
+    "Newly created queue rulesets default to an empty bypass actor list.",
+    "No database, GitHub settings, claim, or stage operation was performed by this implementation.",
+    "Earlier35fd7169 source is retained as non-authorizing preparation; generation22 was actually published before reapplication in this worktree and implementation8d52c7e95. All delivery gates remain prospective; source identical, no backdating."
+  ],
+  "stop_conditions_hit": []
+}

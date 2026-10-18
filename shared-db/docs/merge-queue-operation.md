@@ -19,7 +19,8 @@ design history, never cherry-picked). This is repository maintenance; it changes
 - `guarded-migration-merge.yml` remains the SOLE admission path. It re-proves the exact head, review,
   claims, collisions, required checks and production lock, reads the live queue state under the merge
   lock, and then either merges directly (queue inactive) or enqueues with `--match-head-commit`
-  (queue active). It never uses `--admin`. After activation, GitHub is the sole merger.
+  (queue active). An unknown or mismatched active ruleset refuses before any merge attempt.
+  It never uses `--admin`. After activation, GitHub is the sole merger.
 - After a migration-bearing merge, the next merge group waits until that exact `main` commit carries
   `Post-merge preview rehearsal: success`, posted only by a successful post-merge rehearsal run of
   `.github/workflows/shared-supabase-migrations.yml` (never on failure, never manually).
@@ -56,11 +57,16 @@ Activation must happen only after the implementation PR is merged and green on `
    the owner is an organization, the repository is public, the immutable repository ID matches the
    transfer baseline artifact, the queue workflow is on `main`, every required context including
    `Merge queue gate` is live, no mutation lane is held, and a migration-bearing main tip already
-   carries its exact-SHA rehearsal status. Save the dry-run JSON as evidence.
+   carries its exact-SHA rehearsal status. For an existing named ruleset, the dry run requires its
+   full detail and carries its exact `bypass_actors` into the proposed update; a new ruleset starts
+   with no bypass actors. Save the dry-run JSON as evidence.
 3. Inspect the proposed payload independently, then re-run with `--apply`. The tool creates (or
-   idempotently updates) exactly the ruleset `main merge queue` and verifies every read-back field.
-4. Read back the ruleset by ID and the branch protection: all prior contexts plus `Merge queue gate`
-   remain required, `strict` remains false, administrator enforcement unchanged.
+   idempotently updates) exactly the ruleset `main merge queue`. Before updating an existing ID it
+   re-reads that ruleset and refuses if its identity or `bypass_actors` changed since planning.
+   Its write read-back must match the exact planned `bypass_actors` and all other payload fields.
+4. Read back the ruleset by ID and the branch protection: bypass actors match the preserved plan,
+   all prior contexts plus `Merge queue gate` remain required, `strict` remains false, and
+   administrator enforcement is unchanged.
 5. Prove with one documents-only canary PR (Step 9): one synthetic merge group, all required contexts
    green on the group SHA, GitHub — not the guarded lane — performs the merge.
 

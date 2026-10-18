@@ -14,8 +14,8 @@
 //     carries a successful `Post-merge preview rehearsal` status, so the first
 //     queued group is not born held (plan Step 7 gate 8).
 //
-// The desired ruleset is EXACT and MINIMAL: one rule, one target ref, the
-// approved one-PR parameters from scripts/merge-queue-contract.mjs. Branch
+// The desired ruleset is EXACT and MINIMAL: two approved rules, one target ref,
+// the approved one-PR parameters and existing bypass actors. Branch
 // protection and required checks are never touched here — the additive-only
 // scripts/update-required-checks.mjs owns that list.
 //
@@ -28,6 +28,7 @@
 // read-back mismatch; 2 live state could not be read (never "nothing to do").
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
+import { isDeepStrictEqual } from 'node:util'
 import { createTreeReader } from './lib/github-tree.mjs'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { resolveRepositoryIdentity, RepositoryIdentityError } from './lib/repository-identity.mjs'
@@ -49,12 +50,16 @@ export const LANE_REFS = Object.freeze([
   'refs/db-coordination/promotion-freeze',
 ])
 
-export function desiredRuleset() {
+export function desiredRuleset(bypassActors = []) {
+  if (!Array.isArray(bypassActors)) throw new ConfigureQueueError('ruleset bypass actors are unreadable; refusing')
   return {
     name: RULESET_NAME,
     target: 'branch',
     enforcement: 'active',
     conditions: { ref_name: { include: ['refs/heads/main'], exclude: [] } },
+    // Updating a ruleset must carry forward its exact bypass policy. A new
+    // ruleset has no prior actors, so its explicit default is none.
+    bypass_actors: bypassActors,
     // Two rules: the approved one-PR merge queue, plus required_status_checks
     // listing the 14 live contexts so the queue knows what to wait for (#2530).
     rules: [QUEUE_RULE, REQUIRED_STATUS_CHECKS_RULE],
@@ -176,7 +181,32 @@ export function readMainTip(repo, { read = ghJson } = {}) {
 // Plan / apply / rollback
 // ---------------------------------------------------------------------------
 
-export function planActivation({ repo, live, baselineId, rulesets, contexts, workflows, heldLanes, mainTip, coveredContexts }) {
+export function existingRulesetBypassActors(existing, detail) {
+  if (!existing) {
+    if (detail != null) throw new ConfigureQueueError('unexpected ruleset detail without an existing named ruleset')
+    return []
+  }
+  if (!Number.isInteger(existing.id)) throw new ConfigureQueueError('existing named ruleset ID is unreadable; refusing to update')
+  if (!detail || typeof detail !== 'object' || detail.id !== existing.id || detail.name !== RULESET_NAME) {
+    throw new ConfigureQueueError(`existing ruleset ${existing.id} detail is unreadable or does not match ${RULESET_NAME}; refusing to update`)
+  }
+  if (!Array.isArray(detail.bypass_actors)) throw new ConfigureQueueError(`existing ruleset ${existing.id} bypass actors are unreadable; refusing to update`)
+  return detail.bypass_actors
+}
+
+export function assertBypassActorsUnchanged(existing, expectedActors, currentDetail) {
+  if (!existing || !Number.isInteger(existing.id)) throw new ConfigureQueueError('existing ruleset ID is unreadable; refusing to update')
+  if (!currentDetail || typeof currentDetail !== 'object' || currentDetail.id !== existing.id || currentDetail.name !== RULESET_NAME) {
+    throw new ConfigureQueueError(`existing ruleset ${existing.id} changed identity before update; refusing`)
+  }
+  if (!Array.isArray(currentDetail.bypass_actors)) throw new ConfigureQueueError(`existing ruleset ${existing.id} bypass actors became unreadable before update; refusing`)
+  if (!isDeepStrictEqual(currentDetail.bypass_actors, expectedActors)) {
+    throw new ConfigureQueueError(`existing ruleset ${existing.id} bypass actors changed after planning; refusing to overwrite policy drift`)
+  }
+  return true
+}
+
+export function planActivation({ repo, live, baselineId, rulesets, existingDetail = null, contexts, workflows, heldLanes, mainTip, coveredContexts }) {
   assertRepositoryIdentity({ live, baselineId })
   assertContextsAndWorkflow({ contexts, workflows })
   assertLiveContextsCovered({ contexts, coveredContexts })
@@ -185,7 +215,9 @@ export function planActivation({ repo, live, baselineId, rulesets, contexts, wor
   if (!Array.isArray(rulesets)) throw new ConfigureQueueError('ruleset list is unreadable; refusing')
   const sameName = rulesets.filter((row) => row?.name === RULESET_NAME)
   if (sameName.length > 1) throw new ConfigureQueueError(`multiple rulesets named ${RULESET_NAME}; refusing to guess which one to update`)
-  return { repo, existing: sameName[0] ?? null, desired: desiredRuleset(), mainTip: tip }
+  const existing = sameName[0] ?? null
+  const bypassActors = existingRulesetBypassActors(existing, existingDetail)
+  return { repo, existing, bypassActors, desired: desiredRuleset(bypassActors), mainTip: tip }
 }
 
 // Every field of the read-back must equal the desired document; a ruleset that
@@ -194,6 +226,9 @@ export function verifyReadback(written, desired = desiredRuleset()) {
   if (!written || typeof written !== 'object' || !Number.isInteger(written.id)) throw new ConfigureQueueError('ruleset write did not read back with an ID')
   for (const key of ['name', 'target', 'enforcement']) {
     if (written[key] !== desired[key]) throw new ConfigureQueueError(`read-back mismatch: ${key} is ${written[key]}, expected ${desired[key]}`)
+  }
+  if (!Array.isArray(written.bypass_actors) || !isDeepStrictEqual(written.bypass_actors, desired.bypass_actors)) {
+    throw new ConfigureQueueError('read-back mismatch: bypass_actors differ from the exact planned actors')
   }
   const include = written.conditions?.ref_name?.include
   const exclude = written.conditions?.ref_name?.exclude ?? []
@@ -298,17 +333,24 @@ export function main(argv, env = process.env, deps = {}) {
   if (coveredContexts === undefined) {
     try { coveredContexts = JSON.parse((deps.readFile ?? readFileSync)(COVERED_CONTEXTS_PATH, 'utf8'))?.contexts } catch { coveredContexts = null }
   }
-  const plan = planActivation({ repo, live, baselineId, rulesets, contexts, workflows, heldLanes, mainTip, coveredContexts })
+  const named = rulesets.filter((row) => row?.name === RULESET_NAME)
+  if (named.length > 1) throw new ConfigureQueueError(`multiple rulesets named ${RULESET_NAME}; refusing to guess which one to update`)
+  const existingDetail = named.length === 1 ? read(['api', `repos/${repo}/rulesets/${named[0].id}`]) : null
+  const plan = planActivation({ repo, live, baselineId, rulesets, existingDetail, contexts, workflows, heldLanes, mainTip, coveredContexts })
   log(JSON.stringify({ mode: apply ? 'APPLY' : 'DRY RUN', repository: { id: live.id, ownerType: live.owner.type, visibility: live.visibility }, existingRulesetId: plan.existing?.id ?? null, mainTipHold: plan.mainTip, desired: plan.desired }, null, 2))
   if (!apply) {
     log('Dry run only. Nothing was written. Re-run with --apply to create the ruleset.')
     return 0
   }
+  if (plan.existing) {
+    const currentDetail = read(['api', `repos/${repo}/rulesets/${plan.existing.id}`])
+    assertBypassActorsUnchanged(plan.existing, plan.bypassActors, currentDetail)
+  }
   const body = JSON.stringify(plan.desired)
   const written = plan.existing
     ? read(['api', '--method', 'PUT', `repos/${repo}/rulesets/${plan.existing.id}`, '--input', '-'], { input: body })
     : read(['api', '--method', 'POST', `repos/${repo}/rulesets`, '--input', '-'], { input: body })
-  const verified = verifyReadback(written)
+  const verified = verifyReadback(written, plan.desired)
   log(`ACTIVATED ruleset ${verified.id}: ${verified._links?.html?.href ?? '(no URL)'} — read-back matches the approved one-PR queue exactly.`)
   return 0
 }

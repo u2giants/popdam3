@@ -8,6 +8,7 @@ import {
   assertContextsAndWorkflow,
   assertLiveContextsCovered,
   assertMainTipPreview,
+  assertBypassActorsUnchanged,
   assertNoMutationLane,
   assertRepositoryIdentity,
   desiredRuleset,
@@ -42,6 +43,9 @@ test('queue is exactly one all-green PR built and merged at a time', () => {
   assert.equal(desiredRuleset().rules[0]?.type, 'merge_queue')
   assert.equal(desiredRuleset().rules[1]?.type, 'required_status_checks')
   assert.equal(REQUIRED_STATUS_CHECKS_RULE.parameters.required_status_checks.length, 14)
+  assert.deepEqual(desiredRuleset().bypass_actors, [])
+  const actors = [{ actor_id: 42, actor_type: 'Team', bypass_mode: 'always' }]
+  assert.deepEqual(desiredRuleset(actors).bypass_actors, actors)
 })
 
 test('repository identity gate: organization, public, and the transferred object ID', () => {
@@ -123,9 +127,16 @@ test('activation plan: all gates pass, same-name ruleset is reused, duplicates r
     coveredContexts: [QUEUE_GATE_CONTEXT],
   }
   assert.equal(planActivation({ ...base, rulesets: [] }).existing, null)
+  assert.deepEqual(planActivation({ ...base, rulesets: [] }).desired.bypass_actors, [])
   assert.throws(() => planActivation({ ...base, rulesets: [], contexts: [QUEUE_GATE_CONTEXT, 'Unmirrored check'] }), /without proven merge-group coverage: Unmirrored check/)
   assert.throws(() => planActivation({ ...base, rulesets: [], coveredContexts: undefined }), /unreadable/)
-  assert.equal(planActivation({ ...base, rulesets: [{ id: 9, name: RULESET_NAME }] }).existing.id, 9)
+  const actors = [{ actor_id: 42, actor_type: 'Team', bypass_mode: 'always' }]
+  const existing = { id: 9, name: RULESET_NAME, bypass_actors: actors }
+  assert.equal(planActivation({ ...base, rulesets: [existing], existingDetail: existing }).existing.id, 9)
+  assert.deepEqual(planActivation({ ...base, rulesets: [existing], existingDetail: existing }).desired.bypass_actors, actors)
+  assert.throws(() => planActivation({ ...base, rulesets: [existing] }), /detail is unreadable/)
+  assert.throws(() => planActivation({ ...base, rulesets: [existing], existingDetail: { id: 9, name: RULESET_NAME } }), /bypass actors are unreadable/)
+  assert.throws(() => planActivation({ ...base, rulesets: [existing], existingDetail: { ...existing, id: 10 } }), /detail is unreadable/)
   assert.throws(() => planActivation({ ...base, rulesets: [{ id: 9, name: RULESET_NAME }, { id: 10, name: RULESET_NAME }] }), /multiple rulesets/)
 })
 
@@ -138,8 +149,23 @@ test('read-back: every field must equal the desired document', () => {
   assert.throws(() => verifyReadback({ ...written, rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters, max_entries_to_merge: 2 } }, REQUIRED_STATUS_CHECKS_RULE] }), /read-back mismatch: queue parameters/)
   assert.throws(() => verifyReadback({ ...written, rules: [] }), /exactly two rules/)
   assert.throws(() => verifyReadback({ ...written, rules: [QUEUE_RULE] }), /exactly two rules/)
+  assert.throws(() => verifyReadback({ ...written, bypass_actors: [{ actor_id: 43, actor_type: 'Team', bypass_mode: 'always' }] }), /bypass_actors differ/)
+  assert.throws(() => verifyReadback({ ...written, bypass_actors: undefined }), /bypass_actors differ/)
+  assert.throws(() => verifyReadback({ ...written, bypass_actors: [{ actor_id: 42, actor_type: 'Team', bypass_mode: 'pull_request' }] }), /bypass_actors differ/)
+  assert.throws(() => verifyReadback({ ...written, bypass_actors: [{ actor_id: 42, actor_type: 'Team', bypass_mode: 'always' }, { actor_id: 43, actor_type: 'Team', bypass_mode: 'always' }] }), /bypass_actors differ/)
   assert.throws(() => verifyReadback({ ...written, rules: [QUEUE_RULE, { type: 'required_status_checks', parameters: { ...REQUIRED_STATUS_CHECKS_RULE.parameters, required_status_checks: [{ context: 'only-one' }] } }] }), /read-back mismatch: required_status_checks/)
   assert.throws(() => verifyReadback({ name: RULESET_NAME }), /did not read back with an ID/)
+})
+
+test('read-back preserves a nonempty bypass actor list exactly', () => {
+  const actors = [{ actor_id: 42, actor_type: 'Team', bypass_mode: 'always' }]
+  const desired = desiredRuleset(actors)
+  const written = { id: 9, ...desired }
+  assert.equal(verifyReadback(written, desired).id, 9)
+  assert.throws(() => verifyReadback({ ...written, bypass_actors: [] }, desired), /bypass_actors differ/)
+  assert.throws(() => verifyReadback({ ...written, bypass_actors: [...actors, { actor_id: 43, actor_type: 'Team', bypass_mode: 'always' }] }, desired), /bypass_actors differ/)
+  assert.throws(() => verifyReadback({ ...written, bypass_actors: [{ ...actors[0], bypass_mode: 'pull_request' }] }, desired), /bypass_actors differ/)
+  assert.throws(() => verifyReadback({ ...written, bypass_actors: [{ ...actors[0], actor_id: 43 }] }, desired), /bypass_actors differ/)
 })
 
 test('read-back accepts GitHub key order for identical queue parameters (#3566, ruleset 24024180)', () => {
@@ -161,16 +187,17 @@ test('rollback names only the recorded main merge queue ruleset', () => {
 
 // End-to-end CLI shape with injected reads: dry run writes nothing, apply POSTs
 // once and verifies, and a gate failure exits 1 without any write.
-function fakeLive({ withRuleset = false } = {}) {
+function fakeLive({ withRuleset = false, bypassActors = [] } = {}) {
   const calls = []
   const bodies = []
   const read = (args, options = {}) => {
     calls.push({ args, hasInput: options.input !== undefined })
     if (options.input !== undefined) bodies.push(options.input)
-    if (args.includes('POST') && args.some((a) => String(a).endsWith('/rulesets'))) return { id: 9, ...desiredRuleset() }
-    if (args.includes('PUT') && args.some((a) => String(a).endsWith('rulesets/9'))) return { id: 9, ...desiredRuleset() }
+    if (args.includes('POST') && args.some((a) => String(a).endsWith('/rulesets'))) return { id: 9, ...JSON.parse(options.input) }
+    if (args.includes('PUT') && args.some((a) => String(a).endsWith('rulesets/9'))) return { id: 9, ...JSON.parse(options.input) }
     const target = args.at(-1)
     if (target.endsWith('includes_parents=false')) return withRuleset ? [{ id: 9, name: RULESET_NAME, enforcement: 'active' }] : []
+    if (target.endsWith('/rulesets/9')) return { id: 9, name: RULESET_NAME, bypass_actors: bypassActors }
     if (target === 'repos/acme/widgets') return { id: 1, owner: { type: 'Organization' }, visibility: 'public' }
     if (target.endsWith('required_status_checks')) return { contexts: [QUEUE_GATE_CONTEXT] }
     if (target.includes('/git/ref/')) throw new Error('HTTP 404: Not Found')
@@ -199,6 +226,46 @@ test('CLI dry run writes nothing; apply posts the exact payload once', () => {
   const write = applied.calls.find((c) => c.hasInput)
   assert.ok(write.args.includes('POST'))
   assert.ok(write.args.at(-2) === '--input' || write.args.includes('--input'))
+})
+
+test('CLI updates the existing ID with exact bypass actors and refuses actor drift before PUT', () => {
+  const actors = [{ actor_id: 42, actor_type: 'Team', bypass_mode: 'always' }]
+  const existing = fakeLive({ withRuleset: true, bypassActors: actors })
+  const code = main(['--apply'], { GITHUB_REPOSITORY: 'acme/widgets' }, { read: existing.read, treeReader: existing.treeReader, baselineId: 1, log: () => {}, readOrigin: () => null })
+  assert.equal(code, 0)
+  assert.equal(existing.bodies.length, 1)
+  assert.deepEqual(JSON.parse(existing.bodies[0]).bypass_actors, actors)
+  assert.ok(existing.calls.some((call) => call.args.includes('PUT') && call.args.at(-1) === '-'))
+  assert.ok(!existing.calls.some((call) => call.args.includes('POST')))
+  assert.equal(existing.calls.filter((call) => call.args.at(-1) === 'repos/acme/widgets/rulesets/9').length, 2)
+
+  const drift = fakeLive({ withRuleset: true, bypassActors: actors })
+  let detailReads = 0
+  const driftingRead = (args, options) => {
+    if (args.at(-1) === 'repos/acme/widgets/rulesets/9' && ++detailReads === 2) {
+      return { id: 9, name: RULESET_NAME, bypass_actors: [{ actor_id: 43, actor_type: 'Team', bypass_mode: 'always' }] }
+    }
+    return drift.read(args, options)
+  }
+  assert.throws(() => main(['--apply'], { GITHUB_REPOSITORY: 'acme/widgets' }, { read: driftingRead, treeReader: drift.treeReader, baselineId: 1, log: () => {}, readOrigin: () => null }), /bypass actors changed after planning/)
+  assert.equal(drift.calls.filter((call) => call.hasInput).length, 0)
+})
+
+test('CLI refuses missing or unreadable existing bypass actors before any write', () => {
+  for (const [label, detail] of [
+    ['missing', { id: 9, name: RULESET_NAME }],
+    ['unreadable', null],
+  ]) {
+    const fixture = fakeLive({ withRuleset: true })
+    const read = (args, options) => {
+      if (args.at(-1) === 'repos/acme/widgets/rulesets/9') return detail
+      return fixture.read(args, options)
+    }
+    assert.throws(() => main(['--apply'], { GITHUB_REPOSITORY: 'acme/widgets' }, {
+      read, treeReader: fixture.treeReader, baselineId: 1, log: () => {}, readOrigin: () => null,
+    }), new RegExp(label === 'missing' ? 'bypass actors are unreadable' : 'detail is unreadable'))
+    assert.equal(fixture.calls.filter((call) => call.hasInput).length, 0, `${label} detail must refuse before PUT or POST`)
+  }
 })
 
 test('CLI refuses before any write when a gate fails', () => {

@@ -198,6 +198,14 @@ test('queue mode: unknown, never guessed, on duplicates, foreign queues, or shap
     throw new Error(`unexpected read ${target}`)
   }
   assert.throws(() => queueMode({ repo: REPO, read: drifted }), /not the exact approved one-PR queue/)
+
+  const emptyActive = (args) => {
+    const target = args.at(-1)
+    if (target.endsWith('includes_parents=false')) return [{ id: 43, name: RULESET_NAME, enforcement: 'active' }]
+    if (target.endsWith('rulesets/43')) return { ...approvedDetail, rules: [] }
+    throw new Error(`unexpected read ${target}`)
+  }
+  assert.throws(() => queueMode({ repo: REPO, read: emptyActive }), /not the exact approved one-PR queue/)
 })
 
 // ---------------------------------------------------------------------------
