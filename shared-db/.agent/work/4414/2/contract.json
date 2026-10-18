@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "work_issue": 4414,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Implement Phase A of the reviewer-assignment hold reduction plan: mutator inventory, secret-safe phase timing, and paid-start classification outside the author mutex without widening request ceilings.",
+  "base_sha": "fe3931607f952029ce6174073f7320d580a188b7",
+  "dispatcher": "MiMo chat ses-ffe5eaf-8884-1ffe-yWs7-yCi5D5 on edge-dev",
+  "worker": "MiMo chat ses-ffe5eaf-8884-1ffe-yWs7-yCi5D5 on edge-dev",
+  "branch": "mimo/4414-reviewer-assignment-holds",
+  "worktree": "D:/repos/shared-db-worktrees/4414-assignment-holds",
+  "allowed_paths": [
+    ".agent/work/4414/2/contract.json",
+    ".agent/work/4414/2/completion.json",
+    ".github/workflows/migration-author-lease.yml",
+    ".github/workflows/pr-guards.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/reviewer-assignment-holds.md",
+    "scripts/lib/lanes/assignment-hold-phases.test.mjs",
+    "scripts/lib/lanes/phase-trace.mjs",
+    "scripts/lib/lanes/phase-trace.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs"
+  ],
+  "file_writes": [
+    ".agent/work/4414/2/contract.json",
+    ".agent/work/4414/2/completion.json",
+    ".github/workflows/migration-author-lease.yml",
+    ".github/workflows/pr-guards.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/reviewer-assignment-holds.md",
+    "scripts/lib/lanes/assignment-hold-phases.test.mjs",
+    "scripts/lib/lanes/phase-trace.mjs",
+    "scripts/lib/lanes/phase-trace.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change any database structure, migration, view, function, trigger, or live row.",
+    "Do not widen REVIEW_OPERATION_REQUEST_LIMIT or REVIEW_MUTEX_SECTION_RESERVE.",
+    "Do not add a reviewer-only mutex or change MUTEX_REF.",
+    "Do not delete or forge coordination refs."
+  ],
+  "required_checks": [
+    "node --test scripts/lib/lanes/phase-trace.test.mjs",
+    "node --test scripts/lib/lanes/assignment-hold-phases.test.mjs",
+    "node --test scripts/db-flow/evidence-bundle.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Issue #4414 owns this assignment-hold outcome; plan is plan_reviewer_assignment_hold_reduction.md from PR #4419.",
+    "Paid-start classification never refuses a draw after owner #4399 (uncapped spend).",
+    "Windows historicalFailureFixture permission failures are environmental and pre-exist this change."
+  ],
+  "stop_conditions": [
+    "Stop if a change would require widening a derived request ceiling.",
+    "Stop if a change would remove or weaken mutex ownership or release proof.",
+    "Stop if any previously passing test fails for a non-environmental reason."
+  ],
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 4414,
+    "generation": 1,
+    "contract_sha256": "e54b6e6641b6c51313e5e32d53ebe835c47449ff89d6333718b0e51861ce6965"
+  }
+}
