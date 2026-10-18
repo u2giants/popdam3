@@ -3,7 +3,7 @@ import { currentRepository, expectedOperatorAssociation } from './lib/repository
 // Fixtures follow the resolved repository identity and its operator association (#3255).
 const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAssociation()
 import test from 'node:test'
-import { GOVERNED_REVIEW_OPTIONS, parseArgs, runGovernedReview as executeGovernedReview, resolveReviewSource, reserveReviewReceipt, validateSourceReceipt, wrapperFailureReason, redactWrapperStderr, wrapperFailureLogText, writeWrapperFailureLog, wrapperSourceContractArgs, wrapperVerdictContractArgs, wrapperBaseName, codexReportPath, codexGovernedBody, verdictFromOutput, neutraliseVerdictLine, extraVerdictLines, PRESERVED_HEADER, resolveReplacementSequence, lifecyclePoolProvider, lifecyclePoolImplementer, lifecyclePoolDispatch, lifecyclePoolReportBody } from './run-governed-review.mjs'
+import { GOVERNED_REVIEW_OPTIONS, parseArgs, runGovernedReview as executeGovernedReview, resolveReviewSource, reserveReviewReceipt, validateSourceReceipt, wrapperFailureReason, redactWrapperStderr, wrapperFailureLogText, writeWrapperFailureLog, wrapperSourceContractArgs, wrapperVerdictContractArgs, wrapperBaseName, codexReportPath, codexGovernedBody, verdictFromOutput, neutraliseVerdictLine, extraVerdictLines, PRESERVED_HEADER, resolveReplacementSequence, lifecyclePoolProvider, lifecyclePoolImplementer, lifecyclePoolDispatch, lifecyclePoolReportBody, prepareLifecyclePoolBrief } from './run-governed-review.mjs'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -116,7 +116,7 @@ test('governed runner forwards local tests and records the native lifecycle repo
     const report=`# muse final-check — ${runId}\n\n| field | value |\n|---|---|\n| provider | \`muse\` |\n| repository | \`${root}\` |\n| reviewed commit | \`${head}\` |\n| source digest | \`${digest}\` |\n| run | \`${runId}\` |\n| runner | \`ai-review-engine\` (review-lifecycle-core/1) |\n\n## Result\n\nFindings on ${head}.\n\n## Verdict\n\nAPPROVE\n`
     let dispatch=null,recorded=null
     const result=executeGovernedReview(assigned,{
-      lifecyclePool:true,env:{CODEX_THREAD_ID:'codex-thread'},recordStart:(row)=>{assert.deepEqual(row.wrapperArgs,['muse','final-check','--base','c'.repeat(40),'--assert-head',head,'--implementer','codex','--tests',tests]);return 'refs/db-review-started/fixture'},
+      lifecyclePool:true,env:{CODEX_THREAD_ID:'codex-thread'},poolBriefPreparer:(input,source)=>{assert.equal(source.headSha,head);return {wrapperArgs:[],env:{AI_REVIEW_BRIEF_FILE:'/brief/pool.md'}}},recordStart:(row)=>{assert.deepEqual(row.wrapperArgs,['muse','final-check','--base','c'.repeat(40),'--assert-head',head,'--implementer','codex','--tests',tests]);return 'refs/db-review-started/fixture'},
       sourceResolver:fixtureSource,sourcePathOptions:fixturePaths,
       receiptFactory:()=>({path:'C:/review/.ai/reviews/source.json',read:()=>fixtureReceipt(assigned),bind:()=> 'C:/review/.ai/reviews/source.json.binding.json'}),
       preflight:()=>{},resolve:(name)=>name,measureReviewSize:()=>1,
@@ -134,11 +134,21 @@ test('governed runner forwards local tests and records the native lifecycle repo
     assert.equal(dispatch.command,'ai-review')
     assert.deepEqual(dispatch.args,['muse','final-check','--base','c'.repeat(40),'--assert-head',head,'--implementer','codex','--tests',tests])
     assert.equal(dispatch.env.AI_REVIEW_IMPLEMENTER,'codex')
+    assert.equal(dispatch.env.AI_REVIEW_BRIEF_FILE,'/brief/pool.md')
     assert.equal(recorded.verdict,'APPROVE')
     assert.equal(result.lifecycleReportPath,reportPath)
     assert.equal(recorded.verdict,'APPROVE')
     assert.match(recorded.sourceEvidence.receiptPath,/source\.json$/)
   }finally{rmSync(root,{recursive:true,force:true})}
+})
+
+test('pool reviewers receive the complete brief, including the production-risk request, as AI_REVIEW_BRIEF_FILE (#4410)',()=>{
+  let stored=null
+  const brief=prepareLifecyclePoolBrief({...options,reviewer:'muse-spark-1.3-contributor',wrapper:'ai-muse'},fixtureSource(options),{
+    github:([,path])=>({status:0,stdout:JSON.stringify(/comments|reviews/.test(path)?[]:/\/issues\//.test(path)?{number:options.issue,title:'Issue',body:'Reviewer must return a production-risk-assessment block.'}:{number:fixtureSource(options).pr,title:'PR',body:'PR body',head:{sha:fixtureSource(options).headSha}})}),
+    store:(text)=>{stored=text;return '/brief/pool.md'}})
+  assert.deepEqual(brief,{wrapperArgs:[],env:{AI_REVIEW_BRIEF_FILE:'/brief/pool.md'}})
+  assert.match(stored,/production-risk-assessment block/)
 })
 
 test('all qualified wrappers receive immutable source arguments without rewriting prompt values',()=>{

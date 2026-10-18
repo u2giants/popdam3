@@ -635,7 +635,10 @@ export function runGovernedReview(options,deps={spawn:spawnSync,preflight:review
   const resolveSource=deps.sourceResolver??resolveReviewSource
   const sourceIdentity=resolveSource(options)
   const poolProvider=deps.lifecyclePool===false?null:lifecyclePoolProvider(options)
-  const brief=poolProvider?{wrapperArgs:[],env:{}}:(deps.briefPreparer??prepareCompleteReviewBrief)(options,sourceIdentity)
+  // Issue #4410: a pool reviewer gets the same complete brief (issue, PR and the
+  // production-risk-assessment request) through ai-review's AI_REVIEW_BRIEF_FILE;
+  // without it no drawable reviewer could ever emit the §6.23 block.
+  const brief=poolProvider?(deps.poolBriefPreparer??prepareLifecyclePoolBrief)(options,sourceIdentity):(deps.briefPreparer??prepareCompleteReviewBrief)(options,sourceIdentity)
   const contractArgs=poolProvider?[]:wrapperSourceContractArgs(options.wrapper,wrapperVerdictContractArgs(options.wrapper,brief.wrapperArgs,options.headSha),sourceIdentity)
   // ISSUE #2492 — SIZE THE TURN BUDGET BEFORE THE REVIEWER IS LAUNCHED.
   // A large migration exhausts the wrapper's 20-turn default and ends with no
@@ -1081,6 +1084,10 @@ Your final line must be exactly one of: VERDICT: APPROVE ${head} | VERDICT: REVI
   // still carry the contract.
   if(!carried&&wrapperBaseName(wrapper)!==CODEX_WRAPPER)throw new Error('the outbound reviewer prompt carries no terminal VERDICT instruction, because the wrapper arguments contain neither --prompt nor --prompt-file. No reviewer was started and no reviewer capacity was spent. A reviewer sent a prompt without the terminal "VERDICT: <DECISION> <head>" line can approve the work and still leave nothing recordable. Pass the brief with --prompt or --prompt-file so the runner can bind it to the live head.')
   return list
+}
+export function prepareLifecyclePoolBrief(options,source,{github=readGitHub,store=storeReviewBrief}={}){
+  const text=loadReviewBrief(options,source,{github})
+  return {wrapperArgs:[],env:{AI_REVIEW_BRIEF_FILE:store(`${text}\n${PROBE_REVIEW_CHECKLIST}`)}}
 }
 export function prepareCompleteReviewBrief(options,source,{github=readGitHub,files,store=storeReviewBrief}={}){
   const text=loadReviewBrief(options,source,{github})
