@@ -1,27 +1,41 @@
 import { describe, expect, it, vi } from "vitest";
 import { loadDamSearchMode, searchAccessStatus } from "../../supabase/functions/_shared/search-access";
 
+const caller = (data: unknown, error: unknown = null) => ({ rpc: vi.fn().mockResolvedValue({ data, error }) });
+
 describe("DAM role-safe mode capability", () => {
   it.each(["administrator", "designer", "viewer"])("returns the saved mode for an authorized %s", async () => {
     const config = vi.fn().mockResolvedValue({ data: { value: "hybrid" }, error: null });
-    await expect(loadDamSearchMode(async () => ({ data: true, error: null }), config)).resolves.toBe("hybrid");
+    // Canonical access is present; the legacy table can be absent for all three roles.
+    const db = { rpc: vi.fn((name: string) => Promise.resolve({ data: name === "require_dam_access", error: null })) };
+    await expect(loadDamSearchMode(db, config)).resolves.toBe("hybrid");
+    expect(db.rpc).toHaveBeenCalledExactlyOnceWith("require_dam_access");
     expect(config).toHaveBeenCalledOnce();
   });
   it("does not read privileged config for a user without DAM access", async () => {
     const config = vi.fn();
-    await expect(loadDamSearchMode(async () => ({ data: false, error: null }), config)).rejects.toMatchObject({ status: 403 });
+    await expect(loadDamSearchMode(caller(false), config)).rejects.toMatchObject({ status: 403 });
     expect(config).not.toHaveBeenCalled();
   });
   it("preserves an authorization-check error instead of granting access", async () => {
     const config = vi.fn();
-    await expect(loadDamSearchMode(async () => ({ data: null, error: { code: "42501" } }), config)).rejects.toMatchObject({ code: "42501" });
+    await expect(loadDamSearchMode(caller(null, { code: "42501" }), config)).rejects.toMatchObject({ code: "42501" });
     expect(config).not.toHaveBeenCalled();
   });
   it.each([null, {}, { value: false }, { value: "unknown" }])("defaults missing or invalid mode to keyword", async (data) => {
-    await expect(loadDamSearchMode(async () => ({ data: true, error: null }), async () => ({ data, error: null }))).resolves.toBe("keyword");
+    await expect(loadDamSearchMode(caller(true), async () => ({ data, error: null }))).resolves.toBe("keyword");
   });
   it("accepts the existing wrapped setting without exposing it", async () => {
-    await expect(loadDamSearchMode(async () => ({ data: true, error: null }), async () => ({ data: { value: { value: "hybrid" } }, error: null }))).resolves.toBe("hybrid");
+    await expect(loadDamSearchMode(caller(true), async () => ({ data: { value: { value: "hybrid" } }, error: null }))).resolves.toBe("hybrid");
+  });
+
+  it("does not let a legacy-only entry override canonical search denial", async () => {
+    const config = vi.fn();
+    const db = { rpc: vi.fn((name: string) => Promise.resolve(name === "require_dam_access"
+      ? { data: null, error: { code: "42501" } } : { data: true, error: null })) };
+    await expect(loadDamSearchMode(db, config)).rejects.toMatchObject({ code: "42501" });
+    expect(db.rpc).toHaveBeenCalledExactlyOnceWith("require_dam_access");
+    expect(config).not.toHaveBeenCalled();
   });
 });
 

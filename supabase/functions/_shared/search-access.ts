@@ -1,4 +1,4 @@
-/** Access failures must never select a different search route. */
+/** Browser and Deno shared code: keep this dependency-free. Access denial never selects another route. */
 export function searchAccessStatus(error: unknown): 401 | 403 | null {
   if (!error || typeof error !== "object") return null;
   const row = error as { status?: unknown; context?: { status?: unknown }; code?: unknown };
@@ -10,12 +10,12 @@ export function searchAccessStatus(error: unknown): 401 | 403 | null {
 
 type ReadResult = { data: unknown; error: unknown };
 
-/** Read only DAM's public capability; config remains privileged. */
+/** Use exactly the ranked-search authority, including its canonical administrator bypass. */
 export async function loadDamSearchMode(
-  readAccess: () => PromiseLike<ReadResult>,
+  caller: { rpc(name: "require_dam_access"): PromiseLike<ReadResult> },
   readMode: () => PromiseLike<ReadResult>,
 ): Promise<"keyword" | "hybrid"> {
-  const access = await readAccess();
+  const access = await caller.rpc("require_dam_access");
   if (access.error) throw access.error;
   if (access.data !== true) throw Object.assign(new Error("DAM access required"), { status: 403 });
   const config = await readMode();

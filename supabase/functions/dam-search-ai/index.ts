@@ -63,7 +63,7 @@ corsServe(async (req) => {
     if (auth.serviceRole) return err("A user session is required", 403);
     try {
       const dam = await loadDamSearchMode(
-        () => auth.client.rpc("has_app_access", { _user_id: auth.userId, _app: "popdam" }),
+        auth.client,
         () => serviceClient().from("admin_config").select("value").eq("key", "SEARCH_MODE").maybeSingle(),
       );
       return json({ ok: true, modes: { dam } });
