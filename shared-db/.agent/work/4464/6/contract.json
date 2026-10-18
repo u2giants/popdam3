@@ -1,0 +1,80 @@
+{
+  "schema_version": 2,
+  "generation": 6,
+  "evidence_parent": {
+    "work_issue": 4464,
+    "generation": 5,
+    "contract_sha256": "826efd44e0b9ce1f85d408056f3dbbb0a2f4cbf8e594623d31c6491151176ddc"
+  },
+  "work_issue": 4464,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Grant designflow_prod_tracking_grants USAGE on plm, SELECT on the seven Stage Catalog tables, INSERT/UPDATE/DELETE on the five editor tables, INSERT/UPDATE on prod_stage_progress and prod_stage_option, INSERT on dflow_prod.AuditLog and role-scoped RLS policies, with the narrow #2873 matrix amendment for exactly those tracking entries (coordinator decision #4475), under claim #4467 version 20261018191107. No role membership change.",
+  "base_sha": "d8c6008d3f3687987d3cf8e0d757e999983a6d4e",
+  "dispatcher": "Claude chat 49144e8c-9530-49a9-a081-34792a3e6716 on edge-dev3",
+  "worker": "Claude chat 49144e8c-9530-49a9-a081-34792a3e6716 on edge-dev3",
+  "branch": "claude/stage-catalog-prod-grant",
+  "worktree": "/home/ahazan/repos/shared-db-wt-stage-catalog-prod-grant",
+  "allowed_paths": [
+    "supabase/migrations/20261018191107_plm_stage_catalog_prod_tracking_grant.sql",
+    "supabase/tests/plm_stage_catalog_prod_tracking_grant_contracts.sql",
+    "supabase/tests/plm_stage_catalog_contracts.sql",
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/2873-role-contract.sql",
+    "scripts/proofs/2873-contract.json",
+    "scripts/proofs/shared-db-2873-observation.test.mjs",
+    ".agent/work/4464/6/contract.json",
+    ".agent/work/4464/6/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261018191107_plm_stage_catalog_prod_tracking_grant.sql",
+    "supabase/tests/plm_stage_catalog_prod_tracking_grant_contracts.sql",
+    "supabase/tests/plm_stage_catalog_contracts.sql",
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/2873-role-contract.sql",
+    "scripts/proofs/2873-contract.json",
+    "scripts/proofs/shared-db-2873-observation.test.mjs",
+    ".agent/work/4464/6/contract.json",
+    ".agent/work/4464/6/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "role designflow_prod_tracking_grants",
+    "schema plm",
+    "table plm.stage_list",
+    "table plm.stage",
+    "table plm.stage_duration",
+    "table plm.stage_dependency",
+    "table plm.licensor_stage_option",
+    "table plm.prod_stage_progress",
+    "table plm.prod_stage_option",
+    "table dflow_prod.AuditLog",
+    "policy stage_list_dflow_prod_tracking on plm.stage_list",
+    "policy stage_dflow_prod_tracking on plm.stage",
+    "policy stage_duration_dflow_prod_tracking on plm.stage_duration",
+    "policy stage_dependency_dflow_prod_tracking on plm.stage_dependency",
+    "policy licensor_stage_option_dflow_prod_tracking on plm.licensor_stage_option",
+    "policy prod_stage_progress_dflow_prod_tracking on plm.prod_stage_progress",
+    "policy prod_stage_option_dflow_prod_tracking on plm.prod_stage_option"
+  ],
+  "prohibited_actions": [
+    "No role membership change and no #2873 change beyond the tracking Stage Catalog entries; plm stays forbidden for the backend, item-master and data-sync runtimes.",
+    "No data change, no anon/authenticated privilege, no grant on any other plm or dflow_prod object.",
+    "No manual production command; production only through the automatic promotion lane.",
+    "No manual ledger edits or migration version reuse."
+  ],
+  "required_checks": [
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Coordinator decision (#4475, comment 6255045042): popcre-tracking-prod moves onto designflow_prod_tracking_runtime, which per 20261008014009 holds only designflow_prod_tracking_grants (INHERIT). The grant is therefore effective in any database built from this repository; production uses it once tracking switches login (separately blocked, #4475).",
+    "Write matrix confirmed against designflow-tracking sandbox-albert: models/stage-catalog.model.js writes the five editor tables (INSERT/UPDATE/DELETE); routes/stage-progress.router.js does SELECT FOR UPDATE then INSERT ON CONFLICT DO UPDATE on prod_stage_progress and prod_stage_option (INSERT, UPDATE; no DELETE); both write dflow_prod.AuditLog (INSERT, identity id, same as the item-master precedent in 20261008014009).",
+    "Identity columns (GENERATED ... AS IDENTITY) need no sequence grant; the contract test proves it by inserting as the role.",
+    "One implementation commit, then one evidence commit carrying only this generation's pair.",
+    "Generation 6: coordinator decision #4475 (comment 6255388129, mirrored on #2873) authorizes a narrow #2873 amendment adding only the tracking catalog entries; applied migration 20261008025618 is not edited, its boundary is re-asserted by this migration. No EXECUTE grant on plm.stage_catalog_bump_version: trigger functions are not EXECUTE-checked for the firing role (proved by contract test B2)."
+  ],
+  "stop_conditions": [
+    "Any claim, version, collision or gate refusal.",
+    "Reviewer REJECT not resolved."
+  ]
+}

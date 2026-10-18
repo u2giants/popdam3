@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "work_issue": 4464,
+  "outcome": "ready-for-merge",
+  "pr": 4476,
+  "head_sha": "fa3ccd1b503a8db6cb1054291077161d52ccbce7",
+  "base_sha": "d8c6008d3f3687987d3cf8e0d757e999983a6d4e",
+  "migration_versions": ["20261018191107"],
+  "contract_ref": "refs/db-contracts/4464/6",
+  "contract_sha256": "4574f4bf7767eb7fd2327dca635a49f8811a1033545ab8b5bee3faf36f44eeaa",
+  "files_changed": ["scripts/proofs/2873-catalog.sql","scripts/proofs/2873-contract.json","scripts/proofs/2873-role-contract.sql","scripts/proofs/shared-db-2873-observation.test.mjs","supabase/migrations/20261018191107_plm_stage_catalog_prod_tracking_grant.sql","supabase/tests/plm_stage_catalog_contracts.sql","supabase/tests/plm_stage_catalog_prod_tracking_grant_contracts.sql"],
+  "db_reads": [],
+  "db_writes": ["role designflow_prod_tracking_grants","schema plm","table plm.stage_list","table plm.stage","table plm.stage_duration","table plm.stage_dependency","table plm.licensor_stage_option","table plm.prod_stage_progress","table plm.prod_stage_option","table dflow_prod.AuditLog","policy stage_list_dflow_prod_tracking on plm.stage_list","policy stage_dflow_prod_tracking on plm.stage","policy stage_duration_dflow_prod_tracking on plm.stage_duration","policy stage_dependency_dflow_prod_tracking on plm.stage_dependency","policy licensor_stage_option_dflow_prod_tracking on plm.licensor_stage_option","policy prod_stage_progress_dflow_prod_tracking on plm.prod_stage_progress","policy prod_stage_option_dflow_prod_tracking on plm.prod_stage_option"],
+  "checks": [
+    {"command": "git diff --check", "exit_code": 0, "evidence": "no whitespace errors on the implementation commit"},
+    {"command": "node --test scripts/proofs/shared-db-2873-observation.test.mjs", "exit_code": 0, "evidence": "pass 8, fail 0"}
+  ],
+  "assumptions_resolved": [
+    "Local postgres:17 rehearsal with all eight #2873 roles stubbed: 20261015193344, 20261016210024, then this migration twice (re-runnable), both catalog contract tests exit 0 as superuser and as a non-superuser member (version trigger fires with no EXECUTE grant).",
+    "scripts/proofs/2873-catalog.sql on the rehearsal: forbidden_schemas_closed and schema_exact true, no tracking or plm matrix difference; granting plm USAGE to the backend grant role flips both to false.",
+    "Allocator review, CI, preview, live proof and production promotion remain separate open gates."
+  ],
+  "stop_conditions_hit": []
+}

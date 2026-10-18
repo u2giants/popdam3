@@ -384,6 +384,34 @@ insert into t2873_expected values
   ('designflow_prod_tracking_grants','table','dflow_prod.sample_workflow','UPDATE'),
   ('designflow_prod_tracking_grants','table','dflow_prod.sample_workflow','DELETE'),
   ('designflow_prod_tracking_grants','table','dflow_prod.users','SELECT'),
+  -- #4464 narrow #2873 amendment (coordinator decision #4475): tracking Stage Catalog only.
+  ('designflow_prod_tracking_grants','table','dflow_prod.AuditLog','INSERT'),
+  ('designflow_prod_tracking_grants','table','plm.stage_list','SELECT'),
+  ('designflow_prod_tracking_grants','table','plm.stage_list','INSERT'),
+  ('designflow_prod_tracking_grants','table','plm.stage_list','UPDATE'),
+  ('designflow_prod_tracking_grants','table','plm.stage_list','DELETE'),
+  ('designflow_prod_tracking_grants','table','plm.stage','SELECT'),
+  ('designflow_prod_tracking_grants','table','plm.stage','INSERT'),
+  ('designflow_prod_tracking_grants','table','plm.stage','UPDATE'),
+  ('designflow_prod_tracking_grants','table','plm.stage','DELETE'),
+  ('designflow_prod_tracking_grants','table','plm.stage_duration','SELECT'),
+  ('designflow_prod_tracking_grants','table','plm.stage_duration','INSERT'),
+  ('designflow_prod_tracking_grants','table','plm.stage_duration','UPDATE'),
+  ('designflow_prod_tracking_grants','table','plm.stage_duration','DELETE'),
+  ('designflow_prod_tracking_grants','table','plm.stage_dependency','SELECT'),
+  ('designflow_prod_tracking_grants','table','plm.stage_dependency','INSERT'),
+  ('designflow_prod_tracking_grants','table','plm.stage_dependency','UPDATE'),
+  ('designflow_prod_tracking_grants','table','plm.stage_dependency','DELETE'),
+  ('designflow_prod_tracking_grants','table','plm.licensor_stage_option','SELECT'),
+  ('designflow_prod_tracking_grants','table','plm.licensor_stage_option','INSERT'),
+  ('designflow_prod_tracking_grants','table','plm.licensor_stage_option','UPDATE'),
+  ('designflow_prod_tracking_grants','table','plm.licensor_stage_option','DELETE'),
+  ('designflow_prod_tracking_grants','table','plm.prod_stage_progress','SELECT'),
+  ('designflow_prod_tracking_grants','table','plm.prod_stage_progress','INSERT'),
+  ('designflow_prod_tracking_grants','table','plm.prod_stage_progress','UPDATE'),
+  ('designflow_prod_tracking_grants','table','plm.prod_stage_option','SELECT'),
+  ('designflow_prod_tracking_grants','table','plm.prod_stage_option','INSERT'),
+  ('designflow_prod_tracking_grants','table','plm.prod_stage_option','UPDATE'),
   ('designflow_prod_tracking_grants','view','dflow_prod.sample_approval_current','SELECT'),
   ('designflow_prod_tracking_grants','view','dflow_prod.sample_balance_by_location','SELECT'),
   ('designflow_prod_tracking_grants','view','dflow_prod.sample_global_status','SELECT'),
@@ -481,7 +509,11 @@ begin
     if not has_schema_privilege(v_role,'dflow_prod','USAGE') or has_schema_privilege(v_role,'dflow_prod','CREATE')
     then raise exception '#2873: % schema dflow_prod privileges wrong', v_role; end if;
     if to_regnamespace('dflow') is not null and has_schema_privilege(v_role,'dflow','USAGE') then raise exception '#2873: % reaches dflow', v_role; end if;
-    if to_regnamespace('plm') is not null and has_schema_privilege(v_role,'plm','USAGE') then raise exception '#2873: % reaches plm', v_role; end if;
+    -- #4464 narrow amendment: plm USAGE (never CREATE) for the tracking runtime only.
+    if to_regnamespace('plm') is not null and (has_schema_privilege(v_role,'plm','CREATE')
+       or (v_role <> 'designflow_prod_tracking_runtime' and has_schema_privilege(v_role,'plm','USAGE'))
+       or (v_role = 'designflow_prod_tracking_runtime' and not has_schema_privilege(v_role,'plm','USAGE')))
+    then raise exception '#2873: % plm schema boundary wrong', v_role; end if;
     if to_regnamespace('hts_rag') is not null and has_schema_privilege(v_role,'hts_rag','USAGE') then raise exception '#2873: % reaches hts_rag', v_role; end if;
     if pg_has_role(v_role,'anon','USAGE') or pg_has_role(v_role,'authenticated','USAGE') or pg_has_role(v_role,'service_role','USAGE')
        or pg_has_role(v_role,'postgres','USAGE')
@@ -512,6 +544,15 @@ begin
       raise exception '#2873: tracking read legacy dflow';
     exception when insufficient_privilege then null; end;
   end if;
+  perform 1 from plm.stage_list limit 1;  -- allowed (#4464)
+  begin
+    execute 'create table plm.t2873_forbidden(id int)';
+    raise exception '#2873: tracking created a plm table';
+  exception when insufficient_privilege then null; end;
+  begin
+    delete from plm.prod_stage_progress where false;
+    raise exception '#2873: tracking deleted from plm.prod_stage_progress';
+  exception when insufficient_privilege then null; end;
 end $r$;
 reset role;
 
@@ -523,6 +564,10 @@ begin
   begin
     execute 'truncate dflow_prod."RFQItem"';
     raise exception '#2873: backend truncated a table';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform 1 from plm.stage_list limit 1;
+    raise exception '#2873: backend reached plm';
   exception when insufficient_privilege then null; end;
 end $r$;
 reset role;

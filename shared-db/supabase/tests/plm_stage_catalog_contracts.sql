@@ -4,8 +4,9 @@ begin;
 -- function and every trigger path, and the constraints. Rolled back.
 do $$
 declare
-  v_tables text[] := array['plm.stage_list','plm.stage','plm.stage_duration',
-    'plm.stage_dependency','plm.licensor_stage_option','plm.prod_stage_progress'];
+  -- #4464: access assertions also cover plm.prod_stage_option (20261016210024).
+  v_access text[] := array['plm.stage_list','plm.stage','plm.stage_duration',
+    'plm.stage_dependency','plm.licensor_stage_option','plm.prod_stage_progress','plm.prod_stage_option'];
   v_fn oid := to_regprocedure('plm.stage_catalog_bump_version()');
   v_list integer;
   v_lic integer;
@@ -42,15 +43,19 @@ begin
     raise exception 'sampling maintainers must be Yuchen (36) and Ilona (41)';
   end if;
 
-  -- Access: RLS on, no policy, no browser privilege on any of the six tables.
-  if (select count(*) from unnest(v_tables) t(name)
-       where (select relrowsecurity from pg_class where oid = t.name::regclass)) <> 6 then
-    raise exception 'all six stage catalog tables must have RLS enabled';
+  -- Access: RLS on, and no browser (anon/authenticated/public) policy or privilege on
+  -- any of the seven tables.
+  if (select count(*) from unnest(v_access) t(name)
+       where (select relrowsecurity from pg_class where oid = t.name::regclass)) <> 7 then
+    raise exception 'all seven stage catalog tables must have RLS enabled';
   end if;
-  if exists (select 1 from pg_policy where polrelid = any (select t::regclass from unnest(v_tables) t)) then
-    raise exception 'stage catalog tables must have no RLS policy';
+  -- #4464: the only permitted policies are scoped solely to the DesignFlow production
+  -- tracking grant role; no policy may reach public, anon or authenticated.
+  if exists (select 1 from pg_policy where polrelid = any (select t::regclass from unnest(v_access) t)
+             and polroles is distinct from array[(select oid from pg_roles where rolname = 'designflow_prod_tracking_grants')]) then
+    raise exception 'stage catalog tables must have no RLS policy except the production tracking grant role policy';
   end if;
-  if exists (select 1 from pg_roles r cross join unnest(v_tables) t(name)
+  if exists (select 1 from pg_roles r cross join unnest(v_access) t(name)
              cross join unnest(array['select','insert','update','delete']) p(priv)
              where r.rolname in ('anon','authenticated')
                and has_table_privilege(r.rolname, t.name, p.priv)) then
