@@ -1027,7 +1027,7 @@ function mapGoogleDirectModels(payload: unknown, openRouterItems: Array<Record<s
     const name = String((raw as { name?: unknown })?.name ?? "").replace(/^models\//, "");
     const displayName = String((raw as { displayName?: unknown })?.displayName ?? name);
     const methods = Array.isArray((raw as { supportedGenerationMethods?: unknown })?.supportedGenerationMethods)
-      ? ((raw as { supportedGenerationMethods: unknown[] }).supportedGenerationMethods).map(String)
+      ? (raw as { supportedGenerationMethods: unknown[] }).supportedGenerationMethods.map(String)
       : [];
     const inputTokenLimit = (raw as { inputTokenLimit?: unknown })?.inputTokenLimit;
     if (!name || !/gemini/i.test(`${name} ${displayName}`)) continue;
