@@ -132,7 +132,16 @@ function logMetaSupersessionDecision(decision: "accepted" | "refused", replaceme
   loggedMetaSupersessionDecisions.add(signature);
   console.warn("Meta reservation supersession decision", { decision, replacement_key: replacementKey, original_key: originalKey, reason });
 }
-export function synchronizeMetaReservations(operations: Record<string, import("./types.js").OpState>): void {
+// An ID-less submission that Meta never acknowledged cannot still be generating
+// once this window has passed (synchronous requests time out in minutes), so it
+// stops occupying a Contributor slot. The interrupted operation itself stays
+// paused and is never resubmitted automatically.
+export const IDLESS_RESERVATION_TTL_MS = 30 * 60 * 1000;
+function idlessReservationExpired(job: { ambiguous_since?: unknown; lease_expires_at?: unknown }, nowMs: number): boolean {
+  const since = Date.parse(String(job.ambiguous_since ?? job.lease_expires_at ?? ""));
+  return Number.isFinite(since) && nowMs - since >= IDLESS_RESERVATION_TTL_MS;
+}
+export function synchronizeMetaReservations(operations: Record<string, import("./types.js").OpState>, nowMs = Date.now()): void {
   // An admin may explicitly start a replacement run while an earlier Meta
   // submission remains ambiguous. Keep that override narrow and durable: it
   // names the exact interrupted operation/run and only waives its ID-less
@@ -229,7 +238,7 @@ export function synchronizeMetaReservations(operations: Record<string, import(".
     const id = job.provider_batch_id;
     if (id && (["pending", "submitting", "ambiguous_submission"].includes(job.phase) || [...asyncReservations.values()].includes(id))) recordDurableReservation(owner, id, job.model, job.account_fingerprint);
     if (id && !terminalResponses.has(id) && (job.phase === "pending" || job.phase === "submitting" || job.phase === "ambiguous_submission")) next.set(owner, id);
-    else if (!id && (job.phase === "submitting" || job.phase === "ambiguous_submission" || job.ambiguous_since) && !supersededOwners.has(owner)) next.set(owner, null);
+    else if (!id && (job.phase === "submitting" || job.phase === "ambiguous_submission" || job.ambiguous_since) && !supersededOwners.has(owner) && !idlessReservationExpired(job, nowMs)) next.set(owner, null);
   }
   // Keep the released capacity reserved for the one named replacement until
   // its marker stops matching. This prevents a different Meta operation from
