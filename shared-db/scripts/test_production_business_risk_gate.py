@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from production_business_risk_gate import REPOSITORY, preview_instance_text, preview_run_has_immutable_apply, api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, enforce_automatic_risk_decision, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_bound_mainline_post_merge_original, prove_historical_original_apply_runs, prove_registered_historical_restoration_provenance, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION
+from production_business_risk_gate import REPOSITORY, preview_instance_text, preview_run_has_immutable_apply, api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, enforce_automatic_risk_decision, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_bound_mainline_post_merge_original, prove_historical_original_apply_runs, prove_registered_historical_restoration_provenance, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION, GOVERNED_ORIGINAL_RECONCILIATION_4373, GOVERNED_ORIGINAL_RECONCILIATIONS
 
 
 def disable_background_git_maintenance(root):
@@ -78,8 +78,8 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 mutate(candidate)
                 self.assertFalse(preview_run_has_immutable_apply(run, candidate))
 
-    def governed_original_reconciliation_fixture(self):
-        case = GOVERNED_ORIGINAL_RECONCILIATION
+    def governed_original_reconciliation_fixture(self, case=None):
+        case = case or GOVERNED_ORIGINAL_RECONCILIATION
         migration = next(Path.cwd().glob(f"supabase/migrations/{case['version']}_*.sql"))
         row = {"name": "orderlist_bridge_covering_index", "statements": ["same governed SQL"]}
         fixed = {"schema": "shared-db-preview-ledger-orphan-reconciliation/v1", "issue": case["issue"], "claim": case["claim"], "source_pr": case["source_pr"], "orphan_version": case["original_version"], "replacement_version": case["version"], "preview_run_id": case["preview_run_id"], "preview_artifact_id": case["preview_artifact_id"], "preview_artifact_digest": case["preview_artifact_digest"], "project_ref": case["project_ref"], "main_sha": case["run_head"]}
@@ -120,6 +120,28 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             elif mutation == "expired": artifact["expired"] = True
             kwargs = {"version": "20260830013943" if mutation == "version" else case["version"], "source_pr": case["source_pr"], "run_id": case["run_id"], "run": run, "repo_root": Path.cwd(), "main_sha": "f" * 40, "api": api, "downloader": downloader}
             with temp, mock.patch.dict(GOVERNED_ORIGINAL_RECONCILIATION, {"artifact_digest": digest}), self.subTest(mutation), self.assertRaises(RiskGateError if mutation != "version" else AssertionError):
+                accepted = prove_governed_original_reconciliation(**kwargs)
+                if not accepted: raise AssertionError("wrong tuple must not enter the governed path")
+
+    def test_exact_4373_governed_reconciliation_is_an_original_apply_equivalent(self):
+        case = GOVERNED_ORIGINAL_RECONCILIATION_4373
+        self.assertIn(case, GOVERNED_ORIGINAL_RECONCILIATIONS)
+        temp, run, _artifact, api, downloader, digest = self.governed_original_reconciliation_fixture(case)
+        with temp, mock.patch.dict(case, {"artifact_digest": digest}):
+            self.assertTrue(prove_governed_original_reconciliation(version=case["version"], source_pr=case["source_pr"], run_id=case["run_id"], run=run, repo_root=Path.cwd(), main_sha="f" * 40, api=api, downloader=downloader))
+
+    def test_4373_governed_reconciliation_refuses_wrong_identity_and_cross_case_mixing(self):
+        case = GOVERNED_ORIGINAL_RECONCILIATION_4373
+        other = GOVERNED_ORIGINAL_RECONCILIATION
+        for mutation in ("version", "other_case_run", "path", "run_attempt", "expired", "head"):
+            temp, run, artifact, api, downloader, digest = self.governed_original_reconciliation_fixture(case)
+            if mutation == "path": run["path"] = PREVIEW_WORKFLOW
+            elif mutation == "run_attempt": run["run_attempt"] = 2
+            elif mutation == "expired": artifact["expired"] = True
+            elif mutation == "head": run["head_sha"] = other["run_head"]
+            kwargs = {"version": "20261016210025" if mutation == "version" else case["version"], "source_pr": case["source_pr"], "run_id": other["run_id"] if mutation == "other_case_run" else case["run_id"], "run": run, "repo_root": Path.cwd(), "main_sha": "f" * 40, "api": api, "downloader": downloader}
+            refuses_by_tuple = mutation in ("version", "other_case_run")
+            with temp, mock.patch.dict(case, {"artifact_digest": digest}), self.subTest(mutation), self.assertRaises(AssertionError if refuses_by_tuple else RiskGateError):
                 accepted = prove_governed_original_reconciliation(**kwargs)
                 if not accepted: raise AssertionError("wrong tuple must not enter the governed path")
 

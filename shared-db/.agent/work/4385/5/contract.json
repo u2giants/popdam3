@@ -1,0 +1,53 @@
+{
+  "schema_version": 2,
+  "work_issue": 4385,
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 4385,
+    "generation": 4,
+    "contract_sha256": "abae78c330cab35abda7a5e98b0c01a2deca46f09bb6ebc741ecf9c3d1facdc1"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Register the exact #4373 byte-identical preview ledger rename (reconciliation run 38972234570) as a second pinned case in the production business-risk gate's governed original-reconciliation path, so 20261016210024 can promote through the automatic lane",
+  "base_sha": "244824218791e611c40f652d83fa1d1b3ce813a5",
+  "dispatcher": "Claude subagent of chat b6410b17-053b-4ff2-adc8-f25b053cb611 on edge-dev3",
+  "worker": "claude",
+  "branch": "claude/4379-gate-reconciliation-case",
+  "worktree": "/home/ahazan/repos/shared-db-prodroute",
+  "allowed_paths": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate_governed_reconciliation_mutations.py",
+    "docs/verification/throughput-dispositions/scripts~production_business_risk_gate.py.json",
+    ".agent/work/4385/5/contract.json",
+    ".agent/work/4385/5/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not widen the governed path beyond exact pinned tuples",
+    "do not touch any migration, ledger row or database object",
+    "do not change the #1722 pinned case values"
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts/test_production_business_risk_gate.py scripts/test_production_business_risk_gate_governed_reconciliation_mutations.py",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "pinned values were re-read live on 2026-10-18 from runs 38972234570 and 38839047707 and their artifacts",
+    "route chosen and explained on #4379 comment 6249587663"
+  ],
+  "stop_conditions": [
+    "stop if accepting the case requires skipping any existing identity or digest check",
+    "stop if a required check fails for an unrelated reason"
+  ],
+  "file_writes": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate_governed_reconciliation_mutations.py",
+    "docs/verification/throughput-dispositions/scripts~production_business_risk_gate.py.json",
+    ".agent/work/4385/5/contract.json",
+    ".agent/work/4385/5/completion.json"
+  ]
+}
