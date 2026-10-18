@@ -168,7 +168,7 @@ export function requiresReturnAddress(workType) {
 export function queueExit(workType) {
   if (workType === 'structural') return 'accept'
   const exit = NON_STRUCTURAL_EXITS[workType]
-  if (!exit) throw new LaneError(`no orchestrator exit is defined for work_type ${workType}`)
+  if (!exit) throw new LaneError(`no structural-lane exit is defined for work_type ${workType}`)
   return exit
 }
 
@@ -507,7 +507,7 @@ export function returnIssueToOwner(number, io, { alreadyReturned } = {}) {
   if (copyOf) throw new LaneError(`issue #${number} is itself a returned copy (${copyOf}); returning it again would mint another generation`)
 
   const body = [
-    `Returned from ${REPO}#${number} by the shared-db orchestrator.`,
+    `Returned from ${REPO}#${number} by the owning repository session.`,
     `${RETURNED_COPY_MARKER} https://github.com/${REPO}/issues/${number}`,
     '',
     `This is **${scope.workType}** work. Under the shared-db admission test (AGENTS.md 0.0-C) it changes the CONTENTS of the shared database, not its SHAPE, so the session working in this repository owns it outright — no shared-db issue, no dispatch, no migration.`,

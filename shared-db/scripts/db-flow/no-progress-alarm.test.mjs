@@ -44,7 +44,7 @@ test('issue 3148 a ready request that never entered the ledger is named in the a
   const fired = runAlarm({ repo: 'r', now: '2026-09-16T12:23:00.000Z' }, fake)
   assert.equal(fired.status, 'posted'); assert.deepEqual(fired.stalled, [3036])
   assert.match(fake.posts[0].body, /#3036 has been `requested` for 31 minutes/)
-  assert.match(fake.posts[0].body, /Unblock: orchestrator admits it/)
+  assert.match(fake.posts[0].body, /Unblock: claim owner admits it/)
   assert.equal(runAlarm({ repo: 'r', now: '2026-09-16T12:53:00.000Z' }, fake).status, 'already-posted')
   assert.equal(fake.posts.length, 1)
 })
@@ -57,7 +57,7 @@ test('issue 3158 a request that entered the ledger but has no owning claim still
   const fired = runAlarm({ repo: 'r', now: '2026-09-16T12:31:00.000Z' }, fake)
   assert.equal(fired.status, 'posted'); assert.deepEqual(fired.stalled, [3160])
   assert.match(fake.posts[0].body, /#3160 has been `entered` for 31 minutes/)
-  assert.match(fake.posts[0].body, /Unblock: orchestrator classifies/)
+  assert.match(fake.posts[0].body, /Unblock: claim owner classifies/)
   assert.equal(runAlarm({ repo: 'r', now: '2026-09-16T13:01:00.000Z' }, fake).status, 'already-posted')
 })
 

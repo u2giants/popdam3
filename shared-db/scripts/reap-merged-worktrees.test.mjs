@@ -52,7 +52,7 @@ test('GitHub listings use the shared read transport and preserve argv', () => {
   assert.throws(() => readGitHubArray(args, () => '{}'), /non-array listing/);
 });
 
-test('main routes all three GitHub reads through the shared transport', () => {
+test('main routes both GitHub reads through the shared transport', () => {
   const calls = [];
   const output = [];
   main({
@@ -68,10 +68,9 @@ test('main routes all three GitHub reads through the shared transport', () => {
   });
   assert.deepEqual(calls, [
     ['pr', 'list', '--repo', 'popcre/shared-db', '--state', 'merged', '--limit', '400', '--json', 'headRefName'],
-    ['issue', 'list', '--repo', 'popcre/shared-db', '--state', 'open', '--label', 'orchestrator-marker', '--limit', '20', '--json', 'number,title'],
     ['issue', 'list', '--repo', 'popcre/shared-db', '--state', 'open', '--label', 'db-claim', '--limit', '200', '--json', 'number,body'],
   ]);
-  assert.match(output.join('\n'), /orchestrator not running/);
+  assert.match(output.join('\n'), /claim-first ownership protection active/);
 });
 
 test('main aborts on merged read failure and refuses apply when live claims are unreadable', () => {
@@ -95,7 +94,7 @@ test('main aborts on merged read failure and refuses apply when live claims are 
     },
     exit: (code) => exits.push(code),
   });
-  assert.equal(calls.length, 3, 'claim failure must not skip or invent a GitHub read');
+  assert.equal(calls.length, 2, 'claim failure must not skip or invent a GitHub read');
   assert.deepEqual(exits, [1], 'active orchestrator plus unreadable claims refuses apply');
 
   const bothReadFailures = [];
@@ -110,12 +109,11 @@ test('main aborts on merged read failure and refuses apply when live claims are 
     exit: (code) => bothExits.push(code),
   });
   assert.deepEqual(bothExits, [1]);
-  assert.match(bothReadFailures.join('\n'), /could not read claim-first session identities/);
   assert.match(bothReadFailures.join('\n'), /could not read open database claims/);
 });
 
 test("a clean worktree whose pull request merged is retireable", () => {
-  const { remove, keep } = plan([wt()], merged);
+  const { remove, keep } = plan([wt({ lastActivityMs: 0 })], merged);
   assert.equal(remove.length, 1);
   assert.equal(keep.length, 0);
 });
@@ -123,7 +121,7 @@ test("a clean worktree whose pull request merged is retireable", () => {
 test("SQUASH MERGE: a merged PR counts even though git ancestry would say unmerged", () => {
   // The reason every previous cleanup did nothing. The input here carries no
   // ancestry information at all — merged-ness comes only from the PR list.
-  const { remove } = plan([wt({ branch: "codex/squashed" })], new Set(["codex/squashed"]));
+  const { remove } = plan([wt({ branch: "codex/squashed", lastActivityMs: 0 })], new Set(["codex/squashed"]));
   assert.equal(remove.length, 1);
 });
 
@@ -158,7 +156,7 @@ test("the main checkout is never a candidate", () => {
 });
 
 test("a branch with no merged pull request is kept", () => {
-  const { remove, keep } = plan([wt({ branch: "feature/in-flight" })], merged);
+  const { remove, keep } = plan([wt({ branch: "feature/in-flight", lastActivityMs: 0 })], merged);
   assert.equal(remove.length, 0);
   assert.match(keep[0].reason, /no merged pull request/);
 });
@@ -166,7 +164,7 @@ test("a branch with no merged pull request is kept", () => {
 test("dirtiness outranks every other reason in the message", () => {
   // If a worktree is both dirty and unmerged, the human must be told about the
   // uncommitted work — that is the unrecoverable half.
-  const { keep } = plan([wt({ dirty: true, branch: "feature/in-flight" })], merged);
+  const { keep } = plan([wt({ dirty: true, branch: "feature/in-flight", lastActivityMs: 0 })], merged);
   assert.match(keep[0].reason, /UNCOMMITTED CHANGES/);
 });
 
@@ -314,8 +312,8 @@ test("AN UNREADABLE MARKER LIST IS LIVE, AND WITH UNREADABLE CLAIMS IT BLOCKS", 
   const markersUnreadable = true; // exactly what main() computes from !markersReadable
   assert.equal(blockedByLiveOrchestrator(markersUnreadable, false, false), true);
   // and the shape that produced the bug is now loud rather than false
-  assert.throws(() => blockedByLiveOrchestrator([], false, false), /LIVENESS BIT/);
-  assert.throws(() => blockedByLiveOrchestrator([{ number: 2577 }], false, false), /LIVENESS BIT/);
+  assert.throws(() => blockedByLiveOrchestrator([], false, false), /ownership-protection boolean/);
+  assert.throws(() => blockedByLiveOrchestrator([{ number: 2577 }], false, false), /ownership-protection boolean/);
 });
 
 test("--force overrides, because sometimes the marker is stale and a human has checked", () => {
@@ -424,8 +422,18 @@ test("--idle-hours refuses junk AND a window too short to mean anything", () => 
   assert.equal(missing?.status, 2, "a --idle-hours with no value must be refused");
 });
 
-test("plan without a guard argument still behaves exactly as before", () => {
+test("plan without an explicit guard protects unknown activity", () => {
   // Callers other than main() exist; the new parameter must be optional.
-  const { remove } = plan([wt()], merged);
+  const { remove } = plan([wt({ lastActivityMs: 0 })], merged);
   assert.equal(remove.length, 1);
+});
+
+ test('claim-first cleanup protects recent activity without any marker or claim', () => {
+  const now = Date.now();
+  const result = plan([wt({lastActivityMs: now - 60000})], merged, {now});
+  assert.equal(result.remove.length, 0);
+  assert.match(result.keep[0].reason, /active within/);
+});
+ test('unknown activity without a marker cannot authorize cleanup', () => {
+  assert.equal(plan([wt({lastActivityMs: null})], merged).remove.length, 0);
 });

@@ -525,7 +525,7 @@ export function authorEngineFromEnv(value,known=knownAuthorEngines()){
 export function reviewersForOrchestrator(engine, reviewers=ACTIVE_REVIEWERS){
   if(engine===null)return reviewers.filter(()=>true)
   const normalized=String(engine??'').trim().toLowerCase()
-  if(!normalized)throw new LaneError('live orchestrator engine is unreadable; reviewer assignment refused')
+  if(!normalized)throw new LaneError('author engine is unreadable; reviewer assignment refused')
   const excluded=String(ENGINE_REVIEWER_EXCLUSION[normalized]??normalized).trim().toLowerCase()
   return reviewers.filter((row)=>String(row.orchestratorEngine??'').toLowerCase()!==excluded)
 }
@@ -571,7 +571,7 @@ export function reconcilePreflightRows(output,reviewers,{complete=true}={}){
 
 export function allocatableReviewers(io){
   const independent=reviewersForOrchestrator(io.resolveReviewEngine?.())
-  if(!independent.length)throw new LaneError('no reviewer is independent from the live orchestrator engine')
+  if(!independent.length)throw new LaneError('no reviewer is independent from the author engine')
   if(typeof io.reviewerUsability!=='function')throw new LaneError('reviewer allocation cannot read the reconciled ai-review-preflight state; no sequence or lease was consumed')
   const usability=io.reviewerUsability(independent)
   if(!(usability instanceof Map))throw new LaneError('reviewer allocation received malformed reconciled ai-review-preflight state; no sequence or lease was consumed')

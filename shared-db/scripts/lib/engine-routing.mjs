@@ -1,3 +1,7 @@
+// 2026-10-18 supersession (#4348): marker/routing parsing below is legacy
+// record compatibility only. It never admits or dispatches new structural work.
+// Current reviewer exclusion uses declared author engine; new work is claim-first
+// under AGENTS.md §0.0-D, without a marker or external routing destination.
 /**
  * The orchestrator ROUTING CONTRACT: how a session learns where to send work.
  *

@@ -173,7 +173,7 @@ chains explicitly rather than inferring missing terms.
 **Settled: operational practice reported by Ilona, 2026-09-25** (Licensing;
 relayed by Albert Hazan). Provenance and full quotation: issue
 [#3347](https://github.com/popcre/shared-db/issues/3347)
-(orchestrator work: DCP capture qualification). This is how POP confirms that
+(DCP capture qualification). This is how POP confirms that
 Disney withdrew style-guide artwork. It is not a Disney written policy document
 and is not a legal-rights ruling.
 

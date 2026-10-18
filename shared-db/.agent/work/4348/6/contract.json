@@ -1,0 +1,74 @@
+{
+  "schema_version": 2,
+  "work_issue": 4348,
+  "generation": 6,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Complete issue4348 retirement reconciliation: claim-first live output and cleanup custody without retired marker dependency",
+  "base_sha": "65e68f6f285f8a0079a5237b5b47c03e110bad86",
+  "dispatcher": "Codex chat 01a14fc4-ae23-7a33-9249-e759cdeacd42 on edge-dev3",
+  "worker": "codex",
+  "branch": "codex/4348-retirement-reconciliation",
+  "worktree": "/home/ahazan/.codex/worktrees/0c00/shared-db-reconcile",
+  "allowed_paths": [
+    "scripts/db-flow/admission.mjs",
+    "scripts/db-flow/no-progress-alarm.mjs",
+    "scripts/db-flow/no-progress-alarm.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/queue-hygiene-report.mjs",
+    "scripts/queue-hygiene-report.test.mjs",
+    "scripts/reap-merged-worktrees.mjs",
+    "scripts/reap-merged-worktrees.test.mjs",
+    "scripts/report-ledger-drift-status.mjs",
+    "scripts/report-stale-handoffs.mjs",
+    "scripts/lib/lanes/queue-routing.mjs",
+    "scripts/lib/lanes/reviewer-roster.mjs",
+    "scripts/lib/engine-routing.mjs",
+    "docs/disney-dcp-withdrawal-answer-routing.md",
+    "docs/business-rules/licensing-master-data.md",
+    "docs/verification/throughput-dispositions/scripts~reap-merged-worktrees.mjs.json",
+    "docs/verification/throughput-retired-identity-sites-4348-reconciliation.json",
+    "scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+    "scripts/historical-item-mg-reclassification/README.md",
+    "scripts/historical-item-mg-reclassification/lib/retirement-gate.mjs",
+    "scripts/lib/lanes/review-leases.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/verification/orchestrator-retirement-reconciliation-4348.json",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~queue-routing.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-leases.mjs.json",
+    ".agent/work/4348/6/contract.json",
+    ".agent/work/4348/6/completion.json"
+  ],
+  "file_writes": [],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not touch any migration or database object",
+    "do not weaken exact-owner, mutex, tombstone or exact-head review guards",
+    "do not delete any branch or ref"
+  ],
+  "required_checks": [
+    "node --test scripts/reap-merged-worktrees.test.mjs scripts/db-flow/no-progress-alarm.test.mjs scripts/queue-hygiene-report.test.mjs scripts/report-stale-handoffs.test.mjs scripts/report-ledger-drift-status.test.mjs scripts/lib/session-authority.test.mjs scripts/db-flow/admission-outcome.test.mjs scripts/claim-author-transfer.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs"
+  ],
+  "assumptions": [
+    "Albert explicitly requested a subagent finish reconciliation and close when all verified; coordinator owns closure.",
+    "A local draft was prepared before this generation; it will be restored and reapplied only after publication, without backdating.",
+    "No claim4337 operation, database access or cleanup apply is authorized.",
+    "Reconciliation found a live deleted-marker command in Disney follow-up routing; this generation adds only claim-first routing correction, preserving business meaning and private-data boundaries.",
+    "Generation2 work is preserved; additional paths are edited only after this generation is published.",
+    "Removed retired-role reaper comments require sidecar retirement with prior identity preserved in a new dated evidence file; no truth guard changes.",
+    "CI identified the historical preservation test enumerates retirement archives; add new evidence file to its inputs while preserving every uniqueness/hash/verdict/reason assertion.",
+    "Complete457-file residual inventory identified final operative historical-MG routing wording and reviewer/queue diagnostics. Batch those corrections, preserve safety logic and historical compatibility, publish full disposition inventory; update source-specific truth sidecars only if changed context requires."
+  ],
+  "stop_conditions": [
+    "Stop on unexpected ownership collision or required weakening of a guard."
+  ],
+  "evidence_parent": {
+    "work_issue": 4348,
+    "generation": 5,
+    "contract_sha256": "247b1afb731e1e89d2c8a07aa0f8f767e52a2c5a2f43d63eaf3b6f88fca9c27d"
+  }
+}

@@ -414,7 +414,7 @@ test('every non-structural work type has a named exit and never accept',()=>{
     assert.notEqual(exit,'accept',`${workType} must never be accepted by the orchestrator`)
     assert.equal(queueExit(workType),exit)
   }
-  assert.throws(()=>queueExit('invented-work-type'),/no orchestrator exit is defined/)
+  assert.throws(()=>queueExit('invented-work-type'),/no structural-lane exit is defined/)
 })
 
 // OWNER RULING 2026-08-21 (issue #1366). Repository maintenance, documentation and
@@ -2208,7 +2208,7 @@ test('a live historical assignment never recreates an active lease for a retired
   io.getPr=()=>({state:'open',head:{sha:request.headSha}})
   const sha=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=7 reviewer=${reviewer} issue=${request.issue} pr=${request.pr} head=${request.headSha}`)
   io.refs.set(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${request.issue}-${request.pr}-${request.headSha}`,sha)
-  assert.throws(()=>assignNextReviewer(request,io),/retired, quarantined or orchestrator-conflicting reviewer/)
+  assert.throws(()=>assignNextReviewer(request,io),/retired, quarantined or author-engine-conflicting reviewer/)
   assert.equal(io.refs.has(`${REVIEW_ACTIVE_REF_PREFIX}/${reviewer}`),false);assert.equal(io.refs.has(MUTEX_REF),false)
 })
 
@@ -2511,7 +2511,7 @@ test('a retired reviewer is replaced cleanly, without an exclusion deadlock (#20
   io.refs.set(`${REVIEW_ASSIGNMENT_REF_PREFIX}/${failedReview.issue}-${failedReview.pr}-${failedReview.headSha}`,sha)
   io.refs.set(reviewActiveRef('deepseek-chat'),sha)
   io.refs.set(REVIEW_CURSOR_REF,sha)
-  assert.throws(()=>assignNextReviewer(failedReview,io),/belongs to a retired, quarantined or orchestrator-conflicting reviewer[\s\S]*Record a governed replacement for this exact head/)
+  assert.throws(()=>assignNextReviewer(failedReview,io),/belongs to a retired, quarantined or author-engine-conflicting reviewer[\s\S]*Record a governed replacement for this exact head/)
   const replacement=replaceFailedReviewer({...replacementRequest,failureCode:'wrapper_terminal_failure'},io)
   assert.equal(replacement.reviewer,'muse-spark-1.3-contributor')
   assert.equal(reviewerReadsRepository(replacement.reviewer),true,'the replacement must be a reviewer that reads the code')
@@ -2781,8 +2781,8 @@ test('a historical replacement never recreates an active lease for a retired rev
   const sha=io.makeOwnerCommit(`db-coordination reviewer-failure-replacement sequence=${sequence} reviewer=${reviewer} issue=${failedReview.issue} pr=${failedReview.pr} head=${failedReview.headSha} failed-sequence=1 prior-sequence=1 failure-ref=self failed-reviewer=grok-4.6 code=provider_unavailable verdict=none artifact=none`)
   io.refs.set(`${REVIEW_REPLACEMENT_REF_PREFIX}/${failedReview.issue}-${failedReview.pr}-${failedReview.headSha}-1`,sha)
   io.refs.set(`refs/db-review-failures/${failedReview.issue}-${failedReview.pr}-${failedReview.headSha}-1`,sha)
-  assert.throws(()=>replaceFailedReviewer(replacementRequest,io),/retired, quarantined or orchestrator-conflicting reviewer/)
-  assert.throws(()=>assignNextReviewer(failedReview,io),/retired, quarantined or orchestrator-conflicting reviewer/)
+  assert.throws(()=>replaceFailedReviewer(replacementRequest,io),/retired, quarantined or author-engine-conflicting reviewer/)
+  assert.throws(()=>assignNextReviewer(failedReview,io),/retired, quarantined or author-engine-conflicting reviewer/)
   assert.equal(io.refs.has(`${REVIEW_ACTIVE_REF_PREFIX}/${reviewer}`),false);assert.equal(io.refs.has(MUTEX_REF),false)
 })
 
@@ -3066,7 +3066,7 @@ test('an ineligible reviewer stays readable but receives no new assignment',()=>
   // Still readable: the historical cursor parses and the name resolves.
   assert.equal(parseReviewCursor(io.getCommit(historical)).reviewer,ineligible)
   assert.equal(REVIEWERS.find((row)=>row.name===ineligible)?.wrapper,'ai-codex-review')
-  assert.throws(()=>assignNextReviewer(request,io),/belongs to a retired, quarantined or orchestrator-conflicting reviewer[\s\S]*Record a governed replacement for this exact head/)
+  assert.throws(()=>assignNextReviewer(request,io),/belongs to a retired, quarantined or author-engine-conflicting reviewer[\s\S]*Record a governed replacement for this exact head/)
   // Refused BEFORE any side effect: no assignment ref, no lease.
   assert.equal([...io.refs.keys()].some((ref)=>ref.startsWith(REVIEW_ASSIGNMENT_REF_PREFIX)),false)
   assert.equal(io.refs.get(reviewActiveRef(ineligible))??null,null)
@@ -7043,7 +7043,7 @@ test('retrying a slot-2 assignment must still refuse a durable assignment to a r
   io.refs.set(assignmentRef,rewritten)
   io.refs.delete(reviewActiveRef(second.reviewer))
   io.refs.set(reviewActiveRef('codex-gpt-5.6-sol'),rewritten)
-  assert.throws(()=>assignNextReviewer({...request,slot:2},io),/orchestrator-conflicting reviewer codex-gpt-5\.6-sol/)
+  assert.throws(()=>assignNextReviewer({...request,slot:2},io),/author-engine-conflicting reviewer codex-gpt-5\.6-sol/)
   // Same refusal for the live-orchestrator route the retirement made
   // undrawable: the filter itself still removes an engine-matching reviewer.
   assert.equal(reviewersForOrchestrator('codex',REVIEWERS).some((row)=>row.name==='codex-gpt-5.6-sol'),false)
@@ -8108,7 +8108,7 @@ test('#3827 every verdict-deadlock refusal names the quarantine-clear remedy',()
     io.refs.set(reviewActiveRef(name),sha)
     io.refs.set(REVIEW_CURSOR_REF,sha)
     assert.throws(()=>assignNextReviewer(failedReview,io),(error)=>{
-      assert.match(error.message,/belongs to a retired, quarantined or orchestrator-conflicting reviewer/)
+      assert.match(error.message,/belongs to a retired, quarantined or author-engine-conflicting reviewer/)
       assert.match(error.message,remedy)
       assert.match(error.message,noForge)
       assert.ok(error.message.includes(name),'the refusal must name the stuck reviewer so the operator knows which provider to clear')
@@ -8125,7 +8125,7 @@ test('#3827 every verdict-deadlock refusal names the quarantine-clear remedy',()
     const historical=io.makeOwnerCommit(`db-coordination reviewer-cursor sequence=64 reviewer=${name} issue=${failedReview.issue} pr=${failedReview.pr} head=${failedReview.headSha}`)
     io.refs.set(REVIEW_CURSOR_REF,historical)
     assert.throws(()=>assignNextReviewer(failedReview,io),(error)=>{
-      assert.match(error.message,/belongs to a retired, quarantined or orchestrator-conflicting reviewer/)
+      assert.match(error.message,/belongs to a retired, quarantined or author-engine-conflicting reviewer/)
       assert.match(error.message,remedy)
       assert.match(error.message,noForge)
       assert.ok(error.message.includes(name),'the refusal must name the stuck reviewer so the operator knows which provider to clear')

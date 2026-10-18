@@ -413,7 +413,7 @@ export function describeMovedAssignmentHead(request,recorded){
 // this helper does not have, so it must NOT be reused for a draw.
 export function pickReviewer(sequence,io){
   const {eligible}=allocatableReviewers(io)
-  if(!eligible.length)throw new LaneError('no reviewer is independent from the live orchestrator engine')
+  if(!eligible.length)throw new LaneError('no reviewer is independent from the author engine')
   const eligibleNames=new Set(eligible.map((row)=>row.name))
   const ordered=orderedReviewers(sequence).filter((row)=>eligibleNames.has(row.name))
   return ordered[0]??OVERFLOW_REVIEWERS.find((row)=>eligibleNames.has(row.name))

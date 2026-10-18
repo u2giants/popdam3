@@ -4,8 +4,10 @@
 // population satisfy every condition that would allow the temporary May 14, 2025
 // cutoff to be retired? It never removes anything. Removing the cutoff is a
 // structural change to `api.resolve_item_mg_category(integer)` and must be
-// routed fresh through the shared-db orchestrator with Albert's explicit
-// authorization, after this gate passes AND independent review.
+// claimed fresh on its existing issue through the claim-first structural route,
+// with Albert’s explicit authorization, after this gate passes AND independent
+// review and the repository’s enforced production gates.
+// No retired role, marker or dispatch is required (owner ruling 2026-10-02).
 //
 // It is written to fail. As of 2026-09-03 there were 127 live rows with a null
 // creation date, so condition 1 alone holds the gate closed.

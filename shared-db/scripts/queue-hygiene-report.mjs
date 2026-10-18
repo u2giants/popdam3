@@ -186,11 +186,11 @@ export function main(argv = [], now = new Date(), io = githubIo) {
       const outside = result.notOrchestratorWork.filter((item)=>OUTSIDE_ORCHESTRATOR_EXITS.includes(item.exit))
       const describe = (item) => `  #${item.issue} ${item.exit.toUpperCase()} — work_type ${item.workType}, route ${item.route}, age ${ageDays(item.issue) ?? '?'}d${item.blockedOnOwner ? ' [blocked on owner decision]' : ''}`
       if (actionable.length) {
-        console.error('NOT ORCHESTRATOR WORK (aging): these open issues fail the shape test (AGENTS.md 0.0-C) and are waiting on a reject-or-fork decision.')
+        console.error('OUTSIDE STRUCTURAL WORK (aging): these open issues fail the shape test (AGENTS.md 0.0-C) and are waiting on a reject-or-fork decision.')
         for (const item of actionable) console.error(describe(item))
       }
       if (outside.length) {
-        console.error('OUTSIDE ORCHESTRATOR — OWNED BY REPO SESSION (aging): listed for visibility only (owner ruling 2026-08-21, issue #1366); a separately started session owns each one.')
+        console.error('OWNED BY REPO SESSION (aging): listed for visibility only (owner ruling 2026-08-21, issue #1366); a separately started session owns each one.')
         for (const item of outside) console.error(describe(item))
       }
       const unaddressed = result.notOrchestratorWork.filter((item)=>item.needsReturnAddress)

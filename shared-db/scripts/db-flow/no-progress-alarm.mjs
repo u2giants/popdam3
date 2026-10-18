@@ -4,7 +4,7 @@
 //   --alarm  [--repo r] [--now ISO] [--post-issue N] [--staged-label TEXT] [--dry-run]
 //   --resume --issue N [--repo r] [--max-age-minutes M]
 //
-// --alarm reads the live orchestrator state (scripts/flow-snapshot.mjs), and when an
+// --alarm reads the live claim-first state (scripts/flow-snapshot.mjs), and when an
 // owned outcome has had no stage transition for more than 120 minutes, or nothing closed in
 // four hours, posts ONE comment naming each stuck outcome, its blocker and the unblock action,
 // with the sealed snapshot attached. It is transition-only: the alarm key covers the stalled
@@ -40,9 +40,9 @@ const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 
 // What is normally waiting on an outcome that sits in each state, and who moves it.
 export const UNBLOCK = Object.freeze({
-  requested: ['ready structural request never entered the outcome ledger', 'orchestrator admits it (records entered and classified) or sets its db-work-scope status to blocked with the reason'],
-  entered: ['not yet classified', 'orchestrator classifies the work and records classified'],
-  classified: ['no worker dispatched', 'orchestrator dispatches a worker or records blocked with the reason'],
+  requested: ['ready structural request never entered the outcome ledger', 'claim owner admits it (records entered and classified) or sets its db-work-scope status to blocked with the reason'],
+  entered: ['not yet classified', 'claim owner classifies the work and records classified'],
+  classified: ['no worker dispatched', 'claim owner starts implementation or records blocked with the reason'],
   dispatched: ['worker has not reported implementation complete', 'check the worker session; if it is gone, reclaim and redispatch'],
   implementation_complete: ['no review started', 'assign a governed reviewer at the exact head'],
   review_ready: ['preview proof not recorded', 'dispatch the preview apply (or the no-database-preview route)'],

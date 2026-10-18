@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "retired_by_issue": 4348,
+  "note": "2026-10-18 reconciliation: retired reaper marker-era comment identity. Original disposition preserved; no database assertion or truth gate changed.",
+  "sites": [
+    {
+      "site": "scripts/reap-merged-worktrees.mjs:140",
+      "semantic_key": "scripts/reap-merged-worktrees.mjs:e2ccad293e4e07e4e25f9500b4285ceef1f5a34975fea14d5b5709efc9441a40:context-9efbf0c01a00ce51674c9db6a14057d91770dc9d28ebddd274d08ffee401d5f9",
+      "line_sha256": "e2ccad293e4e07e4e25f9500b4285ceef1f5a34975fea14d5b5709efc9441a40",
+      "disposition": "excluded",
+      "reason": "Issue #1868. Excluded: the word appears in a prose comment describing the worktree reaper's own whole-run refusal when the open database claims cannot be read. It makes no claim about a migration, a DDL object, or anything created or applied in the database, so it is outside the throughput-truth surface this audit guards.",
+      "legacy_semantic_key": "scripts/reap-merged-worktrees.mjs:e2ccad293e4e07e4e25f9500b4285ceef1f5a34975fea14d5b5709efc9441a40:1",
+      "state": "retired"
+    }
+  ]
+}

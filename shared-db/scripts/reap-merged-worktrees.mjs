@@ -31,26 +31,12 @@ import { fileURLToPath } from "node:url";
 import { runGitHubCommand } from './lib/github-transport.mjs';
 import { resolveRepositoryIdentity } from './lib/repository-identity.mjs';
 
-// Issue #1868. The reaper refused to run AT ALL while any claim-first session identity was
-// open, and a marker is open nearly all the time, so the reap never happened: the
-// worktree count went 31 -> 47 -> 75 -> 81 on this machine while the issue sat
-// open. The refusal was right about the hazard and wrong about the remedy. Its
-// reasoning was "a clean worktree on a merged branch is indistinguishable from
-// one a live agent just pushed from" -- but that is only true if you look at git
-// alone. The repo already publishes a POSITIVE liveness signal: every dispatched
-// agent holds an open `db-claim` issue naming its exact `worktree:` path and
-// branch, and a worktree a process is actually working in has recent filesystem
-// activity in its own git administrative directory.
-//
-// So the guard is now three positive signals instead of one blanket guess, and
-// every one of them says KEEP rather than "remove":
-//   1. a worktree named by an open database claim is held, marker or no marker;
-//   2. the worktree this reap is itself running inside is never a candidate;
-//   3. while a marker IS open, a worktree touched within the idle window is
-//      treated as live even if nothing claims it, because dispatch and claim
-//      creation are not atomic and a just-started agent may not have claimed yet.
-// `--force` still exists and still skips the idle window. It is not the way to
-// run a routine reap.
+// Claim-first cleanup custody (issue #4348, 2026-10-18): no marker lookup.
+// Exact claim paths/branches, this running worktree, and recent or unmeasurable
+// filesystem activity all protect a worktree. Activity protection applies even
+// when there are no claims. An unreadable claim list refuses apply. Existing
+// --force semantics remain explicit; it never overrides dirty/locked/claimed
+// worktrees or any other permanent per-worktree hold.
 export const DEFAULT_IDLE_HOURS = 24;
 // A deletion tool must not accept a window so short that every worktree with a
 // readable timestamp is "idle". `--idle-hours 0.001` passed the old
@@ -107,7 +93,7 @@ export function plan(worktrees, mergedBranches, guard = {}) {
     claimedPaths = new Set(),
     claimedBranches = new Set(),
     selfPath = null,
-    orchestratorActive = false,
+    orchestratorActive = true,
     now = Date.now(),
     idleHours = DEFAULT_IDLE_HOURS,
     force = false,
@@ -128,7 +114,7 @@ export function plan(worktrees, mergedBranches, guard = {}) {
     else if (w.branch && claimedBranches.has(w.branch))
       reason = `an open database claim holds its branch ${w.branch}`;
     else if (orchestratorActive && !force && !isIdle(w, now, idleHours))
-      reason = `an orchestrator is live and this worktree was active within the last ${idleHours}h`;
+      reason = `this worktree was active within the last ${idleHours}h`;
     else if (!mergedBranches.has(w.branch)) reason = "no merged pull request for its branch";
     if (reason) keep.push({ worktree: w, reason });
     else remove.push(w);
@@ -137,33 +123,15 @@ export function plan(worktrees, mergedBranches, guard = {}) {
 }
 
 /**
- * The only remaining whole-run refusal, and it is about MISSING EVIDENCE rather
- * than about the marker itself. While an orchestrator is live, the per-worktree
- * guard in `plan` depends on being able to read the open database claims. If that
- * read failed there is no positive liveness signal at all, and we are back to the
- * guess the old blanket refusal was protecting against -- so refuse.
- *
- * A live marker with readable claims is NOT a block any more. That is the whole
- * repair: the reap must be able to run alongside an orchestrator, or it never
- * runs, which is exactly what happened between #1868 being filed and the worktree
- * count reaching 81.
- *
- * THE FIRST ARGUMENT IS THE LIVENESS BIT, NOT THE MARKER LIST. An earlier draft
- * took the marker array and asked `markers.length > 0`. `main` sets that array to
- * `[]` when the marker read FAILS, and separately decides liveness as
- * `!markersReadable || markers.length > 0`. So a run in which BOTH the marker read
- * and the claim read failed -- no idea whether an orchestrator is up, and no idea
- * which worktrees are held -- computed `[].length > 0` and did not refuse.
- * The old code threw on that path and deleted nothing; the draft would have
- * deleted. Found by the governed review of PR #2606. A boolean is demanded here so
- * that passing the array again is an immediate, loud failure rather than a silent
- * false.
+ * Compatibility API name retained for existing callers/tests. The first bit
+ * means ownership protection is active; main always enables it. Unreadable claim
+ * evidence then refuses cleanup, independently of any retired role or marker.
  */
 export function blockedByLiveOrchestrator(orchestratorActive, force, claimsReadable = true) {
   if (typeof orchestratorActive !== "boolean") {
     throw new TypeError(
-      "blockedByLiveOrchestrator takes the orchestrator LIVENESS BIT, not the marker list; " +
-        "an unreadable marker list is live even though the list is empty",
+      "blockedByLiveOrchestrator takes the ownership-protection boolean, not a list; " +
+        "unreadable ownership evidence must remain protective",
     );
   }
   if (force) return false;
@@ -283,17 +251,6 @@ export function main({
   // The positive liveness signals, read BEFORE anything is planned so a dry run
   // shows exactly what an --apply would do. A failed read is recorded, never
   // swallowed: it decides the whole-run refusal below.
-  let markers = [];
-  let markersReadable = true;
-  try {
-    markers = readGitHubArray(
-      ['issue', 'list', '--repo', repo, '--state', 'open', '--label', 'orchestrator-marker', '--limit', '20', '--json', 'number,title'],
-      runGitHub,
-    );
-  } catch (err) {
-    markersReadable = false;
-    error(`::warning::could not read claim-first session identities: ${err.message}`);
-  }
   let claims = [];
   let claimsReadable = true;
   try {
@@ -305,9 +262,9 @@ export function main({
     claimsReadable = false;
     error(`::warning::could not read open database claims: ${err.message}`);
   }
-  // An unreadable marker list counts as "an orchestrator is live". Never let a
-  // failed read relax a guard.
-  const orchestratorActive = !markersReadable || markers.length > 0;
+  // Claim-first: recent activity is protective with or without any open claim.
+  // An unreadable claim list must never relax ownership protection.
+  const orchestratorActive = true; // legacy plan option; no role/marker lookup
   const { paths: claimedPaths, branches: claimedBranches } = claimedHolds(claims.map((c) => c.body));
 
   const inspectedWorktrees = worktrees();
@@ -321,12 +278,9 @@ export function main({
     force,
   });
 
-  const markerNote = markersReadable
-    ? markers.map((m) => `#${m.number}`).join(", ") || "none"
-    : "marker list unreadable";
   log(
     `${inspectedWorktrees.length} worktree(s). ${remove.length} retireable, ${keep.length} kept.\n` +
-      `orchestrator ${orchestratorActive ? "LIVE" : "not running"} (${markerNote}); ` +
+      `claim-first ownership protection active; ` +
       `${claimsReadable ? `${claimedPaths.size} claimed worktree path(s), ${claimedBranches.size} claimed branch(es)` : "CLAIMS UNREADABLE"}; ` +
       `idle window ${idleHours}h.\n`,
   );
@@ -346,7 +300,7 @@ export function main({
   // agent.
   if (blockedByLiveOrchestrator(orchestratorActive, force, claimsReadable)) {
     error(
-      "\n::error::An orchestrator is ACTIVE and the open database claims could not be read, so " +
+      "\n::error::The open database claims could not be read, so " +
         "there is no way to tell which of these worktrees an agent is holding right now. " +
         "Refusing to remove anything. Fix the claim read and re-run; --force only when you have " +
         "confirmed no agent is running.",

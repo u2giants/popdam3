@@ -122,7 +122,7 @@ export function evaluateAdmission(issue, scope, impact = null) {
       return !['crm', 'pim', 'dam', 'plm'].includes((schema?.[1] ?? schema?.[2] ?? '').toLowerCase())
     })
     if (outside.length) {
-      throw new AdmissionError(`issue #${issue.number} routes self-service-additive but writes outside the {crm,pim,dam,plm} app-owned schemas: ${outside.join(', ')} — shared-schema objects need the orchestrator route`)
+      throw new AdmissionError(`issue #${issue.number} routes self-service-additive but writes outside the {crm,pim,dam,plm} app-owned schemas: ${outside.join(', ')} — shared-schema objects need the claim-first route`)
     }
   }
   if (scope.status !== 'ready') throw new AdmissionError(`issue #${issue.number} is ${scope.status}, not ready`)

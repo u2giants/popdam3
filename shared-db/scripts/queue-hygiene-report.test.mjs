@@ -190,7 +190,7 @@ test('not-orchestrator work is reported with its age in days', () => {
   const ages = new Map(report.not_orchestrator_work.map((item) => [item.issue, item.age_days]))
   assert.equal(ages.get(401), 10, 'age is whole days from createdAt to now')
   assert.equal(ages.get(402), 15)
-  assert.match(result.err, /OUTSIDE ORCHESTRATOR — OWNED BY REPO SESSION \(aging\)/)
+  assert.match(result.err, /OWNED BY REPO SESSION \(aging\)/)
   assert.match(result.err, /#402 REJECT/)
   assert.match(result.err, /NO RETURN ADDRESS on #402/)
 })
