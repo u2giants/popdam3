@@ -954,7 +954,7 @@ const BUILTIN_AI_MODEL_CAPABILITY_OVERRIDES: Record<string, Record<string, unkno
   },
 };
 
-const DIRECT_VISION_MODELS = [
+const META_DIRECT_VISION_MODELS = [
   {
     id: "meta-direct/muse-spark-1.3-contributor",
     name: "Meta Muse Spark 1.3 Contributor (direct API; training data enabled)",
@@ -970,6 +970,9 @@ const DIRECT_VISION_MODELS = [
     applied_override: null,
     pricing: { prompt: "0.0000001", completion: "0.0000002", input_cache_read: "0.000000002" },
   },
+];
+
+const FALLBACK_GOOGLE_DIRECT_MODELS = [
   {
     id: "google-direct/gemini-3.8-flash:batch",
     name: "Google Gemini 3.8 Flash Batch (direct API)",
@@ -986,42 +989,124 @@ const DIRECT_VISION_MODELS = [
     pricing: null,
   },
 ];
+
+const DIRECT_VISION_MODELS = [...META_DIRECT_VISION_MODELS, ...FALLBACK_GOOGLE_DIRECT_MODELS];
 const openRouterVisionCatalogByAccount = new Map<string, Array<Record<string, unknown>>>();
+const googleDirectCatalogByAccount = new Map<string, Array<Record<string, unknown>>>();
+
+function googleDirectModelEntry(
+  bareId: string,
+  displayName: string,
+  contextLength: number | null,
+  openRouterItems: Array<Record<string, unknown>>,
+  capabilitySource: string,
+) {
+  const openRouterTwin = openRouterItems.find((item) => String(item.id) === `google/${bareId}`);
+  return {
+    id: `google-direct/${bareId}:batch`,
+    name: `${displayName} Batch (direct API)`,
+    context_length: contextLength,
+    input_modalities: ["text", "image"],
+    image_input: true,
+    supports_tools: false,
+    supports_tool_choice: false,
+    tool_choice_modes: [],
+    supports_structured_outputs: true,
+    supports_response_format: true,
+    capability_source: capabilitySource,
+    applied_override: null,
+    pricing: (openRouterTwin?.pricing as Record<string, unknown> | null | undefined) ?? null,
+  };
+}
+
+function mapGoogleDirectModels(payload: unknown, openRouterItems: Array<Record<string, unknown>>, capabilitySource: string): Array<Record<string, unknown>> {
+  const rawModels = (payload as { models?: unknown })?.models;
+  if (!Array.isArray(rawModels)) return [];
+  const mapped: Array<Record<string, unknown>> = [];
+  for (const raw of rawModels) {
+    const name = String((raw as { name?: unknown })?.name ?? "").replace(/^models\//, "");
+    const displayName = String((raw as { displayName?: unknown })?.displayName ?? name);
+    const methods = Array.isArray((raw as { supportedGenerationMethods?: unknown })?.supportedGenerationMethods)
+      ? (raw as { supportedGenerationMethods: unknown[] }).supportedGenerationMethods.map(String)
+      : [];
+    const inputTokenLimit = (raw as { inputTokenLimit?: unknown })?.inputTokenLimit;
+    if (!name || !/gemini/i.test(`${name} ${displayName}`)) continue;
+    if (methods.length > 0 && !methods.includes("generateContent")) continue;
+    if (/embedding|aqa|imagen|learnlm|text-embedding/i.test(name)) continue;
+    mapped.push(googleDirectModelEntry(
+      name,
+      displayName,
+      typeof inputTokenLimit === "number" ? inputTokenLimit : null,
+      openRouterItems,
+      capabilitySource,
+    ));
+  }
+  return mapped.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
+async function fetchGoogleDirectModels(
+  googleApiKey: string | null,
+  accountFingerprint: string,
+  openRouterItems: Array<Record<string, unknown>>,
+): Promise<Array<Record<string, unknown>>> {
+  if (!googleApiKey?.trim()) return FALLBACK_GOOGLE_DIRECT_MODELS;
+  try {
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(googleApiKey.trim())}`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!resp.ok) throw new Error(`catalog HTTP ${resp.status}`);
+    const payload = await resp.json();
+    const mapped = mapGoogleDirectModels(payload, openRouterItems, "direct_provider");
+    if (mapped.length === 0) return FALLBACK_GOOGLE_DIRECT_MODELS;
+    googleDirectCatalogByAccount.set(accountFingerprint, mapped);
+    if (googleDirectCatalogByAccount.size > 4) {
+      const oldest = googleDirectCatalogByAccount.keys().next().value;
+      if (oldest) googleDirectCatalogByAccount.delete(oldest);
+    }
+    return mapped;
+  } catch {
+    return googleDirectCatalogByAccount.get(accountFingerprint) ?? FALLBACK_GOOGLE_DIRECT_MODELS;
+  }
+}
 
 async function handleGetOpenrouterVisionModels() {
   const db = serviceClient();
   const { data: configRows, error: configError } = await db
     .from("admin_config")
     .select("key,value")
-    .in("key", ["OPENROUTER_API_KEY", "AI_MODEL_CAPABILITY_OVERRIDES"]);
+    .in("key", ["OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "AI_MODEL_CAPABILITY_OVERRIDES"]);
 
   const apiKey = (configRows?.find((row) => row.key === "OPENROUTER_API_KEY")?.value as string | null) ?? null;
+  const googleApiKey = (configRows?.find((row) => row.key === "GOOGLE_AI_API_KEY")?.value as string | null) ?? null;
   const overrides = (configRows?.find((row) => row.key === "AI_MODEL_CAPABILITY_OVERRIDES")?.value as Record<string, Record<string, unknown>> | null) ?? {};
   if (configError) return json({ ok: true, models: DIRECT_VISION_MODELS, catalog_warning: `AI model configuration unavailable: ${configError.message}` });
-  if (!apiKey) return json({ ok: true, models: DIRECT_VISION_MODELS });
-  const accountFingerprint = await safeSecretFingerprint(apiKey);
+  const accountFingerprint = await safeSecretFingerprint(apiKey ?? googleApiKey ?? "unset");
 
   let items: Array<Record<string, unknown>> = [];
   let catalogWarning: string | null = null;
-  try {
-    const resp = await fetch("https://openrouter.ai/api/v1/models/user", {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-    if (resp.ok) {
-      const payload = await resp.json() as { data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
-      items = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
-      openRouterVisionCatalogByAccount.set(accountFingerprint, items);
-      if (openRouterVisionCatalogByAccount.size > 4) {
-        const oldest = openRouterVisionCatalogByAccount.keys().next().value;
-        if (oldest) openRouterVisionCatalogByAccount.delete(oldest);
+  if (!apiKey) {
+    catalogWarning = null;
+  } else {
+    try {
+      const resp = await fetch("https://openrouter.ai/api/v1/models/user", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (resp.ok) {
+        const payload = await resp.json() as { data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+        items = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
+        openRouterVisionCatalogByAccount.set(accountFingerprint, items);
+        if (openRouterVisionCatalogByAccount.size > 4) {
+          const oldest = openRouterVisionCatalogByAccount.keys().next().value;
+          if (oldest) openRouterVisionCatalogByAccount.delete(oldest);
+        }
+      } else {
+        catalogWarning = `OpenRouter catalog unavailable (HTTP ${resp.status})`;
       }
-    } else {
-      catalogWarning = `OpenRouter catalog unavailable (HTTP ${resp.status})`;
+    } catch {
+      catalogWarning = "OpenRouter catalog unavailable (network error)";
     }
-  } catch {
-    catalogWarning = "OpenRouter catalog unavailable (network error)";
+    if (catalogWarning) items = openRouterVisionCatalogByAccount.get(accountFingerprint) ?? [];
   }
-  if (catalogWarning) items = openRouterVisionCatalogByAccount.get(accountFingerprint) ?? [];
   const models = items.map((m) => {
     const id = m.id as string;
     const params = Array.isArray(m.supported_parameters) ? m.supported_parameters as string[] : [];
@@ -1047,7 +1132,12 @@ async function handleGetOpenrouterVisionModels() {
     });
   });
 
-  return json({ ok: true, models: [...models, ...DIRECT_VISION_MODELS], catalog_warning: catalogWarning });
+  const googleDirectModels = await fetchGoogleDirectModels(googleApiKey, accountFingerprint, items);
+  return json({
+    ok: true,
+    models: [...models, ...META_DIRECT_VISION_MODELS, ...googleDirectModels],
+    catalog_warning: catalogWarning,
+  });
 }
 
 // ── Routes: AI tag bake-off ────────────────────────────────────────
