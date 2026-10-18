@@ -4,6 +4,7 @@ import { serviceClient } from "../_shared/service-client.ts";
 import { authenticateUser } from "../_shared/admin-auth.ts";
 import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
 import { parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
+import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 
 declare const Supabase: {
   ai: {
@@ -57,6 +58,19 @@ corsServe(async (req) => {
 
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
   const action = typeof body.action === "string" ? body.action : "search";
+
+  if (action === "search-modes") {
+    if (auth.serviceRole) return err("A user session is required", 403);
+    try {
+      const dam = await loadDamSearchMode(
+        () => auth.client.rpc("has_app_access", { _user_id: auth.userId, _app: "popdam" }),
+        () => serviceClient().from("admin_config").select("value").eq("key", "SEARCH_MODE").maybeSingle(),
+      );
+      return json({ ok: true, modes: { dam } });
+    } catch (error) {
+      return err("Search mode unavailable", searchAccessStatus(error) ?? 503);
+    }
+  }
 
   if (action === "embed-batch") {
     return err("embed-batch was retired; the Railway worker is the only embedding claimer", 410);
@@ -174,7 +188,7 @@ corsServe(async (req) => {
       p_min_rank: minRank,
       p_min_semantic_score: minSemanticScore,
     });
-    if (error) throw error;
+    if (error) return err("Search unavailable", searchAccessStatus(error) ?? 503);
     const results = Array.isArray(data)
       ? data.map((row: Record<string, unknown>) => ({
         document_type: row.document_type,
