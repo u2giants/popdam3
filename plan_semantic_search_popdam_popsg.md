@@ -10,9 +10,9 @@ This is a combined delivery plan, not evidence that either application has seman
 
 | Step | State as of October 18, 2026 | Owner / dependency | Evidence or required artifact |
 |---|---|---|---|
-| 1. Reconcile source, live state and custody | Open | Implementing session | Re-run the read-only probes in [baseline](docs/verification/semantic-search-plan-20261018.md); refresh #96/#4210/#4212 |
+| 1. Reconcile source, live state and custody | Partial October 18; SG baseline and native custody refreshed | PopSG coordinator; DAM metadata owner unchanged | [Refreshed evidence](docs/verification/popsg-coordinator-20261018.md), [current coordinator handoff](HANDOFF.d/2026-10-18T1737Z-hetz-codex-popsg-coordinator.md); relevance/source/freshness acceptance still open |
 | 2. Establish relevance and performance baseline | Open | Implementing session; metadata owners retain their jobs | Private query judgments plus public aggregate acceptance report |
-| 3. Resolve SG repair custody and production prerequisite | Blocked | Existing #4212 claim owner / native successor | Existing [repair update](https://github.com/popcre/shared-db/issues/4210) is historical; resolve current issue comments and native custody before any action |
+| 3. Resolve SG repair custody and production prerequisite | Blocked; custody recovered, real matching Guides timeout persists | Actual database worker 01a14ffa-6ae0-75c1-b984-2135cc659938; table-maintenance experiment collides with active #4443/#4427 | Native adoption/reissue preserved #4212, new version 20261018171808; source unpushed/unapplied, capacity relinquished with dirty custody. Exact live repair body/catalog pass but signed-in Guides returns 57014. See [current handoff](HANDOFF.d/2026-10-18T1737Z-hetz-codex-popsg-coordinator.md) and #4210/#4437 |
 | 4. Author and land SG vector/freshness/query contract | Open, dependent on step 3 | Structural session on #4437 | Reserved migration, exact-object claim, SQL tests, review, preview, merge, promotion, catalog proof |
 | 5. Extend shared embedding runtime and SG search edge | Open, dependent on step 4 production contract | Application session | Worker/edge tests, approved deployment and live lease/restart proof |
 | 6. Integrate SG UI and independent switches | Open, dependent on steps 4–5 | Application session | UI adapter/tests, both modes, role/filter/page/facet visual evidence |
@@ -21,7 +21,7 @@ This is a combined delivery plan, not evidence that either application has seman
 | 9. Activate separately, observe and rehearse rollback | Open | Implementing session after technical gates | Saved switch readback, ordinary worker/crawl observations, rollback and restoration proof |
 | 10. Close delivery and update durable documentation | Open | Implementing session | Same-issue acceptance checklists, merged commits, live proof and updated plan/handoff |
 
-**Fresh session starts at step 1.** This turn writes/reviews/publishes a plan only. It does not authorize pretending a blocked prerequisite is delivered. Before each new phase, re-read its downstream steps and current repository rules. At a context cut, use the fresh-session/handoff standards and preserve exact custody.
+**Fresh session starts at step 1.** The original planning turn did not implement semantic search. The October 18 coordinator refreshed SG evidence and recovered native custody, but delivered no schema/application/production change. The real Guides timeout and protected table collision remain on existing issues; no second application worker started. Read the current handoff above before older custody notes. Before each new phase, re-read downstream steps and current rules; preserve exact custody at a context cut.
 
 ## 1. Ultimate goal
 
