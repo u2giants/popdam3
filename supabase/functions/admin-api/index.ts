@@ -993,15 +993,71 @@ const FALLBACK_GOOGLE_DIRECT_MODELS = [
 const DIRECT_VISION_MODELS = [...META_DIRECT_VISION_MODELS, ...FALLBACK_GOOGLE_DIRECT_MODELS];
 const openRouterVisionCatalogByAccount = new Map<string, Array<Record<string, unknown>>>();
 const googleDirectCatalogByAccount = new Map<string, Array<Record<string, unknown>>>();
+const openRouterPublicPricingCache: { fetchedAt: number; byId: Map<string, Record<string, unknown>> } | null = null;
+
+function usablePricing(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const pricing = value as Record<string, unknown>;
+  const prompt = pricing.prompt;
+  const completion = pricing.completion;
+  const hasPrompt = typeof prompt === "number" || (typeof prompt === "string" && prompt.trim().length > 0);
+  const hasCompletion = typeof completion === "number" || (typeof completion === "string" && completion.trim().length > 0);
+  return hasPrompt || hasCompletion ? pricing : null;
+}
+
+async function loadOpenRouterPublicPricing(): Promise<Map<string, Record<string, unknown>>> {
+  if (openRouterPublicPricingCache && Date.now() - openRouterPublicPricingCache.fetchedAt < 10 * 60_000) {
+    return openRouterPublicPricingCache.byId;
+  }
+  try {
+    const resp = await fetch("https://openrouter.ai/api/v1/models", { signal: AbortSignal.timeout(10_000) });
+    if (!resp.ok) throw new Error(`public catalog HTTP ${resp.status}`);
+    const payload = await resp.json() as { data?: Array<Record<string, unknown>> };
+    const byId = new Map<string, Record<string, unknown>>();
+    for (const item of payload.data ?? []) {
+      const id = String(item.id ?? "");
+      const pricing = usablePricing(item.pricing);
+      if (id && pricing) byId.set(id, pricing);
+    }
+    openRouterPublicPricingCache = { fetchedAt: Date.now(), byId };
+    return byId;
+  } catch {
+    return openRouterPublicPricingCache?.byId ?? new Map();
+  }
+}
+
+function findOpenRouterPricing(
+  openRouterItems: Array<Record<string, unknown>>,
+  candidates: string[],
+  publicPricing: Map<string, Record<string, unknown>>,
+): Record<string, unknown> | null {
+  for (const candidate of candidates) {
+    const fromAccount = openRouterItems.find((item) => String(item.id) === candidate);
+    const accountPricing = usablePricing(fromAccount?.pricing);
+    if (accountPricing) return accountPricing;
+    const publicPrice = publicPricing.get(candidate);
+    if (publicPrice) return publicPrice;
+  }
+  return null;
+}
+
+function googleTwinCandidates(bareId: string): string[] {
+  return [
+    `google/${bareId}`,
+    `google/${bareId}:batch`,
+    `google/${bareId}-001`,
+    `google/${bareId}-001:batch`,
+  ];
+}
 
 function googleDirectModelEntry(
   bareId: string,
   displayName: string,
   contextLength: number | null,
   openRouterItems: Array<Record<string, unknown>>,
+  publicPricing: Map<string, Record<string, unknown>>,
   capabilitySource: string,
 ) {
-  const openRouterTwin = openRouterItems.find((item) => String(item.id) === `google/${bareId}`);
   return {
     id: `google-direct/${bareId}:batch`,
     name: `${displayName} Batch (direct API)`,
@@ -1015,11 +1071,16 @@ function googleDirectModelEntry(
     supports_response_format: true,
     capability_source: capabilitySource,
     applied_override: null,
-    pricing: (openRouterTwin?.pricing as Record<string, unknown> | null | undefined) ?? null,
+    pricing: findOpenRouterPricing(openRouterItems, googleTwinCandidates(bareId), publicPricing),
   };
 }
 
-function mapGoogleDirectModels(payload: unknown, openRouterItems: Array<Record<string, unknown>>, capabilitySource: string): Array<Record<string, unknown>> {
+function mapGoogleDirectModels(
+  payload: unknown,
+  openRouterItems: Array<Record<string, unknown>>,
+  publicPricing: Map<string, Record<string, unknown>>,
+  capabilitySource: string,
+): Array<Record<string, unknown>> {
   const rawModels = (payload as { models?: unknown })?.models;
   if (!Array.isArray(rawModels)) return [];
   const mapped: Array<Record<string, unknown>> = [];
@@ -1038,6 +1099,7 @@ function mapGoogleDirectModels(payload: unknown, openRouterItems: Array<Record<s
       displayName,
       typeof inputTokenLimit === "number" ? inputTokenLimit : null,
       openRouterItems,
+      publicPricing,
       capabilitySource,
     ));
   }
@@ -1049,14 +1111,24 @@ async function fetchGoogleDirectModels(
   accountFingerprint: string,
   openRouterItems: Array<Record<string, unknown>>,
 ): Promise<Array<Record<string, unknown>>> {
-  if (!googleApiKey?.trim()) return FALLBACK_GOOGLE_DIRECT_MODELS;
+  const publicPricing = await loadOpenRouterPublicPricing();
+  if (!googleApiKey?.trim()) {
+    return FALLBACK_GOOGLE_DIRECT_MODELS.map((model) => ({
+      ...model,
+      pricing: findOpenRouterPricing(
+        openRouterItems,
+        googleTwinCandidates(String(model.id).replace(/^google-direct\//, "").replace(/:batch$/, "")),
+        publicPricing,
+      ),
+    }));
+  }
   try {
     const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(googleApiKey.trim())}`, {
       signal: AbortSignal.timeout(10_000),
     });
     if (!resp.ok) throw new Error(`catalog HTTP ${resp.status}`);
     const payload = await resp.json();
-    const mapped = mapGoogleDirectModels(payload, openRouterItems, "direct_provider");
+    const mapped = mapGoogleDirectModels(payload, openRouterItems, publicPricing, "direct_provider");
     if (mapped.length === 0) return FALLBACK_GOOGLE_DIRECT_MODELS;
     googleDirectCatalogByAccount.set(accountFingerprint, mapped);
     if (googleDirectCatalogByAccount.size > 4) {
@@ -1107,6 +1179,7 @@ async function handleGetOpenrouterVisionModels() {
     }
     if (catalogWarning) items = openRouterVisionCatalogByAccount.get(accountFingerprint) ?? [];
   }
+  const publicPricing = await loadOpenRouterPublicPricing();
   const models = items.map((m) => {
     const id = m.id as string;
     const params = Array.isArray(m.supported_parameters) ? m.supported_parameters as string[] : [];
@@ -1128,7 +1201,7 @@ async function handleGetOpenrouterVisionModels() {
       supports_response_format: override?.json_object ?? params.includes("response_format"),
       capability_source: override ? "override" : "live",
       applied_override: override,
-      pricing: m.pricing as Record<string, unknown> | null,
+      pricing: usablePricing(m.pricing) ?? publicPricing.get(id) ?? null,
     });
   });
 
