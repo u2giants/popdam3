@@ -22,7 +22,7 @@ Write a standalone implementation plan covering meaning-based search in both app
 
 ## 3. Exact current state
 
-[Combined plan](../plan_semantic_search_popdam_popsg.md), intended portable location [plan on this work branch](https://github.com/u2giants/popdam3/blob/codex/semantic-search-20261018/plan_semantic_search_popdam_popsg.md); [baseline/review evidence](https://github.com/u2giants/popdam3/blob/codex/semantic-search-20261018/docs/verification/semantic-search-plan-20261018.md). Publication is pending at initial drafting; verify the branch/PR or main before continuing. The final publication/review receipt belongs in the evidence file and this section before closeout.
+[Combined plan](../plan_semantic_search_popdam_popsg.md), intended portable location [plan on this work branch](https://github.com/u2giants/popdam3/blob/codex/semantic-search-20261018/plan_semantic_search_popdam_popsg.md); [baseline/review evidence](https://github.com/u2giants/popdam3/blob/codex/semantic-search-20261018/docs/verification/semantic-search-plan-20261018.md). The plan was committed, independently reviewed, revised and approved by Muse; the evidence file records both review turns and their dispositions. Resolve the final publication-gate/merged-PR receipts from the existing #97/#107 issue comments before continuing. These receipts establish documentation publication, not implementation or live search acceptance.
 
 App base [9033ce3d548ac84463e4ca4f823f37d8dcc69e54](https://github.com/u2giants/popdam3/commit/9033ce3d548ac84463e4ca4f823f37d8dcc69e54) is fetched. The plan describes source paths/line anchors at that base. No code, schema, production setting, embedding operation or paid tagging work has changed in this planning turn. The app canonical checkout's unrelated files are preserved.
 
@@ -40,8 +40,8 @@ New SG structure is on [#4437](https://github.com/popcre/shared-db/issues/4437),
 
 ## 6. Exact next steps
 
-1. Finish this planning turn: validate links and the plan's 13-section/self-audit/adversarial checklist; commit only owned Markdown; run the protected Muse conversation and explicitly ask whether to use Timescale pg_vectorsearch. Gate: qualified native completion/report and material findings addressed in plan/evidence.
-2. Publish by branch/PR under current task gates, normal merge and repository rules. Gate: plan/handoff/evidence/router links open on GitHub; final source and review IDs recorded, no unstaged owned change.
+1. Planning review is complete: all 13 sections, adversarial named tests and bidirectional links passed self-audit; Muse explicitly rejected pg_vectorsearch now, requested five material corrections, then APPROVED the corrected plan at source 676eafdf3dd0dd6ceb99fc5145a84877acccb6c4 with no remaining material findings. Evidence/disposition is in the linked verification file. This is plan approval only.
+2. Verify the documentation publication receipt on #97/#107: final exact-head technical check, normal merged PR and openable plan/handoff/evidence/router links. If absent, publication is incomplete; finish that gate before claiming it delivered. No app deployment is required for prose.
 3. For implementation, start at combined plan step 1, re-read all downstream phases and live issue/custody state. Gate: fresh read-only baseline and exact ownership; no dated snapshot promoted to current truth.
 4. Deliver canonical contract before dependent app code, then runtime/UI, measured coverage, quality/access/fallback and separate activation. Gate: the plan's per-step checks and final checklist, including live proof and ordinary refresh observation, all pass. Blocked dependencies stay on existing issues with named owners.
 
@@ -59,6 +59,6 @@ The app development server defaults to production; both preview URL and anon key
 
 ## 9. Open risks and decisions
 
-Recommendation pending Muse challenge: installed pgvector/HNSW plus semantic-and-keyword fusion. Current pg_vectorsearch README says testing-only and PostgreSQL 18+; hosting is 17.6. pgvecto.rs points users to VectorChord, which is unavailable on this hosted project. Revalidate these dated facts before implementation. Full semantic match counts/facets may be more expensive than nearest-neighbor ranking; the plan sets performance/recall/quality gates and requires redesign rather than false totals. #4212 source custody and #96 metadata acceptance remain independent prerequisites, not business permission questions.
+Recommendation challenged and confirmed by Muse: installed pgvector/HNSW plus semantic-and-keyword fusion. Current pg_vectorsearch README says testing-only and PostgreSQL 18+; hosting is 17.6. pgvecto.rs points users to VectorChord, which is unavailable on this hosted project. Revalidate these dated facts before implementation. Full semantic match counts/facets may be more expensive than nearest-neighbor ranking; the plan sets performance/recall/quality gates and requires redesign rather than false totals. #4212 source custody and #96 metadata acceptance remain independent prerequisites, not business permission questions.
 
 Self-audit: all ten sections are present. A fresh worker can continue using §§1–3,5–8 plus the linked complete plan; failures and rationale are explicit in §§4–5, risks/choices in §9. Line-by-line decision sweep found no technical approval that belongs to Albert; §0 carries all currently settled owner direction and the only conditional future content-meaning question. No missing owner decision is hidden in §§1–9.
