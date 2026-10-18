@@ -52,4 +52,36 @@ Checked October 18, 2026; re-read upstream and live hosting inventory before imp
 
 ## Planning verification and independent review
 
-Self-audit is preserved in the plan's final section. Review pending; a Muse doctor passed for the pinned Muse Code runner and protected key-store presence, but that alone is not a review completion. Add a sanitized report summary and qualified source/report identifiers after the actual requested Muse turn completes. Never commit provider credentials, private corpora, prompts containing real licensed rows or raw authenticated traffic.
+The plan self-audit passed: all 13 sections, background/failures/decisions, per-step gates, adversarial named tests, environment/secret locations, shipping/live acceptance and bidirectional handoff links are present. A local check validated section numbers, relative document links, the adversarial table and whitespace. These are documentation checks, not application behavior tests.
+
+Muse Spark 1.3 Contributor completed the first actual review October 18, 2026, 12:43 PM EDT in conversation `popdam-popsg-search-plan-20261018`, native session `f4565879-498f-45a0-971a-f39d03de917f`, source `1038c1cdcc8fdab76cd345f0b5e74985c01087e3`. Report SHA-256: `c9dd3ff765f658393912b637a0c04ca8dfbeb5ef7074f5f215604987295ae4f0`. The runner proved completion and retained the report privately; no raw provider stream is committed.
+
+**Explicit package answer:** Muse recommends existing pgvector/HNSW and says not to use Timescale pg_vectorsearch now. Its reasons were supplied hosting unavailability/PG17.6 versus PG18+, supplied alpha status/upgrade risk, and absence of measured need. It distinguished pg_vectorsearch from pgvectorscale, said not to start with pgvecto.rs, and kept VectorChord as a possible later candidate only after supported hosting and measured need. Muse independently read repository source but did not browse upstream or rerun SQL; package/live facts remain this session’s supplied evidence, not independently refreshed facts from Muse.
+
+Muse’s initial verdict was **REVISE**. Disposition in the revised plan:
+
+| Finding | Correction |
+|---|---|
+| M1 — nightly UUID churn overwhelms batch-three/minute freshness | Step 7 explicitly measures post-rebuild pending, states 180/hour upper bound, requires tested cadence/capacity/current stable identity before activation |
+| M2 — SG/manual/automatic lane overlap | Step 5 uses one shared search-index lane and one round-robin coordinator through the existing operation path, with multi-replica fairness/exclusion proof |
+| M3 — mode readable only by admin | Steps 1/6 test each role and name authenticated search-modes capability for both apps, returning permitted modes only |
+| M4 — unextracted PDF-only test cases cannot pass | Steps 1/2 measure extraction status, freeze extracted-record cases before judging, and preserve other extraction obligations separately |
+| M5 — #96 gate lacks exact releasing artifact | Step 7 names current 8,663-asset saved description/exact-model/active-tag fully paginated audit and current issue checklist; no operation-counter inference |
+| O1 — silent same-dimension provider update | §8 records model/build/date if exposed, fixed-text canary drift checks and residual alias risk |
+| O2 — canonical fixture timing/path | Step 2 drafts; structural step 4 owns landing canonical SQL tests |
+| O3 — injected provider failure versus no-error gate | Step 8 separates normal latency from bounded 15-second fallback resilience drills |
+| O4 — exact identifier with excluding filters | Step 2 explicitly requires permitting filters |
+| O5 — refresh regression bypasses feature flags | §13 elevates preimage/parity and governed forward-fix/rollback of shared keyword refresh |
+| O6 — old human-approval wording | Step 1 reconciles current technical gates/native automatic promotion and rejects stale human technical approval |
+| O7 — unnamed freshness burst | Steps 1/7 freeze and record numeric burst N and nightly count from measured source arrivals |
+| O8 — small relevance set noise | Step 2 records pooled/per-view NDCG and small-sample limitation |
+| O9 — DAM catch-all auth fallback | Step 6 requires DAM and SG to propagate 401/403, with named auth_denial_never_keyword_fallback tests |
+| O10 — Unicode/truncation ambiguity | Step 4 specifies NFC/code-point/line-ending/whitespace policy and verifies provider token limit |
+| O11 — full-text hash versus prefix work | §8 explicitly measures/retains or governs alignment of DAM digest/input identity and budgets extra churn |
+| O12 — incomplete source-writer enumeration | Step 4 explicitly includes tag-popsg-files/active tags/crawl reconciliation writers |
+| O13 — unspecified request cancellation | Step 5 names adapter/SEMANTIC_QUERY_TIMEOUT_MS/AbortController and separates query/backfill budgets |
+| O14 — engine change too early | Step 8 requires supported HNSW/iterative and exact membership tuning before alternatives |
+
+A local preparation attempt used an abbreviated assert-head and was rejected before any snapshot/provider session existed. The wrapper retained `preparation_failed` with null session/report; transcript/reconcile could not produce a provider completion. This non-provider attempt remains preserved and is not approval. The successful conversation above started with the full immutable SHA and is the one to continue; never replay an uncertain provider turn or change engines.
+
+Same-conversation confirmation of corrections and formal publication review remain pending at this draft. Never commit credentials, private corpora or authenticated traffic.
