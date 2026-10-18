@@ -16,11 +16,12 @@ test("real tick queues a direct-RPC running manual retag before any provider dis
     [key]: {status:"running",run_id:"single",cursor:0,state_revision:1,updated_at:new Date(Date.now()-1000).toISOString()},
     "ai-tag-parallel": {status:"running",run_id:"parallel",cursor:0,state_revision:1,updated_at:new Date().toISOString()},
   };
-  let queued = 0, providerCalls = 0;
+  let queued = 0, providerCalls = 0; const remoteCalls: string[] = [];
   globalThis.fetch = async(input, init) => {
     const u = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
     const response = (x: unknown) => new Response(JSON.stringify(x), {headers:{"Content-Type":"application/json"}});
-    if (u.hostname !== "localhost") { providerCalls++; return response({}); }
+    if (u.hostname === "www.seafile.com" && u.pathname === "/en/download/") return new Response("");
+    if (u.hostname !== "localhost") { providerCalls++; remoteCalls.push(u.hostname+u.pathname); return response({}); }
     if (u.pathname.endsWith("/admin_config")) {
       const filter=u.searchParams.get("key")??"";const all: Record<string, unknown>={BULK_OPERATIONS:ops};
       const keys=filter.startsWith("eq.")?[filter.slice(3)]:filter.slice(4,-1).split(",");
@@ -33,6 +34,6 @@ test("real tick queues a direct-RPC running manual retag before any provider dis
     }
     return response([]);
   };
-  try {await tick();assert.equal(queued,1);assert.equal(providerCalls,0);assert.equal(ops[key].cursor,0);assert.equal(ops[key].run_id,"single");}
+  try {await tick();assert.equal(queued,1);assert.equal(providerCalls,0,JSON.stringify(remoteCalls));assert.equal(ops[key].cursor,0);assert.equal(ops[key].run_id,"single");}
   finally {globalThis.fetch=original;}
 });
