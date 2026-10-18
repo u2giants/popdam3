@@ -146,7 +146,7 @@ export function ModelPoolEditor({
           <h3 className="text-xs font-semibold">Available models</h3>
           <p className="mt-1 text-[10px] text-muted-foreground">
             Every model this app can reach, with the capabilities that matter here and OpenRouter pricing per 1M tokens.
-            Turn a model off to hide it from every AI dropdown. Save when done.
+            Google’s direct list loads live from Google when its API key is saved. Turn a model off to hide it from every AI dropdown. Save when done.
           </p>
         </div>
         <Badge variant="outline" className="text-[10px]">
