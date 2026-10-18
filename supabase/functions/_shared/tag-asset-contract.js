@@ -31,7 +31,7 @@ export const TAG_ASSET_SCHEMA = {
         type: "object",
         additionalProperties: false,
         properties: {
-          tag: { type: "string", description: "Concise lowercase file-specific search term." },
+          tag: { type: "string", description: "Concise lowercase file-specific search term. Do not append the category name." },
           category: { type: "string", enum: ASSET_TAG_CATEGORIES },
           confidence: { type: "number", minimum: 0, maximum: 1 },
           evidence: { type: "array", items: { type: "string" }, description: "Short visible evidence from this file only." },
@@ -139,7 +139,7 @@ Description rules:
 - Avoid marketing copy, subjective praise, long lists, tiny irrelevant details, vague words, and multi-sentence answers.
 
 Tag rules:
-- Return 4-18 distinct asset_tags objects. Prefer short, natural search terms; use singular nouns unless the image clearly shows multiples.
+- Return 4-18 distinct asset_tags objects. Prefer short, natural search terms; use singular nouns unless the image clearly shows multiples. The "tag" value is the search term only — never append the category name in parentheses (e.g. write "back view", not "back view (view)").
 - Every tag must describe this file's visible content or file/document presentation. Use only these categories: ${ASSET_TAG_CATEGORIES.join(", ")}.
 - Do not return licensor, property, SKU, product identity, or authoritative product-description terms as asset tags. Those facts are read-only context owned by the Style Group.
 - Include every applicable category label from the controlled list below exactly as written. Do not create synonyms or near-duplicates for these labels.
