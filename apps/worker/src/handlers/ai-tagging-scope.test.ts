@@ -181,6 +181,8 @@ test("a re-tag replaces stale AI rows and no code path bypasses the atomic write
   assert.match(handlerSource, /rpc\("replace_asset_ai_tag_result"/);
   const directWrites = handlerSource.match(/from\("asset_tags"\)\s*\.(?!select\b)/g) ?? [];
   assert.deepEqual(directWrites, [], "asset_tags must only ever be written by the RPC");
+  assert.equal((handlerSource.match(/from\("asset_tags"\)/g) ?? []).length, 1, "only the one saved-result verification read is allowed");
+  assert.match(handlerSource, /from\("asset_tags"\)\.select\("id"\)\.eq\("asset_id", assetId\)/);
 
   // The live writer deletes this source's prior AI-owned rows before inserting,
   // inside one transaction, so a stale tag from an earlier run cannot survive and
