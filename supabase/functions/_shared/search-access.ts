@@ -22,7 +22,6 @@ export async function loadDamSearchMode(
   if (config.error) throw config.error;
   const row = config.data as { value?: unknown } | null;
   const value = row?.value;
-  const unwrapped = value && typeof value === "object" && "value" in value
-    ? (value as { value: unknown }).value : value;
+  const unwrapped = value && typeof value === "object" && "value" in value ? (value as { value: unknown }).value : value;
   return unwrapped === "hybrid" ? "hybrid" : "keyword";
 }
