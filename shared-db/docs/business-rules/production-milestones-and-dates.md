@@ -47,6 +47,15 @@ The order-timeline stages fall into five business lists: Design, Licensing, Samp
 - Ford is kept with empty licensing stage times until its licensor portal is set up and someone enters them.
 - Lenticular Art is a single product type, not two.
 
+### Licensor timeline groupings (Settled, Albert Hazan, 2026-10-18)
+
+Albert, verbatim: "count DC, Harry Potter and Friends TV as Warner Brothers / count Paw Patrol as Nickelodeon / Aardman is not unknown, ilona and laura have yet to make it a timeline as it's a new license ... / Care Bears and ZAG and lapsed contracts and can be disregarded going forward."
+
+- DC, Harry Potter and Friends TV use the Warner Brothers licensing stage times. Paw Patrol uses the Nickelodeon times. This is a timing grouping only; it does not change who the licensor is.
+- Aardman Animations is a real, new license whose licensing timeline Ilona and Laura have not created yet. Show it as "timeline not set up yet", never as unknown and never as zero.
+- Care Bears and ZAG are lapsed contracts: not offered for new work. Existing orders and history keep them.
+- NASA and Mixed License: no decision yet (Unknown).
+
 ## Stages run concurrently, with hard and soft dependencies
 
 **Status:** Settled that the lists are not serial (Albert Hazan, 2026-10-15). The dependency map itself is Unknown.
