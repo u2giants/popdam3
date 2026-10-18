@@ -54,6 +54,8 @@ import {
   buildImageTaggingPrompt,
   validateCharacterReferences,
   AssetTagApplyError,
+  CharacterReferenceValidationError,
+  CharacterCatalogDependencyError,
   callTagAssetModel,
   isRetryableTagTransportError,
   fetchImageData,
@@ -914,14 +916,14 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
           image,
           "Analyze this design asset image and return structured tags matching the tag_asset schema.",
         );
-        const { tagData, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 4000, providerOverride);
+        const { tagData, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 4000, providerOverride, parallelModel ? characterCatalogIds : undefined);
         logger.info("ai-tag: received structured tags", { assetId, model, outputMode, providerInfo, retryCount, sameModelRetry });
         if (attempts.length > 1) logger.warn("ai-tag: model needed structured-output fallback", { assetId, model, attempts });
 
         if (parallelModel) {
           try { await applyBatchTagResult(assetId, tagData, model, client, characterCatalogIds); }
           catch (error) {
-            logger.warn("ai-tag: parallel save failed", {assetId, model, stage: error instanceof AssetTagApplyError ? error.stage : "validation", code: error instanceof AssetTagApplyError ? error.code : "unknown"});
+            logger.warn("ai-tag: parallel save failed", {assetId, model, stage: error instanceof AssetTagApplyError ? error.stage : error instanceof CharacterReferenceValidationError ? "character_reference" : error instanceof CharacterCatalogDependencyError ? "character_catalog" : "validation", code: error instanceof AssetTagApplyError || error instanceof CharacterCatalogDependencyError ? error.code : "unknown"});
             return { outcome: "failed", error: error instanceof AssetTagApplyError ? `Parallel tagging save failed at ${error.stage} (${error.code})` : "Parallel tagging result validation failed" };
           }
           return { outcome: "tagged" };

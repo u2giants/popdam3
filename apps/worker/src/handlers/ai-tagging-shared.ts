@@ -211,6 +211,25 @@ export function normalizeCharacterIds(value: unknown): string[] {
   if (!Array.isArray(value) || value.some(id => typeof id !== "string" || !CHARACTER_UUID.test(id))) throw new CharacterReferenceValidationError();
   return [...new Set((value as string[]).map(id => id.toLowerCase()))];
 }
+/** Constrain synchronous trial output to the exact catalog supplied in its prompt. */
+export function tagAssetSchemaForCharacters(binding?: string[]): Record<string, unknown> {
+  if (binding === undefined) return TAG_ASSET_SCHEMA;
+  const ids = normalizeCharacterIds(binding);
+  const schema = structuredClone(TAG_ASSET_SCHEMA) as Record<string, unknown>;
+  const properties = schema.properties as Record<string, Record<string, unknown>>;
+  properties.character_ids = {
+    ...properties.character_ids,
+    ...(ids.length ? { items: { type: "string", enum: ids } } : { maxItems: 0 }),
+  };
+  return schema;
+}
+
+export function validateTagCharacterBinding(value: unknown, binding: string[]): void {
+  const ids = normalizeCharacterIds(value);
+  const allowed = new Set(normalizeCharacterIds(binding));
+  if (ids.some(id => !allowed.has(id))) throw new CharacterReferenceValidationError();
+}
+
 export async function validateCharacterReferences(
   value: unknown, binding: string[] | undefined, client: ReturnType<typeof db> = db(),
 ): Promise<string[]> {
@@ -427,6 +446,7 @@ export async function callTagAssetModel(
   timeoutMs: number,
   maxTokens = 4000,
   provider?: ChatCompletionRequest["provider"],
+  characterCatalogIds?: string[],
 ): Promise<TagAssetCompletionResult> {
   const directMeta = isMetaDirectModel(model);
   const selectedApiKey = directMeta ? await getMetaApiKey() : apiKey;
@@ -444,11 +464,11 @@ export async function callTagAssetModel(
     fetchedAt: new Date().toISOString(),
   } : await getRuntimeModelCapabilities(selectedApiKey, model);
   const result = await executeStructuredOutput({
-    apiKey: selectedApiKey, model, messages, schemaName: "tag_asset", schema: TAG_ASSET_SCHEMA,
+    apiKey: selectedApiKey, model, messages, schemaName: "tag_asset", schema: tagAssetSchemaForCharacters(characterCatalogIds),
     capabilities, timeoutMs, maxTokens, provider: directMeta ? undefined : provider,
     completion: directMeta ? metaChatCompletion : undefined,
     isTerminalError: directMeta ? (error) => isTerminalMetaModelApiError(error) || isRetryableTagTransportError(error) : undefined,
-    validate(value) { validateTagAssetData(value, "structured"); return value; },
+    validate(value) { validateTagAssetData(value, "structured"); if (characterCatalogIds !== undefined) validateTagCharacterBinding(value.character_ids, characterCatalogIds); return value; },
   });
   return { tagData: result.value, usage: result.usage as TagAssetCompletionResult["usage"], outputMode: result.outputMode, providerInfo: result.providerInfo, retryCount: result.repairCount, attempts: result.attempts };
 }

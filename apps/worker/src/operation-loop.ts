@@ -1040,6 +1040,13 @@ export function needsWaitHeartbeat(op: OpState, nowMs = Date.now()): boolean {
 async function heartbeatWhileWaiting(opKey: string, state: OpState): Promise<void> {
   if (!needsWaitHeartbeat(state)) return;
   try {
+    // A handler may have saved several pages since this snapshot was read.
+    // Heartbeat only the latest exact-run checkpoint, never the caller's copy.
+    const { data, error } = await withDependencyTimeout("Waiting operation checkpoint read", db().from("admin_config").select("value").eq("key", CONFIG_KEY).maybeSingle());
+    if (error) throw new Error("Waiting operation checkpoint unavailable");
+    const fresh = (data?.value as Record<string, OpState> | undefined)?.[opKey];
+    if (!fresh || fresh.run_id !== state.run_id || !needsWaitHeartbeat(fresh)) return;
+    state = fresh;
     const { lease_token: _leaseToken, ...storedJob } = state.external_job ?? ({} as NonNullable<OpState["external_job"]>);
     const heartbeat: OpState = {
       ...state,

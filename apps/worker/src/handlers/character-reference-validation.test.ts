@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateCharacterReferences, normalizeCharacterIds, CharacterCatalogDependencyError, CharacterReferenceValidationError, buildImageTaggingPrompt, buildImageTaggingMessages } from "./ai-tagging-shared.js";
+import { validateCharacterReferences, normalizeCharacterIds, CharacterCatalogDependencyError, CharacterReferenceValidationError, buildImageTaggingPrompt, buildImageTaggingMessages, tagAssetSchemaForCharacters, validateTagCharacterBinding, TAG_ASSET_SCHEMA } from "./ai-tagging-shared.js";
 import { applyBatchTagResult } from "./ai-tagging.js";
-import { buildStructuredOutputRequest } from "../structured-output.js";
+import { buildStructuredOutputRequest, executeStructuredOutput } from "../structured-output.js";
 const character="123e4567-e89b-42d3-a456-426614174000", other="223e4567-e89b-42d3-a456-426614174001", assetId="323e4567-e89b-42d3-a456-426614174002";
 function client(known=[character],fault=false){
  const writes:Array<{stage:string;rows?:unknown}>=[];
@@ -44,4 +44,26 @@ test("null catalog data with no error and thrown transports never become an empt
   let captured=false;await assert.rejects(buildImageTaggingPrompt(asset,{client:base as never,requireCharacterReadSuccess:true,onCharacterCatalog:()=>{captured=true;}}),CharacterCatalogDependencyError);assert.equal(captured,false);
  }
  const c=client();(c.db as unknown as {from:()=>unknown}).from=()=>{throw new Error("transport failure");};await assert.rejects(validateCharacterReferences([character],[character],c.db),CharacterCatalogDependencyError);
+});
+
+test("parallel schema binds character IDs without changing the shared contract", () => {
+ const before=JSON.stringify(TAG_ASSET_SCHEMA);
+ assert.equal(tagAssetSchemaForCharacters(),TAG_ASSET_SCHEMA);
+ const schema=tagAssetSchemaForCharacters([character,character.toUpperCase()]) as {properties:Record<string,{items?:unknown;maxItems?:number}>};
+ assert.deepEqual(schema.properties.character_ids.items,{type:"string",enum:[character]});
+ assert.equal((tagAssetSchemaForCharacters([]) as typeof schema).properties.character_ids.maxItems,0);
+ assert.equal(JSON.stringify(TAG_ASSET_SCHEMA),before);
+ assert.doesNotThrow(()=>validateTagCharacterBinding([character.toUpperCase()],[character]));
+ assert.doesNotThrow(()=>validateTagCharacterBinding([],[]));
+ assert.doesNotThrow(()=>validateTagCharacterBinding(undefined,[]));
+ for(const value of [[other],["invented"],null])assert.throws(()=>validateTagCharacterBinding(value,[character]),CharacterReferenceValidationError);
+});
+
+test("a fabricated character ID triggers same-model output repair before a result is accepted", async () => {
+ let calls=0;
+ const output=await executeStructuredOutput({apiKey:"fixture",model:"fixture/model",messages:[],schemaName:"tag_asset",schema:tagAssetSchemaForCharacters([character]),validate:value=>{validateTagCharacterBinding(value.character_ids,[character]);return value;},capabilities:{modelId:"fixture/model",imageInput:true,tools:false,toolChoice:false,toolChoiceModes:[],structuredOutputs:true,jsonObject:true,prefer:["json_schema","json_object"],source:"override",fetchedAt:"test"},completion:async(_key,request)=>{
+   assert.equal(request.model,"fixture/model");calls++;
+   return {content:JSON.stringify(result([calls===1?other:character])),toolCalls:[]} as never;
+ }});
+ assert.equal(calls,2);assert.equal(output.attempts[0].validation,"failed");assert.deepEqual(output.value.character_ids,[character]);
 });
