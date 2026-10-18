@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 4425,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Prospectively validate and land the PRE-EXISTING candidate 61517ebd5d682bdc5844bfd90d33e23ba2f9876d from PR 4423. This contract covers only subsequent adoption, validation and publication; original plan authorship predates it and is NOT covered.",
+  "base_sha": "977eec03bf3504646efb738b6e523793e2066333",
+  "dispatcher": "Codex chat 01a14fa2-bd3e-7d62-ba77-7bdfd7976f0e on edge-dev3",
+  "worker": "codex",
+  "branch": "codex/rls-resume-01a14fa2",
+  "worktree": "/home/ahazan/.codex/worktrees/rls-resume-01a14fa2/shared-db",
+  "allowed_paths": [
+    "AGENTS.md",
+    "HANDOFF.d/2026-10-18T1421Z-edge-dev3-codex-rls-performance-plan.md",
+    "docs/verification/rls-initplan/2026-10-18-baseline.md",
+    "plan_database_efficiency_and_api_security.md",
+    "plan_rls_request_constant_checks.md",
+    "docs/verification/rls-initplan/4425-publication.md"
+  ],
+  "file_writes": [
+    "AGENTS.md",
+    "HANDOFF.d/2026-10-18T1421Z-edge-dev3-codex-rls-performance-plan.md",
+    "docs/verification/rls-initplan/2026-10-18-baseline.md",
+    "plan_database_efficiency_and_api_security.md",
+    "plan_rls_request_constant_checks.md",
+    "docs/verification/rls-initplan/4425-publication.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No retroactive authorship or pre-work claims for existing candidate",
+    "No gate modifications or overrides",
+    "No database mutation or structural claim",
+    "No modification of unrelated work"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node --test scripts/check-handoff-contract.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Existing candidate is unmerged and publication-only",
+    "Permissions remain unchanged"
+  ],
+  "stop_conditions": [
+    "Independent review unavailable or refuses",
+    "A safeguard requires scope outside this contract"
+  ]
+}

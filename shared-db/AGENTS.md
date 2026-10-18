@@ -378,6 +378,7 @@ Re-derive state from `git` and `gh`. A heading in a markdown file is not a backl
 - [plan_shared_db_workflow_refactor.md](plan_shared_db_workflow_refactor.md)
 - [plan_shared_release_hold_reduction.md](plan_shared_release_hold_reduction.md)
 - [plan_narrow_promotion_freezes.md](plan_narrow_promotion_freezes.md)
+- [plan_rls_request_constant_checks.md](plan_rls_request_constant_checks.md)
 
 ## Task declaration
 
