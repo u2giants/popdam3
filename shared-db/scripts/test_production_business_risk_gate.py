@@ -95,7 +95,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         run = {"status": "completed", "conclusion": "success", "event": "workflow_dispatch", "path": ".github/workflows/preview-ledger-orphan-reconciliation.yml", "head_sha": case["run_head"], "run_attempt": 1}
         artifact = {"id": case["artifact_id"], "digest": digest, "expired": False, "name": f"preview-ledger-orphan-reconciliation-{case['original_version']}", "workflow_run": {"id": case["run_id"], "head_sha": case["run_head"]}}
         original_run = {"status": "completed", "conclusion": "success", "event": "workflow_dispatch", "path": PREVIEW_WORKFLOW, "head_sha": case["preview_run_head"], "run_attempt": 1}
-        original_artifact = {"id": case["preview_artifact_id"], "digest": case["preview_artifact_digest"], "expired": False, "name": f"preview-migration-apply-{case['preview_run_head']}", "workflow_run": {"id": case["preview_run_id"], "head_sha": case["preview_run_head"]}}
+        original_artifact = {"id": case["preview_artifact_id"], "digest": case["preview_artifact_digest"], "expired": False, "name": f"preview-migration-apply-{case.get('preview_applied_commit', case['preview_run_head'])}", "workflow_run": {"id": case["preview_run_id"], "head_sha": case["preview_run_head"]}}
         def api(endpoint):
             if "/compare/" in endpoint: return {"status": "ahead", "behind_by": 0}
             if endpoint.endswith(f"runs/{case['run_id']}/artifacts?per_page=100"): return {"artifacts": [artifact]}
@@ -144,6 +144,20 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             with temp, mock.patch.dict(case, {"artifact_digest": digest}), self.subTest(mutation), self.assertRaises(AssertionError if refuses_by_tuple else RiskGateError):
                 accepted = prove_governed_original_reconciliation(**kwargs)
                 if not accepted: raise AssertionError("wrong tuple must not enter the governed path")
+
+    def test_4373_source_artifact_is_named_for_the_applied_commit_not_the_run_head(self):
+        case = GOVERNED_ORIGINAL_RECONCILIATION_4373
+        self.assertEqual(case["preview_applied_commit"], "56f09184269abde4a7a8c85a2b1e617e249260b7")
+        self.assertNotIn("preview_applied_commit", GOVERNED_ORIGINAL_RECONCILIATION)
+        for named in (case["preview_run_head"], "0" * 40):
+            temp, run, _artifact, api, downloader, digest = self.governed_original_reconciliation_fixture(case)
+            def wrong(endpoint, api=api, named=named):
+                body = api(endpoint)
+                if endpoint.endswith(f"runs/{case['preview_run_id']}/artifacts?per_page=100"):
+                    body = {"artifacts": [{**body["artifacts"][0], "name": f"preview-migration-apply-{named}"}]}
+                return body
+            with temp, mock.patch.dict(case, {"artifact_digest": digest}), self.subTest(named=named), self.assertRaisesRegex(RiskGateError, "source preview artifact identity changed"):
+                prove_governed_original_reconciliation(version=case["version"], source_pr=case["source_pr"], run_id=case["run_id"], run=run, repo_root=Path.cwd(), main_sha="f" * 40, api=wrong, downloader=downloader)
 
     def test_exact_2509_restoration_satisfies_registered_producer_provenance(self):
         version = "20260907131728"

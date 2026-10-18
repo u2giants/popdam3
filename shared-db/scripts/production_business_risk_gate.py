@@ -92,6 +92,9 @@ GOVERNED_ORIGINAL_RECONCILIATION_4373 = {
     "artifact_id": 12077741454,
     "artifact_digest": "sha256:c7c99b8a08aa3fe167f48824a6165fcc45eaff1d5ce5e1440bc61f0622d12ac0",
     "preview_run_id": 38839047707, "preview_run_head": "154361984687def51366c2c539d7467b1ad64098",
+    # The run was dispatched at preview_run_head but checked out and applied the
+    # closed-PR commit below, which names its immutable artifact (#4385 gen 6).
+    "preview_applied_commit": "56f09184269abde4a7a8c85a2b1e617e249260b7",
     "preview_artifact_id": 12020143683,
     "preview_artifact_digest": "sha256:d7123954f3fb949b63eb5e78055d98a9277986af43d472747d09177c15be33b4",
     "project_ref": "mvpkijzfmfcxhnzqogzs",
@@ -1554,7 +1557,7 @@ def prove_governed_original_reconciliation(
     if not isinstance(source_artifacts, list) or len(source_artifacts) != 1:
         raise RiskGateError("governed reconciliation source preview artifact is ambiguous")
     source_artifact = source_artifacts[0]
-    if (source_artifact.get("id") != case["preview_artifact_id"] or source_artifact.get("digest") != case["preview_artifact_digest"] or source_artifact.get("expired") is not False or source_artifact.get("name") != f"preview-migration-apply-{case['preview_run_head']}" or source_artifact.get("workflow_run", {}).get("id") != case["preview_run_id"] or source_artifact.get("workflow_run", {}).get("head_sha") != case["preview_run_head"]):
+    if (source_artifact.get("id") != case["preview_artifact_id"] or source_artifact.get("digest") != case["preview_artifact_digest"] or source_artifact.get("expired") is not False or source_artifact.get("name") != f"preview-migration-apply-{case.get('preview_applied_commit', case['preview_run_head'])}" or source_artifact.get("workflow_run", {}).get("id") != case["preview_run_id"] or source_artifact.get("workflow_run", {}).get("head_sha") != case["preview_run_head"]):
         raise RiskGateError("governed reconciliation source preview artifact identity changed")
     return True
 

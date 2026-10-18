@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 4385,
+  "outcome": "ready-for-merge",
+  "reason": "Required source checks are complete. Independent current-head review, PR CI and guarded merge are separate pending gates.",
+  "pr": 4422,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4385/6",
+  "contract_sha256": "e59a7cdf058d3d6e03b86c98899ed4f512ca1915d0615c810ca466a374820b66",
+  "head_sha": "8bcce05dcef6d8df7eb22fa41dd3c08f81c411f1",
+  "base_sha": "845a92d77b097a8153baf523ec5291b3bcb29b5d",
+  "files_changed": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts/test_production_business_risk_gate.py scripts/test_production_business_risk_gate_governed_reconciliation_mutations.py",
+      "exit_code": 0,
+      "evidence": "OK at 8bcce05d; the new test fails without the source change"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK at 8bcce05d"
+    }
+  ],
+  "assumptions_resolved": [
+    "Live read-only proof: prove_governed_original_reconciliation returns True for run 38972234570, and qualify-route returns route preview for main 845a92d7, allowlist 20261016210024, PR 4386."
+  ],
+  "stop_conditions_hit": []
+}

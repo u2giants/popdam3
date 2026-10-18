@@ -1,0 +1,53 @@
+{
+  "schema_version": 2,
+  "work_issue": 4385,
+  "generation": 6,
+  "evidence_parent": {
+    "work_issue": 4385,
+    "generation": 5,
+    "contract_sha256": "2efaeac740c2252fb25768ae648ffb927101d97cbc147a6435e2a15673cbfeca"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Pin the applied commit of the #4373 source preview run in the governed original-reconciliation case: run 38839047707 dispatched at 15436198 but checked out and named its artifact for 56f09184, so the artifact-name check must use the applied commit for this case",
+  "base_sha": "845a92d77b097a8153baf523ec5291b3bcb29b5d",
+  "dispatcher": "Claude subagent of chat b6410b17-053b-4ff2-adc8-f25b053cb611 on edge-dev3",
+  "worker": "claude",
+  "branch": "claude/4379-gate-applied-commit",
+  "worktree": "/home/ahazan/repos/shared-db-prodroute",
+  "allowed_paths": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate_governed_reconciliation_mutations.py",
+    "docs/verification/throughput-dispositions/scripts~production_business_risk_gate.py.json",
+    ".agent/work/4385/6/contract.json",
+    ".agent/work/4385/6/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not widen the governed path beyond exact pinned tuples",
+    "do not touch any migration, ledger row or database object",
+    "do not change the #1722 pinned case values"
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts/test_production_business_risk_gate.py scripts/test_production_business_risk_gate_governed_reconciliation_mutations.py",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "evidence: automatic qualification in run 39135588096 refused with 'governed reconciliation source preview artifact identity changed'; live artifact 12020143683 is named preview-migration-apply-56f09184269abde4a7a8c85a2b1e617e249260b7 while its workflow_run.head_sha is 154361984687def51366c2c539d7467b1ad64098",
+    "the #1722 case keeps its existing behaviour (applied commit equals run head)"
+  ],
+  "stop_conditions": [
+    "stop if accepting the case requires skipping any existing identity or digest check",
+    "stop if a required check fails for an unrelated reason"
+  ],
+  "file_writes": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate_governed_reconciliation_mutations.py",
+    "docs/verification/throughput-dispositions/scripts~production_business_risk_gate.py.json",
+    ".agent/work/4385/6/contract.json",
+    ".agent/work/4385/6/completion.json"
+  ]
+}
