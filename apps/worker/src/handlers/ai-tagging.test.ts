@@ -244,3 +244,27 @@ test("invalid structured data receives only the existing bounded same-model retr
   assert.equal(isRetryableStructuredOutputError("DB write failed: invalid enum"), false);
   assert.equal(isRetryableStructuredOutputError("Structured output failed: data_inspection_failed: invalid structured tag data"), false);
 });
+
+test("parallel explicit pages dispatch once per asset and preserve numeric checkpoint", async () => {
+  const ids = Array.from({length: 13}, (_, i) => `123e4567-e89b-42d3-a456-${String(i).padStart(12,"0")}`);
+  const calls: Array<Record<string, unknown>> = [];
+  const seen: Array<{id: string; model: string | undefined}> = [];
+  let active = 0, peak = 0;
+  const result = await handleBulkAiTag({run_id: "parallel", status: "running", cursor: 3, params: {asset_ids: ids}}, true, {
+    client: fakeClient([], calls),
+    parallelConfig: {run_id: "parallel", models: ["openai/gpt-6-luna", "google/gemini-2.5-flash"], concurrency: 4},
+    tagAsset: async (id, _force, model) => { active++; peak = Math.max(peak, active); await new Promise(resolve => setTimeout(resolve, 5)); seen.push({id, model}); active--; return {outcome: "tagged"}; },
+  });
+  assert.equal(result.nextOffset, 7); assert.equal(result.tagged, 4); assert.equal(peak, 4);
+  assert.deepEqual(new Set(seen.map(x => x.id)), new Set(ids.slice(3,7)));
+  assert.equal(new Set(seen.map(x => x.model)).size, 2); assert.equal(calls.length, 0);
+});
+
+test("parallel trial holds at the saved boundary without fetching or submitting more assets", async () => {
+  let submissions = 0;
+  const result = await handleBulkAiTag({run_id: "trial", status: "running", cursor: 1, params: {asset_ids: IDS}}, true, {
+    client: fakeClient([], []), parallelConfig: {run_id: "trial", models: ["openai/gpt-6-luna", "google/gemini-2.5-flash"], concurrency: 4, max_cursor: 1},
+    tagAsset: async () => { submissions++; return {outcome: "tagged"}; },
+  });
+  assert.equal(submissions, 0); assert.equal(result.state_transition, "yield_without_save"); assert.equal(result.done, false);
+});

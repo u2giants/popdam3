@@ -1,3 +1,4 @@
+import { parallelTagRun, parallelModel } from "./ai-tag-parallel.js";
 import { buildStructuredOutputRequest, buildJsonRepairRequest } from "../structured-output.js";
 /**
  * AI Tagging handler — persistent worker version.
@@ -307,7 +308,8 @@ export interface AiTagRpcClient {
 
 interface AiTagHandlerDependencies {
   client?: AiTagRpcClient;
-  tagAsset?: (assetId: string, force: boolean) => Promise<TagOutcome>;
+  tagAsset?: (assetId: string, force: boolean, parallelModel?: string, acceptedModels?: string[]) => Promise<TagOutcome>;
+  parallelConfig?: unknown;
   batchSize?: number;
   concurrency?: number;
 }
@@ -842,13 +844,13 @@ async function handleDurableBatchTag(
   };
 }
 
-async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutcome> {
+async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: string, acceptedModels?: string[]): Promise<TagOutcome> {
   const client = db();
 
   // Fetch asset
   const { data: asset, error: fetchErr } = await client
     .from("assets")
-    .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, division_code, style_group_id")
+    .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, ai_description, ai_model, sku, division_code, style_group_id")
     .eq("id", assetId)
     .single();
 
@@ -857,6 +859,12 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
     return { outcome: "failed", error: `Asset not found: ${fetchErr?.message ?? "no data"}` };
   }
 
+  // Parallel mode never retags a saved complete asset, even on a retried page.
+  if (parallelModel && asset.ai_tagged_at && asset.ai_description?.trim() && asset.ai_model && acceptedModels?.includes(asset.ai_model)) {
+    const savedTags = await client.from("asset_tags").select("id").eq("asset_id", assetId).eq("source", "ai").eq("status", "active").eq("model", asset.ai_model).limit(1);
+    if (savedTags.error) return { outcome: "failed", error: "Saved tag verification failed" };
+    if (savedTags.data?.length) return { outcome: "skipped" };
+  }
   // Skip if already tagged (unless force)
   if (asset.status === "tagged" && asset.ai_tagged_at && !force) {
     return { outcome: "skipped" };
@@ -868,7 +876,10 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
     return { outcome: "visual_analysis_unavailable", error: "No thumbnail URL" };
   }
 
-  const systemPrompt = await buildImageTaggingPrompt(asset);
+  let characterCatalogIds: string[] | undefined;
+  const systemPrompt = await buildImageTaggingPrompt(asset, parallelModel ? {
+    requireCharacterReadSuccess: true, onCharacterCatalog: ids => { characterCatalogIds = ids; },
+  } : undefined);
   let image: { base64: string; mimeType: string };
   try {
     image = await fetchImageData(thumbnailUrl);
@@ -884,7 +895,8 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
   }
 
   // Get model from admin_config (cached for 1 min)
-  const { primary: primaryModel, fallback: fallbackModel, providerPin } = await getVisionModels();
+  const selected = parallelModel ? { primary: parallelModel, fallback: null, providerPin: null } : await getVisionModels();
+  const { primary: primaryModel, fallback: fallbackModel, providerPin } = selected;
   const providerOverride = buildProviderPin(providerPin);
 
   type AttemptResult = TagOutcome & { _rawMsg?: string };
@@ -905,6 +917,12 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
         const { tagData, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 4000, providerOverride);
         logger.info("ai-tag: received structured tags", { assetId, model, outputMode, providerInfo, retryCount, sameModelRetry });
         if (attempts.length > 1) logger.warn("ai-tag: model needed structured-output fallback", { assetId, model, attempts });
+
+        if (parallelModel) {
+          try { await applyBatchTagResult(assetId, tagData, model, client, characterCatalogIds); }
+          catch { return { outcome: "failed", error: "Parallel tagging result could not be fully saved" }; }
+          return { outcome: "tagged" };
+        }
 
         const updates: Record<string, unknown> = {
           status: "tagged",
@@ -1015,11 +1033,23 @@ export async function handleBulkAiTag(
   const client = (dependencies.client ?? db()) as AiTagRpcClient;
   const configuredBatchSize = dependencies.batchSize ?? config.aiBatchSize;
   const BATCH_SIZE = Math.max(10, Math.min(configuredBatchSize, opState.retry_page_size ?? configuredBatchSize));
-  const CONCURRENCY = dependencies.concurrency ?? config.aiBatchConcurrency;
+  let CONCURRENCY = dependencies.concurrency ?? config.aiBatchConcurrency;
   const tagAsset = dependencies.tagAsset ?? tagSingleAsset;
 
   const configuredModels = await getVisionModels();
-  if (opState.external_job?.provider === "meta-responses" || (!opState.external_job && isMetaDirectModel(configuredModels.primary) && !dependencies.tagAsset)) {
+  let parallel = null;
+  if (!opState.external_job) {
+    let setting = dependencies.parallelConfig;
+    if (!dependencies.tagAsset && setting === undefined) {
+      const result = await withDependencyTimeout("Parallel tagging config read", db().from("admin_config").select("value").eq("key", "AI_TAG_PARALLEL_RUN").maybeSingle());
+      if (result.error) return { ok: false, done: false, error: "Parallel tagging config unavailable" };
+      setting = result.data?.value;
+    }
+    try { parallel = parallelTagRun(setting, opState.run_id, opState.params?.asset_ids); }
+    catch (error) { return { ok: false, done: false, error: String(error), error_stage: "candidate_fetch" }; }
+    if (parallel) CONCURRENCY = parallel.concurrency;
+  }
+  if (opState.external_job?.provider === "meta-responses" || (!opState.external_job && isMetaDirectModel(configuredModels.primary) && !parallel && !dependencies.tagAsset)) {
     const model = opState.external_job?.model ?? configuredModels.primary;
     const ids = Array.isArray(opState.params?.asset_ids) ? opState.params.asset_ids as string[] : null;
     if (requireAssetIds && !ids?.length) return { ok: false, done: true, error: "Single-asset tag operation has no asset ID" };
@@ -1057,7 +1087,7 @@ export async function handleBulkAiTag(
       },
     });
   }
-  if (opState.external_job || configuredModels.primary.trim().endsWith(":batch")) {
+  if (opState.external_job || (!parallel && configuredModels.primary.trim().endsWith(":batch"))) {
     return handleDurableBatchTag(opState, tagAll, client, BATCH_SIZE);
   }
 
@@ -1075,7 +1105,9 @@ export async function handleBulkAiTag(
     if (typeof assetOffset !== "number" || !Number.isSafeInteger(assetOffset) || assetOffset < 0 || assetOffset > assetIds.length) {
       return { ok: false, done: false, error: "Explicit asset IDs require a numeric cursor within the target list", error_stage: "candidate_fetch" };
     }
-    const page = assetIds.slice(assetOffset, assetOffset + Math.min(BATCH_SIZE, 50));
+    if (parallel?.max_cursor !== undefined && assetOffset >= parallel.max_cursor) return {ok: true, done: false, nextOffset: assetOffset, state_transition: "yield_without_save"};
+    const end = assetOffset + (parallel ? parallel.concurrency : Math.min(BATCH_SIZE, 50));
+    const page = assetIds.slice(assetOffset, parallel?.max_cursor === undefined ? end : Math.min(end, parallel.max_cursor));
     let tagged = 0, skipped = 0, failed = 0, visualAnalysisUnavailable = 0;
     const failureSamples: Array<{ at: string; asset_id: string; filename: string; relative_path: string; error: string }> = [];
 
@@ -1083,7 +1115,7 @@ export async function handleBulkAiTag(
       const chunk = page.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         chunk.map(async (id) => {
-          const result = await tagAsset(id, tagAll);
+          const result = await tagAsset(id, tagAll, parallel ? parallelModel(parallel, id) : undefined, parallel ? [...parallel.models, configuredModels.primary] : undefined);
           return { ...result, asset_id: id };
         }),
       );
