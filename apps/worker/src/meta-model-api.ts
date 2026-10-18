@@ -274,7 +274,14 @@ export function classifyMetaSubmissionFailure(status: number, bodyText: string):
 }
 async function withContributorSlot<T>(model: string, run: () => Promise<T>, reservationOwner?: string): Promise<T> {
   if (!metaModelId(model).endsWith("-contributor")) return run();
-  while (contributorInFlight + [...asyncReservations.keys()].filter(owner => owner !== reservationOwner).length >= CONTRIBUTOR_MAX_IN_FLIGHT) {
+  // Pending async reservations (e.g. an ambiguous submission left by an
+  // interrupted tagging run) only clear on operator action, so a caller that
+  // waits for them hangs indefinitely. Fail fast instead.
+  const heldByReservations = () => [...asyncReservations.keys()].filter(owner => owner !== reservationOwner).length;
+  while (contributorInFlight + heldByReservations() >= CONTRIBUTOR_MAX_IN_FLIGHT) {
+    if (heldByReservations() >= CONTRIBUTOR_MAX_IN_FLIGHT) {
+      throw new MetaModelApiError(503, "Muse Contributor unavailable: all Meta slots are held by pending submissions from other operations");
+    }
     await new Promise<void>((resolve) => contributorWaiters.push(resolve));
   }
   contributorInFlight++;
