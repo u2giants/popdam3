@@ -1079,6 +1079,10 @@ def independent_sidecar_paths(
 # comparison, so the zero-comparison refusal still holds.
 PREVIEW_CUSTODY_ONLY_PATHS = frozenset((
     "scripts/manage-migration-author-lanes.mjs",
+    # Read only by the lane manager's re-qualified preview admission
+    # (#4464/#4486); it never shapes the apply. Added after the pinned run
+    # 39173012894 checked out fe39316, so it must be tolerated as absent there.
+    "scripts/db-flow/requalified-preview-runs.mjs",
     # Owner-authorized 2026-10-14 ("i authorize loosening that rule"):
     # review tooling and sidecar registry shipped after a pre-merge preview.
     "scripts/run-governed-review.mjs",

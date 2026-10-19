@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "work_issue": 4486,
+  "outcome": "ready-for-merge",
+  "pr": 4492,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4486/3",
+  "contract_sha256": "620514671c651e60808c807449dff702503ff8dc36e26aba7c9e0b8a66e91a05",
+  "head_sha": "42f5a9bce2d4b25a5371fdb4451e92b97f1f2096",
+  "base_sha": "241f6bb87bebe63d8dfcf95e2b585dd1430b9aa0",
+  "files_changed": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions_resolved": [],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    },
+    {
+      "command": "python3 -m pytest -q scripts/test_requalified_preview_runs.py scripts/test_verify_preview_apply_artifact.py scripts/test_production_business_risk_gate.py",
+      "exit_code": 0,
+      "evidence": "238 passed, 385 subtests passed"
+    }
+  ]
+}

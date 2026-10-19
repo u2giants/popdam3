@@ -4743,6 +4743,13 @@ class MainLineCustodyOnlyProducerDriftTests(unittest.TestCase):
                            "scripts/repository_identity.py"),
         ))
 
+    def test_requalified_pin_module_added_after_a_main_line_preview_passes(self):
+        # #4486: run 39173012894 checked out fe39316, before the pin module
+        # existed; its absence there must not refuse the main-line preview.
+        self.prove(self.api(absent_at_ref=("scripts/db-flow/requalified-preview-runs.mjs",)))
+        with self.assertRaisesRegex(RiskGateError, "requalified-preview-runs.mjs absent where"):
+            self.prove(self.api(absent_at_ref=("scripts/db-flow/requalified-preview-runs.mjs",), main_line=False))
+
     def test_custody_only_drift_from_a_ref_main_does_not_contain_is_refused(self):
         with self.assertRaisesRegex(RiskGateError, "different scripts/check-main-tip-freshness.mjs"):
             self.prove(self.api(changed=("scripts/check-main-tip-freshness.mjs",), main_line=False))

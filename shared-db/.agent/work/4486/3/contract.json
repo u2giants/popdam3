@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 4486,
+    "generation": 2,
+    "contract_sha256": "b9f65f056abdc409306f96a2e29a147b01cdc164bd697232a7443931a5d6aa07"
+  },
+  "work_issue": 4486,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Address exact-main DeepSeek REJECT of 241f6bb: declare scripts/db-flow/requalified-preview-runs.mjs custody-only so a main-line preview taken before the module existed (run 39173012894 at fe39316) is not refused, with a regression test.",
+  "base_sha": "241f6bb87bebe63d8dfcf95e2b585dd1430b9aa0",
+  "dispatcher": "Claude chat 49144e8c-9530-49a9-a081-34792a3e6716 on edge-dev3",
+  "worker": "Claude chat 49144e8c-9530-49a9-a081-34792a3e6716 on edge-dev3",
+  "branch": "fix/4486-requalified-custody-only",
+  "worktree": "/var/tmp/ai-sessions-1000/claude-49144e8c-9530-49a9-a081-34792a3e6716/wt4477",
+  "allowed_paths": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/4486/3/contract.json",
+    ".agent/work/4486/3/completion.json"
+  ],
+  "file_writes": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/4486/3/contract.json",
+    ".agent/work/4486/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database change.",
+    "No production command."
+  ],
+  "required_checks": [
+    "git diff --check",
+    "python3 -m pytest -q scripts/test_requalified_preview_runs.py scripts/test_verify_preview_apply_artifact.py scripts/test_production_business_risk_gate.py"
+  ],
+  "assumptions": [],
+  "stop_conditions": [
+    "Stop if any database file changes."
+  ]
+}
