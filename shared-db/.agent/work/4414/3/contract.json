@@ -1,0 +1,43 @@
+{
+  "schema_version": 2,
+  "work_issue": 4414,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Record the Guarded Merge dispatch requirement so ready PRs do not stall in the merge queue.",
+  "base_sha": "a7b32d7e8a4113f66c3d450f60fec1a1c2bf0ad2",
+  "dispatcher": "MiMo chat ses-ffe5eaf-8884-1ffe-yWs7-yCi5D5 on edge-dev",
+  "worker": "MiMo chat ses-ffe5eaf-8884-1ffe-yWs7-yCi5D5 on edge-dev",
+  "branch": "mimo/guarded-merge-doc-rule",
+  "worktree": "D:/repos/shared-db-worktrees/4414-guarded-merge-doc",
+  "allowed_paths": [
+    ".agent/work/4414/3/contract.json",
+    ".agent/work/4414/3/completion.json",
+    "docs/agents/current-workflow.md"
+  ],
+  "file_writes": [
+    ".agent/work/4414/3/contract.json",
+    ".agent/work/4414/3/completion.json",
+    "docs/agents/current-workflow.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database or workflow change."
+  ],
+  "required_checks": [
+    "node scripts/check-current-workflow-policy.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Documentation-only change on issue #4414."
+  ],
+  "stop_conditions": [
+    "Stop if the change is not prose-only."
+  ],
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 4414,
+    "generation": 2,
+    "contract_sha256": "1ef7630ec686735c5d3df830063b9624fe463ba07a097cce1c0ddbc3f9b587ff"
+  }
+}

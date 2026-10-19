@@ -31,6 +31,16 @@ the guarded merge path. A maintenance change does not claim database objects or
 wait for structural intake. A merged loader repair still requires
 its stated runtime acceptance; merged code is not automatically delivered work.
 
+**Landing a ready pull request (do not skip):** green required checks and an
+exact-head approval do **not** merge the PR by themselves. The required
+`Migration guarded merge authorization` status is published only by the
+**Guarded Merge** workflow (`guarded-migration-merge.yml`) after it re-proves
+the head under the merge lock. Auto-merge / the merge queue stays blocked until
+that status exists. When a PR is ready, dispatch Guarded Merge with the PR
+number and the **full 40-character** head SHA (a short SHA is checked out as a
+branch name and fails). Observed live on PR #4473 (2026-10-18): the queue sat
+idle for hours after checks were green until Guarded Merge ran.
+
 **Documentation:** a change containing only prose, including standalone
 `plan_*.md` proposals, uses the documentation route. Albert authorizes merging
 proven documentation-only changes without full engineering CI or reviewer waits.
