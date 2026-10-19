@@ -15,48 +15,10 @@ import {
   MUTEX_REF,
   REVIEW_MUTEX_SECTION_DEADLINE_MS,
   REVIEW_MUTEX_CLEANUP_ALLOWANCE_MS,
-  REVIEW_ACTIVE_CUTOVER_REF,
 } from '../../manage-migration-author-lanes.mjs'
 import { REPO } from './constants.mjs'
+import { atomicIo, HEAD } from '../../test-fixtures/review-assignment-io.mjs'
 
-const HEAD = 'a'.repeat(40)
-function usable(row) {
-  return { provider: row.provider, status: 'ready', usable: true, admission: { schema_version: 1, provider: row.provider, state: 'unknown', reason: 'unscopable', quota_state: 'unknown', reset_at: null, credential_profile_scope: null, model_scope: null } }
-}
-function atomicIo() {
-  const refs = new Map([[REVIEW_ACTIVE_CUTOVER_REF, 'cutover-complete']])
-  const commits = new Map()
-  let next = 1
-  const rows = (prefix) => [...refs.entries()].filter(([ref]) => ref.startsWith(prefix)).map(([ref, sha]) => ({ ref, sha, commit: commits.get(sha) }))
-  return {
-    refs, commits,
-    makeOwnerCommit(message) { const sha = String(next++).padStart(40, '0'); commits.set(sha, { message, committer: { date: new Date().toISOString() } }); return sha },
-    requiresExactReviewHeadSha: true, enableReviewerQueue: false,
-    resolveReviewEngine: () => 'claude',
-    reviewerUsability: (reviewers) => new Map(reviewers.map((row) => [row.provider, usable(row)])),
-    pauseReviewerFailure: () => {},
-    readPaidReviewStarts: rows,
-    readRef: (ref) => refs.get(ref) ?? null,
-    listRefs: rows,
-    getCommit: (sha) => commits.get(sha),
-    getPr: (pr) => ({ state: 'open', number: Number(pr), head: { sha: HEAD } }),
-    getIssue: () => ({ state: 'open' }),
-    getIssueComments: () => [], getPrReviews: () => [],
-    createRef(ref, sha) { if (refs.has(ref)) return false; refs.set(ref, sha); return true },
-    updateRef: (ref, sha) => { refs.set(ref, sha) },
-    deleteRef: (ref) => { refs.delete(ref) },
-    readReviewStates: (list) => new Map(list.map((l) => [`${l.issue}:${l.pr}`, { issue: { state: 'open', number: Number(l.issue) }, pr: { state: 'open', number: Number(l.pr), head: { sha: HEAD } } }])),
-    readReviewRefs: (list) => new Map(list.map((ref) => [ref, refs.get(ref) ?? null])),
-    applyBatch(changes) { for (const c of changes) { if (c.sha) refs.set(c.ref, c.sha); else refs.delete(c.ref) } },
-    atomicReviewRefs(changes) {
-      for (const c of changes) if ((refs.get(c.ref) ?? null) !== (c.expected ?? null)) throw new Error(`stale ${c.ref}`)
-      this.applyBatch(changes)
-    },
-    atomicReviewMutexRelease(owner) { if (refs.get(MUTEX_REF) === owner) refs.delete(MUTEX_REF) },
-    wait: () => {},
-    getRateLimit: () => ({ remaining: 5000, limit: 5000, reset: 0, graphRemaining: 5000, graphLimit: 5000, graphReset: 0 }),
-  }
-}
 function withClock(fn) {
   let now = 1000
   const previous = setReviewMonotonicClock(() => now)
@@ -68,7 +30,7 @@ test('outside ownership the per-call default bound is unchanged', () => {
   withReviewRequestBudget(() => assert.equal(reviewChildTimeoutMs(60000), 60000))
 })
 
-test('owned children are capped by the remaining section deadline on a monotonic clock', () => withClock((clock) => {
+test('owned_git_and_gh_children_have_remaining_deadlines — capped by the remaining section deadline on a monotonic clock', () => withClock((clock) => {
   const io = atomicIo()
   const seen = []
   const raw = io.readReviewRefs
@@ -108,7 +70,7 @@ test('exhausted section refuses before launching a child, and release still runs
   assert.equal(io.refs.has(MUTEX_REF), false, 'our mutex was released')
 }))
 
-test('ambiguous atomic commit that actually landed is preserved, never redrawn', () => {
+test('ambiguous_commit_recovers_same_assignment_without_redraw', () => {
   const io = atomicIo()
   const rawBatch = io.atomicReviewRefs.bind(io)
   let assignmentCalls = 0
@@ -123,7 +85,7 @@ test('ambiguous atomic commit that actually landed is preserved, never redrawn',
   assert.equal(io.refs.has(MUTEX_REF), false)
 })
 
-test('reconcile: provably uncommitted is a retryable no-write refusal; partial is recovery-required', () => {
+test('partial_or_unreadable_transaction_is_recovery_required — and provably uncommitted is a retryable no-write refusal', () => {
   const refs = new Map([['refs/a', 'x'], ['refs/b', null]])
   const io = { readReviewRefs: (list) => new Map(list.map((r) => [r, refs.get(r) ?? null])) }
   const batch = [{ ref: 'refs/a', expected: 'x', sha: 'y' }, { ref: 'refs/b', expected: null, sha: 'z' }]
@@ -135,7 +97,7 @@ test('reconcile: provably uncommitted is a retryable no-write refusal; partial i
   assert.throws(() => reconcileAtomicReviewBatch(batch, { readReviewRefs: () => { throw new Error('offline') } }, new Error('boom')), /UNKNOWN[\s\S]*RECOVERY REQUIRED/)
 })
 
-test('an inherited GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS never waits while the mutex is held', () => withClock(() => {
+test('owned_section_never_sleeps_for_quota_or_retries — inherited GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS', () => withClock(() => {
   const saved = process.env.GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS
   process.env.GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS = '900'
   try {

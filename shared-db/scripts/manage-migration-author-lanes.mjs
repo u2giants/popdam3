@@ -981,7 +981,9 @@ export const githubIo = {
     context.base=base
     if(!/^[0-9a-f]{40}$/.test(base??''))throw new LaneError('review circuit breaker: exact protected comparison base unreadable')
     execFileSync('git',['fetch','--no-tags','-q','origin',before,after,base],boundedGit({stdio:['ignore','pipe','pipe']}))
-    const excludePaths=verifiedEvidencePaths(before,after)
+    // Issue #4414 step 5: local digest helpers are bounded too while the mutex is held.
+    const gitRunner=(args)=>execFileSync('git',args,boundedGit({encoding:'utf8',stdio:['ignore','pipe','pipe'],maxBuffer:512*1024*1024}))
+    const excludePaths=verifiedEvidencePaths(before,after,{gitRunner})
     let contracts=paidBudgetContractCaches.get(context);if(!contracts){contracts=new Map();paidBudgetContractCaches.set(context,contracts)}
     const readContract=ref=>{
       if(!contracts.has(ref))contracts.set(ref,readPublishedContractFromGit(ref,(command,args,options)=>{
@@ -991,7 +993,7 @@ export const githubIo = {
       return contracts.get(ref)
     }
     const budgetProof=derivePaidContentProof(before,after,base,paidReviewGitReader,excludePaths,pr,readContract)
-    return {before:prContentDigest(before,base,{excludePaths}),after:prContentDigest(after,base,{excludePaths}),budgetProof}
+    return {before:prContentDigest(before,base,{excludePaths,gitRunner}),after:prContentDigest(after,base,{excludePaths,gitRunner}),budgetProof}
   },
   contentPreservingRefresh(approvedHead,head,pr=null,context=null,gitRunner=paidReviewGitReader){
     const key=`${Number(pr)}:${String(head).toLowerCase()}`

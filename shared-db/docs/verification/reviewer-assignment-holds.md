@@ -142,3 +142,36 @@ Issue #3791: unbounded GitHub child held the author mutex for hours. Current tra
 - A failed or timed-out atomic assignment batch is reconciled by one readback of **every** intended ref (`reconcileAtomicReviewBatch`): all desired → assignment preserved (no redraw); all expected → retryable no-write refusal; partial/unreadable → RECOVERY REQUIRED.
 - Lock-free quota waiting stays outside ownership even when `GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS` is inherited (one attempt, no probe).
 - Tests: `scripts/lib/lanes/section-deadline.test.mjs` (fake clock, fake io).
+
+## Step 5 — hostile matrix traceability (October 19, 2026 EDT)
+
+Every plan §10 proof name maps to a test that runs in CI (`pr-guards.yml` lane-manager job). `HM` = `scripts/lib/lanes/assignment-hostile-matrix.test.mjs`, `SD` = `scripts/lib/lanes/section-deadline.test.mjs`, `PT` = `scripts/lib/lanes/phase-trace.test.mjs`, `AH` = `scripts/lib/lanes/assignment-hold-phases.test.mjs`, `LM` = `scripts/manage-migration-author-lanes.test.mjs`, `MR` = `scripts/mutex-release-on-refusal.test.mjs`. Shared fake io: `scripts/test-fixtures/review-assignment-io.mjs` (real CAS semantics).
+
+| §10 proof | Test |
+|---|---|
+| `fresh_head_change_refuses_draw` | HM same name |
+| `peer_policy_change_under_lock_refuses` | HM same name (peer slot taken by the same reviewer after prepare); policy widening: LM `#4297 slot 2 first anchors task policy…`, `#3291 … refuses widening` |
+| `author_engine_remains_excluded` | LM `the orchestrator engine is never eligible to review its own work`; `a GLM-engine (ZCode) orchestrator never draws the glm reviewers (#3232)` |
+| `fresh_terminal_evidence_prevents_assignment_resurrection` | LM `assignment retry refuses a terminal release completed after preflight but before mutex acquisition`; `assignment retry cannot recreate a terminally released replacement reviewer lease` |
+| `same_provider_parallel_reviews_allowed` | LM `#2694 exact-head assignments let one reviewer hold concurrent independent reviews…`; `#3291 one allowlisted reviewer still holds more than eight concurrent exact-head reviews` |
+| `concurrent_draws_preserve_one_tuple_and_cursor` | HM same name; LM `concurrent orchestrator cannot advance reviewer cursor without the mutex` |
+| `slow_preparation_does_not_hold_author_mutex` | AH same name |
+| `provider_execution_starts_after_mutex_release` | HM same name |
+| `slow_report_holds_no_mutex` | HM same name |
+| `owned_section_never_sleeps_for_quota_or_retries` | SD same name |
+| `owned_git_and_gh_children_have_remaining_deadlines` | SD same name; SD `production gitRemoteRefs refuses before launch…` |
+| `ambiguous_commit_recovers_same_assignment_without_redraw` | SD same name |
+| `partial_or_unreadable_transaction_is_recovery_required` | SD same name; SD `timed-out push with an exhausted section still reconciles…` |
+| `cleanup_never_deletes_successor_mutex` | MR `a successor-owned mutex is never deleted by the git fallback`; LM `GitHub coordination delete never replays after response loss and preserves a new owner` |
+| `completed_assignment_survives_cleanup_failure` | HM same name |
+| `all_contexts_accounted_and_cleanup_reserve_preserved` | LM `wire budget always preserves enough requests to release an acquired mutex`; `#2802 the structural-admission gate is not charged…`; AH `derived request ceilings are unchanged` |
+| `unknown_release_is_not_zero_duration` | PT same name |
+| `trace_is_monotonic_and_secret_safe` | HM same name; PT `phase trace records monotonic durations and release state` |
+| `wait_trace_preserves_observed_owner_and_unknown_attribution` | HM same name |
+| `trace_output_never_blocks_owned_section` | PT same name |
+| `trace_failure_does_not_repeat_or_hide_completed_assignment` | HM same name |
+| `legacy_review_callers_remain_compatible` | LM `legacy short-head protocol cannot store a second lease for one reviewer`; `cursor-only legacy assignment recreates its missing permanent and active refs`; `#3291 legacy slotless returned slot-two replacement…` |
+| `phase_trace_has_no_extra_github_reads` | PT same name |
+| `trace_preserves_stdout_contract` | PT same name |
+
+Also closed in step 5: the Muse Low residual from PR #4501 — the paid-content comparison's local digest helpers (`verifiedEvidencePaths`, `prContentDigest`) now run through the owned-section bound.
