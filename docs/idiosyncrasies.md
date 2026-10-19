@@ -275,3 +275,11 @@ October 11 live origin comparison disproved treating every such 404 as a capacit
 **Actually:** Albert has explicitly decided not to buy an AG Grid license. Ignore the warning and preserve the existing grid features. This is settled owner direction, not an unanswered business question or a release blocker.
 **Why:** Albert reiterated his instruction on October 11, 2026: “we are not buying an AG-grid license. i must have mentioned to ignore that warning 1000 times. why is it not being documented or obeyed?” Recorded in PopDAM issue #196.
 **Do not change because:** Recommending a purchase again, disabling grid features, or treating the warning as unfinished work would contradict the owner's instruction. Do not add a fake key, suppress messages in code, or change the licensing implementation as part of this documentation decision. A future change requires a new explicit owner instruction.
+
+## Source-contract tests must normalize CRLF; AG Grid tests need a sized host (2026-10-19)
+
+**Looks like:** random test failures on Windows (`core-licensor-property-contract`) or intermittent OrderList grid cases dropping cells.
+
+**Actually:** two independent test-harness traps. (1) Git stores LF but `core.autocrlf=true` rewrites Windows working trees to CRLF, so source-shape assertions that hardcode `\n` never match — normalize with `.replace(/\r\n/g, "\n")` when reading files for contract checks (`operation-registry-sync.test.ts` already does). (2) AG Grid measures its host for column virtualization; a 0×0 jsdom host makes that timing-dependent. OrderList AG Grid tests must wrap the grid in an explicit `height`/`width` (see `order-list-grid-refresh.test.tsx`) and deliver infinite-row data asynchronously.
+
+**Do not change because:** raising timeouts, retrying, or skipping the tests hides the race and leaves Windows checkouts and loaded CI still failing. Fixed in PR #443.
