@@ -7,7 +7,7 @@ Planning baseline: **October 18, 2026 EDT**, main
 Originally a proposal; now implemented and merged (see table).
 Tracker: [#4414](https://github.com/popcre/shared-db/issues/4414).
 Planning/publication owner: Codex chat `01a144d8-b318-7ed0-af97-e852be49d231` on `hetz`.
-All seven steps are done and merged (table below); #4414 is closed. Do not restart
+All seven steps are done and merged (table below); #4414 was closed on GitHub at 2026-10-19 21:19 UTC. Do not restart
 this plan. New work on reviewer-assignment holds opens its own tracker.
 
 | Step | Outcome | Status | Updated | Required acceptance artifact |
@@ -20,7 +20,7 @@ this plan. New work on reviewer-assignment holds opens its own tracker.
 | 6 | Reviewed integration and ordinary guarded landing | ✅ done (#4505) | 2026-10-19 EDT | Exact-head review, merged commit and passing required checks |
 | 7 | Normal-run proof, documentation and acceptance | ✅ done (live table in verification doc) | 2026-10-19 EDT | Run-bound acquisition/release evidence and same-issue live checklist |
 
-Companion [session handoff](HANDOFF.d/2026-10-18T1324Z-hetz-codex-reviewer-assignment-holds.md).
+Companion session handoffs were retired when #4414 closed (2026-10-19 21:19 UTC); none remain.
 Topic [shared hold proposals](docs/shared-release-holds.md).
 Read the downstream phases before each phase; use the `fresh-session` skill at
 cut points if context is insufficient. Implemented and live-proved as of October 19, 2026 EDT: evidence and live samples in [docs/verification/reviewer-assignment-holds.md](docs/verification/reviewer-assignment-holds.md); merged PRs #4473, #4501, #4504, #4505.
