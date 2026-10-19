@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "work_issue": 4414,
+  "outcome": "ready-for-merge",
+  "pr": 4505,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4414/9",
+  "contract_sha256": "b5f1d8a0c284fa797239626f12690ffa7dea5eb4a0b074a8f9e3e744608326ef",
+  "head_sha": "50a463e306e3b797c458f7a6bf6d43294ba64a66",
+  "base_sha": "8d4834d609de4f1f26319c2eecc57eea58358ab5",
+  "files_changed": [
+    ".github/workflows/pr-guards.yml",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/verification/reviewer-assignment-holds.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions_resolved": [],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "command": "node --test scripts/mutex-release-on-refusal.test.mjs scripts/lib/lanes/assignment-hostile-matrix.test.mjs",
+      "exit_code": 0,
+      "evidence": "17 pass, 0 fail"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ]
+}

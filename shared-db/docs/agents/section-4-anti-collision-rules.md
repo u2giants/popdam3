@@ -486,6 +486,29 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    The set grants permission only: live preflight, quarantine, authoring-engine independence, per-PR exclusions and
    slot independence still decide who is usable. It creates no concurrency cap.
 
+   **How long a draw holds the shared lock (issue #4414).** A draw holds
+   `refs/db-coordination/author-acquisition` only for its owned section:
+   fresh re-validation, the atomic assignment write with its readback, and
+   release. Preparation (reviewer health, quota, paid-start history) runs
+   before the lock; the provider review and its reporting run after a proved
+   release, through `run-governed-review.mjs`. Inside the lock every GitHub
+   and git call is bounded by one section deadline (5 minutes, monotonic
+   clock) and release keeps its own reserved 2 minutes; a call with no time
+   left is refused before it starts, and request ceilings are unchanged.
+   Each draw prints one stderr line, `review-phase-trace …`: `held_ms` is the
+   owned time only (never the wait), `prepare`/`acquisition_wait` are
+   unowned, `release=proved_released|successor_seen` means our lock is gone,
+   `release=not_acquired` means another holder had it (`foreign_mutex=` is
+   that observed owner only, not a proven cause of anyone's wait), and
+   `release=unknown` means RECOVERY REQUIRED through
+   `recover-author-mutex.yml`. If the atomic write fails or times out, the
+   draw reads back every intended ref: a write that landed is kept and
+   returned (never redrawn); a provably absent write is a no-write refusal
+   and the identical command may be re-run; anything partial or unreadable
+   says RECOVERY REQUIRED and must not be retried blindly. A message saying
+   the operation itself completed means do not retry: the draw stands.
+   Evidence and samples: `docs/verification/reviewer-assignment-holds.md`.
+
    For new assignments, the shared cursor (the sequence counter is shared; which
    reviewer a draw lands on depends on what the drawing machine can run) rotates GLM
    5.3 → Qwen 3.8 Max → Muse Spark 1.3 Contributor → Gemini 3.8 Flash High → DeepSeek

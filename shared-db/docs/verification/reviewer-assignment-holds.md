@@ -145,7 +145,7 @@ Issue #3791: unbounded GitHub child held the author mutex for hours. Current tra
 
 ## Step 5 — hostile matrix traceability (October 19, 2026 EDT)
 
-Every plan §10 proof name maps to a test that runs in CI (`pr-guards.yml` lane-manager job). `HM` = `scripts/lib/lanes/assignment-hostile-matrix.test.mjs`, `SD` = `scripts/lib/lanes/section-deadline.test.mjs`, `PT` = `scripts/lib/lanes/phase-trace.test.mjs`, `AH` = `scripts/lib/lanes/assignment-hold-phases.test.mjs`, `LM` = `scripts/manage-migration-author-lanes.test.mjs`, `MR` = `scripts/mutex-release-on-refusal.test.mjs`. Shared fake io: `scripts/test-fixtures/review-assignment-io.mjs` (real CAS semantics).
+Every plan §10 proof name maps to a named test. HM, SD, PT, AH, LM and (since step 6) MR run in the `pr-guards.yml` lane-manager unit-test step; before step 6, MR ran in no workflow. `HM` = `scripts/lib/lanes/assignment-hostile-matrix.test.mjs`, `SD` = `scripts/lib/lanes/section-deadline.test.mjs`, `PT` = `scripts/lib/lanes/phase-trace.test.mjs`, `AH` = `scripts/lib/lanes/assignment-hold-phases.test.mjs`, `LM` = `scripts/manage-migration-author-lanes.test.mjs`, `MR` = `scripts/mutex-release-on-refusal.test.mjs`. Shared fake io: `scripts/test-fixtures/review-assignment-io.mjs` (real CAS semantics).
 
 | §10 proof | Test |
 |---|---|
