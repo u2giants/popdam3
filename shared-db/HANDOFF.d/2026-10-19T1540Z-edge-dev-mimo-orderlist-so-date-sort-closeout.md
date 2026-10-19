@@ -6,6 +6,12 @@ owner: MiMo chat ses_ffe5eaf8f125dffeE9Y9GlP9JY on edge-dev
 
 # OrderList SO Date sorting — parked source, app mapping ready, review recording blocked
 
+> **SUPERSESSION, 2026-10-19 (this session, after wrap-up re-check).** A Claude session landed the companion work. **Do not follow section 6 step 1 as written.** Corrections:
+> - **Live already:** `sales_order_received_date` and `order_window_date` on `api.dam_order_list` — https://github.com/popcre/shared-db/pull/4485 merged, migration `20261019113819`, production run `39292906357`.
+> - **Live already:** PopDAM 12-month window / Show old — https://github.com/u2giants/popdam3/pull/417 merged.
+> - **Obsolete:** reopening https://github.com/popcre/shared-db/pull/4489 or reusing version `20261019140024`. The live view column is already shipped; that parked PR is not the path.
+> - **Still open (correct path):** https://github.com/popcre/shared-db/pull/4499 (claim #4498 / version `20261019183716`) only replaces `public.find_dam_order_list_row` for sort-only SO Date in Find. Then finish app sort mapping in https://github.com/u2giants/popdam3/pull/438 (main still has no `sortField`). Then live proof on https://github.com/popcre/shared-db/issues/4336.
+
 ## 0. Business decisions only the owner can make
 
 None. Albert asked for SO Date sorting on OrderList and told this chat to finish it. He also said "keep both" (SO Date sort and the 12-month Show old window) and "take off the database lock". The Find correction is already live and must not be redone. Never ask Albert for technical approval.
@@ -74,7 +80,7 @@ Window-date / `order_window_date` for PopDAM #417: claim #4482 / PR #4483 / bran
 
 ## 6. Exact continuation steps and gates
 
-1. Fetch current `popcre/shared-db` and `u2giants/popdam3` in isolated worktrees. Read this file and https://github.com/popcre/shared-db/issues/4336. Re-open https://github.com/popcre/shared-db/pull/4489 or open a successor PR from branch `codex/4336-orderlist-so-date-sort` at `af65855d`. Reclaim exact objects natively (new claim + new version if required; never reuse `20261019140024`). Confirm window-date session state first so objects do not collide.
+1. **See SUPERSESSION at the top of this file — do not reopen #4489.** Fetch current `popcre/shared-db` and `u2giants/popdam3`. Continue from https://github.com/popcre/shared-db/pull/4499 (Find sort-only) and https://github.com/u2giants/popdam3/pull/438 (app sort UI). Live view columns are already in production via https://github.com/popcre/shared-db/pull/4485.
 2. If the reviewer recording defect is still open, repair it first (see incidents above) or run review from a machine where `ai-review-packet` retains seals. Then `--assign-reviewer` and a governed exact-head APPROVE.
 3. Pre-merge preview: dry-run, apply only the new migration, prove full-result SO-date ordering both directions, nulls last, stable ties, Find parity, ordinary-load performance, compact projection still prunes the helper.
 4. Guarded merge of the shared-db PR; merged-main preview rehearsal; automatic production promotion; generated types.
