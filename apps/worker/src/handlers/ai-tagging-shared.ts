@@ -397,8 +397,14 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     .limit(1)
     .maybeSingle();
   const extractedPdfText = pdfSample?.extracted_text ?? null;
+  const [ownLicensor, ownProperty] = await Promise.all([
+    asset.licensor_id ? client.schema("core").from("licensor").select("name").eq("id", asset.licensor_id).maybeSingle() : null,
+    asset.property_id ? client.schema("core").from("property").select("name").eq("id", asset.property_id).maybeSingle() : null,
+  ]);
   return buildTaggingSystemPrompt({
     asset,
+    licensorName: ownLicensor?.data?.name ?? null,
+    propertyName: ownProperty?.data?.name ?? null,
     taxonomyContext,
     erpDescription,
     itemDescription,
