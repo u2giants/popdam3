@@ -144,7 +144,9 @@ Description rules:
 
 Tag rules:
 - Return 4-18 distinct asset_tags objects. Prefer short, natural search terms; use singular nouns unless the image clearly shows multiples. The "tag" value is the search term only — never append the category name in parentheses (e.g. write "back view", not "back view (view)").
-- Apart from the licensor and property names, every tag must describe this file's visible content or file/document presentation. Use only these categories: ${ASSET_TAG_CATEGORIES.join(", ")}.
+- Apart from the licensor and property names, every tag must describe this file's visible content or file/document presentation. Use only these categories: ${
+    ASSET_TAG_CATEGORIES.join(", ")
+  }.
 - Always include the licensor and property names as tags when known from the licensing context or clearly visible (e.g. "marvel", "spider-man", "disney"). If the licensor and property share a name (e.g. "disney"), tag it once. Do not return SKUs or IDs as tags, and do not restate the authoritative product description.
 - Include every applicable category label from the controlled list below exactly as written. Do not create synonyms or near-duplicates for these labels.
 - Include useful visible characters, image category, view, asset kind, visual style/treatment, motif/theme, and 1-3 dominant colors when supported.
