@@ -116,6 +116,10 @@ async function transcribeWithScaleDown(base64: string, apiKey: string): Promise<
     // Not JSON — the model answered with the transcription itself.
   }
   if (envelope && ("summary" in envelope || "finish_reason" in envelope || "error" in envelope)) {
+    // The envelope's own finish_reason/error wins over a partial summary —
+    // same rule as the worker's ScaleDown client.
+    if (envelope.finish_reason === "length") throw new Error("ScaleDown PDF transcription hit the output token limit");
+    if (envelope.error) throw new Error(`ScaleDown returned an error envelope: ${trimmed.slice(0, 200)}`);
     if (typeof envelope.summary === "string" && envelope.summary.trim()) return envelope.summary.trim();
     throw new Error(`ScaleDown returned no transcription text: ${trimmed.slice(0, 200)}`);
   }

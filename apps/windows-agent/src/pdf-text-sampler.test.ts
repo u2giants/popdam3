@@ -44,15 +44,28 @@ test("ScaleDown selection calls ScaleDown instead of OpenRouter and unwraps the 
 test("ScaleDown truncation envelope is rejected instead of stored as page text", async () => {
   const page = Buffer.from("fixture");
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () => new Response(
-    JSON.stringify({ choices: [{ message: { content: JSON.stringify({ finish_reason: "length", summary: "" }) } }] }),
-    { status: 200 },
-  )) as typeof fetch;
+  const config = { models: [], pdf_extraction: null, googleApiKey: "", anthropicApiKey: "",
+    openRouterApiKey: "fixture-router-key", scaleDownApiKey: "fixture-scale-key",
+    aiTaskModels: { pdf_extraction: "scaledown/summarize" } };
+  const respondWith = (content: Record<string, unknown>) => {
+    globalThis.fetch = (async () => new Response(
+      JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }),
+      { status: 200 },
+    )) as typeof fetch;
+  };
   try {
-    const config = { models: [], pdf_extraction: null, googleApiKey: "", anthropicApiKey: "",
-      openRouterApiKey: "fixture-router-key", scaleDownApiKey: "fixture-scale-key",
-      aiTaskModels: { pdf_extraction: "scaledown/summarize" } };
+    // Realistic truncation: a partial summary that arrives with finish_reason "length".
+    respondWith({ finish_reason: "length", summary: "PARTIAL TEXT" });
+    await assert.rejects(callAiVision(page, config), /token limit/);
+    // An empty summary is still not page text.
+    respondWith({ summary: "" });
     await assert.rejects(callAiVision(page, config), /no transcription text/);
+    // An error envelope with text must not be indexed either.
+    respondWith({ error: "rate limited", summary: "PARTIAL TEXT" });
+    await assert.rejects(callAiVision(page, config), /error envelope/);
+    // A healthy envelope still unwraps.
+    respondWith({ summary: "transcribed page text" });
+    assert.equal(await callAiVision(page, config), "transcribed page text");
   } finally {
     globalThis.fetch = originalFetch;
   }
