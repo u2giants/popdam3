@@ -131,3 +131,14 @@ Issue #3791: unbounded GitHub child held the author mutex for hours. Current tra
 | #3617 | Preview-ready GitHub request cost / queue throughput | Budget accounting adjacent; this plan must not widen ceilings |
 | #3779 | Merge-preparation outside serial mutation lane | Different stage resource; no handoff of that outcome |
 | #4414 | This assignment-hold outcome | Owns steps 1–7 and live proof checklist |
+
+## Step 4 — bounded owned-section I/O (October 19, 2026 EDT)
+
+- One **operation deadline** per owned mutex section on a monotonic clock: `REVIEW_MUTEX_SECTION_DEADLINE_MS` (5 min) from acquisition; release/cleanup gets its own reserved `REVIEW_MUTEX_CLEANUP_ALLOWANCE_MS` (2 min) starting when cleanup begins. Provisional values; step 7 measurements may tighten them. Request ceilings are unchanged (25 / 15).
+- The deadline is module state started by `acquireReviewMutex`, so every reviewer-mutex holder gets it — including `archiveOldReviewVerdicts`, which runs without a request budget, and the bulk `reapAbandonedReviewLeases`.
+- Bounded while owned: every gh child (`runGitHubCommand`); git children in `gitRemoteRefs` (remote proof and ls-remote), `readGitCommits`, `atomicReviewRefs` (hydrate and push), `paidReviewGitReader`, the paid-content comparison fetch and contract reads, `mergeTouchesMigrations`, `prepareNonclosingEvidenceGit`, and the nonclosing-binding git runner. Each uses `min(per-call bound, remaining)` (calls that were unbounded outside ownership stay unbounded there). Zero or unreadable remaining time refuses **before** launch with a named deadline error that is never rewritten into a generic failure. Ref reads under ownership are one attempt.
+- Release, failed-acquire cleanup and the ambiguous-batch readback run on the reserved cleanup allowance, never on the exhausted section.
+- The deadline is checked before a multi-ref batch launches, never mid-batch; it is not a lease TTL and no timer deletes a ref.
+- A failed or timed-out atomic assignment batch is reconciled by one readback of **every** intended ref (`reconcileAtomicReviewBatch`): all desired → assignment preserved (no redraw); all expected → retryable no-write refusal; partial/unreadable → RECOVERY REQUIRED.
+- Lock-free quota waiting stays outside ownership even when `GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS` is inherited (one attempt, no probe).
+- Tests: `scripts/lib/lanes/section-deadline.test.mjs` (fake clock, fake io).

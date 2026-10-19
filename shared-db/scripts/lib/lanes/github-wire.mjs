@@ -6,7 +6,7 @@ import { classifyChangedPaths, changedPathsFromPullRequestFiles } from '../../li
 import { REPO, REPO_OWNER, REPO_NAME, REVIEW_REPLACEMENT_REF_PREFIX } from './constants.mjs'
 import { LaneError } from './claims.mjs'
 import { projectReviewPr } from './review-assignment.mjs'
-import { gitRemoteRefs, githubIo, runGitHubCommand } from '../../manage-migration-author-lanes.mjs'
+import { gitRemoteRefs, githubIo, runGitHubCommand, reviewChildTimeoutMs } from '../../manage-migration-author-lanes.mjs'
 import { authorityReadEnv } from '../authority-token-read.mjs'
 
 // An EXPECTED failure is one this code asks a question with: "does this ref
@@ -131,13 +131,13 @@ export function readGitCommits(shas,{run=execFileSync}={}){
   if(!unique.length)return new Map()
   if(unique.some((sha)=>!/^[0-9a-f]{40}$/.test(sha)))throw new LaneError('git commit read requires exact 40-hex SHAs')
   const batch=()=>{
-    try{return parseGitCommitBatch(run('git',['cat-file','--batch'],{input:`${unique.join('\n')}\n`,maxBuffer:64*1024*1024,stdio:['pipe','pipe','pipe']}))}
+    try{return parseGitCommitBatch(run('git',['cat-file','--batch'],{input:`${unique.join('\n')}\n`,maxBuffer:64*1024*1024,stdio:['pipe','pipe','pipe'],timeout:reviewChildTimeoutMs(GIT_COMMAND_TIMEOUT_MS),killSignal:'SIGKILL'}))}
     catch(error){if(error instanceof LaneError)throw error;throw new LaneError(`git commit read failed: ${String(error?.stderr??error?.message??error).trim().split('\n')[0]}`)}
   }
   let result=batch()
   if(result.unfetched.length){
-    try{run('git',['fetch','--no-tags','-q','origin',...result.unfetched],{encoding:'utf8',stdio:['ignore','pipe','pipe']})}
-    catch(error){throw new LaneError(`git could not hydrate commits ${result.unfetched.join(', ')}: ${String(error?.stderr??error?.message??error).trim().split('\n')[0]}`)}
+    try{run('git',['fetch','--no-tags','-q','origin',...result.unfetched],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:reviewChildTimeoutMs(GIT_COMMAND_TIMEOUT_MS),killSignal:'SIGKILL'})}
+    catch(error){if(error instanceof LaneError)throw error;throw new LaneError(`git could not hydrate commits ${result.unfetched.join(', ')}: ${String(error?.stderr??error?.message??error).trim().split('\n')[0]}`)}
     result=batch()
     if(result.unfetched.length)throw new LaneError(`git commits ${result.unfetched.join(', ')} are unreadable after fetch`)
   }
