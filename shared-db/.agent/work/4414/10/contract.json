@@ -1,0 +1,46 @@
+{
+  "schema_version": 2,
+  "work_issue": 4414,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Plan step 7: record run-bound live acquisition/release evidence from naturally authorized reviewer draws on merged tooling and update the plan STATUS table with openable evidence.",
+  "base_sha": "281db879155449023885e25336add80dc00bda7e",
+  "dispatcher": "Claude chat a088737b-5617-4cac-8d80-4e0b2f056ba3 on edge-dev3",
+  "worker": "Claude chat a088737b-5617-4cac-8d80-4e0b2f056ba3 on edge-dev3",
+  "branch": "claude/4414-step7",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/4414-step6",
+  "allowed_paths": [
+    ".agent/work/4414/10/contract.json",
+    ".agent/work/4414/10/completion.json",
+    "docs/verification/reviewer-assignment-holds.md",
+    "plan_reviewer_assignment_hold_reduction.md"
+  ],
+  "file_writes": [
+    ".agent/work/4414/10/contract.json",
+    ".agent/work/4414/10/completion.json",
+    "docs/verification/reviewer-assignment-holds.md",
+    "plan_reviewer_assignment_hold_reduction.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database change.",
+    "No runtime code change.",
+    "No paid review created only to fill metrics."
+  ],
+  "required_checks": [
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Samples come only from reviews this session needed for PRs #4501, #4504 and #4505."
+  ],
+  "stop_conditions": [
+    "Stop if a runtime code change is needed."
+  ],
+  "generation": 10,
+  "evidence_parent": {
+    "work_issue": 4414,
+    "generation": 9,
+    "contract_sha256": "b5f1d8a0c284fa797239626f12690ffa7dea5eb4a0b074a8f9e3e744608326ef"
+  }
+}

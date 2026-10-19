@@ -175,3 +175,22 @@ Every plan §10 proof name maps to a named test. HM, SD, PT, AH, LM and (since s
 | `trace_preserves_stdout_contract` | PT same name |
 
 Also closed in step 5: the Muse Low residual from PR #4501 — the paid-content comparison's local digest helpers (`verifiedEvidencePaths`, `prContentDigest`) now run through the owned-section bound.
+
+## Step 7 — live proof on merged tooling (October 19, 2026 EDT)
+
+Source: naturally authorized reviewer draws this work needed for its own PRs, run from Claude chat sessions on `edge-dev` with `node scripts/manage-migration-author-lanes.mjs --assign-reviewer`; no review was created to fill metrics. Each row is the verbatim `review-phase-trace` stderr line's fields. "Merged tooling" = step 4 (#4501, `ab9f1224d`) already on `main`.
+
+| PR / head | Code | Result | held_ms | prepare | wait | fresh_validation | commit+readback | release | Durable records |
+|---|---|---|---|---|---|---|---|---|---|
+| #4501 `e029512b` | step-4 branch | refused after lock (provenance), `proved_released` | 6756 | 11769 | 785 | 4563 | — | 2193 | none (refusal) |
+| #4501 `cac21cb2` (attempt 1) | step-4 branch | `not_acquired`, `foreign_mutex=32b5a3fbdfad` | 0 | 18906 | 766 | — | — | — | none |
+| #4501 `cac21cb2` (attempt 2) | step-4 branch | assigned Muse, `proved_released` | 11373 | 21187 | 1278 | 5405 | 4090 | 1878 | `refs/db-review-verdicts/4414-4501-cac21cb2…` |
+| #4504 `ea111cd0` (attempt 1) | merged | `not_acquired` (owner held by other work) | 0 | 12596 | 862 | — | — | — | none |
+| #4504 `ea111cd0` (attempt 2) | merged | assigned DeepSeek, `proved_released` | 12595 | 12525 | 813 | 5430 | 4151 | 3014 | `refs/db-review-assignments/4414-4504-ea111cd0…`, verdict `4a3feb4e` |
+| #4505 `a51d0e51` | merged | assigned StepFun, `proved_released` | 12312 | 13110 | 969 | 5366 | 4647 | 2298 | `refs/db-review-assignments/4414-4505-a51d0e51…`, verdict `ead4e329` |
+
+- **Merged-tooling successful draws: n = 2**, held 12312 and 12595 ms (median 12454 ms; p95 is not meaningful at n = 2). All successful draws in this session (n = 4 incl. branch code: 11373, 11809, 12312, 12595) held 11.4–12.6 s, versus a 5-minute section deadline. No statistical speedup is claimed; there is no comparable pre-change held-time measurement (step 1 recorded that gap).
+- **No preparation, provider or reporting occupancy:** `prepare` (12.5–21.2 s) ran unowned in every row; each provider review (StepFun, Muse, DeepSeek, StepFun) started only after the draw returned with `release=proved_released`, through `run-governed-review.mjs`.
+- **Overlapping independent work proceeded:** three contended attempts observed other owners of `refs/db-coordination/author-acquisition` (`6cf2167bc37e`, `32b5a3fbdfad`, and one unnamed on #4504); each refused without writing and the identical re-run succeeded once that work released. Attribution of those owners stays unknown.
+- **Release proved in every acquired row**; no `release=unknown`, no recovery used, no ambiguous-write reconciliation occurred live (that path is covered by fixtures only, per plan).
+- Traces contain issue/PR/short head/durations/observed owner SHA only; no tokens or child output.

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "work_issue": 4414,
+  "outcome": "ready-for-merge",
+  "pr": 4506,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4414/10",
+  "contract_sha256": "b5cbfe35859bc4fcc59d94235e0f4ad683bbd3003939b66a6ac49fe67550bbcd",
+  "head_sha": "655c42cafe8a7958b13361e42d8152931e639841",
+  "base_sha": "281db879155449023885e25336add80dc00bda7e",
+  "files_changed": [
+    "docs/verification/reviewer-assignment-holds.md",
+    "plan_reviewer_assignment_hold_reduction.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions_resolved": [],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ]
+}

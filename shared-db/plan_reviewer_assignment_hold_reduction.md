@@ -4,7 +4,7 @@
 
 Planning baseline: **October 18, 2026 EDT**, main
 `b31e17c02194c6006a1bd256d6154a324a5114d7` in `popcre/shared-db`.
-This is a proposal, not activated policy or runtime implementation.
+Originally a proposal; now implemented and merged (see table).
 Tracker: [#4414](https://github.com/popcre/shared-db/issues/4414).
 Planning/publication owner: Codex chat `01a144d8-b318-7ed0-af97-e852be49d231` on `hetz`.
 Start a fresh implementation at **step 1**, after explicitly accepting its outcome
@@ -12,18 +12,18 @@ on the tracker and checking overlapping owners. Publication does not complete a 
 
 | Step | Outcome | Status | Updated | Required acceptance artifact |
 |---|---|---|---|---|
-| 1 | Current-owner reconciliation and causal hold baseline | ⬜ open | 2026-10-18 EDT | Source/run-bound phase timeline, call graph and unknowns |
-| 2 | Local, secret-safe timing and phase accounting | ⬜ open | 2026-10-18 EDT | Deterministic trace fixtures and exact request counts |
-| 3 | Preparation outside ownership; fresh checks at commit | ⬜ open | 2026-10-18 EDT | Ordering and changed-state race tests |
-| 4 | Bounded critical I/O with reserved safe cleanup | ⬜ open | 2026-10-18 EDT | Deadline, ambiguous-write and successor-owner fault tests |
-| 5 | Independent progress and unchanged review guarantees | ⬜ open | 2026-10-18 EDT | Interleaving matrix and existing regression commands |
-| 6 | Reviewed integration and ordinary guarded landing | ⬜ open | 2026-10-18 EDT | Exact-head review, merged commit and passing required checks |
-| 7 | Normal-run proof, documentation and acceptance | ⬜ open | 2026-10-18 EDT | Run-bound acquisition/release evidence and same-issue live checklist |
+| 1 | Current-owner reconciliation and causal hold baseline | ✅ done (#4473) | 2026-10-19 EDT | Source/run-bound phase timeline, call graph and unknowns |
+| 2 | Local, secret-safe timing and phase accounting | ✅ done (#4473) | 2026-10-19 EDT | Deterministic trace fixtures and exact request counts |
+| 3 | Preparation outside ownership; fresh checks at commit | ✅ done (#4473) | 2026-10-19 EDT | Ordering and changed-state race tests |
+| 4 | Bounded critical I/O with reserved safe cleanup | ✅ done (#4501) | 2026-10-19 EDT | Deadline, ambiguous-write and successor-owner fault tests |
+| 5 | Independent progress and unchanged review guarantees | ✅ done (#4504) | 2026-10-19 EDT | Interleaving matrix and existing regression commands |
+| 6 | Reviewed integration and ordinary guarded landing | ✅ done (#4505) | 2026-10-19 EDT | Exact-head review, merged commit and passing required checks |
+| 7 | Normal-run proof, documentation and acceptance | ✅ done (live table in verification doc) | 2026-10-19 EDT | Run-bound acquisition/release evidence and same-issue live checklist |
 
 Companion [session handoff](HANDOFF.d/2026-10-18T1324Z-hetz-codex-reviewer-assignment-holds.md).
 Topic [shared hold proposals](docs/shared-release-holds.md).
 Read the downstream phases before each phase; use the `fresh-session` skill at
-cut points if context is insufficient. All implementation and runtime proof remain open.
+cut points if context is insufficient. Implemented and live-proved as of October 19, 2026 EDT: evidence and live samples in [docs/verification/reviewer-assignment-holds.md](docs/verification/reviewer-assignment-holds.md); merged PRs #4473, #4501, #4504, #4505.
 
 ## 1. Ultimate goal
 
