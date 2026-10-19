@@ -1,0 +1,52 @@
+{
+  "assumptions_resolved": [
+    "Only public.find_dam_order_list_row changes; view and helper untouched (version 20261019183716, claim #4498)."
+  ],
+  "base_sha": "2a49324844e2111745dd71637d8ca2adeb365658",
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "evidence": "Static checks passed.",
+      "exit_code": 0
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "evidence": "Sidecar for 20261019183716 bound and OK.",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 scripts/test_order_list_find_position.py",
+      "evidence": "19 expected-position cases (5 SO Date sort), 4 ranking parity cases, SO-Date filter refusal passed on disposable Postgres 16; 0 skipped.",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "evidence": "No whitespace errors.",
+      "exit_code": 0
+    }
+  ],
+  "contract_ref": "refs/db-contracts/4336/18",
+  "contract_sha256": "e15ad1c5af1658a9b30c5ec23e88feb3492aa568a174f745c3ee5984db7ac1fe",
+  "db_reads": [
+    "view api.dam_order_list"
+  ],
+  "db_writes": [
+    "function public.find_dam_order_list_row"
+  ],
+  "files_changed": [
+    "config/production-verification-sidecar-registry.json",
+    "scripts/production-verification-sidecars/20261019183716.json",
+    "scripts/test_order_list_find_position.py",
+    "supabase/migrations/20261019183716_orderlist_so_date_sort_find.sql",
+    "supabase/tests/dam_order_list_sales_order_date_sort.sql"
+  ],
+  "head_sha": "5b9ab3f87f0fe410bde1d88c2312c92d2e8e119f",
+  "migration_versions": [
+    "20261019183716"
+  ],
+  "outcome": "ready-for-merge",
+  "pr": 4499,
+  "schema_version": 1,
+  "stop_conditions_hit": [],
+  "work_issue": 4336
+}

@@ -1,0 +1,65 @@
+{
+    "allowed_paths": [
+        ".agent/work/4336/18/completion.json",
+        ".agent/work/4336/18/contract.json",
+        "config/production-verification-sidecar-registry.json",
+        "scripts/production-verification-sidecars/20261019183716.json",
+        "scripts/test_order_list_find_position.py",
+        "supabase/migrations/20261019183716_orderlist_so_date_sort_find.sql",
+        "supabase/tests/dam_order_list_sales_order_date_sort.sql"
+    ],
+    "assumptions": [
+        "SO Date means the existing exact-primary ColdLion rule, America/New_York, already exposed as api.dam_order_list.sales_order_received_date (live since 20261019113819).",
+        "Missing or conflicting timestamps are blank and sort last in both directions; order_line_id breaks ties.",
+        "SO Date remains unavailable as a filter.",
+        "The view and dam.orderlist_sales_order_received_date(text) are unchanged; their order_window_date column and service_role grant stay live.",
+        "The dynamic SQL in Find selects only from api.dam_order_list and cannot create a runtime-selected target."
+    ],
+    "base_sha": "2b3a9c43dff67b13b713851af1e0796bca9e3005",
+    "branch": "claude/orderlist-so-date-sort-3cba3b",
+    "db_reads": [
+        "view api.dam_order_list"
+    ],
+    "db_writes": [
+        "function public.find_dam_order_list_row"
+    ],
+    "dispatcher": "Claude chat dbaec1bc-9a4c-4e8d-a36c-872f84426654 on edge-dev3",
+    "evidence_parent": {
+        "contract_sha256": "25b7d9ea8b5cab65dbff66036d89d1e72011cb81a1fe3f7fdb865681648067d9",
+        "generation": 17,
+        "work_issue": 4336
+    },
+    "file_writes": [
+        ".agent/work/4336/18/completion.json",
+        ".agent/work/4336/18/contract.json",
+        "config/production-verification-sidecar-registry.json",
+        "scripts/production-verification-sidecars/20261019183716.json",
+        "scripts/test_order_list_find_position.py",
+        "supabase/migrations/20261019183716_orderlist_so_date_sort_find.sql",
+        "supabase/tests/dam_order_list_sales_order_date_sort.sql"
+    ],
+    "generation": 18,
+    "goal": "Enable full-result OrderList sorting by SO Date with blanks last and a stable tie-break, and make Find positions use the same ordering. Only public.find_dam_order_list_row changes. The 12-month window is out of scope.",
+    "prohibited_actions": [
+        "Do not change the 12-month OrderList window or its fallback date.",
+        "Do not change production schema or data directly.",
+        "Do not enable SO Date filtering.",
+        "Never force-push, rewrite source history, reset review budgets, or fabricate review evidence."
+    ],
+    "required_checks": [
+        "bash scripts/check-sql.sh",
+        "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+        "python3 scripts/test_order_list_find_position.py",
+        "git diff --check"
+    ],
+    "route": "shared-db-orchestrator",
+    "schema_version": 2,
+    "stop_conditions": [
+        "Stop before merge if the gated pre-merge preview cannot prove full-result SO-date ordering and Find-position parity.",
+        "Stop if the change requires any database object outside the exact claim."
+    ],
+    "work_issue": 4336,
+    "work_type": "structural",
+    "worker": "Claude chat dbaec1bc-9a4c-4e8d-a36c-872f84426654 on edge-dev3",
+    "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/resume-shared-db-3947-d0cd8e"
+}

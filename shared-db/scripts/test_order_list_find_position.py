@@ -12,6 +12,7 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATION = ROOT / 'supabase/migrations/20260911081204_dam_order_list_find_position.sql'
+SO_DATE_SORT_MIGRATION = ROOT / 'supabase/migrations/20261019183716_orderlist_so_date_sort_find.sql'
 
 
 def main():
@@ -30,10 +31,11 @@ def main():
 
     migration = MIGRATION.read_text()
     columns = re.findall(r"'([a-z_]+)'", migration.split('allowed_columns constant text[] := array[')[1].split('];')[0])
-    dates = {c for c in columns if c.endswith('_date')} | {'etd', 'eta'}
+    dates = {c for c in columns + ['sales_order_received_date'] if c.endswith('_date')} | {'etd', 'eta'}
     numbers = {'quantity_ordered', 'quantity_shipped', 'unit_cost', 'order_depth_inches', 'cases_reported', 'case_pack', 'assortment_component_ordinal'}
     booleans = {'close_tracking', 'contractual_sample_reorder'}
-    definitions = ','.join('"' + c + '" ' + ('uuid primary key' if c == 'order_line_id' else 'date' if c in dates else 'numeric' if c in numbers else 'boolean' if c in booleans else 'text') for c in columns)
+    view_columns = columns + ['sales_order_received_date']
+    definitions = ','.join('"' + c + '" ' + ('uuid primary key' if c == 'order_line_id' else 'date' if c in dates else 'numeric' if c in numbers else 'boolean' if c in booleans else 'text') for c in view_columns)
     fixture = f"""
 create schema auth; create schema api;
 create function auth.uid() returns uuid language sql stable as 'select nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
@@ -43,15 +45,15 @@ create table public.find_fixture(owner_id uuid not null, {definitions});
 alter table public.find_fixture enable row level security;
 create policy owner_rows on public.find_fixture for select to authenticated using(owner_id=auth.uid());
 grant select on public.find_fixture to authenticated;
-create view api.dam_order_list with (security_invoker=true) as select {','.join('"'+c+'"' for c in columns)} from public.find_fixture;
+create view api.dam_order_list with (security_invoker=true) as select {','.join('"'+c+'"' for c in view_columns)} from public.find_fixture;
 grant select on api.dam_order_list to authenticated;
-insert into public.find_fixture(owner_id,order_line_id,order_date,sku,quantity_ordered,customer_name,vendor_name,snapshot_description)
+insert into public.find_fixture(owner_id,order_line_id,order_date,sku,quantity_ordered,customer_name,vendor_name,snapshot_description,sales_order_received_date)
 values
-('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','00000000-0000-0000-0000-000000000001','2026-09-03','ALPHA',20,'North','V1','plain'),
-('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','00000000-0000-0000-0000-000000000002','2026-09-02','TARGET',10,'North','V2','literal 100% _ '||chr(92)),
-('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','00000000-0000-0000-0000-000000000003','2026-09-02','target second',30,'South',null,'other'),
-('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','00000000-0000-0000-0000-000000000004',null,'ZETA',null,null,'V4',null),
-('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','00000000-0000-0000-0000-000000000005','2026-09-04','TARGET hidden',1,'North','hidden','hidden');
+('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','00000000-0000-0000-0000-000000000001','2026-09-03','ALPHA',20,'North','V1','plain','2026-08-01'),
+('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','00000000-0000-0000-0000-000000000002','2026-09-02','TARGET',10,'North','V2','literal 100% _ '||chr(92),null),
+('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','00000000-0000-0000-0000-000000000003','2026-09-02','target second',30,'South',null,'other','2026-07-01'),
+('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','00000000-0000-0000-0000-000000000004',null,'ZETA',null,null,'V4',null,'2026-07-01'),
+('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','00000000-0000-0000-0000-000000000005','2026-09-04','TARGET hidden',1,'North','hidden','hidden','2026-06-01');
 """
     checks = r"""
 set role authenticated;
@@ -73,6 +75,11 @@ begin
     ('target','[{"column":"quantity_ordered","operator":"gt","value":10},{"column":"quantity_ordered","operator":"lt","value":31}]','[]',3,1),
     ('target','[{"column":"quantity_ordered","operator":"neq","value":20}]','[]',2,0),
     ('target','[]','[{"column":"order_date","ascending":true}]',2,0),
+    ('target','[]','[{"column":"sales_order_received_date","ascending":true}]',3,0),
+    ('target','[]','[{"column":"sales_order_received_date","ascending":false}]',3,1),
+    ('zeta','[]','[{"column":"sales_order_received_date","ascending":true}]',4,1),
+    ('zeta','[]','[{"column":"sales_order_received_date","ascending":false}]',4,2),
+    ('TARGET','[{"column":"customer_name","operator":"eq","value":"North"}]','[{"column":"sales_order_received_date","ascending":false}]',2,1),
     ('%','[]','[]',2,1),
     ('_','[]','[]',2,1)
   ) as cases(search,filters,sort,id,idx) loop
@@ -104,7 +111,8 @@ begin
     ('[]','[{"column":"sku","ascending":"desc;select 1"}]'),
     ('{}','[]'), ('[null]','[]'),
     ('[{"column":"sku","operator":"eq","value":{}}]','[]'),
-    ('[{"column":"sku","operator":"is","value":"null"}]','[]')
+    ('[{"column":"sku","operator":"is","value":"null"}]','[]'),
+    ('[{"column":"sales_order_received_date","operator":"eq","value":"2026-07-01"}]','[]')
   ) t(filters,sort) loop
     begin
       perform * from public.find_dam_order_list_row('target',c.filters::jsonb,c.sort::jsonb);
@@ -129,8 +137,8 @@ reset role;
     try:
         run(url, f'CREATE DATABASE "{name}";')
         created = True
-        run(test_url, fixture + migration + (ROOT/'supabase/tests/dam_order_list_find_position.sql').read_text() + checks)
-        print('OrderList Find: 14 expected-position cases, 4 independent ranking parity cases, wildcard/null/RLS/auth/injection contracts passed; 0 skipped.')
+        run(test_url, fixture + migration + SO_DATE_SORT_MIGRATION.read_text() + (ROOT/'supabase/tests/dam_order_list_find_position.sql').read_text() + checks)
+        print('OrderList Find: 19 expected-position cases (5 SO Date sort), 4 independent ranking parity cases, wildcard/null/RLS/auth/injection/SO-Date-filter-refusal contracts passed; 0 skipped.')
     finally:
         if created:
             run(url, f'DROP DATABASE "{name}";')
