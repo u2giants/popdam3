@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "work_issue": 4414,
+  "outcome": "ready-for-merge",
+  "pr": 4481,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4414/4",
+  "contract_sha256": "564afc47e6240f00ff7e26bad40e64bd3d194f29a0940d9cb52b99cfde94407e",
+  "head_sha": "0290c03a8ae8dca4c610455793aff8a5427a28d7",
+  "base_sha": "a7b32d7e8a4113f66c3d450f60fec1a1c2bf0ad2",
+  "files_changed": [
+    "HANDOFF.d/2026-10-18T1952Z-edge-dev-mimo-4414-assignment-holds-remaining.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions_resolved": [],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ]
+}
