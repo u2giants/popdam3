@@ -123,6 +123,10 @@ load those statements competed and the bounded row query could still fail with
 `canceling statement due to statement timeout`. The grid now renders each
 500-row block alone and discovers the exact end when the last block is shorter.
 See `docs/KNOWN_QUIRKS.md` #75. Do not put a count back on the row-loading path.
+Since 2026-10-19 (popdam3#441) the "N shown of N lines" counter follows the
+12-month window, Show old and column filters: after the first block renders, the
+page starts one separate `fetchOrderListCount` for that view (a short first block
+supplies the count directly) and ignores counts from superseded views.
 
 **What the exact count actually costs** (re-measured on production as
 `authenticated`, 2026-08-27, issue #100). The original "~2.2 s under RLS"
