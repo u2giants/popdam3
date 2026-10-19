@@ -140,10 +140,13 @@ export type OrderListSort = { column: string; ascending: boolean };
 
 /** AG Grid sort model -> ordering, always ending on a stable tiebreaker. */
 export function buildOrderListSort(sortModel: Array<{ colId: string; sort: string }> | null | undefined): OrderListSort[] {
-  const sorts = (sortModel ?? [])
-    .filter((entry) => entry.colId && entry.sort)
-    .filter((entry) => isOrderListFieldQueryable(entry.colId))
-    .map((entry) => ({ column: entry.colId, ascending: entry.sort === "asc" }));
+  const sorts: OrderListSort[] = [];
+  for (const entry of sortModel ?? []) {
+    if (!entry.colId || !entry.sort) continue;
+    const column = orderListSortColumn(entry.colId);
+    if (!column) continue;
+    sorts.push({ column, ascending: entry.sort === "asc" });
+  }
   if (sorts.length === 0) sorts.push({ column: "start_ship_date", ascending: false });
   sorts.push({ column: "order_line_id", ascending: true });
   return sorts;
@@ -479,6 +482,12 @@ export type OrderListColumn = {
   queryable?: boolean;
   /** Loaded from a bounded sidecar RPC, not from `api.dam_order_list`. */
   virtual?: boolean;
+  /**
+   * Trusted server sort alias for a UI column that is not a queryable
+   * `api.dam_order_list` field (e.g. virtual SO Date -> `sales_order_received_date`).
+   * Enables sorting only; never filter or edit.
+   */
+  sortField?: string;
 };
 
 /**
@@ -492,7 +501,7 @@ export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
   { field: "production_order_number", header: "Import PO #", kind: "order", source: "helper", type: "text", width: 150, pinned: "left" },
   { field: "vendor_name", header: "Vendor", kind: "order", type: "text", width: 170 },
   { field: "order_date", header: "Prod PO Date", headerTooltip: "Production PO Date in ColdLion.", kind: "order", type: "date", width: 130 },
-  { field: "sales_order_date", header: "SO Date", headerTooltip: "Date ColdLion received the Sales Order.", kind: "order", type: "date", width: 130, queryable: false, virtual: true },
+  { field: "sales_order_date", header: "SO Date", headerTooltip: "Date ColdLion received the Sales Order.", kind: "order", type: "date", width: 130, queryable: false, virtual: true, sortField: "sales_order_received_date" },
   { field: "sent_po_date", header: "Sent PO", kind: "order", type: "date", width: 130 },
   { field: "customer_name", header: "Customer", kind: "order", source: "input", type: "text", width: 170 },
   { field: "customer_po_number", header: "Customer PO", kind: "line", source: "input", type: "text", editable: true, width: 150 },
@@ -567,6 +576,26 @@ export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
 
 function isOrderListFieldQueryable(field: string) {
   return ORDER_LIST_COLUMNS.some((column) => column.field === field && column.queryable !== false && !column.virtual);
+}
+
+/**
+ * Sortable means: a normal queryable non-virtual column, or a column with an
+ * explicit trusted `sortField` alias. Never accept a raw unknown backend name.
+ */
+export function isOrderListFieldSortable(field: string): boolean {
+  return ORDER_LIST_COLUMNS.some(
+    (column) =>
+      column.field === field &&
+      ((column.queryable !== false && !column.virtual) || typeof column.sortField === "string"),
+  );
+}
+
+function orderListSortColumn(field: string): string | null {
+  const column = ORDER_LIST_COLUMNS.find((entry) => entry.field === field);
+  if (!column) return null;
+  if (column.sortField) return column.sortField;
+  if (column.queryable !== false && !column.virtual) return column.field;
+  return null;
 }
 
 /** Inserts the new default-visible date into older saved layouts without changing their other choices. */
