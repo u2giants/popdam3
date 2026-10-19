@@ -39,12 +39,12 @@ export const TAG_ASSET_SCHEMA = {
         required: ["tag", "category", "confidence", "evidence"],
       },
       description:
-        "Return 4-18 distinct facts visible in this file only. Product identity, licensor, property, and SKU facts belong to the Style Group and must not appear here.",
+        "Return 4-18 distinct facts for this file. Always include the licensor and property names (for example 'marvel', 'spider-man', 'disney') when they are known from the supplied licensing context or clearly visible. Do not include SKUs or IDs.",
     },
     ai_description: {
       type: "string",
       description:
-        "One search-friendly sentence for non-technical designers and salespeople. Include useful visible or metadata-supported terms: character/property, product or asset kind, shot/view type, style/treatment, motif/theme, major colors, and placement/use.",
+        "One search-friendly sentence for non-technical designers and salespeople. Include useful visible or metadata-supported terms: character/property, product or asset kind, shot/view type, style/treatment, motif/theme, major colors, and placement/use. Always name the property when known; never name the licensor.",
     },
     cover_description: {
       type: ["string", "null"],
@@ -110,7 +110,11 @@ export function buildTaggingSystemPrompt(context) {
     extractedPdfText = null,
     customInstructions = null,
     usingPriorityOnly = false,
+    licensorName = null,
+    propertyName = null,
   } = context;
+  const licensingParts = [licensorName && `Licensor: ${licensorName}`, propertyName && `Property: ${propertyName}`].filter(Boolean);
+  const licensingContext = licensingParts.length ? `\nLicensing for this file (authoritative): ${licensingParts.join("; ")}\n` : "";
   const erpContext = erpDescription ? `\nERP Product Description: "${erpDescription}"\n` : "";
   const itemDescriptionContext = itemDescription
     ? `\nAuthoritative product/item description for this SKU's group (context only — do NOT restate or override it; use it to inform tags/classification): "${itemDescription}"\n`
@@ -125,14 +129,14 @@ File: ${asset.filename ?? ""}
 Path: ${asset.relative_path ?? ""}
 Type: ${asset.file_type ?? ""}
 Existing tags: ${(asset.tags || []).join(", ") || "none"}
-${erpContext}${itemDescriptionContext}${pdfContext}
+${licensingContext}${erpContext}${itemDescriptionContext}${pdfContext}
 Known taxonomy:
 ${taxonomyContext}
 
-Write for PopDAM search and browsing. Users are non-technical designers, salespeople, and production staff searching files by visible character, visual style, color, motif, view, use case, and document type. Product identity is supplied separately by the Style Group.
+Write for PopDAM search and browsing. Users are non-technical designers, salespeople, and production staff searching files by licensor, property, character, visual style, color, motif, view, use case, and document type.
 
 Description rules:
-- ai_description: one search-friendly sentence, 14-28 words. Include only file-specific facts: visible character, file/asset kind, view/shot type, art style/treatment, motif/theme, major colors, and placement/use.
+- ai_description: one search-friendly sentence, 14-28 words. Always name the property when known from the licensing context or clearly visible (e.g. "Spider-Man", "Mickey Mouse"), but never the licensor; then include visible character, file/asset kind, view/shot type, art style/treatment, motif/theme, major colors, and placement/use.
 - scene_description: one literal visual sentence, 10-24 words. Describe only what is visible: subject, composition, pose/action, product area, angle, colors, readable text, and photo/render/document cues.
 - Recognize asset kinds such as source art, icons, badges, patterns, allover prints, style-guide art, full product photos, renders, mockups, professional/lifestyle photography, close-ups/details, tech packs, licensing sheets, spec/layout documents, packaging art, stickers, and J-cards.
 - Product context: PopDAM often includes wall art/canvas/framed prints, clocks, storage boxes/bins, lap desks/desktop items, mats, tabletop/garden decor, and packaging. Use this only as context; never force a product type if it is not visible or supported by filename/path/ERP metadata.
@@ -140,12 +144,14 @@ Description rules:
 
 Tag rules:
 - Return 4-18 distinct asset_tags objects. Prefer short, natural search terms; use singular nouns unless the image clearly shows multiples. The "tag" value is the search term only — never append the category name in parentheses (e.g. write "back view", not "back view (view)").
-- Every tag must describe this file's visible content or file/document presentation. Use only these categories: ${ASSET_TAG_CATEGORIES.join(", ")}.
-- Do not return licensor, property, SKU, product identity, or authoritative product-description terms as asset tags. Those facts are read-only context owned by the Style Group.
+- Apart from the licensor and property names, every tag must describe this file's visible content or file/document presentation. Use only these categories: ${
+    ASSET_TAG_CATEGORIES.join(", ")
+  }.
+- Always include the licensor and property names as tags when known from the licensing context or clearly visible (e.g. "marvel", "spider-man", "disney"). If the licensor and property share a name (e.g. "disney"), tag it once. Do not return SKUs or IDs as tags, and do not restate the authoritative product description.
 - Include every applicable category label from the controlled list below exactly as written. Do not create synonyms or near-duplicates for these labels.
 - Include useful visible characters, image category, view, asset kind, visual style/treatment, motif/theme, and 1-3 dominant colors when supported.
 - Never use filler tags such as "image", "design", "art", "asset", "colorful", "nice", "graphic", or "product" by themselves.
-- Do not guess. A filename/path/ERP description may establish product context, but visual categories and photography views must be supported by the image. If a character, property, view, readable word, or asset kind is unclear, omit that tag.
+- Do not guess. A filename/path/ERP description may establish product context, but visual categories and photography views must be supported by the image. If a character, view, readable word, or asset kind is unclear, omit that tag. A property named in the licensing context is never unclear.
 
 Controlled image categories:
 - Professional photography: include "professional photography" plus exactly one applicable view tag: "straight view", "3/4 view", "close-up view", "back view", "lifestyle / in-use image", or "person holding item / size scale image". Use "person holding item / size scale image" when a person deliberately holds or presents the item mainly to communicate its physical size or scale relative to a hand or body. Use "lifestyle / in-use image" instead when the person is naturally using or wearing the product in context. Do not call a clean computer-generated product image photography.
@@ -176,7 +182,7 @@ Based on the image and metadata, identify:
 7. Asset type: art_piece or product
 8. Art source: freelancer, straight_style_guide, or style_guide_composition
 9. Content type: choose exactly one primary file kind from source_art, style_guide_art, pattern_allover, icon_badge, product_photo, lifestyle_photo, render_mockup, tech_pack, licensing_sheet, spec_layout_doc, packaging_art, sticker, jcard, or other. Classify from the image together with the filename and path.
-10. Treat licensor, property, SKU, and product description as read-only context. Never return or rewrite their IDs and never add them as file tags.
+10. Treat licensor, property, SKU, and product description as read-only context. Never return or rewrite their IDs, but do include the licensor and property NAMES in asset_tags, and the property name (never the licensor) in ai_description.
 11. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
 12. Cover description rule - **CRITICAL**: This is a PRODUCT label, NOT an image description. Derive a very short card label (max 8 words) as **PROPERTY + PRODUCT TYPE**.
    - If an "ERP Product Description" is provided above: extract the product type ONLY from that text. IGNORE the image entirely for this field - the image often shows artwork/art assets, NOT the actual product.

@@ -511,7 +511,7 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
 
   const { data: assets, error: assetErr } = await client
     .from("assets")
-    .select("id, filename, relative_path, file_type, tags, thumbnail_url, licensor_id, property_id, sku, division_code")
+    .select("id, filename, relative_path, file_type, tags, thumbnail_url, licensor_id, property_id, sku, division_code, style_group_id")
     .in("id", batchIds);
   if (assetErr) return { ok: false, done: false, error: assetErr.message };
 

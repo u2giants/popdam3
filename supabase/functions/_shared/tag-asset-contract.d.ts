@@ -22,6 +22,8 @@ export interface TaggingPromptContext {
   extractedPdfText?: string | null;
   customInstructions?: string | null;
   usingPriorityOnly?: boolean;
+  licensorName?: string | null;
+  propertyName?: string | null;
 }
 
 export function buildTaggingSystemPrompt(context: TaggingPromptContext): string;
