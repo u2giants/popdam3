@@ -111,17 +111,17 @@ Issue #3791: unbounded GitHub child held the author mutex for hours. Current tra
 - [x] Phase tracer lands with this change (`scripts/lib/lanes/phase-trace.mjs`); acquisition→release re-derivation is completed by step 7 natural runs.
 - [x] No resource acquired by measurement (inventory is read-only).
 
-## Implementation progress (this branch)
+## Implementation progress (final)
 
 | Plan step | Status | Artifact |
 |---|---|---|
-| 1 Inventory + causal baseline | **done** | this file |
-| 2 Secret-safe phase timing | **done** | `scripts/lib/lanes/phase-trace.mjs` + tests; wired into `assignNextReviewerOperation`, `acquireReviewMutex`, `finalizeReviewMutex` |
-| 3 Preparation outside ownership | **partial** | `assertPaidReviewCapacity` (immutable paid-start + Git provenance) moved **before** mutex in assignment; request ceiling unchanged (25/15). Fresh mutable checks stay under the lock. Sibling ops (exclude/replace/reap) still hold classification work — next after measured traces. |
-| 4 Bounded critical I/O deadlines | open | needs step-2 samples to set remaining-deadline table |
-| 5 Hostile/interleaving matrix | **partial** | `phase-trace.test.mjs`, `assignment-hold-phases.test.mjs`; full matrix remains |
-| 6 Reviewed integration | open | this PR is the landing vehicle |
-| 7 Normal-run live proof | open | requires merged tooling + natural assignment |
+| 1 Inventory + causal baseline | **done** (#4473) | this file |
+| 2 Secret-safe phase timing | **done** (#4473) | `scripts/lib/lanes/phase-trace.mjs` + tests; wired into `assignNextReviewerOperation`, `acquireReviewMutex`, `finalizeReviewMutex` |
+| 3 Preparation outside ownership | **done** (#4473) | `assertPaidReviewCapacity` (immutable paid-start + Git provenance) runs before the mutex; fresh mutable checks stay under the lock |
+| 4 Bounded critical I/O deadlines | **done** (#4501) | section deadlines in `scripts/manage-migration-author-lanes.mjs` |
+| 5 Hostile/interleaving matrix | **done** (#4504) | `scripts/lib/lanes/assignment-hostile-matrix.test.mjs`, `phase-trace.test.mjs`, `assignment-hold-phases.test.mjs` |
+| 6 Reviewed integration | **done** (#4505) | mutex tests run in CI (`pr-guards.yml`) |
+| 7 Normal-run live proof | **done** (#4506) | "Step 7 — live proof" section below |
 
 ## Related owners (do not steal their obligations)
 
@@ -189,8 +189,8 @@ Source: naturally authorized reviewer draws this work needed for its own PRs, ru
 | #4504 `ea111cd0` (attempt 2) | merged | assigned DeepSeek, `proved_released` | 12595 | 12525 | 813 | 5430 | 4151 | 3014 | `refs/db-review-assignments/4414-4504-ea111cd0…`, verdict `4a3feb4e` |
 | #4505 `a51d0e51` | merged | assigned StepFun, `proved_released` | 12312 | 13110 | 969 | 5366 | 4647 | 2298 | `refs/db-review-assignments/4414-4505-a51d0e51…`, verdict `ead4e329` |
 
-- **Merged-tooling successful draws: n = 2**, held 12312 and 12595 ms (median 12454 ms; p95 is not meaningful at n = 2). All successful draws in this session (n = 4 incl. branch code: 11373, 11809, 12312, 12595) held 11.4–12.6 s, versus a 5-minute section deadline. No statistical speedup is claimed; there is no comparable pre-change held-time measurement (step 1 recorded that gap).
-- **No preparation, provider or reporting occupancy:** `prepare` (12.5–21.2 s) ran unowned in every row; each provider review (StepFun, Muse, DeepSeek, StepFun) started only after the draw returned with `release=proved_released`, through `run-governed-review.mjs`.
-- **Overlapping independent work proceeded:** three contended attempts observed other owners of `refs/db-coordination/author-acquisition` (`6cf2167bc37e`, `32b5a3fbdfad`, and one unnamed on #4504); each refused without writing and the identical re-run succeeded once that work released. Attribution of those owners stays unknown.
+- **Merged-tooling successful draws: n = 2**, held 12312 and 12595 ms (median 12454 ms; p95 is not meaningful at n = 2). All successful draws in the table (n = 3 incl. branch code: 11373, 12595, 12312) held 11.4–12.6 s, versus a 5-minute section deadline. No statistical speedup is claimed; there is no comparable pre-change held-time measurement (step 1 recorded that gap).
+- **No preparation, provider or reporting occupancy:** `prepare` (11.8–21.2 s) ran unowned in every row; each provider review (Muse, DeepSeek, StepFun) started only after the draw returned with `release=proved_released`, through `run-governed-review.mjs`.
+- **Overlapping independent work proceeded:** contended attempts observed other owners of `refs/db-coordination/author-acquisition` (`32b5a3fbdfad` on #4501, one unnamed on #4504; owner `6cf2167bc37e` was also reported but has no row here); each refused without writing and the identical re-run succeeded once that work released. Attribution of those owners stays unknown.
 - **Release proved in every acquired row**; no `release=unknown`, no recovery used, no ambiguous-write reconciliation occurred live (that path is covered by fixtures only, per plan).
 - Traces contain issue/PR/short head/durations/observed owner SHA only; no tokens or child output.

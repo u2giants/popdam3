@@ -7,8 +7,8 @@ Planning baseline: **October 18, 2026 EDT**, main
 Originally a proposal; now implemented and merged (see table).
 Tracker: [#4414](https://github.com/popcre/shared-db/issues/4414).
 Planning/publication owner: Codex chat `01a144d8-b318-7ed0-af97-e852be49d231` on `hetz`.
-Start a fresh implementation at **step 1**, after explicitly accepting its outcome
-on the tracker and checking overlapping owners. Publication does not complete a row.
+All seven steps are done and merged (table below); #4414 is closed. Do not restart
+this plan. New work on reviewer-assignment holds opens its own tracker.
 
 | Step | Outcome | Status | Updated | Required acceptance artifact |
 |---|---|---|---|---|
@@ -424,7 +424,7 @@ Planning delivery: all 13 sections and self-audit pass, own handoff/topic/router
 links exist, independent reviewer examines DESIGN feasibility/failure paths (not
 only safe publication), findings are resolved or explicitly gated, and owned prose
 is committed/pushed/normally merged with a GitHub link and review outcome on #4414.
-All seven implementation rows remain open after planning publication.
+(Historical, at planning publication: all seven implementation rows were open. They are now done; see STATUS.)
 
 Implementation acceptance:
 - Step1 causal baseline and exact mutator/caller inventory exist; no guessed delay.
@@ -494,4 +494,4 @@ inside ownership, and a literal-only router link that carries no policy instruct
 The private native report remains under `.ai/reviews/`; publication evidence on
 [#4414](https://github.com/popcre/shared-db/issues/4414) binds its actual source
 and later final-check/merge. The approval above is not claimed for a later changed
-head. All seven runtime rows stay open; actual latency is still unmeasured.
+head. (Historical: at planning time all seven runtime rows were open and latency was unmeasured. Now done and measured; see STATUS and the verification doc's step 7 table.)
