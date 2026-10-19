@@ -1,4 +1,4 @@
-import { aiModelEndpoint, type AiModelEndpoint } from "./ai-model-options";
+import { aiModelEndpoint, SCALEDOWN_SUMMARIZE_MODEL, type AiModelEndpoint } from "./ai-model-options";
 import { formatOpenRouterPricing, type OpenRouterPricing } from "./openrouter-pricing";
 
 export interface AiCatalogModel {
@@ -14,6 +14,33 @@ export interface AiCatalogModel {
   pricing?: OpenRouterPricing | null;
   capabilitySource?: string;
 }
+
+/**
+ * ScaleDown's summarize model never appears in the OpenRouter catalog — the
+ * app calls it directly — so settings UIs inject this entry themselves. It
+ * accepts an image through ScaleDown's non-standard `document` field, which is
+ * why it qualifies for vision-required tasks.
+ */
+export const SCALEDOWN_SUMMARIZE_CATALOG_MODEL: AiCatalogModel & {
+  supportsTools: boolean;
+  supportsStructuredOutputs: boolean;
+  supportsResponseFormat: boolean;
+  toolChoiceModes: string[];
+  inputModalities: string[];
+} = {
+  id: SCALEDOWN_SUMMARIZE_MODEL.id,
+  name: SCALEDOWN_SUMMARIZE_MODEL.name,
+  supportsTools: false,
+  supportsStructuredOutputs: false,
+  supportsResponseFormat: false,
+  toolChoiceModes: [],
+  inputModalities: ["text", "image"],
+  imageInput: true,
+  contextLength: null,
+  // ScaleDown list price: $0.05 per 1M input tokens, no completion charge.
+  pricing: { prompt: "0.00000005", completion: "0" },
+  capabilitySource: "direct_provider",
+};
 
 export type AiCapabilityChip =
   | "vision"

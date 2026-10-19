@@ -9,6 +9,7 @@ import {
   modelEndpointOf,
   modelPricingLabel,
   modelStructuredOutputSummary,
+  SCALEDOWN_SUMMARIZE_CATALOG_MODEL,
   type AiCapabilityChip,
   type AiCatalogModel,
 } from "@/lib/ai-model-catalog";
@@ -16,7 +17,6 @@ import {
   AI_MODEL_ENDPOINTS,
   modelInPool,
   normalizeAiModelPool,
-  SCALEDOWN_SUMMARIZE_MODEL,
   type AiModelEndpoint,
   type AiModelPool,
 } from "@/lib/ai-model-options";
@@ -30,19 +30,7 @@ const ENDPOINT_LABELS: Record<AiModelEndpoint, string> = {
   "scaledown-direct": "ScaleDown (direct)",
 };
 
-const BUILT_IN_DIRECT_MODELS: ModelPoolOption[] = [
-  {
-    ...SCALEDOWN_SUMMARIZE_MODEL,
-    supportsTools: false,
-    supportsStructuredOutputs: false,
-    supportsResponseFormat: false,
-    toolChoiceModes: [],
-    inputModalities: ["text"],
-    imageInput: false,
-    pricing: null,
-    capabilitySource: "direct_provider",
-  },
-];
+const BUILT_IN_DIRECT_MODELS: ModelPoolOption[] = [SCALEDOWN_SUMMARIZE_CATALOG_MODEL];
 
 type EndpointFilter = "all" | AiModelEndpoint;
 type CapabilityFilter = "all" | AiCapabilityChip;

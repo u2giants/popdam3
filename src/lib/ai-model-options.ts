@@ -1,7 +1,7 @@
 export const AI_MODEL_ENDPOINTS = ["openrouter", "google-direct", "meta-direct", "scaledown-direct"] as const;
 export const SCALEDOWN_SUMMARIZE_MODEL = {
   id: "scaledown/summarize",
-  name: "ScaleDown: Summarize (direct API; bake-off only)",
+  name: "ScaleDown: Summarize (direct API)",
 } as const;
 
 export type AiModelEndpoint = (typeof AI_MODEL_ENDPOINTS)[number];
@@ -59,7 +59,9 @@ export function sameAiModelPool(left: unknown, right: unknown): boolean {
 
 export function modelAllowedForTask(modelId: string, taskKey: string, fallback = false): boolean {
   const normalizedModelId = modelId.trim();
-  if (normalizedModelId.startsWith("scaledown/")) return false;
+  // ScaleDown reaches only the PDF page reader: it has no tools or structured
+  // output, so Image Tagging and ERP Classification must never offer it.
+  if (normalizedModelId.startsWith("scaledown/")) return taskKey === "pdf_extraction" && !fallback;
   // Every `:batch` variant (OpenRouter or direct Gemini) needs the durable
   // asynchronous path, which only primary Image Tagging implements.
   if (!normalizedModelId.endsWith(":batch")) return true;

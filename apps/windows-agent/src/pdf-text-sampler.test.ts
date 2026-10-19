@@ -17,3 +17,26 @@ test("PopSG direct Meta selection uses its leased server route before OpenRouter
   assert.equal(received, page);
   await assert.rejects(callAiVision(page, { ...config, directPdfVision: undefined }), /server-side content lease/);
 });
+
+test("ScaleDown selection calls ScaleDown instead of OpenRouter and unwraps the summary envelope", async () => {
+  const page = Buffer.from("fixture");
+  const originalFetch = globalThis.fetch;
+  const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+  globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(url), body: JSON.parse(String(init?.body)) as Record<string, unknown> });
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ summary: "transcribed page text" }) } }] }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const config = { models: [], pdf_extraction: null, googleApiKey: "", anthropicApiKey: "",
+      openRouterApiKey: "fixture-router-key", scaleDownApiKey: "fixture-scale-key",
+      aiTaskModels: { pdf_extraction: "scaledown/summarize" } };
+    assert.equal(await callAiVision(page, config), "transcribed page text");
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /api\.scaledown\.xyz/);
+    assert.equal(calls[0].body.model, "summarize");
+    assert.equal(typeof calls[0].body.document, "string");
+    await assert.rejects(callAiVision(page, { ...config, scaleDownApiKey: undefined }), /SCALEDOWN_API_KEY/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

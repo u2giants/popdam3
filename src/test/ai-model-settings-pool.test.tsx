@@ -99,4 +99,27 @@ describe("AI Model Pool settings integration", () => {
     expect(await screen.findByRole("option", { name: new RegExp(metaModelId) })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /openai\/hidden-model/ })).not.toBeInTheDocument();
   });
+
+  // ScaleDown is direct-provider only, so it is injected into the task
+  // dropdowns instead of coming from the OpenRouter catalog.
+  it("offers ScaleDown for PDF Text Extraction", async () => {
+    renderSettings();
+    await screen.findByLabelText("ScaleDown API Key");
+    await waitFor(() => expect(call).toHaveBeenCalledWith("get-openrouter-vision-models"));
+
+    // Combobox 0 is the Available-models capability filter, then Image Tagging
+    // and its fallback, ERP Classification, and PDF Text Extraction.
+    fireEvent.click(screen.getAllByRole("combobox")[4]);
+    expect(await screen.findByRole("option", { name: /scaledown\/summarize/ })).toBeInTheDocument();
+  });
+
+  it("keeps ScaleDown out of Image Tagging", async () => {
+    renderSettings();
+    await screen.findByLabelText("ScaleDown API Key");
+    await waitFor(() => expect(call).toHaveBeenCalledWith("get-openrouter-vision-models"));
+
+    fireEvent.click(screen.getAllByRole("combobox")[1]);
+    expect(await screen.findByRole("option", { name: new RegExp(metaModelId) })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /scaledown\/summarize/ })).not.toBeInTheDocument();
+  });
 });

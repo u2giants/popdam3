@@ -41,6 +41,7 @@ export interface AiConfig {
   googleApiKey: string;
   anthropicApiKey: string;
   openRouterApiKey?: string;
+  scaleDownApiKey?: string;
   aiTaskModels?: Record<string, string>;
 }
 
@@ -73,8 +74,52 @@ interface FileProgressEntry {
 
 const PDF_EXTRACTION_PROMPT = "Transcribe only text that is visually legible. Preserve reading order where possible. Do not infer, complete, correct, or invent unclear text. Omit unreadable text. Return only the transcription.";
 
+const SCALEDOWN_URL = "https://api.scaledown.xyz/v1/chat/completions";
+
+/**
+ * ScaleDown's summarize model takes the page as a base64 `document` (its own
+ * non-standard field, the same shape the worker's image tagging uses) and
+ * usually answers with {"summary": "..."} — unwrap it, but accept plain text.
+ */
+async function transcribeWithScaleDown(base64: string, apiKey: string): Promise<string> {
+  const resp = await fetch(SCALEDOWN_URL, {
+    method: "POST",
+    headers: { "x-api-key": apiKey, "content-type": "application/json" },
+    signal: AbortSignal.timeout(60_000),
+    body: JSON.stringify({
+      model: "summarize",
+      messages: [
+        { role: "system", content: PDF_EXTRACTION_PROMPT },
+        { role: "user", content: "Transcribe the document image." },
+      ],
+      document: base64,
+      document_mime_type: "image/png",
+      max_tokens: 4096,
+    }),
+  });
+  const body = await resp.text();
+  if (!resp.ok) throw new Error(`ScaleDown ${resp.status}: ${body.slice(0, 200)}`);
+  const payload = JSON.parse(body) as { choices?: Array<{ message?: { content?: string } }> };
+  const content = payload.choices?.[0]?.message?.content;
+  if (!content || !content.trim()) throw new Error("ScaleDown returned an empty PDF transcription");
+  try {
+    const parsed = JSON.parse(content) as { summary?: unknown };
+    if (typeof parsed.summary === "string" && parsed.summary.trim()) return parsed.summary.trim();
+  } catch {
+    // Not JSON — the model answered with the transcription itself.
+  }
+  return content.trim();
+}
+
 export async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {
   const base64 = pngBuffer.toString("base64");
+  const selectedModel = aiConfig.aiTaskModels?.pdf_extraction?.trim();
+  // Checked before the OpenRouter path: a ScaleDown id must never be posted
+  // to openrouter.ai, which does not host it.
+  if (selectedModel?.startsWith("scaledown/")) {
+    if (!aiConfig.scaleDownApiKey) throw new Error("SCALEDOWN_API_KEY is not configured in Settings");
+    return transcribeWithScaleDown(base64, aiConfig.scaleDownApiKey);
+  }
   if (aiConfig.openRouterApiKey) {
     const model = aiConfig.aiTaskModels?.pdf_extraction;
     if (!model) throw new Error("PDF AI configuration has an OpenRouter key but no pdf_extraction model");

@@ -16,14 +16,18 @@ describe("direct Gemini batch model scope", () => {
     expect(modelAllowedForTask("google/gemini-3.7-flash", "pdf_extraction")).toBe(true);
   });
 
-  it("keeps Meta Direct available to supported task routes and reserves ScaleDown for bake-off", () => {
+  it("keeps Meta Direct available to supported task routes and limits ScaleDown to PDF extraction", () => {
     const meta = "meta-direct/muse-spark-1.3-contributor";
     expect(modelAllowedForTask(meta, "vision_tagging")).toBe(true);
     expect(modelAllowedForTask(meta, "vision_tagging", true)).toBe(true);
     expect(modelAllowedForTask(meta, "text_classification")).toBe(true);
     expect(modelAllowedForTask(meta, "pdf_extraction")).toBe(true);
+    expect(modelAllowedForTask("scaledown/summarize", "pdf_extraction")).toBe(true);
+    expect(modelAllowedForTask(" scaledown/summarize ", "pdf_extraction")).toBe(true);
     expect(modelAllowedForTask("scaledown/summarize", "vision_tagging")).toBe(false);
     expect(modelAllowedForTask(" scaledown/summarize ", "vision_tagging")).toBe(false);
+    expect(modelAllowedForTask("scaledown/summarize", "text_classification")).toBe(false);
+    expect(modelAllowedForTask("scaledown/summarize", "pdf_extraction", true)).toBe(false);
   });
 
   it("is rejected server-side for bake-off and PDF but allowed for production tagging", () => {
