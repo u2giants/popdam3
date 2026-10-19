@@ -368,6 +368,7 @@ Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read
 - The `dam` schema is NOT exposed to PostgREST — reach `dam.*` via `public` RPCs (2026-07-15)
 - Rich-PDF extraction uses DeepSeek's **direct** API, not OpenRouter (2026-07-15)
 - Compact chrome duplicates its media query in TS **and** CSS on purpose (2026-07-29)
+- Source-contract tests must normalize CRLF; AG Grid tests need a sized host (2026-10-19)
 
 ## Credentials and environment
 
