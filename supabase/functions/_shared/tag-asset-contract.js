@@ -113,9 +113,8 @@ export function buildTaggingSystemPrompt(context) {
     licensorName = null,
     propertyName = null,
   } = context;
-  const licensingContext = licensorName || propertyName
-    ? `\nLicensing for this file (authoritative): Licensor: ${licensorName ?? "unknown"}; Property: ${propertyName ?? "unknown"}\n`
-    : "";
+  const licensingParts = [licensorName && `Licensor: ${licensorName}`, propertyName && `Property: ${propertyName}`].filter(Boolean);
+  const licensingContext = licensingParts.length ? `\nLicensing for this file (authoritative): ${licensingParts.join("; ")}\n` : "";
   const erpContext = erpDescription ? `\nERP Product Description: "${erpDescription}"\n` : "";
   const itemDescriptionContext = itemDescription
     ? `\nAuthoritative product/item description for this SKU's group (context only — do NOT restate or override it; use it to inform tags/classification): "${itemDescription}"\n`
@@ -145,12 +144,12 @@ Description rules:
 
 Tag rules:
 - Return 4-18 distinct asset_tags objects. Prefer short, natural search terms; use singular nouns unless the image clearly shows multiples. The "tag" value is the search term only — never append the category name in parentheses (e.g. write "back view", not "back view (view)").
-- Every tag must describe this file's visible content or file/document presentation. Use only these categories: ${ASSET_TAG_CATEGORIES.join(", ")}.
-- Always include the licensor and property names as tags when known from the licensing context or clearly visible (e.g. "marvel", "spider-man", "disney"). Do not return SKUs or IDs as tags, and do not restate the authoritative product description.
+- Apart from the licensor and property names, every tag must describe this file's visible content or file/document presentation. Use only these categories: ${ASSET_TAG_CATEGORIES.join(", ")}.
+- Always include the licensor and property names as tags when known from the licensing context or clearly visible (e.g. "marvel", "spider-man", "disney"). If the licensor and property share a name (e.g. "disney"), tag it once. Do not return SKUs or IDs as tags, and do not restate the authoritative product description.
 - Include every applicable category label from the controlled list below exactly as written. Do not create synonyms or near-duplicates for these labels.
 - Include useful visible characters, image category, view, asset kind, visual style/treatment, motif/theme, and 1-3 dominant colors when supported.
 - Never use filler tags such as "image", "design", "art", "asset", "colorful", "nice", "graphic", or "product" by themselves.
-- Do not guess. A filename/path/ERP description may establish product context, but visual categories and photography views must be supported by the image. If a character, property, view, readable word, or asset kind is unclear, omit that tag.
+- Do not guess. A filename/path/ERP description may establish product context, but visual categories and photography views must be supported by the image. If a character, view, readable word, or asset kind is unclear, omit that tag. A property named in the licensing context is never unclear.
 
 Controlled image categories:
 - Professional photography: include "professional photography" plus exactly one applicable view tag: "straight view", "3/4 view", "close-up view", "back view", "lifestyle / in-use image", or "person holding item / size scale image". Use "person holding item / size scale image" when a person deliberately holds or presents the item mainly to communicate its physical size or scale relative to a hand or body. Use "lifestyle / in-use image" instead when the person is naturally using or wearing the product in context. Do not call a clean computer-generated product image photography.

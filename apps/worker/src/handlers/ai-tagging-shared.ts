@@ -253,6 +253,22 @@ export interface TaggingPromptOptions {
   client?: ReturnType<typeof db>;
 }
 
+/** Grouped assets take licensing from their Style Group; only ungrouped assets fall back to their own columns. */
+export async function resolveLicensingNames(
+  client: ReturnType<typeof db>,
+  asset: Pick<TaggingPromptAsset, "licensor_id" | "property_id" | "style_group_id">,
+): Promise<{ licensorName: string | null; propertyName: string | null }> {
+  if (asset.style_group_id) {
+    const { data } = await client.from("style_groups").select("licensor_name, property_name").eq("id", asset.style_group_id).maybeSingle();
+    return { licensorName: data?.licensor_name ?? null, propertyName: data?.property_name ?? null };
+  }
+  const [licensor, property] = await Promise.all([
+    asset.licensor_id ? client.schema("core").from("licensor").select("name").eq("id", asset.licensor_id).maybeSingle() : null,
+    asset.property_id ? client.schema("core").from("property").select("name").eq("id", asset.property_id).maybeSingle() : null,
+  ]);
+  return { licensorName: licensor?.data?.name ?? null, propertyName: property?.data?.name ?? null };
+}
+
 export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options: TaggingPromptOptions = {}): Promise<string> {
   const client = options.client ?? db();
   const checkedCharacterRead = (error: { code?: string } | null, data: unknown) => { if (options.requireCharacterReadSuccess && (error || !Array.isArray(data))) throw new CharacterCatalogDependencyError(error?.code ?? "catalog_contract"); };
@@ -397,14 +413,11 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     .limit(1)
     .maybeSingle();
   const extractedPdfText = pdfSample?.extracted_text ?? null;
-  const [ownLicensor, ownProperty] = await Promise.all([
-    asset.licensor_id ? client.schema("core").from("licensor").select("name").eq("id", asset.licensor_id).maybeSingle() : null,
-    asset.property_id ? client.schema("core").from("property").select("name").eq("id", asset.property_id).maybeSingle() : null,
-  ]);
+  const { licensorName, propertyName } = await resolveLicensingNames(client, asset);
   return buildTaggingSystemPrompt({
     asset,
-    licensorName: ownLicensor?.data?.name ?? null,
-    propertyName: ownProperty?.data?.name ?? null,
+    licensorName,
+    propertyName,
     taxonomyContext,
     erpDescription,
     itemDescription,

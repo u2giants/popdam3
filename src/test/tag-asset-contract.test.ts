@@ -42,10 +42,9 @@ describe("tag asset contract", () => {
       licensorName: "Marvel",
       propertyName: "Spider-Man",
     });
-    expect(prompt).toContain("Licensor: Marvel; Property: Spider-Man");
+    expect(prompt).toContain("Licensing for this file (authoritative): Licensor: Marvel; Property: Spider-Man");
     expect(prompt).toContain("Always include the licensor and property names as tags");
     expect(prompt).toContain("never the licensor");
-    expect(prompt).not.toContain("must not appear here");
   });
 
   it("keeps descriptions search-oriented without forcing product categories", () => {

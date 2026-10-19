@@ -36,6 +36,8 @@ Every PopDAM file must become useful in search without receiving false metadata 
 
 When this work is complete:
 
+> **Owner change, 2026-10-19 (Albert):** AI file tags must again include the licensor and property names, and the file's `ai_description` must include the property name but never the licensor. The Style Group still owns the licensor/property IDs; only the names are repeated on the file so per-file AI output stays searchable. Grouped files take the names from their Style Group; ungrouped files from their own columns.
+
 - facts that describe the licensed product or SKU—licensor, property, product type, authoritative item description, product category, and supported group artwork concepts—will belong to the Style Group;
 - facts that describe one file—photograph versus tech pack, view, visible characters, colors, scene, readable text, artwork placement, and visual treatment—will belong only to that asset;
 - searching an asset will use the union of its group facts and its own file facts without physically duplicating group facts onto every member;
