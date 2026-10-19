@@ -28,6 +28,7 @@ from typing import Any, Callable
 
 from production_apply_review_evidence import verify as verify_review
 from production_migration_guard import parse_remote_versions
+from requalified_preview_runs import run_attempt_admitted
 from production_review_allowlist import normalize_review_allowlist
 from historical_preview_recovery import verify as verify_historical_preview
 from historical_preview_recovery import prove_pr_authored
@@ -1703,8 +1704,7 @@ def prove_bound_mainline_post_merge_original(
         or any(binding.get(key) != value for key, value in expected.items())
         or not re.fullmatch(r"[a-z]{20}", str(binding.get("previewProjectRef") or ""))
         or binding.get("previewProjectRef") == PRODUCTION_PROJECT_REF
-        or type(run.get("run_attempt")) is not int
-        or run.get("run_attempt") != 1
+        or not run_attempt_admitted(run)
         or run_head != original_commit
     ):
         raise producer_error

@@ -24,6 +24,7 @@ import { coordinationEvent, formatEventComment, parseEventComment, auditTimeline
 import { reconcileFlow, persistInitialReady, preparePreviewDispatch, repairPreviewReady, terminalizeReady, readyRecord, MODE_SEQUENCE, parseAbandonmentAudit, reportOnlyFlowIo, abandonmentAuditExit, AUDIT_EXIT_UNVERIFIABLE } from './db-flow/reconcile.mjs'
 import { MERGE_SELF_CONTEXT } from './lib/merge-self-context.mjs'
 import { selectPreviewArtifacts } from './db-flow/preview-artifact-selection.mjs'
+import { requalifiedPreviewRun, requalifiedPreviewArtifact } from './db-flow/requalified-preview-runs.mjs'
 import { currentRepository, isThisRepositoryOrHistorical, isTrustedOperatorComment, repositoryCommentApiPath } from './lib/repository-identity.mjs'
 import { readRequiredCheckContexts } from './lib/required-check-readback.mjs'
 import { readSessionId, resolveSessionAuthority, sessionAuthorityRefusal } from './lib/session-authority.mjs'
@@ -5766,7 +5767,9 @@ export function validateOriginalPreviewApplyEvidence({issue,pr,versions,mergeCom
     if(run?.event!=='workflow_dispatch'){reject(runId,lane,`event is ${run?.event}`);continue}
     if(run?.status!=='completed'){reject(runId,lane,`status is ${run?.status}`);continue}
     if(run?.conclusion!=='success'&&!previewSucceededBeforeDownstreamFailure){reject(runId,lane,`conclusion is ${run?.conclusion} without a proven preview success before a sole downstream dispatcher failure`);continue}
-    if(run?.run_attempt!==1){reject(runId,lane,`run attempt is ${run?.run_attempt}, not 1`);continue}
+    const requalified=requalifiedPreviewRun(run)
+    if(requalified&&JSON.stringify([...versions].map(String).sort())!==JSON.stringify([requalified.version])){reject(runId,lane,`pinned re-qualified run covers only ${requalified.version}`);continue}
+    if(run?.run_attempt!==1&&!requalified){reject(runId,lane,`run attempt is ${run?.run_attempt}, not 1`);continue}
     if(!/^[0-9a-f]{40}$/i.test(String(run?.head_sha??''))){reject(runId,lane,'head sha is not a 40-hex commit');continue}
     const bindings=String(logs).split(/\r?\n/).flatMap((line)=>{const start=line.indexOf('{"allowlist"'),end=line.lastIndexOf('}');if(start<0||end<start)return[];try{return[JSON.parse(line.slice(start,end+1))]}catch{return[]}}).filter((row)=>row.schema==='shared-db-preview-instance-binding/v1')
     if(bindings.length!==1){reject(runId,lane,`found ${bindings.length} preview instance bindings, not 1`);continue}
@@ -5838,8 +5841,10 @@ export function validateOriginalPreviewApplyEvidence({issue,pr,versions,mergeCom
     const allRows=Array.isArray(artifacts?.artifacts)?artifacts.artifacts:[]
     // A fully proven automatic dispatcher may leave its review companion after
     // success or failure. Selecting it never substitutes for the proof below.
-    const rows=selectPreviewArtifacts({run,jobs,artifacts})
-    const tolerated=allRows.length===2&&rows.length===1
+    const pinnedPreview=requalified?requalifiedPreviewArtifact(run,artifacts):null
+    if(requalified&&!pinnedPreview){reject(runId,lane,'pinned re-qualified run artifacts do not match the pinned preview artifact and companions');continue}
+    const rows=pinnedPreview?[pinnedPreview]:selectPreviewArtifacts({run,jobs,artifacts})
+    const tolerated=Boolean(pinnedPreview)||(allRows.length===2&&rows.length===1)
     if(tolerated?rows.length!==1:(Number(artifacts?.total_count)!==1||rows.length!==1)){reject(runId,lane,`run has ${artifacts?.total_count} artifacts (${allRows.length} listed), not exactly one preview apply artifact`);continue}
     if(rows[0].expired!==false){reject(runId,lane,'preview apply artifact is expired or its expiry is unknown');continue}
     if(!/^sha256:[0-9a-f]{64}$/i.test(String(rows[0].digest??''))){reject(runId,lane,'preview apply artifact has no sha256 digest');continue}

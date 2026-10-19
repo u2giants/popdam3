@@ -20,6 +20,7 @@ import zipfile
 
 from production_migration_guard import parse_remote_versions
 from production_business_risk_gate import preview_content_manifest, preview_run_has_immutable_apply
+from requalified_preview_runs import requalified_preview_run, run_attempt_admitted
 
 
 def require(condition, reason):
@@ -34,8 +35,13 @@ def verify(request, archive_bytes, migration_bytes):
             and all(isinstance(v, str) and re.fullmatch(r'\d{14}', v) for v in versions), 'invalid allowlist')
     require(run.get('path') == '.github/workflows/shared-supabase-migrations.yml'
             and run.get('event') == 'workflow_dispatch'
-            and preview_run_has_immutable_apply(run, request.get('jobs')) and run.get('run_attempt') == 1,
+            and preview_run_has_immutable_apply(run, request.get('jobs')) and run_attempt_admitted(run),
             'not a successful original apply run')
+    pinned = requalified_preview_run(run)
+    require(pinned is None or (artifact.get('id') == pinned['preview_artifact_id']
+                               and artifact.get('digest') == pinned['preview_artifact_digest']
+                               and versions == [pinned['version']]),
+            'pinned re-qualified run does not match its pinned preview artifact and version')
     require(isinstance(run.get('id'), int) and not isinstance(run['id'], bool)
             and re.fullmatch(r'[0-9a-f]{40}', str(run.get('head_sha', ''))), 'invalid run identity')
     require(artifact.get('expired') is False
