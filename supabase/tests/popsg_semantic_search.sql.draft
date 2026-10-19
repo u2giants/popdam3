@@ -1,0 +1,22 @@
+-- DRAFT for the structural session landing PopSG semantic search (shared-db #4437).
+-- NOT applied by PopDAM #97. Do not add this file to the app mirror as a migration.
+-- Purpose: fix the synthetic judgment cases in popdam3 `src/test/fixtures/semantic-search-cases.json`
+-- for views sg_files and sg_guides once `search_style_guide_library_hybrid` exists.
+--
+-- Expected contract (from plan_semantic_search_popdam_popsg.md step 4):
+--   search_style_guide_library_hybrid(
+--     p_query text, p_filters jsonb, p_limit int, p_offset int,
+--     p_document_types text[], p_query_embedding extensions.vector(384),
+--     p_min_rank real, p_min_semantic_score real default null)
+--   returns table(..., total_count bigint, has_more boolean, facets jsonb)
+--
+-- Named adversarial cases this draft should assert once the function is live:
+--   SF-05/SF-06/SG-05/SG-06  PDF-only phrases require current extracted text
+--   SF-10/SG-10              no-match / unsupported-language → empty, no crash
+--   SF-09/SG-09              restrictive filters keep the expected record in top 5
+--   alias cases              character spelling/aliases resolve to the same record
+--
+-- Placeholder body — the structural session fills real assertions against its
+-- own synthetic fixtures. Keep this file documentation-only until then.
+
+-- select 1 where false; -- intentionally inert

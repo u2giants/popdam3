@@ -1,0 +1,58 @@
+{
+  "$schema_note": "Synthetic relevance fixtures for DAM/SG semantic-search scorecard. Real asset/group IDs and designer judgments live only in approved private storage. Do not put licensed filenames or production identifiers in this file.",
+  "version": "2026-10-19",
+  "model_contract": { "embedding_model": "gte-small", "dimensions": 384, "index": "pgvector/hnsw/cosine" },
+  "views": ["dam_assets", "dam_groups", "sg_files", "sg_guides"],
+  "gates": {
+    "exact_identifier_top5": 1.0,
+    "paraphrase_ndcg10_relative_gain": 0.1,
+    "paraphrase_ndcg10_absolute_floor": 0.1,
+    "no_overall_ndcg10_regression": true,
+    "no_known_wrong_property_in_top5": true
+  },
+  "cases": [
+    { "id": "DA-01", "view": "dam_assets", "kind": "exact_id", "query": "SKU SYN-DA-0001", "expected_id": "SYN-ASSET-0001", "notes": "exact SKU; filters must permit the record" },
+    { "id": "DA-02", "view": "dam_assets", "kind": "exact_id", "query": "SYN-ASSET-0042", "expected_id": "SYN-ASSET-0042", "notes": "exact entity id string" },
+    { "id": "DA-03", "view": "dam_assets", "kind": "character_alias", "query": "captain starlight", "expected_ids": ["SYN-ASSET-0010", "SYN-ASSET-0011"], "aliases": ["Cpt Starlight", "Starlight Captain"], "notes": "spelling/alias" },
+    { "id": "DA-04", "view": "dam_assets", "kind": "character_alias", "query": "luna the fox spirit", "expected_ids": ["SYN-ASSET-0020"], "aliases": ["Luna Fox", "Fox Spirit Luna"] },
+    { "id": "DA-05", "view": "dam_assets", "kind": "paraphrase", "query": "cozy winter snow scene with mittens", "expected_ids": ["SYN-ASSET-0030", "SYN-ASSET-0031"], "keywords_baseline_query": "winter snow", "notes": "descriptive paraphrase; pre-labeled useful" },
+    { "id": "DA-06", "view": "dam_assets", "kind": "paraphrase", "query": "shiny metallic gold gift box pattern", "expected_ids": ["SYN-ASSET-0040"], "keywords_baseline_query": "gold gift box" },
+    { "id": "DA-07", "view": "dam_assets", "kind": "multi_attribute", "query": "blue glitter ornaments holiday set", "expected_ids": ["SYN-ASSET-0050"], "notes": "multiple descriptive attributes" },
+    { "id": "DA-08", "view": "dam_assets", "kind": "tag_only", "query": "glitter texture", "expected_ids": ["SYN-ASSET-0060"], "notes": "tags-only phrase; no filename stem" },
+    { "id": "DA-09", "view": "dam_assets", "kind": "restrictive_filter", "query": "holiday pattern", "filters": { "fileType": ["psd"] }, "expected_ids": ["SYN-ASSET-0070"], "notes": "filter must not drop the expected record" },
+    { "id": "DA-10", "view": "dam_assets", "kind": "no_match", "query": "zzzz-not-a-real-object-qqq", "expected_ids": [], "notes": "no useful match; empty is correct" },
+
+    { "id": "DG-01", "view": "dam_groups", "kind": "exact_id", "query": "SYN-GROUP-0001", "expected_id": "SYN-GROUP-0001" },
+    { "id": "DG-02", "view": "dam_groups", "kind": "exact_id", "query": "SKU SYN-G-0002", "expected_id": "SYN-GROUP-0002" },
+    { "id": "DG-03", "view": "dam_groups", "kind": "character_alias", "query": "captain starlight collection", "expected_ids": ["SYN-GROUP-0010"], "aliases": ["Starlight set"] },
+    { "id": "DG-04", "view": "dam_groups", "kind": "character_alias", "query": "luna fox product family", "expected_ids": ["SYN-GROUP-0020"] },
+    { "id": "DG-05", "view": "dam_groups", "kind": "paraphrase", "query": "winter holiday plush assortment", "expected_ids": ["SYN-GROUP-0030"], "keywords_baseline_query": "holiday plush" },
+    { "id": "DG-06", "view": "dam_groups", "kind": "paraphrase", "query": "metallic gift wrap collection", "expected_ids": ["SYN-GROUP-0040"], "keywords_baseline_query": "gift wrap" },
+    { "id": "DG-07", "view": "dam_groups", "kind": "multi_attribute", "query": "sparkle unicorn rainbow apparel", "expected_ids": ["SYN-GROUP-0050"] },
+    { "id": "DG-08", "view": "dam_groups", "kind": "tag_only", "query": "sequin fabric", "expected_ids": ["SYN-GROUP-0060"] },
+    { "id": "DG-09", "view": "dam_groups", "kind": "restrictive_filter", "query": "character set", "filters": { "customerId": "SYN-CUSTOMER-01" }, "expected_ids": ["SYN-GROUP-0070"] },
+    { "id": "DG-10", "view": "dam_groups", "kind": "no_match", "query": "qqq-absent-group-token-zzz", "expected_ids": [] },
+
+    { "id": "SF-01", "view": "sg_files", "kind": "exact_id", "query": "SYN-SGFILE-0001", "expected_id": "SYN-SGFILE-0001" },
+    { "id": "SF-02", "view": "sg_files", "kind": "exact_id", "query": "guide SYN-SGFILE-0042", "expected_id": "SYN-SGFILE-0042" },
+    { "id": "SF-03", "view": "sg_files", "kind": "character_alias", "query": "captain starlight style guide file", "expected_ids": ["SYN-SGFILE-0010"] },
+    { "id": "SF-04", "view": "sg_files", "kind": "character_alias", "query": "luna fox brand sheet", "expected_ids": ["SYN-SGFILE-0020"] },
+    { "id": "SF-05", "view": "sg_files", "kind": "pdf_only", "query": "approved pantone colorway list", "expected_ids": ["SYN-SGFILE-0030"], "notes": "PDF-only extracted phrase; requires current extracted text at baseline" },
+    { "id": "SF-06", "view": "sg_files", "kind": "pdf_only", "query": "do not use gradient on character face", "expected_ids": ["SYN-SGFILE-0031"], "notes": "negative constraint phrase from PDF body" },
+    { "id": "SF-07", "view": "sg_files", "kind": "paraphrase", "query": "holiday season packaging rules", "expected_ids": ["SYN-SGFILE-0040"], "keywords_baseline_query": "packaging rules" },
+    { "id": "SF-08", "view": "sg_files", "kind": "tag_only", "query": "logo clearspace", "expected_ids": ["SYN-SGFILE-0050"] },
+    { "id": "SF-09", "view": "sg_files", "kind": "restrictive_filter", "query": "color standard", "filters": { "licensorId": "SYN-LICENSOR-01" }, "expected_ids": ["SYN-SGFILE-0060"] },
+    { "id": "SF-10", "view": "sg_files", "kind": "no_match", "query": "zzz-no-such-guide-qqq", "expected_ids": [] },
+
+    { "id": "SG-01", "view": "sg_guides", "kind": "exact_id", "query": "SYN-SGGUIDE-0001", "expected_id": "SYN-SGGUIDE-0001" },
+    { "id": "SG-02", "view": "sg_guides", "kind": "exact_id", "query": "SYN-SGGUIDE-0012", "expected_id": "SYN-SGGUIDE-0012" },
+    { "id": "SG-03", "view": "sg_guides", "kind": "character_alias", "query": "starlight character bible", "expected_ids": ["SYN-SGGUIDE-0010"] },
+    { "id": "SG-04", "view": "sg_guides", "kind": "character_alias", "query": "fox spirit usage guide", "expected_ids": ["SYN-SGGUIDE-0020"] },
+    { "id": "SG-05", "view": "sg_guides", "kind": "pdf_only", "query": "minimum reproduction size for hangtag", "expected_ids": ["SYN-SGGUIDE-0030"], "notes": "PDF-only" },
+    { "id": "SG-06", "view": "sg_guides", "kind": "pdf_only", "query": "seasonal color palette spring summer", "expected_ids": ["SYN-SGGUIDE-0031"] },
+    { "id": "SG-07", "view": "sg_guides", "kind": "paraphrase", "query": "how to place the mascot on apparel", "expected_ids": ["SYN-SGGUIDE-0040"], "keywords_baseline_query": "mascot apparel" },
+    { "id": "SG-08", "view": "sg_guides", "kind": "tag_only", "query": "style guide", "expected_ids": ["SYN-SGGUIDE-0050"] },
+    { "id": "SG-09", "view": "sg_guides", "kind": "restrictive_filter", "query": "character rules", "filters": { "propertyId": "SYN-PROPERTY-01" }, "expected_ids": ["SYN-SGGUIDE-0060"] },
+    { "id": "SG-10", "view": "sg_guides", "kind": "unsupported_language", "query": "デザイン キャラクター ガイド", "expected_ids": [], "notes": "unsupported-language query; empty or keyword-only acceptable; no crash" }
+  ]
+}
