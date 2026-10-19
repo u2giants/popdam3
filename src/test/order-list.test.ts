@@ -11,6 +11,7 @@ import {
   orderListRowMatchesSearch,
   buildOrderListSort,
   orderWindowStart,
+  isOrderListFieldSortable,
   ORDER_LIST_FETCH_BATCH_SIZE,
   buildOrderListEdit,
   eligibleLinkCandidates,
@@ -271,11 +272,25 @@ describe("OrderList columns", () => {
       headerTooltip: "Date ColdLion received the Sales Order.",
       queryable: false,
       virtual: true,
+      sortField: "sales_order_received_date",
     });
     expect(soDate.hide).toBeUndefined();
     expect(buildOrderListFilters({ sales_order_date: { type: "equals", dateFrom: "2026-10-01" }, eta: { type: "equals", dateFrom: "2026-10-02" } }))
       .toEqual([{ column: "eta", operator: "eq", value: "2026-10-02" }]);
     expect(buildOrderListSort([{ colId: "sales_order_date", sort: "desc" }]))
+      .toEqual([
+        { column: "sales_order_received_date", ascending: false },
+        { column: "order_line_id", ascending: true },
+      ]);
+    expect(buildOrderListSort([{ colId: "sales_order_date", sort: "asc" }]))
+      .toEqual([
+        { column: "sales_order_received_date", ascending: true },
+        { column: "order_line_id", ascending: true },
+      ]);
+    expect(isOrderListFieldSortable("sales_order_date")).toBe(true);
+    expect(isOrderListFieldSortable("order_date")).toBe(true);
+    expect(isOrderListFieldSortable("unknown_backend_alias")).toBe(false);
+    expect(buildOrderListSort([{ colId: "unknown_backend_alias", sort: "desc" }]))
       .toEqual([
         { column: "start_ship_date", ascending: false },
         { column: "order_line_id", ascending: true },
