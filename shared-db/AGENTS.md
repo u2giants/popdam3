@@ -390,6 +390,8 @@ review, waiting, shipping, or deployment. If scope reaches a protected class,
 redeclare at that class and satisfy its proofs because acknowledgement or
 owner-request flags cannot bypass it.
 
+- [plan_reviewer_assignment_hold_reduction.md](plan_reviewer_assignment_hold_reduction.md)
+
 ## Companywide business rules
 
 Business logic is organized by business topic, not by application. Before

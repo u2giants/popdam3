@@ -10,6 +10,8 @@ The guarded row-application work is planned in [`plan_historical_mg_reclassifica
 
 ## Active contracts and implementation plans
 
+- [plan_reviewer_assignment_hold_reduction.md](../../plan_reviewer_assignment_hold_reduction.md)
+
 - **DesignFlow production Cloud SQL → Supabase (Uma's two-step plan, adopted 2026-10-13; parent #4248):** [`docs/designflow-cloudsql-to-supabase-plan.md`](../designflow-cloudsql-to-supabase-plan.md). Supersedes the single-schema-only framing and the cutover sections of the older segregation document for production; read the owner decisions at the top first.
 - **DesignFlow production service credentials via SCRAM verifiers (issue #770):** [`plan_770_scram_verifier_credentials.md`](../../plan_770_scram_verifier_credentials.md). Read its STATUS first. Two-stage: stage A (private script + isolated proof) then a separately reviewed stage B production write.
 - **ColdLion automatic order intake (issue #3262, PR #3248):** [`plan_coldlion_order_intake.md`](../../plan_coldlion_order_intake.md). Read its STATUS table first. Builds the intra-day unsealed poll, routing-code decode, and canonical claim-or-create writer that replace Adam's manual OrderList rows. Settled rulings and live-probe evidence (window filter keys on start date; `warehouseCode` routing decode; POE vs DDP; forward-horizon ruling) live in [`docs/business-rules/erp-orders-and-source-meaning.md`](../../docs/business-rules/erp-orders-and-source-meaning.md), section *How a new order enters the system (OrderList intake)*. The sealed-window history sync and the #1772 input-only contract are constraints, not starting points.

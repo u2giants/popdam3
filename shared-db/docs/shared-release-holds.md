@@ -14,3 +14,12 @@ The plan is the focused continuation of existing outcome
 owners identified in its scope. Its
 [handoff](../HANDOFF.d/2026-10-16T1317Z-hetz-codex-shared-release-holds.md)
 carries continuation context. Do not infer implementation from publication.
+
+## Reviewer-assignment bookkeeping
+
+The separate [reviewer-assignment hold plan](../plan_reviewer_assignment_hold_reduction.md)
+([#4414](https://github.com/popcre/shared-db/issues/4414)) measures and shortens
+reviewer bookkeeping under the shared coordination mutex. Read STATUS first.
+It preserves unlimited provider concurrency and does not change database release
+leases or activate a new mutex. Its [handoff](../HANDOFF.d/2026-10-18T1324Z-hetz-codex-reviewer-assignment-holds.md)
+registers the open implementation work.
