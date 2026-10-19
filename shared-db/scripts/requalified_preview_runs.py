@@ -24,7 +24,7 @@ def requalified_preview_run(run: Any) -> dict | None:
     if not isinstance(run, dict) or type(run.get("id")) is not int:
         return None
     record = REQUALIFIED_PREVIEW_RUNS.get(run["id"])
-    if record is None or run.get("run_attempt") != record["run_attempt"] or run.get("head_sha") != record["head_sha"]:
+    if record is None or type(run.get("run_attempt")) is not int or run.get("run_attempt") != record["run_attempt"] or run.get("head_sha") != record["head_sha"]:
         return None
     return record
 

@@ -15,7 +15,9 @@ class RequalifiedPreviewRunTests(unittest.TestCase):
         for run in ({"id": 5, "run_attempt": 2, "head_sha": HEAD},
                     {"id": 39173012894, "run_attempt": 3, "head_sha": HEAD},
                     {"id": 39173012894, "run_attempt": 2, "head_sha": "f" * 40},
-                    {"id": "39173012894", "run_attempt": 2, "head_sha": HEAD}, None):
+                    {"id": "39173012894", "run_attempt": 2, "head_sha": HEAD},
+                    {"id": 39173012894, "run_attempt": 2.0, "head_sha": HEAD},
+                    {"id": 39173012894, "run_attempt": True, "head_sha": HEAD}, None):
             self.assertFalse(run_attempt_admitted(run))
             self.assertIsNone(requalified_preview_run(run))
 
