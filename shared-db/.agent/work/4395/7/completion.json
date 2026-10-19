@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 4395,
+  "outcome": "ready-for-merge",
+  "pr": 4396,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4395/7",
+  "contract_sha256": "467b9455dff6fd64e8e919cd391937dda4d7bdc4274fc41a56722a5bd4130560",
+  "head_sha": "e8de8a8ea08c8c25c7ed591f9d6f72f65f452297",
+  "base_sha": "4993fb2bbd34294a3dd14e949371f0201ad8ffc1",
+  "files_changed": [
+    "HANDOFF.d/2026-10-13T1804Z-edge-dev3-codex-eight-issues-owner-transfer.md",
+    "HANDOFF.d/2026-10-15T1925Z-edge-dev3-codex-eight-issues-continuation.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-handoff-contract.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 pass after retiring finished handoff and repointing continuation citation."
+    }
+  ],
+  "assumptions_resolved": [
+    "Issue #2336 closed COMPLETED 2026-10-18T15:56:04Z (live GitHub read); owner-transfer handoff retired; continuation citation repointed to commits/main history"
+  ],
+  "stop_conditions_hit": []
+}

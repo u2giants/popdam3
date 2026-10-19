@@ -6,7 +6,7 @@ owner: codex/01a13fd0-6bf1-7a80-b1cc-818fe11cec0b
 
 # Eight-issue continuation and verified stopped-owner custody
 
-Recorded October 15, 2026, 3:25 PM EDT. Root session 01a13fd0-6bf1-7a80-b1cc-818fe11cec0b on edge-dev3. Implementation stopped at Albert's wrap-up request. This document records unfinished work, not acceptance. It supplements the [original transfer](https://github.com/popcre/shared-db/blob/main/HANDOFF.d/2026-10-13T1804Z-edge-dev3-codex-eight-issues-owner-transfer.md); current readbacks below supersede stale status, not immutable evidence. Do not rewrite the original.
+Recorded October 15, 2026, 3:25 PM EDT. Root session 01a13fd0-6bf1-7a80-b1cc-818fe11cec0b on edge-dev3. Implementation stopped at Albert's wrap-up request. This document records unfinished work, not acceptance. It supplements the [original transfer](https://github.com/popcre/shared-db/commits/main/HANDOFF.d/2026-10-13T1804Z-edge-dev3-codex-eight-issues-owner-transfer.md); current readbacks below supersede stale status, not immutable evidence. Do not rewrite the original.
 
 ## 0. Business decisions only Albert can make
 
