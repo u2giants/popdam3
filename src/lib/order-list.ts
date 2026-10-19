@@ -150,6 +150,21 @@ export function buildOrderListSort(sortModel: Array<{ colId: string; sort: strin
 }
 
 /**
+ * First New York calendar day of the default 12-month window, as YYYY-MM-DD.
+ * Orders whose window date (SO date, else Sent PO, else Start Ship) is older are
+ * hidden until "Show old" is used.
+ */
+export function orderWindowStart(now: Date = new Date()): string {
+  const [year, month, day] = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now).split("-").map(Number);
+  return new Date(Date.UTC(year - 1, month - 1, day)).toISOString().slice(0, 10);
+}
+
+/**
  * Trim + case-fold only. Never strip punctuation and never fuzzy-match: the
  * database matching rule (`plm.production_order_line.sku_normalized`) is exactly
  * this, and the two must agree or the app would offer links the database rejects.

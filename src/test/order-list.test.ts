@@ -10,6 +10,7 @@ import {
   buildOrderListSearchClause,
   orderListRowMatchesSearch,
   buildOrderListSort,
+  orderWindowStart,
   ORDER_LIST_FETCH_BATCH_SIZE,
   buildOrderListEdit,
   eligibleLinkCandidates,
@@ -435,5 +436,16 @@ describe("OrderList database query building", () => {
     for (const size of ORDER_LIST_PAGE_SIZE_OPTIONS) {
       expect(size % ORDER_LIST_FETCH_BATCH_SIZE).toBe(0);
     }
+  });
+});
+
+describe("orderWindowStart", () => {
+  it("is the same New York day one year earlier", () => {
+    expect(orderWindowStart(new Date("2026-10-15T16:00:00Z"))).toBe("2025-10-15");
+  });
+
+  it("uses the New York calendar day, not UTC", () => {
+    // 02:30 UTC on Oct 16 is still Oct 15 in New York.
+    expect(orderWindowStart(new Date("2026-10-16T02:30:00Z"))).toBe("2025-10-15");
   });
 });

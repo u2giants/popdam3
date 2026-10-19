@@ -61,6 +61,8 @@ export type OrderListBlockRequest = {
   sortModel?: Array<{ colId: string; sort: string }>;
   filterModel?: Record<string, unknown> | null;
   search?: string;
+  /** When set, hides rows whose order window date is before this YYYY-MM-DD day. Rows with no window date stay visible. */
+  orderWindowStart?: string | null;
 };
 
 /**
@@ -165,6 +167,10 @@ function applyOrderListShape<T>(query: T, request: OrderListBlockRequest, withSo
     else if (filter.operator === "not.is") q = q.not(filter.column, "is", null);
     else if (filter.operator === "not.ilike") q = q.not(filter.column, "ilike", filter.value);
     else q = q.filter(filter.column, filter.operator, filter.value);
+  }
+
+  if (request.orderWindowStart) {
+    q = q.or(`order_window_date.is.null,order_window_date.gte.${request.orderWindowStart}`);
   }
 
   const search = buildOrderListSearchClause(request.search ?? "");
