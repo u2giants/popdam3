@@ -80,6 +80,9 @@ const SCALEDOWN_URL = "https://api.scaledown.xyz/v1/chat/completions";
  * ScaleDown's summarize model takes the page as a base64 `document` (its own
  * non-standard field, the same shape the worker's image tagging uses) and
  * usually answers with {"summary": "..."} — unwrap it, but accept plain text.
+ * A truncated or error envelope is an error, not page text: extraction output
+ * is indexed for search and fed into image tagging, so JSON must never land
+ * there (the worker's ScaleDown client rejects the same condition).
  */
 async function transcribeWithScaleDown(base64: string, apiKey: string): Promise<string> {
   const resp = await fetch(SCALEDOWN_URL, {
@@ -99,16 +102,24 @@ async function transcribeWithScaleDown(base64: string, apiKey: string): Promise<
   });
   const body = await resp.text();
   if (!resp.ok) throw new Error(`ScaleDown ${resp.status}: ${body.slice(0, 200)}`);
-  const payload = JSON.parse(body) as { choices?: Array<{ message?: { content?: string } }> };
-  const content = payload.choices?.[0]?.message?.content;
+  const payload = JSON.parse(body) as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> };
+  const choice = payload.choices?.[0];
+  if (choice?.finish_reason === "length") throw new Error("ScaleDown PDF transcription hit the output token limit");
+  const content = choice?.message?.content;
   if (!content || !content.trim()) throw new Error("ScaleDown returned an empty PDF transcription");
+  const trimmed = content.trim();
+  let envelope: Record<string, unknown> | null = null;
   try {
-    const parsed = JSON.parse(content) as { summary?: unknown };
-    if (typeof parsed.summary === "string" && parsed.summary.trim()) return parsed.summary.trim();
+    const parsed: unknown = JSON.parse(trimmed);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) envelope = parsed as Record<string, unknown>;
   } catch {
     // Not JSON — the model answered with the transcription itself.
   }
-  return content.trim();
+  if (envelope && ("summary" in envelope || "finish_reason" in envelope || "error" in envelope)) {
+    if (typeof envelope.summary === "string" && envelope.summary.trim()) return envelope.summary.trim();
+    throw new Error(`ScaleDown returned no transcription text: ${trimmed.slice(0, 200)}`);
+  }
+  return trimmed;
 }
 
 export async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {

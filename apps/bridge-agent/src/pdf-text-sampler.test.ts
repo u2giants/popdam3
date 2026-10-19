@@ -31,6 +31,23 @@ test("ScaleDown selection calls ScaleDown instead of OpenRouter and unwraps the 
   }
 });
 
+test("ScaleDown output that hit the token limit is an error, not a transcription", async () => {
+  const page = Buffer.from("fixture");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(
+    JSON.stringify({ choices: [{ finish_reason: "length", message: { content: "partial page text" } }] }),
+    { status: 200 },
+  )) as typeof fetch;
+  try {
+    const config = { models: [], pdf_extraction: null, googleApiKey: "", anthropicApiKey: "",
+      openRouterApiKey: "fixture-router-key", scaleDownApiKey: "fixture-scale-key",
+      aiTaskModels: { pdf_extraction: "scaledown/summarize" } };
+    await assert.rejects(callAiVision(page, config), /token limit/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("a non-ScaleDown selection still routes through OpenRouter when its key is saved", async () => {
   const page = Buffer.from("fixture");
   const originalFetch = globalThis.fetch;

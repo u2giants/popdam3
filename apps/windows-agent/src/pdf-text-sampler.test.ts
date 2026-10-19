@@ -40,3 +40,20 @@ test("ScaleDown selection calls ScaleDown instead of OpenRouter and unwraps the 
     globalThis.fetch = originalFetch;
   }
 });
+
+test("ScaleDown truncation envelope is rejected instead of stored as page text", async () => {
+  const page = Buffer.from("fixture");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(
+    JSON.stringify({ choices: [{ message: { content: JSON.stringify({ finish_reason: "length", summary: "" }) } }] }),
+    { status: 200 },
+  )) as typeof fetch;
+  try {
+    const config = { models: [], pdf_extraction: null, googleApiKey: "", anthropicApiKey: "",
+      openRouterApiKey: "fixture-router-key", scaleDownApiKey: "fixture-scale-key",
+      aiTaskModels: { pdf_extraction: "scaledown/summarize" } };
+    await assert.rejects(callAiVision(page, config), /no transcription text/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

@@ -9,6 +9,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), loading: v
 import { AiModelsConfigSection } from "@/components/settings/ApisTab";
 
 const metaModelId = "meta-direct/muse-spark-1.3-contributor";
+let pdfExtractionModel = metaModelId;
 
 function renderSettings() {
   return render(
@@ -22,6 +23,7 @@ describe("AI Model Pool settings integration", () => {
   beforeEach(() => {
     HTMLElement.prototype.scrollIntoView = vi.fn();
     call.mockReset();
+    pdfExtractionModel = metaModelId;
     call.mockImplementation(async (action: string) => {
       if (action === "get-config") {
         return { config: {
@@ -29,7 +31,7 @@ describe("AI Model Pool settings integration", () => {
           AI_TASK_MODELS: { value: {
             vision_tagging: metaModelId,
             text_classification: metaModelId,
-            pdf_extraction: metaModelId,
+            pdf_extraction: pdfExtractionModel,
           } },
           AI_MODEL_DISPLAY_NAMES: { value: {} },
           AI_MODEL_POOL: { value: { "meta-direct": [metaModelId], openrouter: [] } },
@@ -121,5 +123,11 @@ describe("AI Model Pool settings integration", () => {
     fireEvent.click(screen.getAllByRole("combobox")[1]);
     expect(await screen.findByRole("option", { name: new RegExp(metaModelId) })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /scaledown\/summarize/ })).not.toBeInTheDocument();
+  });
+
+  it("warns when PDF Text Extraction selects ScaleDown without a saved key", async () => {
+    pdfExtractionModel = "scaledown/summarize";
+    renderSettings();
+    expect(await screen.findByText(/No ScaleDown API key is saved/)).toBeInTheDocument();
   });
 });

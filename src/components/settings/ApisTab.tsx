@@ -1107,7 +1107,7 @@ export function AiModelsConfigSection() {
                   )}
                   {key === "pdf_extraction" && currentVal.startsWith("scaledown/") && !scaleDownKeyConfigured && (
                     <p className="text-[10px] text-amber-600 dark:text-amber-400">
-                      No ScaleDown API key is saved. The selection is allowed, but every AI-vision page fails until you save the key above — extraction then keeps only the earlier OCR text.
+                      No ScaleDown API key is saved. The selection is allowed, but every AI-vision page fails until you save the key above — extraction then keeps only the earlier OCR/native text, if any.
                     </p>
                   )}
                   {currentVal && !currentModelAllowedForTask && (
