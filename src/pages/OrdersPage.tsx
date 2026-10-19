@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useDamCustomers } from "@/hooks/useDamCustomers";
 import {
   fetchOrderListBlock,
+  fetchOrderListCount,
   findOrderListRow,
   updateOrderListSalesDateErrors,
   useCreateOrder,
@@ -57,6 +58,7 @@ export default function OrdersPage() {
   const [relinkRow, setRelinkRow] = useState<OrderListRow | null>(null);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [filteredCount, setFilteredCount] = useState<number | null>(null);
+  const countGeneration = useRef(0);
   const [selectedRows, setSelectedRows] = useState<OrderListRow[]>([]);
   const [hasLoadedRows, setHasLoadedRows] = useState(false);
   const [summaryCountsEnabled, setSummaryCountsEnabled] = useState(false);
@@ -153,13 +155,24 @@ export default function OrdersPage() {
           setSalesOrderDateErrors((current) => updateOrderListSalesDateErrors(current, scope, params.startRow, block.salesOrderDatesError));
           setLoadError(null);
           setHasLoadedRows(true);
-          setFilteredCount(block.totalRowCount);
           // A short block proves the exact end. Otherwise the grid keeps paging
           // without making the visible rows wait for a whole-list exact count.
           const lastRow = block.rows.length < params.endRow - params.startRow
             ? params.startRow + block.rows.length
             : undefined;
           params.successCallback(block.rows, lastRow);
+          if (params.startRow === 0) {
+            // The first block of a new filter/sort: count the matching rows as a
+            // separate request AFTER the rows render, so the count never delays them.
+            const generation = ++countGeneration.current;
+            if (lastRow !== undefined) setFilteredCount(lastRow);
+            else {
+              setFilteredCount(block.totalRowCount);
+              void fetchOrderListCount(request).then((count) => {
+                if (generation === countGeneration.current) setFilteredCount(count);
+              });
+            }
+          }
         } catch (error) {
           // Never fail silently: the grid shows nothing, so say why.
           setLoadError((error as Error)?.message ?? "unknown error");

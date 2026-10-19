@@ -199,7 +199,7 @@ function applyOrderListShape<T>(query: T, request: OrderListBlockRequest, withSo
  * (observed in production 2026-08-26). Splitting them means a slow or failed
  * count can never stop the rows from rendering.
  */
-async function fetchOrderListCount(request: OrderListBlockRequest): Promise<number | null> {
+export async function fetchOrderListCount(request: OrderListBlockRequest): Promise<number | null> {
   const query = applyOrderListShape(
     orderListTable().select(ORDER_LIST_COUNT_SELECT, { count: "exact", head: true }),
     request,

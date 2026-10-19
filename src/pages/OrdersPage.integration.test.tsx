@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: mocks.user, loading: mocks.authLoading }) }));
 vi.mock("@/hooks/useDamCustomers", () => ({ useDamCustomers: () => ({ data: [] }) }));
 vi.mock("@/hooks/useOrderList", () => ({
-  fetchOrderListBlock: vi.fn(), findOrderListRow: vi.fn(),
+  fetchOrderListBlock: vi.fn(), fetchOrderListCount: vi.fn(), findOrderListRow: vi.fn(),
   updateOrderListSalesDateErrors: (current: Record<string, string>, scope: string, startRow: number, error: string | null) => {
     const next = { ...current };
     const key = `${scope}:${startRow}`;
@@ -69,7 +69,7 @@ vi.mock("@/components/orders/OrderSampleSettings", () => ({ OrderSampleSettings:
 vi.mock("@/components/orders/OrderEditorDialog", () => ({ OrderEditorDialog: () => null }));
 vi.mock("@/components/orders/MasterDataLinkDialog", () => ({ MasterDataLinkDialog: () => null }));
 vi.mock("@/components/grid/GridAiHelperDialog", () => ({ GridAiHelperDialog: () => null }));
-vi.mock("@/components/orders/OrderListSummary", () => ({ OrderListSummary: () => <span>Summary</span> }));
+vi.mock("@/components/orders/OrderListSummary", () => ({ OrderListSummary: ({ counts }: { counts: { filtered: number; total: number } }) => <span data-testid="summary">{counts.filtered} of {counts.total}</span> }));
 vi.mock("@/components/orders/OrderListViewsMenu", () => ({ OrderListViewsMenu: () => <button>Saved views</button> }));
 
 import OrdersPage from "./OrdersPage";
@@ -179,6 +179,35 @@ describe("OrdersPage integration wiring", () => {
     vi.mocked(fetchOrderListBlock).mockResolvedValue({ rows: [], totalRowCount: null, salesOrderDatesError: null });
     await act(async () => { await mocks.datasource?.getRows({ ...params, filterModel: { sku_normalized: { filter: "SKU-1" } } }); });
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("counts the windowed rows after the first block renders and ignores stale counts", async () => {
+    const { fetchOrderListBlock, fetchOrderListCount } = await import("@/hooks/useOrderList");
+    const fullBlock = Array.from({ length: 100 }, (_, i) => ({ order_line_id: `line-${i}` }) as any);
+    vi.mocked(fetchOrderListBlock).mockResolvedValue({ rows: fullBlock, totalRowCount: null, salesOrderDatesError: null });
+    let resolveStale: (n: number) => void = () => {};
+    vi.mocked(fetchOrderListCount)
+      .mockReturnValueOnce(new Promise((resolve) => { resolveStale = resolve; }))
+      .mockResolvedValueOnce(3585);
+    render(<OrdersPage />);
+    const params = { startRow: 0, endRow: 100, sortModel: [], filterModel: {}, successCallback: vi.fn(), failCallback: vi.fn() };
+
+    await act(async () => { await mocks.datasource?.getRows(params); });
+    expect(params.successCallback).toHaveBeenCalledOnce();
+    await act(async () => { await mocks.datasource?.getRows(params); });
+    await act(async () => { resolveStale(24885); await Promise.resolve(); });
+    expect(screen.getByTestId("summary")).toHaveTextContent(/^3585 of/);
+    const request = vi.mocked(fetchOrderListCount).mock.calls[1][0];
+    expect(request.orderWindowStart).toEqual(expect.any(String));
+
+    vi.mocked(fetchOrderListCount).mockClear();
+    vi.mocked(fetchOrderListBlock).mockResolvedValue({ rows: fullBlock.slice(0, 7), totalRowCount: null, salesOrderDatesError: null });
+    await act(async () => { await mocks.datasource?.getRows({ ...params, filterModel: { sku_normalized: { filter: "SKU-1" } } }); });
+    expect(fetchOrderListCount).not.toHaveBeenCalled();
+    expect(screen.getByTestId("summary")).toHaveTextContent(/^7 of/);
+
+    await act(async () => { await mocks.datasource?.getRows({ ...params, startRow: 100, endRow: 200 }); });
+    expect(fetchOrderListCount).not.toHaveBeenCalled();
   });
 
   it("refreshes the visible OrderList block after successful tracking or settings changes", () => {
