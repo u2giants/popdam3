@@ -379,6 +379,7 @@ class GuardTests(unittest.TestCase):
                 "20260928003740",
                 "20260929040458",
                 "20261006221530",
+                "20261018191107",
             },
         )
 
@@ -4599,6 +4600,17 @@ class DesignFlowNamespaceStrandedOriginalTests(unittest.TestCase):
 
     def test_forward_version_remains_eligible_without_stranded_dependency(self):
         self.assertEqual(parse_allowlist("20261007000937"), ["20261007000937"])
+
+
+class StageCatalogStrandedOriginalTests(unittest.TestCase):
+    def test_stranded_original_refuses_even_if_recorded_remotely(self):
+        for remote in (set(), {"20261018191107"}):
+            with self.assertRaisesRegex(GuardError, "general production lane blocks"):
+                parse_allowlist("20261018191107", remote)
+        self.assertIn("20261020125826", production_migration_guard.RETIRED_VERSION_REASONS["20261018191107"])
+
+    def test_forward_remains_eligible(self):
+        self.assertEqual(parse_allowlist("20261020125826"), ["20261020125826"])
 
 
 if __name__ == "__main__":

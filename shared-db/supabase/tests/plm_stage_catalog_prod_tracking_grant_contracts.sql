@@ -1,15 +1,17 @@
--- Contract tests for 20261018191107_plm_stage_catalog_prod_tracking_grant.sql
--- (issue #4464, claim #4467). Self-contained begin/rollback: nothing persists even
--- when run directly; CI additionally wraps it (.github/workflows/database-contract-tests.yml).
+-- Contract tests for 20261020125826_plm_stage_catalog_tracking_runtime_grant.sql
+-- (issue #4464, claim #4467; supersedes 20261018191107). Self-contained begin/rollback:
+-- nothing persists even when run directly; CI additionally wraps it
+-- (.github/workflows/database-contract-tests.yml).
 --
--- A. Catalogue: the exact ACL of designflow_prod_tracking_grants on the seven catalog
---    tables read from aclexplode (no hand-enumerated privilege list, so MAINTAIN and any
---    future bit are covered), exactly INSERT on dflow_prod."AuditLog", USAGE without CREATE
---    on plm, no direct EXECUTE grant on the version trigger, no client-role ACL entry, RLS on, seven
---    policies scoped only to that role, and the #2873 login path: the tracking LOGIN role
---    designflow_prod_tracking_runtime inherits the grant role and this change added no
---    other member; the backend, item-master and data-sync runtimes still cannot reach plm
---    (#2873 boundary, narrowed for tracking only).
+-- A. Catalogue: the exact ACL of the LOGIN role designflow_prod_tracking_runtime on the
+--    seven catalog tables read from aclexplode (no hand-enumerated privilege list, so
+--    MAINTAIN and any future bit are covered), exactly INSERT on dflow_prod."AuditLog",
+--    USAGE without CREATE on plm, no direct EXECUTE grant on the version trigger, no
+--    client-role ACL entry, RLS on, seven policies scoped only to that role, the grant role
+--    designflow_prod_tracking_grants holds nothing on plm (production makes the backend
+--    runtime a member of it), no other role is a member of the tracking runtime, and the
+--    backend, item-master and data-sync runtimes still cannot reach plm (#2873 boundary,
+--    narrowed for the tracking runtime only).
 -- B. Behaviour (only when the session may SET ROLE to it; otherwise a WARNING says it was
 --    not exercised): the seeded catalog is visible; INSERT into all five editor tables
 --    works (identity-keyed ones without any sequence grant); an editor UPDATE bumps the
@@ -21,7 +23,7 @@ begin;
 
 do $a$
 declare v_bad text; v_n int;
-  v_role oid := (select oid from pg_roles where rolname = 'designflow_prod_tracking_grants');
+  v_role oid := (select oid from pg_roles where rolname = 'designflow_prod_tracking_runtime');
 begin
   with acl as (
     select c.relname, a.privilege_type
@@ -62,13 +64,19 @@ begin
   if v_n <> 7 then raise exception 'A6 RLS disabled on % tables', 7 - v_n; end if;
   select count(*) into v_n from pg_policies
     where schemaname = 'plm' and policyname = tablename || '_dflow_prod_tracking'
-      and roles = array['designflow_prod_tracking_grants']::name[]
+      and roles = array['designflow_prod_tracking_runtime']::name[]
       and cmd = 'ALL' and qual = 'true' and with_check = 'true' and permissive = 'PERMISSIVE';
   if v_n <> 7 then raise exception 'A7 expected 7 exact role-scoped policies, found %', v_n; end if;
-  -- #2873 login path, unchanged by this file: the tracking LOGIN role inherits the grant role.
-  if not exists (select 1 from pg_auth_members m
-                 where m.roleid = v_role and m.member = 'designflow_prod_tracking_runtime'::regrole and m.inherit_option) then
-    raise exception 'A8 designflow_prod_tracking_runtime does not inherit designflow_prod_tracking_grants';
+  -- Nothing else inherits the runtime role, and the shared grant role holds no plm access.
+  if exists (select 1 from pg_auth_members m join pg_roles r on r.oid = m.member
+             where m.roleid = v_role and r.rolname not in ('postgres', 'supabase_admin')) then
+    raise exception 'A8 another role is a member of designflow_prod_tracking_runtime';
+  end if;
+  if exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+             cross join lateral aclexplode(c.relacl) a
+             where n.nspname = 'plm' and a.grantee = 'designflow_prod_tracking_grants'::regrole)
+     or has_schema_privilege('designflow_prod_tracking_grants', 'plm', 'USAGE') then
+    raise exception 'A8 designflow_prod_tracking_grants still holds plm privileges';
   end if;
   if exists (select 1 from unnest(array['backend','item_master','data_sync']) s
              where to_regrole('designflow_prod_'||s||'_runtime') is not null
@@ -82,9 +90,9 @@ do $b$
 declare v_lists int; v_stages int; v_before int; v_after int; v_id int; v_list int; v_new_stage int; v_msg text;
 begin
   begin
-    set local role designflow_prod_tracking_grants;
+    set local role designflow_prod_tracking_runtime;
   exception when insufficient_privilege then
-    raise warning 'B NOT EXERCISED: % cannot SET ROLE designflow_prod_tracking_grants; A-section catalogue assertions only', current_user;
+    raise warning 'B NOT EXERCISED: % cannot SET ROLE designflow_prod_tracking_runtime; A-section catalogue assertions only', current_user;
     return;
   end;
   select count(*) into v_lists from plm.stage_list;

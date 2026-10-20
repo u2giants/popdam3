@@ -292,6 +292,10 @@ HARD_BLOCKED = {
     "20260825031841",
     # #3907: original preview producer differs from authoring merge; immutable forward reissue only.
     "20261006221530",
+    # #4464: production run 39425038130 rolled it back at its own #2873 post-check
+    # (backend_runtime is a member of tracking_grants in production). Reissued as
+    # 20261020125826 under claim #4467 (coordinator decision: grant the runtime role).
+    "20261018191107",
 }
 
 # One authority for versions that must never be applied. The post-batch
@@ -337,6 +341,7 @@ RETIRED_VERSION_REASONS = {
     "20260903200951": "unpromotable producer provenance (original apply run 33754529571 was a pre-merge branch rehearsal whose producer files differ from PR 2199 merge commit 477ef03cd516c79188d81b6c21260575a43a9239) and preview already holds the version after orphan reconciliation run 33821298999, so no qualifying evidence can ever be produced; replaced byte-for-byte by 20260905024139 under issue 2349",
     "20260825031841": "preview-only historical #1471 forward; production timed out and rolled back because its full reconciliation remained one statement; use prerequisite 20260825041343 and its governed dependent recovery",
     "20261006221530": "Original preview37542145935 at fd62f194fb9ca8fed3513d589a26c5ed9384f60d differs in session-authority producer from authoring merge74e4ee847d3e960af5cfbcddfe2e0ae9aaafb248. Qualification37550480001 refused before production dispatch. Preserve original migration and preview history; governed replacement20261007002113 under issue3907 claim4004 only.",
+    "20261018191107": "production apply run 39425038130 rolled back at its own #2873 post-check because designflow_prod_backend_runtime is a member of designflow_prod_tracking_grants in production; preview-only; forward reissue 20261020125826 under issue 4464 claim 4467 grants designflow_prod_tracking_runtime directly",
 }
 RETIRED_VERSIONS = frozenset(RETIRED_VERSION_REASONS)
 HELD_VERSIONS = frozenset({"20260802170000", "20260802171000"})

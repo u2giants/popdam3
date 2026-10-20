@@ -5,7 +5,7 @@
   "application_branch": "develop",
   "project_ref": "qsllyeztdwjgirsysgai",
   "schema": "dflow_prod",
-  "live_assertion": "dflow_prod has four NOLOGIN designflow_prod_<service>_grants roles holding exactly the published per-service matrix and four password-less LOGIN designflow_prod_<service>_runtime identities holding only that membership, with no CREATE, TRUNCATE, dflow, hts_rag, client-role or admin access, and no plm access except the tracking Stage Catalog entries (#4464)",
+  "live_assertion": "dflow_prod has four NOLOGIN designflow_prod_<service>_grants roles holding exactly the published per-service matrix and four password-less LOGIN designflow_prod_<service>_runtime identities holding only that membership, with no CREATE, TRUNCATE, dflow, hts_rag, client-role or admin access, and no plm access except the tracking Stage Catalog entries, held directly by designflow_prod_tracking_runtime (#4464, option (c))",
   "catalog": {
     "role_count": 8,
     "no_defaults": true,
