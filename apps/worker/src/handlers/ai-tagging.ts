@@ -994,6 +994,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
         // Style Guide Sources may ONLY come from a licensing-sheet / tech-pack PDF.
         // The DB parser and edge ai-tag path enforce the same rule; keep the
         // persistent worker aligned because Railway runs the batch tagger.
+        let fileSourcesFailed = false;
         if (
           isStyleGuideSourcePdf(asset) && asset.sku &&
           Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0
@@ -1005,15 +1006,17 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
             try {
               const savedFiles = await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
               if (savedFiles.error) {
+                fileSourcesFailed = true;
                 logger.warn("ai-tag: file_sources save failed", { assetId, code: savedFiles.error.code, rows: rows.length });
               }
             } catch (fileSourceError) {
+              fileSourcesFailed = true;
               logger.warn("ai-tag: file_sources save threw", { assetId, error: String(fileSourceError).slice(0, 200), rows: rows.length });
             }
           }
         }
 
-        return { outcome: "tagged" };
+        return { outcome: "tagged", fileSourcesFailed };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (sameModelRetry < SAME_MODEL_STRUCTURED_RETRY_COUNT && (isRetryableStructuredOutputError(msg) || (model.startsWith("meta-direct/") && isRetryableTagTransportError(e)))) {
@@ -1087,7 +1090,10 @@ export async function handleBulkAiTag(
     if (requireAssetIds && !ids?.length) return { ok: false, done: true, error: "Single-asset tag operation has no asset ID" };
     return handleMetaTagResponse(opState, {
       model, apiKey: await getAiTaggingApiKey(model), unavailable: isVisualAnalysisUnavailableError, missing: error => error instanceof AssetMissingError, validate: async (value, binding) => { validateTagAssetData(value, "structured"); await validateCharacterReferences(value.character_ids, binding); },
-      apply: (id, value, model, binding) => applyBatchTagResult(id, value, model, undefined, binding),
+      apply: async (id, value, model, binding) => {
+        const applied = await applyBatchTagResult(id, value, model, undefined, binding);
+        if (applied.fileSourcesFailed) logger.warn("ai-tag: file_sources gap on Meta-tagged asset", { assetId: id });
+      },
       candidate: async () => {
         if (ids?.length) {
           const offset = opState.cursor ?? 0;
