@@ -46,6 +46,7 @@ Use this exact shape for every new quirk:
 **Looks like:** "Audit AI Compat Thumbnails" (Settings → Windows Agent) OCRs thumbnails for the word "compatibility" to find the warning-page thumbnails.
 **Actually (fixed 2026-07-03):** the OCR check matched the literal `"compatibility"`, but Adobe's warning says "PDF **Compatible** File" — so it flagged **0**, ran ~1 img/sec (≈12 h full-library), and died on a transient 502. `apps/windows-agent/src/compat-audit.ts` now detects via a **256-bit dHash** against a small reference set of the fixed warning image (threshold 30; validated: boilerplate hashes to distance 0, real art ≥53), with 16-way fetch concurrency + batch-fetch retry. It flags → clears (`thumbnail_url=null`) → re-queues for **native** render (Inkscape). A full 45,841-thumbnail scan takes ~8 min and found **547** boilerplate thumbnails.
 **Do not change because:** reverting to OCR silently flags nothing. If you change the warning-page render, recompute the reference dHashes in `COMPAT_REF_HASHES`.
+**Dispatch note (2026-10-20):** compat requests are sent only to `windows-render` agents (`agent-api` gates on `agentType`), so the OCR-based compat handler still sitting in `apps/bridge-agent/src/handlers/compat-audit.ts` never runs. Do not put Indra (or any OCR engine) in it — retire it if it comes up for cleanup.
 
 ## Windows agent self-update was silently frozen (WINDOWS_LATEST_BUILD, fixed 2026-07-03)
 
