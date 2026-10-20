@@ -1,12 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   INDRA_MODELS,
   INDRA_MODEL_REVISION,
   INDRA_PACKAGE_SPEC,
   INDRA_PYTHON,
   checkIndra,
+  engineLooksComplete,
   evaluateIndra,
+  hasModelFiles,
   provisionPlan,
 } from "./indra-provision";
 
@@ -53,4 +58,27 @@ test("provision plan pins the installer's package and model revisions", () => {
   assert.ok(plan[3].args.join(" ").includes("from indra_ocr import OrtOCR"));
   // Every step must be bounded so a hung pip/download cannot stall startup forever.
   for (const step of plan) assert.ok(step.timeoutMs > 0 && step.timeoutMs <= 900_000);
+});
+
+test("an unfinished download never counts as a complete engine", () => {
+  const dir = mkdtempSync(join(tmpdir(), "indra-models-"));
+  try {
+    assert.equal(hasModelFiles(dir), false, "empty directory");
+    writeFileSync(join(dir, "meta.json"), "{}");
+    assert.equal(hasModelFiles(dir), false, "meta.json without model data");
+    writeFileSync(join(dir, "model.onnx"), Buffer.alloc(64));
+    assert.equal(hasModelFiles(dir), false, "stub model file under 1MB");
+    writeFileSync(join(dir, "model.onnx"), Buffer.alloc(2 * 1024 * 1024));
+    assert.equal(hasModelFiles(dir), true, "meta.json plus a real model file");
+    // The interpreter lives in the default install path; completeness of a
+    // custom models dir therefore hinges on it existing on this machine.
+    assert.equal(engineLooksComplete(dir), existsSync(INDRA_PYTHON));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("provision plan honours a custom models directory", () => {
+  const plan = provisionPlan("C:\\py\\python.exe", "D:\\models\\indra");
+  assert.ok(plan[2].args.join(" ").includes("D:/models/indra"));
 });

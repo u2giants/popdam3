@@ -827,7 +827,7 @@ async function main() {
 
   // 3. First heartbeat — fetch cloud config before processing
   try {
-    const initialResponse = await api.heartbeat(agentId, undefined, healthStatus);
+    const initialResponse = await api.heartbeat(agentId, undefined, healthStatus, undefined, undefined, indraStatus);
     applyCloudConfig(initialResponse);
     logger.info("Initial cloud config applied", {
       nasHost: cloudNasHost,

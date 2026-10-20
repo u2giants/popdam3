@@ -210,7 +210,11 @@ export function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                     {ocrLine ? (
                       <div className={ocrTone}>{ocrLine}</div>
                     ) : isOn ? (
-                      <div>OCR engine: not reported yet — waiting for an agent update</div>
+                      <div>
+                        {ocr
+                          ? `OCR engine: unexpected status "${ocr.state ?? "unknown"}"`
+                          : "OCR engine: not reported yet — waiting for an agent update"}
+                      </div>
                     ) : null}
                   </div>
                   {isOn && hasHealth && (

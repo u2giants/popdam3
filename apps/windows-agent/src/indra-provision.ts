@@ -13,7 +13,8 @@
  * reported on every heartbeat so the admin panel can show it.
  */
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { logger } from "./logger";
 
@@ -47,19 +48,49 @@ export function evaluateIndra(input: {
   return { state: "ready", detail: null };
 }
 
+/** Model dir: a custom INDRA_OCR_MODEL_DIR wins; otherwise the default install path. */
+export function resolveModelsDir(): string {
+  return (process.env.INDRA_OCR_MODEL_DIR || "").trim() || INDRA_MODELS;
+}
+
+/**
+ * A finished install carries meta.json and at least one real model file — a
+ * directory alone proves nothing, because snapshot_download creates it before
+ * the first file lands and a timed-out download would otherwise look installed.
+ */
+export function hasModelFiles(modelsDir: string): boolean {
+  if (!existsSync(join(modelsDir, "meta.json"))) return false;
+  try {
+    return readdirSync(modelsDir).some(
+      (name) => name.endsWith(".onnx") && statSync(join(modelsDir, name)).size > 1_000_000,
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function engineLooksComplete(modelsDir = resolveModelsDir()): boolean {
+  return existsSync(INDRA_PYTHON) && hasModelFiles(modelsDir);
+}
+
 export function checkIndra(): IndraStatus {
   const envPython = (process.env.INDRA_OCR_PYTHON || "").trim() || null;
-  const models = (process.env.INDRA_OCR_MODEL_DIR || "").trim() || INDRA_MODELS;
+  const models = resolveModelsDir();
+  const modelsComplete = hasModelFiles(models);
   const verdict = evaluateIndra({
     envPython,
     pythonExists: envPython ? existsSync(envPython) : false,
-    modelsExists: existsSync(models),
+    modelsExists: modelsComplete,
   });
-  if (verdict.state === "missing" && !envPython && existsSync(INDRA_PYTHON) && existsSync(INDRA_MODELS)) {
+  const detail =
+    verdict.detail === "models directory is missing" && existsSync(models)
+      ? "models are incomplete (partial download)"
+      : verdict.detail;
+  if (!envPython && existsSync(INDRA_PYTHON) && modelsComplete) {
     return {
       state: "missing",
       python: INDRA_PYTHON,
-      models_dir: INDRA_MODELS,
+      models_dir: models,
       detail: "engine installed but INDRA_OCR_PYTHON is not set",
       checked_at: new Date().toISOString(),
     };
@@ -68,7 +99,7 @@ export function checkIndra(): IndraStatus {
     state: verdict.state,
     python: envPython,
     models_dir: models,
-    detail: verdict.detail,
+    detail,
     checked_at: new Date().toISOString(),
   };
 }
@@ -96,13 +127,13 @@ export async function findSystemPython(): Promise<string | null> {
 }
 
 /** Ordered provisioning steps — pure so tests can assert the pins without touching the network. */
-export function provisionPlan(systemPython: string): Array<{ step: string; file: string; args: string[]; timeoutMs: number }> {
+export function provisionPlan(systemPython: string, modelsDir: string = INDRA_MODELS): Array<{ step: string; file: string; args: string[]; timeoutMs: number }> {
   const modelsDownload = [
     "from huggingface_hub import snapshot_download;",
     `snapshot_download('datalab-to/indra-ocr', revision='${INDRA_MODEL_REVISION}',`,
     "allow_patterns=['*.onnx','meta.json','lm.npz','lm_*.npz'],",
     "ignore_patterns=['math*.onnx','math_meta.json','model.safetensors'],",
-    `local_dir='${INDRA_MODELS.replace(/\\/g, "/")}')`,
+    `local_dir='${modelsDir.replace(/\\/g, "/")}')`,
   ].join(" ");
   return [
     { step: "venv", file: systemPython, args: ["-m", "venv", INDRA_ROOT], timeoutMs: 180_000 },
@@ -119,10 +150,10 @@ function failure(step: string, error: unknown): Error {
 }
 
 /** Best-effort persistence so the NEXT service start still finds the engine. */
-async function persistMachineEnv(): Promise<void> {
+async function persistMachineEnv(modelsDir: string): Promise<void> {
   const command =
     `[Environment]::SetEnvironmentVariable('INDRA_OCR_PYTHON','${INDRA_PYTHON}','Machine'); ` +
-    `[Environment]::SetEnvironmentVariable('INDRA_OCR_MODEL_DIR','${INDRA_MODELS}','Machine')`;
+    `[Environment]::SetEnvironmentVariable('INDRA_OCR_MODEL_DIR','${modelsDir}','Machine')`;
   try {
     await execFileAsync("powershell.exe", ["-NoProfile", "-Command", command], { windowsHide: true, timeout: 30_000 });
   } catch (error) {
@@ -132,12 +163,15 @@ async function persistMachineEnv(): Promise<void> {
   }
 }
 
-function activateInProcess(): void {
+function activateInProcess(modelsDir: string): void {
   process.env.INDRA_OCR_PYTHON = INDRA_PYTHON;
-  process.env.INDRA_OCR_MODEL_DIR = INDRA_MODELS;
+  process.env.INDRA_OCR_MODEL_DIR = modelsDir;
 }
 
-async function verifyInstall(): Promise<void> {
+async function verifyInstall(modelsDir: string): Promise<void> {
+  if (!engineLooksComplete(modelsDir)) {
+    throw new Error("Indra models are incomplete after provisioning (meta.json/model files missing)");
+  }
   const { stdout } = await execFileAsync(INDRA_PYTHON, ["-c", "from indra_ocr import OrtOCR; print('indra-ok')"], {
     windowsHide: true,
     timeout: 120_000,
@@ -148,25 +182,25 @@ async function verifyInstall(): Promise<void> {
 /** Provision (or repair) Indra. Resolves with the resulting status; never throws. */
 export async function provisionIndra(): Promise<IndraStatus> {
   const startedAt = Date.now();
+  const modelsDir = resolveModelsDir();
   try {
-    const installed = existsSync(INDRA_PYTHON) && existsSync(INDRA_MODELS);
-    if (installed) {
+    if (engineLooksComplete(modelsDir)) {
       logger.info("Indra OCR: engine already on disk — repairing environment only");
-      activateInProcess();
-      await verifyInstall();
+      activateInProcess(modelsDir);
+      await verifyInstall(modelsDir);
     } else {
       const systemPython = await findSystemPython();
       if (!systemPython) {
         return {
           state: "missing",
           python: null,
-          models_dir: INDRA_MODELS,
+          models_dir: modelsDir,
           detail: "no system Python found (install Python 3.11+ and restart the agent)",
           checked_at: new Date().toISOString(),
         };
       }
-      logger.info("Indra OCR: provisioning engine", { systemPython });
-      for (const { step, file, args, timeoutMs } of provisionPlan(systemPython)) {
+      logger.info("Indra OCR: provisioning engine", { systemPython, modelsDir });
+      for (const { step, file, args, timeoutMs } of provisionPlan(systemPython, modelsDir)) {
         logger.info(`Indra OCR: ${step}…`);
         try {
           await execFileAsync(file, args, { windowsHide: true, timeout: timeoutMs });
@@ -174,14 +208,14 @@ export async function provisionIndra(): Promise<IndraStatus> {
           throw failure(step, error);
         }
       }
-      activateInProcess();
-      await verifyInstall();
+      activateInProcess(modelsDir);
+      await verifyInstall(modelsDir);
     }
-    await persistMachineEnv();
+    await persistMachineEnv(modelsDir);
     const status: IndraStatus = {
       state: "ready",
       python: INDRA_PYTHON,
-      models_dir: INDRA_MODELS,
+      models_dir: modelsDir,
       detail: null,
       checked_at: new Date().toISOString(),
     };
@@ -193,7 +227,7 @@ export async function provisionIndra(): Promise<IndraStatus> {
     return {
       state: "error",
       python: existsSync(INDRA_PYTHON) ? INDRA_PYTHON : null,
-      models_dir: INDRA_MODELS,
+      models_dir: modelsDir,
       detail: message,
       checked_at: new Date().toISOString(),
     };
