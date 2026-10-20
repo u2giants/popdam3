@@ -197,6 +197,7 @@ const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
   "GOOGLE_AI_API_KEY",
   "OPENAI_API_KEY",
   "OPENROUTER_API_KEY",
+  "SCALEDOWN_API_KEY",
   "AI_MODELS",
   "AI_TASK_MODELS",
   "PDF_EXTRACTION_CONFIG",
@@ -229,6 +230,7 @@ const HEARTBEAT_CONFIG_KEYS_WINDOWS = [
   "ANTHROPIC_API_KEY",
   "GOOGLE_AI_API_KEY",
   "OPENROUTER_API_KEY",
+  "SCALEDOWN_API_KEY",
   "AI_TASK_MODELS",
   "AI_MODELS",
   "COMPAT_AUDIT_REQUEST", // windows-only: OCR runs on Windows agent to avoid NAS CPU load
@@ -771,6 +773,7 @@ async function handleHeartbeat(
         google_ai_api_key: (configMap.GOOGLE_AI_API_KEY as string) || "",
         openai_api_key: (configMap.OPENAI_API_KEY as string) || "",
         openrouter_api_key: (configMap.OPENROUTER_API_KEY as string) || "",
+        scaledown_api_key: (configMap.SCALEDOWN_API_KEY as string) || "",
         models: (configMap.AI_MODELS as unknown[]) || [],
         ai_task_models: (configMap.AI_TASK_MODELS as Record<string, string>) || {},
         pdf_extraction: (configMap.PDF_EXTRACTION_CONFIG as Record<string, unknown>) || null,

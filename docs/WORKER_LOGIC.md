@@ -6,9 +6,9 @@ The cloud worker plans only structured-output methods a model advertises. Image
 tagging and Vision Bake-Off share the same adapter. ERP uses the same executor
 with its own validation and reports `classified`, `failed`, and
 `skipped_unclassifiable` separately. Bake-off stores sanitized attempts in
-`raw_output._popdam_output_attempts`. Both PDF agents prefer the configured
-OpenRouter `pdf_extraction` model, then use direct Google/Anthropic only when
-OpenRouter is unavailable.
+`raw_output._popdam_output_attempts`. Both PDF agents route by the configured
+`pdf_extraction` model: a `scaledown/` id calls ScaleDown directly with
+`SCALEDOWN_API_KEY`, other ids prefer the configured OpenRouter model when its key is set, and only then use direct Google/Anthropic from the model catalog.
 
 This document defines what the Synology Bridge Agent MUST do and MUST NOT do.
 Primary goal: keep the NAS workload bounded and prevent silent failures.

@@ -20,6 +20,7 @@ import {
   modelPricingLabel,
   modelStructuredOutputSummary,
   taskRequirementChips,
+  SCALEDOWN_SUMMARIZE_CATALOG_MODEL,
   type AiCatalogModel,
 } from "@/lib/ai-model-catalog";
 import { toast } from "sonner";
@@ -582,7 +583,7 @@ WHAT THIS TASK DOES
 Pulls readable text out of a PDF (or Illustrator file) page so it can be searched and can feed context into image tagging. This is important: the AI vision model is the LAST resort in a cascade, not the primary extractor. The cascade is: (1) native text extraction from the PDF's real text layer; (2) if that comes back nearly empty, render the page to an image and run local OCR (Tesseract); (3) only if OCR is also nearly empty does the rendered page image go to an AI vision model. Very large files are skipped before any of this. Because the AI step fires only after both a real text layer AND local OCR have already failed, it disproportionately sees the hardest pages — poor scans, stylized or decorative type, dense tech-pack layouts, skewed pages, small print mixed with imagery.
 
 HOW THE CODE INVOKES THE MODEL
-Not through OpenRouter. This path selects a model from a provider-agnostic catalog and calls the provider's API directly (Google or Anthropic today, chosen by the catalog entry's provider field), sending the rendered page as an inline image. The model entry must declare a vision capability or it is skipped. It is a plain text-completion vision call: no tools, no function calling, no JSON schema. The instruction is essentially "extract all text from this page and return only the raw text, no commentary."
+Not through OpenRouter. This path selects a model from a provider-agnostic catalog and calls the provider's API directly (Google or Anthropic today, chosen by the catalog entry's provider field), sending the rendered page as an inline image. The one exception is the scaledown/summarize model, which goes to ScaleDown's own endpoint using the ScaleDown API key saved above — the key must already be saved (the selector warns if it is not), and it is a small flat-rate model rather than a frontier vision model. The model entry must declare a vision capability or it is skipped. It is a plain text-completion vision call: no tools, no function calling, no JSON schema. The instruction is essentially "extract all text from this page and return only the raw text, no commentary."
 
 WHAT IS FED TO THE MODEL
 A single rendered page image (one page, upscaled for legibility) as an inline image, and that one plain instruction. No partial text from the earlier cascade steps is passed in as a hint — the model works from the image alone.
@@ -787,6 +788,14 @@ export function AiModelsConfigSection() {
     }
   }
 
+  // ScaleDown is called directly, so the OpenRouter catalog never lists it and
+  // it has to be injected for it to be selectable in the task dropdowns.
+  const catalogModels = (() => {
+    const base = visionCatalog?.models ?? [];
+    if (base.some((model) => model.id === SCALEDOWN_SUMMARIZE_CATALOG_MODEL.id)) return base;
+    return [...base, SCALEDOWN_SUMMARIZE_CATALOG_MODEL].sort((a, b) => a.id.localeCompare(b.id));
+  })();
+
   const savedModels = (configData?.config?.AI_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_MODELS;
   const savedModelsJson = savedModels ? JSON.stringify(savedModels, null, 2) : "";
   const savedTaskModels = ((configData?.config?.AI_TASK_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_TASK_MODELS ?? {}) as Record<string, string>;
@@ -928,7 +937,7 @@ export function AiModelsConfigSection() {
         </div>
 
         <ModelPoolEditor
-          models={visionCatalog?.models ?? []}
+          models={catalogModels}
           pool={modelPool}
           onChange={setModelPool}
           loading={loadingModels || fetchingModels}
@@ -977,7 +986,7 @@ export function AiModelsConfigSection() {
           <div className="grid gap-3 sm:grid-cols-3">
             {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel, requiresTools, requiresVision, requiresStructuredOutput, fallbackKey, providerPinKey }]) => {
               const currentVal = taskModels[key] || "";
-              const modelList = visionCatalog?.models ?? [];
+              const modelList = catalogModels;
               const requirements = { requiresVision, requiresTools, requiresStructuredOutput };
               const modelMeetsRequirements = (m: typeof modelList[number] | undefined) => {
                 if (!m) return false;
@@ -1094,6 +1103,11 @@ export function AiModelsConfigSection() {
                   {key === "vision_tagging" && currentVal.startsWith("google-direct/") && (
                     <p className="text-[10px] text-muted-foreground">
                       Uses the existing Google AI API key and the restart-safe provider batch path. Thumbnails and asset metadata are sent to Google Batch; Google stores batch results for 6 weeks by default before deleting them.
+                    </p>
+                  )}
+                  {key === "pdf_extraction" && currentVal.startsWith("scaledown/") && !scaleDownKeyConfigured && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                      No ScaleDown API key is saved. The selection is allowed, but every AI-vision page fails until you save the key above — extraction then keeps only the earlier OCR/native text, if any.
                     </p>
                   )}
                   {currentVal && !currentModelAllowedForTask && (
