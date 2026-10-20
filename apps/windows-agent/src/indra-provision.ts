@@ -126,6 +126,13 @@ export async function findSystemPython(): Promise<string | null> {
   return candidates.find((path) => existsSync(path)) ?? null;
 }
 
+/**
+ * Import AND load the model once. An import alone cannot see a truncated
+ * download, and the whole point of the indicator is that "ready" means OCR
+ * will actually work.
+ */
+const DEEP_VERIFY_SCRIPT = "from indra_ocr import OrtOCR, model_dir; OrtOCR(model_dir()); print('indra-ok')";
+
 /** Ordered provisioning steps — pure so tests can assert the pins without touching the network. */
 export function provisionPlan(systemPython: string, modelsDir: string = INDRA_MODELS): Array<{ step: string; file: string; args: string[]; timeoutMs: number }> {
   const modelsDownload = [
@@ -139,7 +146,7 @@ export function provisionPlan(systemPython: string, modelsDir: string = INDRA_MO
     { step: "venv", file: systemPython, args: ["-m", "venv", INDRA_ROOT], timeoutMs: 180_000 },
     { step: "package", file: INDRA_PYTHON, args: ["-m", "pip", "install", "--quiet", "--disable-pip-version-check", INDRA_PACKAGE_SPEC], timeoutMs: 420_000 },
     { step: "models", file: INDRA_PYTHON, args: ["-c", modelsDownload], timeoutMs: 900_000 },
-    { step: "verify", file: INDRA_PYTHON, args: ["-c", "from indra_ocr import OrtOCR; print('indra-ok')"], timeoutMs: 120_000 },
+    { step: "verify", file: INDRA_PYTHON, args: ["-c", DEEP_VERIFY_SCRIPT], timeoutMs: 180_000 },
   ];
 }
 
@@ -172,11 +179,11 @@ async function verifyInstall(modelsDir: string): Promise<void> {
   if (!engineLooksComplete(modelsDir)) {
     throw new Error("Indra models are incomplete after provisioning (meta.json/model files missing)");
   }
-  const { stdout } = await execFileAsync(INDRA_PYTHON, ["-c", "from indra_ocr import OrtOCR; print('indra-ok')"], {
+  const { stdout } = await execFileAsync(INDRA_PYTHON, ["-c", DEEP_VERIFY_SCRIPT], {
     windowsHide: true,
-    timeout: 120_000,
+    timeout: 180_000,
   });
-  if (!stdout.includes("indra-ok")) throw new Error("Indra import check produced no confirmation");
+  if (!stdout.includes("indra-ok")) throw new Error("Indra model load check produced no confirmation");
 }
 
 /** Provision (or repair) Indra. Resolves with the resulting status; never throws. */
@@ -184,11 +191,22 @@ export async function provisionIndra(): Promise<IndraStatus> {
   const startedAt = Date.now();
   const modelsDir = resolveModelsDir();
   try {
-    if (engineLooksComplete(modelsDir)) {
-      logger.info("Indra OCR: engine already on disk — repairing environment only");
-      activateInProcess(modelsDir);
-      await verifyInstall(modelsDir);
-    } else {
+    let needsFullInstall = !engineLooksComplete(modelsDir);
+    if (!needsFullInstall) {
+      try {
+        logger.info("Indra OCR: engine already on disk — verifying before reuse");
+        activateInProcess(modelsDir);
+        await verifyInstall(modelsDir);
+      } catch (error) {
+        // Present but broken (e.g. an interrupted download): reprovision —
+        // snapshot_download re-fetches files whose size/hash does not match.
+        logger.warn("Indra OCR: installed engine failed verification — reprovisioning", {
+          error: (error as Error).message,
+        });
+        needsFullInstall = true;
+      }
+    }
+    if (needsFullInstall) {
       const systemPython = await findSystemPython();
       if (!systemPython) {
         return {
@@ -209,7 +227,9 @@ export async function provisionIndra(): Promise<IndraStatus> {
         }
       }
       activateInProcess(modelsDir);
-      await verifyInstall(modelsDir);
+      if (!engineLooksComplete(modelsDir)) {
+        throw new Error("Indra models are incomplete after provisioning (meta.json/model files missing)");
+      }
     }
     await persistMachineEnv(modelsDir);
     const status: IndraStatus = {

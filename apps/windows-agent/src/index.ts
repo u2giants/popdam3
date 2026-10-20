@@ -749,13 +749,16 @@ async function main() {
   });
 
   // Self-heal Indra OCR: OTA updates swap code only, so a box installed before
-  // Indra existed would silently OCR with tesseract.js forever. Provision in the
-  // background (status stays "installing" on heartbeats until it resolves).
-  if (indraStatus.state !== "ready" && !indraProvisioning) {
-    indraStatus = { ...indraStatus, state: "installing", detail: indraStatus.detail ?? "provisioning" };
+  // Indra existed would silently OCR with tesseract.js forever. Provisioning
+  // always runs once per start (background, single-flight): a healthy engine
+  // is verified (model load) and kept, a missing/broken one is (re)installed.
+  if (!indraProvisioning) {
+    if (indraStatus.state !== "ready") {
+      indraStatus = { ...indraStatus, state: "installing", detail: indraStatus.detail ?? "provisioning" };
+    }
     indraProvisioning = provisionIndra().then((status) => {
       indraStatus = status;
-      logger.info("Indra OCR startup provisioning finished", { state: status.state, detail: status.detail });
+      logger.info("Indra OCR startup check finished", { state: status.state, detail: status.detail });
       return status;
     });
   }
