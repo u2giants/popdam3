@@ -284,3 +284,62 @@ test("the batch writer marks the asset tagged only after its tags are written", 
   assert.equal(rpcCalls.length, 1);
   assert.equal(tableCalls.at(-1)?.op, "update", "the status update is the last write");
 });
+
+test("a file_sources save failure does not block the metadata save and is reported", async () => {
+  const order: string[] = [];
+  const client = {
+    rpc: async () => ({ error: null }),
+    from(table: string) {
+      const chain: Record<string, unknown> = {
+        select: () => chain,
+        single: async () => ({
+          data: { id: "a", filename: "techpack.pdf", file_type: "pdf", sku: "SKU123" },
+          error: null,
+        }),
+        update: () => { order.push(`update:${table}`); return chain; },
+        upsert: async (payload: unknown) => {
+          order.push(`upsert:${table}`);
+          if (table === "sku_files_used") return { error: { code: "57014", message: "statement timeout" } };
+          return { error: null };
+        },
+      };
+      chain.eq = () => ({ ...chain, then: (resolve: (v: unknown) => void) => resolve({ error: null }) });
+      return chain;
+    },
+  };
+  const result = await applyBatchTagResult(
+    groups[0].assets[1].id,
+    { ...typedResult(["blue", "3/4 view"]), files_used: ["SOURCE_A", "SOURCE_B"] },
+    "fixture-model",
+    client as never,
+  );
+  assert.equal(result.fileSourcesFailed, true, "the gap is reported to the caller");
+  assert.ok(order.includes("upsert:sku_files_used"), "file_sources was attempted");
+  assert.equal(order.at(-1), "update:assets", "metadata still saves after a file_sources failure");
+});
+
+test("a successful file_sources save reports no gap", async () => {
+  const client = {
+    rpc: async () => ({ error: null }),
+    from(table: string) {
+      const chain: Record<string, unknown> = {
+        select: () => chain,
+        single: async () => ({
+          data: { id: "a", filename: "techpack.pdf", file_type: "pdf", sku: "SKU123" },
+          error: null,
+        }),
+        update: () => chain,
+        upsert: async () => ({ error: null }),
+      };
+      chain.eq = () => ({ ...chain, then: (resolve: (v: unknown) => void) => resolve({ error: null }) });
+      return chain;
+    },
+  };
+  const result = await applyBatchTagResult(
+    groups[0].assets[1].id,
+    { ...typedResult(["blue", "3/4 view"]), files_used: ["SOURCE_A"] },
+    "fixture-model",
+    client as never,
+  );
+  assert.equal(result.fileSourcesFailed, false);
+});

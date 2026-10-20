@@ -171,7 +171,7 @@ export function isVisualAnalysisUnavailableError(error: unknown): boolean {
 
 // ── Single-asset tagging via OpenRouter ──────────────────────────────────────
 
-type TagOutcome = { outcome: "tagged" | "skipped" | "failed" | "visual_analysis_unavailable"; error?: string };
+type TagOutcome = { outcome: "tagged" | "skipped" | "failed" | "visual_analysis_unavailable"; error?: string; fileSourcesFailed?: boolean };
 
 type BatchAsset = {
   id: string;
@@ -240,15 +240,16 @@ export async function applyBatchTagResult(
   model: string,
   injectedClient?: ReturnType<typeof db>,
   characterCatalogIds?: string[],
-): Promise<void> {
+): Promise<{ fileSourcesFailed: boolean }> {
   validateTagAssetData(tagData, "batch");
   const client = injectedClient ?? db();
   const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku").eq("id", assetId).single();
   if (assetError || !asset) throw new AssetTagApplyError("asset_reload", assetError?.code);
   const characterIds = await validateCharacterReferences(tagData.character_ids, characterCatalogIds, client);
-  // Tags, character links and style-guide sources are written first; the
-  // asset is marked "tagged" LAST, so a failure part-way never leaves an asset
-  // that claims to be tagged with incomplete metadata.
+  // Tags and character links are written first; the asset is marked "tagged"
+  // LAST. Style-guide sources (sku_files_used) are supplementary and are
+  // written before metadata but are allowed to fail without blocking the
+  // metadata save — see file_sources note below.
   try { await writeAssetAiTags(client, assetId, model, tagData); }
   catch (error) { throw new AssetTagApplyError("asset_tags", (error as { code?: string }).code); }
   if (characterIds.length) {
@@ -258,21 +259,26 @@ export async function applyBatchTagResult(
       if (savedCharacters.error) throw new AssetTagApplyError("character_links", savedCharacters.error.code);
     }
   }
+  let fileSourcesFailed = false;
   if (asset && isStyleGuideSourcePdf(asset) && asset.sku && Array.isArray(tagData.files_used)) {
     const rows = tagData.files_used
       .filter((name) => typeof name === "string" && name.trim())
       .map((name) => ({ sku: asset.sku, file_name: String(name).trim(), source: "ai_tag" }));
     if (rows.length) {
-      // Best-effort: the sku_files_used resolve trigger can hit statement
-      // timeout (57014) on style_guide_files; file_sources is supplementary
-      // and must not block the metadata save that marks the asset tagged.
-      try {
-        const savedFiles = await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
-        if (savedFiles.error) {
-          logger.warn("ai-tag: file_sources save failed; continuing to metadata", { assetId, code: savedFiles.error.code, rows: rows.length });
+      // Best-effort with one retry: trg_fn_resolve_sku_file_used scans
+      // style_guide_files with a non-indexable normalize and can hit 57014.
+      // file_sources is supplementary; a gap is counted, not fatal. The
+      // metadata save below still runs so the asset is not left half-tagged.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const savedFiles = await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
+          if (!savedFiles.error) { fileSourcesFailed = false; break; }
+          fileSourcesFailed = true;
+          logger.warn("ai-tag: file_sources save failed", { assetId, code: savedFiles.error.code, rows: rows.length, attempt });
+        } catch (error) {
+          fileSourcesFailed = true;
+          logger.warn("ai-tag: file_sources save threw", { assetId, error: String(error).slice(0, 200), rows: rows.length, attempt });
         }
-      } catch (error) {
-        logger.warn("ai-tag: file_sources save threw; continuing to metadata", { assetId, error: String(error).slice(0, 200), rows: rows.length });
       }
     }
   }
@@ -282,6 +288,7 @@ export async function applyBatchTagResult(
   }
   const { error } = await client.from("assets").update(updates).eq("id", assetId);
   if (error) throw new AssetTagApplyError("asset_metadata", error.code);
+  return { fileSourcesFailed };
 }
 
 export function assetTagsForRpc(tagData: Record<string, unknown>) {
@@ -930,12 +937,14 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
         if (attempts.length > 1) logger.warn("ai-tag: model needed structured-output fallback", { assetId, model, attempts });
 
         if (parallelModel) {
-          try { await applyBatchTagResult(assetId, tagData, model, client, characterCatalogIds); }
+          try {
+            const applied = await applyBatchTagResult(assetId, tagData, model, client, characterCatalogIds);
+            return { outcome: "tagged", fileSourcesFailed: applied.fileSourcesFailed };
+          }
           catch (error) {
             logger.warn("ai-tag: parallel save failed", {assetId, model, stage: error instanceof AssetTagApplyError ? error.stage : error instanceof CharacterReferenceValidationError ? "character_reference" : error instanceof CharacterCatalogDependencyError ? "character_catalog" : "validation", code: error instanceof AssetTagApplyError || error instanceof CharacterCatalogDependencyError ? error.code : "unknown"});
             return { outcome: "failed", error: error instanceof AssetTagApplyError ? `Parallel tagging save failed at ${error.stage} (${error.code})` : "Parallel tagging result validation failed" };
           }
-          return { outcome: "tagged" };
         }
 
         const updates: Record<string, unknown> = {
@@ -994,9 +1003,12 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
             .map((f) => ({ sku: asset.sku as string, file_name: f.trim(), source: "ai_tag" }));
           if (rows.length > 0) {
             try {
-              await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
+              const savedFiles = await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
+              if (savedFiles.error) {
+                logger.warn("ai-tag: file_sources save failed", { assetId, code: savedFiles.error.code, rows: rows.length });
+              }
             } catch (fileSourceError) {
-              logger.warn("ai-tag: file_sources save threw; continuing", { assetId, error: String(fileSourceError).slice(0, 200), rows: rows.length });
+              logger.warn("ai-tag: file_sources save threw", { assetId, error: String(fileSourceError).slice(0, 200), rows: rows.length });
             }
           }
         }
@@ -1128,7 +1140,7 @@ export async function handleBulkAiTag(
     if (parallel?.max_cursor !== undefined && assetOffset >= parallel.max_cursor) return {ok: true, done: false, nextOffset: assetOffset, state_transition: "yield_without_save"};
     const end = assetOffset + (parallel ? parallel.concurrency : Math.min(BATCH_SIZE, 50));
     const page = assetIds.slice(assetOffset, parallel?.max_cursor === undefined ? end : Math.min(end, parallel.max_cursor));
-    let tagged = 0, skipped = 0, failed = 0, visualAnalysisUnavailable = 0;
+    let tagged = 0, skipped = 0, failed = 0, visualAnalysisUnavailable = 0, fileSourcesFailed = 0;
     const failureSamples: Array<{ at: string; asset_id: string; filename: string; relative_path: string; error: string }> = [];
 
     for (let i = 0; i < page.length; i += CONCURRENCY) {
@@ -1141,7 +1153,13 @@ export async function handleBulkAiTag(
       );
       for (const r of results) {
         if (r.status === "fulfilled") {
-          if (r.value.outcome === "tagged") tagged++;
+          if (r.value.outcome === "tagged") {
+            tagged++;
+            if (r.value.fileSourcesFailed) {
+              fileSourcesFailed++;
+              logger.warn("ai-tag: file_sources gap on tagged asset", { assetId: r.value.asset_id });
+            }
+          }
           else if (r.value.outcome === "skipped") skipped++;
           else if (r.value.outcome === "visual_analysis_unavailable") visualAnalysisUnavailable++;
           else { failed++; failureSamples.push({ at: new Date().toISOString(), asset_id: r.value.asset_id, filename: "", relative_path: "", error: r.value.error ?? "AI call failed" }); }
@@ -1151,9 +1169,10 @@ export async function handleBulkAiTag(
         }
       }
     }
+    if (fileSourcesFailed > 0) logger.warn("ai-tag: file_sources failed for tagged assets; metadata saved", { fileSourcesFailed, page: page.length });
 
     const nextOffset = assetOffset + page.length;
-    return { ok: true, done: nextOffset >= assetIds.length, tagged, skipped, failed, visual_analysis_unavailable: visualAnalysisUnavailable, failure_samples: failureSamples, skip_samples: [], nextOffset, last_stage: "tag_write" };
+    return { ok: true, done: nextOffset >= assetIds.length, tagged, skipped, failed, visual_analysis_unavailable: visualAnalysisUnavailable, file_sources_failed: fileSourcesFailed, failure_samples: failureSamples, skip_samples: [], nextOffset, last_stage: "tag_write" };
   }
 
   let cursor;
