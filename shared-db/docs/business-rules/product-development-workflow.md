@@ -62,6 +62,16 @@ A licensing item may move backwards only when **all** of the following hold:
 
 If any condition is missing, the status does not move backwards.
 
+### Packaging and product are separate workstreams
+
+**Status: Settled. Authority: Albert Hazan, chat 2026-10-20. Effective: 2026-10-20.**
+
+Packaging and product are separate licensing workstreams and are never
+evaluated against each other for moves. A product status is compared only with
+product statuses, and a packaging status only with packaging statuses. Moving
+from a product status to a packaging status, or the reverse, is never a
+backwards move. Within each workstream the backwards rule above applies in full.
+
 ### Verified delegated requests
 
 **Status: Settled. Authority: Albert Hazan, direct human reply in the
