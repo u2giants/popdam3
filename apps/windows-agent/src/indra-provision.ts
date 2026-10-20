@@ -8,8 +8,10 @@
  * step could not run, silently degrades to tesseract.js forever.
  *
  * The agent therefore checks at startup and provisions itself when the engine
- * is missing: fast path if the venv+models are already on disk (just repair the
- * environment), full path otherwise (venv → pip → models → verify). Status is
+ * is missing or broken: fast path if the venv + models verify (model load),
+ * full path otherwise (venv → pip → models → verify). The models directory is
+ * passed to every verification process explicitly — a subprocess must never
+ * depend on environment variables that only exist after it succeeds. Status is
  * reported on every heartbeat so the admin panel can show it.
  */
 import { execFile } from "node:child_process";
@@ -25,6 +27,9 @@ export const INDRA_PYTHON = `${INDRA_ROOT}\\Scripts\\python.exe`;
 export const INDRA_MODELS = `${INDRA_ROOT}\\models`;
 export const INDRA_PACKAGE_SPEC = "indra-ocr==1.1.1";
 export const INDRA_MODEL_REVISION = "v1.1.0";
+
+/** Long outputs (pip/tqdm) — execFile's default 1 MiB buffer is too small. */
+const STEP_MAX_BUFFER = 32 * 1024 * 1024;
 
 export type IndraState = "ready" | "installing" | "missing" | "error";
 
@@ -53,6 +58,11 @@ export function resolveModelsDir(): string {
   return (process.env.INDRA_OCR_MODEL_DIR || "").trim() || INDRA_MODELS;
 }
 
+/** Interpreter: whatever the environment already points at, else the default install path. */
+export function resolvePythonPath(): string {
+  return (process.env.INDRA_OCR_PYTHON || "").trim() || INDRA_PYTHON;
+}
+
 /**
  * A finished install carries meta.json and at least one real model file — a
  * directory alone proves nothing, because snapshot_download creates it before
@@ -69,8 +79,20 @@ export function hasModelFiles(modelsDir: string): boolean {
   }
 }
 
-export function engineLooksComplete(modelsDir = resolveModelsDir()): boolean {
-  return existsSync(INDRA_PYTHON) && hasModelFiles(modelsDir);
+export function engineLooksComplete(
+  modelsDir: string = resolveModelsDir(),
+  pythonPath: string = resolvePythonPath(),
+): boolean {
+  return existsSync(pythonPath) && hasModelFiles(modelsDir);
+}
+
+/**
+ * Import AND load the model from an explicit directory. `model_dir()` alone
+ * reads the environment (or the Hugging Face cache), which a fresh box does
+ * not have yet — the directory must travel with the command itself.
+ */
+export function deepVerifyScript(modelsDir: string): string {
+  return `from indra_ocr import OrtOCR; OrtOCR(r'${modelsDir.replace(/\\/g, "/")}'); print('indra-ok')`;
 }
 
 export function checkIndra(): IndraStatus {
@@ -126,15 +148,11 @@ export async function findSystemPython(): Promise<string | null> {
   return candidates.find((path) => existsSync(path)) ?? null;
 }
 
-/**
- * Import AND load the model once. An import alone cannot see a truncated
- * download, and the whole point of the indicator is that "ready" means OCR
- * will actually work.
- */
-const DEEP_VERIFY_SCRIPT = "from indra_ocr import OrtOCR, model_dir; OrtOCR(model_dir()); print('indra-ok')";
-
 /** Ordered provisioning steps — pure so tests can assert the pins without touching the network. */
-export function provisionPlan(systemPython: string, modelsDir: string = INDRA_MODELS): Array<{ step: string; file: string; args: string[]; timeoutMs: number }> {
+export function provisionPlan(
+  systemPython: string,
+  modelsDir: string = INDRA_MODELS,
+): Array<{ step: string; file: string; args: string[]; timeoutMs: number }> {
   const modelsDownload = [
     "from huggingface_hub import snapshot_download;",
     `snapshot_download('datalab-to/indra-ocr', revision='${INDRA_MODEL_REVISION}',`,
@@ -146,47 +164,56 @@ export function provisionPlan(systemPython: string, modelsDir: string = INDRA_MO
     { step: "venv", file: systemPython, args: ["-m", "venv", INDRA_ROOT], timeoutMs: 180_000 },
     { step: "package", file: INDRA_PYTHON, args: ["-m", "pip", "install", "--quiet", "--disable-pip-version-check", INDRA_PACKAGE_SPEC], timeoutMs: 420_000 },
     { step: "models", file: INDRA_PYTHON, args: ["-c", modelsDownload], timeoutMs: 900_000 },
-    { step: "verify", file: INDRA_PYTHON, args: ["-c", DEEP_VERIFY_SCRIPT], timeoutMs: 180_000 },
+    { step: "verify", file: INDRA_PYTHON, args: ["-c", deepVerifyScript(modelsDir)], timeoutMs: 180_000 },
   ];
 }
 
 function failure(step: string, error: unknown): Error {
-  const err = error as Error & { stderr?: string };
-  const stderr = err.stderr ? `: ${String(err.stderr).slice(-400)}` : "";
-  return new Error(`Indra provisioning failed at ${step}: ${err.message}${stderr}`);
+  const err = error as { message?: string; stderr?: unknown };
+  const message = String(err?.message ?? error);
+  const stderr = err?.stderr ? `: ${String(err.stderr).slice(-400)}` : "";
+  return new Error(`Indra provisioning failed at ${step}: ${message}${stderr}`);
 }
 
 /** Best-effort persistence so the NEXT service start still finds the engine. */
 async function persistMachineEnv(modelsDir: string): Promise<void> {
+  const psString = (value: string) => `'${value.replace(/'/g, "''")}'`;
   const command =
-    `[Environment]::SetEnvironmentVariable('INDRA_OCR_PYTHON','${INDRA_PYTHON}','Machine'); ` +
-    `[Environment]::SetEnvironmentVariable('INDRA_OCR_MODEL_DIR','${modelsDir}','Machine')`;
+    `[Environment]::SetEnvironmentVariable('INDRA_OCR_PYTHON',${psString(INDRA_PYTHON)},'Machine'); ` +
+    `[Environment]::SetEnvironmentVariable('INDRA_OCR_MODEL_DIR',${psString(modelsDir)},'Machine')`;
   try {
     await execFileAsync("powershell.exe", ["-NoProfile", "-Command", command], { windowsHide: true, timeout: 30_000 });
   } catch (error) {
     // Non-fatal: this process already has the env it needs; a later install or
     // the installer can persist it. Log so the gap is visible in the log tail.
-    logger.warn("Indra OCR: could not persist machine environment variables", { error: (error as Error).message });
+    logger.warn("Indra OCR: could not persist machine environment variables", { error: String((error as Error)?.message ?? error) });
   }
 }
 
-function activateInProcess(modelsDir: string): void {
-  process.env.INDRA_OCR_PYTHON = INDRA_PYTHON;
+/** Point the running process at an engine. `force` overwrites a stale custom path (after a full install). */
+function activateInProcess(modelsDir: string, pythonPath: string, force: boolean): void {
+  if (force || !process.env.INDRA_OCR_PYTHON?.trim()) process.env.INDRA_OCR_PYTHON = pythonPath;
   process.env.INDRA_OCR_MODEL_DIR = modelsDir;
 }
 
-async function verifyInstall(modelsDir: string): Promise<void> {
-  if (!engineLooksComplete(modelsDir)) {
-    throw new Error("Indra models are incomplete after provisioning (meta.json/model files missing)");
+async function verifyInstall(modelsDir: string, pythonPath: string): Promise<void> {
+  if (!existsSync(pythonPath)) throw new Error(`interpreter not found: ${pythonPath}`);
+  if (!hasModelFiles(modelsDir)) {
+    throw new Error("Indra models are incomplete (meta.json/model files missing)");
   }
-  const { stdout } = await execFileAsync(INDRA_PYTHON, ["-c", DEEP_VERIFY_SCRIPT], {
+  const { stdout } = await execFileAsync(pythonPath, ["-c", deepVerifyScript(modelsDir)], {
     windowsHide: true,
     timeout: 180_000,
+    maxBuffer: STEP_MAX_BUFFER,
   });
   if (!stdout.includes("indra-ok")) throw new Error("Indra model load check produced no confirmation");
 }
 
-/** Provision (or repair) Indra. Resolves with the resulting status; never throws. */
+function errorMessage(error: unknown): string {
+  return String((error as Error)?.message ?? error).slice(0, 300);
+}
+
+/** Provision (or repair) Indra. Resolves with the resulting status; never rejects. */
 export async function provisionIndra(): Promise<IndraStatus> {
   const startedAt = Date.now();
   const modelsDir = resolveModelsDir();
@@ -194,14 +221,15 @@ export async function provisionIndra(): Promise<IndraStatus> {
     let needsFullInstall = !engineLooksComplete(modelsDir);
     if (!needsFullInstall) {
       try {
-        logger.info("Indra OCR: engine already on disk — verifying before reuse");
-        activateInProcess(modelsDir);
-        await verifyInstall(modelsDir);
+        const pythonPath = resolvePythonPath();
+        logger.info("Indra OCR: engine already on disk — verifying before reuse", { pythonPath, modelsDir });
+        activateInProcess(modelsDir, pythonPath, false);
+        await verifyInstall(modelsDir, pythonPath);
       } catch (error) {
         // Present but broken (e.g. an interrupted download): reprovision —
         // snapshot_download re-fetches files whose size/hash does not match.
         logger.warn("Indra OCR: installed engine failed verification — reprovisioning", {
-          error: (error as Error).message,
+          error: errorMessage(error),
         });
         needsFullInstall = true;
       }
@@ -221,20 +249,19 @@ export async function provisionIndra(): Promise<IndraStatus> {
       for (const { step, file, args, timeoutMs } of provisionPlan(systemPython, modelsDir)) {
         logger.info(`Indra OCR: ${step}…`);
         try {
-          await execFileAsync(file, args, { windowsHide: true, timeout: timeoutMs });
+          await execFileAsync(file, args, { windowsHide: true, timeout: timeoutMs, maxBuffer: STEP_MAX_BUFFER });
         } catch (error) {
           throw failure(step, error);
         }
       }
-      activateInProcess(modelsDir);
-      if (!engineLooksComplete(modelsDir)) {
-        throw new Error("Indra models are incomplete after provisioning (meta.json/model files missing)");
-      }
+      // Full install owns the default paths — overwrite whatever pointed at the broken engine.
+      activateInProcess(modelsDir, INDRA_PYTHON, true);
+      await verifyInstall(modelsDir, INDRA_PYTHON);
     }
     await persistMachineEnv(modelsDir);
     const status: IndraStatus = {
       state: "ready",
-      python: INDRA_PYTHON,
+      python: resolvePythonPath(),
       models_dir: modelsDir,
       detail: null,
       checked_at: new Date().toISOString(),
@@ -242,11 +269,11 @@ export async function provisionIndra(): Promise<IndraStatus> {
     logger.info("Indra OCR: ready", { elapsedMs: Date.now() - startedAt });
     return status;
   } catch (error) {
-    const message = (error as Error).message.slice(0, 300);
+    const message = errorMessage(error);
     logger.error("Indra OCR: provisioning failed — falling back to tesseract.js", { error: message });
     return {
       state: "error",
-      python: existsSync(INDRA_PYTHON) ? INDRA_PYTHON : null,
+      python: existsSync(resolvePythonPath()) ? resolvePythonPath() : null,
       models_dir: modelsDir,
       detail: message,
       checked_at: new Date().toISOString(),

@@ -756,11 +756,26 @@ async function main() {
     if (indraStatus.state !== "ready") {
       indraStatus = { ...indraStatus, state: "installing", detail: indraStatus.detail ?? "provisioning" };
     }
-    indraProvisioning = provisionIndra().then((status) => {
-      indraStatus = status;
-      logger.info("Indra OCR startup check finished", { state: status.state, detail: status.detail });
-      return status;
-    });
+    indraProvisioning = provisionIndra()
+      .then((status) => {
+        indraStatus = status;
+        logger.info("Indra OCR startup check finished", { state: status.state, detail: status.detail });
+        return status;
+      })
+      .catch((error) => {
+        // provisionIndra() is written not to reject; this guard keeps a bug
+        // there from taking the process down (Node treats it as fatal).
+        const message = String((error as Error)?.message ?? error).slice(0, 300);
+        indraStatus = {
+          state: "error",
+          python: null,
+          models_dir: null,
+          detail: message,
+          checked_at: new Date().toISOString(),
+        };
+        logger.error("Indra OCR startup check crashed", { error: message });
+        return indraStatus;
+      });
   }
 
   // 1. Pair if no agent key — retry with exponential backoff

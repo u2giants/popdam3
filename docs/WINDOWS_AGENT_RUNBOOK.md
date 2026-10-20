@@ -294,8 +294,8 @@ Some `.ai` thumbnails render Adobe's "saved without PDF Content" warning page in
 
 The OCR engine (Python venv + models under `C:\ProgramData\PopDAM\indra`) is provisioned **outside** the shipped code — `install-service.ps1` sets it once, and OTA updates only swap code, so a box installed before Indra existed silently OCR'd with tesseract.js. From 0.16.9 the agent closes that gap itself:
 
-- **Startup check:** `INDRA_OCR_PYTHON`, the interpreter, and the models directory are verified before the first heartbeat.
-- **Self-install:** if anything is missing the agent provisions in the background — venv, `pip install indra-ocr==1.1.1`, models at revision `v1.1.0`, import verification — then activates it for the current process and best-effort writes machine-level environment variables for the next start. If the engine is already on disk but the variable was lost, only the environment is repaired (no download).
+- **Startup check:** `INDRA_OCR_PYTHON`, the interpreter, and the model files are checked at startup in the background, then verified by loading the model.
+- **Self-install:** if anything is missing the agent provisions in the background — venv, `pip install indra-ocr==1.1.1`, models at revision `v1.1.0`, model-load verification (loads the model from the directory it just provisioned) — then activates it for the current process and best-effort writes machine-level environment variables for the next start. If the engine is already on disk it is verified by loading the model — no download — unless verification fails, in which case it falls through to a full reprovision (snapshot re-fetches mismatched files).
 - **Panel status:** Settings → Windows Render Agent shows `OCR engine: Indra (ready)`, `Indra installing…`, or `Indra missing / install failed, using tesseract.js (<detail>)` on every heartbeat.
 - **Never blocking:** a failure leaves extraction on tesseract.js for that run; the panel shows the reason.
 - **Manual path:** `scripts/windows-agent/install-service.ps1` (same pins). No system Python 3.11+ → the panel reports `no system Python found` and the agent stays on tesseract.js.

@@ -82,3 +82,11 @@ test("provision plan honours a custom models directory", () => {
   const plan = provisionPlan("C:\\py\\python.exe", "D:\\models\\indra");
   assert.ok(plan[2].args.join(" ").includes("D:/models/indra"));
 });
+
+test("the verify step targets the provisioned models directory, not the environment", () => {
+  const plan = provisionPlan("C:\\py\\python.exe", "D:\\models\\indra");
+  const verifyCommand = plan[3].args.join(" ");
+  assert.ok(verifyCommand.includes("from indra_ocr import OrtOCR"));
+  assert.ok(verifyCommand.includes("D:/models/indra"), "verify must name the directory it just downloaded");
+  assert.ok(!verifyCommand.includes("model_dir()"), "model_dir() reads the environment, which is unset on first install");
+});
