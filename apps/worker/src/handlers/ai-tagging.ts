@@ -263,8 +263,17 @@ export async function applyBatchTagResult(
       .filter((name) => typeof name === "string" && name.trim())
       .map((name) => ({ sku: asset.sku, file_name: String(name).trim(), source: "ai_tag" }));
     if (rows.length) {
-      const savedFiles = await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
-      if (savedFiles.error) throw new AssetTagApplyError("file_sources", savedFiles.error.code);
+      // Best-effort: the sku_files_used resolve trigger can hit statement
+      // timeout (57014) on style_guide_files; file_sources is supplementary
+      // and must not block the metadata save that marks the asset tagged.
+      try {
+        const savedFiles = await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
+        if (savedFiles.error) {
+          logger.warn("ai-tag: file_sources save failed; continuing to metadata", { assetId, code: savedFiles.error.code, rows: rows.length });
+        }
+      } catch (error) {
+        logger.warn("ai-tag: file_sources save threw; continuing to metadata", { assetId, error: String(error).slice(0, 200), rows: rows.length });
+      }
     }
   }
   const updates: Record<string, unknown> = { status: "tagged", ai_tagged_at: new Date().toISOString(), ai_model: model };
@@ -984,7 +993,11 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
             .filter((f) => typeof f === "string" && f.trim().length > 0)
             .map((f) => ({ sku: asset.sku as string, file_name: f.trim(), source: "ai_tag" }));
           if (rows.length > 0) {
-            await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
+            try {
+              await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
+            } catch (fileSourceError) {
+              logger.warn("ai-tag: file_sources save threw; continuing", { assetId, error: String(fileSourceError).slice(0, 200), rows: rows.length });
+            }
           }
         }
 
