@@ -238,7 +238,7 @@ The cloud sends a `claim-pdf-text-sample` response (via heartbeat). The agent cl
 |------|--------|-------------------|------------|
 | 1 | **mupdf text extraction** — structured-text parser | ≥ 100 chars | fall through |
 | 2 | **Render page 0 to PNG** — mupdf pixmap at 2× scale | PNG produced | skip steps 3–4 |
-| 3 | **OCR via tesseract.js** — English language model | ≥ 100 chars | fall through |
+| 3 | **OCR via Indra** — ONNX models shipped with the agent (tesseract.js only when Indra is unavailable) | ≥ 100 chars | fall through |
 | 4 | **AI vision** — OpenRouter (configurable model, default `google/gemini-2.0-flash-001`) or direct Gemini/Anthropic API | any text returned | mark as `likely_scanned` or `failed` |
 
 If step 2 succeeds (PNG rendered), a **thumbnail is uploaded to DigitalOcean Spaces** under `pdf-pages/{assetId}_p0.jpg` via `uploadPdfPage()`. The URL is stored in `pdf_text_samples.thumbnail_url` and shown in the UI as a preview for scanned/placeholder PDFs.
@@ -256,7 +256,7 @@ All results are sent to the edge function in a single call to `bulk_insert_pdf_t
 | `extraction_method` | Meaning |
 |---------------------|---------|
 | `pdf_text` | mupdf yielded ≥ 100 chars |
-| `ocr_text` | tesseract yielded ≥ 100 chars |
+| `ocr_text` | Indra OCR yielded ≥ 100 chars |
 | `ai_vision` | AI returned any text |
 | `likely_scanned` | Cascade exhausted; < 100 chars found |
 | `failed` | Cascade exhausted; 0 chars found |
