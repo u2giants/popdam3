@@ -254,6 +254,8 @@ async function handleHeartbeat(
   const versionInfo = body.version_info as Record<string, unknown> | undefined;
   const diagnostics = body.diagnostics as Record<string, unknown> | undefined;
   const logTail = Array.isArray(body.log_tail) ? (body.log_tail as string[]).slice(-LOG_TAIL_LINES) : undefined;
+  // Indra OCR engine status from the Windows agent (startup check / self-provision).
+  const ocrIndra = body.ocr_indra as Record<string, unknown> | undefined;
   const db = serviceClient();
 
   // ── Fetch agent metadata (needed for update) ──
@@ -312,6 +314,8 @@ async function handleHeartbeat(
       : metadata.diagnostics,
     // Recent log lines from Windows agent — stored for remote viewing
     log_tail: logTail ?? metadata.log_tail,
+    // Indra OCR status from the Windows agent (undefined keeps the last report)
+    ocr_indra: ocrIndra && typeof ocrIndra === "object" ? ocrIndra : metadata.ocr_indra,
     // Clear trigger_update flag once delivered (below)
   };
 

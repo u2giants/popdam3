@@ -38,6 +38,7 @@ import { createCompatAuditWorker, runCompatAudit, runCompatAuditPreview } from "
 import { dispatchCommands } from "./commands/dispatch";
 import { createWindowsCommandHandlers } from "./commands/heartbeat-commands";
 import { handleDirBrowse } from "./handlers/dir-browse";
+import { checkIndra, provisionIndra, type IndraStatus } from "./indra-provision";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -108,6 +109,11 @@ let cloudScaleDownApiKey = "";
 let cloudAiModels: AiModelDef[] = [];
 let cloudAiTaskModels: Record<string, string> = {};
 let cloudPdfExtractionConfig: { ai_vision_model_id: string } | null = null;
+
+// Indra OCR engine status — checked at startup, reported on every heartbeat so
+// the admin panel can show whether OCR runs on Indra or degrades to tesseract.
+let indraStatus: IndraStatus = checkIndra();
+let indraProvisioning: Promise<IndraStatus> | null = null;
 
 // ── Pairing ─────────────────────────────────────────────────────
 
@@ -414,7 +420,7 @@ function startHeartbeat() {
         last_update_check: updateState.lastCheckAt,
         updating: updateState.updating,
         update_error: updateState.lastError,
-      }, getLogTail(50));
+      }, getLogTail(50), indraStatus);
       applyCloudConfig(response);
       consecutiveHeartbeatFailures = 0;
 
@@ -738,7 +744,21 @@ async function main() {
     pollIntervalMs: config.pollIntervalMs,
     paired: config.isPaired,
     rendering: "Sharp + Ghostscript (no Illustrator)",
+    indraOcr: indraStatus.state,
+    indraDetail: indraStatus.detail,
   });
+
+  // Self-heal Indra OCR: OTA updates swap code only, so a box installed before
+  // Indra existed would silently OCR with tesseract.js forever. Provision in the
+  // background (status stays "installing" on heartbeats until it resolves).
+  if (indraStatus.state !== "ready" && !indraProvisioning) {
+    indraStatus = { ...indraStatus, state: "installing", detail: indraStatus.detail ?? "provisioning" };
+    indraProvisioning = provisionIndra().then((status) => {
+      indraStatus = status;
+      logger.info("Indra OCR startup provisioning finished", { state: status.state, detail: status.detail });
+      return status;
+    });
+  }
 
   // 1. Pair if no agent key — retry with exponential backoff
   if (!config.agentKey) {

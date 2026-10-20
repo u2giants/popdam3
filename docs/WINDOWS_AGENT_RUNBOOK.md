@@ -289,3 +289,13 @@ New problems hit on this move:
 ## 8. Compat-thumbnail audit (fix `.ai` warning-page thumbnails in bulk)
 
 Some `.ai` thumbnails render Adobe's "saved without PDF Content" warning page instead of artwork (an earlier render used the PDF layer). **Settings → Windows Agent → "Audit AI Compat Thumbnails"** OCR-detected these — but as of 2026-07-03 it uses a **perceptual hash** (`compat-audit.ts`, `COMPAT_REF_HASHES`), because the old OCR looked for "compatibility" while the page says "Compatible" (flagged 0). The audit hashes every `.ai` thumbnail, clears the warning ones (`thumbnail_url=null`), and re-queues them for **native (Inkscape) render**, which recovers the real artwork. Triggers: `COMPAT_AUDIT_PREVIEW_REQUEST` (read-only report) and `COMPAT_AUDIT_REQUEST` (clear + re-render) in `admin_config`. A full ~46k scan takes ~8 min. **Do not** use the ".ai Sentinel Cleanup" delete flow for these — the files contain real artwork (see AGENTS.md `.ai` quirk).
+
+## 10. Indra OCR self-check and self-install (agent >= 0.16.9)
+
+The OCR engine (Python venv + models under `C:\ProgramData\PopDAM\indra`) is provisioned **outside** the shipped code — `install-service.ps1` sets it once, and OTA updates only swap code, so a box installed before Indra existed silently OCR'd with tesseract.js. From 0.16.9 the agent closes that gap itself:
+
+- **Startup check:** `INDRA_OCR_PYTHON`, the interpreter, and the models directory are verified before the first heartbeat.
+- **Self-install:** if anything is missing the agent provisions in the background — venv, `pip install indra-ocr==1.1.1`, models at revision `v1.1.0`, import verification — then activates it for the current process and best-effort writes machine-level environment variables for the next start. If the engine is already on disk but the variable was lost, only the environment is repaired (no download).
+- **Panel status:** Settings → Windows Render Agent shows `OCR engine: Indra (ready)`, `Indra installing…`, or `Indra missing / install failed, using tesseract.js (<detail>)` on every heartbeat.
+- **Never blocking:** a failure leaves extraction on tesseract.js for that run; the panel shows the reason.
+- **Manual path:** `scripts/windows-agent/install-service.ps1` (same pins). No system Python 3.11+ → the panel reports `no system Python found` and the agent stays on tesseract.js.
