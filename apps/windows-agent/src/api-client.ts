@@ -5,6 +5,7 @@
 
 import { config } from "./config";
 import { logger } from "./logger";
+import type { IndraStatus } from "./indra-provision";
 
 // ── Auth-failure backoff (issue #141) ───────────────────────────────
 // A stale/revoked agent key is permanent until re-paired. Restarting or
@@ -149,6 +150,7 @@ export async function heartbeat(
   health?: AgentHealthPayload,
   versionInfo?: WindowsVersionInfo,
   logTail?: string[],
+  ocrIndra?: IndraStatus,
 ): Promise<WindowsHeartbeatResponse> {
   const data = await callApi("heartbeat", {
     agent_id: agentId,
@@ -157,6 +159,7 @@ export async function heartbeat(
     health: health ?? undefined,
     version_info: versionInfo ?? undefined,
     log_tail: logTail ?? undefined,
+    ocr_indra: ocrIndra ?? undefined,
   });
   return data as unknown as WindowsHeartbeatResponse;
 }
