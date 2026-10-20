@@ -408,6 +408,9 @@ WITH expected(grantee,kind,name,priv) AS (VALUES
  ('designflow_prod_tracking_runtime','table','plm.prod_stage_option','SELECT'),
  ('designflow_prod_tracking_runtime','table','plm.prod_stage_option','INSERT'),
  ('designflow_prod_tracking_runtime','table','plm.prod_stage_option','UPDATE'),
+ -- #4515 narrow #2873 amendment (20261020151326): overdue-notify user_notification, held directly.
+ ('designflow_prod_tracking_runtime','table','dflow_prod.user_notification','SELECT'),
+ ('designflow_prod_tracking_runtime','table','dflow_prod.user_notification','INSERT'),
  ('designflow_prod_tracking_grants','view','dflow_prod.sample_approval_current','SELECT'),
  ('designflow_prod_tracking_grants','view','dflow_prod.sample_balance_by_location','SELECT'),
  ('designflow_prod_tracking_grants','view','dflow_prod.sample_global_status','SELECT'),

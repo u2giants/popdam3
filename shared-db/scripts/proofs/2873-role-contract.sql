@@ -413,6 +413,9 @@ insert into t2873_expected values
   ('designflow_prod_tracking_runtime','table','plm.prod_stage_option','SELECT'),
   ('designflow_prod_tracking_runtime','table','plm.prod_stage_option','INSERT'),
   ('designflow_prod_tracking_runtime','table','plm.prod_stage_option','UPDATE'),
+  -- #4515 narrow #2873 amendment (20261020151326): overdue-notify user_notification, held directly.
+  ('designflow_prod_tracking_runtime','table','dflow_prod.user_notification','SELECT'),
+  ('designflow_prod_tracking_runtime','table','dflow_prod.user_notification','INSERT'),
   ('designflow_prod_tracking_grants','view','dflow_prod.sample_approval_current','SELECT'),
   ('designflow_prod_tracking_grants','view','dflow_prod.sample_balance_by_location','SELECT'),
   ('designflow_prod_tracking_grants','view','dflow_prod.sample_global_status','SELECT'),
@@ -478,10 +481,11 @@ begin
         where m.member=('designflow_prod_'||v_role||'_runtime')::regrole) <> array['designflow_prod_'||v_role||'_grants']
     then raise exception '#2873: runtime role % must be a member of exactly its own grant role', v_role; end if;
     -- #4464 option (c): only the tracking runtime holds direct grants, and only its plm
-    -- Stage Catalog and AuditLog entries, which the matrix comparison above pins exactly.
+    -- Stage Catalog, AuditLog and user_notification (#4515) entries, which the matrix
+    -- comparison above pins exactly.
     if exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace, aclexplode(c.relacl) a
                where a.grantee=('designflow_prod_'||v_role||'_runtime')::regrole
-                 and not (v_role='tracking' and (n.nspname='plm' or (n.nspname='dflow_prod' and c.relname='AuditLog'))))
+                 and not (v_role='tracking' and (n.nspname='plm' or (n.nspname='dflow_prod' and c.relname in ('AuditLog','user_notification')))))
        or exists (select 1 from pg_proc p, aclexplode(p.proacl) a where a.grantee=('designflow_prod_'||v_role||'_runtime')::regrole)
     then raise exception '#2873: runtime role % holds a direct privilege', v_role; end if;
   end loop;
