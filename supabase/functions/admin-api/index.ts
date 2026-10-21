@@ -257,7 +257,6 @@ function formatPostgrestError(error: unknown): string {
   ].filter(Boolean).join(" | ");
 }
 
-
 async function handleFetchThumbnailByUrl(body: Record<string, unknown>): Promise<Response> {
   const url = optionalString(body, "url");
   if (!url) return err("Missing thumbnail URL", 400);
@@ -700,7 +699,7 @@ async function handleRebuildCharacterStats(body: Record<string, unknown>) {
   // character would be reset to zero below.
   const PAGE = 1000;
   const tally = new Map<string, number>();
-  for (let from = 0; ; from += PAGE) {
+  for (let from = 0;; from += PAGE) {
     const { data: counts, error } = await db
       .from("asset_characters")
       .select("character_id, assets!inner(is_deleted)")

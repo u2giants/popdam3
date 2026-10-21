@@ -2960,7 +2960,10 @@ async function handleReportHygieneFindings(body: Record<string, unknown>) {
     const toInsert: typeof rows = [];
     for (const row of rows) {
       const id = existingIds.get(`${row.relative_path}\u0000${row.check_type}`);
-      if (!id) { toInsert.push(row); continue; }
+      if (!id) {
+        toInsert.push(row);
+        continue;
+      }
       const { error } = await db.from("hygiene_findings").update({
         asset_id: row.asset_id,
         filename: row.filename,

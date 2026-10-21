@@ -645,9 +645,7 @@ async function handleHeartbeat(req: Request): Promise<Response> {
       .update(update)
       .eq("id", checkout_id)
       .eq("user_id", userId);
-    await (update.status
-      ? heartbeatQuery.in("status", ["active", "checkin_queued", "uploading", "verifying"])
-      : heartbeatQuery);
+    await (update.status ? heartbeatQuery.in("status", ["active", "checkin_queued", "uploading", "verifying"]) : heartbeatQuery);
   }
 
   if (device_id) {
