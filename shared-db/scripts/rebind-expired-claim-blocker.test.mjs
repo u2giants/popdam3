@@ -125,3 +125,38 @@ test('CLI and API reject malformed, duplicate, unknown or incomplete requests',(
   const dir=mkdtempSync(join(tmpdir(),'blocker-rebind-'))
   try{const file=join(dir,'quote');writeFileSync(file,args.authorizationQuote);const flags={'issue':'--issue','claim':'--claim-number','pr':'--pr','headSha':'--head-sha','oldOwner':'--old-owner','branch':'--branch','worktree':'--worktree','expectedBlockedOn':'--expected-blocked-on','abandonmentIssue':'--abandonment-issue','authorizationChatId':'--authorization-chat-id'};const argv=Object.entries(flags).flatMap(([key,flag])=>[flag,String(args[key])]);assert.deepEqual(parseArgs([...argv,'--authorization-quote-file',file]),args)}finally{rmSync(dir,{recursive:true})}
 })
+
+test('preserved dirty claim with work-issue blocker rebinds when published PR head is exact',()=>{
+  const dirtyArgs={...args,expectedBlockedOn:'issue:#2336'}
+  const io=fixture()
+  io.issues.get(4152).body=claimBody({version:VERSION,objects:['table plm.plan'],owner:args.oldOwner,branch:args.branch,worktree:args.worktree,expiresAt:EXPIRY,capacityState:'relinquished',blockedOn:'issue:#2336',worktreeState:'dirty',recoveryArtifact:null})
+  io.localClean=()=>false
+  io.localHead=()=>BASE
+  io.localBranch=()=>'other'
+  const before=io.getIssue(4152).body
+  const result=rebindExpiredClaimBlocker(dirtyArgs,NOW,io)
+  assert.equal(result.idempotent,false)
+  assert.equal(io.writes,1)
+  assert.equal(io.getIssue(4152).body,before.replace('blocked_on: issue:#2336','blocked_on: issue:#900'))
+  const after=parseAuthorLease(io.getIssue(4152).body,NOW)
+  assert.equal(after.worktreeState,'dirty')
+  assert.equal(after.blockedOn,'issue:#900')
+  assert.equal(after.owner,args.oldOwner)
+})
+
+test('clean-declared claim still refuses when local custody is dirty',()=>{
+  const io=fixture()
+  io.localClean=()=>false
+  assert.throws(()=>rebindExpiredClaimBlocker(args,NOW,io),/original clean source custody changed|expired relinquished/)
+})
+
+test('dirty-declared claim still refuses when the source PR head moves',()=>{
+  const dirtyArgs={...args,expectedBlockedOn:'issue:#2336'}
+  const io=fixture()
+  io.issues.get(4152).body=claimBody({version:VERSION,objects:['table plm.plan'],owner:args.oldOwner,branch:args.branch,worktree:args.worktree,expiresAt:EXPIRY,capacityState:'relinquished',blockedOn:'issue:#2336',worktreeState:'dirty',recoveryArtifact:null})
+  io.getPr=()=>({state:'open',head:{sha:BASE,ref:args.branch},base:{sha:BASE}})
+  const before=io.getIssue(4152).body
+  assert.throws(()=>rebindExpiredClaimBlocker(dirtyArgs,NOW,io))
+  assert.equal(io.writes,0)
+  assert.equal(io.getIssue(4152).body,before)
+})

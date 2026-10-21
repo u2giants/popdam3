@@ -1312,15 +1312,25 @@ expiry or invent abandonment for work an owner voluntarily stopped. The expired
 checkpoint bridge remains available only for its original qualified case.
 
 `scripts/rebind-expired-claim-blocker.mjs` is a separate preserve-only bridge for
-an OPEN source PR whose clean, explicitly relinquished author claim has naturally
-expired but still names its exact source checkpoint as its blocker and recovery.
-It changes only `blocked_on` to an independently qualified, exact open and ready
-repository-maintenance abandonment audit on that same route, with exactly one
-active audit fence. Never repurpose an earlier audit for another claim.
+an OPEN source PR whose explicitly relinquished author claim has naturally
+expired and names either its exact source checkpoint (`artifact:<head>`) or a
+work-issue blocker as `blocked_on`. It changes only `blocked_on` to an
+independently qualified, exact open and ready repository-maintenance abandonment
+audit on that same route, with exactly one active audit fence. Never repurpose an
+earlier audit for another claim.
 Owner, branch, worktree, expiry,
 capacity state, recovery, objects, source PR and permanent version stay unchanged.
-Active/unexpired, dirty, remote, legacy and resumed claims refuse. An ordinary
+Active/unexpired, remote, legacy and resumed claims refuse. An ordinary
 external dependency blocker cannot be rebound through this operation.
+
+Clean-declared custody keeps the original same-machine clean re-observation.
+Dirty-declared custody is the preserved-checkpoint case left when a worker stops
+with dirty local state and later publishes the exact source as a clean
+preservation commit at the PR head: qualification is the open PR at that exact
+head and version, not a same-machine clean re-read. The claim's `worktree_state`
+stays `dirty`; later transfer still passes the recorded state and a dereferenceable
+`artifact:<head>` recovery. Local clean claims whose observed custody is dirty
+continue to refuse.
 
 Before use, independently prove the original author's explicit terminal handoff
 or unavailability; idle status or expiry alone is insufficient. Preserve original

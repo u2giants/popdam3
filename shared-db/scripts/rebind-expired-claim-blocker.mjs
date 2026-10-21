@@ -24,7 +24,9 @@ export function validateRequest(options){
   const request=Object.fromEntries(KEYS.map(key=>[key,options[key]]))
   for(const key of ['issue','claim','pr','abandonmentIssue'])if(!Number.isSafeInteger(request[key])||request[key]<=0)fail(`exact positive ${key} required`)
   for(const key of KEYS.filter(key=>!['issue','claim','pr','abandonmentIssue'].includes(key)))if(typeof request[key]!=='string'||!request[key]||request[key]!==request[key].trim()||/[\r\n`]/.test(request[key]))fail(`invalid ${key}`)
-  if(!SHA.test(request.headSha)||/\s/.test(request.branch)||request.authorizationQuote.length<20||request.expectedBlockedOn!==`artifact:${request.headSha}`)fail('exact source checkpoint blocker and current-chat quote required')
+  const checkpoint=`artifact:${request.headSha}`
+  const workIssueBlocker=/^issue:#\d+$/.test(request.expectedBlockedOn)
+  if(!SHA.test(request.headSha)||/\s/.test(request.branch)||request.authorizationQuote.length<20||(request.expectedBlockedOn!==checkpoint&&!workIssueBlocker))fail('exact source checkpoint or work-issue blocker, and current-chat quote required')
   return request
 }
 function reboundBody(body,request){
@@ -46,8 +48,15 @@ function prove(request,now,io,prior=null){
   if((claim?.body?.match(/```db-author-lease\s*\n/g)??[]).length!==1)fail('exact single author lease required')
   const lease=parseAuthorLease(claim?.body??'',now)
   const rebound=Boolean(prior)&&lease.blockedOn===`issue:#${request.abandonmentIssue}`
-  if(claim?.state!=='open'||workstreamKey(claim.title)!==`#${request.issue}`||lease.legacy||lease.capacityState!=='relinquished'||lease.active||lease.relinquishmentMetadataLegacy||lease.owner!==request.oldOwner||lease.branch!==request.branch||lease.worktree!==request.worktree||lease.worktreeState!=='clean'||lease.blockedOn!==(rebound?`issue:#${request.abandonmentIssue}`:request.expectedBlockedOn))fail('exact expired relinquished clean original lease required')
-  if(lease.recoveryArtifact!==request.expectedBlockedOn)fail('preserved recovery must be the same exact source checkpoint')
+  const checkpoint=`artifact:${request.headSha}`
+  // #3618 preserved-checkpoint recovery: a worker may leave a dirty claim whose
+  // source was later published as a clean preservation commit at the exact PR
+  // head. Dirty is then qualified by that published head, not by a local clean
+  // re-observation. Clean claims keep the original same-machine custody check.
+  const declaredClean=lease.worktreeState==='clean'
+  const declaredDirty=lease.worktreeState==='dirty'
+  if(claim?.state!=='open'||workstreamKey(claim.title)!==`#${request.issue}`||lease.legacy||lease.capacityState!=='relinquished'||lease.active||lease.relinquishmentMetadataLegacy||lease.owner!==request.oldOwner||lease.branch!==request.branch||lease.worktree!==request.worktree||!(declaredClean||declaredDirty)||lease.blockedOn!==(rebound?`issue:#${request.abandonmentIssue}`:request.expectedBlockedOn))fail('exact expired relinquished original lease required')
+  if(lease.recoveryArtifact&&lease.recoveryArtifact!==checkpoint&&lease.recoveryArtifact!==request.expectedBlockedOn)fail('preserved recovery must be the source checkpoint or the recorded blocker')
   if(prior&&(lease.version!==prior.record.version||sha256(claim.body)!==(rebound?prior.record.rebound_body_sha256:prior.record.original_body_sha256)))fail('claim body differs from immutable receipt')
   assertClaimNotRetired(lease.version,'rebound',io)
   renewalIssueScope(io.getIssue(request.issue),lease,[request.issue],{allowClaimSuperset:true})
@@ -59,7 +68,11 @@ function prove(request,now,io,prior=null){
   if(!assertAbandonmentEvidence({claim:request.claim,worktreeState:'clean'},lease,`issue:#${request.abandonmentIssue}`,io))fail('exact abandonment audit proof absent')
   const auditHash=sha256(audit.body)
   if(prior&&auditHash!==prior.record.audit_body_sha256)fail('audit body differs from immutable receipt')
-  if(observedWorktreeState(request.worktree,io)!=='clean'||!io.localClean(request.worktree)||io.localHead(request.worktree)!==request.headSha||io.localBranch(request.worktree)!==request.branch)fail('original clean source custody changed')
+  if(declaredClean){
+    if(observedWorktreeState(request.worktree,io)!=='clean'||!io.localClean(request.worktree)||io.localHead(request.worktree)!==request.headSha||io.localBranch(request.worktree)!==request.branch)fail('original clean source custody changed')
+  }
+  // Dirty declared custody is qualified by the published open PR at the exact
+  // preservation head (proved below), not by a same-machine clean re-read.
   if(lease.recoveryArtifact)requireDereferenceableRecoveryArtifact(lease.recoveryArtifact,io)
   const pr=io.getPr(request.pr)
   if(pr?.state!=='open'||pr.head?.sha!==request.headSha||pr.head?.ref!==request.branch)fail('exact open source changed')

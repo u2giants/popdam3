@@ -1,0 +1,53 @@
+{
+  "schema_version": 2,
+  "generation": 32,
+  "evidence_parent": {
+    "work_issue": 3618,
+    "generation": 31,
+    "contract_sha256": "af1837ab554090352c345515063c2fb3735738b445b7b690e6552a51e6a7af8a"
+  },
+  "work_issue": 3618,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Extend expired-claim blocker rebind for preserved dirty custody and accept absent dirty original custody with published recovery so claim 4212 can be transferred without impersonation.",
+  "base_sha": "43d1861946d782c4998ca71419b170cc16fbfd44",
+  "dispatcher": "MiMo chat ses_ffe5eaa080c87ffeLDb0P1yLp9 on edge-dev",
+  "worker": "MiMo chat ses_ffe5eaa080c87ffeLDb0P1yLp9 on edge-dev",
+  "branch": "mimo/rebind-preserved-dirty-claim",
+  "worktree": "C:/repos/shared-db-worktrees/main-now",
+  "allowed_paths": [
+    ".agent/work/3618/32/contract.json",
+    ".agent/work/3618/32/completion.json",
+    "scripts/rebind-expired-claim-blocker.mjs",
+    "scripts/rebind-expired-claim-blocker.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "docs/agents/section-4-anti-collision-rules.md"
+  ],
+  "file_writes": [
+    ".agent/work/3618/32/contract.json",
+    ".agent/work/3618/32/completion.json",
+    "scripts/rebind-expired-claim-blocker.mjs",
+    "scripts/rebind-expired-claim-blocker.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "docs/agents/section-4-anti-collision-rules.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database change.",
+    "No claim impersonation.",
+    "No weakening of clean-declared custody checks."
+  ],
+  "required_checks": [
+    "node --test scripts/rebind-expired-claim-blocker.test.mjs scripts/claim-author-transfer.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Owner authorized: figure it out and implement it; shepherd through to the end.",
+    "Claim 4212 already transferred using this tooling path."
+  ],
+  "stop_conditions": [
+    "Stop if a database change is required.",
+    "Stop if clean-declared custody checks would weaken."
+  ]
+}

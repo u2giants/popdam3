@@ -2874,7 +2874,14 @@ function changeClaimAuthor(options,now,io,voluntary){
     if(!audit)throw new LaneError('exact abandonment audit proof is absent')
     // Remote custody: the owner's signed state stays the declared one; what this machine
     // observes (absent) is checked by the remote-custody block below.
-    if(!adopted&&!remoteCustody){const observed=observedWorktreeState(request.oldWorktree,io);if(observed!==request.oldWorktreeState&&!(observed==='absent'&&request.oldWorktreeState==='remote'))throw new LaneError('old worktree state differs from explicit declaration')}
+    if(!adopted&&!remoteCustody){
+      const observed=observedWorktreeState(request.oldWorktree,io)
+      // Absent path + declared dirty is the preserved-checkpoint case: the prior
+      // worker stopped on another machine and published the exact source head as
+      // a preservation commit. Qualify with that dereferenceable recovery artifact.
+      const preservedRemoteDirty=observed==='absent'&&request.oldWorktreeState==='dirty'&&Boolean(request.recoveryArtifact)
+      if(observed!==request.oldWorktreeState&&!(observed==='absent'&&request.oldWorktreeState==='remote')&&!preservedRemoteDirty)throw new LaneError('old worktree state differs from explicit declaration')
+    }
     const authority=claimFirstAuthority(io)
     if(!authority?.live||authority.calling_task!==authority.task||authority.task!==request.authorizationChatId)throw new LaneError(`operator adoption chat ID does not match this declared session${authority?.live?'':`; ${sessionAuthorityRefusal(authority)}`}`)
     if(voluntary){
