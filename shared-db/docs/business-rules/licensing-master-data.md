@@ -115,6 +115,7 @@ No refresh hard-deletes licensing Master Data.
 - Consequence: OPA branch membership can prove that a Property is *not* Lucasfilm / Star Wars, but it can never distinguish Marvel from Disney. Direct OPA scope is therefore insufficient authority for the Disney-versus-Marvel question.
 - Ruling: for the Disney and Marvel split only, the signed contract schedule is the controlling authority. Contract section membership decides Marvel versus Disney, and an OPA `disney` branch value must not be treated as a contradiction of a contract clause that places the Property under Marvel. Lucasfilm / Star Wars is unaffected and keeps the existing contract-and-OPA agreement rule.
 - Marvel Creative Asset authority is unchanged and remains ASGARD.
+- Because OPA cannot separate them, every scrape or generated list that groups OPA rows by Licensor must run the plausibility check in [`../licensor-assignment-sanity-check.md`](../licensor-assignment-sanity-check.md). Without it, four Marvel properties sat under Disney in the 2026-10-15 mapping workbook.
 
 ### OPA submissions presence is authority for entitlement
 
