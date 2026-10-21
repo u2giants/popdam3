@@ -42,24 +42,10 @@ const CANDIDATE_DIRS = process.env.AI_DEVOPS_DIR ? [process.env.AI_DEVOPS_DIR] :
   join(process.env.HOME ?? '', 'repos/ai-devops'),
 ].filter(Boolean);
 
-const SKILLS = ['shared-db-orchestrator', 'shared-db-change', 'shared-db-handover'];
-const CLAIM_FIRST_REQUIREMENTS = [
-  // CAP-AGNOSTIC ON PURPOSE. The rule is that the skill must STATE an author cap
-  // and point at the enforced constant -- not that the cap is any particular
-  // number. Hardcoding "three" here made a legitimate owner-approved raise to
-  // five look like skill drift, and the fix for that must never be to delete the
-  // requirement. It also has to accept a skill copy that has not been re-synced
-  // yet, so both the old numeric wording and the constant-referencing wording pass.
-  // Owner ruling 2026-09-11 (AGENTS.md section 4 rule 1, issue #2775) removed the
-  // numeric author cap, and ai-devops #531 (plan #401 Step 7A) re-synced the skill to
-  // say so. The skill must still STATE the author-admission rule: either the current
-  // no-ceiling wording or the older cap wording from a copy not yet re-synced.
-  ['author-cap', /no numeric ceiling on concurrent authors|(?:the|one of the|three)\s+fixed\s+author slots|at most (?:`?MAX_AUTHOR_LANES`?|three|four|five|six|\d+) migration authors/i],
-  ['github-object-locks', /GitHub-backed(?: exact-)?object locks/i],
-  ['exclusive-preview', /exclusive GitHub-backed preview lock/i],
-  ['exclusive-merge', /exclusive merge lock/i],
-  ['expiry-stays-protective', /Expiry never removes collision protection/i],
-];
+// `shared-db-orchestrator` was retired with the orchestrator role (owner ruling
+// 2026-10-02, AGENTS.md §0.0-D; popcre/ai-devops#1884 removed the skill on
+// 2026-10-20). Probing for it made every CI run report "skills NOT found" (#4524).
+const SKILLS = ['shared-db-change', 'shared-db-handover'];
 
 /**
  * Each rule is a CONTRADICTION, not a style preference: a pattern that must not appear in
@@ -132,7 +118,7 @@ const CONTRADICTIONS = [
 async function findSkillsDir() {
   for (const d of CANDIDATE_DIRS) {
     try {
-      await access(join(d, 'skills', 'shared', 'shared-db-orchestrator', 'SKILL.md'));
+      await access(join(d, 'skills', 'shared', 'shared-db-handover', 'SKILL.md'));
       return d;
     } catch {
       /* try the next canonical candidate */
@@ -189,11 +175,6 @@ async function main() {
           `      contradicts AGENTS.md: ${rule.agents}\n` +
           `      why it matters: ${rule.why}`,
       );
-    }
-    if (skill === 'shared-db-orchestrator') {
-      for (const [id, pattern] of CLAIM_FIRST_REQUIREMENTS) {
-        if (!pattern.test(text)) problems.push(`${skill}/SKILL.md [missing-${id}]: required safety rule is absent.`);
-      }
     }
   }
 

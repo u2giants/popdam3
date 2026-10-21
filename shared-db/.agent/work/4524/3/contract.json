@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 4524,
+    "generation": 2,
+    "contract_sha256": "46f0f3ec585695bce5325a4df39e5ef8c03e8148b75027e4047764cdd2c81f7c"
+  },
+  "work_issue": 4524,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Repair the skill-drift checker so Tools offline tests stop failing on main after popcre/ai-devops#1884 retired the shared-db-orchestrator skill; re-review the checker's truth-audit catalogue and record the explicit retirement of the refusal site deleted with the retired skill. Tooling, tests and reviewed audit records only; no safeguard, workflow, setting, schema or data change.",
+  "base_sha": "f6cb6cc77e2217dddf1cff1e134a7175beb2d648",
+  "dispatcher": "Claude chat b23dac91-af2c-4c34-b450-4686c6b1ccb7 on edge-dev",
+  "worker": "Same session; bounded repair of scripts/check-skill-drift.mjs, its test, and its truth-audit catalogue.",
+  "branch": "claude/skill-drift-retired-orchestrator",
+  "worktree": "scratch worktree of the same checkout on edge-dev",
+  "allowed_paths": [
+    "scripts/check-skill-drift.mjs",
+    "scripts/check-skill-drift.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~check-skill-drift.mjs.json",
+    "docs/verification/throughput-retired-identity-sites-4524.json",
+    "scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+    ".agent/work/4524/3/contract.json",
+    ".agent/work/4524/3/completion.json"
+  ],
+  "file_writes": [
+    "scripts/check-skill-drift.mjs",
+    "scripts/check-skill-drift.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~check-skill-drift.mjs.json",
+    "docs/verification/throughput-retired-identity-sites-4524.json",
+    "scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+    ".agent/work/4524/3/contract.json",
+    ".agent/work/4524/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not drop --require-skills, the ai-devops checkout step or any contradiction rule.",
+    "No workflow, setting, schema or row-data change.",
+    "Do not close #4524 before main's Tools offline tests is green."
+  ],
+  "required_checks": [
+    "git diff --check origin/main...HEAD",
+    "AI_DEVOPS_DIR=<current popcre/ai-devops skills> node --test scripts/check-skill-drift.test.mjs",
+    "AI_DEVOPS_DIR=<current popcre/ai-devops skills> node scripts/check-skill-drift.mjs --require-skills",
+    "node --test scripts/throughput-guard/*.test.mjs"
+  ],
+  "assumptions": [
+    "Generations 1 and 2 were published before CI showed the truth-audit catalogue and the retirement record also had to change; generation 3 supersedes them prospectively and their pairs are retired in the implementation history so exactly one pair is carried.",
+    "The implementation commits up to 77d22737bab5de492252fde2f6f2db6e8b5f2940 were authored before this contract was published; disclosed, and every later commit follows it.",
+    "The current ai-devops skills used for the local checks were read from popcre/ai-devops main on 2026-10-20 (shared-db-change, shared-db-handover)."
+  ],
+  "stop_conditions": [
+    "Stop before any production, preview, database or repository-setting action."
+  ]
+}
