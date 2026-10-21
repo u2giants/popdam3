@@ -9,6 +9,10 @@ import {
   INDRA_PACKAGE_SPEC,
   INDRA_PYTHON,
   acquireProvisionLock,
+  defaultPidAlive,
+  LOCK_STALE_MS,
+  LOCK_WAIT_MS,
+  removeLockIfUnchanged,
   beginProvisioningStatus,
   checkIndra,
   deepVerifyScript,
@@ -190,4 +194,49 @@ test("lock staleness: age beats a live pid, a dead pid beats the grace window", 
     false,
     "dead pid inside the grace window is left alone (holder may be starting up)",
   );
+});
+
+test("stale-steal never destroys a lock that changed after it was read (TOCTOU)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "indra-lock-"));
+  const lockPath = join(dir, "indra.provision.lock");
+  try {
+    const staleRaw = JSON.stringify({ pid: 1, at: 0 });
+    const freshRaw = JSON.stringify({ pid: 2, at: Date.now(), token: "fresh" });
+    writeFileSync(lockPath, freshRaw); // another process stole and re-created it
+    assert.equal(removeLockIfUnchanged(lockPath, staleRaw), false);
+    assert.equal(readFileSync(lockPath, "utf8"), freshRaw, "the fresh lock must survive");
+    assert.equal(removeLockIfUnchanged(lockPath, freshRaw), true);
+    assert.ok(!existsSync(lockPath));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("release does not remove a lock now held by someone else", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "indra-lock-"));
+  const lockPath = join(dir, "indra.provision.lock");
+  try {
+    const release = await acquireProvisionLock({ lockPath, waitMs: 200, pollMs: 10 });
+    const other = JSON.stringify({ pid: 2, at: Date.now(), token: "other" });
+    writeFileSync(lockPath, other);
+    release();
+    assert.equal(readFileSync(lockPath, "utf8"), other);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("EPERM from kill(pid, 0) means a live foreign-user process", (t) => {
+  t.mock.method(process, "kill", () => {
+    throw Object.assign(new Error("EPERM"), { code: "EPERM" });
+  });
+  assert.equal(defaultPidAlive(4242), true);
+  t.mock.method(process, "kill", () => {
+    throw Object.assign(new Error("ESRCH"), { code: "ESRCH" });
+  });
+  assert.equal(defaultPidAlive(4242), false);
+});
+
+test("a waiter outlasts the stale window", () => {
+  assert.ok(LOCK_WAIT_MS > LOCK_STALE_MS);
 });
