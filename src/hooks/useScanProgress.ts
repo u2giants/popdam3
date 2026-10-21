@@ -117,12 +117,18 @@ export function useScanProgress(): ScanProgress & { pollNow: () => void } {
     queryKey: ["scan-progress"],
     queryFn: fetchScanProgress,
     staleTime: Infinity,
+    // "stale" is judged from updated_at at fetch time; a crashed agent stops
+    // writing SCAN_PROGRESS, so re-evaluate periodically.
+    refetchInterval: 60_000,
     placeholderData: DEFAULT_PROGRESS,
   });
 
   useEffect(() => {
     const channel = supabase
-      .channel("scan-progress-realtime")
+      // Unique topic per mount: supabase.channel() reuses an existing channel by
+      // topic, so a shared name lets one unmount tear down another consumer's
+      // live subscription.
+      .channel(`scan-progress-realtime-${crypto.randomUUID()}`)
       .on("postgres_changes", {
         event: "*",
         schema: "public",

@@ -149,7 +149,7 @@ export default function PdfTextSamplesTab() {
                 {request.completed_at
                   ? new Date(request.completed_at as string).toLocaleString()
                   : ""}{" "}
-                — {request.count ?? 0} file{(request.count as number) !== 1 ? "s" : ""} processed
+                — {Number(request.count ?? 0)} file{Number(request.count ?? 0) !== 1 ? "s" : ""} processed
                 {request.mode ? ` (${request.mode})` : ""}
               </span>
             </div>

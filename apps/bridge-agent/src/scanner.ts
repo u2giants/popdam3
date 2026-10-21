@@ -130,6 +130,10 @@ async function* scanDirectory(
   let entries;
   try {
     entries = await readdir(dirPath, { withFileTypes: true });
+    // readdir order is filesystem-defined. Crash-resume skips entries that
+    // sort before the checkpoint, so the walk must visit them in sorted order
+    // or unvisited directories are silently skipped.
+    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     callbacks?.onDir?.(dirPath);
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;

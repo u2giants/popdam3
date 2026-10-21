@@ -1689,15 +1689,20 @@ async function handleCompleteRender(body: Record<string, unknown>) {
 
   if (!job) return err("Job not found", 404);
 
-  await db
+  // Only an in-flight job may be completed. A late result for a job that was
+  // already requeued (status pending) or finished must not overwrite it.
+  const { count: completedCount, error: completeErr } = await db
     .from("render_queue")
     .update({
       status: success ? "completed" : "failed",
       completed_at: new Date().toISOString(),
       error_message: errorMsg,
       lease_expires_at: null, // clear lease on completion
-    })
-    .eq("id", jobId);
+    }, { count: "exact" })
+    .eq("id", jobId)
+    .in("status", ["claimed", "processing"]);
+  if (completeErr) return err(completeErr.message, 500);
+  if (!completedCount) return json({ ok: true, noop: true, reason: "job not in flight" });
 
   if (success && thumbnailUrl) {
     await db
@@ -1876,16 +1881,18 @@ async function handleGetScanRoots(agentId: string) {
 
 // ── Route: get-config ───────────────────────────────────────────────
 
-async function handleGetConfig(body: Record<string, unknown>) {
+async function handleGetConfig(body: Record<string, unknown>, agentType: string) {
   const keys = body.keys;
   const db = serviceClient();
 
-  let query = db.from("admin_config").select("key, value");
-  if (Array.isArray(keys) && keys.length > 0) {
-    query = query.in("key", keys as string[]);
-  }
+  // Agents may only read the keys their type is entitled to; an empty list
+  // must never dump the whole admin_config table (provider secrets included).
+  if (!Array.isArray(keys) || keys.length === 0) return err("keys required");
+  const allowed = new Set(getConfigKeysForAgent(agentType));
+  const requested = (keys as unknown[]).filter((k): k is string => typeof k === "string" && allowed.has(k));
+  if (requested.length === 0) return json({ ok: true, config: {} });
 
-  const { data, error } = await query;
+  const { data, error } = await db.from("admin_config").select("key, value").in("key", requested);
   if (error) return err(error.message, 500);
 
   const config: Record<string, unknown> = {};
@@ -2935,11 +2942,43 @@ async function handleReportHygieneFindings(body: Record<string, unknown>) {
         found_by_agent: (f.found_by_agent as string) || null,
       }));
 
-    // Use upsert with the unique index on (relative_path, check_type) WHERE status != 'resolved'
+    if (rows.length === 0) continue;
+
+    // The unique index on (relative_path, check_type) is PARTIAL (status !=
+    // 'resolved'), and PostgREST upsert cannot name a partial index, so a
+    // plain upsert always fails with 42P10. Match open rows ourselves: update
+    // the ones that already exist, insert the rest, and surface any error
+    // instead of reporting a successful scan with nothing stored.
+    const { data: existing, error: existingErr } = await db.from("hygiene_findings")
+      .select("id, relative_path, check_type")
+      .in("relative_path", rows.map((r) => r.relative_path))
+      .neq("status", "resolved");
+    if (existingErr) return err(`hygiene lookup failed: ${existingErr.message}`, 500);
+    const existingIds = new Map<string, string>();
+    for (const row of existing ?? []) existingIds.set(`${row.relative_path}\u0000${row.check_type}`, row.id);
+
+    const toInsert: typeof rows = [];
     for (const row of rows) {
-      const { error } = await db.from("hygiene_findings")
-        .upsert(row, { onConflict: "relative_path,check_type" });
-      if (!error) inserted++;
+      const id = existingIds.get(`${row.relative_path}\u0000${row.check_type}`);
+      if (!id) {
+        toInsert.push(row);
+        continue;
+      }
+      const { error } = await db.from("hygiene_findings").update({
+        asset_id: row.asset_id,
+        filename: row.filename,
+        severity: row.severity,
+        details: row.details,
+        scan_session_id: row.scan_session_id,
+        found_by_agent: row.found_by_agent,
+      }).eq("id", id);
+      if (error) return err(`hygiene update failed: ${error.message}`, 500);
+      inserted++;
+    }
+    if (toInsert.length > 0) {
+      const { error } = await db.from("hygiene_findings").insert(toInsert);
+      if (error) return err(`hygiene insert failed: ${error.message}`, 500);
+      inserted += toInsert.length;
     }
   }
 
@@ -4715,7 +4754,7 @@ corsServe(async (req: Request) => {
       case "get-scan-roots":
         return await handleGetScanRoots(agentId);
       case "get-config":
-        return await handleGetConfig(body);
+        return await handleGetConfig(body, agentType);
       case "report-path-test":
         return await handleReportPathTest(body);
       case "report-dir-browse":
@@ -4808,7 +4847,7 @@ corsServe(async (req: Request) => {
         return await handleCompleteAiSentinelScan(body);
       }
       case "complete-blank-thumb-cleanup":
-        return handleCompleteBlankThumbCleanup(body);
+        return await handleCompleteBlankThumbCleanup(body);
       case "claim-checkin-verifications":
         return await handleClaimCheckinVerifications(body);
       case "report-checkin-verification":

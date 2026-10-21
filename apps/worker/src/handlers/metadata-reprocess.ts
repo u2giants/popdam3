@@ -22,6 +22,8 @@ export async function handleReprocessMetadata(
     : { action: "reprocess-asset-metadata", offset, batch_size: 25 };
   const response = await fetchImpl(`${config.supabaseUrl}/functions/v1/admin-api`, {
     method: "POST",
+    // A hung edge invocation must not block the single worker loop forever.
+    signal: AbortSignal.timeout(120_000),
     headers: {
       apikey: edgeKey,
       Authorization: `Bearer ${edgeKey}`,

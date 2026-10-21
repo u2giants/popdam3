@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { exchangeCode } from "@/lib/authentik";
 import { externalSupabase } from "@/lib/external-supabase";
+import { CURRENT_APP } from "@/lib/app-mode";
 
 export default function AuthCallbackPage() {
   const navigate = useNavigate();
@@ -30,8 +31,8 @@ export default function AuthCallbackPage() {
         const idToken = await exchangeCode(code, state);
 
         // Validate id_token and get a Supabase session token_hash from the edge function
-        const supabaseUrl = externalSupabase.supabaseUrl;
-        const anonKey = externalSupabase.supabaseKey;
+        const supabaseUrl = CURRENT_APP.supabaseUrl;
+        const anonKey = CURRENT_APP.supabaseAnonKey;
         const fnResp = await fetch(`${supabaseUrl}/functions/v1/authenticate-with-authentik`, {
           method: "POST",
           headers: { "Content-Type": "application/json", apikey: anonKey },

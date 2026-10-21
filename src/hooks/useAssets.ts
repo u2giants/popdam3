@@ -444,7 +444,7 @@ export function useAssets(
       // A failed page (for example a timeout) must not start the exact count:
       // that would add database work, hold the queue, and delay the error.
       if (error) throw error;
-      const countResult = effectiveScope
+      const countResult: { error: unknown; count: number | null } | null = effectiveScope
         ? await runEffectiveScopeQuery(
             () => buildAssetCountQuery(filters, minDate, fullTextAssetIds, fallbackSearchFilter, true).abortSignal(signal),
             signal,

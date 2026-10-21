@@ -475,6 +475,18 @@ function waitForIdleThenRestart() {
 
 // ── Job processing ──────────────────────────────────────────────
 
+/** A libvips/Ghostscript hang must fail the job instead of pinning an activeJobs slot forever. */
+const RENDER_JOB_TIMEOUT_MS = 10 * 60 * 1000;
+function withRenderTimeout<T>(p: Promise<T>, label: string): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => {
+      t = setTimeout(() => reject(new Error(`${label} timed out after ${RENDER_JOB_TIMEOUT_MS}ms`)), RENDER_JOB_TIMEOUT_MS);
+    }),
+  ]).finally(() => clearTimeout(t));
+}
+
 async function processJob(job: api.RenderJob): Promise<void> {
   let uncPath: string;
   try {
@@ -513,7 +525,7 @@ async function processJob(job: api.RenderJob): Promise<void> {
   try {
     const fileType = (job.file_type === "psd") ? "psd" : (job.file_type === "pdf") ? "pdf" : "ai" as const;
     const cw = fileType === "ai" ? await getCompatWorker() : undefined;
-    const result = await renderFile(uncPath, fileType, cw);
+    const result = await withRenderTimeout(renderFile(uncPath, fileType, cw), `render ${job.relative_path}`);
     const thumbnailUrl = await uploadThumbnail(job.asset_id, result.buffer);
 
     // For PDFs, upload hi-res page images
@@ -591,9 +603,9 @@ async function processSgJob(job: api.SgRenderJob): Promise<void> {
   try {
     const ext = (job.file_type || "").toLowerCase();
     const NATIVE_IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "tif", "tiff"]);
-    const result = NATIVE_IMAGE_EXTS.has(ext)
-      ? await renderNativeImage(uncPath)
-      : await renderFile(uncPath, ext === "psd" ? "psd" : ext === "pdf" ? "pdf" : ext === "eps" ? "eps" : "ai");
+    const result = await withRenderTimeout(NATIVE_IMAGE_EXTS.has(ext)
+      ? renderNativeImage(uncPath)
+      : renderFile(uncPath, ext === "psd" ? "psd" : ext === "pdf" ? "pdf" : ext === "eps" ? "eps" : "ai"), `sg render ${job.relative_path}`);
     const thumbnailUrl = await uploadSgThumbnail(job.style_guide_file_id, result.buffer);
     await api.completeSgRender(job.job_id, true, thumbnailUrl);
     jobsCompleted++;
