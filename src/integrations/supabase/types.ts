@@ -1108,6 +1108,48 @@ export type Database = {
         }
         Relationships: []
       }
+      dam_search_keys: {
+        Row: {
+          asset_id: string | null
+          customer: string | null
+          document_type: string
+          entity_id: string
+          path: string
+          program: string | null
+          search_tsv: unknown
+          style_group_id: string | null
+          title: string
+          title_key: string
+          title_tsv: unknown
+        }
+        Insert: {
+          asset_id?: string | null
+          customer?: string | null
+          document_type: string
+          entity_id: string
+          path: string
+          program?: string | null
+          search_tsv: unknown
+          style_group_id?: string | null
+          title: string
+          title_key: string
+          title_tsv: unknown
+        }
+        Update: {
+          asset_id?: string | null
+          customer?: string | null
+          document_type?: string
+          entity_id?: string
+          path?: string
+          program?: string | null
+          search_tsv?: unknown
+          style_group_id?: string | null
+          title?: string
+          title_key?: string
+          title_tsv?: unknown
+        }
+        Relationships: []
+      }
       dam_search_synonyms: {
         Row: {
           created_at: string
