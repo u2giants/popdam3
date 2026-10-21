@@ -42,7 +42,7 @@ export function QualityDashboard() {
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="ERP Items Synced" value={s.total_erp_items ?? 0} icon={<Database className="h-4 w-4" />} tooltip="Total number of product records pulled from the ERP system" />
+              <StatCard label="ERP Items" value={s.total_erp_items ?? 0} icon={<Database className="h-4 w-4" />} tooltip="Total number of ColdLion product records available for enrichment" />
               <StatCard label="Has mgCategory" value={s.with_mg_category ?? 0} icon={<CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />} tooltip="ERP items where the ERP system itself provides a product category (mg_category field) — no AI needed" />
               <StatCard label="No mgCategory" value={(s.total_erp_items ?? 0) - (s.with_mg_category ?? 0)} icon={<Clock className="h-4 w-4 text-[hsl(var(--warning))]" />} tooltip="ERP items where the API did not provide an mgCategory value" />
               <StatCard label="Rule-Classified" value={s.rule_classified ?? 0} icon={<Zap className="h-4 w-4 text-primary" />} tooltip="Items whose product category was determined by deterministic code rules (e.g. 'Clock' items always map to the Clock category) — no AI call needed" />
@@ -52,7 +52,7 @@ export function QualityDashboard() {
               <StatCard label="SKU Matched" value={s.sku_matched ?? 0} icon={<CheckCircle2 className="h-4 w-4" />} tooltip="ERP items whose style_number (SKU) exists in at least one asset or style group — these can actually be enriched" />
               <StatCard label="Unmatched SKUs" value={s.unmatched_skus ?? 0} icon={<AlertCircle className="h-4 w-4 text-destructive" />} tooltip="ERP items whose SKU doesn't match any asset or style group — enrichment has no effect on these until the assets are uploaded" />
               {(s.unresolved_mg_codes ?? 0) > 0 && (
-                <StatCard label="Unresolved MG Codes" value={s.unresolved_mg_codes ?? 0} icon={<AlertCircle className="h-4 w-4 text-amber-500" />} tooltip="Items whose MG01 value from the ERP API couldn't be matched to a schema code — run a Full Sync to re-process after the ERP data is corrected" />
+                <StatCard label="Unresolved MG Codes" value={s.unresolved_mg_codes ?? 0} icon={<AlertCircle className="h-4 w-4 text-amber-500" />} tooltip="Items whose MG01 value couldn't be matched to a schema code — they re-process once the ColdLion data is corrected" />
               )}
             </div>
           </>

@@ -31,7 +31,7 @@ See [docs/development.md](docs/development.md) for local dev reference.
 │                                                              │
 │  Web App (React/Vite)      Edge Functions (Supabase/Deno)    │
 │  - browse, search, filter  - admin-api, agent-api            │
-│  - admin config/monitoring - helper-api, erp-sync, etc.      │
+│  - admin config/monitoring - helper-api, admin-api, etc.    │
 │                                                              │
 │  Cloud Worker (Railway/Node.js)                              │
 │  - AI tagging, ERP enrichment, style group rebuild           │
@@ -83,7 +83,7 @@ Use its PopDAM/PopSG row or task map to load only the relevant rules.
 | [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md) | Supabase, Spaces, Railway, edge function inventory |
 | [docs/STYLE_GROUPS.md](docs/STYLE_GROUPS.md) | Style group system — rebuild, reconcile, cover assets |
 | [docs/BULK_JOBS.md](docs/BULK_JOBS.md) | Bulk/background job system and cross-lane conflict map |
-| [docs/ERP_ENRICHMENT_PLAN.md](docs/ERP_ENRICHMENT_PLAN.md) | ERP sync, MG codes, AI category classification |
+| [docs/ERP_ENRICHMENT_PLAN.md](docs/ERP_ENRICHMENT_PLAN.md) | ERP enrichment, MG codes, AI category classification |
 | [docs/MASTER_DATA.md](docs/MASTER_DATA.md) | Temporary Master Data style tracker app, Google Sheet import, matching workflow, PLM canonical API notes |
 | [docs/POPSG.md](docs/POPSG.md) | PopSG mode — schema, crawl flow, render pipeline |
 | [docs/POPDAM_HELPER.md](docs/POPDAM_HELPER.md) | Desktop Helper (checkout/check-in) architecture |

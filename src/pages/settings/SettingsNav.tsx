@@ -50,7 +50,7 @@ export const SETTINGS_SEARCH_ITEMS: { label: string; desc: string; tab: string; 
   { label: "AI Tagging", desc: "Run AI tagging jobs, configure models and instructions", tab: "processing", subTab: "ai-tagging" },
   { label: "Vision Bake-Off", desc: "Compare five AI vision tagging models side by side", tab: "processing", subTab: "ai-bakeoff" },
   { label: "PDF Text Extraction", desc: "Test and review PDF text and OCR extraction", tab: "processing", subTab: "pdf-text" },
-  { label: "ERP Sync", desc: "Sync and enrich product data from your ERP system", tab: "processing", subTab: "erp" },
+  { label: "ERP Enrichment", desc: "Enrich assets with ColdLion product data", tab: "processing", subTab: "erp" },
   { label: "Taxonomy", desc: "View canonical licensors and properties from shared master data", tab: "processing", subTab: "taxonomy" },
   { label: "Style Guide Crawl", desc: "Crawl and index style guide files", tab: "file-health", subTab: "style-guide" },
   { label: "TIFF Compression", desc: "Scan and compress uncompressed TIFF files", tab: "file-health", subTab: "tiff" },
