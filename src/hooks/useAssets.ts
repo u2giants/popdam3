@@ -396,6 +396,7 @@ export function useAssets(
           return {
             assets: sortByRank((data ?? []) as Asset[], ranked.ids, (asset) => asset.id),
             totalCount: ranked.totalCount,
+            totalIsLowerBound: ranked.totalIsLowerBound,
             pageSize: effectivePageSize,
             page,
           };
@@ -458,6 +459,7 @@ export function useAssets(
       return {
         assets,
         totalCount: count ?? 0,
+        totalIsLowerBound: false,
         pageSize: effectivePageSize,
         page,
       };

@@ -19,6 +19,7 @@ import type { CardStyle, ViewMode, SortField, SortDirection, LibraryMode } from 
 import type { ScanProgress } from "@/hooks/useScanProgress";
 import { useCompactChrome } from "@/hooks/use-compact-chrome";
 import { cn } from "@/lib/utils";
+import { formatCount } from "@/lib/format-count";
 
 function useElapsed(active: boolean): string {
   const startRef = useRef<number | null>(null);
@@ -61,6 +62,8 @@ interface LibraryTopBarProps {
   activeFilterCount: number;
   totalCount: number;
   totalAssets: number;
+  /** Search total is a lower bound: groups (groups mode) or files (assets mode) show "N+". */
+  totalIsLowerBound?: boolean;
   scanRunning: boolean;
   scanStale?: boolean;
   scanQueued?: boolean;
@@ -180,6 +183,7 @@ export default function LibraryTopBar({
   onCardStyleChange,
   groupCount,
   fileCount,
+  totalIsLowerBound = false,
   scanProgress,
   ungroupedCount,
   canManageScan = true,
@@ -432,7 +436,7 @@ export default function LibraryTopBar({
         {libraryMode === "groups" ? (
           <>
             <strong style={{ color: "var(--pd-fg)", fontWeight: 600 }}>
-              {groupCount.toLocaleString()}
+              {formatCount(groupCount, totalIsLowerBound)}
             </strong>
             {" groups · "}
             <strong style={{ color: "var(--pd-fg)", fontWeight: 600 }}>
@@ -446,7 +450,7 @@ export default function LibraryTopBar({
         ) : (
           <>
             <strong style={{ color: "var(--pd-fg)", fontWeight: 600 }}>
-              {fileCount.toLocaleString()}
+              {formatCount(fileCount, totalIsLowerBound)}
             </strong>
             {" files"}
           </>
