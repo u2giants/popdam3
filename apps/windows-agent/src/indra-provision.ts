@@ -15,8 +15,8 @@
  * reported on every heartbeat so the admin panel can show it.
  */
 import { execFile } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { logger } from "./logger";
 
@@ -87,12 +87,26 @@ export function engineLooksComplete(
 }
 
 /**
+ * Embed a path as a Python string literal. JSON string syntax is a valid
+ * Python string for every character a Windows path can hold, including `'`,
+ * `"`, and newlines — never concatenate env-sourced paths into raw `r'...'`.
+ */
+export function pythonString(value: string): string {
+  return JSON.stringify(value);
+}
+
+/** PowerShell single-quoted string (`''` escapes `'`) for `-Command` sources. */
+export function powerShellString(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+/**
  * Import AND load the model from an explicit directory. `model_dir()` alone
  * reads the environment (or the Hugging Face cache), which a fresh box does
  * not have yet — the directory must travel with the command itself.
  */
 export function deepVerifyScript(modelsDir: string): string {
-  return `from indra_ocr import OrtOCR; OrtOCR(r'${modelsDir.replace(/\\/g, "/")}'); print('indra-ok')`;
+  return `from indra_ocr import OrtOCR; OrtOCR(${pythonString(modelsDir.replace(/\\/g, "/"))}); print('indra-ok')`;
 }
 
 export function checkIndra(): IndraStatus {
@@ -158,7 +172,7 @@ export function provisionPlan(
     `snapshot_download('datalab-to/indra-ocr', revision='${INDRA_MODEL_REVISION}',`,
     "allow_patterns=['*.onnx','meta.json','lm.npz','lm_*.npz'],",
     "ignore_patterns=['math*.onnx','math_meta.json','model.safetensors'],",
-    `local_dir='${modelsDir.replace(/\\/g, "/")}')`,
+    `local_dir=${pythonString(modelsDir.replace(/\\/g, "/"))})`,
   ].join(" ");
   return [
     { step: "venv", file: systemPython, args: ["-m", "venv", INDRA_ROOT], timeoutMs: 180_000 },
@@ -177,10 +191,9 @@ function failure(step: string, error: unknown): Error {
 
 /** Best-effort persistence so the NEXT service start still finds the engine. */
 async function persistMachineEnv(modelsDir: string): Promise<void> {
-  const psString = (value: string) => `'${value.replace(/'/g, "''")}'`;
   const command =
-    `[Environment]::SetEnvironmentVariable('INDRA_OCR_PYTHON',${psString(INDRA_PYTHON)},'Machine'); ` +
-    `[Environment]::SetEnvironmentVariable('INDRA_OCR_MODEL_DIR',${psString(modelsDir)},'Machine')`;
+    `[Environment]::SetEnvironmentVariable('INDRA_OCR_PYTHON',${powerShellString(INDRA_PYTHON)},'Machine'); ` +
+    `[Environment]::SetEnvironmentVariable('INDRA_OCR_MODEL_DIR',${powerShellString(modelsDir)},'Machine')`;
   try {
     await execFileAsync("powershell.exe", ["-NoProfile", "-Command", command], { windowsHide: true, timeout: 30_000 });
   } catch (error) {
@@ -213,16 +226,150 @@ function errorMessage(error: unknown): string {
   return String((error as Error)?.message ?? error).slice(0, 300);
 }
 
+/**
+ * Cross-process lock around provisioning.
+ *
+ * The tenant supervisor spawns one agent child per TENANTS entry and every
+ * child provisions into the same C:\ProgramData\PopDAM\indra. A lock file
+ * (rather than supervisor-owned provisioning) is used because it also covers
+ * a restart overlapping a still-running provision and a stray second instance,
+ * and because the supervisor must not grow an Indra dependency.
+ */
+export const LOCK_STALE_MS = 45 * 60_000; // covers the longest provision (sum of step timeouts ~30 min)
+const LOCK_DEAD_PID_GRACE_MS = 30_000;
+const LOCK_WAIT_MS = 30 * 60_000;
+const LOCK_POLL_MS = 2_000;
+
+export function defaultLockPath(): string {
+  return `${INDRA_ROOT}.provision.lock`;
+}
+
+export interface ProvisionLockInfo {
+  pid: number;
+  at: number;
+}
+
+export function parseProvisionLock(raw: string): ProvisionLockInfo | null {
+  try {
+    const parsed = JSON.parse(raw) as { pid?: unknown; at?: unknown };
+    if (typeof parsed?.pid === "number" && typeof parsed?.at === "number") {
+      return { pid: parsed.pid, at: parsed.at };
+    }
+  } catch {
+    // unparseable — treated as stale
+  }
+  return null;
+}
+
+export function isProvisionLockStale(
+  info: ProvisionLockInfo | null,
+  now: number,
+  opts: { staleMs?: number; pidAlive?: (pid: number) => boolean } = {},
+): boolean {
+  const staleMs = opts.staleMs ?? LOCK_STALE_MS;
+  const pidAlive =
+    opts.pidAlive ??
+    ((pid: number): boolean => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  if (!info) return true; // unparseable or empty lock is stale
+  if (now - info.at > staleMs) return true;
+  if (now - info.at > LOCK_DEAD_PID_GRACE_MS && !pidAlive(info.pid)) return true;
+  return false;
+}
+
+function tryCreateLock(lockPath: string): boolean {
+  try {
+    mkdirSync(dirname(lockPath), { recursive: true });
+    writeFileSync(lockPath, JSON.stringify({ pid: process.pid, at: Date.now() }), { flag: "wx" });
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw error;
+  }
+}
+
+/** Acquire the provisioning lock. Returns a release function; throws on wait timeout. */
+export async function acquireProvisionLock(
+  options: {
+    lockPath?: string;
+    staleMs?: number;
+    waitMs?: number;
+    pollMs?: number;
+    pidAlive?: (pid: number) => boolean;
+  } = {},
+): Promise<() => void> {
+  const lockPath = options.lockPath ?? defaultLockPath();
+  const waitMs = options.waitMs ?? LOCK_WAIT_MS;
+  const pollMs = options.pollMs ?? LOCK_POLL_MS;
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    if (tryCreateLock(lockPath)) {
+      return () => {
+        try {
+          rmSync(lockPath, { force: true });
+        } catch {
+          // already gone
+        }
+      };
+    }
+    let raw = "";
+    try {
+      raw = readFileSync(lockPath, "utf8");
+    } catch {
+      continue; // vanished between create and read — retry create
+    }
+    const info = parseProvisionLock(raw);
+    if (isProvisionLockStale(info, Date.now(), { staleMs: options.staleMs, pidAlive: options.pidAlive })) {
+      logger.warn("Indra OCR: stealing stale provisioning lock", { lockPath, holder: info });
+      try {
+        rmSync(lockPath, { force: true });
+      } catch {
+        // lost the steal race — loop and retry create
+      }
+      continue;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`Indra provisioning lock is held by pid ${info?.pid ?? "unknown"} (${lockPath})`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+}
+
+/**
+ * Status to report while any provisioning/verification is running. A startup
+ * check that looked "ready" can still fall through to a full reprovision
+ * (broken engine) — the panel must not keep saying ready during that window.
+ */
+export function beginProvisioningStatus(current: IndraStatus): IndraStatus {
+  return {
+    ...current,
+    state: "installing",
+    detail: current.state === "ready" ? "verifying" : (current.detail ?? "provisioning"),
+    checked_at: new Date().toISOString(),
+  };
+}
+
 /** Provision (or repair) Indra. Resolves with the resulting status; never rejects. */
-export async function provisionIndra(): Promise<IndraStatus> {
+export async function provisionIndra(onProgress?: (detail: string) => void): Promise<IndraStatus> {
   const startedAt = Date.now();
   const modelsDir = resolveModelsDir();
+  let releaseLock: (() => void) | null = null;
   try {
+    onProgress?.("waiting for provisioning lock");
+    releaseLock = await acquireProvisionLock({ lockPath: defaultLockPath() });
+    onProgress?.("provisioning");
     let needsFullInstall = !engineLooksComplete(modelsDir);
     if (!needsFullInstall) {
       try {
         const pythonPath = resolvePythonPath();
         logger.info("Indra OCR: engine already on disk — verifying before reuse", { pythonPath, modelsDir });
+        onProgress?.("verifying");
         activateInProcess(modelsDir, pythonPath, false);
         await verifyInstall(modelsDir, pythonPath);
       } catch (error) {
@@ -248,6 +395,7 @@ export async function provisionIndra(): Promise<IndraStatus> {
       logger.info("Indra OCR: provisioning engine", { systemPython, modelsDir });
       for (const { step, file, args, timeoutMs } of provisionPlan(systemPython, modelsDir)) {
         logger.info(`Indra OCR: ${step}…`);
+        onProgress?.(`installing (${step})`);
         try {
           await execFileAsync(file, args, { windowsHide: true, timeout: timeoutMs, maxBuffer: STEP_MAX_BUFFER });
         } catch (error) {
@@ -256,6 +404,7 @@ export async function provisionIndra(): Promise<IndraStatus> {
       }
       // Full install owns the default paths — overwrite whatever pointed at the broken engine.
       activateInProcess(modelsDir, INDRA_PYTHON, true);
+      onProgress?.("verifying");
       await verifyInstall(modelsDir, INDRA_PYTHON);
     }
     await persistMachineEnv(modelsDir);
@@ -278,5 +427,7 @@ export async function provisionIndra(): Promise<IndraStatus> {
       detail: message,
       checked_at: new Date().toISOString(),
     };
+  } finally {
+    releaseLock?.();
   }
 }
