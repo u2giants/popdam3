@@ -8,6 +8,7 @@ import { LaneError } from './claims.mjs'
 import { projectReviewPr } from './review-assignment.mjs'
 import { gitRemoteRefs, githubIo, runGitHubCommand, reviewChildTimeoutMs } from '../../manage-migration-author-lanes.mjs'
 import { authorityReadEnv } from '../authority-token-read.mjs'
+import { assertRefDeletable } from '../release-hold-evidence.mjs'
 
 // An EXPECTED failure is one this code asks a question with: "does this ref
 // exist yet?" answers with HTTP 404, and "create this ref" answers with
@@ -60,6 +61,7 @@ export function createRefWithReadback(ref,sha,{run=gh,readRef}={}) {
   }
 }
 export function deleteRefWithReadback(ref,{run=gh,readRef}={}) {
+  try{assertRefDeletable(ref)}catch(error){throw new LaneError(error.message)}
   try{run(['api','-X','DELETE',`repos/${REPO}/git/refs/${ref.replace(/^refs\//,'')}`],{expectedFailure:EXPECTED_REF_ABSENCE,idempotentWrite:true});return}
   catch(error){
     if(isConfirmedRefAbsence(error))return

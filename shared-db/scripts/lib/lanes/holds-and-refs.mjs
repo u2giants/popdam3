@@ -10,6 +10,7 @@ import { githubIo } from '../../manage-migration-author-lanes.mjs'
 import { gitRemoteRefs } from '../../manage-migration-author-lanes.mjs'
 import { GIT_COMMAND_TIMEOUT_MS } from './github-wire.mjs'
 import { execFileSync } from 'node:child_process'
+import { assertRefDeletable } from '../release-hold-evidence.mjs'
 import { constants as osConstants } from 'node:os'
 
 // NAMED HOLDS (Step 2, locked decision 15, issue #3027). Every stage-lease refusal
@@ -248,6 +249,7 @@ export function releaseRefOnExit(ref, ownerSha, io = githubIo, { strict = false 
 // Owner-verified delete over the git protocol (no API quota). Returns true when
 // this call removed our ref, false when the ref is absent or owned by someone else.
 export function releaseRefOverGit(ref, ownerSha, { run = execFileSync, listRefs = (patterns) => gitRemoteRefs(patterns, { run }) } = {}) {
+  try { assertRefDeletable(ref) } catch (error) { throw new LaneError(error.message) }
   if (!/^[0-9a-f]{40}$/.test(String(ownerSha))) throw new LaneError('refusing git release: owner SHA is malformed')
   if (listRefs([ref]).get(ref) !== ownerSha) return false
   run('git', ['push', '--porcelain', `--force-with-lease=${ref}:${ownerSha}`, 'origin', `:${ref}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: GIT_COMMAND_TIMEOUT_MS, killSignal: 'SIGKILL' })
@@ -257,6 +259,7 @@ export function releaseRefOverGit(ref, ownerSha, { run = execFileSync, listRefs 
 }
 
 export function releaseOwnedRef(ref, ownerSha, io = githubIo) {
+  try { assertRefDeletable(ref) } catch (error) { throw new LaneError(error.message) }
   const actual = io.readRef(ref)
   if (actual === null) return false
   if (actual !== ownerSha) throw new LaneError(`refusing to release ${ref}: it belongs to another owner`)
