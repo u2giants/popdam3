@@ -338,45 +338,56 @@ export async function checkin(checkoutId: string): Promise<void> {
 
   updateStatus(checkoutId, "checkin_queued");
 
-  if (!existsSync(record.workspacePath)) {
-    throw new Error(`Workspace file missing: ${record.workspacePath}`);
+  // If anything before the upload is enqueued fails (file still saving,
+  // snapshot error, API error), return to "active" so the user can retry and
+  // the record is not stuck in "Queuing check-in…" forever.
+  try {
+
+    if (!existsSync(record.workspacePath)) {
+      throw new Error(`Workspace file missing: ${record.workspacePath}`);
+    }
+
+    // Wait for file to stop saving
+    await waitForFileStable(record.workspacePath);
+
+    // Snapshot
+    const snap = await createSnapshot(
+      record.workspacePath,
+      checkoutId,
+      record.filename,
+      config.workspacePath,
+    );
+
+    // Tell DAM we're about to upload
+    const instructions = await apiPrepareCheckin({
+      checkout_id: checkoutId,
+      snapshot_hash: snap.hash,
+      snapshot_size: snap.size,
+    });
+
+    record.snapshotPath = snap.snapshotPath;
+
+    // Enqueue async upload
+    enqueue({
+      checkoutId,
+      snapshotPath: snap.snapshotPath,
+      uploadMethod: config.preferredProvider === "synology" ? "smb_local" : "synology_file_station",
+      synologyUrl: instructions.upload_instructions.synology_url,
+      synologyPort: instructions.upload_instructions.synology_port,
+      relativePath: instructions.upload_instructions.relative_path,
+      filename: instructions.upload_instructions.filename,
+      tempSuffix: instructions.upload_instructions.temp_suffix,
+      retryCount: 0,
+      addedAt: Date.now(),
+      sourceProvider: record.sourceProvider,
+      seafileObjId: record.seafileObjId,
+    });
+
+  } catch (e) {
+    updateStatus(checkoutId, "active");
+    notify();
+    throw e;
   }
-
-  // Wait for file to stop saving
-  await waitForFileStable(record.workspacePath);
-
-  // Snapshot
-  const snap = await createSnapshot(
-    record.workspacePath,
-    checkoutId,
-    record.filename,
-    config.workspacePath,
-  );
-
-  // Tell DAM we're about to upload
-  const instructions = await apiPrepareCheckin({
-    checkout_id: checkoutId,
-    snapshot_hash: snap.hash,
-    snapshot_size: snap.size,
-  });
-
-  record.snapshotPath = snap.snapshotPath;
-
-  // Enqueue async upload
-  enqueue({
-    checkoutId,
-    snapshotPath: snap.snapshotPath,
-    uploadMethod: config.preferredProvider === "synology" ? "smb_local" : "synology_file_station",
-    synologyUrl: instructions.upload_instructions.synology_url,
-    synologyPort: instructions.upload_instructions.synology_port,
-    relativePath: instructions.upload_instructions.relative_path,
-    filename: instructions.upload_instructions.filename,
-    tempSuffix: instructions.upload_instructions.temp_suffix,
-    retryCount: 0,
-    addedAt: Date.now(),
-    sourceProvider: record.sourceProvider,
-    seafileObjId: record.seafileObjId,
-  });
 
   updateStatus(checkoutId, "uploading");
   notify();

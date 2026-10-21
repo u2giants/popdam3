@@ -120,17 +120,20 @@ function AssetCard({
   async function handleCheckout() {
     setCheckingOut(true);
     try {
+      // helper-api/tokens requires an explicit action and returns the full
+      // popdam:// URL (token + assetId); building our own URL dropped assetId.
       const { data, error } = await supabase.functions.invoke("helper-api/tokens", {
-        body: { asset_id: asset.id },
+        body: { action: "checkout", asset_id: asset.id },
       });
-      if (error || !data?.ok) {
+      if (error || !data?.ok || !data?.url) {
         toast.error("Could not create checkout link", { description: error?.message ?? data?.error });
         return;
       }
-      const uri = `popdam://checkout?token=${encodeURIComponent(data.token)}`;
       const a = document.createElement("a");
-      a.href = uri; a.rel = "noopener"; a.style.display = "none";
+      a.href = data.url; a.rel = "noopener"; a.style.display = "none";
       document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 0);
+    } catch (e) {
+      toast.error("Could not create checkout link", { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setCheckingOut(false);
     }

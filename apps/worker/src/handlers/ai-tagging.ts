@@ -108,7 +108,11 @@ export async function getVisionModels(): Promise<{ primary: string; fallback: st
     "AI task model config read",
     client.from("admin_config").select("value").eq("key", "AI_TASK_MODELS").maybeSingle(),
   );
-  if (error) logger.warn("ai-tag: model config unavailable; using the last known/default model", { error: error.message });
+  if (error) {
+    logger.warn("ai-tag: model config unavailable; using the last known/default model", { error: error.message });
+    // Keep the last known model instead of silently switching to the default.
+    if (cachedModels) { cacheExpiresAt = Date.now() + 60_000; return cachedModels; }
+  }
   const models = data?.value as Record<string, string> | null;
   cachedModels = {
     primary: models?.vision_tagging || DEFAULT_VISION_MODEL,
@@ -947,76 +951,22 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
           }
         }
 
-        const updates: Record<string, unknown> = {
-          status: "tagged",
-          ai_tagged_at: new Date().toISOString(),
-          ai_model: model,
-        };
-        if (tagData.ai_description) updates.ai_description = tagData.ai_description;
-        if (tagData.cover_description) updates.cover_description = tagData.cover_description;
-        if (tagData.scene_description) updates.scene_description = tagData.scene_description;
-        if (tagData.asset_type) updates.asset_type = tagData.asset_type;
-        if (tagData.content_type) updates.content_type = tagData.content_type;
-        if (tagData.art_source) updates.art_source = tagData.art_source;
-        if (tagData.design_style) updates.design_style = tagData.design_style;
-        if (tagData.design_ref) updates.design_ref = tagData.design_ref;
-        if (tagData.designer_name) updates.designer_name = tagData.designer_name;
-        if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
-        if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
-
-        const { error: updateErr } = await client.from("assets").update(updates).eq("id", assetId);
-
-        if (updateErr) {
-          logger.error("ai-tag: failed to save tags", { assetId, error: updateErr.message });
-          return { outcome: "failed", error: `DB write failed: ${humanizeError(updateErr.message ?? "").slice(0, 300)}` };
-        }
-
-        // Replace only AI-owned file tags through the production atomic RPC.
-        // Manual rows and rejected tombstones remain authoritative.
+        // Shared save path: tags and character links are written first and the
+        // asset is marked "tagged" LAST, so a failed tag write never leaves an
+        // asset flagged tagged with no tags (which ai-tag-untagged would skip
+        // forever). Character ids are validated against the catalog.
         try {
-          await writeAssetAiTags(client, assetId, model, tagData);
-        } catch (tagWriteError) {
-          const message = tagWriteError instanceof Error ? tagWriteError.message : String(tagWriteError);
-          logger.error("ai-tag: atomic tag write failed", { assetId, error: message });
-          return { outcome: "failed", error: `AI tag write failed: ${humanizeError(message).slice(0, 300)}` };
+          const applied = await applyBatchTagResult(assetId, tagData, model, client, characterCatalogIds);
+          return { outcome: "tagged", fileSourcesFailed: applied.fileSourcesFailed };
+        } catch (error) {
+          const stage = error instanceof AssetTagApplyError ? error.stage
+            : error instanceof CharacterReferenceValidationError ? "character_reference"
+            : error instanceof CharacterCatalogDependencyError ? "character_catalog"
+            : "validation";
+          const message = error instanceof Error ? error.message : String(error);
+          logger.error("ai-tag: save failed", { assetId, model, stage, error: message.slice(0, 300) });
+          return { outcome: "failed", error: `Tagging save failed at ${stage}: ${humanizeError(message).slice(0, 300)}` };
         }
-
-        // Write character links
-        if (Array.isArray(tagData.character_ids) && tagData.character_ids.length > 0) {
-          const validCharIds = (tagData.character_ids as string[]).filter((cid) => isValidUuid(cid));
-          if (validCharIds.length > 0) {
-            const charLinks = validCharIds.map((cid) => ({ asset_id: assetId, character_id: cid }));
-            await client.from("asset_characters").upsert(charLinks, { onConflict: "asset_id,character_id" });
-          }
-        }
-
-        // Upsert files_used entries to sku_files_used (licensed products only).
-        // Style Guide Sources may ONLY come from a licensing-sheet / tech-pack PDF.
-        // The DB parser and edge ai-tag path enforce the same rule; keep the
-        // persistent worker aligned because Railway runs the batch tagger.
-        let fileSourcesFailed = false;
-        if (
-          isStyleGuideSourcePdf(asset) && asset.sku &&
-          Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0
-        ) {
-          const rows = (tagData.files_used as string[])
-            .filter((f) => typeof f === "string" && f.trim().length > 0)
-            .map((f) => ({ sku: asset.sku as string, file_name: f.trim(), source: "ai_tag" }));
-          if (rows.length > 0) {
-            try {
-              const savedFiles = await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
-              if (savedFiles.error) {
-                fileSourcesFailed = true;
-                logger.warn("ai-tag: file_sources save failed", { assetId, code: savedFiles.error.code, rows: rows.length });
-              }
-            } catch (fileSourceError) {
-              fileSourcesFailed = true;
-              logger.warn("ai-tag: file_sources save threw", { assetId, error: String(fileSourceError).slice(0, 200), rows: rows.length });
-            }
-          }
-        }
-
-        return { outcome: "tagged", fileSourcesFailed };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (sameModelRetry < SAME_MODEL_STRUCTURED_RETRY_COUNT && (isRetryableStructuredOutputError(msg) || (model.startsWith("meta-direct/") && isRetryableTagTransportError(e)))) {

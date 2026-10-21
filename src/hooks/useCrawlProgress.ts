@@ -53,7 +53,10 @@ export function useCrawlProgress(): CrawlProgress {
 
   useEffect(() => {
     const channel = supabase
-      .channel("crawl-progress-realtime")
+      // Unique topic per mount: supabase.channel() reuses an existing channel by
+      // topic, so a shared name lets one unmount tear down another consumer's
+      // live subscription.
+      .channel(`crawl-progress-realtime-${crypto.randomUUID()}`)
       .on("postgres_changes", {
         event: "*",
         schema: "public",

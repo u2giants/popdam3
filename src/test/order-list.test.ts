@@ -409,9 +409,15 @@ describe("OrderList database query building", () => {
 
   it("searches the recognizable columns in the database, not just loaded rows", () => {
     const clause = buildOrderListSearchClause(" D0644 ");
-    expect(clause).toContain("production_order_number.ilike.%D0644%");
-    expect(clause).toContain("sku.ilike.%D0644%");
+    expect(clause).toContain('production_order_number.ilike."%D0644%"');
+    expect(clause).toContain('sku.ilike."%D0644%"');
     expect(buildOrderListSearchClause("   ")).toBeNull();
+  });
+
+  it("quotes search terms so PostgREST syntax characters cannot break the or clause", () => {
+    expect(buildOrderListSearchClause("Acme, Inc")).toContain('sku.ilike."%Acme, Inc%"');
+    expect(buildOrderListSearchClause('Set (A) "B"')).toContain('sku.ilike."%Set (A) \\"B\\"%"');
+    expect(buildOrderListSearchClause("100% x")).toContain('sku.ilike."%100\\\\% x%"');
   });
 
   it("highlights a loaded row using the same recognizable search columns", () => {

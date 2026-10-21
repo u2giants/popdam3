@@ -6,11 +6,11 @@ import { supabase } from "@/integrations/supabase/client";
  * Surfaces real error details (status + body) instead of generic messages.
  */
 export function useAdminApi() {
-  const call = useCallback(async (
+  const call = useCallback(async <T = any>(
     action: string,
     payload: Record<string, unknown> = {},
     options: { maxRetries?: number } = {},
-  ) => {
+  ): Promise<T> => {
     // Use getUser() to force token refresh if expired, then fall back to getSession()
     let accessToken: string | undefined;
     try {
@@ -80,7 +80,7 @@ export function useAdminApi() {
         }
 
         if (data && !data.ok) throw new Error(data.error || "Admin API returned error");
-        return data;
+        return data as T;
     }
 
     throw lastError || new Error("Admin API call failed after retries");

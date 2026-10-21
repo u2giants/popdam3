@@ -132,7 +132,9 @@ export function buildOrderListFilters(filterModel: Record<string, any> | null | 
 export function buildOrderListSearchClause(search: string): string | null {
   const term = search.trim();
   if (term === "") return null;
-  const pattern = `%${escapeLike(term)}%`;
+  // Quote the pattern: inside a PostgREST `or` clause a bare comma, parenthesis
+  // or quote is filter syntax and turns "Acme, Inc" into a 400.
+  const pattern = `"%${escapeLike(term).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}%"`;
   return ORDER_LIST_SEARCH_COLUMNS.map((column) => `${column}.ilike.${pattern}`).join(",");
 }
 

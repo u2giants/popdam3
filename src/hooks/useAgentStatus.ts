@@ -160,6 +160,9 @@ export function useAgentStatus(enabled = true): AgentStatusInfo {
     queryFn: fetchAgentStatus,
     enabled,
     staleTime: Infinity,
+    // isOnline is derived from last_heartbeat at fetch time; a dead agent
+    // produces no row changes, so re-evaluate periodically.
+    refetchInterval: 60_000,
     placeholderData: DEFAULT_STATUS,
   });
 
@@ -167,7 +170,10 @@ export function useAgentStatus(enabled = true): AgentStatusInfo {
     if (!enabled) return;
 
     const channel = supabase
-      .channel("agent-status-realtime")
+      // Unique topic per mount: supabase.channel() reuses an existing channel by
+      // topic, so a shared name lets one unmount tear down another consumer's
+      // live subscription.
+      .channel(`agent-status-realtime-${crypto.randomUUID()}`)
       .on("postgres_changes", {
         event: "*",
         schema: "public",

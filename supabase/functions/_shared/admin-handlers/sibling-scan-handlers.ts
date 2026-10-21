@@ -5,7 +5,7 @@
 import { refreshStyleGroupCounts } from "../style-group-counts-refresh.ts";
 import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
-import { optionalString, requireString } from "../validators.ts";
+import { hasParentSegment, isAllowedThumbnailUrl, optionalString, requireString } from "../validators.ts";
 
 const SIBLING_SCAN_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -44,6 +44,7 @@ export async function handleListSiblingImages(body: Record<string, unknown>) {
   const rawPath = requireString(body, "folder_path");
   const styleGroupId = optionalString(body, "style_group_id");
   const folderPath = rawPath.trim().replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+  if (!folderPath || hasParentSegment(folderPath)) return err("folder_path must be a path under the NAS root");
   const db = serviceClient();
 
   // Check for a recent completed result for this folder (within 10 minutes)
@@ -268,6 +269,14 @@ export async function handleIngestSiblingImages(body: Record<string, unknown>, u
 
     if (!relativePath || !filename) {
       results.push({ filename: filename || "unknown", action: "error", error: "Missing relative_path or filename" });
+      continue;
+    }
+    if (hasParentSegment(relativePath.replace(/\\/g, "/"))) {
+      results.push({ filename, action: "error", error: "relative_path may not contain parent segments" });
+      continue;
+    }
+    if (thumbnailUrl && !isAllowedThumbnailUrl(thumbnailUrl)) {
+      results.push({ filename, action: "error", error: "thumbnail_url is not an allowed thumbnail host" });
       continue;
     }
 

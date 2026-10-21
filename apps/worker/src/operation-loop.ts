@@ -625,6 +625,7 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
     case "erp-classify":
       return {
         classified: ((prev.classified as number) || 0) + ((batch.classified as number) || 0),
+        failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
         skipped_unclassifiable: ((prev.skipped_unclassifiable as number) || 0) + ((batch.skipped_unclassifiable as number) || 0),
         total: ((prev.total as number) || 0) + ((batch.total as number) || 0),
       };

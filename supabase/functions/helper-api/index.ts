@@ -379,10 +379,11 @@ async function handlePrepareCheckin(req: Request): Promise<Response> {
   }
 
   // Mark as checkin_queued
-  await db
+  const { error: queueErr } = await db
     .from("asset_checkouts")
     .update({ status: "checkin_queued", checkin_hash: snapshot_hash ?? null, checkin_size: snapshot_size ?? null })
     .eq("id", checkout_id);
+  if (queueErr) return err(queueErr.message, 500);
 
   // Load Synology config
   const { data: cfgRows } = await db
@@ -637,11 +638,16 @@ async function handleHeartbeat(req: Request): Promise<Response> {
     if (status && ["uploading", "verifying"].includes(status)) {
       update.status = status;
     }
-    await db
+    // A late heartbeat must never move a completed or discarded checkout back
+    // to an in-progress status (that would re-lock the asset).
+    const heartbeatQuery = db
       .from("asset_checkouts")
       .update(update)
       .eq("id", checkout_id)
       .eq("user_id", userId);
+    await (update.status
+      ? heartbeatQuery.in("status", ["active", "checkin_queued", "uploading", "verifying"])
+      : heartbeatQuery);
   }
 
   if (device_id) {
@@ -702,10 +708,13 @@ async function handleAdminForceDiscard(req: Request): Promise<Response> {
   const { checkout_id } = body;
   if (!checkout_id) return err("checkout_id required");
 
-  await db
+  const { data: discarded, error: discardErr } = await db
     .from("asset_checkouts")
     .update({ status: "discarded", error_message: "Force-discarded by admin" })
-    .eq("id", checkout_id);
+    .eq("id", checkout_id)
+    .select("id");
+  if (discardErr) return err(discardErr.message, 500);
+  if (!discarded || discarded.length === 0) return err("Checkout not found", 404);
 
   return json({ ok: true });
 }

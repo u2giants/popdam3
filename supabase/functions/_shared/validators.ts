@@ -63,3 +63,24 @@ export function requireCanonicalRelativePath(
   }
   return p;
 }
+
+/** Only thumbnails hosted on our own CDN/Spaces may be stored or fetched. */
+export function isAllowedThumbnailUrl(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== "https:") return false;
+    if (!url.pathname.startsWith("/thumbnails/")) return false;
+    return [
+      "popdam.nyc3.digitaloceanspaces.com",
+      "popdam.nyc3.cdn.digitaloceanspaces.com",
+      "cdn.designflow.app",
+    ].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/** True when a normalized relative path contains a parent-directory segment. */
+export function hasParentSegment(p: string): boolean {
+  return p.split("/").includes("..");
+}

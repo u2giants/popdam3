@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ImpersonationProvider } from "@/contexts/ImpersonationContext";
+import { ImpersonationProvider as RoleImpersonationProvider } from "@/hooks/useImpersonation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppLayout from "@/components/AppLayout";
 import LoginPage from "./pages/LoginPage";
@@ -49,6 +50,9 @@ const App = () => (
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AuthProvider>
           <ImpersonationProvider>
+          {/* Role-level "view as member" used by the header and useIsAdmin.
+              Without this provider those hooks read a no-op default context. */}
+          <RoleImpersonationProvider>
             <Suspense fallback={null}>
             <Routes>
               <Route path="/" element={<LoginPage />} />
@@ -81,6 +85,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
             </Suspense>
+          </RoleImpersonationProvider>
           </ImpersonationProvider>
         </AuthProvider>
       </BrowserRouter>

@@ -3,7 +3,7 @@ import { authenticateUser as sharedAuthenticateUser, requireAdmin } from "../_sh
 import { corsServe, err, json } from "../_shared/http.ts";
 import { findRunningConflict } from "../_shared/operation-constants.ts";
 import { serviceClient } from "../_shared/service-client.ts";
-import { optionalString, requireString } from "../_shared/validators.ts";
+import { isAllowedThumbnailUrl, optionalString, requireString } from "../_shared/validators.ts";
 import {
   directGeminiBatchAllowedForServerConsumer,
   directGeminiBatchSelectionHasKey,
@@ -257,21 +257,6 @@ function formatPostgrestError(error: unknown): string {
   ].filter(Boolean).join(" | ");
 }
 
-function isAllowedThumbnailUrl(rawUrl: string): boolean {
-  try {
-    const url = new URL(rawUrl);
-    if (url.protocol !== "https:") return false;
-    if (!url.pathname.startsWith("/thumbnails/")) return false;
-
-    return [
-      "popdam.nyc3.digitaloceanspaces.com",
-      "popdam.nyc3.cdn.digitaloceanspaces.com",
-      "cdn.designflow.app",
-    ].includes(url.hostname);
-  } catch {
-    return false;
-  }
-}
 
 async function handleFetchThumbnailByUrl(body: Record<string, unknown>): Promise<Response> {
   const url = optionalString(body, "url");
@@ -710,33 +695,42 @@ async function handleRebuildCharacterStats(body: Record<string, unknown>) {
   const threshold = typeof body.threshold === "number" ? body.threshold : 3;
   const db = serviceClient();
 
-  const { data: counts, error } = await db
-    .from("asset_characters")
-    .select("character_id, assets!inner(is_deleted)")
-    .eq("assets.is_deleted", false);
-
-  if (error) return err(error.message, 500);
-
+  // PostgREST caps a response at 1000 rows; asset_characters holds far more.
+  // Page to exhaustion so the tally covers every link, otherwise nearly every
+  // character would be reset to zero below.
+  const PAGE = 1000;
   const tally = new Map<string, number>();
-  for (const row of counts ?? []) {
-    const cid = row.character_id;
-    tally.set(cid, (tally.get(cid) ?? 0) + 1);
+  for (let from = 0; ; from += PAGE) {
+    const { data: counts, error } = await db
+      .from("asset_characters")
+      .select("character_id, assets!inner(is_deleted)")
+      .eq("assets.is_deleted", false)
+      .order("asset_id").order("character_id")
+      .range(from, from + PAGE - 1);
+    if (error) return err(error.message, 500);
+    for (const row of counts ?? []) {
+      const cid = row.character_id;
+      tally.set(cid, (tally.get(cid) ?? 0) + 1);
+    }
+    if (!counts || counts.length < PAGE) break;
   }
 
-  await db.from("characters").update({
+  const { error: resetErr } = await db.from("characters").update({
     usage_count: 0,
     is_priority: false,
   }).gte("usage_count", 0);
+  if (resetErr) return err(resetErr.message, 500);
 
   let priorityCount = 0;
   const entries = [...tally.entries()];
   for (const [characterId, count] of entries) {
     const isPriority = count >= threshold;
     if (isPriority) priorityCount++;
-    await db.from("characters").update({
+    const { error: updateErr } = await db.from("characters").update({
       usage_count: count,
       is_priority: isPriority,
     }).eq("id", characterId);
+    if (updateErr) return err(`character ${characterId}: ${updateErr.message}`, 500);
   }
 
   return json({
@@ -993,7 +987,7 @@ const FALLBACK_GOOGLE_DIRECT_MODELS = [
 const DIRECT_VISION_MODELS = [...META_DIRECT_VISION_MODELS, ...FALLBACK_GOOGLE_DIRECT_MODELS];
 const openRouterVisionCatalogByAccount = new Map<string, Array<Record<string, unknown>>>();
 const googleDirectCatalogByAccount = new Map<string, Array<Record<string, unknown>>>();
-const openRouterPublicPricingCache: { fetchedAt: number; byId: Map<string, Record<string, unknown>> } | null = null;
+let openRouterPublicPricingCache: { fetchedAt: number; byId: Map<string, Record<string, unknown>> } | null = null;
 
 function usablePricing(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
