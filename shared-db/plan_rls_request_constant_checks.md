@@ -2,7 +2,7 @@
 
 ## STATUS — read first
 
-Planning snapshot: October 18, 2026, 10:25 AM EDT. All implementation steps are open. Evidence and this plan are preparation, not a delivered database repair.
+Execution snapshot: October 18, 2026, 2:23 PM EDT. Publication/inventory prerequisites are merged. The administrator family is under source qualification; no preview or production repair has been accepted. Later families remain dependency-gated.
 Fresh session starts at Step 1; refresh upstream, this table and live issue before editing. Update this table and §5 after every executed step. A done row must cite immutable file/commit/run evidence, not a count or issue number alone.
 
 | Step | Deliverable | Status / date | Evidence required to mark done |
@@ -23,7 +23,7 @@ This is a planning deliverable. It does not begin implementation, claim objects,
 
 ### Execution issue map — updated October 18, 2026 EDT
 
-Parent #4421 now has six verified native sub-issues and native blocked-by links. All implementation STATUS rows remain open; issue organization is completed preparation, not repair.
+Parent #4421 now has six verified native sub-issues and native blocked-by links. Publication #4425 and inventory #4426 are closed with native merged prerequisite records. Implementation #4427–#4430 remains open; preparation and isolated CI are not live repair.
 
 | Child | Responsibility | Prerequisites |
 |---|---|---|
@@ -34,7 +34,7 @@ Parent #4421 now has six verified native sub-issues and native blocked-by links.
 | [#4429](https://github.com/popcre/shared-db/issues/4429) | All four app-access policies end-to-end | #4425, #4426, #4428 |
 | [#4430](https://github.com/popcre/shared-db/issues/4430) | Both packaging/JWT policies end-to-end | #4425, #4426, #4429 |
 
-This refines §8's formerly open batching choice: use family deliveries in that order, each carrying its own live-proof checklist through completion; do not create separate proof tickets. Preparation does not claim objects or write fixtures. Each structural child redoes fresh Step 1 custody and executes Steps 2–7 for its family, including preview fixtures, review, merge, production and live acceptance. Parent #4421 remains tracking-only; the admitted repair child is its source PR's single structural issue. Update this plan and each relevant child as results land. No worker is running; the closing session retains recorded coordination ownership until a real successor takes up the existing card.
+This refines §8's formerly open batching choice: use family deliveries in that order, each carrying its own live-proof checklist through completion; do not create separate proof tickets. Preparation does not claim objects or write fixtures. Each structural child redoes fresh Step 1 custody and executes Steps 2–7 for its family, including preview fixtures, review, merge, production and live acceptance. Parent #4421 remains tracking-only; the admitted repair child is its source PR's single structural issue. Update this plan and each relevant child as results land. Codex chat 01a14fa2-bd3e-7d62-ba77-7bdfd7976f0e owns continuation. Native subagents prepare later-family tests concurrently; implementation and closure remain ordered by each predecessor’s live acceptance.
 
 
 ## 1. Ultimate goal
@@ -71,7 +71,15 @@ New matching policies discovered at execution must be recorded and individually 
 
 ## 5. Current state and code evidence
 
-No remediation SQL, migration reservation, structural claim, preview apply or production apply exists from this session. Only live read-only inspection and expression benchmarks were performed. This document and the baseline are planning artifacts; publication/merge is verified separately in the planning PR and issue. Never infer deployment from a plan commit. Publication candidate is committed/pushed in [PR #4423](https://github.com/popcre/shared-db/pull/4423), but merge is blocked by conflicting documentation and installed reviewer-safety admission. The linked handoff §3 and issue #4421 preserve exact refusals; no independent review was assigned or run. Do not fabricate a retroactive pre-work contract.
+October 18, 2026, 2:23 PM EDT: original PR #4423 was superseded without changing its five candidate files; #4425 merged through PR #4433. #4426 baseline preparation merged through PR #4434. Each has its native merged prerequisite record.
+
+Claim #4158’s stopped source was independently preserved in its original clean checkout, a separate clean clone and a verified Git bundle. Supported recovery capability PR #4438 was independently reviewed and merged; its live adoption receipts were verified, then the new owner released the old source claim normally. Original application issue #2421 remains OPEN for its separate runtime acceptance. No migration/history was discarded.
+
+Administrator repair #4427 uses new claim #4502 and reserved version 20261019192822, draft PR #4444. Fresh qualification retains all46 baseline dispositions/39tables/72overlapping policies;44 policy expressions across37tables are candidates. Two retired archive policies have zero current effective nonbypass callers and stay unchanged, with final live requalification required. claim #4502 retains its original stronger85 object locks.
+
+Isolated CI [39152564172](https://github.com/popcre/shared-db/actions/runs/39152564172) passed migration replay,1932 authenticated before/after results and exact errors, metadata/ACL/union checks and198 actual write plans at source d771ef8cb6eb19fe24d6feccc588d858180593ca. Representative administrator-configuration candidate checks executed once per statement. Eight of nine measured cases improved; single-row INSERT was5.75percent slower, below the10percent investigation threshold. This is synthetic isolated evidence, not shared-preview, production, UI or all-policy performance acceptance. Expanded CI39154055887 at2fbc889e50ccc59090742531e049a1c3232b1778 subsequently passed2124 outcomes and198 raw plans; median single-row INSERT was7.39percent slower, still below10percent. Durable source-bound raw evidence is in docs/verification/rls-initplan/4427/source-runtime-evidence.json.gz with its readable digest/measurement summary.
+
+Muse approved source5d03a81a862fec937cb057929ef6db0eeee001cb, but guarded merge39154975427 correctly refused a missing automatic installed-catalog probe. Generation6 prospectively adds that read-only proof; fresh exact-head review is required for the updated source. Preview rehearsal, source delivery, guarded merge, governed production promotion and live consumer read/write proof remain OPEN on #4427. #4428–#4430 have private preparations only; they must independently recheck custody and execute after predecessor live acceptance. No shared-preview or production SQL write has occurred in this continuation.
 
 Repository anchors at the planning base:
 - supabase/ci-bootstrap/010_pre_adoption_baseline.sql:5170–5180 defines the adopted public.has_role helper. Line 6635 contains the legacy assets insert policy; nearby policies establish legacy context. This file supports clean CI setup; it is NOT a migration to edit or run against production.

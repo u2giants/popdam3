@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "ci_run_id": 39154055887,
+  "tested_head": "2fbc889e50ccc59090742531e049a1c3232b1778",
+  "source_sha256": {
+    "supabase/migrations/20261021190604_public_admin_rls_initplans.sql": "436f304ae74922d3543f7da2f9b1127abf5e4050ab267314636bb5bdd9220300",
+    "supabase/tests/rls_public_admin_initplan_contracts.sql": "cd050bcb22c264ea9c0b69a15b4dfbf898c3327dbb63c6d58ef6e3826b0a6778"
+  },
+  "compressed_sha256": "d1e1531d0a739468150c015c087b770d1523ebd1b8d656af480f7c34c0fe197e",
+  "uncompressed_sha256": "1be26c8a13f68a50610e2592258d0db27495d6fc92ddc6a0dc39d2dd7d94978c",
+  "rebind": {
+    "note": "Path/hash rebind after version supersession to 20261021190604; not a new run.",
+    "successor_migration": "supabase/migrations/20261021190604_public_admin_rls_initplans.sql",
+    "successor_migration_sha256": "436f304ae74922d3543f7da2f9b1127abf5e4050ab267314636bb5bdd9220300",
+    "executable_sql_changed": false,
+    "claim": 4563,
+    "version": "20261021190604"
+  },
+  "initplan_execution_counts": {
+    "candidate admin_config": {
+      "samples": 33,
+      "initplans": 33,
+      "loops_equal_1": 33,
+      "loops_above_1": 0
+    },
+    "candidate profiles": {
+      "samples": 33,
+      "initplans": 33,
+      "loops_equal_1": 33,
+      "loops_above_1": 0
+    },
+    "candidate assets": {
+      "samples": 33,
+      "initplans": 33,
+      "loops_equal_1": 33,
+      "loops_above_1": 0
+    },
+    "candidate style_groups": {
+      "samples": 33,
+      "initplans": 33,
+      "loops_equal_1": 33,
+      "loops_above_1": 0
+    },
+    "original admin_config": {
+      "samples": 33,
+      "initplans": 0,
+      "loops_equal_1": 0,
+      "loops_above_1": 0
+    },
+    "original profiles": {
+      "samples": 33,
+      "initplans": 0,
+      "loops_equal_1": 0,
+      "loops_above_1": 0
+    },
+    "original assets": {
+      "samples": 33,
+      "initplans": 0,
+      "loops_equal_1": 0,
+      "loops_above_1": 0
+    },
+    "original style_groups": {
+      "samples": 33,
+      "initplans": 0,
+      "loops_equal_1": 0,
+      "loops_above_1": 0
+    }
+  }
+}
