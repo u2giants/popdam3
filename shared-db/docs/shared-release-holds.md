@@ -2,8 +2,15 @@
 
 The [implementation plan](../plan_shared_release_hold_reduction.md) covers later
 acquisition, earlier release, proven-independent progress and safely fenced recovery.
-Read its STATUS table first. All implementation remains open; this document
-activates no exception, lease change or production behavior.
+Read its STATUS table first. This document activates no exception, lease change
+or production behavior.
+
+Progress on the merge stage is recorded on the issue and in
+[the merge-stage baseline](verification/shared-release-holds/2026-10-20-guarded-merge-baseline.md):
+plan step 3 (merge preparation outside the serial merge lane) is implemented in
+`guarded-migration-merge.yml` as a per-request `prepare` job and a short protected
+`merge` job; its live proof is linked from the issue once the merged workflow has run.
+Steps 2 and 4-10 remain open.
 
 The existing operating contract remains the authority:
 [workflow route map](agents/current-workflow.md),
