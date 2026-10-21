@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { AssetFilters, FacetCounts } from "@/types/assets";
 import { searchAccessStatus } from "../../supabase/functions/_shared/search-access";
 export { searchAccessStatus };
+export { formatCount } from "./format-count";
 
 export const SEMANTIC_QUERY_TIMEOUT_MS = 6000;
 
@@ -29,8 +30,22 @@ export interface DamSearchPage {
   ids: string[];
   totalCount: number;
   hasMore: boolean;
+  /** True when the RPC reports totals/facets as a lower bound (facets.totalExact === false). */
+  totalIsLowerBound: boolean;
   facets: Record<string, unknown>;
 }
+
+/**
+ * search_dam_documents (shared-db 20261021190510) marks totals and facet
+ * counts as a lower bound with facets.totalExact = false /
+ * facets.totalKind = 'lower_bound' when matches exceed the 1,000-asset probe.
+ */
+export function isLowerBoundTotal(facets: unknown): boolean {
+  if (!facets || typeof facets !== "object" || Array.isArray(facets)) return false;
+  const f = facets as Record<string, unknown>;
+  return f.totalExact === false || f.totalKind === "lower_bound";
+}
+
 
 export function buildDamSearchFilters(filters: AssetFilters): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
@@ -64,6 +79,7 @@ export function parseDamSearchFacets(value: Record<string, unknown>): FacetCount
     workflowStatus: record("workflowStatus"),
     stage: record("stage"),
     isLicensed: { true: Number(licensed.true) || 0, false: Number(licensed.false) || 0 },
+    lowerBound: isLowerBoundTotal(value),
   };
 }
 
@@ -123,13 +139,15 @@ export async function fetchHybridSearchPage({
       return result.document_type === documentType && typeof result.entity_id === "string";
     })
     .map((row) => row.entity_id);
+  const facets = data?.facets && typeof data.facets === "object" && !Array.isArray(data.facets)
+    ? data.facets as Record<string, unknown>
+    : {};
   return {
     ids,
     totalCount: typeof data?.total_count === "number" ? data.total_count : ids.length,
     hasMore: data?.has_more === true,
-    facets: data?.facets && typeof data.facets === "object" && !Array.isArray(data.facets)
-      ? data.facets as Record<string, unknown>
-      : {},
+    totalIsLowerBound: isLowerBoundTotal(facets),
+    facets,
   };
 }
 

@@ -93,6 +93,10 @@ export default function LibraryPage() {
   const count = isGroupsMode
     ? (totalGroupCount ?? sgData?.totalCount ?? 0)
     : (assetData?.totalCount ?? 0);
+  // Hybrid search totals past the 1,000-file probe are lower bounds ("N+").
+  const totalIsLowerBound = isGroupsMode
+    ? sgData?.totalIsLowerBound === true
+    : assetData?.totalIsLowerBound === true;
   const showRebuildHint =
     isGroupsMode &&
     !hasLibraryFilters &&
@@ -181,6 +185,7 @@ export default function LibraryPage() {
         activeFilterCount={activeFilterCount}
         totalCount={isGroupsMode ? (totalGroupCount ?? 0) : (assetData?.totalCount ?? 0)}
         totalAssets={totalAssets ?? 0}
+        totalIsLowerBound={totalIsLowerBound}
         scanRunning={scanRunning}
         scanStale={scanProgress.status === "stale"}
         scanQueued={scanQueued}
@@ -281,6 +286,7 @@ export default function LibraryPage() {
             <PaginationBar
               page={page}
               totalCount={count}
+              totalIsLowerBound={totalIsLowerBound}
               pageSize={pageSize}
               onPageChange={setPage}
               onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}

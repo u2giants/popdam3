@@ -261,7 +261,7 @@ export function useStyleGroups(
             workflow_status: row.workflow_status ?? "other",
             thumbnail_url: row.primary_asset?.thumbnail_url ?? row.primary_thumbnail_url ?? null,
           })) as StyleGroup[], ranked.ids, (group) => group.id);
-          return { groups, totalCount: ranked.totalCount, pageSize: effectivePageSize, page };
+          return { groups, totalCount: ranked.totalCount, totalIsLowerBound: ranked.totalIsLowerBound, pageSize: effectivePageSize, page };
         } catch (error) {
           if (searchAccessStatus(error)) throw error;
           // Preserve the existing keyword path if semantic search is unavailable.
@@ -315,6 +315,7 @@ export function useStyleGroups(
       return {
         groups,
         totalCount: count ?? 0,
+        totalIsLowerBound: false,
         pageSize: effectivePageSize,
         page,
       };
