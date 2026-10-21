@@ -1,5 +1,5 @@
 #!/bin/sh
-# Grant the `ahazan` account temporary passwordless docker access on this Synology,
+# Grant the `ai` account temporary passwordless docker access on this Synology,
 # for one block of AI-run container work. Run it with sudo; it asks for the
 # password once. Revoke it afterwards with ai-docker-sudo-disable.sh.
 #
@@ -15,8 +15,8 @@ T=$(mktemp)
 
 cat > "$T" <<'RULE'
 # Temporary: AI session container work. Revoke with ai-docker-sudo-disable.sh.
-ahazan ALL=(root) NOPASSWD: /usr/local/bin/docker
-ahazan ALL=(root) NOPASSWD: /bin/rm -f /etc/sudoers.d/ai-docker
+ai ALL=(root) NOPASSWD: /usr/local/bin/docker
+ai ALL=(root) NOPASSWD: /bin/rm -f /etc/sudoers.d/ai-docker
 RULE
 
 chmod 0440 "$T"
@@ -38,7 +38,7 @@ chmod 0440 "$F"
 if command -v visudo >/dev/null 2>&1; then
   CHECK="visudo -c"
 else
-  CHECK="sudo -l -U ahazan"
+  CHECK="sudo -l -U ai"
 fi
 if ! $CHECK >/dev/null 2>&1; then
   echo "FAIL: sudoers set did not validate after install; removing"
