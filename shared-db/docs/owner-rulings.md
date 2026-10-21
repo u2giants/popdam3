@@ -2148,3 +2148,13 @@ Verbatim from Albert's chat:
 **Effect.** For `popcre/shared-db` only: this repository has no working reviewers (standing premise from the 2026-10-15 quote), so the exact-head approval gate (`scripts/check-exact-head-approval.mjs`) skips the external reviewer APPROVE requirement. This is not a per-run liveness probe. This ruling does not by itself change `--assign-reviewer` drawing rules. The exemption is from the reviewer POOL only. Every other required check, the guarded merge lane, the merge lock, and a durable refusal already recorded at the head still bind. One assignment is authorized to bootstrap this policy onto main. The policy is the committed file `config/owner-no-reviewer-policy.json` (schema-1) so the decision is auditable and cannot be toggled by a pull-request author or environment variable. This retires the one-review minimum from §6.27 for this repository only; §6.27 remains the rule for every other repository.
 
 Posted by MiMo chat 0ffe5ebedd0b70ffe on edge-dev
+
+### 6.29 OWNER RULING — a stalled protected-source pull request loses its queue place after one hour (Albert Hazan, 2026-10-21)
+
+Verbatim from Albert's chat (2026-10-21), answering whether the 24-hour stale-place window could be 30 minutes:
+
+> "make it 1hr."
+
+**Effect.** `STALE_PLACE_AFTER_MS` in `scripts/check-pr-source-collisions.mjs` is one hour. An earlier open pull request that edits a protected coordination source forfeits its place to a newer one only when all three conditions still hold: no activity for one hour, failing checks or a main conflict, and a dated `stale-place-nudge:` comment naming the newer pull request. Unreadable signals still mean no skip, and the earlier pull request reclaims its place automatically once refreshed and green. Nudges written with the old `inactive-24h` state still parse; new ones say `inactive-1h`.
+
+Posted by Claude chat 745ea991-2041-4729-8860-ca595c6faf46 on edge-dev

@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { activationDate, conflictsWithMain, filePaths, gather, lastActivityAt, main, mergeGroupProblem, readMergeGroupFacts, latestChecksFailing, openProtectedCollisions, parseStalePlaceNudge, stalePlaceNudgeLine, stalePlaceSkips, stalePlaceYield } from './check-pr-source-collisions.mjs'
+import { readFileSync } from 'node:fs'
+import { activationDate, conflictsWithMain, filePaths, gather, lastActivityAt, main, mergeGroupProblem, readMergeGroupFacts, latestChecksFailing, openProtectedCollisions, parseStalePlaceNudge, STALE_PLACE_AFTER_MS, stalePlaceNudgeLine, stalePlaceSkipLine, stalePlaceWindowText, stalePlaceSkips, stalePlaceYield } from './check-pr-source-collisions.mjs'
 
 const NOW='2026-09-18T12:00:00Z'
 const PROTECTED='scripts/manage-migration-author-lanes.mjs'
@@ -66,9 +67,9 @@ test('stale-place: the skip is gated on the dated nudge naming the newer PR',()=
 })
 
 test('stale-place: the predecessor reclaims its place once refreshed and green',()=>{
-  // Refreshed: activity inside 24h defeats condition (a) even while still red.
+  // Refreshed: activity inside the last hour defeats condition (a) even while still red.
   assert.deepEqual(openProtectedCollisions(newer,[stalePredecessor({lastActivityAt:'2026-09-18T11:30:00Z'})],{now:NOW}),blocks)
-  // Green: no failing check and no conflict defeats condition (b) even after 24h idle.
+  // Green: no failing check and no conflict defeats condition (b) however long idle.
   assert.deepEqual(openProtectedCollisions(newer,[stalePredecessor({checksFailing:false})],{now:NOW}),blocks)
   // Refreshed AND green is the full reclaim: it precedes again with the nudge still on record.
   assert.deepEqual(openProtectedCollisions(newer,[stalePredecessor({lastActivityAt:'2026-09-18T11:30:00Z',checksFailing:false})],{now:NOW}),blocks)
@@ -241,4 +242,32 @@ test('workflow pins the merge-group step to merge_group with merge-group mode',a
   const step=yml.slice(yml.indexOf('- name: Merge group is its base plus exactly one PR'))
   assert.match(step.slice(0,400),/if: github\.event_name == 'merge_group'[\s\S]*SOURCE_COLLISION_MODE: merge-group[\s\S]*node scripts\/check-pr-source-collisions\.mjs/)
   assert.match(yml,/node --test [^\n]*scripts\/manage-migration-author-lanes\.test\.mjs/)
+})
+
+test('stale-place: the inactivity window is one hour (owner ruling 2026-10-21)',()=>{
+  assert.equal(STALE_PLACE_AFTER_MS,60*60*1000)
+  // 61 minutes idle, red, nudged: the place is forfeit.
+  assert.deepEqual(openProtectedCollisions(newer,[stalePredecessor({lastActivityAt:'2026-09-18T10:59:00Z'})],{now:NOW}),[])
+  // 59 minutes idle: still inside the window, so it keeps its place.
+  assert.deepEqual(openProtectedCollisions(newer,[stalePredecessor({lastActivityAt:'2026-09-18T11:01:00Z'})],{now:NOW}),blocks)
+  // Unreadable activity still means no skip.
+  assert.deepEqual(openProtectedCollisions(newer,[stalePredecessor({lastActivityAt:null})],{now:NOW}),blocks)
+})
+
+test('stale-place: new inactive-1h nudges and legacy inactive-24h nudges both parse',()=>{
+  for(const state of ['inactive-1h','inactive-24h']){
+    const parsed=parseStalePlaceNudge(stalePlaceNudgeLine(20,{date:'2026-10-21',states:[state,'checks-failing']}),{commentedAt:'2026-10-21T16:00:00Z'})
+    assert.deepEqual(parsed.states,[state,'checks-failing'])
+  }
+})
+
+test('stale-place: the skip message states the enforced window, never a stale one',()=>{
+  assert.equal(stalePlaceWindowText(),'1h')
+  assert.equal(stalePlaceWindowText(24*60*60*1000),'24h')
+  assert.equal(stalePlaceWindowText(30*60*1000),'30m')
+  const line=stalePlaceSkipLine({file:PROTECTED,pr:10,title:'stale'})
+  assert.match(line,/is inactive 1h\+ with failing checks/)
+  assert.doesNotMatch(line,/24h/)
+  const source=readFileSync(new URL('./check-pr-source-collisions.mjs',import.meta.url),'utf8')
+  assert.doesNotMatch(source.replace(/^\s*\/\/.*$/gm,''),/inactive 24h\+/,'no hard-coded window may return to an emitted message')
 })
