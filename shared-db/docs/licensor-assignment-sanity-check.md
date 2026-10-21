@@ -27,6 +27,13 @@ into "Unassigned Submissions" under Disney. A human reviewer caught one by eye.
 Before you publish a scrape result or a generated list, run a **licensor-plausibility check**
 and put its results in front of the reviewer. Do not just record them in a log.
 
+0. **One item, more than one licensor → human review (owner ruling, Albert Hazan, 2026-10-21).**
+   If the same file, asset, style guide, property, or character (same source ID, or the
+   same file by hash or path) appears under more than one Licensor, or is tagged with more
+   than one Licensor, flag it for a human to resolve. Never pick one Licensor automatically,
+   never drop the extra tags, and never list it under only one Licensor without the flag.
+   This applies across sources too. For example, an item that one portal files under Disney
+   and another under Marvel gets flagged.
 1. **Name-versus-licensor conflict.** Flag every row whose name contains another Licensor's
    name or brand marker while it sits under a different Licensor. Keep the marker table near
    the code and extend it whenever you learn a new case. At minimum:
