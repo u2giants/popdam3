@@ -197,3 +197,16 @@ test("generated-types proof requires each issue's objects", () => {
   assert.throws(() => createGeneratedTypesProof({ source: t4268, workIssue: 4257, applicationCommitSha: sha }));
   assert.throws(() => createGeneratedTypesProof({ source: "export type Database = {}", workIssue: 4268, applicationCommitSha: sha }));
 });
+
+test("4190 passes only with both new schedules active and run since the change", async () => {
+  const { evaluateCadence4190 } = await import("./shared-db-live-proof.mjs");
+  const ok = [
+    { jobname: "refresh-style-guide-library-default-snapshot", schedule: "*/15 * * * *", active: true, succeeded_runs: 4 },
+    { jobname: "refresh-style-guide-matviews", schedule: "7 * * * *", active: true, succeeded_runs: 1 },
+  ];
+  assert.equal(evaluateCadence4190(ok), ok);
+  assert.throws(() => evaluateCadence4190([{ ...ok[0], schedule: "*/5 * * * *" }, ok[1]]), NotYetApplied);
+  assert.throws(() => evaluateCadence4190([ok[0], { ...ok[1], active: false }]), ProofFailure);
+  assert.throws(() => evaluateCadence4190([ok[0], { ...ok[1], succeeded_runs: 0 }]), ProofFailure);
+  assert.throws(() => evaluateCadence4190([ok[0]]), ProofFailure);
+});

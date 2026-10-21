@@ -35,6 +35,7 @@ const ASSERTIONS = {
   3457: "On production, public.search_dam_documents has the 8-arg signature with p_min_semantic_score real default null, the 7-arg signature is dropped, execute is granted to authenticated and service_role only, a semantic floor is applied only inside the semantic leg before blend, and null floor preserves prior blended-rank behaviour exactly.",
   4064: "production public.admin_config_apply_counters(text,jsonb,jsonb) exists, is executable by service_role and not by anon/authenticated, and atomically increments admin_config JSON counters",
   4037: "production app.handle_new_auth_user() inserts app.app_access(profile_id,'dam') for new users whose email ends in @popcre.com, keeping existing behaviour",
+  4190: "production cron.job 'refresh-style-guide-matviews' schedule is '7 * * * *' and 'refresh-style-guide-library-default-snapshot' schedule is '*/15 * * * *', both active, with succeeded runs after the change",
   4257: "Existing orders remain readable and editable; all writers reject reused production PO numbers and preserve permanent reservations; historical exceptions require sealed exact-order admissions.",
   4268: "Authenticated OrderList users see the correct New York SO received date for exactly linked lines; missing or conflicting dates remain blank; anon and oversized requests are rejected without raw ColdLion access.",
   2934: "From the application's production service-role connection, read-only: public.deactivate_stale_sg_files no longer exists, and the application's stale-file deactivation path (public.preview_stale_sg_files guard ahead of public.reconcile_stale_sg_files_batch) is still exposed and its read-only guard call succeeds.",
@@ -632,6 +633,45 @@ async function proveNoReuse() {
   };
 }
 
+// ── 4190: style-guide refresh cron cadence (u2giants/popdam3#293) ────────────
+// cron is not exposed to PostgREST, so this read-only SELECT goes through the
+// Management API query endpoint. Runs count only after the cadence change.
+export const CADENCE_CHANGED_AT = "2026-10-11T19:59:00Z";
+export const EXPECTED_CADENCE_4190 = {
+  "refresh-style-guide-matviews": "7 * * * *",
+  "refresh-style-guide-library-default-snapshot": "*/15 * * * *",
+};
+const CADENCE_SQL_4190 = `select j.jobname, j.schedule, j.active,
+  count(d.runid) filter (where d.status = 'succeeded')::int as succeeded_runs,
+  max(d.end_time) filter (where d.status = 'succeeded') as last_succeeded_at
+from cron.job j left join cron.job_run_details d on d.jobid = j.jobid and d.start_time > '${CADENCE_CHANGED_AT}'
+where j.jobname in (${Object.keys(EXPECTED_CADENCE_4190).map((n) => `'${n}'`).join(", ")})
+group by j.jobname, j.schedule, j.active order by j.jobname`;
+
+// Pure: each job has its new schedule, is active, and has run since the change.
+export function evaluateCadence4190(rows) {
+  if (!Array.isArray(rows)) fail("4190 cron query did not return rows");
+  for (const [name, schedule] of Object.entries(EXPECTED_CADENCE_4190)) {
+    const row = rows.find((r) => r.jobname === name);
+    if (!row) fail(`cron job ${name} not found`);
+    if (row.schedule !== schedule) throw new NotYetApplied(`${name} schedule is ${row.schedule}`);
+    if (row.active !== true) fail(`${name} is not active`);
+    if (!(row.succeeded_runs > 0)) fail(`${name} has no succeeded run since the change`);
+  }
+  return rows;
+}
+
+async function proveCadence() {
+  const { status, json, elapsedMs } = await managementQuery(CADENCE_SQL_4190);
+  if (status >= 400) fail(`4190 cron query returned HTTP ${status}`);
+  return {
+    call: "read-only SELECT on cron.job and cron.job_run_details (Management API)",
+    elapsed_ms: elapsedMs,
+    since: CADENCE_CHANGED_AT,
+    jobs: evaluateCadence4190(json),
+  };
+}
+
 // Pure: New York calendar date of one ColdLion stamp, with the reader's floor.
 export function newYorkDate(stamp) {
   const at = Date.parse(String(stamp).replace(" ", "T").replace(/([+-]\d\d)$/, "$1:00"));
@@ -737,7 +777,7 @@ async function proveSoDates() {
   };
 }
 
-const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant, 4064: proveCounters, 4257: proveNoReuse, 4268: proveSoDates };
+const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant, 4064: proveCounters, 4190: proveCadence, 4257: proveNoReuse, 4268: proveSoDates };
 
 async function main() {
   if (url !== EXPECTED_URL) fail("SUPABASE_URL is not the production project");
