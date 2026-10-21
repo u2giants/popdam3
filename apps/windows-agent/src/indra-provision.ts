@@ -15,7 +15,18 @@
  * reported on every heartbeat so the admin panel can show it.
  */
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import {
+  existsSync,
+  linkSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { logger } from "./logger";
@@ -237,7 +248,9 @@ function errorMessage(error: unknown): string {
  */
 export const LOCK_STALE_MS = 45 * 60_000; // covers the longest provision (sum of step timeouts ~30 min)
 const LOCK_DEAD_PID_GRACE_MS = 30_000;
-const LOCK_WAIT_MS = 30 * 60_000;
+// A waiter must outlast the stale window, or it gives up on a lock that is
+// still considered fresh and never gets the chance to steal it.
+export const LOCK_WAIT_MS = LOCK_STALE_MS + 5 * 60_000;
 const LOCK_POLL_MS = 2_000;
 
 export function defaultLockPath(): string {
@@ -247,18 +260,30 @@ export function defaultLockPath(): string {
 export interface ProvisionLockInfo {
   pid: number;
   at: number;
+  token?: string;
 }
 
 export function parseProvisionLock(raw: string): ProvisionLockInfo | null {
   try {
     const parsed = JSON.parse(raw) as { pid?: unknown; at?: unknown };
     if (typeof parsed?.pid === "number" && typeof parsed?.at === "number") {
-      return { pid: parsed.pid, at: parsed.at };
+      const token = (parsed as { token?: unknown }).token;
+      return { pid: parsed.pid, at: parsed.at, ...(typeof token === "string" ? { token } : {}) };
     }
   } catch {
     // unparseable — treated as stale
   }
   return null;
+}
+
+/** EPERM means the process exists but belongs to another user — it is alive. */
+export function defaultPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException)?.code === "EPERM";
+  }
 }
 
 export function isProvisionLockStale(
@@ -267,31 +292,59 @@ export function isProvisionLockStale(
   opts: { staleMs?: number; pidAlive?: (pid: number) => boolean } = {},
 ): boolean {
   const staleMs = opts.staleMs ?? LOCK_STALE_MS;
-  const pidAlive =
-    opts.pidAlive ??
-    ((pid: number): boolean => {
-      try {
-        process.kill(pid, 0);
-        return true;
-      } catch {
-        return false;
-      }
-    });
+  const pidAlive = opts.pidAlive ?? defaultPidAlive;
   if (!info) return true; // unparseable or empty lock is stale
   if (now - info.at > staleMs) return true;
   if (now - info.at > LOCK_DEAD_PID_GRACE_MS && !pidAlive(info.pid)) return true;
   return false;
 }
 
-function tryCreateLock(lockPath: string): boolean {
+function tryCreateLock(lockPath: string, content: string): boolean {
   try {
     mkdirSync(dirname(lockPath), { recursive: true });
-    writeFileSync(lockPath, JSON.stringify({ pid: process.pid, at: Date.now() }), { flag: "wx" });
+    writeFileSync(lockPath, content, { flag: "wx" });
     return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
     throw error;
   }
+}
+
+/**
+ * Remove the lock only if it still holds `expected`. A plain read-then-unlink
+ * races: between the read and the unlink another process can steal the lock
+ * and write its own, which the unlink would then destroy. Renaming is atomic,
+ * so we move the file aside first and inspect what we actually took; if it is
+ * not the content we judged, we put it back with a no-clobber link (which
+ * fails if yet another holder has since created a fresh lock).
+ * Returns true when the expected lock was removed.
+ */
+export function removeLockIfUnchanged(lockPath: string, expected: string): boolean {
+  const aside = `${lockPath}.${process.pid}.${randomUUID()}.del`;
+  try {
+    renameSync(lockPath, aside);
+  } catch {
+    return false; // already gone or taken by someone else
+  }
+  let taken = "";
+  try {
+    taken = readFileSync(aside, "utf8");
+  } catch {
+    // unreadable — treat as not ours to keep
+  }
+  if (taken !== expected) {
+    try {
+      linkSync(aside, lockPath);
+    } catch {
+      // a newer lock exists; the one we moved is superseded
+    }
+  }
+  try {
+    rmSync(aside, { force: true });
+  } catch {
+    // best effort
+  }
+  return taken === expected;
 }
 
 /** Acquire the provisioning lock. Returns a release function; throws on wait timeout. */
@@ -309,13 +362,10 @@ export async function acquireProvisionLock(
   const pollMs = options.pollMs ?? LOCK_POLL_MS;
   const deadline = Date.now() + waitMs;
   for (;;) {
-    if (tryCreateLock(lockPath)) {
+    const mine = JSON.stringify({ pid: process.pid, at: Date.now(), token: randomUUID() });
+    if (tryCreateLock(lockPath, mine)) {
       return () => {
-        try {
-          rmSync(lockPath, { force: true });
-        } catch {
-          // already gone
-        }
+        removeLockIfUnchanged(lockPath, mine);
       };
     }
     let raw = "";
@@ -327,11 +377,7 @@ export async function acquireProvisionLock(
     const info = parseProvisionLock(raw);
     if (isProvisionLockStale(info, Date.now(), { staleMs: options.staleMs, pidAlive: options.pidAlive })) {
       logger.warn("Indra OCR: stealing stale provisioning lock", { lockPath, holder: info });
-      try {
-        rmSync(lockPath, { force: true });
-      } catch {
-        // lost the steal race — loop and retry create
-      }
+      removeLockIfUnchanged(lockPath, raw); // lost the race → loop and retry create
       continue;
     }
     if (Date.now() >= deadline) {
