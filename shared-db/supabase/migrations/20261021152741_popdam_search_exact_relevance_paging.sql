@@ -1,7 +1,10 @@
 -- #4529 / PopDAM #97: corrective fix-forward for 20261021063716 (Muse
 -- production-risk REJECT at 85193c31d). Same 8-arg search_dam_documents
 -- signature. Drops the unused search_dam_document_counts helper.
--- derived-from: 20261021063716
+-- derived-from: 20261020230556
+-- (Base is what production holds. 20261021063716 never reached preview or
+-- production; this file drops and recreates every object it writes, so it
+-- supersedes 20261021063716 entirely and that version is not a prerequisite.)
 --
 -- What 20261021063716 got wrong, and what this migration does instead:
 --   * It capped FTS candidates at 1000-8000 rows ordered by UUID before
@@ -55,9 +58,9 @@
 -- visibility predicate, summary envelope (null-entity row), 8s timeout,
 -- grants. No SEARCH_MODE change. No PopSG object is touched.
 
-drop function if exists public.search_assets_full_text(text,int);
-drop function if exists public.search_style_groups_full_text(text,int);
-drop function if exists public.search_dam_document_counts(text,jsonb,text[],extensions.vector(384),real);
+drop function if exists public.search_assets_full_text(text,int); -- recreated below
+drop function if exists public.search_style_groups_full_text(text,int); -- recreated below
+drop function if exists public.search_dam_document_counts(text,jsonb,text[],extensions.vector(384),real); -- retired (no consumer)
 
 create or replace function public.search_dam_documents(
   p_query text, p_filters jsonb, p_limit int, p_offset int,
@@ -330,8 +333,7 @@ $$;
 revoke all on function public.search_dam_documents(text,jsonb,int,int,text[],extensions.vector(384),real,real) from public, anon;
 grant execute on function public.search_dam_documents(text,jsonb,int,int,text[],extensions.vector(384),real,real) to authenticated, service_role;
 
-comment on function public.search_dam_documents(text,jsonb,int,int,text[],extensions.vector(384),real,real) is
-  'DAM-entitled ranked search. Every keyword (FTS + substring) and semantic candidate is ranked before any bound; exact title matches rank 1.0. The page is the first offset+limit visible documents in rank order (rank-ordered probe) and has_more is exact. total_count/facets are exact when facets.totalExact is true; otherwise they cover a rank-ordered probe of 1000 assets and total_count is a lower bound (facets.totalKind = lower_bound). Summary envelope always returned (null-entity row on empty/out-of-range). Semantic leg model/dims-checked, floor before blend.';
+comment on function public.search_dam_documents(text,jsonb,int,int,text[],extensions.vector(384),real,real) is 'DAM-entitled ranked search. Every keyword (FTS + substring) and semantic candidate is ranked before any bound; exact title matches rank 1.0. The page is the first offset+limit visible documents in rank order (rank-ordered probe) and has_more is exact. total_count/facets are exact when facets.totalExact is true; otherwise they cover a rank-ordered probe of 1000 assets and total_count is a lower bound (facets.totalKind = lower_bound). Summary envelope always returned (null-entity row on empty/out-of-range). Semantic leg model/dims-checked, floor before blend.';
 
 create or replace function public.search_assets_full_text(p_query text, p_limit int default 10000)
 returns table(asset_id uuid, style_group_id uuid, rank real)
