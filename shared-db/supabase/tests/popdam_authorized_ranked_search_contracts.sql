@@ -104,7 +104,9 @@ begin
     'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'::regprocedure
   ) into v_definition;
 
-  if position('candidate_asset_ids as materialized' in v_definition) = 0
+  -- #4529 (20261021152741): Style Group members are expanded lazily inside
+  -- the rank-ordered visibility probes, so candidate_asset_ids is inlined.
+  if position('candidate_asset_ids as not materialized' in v_definition) = 0
      or position('visible_assets as materialized' in v_definition) = 0 then
     raise exception 'ranked search must establish the effective visible asset set first';
   end if;
@@ -201,11 +203,13 @@ begin
   end if;
   if position('d.search_tsv @@ any(array(select q.tsq from queries q))' in v_definition) = 0
      or position('full_text_matches as materialized' in v_definition) = 0
-     or position('select max(ts_rank_cd(d.search_tsv, q.tsq))' in v_definition) = 0 then
+     or position('cross join rank_queries q' in v_definition) = 0
+     -- #4529: ts_rank_cd over the TOASTed search_tsv cost 9.7s for one
+     -- high-DF query on production; relevance uses short display columns.
+     or position('ts_rank_cd(d.search_tsv' in v_definition) > 0 then
     raise exception 'ranked search must retain the measured indexable scan and maximum synonym rank';
   end if;
-  if position('c.keyword_rank, c.semantic_rank, c.rank, c.asset_id id' in v_definition) = 0
-     or position('c.keyword_rank, c.semantic_rank, c.rank, a.id' in v_definition) = 0
+  if position('c.keyword_rank, c.semantic_rank, c.rank, x.id, c.rn' in v_definition) = 0
      or position('select distinct a.document_type, a.entity_id, a.asset_id' in v_definition) = 0
      or position('from candidate_ranks c' in substring(v_definition from position('ranked_documents as materialized' in v_definition))) > 0 then
     raise exception 'candidate rank keys must flow through visibility without a quadratic CTE join';

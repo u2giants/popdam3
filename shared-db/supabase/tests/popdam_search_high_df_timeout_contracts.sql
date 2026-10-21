@@ -1,7 +1,7 @@
 -- #4529: high-DF search timeout contract tests (synthetic fixtures, disposable).
--- Covers: spider-man/stitch/wall-art-canvas under 8s, exact-ID title hit in top5,
--- exact total_count on a filtered query matches search_dam_document_counts
--- (uncapped), no-match stays empty, signature identity, grants.
+-- Covers: spider-man/stitch/wall-art-canvas under 8s, exact title ranked first,
+-- consistent paging and exact has_more, exact vs lower-bound total flags,
+-- no-match stays empty, signature identity, grants (#4529, 20261021152741).
 -- Fixture rows are self-seeded and cleaned up; CI also wraps in begin/rollback.
 
 reset role;
@@ -66,52 +66,146 @@ begin
   end loop;
 end $$;
 
--- 2. Exact identifier / title substring hit lands in the top 5 page.
+-- 2. Exact identifier: a title equal to the query (extension, case and
+--    separators ignored) ranks above every other keyword tier at position 1,
+--    and title-substring hits fill the rest of the top 5 (#4529, 20261021152741).
 do $$
 declare
-  hit_rank int;
-  q text := 'spider-man';
-  ident text;
+  v_exact uuid := '45310000-0000-4000-8000-000000000005';
+  first_id uuid;
+  first_rank real;
+  top5_title_hits int;
 begin
-  select left(d.title, 80) into ident
-  from public.dam_search_documents d
-  where d.title ilike '%spider-man%'
-  order by d.entity_id
+  insert into public.assets (id, filename, relative_path, file_type, quick_hash, modified_at, thumbnail_url, is_deleted)
+  values (v_exact, 'zz4531spiderexact.psd', 'zz4531/zz4531spiderexact.psd', 'psd', 'zz4531spiderexact', now(), 'https://example.invalid/x.png', false)
+  on conflict (id) do nothing;
+  insert into public.dam_search_documents (document_type, entity_id, asset_id, title, path, search_text)
+  values ('asset', v_exact, v_exact, 'ZZ4531_Spider-Man.ai', 'zz4531/zz4531spiderexact.psd', 'zz4531 spider-man')
+  on conflict (document_type, entity_id) do update
+    set title = excluded.title, path = excluded.path, search_text = excluded.search_text;
+
+  select entity_id, rank into first_id, first_rank
+  from public.search_dam_documents('zz4531 spider-man', '{}'::jsonb, 5, 0)
+  where entity_id is not null
+  order by rank desc, document_type, entity_id
   limit 1;
-  if ident is null then
-    raise exception 'fixture error: no spider-man title hit to assert top5';
+  if first_id is distinct from v_exact or first_rank < 1.0 then
+    raise exception 'exact title % not ranked first (got % at %)', v_exact, first_id, first_rank;
   end if;
-  select min(rn) into hit_rank
-  from (
-    select row_number() over (order by rank desc, document_type, entity_id) rn, entity_id
-    from public.search_dam_documents(q, '{}'::jsonb, 5, 0)
-    where entity_id is not null
-  ) x
-  where x.entity_id in (
-    select d.entity_id from public.dam_search_documents d where d.title = ident
-  );
-  if hit_rank is null or hit_rank > 5 then
-    raise exception 'exact-ID title hit % not in top5 (rank %)', ident, hit_rank;
+
+  select count(*) into top5_title_hits
+  from public.search_dam_documents('spider-man', '{}'::jsonb, 5, 0) r
+  join public.dam_search_documents d on d.document_type = r.document_type and d.entity_id = r.entity_id
+  where r.entity_id is not null and d.title ilike '%spider-man%';
+  if top5_title_hits < 3 then
+    raise exception 'spider-man top5 has only % title hits (fixtures seed 3)', top5_title_hits;
   end if;
-  raise notice 'exact-ID % at top5 rank %', ident, hit_rank;
 end $$;
 
--- 3. Filtered query: page envelope total_count matches the uncapped counts RPC.
+-- 3. Paging: consecutive pages equal one large page, has_more is exact, and a
+--    page past the last row returns the summary envelope with has_more=false.
 do $$
 declare
-  page_total bigint;
-  uncapped_total bigint;
-  q text := 'stitch';
-  filt jsonb := '{"fileType":["psd"]}'::jsonb;
+  big uuid[];
+  paged uuid[];
+  last_more boolean;
+  past_rows int;
+  past_more boolean;
+  n bigint;
 begin
-  select min(total_count) into page_total
-  from public.search_dam_documents(q, filt, 20, 0);
-  select total_count into uncapped_total
-  from public.search_dam_document_counts(q, filt);
-  if coalesce(page_total, -1) <> coalesce(uncapped_total, -2) then
-    raise exception 'filtered total_count mismatch: page=% uncapped=%', page_total, uncapped_total;
+  select array_agg(entity_id order by rank desc, document_type, entity_id) into big
+  from public.search_dam_documents('zz4531', '{}'::jsonb, 50, 0) where entity_id is not null;
+  n := coalesce(array_length(big, 1), 0);
+  if n < 5 then
+    raise exception 'paging fixture too small: %', n;
   end if;
-  raise notice 'filtered totals match at %', page_total;
+  select array_agg(entity_id order by pg, rank desc, document_type, entity_id) into paged
+  from (
+    select 1 pg, * from public.search_dam_documents('zz4531', '{}'::jsonb, 2, 0)
+    union all select 2, * from public.search_dam_documents('zz4531', '{}'::jsonb, 2, 2)
+    union all select 3, * from public.search_dam_documents('zz4531', '{}'::jsonb, 50, 4)
+  ) x where entity_id is not null;
+  if paged is distinct from big then
+    raise exception 'paged results % differ from one page %', paged, big;
+  end if;
+  select bool_or(has_more) into last_more
+  from public.search_dam_documents('zz4531', '{}'::jsonb, 2, (n - 2)::int);
+  if last_more then
+    raise exception 'has_more true on the last page';
+  end if;
+  select count(entity_id), bool_or(has_more) into past_rows, past_more
+  from public.search_dam_documents('zz4531', '{}'::jsonb, 10, (n + 5)::int);
+  if past_rows <> 0 or past_more then
+    raise exception 'past-the-end page returned % rows, has_more %', past_rows, past_more;
+  end if;
+end $$;
+
+-- 3b. Small result sets report exact totals and say so.
+do $$
+declare
+  total bigint;
+  f jsonb;
+  filt_total bigint;
+begin
+  select min(total_count), (array_agg(facets))[1] into total, f
+  from public.search_dam_documents('zz4531', '{}'::jsonb, 2, 0);
+  if (f->>'totalExact')::boolean is not true or f->>'totalKind' <> 'exact' then
+    raise exception 'small result set not flagged exact: %', f;
+  end if;
+  if total <> (select count(*) from public.search_dam_documents('zz4531', '{}'::jsonb, 1000, 0) where entity_id is not null) then
+    raise exception 'exact total % does not equal the full result count', total;
+  end if;
+  select min(total_count) into filt_total
+  from public.search_dam_documents('zz4531', '{"fileType":["psd"]}'::jsonb, 1, 0);
+  if filt_total <> (select count(*) from public.search_dam_documents('zz4531', '{"fileType":["psd"]}'::jsonb, 1000, 0) where entity_id is not null) then
+    raise exception 'filtered exact total % does not match its result count', filt_total;
+  end if;
+end $$;
+
+-- 3c. Above the 1000-asset summary probe the total is a flagged lower bound,
+--     and paging stays correct past the probe.
+do $$
+declare
+  f jsonb;
+  total bigint;
+  more boolean;
+  deep_rows int;
+  deep_more boolean;
+  deep_total bigint;
+begin
+  insert into public.assets (id, filename, relative_path, file_type, quick_hash, modified_at, thumbnail_url, is_deleted)
+  select ('45350000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid,
+    'zz4535lb-' || g || '.psd', 'zz4535lb/' || g || '.psd', 'psd', 'zz4535lb' || g, now(),
+    'https://example.invalid/lb.png', false
+  from generate_series(1, 2105) g
+  on conflict (id) do nothing;
+  insert into public.dam_search_documents (document_type, entity_id, asset_id, title, path, search_text)
+  select 'asset', ('45350000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid,
+    ('45350000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid,
+    'zz4535lb item ' || g, 'zz4535lb/' || g || '.psd', 'zz4535lb item'
+  from generate_series(1, 2105) g
+  on conflict (document_type, entity_id) do update
+    set title = excluded.title, path = excluded.path, search_text = excluded.search_text;
+
+  select min(total_count), bool_or(has_more), (array_agg(facets))[1] into total, more, f
+  from public.search_dam_documents('zz4535lb', '{}'::jsonb, 20, 0);
+  if (f->>'totalExact')::boolean is not false or f->>'totalKind' <> 'lower_bound' then
+    raise exception 'large result set not flagged lower_bound: %', f;
+  end if;
+  if not more or total < 21 or total > 2105 then
+    raise exception 'lower-bound total % / has_more % inconsistent', total, more;
+  end if;
+
+  select count(entity_id), bool_or(has_more), min(total_count) into deep_rows, deep_more, deep_total
+  from public.search_dam_documents('zz4535lb', '{}'::jsonb, 20, 2100);
+  if deep_rows <> 5 or deep_more or deep_total < 2105 then
+    raise exception 'page past the probe: rows %, has_more %, total %', deep_rows, deep_more, deep_total;
+  end if;
+
+  delete from public.dam_search_documents where entity_id in (
+    select ('45350000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid from generate_series(1, 2105) g);
+  delete from public.assets where id in (
+    select ('45350000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid from generate_series(1, 2105) g);
 end $$;
 
 -- 4. No-match stays empty (summary-only, total_count 0).
@@ -138,10 +232,12 @@ begin
   ) is null then
     raise exception 'search_dam_documents signature drifted from the 8-arg contract';
   end if;
+  -- 20261021152741 retired the unused counts helper; totals carry
+  -- facets.totalExact instead.
   if to_regprocedure(
     'public.search_dam_document_counts(text,jsonb,text[],extensions.vector,real)'
-  ) is null then
-    raise exception 'search_dam_document_counts missing';
+  ) is not null then
+    raise exception 'search_dam_document_counts should be retired';
   end if;
 end $$;
 
@@ -184,10 +280,12 @@ begin
     '45310000-0000-4000-8000-000000000001',
     '45310000-0000-4000-8000-000000000002',
     '45310000-0000-4000-8000-000000000003',
-    '45310000-0000-4000-8000-000000000004');
+    '45310000-0000-4000-8000-000000000004',
+    '45310000-0000-4000-8000-000000000005');
   delete from public.assets where id in (
     '45310000-0000-4000-8000-000000000001',
     '45310000-0000-4000-8000-000000000002',
     '45310000-0000-4000-8000-000000000003',
-    '45310000-0000-4000-8000-000000000004');
+    '45310000-0000-4000-8000-000000000004',
+    '45310000-0000-4000-8000-000000000005');
 end $$;

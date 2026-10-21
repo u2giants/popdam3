@@ -1,0 +1,46 @@
+{
+ "schema_version": 1,
+ "work_issue": 4529,
+ "outcome": "ready-for-merge",
+ "pr": 4543,
+ "migration_versions": [
+  "20261021152741"
+ ],
+ "contract_ref": "refs/db-contracts/4529/4",
+ "contract_sha256": "86977ba8c4a3b4dce5ec6117a3019596826b587a64c91439d33963554238baef",
+ "head_sha": "05c11becfb2c2cc4b5aafa0550c03236dd341c0e",
+ "base_sha": "f2438ee10035758e86bc1c3c09a77af79d4bc0b4",
+ "files_changed": [
+  ".agent/work/4529/4/completion.json",
+  ".agent/work/4529/4/contract.json",
+  "supabase/migrations/20261021152741_popdam_search_exact_relevance_paging.sql",
+  "supabase/tests/popdam_authorized_ranked_search_contracts.sql",
+  "supabase/tests/popdam_search_high_df_timeout_contracts.sql"
+ ],
+ "db_reads": [],
+ "db_writes": [
+  "function public.search_dam_documents",
+  "function public.search_assets_full_text",
+  "function public.search_style_groups_full_text",
+  "function public.search_dam_document_counts"
+ ],
+ "checks": [
+  {
+   "exit_code": 0,
+   "command": "bash scripts/check-sql.sh",
+   "evidence": "Static checks passed."
+  },
+  {
+   "exit_code": 0,
+   "command": "git diff --check",
+   "evidence": "Exit 0."
+  }
+ ],
+ "assumptions_resolved": [
+  "Claim #4542 covers all four function objects",
+  "Production EXPLAIN ANALYZE (generic plan): spider-man 2.2s, stitch 1.8s; page and summary probes stop at their Limit",
+  "wall-art-canvas 9.7-11.2s remains over 8s (pre-existing trigram substring leg); not claimed",
+  "Totals exact below a 1000-asset probe, flagged lower_bound above it"
+ ],
+ "stop_conditions_hit": []
+}
