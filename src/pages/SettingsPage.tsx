@@ -88,7 +88,7 @@ export default function SettingsPage() {
           {canManagePackagingTypeSettings && (
             <TipTab value="reference-data" label="Reference Data" tip="Shared lookup tables used by DAM and other apps" />
           )}
-          <TipTab value="processing" label="Processing" tip="AI tagging, PDF text extraction, ERP sync, and taxonomy APIs" />
+          <TipTab value="processing" label="Processing" tip="AI tagging, PDF text extraction, ERP enrichment, and taxonomy APIs" />
           <TipTab value="file-health" label="File Health" tip="Style guide crawl, TIFF compression, and file quality checks" />
           <TipTab value="maintenance" label="Maintenance" tip="Bulk data operations: rebuild style groups, reprocess metadata" />
           <TipTab value="diagnostics" label="Diagnostics" tip="System health, connected agents, recent errors, and database inspector" />
@@ -166,7 +166,7 @@ export default function SettingsPage() {
               { id: "ai-tagging", label: "AI Tagging" },
               { id: "ai-bakeoff", label: "Vision Bake-Off" },
               { id: "pdf-text", label: "PDF Text" },
-              { id: "erp", label: "ERP Sync" },
+              { id: "erp", label: "ERP Enrichment" },
               { id: "taxonomy", label: "Taxonomy" },
             ]}
             active={processingSubTab}

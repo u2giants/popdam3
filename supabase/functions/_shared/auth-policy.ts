@@ -22,7 +22,7 @@ export type BearerParse =
  * Normalising them would broaden what three of them accept, so every caller
  * names its mode explicitly and there is no default.
  *
- * - "strict": literal `"Bearer "` prefix (admin-api, erp-sync, helper-api)
+ * - "strict": literal `"Bearer "` prefix (admin-api, helper-api)
  * - "loose":  /^Bearer\s+/i          (export-table, export-sql-dump,
  *                                     export-thumbnail-manifest)
  */
