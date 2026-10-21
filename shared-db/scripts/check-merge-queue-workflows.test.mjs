@@ -476,7 +476,10 @@ test('both authority reads precede every pull-request script and run from protec
   assert.match(underlock, /PREFLIGHT_WAIT_SECONDS: '0'/)
   const release = workflow.slice(workflow.indexOf('      - name: Release the exclusive merge lane with ownership proof'))
   assert.match(release, /working-directory: trusted-policy/)
-  assert.match(release, /TRUSTED_MAIN_SHA: \$\{\{ steps\.trusted_preflight\.outputs\.sha \}\}/)
+  // #3779: the release runs in the `merge` job, whose own pre-lock binding step
+  // (`executable_source`) proved trusted-policy == origin/main. The `prepare`
+  // job's preflight SHA is a different job's output and is NOT the release key.
+  assert.match(release, /TRUSTED_MAIN_SHA: \$\{\{ steps\.executable_source\.outputs\.sha \}\}/)
   assert.match(release, /test "\$\(git rev-parse HEAD\)" = "\$TRUSTED_MAIN_SHA"/)
   assert.match(release, /NODE_OPTIONS: ''/)
   assert.match(release, /node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/manage-migration-author-lanes\.mjs" --release-merge/)

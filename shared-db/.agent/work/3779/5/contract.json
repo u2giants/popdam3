@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 3779,
+    "generation": 4,
+    "contract_sha256": "8ef8e7ab28fa2048147ffa281b88bc38e7669dea6c42daca23f84556eb8275a8"
+  },
+  "work_issue": 3779,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Implement and prove plan step 3 (Step 9 of #3306): guarded-merge preparation runs outside the serial merge lane in a per-request job; only the short protected merge job shares the repository-wide group and the native merge lease remains the sole mutation authority. Record the merge-stage baseline for plan step 1. No database structure, data, setting or safeguard change.",
+  "base_sha": "356eb84d519586db72b56cce6aa6534da2527b1a",
+  "dispatcher": "Claude chat b23dac91-af2c-4c34-b450-4686c6b1ccb7 on edge-dev",
+  "worker": "Same session; bounded workflow split, its deterministic tests, the merge-stage baseline and the plan STATUS rows it affects.",
+  "branch": "claude/shared-db-3779-42510f",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/shared-db-3779-42510f",
+  "allowed_paths": [
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/merge-queue-gate.yml",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/guarded-merge-preparation-split.test.mjs",
+    "docs/verification/shared-release-holds/2026-10-20-guarded-merge-baseline.md",
+    "plan_shared_release_hold_reduction.md",
+    ".agent/work/3779/5/contract.json",
+    ".agent/work/3779/5/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/merge-queue-gate.yml",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/guarded-merge-preparation-split.test.mjs",
+    "docs/verification/shared-release-holds/2026-10-20-guarded-merge-baseline.md",
+    "plan_shared_release_hold_reduction.md",
+    ".agent/work/3779/5/contract.json",
+    ".agent/work/3779/5/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No schema, row-data, repository-setting, ruleset or branch-protection change.",
+    "No removal or weakening of object claims, exclusive locks, exact-head approval, required checks, freeze or queue-mode checks.",
+    "No preview, production or manual merge-lease write outside the workflow; no manufactured live failure.",
+    "Do not close issue #3779 or mark any plan row complete from an unmerged or unproven branch."
+  ],
+  "required_checks": [
+    "git diff --check origin/main...HEAD",
+    "node --test scripts/guarded-merge-preparation-split.test.mjs scripts/check-merge-queue-workflows.test.mjs scripts/check-guarded-merge-sync-dispatch.test.mjs scripts/check-required-checks-preflight.test.mjs scripts/check-exact-head-approval.test.mjs scripts/merge-queue-contract.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/check-closeout-readiness.test.mjs scripts/check-lane-route-sync.test.mjs"
+  ],
+  "assumptions": [
+    "Generation 4 (head 971f2a1e) received a DeepSeek exact-head REJECT for one blocking finding (the prepare job's narrowed permissions dropped issues:read, breaking the self-service classifier's github.token fallback). Generation 5 carries that fix plus the two non-blocking items (git-bound prepared head; both jobs' trusted checkouts certified). The generation 4 pair is retired in the fix commit.",
+    "The implementation head b4bc4536b98b8930dc0a932ada57551db98da7d6 was authored before this contract was published; disclosed, and every later commit follows it.",
+    "A workflow_dispatch of guarded-migration-merge.yml runs the definition on main, so the merged workflow is first exercised live by the merges that follow this one; live traces are recorded on #3779 afterwards.",
+    "Plan steps 2 and 4-10 remain open; this generation implements step 3 and the merge-stage part of step 1 only."
+  ],
+  "stop_conditions": [
+    "Stop before any production, preview, database or repository-setting action.",
+    "A failing native gate is satisfied through its supported route; no bypass or fabricated evidence."
+  ]
+}
