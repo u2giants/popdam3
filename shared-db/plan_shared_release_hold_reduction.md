@@ -16,7 +16,7 @@ Do not mark an implementation done because this plan was published.
 |---|---|---|---|---|
 | 1 | Fresh baseline, ownership and hold-duration inventory | 🟨 partial (merge stage) | 2026-10-20 EDT | Merge stage: [guarded merge baseline](docs/verification/shared-release-holds/2026-10-20-guarded-merge-baseline.md); production/preview stages still open |
 | 2 | Bound preparation and release-state contracts | ⬜ open | 2026-10-16 EDT | Required: schema/fixture tests from §10 |
-| 3 | Merge preparation outside shared serialization | 🟨 implemented, live proof pending | 2026-10-20 EDT | `prepare`/`merge` job split in `guarded-migration-merge.yml`; `scripts/guarded-merge-preparation-split.test.mjs`; live independent-merge and simultaneous-attempt traces to be linked on #3779 after the merged workflow runs |
+| 3 | Merge preparation outside shared serialization | ✅ done | 2026-10-20 EDT | PR #4523 merged `8cd8fce4`; `prepare`/`merge` job split in `guarded-migration-merge.yml`; `scripts/guarded-merge-preparation-split.test.mjs`; live proof on #3779 (runs 39529158952 / 39529161151: concurrent preparation, serialized non-overlapping leases, later writer re-proved on moved main; prepare-stage refusals 39526198749 / 39526346432 took no lease) |
 | 4 | Production/preview preparation before acquisition | ⬜ open | 2026-10-16 EDT | Required: workflow ordering tests and actual acquisition timeline |
 | 5 | Safe early release, independent reporting and cleanup | ⬜ open | 2026-10-16 EDT | Required: failed-upload, crash and authorization-restoration proofs |
 | 6 | Proven independence narrows blocking | ⬜ open | 2026-10-16 EDT | Required: positive/negative dependency proofs and protected merge result |
