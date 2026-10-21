@@ -1,0 +1,45 @@
+{
+  "schema_version": 2,
+  "generation": 9,
+  "evidence_parent": {
+    "work_issue": 3779,
+    "generation": 8,
+    "contract_sha256": "c61553e5f8cd0a198d613842b8186d3750f4de8ea1b5e5e105758feb2013d457"
+  },
+  "work_issue": 3779,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Prose-only follow-up for #3779 (docs/verification/shared-release-holds/README.md); also a live concurrent-dispatch trace of the merged prepare/merge split.",
+  "base_sha": "8cd8fce4ed8217b7129f6dce99820e5d74bfe38c",
+  "dispatcher": "Claude chat b23dac91-af2c-4c34-b450-4686c6b1ccb7 on edge-dev",
+  "worker": "Same session; one prose file plus this evidence pair.",
+  "branch": "claude/3779-holds-verification-readme",
+  "worktree": "scratch worktree of the same checkout on edge-dev",
+  "allowed_paths": [
+    "docs/verification/shared-release-holds/README.md",
+    ".agent/work/3779/9/contract.json",
+    ".agent/work/3779/9/completion.json"
+  ],
+  "file_writes": [
+    "docs/verification/shared-release-holds/README.md",
+    ".agent/work/3779/9/contract.json",
+    ".agent/work/3779/9/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No code, workflow, setting, schema or row-data change.",
+    "Do not close #3779 or mark plan rows complete."
+  ],
+  "required_checks": [
+    "git diff --check origin/main...HEAD"
+  ],
+  "assumptions": [
+    "Generation 7 named no branch and was retired unmerged; this generation supersedes it.",
+    "The prose commit and the merge of current main preceded this contract; disclosed, and every later commit follows it.",
+    "This pull request and its sibling are dispatched to Guarded Merge together so the prepare/merge split (PR #4523, merged 8cd8fce4) is exercised live; traces are recorded on #3779."
+  ],
+  "stop_conditions": [
+    "Stop before any production, preview, database or repository-setting action."
+  ]
+}
