@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 4508,
+  "outcome": "ready-for-merge",
+  "pr": 4510,
+  "migration_versions": [
+    "20261020230556"
+  ],
+  "contract_ref": "refs/db-contracts/4508/7",
+  "contract_sha256": "7ef500e711efb596bf8c0403f240daf5603cd9137cfa3a4b21e67342f5a78b88",
+  "head_sha": "a12659c418419e8fc8932da47a0eebcadd87b5d6",
+  "base_sha": "356eb84d519586db72b56cce6aa6534da2527b1a",
+  "files_changed": [
+    "supabase/migrations/20261020230556_popdam_search_query_shape_contract.sql",
+    "supabase/tests/popdam_search_query_shape_contracts.sql",
+    "supabase/tests/popdam_semantic_score_floor_behavior.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_dam_documents",
+    "function public.search_assets_full_text",
+    "function public.search_style_groups_full_text"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed via Git Bash at a12659c4 after refreshing onto origin/main."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Exit 0 with no output at a12659c4."
+    }
+  ],
+  "assumptions_resolved": [
+    "popdam3 PR #446 merged",
+    "db_writes match issue #4508 writes exactly",
+    "Sole gen7 pair follows implementation head a12659c41",
+    "Refreshed onto origin/main 356eb84d5 so Tools offline skill-drift probe fix is present"
+  ],
+  "stop_conditions_hit": []
+}

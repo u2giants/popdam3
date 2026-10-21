@@ -1,0 +1,55 @@
+{
+  "schema_version": 2,
+  "generation": 7,
+  "work_issue": 4508,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Correct DAM search_dam_documents query shape for PopDAM #97",
+  "base_sha": "24c9c1bc147ee7e39ffbbdc6534bbaaf34737b10",
+  "dispatcher": "MiMo chat unknown on edge-dev (PopDAM #97 claim-first)",
+  "worker": "mimo",
+  "branch": "mimo/dam-search-query-shape-20261019",
+  "worktree": "C:/repos/shared-db-worktrees/issue97-dam-search-shape",
+  "allowed_paths": [
+    "supabase/migrations/20261020230556_popdam_search_query_shape_contract.sql",
+    "supabase/tests/popdam_search_query_shape_contracts.sql",
+    "supabase/tests/popdam_semantic_score_floor_behavior.sql",
+    ".agent/work/4508/6/contract.json",
+    ".agent/work/4508/6/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261020230556_popdam_search_query_shape_contract.sql",
+    "supabase/tests/popdam_search_query_shape_contracts.sql",
+    "supabase/tests/popdam_semantic_score_floor_behavior.sql",
+    ".agent/work/4508/6/contract.json",
+    ".agent/work/4508/6/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_dam_documents",
+    "function public.search_assets_full_text",
+    "function public.search_style_groups_full_text"
+  ],
+  "prohibited_actions": [
+    "No PopSG objects, no new tables, no config writes",
+    "Never invent or reuse a migration version; claim #4509 reserves 20261020230556"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Generation 6 sole pair. db_writes match issue #4508 writes and the three functions the migration replaces.",
+    "Disclosed: contract published after implementation; claim and version reservation preceded implementation.",
+    "popdam3 PR #446 merged and must deploy before this migration promotes"
+  ],
+  "stop_conditions": [
+    "Stop if claim #4509 does not cover the three function objects",
+    "Stop if a migration version or object collides"
+  ],
+  "evidence_parent": {
+    "work_issue": 4508,
+    "generation": 6,
+    "contract_sha256": "1bae2561f01c0a0337964e42c6e35f73a1553a362424ab9acf344053fd5d4a51"
+  }
+}

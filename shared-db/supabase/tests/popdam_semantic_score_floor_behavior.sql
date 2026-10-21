@@ -85,38 +85,38 @@ delete from public.dam_search_documents where entity_id in (
   '34570000-0000-4000-8000-000000000012','34570000-0000-4000-8000-000000000013'
 );
 insert into public.dam_search_documents
-  (document_type, entity_id, asset_id, style_group_id, title, path, customer, program, embedding)
+  (document_type, entity_id, asset_id, style_group_id, title, path, customer, program, embedding, embedding_model)
 values
   ('asset','34570000-0000-4000-8000-000000000010','34570000-0000-4000-8000-000000000010',null,
-   'zz3457 kw only canvas','zz3457-kw-only.ai',null,null, null),
+   'zz3457 kw only canvas','zz3457-kw-only.ai',null,null, null, null),
   ('asset','34570000-0000-4000-8000-000000000011','34570000-0000-4000-8000-000000000011',null,
    'zz3457 sem high unrelated','zz3457-sem-high.ai',null,null,
-   (select array_fill(0.0::real, array[384])::extensions.vector)),
+   (select array_fill(0.0::real, array[384])::extensions.vector), 'gte-small'),
   ('asset','34570000-0000-4000-8000-000000000012','34570000-0000-4000-8000-000000000012',null,
    'cerulean lampstone canvas','cerulean-lampstone.ai',null,null,
-   (select array_fill(0.5::real, array[384])::extensions.vector)),
+   (select array_fill(0.5::real, array[384])::extensions.vector), 'gte-small'),
   ('asset','34570000-0000-4000-8000-000000000013','34570000-0000-4000-8000-000000000013',null,
    'zz3457 mixed canvas','zz3457-mixed.ai',null,null,
-   (select array_fill(0.5::real, array[384])::extensions.vector));
+   (select array_fill(0.5::real, array[384])::extensions.vector), 'gte-small');
 
 -- Make the embeddings distinguishable unit vectors along known angles to qemb=e0.
 -- sem-high: cos=0.90 (high, but strictly below 1.0 so floor=1.0 cannot pass it).
 update public.dam_search_documents
 set embedding = (
   select (array[0.9::real, sqrt(0.19)::real] || array_fill(0.0::real, array[382]))::extensions.vector
-)
+), embedding_model = 'gte-small'
 where asset_id = '34570000-0000-4000-8000-000000000011';
 
 update public.dam_search_documents
 set embedding = (
   select (array[0.2::real, sqrt(0.96)::real] || array_fill(0.0::real, array[382]))::extensions.vector
-)
+), embedding_model = 'gte-small'
 where asset_id = '34570000-0000-4000-8000-000000000012';
 
 update public.dam_search_documents
 set embedding = (
   select (array[0.3::real, sqrt(0.91)::real] || array_fill(0.0::real, array[382]))::extensions.vector
-)
+), embedding_model = 'gte-small'
 where asset_id = '34570000-0000-4000-8000-000000000013';
 
 do $$
