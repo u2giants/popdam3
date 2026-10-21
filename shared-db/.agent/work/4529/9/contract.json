@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "generation": 9,
+  "work_issue": 4529,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Corrective performance migration 20261021203304 for search_dam_documents (base 20261021190510, live): wall-art-canvas, spider-man and stitch under 8s and cheaper deep-offset page probes, with results identical to 20261021190510; 20261021063716 and 20261021152741 stay unapplied and superseded",
+  "base_sha": "d70f5f0e5cc7995d048032a9e3729fcd131844d2",
+  "dispatcher": "Claude chat 5ad0641a-8b6d-4992-b794-fcd04535db5d on hetz (PopDAM #97 claim-first)",
+  "worker": "claude-5ad0641a-hetz-4529b",
+  "branch": "claude/4529-dam-search-perf-fix",
+  "worktree": "/tmp/claude-1000/-worksp-popdam--claude-worktrees-popdam-issue-97-semantic-3002ad/5ad0641a-8b6d-4992-b794-fcd04535db5d/scratchpad/sdb",
+  "allowed_paths": [
+    "supabase/migrations/20261021203304_popdam_search_perf_regex_substring.sql",
+    "supabase/tests/popdam_authorized_ranked_search_contracts.sql",
+    ".agent/work/4529/7/contract.json",
+    ".agent/work/4529/7/completion.json",
+    ".agent/work/4529/9/contract.json",
+    ".agent/work/4529/9/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261021203304_popdam_search_perf_regex_substring.sql",
+    "supabase/tests/popdam_authorized_ranked_search_contracts.sql",
+    ".agent/work/4529/7/contract.json",
+    ".agent/work/4529/7/completion.json",
+    ".agent/work/4529/9/contract.json",
+    ".agent/work/4529/9/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_dam_documents",
+    "function public.search_assets_full_text",
+    "function public.search_style_groups_full_text",
+    "function public.search_dam_document_counts"
+  ],
+  "prohibited_actions": [
+    "No PopSG objects, no SEARCH_MODE change, no new tables or indexes",
+    "Never reuse 20261020230556, 20261021063716, 20261021152741 or 20261021190510; claim #4568 reserves 20261021203304",
+    "Keep the 20261021190510 contract: ranking before any cap, exact-ID hits first, exact has_more, flagged lower-bound totals",
+    "Keep the 8s statement_timeout, the summary envelope, the semantic model predicate and grants",
+    "Never promote 20261021063716 or 20261021152741"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "20261021190510 is applied on production and is this migration's base.",
+    "The new body returns identical rows, ranks, totals, has_more and facets to 20261021190510 (verified read-only on production).",
+    "20261021063716 and 20261021152741 must never be promoted."
+  ],
+  "stop_conditions": [
+    "Stop if claim #4568 does not cover the four function objects",
+    "Stop if any result differs from the live 20261021190510 body",
+    "Stop if wall-art-canvas, spider-man or stitch cannot finish under 8s on production"
+  ],
+  "evidence_parent": {
+    "work_issue": 4529,
+    "generation": 8,
+    "contract_sha256": "c188aa5255d991f25e64b2662d96b59a0655e54d05667ac577ae1122b1b8d7c1"
+  }
+}

@@ -1,0 +1,46 @@
+{
+ "schema_version": 1,
+ "work_issue": 4529,
+ "outcome": "ready-for-merge",
+ "pr": 4569,
+ "migration_versions": [
+  "20261021203304"
+ ],
+ "contract_ref": "refs/db-contracts/4529/9",
+ "contract_sha256": "0f9848d44373114259c9ec9ebfd62a971684fd2d47f02f10ab04aff21578f1ce",
+ "head_sha": "a5d72da804710e0ef3279e14bc416f1c1fae9126",
+ "base_sha": "d70f5f0e5cc7995d048032a9e3729fcd131844d2",
+ "files_changed": [
+  "supabase/migrations/20261021203304_popdam_search_perf_regex_substring.sql",
+  "supabase/tests/popdam_authorized_ranked_search_contracts.sql"
+ ],
+ "db_reads": [],
+ "db_writes": [
+  "function public.search_dam_documents",
+  "function public.search_assets_full_text",
+  "function public.search_style_groups_full_text",
+  "function public.search_dam_document_counts"
+ ],
+ "checks": [
+  {
+   "exit_code": 0,
+   "command": "bash scripts/check-sql.sh",
+   "evidence": "Static checks passed."
+  },
+  {
+   "exit_code": 0,
+   "command": "git diff --check",
+   "evidence": "Exit 0."
+  },
+  {
+   "exit_code": 0,
+   "command": "python3 -m unittest scripts.test_migration_derivation",
+   "evidence": "OK"
+  }
+ ],
+ "assumptions_resolved": [
+  "Base 20261021190510 is in the production ledger",
+  "Read-only production comparison: identical ids, ranks, total_count, has_more and facets vs the live body for 10 queries, offsets 0/300/2950, with and without filters"
+ ],
+ "stop_conditions_hit": []
+}
