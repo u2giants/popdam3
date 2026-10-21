@@ -10,7 +10,7 @@ on:
         description: shared-db outcome issue number
         required: true
         type: choice
-        options: ["2792", "2802", "2860", "2911", "2934", "3418", "3418-retry", "3457", "4037", "4064", "4257", "4268"]
+        options: ["2792", "2802", "2860", "2911", "2934", "3418", "3418-retry", "3457", "4037", "4064", "4190", "4257", "4268"]
 
 permissions:
   contents: read
@@ -38,9 +38,9 @@ jobs:
           PROOF_ISSUE: ${{ inputs.issue }}
           APPLICATION_COMMIT_SHA: ${{ github.sha }}
           PROOF_DIR: proof
-          # 4257/4268 read plm and coldlion through the Management API query
+          # 4190 reads cron and 4257/4268 read plm and coldlion through the Management API query
           # endpoint; 4268 also signs in as the existing viewer test login.
-          SUPABASE_ACCESS_TOKEN: ${{ (inputs.issue == '4257' || inputs.issue == '4268') && secrets.SUPABASE_ACCESS_TOKEN || '' }}
+          SUPABASE_ACCESS_TOKEN: ${{ (inputs.issue == '4190' || inputs.issue == '4257' || inputs.issue == '4268') && secrets.SUPABASE_ACCESS_TOKEN || '' }}
           POPDAM_VIEWER_TEST_USER: ${{ inputs.issue == '4268' && secrets.POPDAM_VIEWER_TEST_USER || '' }}
           POPDAM_VIEWER_TEST_PASSWORD: ${{ inputs.issue == '4268' && secrets.POPDAM_VIEWER_TEST_PASSWORD || '' }}
         run: node scripts/shared-db-live-proof.mjs
