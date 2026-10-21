@@ -38,7 +38,7 @@ import { createCompatAuditWorker, runCompatAudit, runCompatAuditPreview } from "
 import { dispatchCommands } from "./commands/dispatch";
 import { createWindowsCommandHandlers } from "./commands/heartbeat-commands";
 import { handleDirBrowse } from "./handlers/dir-browse";
-import { checkIndra, provisionIndra, type IndraStatus } from "./indra-provision";
+import { beginProvisioningStatus, checkIndra, provisionIndra, type IndraStatus } from "./indra-provision";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -752,11 +752,14 @@ async function main() {
   // Indra existed would silently OCR with tesseract.js forever. Provisioning
   // always runs once per start (background, single-flight): a healthy engine
   // is verified (model load) and kept, a missing/broken one is (re)installed.
+  // Report "installing" for the whole window — a startup check that looked
+  // ready can still fall through to a full reprovision (broken engine), and
+  // the panel must not keep saying ready while that runs.
   if (!indraProvisioning) {
-    if (indraStatus.state !== "ready") {
-      indraStatus = { ...indraStatus, state: "installing", detail: indraStatus.detail ?? "provisioning" };
-    }
-    indraProvisioning = provisionIndra()
+    indraStatus = beginProvisioningStatus(indraStatus);
+    indraProvisioning = provisionIndra((detail) => {
+      indraStatus = { ...indraStatus, state: "installing", detail, checked_at: new Date().toISOString() };
+    })
       .then((status) => {
         indraStatus = status;
         logger.info("Indra OCR startup check finished", { state: status.state, detail: status.detail });

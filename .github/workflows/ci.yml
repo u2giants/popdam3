@@ -50,6 +50,12 @@ jobs:
       - name: Test worker
         run: npm run test --prefix apps/worker
 
+      - name: Install windows-agent dependencies
+        run: npm ci --prefix apps/windows-agent
+
+      - name: Test windows-agent
+        run: npm test --prefix apps/windows-agent
+
       - name: Measurement observer tests
         env:
           POP_MEASURE_TEST_DATABASE_URL: postgresql://postgres:fixture-only@127.0.0.1:5432/postgres

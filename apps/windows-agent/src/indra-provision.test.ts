@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -8,11 +8,19 @@ import {
   INDRA_MODEL_REVISION,
   INDRA_PACKAGE_SPEC,
   INDRA_PYTHON,
+  acquireProvisionLock,
+  beginProvisioningStatus,
   checkIndra,
+  deepVerifyScript,
   engineLooksComplete,
   evaluateIndra,
   hasModelFiles,
+  isProvisionLockStale,
+  parseProvisionLock,
+  powerShellString,
   provisionPlan,
+  pythonString,
+  type IndraStatus,
 } from "./indra-provision";
 
 test("evaluateIndra reports ready only when interpreter and models are both present", () => {
@@ -89,4 +97,97 @@ test("the verify step targets the provisioned models directory, not the environm
   assert.ok(verifyCommand.includes("from indra_ocr import OrtOCR"));
   assert.ok(verifyCommand.includes("D:/models/indra"), "verify must name the directory it just downloaded");
   assert.ok(!verifyCommand.includes("model_dir()"), "model_dir() reads the environment, which is unset on first install");
+});
+
+test("python/PowerShell sources embed paths safely, including quotes", () => {
+  // JSON string syntax is valid Python and keeps ', ", and newlines inert.
+  assert.equal(pythonString("D:/models/indra"), '"D:/models/indra"');
+  assert.equal(pythonString("D:/in'dra"), '"D:/in\'dra"');
+  assert.equal(pythonString('D:/in"dra'), '"D:/in\\"dra"');
+  const script = deepVerifyScript("D:\\models\\in'dra");
+  assert.ok(script.includes(`"D:/models/in'dra"`), `verify script must quote the path as a Python string: ${script}`);
+  assert.ok(!script.includes("r'"), "raw single-quoted interpolation must not be used");
+  // PowerShell single-quoted strings escape ' by doubling.
+  assert.equal(powerShellString("C:\\in'dra"), "'C:\\in''dra'");
+  const plan = provisionPlan("C:\\py\\python.exe", "D:\\in'dra");
+  assert.ok(plan[2].args.join(" ").includes(`"D:/in'dra"`), "models step must embed the path as a Python string");
+});
+
+test("beginProvisioningStatus reports installing for the whole provisioning window", () => {
+  const ready: IndraStatus = {
+    state: "ready",
+    python: "C:\\py\\python.exe",
+    models_dir: "D:\\models",
+    detail: null,
+    checked_at: "2026-01-01T00:00:00.000Z",
+  };
+  const fromReady = beginProvisioningStatus(ready);
+  assert.equal(fromReady.state, "installing");
+  assert.equal(fromReady.detail, "verifying", "a ready-looking engine is still under verification");
+  assert.notEqual(fromReady.checked_at, ready.checked_at);
+
+  const missing: IndraStatus = {
+    state: "missing",
+    python: null,
+    models_dir: "D:\\models",
+    detail: "models directory is missing",
+    checked_at: "2026-01-01T00:00:00.000Z",
+  };
+  const fromMissing = beginProvisioningStatus(missing);
+  assert.equal(fromMissing.state, "installing");
+  assert.equal(fromMissing.detail, "models directory is missing", "keeps the reason provisioning started");
+});
+
+test("provision lock is exclusive and releaseable", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "indra-lock-"));
+  const lockPath = join(dir, "indra.provision.lock");
+  try {
+    const release = await acquireProvisionLock({ lockPath, waitMs: 500, pollMs: 10 });
+    assert.ok(existsSync(lockPath), "lock file must exist while held");
+    const info = parseProvisionLock(readFileSync(lockPath, "utf8"));
+    assert.equal(info?.pid, process.pid);
+    release();
+    assert.ok(!existsSync(lockPath), "release must remove the lock file");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a live holder is respected; a stale holder is stolen", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "indra-lock-"));
+  const lockPath = join(dir, "indra.provision.lock");
+  try {
+    writeFileSync(lockPath, JSON.stringify({ pid: process.pid, at: Date.now() }));
+    await assert.rejects(
+      () => acquireProvisionLock({ lockPath, waitMs: 100, pollMs: 10, staleMs: 60_000, pidAlive: () => true }),
+      /lock is held/i,
+      "a live lock must not be taken over",
+    );
+
+    writeFileSync(lockPath, JSON.stringify({ pid: 999_999, at: Date.now() - 10 * 60_000 }));
+    const release = await acquireProvisionLock({ lockPath, waitMs: 200, pollMs: 10, staleMs: 60_000, pidAlive: () => false });
+    assert.ok(existsSync(lockPath), "steal must leave this process as holder");
+    const info = parseProvisionLock(readFileSync(lockPath, "utf8"));
+    assert.equal(info?.pid, process.pid);
+    release();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("lock staleness: age beats a live pid, a dead pid beats the grace window", () => {
+  const now = 1_000_000_000_000;
+  assert.equal(isProvisionLockStale(null, now, { pidAlive: () => true }), true, "unparseable lock is stale");
+  assert.equal(isProvisionLockStale({ pid: 1, at: now }, now, { staleMs: 1000, pidAlive: () => true }), false);
+  assert.equal(isProvisionLockStale({ pid: 1, at: now - 2000 }, now, { staleMs: 1000, pidAlive: () => true }), true, "older than staleMs");
+  assert.equal(
+    isProvisionLockStale({ pid: 1, at: now - 60_000 }, now, { staleMs: 45 * 60_000, pidAlive: () => false }),
+    true,
+    "dead pid past the grace window",
+  );
+  assert.equal(
+    isProvisionLockStale({ pid: 1, at: now - 1000 }, now, { staleMs: 45 * 60_000, pidAlive: () => false }),
+    false,
+    "dead pid inside the grace window is left alone (holder may be starting up)",
+  );
 });
