@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261021134203",
+  "migration_sha256": "b378ef976dd2af382aa37da65ebc69c42c80cd764499a51fd7c19ac98c978fd1",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 344,
+      "line_end": 344,
+      "disposition": "no_durable_target",
+      "reason": "Runtime read-only count/select over a catalog-discovered dependent inside a plan/apply function body; executes only at call time. Creates no durable catalog object."
+    },
+    {
+      "line_start": 361,
+      "line_end": 361,
+      "disposition": "no_durable_target",
+      "reason": "Runtime read-only count/select over a catalog-discovered dependent inside a plan/apply function body; executes only at call time. Creates no durable catalog object."
+    },
+    {
+      "line_start": 436,
+      "line_end": 436,
+      "disposition": "no_durable_target",
+      "reason": "Runtime row update of a dependent FK column or the merged entity status/metadata inside a plan/apply function body, on catalog-discovered core.licensor/core.property dependents; executes only when the function is called, never during migration. Creates no durable catalog object."
+    },
+    {
+      "line_start": 457,
+      "line_end": 457,
+      "disposition": "no_durable_target",
+      "reason": "Runtime row update of a dependent FK column or the merged entity status/metadata inside a plan/apply function body, on catalog-discovered core.licensor/core.property dependents; executes only when the function is called, never during migration. Creates no durable catalog object."
+    },
+    {
+      "line_start": 649,
+      "line_end": 649,
+      "disposition": "no_durable_target",
+      "reason": "Runtime row update of a dependent FK column or the merged entity status/metadata inside a plan/apply function body, on catalog-discovered core.licensor/core.property dependents; executes only when the function is called, never during migration. Creates no durable catalog object."
+    },
+    {
+      "line_start": 678,
+      "line_end": 678,
+      "disposition": "no_durable_target",
+      "reason": "Runtime row update of a dependent FK column or the merged entity status/metadata inside a plan/apply function body, on catalog-discovered core.licensor/core.property dependents; executes only when the function is called, never during migration. Creates no durable catalog object."
+    },
+    {
+      "line_start": 683,
+      "line_end": 683,
+      "disposition": "no_durable_target",
+      "reason": "Runtime read-only count/select over a catalog-discovered dependent inside a plan/apply function body; executes only at call time. Creates no durable catalog object."
+    },
+    {
+      "line_start": 701,
+      "line_end": 701,
+      "disposition": "no_durable_target",
+      "reason": "Runtime read-only count/select over a catalog-discovered dependent inside a plan/apply function body; executes only at call time. Creates no durable catalog object."
+    },
+    {
+      "line_start": 734,
+      "line_end": 734,
+      "disposition": "no_durable_target",
+      "reason": "Runtime row update of a dependent FK column or the merged entity status/metadata inside a plan/apply function body, on catalog-discovered core.licensor/core.property dependents; executes only when the function is called, never during migration. Creates no durable catalog object."
+    },
+    {
+      "line_start": 797,
+      "line_end": 797,
+      "disposition": "no_durable_target",
+      "reason": "Runtime row update of a dependent FK column or the merged entity status/metadata inside a plan/apply function body, on catalog-discovered core.licensor/core.property dependents; executes only when the function is called, never during migration. Creates no durable catalog object."
+    },
+    {
+      "line_start": 801,
+      "line_end": 801,
+      "disposition": "no_durable_target",
+      "reason": "Runtime read-only count/select over a catalog-discovered dependent inside a plan/apply function body; executes only at call time. Creates no durable catalog object."
+    },
+    {
+      "line_start": 827,
+      "line_end": 827,
+      "disposition": "no_durable_target",
+      "reason": "Runtime read-only count/select over a catalog-discovered dependent inside a plan/apply function body; executes only at call time. Creates no durable catalog object."
+    },
+    {
+      "line_start": 856,
+      "line_end": 856,
+      "disposition": "no_durable_target",
+      "reason": "Runtime row update of a dependent FK column or the merged entity status/metadata inside a plan/apply function body, on catalog-discovered core.licensor/core.property dependents; executes only when the function is called, never during migration. Creates no durable catalog object."
+    },
+    {
+      "line_start": 859,
+      "line_end": 859,
+      "disposition": "no_durable_target",
+      "reason": "Runtime read-only count/select over a catalog-discovered dependent inside a plan/apply function body; executes only at call time. Creates no durable catalog object."
+    },
+    {
+      "line_start": 885,
+      "line_end": 885,
+      "disposition": "no_durable_target",
+      "reason": "Runtime row update of a dependent FK column or the merged entity status/metadata inside a plan/apply function body, on catalog-discovered core.licensor/core.property dependents; executes only when the function is called, never during migration. Creates no durable catalog object."
+    }
+  ],
+  "checks": []
+}
