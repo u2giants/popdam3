@@ -57,6 +57,15 @@ export const PROTECTED_SOURCE_PATHS=new Set([
 // no conflict), condition (a) or (b) stops holding and it precedes again. No
 // state is reset by hand because no state is kept.
 //
+// WHOSE ACTIVITY. Only events the stalled pull request's own session can
+// cause refresh its clock. GitHub also writes timeline rows when SOMEONE ELSE
+// mentions it: `cross-referenced` (another issue or PR body says #<n>),
+// `referenced` (a commit elsewhere names it), `mentioned` and `subscribed`
+// (notification side effects of those mentions). Those are ignored -- on
+// 2026-10-21 bare mentions kept a PR idle since the day before "active" and
+// blocking. Everything else still counts, including labels by bots: when it
+// is unclear whether an event is the owner's work, it counts (no skip).
+//
 // FAIL CLOSED. Skipping a queue predecessor is the relaxation, so every
 // unreadable or absent signal -- activity, checks, mergeability, comments --
 // means NO skip. `mergeable` is null while GitHub computes it and is treated
@@ -114,8 +123,10 @@ export function parseStalePlaceNudge(body,{commentedAt}={}){
 // The newest activity a pull request shows, EXCLUDING nudge comments: a nudge
 // must not refresh the stale pull request it was posted on, or condition (a)
 // could never survive its own notification. Commits, reviews, labels, edits
-// and every ordinary comment all count as activity. Returns null when nothing
+// and every ordinary comment all count as activity; timeline rows other
+// people's mentions create (FOREIGN_TIMELINE_EVENTS) do not. Returns null when nothing
 // datable exists -- and null means NO skip downstream.
+export const FOREIGN_TIMELINE_EVENTS=Object.freeze(new Set(['commented','cross-referenced','referenced','mentioned','subscribed']))
 export function lastActivityAt({detail,timeline=[],commits=[],comments=[]}={}){
   const stamps=[]
   const push=(value)=>{const stamp=Date.parse(value??'');if(Number.isFinite(stamp))stamps.push(stamp)}
@@ -126,7 +137,7 @@ export function lastActivityAt({detail,timeline=[],commits=[],comments=[]}={}){
     push(comment?.created_at)
   }
   for(const row of timeline){
-    if(String(row?.event??'')==='commented')continue
+    if(FOREIGN_TIMELINE_EVENTS.has(String(row?.event??'')))continue
     push(row?.created_at)
     push(row?.submitted_at)
   }

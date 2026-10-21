@@ -106,6 +106,20 @@ test('stale-place: a nudge comment never refreshes the PR it was posted on',()=>
   assert.equal(activity,'2026-09-16T11:00:00.000Z')
 })
 
+test('stale-place: another PR mentioning this one never refreshes its clock',()=>{
+  const base={detail:{created_at:'2026-09-16T09:00:00Z'},commits:[{commit:{committer:{date:'2026-09-16T10:00:00Z'}}}]}
+  const foreign=['cross-referenced','referenced','mentioned','subscribed'].map((event)=>({event,created_at:'2026-09-18T11:00:00Z'}))
+  assert.equal(lastActivityAt({...base,timeline:foreign}),'2026-09-16T10:00:00.000Z')
+  // Owner activity still counts: a push, a force-push, a review, a new commit.
+  for(const row of [{event:'head_ref_force_pushed',created_at:'2026-09-18T11:30:00Z'},{event:'committed',created_at:'2026-09-18T11:30:00Z'},{event:'reviewed',submitted_at:'2026-09-18T11:30:00Z'},{event:'ready_for_review',created_at:'2026-09-18T11:30:00Z'},{event:'reopened',created_at:'2026-09-18T11:30:00Z'},{event:'labeled',created_at:'2026-09-18T11:30:00Z'}]){
+    assert.equal(lastActivityAt({...base,timeline:[...foreign,row]}),'2026-09-18T11:30:00.000Z',row.event)
+  }
+  assert.equal(lastActivityAt({...base,commits:[...base.commits,{commit:{committer:{date:'2026-09-18T11:45:00Z'}}}],timeline:foreign}),'2026-09-18T11:45:00.000Z')
+  // End to end: mentions alone no longer keep a stale predecessor in place.
+  const timeline=[{event:'cross-referenced',created_at:'2026-09-18T11:59:00Z'}]
+  assert.equal(lastActivityAt({...base,timeline}),'2026-09-16T10:00:00.000Z')
+})
+
 test('stale-place nudge marker: parse what the builder writes, refuse the rest',()=>{
   const line=stalePlaceNudgeLine(20,{date:'2026-09-18',states:['inactive-24h','checks-failing']})
   assert.deepEqual(parseStalePlaceNudge(`some prose\n${line}`,{commentedAt:'2026-09-18T08:00:00Z'}),{forPr:20,date:'2026-09-18',states:['inactive-24h','checks-failing'],at:'2026-09-18T08:00:00Z'})

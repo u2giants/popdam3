@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "generation": 4,
+  "evidence_parent": {
+    "work_issue": 4552,
+    "generation": 3,
+    "contract_sha256": "457eff44155c5865908afa1a8d6db290f3ed3a77a9dc80112d2a13d7f56783df"
+  },
+  "work_issue": 4552,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Make lastActivityAt in scripts/check-pr-source-collisions.mjs ignore timeline rows that other people's mentions create (cross-referenced, referenced, mentioned, subscribed) so a stalled protected-source PR's inactivity clock is not reset by mentions; owner events still count; tests prove both. No safeguard removed; unreadable signals still mean no skip.",
+  "base_sha": "921898c67dee1d3ebe461acace21dd9d594431c8",
+  "dispatcher": "Claude chat c87b9db6-2443-446b-bf04-91eab736e98e on edge-dev3 (side session of local_ac6c8af1)",
+  "worker": "Same session; the event filter, its comment and its tests.",
+  "branch": "claude/stale-place-xref-activity-38db53",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/stale-place-xref-activity-38db53",
+  "allowed_paths": [
+    "scripts/check-pr-source-collisions.mjs",
+    "scripts/check-pr-source-collisions.test.mjs",
+    ".agent/work/4552/4/contract.json",
+    ".agent/work/4552/4/completion.json"
+  ],
+  "file_writes": [
+    "scripts/check-pr-source-collisions.mjs",
+    "scripts/check-pr-source-collisions.test.mjs",
+    ".agent/work/4552/4/contract.json",
+    ".agent/work/4552/4/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No schema, row-data, repository-setting, ruleset or branch-protection change.",
+    "No change to STALE_PLACE_AFTER_MS (a separate pull request changes it) or to any other stale-place condition; no safeguard removed or weakened.",
+    "Do not close issue #4552 before live proof."
+  ],
+  "required_checks": [
+    "git diff --check origin/main...HEAD",
+    "node --test scripts/check-pr-source-collisions.test.mjs"
+  ],
+  "assumptions": [
+    "Issue #3273 (owner of the stale-place rule) is closed, so this bug gets its own issue #4552.",
+    "Bot labels still count as activity: GitHub does not reliably say whether a label came from the owner's own automation, so failing closed means counting it.",
+    "Generation 1 was approved at 8e2160ce but main moved (PR 4553, one-hour window, 921898c6); origin/main was merged in cleanly at deed3473857918cf37aacf9016d1749e95a37aec and generation 1 is retired unmerged.",
+    "Generations 1-3 retired unmerged; implementation head c082d88dfeebaf83871b35f92c67ada41663f9b3 carries no evidence files, so the generation 4 pair is the only commit after it."
+  ],
+  "stop_conditions": [
+    "Stop before any production, preview, database or repository-setting action.",
+    "A failing native gate is satisfied through its supported route; no bypass or fabricated evidence."
+  ]
+}
