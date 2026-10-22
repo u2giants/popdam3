@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261022071323",
+  "migration_sha256": "fac4a5eaf6d6d611fe52f5cb0b8d85abdb7e3703d3851eed35f216b06f3fca7e",
+  "checks": [
+    {
+      "id": "dflow_sample_quantity_state",
+      "kind": "catalog_contract",
+      "contract": "dflow_sample_quantity_state_v1",
+      "expected_count": 1
+    }
+  ]
+}
