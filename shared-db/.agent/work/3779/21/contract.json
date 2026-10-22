@@ -1,0 +1,43 @@
+{
+  "schema_version": 2,
+  "generation": 21,
+  "evidence_parent": {
+    "work_issue": 3779,
+    "generation": 20,
+    "contract_sha256": "d2d9383cb2fcf5faef5ff8a95752a5e6c1cb4d25d753f3e52b3efff8efa75bb4"
+  },
+  "work_issue": 3779,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Prose-only closeout handoff for #3779 plan steps 2 and 8a (session 745ea991): what merged, what remains (8a second landing, #4604 live proof), and failed approaches.",
+  "base_sha": "9555ec69349a3fdece5cfbd0d8e34fd2619b76eb",
+  "dispatcher": "Claude chat 745ea991-2041-4729-8860-ca595c6faf46 on edge-dev",
+  "worker": "Same session; one handoff file plus this evidence pair.",
+  "branch": "claude/3779-handoff-20261022",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/upbeat-shaw-ceaa66",
+  "allowed_paths": [
+    "HANDOFF.d/2026-10-22T1155Z-edge-dev-claude-3779-steps-2-8a.md",
+    ".agent/work/3779/21/contract.json",
+    ".agent/work/3779/21/completion.json"
+  ],
+  "file_writes": [
+    "HANDOFF.d/2026-10-22T1155Z-edge-dev-claude-3779-steps-2-8a.md",
+    ".agent/work/3779/21/contract.json",
+    ".agent/work/3779/21/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No code, workflow, setting, schema or row-data change.",
+    "Do not close #3779."
+  ],
+  "required_checks": [
+    "git diff --check origin/main...HEAD"
+  ],
+  "assumptions": [
+    "The handoff commit b29f12cff10181d2b7b2585da3074e9e65ca6d15 preceded this contract; disclosed, and every later commit follows it."
+  ],
+  "stop_conditions": [
+    "Stop before any production, preview, database or repository-setting action."
+  ]
+}
