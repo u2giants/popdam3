@@ -306,6 +306,16 @@ Two technical constraints on the poll design:
   past a year. *Historical (2026-10-09, superseded):* before the fix the API returned the
   invoice record's time, which sat on the PO receive date for about half of pairs and made
   sales orders look like they were entered ~59 days after their production PO.
+  **Entry/change filters added by ColdLion — verified live 2026-10-21.** At POP's request (in
+  place of a separate Order Header API) `/orderHistory` now accepts `createdFrom`/`createdTo`
+  and `modifiedFrom`/`modifiedTo`. `fromDate`/`toDate` (start date) are still **required**; a
+  stamp filter alone returns HTTP 400. Wide start windows are now accepted (a 2019–2028 window
+  with `createdFrom=2026-01-01&createdTo=2026-10-20` returned 2,947 lines; a 2026–2027 window
+  with no stamp filter returned 3,676 lines), so the earlier 7-day cap no longer applies. Pattern for
+  "what was entered or changed since X": wide start window + `createdFrom`/`modifiedFrom`.
+  Proof of value: orders entered 2026-10-13..19 returned 28 lines from the API, while our
+  start-date-window sync had landed only one of those orders (7 lines), because their
+  start dates are in late November/December.
   *Historical (2026-09-17):* a probe then found 63 fields and no created/entry timestamp; that
   statement is superseded by the above.
 - **`/orderHistory` can now be filtered by entry and change date — verified live 2026-10-16.**
