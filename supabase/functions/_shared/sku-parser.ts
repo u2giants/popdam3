@@ -108,9 +108,9 @@ export interface ParsedSku {
 }
 
 /**
- * True when the item predates the May 2025 MerchGroup rework. ColdLion's item
+ * True when the item predates the May 2025 MerchGroup rework. The mirrored ColdLion item
  * creation date is authoritative; the file date is only a fallback for SKUs
- * ColdLion does not know.
+ * the ColdLion mirror does not know.
  */
 async function isLegacyItem(sku: string, fileDate?: string | null): Promise<{ legacy: boolean; division: string | null }> {
   let info = null;
@@ -118,7 +118,7 @@ async function isLegacyItem(sku: string, fileDate?: string | null): Promise<{ le
     info = await getColdLionItemInfo(sku);
   } catch (e) {
     if (e instanceof ColdLionConfigError) throw e;
-    console.warn(`ColdLion item lookup failed for ${sku}:`, e);
+    console.warn(`ColdLion item mirror lookup failed for ${sku}:`, e);
   }
   if (info) return { legacy: info.createdTime.slice(0, 10) < MG_REWORK_CUTOFF, division: info.divisionCode };
   return { legacy: !!fileDate && fileDate.slice(0, 10) < MG_REWORK_CUTOFF, division: null };
@@ -129,7 +129,7 @@ async function getMgLookupOrEmpty(mgTypeCode: string, divisionCode: string): Pro
     return await getMgLookup(mgTypeCode, divisionCode);
   } catch (e) {
     if (e instanceof ColdLionConfigError) throw e;
-    console.warn(`ColdLion MG lookup unavailable for ${mgTypeCode}/${divisionCode}; names left unresolved:`, e instanceof Error ? e.message : e);
+    console.warn(`ColdLion MG mirror lookup unavailable for ${mgTypeCode}/${divisionCode}; names left unresolved:`, e instanceof Error ? e.message : e);
     return {};
   }
 }
@@ -191,7 +191,7 @@ export async function parseSku(filename: string, opts: { fileDate?: string | nul
   }
 
   const is_licensed = (division_code === "CW001" || division_code === "SP001") && licensor_code !== "ZZ";
-  // Display names only. A ColdLion outage must not fail the caller (scan ingest
+  // Display names only, from the ColdLion mirror. A read failure must not fail the caller (scan ingest
   // calls this per file); authoritative licensing comes from the item mirror.
   const [mg05, mg06] = await Promise.all([
     getMgLookupOrEmpty("05", division_code),

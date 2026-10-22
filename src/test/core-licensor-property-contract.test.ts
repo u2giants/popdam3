@@ -59,24 +59,22 @@ describe("canonical licensor/property contract", () => {
     expect(bridge).toContain("hasUnresolvedLicensing");
   });
 
-  it("fails loudly when ColdLion is unavailable", () => {
+  it("reads ColdLion data from the database mirror, never the ColdLion API", () => {
     const coldlion = read("supabase/functions/_shared/coldlion.ts");
     const parser = read("supabase/functions/_shared/sku-parser.ts");
-    expect(coldlion).toContain("COLDLION_API_KEY is missing");
+    const handlers = read("supabase/functions/_shared/admin-handlers/coldlion-handlers.ts");
+    for (const src of [coldlion, parser, handlers]) {
+      expect(src).not.toMatch(/coldlion\.com|EhpApi|COLDLION_API_KEY|fetch\(/);
+    }
+    expect(coldlion).toContain("coldlion.merch_group_detail");
+    expect(coldlion).toContain("FROM plm.item WHERE source_system = 'coldlion'");
     expect(coldlion).toContain("class ColdLionConfigError");
-    expect(coldlion).toContain("throw new ColdLionConfigError");
-    expect(coldlion).not.toContain("HARDCODED_KEY");
+    expect(coldlion).toContain("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set");
     expect(coldlion).not.toContain("return {};");
-    // Config errors must propagate out of the non-fatal ColdLion fallbacks.
+    // Config errors must propagate out of the non-fatal lookup fallbacks.
     expect(parser).toContain("if (e instanceof ColdLionConfigError) throw e;");
     expect(parser.match(/instanceof ColdLionConfigError/g)?.length).toBe(2);
-    // The key is read before the circuit breaker at both call sites, so a missing key is never masked.
-    expect(coldlion.match(/await readColdLionApiKey\(\);\n {2}breaker\.assertClosed/g)?.length).toBe(2);
-    expect(coldlion).toContain("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set");
-    expect(coldlion).toContain("res.error");
-    const handlers = read("supabase/functions/_shared/admin-handlers/coldlion-handlers.ts");
-    expect(handlers).toContain("readColdLionApiKey");
-    expect(handlers).not.toContain("COLDLION_API_KEY is missing");
+    expect(handlers).toContain("getMgLookup");
   });
 
   it("keeps ColdLion MG codes scoped to their division", () => {

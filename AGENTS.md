@@ -325,7 +325,7 @@ apps/popdam-helper/.webpack/
 
 ## Intentional quirks
 
-- **MG01–MG03 letters mean different things by era (2026-10-06).** Items created before 2025-05-14 use the old flat per-division lists (MG01 = material, MG02 = product type, MG03 = finish; source: ColdLion exports in Albert's Dropbox `ai/old_merch`, now `_shared/mg-legacy.ts`). Newer items use the hierarchical list where MG02 depends on MG01 and MG03 on both. `parseSku` picks the era from ColdLion's item `createdTime`, falling back to the file date. Never resolve MG02/MG03 with a flat code table.
+- **MG01–MG03 letters mean different things by era (2026-10-06).** Items created before 2025-05-14 use the old flat per-division lists (MG01 = material, MG02 = product type, MG03 = finish; source: ColdLion exports in Albert's Dropbox `ai/old_merch`, now `_shared/mg-legacy.ts`). Newer items use the hierarchical list where MG02 depends on MG01 and MG03 on both. `parseSku` picks the era from the mirrored ColdLion item `createdTime` (`plm.item.raw`; PopDAM never calls the ColdLion API), falling back to the file date. Never resolve MG02/MG03 with a flat code table.
 
 Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
 
