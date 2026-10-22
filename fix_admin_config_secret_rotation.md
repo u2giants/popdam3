@@ -52,7 +52,7 @@ For each credential:
   unexpected activity during the exposure window (2026-07-24 back to whenever the policy
   was created).
 - **DO Spaces** is a single key *pair* (#5 + #6) — rotating replaces both together.
-- **NAS passwords are AD domain accounts**, not Synology-local. Changing `popdam`/`ahazan`
+- **(Corrected 2026-10-21, #179:** `popdam` is a Synology-LOCAL user on both units; see docs/ops/179-popdam-nas-rotation-plan.md.) Earlier note: NAS passwords are AD domain accounts, not Synology-local. Changing `popdam`/`ahazan`
   in AD **immediately breaks the Windows scraping agents** until the new value is saved in
   Settings — do it in a quiet window. Both agents read from `edgesynology2` (the read
   replica); see the NAS topology spec.
