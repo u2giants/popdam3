@@ -113,3 +113,27 @@ The three application row writers are explicitly classified reviewer-safety in
 `.ai-devops/task-gates.json`; independent review and full rulebook treatment
 cannot disappear through an otherwise ordinary scripts-only edit. All production
 operations still require their internal assigned-reviewer database gate.
+
+## October 22, 2026 refresh and owner merge ruling
+
+Albert, 2026-10-22: "google is authoritative for master data, but not for
+orderlist. for orderlist we need to merge rows that look like they are the same
+between google sheets and the data coming in from Coldlion API." This answers
+the open question above: an exact customer PO + normalized style + quantity
+match that is one-to-one on both sides is the same order.
+
+The source loader now accepts the sheet's current length (Google's CSV export
+omits the two blank trailing columns; they are padded back to 48). Same-SKU
+parent moves are allowed only for the two kinds this package's review already
+approved: a `GOOGLE-ROW-n` placeholder gaining its PO, and an order renamed to
+its own `-cancelled` form. The ColdLion header freeze now covers only
+ColdLion-owned headers, since consolidated ColdLion lines sit under Google
+headers.
+
+Executed: refresh inserted 48 orders and 103 lines and updated 112 orders and
+310 lines, with all 548 ColdLion lines unchanged. `consolidate-orderlist-matches.py`
+then merged 58 one-to-one pairs (24 older Google duplicates retired after their
+references moved, 34 references added), with zero ambiguous candidates. A fresh
+dry run afterwards found zero pairs and zero changes. Master Data was refreshed
+the same day from Google (12,868 Licensed, 3,269 Generic; 43 rows absent from
+Google removed) with source equality verified.
