@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 export function ReviewQueue() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState("pending");
+  const [statusFilter, setStatusFilter] = useState("sample");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -93,8 +93,11 @@ export function ReviewQueue() {
     }
   };
 
+  const isSample = statusFilter === "sample";
+
   const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden"];
   const STATUS_TABS = [
+    { key: "sample", label: "Random 10", tooltip: "Review 10 randomly selected AI predictions, including auto-applied and approved items. Refresh draws another sample without changing any decisions." },
     { key: "pending", label: "Pending", tooltip: "AI predictions with 50–64% confidence — Claude had some doubt. Review and approve or reject each one." },
     { key: "low_confidence", label: "Low Confidence (<50%)", tooltip: "AI predictions where Claude was less than 50% confident — likely ambiguous or junk product descriptions. These will not be auto-applied." },
     { key: "auto_applied", label: "Auto-Applied", tooltip: "Predictions with ≥65% confidence that were automatically accepted — 'Apply Enrichment' will use these as the product_category. You can still revert them to Pending." },
@@ -150,7 +153,7 @@ export function ReviewQueue() {
               <Badge variant="secondary" className="text-xs">{total}</Badge>
             </CardTitle>
           </TooltipTrigger>
-          <TooltipContent className="max-w-xs text-xs">AI predictions that need human review before being applied to your assets. Only populated after running "AI Classification". Items auto-applied at ≥65% confidence bypass this queue.</TooltipContent>
+          <TooltipContent className="max-w-xs text-xs">Review AI category decisions. Random 10 samples existing predictions; the other tabs show their review status. Refresh does not run AI Classification or change decisions.</TooltipContent>
         </Tooltip>
         <div className="flex items-center gap-2">
           {selectedIds.size > 0 && canReject && (
@@ -198,11 +201,16 @@ export function ReviewQueue() {
                 <RefreshCw className={`h-4 w-4${isFetching ? " animate-spin" : ""}`} />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Refresh the queue</TooltipContent>
+            <TooltipContent>{isSample ? "Draw another random 10" : "Refresh the queue"}</TooltipContent>
           </Tooltip>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {isSample && (
+          <p className="text-sm text-muted-foreground">
+            A random sample of up to 10 existing AI judgements. Refresh draws another sample; approval status stays unchanged.
+          </p>
+        )}
         {/* Status tabs */}
         <div className="flex flex-wrap gap-1">
           {STATUS_TABS.map((tab) => (
@@ -244,7 +252,7 @@ export function ReviewQueue() {
                   <col style={{ width: 110 }} />
                   <col style={{ width: 80 }} />
                   <col />
-                  <col style={{ width: 140 }} />
+                  <col style={{ width: isSample ? 230 : 140 }} />
                 </colgroup>
                 <thead className="[&_tr]:border-b">
                   <FilterableHeaderRow
@@ -270,7 +278,11 @@ export function ReviewQueue() {
                   />
                 </thead>
                 <tbody className="[&_tr:last-child]:border-0">
-                  {filteredItems.map((item: any) => (
+                  {filteredItems.map((item: any) => {
+                    const itemCanApprove = isSample ? item.status === "pending" : canApprove;
+                    const itemCanReject = isSample ? ["pending", "auto_applied"].includes(item.status) : canReject;
+                    const itemCanRevert = isSample ? ["auto_applied", "approved"].includes(item.status) : canRevert;
+                    return (
                     <tr key={item.id} className="border-b transition-colors hover:bg-muted/50">
                       {(canReject || canRevert) && (
                         <td className="p-2 align-middle w-10">
@@ -290,6 +302,7 @@ export function ReviewQueue() {
                       </td>
                       <td className="p-2 align-middle overflow-hidden">
                         <Badge variant="outline" className="text-xs">{item.predicted_category}</Badge>
+                        {isSample && <span className="block text-[10px] text-muted-foreground mt-1">{item.status.replaceAll("_", " ")}</span>}
                       </td>
                       <td className="p-2 align-middle text-xs overflow-hidden">
                         <span className={item.confidence < 0.5 ? "text-destructive" : item.confidence < 0.65 ? "text-[hsl(var(--warning))]" : "text-foreground"}>
@@ -303,7 +316,7 @@ export function ReviewQueue() {
                       </td>
                       <td className="p-2 align-middle overflow-hidden">
                         <div className="flex items-center gap-1">
-                          {canApprove && (
+                          {itemCanApprove && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
@@ -319,7 +332,7 @@ export function ReviewQueue() {
                               <TooltipContent>Approve this prediction as correct</TooltipContent>
                             </Tooltip>
                           )}
-                          {(canApprove || canRevert) && (
+                          {(itemCanApprove || itemCanRevert) && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <select
@@ -341,7 +354,7 @@ export function ReviewQueue() {
                               <TooltipContent>Approve with a different category (overrides the AI prediction)</TooltipContent>
                             </Tooltip>
                           )}
-                          {canReject && (
+                          {itemCanReject && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
@@ -357,7 +370,7 @@ export function ReviewQueue() {
                               <TooltipContent>Reject this prediction (can be re-classified later). Use "Dismiss" to permanently exclude.</TooltipContent>
                             </Tooltip>
                           )}
-                          {canRevert && (
+                          {itemCanRevert && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
@@ -376,7 +389,7 @@ export function ReviewQueue() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  ); })}
                 </tbody>
               </table>
             </div>

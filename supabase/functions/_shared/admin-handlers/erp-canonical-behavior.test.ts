@@ -173,6 +173,27 @@ describe("canonical ERP handler behavior", () => {
     expect(skuFromExternalId("coldlion||A|B")).toBe("A|B");
   });
 
+  it("draws a random 10 from existing AI predictions without changing their status", async () => {
+    const sample = Array.from({ length: 10 }, (_, i) => ({ id: `sample-${i}`, external_id: `SKU-${i}`, status: "auto_applied", classification_source: "ai" }));
+    fixture.rpc.mockResolvedValueOnce({ data: sample, error: null });
+    const body = await (await handleErpReviewQueue({ status: "sample", page: 99 })).json();
+    expect(fixture.rpc).toHaveBeenCalledWith("execute_readonly_query", {
+      query_text: expect.stringMatching(
+        /WHERE classification_source = 'ai' AND status IN \('pending', 'auto_applied', 'approved'\)\s+ORDER BY random\(\) LIMIT 10/,
+      ),
+    });
+    expect(body.items).toHaveLength(10);
+    expect(body.items.every((item: any) => item.status === "auto_applied")).toBe(true);
+    expect(body).toMatchObject({ total: 10, page: 1, page_size: 10, total_pages: 1 });
+  });
+
+  it("surfaces a sampling failure instead of showing an empty review sample", async () => {
+    fixture.rpc.mockResolvedValueOnce({ data: null, error: { message: "Sampling unavailable" } });
+    const response = await handleErpReviewQueue({ status: "sample" });
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ error: "Sampling unavailable" });
+  });
+
   it("keeps unresolved history visible without borrowing another division's description", async () => {
     const body = await (await handleErpReviewQueue({ status: "all" })).json();
     expect(body.items.find((row: any) => row.id === "prediction-cw").description).toBe("CW description");
