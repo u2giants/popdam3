@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 4588,
+    "generation": 4,
+    "contract_sha256": "f7c2577042628ab0dfa046d03bfc6557025c7df2fb4b145fb1ee616d20d8a5f4"
+  },
+  "work_issue": 4588,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Create hts_rag.hts_rag_ruling_ingest_jobs leased queue for cited CBP ruling ingest (designflow-backend#217)",
+  "base_sha": "fe6eb25e5081031f7d5aa58abb8d88fb42e69314",
+  "dispatcher": "Claude chat (designflow-backend#217 HTS audit M7) on edge-dev3",
+  "worker": "same session",
+  "branch": "db/4588-ruling-ingest-jobs-v2",
+  "worktree": "/home/ahazan/repos/shared-db-4588b",
+  "allowed_paths": [
+    "supabase/migrations/20261022060218_hts_rag_ruling_ingest_jobs.sql",
+    "supabase/tests/hts_rag_ruling_ingest_jobs_contract.sql",
+    ".agent/work/4588/5/contract.json",
+    ".agent/work/4588/5/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261022060218_hts_rag_ruling_ingest_jobs.sql",
+    "supabase/tests/hts_rag_ruling_ingest_jobs_contract.sql",
+    ".agent/work/4588/5/contract.json",
+    ".agent/work/4588/5/completion.json"
+  ],
+  "db_reads": [
+    "table hts_rag.hts_rag_determinations"
+  ],
+  "db_writes": [
+    "table hts_rag.hts_rag_ruling_ingest_jobs",
+    "index hts_rag.hts_rag_ruling_ingest_jobs_claim_idx",
+    "index hts_rag.hts_rag_ruling_ingest_jobs_open_uq",
+    "trigger set_updated_at on hts_rag.hts_rag_ruling_ingest_jobs",
+    "policy hts_rag_prod_worker_access on hts_rag.hts_rag_ruling_ingest_jobs",
+    "policy hts_rag_prod_worker_insert on hts_rag.hts_rag_ruling_ingest_jobs",
+    "policy hts_rag_prod_worker_update on hts_rag.hts_rag_ruling_ingest_jobs",
+    "policy hts_rag_alsand_worker_access on hts_rag.hts_rag_ruling_ingest_jobs",
+    "policy hts_rag_alsand_worker_insert on hts_rag.hts_rag_ruling_ingest_jobs",
+    "policy hts_rag_alsand_worker_update on hts_rag.hts_rag_ruling_ingest_jobs",
+    "index hts_rag.hts_rag_ruling_ingest_jobs_source_determination_idx"
+  ],
+  "prohibited_actions": [
+    "Additive only; no change to existing HTS tables",
+    "Never invent or reuse a migration version; claim #4591 reserves 20261022060218 (superseded 20261022033339)"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check origin/main...HEAD"
+  ],
+  "assumptions": [
+    "Shared HTS connection uses schema hts_rag with source_environment production/alsand"
+  ],
+  "stop_conditions": [
+    "Stop if a required check fails"
+  ]
+}

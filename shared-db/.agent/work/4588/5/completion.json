@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "work_issue": 4588,
+  "outcome": "ready-for-merge",
+  "pr": 4608,
+  "migration_versions": [
+    "20261022060218"
+  ],
+  "contract_ref": "refs/db-contracts/4588/5",
+  "contract_sha256": "84270a1ca9cb7672cf69eaabdae499f8480acd4172571a54e68562e4e80dc599",
+  "head_sha": "0174330605ab40c5fc029196779c5cf0d64a46e1",
+  "base_sha": "fe6eb25e5081031f7d5aa58abb8d88fb42e69314",
+  "files_changed": [
+    "supabase/migrations/20261022060218_hts_rag_ruling_ingest_jobs.sql",
+    "supabase/tests/hts_rag_ruling_ingest_jobs_contract.sql"
+  ],
+  "db_reads": [
+    "table hts_rag.hts_rag_determinations"
+  ],
+  "db_writes": [
+    "table hts_rag.hts_rag_ruling_ingest_jobs",
+    "index hts_rag.hts_rag_ruling_ingest_jobs_claim_idx",
+    "index hts_rag.hts_rag_ruling_ingest_jobs_open_uq",
+    "trigger set_updated_at on hts_rag.hts_rag_ruling_ingest_jobs",
+    "policy hts_rag_prod_worker_access on hts_rag.hts_rag_ruling_ingest_jobs",
+    "policy hts_rag_prod_worker_insert on hts_rag.hts_rag_ruling_ingest_jobs",
+    "policy hts_rag_prod_worker_update on hts_rag.hts_rag_ruling_ingest_jobs",
+    "policy hts_rag_alsand_worker_access on hts_rag.hts_rag_ruling_ingest_jobs",
+    "policy hts_rag_alsand_worker_insert on hts_rag.hts_rag_ruling_ingest_jobs",
+    "policy hts_rag_alsand_worker_update on hts_rag.hts_rag_ruling_ingest_jobs",
+    "index hts_rag.hts_rag_ruling_ingest_jobs_source_determination_idx"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed."
+    },
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Live production read-only check: hts_rag.hts_rag_debate_runs carries source_environment text not null, no default, check production/alsand; app HTS connection uses schema hts_rag"
+  ],
+  "stop_conditions_hit": []
+}
