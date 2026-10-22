@@ -270,7 +270,7 @@ within the same customer (MOD010 and MOD011 are one customer, Burlington — Alb
 2026-10-09) and normalize per join rule 1 (trim, strip leading zeros). The `salesOrderNo`
 the ERP records on production rows is **not** a match key. Example: D3515 (production order
 24136, Hobby Lobby) carries customer PO 9212870; that is the link Albert's records show.
-Implementation: `plm.v_prod_order_sales_order_link` (shared-db #3869). This supersedes
+Implementation: `plm.v_prod_order_sales_order_link` on the sandbox project; `dflow_prod.v_prod_order_sales_order_link` on production (shared-db #3869). This supersedes
 rule 3 above as a *matching* rule; rule 3 remains only a way to find rows.
 
 Also recorded: the API exposes a **`POST /order`** insert-sales-order endpoint, unused by us.
