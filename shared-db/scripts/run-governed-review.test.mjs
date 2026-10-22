@@ -1715,3 +1715,16 @@ test('issue #4410: production-risk request options parse as runner options, not 
   assert.equal(parsed.productionRiskAllowlist, '20261016210024')
   assert.deepEqual(parsed.wrapperArgs, ['new', 's'])
 })
+
+import { sameReviewPath } from './run-governed-review.mjs'
+test('lifecycle report path comparison folds Git Bash MSYS forms onto native Windows paths (PR #4572)',()=>{
+  const tmp='C:\\Users\\me\\AppData\\Local\\Temp'
+  assert.equal(sameReviewPath('C:/repos/shared-db/.ai/reviews/r.md','/c/repos/shared-db/.ai/reviews/r.md','win32',tmp),true)
+  assert.equal(sameReviewPath('C:\\repos\\shared-db\\.ai\\reviews\\r.md','/c/repos/shared-db/.ai/reviews/r.md','win32',tmp),true)
+  assert.equal(sameReviewPath('C:/Users/me/AppData/Local/Temp/wt/.ai/reviews/r.md','/tmp/wt/.ai/reviews/r.md','win32',tmp),true)
+  assert.equal(sameReviewPath('C:/repos/shared-db/.ai/reviews/r.md','/d/repos/shared-db/.ai/reviews/r.md','win32',tmp),false)
+  assert.equal(sameReviewPath('C:/repos/shared-db/.ai/reviews/r.md','/c/repos/shared-db/.ai/reviews/other.md','win32',tmp),false)
+  assert.equal(sameReviewPath('/tmpx/r.md','C:/Users/me/AppData/Local/Temp/x/r.md','win32',tmp),false)
+  assert.equal(sameReviewPath('/c/repos/r.md','C:/repos/r.md','linux',tmp),false,'MSYS folding is Windows-only')
+  assert.equal(sameReviewPath('','','win32',tmp),false)
+})
