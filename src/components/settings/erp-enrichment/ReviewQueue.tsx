@@ -252,7 +252,7 @@ export function ReviewQueue() {
                   <col style={{ width: 110 }} />
                   <col style={{ width: 80 }} />
                   <col />
-                  <col style={{ width: 140 }} />
+                  <col style={{ width: isSample ? 230 : 140 }} />
                 </colgroup>
                 <thead className="[&_tr]:border-b">
                   <FilterableHeaderRow
