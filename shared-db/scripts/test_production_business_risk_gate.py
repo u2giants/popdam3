@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from production_business_risk_gate import REPOSITORY, preview_instance_text, preview_run_has_immutable_apply, api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, enforce_automatic_risk_decision, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_bound_mainline_post_merge_original, prove_historical_original_apply_runs, prove_registered_historical_restoration_provenance, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION, GOVERNED_ORIGINAL_RECONCILIATION_4373, GOVERNED_ORIGINAL_RECONCILIATIONS
+from production_business_risk_gate import REPOSITORY, original_attempt_has_immutable_apply, preview_instance_text, preview_run_has_immutable_apply, api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, enforce_automatic_risk_decision, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_bound_mainline_post_merge_original, prove_historical_original_apply_runs, prove_registered_historical_restoration_provenance, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION, GOVERNED_ORIGINAL_RECONCILIATION_4373, GOVERNED_ORIGINAL_RECONCILIATIONS
 
 
 def disable_background_git_maintenance(root):
@@ -77,6 +77,72 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 candidate = json.loads(json.dumps(jobs))
                 mutate(candidate)
                 self.assertFalse(preview_run_has_immutable_apply(run, candidate))
+
+    def test_failed_workflow_is_preview_evidence_when_only_lane_release_failed(self):
+        run = {"status": "completed", "conclusion": "failure"}
+        conclusions = {
+            "SQL migration guards": "success", "preview": "failure",
+            "Automatic production qualification and dispatch": "skipped",
+            "Production apply review (immutable evidence + hard guards)": "skipped",
+            "Production apply (automatic evidence gates)": "skipped",
+            "production-dry-run": "skipped",
+        }
+        steps = [
+            {"name": "Bounded apply", "conclusion": "success"},
+            {"name": "Save preview evidence", "conclusion": "success"},
+            {"name": "Release the exclusive preview lane with ownership proof", "conclusion": "failure"},
+            {"name": "Post Run actions/checkout@v4", "conclusion": "success"},
+        ]
+        jobs = {"total_count": 6, "jobs": [
+            {"name": name, "status": "completed", "conclusion": conclusion,
+             **({"steps": steps} if name == "preview" else {})}
+            for name, conclusion in conclusions.items()
+        ]}
+        self.assertTrue(preview_run_has_immutable_apply(run, jobs))
+        preview = 1
+        for mutate in (
+            lambda value: value["jobs"][preview]["steps"][0].update(conclusion="failure"),
+            lambda value: value["jobs"][preview]["steps"][1].update(conclusion="skipped"),
+            lambda value: value["jobs"][preview]["steps"].pop(1),
+            lambda value: value["jobs"][preview]["steps"][3].update(conclusion="failure"),
+            lambda value: value["jobs"][preview].pop("steps"),
+            lambda value: value["jobs"][0].update(conclusion="failure"),
+            lambda value: value["jobs"][2].update(conclusion="failure"),
+            lambda value: value["jobs"][4].update(conclusion="success"),
+        ):
+            with self.subTest(mutation=mutate):
+                candidate = json.loads(json.dumps(jobs))
+                mutate(candidate)
+                self.assertFalse(preview_run_has_immutable_apply(run, candidate))
+
+    def test_rerun_original_apply_is_accepted_only_for_one_applied_attempt(self):
+        def graph(preview, steps):
+            names = {"SQL migration guards": "success", "preview": preview,
+                     "Automatic production qualification and dispatch": "skipped",
+                     "Production apply review (immutable evidence + hard guards)": "skipped",
+                     "Production apply (automatic evidence gates)": "skipped",
+                     "production-dry-run": "skipped"}
+            return {"total_count": 6, "jobs": [
+                {"name": n, "status": "completed", "conclusion": c, **({"steps": steps} if n == "preview" else {})}
+                for n, c in names.items()]}
+        applied = graph("failure", [
+            {"name": "Bounded apply", "conclusion": "success"},
+            {"name": "Save preview evidence", "conclusion": "success"},
+            {"name": "Release the exclusive preview lane with ownership proof", "conclusion": "failure"}])
+        refused = graph("failure", [
+            {"name": "Acquire the exclusive GitHub-backed preview lane", "conclusion": "failure"},
+            {"name": "Bounded apply", "conclusion": "skipped"}])
+        run = {"status": "completed", "conclusion": "failure", "run_attempt": 2}
+        def api_for(attempts):
+            return lambda url: attempts[int(url.split("/attempts/")[1].split("/")[0]) - 1]
+        self.assertTrue(original_attempt_has_immutable_apply(run, 7, api_for([applied, refused])))
+        self.assertFalse(original_attempt_has_immutable_apply(run, 7, api_for([applied, applied])))
+        self.assertFalse(original_attempt_has_immutable_apply(run, 7, api_for([refused, refused])))
+        reapplied = json.loads(json.dumps(refused))
+        reapplied["jobs"][1]["steps"][1]["conclusion"] = "failure"
+        self.assertFalse(original_attempt_has_immutable_apply(run, 7, api_for([applied, reapplied])))
+        self.assertFalse(original_attempt_has_immutable_apply({**run, "run_attempt": 1}, 7, api_for([applied])))
+        self.assertFalse(original_attempt_has_immutable_apply({**run, "conclusion": "success"}, 7, api_for([applied, refused])))
 
     def governed_original_reconciliation_fixture(self, case=None):
         case = case or GOVERNED_ORIGINAL_RECONCILIATION

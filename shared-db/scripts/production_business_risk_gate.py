@@ -112,8 +112,47 @@ PREVIEW_FAILURE_JOB_CONCLUSIONS = {
 }
 
 
+# #4630: the preview job applied, recorded and saved its evidence, and then only
+# the lane-release step failed (a transient empty GitHub issue listing). The
+# apply is as immutable as in the downstream-failure graph; the stranded lease
+# is recovered separately through recover-exclusive-db-lane.
+PREVIEW_RELEASE_ONLY_JOB_CONCLUSIONS = {
+    **PREVIEW_FAILURE_JOB_CONCLUSIONS,
+    "preview": "failure",
+    "Automatic production qualification and dispatch": "skipped",
+}
+PREVIEW_RELEASE_STEP = "Release the exclusive preview lane with ownership proof"
+PREVIEW_EVIDENCE_STEPS = ("Bounded apply", "Save preview evidence")
+
+
+def _exact_job_graph(rows: list[Any], conclusions: dict[str, str]) -> bool:
+    return all(
+        sum(
+            1 for job in rows
+            if isinstance(job, dict) and job.get("name") == name
+            and job.get("status") == "completed" and job.get("conclusion") == conclusion
+        ) == 1
+        for name, conclusion in conclusions.items()
+    )
+
+
+def _preview_failed_only_at_release(rows: list[Any]) -> bool:
+    job = next((j for j in rows if isinstance(j, dict) and j.get("name") == "preview"), None)
+    steps = job.get("steps") if isinstance(job, dict) else None
+    if not isinstance(steps, list):
+        return False
+    failed = [s.get("name") for s in steps if isinstance(s, dict) and s.get("conclusion") not in ("success", "skipped")]
+    if failed != [PREVIEW_RELEASE_STEP]:
+        return False
+    return all(
+        sum(1 for s in steps if isinstance(s, dict) and s.get("name") == name and s.get("conclusion") == "success") == 1
+        for name in PREVIEW_EVIDENCE_STEPS
+    )
+
+
 def preview_run_has_immutable_apply(run: Any, jobs: Any = None) -> bool:
-    """Accept success, or the exact graph where only downstream promotion failed."""
+    """Accept success, the exact graph where only downstream promotion failed, or
+    the exact graph where only the preview lane release failed after evidence."""
     if not isinstance(run, dict) or run.get("status") != "completed":
         return False
     if run.get("conclusion") == "success":
@@ -123,14 +162,40 @@ def preview_run_has_immutable_apply(run: Any, jobs: Any = None) -> bool:
     rows = jobs.get("jobs")
     if jobs.get("total_count") != 6 or not isinstance(rows, list) or len(rows) != 6:
         return False
-    return all(
-        sum(
-            1 for job in rows
-            if isinstance(job, dict) and job.get("name") == name
-            and job.get("status") == "completed" and job.get("conclusion") == conclusion
-        ) == 1
-        for name, conclusion in PREVIEW_FAILURE_JOB_CONCLUSIONS.items()
-    )
+    if _exact_job_graph(rows, PREVIEW_FAILURE_JOB_CONCLUSIONS):
+        return True
+    return _exact_job_graph(rows, PREVIEW_RELEASE_ONLY_JOB_CONCLUSIONS) and _preview_failed_only_at_release(rows)
+def original_attempt_has_immutable_apply(run: Any, run_id: int, api: Callable[[str], Any]) -> bool:
+    """#4630: a re-run attempt replaces the run's jobs and conclusion. Accept a
+    failed multi-attempt run only when exactly one attempt has the immutable
+    apply graph and no other attempt's preview job reached a successful apply."""
+    if not isinstance(run, dict) or run.get("status") != "completed" or run.get("conclusion") != "failure":
+        return False
+    attempts = run.get("run_attempt")
+    if not isinstance(attempts, int) or attempts < 2 or attempts > 10:
+        return False
+    applied = 0
+    for attempt in range(1, attempts + 1):
+        try:
+            jobs = api(f"repos/{REPOSITORY}/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100")
+        except Exception as exc:  # noqa: BLE001 - unreadable attempt proof fails closed
+            raise RiskGateError(f"original apply run {run_id} attempt {attempt} jobs are unreadable") from exc
+        rows = jobs.get("jobs") if isinstance(jobs, dict) else None
+        if not isinstance(rows, list):
+            return False
+        if preview_run_has_immutable_apply({"status": "completed", "conclusion": "failure"}, jobs):
+            applied += 1
+            continue
+        for job in rows:
+            if isinstance(job, dict) and job.get("name") == "preview":
+                steps = job.get("steps")
+                if not isinstance(steps, list):
+                    return False
+                if any(isinstance(st, dict) and st.get("name") == "Bounded apply" and st.get("conclusion") != "skipped" for st in steps):
+                    return False
+    return applied == 1
+
+
 RISK_TEXT = {
     "permanent_data_rewrite_or_loss": "existing production data may be lost or permanently altered",
     "expected_downtime": "users may be interrupted",
@@ -1931,7 +1996,7 @@ def prove_historical_original_apply_runs(
         for key, value in expected.items():
             if not isinstance(run, dict) or run.get(key) != value:
                 raise RiskGateError(f"original apply run {run_id} for {version} has wrong {key}")
-        if not preview_run_has_immutable_apply(run, jobs):
+        if not preview_run_has_immutable_apply(run, jobs) and not original_attempt_has_immutable_apply(run, run_id, api):
             raise RiskGateError(f"original apply run {run_id} for {version} has wrong conclusion")
         artifact, original_commit = preview_applied_commit(
             api(f"repos/{REPOSITORY}/actions/runs/{run_id}/artifacts?per_page=100"), run_id
