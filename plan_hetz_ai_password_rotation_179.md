@@ -6,7 +6,7 @@ Supersedes v13 (commit 157a1572). Amends step 2d: the console/rescue requirement
 Not executed. v14 final-check requested on the plan commit; step 2d proven read-only (see #179). No host, vault, or NAS change has happened.
 
 ## Scope
-- Host hetz (public 178.156.180.212; Tailscale IPv4 recorded in step 0a), OS user `ai`, this one password only. Not NAS popdam (not rotated, per Albert), not the hetzner_vps token (standing no-rotation), not the render account.
+- Host hetz (public 178.156.180.212; Tailscale IPv4 recorded in step 0a), OS user `ai`, this one password only. Not NAS popdam (at the time not rotated, per Albert; Albert asked for it on 2026-10-21 — see `docs/ops/179-popdam-nas-rotation-plan.md`), not the hetzner_vps token (standing no-rotation), not the render account.
 - Canonical vault item: `hetz-ai-ssh` (id 5xukphmemjyt6cp67qo5qdawby, vault vibe_coding). Its password field is edited in place; the item is never re-created.
 - Staging items: `hetz-ai-ssh - pending rotation - <ATTEMPT_ID>`. ATTEMPT_ID = UTC timestamp plus 6 random hex, computed before the item is created. Items are never overwritten. Notes marker `STAGED` is set in the creation step. Retirement changes only the title suffix to `- retired <ATTEMPT_ID>`, after step 11.
 - Privilege evidence: on 2026-10-13 `sudo -n -l` as `ai` on hetz listed `(ALL) NOPASSWD: ALL`. Step 5 repeats this check and records it; discovery and setter checks rely on it.
