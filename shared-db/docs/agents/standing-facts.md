@@ -128,7 +128,7 @@ have already happened in this repo, more than once.
     **The mechanism (owner instruction 2026-10-02, "assign someone to pause merges during
     production runs"; [owner rulings §6.26](../owner-rulings.md)):** before drawing the risk
     assessment, run `node scripts/manage-migration-author-lanes.mjs --acquire-promotion-freeze
-    --issue <n> --pr <source-pr> --owner <text> --ttl-minutes <1-180>`. Every `--acquire-merge`
+    --issue <n> --pr <source-pr> --owner <text> --ttl-minutes <1-60>`. Every `--acquire-merge`
     and repository-maintenance (documents-only) authorization then refuses until the freeze is
     released (`--release-promotion-freeze --owner <text>`), the production run's cleanup releases
     it, or its TTL expires. Pick a TTL that outlives the whole window (review round plus

@@ -2114,8 +2114,8 @@ automatic-promotion re-proof), accept that shared reviewer only when the pull re
 for more than one later slot; slot 1 is not kept independent of slots 2 and above collectively. Open pull requests keep strict slot independence. Code:
 `mergedPrReviewerReuseAllowed` in `scripts/manage-migration-author-lanes.mjs`.
 
-**Promotion merge freeze.** `--acquire-promotion-freeze --issue <n> --pr <n> --owner <text>
---ttl-minutes <1-180>` sets the create-only ref `refs/db-coordination/promotion-freeze` before the
+**Promotion merge freeze.** Cap: 60 minutes. Owner rule, Albert Hazan in his chat 2026-10-21 (verbatim): "no session is allowed to freeze merges for more than 1hr. that's the new rule" `--acquire-promotion-freeze --issue <n> --pr <n> --owner <text>
+--ttl-minutes <1-60>` sets the create-only ref `refs/db-coordination/promotion-freeze` before the
 risk assessment is drawn. While it is live, `--acquire-merge` (guarded merge and merge-queue gate)
 and repository-maintenance authorization refuse, naming the holder and expiry. It never blocks
 preview or production. It expires by TTL, so it cannot wedge merges (a corrupt, unreadable freeze record

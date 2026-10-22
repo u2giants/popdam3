@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 4548,
+    "generation": 1,
+    "contract_sha256": "dd31c9b0985c9d156e6a2ef9e5e9c435661952cc9d29d0b2716d0aea3f014525"
+  },
+  "work_issue": 4548,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Cap promotion merge freeze TTL at 60 minutes per Albert's rule that no session may freeze merges for more than one hour.",
+  "base_sha": "f1f63c7abdf02a6c69fc72ac8208ba41c634c572",
+  "dispatcher": "Claude chat a68bf478-9a52-413f-8710-4695c0109ffa on edge-dev3",
+  "worker": "Claude chat a68bf478-9a52-413f-8710-4695c0109ffa on edge-dev3",
+  "branch": "claude/freeze-ttl-cap",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/shared-db-merge-queue-step10-9daf57",
+  "allowed_paths": [
+    ".agent/work/4548/2/contract.json",
+    ".agent/work/4548/2/completion.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/owner-rulings.md",
+    "docs/agents/standing-facts.md",
+    ".agent/work/4548/1/contract.json",
+    ".agent/work/4548/1/completion.json"
+  ],
+  "file_writes": [
+    ".agent/work/4548/2/contract.json",
+    ".agent/work/4548/2/completion.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/owner-rulings.md",
+    "docs/agents/standing-facts.md",
+    ".agent/work/4548/1/contract.json",
+    ".agent/work/4548/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database change.",
+    "No change to freeze semantics other than the TTL cap."
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Owner rule 2026-10-21: no merge freeze longer than one hour."
+  ],
+  "stop_conditions": [
+    "Stop if a database change is required."
+  ]
+}

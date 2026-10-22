@@ -4984,8 +4984,10 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
 // guarded merge and merge-queue gate) and repository-maintenance authorization.
 // It never blocks preview or production. It expires by TTL on its own, so it can
 // never wedge merges; the production job's always() cleanup releases it.
+// Owner rule, Albert Hazan in his chat 2026-10-21 (verbatim): "no session is
+// allowed to freeze merges for more than 1hr. that's the new rule"
 export const PROMOTION_FREEZE_REF = 'refs/db-coordination/promotion-freeze'
-export const PROMOTION_FREEZE_MAX_TTL_MINUTES = 180
+export const PROMOTION_FREEZE_MAX_TTL_MINUTES = 60
 const PROMOTION_FREEZE_HEADER = /^db-coordination promotion-freeze-record pr=(\d+) issue=(\d+)$/
 
 export function readPromotionFreeze(io = githubIo, now = new Date()) {
