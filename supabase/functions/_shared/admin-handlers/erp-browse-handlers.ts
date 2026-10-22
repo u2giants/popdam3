@@ -103,7 +103,8 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   for (const r of statusResults) statusCounts[r.status] = r.count;
   statusCounts["low_confidence"] = lowConfRes.count ?? 0;
 
-  const predictionColumns = "id, external_id, plm_item_id, item_identity_status, predicted_category, confidence, rationale, classification_source, ai_model, status, created_at";
+  const predictionColumns =
+    "id, external_id, plm_item_id, item_identity_status, predicted_category, confidence, rationale, classification_source, ai_model, status, created_at";
   let query = db.from("product_category_predictions").select(predictionColumns);
   if (effectiveStatus !== "all") query = query.eq("status", effectiveStatus);
   if (isLowConfidenceFilter) query = query.lt("confidence", 0.5);

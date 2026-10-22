@@ -178,7 +178,9 @@ describe("canonical ERP handler behavior", () => {
     fixture.rpc.mockResolvedValueOnce({ data: sample, error: null });
     const body = await (await handleErpReviewQueue({ status: "sample", page: 99 })).json();
     expect(fixture.rpc).toHaveBeenCalledWith("execute_readonly_query", {
-      query_text: expect.stringMatching(/WHERE classification_source = 'ai' AND status IN \('pending', 'auto_applied', 'approved'\)\s+ORDER BY random\(\) LIMIT 10/),
+      query_text: expect.stringMatching(
+        /WHERE classification_source = 'ai' AND status IN \('pending', 'auto_applied', 'approved'\)\s+ORDER BY random\(\) LIMIT 10/,
+      ),
     });
     expect(body.items).toHaveLength(10);
     expect(body.items.every((item: any) => item.status === "auto_applied")).toBe(true);
