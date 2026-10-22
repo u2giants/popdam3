@@ -54,7 +54,7 @@ Albert, verbatim: "count DC, Harry Potter and Friends TV as Warner Brothers / co
 - DC, Harry Potter and Friends TV use the Warner Brothers licensing stage times. Paw Patrol uses the Nickelodeon times. This is a timing grouping only; it does not change who the licensor is.
 - Aardman Animations is a real, new license whose licensing timeline Ilona and Laura have not created yet. Show it as "timeline not set up yet", never as unknown and never as zero.
 - Care Bears and ZAG are lapsed contracts: not offered for new work. Existing orders and history keep them.
-- NASA and Mixed License: no decision yet (Unknown).
+- NASA and Mixed License: no licensing timeline in the stage-timing sheet; they stay Unknown (Settled, Albert Hazan, 2026-10-21). Albert, verbatim: "Leave them unknown and close that issue."
 
 ## Stages run concurrently, with hard and soft dependencies
 
