@@ -56,6 +56,10 @@ container name `synology-monitor-agent` (one container per unit, compose
 project dir `/volume1/docker/synology-monitor-agent`, verified both units).
 
 ## Preflight evidence (2026-10-21, no change)
+- Transport proven end to end on both units with the committed caller:
+  `rollback` with a dummy item stopped at "no backup holding old" (before any
+  change) after root took ownership of the staged dir and verified the
+  script hash; `rc=1 other_lines=0`; no `.r179*` dir left on either unit.
 - Local, not AD, on both units: `wbinfo -t` fails (not domain-joined),
   `wbinfo -u` has no popdam, `synouser --get popdam` finds the local user
   (uid 1038 edge2 / 1039 edge1). DSM login `account=popdam` with the current
@@ -90,19 +94,22 @@ project dir `/volume1/docker/synology-monitor-agent`, verified both units).
 - Only live consumer: the monitor agent on each unit (value scan above).
 
 ## Steps
-0. Reconcile first (also after any crash): for each unit, DSM login probe
-   with the canonical value and with every unarchived `NAS popdam staging 179-*`
-   value (accept → that is the unit's value). Converge: unit on a staging
+0. Reconcile first (also after any crash): for each unit and each
+   unarchived `NAS popdam staging 179-*` item, run
+   `rotate-popdam-caller.sh <unit> probe <staging-id>` (reports old/new
+   accepted/refused; at most one failed DSM login per value, far under the
+   auto-block threshold). Converge: unit on a staging
    value and the other on canonical → run `rotate` on the other with that
    staging value, or `rollback` on the first; both on staging → finish step 4.
    Never generate a new staging item while an older one is accepted anywhere.
    Coordination: re-read #179 and linked sessions for a competing NAS claim;
    post a start notice on #179. `ai-task-gates check --before production`
    with this plan's reviewer APPROVE (exact head).
-1. Generate the new value with the 1Password generator into a NEW item
-   `NAS popdam staging 179-<UTC ts>` (unique per attempt) with
-   `op item create --generate-password=32,letters,digits` (value never
-   displayed); then `op read -n` into a 0600 file and check 32 chars,
+1. Generate the new value with the 1Password generator into a NEW item:
+   `op item create --vault vibe_coding --category Password
+   --title "NAS popdam staging 179-<UTC ts>-<4 random hex>"
+   --generate-password=32,letters,digits --format json | jq -r .id`
+   (value never displayed; at most 3 attempts); then `op read -n` into a 0600 file and check 32 chars,
    `[A-Za-z0-9]`, at least one digit; otherwise archive it and generate again.
    Canonical items
    keep the old value until step 4, so a crash always leaves both values in
@@ -128,11 +135,12 @@ project dir `/volume1/docker/synology-monitor-agent`, verified both units).
    edge2 rollback also fails, the staging item still holds the value edge2
    accepts: copy it into the edge2 canonical item only, mark edge1/edge2
    values as different in both item notes, and report Blocked on #179.
-4. 1Password: for each canonical item, `op item get <id> --format json`
-   → jq sets the `password` field from the staging value (jq reads it with
-   `--rawfile` from a 0600 file) and the notes without the 2026-10-01
-   PENDING-APPLY paragraph → piped to `op item edit <id>` (stdin, no argv,
-   no env). Before and after: a full-item diff of everything except the
+4. 1Password: for each canonical item (edge2 fkyspggk…, then edge1
+   gtwd6lf6…): `op read -n op://vibe_coding/<staging>/password > $T/v` (0600);
+   `op item get <id> --format json > $T/before.json`;
+   `jq --rawfile v $T/v '(.fields[] | select(.id=="password") | .value) = $v
+   | .fields |= map(if .id=="notesPlain" then .value |= sub("STATUS 2026-10-01: PENDING-APPLY[^\n]*\n\n"; "") else . end)'
+   $T/before.json | op item edit <id>` (stdin only). Before and after: a full-item diff of everything except the
    password value and notes must be empty, and `op read -n` digest must equal
    the staging digest. Rehearsed first on a throwaway item. Staging → renamed
    `RETIRED …`. A crash mid-step leaves the staging item as the source; rerun.
