@@ -15,6 +15,7 @@
 import { toSmbClientRelativePath } from "./smb-names";
 import { resolveExistingSmbPath } from "./smb-resolve";
 import { config } from "./config";
+import { ClaimAccounting, maintenancePausesClaims, currentCommandDeferral, heartbeatDelivery } from "./maintenance-lease";
 import { getLogTail, logger } from "./logger";
 import * as api from "./api-client";
 import { type CompatWorker, type PdfRenderResult, renderFile, renderNativeImage } from "./renderer";
@@ -44,6 +45,8 @@ import { beginProvisioningStatus, checkIndra, provisionIndra, type IndraStatus }
 
 let agentId: string = "";
 let activeJobs = 0;
+const claimAccounting = new ClaimAccounting();
+let auxiliaryWork = 0;
 
 // Lazily-initialized Tesseract worker for inline compat-alert OCR checks.
 // Created on first AI render job, kept alive for the process lifetime.
@@ -408,23 +411,36 @@ const heartbeatCommandHandlers = createWindowsCommandHandlers({
   handleDirBrowse: (cmd) => handleDirBrowse(cmd, () => (cloudNasMountPath || "").trim() || `\\\\${cloudNasHost}\\${cloudNasShare}`),
 });
 
+
 function startHeartbeat() {
   const HEARTBEAT_MS = 30_000;
   const loop = async () => {
+    let nextScheduled = false;
+    const scheduleNext = () => {
+      if (!nextScheduled) {
+        nextScheduled = true;
+        setTimeout(loop, api.suggestedHeartbeatDelayMs());
+      }
+    };
     try {
       const updateState = getUpdateState();
-      const response = await api.heartbeat(agentId, lastError, healthStatus, {
+      const deferral = currentCommandDeferral();
+      await heartbeatDelivery.deliver(deferral, () => api.heartbeat(agentId, lastError, healthStatus, {
         version: config.version,
+        build_sha: config.buildSha,
         update_available: updateState.updateAvailable,
         latest_version: updateState.latestVersion,
         last_update_check: updateState.lastCheckAt,
         updating: updateState.updating,
         update_error: updateState.lastError,
-      }, getLogTail(50), indraStatus);
+      }, getLogTail(50), indraStatus, deferral), async (response) => {
       applyCloudConfig(response);
       consecutiveHeartbeatFailures = 0;
-
+      // HTTP has completed; keep regular authenticated heartbeats/config flowing
+      // while this delivery remains counted through any long command operation.
+      scheduleNext();
       await dispatchCommands(response.commands, heartbeatCommandHandlers);
+      });
 
       logger.debug("Heartbeat sent");
     } catch (e) {
@@ -444,7 +460,7 @@ function startHeartbeat() {
       }
     }
     // Slow down after repeated auth failures instead of retrying every 30s.
-    setTimeout(loop, api.suggestedHeartbeatDelayMs());
+    scheduleNext();
   };
   setTimeout(loop, api.suggestedHeartbeatDelayMs());
   logger.info("Heartbeat started (30s interval, backs off on auth failures)");
@@ -643,6 +659,7 @@ function startPolling() {
     } else {
       // Fill all available slots — try PopDAM jobs first, then SG jobs
       while (activeJobs < maxConcurrency) {
+        if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + heartbeatDelivery.inFlight + auxiliaryWork, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating)) break;
         try {
           // Never claim a PopDAM job against a dead Z: mapping. ensureNasMapped is a
           // cheap access check while the share is reachable; when the SMB session has
@@ -664,14 +681,14 @@ function startPolling() {
           } else if (!healthStatus.healthy) {
             healthStatus = { ...healthStatus, healthy: true, nasHealthy: true, lastPreflightError: null };
           }
-          const job = zGate.ready ? await api.claimRender(agentId) : null;
+          if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + heartbeatDelivery.inFlight + auxiliaryWork, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating)) break;
+          const job = zGate.ready ? await claimAccounting.claim(() => api.claimRender(agentId), (claimed) => { if (claimed) activeJobs++; }) : null;
           if (job) {
             if (!job.relative_path) {
               logger.error("Claimed job missing relative_path", { jobId: job.job_id });
-              await api.completeRender(job.job_id, false, undefined, "Asset missing relative_path");
+              try { await api.completeRender(job.job_id, false, undefined, "Asset missing relative_path"); } finally { activeJobs--; }
               continue;
             }
-            activeJobs++;
             processJob(job)
               .catch((e) => logger.error("Uncaught job error", { error: (e as Error).message }))
               .finally(() => {
@@ -687,14 +704,14 @@ function startPolling() {
             // toSgUncPath reads from the PopSG mount only when one is set; otherwise
             // it builds the path on the main mount/host, so readiness follows that.
             Boolean((cloudSgNasMountPath || "").trim()), zGate.ready, ensureSgNasMapped);
-          const sgJob = sgReady ? await api.claimSgRender(agentId) : null;
+          if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + heartbeatDelivery.inFlight + auxiliaryWork, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating)) break;
+          const sgJob = sgReady ? await claimAccounting.claim(() => api.claimSgRender(agentId), (claimed) => { if (claimed) activeJobs++; }) : null;
           if (sgJob) {
             if (!sgJob.relative_path) {
               logger.error("Claimed SG job missing relative_path", { jobId: sgJob.job_id });
-              await api.completeSgRender(sgJob.job_id, false, undefined, "File missing relative_path");
+              try { await api.completeSgRender(sgJob.job_id, false, undefined, "File missing relative_path"); } finally { activeJobs--; }
               continue;
             }
-            activeJobs++;
             processSgJob(sgJob)
               .catch((e) => logger.error("Uncaught SG job error", { error: (e as Error).message }))
               .finally(() => {
@@ -895,7 +912,7 @@ async function main() {
 
   // 8. Initialize self-updater
   initUpdater({
-    getActiveJobs: () => activeJobs,
+    getActiveJobs: () => activeJobs + claimAccounting.inFlight + auxiliaryWork,
     agentId,
   });
 
@@ -929,11 +946,12 @@ function startTiffScanChecker() {
   const TIFF_SCAN_CHECK_MS = 30_000;
 
   const loop = async () => {
-    if (!configReceived || !healthStatus.healthy || tiffScanRunning) {
+    if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + heartbeatDelivery.inFlight + auxiliaryWork, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating) || !configReceived || !healthStatus.healthy || tiffScanRunning) {
       setTimeout(loop, TIFF_SCAN_CHECK_MS);
       return;
     }
 
+    auxiliaryWork++; // Before claim HTTP; held through all returned work/completion.
     try {
       const resp = await api.callApi("claim-tiff-scan", {});
       const reqValue = (resp?.request as Record<string, unknown> | null) ?? null;
@@ -1033,6 +1051,7 @@ function startTiffScanChecker() {
     } catch (e) {
       logger.error("TIFF scan failed", { error: (e as Error).message });
     } finally {
+      auxiliaryWork--;
       tiffScanRunning = false;
     }
 
@@ -1048,11 +1067,12 @@ function startTiffPolling() {
   const TIFF_POLL_MS = 5_000;
 
   const loop = async () => {
-    if (!configReceived || !healthStatus.healthy || tiffScanRunning) {
+    if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + heartbeatDelivery.inFlight + auxiliaryWork, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating) || !configReceived || !healthStatus.healthy || tiffScanRunning) {
       setTimeout(loop, TIFF_POLL_MS);
       return;
     }
 
+    auxiliaryWork++; // Before claim HTTP; held through all returned work/completion.
     try {
       const resp = await api.callApi("claim-tiff-job", {
         agent_id: agentId,
@@ -1145,7 +1165,7 @@ function startTiffPolling() {
       if (!(e as Error).message?.includes("Unknown action")) {
         logger.debug("TIFF poll error", { error: (e as Error).message });
       }
-    }
+    } finally { auxiliaryWork--; }
 
     setTimeout(loop, TIFF_POLL_MS);
   };
@@ -1158,11 +1178,12 @@ function startTiffReinspectPolling() {
   const REINSPECT_POLL_MS = 7_000;
 
   const loop = async () => {
-    if (!configReceived || !healthStatus.healthy || tiffScanRunning) {
+    if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + heartbeatDelivery.inFlight + auxiliaryWork, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating) || !configReceived || !healthStatus.healthy || tiffScanRunning) {
       setTimeout(loop, REINSPECT_POLL_MS);
       return;
     }
 
+    auxiliaryWork++; // Before claim HTTP; held through all returned work/completion.
     try {
       const resp = await api.callApi("claim-tiff-reinspect", {
         agent_id: agentId,
@@ -1242,7 +1263,7 @@ function startTiffReinspectPolling() {
       if (!(e as Error).message?.includes("Unknown action")) {
         logger.debug("TIFF re-inspection poll error", { error: (e as Error).message });
       }
-    }
+    } finally { auxiliaryWork--; }
 
     setTimeout(loop, REINSPECT_POLL_MS);
   };
@@ -1259,11 +1280,12 @@ function startHygieneScanChecker() {
   const CHECK_MS = 30_000;
 
   const loop = async () => {
-    if (!configReceived || !healthStatus.healthy || hygieneScanRunning) {
+    if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + heartbeatDelivery.inFlight + auxiliaryWork, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating) || !configReceived || !healthStatus.healthy || hygieneScanRunning) {
       setTimeout(loop, CHECK_MS);
       return;
     }
 
+    auxiliaryWork++; // Before claim HTTP; held through all returned work/completion.
     try {
       const resp = await api.callApi("claim-hygiene-scan", {});
       const reqValue = (resp?.request as Record<string, unknown> | null) ?? null;
@@ -1420,6 +1442,7 @@ function startHygieneScanChecker() {
     } catch (e) {
       logger.error("Hygiene scan failed", { error: (e as Error).message });
     } finally {
+      auxiliaryWork--;
       hygieneScanRunning = false;
     }
 
