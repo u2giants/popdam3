@@ -49,8 +49,7 @@ export async function handleDebugColdlionLookup(body: Record<string, unknown>) {
 
 export async function handleRepairInvalidPropertyNames() {
   const db = serviceClient();
-  const fetchPropertyCodes = async (division: string): Promise<Set<string>> =>
-    new Set(Object.keys(await getMgLookup("06", division)));
+  const fetchPropertyCodes = async (division: string): Promise<Set<string>> => new Set(Object.keys(await getMgLookup("06", division)));
 
   const [cw001Codes, sp001Codes, eh001Codes] = await Promise.all([
     fetchPropertyCodes("CW001"),

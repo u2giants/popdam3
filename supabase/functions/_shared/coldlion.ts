@@ -103,9 +103,7 @@ export async function getColdLionItemInfo(itemNo: string): Promise<ColdLionItemI
       ORDER BY raw ->> 'createdTime' LIMIT 1`,
   );
   const hit = rows[0];
-  const info = hit?.created_time
-    ? { createdTime: String(hit.created_time), divisionCode: String(hit.division_code ?? "") }
-    : null;
+  const info = hit?.created_time ? { createdTime: String(hit.created_time), divisionCode: String(hit.division_code ?? "") } : null;
   itemCache.set(key, info);
   return info;
 }
