@@ -1501,6 +1501,22 @@ the `CHECK` constraint on division shape. The `erp_items_current.division_code` 
 ahead as a **feed-sourced** backfill. Normalising `itemHeader.compan_code_fk` is a company
 code, not a division, and is unaffected.
 
+#### Addendum (Albert Hazan, 2026-10-21): the live DesignFlow app keeps its numeric division id
+
+**His words, in chat, 2026-10-21**, answering whether §6.17 also meant the merch-group sync
+should stop writing `divisionCode_id_fk`:
+
+> "put this mapping back in designflow-data-syncing/helpers/utility.js (remapMGDetail):
+> CW001 → 1, SP001 → 8, EH001 → 9 and fill dflow_prod."merchGroup" rows that already have
+> divisionCode_fk set and divisionCode_id_fk null, including Casper. Those numbers will not be
+> written into the shared database."
+
+So §6.17 governs the shared taxonomy and anything new: the numeric ids are still not modelled,
+bridged or migrated there. The DesignFlow app's own tables (`dflow_prod`/`dflow`/`core`
+`"merchGroup"`) keep writing `divisionCode_id_fk` from the ColdLion code, because the item screen
+still filters merch groups by it. Removing that write (designflow-data-syncing 799486fe,
+2026-10-08) dropped every newly synced merch group out of its division.
+
 ### 6.16 OWNER RULING — licence CONTRACTS are NOT a source for this database, and licence TERM and TERRITORY do not belong in it at all (Albert Hazan, 2026-08-19)
 
 **His words, in chat, 2026-08-19, in reply to four questions about the NBCU Schedule "B" contract:**
