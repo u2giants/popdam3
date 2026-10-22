@@ -245,8 +245,9 @@ have already happened in this repo, more than once.
 
 # Superseding note — 2026-10-15
 
-Owner ruling 2026-10-14 supersedes the two-review line in
-HANDOFF.d/2026-10-14T2247Z-edge-dev-mimo-2336-production-live-proof.md:123.
-One independent exact-head APPROVE is enough for every change.
+Owner ruling 2026-10-14 supersedes the two-review line formerly in
+`HANDOFF.d/2026-10-14T2247Z-edge-dev-mimo-2336-production-live-proof.md` (retired
+with closed #2336; recover from git history). One independent exact-head APPROVE
+is enough for every change.
 
 Posted by MiMo chat ffe5ed27-27a0-dffe-92fd-227bed167df0 on EDGE-DEV
