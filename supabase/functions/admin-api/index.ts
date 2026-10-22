@@ -1,5 +1,6 @@
 import { createClient } from "../_shared/supabase-js.ts";
 import { authenticateUser as sharedAuthenticateUser, requireAdmin } from "../_shared/admin-auth.ts";
+import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { findRunningConflict } from "../_shared/operation-constants.ts";
 import { serviceClient } from "../_shared/service-client.ts";
@@ -163,10 +164,6 @@ async function authenticateAdmin(
 // ── Actions accessible to any authenticated user (not admin-only) ────
 
 const USER_ACCESSIBLE_ACTIONS = new Set([
-  "list-sibling-images",
-  "get-sibling-scan-result",
-  "get-sibling-scan-by-folder",
-  "ingest-sibling-images",
   "sync-group-tags",
   "refresh-group-metadata",
   "add-scoped-tag",
@@ -174,6 +171,43 @@ const USER_ACCESSIBLE_ACTIONS = new Set([
   "review-scoped-tag",
   "fetch-thumbnail-by-url",
 ]);
+
+// ── Actions that move artwork between style groups: designers and admins ──
+// Owner ruling (Albert, 2026-10-22): "designers and admins only". Admin is the
+// PopDAM `admin` role; designer/administrator come from the shared app-schema
+// role system, read with the caller's own JWT so the database applies its
+// usual rules. Fails closed on any error.
+
+const DESIGNER_OR_ADMIN_ACTIONS = new Set([
+  "list-sibling-images",
+  "get-sibling-scan-result",
+  "get-sibling-scan-by-folder",
+  "ingest-sibling-images",
+]);
+
+async function authenticateDesignerOrAdmin(
+  req: Request,
+): Promise<{ userId: string } | Response> {
+  const result = await sharedAuthenticateUser(req, ADMIN_AUTH_OPTS);
+  if (!result.ok) return authFailureResponse(result.reason);
+  if (result.via === "service_role") return { userId: result.userId };
+
+  const { data: roles } = await serviceClient().from("user_roles").select("role").eq("user_id", result.userId);
+  if (rolesGrantAdmin(roles)) return { userId: result.userId };
+
+  try {
+    const caller = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: req.headers.get("Authorization")! } } },
+    );
+    const { data, error } = await caller.schema("app").rpc("has_any_role", { required_roles: ["designer", "administrator"] });
+    if (!error && data === true) return { userId: result.userId };
+  } catch (e) {
+    console.error("designer role check failed:", e instanceof Error ? e.message : String(e));
+  }
+  return err("Forbidden: designer or admin role required", 403);
+}
 
 // ── Retry helper for transient connection / body-read errors ────────
 
@@ -1996,7 +2030,9 @@ corsServe(async (req: Request) => {
     console.log(`admin-api action: ${action}`);
 
     // Choose auth level: some actions are open to all authenticated users
-    const authResult = USER_ACCESSIBLE_ACTIONS.has(action) ? await authenticateUser(req) : await authenticateAdmin(req);
+    const authResult = DESIGNER_OR_ADMIN_ACTIONS.has(action)
+      ? await authenticateDesignerOrAdmin(req)
+      : USER_ACCESSIBLE_ACTIONS.has(action) ? await authenticateUser(req) : await authenticateAdmin(req);
     if (authResult instanceof Response) return authResult;
     const { userId } = authResult;
 
