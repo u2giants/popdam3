@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "generation": 4,
+  "work_issue": 4643,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Drop the five text indexes on public.dam_search_documents that no live reader uses since 20261021223359 moved keyword search to dam_search_keys",
+  "base_sha": "c9acaa4b7ff0d10f332e61fad349b7de5d000828",
+  "dispatcher": "Claude chat add21edf-7582-48a4-ac99-21704cebea77 on edge-dev3 (Albert: 'you take that issue and bring it to completion')",
+  "worker": "claude-add21edf-edge-dev3-4643b",
+  "branch": "claude/4643-retire-dam-text-indexes-v2",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/awesome-faraday-ab2ca9",
+  "allowed_paths": [
+    "supabase/migrations/20261022191243_retire_dam_search_documents_text_indexes.sql",
+    "scripts/production-verification-sidecars/20261022191243.json",
+    "config/production-verification-sidecar-registry.json",
+    ".agent/work/4643/4/contract.json",
+    ".agent/work/4643/4/completion.json",
+    ".agent/work/4643/3/contract.json",
+    ".agent/work/4643/3/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261022191243_retire_dam_search_documents_text_indexes.sql",
+    "scripts/production-verification-sidecars/20261022191243.json",
+    "config/production-verification-sidecar-registry.json",
+    ".agent/work/4643/4/contract.json",
+    ".agent/work/4643/4/completion.json",
+    ".agent/work/4643/3/contract.json",
+    ".agent/work/4643/3/completion.json"
+  ],
+  "db_reads": [
+    "function public.search_dam_documents",
+    "table public.dam_search_documents"
+  ],
+  "db_writes": [
+    "index public.idx_dam_search_documents_customer_trgm",
+    "index public.idx_dam_search_documents_path_trgm",
+    "index public.idx_dam_search_documents_program_trgm",
+    "index public.idx_dam_search_documents_title_trgm",
+    "index public.idx_dam_search_documents_tsv"
+  ],
+  "prohibited_actions": [
+    "No change to search_dam_documents, dam_search_keys, the search_tsv column, the embedding indexes or the primary key",
+    "Never promote 20261021063716 or 20261021152741"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 scripts/check_production_verification_sidecars.py --scan-version 20261022191243",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "No live function filters dam_search_documents by search_tsv or trigram/ILIKE predicates (verified read-only on production 2026-10-22)",
+    "Generation 2: the from-empty CI replay recreates dam_search_documents and its indexes in pass 2 after this migration, so absence is proven by catalog_absence sidecar checks on preview and production instead of a supabase/tests file (StepFun REJECT H1/H2 at 4de86250)",
+    "Generation 3: re-landed on a clean branch and new claim (version 20261022191243; 20261022184745 stays reserved, never reused) because PR #4645's non-canonical evidence commits blocked the review-budget provenance check",
+    "Generation 4: refresh from main and re-review with --tests so the ship gate holds local-tests evidence; SQL unchanged from the GLM-approved head 430408f7"
+  ],
+  "stop_conditions": [
+    "Stop if any of the five index scan counters grows between two production reads"
+  ],
+  "evidence_parent": {
+    "work_issue": 4643,
+    "generation": 3,
+    "contract_sha256": "a9e2757aeadff81d5e19e47af9d8338554be6b3ce1393396c2c1d4308ff6e205"
+  }
+}
