@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "work_issue": 3779,
+  "outcome": "ready-for-merge",
+  "pr": 4545,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3779/12",
+  "contract_sha256": "93eef198154b61793dfb508afde52238bd7f4f7afb7dc9d7a8ee4d56d0df1e6c",
+  "base_sha": "f2438ee10035758e86bc1c3c09a77af79d4bc0b4",
+  "head_sha": "eff5d50045523b0e4eac4c50dee7a3f72ba5108a",
+  "files_changed": [
+    ".github/workflows/migration-author-lease.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/throughput-dispositions/scripts~lib~release-hold-evidence.mjs.json",
+    "plan_shared_release_hold_reduction.md",
+    "scripts/lib/lanes/github-wire.mjs",
+    "scripts/lib/lanes/holds-and-refs.mjs",
+    "scripts/lib/release-hold-evidence.mjs",
+    "scripts/lib/release-hold-evidence.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors on eff5d500 against f2438ee1."
+    },
+    {
+      "command": "node --test scripts/lib/release-hold-evidence.test.mjs scripts/lib/exclusive-lease.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/manage-migration-author-lanes-surface.test.mjs scripts/lib/lanes/exclusive-policy.test.mjs scripts/mutex-release-on-refusal.test.mjs scripts/coordination-scenarios.test.mjs scripts/queue-hygiene-report.test.mjs scripts/lib/github-transport.test.mjs scripts/check-github-transport-conformance.test.mjs",
+      "exit_code": 0,
+      "evidence": "1096 passed, 0 failed on the step-2 tree against f2438ee1 (October 21, 2026, 11:38 AM EDT, edge-dev)."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=358 sources=101 derived_digest=2ed6d57bcd56 (new catalogue for scripts/lib/release-hold-evidence.mjs)."
+    },
+    {
+      "command": "node scripts/check-current-workflow-policy.mjs",
+      "exit_code": 0,
+      "evidence": "Current workflow policy matrix matches implementation and cited owner rulings."
+    }
+  ],
+  "assumptions_resolved": [
+    "Step 2 only; step 8a continues on its own branch and pull request after PR #4518 lands or forfeits its queue place.",
+    "The implementation head preceded the contract publication; this evidence pair is the only commit after it.",
+    "Plan \u00a710 regression commands were run on the combined tree earlier today and pass; the step-2 subset above was re-run on this exact tree."
+  ],
+  "stop_conditions_hit": []
+}

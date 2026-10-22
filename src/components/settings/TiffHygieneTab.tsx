@@ -162,6 +162,14 @@ export default function TiffHygieneTab() {
     : false;
   const isAgentScanning = !isStale && (scanPending || scanReqStatus === "pending" || scanReqStatus === "claimed");
 
+  // Clear the optimistic local flag once the server reports a terminal status;
+  // otherwise isAgentScanning stays true and polling never stops.
+  useEffect(() => {
+    if (scanPending && scanReqStatus && scanReqStatus !== "pending" && scanReqStatus !== "claimed") {
+      setScanPending(false);
+    }
+  }, [scanPending, scanReqStatus]);
+
   // Auto-poll for results while scan is pending/claimed
   useEffect(() => {
     if (isAgentScanning) {

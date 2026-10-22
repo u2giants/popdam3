@@ -1,8 +1,8 @@
-import { config } from "../config.js";
 import { isMetaDirectModel, isTerminalMetaModelApiError, metaChatCompletion } from "../meta-model-api.js";
 import { db } from "../supabase.js";
 import { getOpenRouterApiKey } from "../openrouter-key.js";
 import { getGoogleAiApiKey } from "../google-ai-key.js";
+import { getMetaApiKey } from "../provider-api-key.js";
 import { isDirectGeminiBatchModel } from "../gemini-batch.js";
 import { imageContent, publicImageContent, tool, OpenRouterError, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
 import { getRuntimeModelCapabilities } from "../model-capabilities.js";
@@ -112,7 +112,7 @@ export function validateTagAssetData(value: Record<string, unknown>, mode: strin
       if (typeof item.category !== "string" || !ASSET_TAG_CATEGORIES.includes(item.category)) {
         errors.push("every asset tag must use an asset-only category");
       }
-      if (typeof item.confidence !== "number" || item.confidence < 0 || item.confidence > 1) {
+      if (typeof item.confidence !== "number" || !Number.isFinite(item.confidence) || item.confidence < 0 || item.confidence > 1) {
         errors.push("every asset tag confidence must be between 0 and 1");
       }
       if (!Array.isArray(item.evidence) || item.evidence.length === 0 || item.evidence.some((entry) => typeof entry !== "string" || !entry.trim())) {
@@ -129,6 +129,13 @@ export function validateTagAssetData(value: Record<string, unknown>, mode: strin
   }
   if (typeof value.content_type !== "string" || !CONTENT_TYPE_VALUES.includes(value.content_type)) {
     errors.push("content_type must be a recognized file kind");
+  }
+  for (const field of ["asset_type", "art_source"] as const) {
+    const properties = TAG_ASSET_SCHEMA.properties as Record<string, { enum: unknown[] }>;
+    const allowed = properties[field].enum;
+    if (value[field] !== undefined && !allowed.includes(value[field])) {
+      errors.push(`${field} must be one of ${JSON.stringify(allowed)}; use JSON null, never the string "null"`);
+    }
   }
   if (errors.length > 0) {
     throw new Error(`Model returned invalid ${mode} tag data: ${errors.join("; ")}`);
@@ -184,8 +191,90 @@ export async function fetchImageData(thumbnailUrl: string, timeoutMs = THUMBNAIL
   return { base64: bytes.toString("base64"), mimeType };
 }
 
-export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promise<string> {
-  const client = db();
+export class CharacterCatalogDependencyError extends Error {
+  readonly code: string;
+  constructor(code = "unknown") { super("Character catalog dependency failed; accepted response retained"); this.code = /^[A-Z0-9_]{1,16}$/i.test(code) ? code : "unknown"; this.name = "CharacterCatalogDependencyError"; }
+}
+export class AssetTagApplyError extends Error {
+  readonly code: string;
+  constructor(public readonly stage: "asset_reload" | "asset_tags" | "character_links" | "file_sources" | "asset_metadata", code?: string) {
+    super(stage === "asset_tags" ? "Atomic AI tag write failed" : `Asset tagging save failed at ${stage}`); this.name = "AssetTagApplyError";
+    this.code = code && /^[A-Z0-9_]{1,16}$/i.test(code) ? code : "unknown";
+  }
+}
+export class CharacterReferenceValidationError extends Error {
+  constructor() { super("Model returned invalid character references: character_ids must be UUIDs from the supplied character catalog and existing characters; select only exact visual matches"); this.name = "CharacterReferenceValidationError"; }
+}
+const CHARACTER_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function normalizeCharacterIds(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some(id => typeof id !== "string" || !CHARACTER_UUID.test(id))) throw new CharacterReferenceValidationError();
+  return [...new Set((value as string[]).map(id => id.toLowerCase()))];
+}
+/** Constrain synchronous trial output to the exact catalog supplied in its prompt. */
+export function tagAssetSchemaForCharacters(binding?: string[]): Record<string, unknown> {
+  if (binding === undefined) return TAG_ASSET_SCHEMA;
+  const ids = normalizeCharacterIds(binding);
+  const schema = structuredClone(TAG_ASSET_SCHEMA) as Record<string, unknown>;
+  const properties = schema.properties as Record<string, Record<string, unknown>>;
+  properties.character_ids = {
+    ...properties.character_ids,
+    ...(ids.length ? { items: { type: "string", enum: ids } } : { maxItems: 0 }),
+  };
+  return schema;
+}
+
+export function validateTagCharacterBinding(value: unknown, binding: string[]): void {
+  const ids = normalizeCharacterIds(value);
+  const allowed = new Set(normalizeCharacterIds(binding));
+  if (ids.some(id => !allowed.has(id))) throw new CharacterReferenceValidationError();
+}
+
+export async function validateCharacterReferences(
+  value: unknown, binding: string[] | undefined, client: ReturnType<typeof db> = db(),
+): Promise<string[]> {
+  const ids = normalizeCharacterIds(value);
+  if (binding && ids.some(id => !binding.includes(id))) throw new CharacterReferenceValidationError();
+  if (!ids.length) return ids;
+  let response;
+  try { response = await client.from("characters").select("id").in("id", ids); }
+  catch { throw new CharacterCatalogDependencyError("transport"); }
+  const { data, error } = response;
+  if (error || !data) throw new CharacterCatalogDependencyError(error?.code);
+  if (!Array.isArray(data)) throw new CharacterCatalogDependencyError("catalog_contract");
+  let existing: Set<string>;
+  try { existing = new Set(normalizeCharacterIds(data.map(row => row.id))); } catch { throw new CharacterCatalogDependencyError("catalog_contract"); }
+  if (ids.some(id => !existing.has(id))) throw new CharacterReferenceValidationError();
+  return ids;
+}
+export interface TaggingPromptOptions {
+  onCharacterCatalog?: (ids: string[]) => void;
+  requireCharacterReadSuccess?: boolean;
+  client?: ReturnType<typeof db>;
+}
+
+/** Grouped assets take licensing from their Style Group; only ungrouped assets fall back to their own columns. */
+export async function resolveLicensingNames(
+  client: ReturnType<typeof db>,
+  asset: Pick<TaggingPromptAsset, "licensor_id" | "property_id" | "style_group_id">,
+): Promise<{ licensorName: string | null; propertyName: string | null }> {
+  if (asset.style_group_id) {
+    const { data } = await client.from("style_groups").select("licensor_name, property_name").eq("id", asset.style_group_id).maybeSingle();
+    return { licensorName: data?.licensor_name ?? null, propertyName: data?.property_name ?? null };
+  }
+  const [licensor, property] = await Promise.all([
+    asset.licensor_id ? client.schema("core").from("licensor").select("name").eq("id", asset.licensor_id).maybeSingle() : null,
+    asset.property_id ? client.schema("core").from("property").select("name").eq("id", asset.property_id).maybeSingle() : null,
+  ]);
+  return { licensorName: licensor?.data?.name ?? null, propertyName: property?.data?.name ?? null };
+}
+
+export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options: TaggingPromptOptions = {}): Promise<string> {
+  const client = options.client ?? db();
+  const checkedCharacterRead = (error: { code?: string } | null, data: unknown) => { if (options.requireCharacterReadSuccess && (error || !Array.isArray(data))) throw new CharacterCatalogDependencyError(error?.code ?? "catalog_contract"); };
+  const checkedQuery = async <T>(query: PromiseLike<T>): Promise<T> => {
+    try { return await query; } catch (error) { if (options.requireCharacterReadSuccess) throw new CharacterCatalogDependencyError("transport"); throw error; }
+  };
 
   const { data: instrRow } = await client
     .from("admin_config")
@@ -194,10 +283,12 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
     .maybeSingle();
   const customInstructions = typeof instrRow?.value === "string" ? instrRow.value.trim() : null;
 
-  const [licensorsRes, propertiesRes] = await Promise.all([
+  const [licensorsRes, propertiesRes] = await checkedQuery(Promise.all([
     client.schema("core").from("licensor").select("id, name").limit(50),
     client.schema("core").from("property").select("id, name, licensor_id").limit(200),
-  ]);
+  ]));
+  checkedCharacterRead(licensorsRes.error, licensorsRes.data);
+  checkedCharacterRead(propertiesRes.error, propertiesRes.data);
   const licensors = licensorsRes.data ?? [];
   const properties = propertiesRes.data ?? [];
 
@@ -205,63 +296,74 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
   let usingPriorityOnly = false;
 
   if (asset.property_id) {
-    const { data: priorityChars } = await client
+    const { data: priorityChars, error: priorityError } = await checkedQuery(client
       .from("dam_character_catalog")
       .select("id, name")
       .eq("core_property_id", asset.property_id)
       .eq("is_priority", true)
-      .order("usage_count", { ascending: false });
+      .order("usage_count", { ascending: false }));
 
+    checkedCharacterRead(priorityError, priorityChars);
     if (priorityChars && priorityChars.length > 0) {
       characters = priorityChars;
       usingPriorityOnly = true;
     } else {
-      const { data: allChars } = await client
+      const { data: allChars, error: allError } = await checkedQuery(client
         .from("dam_character_catalog")
         .select("id, name")
         .eq("core_property_id", asset.property_id)
-        .order("name");
+        .order("name"));
+      checkedCharacterRead(allError, allChars);
       characters = allChars ?? [];
     }
   } else if (asset.licensor_id) {
-    const { data: propIds } = await client
+    const { data: propIds, error: propertyIdsError } = await checkedQuery(client
       .schema("core")
       .from("property")
       .select("id")
-      .eq("licensor_id", asset.licensor_id);
+      .eq("licensor_id", asset.licensor_id));
+    checkedCharacterRead(propertyIdsError, propIds);
     const ids = (propIds ?? []).map((p: { id: string }) => p.id);
 
     if (ids.length > 0) {
-      const { data: priorityChars } = await client
+      const { data: priorityChars, error: priorityError } = await checkedQuery(client
         .from("dam_character_catalog")
         .select("id, name")
         .in("core_property_id", ids)
         .eq("is_priority", true)
         .order("usage_count", { ascending: false })
-        .limit(200);
+        .limit(200));
 
+      checkedCharacterRead(priorityError, priorityChars);
       if (priorityChars && priorityChars.length > 0) {
         characters = priorityChars;
         usingPriorityOnly = true;
       } else {
-        const { data: allChars } = await client
+        const { data: allChars, error: allError } = await checkedQuery(client
           .from("dam_character_catalog")
           .select("id, name")
           .in("core_property_id", ids)
-          .limit(300);
+          .limit(300));
+        checkedCharacterRead(allError, allChars);
         characters = allChars ?? [];
       }
     }
   } else {
-    const { data: priorityChars } = await client
+    const { data: priorityChars, error: priorityError } = await checkedQuery(client
       .from("dam_character_catalog")
       .select("id, name")
       .eq("is_priority", true)
       .order("usage_count", { ascending: false })
-      .limit(150);
+      .limit(150));
+    checkedCharacterRead(priorityError, priorityChars);
     characters = priorityChars ?? [];
   }
 
+  if (options.onCharacterCatalog) {
+    let ids: string[];
+    try { ids = normalizeCharacterIds(characters.map(character => character.id)); } catch { throw new CharacterCatalogDependencyError("catalog_contract"); }
+    options.onCharacterCatalog(ids);
+  }
   const charContext = usingPriorityOnly
     ? "Priority characters for this property/licensor (match from this list first):\n"
     : "Characters (full list for this property):\n";
@@ -311,8 +413,11 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
     .limit(1)
     .maybeSingle();
   const extractedPdfText = pdfSample?.extracted_text ?? null;
+  const { licensorName, propertyName } = await resolveLicensingNames(client, asset);
   return buildTaggingSystemPrompt({
     asset,
+    licensorName,
+    propertyName,
     taxonomyContext,
     erpDescription,
     itemDescription,
@@ -348,6 +453,11 @@ export function buildBatchImageTaggingMessages(systemPrompt: string, imageUrl: s
   ];
 }
 
+export function isRetryableTagTransportError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.name === "TimeoutError" || error.name === "AbortError" || /(?:timed out|timeout|fetch failed)/i.test(error.message);
+}
+
 export async function callTagAssetModel(
   apiKey: string,
   model: string,
@@ -355,10 +465,11 @@ export async function callTagAssetModel(
   timeoutMs: number,
   maxTokens = 4000,
   provider?: ChatCompletionRequest["provider"],
+  characterCatalogIds?: string[],
 ): Promise<TagAssetCompletionResult> {
   const directMeta = isMetaDirectModel(model);
-  const selectedApiKey = directMeta ? config.metaApiKey : apiKey;
-  if (directMeta && !selectedApiKey) throw new Error("Meta Model API key not configured (set META_API_KEY in Railway)");
+  const selectedApiKey = directMeta ? await getMetaApiKey() : apiKey;
+  if (directMeta && !selectedApiKey) throw new Error("Meta Model API key is not configured in Settings");
   const capabilities = directMeta ? {
     modelId: model,
     imageInput: true,
@@ -372,16 +483,16 @@ export async function callTagAssetModel(
     fetchedAt: new Date().toISOString(),
   } : await getRuntimeModelCapabilities(selectedApiKey, model);
   const result = await executeStructuredOutput({
-    apiKey: selectedApiKey, model, messages, schemaName: "tag_asset", schema: TAG_ASSET_SCHEMA,
+    apiKey: selectedApiKey, model, messages, schemaName: "tag_asset", schema: tagAssetSchemaForCharacters(characterCatalogIds),
     capabilities, timeoutMs, maxTokens, provider: directMeta ? undefined : provider,
     completion: directMeta ? metaChatCompletion : undefined,
-    isTerminalError: directMeta ? isTerminalMetaModelApiError : undefined,
-    validate(value) { validateTagAssetData(value, "structured"); return value; },
+    isTerminalError: directMeta ? (error) => isTerminalMetaModelApiError(error) || isRetryableTagTransportError(error) : undefined,
+    validate(value) { validateTagAssetData(value, "structured"); if (characterCatalogIds !== undefined) validateTagCharacterBinding(value.character_ids, characterCatalogIds); return value; },
   });
   return { tagData: result.value, usage: result.usage as TagAssetCompletionResult["usage"], outputMode: result.outputMode, providerInfo: result.providerInfo, retryCount: result.repairCount, attempts: result.attempts };
 }
 
 export function getAiTaggingApiKey(model?: string): Promise<string> {
   if (model && isDirectGeminiBatchModel(model)) return getGoogleAiApiKey();
-  return model && isMetaDirectModel(model) ? Promise.resolve(config.metaApiKey) : getOpenRouterApiKey();
+  return model && isMetaDirectModel(model) ? getMetaApiKey() : getOpenRouterApiKey();
 }

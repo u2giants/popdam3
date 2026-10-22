@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "work_issue": 2530,
+  "outcome": "ready-for-merge",
+  "pr": 4364,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2530/18",
+  "contract_sha256": "d3657d50c1fad59b694edb72a8d98538268b1c25c02de26b2086b314f9b25dc6",
+  "head_sha": "9bfd99dd951a089528fdaa8bead90da48532fc00",
+  "base_sha": "a79c2d281c9c0b25627bfff2eb06f914674f764b",
+  "files_changed": [
+    "docs/verification/merge-queue-canary-20261015T2235Z.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "test -f docs/verification/merge-queue-canary-20261015T2235Z.md",
+      "exit_code": 0,
+      "evidence": "Canary note file present on the implementation head."
+    }
+  ],
+  "assumptions_resolved": [
+    "Pure-prose canary for GitHub merge-queue Step 9."
+  ],
+  "stop_conditions_hit": []
+}

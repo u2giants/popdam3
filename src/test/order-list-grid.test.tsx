@@ -30,16 +30,26 @@ function row(overrides: Partial<OrderListRow>): OrderListRow {
 
 function renderGrid(rows: OrderListRow[], onEditOrder = vi.fn()) {
   // Stands in for the database: the grid asks for a bounded block of rows.
+  // Call the success callback asynchronously, the way the Orders page does --
+  // a synchronous callback can race AG Grid's infinite-row setup and leave
+  // cells unmounted depending on layout timing in jsdom.
   const datasource = {
-    getRows: (params: any) => params.successCallback(rows, rows.length),
+    getRows: (params: any) => {
+      void Promise.resolve().then(() => params.successCallback(rows, rows.length));
+    },
   };
+  // AG Grid measures its host to decide which columns to virtualize. A 0×0
+  // host in jsdom makes that measurement timing-dependent, so give the grid
+  // the same explicit size the stable OrderList grid tests use.
   const utils = render(
-    <OrderListGrid
-      datasource={datasource}
-      onCellEdited={vi.fn()}
-      onRelink={vi.fn()}
-      onEditOrder={onEditOrder}
-    />,
+    <div style={{ height: 360, width: 720 }}>
+      <OrderListGrid
+        datasource={datasource}
+        onCellEdited={vi.fn()}
+        onRelink={vi.fn()}
+        onEditOrder={onEditOrder}
+      />
+    </div>,
   );
   return { ...utils, onEditOrder };
 }

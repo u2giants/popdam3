@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 4486,
+  "outcome": "ready-for-merge",
+  "pr": 4490,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4486/2",
+  "contract_sha256": "b9f65f056abdc409306f96a2e29a147b01cdc164bd697232a7443931a5d6aa07",
+  "head_sha": "a79c336164dd8d7fceb4ee62a8c5489cdc4074b5",
+  "base_sha": "f30e7650a9987b3b1ef46865b8d6dd66803018f2",
+  "files_changed": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/requalified_preview_runs.py",
+    "scripts/test_requalified_preview_runs.py",
+    "scripts/test_verify_preview_apply_artifact.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions_resolved": [],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    },
+    {
+      "command": "python3 -m pytest -q scripts/test_requalified_preview_runs.py scripts/test_verify_preview_apply_artifact.py scripts/test_production_business_risk_gate.py",
+      "exit_code": 0,
+      "evidence": "237 passed, 385 subtests passed"
+    },
+    {
+      "command": "node --test scripts/db-flow/requalified-preview-runs.test.mjs",
+      "exit_code": 0,
+      "evidence": "4 pass"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 4171,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/358",
+  "contract_sha256": "fae73360c8d6f4b6723a7ccf870b79f7bef272136c492ffbb62b4c35b76d6657",
+  "head_sha": "3c9afa5755f91b431a13daa282c9dcd98db7954d",
+  "base_sha": "544875ec8a4e4d997a16538a71ac9628dc0ca922",
+  "files_changed": [
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "scripts/orchestrator-flow/admission.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/orchestrator-flow/admission-outcome.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual SOURCE local tests970 PASS, zero failures/skips; truth audit342 calls/96 sources; preserved358-source-tests.log and358-source-truth.log. All nine actual SOURCE GitHub workflows succeeded at3c9, preserved358-source-ci-terminal.json."
+    },
+    {
+      "command": "node --test scripts/check-pr-object-collisions.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual SOURCE local tests970 PASS, zero failures/skips; truth audit342 calls/96 sources; preserved358-source-tests.log and358-source-truth.log. All nine actual SOURCE GitHub workflows succeeded at3c9, preserved358-source-ci-terminal.json."
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual SOURCE local tests970 PASS, zero failures/skips; truth audit342 calls/96 sources; preserved358-source-tests.log and358-source-truth.log. All nine actual SOURCE GitHub workflows succeeded at3c9, preserved358-source-ci-terminal.json."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Actual SOURCE local tests970 PASS, zero failures/skips; truth audit342 calls/96 sources; preserved358-source-tests.log and358-source-truth.log. All nine actual SOURCE GitHub workflows succeeded at3c9, preserved358-source-ci-terminal.json."
+    }
+  ],
+  "assumptions_resolved": [
+    "Actual rejectedb504 fully preserved in verified bundle/ref/recovery branch; ordinary544875 integration preserved every foreign byte and retired only own353 pair. Selected JSONB source unchanged; foreign354 canonical pair retained.",
+    "Actual SOURCE3c9 published despite prior stale-intent gate refusal: preserved incident, no retroactive approval claim. Supported reviewer-safety redeclaration and subsequent ship/wait checks passed. All nine actual SOURCE workflows succeeded.",
+    "Root independently verified current5d876 freshness: clean automatic merge, no owned overlap/version collision and complete PRdiff unchanged. Immutable358 base and actual report mergebase remain544875; no integration or source witness invented.",
+    "Private actualcf76 whole SQL proof authenticates55 static plus27 column declarations and all17 table objects. Durable tests do not import unmerged2336 migration.",
+    "Original6143 START remains immutable/countable; native completion/artifact UNKNOWN. No provider draw, lease/reaper/status/probe/recovery/production action performed. Root retains technical decisions."
+  ],
+  "stop_conditions_hit": []
+}

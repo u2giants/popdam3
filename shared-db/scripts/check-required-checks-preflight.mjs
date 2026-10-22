@@ -10,7 +10,7 @@ import { pathToFileURL } from 'node:url'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { resolveRepositoryIdentity } from './lib/repository-identity.mjs'
 import { readEffectiveRequiredChecks, computeRevision, probeAuthorityReadPermissions } from './lib/required-check-authority.mjs'
-import { aggregateVerdict, loadRegistry } from './orchestrator-flow/runner-lanes.mjs'
+import { aggregateVerdict, loadRegistry } from './db-flow/runner-lanes.mjs'
 import { MERGE_SELF_CONTEXT as SELF_CONTEXT } from './lib/merge-self-context.mjs'
 export { SELF_CONTEXT }
 export class PreflightError extends Error {}

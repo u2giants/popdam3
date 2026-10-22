@@ -31,6 +31,31 @@ production command, manual workflow dispatch, other repository, or bypass.
 Docs-only PRs (no schema change) need just items 1 and "it reads correctly" —
 merge them promptly.
 
+### Review slots and carried reviews (owner 2026-10-14)
+
+`scripts/check-exact-head-approval.mjs` is the single authority for how many
+independent exact-head APPROVEs a pull request needs. **Owner ruling (Albert
+Hazan, 2026-10-14: "change the rules so that we don't need 2 reviews"): one
+independent exact-head APPROVE is enough for every change, including
+migrations.** No gate, test or helper may demand two slots. Branch protection
+is never disabled.
+
+A **tree-identical re-push** — same git tree, or same pull request diff ignoring
+`.agent/` — keeps valid existing reviews. Slot 1 is not re-drawn and no paid
+attempt is burned to re-pin the same bytes. For equivalent content, the newest
+valid historical slot-1 assignment may carry forward; a replacement must have
+its exact failure binding verified. A returned or refused slot cannot be
+revived from an older assignment. The newest valid assignment controls; a
+return or refusal blocks that slot until a newer valid assignment resolves
+it. An ancestor approval never fills a returned or refused new-head slot.
+Carried reviews do not consume another paid attempt.
+
+**Owner-quoted allowlist widening**: a fresh later draw may widen the earliest
+live peer's policy only with a recorded verbatim owner quote and a strict
+superset allowlist. A slot's own durable policy remains exact on retry and
+replacement. Narrowing, disjoint policies, unquoted widening, and restricting
+an unrestricted peer are refused.
+
 ### 5.0-D Declare what a re-derived migration was derived from — `-- derived-from:` (issue #1608, added 2026-08-26)
 
 Loader-style migrations here are authored as a **full re-derivation of the

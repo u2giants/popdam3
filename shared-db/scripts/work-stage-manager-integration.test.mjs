@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { parseQueueScope, buildDynamicQueues, readDependencyStates, verifyCompletionAcceptance } from './manage-migration-author-lanes.mjs'
 
-const scope = (number, depends = '') => ({ number, title: `work ${number}`, body: ['```db-work-scope', 'status: ready', 'work_type: structural', 'route: shared-db-orchestrator', 'service_class: standard-application', 'change_type: migration', 'application_return_to: popcre/example-app', 'live_assertion: authenticated create succeeds', 'generated_types: not-applicable', 'priority: 1', `depends_on: ${depends}`, 'writes:', `  - table core.task_${number}`, 'reads:', '```'].join('\n') })
+const scope = (number, depends = '') => ({ number, title: `work ${number}`, body: ['```db-work-scope', 'status: ready', 'work_type: structural', 'route: claim-first', 'service_class: standard-application', 'change_type: migration', 'application_return_to: popcre/example-app', 'live_assertion: authenticated create succeeds', 'generated_types: not-applicable', 'priority: 1', `depends_on: ${depends}`, 'writes:', `  - table core.task_${number}`, 'reads:', '```'].join('\n') })
 
 test('manager keeps explicit required stages and conservative legacy numbers', () => {
   assert.deepEqual(parseQueueScope(scope(10, '#11@implementation-merged, 12').body).dependencies, [{ issue: 11, required_stage: 'implementation-merged' }, 12])

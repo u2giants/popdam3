@@ -67,6 +67,7 @@ import {
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
+import { pickWindowsNasPassword } from "../_shared/windows-nas-password.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
 
@@ -211,6 +212,7 @@ const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
   "GOOGLE_AI_API_KEY",
   "OPENAI_API_KEY",
   "OPENROUTER_API_KEY",
+  "SCALEDOWN_API_KEY",
   "AI_MODELS",
   "AI_TASK_MODELS",
   "PDF_EXTRACTION_CONFIG",
@@ -232,7 +234,8 @@ const HEARTBEAT_CONFIG_KEYS_WINDOWS = [
   "WINDOWS_AGENT_SG_NAS_SHARE",
   "WINDOWS_AGENT_SG_NAS_MOUNT_PATH",
   "WINDOWS_AGENT_SG_NAS_USER",
-  "WINDOWS_AGENT_SG_NAS_PASS",
+  // WINDOWS_AGENT_SG_NAS_PASS is not in admin_config any more: it lives in Vault
+  // and is read server-side through get_sg_nas_password() (shared-db#4168).
   "WINDOWS_AGENT_RENDER_CONCURRENCY",
   "WINDOWS_REPAIR_CODE",
   "PDF_TEXT_SAMPLE_REQUEST",
@@ -242,6 +245,7 @@ const HEARTBEAT_CONFIG_KEYS_WINDOWS = [
   "ANTHROPIC_API_KEY",
   "GOOGLE_AI_API_KEY",
   "OPENROUTER_API_KEY",
+  "SCALEDOWN_API_KEY",
   "AI_TASK_MODELS",
   "AI_MODELS",
   "COMPAT_AUDIT_REQUEST", // windows-only: OCR runs on Windows agent to avoid NAS CPU load
@@ -266,6 +270,8 @@ async function handleHeartbeat(
   const versionInfo = body.version_info as Record<string, unknown> | undefined;
   const diagnostics = body.diagnostics as Record<string, unknown> | undefined;
   const logTail = Array.isArray(body.log_tail) ? (body.log_tail as string[]).slice(-LOG_TAIL_LINES) : undefined;
+  // Indra OCR engine status from the Windows agent (startup check / self-provision).
+  const ocrIndra = body.ocr_indra as Record<string, unknown> | undefined;
   const db = serviceClient();
 
   // ── Fetch agent metadata (needed for update) ──
@@ -324,6 +330,8 @@ async function handleHeartbeat(
       : metadata.diagnostics,
     // Recent log lines from Windows agent — stored for remote viewing
     log_tail: logTail ?? metadata.log_tail,
+    // Indra OCR status from the Windows agent (undefined keeps the last report)
+    ocr_indra: ocrIndra && typeof ocrIndra === "object" ? ocrIndra : metadata.ocr_indra,
     // Clear trigger_update flag once delivered (below)
   };
 
@@ -398,6 +406,17 @@ async function handleHeartbeat(
   const configMap: Record<string, unknown> = {};
   for (const row of configResult.data || []) {
     configMap[row.key] = row.value;
+  }
+  if (agentType === "windows-render") {
+    const { data: sgPass, error: sgPassErr } = await db.rpc("get_sg_nas_password");
+    if (sgPassErr) console.error("get_sg_nas_password failed:", sgPassErr.message);
+    else configMap.WINDOWS_AGENT_SG_NAS_PASS = typeof sgPass === "string" ? sgPass : "";
+    // Z: (mac share) password: Vault-backed once shared-db migration
+    // 20261014043757 is live. Falls back to the admin_config row when the RPC
+    // errors or returns empty, so the render agent keeps working until cutover removes the row.
+    const { data: zPass, error: zPassErr } = await db.rpc("get_render_z_nas_password");
+    if (zPassErr) console.error("get_render_z_nas_password failed:", zPassErr.message);
+    else configMap.WINDOWS_AGENT_NAS_PASS = pickWindowsNasPassword(zPass, configMap.WINDOWS_AGENT_NAS_PASS);
   }
 
   // Spaces
@@ -774,6 +793,7 @@ async function handleHeartbeat(
         google_ai_api_key: (configMap.GOOGLE_AI_API_KEY as string) || "",
         openai_api_key: (configMap.OPENAI_API_KEY as string) || "",
         openrouter_api_key: (configMap.OPENROUTER_API_KEY as string) || "",
+        scaledown_api_key: (configMap.SCALEDOWN_API_KEY as string) || "",
         models: (configMap.AI_MODELS as unknown[]) || [],
         ai_task_models: (configMap.AI_TASK_MODELS as Record<string, string>) || {},
         pdf_extraction: (configMap.PDF_EXTRACTION_CONFIG as Record<string, unknown>) || null,
@@ -1573,10 +1593,55 @@ async function handleQueueRender(body: Record<string, unknown>) {
 
 // ── Route: claim-render ─────────────────────────────────────────────
 
+// Jobs whose last attempt died with the agent, at the attempt cap, are never
+// reclaimed by claim_render_jobs (it only claims attempts < max). Without this
+// sweep they stay 'claimed' forever. Fail them so they surface as failed renders.
+// A sweep problem must not stop claiming, so every error is logged and swallowed.
+async function failExhaustedRenderJobs(db: ReturnType<typeof serviceClient>, now: string) {
+  try {
+    const { data, error } = await db
+      .from("render_queue")
+      .select("id, asset_id, attempts")
+      .eq("status", "claimed")
+      .lt("lease_expires_at", now)
+      .gte("attempts", MAX_RENDER_ATTEMPTS)
+      .order("created_at")
+      .limit(200);
+    if (error) {
+      console.error(`[claim-render] exhausted-job listing failed: ${error.message}`);
+      return;
+    }
+    for (const job of data ?? []) {
+      const message = `lease expired after ${job.attempts} attempts (agent stopped mid-render)`;
+      const { count, error: writeErr } = await db
+        .from("render_queue")
+        .update({ status: "failed", completed_at: now, error_message: message, lease_expires_at: null }, { count: "exact" })
+        .eq("id", job.id)
+        .eq("status", "claimed")
+        .lt("lease_expires_at", now);
+      if (writeErr) {
+        console.error(`[claim-render] exhausted job ${job.id}: ${writeErr.message}`);
+        continue;
+      }
+      if (!count) continue; // completed or reclaimed meanwhile
+      const { error: assetErr } = await db
+        .from("assets")
+        .update({ thumbnail_error: "no_preview_or_render_failed" })
+        .eq("id", job.asset_id)
+        .is("thumbnail_url", null);
+      if (assetErr) console.error(`[claim-render] asset ${job.asset_id}: ${assetErr.message}`);
+    }
+  } catch (e) {
+    console.error(`[claim-render] exhausted-job sweep threw: ${(e as Error).message}`);
+  }
+}
+
 async function handleClaimRender(body: Record<string, unknown>) {
   const agentId = requireString(body, "agent_id");
   const batchSize = Math.min((body.batch_size as number) || 1, MAX_CLAIM_BATCH);
   const db = serviceClient();
+
+  await failExhaustedRenderJobs(db, new Date().toISOString());
 
   // Use raw SQL via rpc for FOR UPDATE SKIP LOCKED — not available in PostgREST
   // Select pending jobs OR expired-lease claimed jobs, atomically claim them
@@ -1595,7 +1660,7 @@ async function handleClaimRender(body: Record<string, unknown>) {
   const assetIds = claimedJobs.map((j: Record<string, unknown>) => j.asset_id);
   const { data: assets } = await db
     .from("assets")
-    .select("id, relative_path, file_type, filename")
+    .select("id, relative_path, file_type, filename, file_size, modified_at")
     .in("id", assetIds);
 
   const assetMap = new Map((assets || []).map((a: Record<string, unknown>) => [a.id, a]));
@@ -1608,6 +1673,8 @@ async function handleClaimRender(body: Record<string, unknown>) {
       relative_path: asset?.relative_path || null,
       file_type: asset?.file_type || null,
       filename: asset?.filename || null,
+      file_size: asset?.file_size ?? null,
+      modified_at: asset?.modified_at ?? null,
       attempts: j.attempts,
       lease_expires_at: j.lease_expires_at,
     };
@@ -1639,15 +1706,20 @@ async function handleCompleteRender(body: Record<string, unknown>) {
 
   if (!job) return err("Job not found", 404);
 
-  await db
+  // Only an in-flight job may be completed. A late result for a job that was
+  // already requeued (status pending) or finished must not overwrite it.
+  const { count: completedCount, error: completeErr } = await db
     .from("render_queue")
     .update({
       status: success ? "completed" : "failed",
       completed_at: new Date().toISOString(),
       error_message: errorMsg,
       lease_expires_at: null, // clear lease on completion
-    })
-    .eq("id", jobId);
+    }, { count: "exact" })
+    .eq("id", jobId)
+    .in("status", ["claimed", "processing"]);
+  if (completeErr) return err(completeErr.message, 500);
+  if (!completedCount) return json({ ok: true, noop: true, reason: "job not in flight" });
 
   if (success && thumbnailUrl) {
     await db
@@ -1826,16 +1898,18 @@ async function handleGetScanRoots(agentId: string) {
 
 // ── Route: get-config ───────────────────────────────────────────────
 
-async function handleGetConfig(body: Record<string, unknown>) {
+async function handleGetConfig(body: Record<string, unknown>, agentType: string) {
   const keys = body.keys;
   const db = serviceClient();
 
-  let query = db.from("admin_config").select("key, value");
-  if (Array.isArray(keys) && keys.length > 0) {
-    query = query.in("key", keys as string[]);
-  }
+  // Agents may only read the keys their type is entitled to; an empty list
+  // must never dump the whole admin_config table (provider secrets included).
+  if (!Array.isArray(keys) || keys.length === 0) return err("keys required");
+  const allowed = new Set(getConfigKeysForAgent(agentType));
+  const requested = (keys as unknown[]).filter((k): k is string => typeof k === "string" && allowed.has(k));
+  if (requested.length === 0) return json({ ok: true, config: {} });
 
-  const { data, error } = await query;
+  const { data, error } = await db.from("admin_config").select("key, value").in("key", requested);
   if (error) return err(error.message, 500);
 
   const config: Record<string, unknown> = {};
@@ -2885,11 +2959,43 @@ async function handleReportHygieneFindings(body: Record<string, unknown>) {
         found_by_agent: (f.found_by_agent as string) || null,
       }));
 
-    // Use upsert with the unique index on (relative_path, check_type) WHERE status != 'resolved'
+    if (rows.length === 0) continue;
+
+    // The unique index on (relative_path, check_type) is PARTIAL (status !=
+    // 'resolved'), and PostgREST upsert cannot name a partial index, so a
+    // plain upsert always fails with 42P10. Match open rows ourselves: update
+    // the ones that already exist, insert the rest, and surface any error
+    // instead of reporting a successful scan with nothing stored.
+    const { data: existing, error: existingErr } = await db.from("hygiene_findings")
+      .select("id, relative_path, check_type")
+      .in("relative_path", rows.map((r) => r.relative_path))
+      .neq("status", "resolved");
+    if (existingErr) return err(`hygiene lookup failed: ${existingErr.message}`, 500);
+    const existingIds = new Map<string, string>();
+    for (const row of existing ?? []) existingIds.set(`${row.relative_path}\u0000${row.check_type}`, row.id);
+
+    const toInsert: typeof rows = [];
     for (const row of rows) {
-      const { error } = await db.from("hygiene_findings")
-        .upsert(row, { onConflict: "relative_path,check_type" });
-      if (!error) inserted++;
+      const id = existingIds.get(`${row.relative_path}\u0000${row.check_type}`);
+      if (!id) {
+        toInsert.push(row);
+        continue;
+      }
+      const { error } = await db.from("hygiene_findings").update({
+        asset_id: row.asset_id,
+        filename: row.filename,
+        severity: row.severity,
+        details: row.details,
+        scan_session_id: row.scan_session_id,
+        found_by_agent: row.found_by_agent,
+      }).eq("id", id);
+      if (error) return err(`hygiene update failed: ${error.message}`, 500);
+      inserted++;
+    }
+    if (toInsert.length > 0) {
+      const { error } = await db.from("hygiene_findings").insert(toInsert);
+      if (error) return err(`hygiene insert failed: ${error.message}`, 500);
+      inserted += toInsert.length;
     }
   }
 
@@ -3560,13 +3666,19 @@ async function handleTranscribeStyleGuidePdfPage(body: Record<string, unknown>, 
     return err((error as Error).message, 400);
   }
   const db = serviceClient();
-  const [{ data: lease, error: leaseError }, { data: file, error: fileError }, { data: models, error: modelError }] = await Promise.all([
+  const [
+    { data: lease, error: leaseError },
+    { data: file, error: fileError },
+    { data: models, error: modelError },
+    { data: metaKeyRow, error: metaKeyError },
+  ] = await Promise.all([
     db.from("style_guide_pdf_text").select("status,claimed_by,claim_expires_at,content_identity")
       .eq("style_guide_file_id", fileId).maybeSingle(),
     db.from("style_guide_files").select("is_active,file_extension").eq("id", fileId).maybeSingle(),
     db.from("admin_config").select("value").eq("key", "AI_TASK_MODELS").maybeSingle(),
+    db.from("admin_config").select("value").eq("key", "META_API_KEY").maybeSingle(),
   ]);
-  if (leaseError || fileError || modelError) return err("PopSG PDF transcription eligibility could not be verified", 503);
+  if (leaseError || fileError || modelError || metaKeyError) return err("PopSG PDF transcription eligibility could not be verified", 503);
   if (!file?.is_active || !["pdf", ".pdf"].includes(String(file.file_extension).toLowerCase())) {
     return err("PopSG PDF transcription requires an active PDF", 409);
   }
@@ -3576,7 +3688,8 @@ async function handleTranscribeStyleGuidePdfPage(body: Record<string, unknown>, 
     return err((error as Error).message, 409);
   }
   const model = String((models?.value as Record<string, unknown> | null)?.pdf_extraction ?? "").trim();
-  const apiKey = Deno.env.get("META_API_KEY") ?? "";
+  const settingsKey = typeof metaKeyRow?.value === "string" ? metaKeyRow.value.trim() : "";
+  const apiKey = metaKeyRow ? settingsKey : Deno.env.get("META_API_KEY") ?? "";
   if (!apiKey) return err("PopSG PDF transcription provider is not configured", 503);
   let text: string;
   try {
@@ -4658,7 +4771,7 @@ corsServe(async (req: Request) => {
       case "get-scan-roots":
         return await handleGetScanRoots(agentId);
       case "get-config":
-        return await handleGetConfig(body);
+        return await handleGetConfig(body, agentType);
       case "report-path-test":
         return await handleReportPathTest(body);
       case "report-dir-browse":
@@ -4751,7 +4864,7 @@ corsServe(async (req: Request) => {
         return await handleCompleteAiSentinelScan(body);
       }
       case "complete-blank-thumb-cleanup":
-        return handleCompleteBlankThumbCleanup(body);
+        return await handleCompleteBlankThumbCleanup(body);
       case "claim-checkin-verifications":
         return await handleClaimCheckinVerifications(body);
       case "report-checkin-verification":

@@ -14,6 +14,7 @@ import {
   ORDER_LIST_PAGE_SIZE_OPTIONS,
   formatOrderBoolean,
   formatOrderDate,
+  isOrderListFieldSortable,
   masterDataDescription,
   masterDataLicenseStatus,
   needsReview,
@@ -149,13 +150,13 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
           width: column.width,
           hide: column.hide,
           pinned: column.pinned,
-          sort: column.field === "order_date" ? "desc" : undefined,
-          sortable: column.queryable !== false,
+          sort: column.field === "start_ship_date" ? "desc" : undefined,
+          sortable: isOrderListFieldSortable(column.field),
           resizable: true,
           filter: column.queryable === false ? false : filterFor(column),
           valueFormatter: valueFormatterFor(column),
           editable: Boolean(column.editable),
-          headerTooltip: `${sourceLabel}. ${column.editable ? "Double-click to edit." : "Read-only."}`,
+          headerTooltip: column.headerTooltip ?? `${sourceLabel}. ${column.editable ? "Double-click to edit." : "Read-only."}`,
           headerClass:
             source === "input"
               ? "bg-blue-200 text-blue-950 dark:bg-blue-900/70 dark:text-blue-100"
@@ -214,11 +215,14 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
       // A voided order is still returned by the view, so it has to LOOK voided --
       // otherwise a cancelled order reads as a live one.
       getRowStyle={(params) => {
+        const border = orderListSourceBorder(params.data);
         if (params.data?.order_line_id === highlightedRowId && orderListRowMatchesSearch(params.data, search)) {
-          return { backgroundColor: "#fde68a", color: "#78350f", boxShadow: "inset 4px 0 #f59e0b" };
+          // Keep the source outline alongside the highlight's left bar.
+          return { backgroundColor: "#fde68a", color: "#78350f", boxShadow: [border?.boxShadow, "inset 4px 0 #f59e0b"].filter(Boolean).join(", ") };
         }
-        if (params.data?.order_voided_at) return { opacity: 0.55, textDecoration: "line-through" };
-        return params.data && needsReview(params.data) ? { backgroundColor: "#fef3c7", color: "#713f12" } : undefined;
+        if (params.data?.order_voided_at) return { ...border, opacity: 0.55, textDecoration: "line-through" };
+        if (params.data && needsReview(params.data)) return { ...border, backgroundColor: "#fef3c7", color: "#713f12" };
+        return border;
       }}
       onCellValueChanged={onCellEdited}
       onModelUpdated={(event) => onDisplayedRowsChanged?.(event.api.getDisplayedRowCount())}
@@ -246,5 +250,12 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
     />
   );
 });
+
+/** Thin outline showing where a row was imported from: orange = Google Sheets, purple = ColdLion. */
+export function orderListSourceBorder(row: OrderListRow | undefined) {
+  if (row?.coldlion_source_id) return { boxShadow: "inset 0 0 0 1px #9333ea" };
+  if (row?.google_source_id) return { boxShadow: "inset 0 0 0 1px #f97316" };
+  return undefined;
+}
 
 export default OrderListGrid;

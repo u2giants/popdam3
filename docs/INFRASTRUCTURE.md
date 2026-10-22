@@ -78,10 +78,12 @@ Railway values are outage fallbacks, not separate provider routes:
 
 | Location | Consumer | How it gets there |
 |---|---|---|
-| `admin_config.OPENROUTER_API_KEY` / `GOOGLE_AI_API_KEY` | Worker and agents | Set in Settings → APIs; worker reads with a bounded 60-second cache |
-| Matching Railway environment value | Worker only | Used only when the database-managed key is empty or temporarily unreadable |
+| `admin_config.OPENROUTER_API_KEY` / `GOOGLE_AI_API_KEY` | Worker and agents | Set in Settings → Processing → AI Tagging; worker reads with a bounded 60-second cache |
+| `admin_config.META_API_KEY` | Worker and PopSG `agent-api` | Set in Settings → Processing → AI Tagging; both readers use the saved key first |
+| `admin_config.SCALEDOWN_API_KEY` | Worker | Set in Settings → Processing → AI Tagging; worker reads with a bounded 60-second cache |
+| Matching Railway environment value | Worker only | Outage fallback; direct Meta and ScaleDown use it only when the Settings row is missing or unreadable |
 
-Saving a provider key in Settings is sufficient for the worker; Railway fallback values are optional.
+Saving a provider key in Settings is sufficient for the worker; Railway fallback values are optional. For direct Meta and ScaleDown, an existing Settings row is authoritative, including a blank row saved by Clear; the environment fallback is used only when the row is missing or unreadable.
 
 ### AI Model Configuration
 

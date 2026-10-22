@@ -8,7 +8,7 @@
     - Install directory: exists and key files present
     - Config path: agent-config.json exists and is readable
     - Log paths: exist and last 20 lines of each log
-    - Legacy service: warns if still present
+    - Windows service: reports PopDAMWindowsAgent (headless install mode)
 
 .EXAMPLE
   .\verify-agent.ps1
@@ -63,9 +63,14 @@ if ($task) {
         }
     }
 } else {
-    Write-Host "  NOT FOUND" -ForegroundColor Red
-    Write-Host "  Run install-scheduled-task.ps1 to create it." -ForegroundColor DarkGray
-    $allOk = $false
+    $svcForTask = Get-Service -Name "PopDAMWindowsAgent" -ErrorAction SilentlyContinue
+    if ($svcForTask) {
+        Write-Host "  NOT FOUND (OK — running as Windows service instead)" -ForegroundColor DarkGray
+    } else {
+        Write-Host "  NOT FOUND" -ForegroundColor Red
+        Write-Host "  Run install-scheduled-task.ps1 or install-service.ps1." -ForegroundColor DarkGray
+        $allOk = $false
+    }
 }
 
 Write-Host ""
@@ -169,14 +174,18 @@ if (Test-Path $LogDir) {
 
 Write-Host ""
 
-# ── 5. Legacy Service Check ──────────────────────────────────────
+# ── 5. Windows Service (headless install mode) ────────────────────
 
-$legacySvc = Get-Service -Name "PopDAMWindowsAgent" -ErrorAction SilentlyContinue
-if ($legacySvc) {
-    Write-Host "── Legacy Service ──" -ForegroundColor Yellow
-    Write-Host "  ⚠ Legacy service 'PopDAMWindowsAgent' still exists (Status: $($legacySvc.Status))" -ForegroundColor Red
-    Write-Host "  Run uninstall-service.ps1 to remove it." -ForegroundColor DarkGray
-    $allOk = $false
+$svc = Get-Service -Name "PopDAMWindowsAgent" -ErrorAction SilentlyContinue
+if ($svc) {
+    Write-Host "── Windows Service ──" -ForegroundColor Yellow
+    $color = if ($svc.Status -eq "Running") { "Green" } else { "Yellow" }
+    Write-Host "  Service       : PopDAMWindowsAgent (Status: $($svc.Status), StartType: $($svc.StartType))" -ForegroundColor $color
+    Write-Host "  Mode          : headless service (no interactive login)"
+    Write-Host "  Illustrator   : COM unavailable in Session 0 (expected)"
+    if ($svc.Status -ne "Running") {
+        Write-Host "  ⚠ Service is not running." -ForegroundColor Yellow
+    }
     Write-Host ""
 }
 

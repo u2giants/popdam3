@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "work_issue": 4385,
+  "outcome": "ready-for-merge",
+  "pr": 4387,
+  "head_sha": "762a091044904250c87ed4534aba32486b4d2f04",
+  "base_sha": "d9c2ba5f3a40debde2a8c314d6d4c90301615c11",
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4385/2",
+  "contract_sha256": "661510ab6b578a75ca71508f5bcf39d3dd5d293dcab1ee78f18f4ca694c63698",
+  "files_changed": [
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py",
+    "scripts/test_preview_ledger_orphan_reconcile_postgres.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean at 762a09104490"
+    },
+    {
+      "command": "python3 scripts/test_preview_ledger_orphan_reconcile.py",
+      "exit_code": 0,
+      "evidence": "Ran 40 tests OK at 762a09104490"
+    },
+    {
+      "command": "PREVIEW_LEDGER_RECONCILE_POSTGRES_TEST=1 python3 scripts/test_preview_ledger_orphan_reconcile_postgres.py",
+      "exit_code": 0,
+      "evidence": "Ran 6 tests OK against disposable postgres:17 (network none, tmpfs, removed after) at 762a09104490"
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 2 integrates current main after owner-directed takeover; source unchanged beyond the merge."
+  ],
+  "stop_conditions_hit": []
+}

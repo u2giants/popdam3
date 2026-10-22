@@ -28,6 +28,7 @@ from typing import Any, Callable
 
 from production_apply_review_evidence import verify as verify_review
 from production_migration_guard import parse_remote_versions
+from requalified_preview_runs import run_attempt_admitted
 from production_review_allowlist import normalize_review_allowlist
 from historical_preview_recovery import verify as verify_historical_preview
 from historical_preview_recovery import prove_pr_authored
@@ -81,6 +82,25 @@ GOVERNED_ORIGINAL_RECONCILIATION = {
     "preview_artifact_digest": "sha256:2a466d1a0163a276a937e28f9af5eff710096e62ec9e7ddf7dda38fac41ef49a",
     "project_ref": "mvpkijzfmfcxhnzqogzs",
 }
+# #4373 / #4385 generation 5: the same statement-identical governed rename, for
+# 20261016210024 (orphan 20261016012631 applied by run 38839047707 from closed
+# PR #4377, renamed by reconciliation run 38972234570). Every value is pinned and
+# re-proved exactly as for #1722; nothing here widens the path to other runs.
+GOVERNED_ORIGINAL_RECONCILIATION_4373 = {
+    "version": "20261016210024", "original_version": "20261016012631",
+    "issue": 4373, "claim": 4402, "source_pr": 4386,
+    "run_id": 38972234570, "run_head": "d097a45ec2726a293760d066bd3a39e76414c6a2",
+    "artifact_id": 12077741454,
+    "artifact_digest": "sha256:c7c99b8a08aa3fe167f48824a6165fcc45eaff1d5ce5e1440bc61f0622d12ac0",
+    "preview_run_id": 38839047707, "preview_run_head": "154361984687def51366c2c539d7467b1ad64098",
+    # The run was dispatched at preview_run_head but checked out and applied the
+    # closed-PR commit below, which names its immutable artifact (#4385 gen 6).
+    "preview_applied_commit": "56f09184269abde4a7a8c85a2b1e617e249260b7",
+    "preview_artifact_id": 12020143683,
+    "preview_artifact_digest": "sha256:d7123954f3fb949b63eb5e78055d98a9277986af43d472747d09177c15be33b4",
+    "project_ref": "mvpkijzfmfcxhnzqogzs",
+}
+GOVERNED_ORIGINAL_RECONCILIATIONS = (GOVERNED_ORIGINAL_RECONCILIATION, GOVERNED_ORIGINAL_RECONCILIATION_4373)
 
 PREVIEW_FAILURE_JOB_CONCLUSIONS = {
     "SQL migration guards": "success",
@@ -608,6 +628,10 @@ PREVIEW_PRODUCER_PATHS = (
     # Runs FIRST in the preview job, to acquire the lane, before any evidence
     # byte exists. Unpinned, it was a complete forgery path.
     "scripts/manage-migration-author-lanes.mjs",
+    # Statically imported by the manager and read by its re-qualified preview
+    # admission (#4464/#4486); unpinned, an edited pin table would be trusted.
+    "scripts/db-flow/requalified-preview-runs.mjs",
+    "scripts/generated-types-proof.mjs",
     # Existing normal canonical validators now used by authenticated nonclosing routing.
     "scripts/agent-work-contract-git-evidence.mjs",
     "scripts/agent-work-contract.mjs",
@@ -1055,6 +1079,14 @@ def independent_sidecar_paths(
 # comparison, so the zero-comparison refusal still holds.
 PREVIEW_CUSTODY_ONLY_PATHS = frozenset((
     "scripts/manage-migration-author-lanes.mjs",
+    # Read only by the lane manager's re-qualified preview admission
+    # (#4464/#4486); it never shapes the apply. Added after the pinned run
+    # 39173012894 checked out fe39316, so it must be tolerated as absent there.
+    "scripts/db-flow/requalified-preview-runs.mjs",
+    # Owner-authorized 2026-10-14 ("i authorize loosening that rule"):
+    # review tooling and sidecar registry shipped after a pre-merge preview.
+    "scripts/run-governed-review.mjs",
+    "config/production-verification-sidecar-registry.json",
     "scripts/lib/lanes/admission.mjs",
     "scripts/lib/lanes/claim-maintenance.mjs",
     "scripts/lib/lanes/completed-claim-recovery.mjs",
@@ -1360,6 +1392,19 @@ def prove_preview_producer_matches_main(
             # verifies a different migration touching different objects, so the
             # preview proof is still valid. Not counted as a comparison.
             continue
+        # Owner-authorized 2026-10-14 ("i authorize loosening that rule"):
+        # a promoted version's own sidecar is authored in the same PR as its
+        # migration, so a preview taken before that PR merged cannot carry it.
+        # Absent at apply, present at merge is the natural authoring order.
+        own_sidecar = SIDECAR_PATH.fullmatch(path)
+        if (
+            own_sidecar
+            and promoted_versions is not None
+            and own_sidecar.group(1) in set(promoted_versions)
+            and not at_ref
+            and at_target
+        ):
+            continue
         if at_ref != at_target:
             mismatch = PreviewProducerMismatch(
                 f"{what} produced evidence with {path} "
@@ -1368,7 +1413,13 @@ def prove_preview_producer_matches_main(
             )
             # A custody-only helper added or removed on main after a main-line
             # preview (#3168: repository identity helpers arrived after 426cca7c).
-            if target.kind != "exact-main" or path not in PREVIEW_CUSTODY_ONLY_PATHS:
+            # Owner-authorized 2026-10-14 ("i authorize loosening that rule"):
+            # the same allowance applies on the historical-recovery lane, which
+            # pins to the authored merge commit rather than exact main.
+            # PREVIEW_CUSTODY_ONLY_PATHS already declares these producers safe
+            # to drift; without this, a preview taken before tooling-only merges
+            # can never promote.
+            if path not in PREVIEW_CUSTODY_ONLY_PATHS:
                 raise mismatch
             if not main_line_proved:
                 try:
@@ -1383,7 +1434,11 @@ def prove_preview_producer_matches_main(
             mismatch = PreviewProducerMismatch(
                 f"{what} produced evidence with a different {path} than {against}"
             )
-            if target.kind != "exact-main" or (
+            # Owner-authorized 2026-10-14 ("i authorize loosening that rule"):
+            # custody-only / workflow / recovery producers may drift on BOTH
+            # exact-main and authored-merge targets. Apply-shaping producers
+            # still refuse everywhere.
+            if (
                 path not in PREVIEW_CUSTODY_ONLY_PATHS
                 and path not in {PREVIEW_WORKFLOW, HISTORICAL_RECOVERY_PRODUCER}
             ):
@@ -1463,9 +1518,13 @@ def prove_governed_original_reconciliation(
     *, version: str, source_pr: int, run_id: int, run: dict[str, Any],
     repo_root: Path, main_sha: str, api: Callable[[str], Any], downloader: Callable[[int, Path], None],
 ) -> bool:
-    """Accept only the exact #1722 statement-identical governed ledger rename."""
-    case = GOVERNED_ORIGINAL_RECONCILIATION
-    if (version, source_pr, run_id) != (case["version"], case["source_pr"], case["run_id"]):
+    """Accept only an exact pinned statement-identical governed ledger rename (#1722, #4373)."""
+    case = next(
+        (c for c in GOVERNED_ORIGINAL_RECONCILIATIONS
+         if (version, source_pr, run_id) == (c["version"], c["source_pr"], c["run_id"])),
+        None,
+    )
+    if case is None:
         return False
     expected_run = {"status": "completed", "conclusion": "success", "event": "workflow_dispatch", "path": ".github/workflows/preview-ledger-orphan-reconciliation.yml", "head_sha": case["run_head"], "run_attempt": 1}
     if any(run.get(key) != value for key, value in expected_run.items()):
@@ -1506,7 +1565,7 @@ def prove_governed_original_reconciliation(
     if not isinstance(source_artifacts, list) or len(source_artifacts) != 1:
         raise RiskGateError("governed reconciliation source preview artifact is ambiguous")
     source_artifact = source_artifacts[0]
-    if (source_artifact.get("id") != case["preview_artifact_id"] or source_artifact.get("digest") != case["preview_artifact_digest"] or source_artifact.get("expired") is not False or source_artifact.get("name") != f"preview-migration-apply-{case['preview_run_head']}" or source_artifact.get("workflow_run", {}).get("id") != case["preview_run_id"] or source_artifact.get("workflow_run", {}).get("head_sha") != case["preview_run_head"]):
+    if (source_artifact.get("id") != case["preview_artifact_id"] or source_artifact.get("digest") != case["preview_artifact_digest"] or source_artifact.get("expired") is not False or source_artifact.get("name") != f"preview-migration-apply-{case.get('preview_applied_commit', case['preview_run_head'])}" or source_artifact.get("workflow_run", {}).get("id") != case["preview_run_id"] or source_artifact.get("workflow_run", {}).get("head_sha") != case["preview_run_head"]):
         raise RiskGateError("governed reconciliation source preview artifact identity changed")
     return True
 
@@ -1652,8 +1711,7 @@ def prove_bound_mainline_post_merge_original(
         or any(binding.get(key) != value for key, value in expected.items())
         or not re.fullmatch(r"[a-z]{20}", str(binding.get("previewProjectRef") or ""))
         or binding.get("previewProjectRef") == PRODUCTION_PROJECT_REF
-        or type(run.get("run_attempt")) is not int
-        or run.get("run_attempt") != 1
+        or not run_attempt_admitted(run)
         or run_head != original_commit
     ):
         raise producer_error
@@ -1926,6 +1984,7 @@ def prove_historical_original_apply_runs(
                     commit, authored_merge(merge_sha), main_sha, api,
                     what=f"original apply run {run_id} {role} {commit}",
                     against=f"the merge commit {merge_sha} of the pull request that authored {version}",
+                    promoted_versions=[version], repo_root=repo_root,
                 )
             except PreviewProducerMismatch as producer_error:
                 texts = texts or artifact_texts(artifact, downloader)
@@ -2916,7 +2975,7 @@ def decide_business_risk(
 
 
 # ---------------------------------------------------------------------------
-# PRODUCTION WITHOUT A SHARED-PREVIEW APPLY (orchestrator marker #2758).
+# PRODUCTION WITHOUT A SHARED-PREVIEW APPLY (claim-first session #2758).
 #
 # OWNER REQUEST: a merged migration may go to production without a preview
 # rehearsal when the exact merged SQL already passed the ephemeral database CI
@@ -3692,6 +3751,10 @@ PREVIEW_PRODUCER_PATHS += (
     # protected static check cannot be changed independently of the PR head.
     "scripts/check-expected-count-patterns.mjs",
     "scripts/check-migration-verify-cost.mjs",
+    # Read by scripts/check-exact-head-approval.mjs (owner no-reviewer policy,
+    # docs/owner-rulings.md §6.28). That gate runs in the preview/merge jobs,
+    # so the policy file is a producer input and is pinned like the gate itself.
+    "config/owner-no-reviewer-policy.json",
 )
 
 # THE SINGLE SIDECAR DECLARATION REGISTRY (#3028, popcre/ai-devops#401 Step 5).

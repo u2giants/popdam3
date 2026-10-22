@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "work_issue": 2530,
+  "outcome": "ready-for-merge",
+  "pr": 4363,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2530/17",
+  "contract_sha256": "ed89b1db050f57b7290a3ae26b3dc6660d40652189ed1d11e315e799c17ec859",
+  "head_sha": "9f50f51da964b1f9501926bcb36a5f211495e970",
+  "base_sha": "0d9a7fdd343ce258fad5b1c3010f83ecd0e2d62a",
+  "files_changed": [
+    ".github/workflows/merge-queue-gate.yml",
+    "scripts/merge-queue-contract.mjs",
+    "scripts/merge-queue-contract.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/merge-queue-contract.test.mjs",
+      "exit_code": 0,
+      "evidence": "34 pass including pair-plus-extra-file tail refusals and resolveAuthorizedHead workIssue/mode cases."
+    }
+  ],
+  "assumptions_resolved": [
+    "Tail files must be set-equality with exactly one complete evidence pair (verifyGitEvidence rule).",
+    "acquireExclusive gets the live PR tip; authorized_head is used only for authorization and interlock reads.",
+    "Branch refreshed to current main so reviewer draw is not blocked as behind."
+  ],
+  "stop_conditions_hit": []
+}

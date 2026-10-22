@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 4410,
+  "outcome": "ready-for-merge",
+  "reason": "Required source checks are complete. Independent current-head review, PR CI and guarded merge are separate pending gates.",
+  "pr": 4416,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4410/1",
+  "contract_sha256": "774b4ee625ecac52e8d78506c3243684356d56f5fe34208abd5a08e5bacbdd0d",
+  "head_sha": "3810dc84ec4f03aa1d5a31698792d89b6aa51efd",
+  "base_sha": "b31e17c02194c6006a1bd256d6154a324a5114d7",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~lib~review-packet.mjs.json",
+    "scripts/lib/review-packet.mjs",
+    "scripts/lib/review-packet.test.mjs",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/review-packet.test.mjs scripts/run-governed-review.test.mjs",
+      "exit_code": 0,
+      "evidence": "pass 135, fail 0 at 3810dc84"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK call_sites=353 at 3810dc84"
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "414 files scanned, conformant at 3810dc84"
+    }
+  ],
+  "assumptions_resolved": [
+    "New review-packet tests fail without the source change and pass with it.",
+    "StepFun REJECT seq 6696 on closed PR 4413 (H1, M1, M2, L1, L2, L5) is fixed in this head; L3 contract over-declaration and L4 runbook docs (outside allowed paths) are disclosed, not changed.",
+    "This PR supersedes PRs 4413 and 4415 only to give the review-budget proof a canonical one-implementation, one-evidence history.",
+    "DeepSeek REJECT seq 6699 findings 1, 2 and 4 fixed; finding 3 (runbook documentation of the flags) is outside this contract's allowed paths and is disclosed as follow-up."
+  ],
+  "stop_conditions_hit": []
+}

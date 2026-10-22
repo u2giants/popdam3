@@ -1,0 +1,2074 @@
+{
+  "schema_version": 1,
+  "issue": 4427,
+  "claim": 4563,
+  "migration_version": "20261021190604",
+  "catalog_observed": "2026-10-18 EDT",
+  "target": "production read-only baseline; re-prove actual write target independently",
+  "target_policies": [
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "erp_items_current",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage erp_items_current",
+      "schemaname": "archive",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "erp_items_raw",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage erp_items_raw",
+      "schemaname": "archive",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "legacy_erp_item_identity",
+      "permissive": "PERMISSIVE",
+      "policyname": "legacy_erp_item_identity_admin_read",
+      "schemaname": "plm",
+      "with_check": null
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin delete admin_config",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin read all admin_config",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin update admin_config",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write admin_config",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "agent_pairings",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage agent_pairings",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "agent_registrations",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage agent_registrations",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_results",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage ai tag bakeoff results",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_results",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin read ai tag bakeoff results",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_reviews",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage ai tag bakeoff reviews",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_reviews",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin read ai tag bakeoff reviews",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage ai tag bakeoff runs",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin read ai tag bakeoff runs",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "app_access",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage app_access",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "asset_characters",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write asset_characters",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "asset_tags",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage asset_tags",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "assets",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins can insert assets",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "assets",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins can update assets",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "characters",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write characters",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "erp_enrichment_log",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage erp_enrichment_log",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "erp_sync_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage erp_sync_runs",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "hygiene_findings",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage hygiene_findings",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "invitations",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage invitations",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "licensors",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write licensors",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "pdf_text_samples",
+      "permissive": "PERMISSIVE",
+      "policyname": "admin full access pdf_text_samples",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "processing_queue",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage processing_queue",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "prod_order_headers_current",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage prod_order_headers_current",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "prod_order_headers_raw",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage prod_order_headers_raw",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "prod_order_sync_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage prod_order_sync_runs",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_categories",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write product_categories",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_category_predictions",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage product_category_predictions",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_subtypes",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write product_subtypes",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_types",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write product_types",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "profiles",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins read all profiles",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "properties",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write properties",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "render_queue",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage render_queue",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_group_tags",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage style_group_tags",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "style_groups",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins can manage style_groups",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_guide_crawl_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "admin full access style_guide_crawl_runs",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_guide_files",
+      "permissive": "PERMISSIVE",
+      "policyname": "admin full access style_guide_files",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_guide_render_queue",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage style_guide_render_queue",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_tracker_rows",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins delete style tracker rows",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "tiff_optimization_queue",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage tiff_optimization_queue",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "user_roles",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage user_roles",
+      "schemaname": "public",
+      "with_check": null
+    }
+  ],
+  "all_overlapping_policies": [
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "erp_items_current",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage erp_items_current",
+      "schemaname": "archive",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "erp_items_raw",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage erp_items_raw",
+      "schemaname": "archive",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "legacy_erp_item_identity",
+      "permissive": "PERMISSIVE",
+      "policyname": "legacy_erp_item_identity_admin_read",
+      "schemaname": "plm",
+      "with_check": null
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin delete admin_config",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin read all admin_config",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin update admin_config",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write admin_config",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(key !~* '(pass|secret|token|key|cred|pwd)'::text)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated read non-secret admin_config",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(key = 'SCAN_REQUEST'::text)",
+      "roles": [
+        "anon"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "anon can read SCAN_REQUEST for Realtime watcher",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "agent_pairings",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage agent_pairings",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "agent_registrations",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage agent_registrations",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "agent_registrations",
+      "permissive": "PERMISSIVE",
+      "policyname": "authenticated users can read agent_registrations",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_results",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage ai tag bakeoff results",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_results",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin read ai tag bakeoff results",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_reviews",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage ai tag bakeoff reviews",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_reviews",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin read ai tag bakeoff reviews",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage ai tag bakeoff runs",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin read ai tag bakeoff runs",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "app_access",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage app_access",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(user_id = auth.uid())",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "app_access",
+      "permissive": "PERMISSIVE",
+      "policyname": "Users read own app_access",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "asset_characters",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write asset_characters",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "asset_characters",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated read asset_characters",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "asset_tags",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage asset_tags",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "asset_tags",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated read asset_tags",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "assets",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins can insert assets",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "assets",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins can update assets",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(is_deleted = false)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "assets",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated users can read visible assets",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "characters",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write characters",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "characters",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated read characters",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "erp_enrichment_log",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage erp_enrichment_log",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "erp_sync_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage erp_sync_runs",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "hygiene_findings",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage hygiene_findings",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "invitations",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage invitations",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "licensors",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write licensors",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "licensors",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated read licensors",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "pdf_text_samples",
+      "permissive": "PERMISSIVE",
+      "policyname": "admin full access pdf_text_samples",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "processing_queue",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage processing_queue",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "prod_order_headers_current",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage prod_order_headers_current",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "prod_order_headers_current",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated users can read prod_order_headers_current",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "true",
+      "roles": [
+        "service_role"
+      ],
+      "tablename": "prod_order_headers_current",
+      "permissive": "PERMISSIVE",
+      "policyname": "Service role manages prod_order_headers_current",
+      "schemaname": "public",
+      "with_check": "true"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "prod_order_headers_raw",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage prod_order_headers_raw",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "true",
+      "roles": [
+        "service_role"
+      ],
+      "tablename": "prod_order_headers_raw",
+      "permissive": "PERMISSIVE",
+      "policyname": "Service role manages prod_order_headers_raw",
+      "schemaname": "public",
+      "with_check": "true"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "prod_order_sync_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage prod_order_sync_runs",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "true",
+      "roles": [
+        "service_role"
+      ],
+      "tablename": "prod_order_sync_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Service role manages prod_order_sync_runs",
+      "schemaname": "public",
+      "with_check": "true"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_categories",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write product_categories",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_categories",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated read product_categories",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_category_predictions",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage product_category_predictions",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_subtypes",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write product_subtypes",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_subtypes",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated read product_subtypes",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_types",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write product_types",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_types",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated read product_types",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "profiles",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins read all profiles",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(user_id = auth.uid())",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "profiles",
+      "permissive": "PERMISSIVE",
+      "policyname": "Users read own profile",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(user_id = auth.uid())",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "profiles",
+      "permissive": "PERMISSIVE",
+      "policyname": "Users update own profile",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "properties",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write properties",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "properties",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated read properties",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "render_queue",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage render_queue",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_group_tags",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage style_group_tags",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_group_tags",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated read style_group_tags",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "style_groups",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins can manage style_groups",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_groups",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated users can read style_groups",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_guide_crawl_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "admin full access style_guide_crawl_runs",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_guide_crawl_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "authenticated read style_guide_crawl_runs",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_guide_files",
+      "permissive": "PERMISSIVE",
+      "policyname": "admin full access style_guide_files",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_guide_files",
+      "permissive": "PERMISSIVE",
+      "policyname": "authenticated read style_guide_files",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_guide_render_queue",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage style_guide_render_queue",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_tracker_rows",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins delete style tracker rows",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_tracker_rows",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated users insert style tracker rows",
+      "schemaname": "public",
+      "with_check": "true"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_tracker_rows",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated users read style tracker rows",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "true",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_tracker_rows",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated users update style tracker rows",
+      "schemaname": "public",
+      "with_check": "true"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "tiff_optimization_queue",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage tiff_optimization_queue",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "user_roles",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage user_roles",
+      "schemaname": "public",
+      "with_check": null
+    }
+  ],
+  "tables": [
+    "archive.erp_items_current",
+    "archive.erp_items_raw",
+    "plm.legacy_erp_item_identity",
+    "public.admin_config",
+    "public.agent_pairings",
+    "public.agent_registrations",
+    "public.ai_tag_bakeoff_results",
+    "public.ai_tag_bakeoff_reviews",
+    "public.ai_tag_bakeoff_runs",
+    "public.app_access",
+    "public.asset_characters",
+    "public.asset_tags",
+    "public.assets",
+    "public.characters",
+    "public.erp_enrichment_log",
+    "public.erp_sync_runs",
+    "public.hygiene_findings",
+    "public.invitations",
+    "public.licensors",
+    "public.pdf_text_samples",
+    "public.processing_queue",
+    "public.prod_order_headers_current",
+    "public.prod_order_headers_raw",
+    "public.prod_order_sync_runs",
+    "public.product_categories",
+    "public.product_category_predictions",
+    "public.product_subtypes",
+    "public.product_types",
+    "public.profiles",
+    "public.properties",
+    "public.render_queue",
+    "public.style_group_tags",
+    "public.style_groups",
+    "public.style_guide_crawl_runs",
+    "public.style_guide_files",
+    "public.style_guide_render_queue",
+    "public.style_tracker_rows",
+    "public.tiff_optimization_queue",
+    "public.user_roles"
+  ],
+  "allowed_delta": "Wrap complete public.has_role(auth.uid(), fixed public.app_role admin) call in scalar SELECT; preserve null USING/WITH CHECK and every other field.",
+  "acceptance": "OPEN: no fixture/migration/preview/production/live-write proof yet",
+  "rewritten_policies": [
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "legacy_erp_item_identity",
+      "permissive": "PERMISSIVE",
+      "policyname": "legacy_erp_item_identity_admin_read",
+      "schemaname": "plm",
+      "with_check": null
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin delete admin_config",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin read all admin_config",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin update admin_config",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "admin_config",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write admin_config",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "agent_pairings",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage agent_pairings",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "agent_registrations",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage agent_registrations",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_results",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage ai tag bakeoff results",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_results",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin read ai tag bakeoff results",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_reviews",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage ai tag bakeoff reviews",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_reviews",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin read ai tag bakeoff reviews",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage ai tag bakeoff runs",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "ai_tag_bakeoff_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin read ai tag bakeoff runs",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "app_access",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage app_access",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "asset_characters",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write asset_characters",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "asset_tags",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage asset_tags",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "assets",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins can insert assets",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "assets",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins can update assets",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "characters",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write characters",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "erp_enrichment_log",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage erp_enrichment_log",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "erp_sync_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage erp_sync_runs",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "hygiene_findings",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage hygiene_findings",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "invitations",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage invitations",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "licensors",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write licensors",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "pdf_text_samples",
+      "permissive": "PERMISSIVE",
+      "policyname": "admin full access pdf_text_samples",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "processing_queue",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage processing_queue",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "prod_order_headers_current",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage prod_order_headers_current",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "prod_order_headers_raw",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage prod_order_headers_raw",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "prod_order_sync_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage prod_order_sync_runs",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_categories",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write product_categories",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_category_predictions",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage product_category_predictions",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_subtypes",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write product_subtypes",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "product_types",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write product_types",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "profiles",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins read all profiles",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "properties",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin write properties",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "render_queue",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage render_queue",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_group_tags",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage style_group_tags",
+      "schemaname": "public",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "style_groups",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins can manage style_groups",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_guide_crawl_runs",
+      "permissive": "PERMISSIVE",
+      "policyname": "admin full access style_guide_crawl_runs",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_guide_files",
+      "permissive": "PERMISSIVE",
+      "policyname": "admin full access style_guide_files",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_guide_render_queue",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage style_guide_render_queue",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "style_tracker_rows",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins delete style tracker rows",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "tiff_optimization_queue",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admin manage tiff_optimization_queue",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "ALL",
+      "qual": "has_role(auth.uid(), 'admin'::app_role)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "user_roles",
+      "permissive": "PERMISSIVE",
+      "policyname": "Admins manage user_roles",
+      "schemaname": "public",
+      "with_check": null
+    }
+  ],
+  "false_positives": [
+    {
+      "policy": {
+        "cmd": "ALL",
+        "qual": "has_role(auth.uid(), 'admin'::app_role)",
+        "roles": [
+          "authenticated"
+        ],
+        "tablename": "erp_items_current",
+        "permissive": "PERMISSIVE",
+        "policyname": "Admin manage erp_items_current",
+        "schemaname": "archive",
+        "with_check": null
+      },
+      "disposition": "Currently inactive: no effective nonbypass role has both applicable policy membership and table/schema privileges; preserve original policy unchanged.",
+      "evidence": "Canonical20260911210844 retirement revokes + fresh production effective privilege/membership intersection count0; re-prove before closing."
+    },
+    {
+      "policy": {
+        "cmd": "ALL",
+        "qual": "has_role(auth.uid(), 'admin'::app_role)",
+        "roles": [
+          "authenticated"
+        ],
+        "tablename": "erp_items_raw",
+        "permissive": "PERMISSIVE",
+        "policyname": "Admin manage erp_items_raw",
+        "schemaname": "archive",
+        "with_check": null
+      },
+      "disposition": "Currently inactive: no effective nonbypass role has both applicable policy membership and table/schema privileges; preserve original policy unchanged.",
+      "evidence": "Canonical20260911210844 retirement revokes + fresh production effective privilege/membership intersection count0; re-prove before closing."
+    }
+  ],
+  "rewrite_tables": [
+    "plm.legacy_erp_item_identity",
+    "public.admin_config",
+    "public.agent_pairings",
+    "public.agent_registrations",
+    "public.ai_tag_bakeoff_results",
+    "public.ai_tag_bakeoff_reviews",
+    "public.ai_tag_bakeoff_runs",
+    "public.app_access",
+    "public.asset_characters",
+    "public.asset_tags",
+    "public.assets",
+    "public.characters",
+    "public.erp_enrichment_log",
+    "public.erp_sync_runs",
+    "public.hygiene_findings",
+    "public.invitations",
+    "public.licensors",
+    "public.pdf_text_samples",
+    "public.processing_queue",
+    "public.prod_order_headers_current",
+    "public.prod_order_headers_raw",
+    "public.prod_order_sync_runs",
+    "public.product_categories",
+    "public.product_category_predictions",
+    "public.product_subtypes",
+    "public.product_types",
+    "public.profiles",
+    "public.properties",
+    "public.render_queue",
+    "public.style_group_tags",
+    "public.style_groups",
+    "public.style_guide_crawl_runs",
+    "public.style_guide_files",
+    "public.style_guide_render_queue",
+    "public.style_tracker_rows",
+    "public.tiff_optimization_queue",
+    "public.user_roles"
+  ]
+}

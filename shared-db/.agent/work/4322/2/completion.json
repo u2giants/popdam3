@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "work_issue": 4322,
+  "outcome": "ready-for-merge",
+  "pr": 4323,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4322/2",
+  "contract_sha256": "26b29f42995877ff3f3054e2e2287c188008c0db7219f48e5f36bd1c9517410f",
+  "head_sha": "5781d092950b21e32bbe4b826b806c749674411a",
+  "base_sha": "d0c99556fe5364d5ce67066cc206c66ec2619ba2",
+  "files_changed": [
+    "AGENTS.md",
+    "HANDOFF.d/2026-10-11T1309Z-edge-dev3-codex-licensing-forward-repair.md",
+    "HANDOFF.d/2026-10-12T0008Z-edge-dev3-codex-ten-issues-recovery.md",
+    "HANDOFF.d/2026-10-12T1203Z-edge-dev3-codex-eight-issues-acceptance.md",
+    "HANDOFF.d/2026-10-13T1649Z-edge-dev3-codex-eight-issues-preview-recovery.md",
+    "HANDOFF.d/2026-10-14T2247Z-edge-dev-mimo-2336-production-live-proof.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-handoff-contract.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 pass"
+    },
+    {
+      "command": "node scripts/report-stale-handoffs.mjs",
+      "exit_code": 0,
+      "evidence": "no uncited closed-issue files remain"
+    }
+  ],
+  "assumptions_resolved": [
+    "owner authorized retirement"
+  ],
+  "stop_conditions_hit": []
+}

@@ -67,7 +67,12 @@ the rule even before reading app-specific docs.
 
 ## Current Documents
 
-- [Cross-app coordination playbook](AGENTS.md) - **read first.** The operating contract for every AI session: which repos use `main` vs DesignFlow PR workflow vs shared-db PR workflow, the four rules that stop dependent apps from breaking each other through the shared database, and the merge protocol the AI runs.
+- [Cross-app coordination playbook](AGENTS.md) - **read first.** Operating guide and documentation router: project summary, task→doc map, structure, credentials *names*, deployment, quirks, owner rulings, and the merge protocol.
+- [Architecture](docs/architecture.md) - shared Supabase design: schemas, ownership, data flow, migration model, contracts.
+- [Development](docs/development.md) - worktrees, offline tests, authoring a migration, Windows traps.
+- [Configuration](docs/configuration.md) - env vars and config files (names only; secrets stay in 1Password).
+- [Deployment](docs/deployment.md) - what shipping means here: sync to consumers, guarded merge, production apply, rollback.
+- [Claude Code notes](CLAUDE.md) - Claude-specific pointer; everything else is in `AGENTS.md`.
 - [DesignFlow production DB-port incident](docs/incidents/20260717-designflow-production-db-port.md) - full postmortem, correct environment contract, infrastructure/application/IAM remediation, PRs and revision evidence, failed hard-gate bootstrap, Uma approval boundary, 1Password handling, and the exact Google Cloud organization prerequisite still blocking final enforcement.
 - [AI tagging keyset timeout remediation](docs/app-migration-notes/ai-tagging-keyset-timeout-20260714.md) - service-only candidate RPC, query-shaped indexes, rollout evidence, and the cross-app list/search optimization standard.
 - [Merch-group taxonomy architecture](docs/merch-group-taxonomy-architecture.md) - how licensors, properties, themes, style guides and artists actually flow from Coldlion ERP through DesignFlow PLM into `core.*`. **Read before touching any of those.**

@@ -1,0 +1,43 @@
+{
+  "schema_version": 2,
+  "work_issue": 2530,
+  "generation": 18,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Docs-only canary through GitHub's native merge queue after the authorized-head gate fix.",
+  "base_sha": "a79c2d281c9c0b25627bfff2eb06f914674f764b",
+  "dispatcher": "MiMo chat ffe5ec4d8a438ffeMsuIzWTbV4 on edge-dev",
+  "worker": "MiMo",
+  "branch": "mimo/2530-mq-canary-fresh",
+  "worktree": "D:\\repos\\shared-db-worktrees\\2530-gate-fix",
+  "evidence_parent": {
+    "work_issue": 2530,
+    "generation": 17,
+    "contract_sha256": "ed89b1db050f57b7290a3ae26b3dc6660d40652189ed1d11e315e799c17ec859"
+  },
+  "allowed_paths": [
+    ".agent/work/2530/18/completion.json",
+    ".agent/work/2530/18/contract.json",
+    "docs/verification/merge-queue-canary-20261015T2235Z.md"
+  ],
+  "file_writes": [
+    ".agent/work/2530/18/completion.json",
+    ".agent/work/2530/18/contract.json",
+    "docs/verification/merge-queue-canary-20261015T2235Z.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change any migration or database object."
+  ],
+  "required_checks": [
+    "test -f docs/verification/merge-queue-canary-20261015T2235Z.md"
+  ],
+  "assumptions": [
+    "This pull request is a pure-prose merge-queue canary.",
+    "Success is a GitHub merge via the queue with a merge_group run, not Guarded Merge direct."
+  ],
+  "stop_conditions": [
+    "Zero merge_group workflow runs within 5 minutes of enqueue (roll back ruleset 25146118)."
+  ]
+}

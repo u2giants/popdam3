@@ -12,11 +12,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CURRENT_APP } from "@/lib/app-mode";
-import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { modelAllowedForTask, preserveCatalogOnWarning } from "@/lib/ai-model-options";
+import { hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
+import { includeCurrentModel, modelAllowedForTask, modelInPool, modelSelectorPresentation, normalizeAiModelPool, sameAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
+import {
+  modelCapabilityChips,
+  modelMeetsTaskRequirements,
+  modelPricingLabel,
+  modelStructuredOutputSummary,
+  taskRequirementChips,
+  SCALEDOWN_SUMMARIZE_CATALOG_MODEL,
+  type AiCatalogModel,
+} from "@/lib/ai-model-catalog";
 import { toast } from "sonner";
-import { saveAiModelConfig, type AiModelConfigDraft } from "@/lib/ai-model-config-save";
-import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
+import { saveAiModelConfig, saveAiModelPool, type AiModelConfigDraft, type AiModelKeyField } from "@/lib/ai-model-config-save";
+import { ModelPoolEditor } from "@/components/settings/ModelPoolEditor";
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -26,6 +35,76 @@ interface SyncSource {
   apiUrl: string;
   apiKey?: string;
   enabled: boolean;
+}
+
+const AI_KEY_CONFIG_NAMES: Record<AiModelKeyField, string> = {
+  openRouterKey: "OPENROUTER_API_KEY",
+  googleKey: "GOOGLE_AI_API_KEY",
+  metaKey: "META_API_KEY",
+  scaleDownKey: "SCALEDOWN_API_KEY",
+  anthropicKey: "ANTHROPIC_API_KEY",
+  openaiKey: "OPENAI_API_KEY",
+};
+
+function ProviderApiKeyField({
+  field,
+  label,
+  value,
+  placeholder,
+  configured,
+  visible,
+  clearScheduled,
+  onChange,
+  onToggleVisibility,
+  onToggleClear,
+}: {
+  field: AiModelKeyField;
+  label: string;
+  value: string;
+  placeholder: string;
+  configured: boolean;
+  visible: boolean;
+  clearScheduled: boolean;
+  onChange: (value: string) => void;
+  onToggleVisibility: () => void;
+  onToggleClear: (field: AiModelKeyField) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-xs">{label}</Label>
+        <Badge variant={configured ? "secondary" : "outline"} className="text-[10px]">
+          {configured ? "Saved in Settings" : "Not saved in Settings"}
+        </Badge>
+      </div>
+      <div className="relative">
+        <Input
+          aria-label={label}
+          type={visible ? "text" : "password"}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={configured ? "Enter a replacement key" : placeholder}
+          className="h-8 text-xs pr-8 font-mono"
+        />
+        <button
+          type="button"
+          aria-label={visible ? `Hide ${label}` : `Show ${label}`}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          onClick={onToggleVisibility}
+        >
+          {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        {configured ? "Saved value stays hidden. Leave blank to keep it." : "Enter a key to enable this endpoint."}
+      </p>
+      {configured && (
+        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => onToggleClear(field)}>
+          {clearScheduled ? "Keep saved key" : "Clear saved key when saving"}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 const DEFAULT_SOURCES: SyncSource[] = [
@@ -422,7 +501,7 @@ const TASK_MODEL_LABELS: Record<string, {
 }> = {
   vision_tagging: {
     label: "Image Tagging",
-    description: "Vision model for analyzing thumbnails and generating tags, descriptions, characters. Must support image input plus tools, structured outputs, or JSON mode.",
+    description: "Looks at one asset thumbnail and returns structured catalog tags, descriptions, and taxonomy IDs. Runs at bulk scale across the whole library.",
     defaultModel: "qwen/qwen3-vl-32b-instruct",
     requiresVision: true,
     requiresStructuredOutput: true,
@@ -431,14 +510,15 @@ const TASK_MODEL_LABELS: Record<string, {
   },
   text_classification: {
     label: "ERP Classification",
-    description: "Text model for classifying products into categories (Wall, Tabletop, etc.). Must support tool use.",
+    description: "Text-only classifier for product categories (Wall, Tabletop, etc.). Only used when deterministic ERP codes cannot resolve a category.",
     defaultModel: "anthropic/claude-haiku-4.5",
     requiresTools: true,
   },
   pdf_extraction: {
     label: "PDF Text Extraction",
-    description: "Vision model for extracting text from PDF pages (agent fallback after OCR)",
+    description: "Last-resort vision reader for PDF/AI pages after native text extraction and local OCR both fail. Returns plain raw text.",
     defaultModel: "google/gemini-2.5-flash",
+    requiresVision: true,
     requiresTools: false,
   },
 };
@@ -450,7 +530,7 @@ WHAT THIS TASK DOES
 Looks at one asset image (licensed-character artwork, a product photo, a tech pack or style-guide page, etc.) plus its file metadata and returns structured catalog metadata: descriptive tags, a one-sentence description, a short product-label "cover description", a scene description, asset type and art source, design style/reference, matched character / licensor / property IDs from a controlled in-house taxonomy, designer / technical-designer / freelancer names read off title blocks, and a deduplicated list of "Files Used" pulled from any attached tech-pack text. It runs as a single-turn image+text request (no chat history, no multi-step agent loop), at bulk-job scale across the whole library.
 
 HOW THE CODE INVOKES THE MODEL
-Most calls go through OpenRouter (OpenAI-compatible Chat Completions). The explicit meta-direct/muse-spark-1.3-contributor choice instead uses Meta Model API directly and requires META_API_KEY in Railway. The worker asks for structured output through a fallback ladder and takes whichever the model supports: (1) a forced tag_asset tool/function call; (2) json_schema structured outputs; (3) plain JSON mode with schema instructions in the prompt. It then validates that the required fields are present. So a model does NOT need native tool calling to qualify — it needs to reliably return valid JSON matching the schema through at least one of those mechanisms. It DOES need real image input; a text-only model cannot do this task.
+Most calls go through OpenRouter (OpenAI-compatible Chat Completions). The explicit meta-direct/muse-spark-1.3-contributor choice instead uses Meta Model API directly and requires a Meta API key below (with Railway environment fallback). The worker asks for structured output through a fallback ladder and takes whichever the model supports: (1) a forced tag_asset tool/function call; (2) json_schema structured outputs; (3) plain JSON mode with schema instructions in the prompt. It then validates that the required fields are present. So a model does NOT need native tool calling to qualify — it needs to reliably return valid JSON matching the schema through at least one of those mechanisms. It DOES need real image input; a text-only model cannot do this task.
 
 WHAT IS FED TO THE MODEL
 - One image: the asset's THUMBNAIL, not the full-resolution original — an already-compressed, downscaled raster sent inline. There is no separate high-res pass, so the model must read small detail (style numbers, fine print in title blocks, near-identical character variants) off a low-resolution image.
@@ -503,7 +583,7 @@ WHAT THIS TASK DOES
 Pulls readable text out of a PDF (or Illustrator file) page so it can be searched and can feed context into image tagging. This is important: the AI vision model is the LAST resort in a cascade, not the primary extractor. The cascade is: (1) native text extraction from the PDF's real text layer; (2) if that comes back nearly empty, render the page to an image and run local OCR (Tesseract); (3) only if OCR is also nearly empty does the rendered page image go to an AI vision model. Very large files are skipped before any of this. Because the AI step fires only after both a real text layer AND local OCR have already failed, it disproportionately sees the hardest pages — poor scans, stylized or decorative type, dense tech-pack layouts, skewed pages, small print mixed with imagery.
 
 HOW THE CODE INVOKES THE MODEL
-Not through OpenRouter. This path selects a model from a provider-agnostic catalog and calls the provider's API directly (Google or Anthropic today, chosen by the catalog entry's provider field), sending the rendered page as an inline image. The model entry must declare a vision capability or it is skipped. It is a plain text-completion vision call: no tools, no function calling, no JSON schema. The instruction is essentially "extract all text from this page and return only the raw text, no commentary."
+Not through OpenRouter. This path selects a model from a provider-agnostic catalog and calls the provider's API directly (Google or Anthropic today, chosen by the catalog entry's provider field), sending the rendered page as an inline image. The one exception is the scaledown/summarize model, which goes to ScaleDown's own endpoint using the ScaleDown API key saved above — the key must already be saved (the selector warns if it is not), and it is a small flat-rate model rather than a frontier vision model. The model entry must declare a vision capability or it is skipped. It is a plain text-completion vision call: no tools, no function calling, no JSON schema. The instruction is essentially "extract all text from this page and return only the raw text, no commentary."
 
 WHAT IS FED TO THE MODEL
 A single rendered page image (one page, upscaled for legibility) as an inline image, and that one plain instruction. No partial text from the earlier cascade steps is passed in as a hint — the model works from the image alone.
@@ -535,7 +615,7 @@ export function AiModelsConfigSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
-  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "AI_MODEL_DISPLAY_NAMES", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
+  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "AI_MODEL_DISPLAY_NAMES", "AI_MODEL_POOL", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "META_API_KEY", "SCALEDOWN_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
 
   const { data: configData } = useQuery({
     queryKey: ["admin-config", ...configKeys],
@@ -546,16 +626,21 @@ export function AiModelsConfigSection() {
   const [openRouterKey, setOpenRouterKey] = useState("");
   const [showOpenRouter, setShowOpenRouter] = useState(false);
   const [googleKey, setGoogleKey] = useState("");
+  const [metaKey, setMetaKey] = useState("");
+  const [scaleDownKey, setScaleDownKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
   const [showGoogle, setShowGoogle] = useState(false);
+  const [showMeta, setShowMeta] = useState(false);
+  const [showScaleDown, setShowScaleDown] = useState(false);
   const [showAnthropic, setShowAnthropic] = useState(false);
   const [showOpenai, setShowOpenai] = useState(false);
-  const [showLegacyKeys, setShowLegacyKeys] = useState(false);
   const [modelsJson, setModelsJson] = useState("");
   const [jsonError, setJsonError] = useState("");
   const [taskModels, setTaskModels] = useState<Record<string, string>>({});
   const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
+  const [modelPool, setModelPool] = useState<ReturnType<typeof normalizeAiModelPool>>({});
+  const [keysToClear, setKeysToClear] = useState<Set<AiModelKeyField>>(() => new Set());
   const [loaded, setLoaded] = useState(false);
 
   const unwrap = (v: unknown) => ((v as Record<string, unknown>)?.value ?? v ?? "") as string;
@@ -563,16 +648,13 @@ export function AiModelsConfigSection() {
   useEffect(() => {
     if (!configData || loaded) return;
     const cfg = configData.config ?? {};
-    setOpenRouterKey(unwrap(cfg.OPENROUTER_API_KEY));
-    setGoogleKey(unwrap(cfg.GOOGLE_AI_API_KEY));
-    setAnthropicKey(unwrap(cfg.ANTHROPIC_API_KEY));
-    setOpenaiKey(unwrap(cfg.OPENAI_API_KEY));
     const models = (cfg.AI_MODELS as Record<string, unknown>)?.value ?? cfg.AI_MODELS;
     setModelsJson(models ? JSON.stringify(models, null, 2) : "");
     const savedTasks = ((cfg.AI_TASK_MODELS as Record<string, unknown>)?.value ?? cfg.AI_TASK_MODELS ?? {}) as Record<string, string>;
     setTaskModels(savedTasks);
     const savedDisplayNames = ((cfg.AI_MODEL_DISPLAY_NAMES as Record<string, unknown>)?.value ?? cfg.AI_MODEL_DISPLAY_NAMES ?? {}) as Record<string, string>;
     setDisplayNames(savedDisplayNames);
+    setModelPool(normalizeAiModelPool((cfg.AI_MODEL_POOL as Record<string, unknown>)?.value ?? cfg.AI_MODEL_POOL));
     setLoaded(true);
   }, [configData, loaded]);
 
@@ -586,20 +668,70 @@ export function AiModelsConfigSection() {
     }
   }
 
+  function updateApiKey(field: AiModelKeyField, value: string) {
+    const setters: Record<AiModelKeyField, (next: string) => void> = {
+      openRouterKey: setOpenRouterKey,
+      googleKey: setGoogleKey,
+      metaKey: setMetaKey,
+      scaleDownKey: setScaleDownKey,
+      anthropicKey: setAnthropicKey,
+      openaiKey: setOpenaiKey,
+    };
+    setters[field](value);
+    setKeysToClear((previous) => {
+      if (!previous.has(field)) return previous;
+      const next = new Set(previous);
+      next.delete(field);
+      return next;
+    });
+  }
+
+  function toggleClearKey(field: AiModelKeyField) {
+    setKeysToClear((previous) => {
+      const next = new Set(previous);
+      if (next.has(field)) next.delete(field);
+      else next.add(field);
+      return next;
+    });
+  }
+
   const save = useMutation({
     mutationFn: (draft: AiModelConfigDraft) => saveAiModelConfig(call, draft),
     onSuccess: () => {
       toast.success("AI configuration saved");
+      setOpenRouterKey("");
+      setGoogleKey("");
+      setMetaKey("");
+      setScaleDownKey("");
+      setAnthropicKey("");
+      setOpenaiKey("");
+      setKeysToClear(new Set());
+      queryClient.invalidateQueries({ queryKey: ["admin-config"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const savePool = useMutation({
+    mutationFn: (pool: ReturnType<typeof normalizeAiModelPool>) => saveAiModelPool(call, pool),
+    onSuccess: () => {
+      toast.success("Available models saved");
       queryClient.invalidateQueries({ queryKey: ["admin-config"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const savedOpenRouterKey = unwrap(configData?.config?.OPENROUTER_API_KEY);
-  const savedGoogleKey = unwrap(configData?.config?.GOOGLE_AI_API_KEY);
-  const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
-
-  const modelQueryKey = ["vision-models", openRouterAccountFingerprint, Boolean(savedGoogleKey)] as const;
+  const keyConfigured = (field: AiModelKeyField) =>
+    (configData?.config?.[AI_KEY_CONFIG_NAMES[field]] as { configured?: unknown } | undefined)?.configured === true;
+  const openRouterKeyConfigured = keyConfigured("openRouterKey");
+  const googleKeyConfigured = keyConfigured("googleKey");
+  const metaKeyConfigured = keyConfigured("metaKey");
+  const scaleDownKeyConfigured = keyConfigured("scaleDownKey");
+  const anthropicKeyConfigured = keyConfigured("anthropicKey");
+  const openaiKeyConfigured = keyConfigured("openaiKey");
+  const openRouterKeyRevision = (configData?.config?.OPENROUTER_API_KEY as { updated_at?: unknown } | undefined)?.updated_at;
+  const openRouterAccountFingerprint = typeof openRouterKeyRevision === "string" ? openRouterKeyRevision : "unset";
+  const modelQueryKey = ["vision-models", openRouterAccountFingerprint] as const;
   const {
     data: visionCatalog,
     isFetching: fetchingModels,
@@ -607,23 +739,20 @@ export function AiModelsConfigSection() {
     error: modelsError,
     refetch: refetchOpenRouterModels,
   } = useQuery<{
-    models: Array<{
-    id: string;
-    name: string;
-    supportsTools: boolean;
-    supportsStructuredOutputs: boolean;
-    supportsResponseFormat: boolean;
-    toolChoiceModes: string[];
-    inputModalities: string[];
-    pricing?: OpenRouterPricing;
+    models: Array<AiCatalogModel & {
+      supportsTools: boolean;
+      supportsStructuredOutputs: boolean;
+      supportsResponseFormat: boolean;
+      toolChoiceModes: string[];
+      inputModalities: string[];
     }>;
     warning?: string | null;
   }>({
     queryKey: modelQueryKey,
-    enabled: (!!savedOpenRouterKey || !!savedGoogleKey) && (!savedOpenRouterKey || openRouterAccountFingerprint !== null),
+    enabled: !!configData,
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
-      const items = (data?.models ?? []) as Array<{ id: string; name?: string; supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; tool_choice_modes?: string[]; input_modalities?: string[]; pricing?: OpenRouterPricing }>;
+      const items = (data?.models ?? []) as Array<{ id: string; name?: string; supports_tools?: boolean; supports_structured_outputs?: boolean; supports_response_format?: boolean; tool_choice_modes?: string[]; input_modalities?: string[]; image_input?: boolean | null; context_length?: number | null; capability_source?: string; pricing?: OpenRouterPricing }>;
       const incoming = items
         .filter((m) => !hasUnavailableOpenRouterPricing(m.pricing))
         .map((m) => ({
@@ -634,6 +763,9 @@ export function AiModelsConfigSection() {
           supportsResponseFormat: m.supports_response_format === true,
           toolChoiceModes: m.tool_choice_modes ?? [],
           inputModalities: m.input_modalities ?? [],
+          imageInput: m.image_input ?? ((m.input_modalities ?? []).includes("image") ? true : ((m.input_modalities ?? []).length ? false : null)),
+          contextLength: m.context_length ?? null,
+          capabilitySource: m.capability_source,
           pricing: m.pricing,
         }))
         .sort((a, b) => a.id.localeCompare(b.id));
@@ -656,20 +788,32 @@ export function AiModelsConfigSection() {
     }
   }
 
-  const savedAnthropicKey = unwrap(configData?.config?.ANTHROPIC_API_KEY);
-  const savedOpenaiKey = unwrap(configData?.config?.OPENAI_API_KEY);
+  // ScaleDown is called directly, so the OpenRouter catalog never lists it and
+  // it has to be injected for it to be selectable in the task dropdowns.
+  const catalogModels = (() => {
+    const base = visionCatalog?.models ?? [];
+    if (base.some((model) => model.id === SCALEDOWN_SUMMARIZE_CATALOG_MODEL.id)) return base;
+    return [...base, SCALEDOWN_SUMMARIZE_CATALOG_MODEL].sort((a, b) => a.id.localeCompare(b.id));
+  })();
+
   const savedModels = (configData?.config?.AI_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_MODELS;
   const savedModelsJson = savedModels ? JSON.stringify(savedModels, null, 2) : "";
   const savedTaskModels = ((configData?.config?.AI_TASK_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_TASK_MODELS ?? {}) as Record<string, string>;
   const savedDisplayNames = ((configData?.config?.AI_MODEL_DISPLAY_NAMES as Record<string, unknown>)?.value ?? configData?.config?.AI_MODEL_DISPLAY_NAMES ?? {}) as Record<string, string>;
+  const savedModelPool = normalizeAiModelPool((configData?.config?.AI_MODEL_POOL as Record<string, unknown> | undefined)?.value ?? configData?.config?.AI_MODEL_POOL);
+  const modelPoolIsDirty = loaded && !sameAiModelPool(modelPool, savedModelPool);
   const isDirty = loaded && (
     openRouterKey !== savedOpenRouterKey ||
-    googleKey !== savedGoogleKey ||
-    anthropicKey !== savedAnthropicKey ||
-    openaiKey !== savedOpenaiKey ||
+    googleKey.length > 0 ||
+    metaKey.length > 0 ||
+    scaleDownKey.length > 0 ||
+    anthropicKey.length > 0 ||
+    openaiKey.length > 0 ||
+    keysToClear.size > 0 ||
     modelsJson !== savedModelsJson ||
     JSON.stringify(taskModels) !== JSON.stringify(savedTaskModels) ||
-    JSON.stringify(displayNames) !== JSON.stringify(savedDisplayNames)
+    JSON.stringify(displayNames) !== JSON.stringify(savedDisplayNames) ||
+    !sameAiModelPool(modelPool, savedModelPool)
   );
 
   return (
@@ -682,8 +826,8 @@ export function AiModelsConfigSection() {
       <CardContent className="space-y-4">
         <p className="text-xs text-muted-foreground">
           AI calls normally go through OpenRouter. Image Tagging can also use Meta Model API directly,
-          or Direct Gemini Batch with the Google AI API key below.
-          Direct Muse requires <code className="text-[10px]">META_API_KEY</code> in Railway.
+          Direct Gemini Batch, or ScaleDown for bake-offs. Saved key values are hidden; use these fields
+          to add a key, replace it, or clear it.
         </p>
 
         {/* OpenRouter API Key */}
@@ -693,8 +837,8 @@ export function AiModelsConfigSection() {
             <Input
               type={showOpenRouter ? "text" : "password"}
               value={openRouterKey}
-              onChange={(e) => setOpenRouterKey(e.target.value)}
-              placeholder="sk-or-…"
+              onChange={(e) => updateApiKey("openRouterKey", e.target.value)}
+              placeholder={openRouterKeyConfigured ? "Enter a replacement key" : "sk-or-…"}
               className="h-8 text-xs pr-16 font-mono"
             />
             <div className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground tabular-nums pointer-events-none">
@@ -705,33 +849,124 @@ export function AiModelsConfigSection() {
             </button>
           </div>
           <p className="text-[10px] text-muted-foreground">
-            A valid OpenRouter key is 73 characters (sk-or-v1- + 64 hex chars). Toggle the eye icon to verify the full key is visible.
+            {openRouterKeyConfigured ? "A saved key is configured. Leave this blank to keep it, or enter a replacement." : "A valid OpenRouter key is 73 characters (sk-or-v1- + 64 hex chars)."}
           </p>
+          {openRouterKeyConfigured && (
+            <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => toggleClearKey("openRouterKey")}>
+              {keysToClear.has("openRouterKey") ? "Keep saved key" : "Clear saved key when saving"}
+            </Button>
+          )}
         </div>
+
+        <div className="border-t pt-3 space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-foreground">Direct endpoint API keys</p>
+            <p className="text-[10px] text-muted-foreground">These match the direct-provider entries in Available models. Saved values are never shown.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ProviderApiKeyField
+              field="googleKey"
+              label="Google AI API Key"
+              value={googleKey}
+              placeholder="AIza…"
+              configured={googleKeyConfigured}
+              visible={showGoogle}
+              clearScheduled={keysToClear.has("googleKey")}
+              onChange={(value) => updateApiKey("googleKey", value)}
+              onToggleVisibility={() => setShowGoogle((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+            <ProviderApiKeyField
+              field="metaKey"
+              label="Meta Model API Key"
+              value={metaKey}
+              placeholder="Enter Meta API key"
+              configured={metaKeyConfigured}
+              visible={showMeta}
+              clearScheduled={keysToClear.has("metaKey")}
+              onChange={(value) => updateApiKey("metaKey", value)}
+              onToggleVisibility={() => setShowMeta((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+            <ProviderApiKeyField
+              field="scaleDownKey"
+              label="ScaleDown API Key"
+              value={scaleDownKey}
+              placeholder="Enter ScaleDown API key"
+              configured={scaleDownKeyConfigured}
+              visible={showScaleDown}
+              clearScheduled={keysToClear.has("scaleDownKey")}
+              onChange={(value) => updateApiKey("scaleDownKey", value)}
+              onToggleVisibility={() => setShowScaleDown((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+          </div>
+        </div>
+
+        <div className="border-t pt-3 space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-foreground">Other provider API keys</p>
+            <p className="text-[10px] text-muted-foreground">Saved values are never shown. Leave a field blank to keep its saved key.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ProviderApiKeyField
+              field="anthropicKey"
+              label="Anthropic API Key"
+              value={anthropicKey}
+              placeholder="sk-ant-…"
+              configured={anthropicKeyConfigured}
+              visible={showAnthropic}
+              clearScheduled={keysToClear.has("anthropicKey")}
+              onChange={(value) => updateApiKey("anthropicKey", value)}
+              onToggleVisibility={() => setShowAnthropic((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+            <ProviderApiKeyField
+              field="openaiKey"
+              label="OpenAI API Key"
+              value={openaiKey}
+              placeholder="sk-proj-…"
+              configured={openaiKeyConfigured}
+              visible={showOpenai}
+              clearScheduled={keysToClear.has("openaiKey")}
+              onChange={(value) => updateApiKey("openaiKey", value)}
+              onToggleVisibility={() => setShowOpenai((value) => !value)}
+              onToggleClear={toggleClearKey}
+            />
+          </div>
+        </div>
+
+        <ModelPoolEditor
+          models={catalogModels}
+          pool={modelPool}
+          onChange={setModelPool}
+          loading={loadingModels || fetchingModels}
+          hasChanges={modelPoolIsDirty}
+          saving={savePool.isPending || save.isPending}
+          onSave={() => savePool.mutate({ ...modelPool })}
+        />
 
         {/* Task Model Selection */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <Label className="text-xs font-medium">Model per Task</Label>
+            <Label className="text-xs font-medium">Model per task</Label>
             {fetchingModels && (
               <span className="text-[10px] text-muted-foreground">
                 {loadingModels ? "Loading models..." : "Refreshing models..."}
               </span>
             )}
-            {savedOpenRouterKey && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                title="Refresh model list from OpenRouter"
-                aria-label="Refresh model list from OpenRouter"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                disabled={fetchingModels}
-                onClick={refreshOpenRouterModels}
-              >
-                <RefreshCw className={`h-3 w-3 ${fetchingModels ? "animate-spin" : ""}`} />
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title="Refresh model list from OpenRouter"
+              aria-label="Refresh model list from OpenRouter"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              disabled={fetchingModels}
+              onClick={refreshOpenRouterModels}
+            >
+              <RefreshCw className={`h-3 w-3 ${fetchingModels ? "animate-spin" : ""}`} />
+            </Button>
             {modelsError && (
               <span className="text-[10px] text-destructive">
                 Failed to load models: {(modelsError as Error).message}
@@ -740,20 +975,22 @@ export function AiModelsConfigSection() {
             {visionCatalog?.warning && (
               <span className="text-[10px] text-amber-600">{visionCatalog.warning}; showing the last available catalog.</span>
             )}
-            {!savedOpenRouterKey && !savedGoogleKey && (
-              <span className="text-[10px] text-muted-foreground">Save an OpenRouter or Google AI API key to load model list</span>
+            {!openRouterKeyConfigured && (
+              <span className="text-[10px] text-muted-foreground">OpenRouter models require a saved OpenRouter API key; direct-provider models may still appear.</span>
             )}
           </div>
+          <p className="text-[10px] text-muted-foreground">
+            Each dropdown lists only models that are turned on above and meet that task’s capability requirements.
+            Prices are OpenRouter rates per 1M input/output tokens.
+          </p>
           <div className="grid gap-3 sm:grid-cols-3">
             {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel, requiresTools, requiresVision, requiresStructuredOutput, fallbackKey, providerPinKey }]) => {
               const currentVal = taskModels[key] || "";
-              const modelList = visionCatalog?.models ?? [];
+              const modelList = catalogModels;
+              const requirements = { requiresVision, requiresTools, requiresStructuredOutput };
               const modelMeetsRequirements = (m: typeof modelList[number] | undefined) => {
                 if (!m) return false;
-                if (requiresTools && !m.supportsTools) return false;
-                if (requiresStructuredOutput && !(m.supportsTools || m.supportsStructuredOutputs || m.supportsResponseFormat)) return false;
-                if (requiresVision && !m.inputModalities.includes("image")) return false;
-                return true;
+                return modelMeetsTaskRequirements(m, requirements);
               };
               const requirementLabel = requiresStructuredOutput
                 ? "image input plus tool calls, structured outputs, or JSON mode"
@@ -762,50 +999,59 @@ export function AiModelsConfigSection() {
                   : requiresVision
                     ? "image input"
                     : "";
-              const taskModelList = modelList.filter((model) => modelAllowedForTask(model.id, key));
-              const filteredList = (requiresTools || requiresStructuredOutput || requiresVision)
-                ? taskModelList.filter(modelMeetsRequirements)
-                : taskModelList;
+              const requirementChips = taskRequirementChips(requirements);
+              const taskCandidates = modelList.filter((model) => modelAllowedForTask(model.id, key));
+              const taskCandidatesBeforePool = (requiresTools || requiresStructuredOutput || requiresVision)
+                ? taskCandidates.filter(modelMeetsRequirements)
+                : taskCandidates;
+              const filteredList = taskCandidatesBeforePool.filter((model) => modelInPool(model.id, modelPool));
+              const poolHidAllTaskModels = taskCandidatesBeforePool.length > 0 && filteredList.length === 0;
               // If currentVal is set but not in filteredList, still show it (with a warning)
-              const currentModelMeetsRequirements = !currentVal || (modelAllowedForTask(currentVal, key)
-                && (!(requiresTools || requiresStructuredOutput || requiresVision) || modelMeetsRequirements(modelList.find((m) => m.id === currentVal))));
-              const allOptions = currentVal && modelAllowedForTask(currentVal, key) && !filteredList.some((m) => m.id === currentVal)
-                ? [{ id: currentVal, name: currentVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] }, ...filteredList]
+              const currentModelAllowedForTask = !currentVal || modelAllowedForTask(currentVal, key);
+              const currentModelMeetsRequirements = currentModelAllowedForTask
+                && (!currentVal || (!(requiresTools || requiresStructuredOutput || requiresVision) || modelMeetsRequirements(modelList.find((m) => m.id === currentVal))));
+              const allOptions = currentVal && !filteredList.some((m) => m.id === currentVal)
+                ? includeCurrentModel(filteredList, modelList.find((m) => m.id === currentVal)
+                  ?? { id: currentVal, name: currentVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [], pricing: null })
                 : filteredList;
 
               const fallbackVal = fallbackKey ? (taskModels[fallbackKey] || "") : "";
               const fallbackModelList = filteredList.filter((model) => modelAllowedForTask(model.id, key, true));
+              const fallbackCandidatesBeforePool = taskCandidatesBeforePool.filter((model) => modelAllowedForTask(model.id, key, true));
+              const poolHidAllFallbackModels = fallbackCandidatesBeforePool.length > 0 && fallbackModelList.length === 0;
               const fallbackOptions = fallbackKey
-                ? (fallbackVal && modelAllowedForTask(fallbackVal, key, true) && !fallbackModelList.some((m) => m.id === fallbackVal)
-                  ? [{ id: fallbackVal, name: fallbackVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] }, ...fallbackModelList]
+                ? (fallbackVal && !fallbackModelList.some((m) => m.id === fallbackVal)
+                  ? includeCurrentModel(fallbackModelList, modelList.find((m) => m.id === fallbackVal)
+                    ?? { id: fallbackVal, name: fallbackVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, toolChoiceModes: [], inputModalities: [] })
                   : fallbackModelList)
                 : [];
 
-              const renderSelect = (selectKey: string, value: string, options: typeof filteredList, placeholder: string) => (
-                filteredList.length > 0 ? (
+              const renderSelect = (selectKey: string, value: string, options: typeof filteredList, placeholder: string, showEmptySelect = false, hasEligibleModels = options.length > 0, isFallback = false) => (
+                modelSelectorPresentation(options.length, hasEligibleModels, showEmptySelect) === "select" ? (
                   <Select value={value} onValueChange={(val) => setTaskModels((prev) => ({ ...prev, [selectKey]: val }))}>
                     <SelectTrigger className="h-8 text-xs font-mono">
                       <SelectValue placeholder={placeholder} />
                     </SelectTrigger>
                     <SelectContent>
                       {options.map((m) => {
-                        const modeLabel = requiresStructuredOutput
-                          ? m.supportsTools
-                            ? m.toolChoiceModes.includes("named") ? " (tool named)" : m.toolChoiceModes.includes("required") ? " (tool required)" : " (tool auto)"
-                            : m.supportsStructuredOutputs
-                              ? " (schema)"
-                              : m.supportsResponseFormat
-                                ? " (json)"
-                                : ""
-                          : "";
+                        const chips = modelCapabilityChips(m).map((chip) => chip === "vision" ? "vision" : chip === "json-schema" ? "schema" : chip === "json-mode" ? "json" : chip === "tool-choice" ? null : chip).filter(Boolean).join(" · ");
+                        const structured = modelStructuredOutputSummary(m);
                         return (
-                          <SelectItem key={m.id} value={m.id} className="text-xs font-mono" suffix={formatOpenRouterPricing(m.pricing)}>
-                            {displayNames[m.id] || m.id}{modeLabel}{!modelMeetsRequirements(m) && requirementLabel ? " ⚠" : ""}
+                          <SelectItem key={m.id} value={m.id} className="text-xs font-mono" suffix={modelPricingLabel(m)}>
+                            {displayNames[m.id] || m.id}
+                            {!modelAllowedForTask(m.id, key, isFallback) ? " · unsupported for this task" : !modelInPool(m.id, modelPool) ? " · off in Available models" : ""}
+                            {chips ? ` · ${chips}` : ""}
+                            {structured ? ` · ${structured}` : ""}
+                            {!modelMeetsRequirements(m) && requirementLabel ? " · ⚠ missing requirements" : ""}
                           </SelectItem>
                         );
                       })}
                     </SelectContent>
                   </Select>
+                ) : modelSelectorPresentation(options.length, hasEligibleModels, showEmptySelect) === "pool-empty" ? (
+                  <div aria-disabled="true" className="flex h-8 items-center rounded-md border border-input bg-muted/40 px-3 text-xs text-muted-foreground">
+                    No eligible models are turned on in Available models
+                  </div>
                 ) : (
                   <Input
                     value={value}
@@ -833,7 +1079,22 @@ export function AiModelsConfigSection() {
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
-                  {renderSelect(key, currentVal, allOptions, defaultModel)}
+                  <p className="text-[10px] text-muted-foreground">{description}</p>
+                  {requirementChips.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {requirementChips.map((chip) => (
+                        <Badge key={chip} variant="secondary" className="text-[9px]">Needs {chip}</Badge>
+                      ))}
+                    </div>
+                  )}
+                  {renderSelect(key, currentVal, allOptions, defaultModel, poolHidAllTaskModels, filteredList.length > 0)}
+                  <p className="text-[10px] text-muted-foreground">
+                    {filteredList.length} eligible model{filteredList.length === 1 ? "" : "s"} available here
+                    {requirementChips.length ? ` (needs ${requirementChips.join(", ")})` : ""}.
+                  </p>
+                  {poolHidAllTaskModels && (
+                    <p className="text-[10px] text-amber-600">All models that meet this task’s requirements are turned off in Available models. Turn on at least one above.</p>
+                  )}
                   {key === "vision_tagging" && currentVal === "meta-direct/muse-spark-1.3-contributor" && (
                     <p className="text-[10px] text-amber-600 dark:text-amber-400">
                       Contributor pricing allows Meta to use submitted thumbnails, prompts, and model outputs to train its models.
@@ -844,15 +1105,35 @@ export function AiModelsConfigSection() {
                       Uses the existing Google AI API key and the restart-safe provider batch path. Thumbnails and asset metadata are sent to Google Batch; Google stores batch results for 6 weeks by default before deleting them.
                     </p>
                   )}
-                  {!currentModelMeetsRequirements && requirementLabel && (
-                    <p className="text-[10px] text-destructive">This model does not support {requirementLabel}; this task will fail. Select a different model.</p>
+                  {key === "pdf_extraction" && currentVal.startsWith("scaledown/") && !scaleDownKeyConfigured && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                      No ScaleDown API key is saved. The selection is allowed, but every AI-vision page fails until you save the key above — extraction then keeps only the earlier OCR/native text, if any.
+                    </p>
+                  )}
+                  {currentVal && !currentModelAllowedForTask && (
+                    <p className="text-[10px] text-destructive">This saved model is not supported by this task selector. Choose a model this task can use.</p>
+                  )}
+                  {currentModelAllowedForTask && !currentModelMeetsRequirements && requirementLabel && (
+                    <p className="text-[10px] text-destructive">This model does not support {requirementLabel}; this task will fail. {poolHidAllTaskModels ? "Turn on a model that meets these requirements in Available models above." : "Select a different model."}</p>
+                  )}
+                  {currentVal && !modelInPool(currentVal, modelPool) && (
+                    <p className="text-[10px] text-amber-600">This saved model is turned off in Available models. It remains selected until you choose a model that is turned on.</p>
                   )}
                   {fallbackKey && (
                     <div className="mt-1.5 space-y-1">
                       <Label className="text-[10px] text-muted-foreground">Fallback model (on content filter / provider rejection)</Label>
-                      {renderSelect(fallbackKey, fallbackVal, fallbackOptions, "None — mark as failed")}
-                      {fallbackVal && !modelMeetsRequirements(modelList.find((m) => m.id === fallbackVal)) && modelList.length > 0 && requirementLabel && (
-                        <p className="text-[10px] text-destructive">Fallback model does not support {requirementLabel}.</p>
+                      {renderSelect(fallbackKey, fallbackVal, fallbackOptions, "None — mark as failed", poolHidAllFallbackModels, fallbackModelList.length > 0, true)}
+                      {poolHidAllFallbackModels && (
+                        <p className="text-[10px] text-amber-600">All eligible fallback models are turned off in Available models. Turn one on above.</p>
+                      )}
+                      {fallbackVal && !modelAllowedForTask(fallbackVal, key, true) && (
+                        <p className="text-[10px] text-destructive">This saved model is not supported as a fallback. Choose a model this fallback can use.</p>
+                      )}
+                      {fallbackVal && modelAllowedForTask(fallbackVal, key, true) && !modelMeetsRequirements(modelList.find((m) => m.id === fallbackVal)) && modelList.length > 0 && requirementLabel && (
+                        <p className="text-[10px] text-destructive">Fallback model does not support {requirementLabel}. {poolHidAllFallbackModels ? "Turn on a model that meets these requirements in Available models above." : "Choose a different fallback."}</p>
+                      )}
+                      {fallbackVal && !modelInPool(fallbackVal, modelPool) && (
+                        <p className="text-[10px] text-amber-600">This saved fallback is turned off in Available models. It remains selected until you choose a model that is turned on.</p>
                       )}
                     </div>
                   )}
@@ -870,83 +1151,15 @@ export function AiModelsConfigSection() {
                       </p>
                     </div>
                   )}
-                  <p className="text-[10px] text-muted-foreground">{description}</p>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Direct and legacy provider keys (collapsed) */}
-        <div className="border-t pt-3">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setShowLegacyKeys((v) => !v)}
-          >
-            {showLegacyKeys ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            Direct and Legacy Provider API Keys
-          </button>
-          {showLegacyKeys && (
-            <div className="grid gap-3 sm:grid-cols-3 mt-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Google AI API Key</Label>
-                <div className="relative">
-                  <Input
-                    type={showGoogle ? "text" : "password"}
-                    value={googleKey}
-                    onChange={(e) => setGoogleKey(e.target.value)}
-                    placeholder="AIza…"
-                    className="h-8 text-xs pr-8 font-mono"
-                  />
-                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowGoogle((v) => !v)}>
-                    {showGoogle ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Anthropic API Key</Label>
-                <div className="relative">
-                  <Input
-                    type={showAnthropic ? "text" : "password"}
-                    value={anthropicKey}
-                    onChange={(e) => setAnthropicKey(e.target.value)}
-                    placeholder="sk-ant-…"
-                    className="h-8 text-xs pr-8 font-mono"
-                  />
-                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowAnthropic((v) => !v)}>
-                    {showAnthropic ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">OpenAI API Key</Label>
-                <div className="relative">
-                  <Input
-                    type={showOpenai ? "text" : "password"}
-                    value={openaiKey}
-                    onChange={(e) => setOpenaiKey(e.target.value)}
-                    placeholder="sk-proj-…"
-                    className="h-8 text-xs pr-8 font-mono"
-                  />
-                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowOpenai((v) => !v)}>
-                    {showOpenai ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Model catalog JSON (collapsed) */}
         <div className="border-t pt-3">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setShowLegacyKeys((v) => !v)}
-          >
-            Agent Model Catalog (JSON)
-          </button>
+          <p className="text-xs text-muted-foreground">Agent Model Catalog (JSON)</p>
           <div className="space-y-1.5 mt-2">
             <Textarea
               value={modelsJson}
@@ -969,19 +1182,26 @@ export function AiModelsConfigSection() {
           onClick={() => save.mutate({
             modelsJson,
             taskModels: { ...taskModels },
+            savedTaskModels: { ...savedTaskModels },
             displayNames: { ...displayNames },
+            modelPool,
             openRouterKey,
             googleKey,
+            metaKey,
+            scaleDownKey,
             anthropicKey,
             openaiKey,
-            savedKeys: {
-              openRouterKey: savedOpenRouterKey,
-              googleKey: savedGoogleKey,
-              anthropicKey: savedAnthropicKey,
-              openaiKey: savedOpenaiKey,
+            configuredKeys: {
+              openRouterKey: openRouterKeyConfigured,
+              googleKey: googleKeyConfigured,
+              metaKey: metaKeyConfigured,
+              scaleDownKey: scaleDownKeyConfigured,
+              anthropicKey: anthropicKeyConfigured,
+              openaiKey: openaiKeyConfigured,
             },
+            clearKeys: [...keysToClear],
           })}
-          disabled={save.isPending || !!jsonError || !isDirty}
+          disabled={save.isPending || savePool.isPending || !!jsonError || !isDirty}
         >
           <Save className="h-3.5 w-3.5" />
           {save.isPending ? "Saving…" : "Save"}

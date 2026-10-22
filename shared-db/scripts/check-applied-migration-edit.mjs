@@ -64,7 +64,7 @@ import fs from 'node:fs'
 import { HISTORICAL_RESTORATIONS, validateHistoricalRestorationFile } from './historical-migration-restorations.mjs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fetchAppliedVersions, PROJECT_REFS, Unknown } from './orchestrator-flow/read-preview-ledger.mjs'
+import { fetchAppliedVersions, PROJECT_REFS, Unknown } from './db-flow/read-preview-ledger.mjs'
 export { fetchAppliedVersions, PROJECT_REFS, Unknown }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

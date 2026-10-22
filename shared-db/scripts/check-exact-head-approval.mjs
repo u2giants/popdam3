@@ -8,7 +8,7 @@
 // Why this file exists (#1816): the guarded-migration-merge workflow proved head
 // identity, base currency, object collisions and the author lease, but never once
 // asked whether the bytes being merged had been approved. The exact-head rule was
-// enforced by convention in the orchestrator's instructions and by the PREVIEW
+// enforced by convention in claim-first instructions and by the PREVIEW
 // gate -- which, under merge-first (AGENTS.md section 4 rule 2), only runs AFTER
 // the merge. So the sequence
 //
@@ -45,7 +45,7 @@
 // forgery, but that still does not bind the assigned provider to the commenter. The word
 // "independent" here describes the assignment PROCESS -- the rotation in
 // `manage-migration-author-lanes.mjs`, which picks the reviewer and refuses the
-// live orchestrator's own engine -- and is not a property this file verifies.
+// live session engine -- and is not a property this file verifies.
 // One deliberate limit remains: fenced or indented code containing a verdict line
 // counts.
 //
@@ -75,6 +75,26 @@ import { resolveBaseRef, gitProbe } from './lib/resolve-base-ref.mjs'
 import { MERGE_SELF_CONTEXT } from './lib/merge-self-context.mjs'
 
 export class ApprovalCheckError extends Error {}
+const COMPOSED_CARRY = Symbol('composed approval carry')
+
+/** Owner no-reviewer policy (Albert, 2026-10-15). Missing or malformed file
+ *  means NO exemption — fail closed to the reviewer requirement. */
+export function readOwnerNoReviewerPolicy() {
+  try {
+    const raw = readFileSync(new URL('../config/owner-no-reviewer-policy.json', import.meta.url), 'utf8')
+    const policy = JSON.parse(raw)
+    if (policy?.schema_version !== 1 || policy?.active !== true || typeof policy?.quote !== 'string' || policy.quote.length < 10) {
+      return { active: false, reason: 'owner no-reviewer policy file is present but not an active schema-1 record' }
+    }
+    // Scope is binding (docs/owner-rulings.md §6.28): popcre/shared-db only.
+    if (policy.scope !== REPO) {
+      return { active: false, reason: 'owner no-reviewer policy file scope does not match this repository' }
+    }
+    return { active: true, reason: `owner ruling ${policy.decided_at}: ${policy.quote}` }
+  } catch {
+    return { active: false, reason: 'owner no-reviewer policy file is absent or unreadable' }
+  }
+}
 
 // A decision is "tied" to a head when GitHub records it against that commit or the
 // author wrote the SHA into the body. Same rule the preview gate uses, so the two
@@ -152,6 +172,37 @@ const tiedToHead = evidenceTiedToHead
 // space-separated `REQUEST CHANGES` counts too: it is how a reviewer writing prose
 // spells the same refusal, and only the underscore form was recognised before.
 
+function latestAssignmentsBySlot(assignments, returns, headSha, requestedSlots = null) {
+  if (!/^[0-9a-f]{40}$/i.test(String(headSha ?? ''))) return new Map()
+  const slots = requestedSlots instanceof Set ? requestedSlots : null
+  const forHead = (rows) => rows.filter((row) => String(row.headSha ?? headSha).toLowerCase() === String(headSha).toLowerCase()
+    && (!slots || slots.has(Number.isInteger(row.slot) && row.slot >= 1 ? row.slot : 1)))
+  const headAssignments = forHead(assignments)
+  const headReturns = forHead(returns)
+  const returnedShas = new Set(headReturns.map((row) => String(row.assignmentSha ?? '').toLowerCase()))
+  const liveBySlot = new Map()
+  for (const assignment of headAssignments) {
+    if (returnedShas.has(String(assignment.sha ?? '').toLowerCase())) continue
+    // A ref without a `-slot<N>` suffix IS slot 1 (`parseAssignmentRef` defaults
+    // it), and rows built by callers that predate slots may omit the field.
+    const slot = Number.isInteger(assignment.slot) && assignment.slot >= 1 ? assignment.slot : 1
+    const prior = liveBySlot.get(slot)
+    if (!prior || Number(assignment.replacementSequence ?? 0) > Number(prior.replacementSequence ?? 0)) liveBySlot.set(slot, { ...assignment, slot })
+  }
+  const sequenceOf = (row, label) => { const value = Number(row?.sequence); if (!Number.isInteger(value) || value < 1) throw new ApprovalCheckError(`${label} has no readable reviewer sequence`); return value }
+  const newestReturned = new Map()
+  for (const row of headReturns) {
+    const slot = Number.isInteger(row.slot) && row.slot >= 1 ? row.slot : 1
+    const sequence = sequenceOf(row, `durable reviewer return ${row.ref ?? ''} for slot ${slot}`)
+    if (!(newestReturned.get(slot) >= sequence)) newestReturned.set(slot, sequence)
+  }
+  for (const [slot, sequence] of newestReturned) {
+    const live = liveBySlot.get(slot)
+    if (!live || sequenceOf(live, `assignment ${live.ref ?? live.sha}`) <= sequence) throw new ApprovalCheckError(`review slot ${slot} was durably returned for head ${headSha} and has no live exact-head assignment newer than the returned one; it cannot be satisfied by another slot, nor by a record the returned one had already superseded. Draw a new reviewer for this exact head and slot and have that assignment record its own APPROVE.`)
+  }
+  return liveBySlot
+}
+
 export function evaluateExactHeadApproval(input) {
   const { pr, headSha, evidence = [], assignments = [], verdicts } = input
   if (!/^[0-9a-f]{40}$/i.test(String(headSha ?? ''))) throw new ApprovalCheckError('an exact 40-character head SHA is required')
@@ -187,6 +238,23 @@ export function evaluateExactHeadApproval(input) {
     return { approved: true, head_sha: headSha, pr: Number(pr), documents_only: true, reason: documents.reason, assignments: 0, approvals: 0 }
   }
 
+  // OWNER RULING (Albert Hazan, 2026-10-16, verbatim: "the new rules say this
+  // repo does not get reveiwers anymore"). Shared-db no longer draws or requires
+  // an external reviewer APPROVE. The exemption is from the reviewer POOL only:
+  // every other required check, the guarded merge lane, and the merge lock still
+  // bind. A durable refusal already recorded at this head still blocks. The
+  // policy is a committed file so the decision is auditable and cannot be
+  // toggled by a pull-request author or an environment variable. Library callers
+  // must pass `ownerNoReviewerPolicy` explicitly; the CLI loads the file.
+  const ownerNoReviewer = input.ownerNoReviewerPolicy ?? { active: false, reason: 'owner no-reviewer policy was not supplied by the caller' }
+  if (ownerNoReviewer.active) {
+    const recordedOwner = (verdicts ?? []).filter((row) => Number(row.pr) === Number(pr) && String(row.head_sha).toLowerCase() === String(headSha).toLowerCase())
+    if (recordedOwner.some((row) => !isValidatedVerdictArtifact(row))) throw new ApprovalCheckError('durable verdict input crossed the approval boundary without artifact validation')
+    const refusedOwner = recordedOwner.filter((row) => reviewerReadsRepository(row.reviewer) && row.verdict !== 'APPROVE')
+    if (refusedOwner.length) throw new ApprovalCheckError(`head ${headSha} carries a durable reviewer refusal; the owner no-reviewer rule exempts DRAWING a reviewer, never answering one that already reviewed these bytes`)
+    return { approved: true, head_sha: headSha, pr: Number(pr), owner_no_reviewer: true, reason: ownerNoReviewer.reason, assignments: 0, approvals: 0 }
+  }
+
   const atThisHead = assignments.filter((row) => String(row.headSha ?? '').toLowerCase() === String(headSha).toLowerCase())
   if (!atThisHead.length) throw new ApprovalCheckError(`no reviewer was ever assigned head ${headSha}; an assignment pinned to an earlier head does not carry forward to new commits`)
 
@@ -213,56 +281,44 @@ export function evaluateExactHeadApproval(input) {
   // exactly one thing: a live assignment for that same slot drawn after the
   // returned one, carrying its own APPROVE below.
   const returns = (input.returns ?? []).filter((row) => String(row.headSha ?? headSha).toLowerCase() === String(headSha).toLowerCase())
-  const returnedShas = new Set(returns.map((row) => String(row.assignmentSha ?? '').toLowerCase()))
-  const pinned = atThisHead.filter((row) => !returnedShas.has(String(row.sha ?? '').toLowerCase()))
-  const liveBySlot = new Map()
-  for (const assignment of pinned) {
-    // A ref without a `-slot<N>` suffix IS slot 1 (`parseAssignmentRef` defaults
-    // it), and rows built by callers that predate slots may omit the field. A
-    // slot read as `undefined` is as invisible as one never drawn (#2837), so it
-    // is normalized to the same default the ref parser applies.
-    const slot = Number.isInteger(assignment.slot) && assignment.slot >= 1 ? assignment.slot : 1
-    const prior = liveBySlot.get(slot)
-    if (!prior || Number(assignment.replacementSequence ?? 0) > Number(prior.replacementSequence ?? 0)) liveBySlot.set(slot, { ...assignment, slot })
-  }
-  const sequenceOf = (row, label) => { const value = Number(row?.sequence); if (!Number.isInteger(value) || value < 1) throw new ApprovalCheckError(`${label} has no readable reviewer sequence`); return value }
-  const newestReturned = new Map()
-  for (const row of returns) { const sequence = sequenceOf(row, `durable reviewer return ${row.ref ?? ''} for slot ${row.slot}`); if (!(newestReturned.get(row.slot) >= sequence)) newestReturned.set(row.slot, sequence) }
-  for (const [slot, sequence] of newestReturned) {
-    const live = liveBySlot.get(slot)
-    if (!live || sequenceOf(live, `assignment ${live.ref ?? live.sha}`) <= sequence) throw new ApprovalCheckError(`review slot ${slot} was durably returned for head ${headSha} and has no live exact-head assignment newer than the returned one; it cannot be satisfied by another slot, nor by a record the returned one had already superseded. Draw a new reviewer for this exact head and slot and have that assignment record its own APPROVE.`)
-  }
+  const liveBySlot = latestAssignmentsBySlot(atThisHead, returns, headSha)
+  const pinned = atThisHead.filter((row) => !returns.some((ret) => String(ret.assignmentSha ?? '').toLowerCase() === String(row.sha ?? '').toLowerCase()))
   if (!pinned.length) throw new ApprovalCheckError(`every reviewer assignment pinned to head ${headSha} was durably returned; a returned slot is an unapproved slot`)
 
-  // THE MINIMUM SLOT COUNT (issue #2837). The loop below demands an APPROVE for
-  // every slot it can SEE from pinned assignments -- but a slot that was never
-  // drawn is a slot it cannot see, so "every visible slot approved" equals two
-  // independent reviews only when two were drawn. PR #2746 (issue #2478) merged
-  // production-bound bytes on a single slot-1 verdict because slot 2 was never
-  // drawn across all nine heads, nothing required it, and the log line read like
-  // success. This file already names the failure class for a RETURNED slot; a
-  // never-drawn slot reaches the identical blind spot from the other side.
-  //
-  // The required minimum comes from the same source AGENTS.md 6.x section 4
-  // uses: a change that touches supabase/migrations/ needs TWO independent
-  // reviews; every other change (scripts, docs, CI) needs ONE. It is judged from
-  // the pull request's own changed files -- the same list the documents-only
-  // lane reads above, renames carrying their previous name -- and, exactly like
-  // that lane, `changedFiles` absent entirely means every caller that predates
-  // the rule behaves as before (one slot). An undrawn required slot is a refusal
-  // naming the slot number, so it fails loudly instead of being invisible.
-  const migrationsTouched = (input.changedFiles ?? []).some((file) => String(file ?? '').replace(/\\/g, '/').startsWith('supabase/migrations/'))
-  const requiredSlots = Object.prototype.hasOwnProperty.call(input, 'changedFiles') && migrationsTouched ? 2 : 1
+  // OWNER RULING (Albert Hazan, 2026-10-14: "change the rules so that we don't
+  // need 2 reviews"). One independent exact-head APPROVE is enough for every
+  // change, including migrations. The loop below still refuses a drawn slot
+  // that owes its own APPROVE; it no longer requires a never-drawn second slot.
+  // `requiredSlots` stays a single variable so callers and the approval report
+  // shape do not change.
+  const requiredSlots = 1
+  // CARRIED SLOTS FROM A CONTENT-EQUIVALENT PRIOR HEAD (tree-identical re-push).
+  // A re-push of the same bytes must not burn a paid draw just to re-pin an
+  // assignment an ancestor already holds. This head's own slots supersede the
+  // same ancestor slots; only disjoint, live ancestor slots may fill other owed
+  // slots. The internal carry is produced after validating the ancestor refs.
+  const composedCarry = input[COMPOSED_CARRY]
+  const carriedAssignments = (composedCarry?.assignments ?? []).filter((row) => row && Number(row.pr) === Number(pr))
+  const carriedSlots = new Set(carriedAssignments.map((row) => Number.isInteger(row.slot) && row.slot >= 1 ? row.slot : 1).filter((slot) => !liveBySlot.has(slot)))
+  const carriedBySlot = latestAssignmentsBySlot(carriedAssignments, composedCarry?.returns ?? [], composedCarry?.headSha, carriedSlots)
   const undrawnSlots = []
-  for (let slot = 1; slot <= requiredSlots; slot += 1) if (!liveBySlot.has(slot)) undrawnSlots.push(slot)
+  for (let slot = 1; slot <= requiredSlots; slot += 1) if (!liveBySlot.has(slot) && !carriedBySlot.has(slot)) undrawnSlots.push(slot)
   if (undrawnSlots.length) {
-    throw new ApprovalCheckError(`head ${headSha} owes required review slot(s) ${undrawnSlots.join(', ')} that no assignment ever drew: this pull request's change requires ${requiredSlots} independent review slot(s) (AGENTS.md 6.x: migrations need two, scripts/docs/CI one), and a slot this gate cannot see is a slot it cannot require. Draw the owed slot pinned to this exact head (--assign-reviewer, slot 2 only after slot 1 is assigned) and have that assignment record its own APPROVE.`)
+    throw new ApprovalCheckError(`head ${headSha} owes required review slot(s) ${undrawnSlots.join(', ')} that no assignment ever drew: this pull request's change requires ${requiredSlots} independent review slot(s) (owner ruling 2026-10-14: one review for every change), and a slot this gate cannot see is a slot it cannot require. Draw each missing required slot at this exact head (--assign-reviewer); that assignment must record its own APPROVE.`)
   }
+  // Slots this head owns plus slots carried from a content-equivalent ancestor
+  // together satisfy the minimum. Each still owes its own APPROVE below.
+  for (const [slot, assignment] of carriedBySlot) if (!liveBySlot.has(slot)) liveBySlot.set(slot, assignment)
 
 
   if (Object.prototype.hasOwnProperty.call(input, 'verdicts')) {
     const all = (verdicts ?? []).filter((row) => Number(row.pr) === Number(pr) && String(row.head_sha).toLowerCase() === String(headSha).toLowerCase())
+    // A carried slot's APPROVE lives at the ancestor head, not here. It is
+    // accepted only for the exact carried assignment it names, and only when
+    // that slot is not owned by this head (the fill above already enforced that).
+    const carriedVerdicts = (composedCarry?.verdicts ?? []).filter((row) => row && Number(row.pr) === Number(pr) && carriedBySlot.has(Number.isInteger(row.slot) && row.slot >= 1 ? row.slot : 1))
     if (all.some((row) => !isValidatedVerdictArtifact(row))) throw new ApprovalCheckError('durable verdict input crossed the approval boundary without artifact validation')
+    if (carriedVerdicts.some((row) => !isValidatedVerdictArtifact(row))) throw new ApprovalCheckError('carried durable verdict input crossed the approval boundary without artifact validation')
     if (new Set(all.map((row) => row.ref)).size !== all.length) throw new ApprovalCheckError('duplicate durable verdict refs cannot be counted')
     // THE NON-READING-REVIEWER RULE, ENFORCED AT THE GATE THAT AUTHORIZES MERGES (#2079).
     //
@@ -276,22 +332,25 @@ export function evaluateExactHeadApproval(input) {
     // APPROVE. Both directions are disregarded, identically. Every row here is a
     // validated artifact, so `reviewer` is present and was checked against the
     // assignment; an unknown name fails closed to "cannot read".
-    const disregarded = all.filter((row) => !reviewerReadsRepository(row.reviewer))
+    const disregarded = [...all, ...carriedVerdicts].filter((row) => !reviewerReadsRepository(row.reviewer))
     const exact = all.filter((row) => reviewerReadsRepository(row.reviewer))
+    const carriedExact = carriedVerdicts.filter((row) => reviewerReadsRepository(row.reviewer))
     const disregardedNote = disregarded.length ? ` (${disregarded.length} durable verdict artifact(s) at this head are DISREGARDED because their reviewer cannot read the repository: ${disregarded.map((row) => `${row.ref} by ${row.reviewer}`).join(', ')}. Re-review the slot with --replace-failed-reviewer --failure-code reviewer_cannot_read_repository)` : ''
     if (exact.some((row) => row.verdict !== 'APPROVE')) throw new ApprovalCheckError(`head ${headSha} carries a durable reviewer refusal; answer it with a new commit and a fresh exact-head review${disregardedNote}`)
+    if (carriedExact.some((row) => row.verdict !== 'APPROVE')) throw new ApprovalCheckError(`a content-equivalent prior head carries a durable reviewer refusal; a refusal is never carried past${disregardedNote}`)
     const approvals = exact.filter((row) => row.verdict === 'APPROVE')
-    if (!approvals.length) throw new ApprovalCheckError(`head ${headSha} has no durable APPROVE artifact; a review that wrote no artifact never authorizes a merge${disregardedNote}`)
+    const carriedApprovals = carriedExact.filter((row) => row.verdict === 'APPROVE')
+    if (!approvals.length && !carriedApprovals.length) throw new ApprovalCheckError(`head ${headSha} has no durable APPROVE artifact; a review that wrote no artifact never authorizes a merge${disregardedNote}`)
     const latestBySlot = liveBySlot
-    for (const assignment of latestBySlot.values()) if (!approvals.some((row) => row.assignment_sha === assignment.sha)) throw new ApprovalCheckError(`review slot ${assignment.slot} has no durable APPROVE for its latest exact-head assignment${disregardedNote}`)
+    for (const assignment of latestBySlot.values()) if (!approvals.some((row) => row.assignment_sha === assignment.sha) && !carriedApprovals.some((row) => row.assignment_sha === assignment.sha)) throw new ApprovalCheckError(`review slot ${assignment.slot} has no durable APPROVE for its latest exact-head assignment${disregardedNote}`)
     const providers = new Set()
     for (const assignment of latestBySlot.values()) {
-      const reviewer = approvals.find((row) => row.assignment_sha === assignment.sha)?.reviewer
+      const reviewer = approvals.find((row) => row.assignment_sha === assignment.sha)?.reviewer ?? carriedApprovals.find((row) => row.assignment_sha === assignment.sha)?.reviewer
       if (!reviewer) throw new ApprovalCheckError(`review slot ${assignment.slot} has no verified reviewer identity`)
       if (providers.has(reviewer) && input.mergedAtHead !== true) throw new ApprovalCheckError(`review slots at exact head ${headSha} share reviewer ${reviewer}; independent approval refused`)
       providers.add(reviewer)
     }
-    return { approved: true, head_sha: headSha, pr: Number(pr), assignments: latestBySlot.size, approvals: new Set(approvals.map((row) => row.ref)).size, required_slots: requiredSlots }
+    return { approved: true, head_sha: headSha, pr: Number(pr), assignments: latestBySlot.size, approvals: new Set([...approvals, ...carriedApprovals].map((row) => row.ref)).size, required_slots: requiredSlots }
   }
 
   // COMMENT TEXT IS NOT A VERDICT IN PRODUCTION (issue #2075).
@@ -554,10 +613,12 @@ export function gatherApprovalInput(env = process.env, deps = { json, pages }) {
   // carry their previous name too, so a migration renamed to a `.md` is still a
   // migration change. Unreadable input yields a list the classifier refuses.
   const changedFiles = changedPathsFromPullRequestFiles(readPages(`repos/${REPO}/pulls/${pr}/files?per_page=100`))
+  // Owner no-reviewer policy is opt-in at the call site (CLI main loads it).
+  // Tests and library callers keep the reviewer requirement unless they pass it.
   return { pr, headSha, evidence, assignments, returns, verdicts, changedFiles, priorHeads, mergeAudit: null, mergedAtHead }
 }
 
-// A MERGE FROM MAIN DOES NOT VOID AN APPROVAL (orchestrator marker #2758, 2026-09-11).
+// A MERGE FROM MAIN DOES NOT VOID AN APPROVAL (claim-first session identity #2758, 2026-09-11).
 //
 // Every merge to main forced every other open pull request to merge main, and the
 // new head voided its APPROVE, so each needed a fresh draw and review after every
@@ -579,13 +640,16 @@ export function evaluateApprovalWithRefresh(input, { contentPreservingRefresh })
   if (!Array.isArray(input?.verdicts) || typeof contentPreservingRefresh !== 'function') throw exactError
   if (input.verdicts.some((row) => !isValidatedVerdictArtifact(row))) throw exactError
   if (durableRefusalsAt(input.verdicts, input.pr, input.headSha).length) throw exactError
-  // A head with reviewer records of its own -- an assignment, a replacement, a
-  // return or any verdict -- is judged on those records alone. Carrying a prior
-  // head's sign-off past them would bypass a slot returned or newly drawn at this
-  // head (muse review of PR #2780).
   const head = String(input.headSha).toLowerCase()
   const ownAssignments = (input.assignments ?? []).filter((row) => String(row.headSha ?? '').toLowerCase() === head)
-  if (ownAssignments.length || (input.returns ?? []).length || input.verdicts.length) throw new ApprovalCheckError(`${exactError.message}; an APPROVE cannot be carried forward because this head has reviewer records of its own (assignment, return or verdict), so it is judged on those alone`)
+  const ownSlots = new Set(ownAssignments.map((row) => Number.isInteger(row.slot) && row.slot >= 1 ? row.slot : 1))
+  const ownReturn = (input.returns ?? []).length
+  // A RETURN at this head must be answered at this head. Carrying a prior head's
+  // sign-off past a return would bypass the slot the return handed back (muse
+  // review of PR #2780). This is absolute: a returned slot is never filled from
+  // an ancestor.
+  if (ownReturn) throw new ApprovalCheckError(`${exactError.message}; an APPROVE cannot be carried forward because this head has reviewer records of its own (assignment, return or verdict), so it is judged on those alone`)
+  // Find content-equivalent prior heads (same PR diff, `.agent/` aside).
   const equivalent = [], digests = new Map()
   for (const prior of input.priorHeads ?? []) {
     const proof = contentPreservingRefresh(prior?.headSha, input.headSha)
@@ -599,15 +663,58 @@ export function evaluateApprovalWithRefresh(input, { contentPreservingRefresh })
   }
   const refusedPrior = equivalent.find((prior) => durableRefusalsAt(prior.verdicts, input.pr, prior.headSha).length)
   if (refusedPrior) throw new ApprovalCheckError(`${exactError.message}; an APPROVE cannot be carried forward because head ${refusedPrior.headSha}, whose pull request diff is identical to this head, carries a durable reviewer refusal`)
+  const mayCompose = ownAssignments.length > 0 || input.verdicts.length > 0
+  const newestReturnSequenceBySlot = new Map()
+  if (mayCompose) for (const prior of equivalent) for (const returned of prior.returns ?? []) {
+      const slot = Number.isInteger(returned.slot) && returned.slot >= 1 ? returned.slot : 1
+      const sequence = Number(returned.sequence)
+      if (!Number.isInteger(sequence) || sequence < 1) throw new ApprovalCheckError(`${exactError.message}; an equivalent prior head has a reviewer return without a readable sequence`)
+      if (!(newestReturnSequenceBySlot.get(slot) >= sequence)) newestReturnSequenceBySlot.set(slot, sequence)
+    }
+  // COMPOSED CARRY (#4206): a head may use its own approval for slots it drew
+  // and an equivalent ancestor's approval for other slots. A newer return on
+  // any equivalent head is a barrier: no older assignment in that slot can be
+  // revived from an earlier candidate.
+  // Prior-head assignments live in `input.assignments` (the adapter lists every
+  // head); `recordsAt` carries only returns and verdicts.
+  const assignmentsAt = (sha) => (input.assignments ?? []).filter((row) => String(row.headSha ?? '').toLowerCase() === String(sha).toLowerCase())
+  if (mayCompose && (!ownAssignments.length || !ownSlots.size)) throw new ApprovalCheckError(`${exactError.message}; an APPROVE cannot be carried forward because this head has reviewer records of its own (assignment, return or verdict), so it is judged on those alone`)
+  let candidateError = null
+  let attemptedComposition = false
   for (const prior of equivalent) {
+    // FULL CARRY: this head has no reviewer records of its own, and the prior
+    // head is fully approved. Every slot is judged on the prior head's records.
+    if (!ownAssignments.length && !input.verdicts.length) {
+      try {
+        // mergedAtHead describes the CURRENT head only; a carried prior head is judged strictly.
+        const result = evaluateExactHeadApproval({ ...input, headSha: prior.headSha, returns: prior.returns ?? [], verdicts: prior.verdicts, mergedAtHead: false })
+        if (result.documents_only) continue
+        return { ...result, head_sha: input.headSha, carried_from: prior.headSha, implementation_digest: digests.get(prior) }
+      } catch (error) { if (!(error instanceof ApprovalCheckError)) throw error; candidateError = error }
+      continue
+    }
+    if (!mayCompose) continue
+    const carriedAssignments = assignmentsAt(prior.headSha)
+    const slotsToCarry = new Set(carriedAssignments.map((row) => Number.isInteger(row.slot) && row.slot >= 1 ? row.slot : 1).filter((slot) => !ownSlots.has(slot)))
+    if (!slotsToCarry.size) continue
+    attemptedComposition = true
     try {
-      // mergedAtHead describes the CURRENT head only; a carried prior head is judged strictly.
-      const result = evaluateExactHeadApproval({ ...input, headSha: prior.headSha, returns: prior.returns ?? [], verdicts: prior.verdicts, mergedAtHead: false })
-      if (result.documents_only) continue
+      const livePriorBySlot = latestAssignmentsBySlot(carriedAssignments, prior.returns ?? [], prior.headSha, slotsToCarry)
+      const safeCarriedAssignments = [...livePriorBySlot.values()].filter((assignment) => {
+        const returnedSequence = newestReturnSequenceBySlot.get(assignment.slot)
+        return returnedSequence === undefined || (Number.isInteger(Number(assignment.sequence)) && Number(assignment.sequence) > returnedSequence)
+      })
+      const result = evaluateExactHeadApproval({
+        ...input,
+        verdicts: input.verdicts,
+        mergedAtHead: input.mergedAtHead === true,
+        [COMPOSED_CARRY]: { headSha: prior.headSha, assignments: safeCarriedAssignments, returns: [], verdicts: prior.verdicts ?? [] },
+      })
       return { ...result, head_sha: input.headSha, carried_from: prior.headSha, implementation_digest: digests.get(prior) }
-    } catch (error) { if (!(error instanceof ApprovalCheckError)) throw error }
+    } catch (error) { if (!(error instanceof ApprovalCheckError)) throw error; candidateError = error }
   }
-  throw exactError
+  if (mayCompose && !attemptedComposition) throw new ApprovalCheckError(`${exactError.message}; an APPROVE cannot be carried forward because this head has reviewer records of its own (assignment, return or verdict), so it is judged on those alone`)
+  throw candidateError ?? exactError
 }
 
 // A merge is authorized by create-only verdict artifacts, never by comment prose.
@@ -644,7 +751,7 @@ export function resolveApprovalMainRef(env = process.env, pr, readJson = json, r
 export function main(env = process.env, deps = {}) {
   try {
     const { gather = gatherApprovalInput, evaluate = evaluateApprovalWithRefresh } = deps ?? {}
-    const input = gather(env)
+    const input = { ...gather(env), ownerNoReviewerPolicy: readOwnerNoReviewerPolicy() }
     if (input.mergeAudit) {
       console.log(`Merged pull request approval audit verified: PR #${input.pr} head ${input.headSha} carried successful guarded-merge authorization status ${input.mergeAudit.statusId} at ${input.mergeAudit.authorizedAt}, before merge ${input.mergeAudit.mergedAt} (merge commit ${input.mergeAudit.mergeCommitSha}). Later reviewer activity and later gate-rule changes do not rewrite that merge-time decision.`)
       return 0
@@ -653,6 +760,7 @@ export function main(env = process.env, deps = {}) {
     const mainRef = resolveApprovalMainRef(env, input.pr)
     const result = evaluate(input, { contentPreservingRefresh: (approvedHead, head) => isContentPreservingRefresh({ approvedHead, head, mainRef }) })
     if (result.carried_from) console.log(`Exact-head approval carried forward: PR #${result.pr} head ${result.head_sha} has the same pull request diff as approved head ${result.carried_from}, so its evidence-only or merge-from-main refresh needs no new review; approved implementation digest ${result.implementation_digest} (${result.approvals} approval(s), ${result.assignments} pinned assignment(s)).`)
+    else if (result.owner_no_reviewer) console.log(`Owner no-reviewer rule (Albert, 2026-10-15): PR #${result.pr} head ${result.head_sha} draws no external reviewer (${result.reason}). Every other check and the guarded merge lane still apply.`)
     else if (result.documents_only) console.log(`Documents-only pull request: PR #${result.pr} head ${result.head_sha} draws no database reviewer (${result.reason}). Every other check and the guarded merge lane still apply (#2102).`)
     else console.log(`Exact-head approval verified: PR #${result.pr} head ${result.head_sha} (${result.approvals} approval(s), ${result.assignments} pinned assignment(s), required slot(s) ${result.required_slots}).`)
     return 0

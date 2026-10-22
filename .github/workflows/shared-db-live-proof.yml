@@ -10,7 +10,7 @@ on:
         description: shared-db outcome issue number
         required: true
         type: choice
-        options: ["2792", "2802", "2860", "2911", "2934", "3418", "3418-retry", "3457", "4037", "4064"]
+        options: ["2792", "2802", "2860", "2911", "2934", "3418", "3418-retry", "3457", "4037", "4064", "4190", "4257", "4268"]
 
 permissions:
   contents: read
@@ -38,7 +38,28 @@ jobs:
           PROOF_ISSUE: ${{ inputs.issue }}
           APPLICATION_COMMIT_SHA: ${{ github.sha }}
           PROOF_DIR: proof
+          # 4190 reads cron and 4257/4268 read plm and coldlion through the Management API query
+          # endpoint; 4268 also signs in as the existing viewer test login.
+          SUPABASE_ACCESS_TOKEN: ${{ (inputs.issue == '4190' || inputs.issue == '4257' || inputs.issue == '4268') && secrets.SUPABASE_ACCESS_TOKEN || '' }}
+          POPDAM_VIEWER_TEST_USER: ${{ inputs.issue == '4268' && secrets.POPDAM_VIEWER_TEST_USER || '' }}
+          POPDAM_VIEWER_TEST_PASSWORD: ${{ inputs.issue == '4268' && secrets.POPDAM_VIEWER_TEST_PASSWORD || '' }}
         run: node scripts/shared-db-live-proof.mjs
+      - name: Generate production types and the generated-types proof
+        # Only for outcomes whose scope says generated_types: required.
+        if: steps.prove.outputs.applied == 'true' && (inputs.issue == '4257' || inputs.issue == '4268')
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROOF_ISSUE: ${{ inputs.issue }}
+          APPLICATION_COMMIT_SHA: ${{ github.sha }}
+          GENERATED_TYPES_PROOF_PATH: generated/db-generated-types-proof.json
+        run: node scripts/shared-db-generated-types-proof.mjs
+      - name: Upload the generated-types proof
+        if: steps.prove.outputs.applied == 'true' && (inputs.issue == '4257' || inputs.issue == '4268')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: shared-db-generated-types-${{ inputs.issue }}-${{ github.sha }}
+          path: generated/db-generated-types-proof.json
+          if-no-files-found: error
       - name: Upload the proof
         # A migration not yet on production reports NOT YET APPLIED and uploads nothing.
         if: steps.prove.outputs.applied == 'true'

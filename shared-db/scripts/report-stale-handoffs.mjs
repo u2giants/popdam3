@@ -50,7 +50,7 @@ export function renderReport({ stale, cited = [], unlabelled, total, generatedAt
       `### ${stale.length} file(s) whose issue is CLOSED and which nothing open still cites`,
       "",
       "The owner named below is the session that created the file. If that session is gone, any",
-      "orchestrator may retire the file — but say so in the pull request rather than deleting it silently.",
+      "explicitly authorized successor may retire the file — but say so in the pull request rather than deleting it silently.",
       "",
       "| File | Issue | Owner |",
       "|---|---|---|",

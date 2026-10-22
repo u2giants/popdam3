@@ -6,8 +6,9 @@ import { classifyChangedPaths, changedPathsFromPullRequestFiles } from '../../li
 import { REPO, REPO_OWNER, REPO_NAME, REVIEW_REPLACEMENT_REF_PREFIX } from './constants.mjs'
 import { LaneError } from './claims.mjs'
 import { projectReviewPr } from './review-assignment.mjs'
-import { gitRemoteRefs, githubIo, runGitHubCommand } from '../../manage-migration-author-lanes.mjs'
+import { gitRemoteRefs, githubIo, runGitHubCommand, reviewChildTimeoutMs } from '../../manage-migration-author-lanes.mjs'
 import { authorityReadEnv } from '../authority-token-read.mjs'
+import { assertRefDeletable } from '../release-hold-evidence.mjs'
 
 // An EXPECTED failure is one this code asks a question with: "does this ref
 // exist yet?" answers with HTTP 404, and "create this ref" answers with
@@ -60,6 +61,7 @@ export function createRefWithReadback(ref,sha,{run=gh,readRef}={}) {
   }
 }
 export function deleteRefWithReadback(ref,{run=gh,readRef}={}) {
+  try{assertRefDeletable(ref)}catch(error){throw new LaneError(error.message)}
   try{run(['api','-X','DELETE',`repos/${REPO}/git/refs/${ref.replace(/^refs\//,'')}`],{expectedFailure:EXPECTED_REF_ABSENCE,idempotentWrite:true});return}
   catch(error){
     if(isConfirmedRefAbsence(error))return
@@ -120,8 +122,9 @@ export function parseGitCommitBatch(output){
     if(match[2]!=='commit')throw new LaneError(`git object ${match[1]} is a ${match[2]}, not a commit`)
     const text=raw.toString('utf8'),split=text.indexOf('\n\n')
     const headers=split<0?text:text.slice(0,split),message=split<0?'':text.slice(split+2)
+    const tree=/^tree ([0-9a-f]{40})$/m.exec(headers)
     const committer=/^committer .* (\d+) ([+-]\d{4})$/m.exec(headers)
-    commits.set(match[1],{message,committedDate:committer?new Date(Number(committer[1])*1000).toISOString():null})
+    commits.set(match[1],{message,committedDate:committer?new Date(Number(committer[1])*1000).toISOString():null,...(tree?{tree:{sha:tree[1]}}:{})})
   }
   return {commits,unfetched}
 }
@@ -130,13 +133,13 @@ export function readGitCommits(shas,{run=execFileSync}={}){
   if(!unique.length)return new Map()
   if(unique.some((sha)=>!/^[0-9a-f]{40}$/.test(sha)))throw new LaneError('git commit read requires exact 40-hex SHAs')
   const batch=()=>{
-    try{return parseGitCommitBatch(run('git',['cat-file','--batch'],{input:`${unique.join('\n')}\n`,maxBuffer:64*1024*1024,stdio:['pipe','pipe','pipe']}))}
+    try{return parseGitCommitBatch(run('git',['cat-file','--batch'],{input:`${unique.join('\n')}\n`,maxBuffer:64*1024*1024,stdio:['pipe','pipe','pipe'],timeout:reviewChildTimeoutMs(GIT_COMMAND_TIMEOUT_MS),killSignal:'SIGKILL'}))}
     catch(error){if(error instanceof LaneError)throw error;throw new LaneError(`git commit read failed: ${String(error?.stderr??error?.message??error).trim().split('\n')[0]}`)}
   }
   let result=batch()
   if(result.unfetched.length){
-    try{run('git',['fetch','--no-tags','-q','origin',...result.unfetched],{encoding:'utf8',stdio:['ignore','pipe','pipe']})}
-    catch(error){throw new LaneError(`git could not hydrate commits ${result.unfetched.join(', ')}: ${String(error?.stderr??error?.message??error).trim().split('\n')[0]}`)}
+    try{run('git',['fetch','--no-tags','-q','origin',...result.unfetched],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:reviewChildTimeoutMs(GIT_COMMAND_TIMEOUT_MS),killSignal:'SIGKILL'})}
+    catch(error){if(error instanceof LaneError)throw error;throw new LaneError(`git could not hydrate commits ${result.unfetched.join(', ')}: ${String(error?.stderr??error?.message??error).trim().split('\n')[0]}`)}
     result=batch()
     if(result.unfetched.length)throw new LaneError(`git commits ${result.unfetched.join(', ')} are unreadable after fetch`)
   }

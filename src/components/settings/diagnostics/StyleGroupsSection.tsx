@@ -17,7 +17,7 @@ import { formatDuration, formatEta, calcRate, ProgressRow } from "./progress-uti
 
 // ── Rebuild Status Detail ───────────────────────────────────────────
 
-function RebuildStatusDetail({ state }: { state: { status: string; cursor?: number; progress?: Record<string, unknown>; error?: string; started_at?: string; updated_at?: string; interruption_reason_code?: string; auto_resume_attempts?: number; run_id?: string; last_stage?: string; last_substage?: string; result_message?: string } }) {
+function RebuildStatusDetail({ state }: { state: { status: string; cursor?: number | string; progress?: Record<string, unknown>; error?: string; started_at?: string; updated_at?: string; interruption_reason_code?: string; auto_resume_attempts?: number; run_id?: string; last_stage?: string; last_substage?: string; result_message?: string } }) {
   const statusMap: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
     idle: { label: "Idle", color: "text-muted-foreground", icon: <Clock className="h-3.5 w-3.5" /> },
     running: { label: "Running…", color: "text-primary", icon: <Loader2 className="h-3.5 w-3.5 animate-spin" /> },

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_issue": 3618,
+  "outcome": "ready-for-merge",
+  "pr": 4518,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3618/32",
+  "contract_sha256": "056cd1f99edfe60148c0aa1529f23fc720608335b4e4a12fe7e6087e93575d67",
+  "head_sha": "8d40b86a169c961002b9e6dd0bc6d70bde6feff7",
+  "base_sha": "d7249ef7b419ffeed020051f11940ba29b7471d7",
+  "files_changed": [
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/rebind-expired-claim-blocker.mjs",
+    "scripts/rebind-expired-claim-blocker.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions_resolved": [
+    "Dirty-preserved claim 4212 rebound and transferred using this tooling.",
+    "Clean-declared custody checks remain unchanged."
+  ],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "command": "node --test scripts/rebind-expired-claim-blocker.test.mjs scripts/claim-author-transfer.test.mjs",
+      "exit_code": 0,
+      "evidence": "103 pass, 0 fail (38 rebind + 65 transfer)"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ]
+}

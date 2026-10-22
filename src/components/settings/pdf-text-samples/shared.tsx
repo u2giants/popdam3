@@ -46,7 +46,7 @@ export function stepLabel(step: string | null): string {
     case "reading": return "Reading file";
     case "mupdf": return "mupdf text extraction";
     case "rendering": return "Rendering page to PNG";
-    case "ocr": return "OCR (tesseract.js)";
+    case "ocr": return "OCR (Indra)";
     case "ai_vision": return "AI vision";
     case "done": return "Done";
     default: return step ?? "";

@@ -61,5 +61,6 @@ if %EXIT_CODE% equ 77 (
 )
 
 echo [launcher] Agent exited with code %EXIT_CODE% — restarting in 5 seconds...
-timeout /t 5 /nobreak >nul
+REM ping works in non-interactive sessions (services); timeout does not.
+ping -n 6 127.0.0.1 >nul
 goto loop

@@ -1,0 +1,64 @@
+{
+  "allowed_paths": [
+    "supabase/migrations/20261019113819_orderlist_order_window_date.sql",
+    ".agent/work/4336/14/contract.json",
+    ".agent/work/4336/14/completion.json",
+    ".agent/work/4336/15/contract.json",
+    ".agent/work/4336/15/completion.json"
+  ],
+  "assumptions": [
+    "Owner (Albert) said \"keep both\" for SO Date sorting and the Show old/Hide old control, and on 2026-10-19 said \"take off the database lock and do what you need to do\".",
+    "order_window_date = SO received date, else Sent PO, else Start Ship, else Prod PO Date; null only when all four are blank.",
+    "SO received date follows the existing get_dam_order_sales_order_dates rule (exact primary ColdLion reference, EDGEHOME, one consistent timestamp, America/New_York).",
+    "Existing 90 view columns are unchanged; two columns are appended.",
+    "Claim #4482 reserved version 20261019113819.",
+    "Generation 14 narrows db_writes to the two objects this migration replaces, matching the updated #4336 scope.",
+    "Generation 15 covers the Muse H-1 fix (service_role EXECUTE) and the drift guard."
+  ],
+  "base_sha": "9b14f44d1d6a2e2fc6814c1e6943d6f545ae3ab6",
+  "branch": "claude/4336-order-window-date",
+  "db_reads": [
+    "table coldlion.order_history_line",
+    "table plm.production_order_line",
+    "table plm.production_order_line_source_ref"
+  ],
+  "db_writes": [
+    "view api.dam_order_list",
+    "function dam.orderlist_sales_order_received_date"
+  ],
+  "dispatcher": "Claude chat 82c83760-6e83-478d-b345-dca386a37cea on hetz",
+  "evidence_parent": {
+    "contract_sha256": "e1a61db9cc9408c3da2ef0057be0ac4b0b50f5832c6346fae82a08987bc8670b",
+    "generation": 14,
+    "work_issue": 4336
+  },
+  "file_writes": [
+    "supabase/migrations/20261019113819_orderlist_order_window_date.sql",
+    ".agent/work/4336/14/contract.json",
+    ".agent/work/4336/14/completion.json",
+    ".agent/work/4336/15/contract.json",
+    ".agent/work/4336/15/completion.json"
+  ],
+  "generation": 15,
+  "goal": "Append sales_order_received_date and order_window_date to api.dam_order_list so PopDAM OrderList can default to a 12-month window with Show old (u2giants/popdam3#417).",
+  "prohibited_actions": [
+    "Do not change production schema or data directly.",
+    "Do not change existing view columns.",
+    "Never fabricate review evidence."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+    "git diff --check"
+  ],
+  "route": "shared-db-orchestrator",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop if the change requires any database object outside the exact claim.",
+    "Stop before merge if preview cannot apply the migration."
+  ],
+  "work_issue": 4336,
+  "work_type": "structural",
+  "worker": "Claude chat 82c83760-6e83-478d-b345-dca386a37cea on hetz",
+  "worktree": "/worksp/shared-db-wt-4336-window"
+}

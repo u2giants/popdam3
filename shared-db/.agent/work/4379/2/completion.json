@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 4379,
+  "outcome": "ready-for-merge",
+  "reason": "Required source checks are complete. Independent current-head review, PR CI, preview and guarded merge are separate pending gates.",
+  "pr": 4384,
+  "migration_versions": [
+    "20261018152106"
+  ],
+  "contract_ref": "refs/db-contracts/4379/2",
+  "contract_sha256": "7e06e5c94d41232ee432a62247de2b66bd3090086ae994fc25e0f647df04b44a",
+  "head_sha": "9e60402ffefa775662d67b9d8c49b0292ef665ce",
+  "base_sha": "977eec03bf3504646efb738b6e523793e2066333",
+  "files_changed": [
+    "supabase/migrations/20261018152106_plm_milestone_catalog_identity.sql",
+    "supabase/tests/plm_milestone_catalog_identity_contracts.sql"
+  ],
+  "db_reads": [
+    "table plm.stage",
+    "table plm.\"ProdOrderHeader\"",
+    "table plm.\"FactoryTime\"",
+    "table plm.prod_order_milestone_schedule"
+  ],
+  "db_writes": [
+    "table plm.prod_order_milestone_schedule",
+    "column plm.prod_order_milestone_schedule.stage_id",
+    "index plm.prod_order_milestone_schedule_catalog_stage_key",
+    "index plm.prod_order_milestone_schedule_legacy_name_key"
+  ],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean at 9e60402ffefa"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at 9e60402ffefa"
+    }
+  ],
+  "assumptions_resolved": [
+    "Migration moved byte-identically from parked version 20261016042622 to resumed claim #4431 version 20261018152106; no preview orphan exists.",
+    "Generation-1 evidence pair removed from the branch so exactly one pair is present (#2708); it remains in history at 98a453e45."
+  ],
+  "stop_conditions_hit": []
+}

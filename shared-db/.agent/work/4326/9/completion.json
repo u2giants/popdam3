@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "work_issue": 4326,
+  "outcome": "ready-for-merge",
+  "pr": 4330,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4326/9",
+  "contract_sha256": "19e1c2ba77497d06a6e6ff50b3ed1d336cf26bd9e4c0da75abefa53044b0adf3",
+  "head_sha": "5f66a295863e39b41d55843e012b64ea647cdfc5",
+  "base_sha": "b66fbf1d328314469508ddda21f0b020174e46f2",
+  "files_changed": [
+    ".github/workflows/generate-database-types.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/development.md",
+    "scripts/generated-types-proof.mjs",
+    "scripts/generated-types-proof.test.mjs",
+    "scripts/lib/lanes/retirement.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/orchestrator-flow/admission-outcome.test.mjs",
+    "scripts/production_business_risk_gate.py",
+    "scripts/shared_db_live_proof.py",
+    "scripts/test_shared_db_live_proof.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/generated-types-proof.test.mjs scripts/orchestrator-flow/admission-outcome.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "1015 passed, 0 failed on source implementation before the generation-8 metadata correction; source-only digest remains 64f539e232c06068127ab26bda64047e7dde9adeb73e8a5a1dafa0437685c796."
+    },
+    {
+      "command": "node --test scripts/orchestrator-flow/evidence-bundle.test.mjs",
+      "exit_code": 0,
+      "evidence": "6 passed, 0 failed on the unchanged source implementation; source-only digest 64f539e232c06068127ab26bda64047e7dde9adeb73e8a5a1dafa0437685c796."
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 passed, 0 failed on the unchanged source implementation; source-only digest 64f539e232c06068127ab26bda64047e7dde9adeb73e8a5a1dafa0437685c796."
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_business_risk_gate.ProductionBusinessRiskGateTests.test_preview_producer_paths_cover_the_whole_executed_closure",
+      "exit_code": 0,
+      "evidence": "Ran 1 test; OK on unchanged source implementation; source-only digest 64f539e232c06068127ab26bda64047e7dde9adeb73e8a5a1dafa0437685c796."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=353 sources=98 derived_digest=7d5729fa5373."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Whitespace check passed on refreshed metadata candidate."
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_shared_db_live_proof.py",
+      "exit_code": 0,
+      "evidence": "Ran 30 tests; OK. Output: ACCEPTANCE PROBE QUALIFIED; production acceptance remains separate."
+    },
+    {
+      "command": "node --test scripts/check-live-proof-probe.test.mjs",
+      "exit_code": 0,
+      "evidence": "17 passed, 0 failed on unchanged source implementation; source-only digest 64f539e232c06068127ab26bda64047e7dde9adeb73e8a5a1dafa0437685c796."
+    }
+  ],
+  "assumptions_resolved": [
+    "Current source-only patch SHA-256 is 64f539e232c06068127ab26bda64047e7dde9adeb73e8a5a1dafa0437685c796. It matches the previously checked source set; only generation-8 evidence removal and generation-9 draft metadata are changed in this candidate. The 1015 combined tests plus other local checks are reused on unchanged source, not newly claimed as rerun after metadata-only correction.",
+    "Local tests do not claim a hosted generated-types run, production acceptance, live proof, database access, independent review or merge.",
+    "Generation 9 published create-only at refs/db-contracts/4326/9 commit 11a4d973274d83981152c25edf568500384d1da6, correcting branch binding to exact PR head branch codex/2336-types-proof. Published generation 8 is preserved immutable.",
+    "Implementation head 5f66a295863e39b41d55843e012b64ea647cdfc5 removes only the superseded owned evidence pair. Source-only diff remains 64f539e232c06068127ab26bda64047e7dde9adeb73e8a5a1dafa0437685c796; prior checks at 8ca7c5b561b14c23336d811bd62f7ec34d383294 are reused for identical source."
+  ],
+  "stop_conditions_hit": []
+}

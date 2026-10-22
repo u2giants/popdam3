@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261012161923",
+  "migration_sha256": "2a66f6a86b9dba06a8cf572e89bc71586c5d7a10fa34c404d2f5dc1116198a04",
+  "checks": [
+    {
+      "id": "coldlion_mg05_licensor_source_refs",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {"column": "source_system", "type": "text", "equals": "coldlion"},
+        {"column": "source_table", "type": "text", "equals": "merchGroupDetails"},
+        {"column": "entity_table", "type": "text", "equals": "licensor"}
+      ],
+      "expected_count": 38
+    }
+  ]
+}

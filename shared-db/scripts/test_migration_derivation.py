@@ -148,6 +148,25 @@ class LegacyOverlay(unittest.TestCase):
             [],
         )
 
+    def test_every_migration_file_declaration_parses(self):
+        # #4172: a malformed declaration on a new migration passed PR CI and was
+        # refused only at the promotion hard guard, after merge. Parse every file
+        # here so the pull request that adds one fails instead.
+        failures = []
+        for version, path in sorted(local_migrations(REPO).items()):
+            try:
+                declared_bases(version, path=path)
+            except DerivationError as error:
+                failures.append(f"{version}: {error}")
+        self.assertEqual(failures, [])
+
+    def test_curated_4172_filename_declaration_is_pinned_to_an_empty_base(self):
+        version = "20261011201710"
+        source, _why = IMMUTABLE_NON_LEDGER_DERIVATIONS[version]
+        self.assertEqual(declared_bases(version, raw=source + "insert into core.property (name) values ('a');\n"), frozenset())
+        with self.assertRaises(DerivationError):
+            declared_bases(version, raw=source.replace("20260902222649_", "20260902222650_"))
+
     def test_immutable_non_ledger_history_refuses_altered_or_future_prose(self):
         version = "20260909005945"
         source, _why = IMMUTABLE_NON_LEDGER_DERIVATIONS[version]

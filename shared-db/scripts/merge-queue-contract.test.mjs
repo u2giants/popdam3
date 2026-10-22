@@ -5,6 +5,8 @@ import {
   MergeQueueModeUnknown,
   PREVIEW_REHEARSAL_CONTEXT,
   QUEUE_RULE,
+  REQUIRED_STATUS_CHECKS_RULE,
+  REQUIRED_STATUS_CHECK_CONTEXTS,
   RULESET_NAME,
   assertOldestMigration,
   assertProductionInterlock,
@@ -19,10 +21,12 @@ import {
   queueMode,
   queueRulesetMatches,
   queueParametersEqual,
+  requiredStatusChecksEqual,
   readOpenPullRequests,
   readPullRequestFiles,
   recheckQueueInterlock,
   rehearsalState,
+  resolveAuthorizedHead,
   verifyQueuePullRequest,
 } from './merge-queue-contract.mjs'
 
@@ -119,7 +123,7 @@ const approvedDetail = {
   target: 'branch',
   enforcement: 'active',
   conditions: { ref_name: { include: ['refs/heads/main'], exclude: [] } },
-  rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters } }],
+  rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters } }, { type: 'required_status_checks', parameters: { ...REQUIRED_STATUS_CHECKS_RULE.parameters, required_status_checks: [...REQUIRED_STATUS_CHECKS_RULE.parameters.required_status_checks] } }],
 }
 
 test('the approved rule is exactly one all-green PR built and merged at a time', () => {
@@ -132,10 +136,24 @@ test('the approved rule is exactly one all-green PR built and merged at a time',
     min_entries_to_merge: 1,
     min_entries_to_merge_wait_minutes: 0,
   })
+  assert.equal(REQUIRED_STATUS_CHECK_CONTEXTS.length, 14)
+  assert.equal(REQUIRED_STATUS_CHECKS_RULE.parameters.required_status_checks.length, 14)
+  assert.ok(REQUIRED_STATUS_CHECK_CONTEXTS.includes('Merge queue gate'))
+  assert.ok(REQUIRED_STATUS_CHECK_CONTEXTS.includes('Queue-sensitive checks (aggregate)'))
   assert.equal(queueRulesetMatches(approvedDetail), true)
   assert.equal(queueRulesetMatches({ ...approvedDetail, enforcement: 'evaluate' }), false)
   assert.equal(queueRulesetMatches({ ...approvedDetail, conditions: { ref_name: { include: ['refs/heads/develop'] } } }), false)
-  assert.equal(queueRulesetMatches({ ...approvedDetail, rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters, max_entries_to_build: 2 } }] }), false)
+  assert.equal(queueRulesetMatches({ ...approvedDetail, rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters, max_entries_to_build: 2 } }, REQUIRED_STATUS_CHECKS_RULE] }), false)
+  // A merge_queue-only ruleset is not the approved dual-rule shape (#2530).
+  assert.equal(queueRulesetMatches({ ...approvedDetail, rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters } }] }), false)
+  // required_status_checks drift (missing context) refuses.
+  assert.equal(queueRulesetMatches({
+    ...approvedDetail,
+    rules: [
+      { type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters } },
+      { type: 'required_status_checks', parameters: { ...REQUIRED_STATUS_CHECKS_RULE.parameters, required_status_checks: [{ context: 'only-one' }] } },
+    ],
+  }), false)
 })
 
 test('queue mode: active only for the exact approved ruleset', () => {
@@ -176,10 +194,18 @@ test('queue mode: unknown, never guessed, on duplicates, foreign queues, or shap
   const drifted = (args) => {
     const target = args.at(-1)
     if (target.endsWith('includes_parents=false')) return [{ id: 42, name: RULESET_NAME, enforcement: 'active' }]
-    if (target.endsWith('rulesets/42')) return { ...approvedDetail, rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters, grouping_strategy: 'HEADGREEN' } }] }
+    if (target.endsWith('rulesets/42')) return { ...approvedDetail, rules: [{ type: 'merge_queue', parameters: { ...QUEUE_RULE.parameters, grouping_strategy: 'HEADGREEN' } }, REQUIRED_STATUS_CHECKS_RULE] }
     throw new Error(`unexpected read ${target}`)
   }
   assert.throws(() => queueMode({ repo: REPO, read: drifted }), /not the exact approved one-PR queue/)
+
+  const emptyActive = (args) => {
+    const target = args.at(-1)
+    if (target.endsWith('includes_parents=false')) return [{ id: 43, name: RULESET_NAME, enforcement: 'active' }]
+    if (target.endsWith('rulesets/43')) return { ...approvedDetail, rules: [] }
+    throw new Error(`unexpected read ${target}`)
+  }
+  assert.throws(() => queueMode({ repo: REPO, read: emptyActive }), /not the exact approved one-PR queue/)
 })
 
 // ---------------------------------------------------------------------------
@@ -430,7 +456,7 @@ const GITHUB_ORDER_PARAMETERS = { merge_method: 'MERGE', max_entries_to_build: 1
 test('queue parameters compare by key and value, not by key order (#3566)', () => {
   assert.notEqual(JSON.stringify(GITHUB_ORDER_PARAMETERS), JSON.stringify(QUEUE_RULE.parameters), 'fixture must reproduce the differing order')
   assert.equal(queueParametersEqual(GITHUB_ORDER_PARAMETERS), true)
-  assert.equal(queueRulesetMatches({ ...approvedDetail, rules: [{ type: 'merge_queue', parameters: GITHUB_ORDER_PARAMETERS }] }), true)
+  assert.equal(queueRulesetMatches({ ...approvedDetail, rules: [{ type: 'merge_queue', parameters: GITHUB_ORDER_PARAMETERS }, REQUIRED_STATUS_CHECKS_RULE] }), true)
   assert.equal(queueParametersEqual({ ...GITHUB_ORDER_PARAMETERS, max_entries_to_build: 2 }), false)
   assert.equal(queueParametersEqual({ ...GITHUB_ORDER_PARAMETERS, extra: 1 }), false)
   const { grouping_strategy, ...absent } = GITHUB_ORDER_PARAMETERS
@@ -438,4 +464,177 @@ test('queue parameters compare by key and value, not by key order (#3566)', () =
   assert.equal(queueParametersEqual({ ...GITHUB_ORDER_PARAMETERS, max_entries_to_build: '1' }), false)
   assert.equal(queueParametersEqual(null), false)
   assert.equal(queueParametersEqual([]), false)
+})
+
+test('required_status_checks compare: policy flags exact, contexts by name set, integration_id when echoed', () => {
+  const expected = REQUIRED_STATUS_CHECKS_RULE.parameters
+  assert.equal(requiredStatusChecksEqual(expected), true)
+  // GitHub key order / echoed integration_id still matches.
+  assert.equal(requiredStatusChecksEqual({
+    strict_required_status_checks_policy: false,
+    do_not_enforce_on_create: false,
+    required_status_checks: expected.required_status_checks.map((r) => ({ integration_id: r.integration_id, context: r.context })),
+  }), true)
+  // Absent integration_id is tolerated.
+  assert.equal(requiredStatusChecksEqual({
+    ...expected,
+    required_status_checks: expected.required_status_checks.map((r) => ({ context: r.context })),
+  }), true)
+  assert.equal(requiredStatusChecksEqual({ ...expected, strict_required_status_checks_policy: true }), false)
+  assert.equal(requiredStatusChecksEqual({ ...expected, do_not_enforce_on_create: true }), false)
+  assert.equal(requiredStatusChecksEqual({ ...expected, required_status_checks: expected.required_status_checks.slice(1) }), false)
+  assert.equal(requiredStatusChecksEqual({
+    ...expected,
+    required_status_checks: expected.required_status_checks.map((r) => (r.context === 'Merge queue gate' ? { context: 'Merge queue gate', integration_id: 999 } : r)),
+  }), false)
+  assert.equal(requiredStatusChecksEqual(null), false)
+  assert.equal(requiredStatusChecksEqual([]), false)
+})
+
+// Authorized head under the verifyGitEvidence ancestor+tail rule (canary #4321).
+// Authorization binds to the implementation commit; the live tip may carry only
+// this PR's own evidence pair after it.
+test('resolveAuthorizedHead: the tip itself when it carries authorization', () => {
+  const tip = 'a'.repeat(40)
+  const resolved = resolveAuthorizedHead(tip, {
+    isAncestor: () => true,
+    changedFiles: () => [],
+    firstParent: () => 'b'.repeat(40),
+    readAuthorizationState: (sha) => (sha === tip ? 'success' : 'none'),
+  })
+  assert.deepEqual(resolved, { authorizedHead: tip, evidenceTail: [], mode: 'exact' })
+})
+
+test('resolveAuthorizedHead: implementation head when the tip is a pure evidence tail', () => {
+  const impl = '1'.repeat(40)
+  const tip = '2'.repeat(40)
+  const pair = [
+    '.agent/work/2530/7/completion.json',
+    '.agent/work/2530/7/contract.json',
+  ]
+  const resolved = resolveAuthorizedHead(tip, {
+    isAncestor: (ancestor, descendant) => ancestor === impl && descendant === tip,
+    changedFiles: (from, to) => (from === impl && to === tip ? pair : []),
+    firstParent: (sha) => (sha === tip ? impl : null),
+    readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+  })
+  assert.equal(resolved.authorizedHead, impl)
+  assert.equal(resolved.mode, 'evidence-tail')
+  assert.deepEqual(resolved.evidenceTail, pair)
+})
+
+test('resolveAuthorizedHead: legacy evidence pair is also a lawful tail', () => {
+  const impl = '3'.repeat(40)
+  const tip = '4'.repeat(40)
+  const pair = ['.agent/completion.json', '.agent/contract.json']
+  const resolved = resolveAuthorizedHead(tip, {
+    isAncestor: () => true,
+    changedFiles: () => pair,
+    firstParent: (sha) => (sha === tip ? impl : null),
+    readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+  })
+  assert.equal(resolved.authorizedHead, impl)
+  assert.equal(resolved.mode, 'evidence-tail')
+})
+
+test('resolveAuthorizedHead: refuses a non-evidence tail over an authorized parent', () => {
+  const impl = '5'.repeat(40)
+  const tip = '6'.repeat(40)
+  assert.throws(
+    () => resolveAuthorizedHead(tip, {
+      isAncestor: () => true,
+      changedFiles: () => ['scripts/merge-queue-contract.mjs'],
+      firstParent: (sha) => (sha === tip ? impl : null),
+      readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+    }),
+    /no authorized PR head found/,
+  )
+})
+
+test('resolveAuthorizedHead: refuses a complete pair plus an extra non-evidence file', () => {
+  const impl = 'a'.repeat(40)
+  const tip = 'b'.repeat(40)
+  assert.throws(
+    () => resolveAuthorizedHead(tip, {
+      isAncestor: () => true,
+      changedFiles: () => ['.agent/completion.json', '.agent/contract.json', 'scripts/merge-queue-contract.mjs'],
+      firstParent: (sha) => (sha === tip ? impl : null),
+      readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+    }),
+    /no authorized PR head found/,
+  )
+})
+
+test('resolveAuthorizedHead: refuses a complete pair plus an extra .agent file', () => {
+  const impl = 'c'.repeat(40)
+  const tip = 'd'.repeat(40)
+  assert.throws(
+    () => resolveAuthorizedHead(tip, {
+      isAncestor: () => true,
+      changedFiles: () => ['.agent/completion.json', '.agent/contract.json', '.agent/work/2530/1/completion.json'],
+      firstParent: (sha) => (sha === tip ? impl : null),
+      readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+    }),
+    /no authorized PR head found/,
+  )
+})
+
+test('resolveAuthorizedHead: refuses when neither tip nor parent is authorized', () => {
+  const impl = '7'.repeat(40)
+  const tip = '8'.repeat(40)
+  assert.throws(
+    () => resolveAuthorizedHead(tip, {
+      isAncestor: () => true,
+      changedFiles: () => [],
+      firstParent: (sha) => (sha === tip ? impl : null),
+      readAuthorizationState: () => 'failure',
+    }),
+    /no authorized PR head found/,
+  )
+})
+
+test('resolveAuthorizedHead: refuses a malformed tip and missing IO', () => {
+  assert.throws(() => resolveAuthorizedHead('nope', {
+    isAncestor: () => true, changedFiles: () => [], firstParent: () => null, readAuthorizationState: () => 'success',
+  }), /40-character live tip/)
+  assert.throws(() => resolveAuthorizedHead('a'.repeat(40), {}), /requires isAncestor/)
+})
+
+test('resolveAuthorizedHead: refuses a keyed pair from another work issue when workIssue is bound', () => {
+  const impl = '9'.repeat(40)
+  const tip = 'a1'.repeat(20)
+  const foreign = ['.agent/work/9999/1/completion.json', '.agent/work/9999/1/contract.json']
+  assert.throws(
+    () => resolveAuthorizedHead(tip, {
+      isAncestor: () => true,
+      changedFiles: () => foreign,
+      firstParent: (sha) => (sha === tip ? impl : null),
+      readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+      workIssue: 2530,
+    }),
+    /no authorized PR head found/,
+  )
+  const own = ['.agent/work/2530/9/completion.json', '.agent/work/2530/9/contract.json']
+  const ok = resolveAuthorizedHead(tip, {
+    isAncestor: () => true,
+    changedFiles: () => own,
+    firstParent: (sha) => (sha === tip ? impl : null),
+    readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+    workIssue: 2530,
+  })
+  assert.equal(ok.mode, 'evidence-tail')
+})
+
+test('resolveAuthorizedHead: empty tree span over an authorized ancestor is mode=ancestor, never exact', () => {
+  const impl = 'b1'.repeat(20)
+  const tip = 'c1'.repeat(20)
+  const resolved = resolveAuthorizedHead(tip, {
+    isAncestor: () => true,
+    changedFiles: () => [],
+    firstParent: (sha) => (sha === tip ? impl : null),
+    readAuthorizationState: (sha) => (sha === impl ? 'success' : 'none'),
+  })
+  assert.equal(resolved.authorizedHead, impl)
+  assert.equal(resolved.mode, 'ancestor')
+  assert.notEqual(resolved.authorizedHead, tip)
 })

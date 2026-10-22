@@ -17,6 +17,69 @@ Licensing history is Item/SKU-specific. Current factory-production dates are Pur
 
 True per-SKU production dates require their own business events and data. They must not be manufactured by copying a Purchase Order date into separate-looking SKU records.
 
+## Stage lists and who maintains them
+
+**Status:** Settled for ownership and list rules (Albert Hazan, 2026-10-15). Stage order, durations, and dependencies below are Unknown or Proposed as marked.
+
+The order-timeline stages fall into five business lists: Design, Licensing, Sampling, Production, and Shipping. Stage names, order, and durations are business data that the people running each process maintain. They are not fixed program rules.
+
+- Only an admin may create or remove a whole list. Other authorized users work only with the stages inside the five lists.
+- Everyone can see every list.
+- Named list maintainers (Albert Hazan, 2026-10-15; supersedes the earlier role-based list):
+
+  | List | Maintainer |
+  |---|---|
+  | Licensing | Ilona |
+  | Production | Yuchen |
+  | Design | Marcel |
+  | Sampling | Yuchen and Ilona |
+  | Shipping | Yuchen |
+
+- A list's maintainers can edit that list (add, rename, delete, reorder stages, set durations). Admins may edit every list.
+
+**Stage order (Unknown).** The current Production order (Material Arrival first) is wrong. Material Arrival is about the fourth production step. The correct order will be set by the list maintainers on the stage-list screen. Until then, no order is Settled.
+
+**Source of initial durations (Historical).** The first durations came from the "Order Timeline Calculator" spreadsheet, Version 1.0, updated 10/9/2024. That spreadsheet added Design, Licensing, Sampling, and Mass Production one after another. That serial model is not the business rule (see the next section).
+
+### Licensor coverage (Settled, Albert Hazan, 2026-10-15)
+
+- Care Bears and ZAG (Miraculous Ladybug) are no longer licensed. They carry no licensing stage times.
+- Ford is kept with empty licensing stage times until its licensor portal is set up and someone enters them.
+- Lenticular Art is a single product type, not two.
+
+### Licensor timeline groupings (Settled, Albert Hazan, 2026-10-18)
+
+Albert, verbatim: "count DC, Harry Potter and Friends TV as Warner Brothers / count Paw Patrol as Nickelodeon / Aardman is not unknown, ilona and laura have yet to make it a timeline as it's a new license ... / Care Bears and ZAG and lapsed contracts and can be disregarded going forward."
+
+- DC, Harry Potter and Friends TV use the Warner Brothers licensing stage times. Paw Patrol uses the Nickelodeon times. This is a timing grouping only; it does not change who the licensor is.
+- Aardman Animations is a real, new license whose licensing timeline Ilona and Laura have not created yet. Show it as "timeline not set up yet", never as unknown and never as zero.
+- Care Bears and ZAG are lapsed contracts: not offered for new work. Existing orders and history keep them.
+- NASA and Mixed License: no licensing timeline in the stage-timing sheet; they stay Unknown (Settled, Albert Hazan, 2026-10-21). Albert, verbatim: "Leave them unknown and close that issue."
+
+## Stages run concurrently, with hard and soft dependencies
+
+**Status:** Settled that the lists are not serial (Albert Hazan, 2026-10-15). The dependency map itself is Unknown.
+
+The five lists do not run one after another. Parts of each list run at the same time as parts of others. Some links between stages are hard dependencies: the later stage cannot start until the earlier one is done. Others are soft dependencies: the later stage normally waits, but the team can start it early to save time when it judges the risk acceptable. Adding stage durations end to end therefore overstates lead time and must not be presented as the business schedule.
+
+Unknown, to collect stage by stage from the list maintainers:
+
+- For each stage, which earlier stages it depends on.
+- Whether each dependency is hard or soft.
+- For soft dependencies, how much early start is normal and who may decide it.
+- Which stages can overlap fully.
+
+## Conditional stages
+
+**Status:** Settled for re-sampling and re-design (Albert Hazan, 2026-10-15). Linesheet is Unknown.
+
+- **Re-sampling and re-design** happen only when the licensor returns a Resubmit at the concept stage or the pre-production-sample stage. They are not planned on every order and do not count toward a normal lead time.
+- **Linesheet submission and linesheet resubmission** (Settled, Ilona via Albert Hazan, 2026-10-15) are sometimes needed, only on retail projects, for these licensors: Disney, NBC Universal, Warner Brothers, Steal a Brain Rot, Aardman Animations, Coca-Cola, Star Wars (Lucasfilm), Marvel. The system tracks linesheets so the licensing team can follow them, but linesheet time is **never included in timeline estimates**.
+
+### No waits between stages (Settled, Yuchen via Albert Hazan, 2026-10-15)
+
+There is no planned waiting time between one stage and the next. Each stage's needed date follows directly from the next stage's needed date and the stage's own duration. The fixed waits currently built into DesignFlow (for example 3 days before QC, 7 days for assembly, 1 day between licensing steps) were a mistake and are Historical.
+
 ## History
 
 Needed dates are plans. Completed-at dates and actual production events are separate facts. Recalculation of a planned schedule must not rewrite completed history.

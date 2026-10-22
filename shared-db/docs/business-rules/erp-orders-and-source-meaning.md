@@ -12,6 +12,19 @@ Google OrderList rows and future ColdLion rows describe the same real orders. Th
 
 ## How a new order enters the system (OrderList intake)
 
+**Future production PO reuse is prohibited (Settled, Albert, 2026-10-13).**
+Albert said, verbatim, "going forward production PO numbers will NOT be reused
+and that has to be enforced" in the conversation for
+[popdam3#277](https://github.com/u2giants/popdam3/issues/277).
+One production PO number identifies one real production order. It cannot be
+assigned to a different customer, vendor, or order, including after cancellation
+or deletion. Multiple lines and separate source references for the same real
+order remain valid. Historical reuse reported by Yuchen stays recorded as
+history; reconciliation must preserve those distinct historical orders rather
+than infer that equal numbers establish equal orders. Enforcement delivery is
+tracked on [shared-db#4257](https://github.com/popcre/shared-db/issues/4257), with
+application acceptance on the original PopDAM issue.
+
 **Status:** Settled where marked; the named Unknowns are open. Authority: Albert, 2026-09-17,
 cross-checked against the live-workbook inspection of 2026-08-28 (shared-db issue #1772).
 
@@ -280,26 +293,53 @@ Two technical constraints on the poll design:
   "entered before/after" comparisons against production orders (`/prodtracking` and
   `/proddetails` already carry their own `createdTime`). What it does not change: the
   `fromDate`/`toDate` filter still keys on the start date (re-verified 2026-10-09: all rows
-  inside the window; the window is now capped at 7 days inclusive), so these fields cannot be
-  queried by; they are read from rows already fetched. Novelty by `salesOrderNo` remains the
+  inside the window; the window is now capped at 7 days inclusive), *Historical (2026-10-09):* these
+  fields could not then be queried by — superseded 2026-10-16, see the next bullet. Novelty by `salesOrderNo` remains the
   detection rule; the timestamps are added evidence, not a replacement.
-  **Caveat — `createdTime` is not reliably the original customer-order entry date (measured
-  2026-10-09, 3,818 sales-order ↔ production-PO linked pairs).** Albert: a production PO is
-  written off the customer PO, so the two should fall within about a week of each other.
-  Measured: sales-order `createdTime` falls a median 59 days (mean 64) *after* the production
-  PO's order date, and within 7 days for only 3% of pairs. It instead lands on the **same day
-  the production PO is received** for 52% of pairs (within 1 day for 59%), which suggests the
-  ColdLion sales-order record is re-created or split when goods arrive. No date pair on the two
-  records showed the expected one-week creation pattern; customer start/cancel dates match 100%
-  only because the PO copies them from the sales order. **Unknown** until ColdLion explains what
-  `createdTime` records; do not use it as the customer-order entry date or for SO↔PO matching.
-  **Confirmed mismatch (JamieLynn, 2026-10-09):** for sales order 7127837 the ColdLion screen
-  shows CreatedTime 2026-05-05 4:25 PM, while the API returns 2026-08-06 15:35:53 on all 12
-  lines (each already carrying a pick ticket and an invoice). The screen value is the true
-  entry date; the API value comes from some later record. Asked ColdLion to expose the
-  screen's CreatedTime. **Times are New York time (EST/EDT) — Settled, Albert, 2026-10-09.**
+  **Fixed by ColdLion 2026-10-12 — `createdTime`/`modTime` now come from the order details, not
+  the invoice.** Re-verified live 2026-10-12: SO 7127837 now returns `createdTime`
+  2026-05-05 16:25:21, matching the ColdLion screen (JamieLynn). ColdLion also corrected the
+  time zone on some endpoints: PO 24105 `/proddetails` and `/prodtracking` moved from 20:09 to
+  16:09 (now New York time). Re-measured on 3,820 linked SO↔PO pairs (sales-order `createdTime`
+  vs production PO order date): the sales order is entered **first in 89%** of pairs; median
+  gap **10 days** (mean 16); within 7 days 37%, 14 days 65%, 30 days 89%; a few outliers run
+  past a year. *Historical (2026-10-09, superseded):* before the fix the API returned the
+  invoice record's time, which sat on the PO receive date for about half of pairs and made
+  sales orders look like they were entered ~59 days after their production PO.
+  **Entry/change filters added by ColdLion — verified live 2026-10-21.** At POP's request (in
+  place of a separate Order Header API) `/orderHistory` now accepts `createdFrom`/`createdTo`
+  and `modifiedFrom`/`modifiedTo`. `fromDate`/`toDate` (start date) are still **required**; a
+  stamp filter alone returns HTTP 400. Wide start windows are now accepted (a 2019–2028 window
+  with `createdFrom=2026-01-01&createdTo=2026-10-20` returned 2,947 lines; a 2026–2027 window
+  with no stamp filter returned 3,676 lines), so the earlier 7-day cap no longer applies. Pattern for
+  "what was entered or changed since X": wide start window + `createdFrom`/`modifiedFrom`.
+  Proof of value: orders entered 2026-10-13..19 returned 28 lines from the API, while our
+  start-date-window sync had landed only one of those orders (7 lines), because their
+  start dates are in late November/December.
   *Historical (2026-09-17):* a probe then found 63 fields and no created/entry timestamp; that
   statement is superseded by the above.
+- **`/orderHistory` can now be filtered by entry and change date — verified live 2026-10-16.**
+  Why we asked: filling the new timestamps into 116,252 historical lines (#4150) meant
+  re-reading every order back to 2019 one start-date week at a time, which took hours, and
+  new-order detection had to scan forward week by week. We told ColdLion we would skip their
+  proposed Order Header API if `/orderHistory` gained `/prodtracking`-style date filters.
+  ColdLion's answer (2026-10-16, ColdLion, quoted): "I've added createdFrom/createdTo and
+  modifiedFrom/modifiedTo filters to /orderHistory". They also said the filters apply to the
+  **sales order header**, and `createdTime`/`createdUser`/`modTime`/`modUser` are now returned
+  from the header instead of the detail. Live probe the same day:
+  - The four filters appear in the API spec and work: `createdFrom=2026-10-01&createdTo=2026-10-15`
+    returned 38 lines / 14 orders, all created 2026-10-01..10-13; `modifiedFrom=2026-10-14&
+    modifiedTo=2026-10-16` returned 97 lines / 15 orders, all changed 2026-10-14..10-15.
+  - `fromDate`/`toDate` (start date) are **still required** — omitting them returns HTTP 400.
+    The 7-day cap is gone: a 2026-01-01..2027-12-31 start window was accepted, and a second
+    probe the same day (#4405) accepted 2019-01-01..2099-12-31 with `createdFrom` (HTTP 200, 191 rows,
+    identical to a toDate at the 18-month forward cap). So pass a wide
+    start window and narrow by `createdFrom`/`modifiedFrom`.
+  - Filters combine (AND) with the start window. Page size max is 200.
+  - Timestamps stay order-level: no order had differing values across its lines.
+  Consequence: changed-order and new-order detection can query by `modifiedFrom`/`createdFrom`
+  directly; the Order Header API is not needed. Novelty by `salesOrderNo` remains the
+  detection rule.
 - **The window filter keys on the ERP start date — verified live 2026-09-17.** Windows in
   October, November and December 2026 return live rows today (a November window held 42 rows,
   a December window 117), and every returned row's `startDate` falls inside its requested

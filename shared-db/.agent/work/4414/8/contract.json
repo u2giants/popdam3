@@ -1,0 +1,52 @@
+{
+  "schema_version": 2,
+  "work_issue": 4414,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Land the GLM-approved reviewer-assignment hold reduction plan documents on main through ordinary Guarded Merge of PR #4419, carrying only the canonical work-contract evidence pair the merge gate requires.",
+  "base_sha": "b31e17c02194c6006a1bd256d6154a324a5114d7",
+  "dispatcher": "MiMo chat ses-ffe5eaa4-975f-8ffe-80IJ-6BK5Ru on edge-dev",
+  "worker": "MiMo chat ses-ffe5eaa4-975f-8ffe-80IJ-6BK5Ru on edge-dev",
+  "branch": "codex/reviewer-assignment-hold-plan",
+  "worktree": "D:/repos/shared-db-worktrees/publication-4419-evidence",
+  "allowed_paths": [
+    "AGENTS.md",
+    "HANDOFF.d/2026-10-18T1324Z-hetz-codex-reviewer-assignment-holds.md",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/shared-release-holds.md",
+    "plan_reviewer_assignment_hold_reduction.md",
+    ".agent/work/4414/8/contract.json",
+    ".agent/work/4414/8/completion.json"
+  ],
+  "file_writes": [
+    ".agent/work/4414/8/contract.json",
+    ".agent/work/4414/8/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database change.",
+    "Do not implement plan runtime rows.",
+    "Do not use admin merge or disable checks.",
+    "Do not alter the approved plan prose under this contract."
+  ],
+  "required_checks": [
+    "git diff --check",
+    "node --test scripts/check-handoff-contract.test.mjs scripts/lib/documents-only-change.test.mjs"
+  ],
+  "assumptions": [
+    "Disclosure: the five plan/pointer prose files and GLM exact-head APPROVE of source 455ab601 predate this contract. This contract covers only the prospective evidence pair required by the merge gate and the ordinary Guarded Merge of that approved source; it is not claimed as pre-declaration of the earlier prose work.",
+    "No plan implementation, database write, or check bypass is in scope."
+  ],
+  "stop_conditions": [
+    "Stop if any plan prose byte must change.",
+    "Stop if a database change appears.",
+    "Stop if a check must be disabled or admin merge is required."
+  ],
+  "generation": 8,
+  "evidence_parent": {
+    "work_issue": 4414,
+    "generation": 7,
+    "contract_sha256": "8b442e6cb4aaf7a0ed4764b830fa6ae66180aecd0838c6296596e9519418912c"
+  }
+}

@@ -1,0 +1,115 @@
+gh api repos/popcre/shared-db/git/ref/db-coordination/merge
+gh: Not Found (HTTP 404)
+gh api repos/popcre/shared-db/git/ref/db-coordination/preview
+gh: Not Found (HTTP 404)
+gh api repos/popcre/shared-db/git/ref/db-coordination/production
+gh: Not Found (HTTP 404)
+gh api repos/popcre/shared-db/git/ref/db-coordination/author-acquisition
+gh: Not Found (HTTP 404)
+gh api repos/popcre/shared-db/git/ref/db-coordination/promotion-freeze
+gh: Not Found (HTTP 404)
+{
+  "mode": "DRY RUN",
+  "repository": {
+    "id": 1275568548,
+    "ownerType": "Organization",
+    "visibility": "public"
+  },
+  "existingRulesetId": 25146118,
+  "mainTipHold": {
+    "held": false
+  },
+  "desired": {
+    "name": "main merge queue",
+    "target": "branch",
+    "enforcement": "active",
+    "conditions": {
+      "ref_name": {
+        "include": [
+          "refs/heads/main"
+        ],
+        "exclude": []
+      }
+    },
+    "rules": [
+      {
+        "type": "merge_queue",
+        "parameters": {
+          "check_response_timeout_minutes": 30,
+          "grouping_strategy": "ALLGREEN",
+          "max_entries_to_build": 1,
+          "max_entries_to_merge": 1,
+          "merge_method": "MERGE",
+          "min_entries_to_merge": 1,
+          "min_entries_to_merge_wait_minutes": 0
+        }
+      },
+      {
+        "type": "required_status_checks",
+        "parameters": {
+          "do_not_enforce_on_create": false,
+          "strict_required_status_checks_policy": false,
+          "required_status_checks": [
+            {
+              "context": "Cancelled work guard",
+              "integration_id": 15368
+            },
+            {
+              "context": "Cross-PR object collision",
+              "integration_id": 15368
+            },
+            {
+              "context": "Destructive SQL outside migrations",
+              "integration_id": 15368
+            },
+            {
+              "context": "Domain ownership",
+              "integration_id": 15368
+            },
+            {
+              "context": "Handoff contract",
+              "integration_id": 15368
+            },
+            {
+              "context": "Intake pointer guard",
+              "integration_id": 15368
+            },
+            {
+              "context": "Merge queue gate",
+              "integration_id": 15368
+            },
+            {
+              "context": "Migration author lease",
+              "integration_id": 15368
+            },
+            {
+              "context": "Migration guarded merge authorization",
+              "integration_id": 15368
+            },
+            {
+              "context": "Promotion contract tests (offline)",
+              "integration_id": 15368
+            },
+            {
+              "context": "Queue-sensitive checks (aggregate)",
+              "integration_id": 15368
+            },
+            {
+              "context": "SQL migration guards",
+              "integration_id": 15368
+            },
+            {
+              "context": "Tools offline tests",
+              "integration_id": 15368
+            },
+            {
+              "context": "supabase/tests against an ephemeral database",
+              "integration_id": 15368
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+Dry run only. Nothing was written. Re-run with --apply to create the ruleset.

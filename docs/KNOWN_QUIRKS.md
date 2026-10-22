@@ -1260,3 +1260,19 @@ select list and a test asserts they stay there. More generally, anything the gri
 *reasons about* has to be in that list, not just what it *shows* — and component
 tests will not catch the omission, because they hand the grid a row object that
 already carries every field.
+
+## 78. Re-running a PDF text sample on a missing file erases its stored text
+
+**What it looks like**: A targeted `PDF_TEXT_SAMPLE_REQUEST` re-run turns a good `pdf_text_samples` row into `extraction_method = 'failed'`, `extracted_text = null`, `extraction_error = 'ENOENT…'`.
+**Why**: The result upsert replaces the whole row. If the file has moved on disk since the asset was indexed, the failure overwrites the earlier text.
+**What to do**: Back up the rows (asset_id, extracted_text, char_count, extraction_method, sampled_at) before any bulk re-run, and restore failed rows from the backup afterwards. Done this way in #410 (Indra OCR re-run, 2026-10-14): 3 of 899 files were missing and kept their old text.
+
+## 79. Replacing an ID-less Ambiguous Meta Request Must Be Explicit (fixed 2026-10-15)
+
+**Looks like**: A new explicit-list Meta tagging operation stays at zero progress even though it has its own operation key.
+
+**Actually**: The worker reserves the Meta response slot across all operations while any request may still be active. An interrupted `ambiguous_submission` without a saved provider ID keeps that reservation. Stopping it does not prove the provider rejected it or cancel work already accepted by Meta.
+
+**Operator view**: The normal behavior remains blocked. The exception is limited to the explicitly running `ai-tag-all` replacement with a unique run ID and a non-empty, unique list of UUID asset IDs. Its marker names both the old operation and the replacement run. While the marker matches, the freed capacity stays reserved for that replacement alone. If any provider ID value exists in the old row, worker memory, or a durable receipt, or the old submission is still in progress in the worker, supersession is refused and the worker remains blocked.
+
+**Do not change because**: The durable replacement marker `params.meta_reservation_supersedes = { op_key, run_id, state_revision, interruption_reason_code, replacement_run_id }` is an explicit operator decision to let a new request proceed while the old request may still finish and incur duplicate cost. The worker only honors it while every named field still matches, the old run remains interrupted for a non-transient reason with no auto-resume time, it has no provider ID value in storage or worker memory and no submission still in progress, and the replacement is the matching, uniquely identified, running `ai-tag-all` operation with a non-empty list of unique UUID asset IDs. The freed capacity stays reserved for the replacement alone and returns to the old ambiguous operation when the marker stops matching. This does not change, clear, recover, or cancel the old operation. Never add this marker without the owner's recorded direction; never use it to supersede an operation with a saved provider ID. This logic does not modify the provider key or model; the run plan must verify the existing key and exact configured model before dispatch.

@@ -43,7 +43,13 @@ export const GROUP_AI_AUTO_PROMOTION_CONFIDENCE = 0.85;
 export const GROUP_AI_AUTO_PROMOTION_MIN_EVIDENCE = 2;
 
 export function normalizeMetadataTag(value) {
-  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+  const cleaned = String(value ?? "").trim().replace(/\s+/g, " ");
+  // Models sometimes append "(color)" / "(visible_content)" etc. to the tag text.
+  // Category lives on its own field — never in the search term.
+  return cleaned
+    .replace(/\s*\((?:file_type|view|scene|color|visible_content|technique|other|legacy_unscoped|product_type|theme|style|occasion|audience)\)\s*$/i, "")
+    .trim()
+    .toLowerCase();
 }
 
 export function sourcePriority(source) {

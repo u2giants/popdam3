@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "work_issue": 4297,
+  "outcome": "ready-for-merge",
+  "pr": 4372,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4297/32",
+  "contract_sha256": "0c98767a0b39b25f5d6adc602e34af484b18669ba672beadd44c02d4c3ad4ba0",
+  "base_sha": "154361984687def51366c2c539d7467b1ad64098",
+  "head_sha": "28f9b66ee95458558cda2ab838402933d02e61d3",
+  "files_changed": [
+    "docs/agents/review-recovery-policy.md",
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs",
+      "exit_code": 0,
+      "evidence": "190 circuit-breaker cases passed, zero failed/skipped; the final additional historical-mixed-source accounting assertion also passed in its one targeted case."
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "Manager regression suite exited 0."
+    },
+    {
+      "command": "node --test scripts/run-governed-review.test.mjs",
+      "exit_code": 0,
+      "evidence": "Governed-runner regression suite exited 0."
+    },
+    {
+      "command": "node --test scripts/check-exact-head-approval.test.mjs scripts/lib/pr-content-equivalence.test.mjs",
+      "exit_code": 0,
+      "evidence": "Exact-head approval and content-equivalence regression suites exited 0."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Whitespace check exited 0."
+    },
+    {
+      "command": "node scripts/check-cancelled-work.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "Retired ambiguous negative wording; replacement uses explicit Never prohibitions. Source implementation unchanged from c824e9e."
+    }
+  ],
+  "assumptions_resolved": [
+    "Exactly one neutralized mixed upstream merge can be proved only through a complete clean canonical-source checkpoint.",
+    "The mixed merge and its restoration are never authored witnesses; old starts/negative verdicts and unchanged-content limits remain intact.",
+    "All four distinct paid heads of the preserved OrderList history were rehearsed in a disposable clone with actual source checks and prospective fixture-only terminal metadata; no remote fixture ref or history was changed.",
+    "No database, migration, shared target or production operation is part of this repair.",
+    "Generation30 was published then retired before completion because its goal prematurely described independent review; generation31 correctly leaves that review pending. No result was fabricated.",
+    "The final Git inventory excludes intermediate-only retired evidence files, which do not appear in the PR diff."
+  ],
+  "stop_conditions_hit": [],
+  "pending_acceptance": [
+    "Assigned independent exact-head lifecycle review and required CI",
+    "Normal guarded source merge",
+    "Actual current-source native admission of the recovered original OrderList PR, with real published successor evidence"
+  ]
+}

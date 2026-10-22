@@ -3,7 +3,7 @@
   "source": ".github/workflows/shared-supabase-migrations.yml",
   "sites": [
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:288",
+      "site": ".github/workflows/shared-supabase-migrations.yml:292",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:12fc6b5de8352cf3c4ab95f80110f4d55239282e25dd3afa152da67b38c86fca:context-851f518a89667bb5b545eed2f105c63ad19bb61955401ee10d762bb2de6f24e8",
       "line_sha256": "12fc6b5de8352cf3c4ab95f80110f4d55239282e25dd3afa152da67b38c86fca",
       "disposition": "excluded",
@@ -11,7 +11,7 @@
       "legacy_semantic_key": ".github/workflows/shared-supabase-migrations.yml:12fc6b5de8352cf3c4ab95f80110f4d55239282e25dd3afa152da67b38c86fca:1"
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:402",
+      "site": ".github/workflows/shared-supabase-migrations.yml:406",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:5e49dc0ac830a0755ba64af6efe98e17f898ff7997f187dc09724dfcc8c058c9:context-a0a62cacc366b502e266da8bf0809eb2a2ad744db8c4175a8e22af42fab1f499",
       "line_sha256": "5e49dc0ac830a0755ba64af6efe98e17f898ff7997f187dc09724dfcc8c058c9",
       "disposition": "excluded",
@@ -19,7 +19,7 @@
       "legacy_semantic_key": ".github/workflows/shared-supabase-migrations.yml:5e49dc0ac830a0755ba64af6efe98e17f898ff7997f187dc09724dfcc8c058c9:1"
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:1546",
+      "site": ".github/workflows/shared-supabase-migrations.yml:1565",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:5fd92e821d3c2ec01d3a92482d4bca5354e6cd62f4dd1acd2f488a1c127ab9a4:context-a3efa3cf2c34191af3946a5f4f8b7c814690638d03099238dd7271993534ba0b",
       "line_sha256": "5fd92e821d3c2ec01d3a92482d4bca5354e6cd62f4dd1acd2f488a1c127ab9a4",
       "disposition": "excluded",
@@ -27,7 +27,7 @@
       "legacy_semantic_key": ".github/workflows/shared-supabase-migrations.yml:5fd92e821d3c2ec01d3a92482d4bca5354e6cd62f4dd1acd2f488a1c127ab9a4:1"
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:1920",
+      "site": ".github/workflows/shared-supabase-migrations.yml:1939",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14:context-90186c34a3ef839e7ca5864a67caf06b20cd5c072b81b814940f144e730f5c90",
       "line_sha256": "6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14",
       "disposition": "excluded",
@@ -35,7 +35,7 @@
       "legacy_semantic_key": ".github/workflows/shared-supabase-migrations.yml:6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14:1"
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:1709",
+      "site": ".github/workflows/shared-supabase-migrations.yml:1728",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14:context-fba91cf6c0ea35a666ca11136beb256888c52de766fa69364d81f3fdf0816509",
       "line_sha256": "6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14",
       "disposition": "excluded",
@@ -43,7 +43,7 @@
       "legacy_semantic_key": ".github/workflows/shared-supabase-migrations.yml:6a6b3e1b6a252989b196a7da4a8177e44a581f4ddc7c47ff7fec0bdda9a94d14:2"
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:2108",
+      "site": ".github/workflows/shared-supabase-migrations.yml:2127",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:a4d99b5590e959bd4c2cf8c488f13507cbba93943bed5cc6650eafb479569c45:context-c73c0449a2c80e65f85eda1764ed07aaad36cda85f5ec146218f65a18c1284e7",
       "line_sha256": "a4d99b5590e959bd4c2cf8c488f13507cbba93943bed5cc6650eafb479569c45",
       "disposition": "excluded",
@@ -51,7 +51,7 @@
       "legacy_semantic_key": ".github/workflows/shared-supabase-migrations.yml:a4d99b5590e959bd4c2cf8c488f13507cbba93943bed5cc6650eafb479569c45:1"
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:894",
+      "site": ".github/workflows/shared-supabase-migrations.yml:899",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:ba49ef398a1f412a7f2648aec7f849916714fa46404613f81c6bf6d72f32606c:context-44617b334139db9a4c5b6ce14bce8c9c39d6613417b3846025bb8f47597ec08d",
       "line_sha256": "ba49ef398a1f412a7f2648aec7f849916714fa46404613f81c6bf6d72f32606c",
       "disposition": "excluded",
@@ -59,7 +59,7 @@
       "legacy_semantic_key": ".github/workflows/shared-supabase-migrations.yml:ba49ef398a1f412a7f2648aec7f849916714fa46404613f81c6bf6d72f32606c:1"
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:893",
+      "site": ".github/workflows/shared-supabase-migrations.yml:898",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:c55162ca3a127335dea9cfd0cee37750a963ad0d367a518f4e6b683db61759a1:context-87dc8c62e12d77768b2461eded8fcbcbbf98dc013ce51711573536d4b7b4e22c",
       "line_sha256": "c55162ca3a127335dea9cfd0cee37750a963ad0d367a518f4e6b683db61759a1",
       "disposition": "excluded",
@@ -67,7 +67,7 @@
       "legacy_semantic_key": ".github/workflows/shared-supabase-migrations.yml:c55162ca3a127335dea9cfd0cee37750a963ad0d367a518f4e6b683db61759a1:1"
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:276",
+      "site": ".github/workflows/shared-supabase-migrations.yml:280",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:d22dc0e6c19313eea6935a253f733d84b6b045760c8083cf42c96c0181ea25e2:context-735e679e6e90ec3c2bb467324483274d78018074b70cd3f4984c2dfebbf1ec28",
       "line_sha256": "d22dc0e6c19313eea6935a253f733d84b6b045760c8083cf42c96c0181ea25e2",
       "disposition": "excluded",
@@ -75,7 +75,7 @@
       "legacy_semantic_key": ".github/workflows/shared-supabase-migrations.yml:d22dc0e6c19313eea6935a253f733d84b6b045760c8083cf42c96c0181ea25e2:1"
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:892",
+      "site": ".github/workflows/shared-supabase-migrations.yml:897",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:e5de7e5e7eb20db7e8a2a5d8b04ec17879cf9b1793320e9043265cf0b897e637:context-cc0d2cd61247c3dd2a2c30edcbc1a2dba6936a58212b0871ca9f7aefbb4c9281",
       "line_sha256": "e5de7e5e7eb20db7e8a2a5d8b04ec17879cf9b1793320e9043265cf0b897e637",
       "disposition": "excluded",
@@ -83,7 +83,7 @@
       "legacy_semantic_key": ".github/workflows/shared-supabase-migrations.yml:e5de7e5e7eb20db7e8a2a5d8b04ec17879cf9b1793320e9043265cf0b897e637:1"
     },
     {
-      "site": ".github/workflows/shared-supabase-migrations.yml:578",
+      "site": ".github/workflows/shared-supabase-migrations.yml:582",
       "semantic_key": ".github/workflows/shared-supabase-migrations.yml:e84cf58890e0e43953be3872ea638fbd17f10833d7f9e9450063bd52a15bc1d7:context-fa07857c84985e4cbe985f0f666e31f9bcd86a78401aa2a34d1c4cea59a0b0c7",
       "line_sha256": "e84cf58890e0e43953be3872ea638fbd17f10833d7f9e9450063bd52a15bc1d7",
       "disposition": "excluded",

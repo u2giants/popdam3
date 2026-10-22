@@ -128,7 +128,7 @@ have already happened in this repo, more than once.
     **The mechanism (owner instruction 2026-10-02, "assign someone to pause merges during
     production runs"; [owner rulings §6.26](../owner-rulings.md)):** before drawing the risk
     assessment, run `node scripts/manage-migration-author-lanes.mjs --acquire-promotion-freeze
-    --issue <n> --pr <source-pr> --owner <text> --ttl-minutes <1-180>`. Every `--acquire-merge`
+    --issue <n> --pr <source-pr> --owner <text> --ttl-minutes <1-60>`. Every `--acquire-merge`
     and repository-maintenance (documents-only) authorization then refuses until the freeze is
     released (`--release-promotion-freeze --owner <text>`), the production run's cleanup releases
     it, or its TTL expires. Pick a TTL that outlives the whole window (review round plus
@@ -156,8 +156,8 @@ have already happened in this repo, more than once.
 
     (Historical:) This ruling narrowed the boundary rather than restating it. Until 2026-08-21 all three exited
     by `fork`, which reads as "the orchestrator hands this out", and on that basis an orchestrator
-    session accepted a repository-maintenance planning task. Do not route such work back to the
-    orchestrator, and do not read a `fork` in an old document as current.
+    session accepted a repository-maintenance planning task. Do not route such work into the
+    structural lane, and do not read a `fork` in an old document as current.
 
     **It did not touch curated Master Data.** `curated-master-data` still exits by `fork` under
     §6.4 and is still governed inside this repository. Extending the ruling to it needs a separate
@@ -240,3 +240,13 @@ have already happened in this repo, more than once.
 ---
 
 19. **CI RUNS ON BLACKSMITH (owner ruling, Albert Hazan, 2026-09-23).** "anything that's queued and not actually running, send to blacksmith. the merge rules are hereby changed: a Blacksmith run produces a main check" — Albert Hazan, chat, 2026-09-23. GitHub hosted runners were starved (62 runs queued). Workflows use `blacksmith-2vcpu-ubuntu-2404`; a check produced on a Blacksmith runner satisfies the same required status as a hosted-runner check. **Credential-holding jobs run there too:** "the outside runner is not run by an outlaw. we can send production-credential jobs there." — Albert Hazan, chat, 2026-09-24 (issue #3473). Staying on `ubuntu-latest`: the two registered queue-sensitive lanes, their `Queue-sensitive aggregate` (it must not share a pool it exists to watch), and `database-contract-tests.yml`'s `classify` job. `scripts/orchestrator-flow/runner-lanes.*` governs only those registered lanes, which remain GitHub-hosted, so it is unchanged.
+
+20. **REVIEW SLOTS: ONE FOR EVERY CHANGE; VALID REVIEWS CARRY ONLY WHEN CONTENT IS EQUIVALENT (owner 2026-10-14: "change the rules so that we don't need 2 reviews").** `scripts/check-exact-head-approval.mjs` requires **one** independent exact-head APPROVE for every pull request, including migrations. The former two-slot migration minimum is retired. No gate, test or helper may demand two slots. A tree-identical re-push — same git tree, or same pull request diff ignoring `.agent/` — keeps valid prior reviews: slot 1 is not re-drawn and no paid attempt is burned to re-pin the same bytes. For equivalent content, the newest valid historical slot-1 assignment may carry; its replacement must have exact failure evidence. A returned or refused slot is never revived from an older assignment. The newest valid assignment controls the slot; an ancestor approval never fills a returned or refused new-head slot. **Owner-quoted widening** (source history includes PR #4294): a fresh later slot may use a recorded verbatim owner quote to widen the earliest live peer's allowlist by a strict superset. Each slot's own policy stays exact for retry and replacement. Branch protection is never disabled.
+
+# Superseding note — 2026-10-15
+
+Owner ruling 2026-10-14 supersedes the two-review line in
+HANDOFF.d/2026-10-14T2247Z-edge-dev-mimo-2336-production-live-proof.md:123.
+One independent exact-head APPROVE is enough for every change.
+
+Posted by MiMo chat ffe5ed27-27a0-dffe-92fd-227bed167df0 on EDGE-DEV

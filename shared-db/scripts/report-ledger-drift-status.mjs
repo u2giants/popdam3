@@ -169,7 +169,7 @@ export function formatStatusReport({ target, projectRef, baseRef, baseSha, drift
     lines.push('The supplied drift-check result lists these reviewed, merged migrations as **not applied** in this database.')
     lines.push('⚠️ Any object they create is **absent from the live catalog**. Do not read that absence as "the work was never done" (issue #892).')
     lines.push('')
-    lines.push(`**Holders:** each version above needs a ${safeText(target)} apply through the bounded Shared Supabase Migrations workflow. That lane is the orchestrator's single ${safeText(target)} lane, not this session's. This report is detection only — no production action was taken.`)
+    lines.push(`**Holders:** each version above needs a ${safeText(target)} apply through the bounded Shared Supabase Migrations workflow. That lane is the claim owner’s exclusive ${safeText(target)} lane, not this session's. This report is detection only — no production action was taken.`)
     lines.push('')
   }
 

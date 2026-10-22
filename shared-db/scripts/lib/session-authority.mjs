@@ -1,8 +1,8 @@
 // Claim-first session authority (issue #3874).
 //
-// The orchestrator role was retired by owner ruling (Albert Hazan, 2026-10-02:
+// The coordinator role was retired by owner ruling (Albert Hazan, 2026-10-02:
 // "there is no longer an orchestrator"; AGENTS.md §0.0-D). Paths that used to
-// require "a matching live sole-orchestrator marker" now require a declared,
+// require "a matching live claim-first session identity" now require a declared,
 // well-formed session identity instead, and -- when the operation acts on the
 // session's OWN claim (preview preparation with --claim-number) -- that the
 // claim's lease owner IS that session.
@@ -28,6 +28,14 @@ const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@-]{2,119}$/
 // Existing claim labels name the same exact chat, never an arbitrary alias.
 // Anchor the whole established label; UUID substrings or extra owners cannot match.
 const CHAT_OWNER_PATTERN = /^(?:Codex|Claude) chat ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}) on [A-Za-z0-9][A-Za-z0-9._-]{0,119}$/
+// Supported operator adoption also records Codex's exact chat plus work issue.
+// Preserve that lease label; it identifies the same UUID, not another actor.
+// The whole label is anchored: legacy aliases and UUID substrings do not qualify.
+const CODEX_ADOPTION_OWNER_PATTERN = /^codex\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-[1-9][0-9]*$/
+// Claude Code claims created with --owner claude-chat-<session>@<machine> (the form the
+// claim path accepts). It names the exact session UUID; the same UUID-equals-session check
+// applies, so this does not admit an alias or another session.
+const CLAUDE_CHAT_OWNER_PATTERN = /^claude-chat-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})@[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/
 
 export function readSessionId(env = process.env) {
   const raw = env?.[SESSION_ID_ENV]
@@ -48,7 +56,7 @@ export function resolveSessionAuthority({ env = process.env, claimOwner } = {}) 
   if (claimOwner !== undefined) {
     const owner = String(claimOwner ?? '').trim()
     if (!owner) return { live: false, state: 'unsafe', task: null, calling_task: id, reason: 'the named claim has no readable lease owner' }
-    const ownerSession = CHAT_OWNER_PATTERN.exec(owner)?.[1] ?? owner
+    const ownerSession = CHAT_OWNER_PATTERN.exec(owner)?.[1] ?? CODEX_ADOPTION_OWNER_PATTERN.exec(owner)?.[1] ?? CLAUDE_CHAT_OWNER_PATTERN.exec(owner)?.[1] ?? owner
     if (ownerSession !== id) return { live: false, state: 'claim-owner-mismatch', task: owner, calling_task: id, reason: `claim lease owner ${owner} is not this session (${id})` }
   }
   return { live: true, state: 'declared', task: id, calling_task: id, reason: null }

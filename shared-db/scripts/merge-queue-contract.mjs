@@ -31,6 +31,8 @@
 // hard-coded: it resolves through scripts/lib/repository-identity.mjs.
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { resolveRepositoryIdentity, RepositoryIdentityError } from './lib/repository-identity.mjs'
+import { resolveEvidencePair } from './lib/agent-evidence-paths.mjs'
+import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 
 export class MergeQueueError extends Error {}
@@ -55,6 +57,43 @@ export const QUEUE_RULE = Object.freeze({
     merge_method: 'MERGE',
     min_entries_to_merge: 1,
     min_entries_to_merge_wait_minutes: 0,
+  }),
+})
+
+// The 14 live required contexts (classic branch protection read-back
+// 2026-10-14, app_id 15368 = GitHub Actions). The merge-queue ruleset must
+// carry these as required_status_checks so the queue knows which checks to
+// wait for; a ruleset that omits them is not the approved shape (#2530).
+// Retired mirror contexts (Orchestrator marker guard, Agent work contract)
+// are deliberately absent.
+export const REQUIRED_STATUS_CHECK_CONTEXTS = Object.freeze([
+  'Cancelled work guard',
+  'Cross-PR object collision',
+  'Destructive SQL outside migrations',
+  'Domain ownership',
+  'Handoff contract',
+  'Intake pointer guard',
+  'Merge queue gate',
+  'Migration author lease',
+  'Migration guarded merge authorization',
+  'Promotion contract tests (offline)',
+  'Queue-sensitive checks (aggregate)',
+  'SQL migration guards',
+  'Tools offline tests',
+  'supabase/tests against an ephemeral database',
+])
+
+// GitHub Actions integration id, matching classic protection's app binding.
+export const GITHUB_ACTIONS_INTEGRATION_ID = 15368
+
+export const REQUIRED_STATUS_CHECKS_RULE = Object.freeze({
+  type: 'required_status_checks',
+  parameters: Object.freeze({
+    do_not_enforce_on_create: false,
+    strict_required_status_checks_policy: false,
+    required_status_checks: Object.freeze(
+      REQUIRED_STATUS_CHECK_CONTEXTS.map((context) => Object.freeze({ context, integration_id: GITHUB_ACTIONS_INTEGRATION_ID })),
+    ),
   }),
 })
 
@@ -174,7 +213,10 @@ export function queueRulesetMatches(detail) {
   if (!Array.isArray(rules)) return false
   const queue = rules.filter((rule) => rule?.type === 'merge_queue')
   if (queue.length !== 1) return false
-  return queueParametersEqual(queue[0].parameters)
+  if (!queueParametersEqual(queue[0].parameters)) return false
+  const required = rules.filter((rule) => rule?.type === 'required_status_checks')
+  if (required.length !== 1) return false
+  return requiredStatusChecksEqual(required[0].parameters)
 }
 
 // Key-order-independent equality of queue parameters (#3566). GitHub returns the
@@ -185,6 +227,26 @@ export function queueParametersEqual(actual, expected = QUEUE_RULE.parameters) {
   const a = Object.keys(actual).sort(), e = Object.keys(expected).sort()
   if (a.length !== e.length || a.some((key, i) => key !== e[i])) return false
   return e.every((key) => actual[key] === expected[key])
+}
+
+// required_status_checks comparison: the two policy flags must equal exactly,
+// and the check list must name the same contexts. integration_id is compared
+// when present (GitHub echoes it back on read) and tolerated when absent.
+export function requiredStatusChecksEqual(actual, expected = REQUIRED_STATUS_CHECKS_RULE.parameters) {
+  if (!actual || typeof actual !== 'object' || Array.isArray(actual)) return false
+  if (actual.do_not_enforce_on_create !== expected.do_not_enforce_on_create) return false
+  if (actual.strict_required_status_checks_policy !== expected.strict_required_status_checks_policy) return false
+  const a = actual.required_status_checks, e = expected.required_status_checks
+  if (!Array.isArray(a) || !Array.isArray(e) || a.length !== e.length) return false
+  const names = (rows) => rows.map((row) => row?.context).filter(Boolean).sort()
+  const an = names(a), en = names(e)
+  if (an.length !== en.length || an.some((name, i) => name !== en[i])) return false
+  // When GitHub echoes integration_id, it must match the approved binding.
+  return a.every((row, i) => {
+    const match = e.find((item) => item.context === row?.context)
+    if (row.integration_id !== undefined && row.integration_id !== match.integration_id) return false
+    return true
+  })
 }
 
 // queueMode() returns 'active' only for the exact approved rule, 'inactive'
@@ -295,6 +357,123 @@ export function readAuthorizationRow(headSha, { repo, read = ghJson } = {}) {
 export function readAuthorizationState(headSha, { repo, read = ghJson } = {}) {
   return readAuthorizationRow(headSha, { repo, read })?.state ?? null
 }
+
+// Resolve the AUTHORIZED PR head from the live tip using the ancestor +
+// evidence-tail shape `verifyGitEvidence` accepts (scripts/
+// agent-work-contract-git-evidence.mjs). The guarded merge lane posts
+// `Migration guarded merge authorization` on the implementation commit
+// (`report.head_sha`). The live tip may then carry only an evidence pair after
+// it. The merge-queue gate must bind containment and authorization to that
+// implementation head — never blindly to the live tip — or a legitimate
+// evidence tail makes the group look unlike the reviewed head
+// (canary #4321: live tip `e844a091`, authorized implementation `944ff07f`,
+// group parent `944ff07f`).
+//
+// Pair IDENTITY (this pull request's own pair, matched to the contract via
+// acceptableEvidencePairs) is enforced by verifyGitEvidence and the Agent work
+// contract at admission — not re-derived here. This walk only admits a tail
+// whose files are exactly one complete evidence pair (keyed or legacy) and
+// nothing else. When `workIssue` is provided, a keyed pair must belong to that
+// issue.
+//
+// Returns `{ authorizedHead, evidenceTail, mode }` where mode is `exact` only
+// when the tip itself is the authorized head, or `evidence-tail` when the
+// authorized head is an ancestor and only the pair follows.
+export function resolveAuthorizedHead(prHeadSha, { isAncestor, changedFiles, firstParent, readAuthorizationState, workIssue = null, maxWalk = 6 } = {}) {
+  if (!/^[0-9a-f]{40}$/i.test(String(prHeadSha ?? ''))) {
+    throw new MergeQueueError('resolving the authorized PR head requires a 40-character live tip SHA')
+  }
+  if (typeof isAncestor !== 'function' || typeof changedFiles !== 'function' || typeof firstParent !== 'function' || typeof readAuthorizationState !== 'function') {
+    throw new MergeQueueError('resolveAuthorizedHead requires isAncestor, changedFiles, firstParent, and readAuthorizationState')
+  }
+  const tip = String(prHeadSha).toLowerCase()
+  const tipState = readAuthorizationState(tip)
+  if (tipState === 'success') {
+    return { authorizedHead: tip, evidenceTail: [], mode: 'exact' }
+  }
+
+  // A lawful tail is EXACTLY one complete evidence pair — the same set-equality
+  // rule verifyGitEvidence enforces (acceptableEvidencePairs). resolveEvidencePair
+  // classifies by evidence paths only and would otherwise admit
+  // [pair + any non-evidence file] as "current", which would let the gate accept
+  // a merge group carrying unreviewed bytes beside the pair.
+  const tailShapeAllowed = (files) => {
+    if (files.length === 0) return true
+    const pair = resolveEvidencePair(files)
+    if (pair.state !== 'current') return false
+    const expected = [pair.contract, pair.completion].map(String).sort()
+    const actual = [...files].map(String).sort()
+    if (actual.length !== expected.length) return false
+    if (actual.some((file, index) => file !== expected[index])) return false
+    if (workIssue == null) return true
+    // Keyed pairs must belong to the named work issue when the caller binds one;
+    // the legacy pair is the shared gen-1 path and is admitted without an issue key.
+    if (pair.key == null || pair.key === 'legacy') return true
+    return String(pair.key).startsWith(`${Number(workIssue)}/`)
+  }
+
+  let current = tip
+  for (let step = 0; step < maxWalk; step++) {
+    const parent = firstParent(current)
+    if (!/^[0-9a-f]{40}$/i.test(String(parent ?? ''))) break
+    const candidate = String(parent).toLowerCase()
+    if (!isAncestor(candidate, tip)) break
+    const cumulativeTail = [...changedFiles(candidate, tip)].map(String).sort()
+    const pair = cumulativeTail.length === 0 ? null : resolveEvidencePair(cumulativeTail)
+    const tailAllowed = tailShapeAllowed(cumulativeTail)
+    if (tailAllowed && readAuthorizationState(candidate) === 'success') {
+      return {
+        authorizedHead: candidate,
+        evidenceTail: cumulativeTail,
+        // `exact` is only the early return above (tip itself authorized).
+        // A walk always lands on an ancestor: empty tree span is `ancestor`,
+        // a pure evidence-pair tail is `evidence-tail`.
+        mode: cumulativeTail.length === 0 ? 'ancestor' : 'evidence-tail',
+      }
+    }
+    // A complete or conflicted evidence pair already spans candidate→tip, so
+    // do not walk further. A step that is only half a pair (plus non-evidence
+    // files) may still be walked through; the cumulative set-equality check at
+    // the acceptance boundary is what refuses an unlawful tail.
+    if (pair?.state === 'current' || pair?.state === 'conflicted') break
+    const stepFiles = [...changedFiles(candidate, current)].map(String)
+    const stepPair = resolveEvidencePair(stepFiles)
+    if (stepFiles.length > 0 && stepPair.state !== 'partial' && stepPair.state !== 'current') break
+    current = candidate
+  }
+
+  throw new MergeQueueError(
+    `no authorized PR head found at or under live tip ${tip}: the tip carries no successful guarded merge authorization, ` +
+    'and the commits below it are not a pure evidence-pair tail over an authorized implementation head',
+  )
+}
+
+// Live git IO for the authorized-head walk. First-parent only: an evidence
+// tail is a linear addition on the implementation, never a merge.
+export function gitAuthorizedHeadIo() {
+  const git = (args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  return {
+    isAncestor(ancestor, descendant) {
+      try {
+        execFileSync('git', ['merge-base', '--is-ancestor', ancestor, descendant], { stdio: 'ignore' })
+        return true
+      } catch {
+        return false
+      }
+    },
+    changedFiles(from, to) {
+      const out = git(['diff', '--name-only', from, to])
+      return out ? out.split(/\r?\n/).filter(Boolean) : []
+    },
+    firstParent(sha) {
+      try {
+        return git(['rev-parse', `${sha}^1`])
+      } catch {
+        return null
+      }
+    },
+  }
+}
 export function latestContextState(rows, context) {
   return latestContextRow(rows, context)?.state ?? null
 }
@@ -371,6 +550,8 @@ export const USAGE = `Usage:
                                                               Print the NEWEST PR-head authorization state
   node scripts/merge-queue-contract.mjs --authorization-row --head-sha <pr-head>
                                                               Print the NEWEST state|description pair
+  node scripts/merge-queue-contract.mjs --resolve-authorized-head --head-sha <live-tip>
+                                                              Resolve the authorized head under an evidence tail
   node scripts/merge-queue-contract.mjs --recheck-interlock --head-sha <pr-head>
                                                               Re-read PR-head authorization and production
                                                               interlock under the merge lock at the mutation
@@ -398,6 +579,18 @@ export async function main(argv, env = process.env, deps = {}) {
     const row = readQueuePullRequest(number, { repo, read })
     verifyQueuePullRequest(number, row)
     console.log(JSON.stringify({ number: row.number, baseRefName: row.baseRefName, headRefOid: row.headRefOid }))
+    return 0
+  }
+
+  if (argv.includes('--resolve-authorized-head')) {
+    const tip = flagValue(argv, '--head-sha')
+    const workIssueRaw = flagValue(argv, '--work-issue')
+    const resolved = resolveAuthorizedHead(tip, {
+      ...gitAuthorizedHeadIo(),
+      workIssue: workIssueRaw == null ? null : Number(workIssueRaw),
+      readAuthorizationState: (sha) => readAuthorizationState(sha, { repo, read }),
+    })
+    console.log(JSON.stringify(resolved))
     return 0
   }
 

@@ -63,7 +63,7 @@ export function interpretOrderStampColumns(rows) {
   if (typed === 4 && named === 4) return true;
   if (named === 0) return false;
   throw new Error(
-    `coldlion.order_history_line carries ${named} of the 4 ColdLion stamp columns (${typed} with the expected type); refusing to load until migration 20261009170724 is applied whole`,
+    `coldlion.order_history_line carries ${named} of the 4 ColdLion stamp columns (${typed} with the expected type); refusing to load until migration 20261013111713 (or 20261009170724) is applied whole`,
   );
 }
 

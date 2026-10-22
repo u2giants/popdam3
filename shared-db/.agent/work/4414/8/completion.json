@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_issue": 4414,
+  "outcome": "ready-for-merge",
+  "pr": 4419,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4414/8",
+  "contract_sha256": "13fbd34ac4cd18c46e9a7070acd39791af218846597f03b97963d9781c41cbaf",
+  "head_sha": "7782df62b0d58521bb52dd49dc4ef4df5ec7457b",
+  "base_sha": "16b1ccd44cf3fe7c0d8616ad3c3820cdb45536ef",
+  "files_changed": [
+    "AGENTS.md",
+    "HANDOFF.d/2026-10-18T1324Z-hetz-codex-reviewer-assignment-holds.md",
+    "docs/agents/active-contracts-and-plans.md",
+    "docs/shared-release-holds.md",
+    "plan_reviewer_assignment_hold_reduction.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions_resolved": [
+    "Approved plan prose preserved unchanged under content-preserving refresh onto current main; this pair is prospective merge-gate evidence only."
+  ],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    },
+    {
+      "command": "node --test scripts/check-handoff-contract.test.mjs scripts/lib/documents-only-change.test.mjs",
+      "exit_code": 0,
+      "evidence": "49 pass, 0 fail"
+    }
+  ]
+}

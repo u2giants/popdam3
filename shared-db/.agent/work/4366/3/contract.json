@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "work_issue": 4366,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Land the #2336 handoff (PR #4310) without closing #2336 after REVISE fixes",
+  "base_sha": "3fcb3c65e7f85147edd10bd457d8c1179bbf6390",
+  "dispatcher": "MiMo handoff-hygiene session",
+  "worker": "mimo",
+  "branch": "mimo/2336-handoff-20261014",
+  "worktree": "D:/repos/shared-db-worktrees/2336-handoff-4310",
+  "allowed_paths": [
+    "HANDOFF.d/2026-10-14T2247Z-edge-dev-mimo-2336-production-live-proof.md",
+    ".agent/work/4366/3/contract.json",
+    ".agent/work/4366/3/completion.json"
+  ],
+  "file_writes": [
+    "HANDOFF.d/2026-10-14T2247Z-edge-dev-mimo-2336-production-live-proof.md",
+    ".agent/work/4366/3/contract.json",
+    ".agent/work/4366/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not close #2336",
+    "do not touch database",
+    "do not rewrite HANDOFF.md"
+  ],
+  "required_checks": [
+    "node --test scripts/check-handoff-contract.test.mjs"
+  ],
+  "assumptions": [
+    "#2336 remains open for production apply and live proof"
+  ],
+  "stop_conditions": [
+    "stop if the handoff cannot be made truthful"
+  ],
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 4366,
+    "generation": 2,
+    "contract_sha256": "81441233cf660e8bf511ce7836295291385a90ceea4a3a650c193a291592fe9d"
+  }
+}

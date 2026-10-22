@@ -6,9 +6,9 @@ The cloud worker plans only structured-output methods a model advertises. Image
 tagging and Vision Bake-Off share the same adapter. ERP uses the same executor
 with its own validation and reports `classified`, `failed`, and
 `skipped_unclassifiable` separately. Bake-off stores sanitized attempts in
-`raw_output._popdam_output_attempts`. Both PDF agents prefer the configured
-OpenRouter `pdf_extraction` model, then use direct Google/Anthropic only when
-OpenRouter is unavailable.
+`raw_output._popdam_output_attempts`. Both PDF agents route by the configured
+`pdf_extraction` model: a `scaledown/` id calls ScaleDown directly with
+`SCALEDOWN_API_KEY`, other ids prefer the configured OpenRouter model when its key is set, and only then use direct Google/Anthropic from the model catalog.
 
 This document defines what the Synology Bridge Agent MUST do and MUST NOT do.
 Primary goal: keep the NAS workload bounded and prevent silent failures.
@@ -238,7 +238,7 @@ The cloud sends a `claim-pdf-text-sample` response (via heartbeat). The agent cl
 |------|--------|-------------------|------------|
 | 1 | **mupdf text extraction** — structured-text parser | ≥ 100 chars | fall through |
 | 2 | **Render page 0 to PNG** — mupdf pixmap at 2× scale | PNG produced | skip steps 3–4 |
-| 3 | **OCR via tesseract.js** — English language model | ≥ 100 chars | fall through |
+| 3 | **OCR via Indra** — ONNX models shipped with the agent (tesseract.js only when Indra is unavailable) | ≥ 100 chars | fall through |
 | 4 | **AI vision** — OpenRouter (configurable model, default `google/gemini-2.0-flash-001`) or direct Gemini/Anthropic API | any text returned | mark as `likely_scanned` or `failed` |
 
 If step 2 succeeds (PNG rendered), a **thumbnail is uploaded to DigitalOcean Spaces** under `pdf-pages/{assetId}_p0.jpg` via `uploadPdfPage()`. The URL is stored in `pdf_text_samples.thumbnail_url` and shown in the UI as a preview for scanned/placeholder PDFs.
@@ -256,7 +256,7 @@ All results are sent to the edge function in a single call to `bulk_insert_pdf_t
 | `extraction_method` | Meaning |
 |---------------------|---------|
 | `pdf_text` | mupdf yielded ≥ 100 chars |
-| `ocr_text` | tesseract yielded ≥ 100 chars |
+| `ocr_text` | Indra OCR yielded ≥ 100 chars |
 | `ai_vision` | AI returned any text |
 | `likely_scanned` | Cascade exhausted; < 100 chars found |
 | `failed` | Cascade exhausted; 0 chars found |

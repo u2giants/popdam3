@@ -18,7 +18,7 @@ describe("style tracker split save", () => {
     const refresh = vi.fn().mockResolvedValue({ error: { message: "statement timeout" } });
 
     await expect(refreshStyleTrackerBridgeWithRetry(refresh, { delay: async () => undefined }))
-      .rejects.toMatchObject<Partial<StyleRowSavedBridgeRefreshError>>({ rowSaved: true });
+      .rejects.toMatchObject({ rowSaved: true } satisfies Partial<StyleRowSavedBridgeRefreshError>);
   });
 });
 

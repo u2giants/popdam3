@@ -1,0 +1,112 @@
+{
+  "schema_version": 2,
+  "generation": 14,
+  "work_issue": 2421,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Finish the batched exact-object review findings without changing the approved16 database objects or weakening any source/review/production gate. Pin complete installed new RPC/queue bodies and return contract, preserved derivation helper and legacy bodies, clock defaults and false-on-missing behavior; explicitly distinguish selected-row counters, physical EXPLAIN work, full-PK scan and changed-group cardinality risk. Then obtain two fresh normal exact-source reviews and real DB/app/week acceptance.",
+  "base_sha": "99148a74024a801fbd5e941f7e437b14ed6d25e6",
+  "dispatcher": "Current Codex chat under Albert direct resume instruction",
+  "worker": "codex/01a12d90-cce8-7131-b1eb-eff6becc806e-2421",
+  "branch": "codex/issues-2478-2421-2420",
+  "worktree": "/home/ahazan/.codex/worktrees/eight-issues-2421/shared-db",
+  "allowed_paths": [
+    "supabase/migrations/20261011125719_style_group_change_watermark.sql",
+    "supabase/migrations/*_style_group_change_watermark.sql",
+    "supabase/tests/style_group_change_watermark_contracts.sql",
+    ".github/live-proofs/2421.sql",
+    "scripts/test_style_group_watermark.py",
+    ".agent/work/2421/9/contract.json",
+    ".agent/work/2421/9/completion.json",
+    ".agent/work/2421/12/contract.json",
+    ".agent/work/2421/12/completion.json",
+    "HANDOFF.d/2026-10-11T1324Z-edge-dev3-codex-style-group-watermark.md",
+    ".agent/work/2421/13/contract.json",
+    ".agent/work/2421/13/completion.json",
+    ".agent/work/2421/14/contract.json",
+    ".agent/work/2421/14/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261011125719_style_group_change_watermark.sql",
+    "supabase/migrations/*_style_group_change_watermark.sql",
+    "supabase/tests/style_group_change_watermark_contracts.sql",
+    ".github/live-proofs/2421.sql",
+    "scripts/test_style_group_watermark.py",
+    ".agent/work/2421/9/contract.json",
+    ".agent/work/2421/9/completion.json",
+    ".agent/work/2421/12/contract.json",
+    ".agent/work/2421/12/completion.json",
+    "HANDOFF.d/2026-10-11T1324Z-edge-dev3-codex-style-group-watermark.md",
+    ".agent/work/2421/13/contract.json",
+    ".agent/work/2421/13/completion.json",
+    ".agent/work/2421/14/contract.json",
+    ".agent/work/2421/14/completion.json"
+  ],
+  "db_reads": [
+    "function public.style_group_key_for_sku",
+    "function public.refresh_style_group_counts_batch",
+    "table public.admin_config"
+  ],
+  "db_writes": [
+    "table public.assets",
+    "column public.assets.style_group_changed_at",
+    "table public.style_groups",
+    "column public.style_groups.style_group_changed_at",
+    "function public.stamp_style_group_asset_change",
+    "function public.stamp_style_group_definition_change",
+    "function public.touch_style_group_tag_change",
+    "trigger assets_style_group_change_clock on public.assets",
+    "trigger style_groups_style_group_change_clock on public.style_groups",
+    "trigger style_group_tags_change_clock on public.style_group_tags",
+    "function public.rebuild_style_groups_batch",
+    "function public.queue_nightly_rebuild_style_groups",
+    "index public.assets_style_group_changed_at_idx",
+    "index public.style_groups_style_group_changed_at_idx",
+    "index public.assets_ungrouped_style_cursor_idx",
+    "table public.style_group_tags"
+  ],
+  "prohibited_actions": [
+    "No database writes or production dispatch by author",
+    "No merging without parent exact decision",
+    "Preserve two-argument rebuild RPC and clear recovery function",
+    "Never change original file modified_at"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 scripts/test_style_group_watermark.py",
+    "git diff --check",
+    "node scripts/check-live-proof-probe.mjs"
+  ],
+  "assumptions": [
+    "Parent approved exact additive scope and two new timestamp indexes",
+    "PopDAM worker companion must follow merged/applied schema and preserve params through resume",
+    "Production completion remains open through full post-rollout weekly zero-drift observation",
+    "Exact claim4158 transferred to this chat via immutable receipt6f3f546962d59b79a38b6615f6b40e48bf7c1f1c; original clean worktree and source e9ef retained. Normal tool alone selects the unknown forwardversion above live main maximum; old permanent reservation remains untouched.",
+    "Full prospective published BEFORE any integration/version edits. Existing normal rewrite helper omits the live-probe and local test references; root must repair these same exact version references after the tool-selected value, with no SQL semantic change or forecast reservation.",
+    "Preserve all foreign main bytes, original9 pair source reports and every paid record; remove only PR-owned9 canonical endpoint from the current worktree after private byte preservation and replace with sole14 endpoint after actual source CI. No old-source approval carry across new source.",
+    "Current installed supplemental parser4171 passes94tests and normal exact16object admission. Original two-argument rebuild body must stay byte-identical. Production week can start only after actual DB/app rollout; no fabricated elapsed acceptance.",
+    "Published2421 generation10 is a historical parser maintenance proposal on another branch, not this structural source endpoint; preserve it unchanged. This structural successor binds its actual PR4161 generation9 parent.",
+    "Generation12 corrects the prospective scope to explicitly include the inherited original handoff in the complete PR diff. That handoff is preserved byte-for-byte; no earlier authority or check is invented. Generation11 remains immutable, and all source changes made under it remain inside its declared paths.",
+    "Both current exact-head source reviews are preserved. Muse slot2 REVISE860f00a1e175e431f18a276ed47958bf79619fef must be fully assessed with GLMslot1 before a single batched source push. Root reads shared writer transaction lock and BULK transaction lock as already serializing the alleged high races; genuine multi-session negative/positive tests must prove this rather than weakening semantics or falsely declaring findings resolved.",
+    "Exact installed probe will bind trigger relation/function/type, column types, index key/predicate definitions, volatility/security/search_path/ACL and immutable legacy recovery body hashes; no broadened access or new database objects authorized.",
+    "Live production legacy function MD5s: two-argument rebuild65c89b152f1d4aa49f3877043a16bd6b, clear3dbea0ab37aa21181efa966cbb4e1d8f. Catalog hashes prove preservation only, never application/week acceptance.",
+    "Version20261012012727 remains the existing normal permanent reservation. Generation12 canonical pair is preserved in Git/private recovery before retiring only its owned current endpoint. Full current PR diff including inherited original handoff must pass normal canonical checks.",
+    "ActualDeepSeek6364 completed substantive REVISE but emitted multiple verdict-opening lines; native strict recorder refused. Retain full response18becc2ddfaaf634d7b3ee2c8249265d9e69cce87ddda7cd1dcf827b2464bcf3 and START, no refund and no hand-normalized verdict. Root fully read all findings and chooses these genuine exact-probe repairs. GLM6365 failed BEFORE a new native turn because old completed-unpublished session cannot be reused; original6355/terminal remains immutable and no exception selected. Both terminal source reports are preserved before source14 edits.",
+    "Normal canonical report head names implementation source and the exact own-two-file metadata tail is independently verified; never fabricate a circular final-commit self-hash, widen2758 or declare a report stale solely for that normal tail.",
+    "Live preserved key derivation md5=2edf6ba6ecea92b56defb5ddc811e701, IMMUTABLE STRICT PARALLEL SAFE. New RPC/queue identity hashes are obtained from actual network-isolated compiled source AFTER this prospective publication, never guessed or from rewritten production.",
+    "Exact queue-body probe test must replay the original enqueue-hour6 source before checking its hash; time-independent queue-hour0 fixture is for behavior tests only. No fake production source or snapshot hash.",
+    "Full arm is existing UUID PK traversal with active filter; changed-clock arm may sort the changed set by UUID; changed-group member count can exceed a batch though returned candidates are bounded. Preserve truthful risk and weekly full convergence, do not invent extra indexes or claim fixture3 physical reads is production constant."
+  ],
+  "stop_conditions": [
+    "Claim or source overlap",
+    "Long-transaction cutoff or partial-run watermark regression",
+    "Existing recovery grants/signature changed",
+    "Source file timestamps modified",
+    "Refuse stale custody, changed source or claim tuple, forbidden source edits, unsupported canonical lineage, missing original preservation or unverified gate."
+  ],
+  "evidence_parent": {
+    "work_issue": 2421,
+    "generation": 13,
+    "contract_sha256": "d6feb60a8ef3e5a28b8508dbb54d6af902705ad4e6e5fb72525ea38244db1fb0"
+  }
+}

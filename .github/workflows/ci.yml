@@ -38,8 +38,26 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Test
         run: npm run test
+
+      - name: Install worker dependencies
+        run: npm ci --prefix apps/worker
+
+      - name: Build worker
+        run: npm run build --prefix apps/worker
+
+      - name: Test worker
+        run: npm run test --prefix apps/worker
+
+      - name: Install windows-agent dependencies
+        run: npm ci --prefix apps/windows-agent
+
+      - name: Test windows-agent
+        run: npm test --prefix apps/windows-agent
 
       - name: Measurement observer tests
         env:

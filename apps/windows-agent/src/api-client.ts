@@ -6,6 +6,7 @@ import type { CommandDeferral } from "./maintenance-lease";
 
 import { config } from "./config";
 import { logger } from "./logger";
+import type { IndraStatus } from "./indra-provision";
 
 // ── Auth-failure backoff (issue #141) ───────────────────────────────
 // A stale/revoked agent key is permanent until re-paired. Restarting or
@@ -107,6 +108,7 @@ export interface WindowsHeartbeatResponse {
       google_ai_api_key?: string;
       openai_api_key?: string;
       openrouter_api_key?: string;
+      scaledown_api_key?: string;
       models?: Array<{ id: string; provider: string; apiModel: string; capabilities: string[] }>;
       ai_task_models?: Record<string, string>;
       pdf_extraction?: { ai_vision_model_id?: string } | null;
@@ -151,6 +153,7 @@ export async function heartbeat(
   health?: AgentHealthPayload,
   versionInfo?: WindowsVersionInfo,
   logTail?: string[],
+  ocrIndra?: IndraStatus,
   commandDeferral?: CommandDeferral,
 ): Promise<WindowsHeartbeatResponse> {
   const data = await callApi("heartbeat", {
@@ -161,6 +164,7 @@ export async function heartbeat(
     health: health ?? undefined,
     version_info: versionInfo ?? undefined,
     log_tail: logTail ?? undefined,
+    ocr_indra: ocrIndra ?? undefined,
   });
   return data as unknown as WindowsHeartbeatResponse;
 }
@@ -171,6 +175,9 @@ export interface RenderJob {
   relative_path: string;
   file_type: string;
   filename: string;
+  /** NAS-reported size and modified time, used to pick the 8.3 name Windows lists. */
+  file_size?: number | null;
+  modified_at?: string | null;
 }
 
 export interface SgRenderJob {

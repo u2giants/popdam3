@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 3779,
+  "outcome": "ready-for-merge",
+  "pr": 4526,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3779/8",
+  "contract_sha256": "c61553e5f8cd0a198d613842b8186d3750f4de8ea1b5e5e105758feb2013d457",
+  "base_sha": "8cd8fce4ed8217b7129f6dce99820e5d74bfe38c",
+  "head_sha": "01c3b1f36b725dabc228c52bd9c0c0724b004c90",
+  "files_changed": [
+    "docs/shared-release-holds.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Prose only plus this evidence pair; no runtime or database change.",
+    "Live trace of the split is recorded on #3779 from this pull request's Guarded Merge runs."
+  ],
+  "stop_conditions_hit": []
+}

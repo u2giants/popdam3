@@ -42,3 +42,22 @@ test("tools-only executor does not make an unsupported JSON repair call", async 
     assert.equal(calls, 1);
   } finally { globalThis.fetch = original; }
 });
+
+test("JSON object fallback and repair carry the complete contract without changing the model or timeout", async () => {
+  const seen: import("./openrouter.js").ChatCompletionRequest[] = [];
+  const result = await executeStructuredOutput({
+    apiKey: "key", model: "meta-direct/muse-spark-1.3-contributor", messages: [], schemaName: "answer", schema, validate,
+    capabilities: { ...capabilities, tools: false, structuredOutputs: false }, timeoutMs: 1234,
+    completion: async (_key, request, timeout) => {
+      seen.push(request);
+      assert.equal(request.model, "meta-direct/muse-spark-1.3-contributor");
+      assert.equal(timeout, 1234);
+      assert.match(String(request.messages.at(-1)?.content), /"answer"/);
+      assert.match(String(request.messages.at(-1)?.content), /"required"/);
+      return { content: seen.length === 1 ? "{}" : '{"answer":"corrected"}' };
+    },
+  });
+  assert.equal(result.value, "corrected");
+  assert.equal(result.repairCount, 1);
+  assert.equal(seen.length, 2);
+});

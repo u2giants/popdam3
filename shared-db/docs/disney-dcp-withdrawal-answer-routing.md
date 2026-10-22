@@ -38,10 +38,10 @@ than a new rule.
 ## Capture and act in the receiving chat
 
 1. Read [issue #3347](https://github.com/popcre/shared-db/issues/3347)
-   (orchestrator work: DCP capture qualification), including current comments
+   (DCP capture qualification), including current comments
    and state. This is the durable answer anchor, a bounded successor to
    [issue #1275](https://github.com/popcre/shared-db/issues/1275)
-   (orchestrator work). Do not send the answer to a remembered chat identifier.
+   (prior DCP capture qualification work). Do not send the answer to a remembered chat identifier.
 2. Record a sanitized comment on #3347 with the date received, the reported
    speaker, the person relaying it, the answer's exact business meaning, and
    whether it is a direct statement, quotation, paraphrase, or interpretation.
@@ -71,20 +71,15 @@ than a new rule.
    unresolved, record precisely what is unresolved and retain the settled
    rule until it is clarified.
 5. Classify each concrete follow-up from its own actual work. A database SHAPE
-   change must resolve the CURRENT orchestrator using
-   `node scripts/check-orchestrator-marker.mjs --resolve` and follow that live
-   route. If that command returns UNKNOWN (exit 2 — could not determine),
-   treat it as if a marker exists and never collapse it into "none open"; do
-   not dispatch. If that command exits NONE (exit 3 — no open marker, no
-   active orchestrator), queue the work and do not dispatch. If it reports
-   UNSAFE (the marker guard failed), stop and resolve the collision before
-   routing.
-   A resolved address is DECLARED, not proven reachable (#2350): a
-   well-formed address is not authority to write. Never reuse a stale chat
-   UUID, marker, or predecessor's object claims.
+   change is claim-first under AGENTS.md §0.0-D (owner ruling 2026-10-02):
+   the session claims the exact objects on its existing work issue and starts
+   in its own upstream worktree. No marker, dispatch or retired chat is required.
+   Preserve migration-version reservation, target proof, guarded merge and
+   the repository’s enforced review and production gates. Never reuse a stale
+   chat UUID, marker or predecessor’s object claims.
    Ordinary source capture, producer qualification and loader changes belong
    to the private `u2giants/licensor-source-data` session; repository notes and
-   business-rule documentation stay with a non-orchestrator repository session.
+   business-rule documentation stay with a repository session.
    Record the owning issue/repository and the specific next action at #3347.
 6. If #3347 is already closed, still record the answer there as the historical
    anchor, then open or link a fresh scoped follow-up only where actual work is

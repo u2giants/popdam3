@@ -39,7 +39,75 @@
       "class": "reviewer-safety"
     },
     {
+      "glob": "scripts/consolidate-orderlist-matches.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-consolidate-orderlist-matches.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/orderlist-source-dispositions.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-orderlist-source-dispositions.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/orderlist-source-disposition-writer.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-orderlist-source-disposition-writer.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/orderlist-settled-exception-executor.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "contracts/orderlist-settled-exception-apply.json",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-orderlist-settled-exception-executor.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-orderlist-settled-exception-postgres.py",
+      "class": "reviewer-safety"
+    },
+    {
       "glob": "scripts/repair-style-tracker-overflow-dates.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/orderlist-production-date-plan.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/apply-orderlist-production-date-plan.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-orderlist-production-date-plan.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-apply-orderlist-production-date-plan.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/capture-orderlist-production-date-source.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "scripts/test-capture-orderlist-production-date-source.py",
+      "class": "reviewer-safety"
+    },
+    {
+      "glob": "contracts/orderlist-production-date-apply.json",
       "class": "reviewer-safety"
     },
     {

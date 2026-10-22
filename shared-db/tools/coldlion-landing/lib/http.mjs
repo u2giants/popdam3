@@ -34,12 +34,29 @@ export function delay(ms) {
   return ms > 0 ? new Promise((done) => setTimeout(done, ms)) : Promise.resolve();
 }
 
+const HEADER_FILTER_KEYS = new Set(["createdFrom", "createdTo", "modifiedFrom", "modifiedTo"]);
+
+/** A window's vendor header filters; any other key is refused, never sent. */
+export function headerFilterEntries(window) {
+  const entries = Object.entries(window.filters ?? {});
+  for (const [key] of entries) {
+    if (!HEADER_FILTER_KEYS.has(key)) throw new Error(`unsupported /orderHistory filter ${key}`);
+  }
+  return entries;
+}
+
 export function buildPageUrl(scope, window, page, { companyCode = COMPANY_CODE, size = PAGE_SIZE } = {}) {
   const url = new URL(`${COLDLION_BASE_URL}${scope.endpoint}`);
   url.searchParams.set("companyCode", companyCode);
-  url.searchParams.set("fromDate", window.from);
-  url.searchParams.set("toDate", window.to);
+  // A header-track window records its header range as from/to and sends the
+  // vendor-required start-date window as requestFrom/requestTo.
+  url.searchParams.set("fromDate", window.requestFrom ?? window.from);
+  url.searchParams.set("toDate", window.requestTo ?? window.to);
   if (scope.stage) url.searchParams.set("stageCode", scope.stage);
+  // /orderHistory header filters (ColdLion, 2026-10-16): createdFrom/createdTo and
+  // modifiedFrom/modifiedTo narrow by the sales order HEADER's timestamps, ANDed with
+  // the start-date window, which stays required.
+  for (const [key, value] of headerFilterEntries(window)) url.searchParams.set(key, value);
   url.searchParams.set("page", String(page));
   url.searchParams.set("size", String(size));
   return url;
@@ -49,12 +66,13 @@ export function buildPageUrl(scope, window, page, { companyCode = COMPANY_CODE, 
 export function requestParams(scope, window, page, { companyCode = COMPANY_CODE, size = PAGE_SIZE } = {}) {
   const params = {
     companyCode,
-    fromDate: window.from,
-    toDate: window.to,
+    fromDate: window.requestFrom ?? window.from,
+    toDate: window.requestTo ?? window.to,
     page,
     size,
   };
   if (scope.stage) params.stageCode = scope.stage;
+  for (const [key, value] of headerFilterEntries(window)) params[key] = value;
   return params;
 }
 

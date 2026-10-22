@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from production_business_risk_gate import REPOSITORY, preview_instance_text, preview_run_has_immutable_apply, api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, enforce_automatic_risk_decision, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_bound_mainline_post_merge_original, prove_historical_original_apply_runs, prove_registered_historical_restoration_provenance, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION
+from production_business_risk_gate import REPOSITORY, preview_instance_text, preview_run_has_immutable_apply, api_field, api_list, api_object, api_sublist, authored_merge, exact_main, ProvedTarget, tracked_paths_at, PREVIEW_PRODUCER_PATHS, PREVIEW_RUNTIME_DATA_DIRS, PREVIEW_RUNTIME_DATA_EXEMPTIONS, PRODUCTION_PROJECT_REF, RISK_TEXT, PREVIEW_WORKFLOW, RiskGateError, canonical_sha256, classify_sql, decide_business_risk, enforce_automatic_risk_decision, gh_json, is_pinned_historical_disney_source, load_activation, prove_activation, prove_applied_commit_is_main_line, preview_applied_commit, prove_governed_historical_supersession, prove_governed_original_reconciliation, prove_bound_mainline_post_merge_original, prove_historical_original_apply_runs, prove_registered_historical_restoration_provenance, prove_preview, prove_preview_migration_contents, prove_preview_producer_matches_main, prove_pr_and_checks, REQUIRED_CHECKS, GOVERNED_HISTORICAL_SUPERSESSION, GOVERNED_ORIGINAL_RECONCILIATION, GOVERNED_ORIGINAL_RECONCILIATION_4373, GOVERNED_ORIGINAL_RECONCILIATIONS
 
 
 def disable_background_git_maintenance(root):
@@ -78,8 +78,8 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 mutate(candidate)
                 self.assertFalse(preview_run_has_immutable_apply(run, candidate))
 
-    def governed_original_reconciliation_fixture(self):
-        case = GOVERNED_ORIGINAL_RECONCILIATION
+    def governed_original_reconciliation_fixture(self, case=None):
+        case = case or GOVERNED_ORIGINAL_RECONCILIATION
         migration = next(Path.cwd().glob(f"supabase/migrations/{case['version']}_*.sql"))
         row = {"name": "orderlist_bridge_covering_index", "statements": ["same governed SQL"]}
         fixed = {"schema": "shared-db-preview-ledger-orphan-reconciliation/v1", "issue": case["issue"], "claim": case["claim"], "source_pr": case["source_pr"], "orphan_version": case["original_version"], "replacement_version": case["version"], "preview_run_id": case["preview_run_id"], "preview_artifact_id": case["preview_artifact_id"], "preview_artifact_digest": case["preview_artifact_digest"], "project_ref": case["project_ref"], "main_sha": case["run_head"]}
@@ -95,7 +95,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         run = {"status": "completed", "conclusion": "success", "event": "workflow_dispatch", "path": ".github/workflows/preview-ledger-orphan-reconciliation.yml", "head_sha": case["run_head"], "run_attempt": 1}
         artifact = {"id": case["artifact_id"], "digest": digest, "expired": False, "name": f"preview-ledger-orphan-reconciliation-{case['original_version']}", "workflow_run": {"id": case["run_id"], "head_sha": case["run_head"]}}
         original_run = {"status": "completed", "conclusion": "success", "event": "workflow_dispatch", "path": PREVIEW_WORKFLOW, "head_sha": case["preview_run_head"], "run_attempt": 1}
-        original_artifact = {"id": case["preview_artifact_id"], "digest": case["preview_artifact_digest"], "expired": False, "name": f"preview-migration-apply-{case['preview_run_head']}", "workflow_run": {"id": case["preview_run_id"], "head_sha": case["preview_run_head"]}}
+        original_artifact = {"id": case["preview_artifact_id"], "digest": case["preview_artifact_digest"], "expired": False, "name": f"preview-migration-apply-{case.get('preview_applied_commit', case['preview_run_head'])}", "workflow_run": {"id": case["preview_run_id"], "head_sha": case["preview_run_head"]}}
         def api(endpoint):
             if "/compare/" in endpoint: return {"status": "ahead", "behind_by": 0}
             if endpoint.endswith(f"runs/{case['run_id']}/artifacts?per_page=100"): return {"artifacts": [artifact]}
@@ -122,6 +122,42 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
             with temp, mock.patch.dict(GOVERNED_ORIGINAL_RECONCILIATION, {"artifact_digest": digest}), self.subTest(mutation), self.assertRaises(RiskGateError if mutation != "version" else AssertionError):
                 accepted = prove_governed_original_reconciliation(**kwargs)
                 if not accepted: raise AssertionError("wrong tuple must not enter the governed path")
+
+    def test_exact_4373_governed_reconciliation_is_an_original_apply_equivalent(self):
+        case = GOVERNED_ORIGINAL_RECONCILIATION_4373
+        self.assertIn(case, GOVERNED_ORIGINAL_RECONCILIATIONS)
+        temp, run, _artifact, api, downloader, digest = self.governed_original_reconciliation_fixture(case)
+        with temp, mock.patch.dict(case, {"artifact_digest": digest}):
+            self.assertTrue(prove_governed_original_reconciliation(version=case["version"], source_pr=case["source_pr"], run_id=case["run_id"], run=run, repo_root=Path.cwd(), main_sha="f" * 40, api=api, downloader=downloader))
+
+    def test_4373_governed_reconciliation_refuses_wrong_identity_and_cross_case_mixing(self):
+        case = GOVERNED_ORIGINAL_RECONCILIATION_4373
+        other = GOVERNED_ORIGINAL_RECONCILIATION
+        for mutation in ("version", "other_case_run", "path", "run_attempt", "expired", "head"):
+            temp, run, artifact, api, downloader, digest = self.governed_original_reconciliation_fixture(case)
+            if mutation == "path": run["path"] = PREVIEW_WORKFLOW
+            elif mutation == "run_attempt": run["run_attempt"] = 2
+            elif mutation == "expired": artifact["expired"] = True
+            elif mutation == "head": run["head_sha"] = other["run_head"]
+            kwargs = {"version": "20261016210025" if mutation == "version" else case["version"], "source_pr": case["source_pr"], "run_id": other["run_id"] if mutation == "other_case_run" else case["run_id"], "run": run, "repo_root": Path.cwd(), "main_sha": "f" * 40, "api": api, "downloader": downloader}
+            refuses_by_tuple = mutation in ("version", "other_case_run")
+            with temp, mock.patch.dict(case, {"artifact_digest": digest}), self.subTest(mutation), self.assertRaises(AssertionError if refuses_by_tuple else RiskGateError):
+                accepted = prove_governed_original_reconciliation(**kwargs)
+                if not accepted: raise AssertionError("wrong tuple must not enter the governed path")
+
+    def test_4373_source_artifact_is_named_for_the_applied_commit_not_the_run_head(self):
+        case = GOVERNED_ORIGINAL_RECONCILIATION_4373
+        self.assertEqual(case["preview_applied_commit"], "56f09184269abde4a7a8c85a2b1e617e249260b7")
+        self.assertNotIn("preview_applied_commit", GOVERNED_ORIGINAL_RECONCILIATION)
+        for named in (case["preview_run_head"], "0" * 40):
+            temp, run, _artifact, api, downloader, digest = self.governed_original_reconciliation_fixture(case)
+            def wrong(endpoint, api=api, named=named):
+                body = api(endpoint)
+                if endpoint.endswith(f"runs/{case['preview_run_id']}/artifacts?per_page=100"):
+                    body = {"artifacts": [{**body["artifacts"][0], "name": f"preview-migration-apply-{named}"}]}
+                return body
+            with temp, mock.patch.dict(case, {"artifact_digest": digest}), self.subTest(named=named), self.assertRaisesRegex(RiskGateError, "source preview artifact identity changed"):
+                prove_governed_original_reconciliation(version=case["version"], source_pr=case["source_pr"], run_id=case["run_id"], run=run, repo_root=Path.cwd(), main_sha="f" * 40, api=wrong, downloader=downloader)
 
     def test_exact_2509_restoration_satisfies_registered_producer_provenance(self):
         version = "20260907131728"
@@ -1235,10 +1271,12 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                     promoted_versions=[promoted_v], repo_root=root)
 
             later_sql.write_text("create table orders.list (id int);\n", encoding="utf-8")
-            with self.assertRaisesRegex(RiskGateError, "absent where exact main has it present"):
-                prove_preview_producer_matches_main(
-                    ref, exact_main(main), main, absent_at_ref(promoted_sidecar),
-                    promoted_versions=[promoted_v], repo_root=root)
+            # Owner-authorized 2026-10-14 ("i authorize loosening that rule"):
+            # a promoted version's own sidecar is authored in the same PR, so a
+            # pre-merge preview may lack it.
+            prove_preview_producer_matches_main(
+                ref, exact_main(main), main, absent_at_ref(promoted_sidecar),
+                promoted_versions=[promoted_v], repo_root=root)
             with self.assertRaisesRegex(RiskGateError, "absent where exact main has it present"):
                 prove_preview_producer_matches_main(ref, exact_main(main), main, absent_at_ref(later))
 
@@ -4677,10 +4715,25 @@ class MainLineCustodyOnlyProducerDriftTests(unittest.TestCase):
             return {"truncated": False, "tree": entries}
         return api
 
-    def prove(self, api, target=None):
+    def prove(self, api, target=None, promoted_versions=None):
         prove_preview_producer_matches_main(
             self.REF, target or exact_main(self.MAIN), self.MAIN, api,
-            promoted_versions=[], repo_root=Path("."))
+            promoted_versions=promoted_versions or [], repo_root=Path("."))
+
+    def test_review_tooling_and_sidecar_registry_are_custody_only(self):
+        # Owner-authorized 2026-10-14 ("i authorize loosening that rule").
+        self.prove(self.api(changed=(
+            "scripts/run-governed-review.mjs",
+            "config/production-verification-sidecar-registry.json",
+        )))
+
+    def test_promoted_versions_own_sidecar_may_arrive_with_its_pr(self):
+        # Owner-authorized 2026-10-14: a promoted version's own sidecar is
+        # authored in the same PR, so a pre-merge preview cannot carry it.
+        self.prove(
+            self.api(absent_at_ref=("scripts/production-verification-sidecars/20261013130102.json",)),
+            promoted_versions=["20261013130102"],
+        )
 
     def test_custody_only_edits_and_additions_after_a_main_line_preview_pass(self):
         self.prove(self.api(
@@ -4689,6 +4742,13 @@ class MainLineCustodyOnlyProducerDriftTests(unittest.TestCase):
             absent_at_ref=("scripts/lib/repository-identity.mjs",
                            "scripts/repository_identity.py"),
         ))
+
+    def test_requalified_pin_module_added_after_a_main_line_preview_passes(self):
+        # #4486: run 39173012894 checked out fe39316, before the pin module
+        # existed; its absence there must not refuse the main-line preview.
+        self.prove(self.api(absent_at_ref=("scripts/db-flow/requalified-preview-runs.mjs",)))
+        with self.assertRaisesRegex(RiskGateError, "requalified-preview-runs.mjs absent where"):
+            self.prove(self.api(absent_at_ref=("scripts/db-flow/requalified-preview-runs.mjs",), main_line=False))
 
     def test_custody_only_drift_from_a_ref_main_does_not_contain_is_refused(self):
         with self.assertRaisesRegex(RiskGateError, "different scripts/check-main-tip-freshness.mjs"):
@@ -4705,9 +4765,15 @@ class MainLineCustodyOnlyProducerDriftTests(unittest.TestCase):
         with self.assertRaisesRegex(RiskGateError, "atomic_migration_apply.py absent where"):
             self.prove(self.api(absent_at_ref=("scripts/atomic_migration_apply.py",)))
 
-    def test_authored_merge_target_gets_no_custody_tolerance(self):
-        with self.assertRaisesRegex(RiskGateError, "different scripts/check-main-tip-freshness.mjs"):
-            self.prove(self.api(changed=("scripts/check-main-tip-freshness.mjs",)),
+    def test_authored_merge_target_tolerates_custody_only_but_not_apply_shaping(self):
+        # Owner-authorized 2026-10-14 ("i authorize loosening that rule"):
+        # custody-only producers may drift on an authored-merge target too, so a
+        # preview taken before tooling-only merges can still promote.
+        self.prove(self.api(changed=("scripts/check-main-tip-freshness.mjs",)),
+                   target=authored_merge(self.MAIN))
+        # Apply-shaping producers still refuse on an authored-merge target.
+        with self.assertRaisesRegex(RiskGateError, "different scripts/production_migration_guard.py"):
+            self.prove(self.api(changed=("scripts/production_migration_guard.py",)),
                        target=authored_merge(self.MAIN))
 
     def test_recovery_script_tolerates_only_the_repository_identity_move(self):

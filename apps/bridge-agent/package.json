@@ -1,6 +1,6 @@
 {
   "name": "popdam-bridge-agent",
-  "version": "1.16.17",
+  "version": "1.16.19",
   "description": "PopDAM Bridge Agent — multi-tenant NAS scanner, thumbnail generator, and cloud sync worker",
   "type": "module",
   "main": "dist/index.js",
@@ -8,7 +8,7 @@
     "prebuild": "node ../../packages/agent-common/sync.mjs",
     "build": "tsc",
     "pretest": "node ../../packages/agent-common/sync.mjs",
-    "test": "tsx --test src/commands/heartbeat-commands.test.ts src/style-guide-crawler.test.ts src/liveness-watchdog.test.ts ../../packages/agent-common/src/path-containment.test.ts ../../packages/agent-common/src/bounded-read.test.ts",
+    "test": "tsx --test src/commands/heartbeat-commands.test.ts src/style-guide-crawler.test.ts src/liveness-watchdog.test.ts src/pdf-text-sampler.test.ts ../../packages/agent-common/src/path-containment.test.ts ../../packages/agent-common/src/bounded-read.test.ts",
     "start": "node dist/index.js",
     "predev": "node ../../packages/agent-common/sync.mjs",
     "dev": "tsx src/index.ts"

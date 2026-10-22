@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 3779,
+  "outcome": "ready-for-merge",
+  "pr": 4393,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3779/2",
+  "contract_sha256": "03b03aa6cd1d7c8e8c85968dfe6ac1085301f556ca06f78cc14a80082a2ff96a",
+  "base_sha": "5f1fa79df06b32ed16703cdcc8e4ba9c604cd10c",
+  "head_sha": "407e5c1ce24bfab3bbf4cd7a604b1878a286dd72",
+  "files_changed": [
+    "AGENTS.md",
+    "HANDOFF.d/2026-10-16T1317Z-hetz-codex-shared-release-holds.md",
+    "docs/shared-release-holds.md",
+    "plan_shared_release_hold_reduction.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "Actual current-main integration has no whitespace errors."
+    },
+    {
+      "command": "node --test scripts/check-handoff-contract.test.mjs scripts/check-documents-only-merge-authorization.test.mjs",
+      "exit_code": 0,
+      "evidence": "24 passed,0 failed; log retained privately as plan-publication-checks.txt."
+    }
+  ],
+  "assumptions_resolved": [
+    "This is only planning publication. No release implementation, database action or code change was performed. All ten implementation rows remain open; no completion of issue3779 is asserted.",
+    "The original four prose files at6e6 were reviewed and pushed before contract publication, which is disclosed; current evidence prospectively qualifies forward integration and final publication.",
+    "Generation1 required an incomplete CLI command and was never committed or reviewed. Immutable generation1 remains preserved; generation2 corrects the required-check list prospectively.",
+    "Actual main forward merge407e5c1 preserved both parents; no foreign handoff was read or edited. Formal assigned review, current CI and guarded merge remain required."
+  ],
+  "stop_conditions_hit": []
+}

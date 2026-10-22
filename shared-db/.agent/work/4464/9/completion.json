@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "work_issue": 4464,
+  "outcome": "ready-for-merge",
+  "pr": 4514,
+  "migration_versions": [
+    "20261020125826"
+  ],
+  "contract_ref": "refs/db-contracts/4464/9",
+  "contract_sha256": "5b6bd253a92326762d94c10b34d7d32a7bd1e31857ae15455914d563828b29c6",
+  "head_sha": "994381740ed66bd5b76c0c4856852937657977b1",
+  "base_sha": "43d1861946d782c4998ca71419b170cc16fbfd44",
+  "files_changed": [
+    "scripts/production_migration_guard.py",
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/2873-contract.json",
+    "scripts/proofs/2873-role-contract.sql",
+    "scripts/test_post_batch_app_verification.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20261020125826_plm_stage_catalog_tracking_runtime_grant.sql",
+    "supabase/tests/plm_stage_catalog_contracts.sql",
+    "supabase/tests/plm_stage_catalog_prod_tracking_grant_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "policy licensor_stage_option_dflow_prod_tracking on plm.licensor_stage_option",
+    "policy prod_stage_option_dflow_prod_tracking on plm.prod_stage_option",
+    "policy prod_stage_progress_dflow_prod_tracking on plm.prod_stage_progress",
+    "policy stage_dependency_dflow_prod_tracking on plm.stage_dependency",
+    "policy stage_dflow_prod_tracking on plm.stage",
+    "policy stage_duration_dflow_prod_tracking on plm.stage_duration",
+    "policy stage_list_dflow_prod_tracking on plm.stage_list",
+    "schema plm",
+    "table dflow_prod.\"AuditLog\"",
+    "table plm.licensor_stage_option",
+    "table plm.prod_stage_option",
+    "table plm.prod_stage_progress",
+    "table plm.stage",
+    "table plm.stage_dependency",
+    "table plm.stage_duration",
+    "table plm.stage_list",
+    "view dflow_prod.\"AuditLog\"",
+    "view plm.prod_stage_progress",
+    "view plm.stage_list"
+  ],
+  "assumptions_resolved": [],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    },
+    {
+      "command": "node --test scripts/proofs/shared-db-2873-observation.test.mjs",
+      "exit_code": 0,
+      "evidence": "8 pass"
+    },
+    {
+      "command": "python3 -m pytest -q scripts/test_production_migration_guard.py scripts/test_post_batch_app_verification.py",
+      "exit_code": 0,
+      "evidence": "453 passed, 408 subtests passed"
+    }
+  ]
+}

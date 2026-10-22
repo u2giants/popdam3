@@ -12,7 +12,7 @@ function unsignedJwt(payload: Record<string, unknown>) {
   return `${encode({ alg: "HS256" })}.${encode(payload)}.signature`;
 }
 
-describe("extractBearerToken — strict mode (admin-api, erp-sync, helper-api)", () => {
+describe("extractBearerToken — strict mode (admin-api, helper-api)", () => {
   it("extracts the token after a literal 'Bearer ' prefix", () => {
     expect(extractBearerToken("Bearer abc", "strict")).toEqual({ kind: "token", token: "abc" });
   });

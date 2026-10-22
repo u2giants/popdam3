@@ -604,16 +604,184 @@ test('POSITIVE CONTROL #2758: a prior head known only by its verdict is discover
   assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /could not be read/)
 })
 
-test('POSITIVE CONTROL #2758: a head with an assignment of its own is never carried past', () => {
+test('POSITIVE CONTROL #2758: an unapproved new-head assignment is not filled by its ancestor', () => {
   const input = refreshedInput()
   input.assignments.push({ ...input.assignments[0], headSha: REFRESHED_HEAD, ref: `${input.assignments[0].ref}-new` })
-  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /reviewer records of its own/)
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /review slot 1 has no durable APPROVE for its latest exact-head assignment/)
 })
 
 test('POSITIVE CONTROL #2758: a head with a return of its own is never carried past', () => {
   const input = refreshedInput()
   input.returns = [{ ...input.priorHeads[0].returns[0], headSha: REFRESHED_HEAD }]
   assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /reviewer records of its own/)
+})
+
+// COMPOSED CARRY (tree-identical re-push, #4206). Slot 1 stands at an equivalent
+// ancestor head; slot 2 is drawn at the new head. The bytes did not change, so
+// re-drawing slot 1 would burn a paid attempt for nothing. The gate combines the
+// ancestor's slot 1 with this head's slot 2; each still owes its own APPROVE at
+// its own head, and a return or refusal anywhere still stops the carry.
+const CARRY_OLD = 'c'.repeat(40), CARRY_NEW = 'd'.repeat(40)
+function composedCarryGithub({ slot2Reviewer = 'stepfun-step-5-preview', slot2Sequence = 2, slot2Approved = true, slot1Included = true, slot1Approved = true, migrations = true, redrawSlot1AtNew = false, redrawSlot1Approved = true, returnAtNew = false, refuseAtOld = false, slot1Reviewer = 'muse-spark-1.3-contributor', priorHead = CARRY_OLD, priorReturn = false, priorReturnSequence = 2, priorReplacement = false, priorReplacementReviewer = 'kimi-k3' } = {}) {
+  const issue = 2336, pr = 4206
+  const a1 = '1'.repeat(40), a2 = '2'.repeat(40), aRedraw = '9'.repeat(40), aPriorReplacement = '7'.repeat(40), aRetired = '6'.repeat(40), returnSha = '8'.repeat(40), priorReturnSha = '3'.repeat(40)
+  const findingsBody = 'review findings', findingsRef = `https://github.com/popcre/shared-db/pull/${pr}#issuecomment-1`
+  const digest = createHash('sha256').update(findingsBody).digest('hex')
+  const commits = new Map(), assignmentRefs = [], replacementRefs = [], verdictRefs = [], verdictReplacementRefs = [], returnRefs = []
+  const cursor = (sha, sequence, slot, reviewer, head) => commits.set(sha, { message: `db-coordination reviewer-cursor sequence=${sequence} reviewer=${reviewer} issue=${issue} pr=${pr} head=${head} slot=${slot}` })
+  const approve = (sha, slot, assignmentSha, reviewer, head, what = 'APPROVE', replacementSequence = null) => {
+    const record = { verdict: what, head_sha: head, issue, pr, slot, reviewer, assignment_sha: assignmentSha, findings_digest: digest, findings_ref: findingsRef }
+    commits.set(sha, { message: `db-review-verdict ${JSON.stringify(record)}`, parents: [{ sha: assignmentSha }] })
+    const tail = replacementSequence === null ? '' : `-${replacementSequence}`
+    const ref = `refs/db-review-verdict${replacementSequence === null ? 's' : '-replacements'}/${issue}-${pr}-${head}${slot === 1 ? '' : `-slot${slot}`}${tail}`
+    ;(replacementSequence === null ? verdictRefs : verdictReplacementRefs).push({ ref, object: { sha } })
+  }
+  cursor(a1, 1, 1, priorReplacement ? 'deepseek-chat' : slot1Reviewer, priorHead)
+  if (slot1Included) assignmentRefs.push({ ref: `refs/db-review-assignments/${issue}-${pr}-${priorHead}`, object: { sha: a1 } })
+  if (slot1Included && (slot1Approved || priorReplacement || refuseAtOld)) approve('4'.repeat(40), 1, a1, priorReplacement ? 'deepseek-chat' : slot1Reviewer, priorHead, priorReplacement ? 'REVISE' : (refuseAtOld ? 'REVISE' : 'APPROVE'))
+  if (priorReplacement) {
+    cursor(aPriorReplacement, 3, 1, priorReplacementReviewer, priorHead)
+    replacementRefs.push({ ref: `refs/db-review-replacements/${issue}-${pr}-${priorHead}-1`, object: { sha: aPriorReplacement } })
+    approve('a'.repeat(40), 1, aPriorReplacement, priorReplacementReviewer, priorHead, 'APPROVE', 1)
+  }
+  if (priorReturn) {
+    cursor(aRetired, priorReturnSequence, 1, 'stepfun-step-5-preview', priorHead)
+    commits.set(priorReturnSha, { message: `db-coordination reviewer-return reviewer=stepfun-step-5-preview issue=${issue} pr=${pr} head=${priorHead} slot=1 assignment=${aRetired} sequence=${priorReturnSequence} reason=independence-conflict`, parents: [{ sha: aRetired }] })
+    returnRefs.push({ ref: `refs/db-review-returns/${issue}-${pr}-${priorHead}-${aRetired}`, object: { sha: priorReturnSha } })
+  }
+  cursor(a2, slot2Sequence, 2, slot2Reviewer, CARRY_NEW)
+  assignmentRefs.push({ ref: `refs/db-review-assignments/${issue}-${pr}-${CARRY_NEW}-slot2`, object: { sha: a2 } })
+  if (slot2Approved) approve('5'.repeat(40), 2, a2, slot2Reviewer, CARRY_NEW)
+  if (redrawSlot1AtNew) {
+    cursor(aRedraw, 3, 1, slot1Reviewer, CARRY_NEW)
+    assignmentRefs.push({ ref: `refs/db-review-assignments/${issue}-${pr}-${CARRY_NEW}`, object: { sha: aRedraw } })
+    if (redrawSlot1Approved) approve('6'.repeat(40), 1, aRedraw, slot1Reviewer, CARRY_NEW)
+  }
+  if (returnAtNew) {
+    commits.set(returnSha, { message: `db-coordination reviewer-return reviewer=${slot2Reviewer} issue=${issue} pr=${pr} head=${CARRY_NEW} slot=2 assignment=${a2} sequence=2 reason=independence-conflict`, parents: [{ sha: a2 }] })
+    returnRefs.push({ ref: `refs/db-review-returns/${issue}-${pr}-${CARRY_NEW}-slot2-${a2}`, object: { sha: returnSha } })
+  }
+  const files = migrations ? [{ filename: 'supabase/migrations/20261014000000_add_thing.sql' }] : [{ filename: 'scripts/check-exact-head-approval.mjs' }]
+  return {
+    json: (args) => {
+      const endpoint = args[args.length - 1]
+      if (endpoint.includes('/git/matching-refs/db-review-assignments')) return assignmentRefs
+      if (endpoint.includes('/git/matching-refs/db-review-replacements')) return replacementRefs
+      if (endpoint.includes('/git/matching-refs/db-review-returns')) return returnRefs
+      if (endpoint.includes('/git/matching-refs/db-review-verdicts')) return verdictRefs
+      if (endpoint.includes('/git/matching-refs/db-review-verdict-replacements')) return verdictReplacementRefs
+      if (endpoint.includes('/git/matching-refs/db-review-archived-verdicts/')) return []
+      if (/\/git\/commits\/[0-9a-f]{40}$/.test(endpoint)) return commits.get(endpoint.split('/').pop())
+      if (endpoint.includes('/issues/comments/')) return { body: findingsBody }
+      if (/\/pulls\/\d+$/.test(endpoint)) return { head: { sha: CARRY_NEW } }
+      throw new Error(`unexpected endpoint ${endpoint}`)
+    },
+    pages: (endpoint) => (/\/pulls\/\d+\/files/.test(endpoint) ? files : []),
+  }
+}
+function composedCarryInput(options = {}) {
+  return gatherApprovalInput({ PR_NUMBER: '4206' }, composedCarryGithub(options))
+}
+
+test('#4206 composed carry: slot 1 at an equivalent ancestor plus slot 2 at the new head authorizes a migration PR', () => {
+  const input = composedCarryInput()
+  assert.equal(input.headSha, CARRY_NEW)
+  assert.throws(() => evaluateRaw(input), /owes required review slot\(s\) 1/)
+  const result = evaluateApprovalWithRefresh(input, { contentPreservingRefresh: (a, b) => (a === CARRY_OLD && b === CARRY_NEW ? { ok: true, implementation_digest: 'e'.repeat(64) } : { ok: false }) })
+  assert.equal(result.approved, true)
+  assert.equal(result.head_sha, CARRY_NEW)
+  assert.equal(result.carried_from, CARRY_OLD)
+  assert.equal(result.required_slots, 1)
+  assert.equal(result.assignments, 2)
+  assert.equal(result.approvals, 2)
+})
+
+test('#4206 composed carry: an equivalent ancestor return prevents carrying its older surviving assignment', () => {
+  const input = composedCarryInput({ priorReturn: true })
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /durably returned|no durable APPROVE|owes required review slot/)
+})
+
+test('#4206 composed carry: the latest approved replacement is carried instead of the older assignment', () => {
+  const input = composedCarryInput({ priorReplacement: true })
+  const result = evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) })
+  assert.equal(result.approved, true)
+  assert.equal(result.carried_from, CARRY_OLD)
+  assert.equal(result.assignments, 2)
+  assert.equal(result.approvals, 2)
+})
+
+test('#4206 composed carry: an invalid first equivalent candidate does not hide a later valid candidate', () => {
+  const first = composedCarryInput({ slot1Approved: false })
+  const second = composedCarryInput({ priorHead: 'e'.repeat(40), slot1Reviewer: 'muse-spark-1.3-contributor' })
+  first.assignments.push(...second.assignments.filter((row) => row.headSha === 'e'.repeat(40)))
+  first.priorHeads.push(second.priorHeads.find((row) => row.headSha === 'e'.repeat(40)))
+  const result = evaluateApprovalWithRefresh(first, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) })
+  assert.equal(result.approved, true)
+  assert.equal(result.carried_from, 'e'.repeat(40))
+})
+
+test('#4206 composed carry: a later prior-head return blocks an older equivalent approval', () => {
+  const input = composedCarryInput()
+  input.assignments.find((row) => row.headSha === CARRY_OLD).sequence = 1
+  const laterReturned = composedCarryInput({ priorHead: 'e'.repeat(40), slot1Included: false, priorReturn: true, priorReturnSequence: 3, slot2Sequence: 4 })
+  input.priorHeads.push(laterReturned.priorHeads.find((row) => row.headSha === 'e'.repeat(40)))
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /owes required review slot\(s\) 1/)
+})
+
+test('#4206 composed carry: a validated assignment newer than the equivalent-head return may carry', () => {
+  const input = composedCarryInput({ priorReturn: true, priorReplacement: true, priorReturnSequence: 2, slot2Sequence: 4 })
+  const result = evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) })
+  assert.equal(result.approved, true)
+  assert.equal(result.carried_from, CARRY_OLD)
+  assert.equal(result.assignments, 2)
+})
+
+test('#4206 composed carry: ordinary caller fields cannot inject ancestor assignments or verdicts', () => {
+  const input = composedCarryInput({ slot2Approved: false })
+  input.carriedAssignments = input.assignments.filter((row) => row.headSha === CARRY_OLD)
+  input.carriedVerdicts = input.priorHeads[0].verdicts
+  assert.throws(() => evaluateRaw(input), /owes required review slot\(s\) 1/)
+})
+
+test('#4206 composed carry: a governed-code PR can compose a valid slot with a single required slot', () => {
+  const input = composedCarryInput({ migrations: false })
+  const result = evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) })
+  assert.equal(result.approved, true)
+  assert.equal(result.required_slots, 1)
+  assert.equal(result.assignments, 2)
+  assert.equal(result.approvals, 2)
+})
+
+test('#4206 composed carry: a drawn slot 2 without its own APPROVE is still refused', () => {
+  const input = composedCarryInput({ slot2Approved: false })
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /slot 2 has no durable APPROVE|owes required review slot/)
+})
+
+test('#4206 composed carry: re-drawing slot 1 at the new head supersedes the ancestor', () => {
+  const input = composedCarryInput({ redrawSlot1AtNew: true })
+  const result = evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) })
+  assert.equal(result.approved, true)
+  assert.equal(result.carried_from, undefined, 'nothing is carried when this head owns both slots')
+})
+
+test('#4206 composed carry: an unapproved new slot is never filled from the ancestor', () => {
+  const input = composedCarryInput({ redrawSlot1AtNew: true, redrawSlot1Approved: false })
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /slot 1 has no durable APPROVE|owes required review slot/)
+})
+
+test('#4206 composed carry: a return at the new head is never filled from the ancestor', () => {
+  const input = composedCarryInput({ returnAtNew: true })
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /reviewer records of its own|durably returned|no live exact-head assignment/)
+})
+
+test('#4206 composed carry: a refusal at the ancestor is never carried past', () => {
+  const input = composedCarryInput({ refuseAtOld: true })
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: true, implementation_digest: 'e'.repeat(64) }) }), /durable reviewer refusal/)
+})
+
+test('#4206 composed carry: a test-file change without exact equivalence proof cannot carry approval', () => {
+  const input = composedCarryInput()
+  assert.throws(() => evaluateApprovalWithRefresh(input, { contentPreservingRefresh: () => ({ ok: false, reason: 'test files changed' }) }), /reviewer records of its own|owes required review slot/)
 })
 
 // The ref name only SELECTS the record; the commit is what is trusted, and it is
@@ -748,33 +916,34 @@ test('an absent or unreadable changed-file list never grants the exemption', () 
   assert.throws(() => evaluateExactHeadApproval({ pr: 2102, headSha: NEW, assignments: [], verdicts: [], changedFiles: null }), /no reviewer was ever assigned head/)
 })
 
-// THE MINIMUM SLOT COUNT (issue #2837). PR #2746 (issue #2478) merged
-// production-bound bytes with exactly one approval because slot 2 was never
-// drawn across any of its nine heads: the loop over visible slots passed, since
-// a never-drawn slot is a slot the gate cannot see. A migration change must now
-// require two slots, judged from the pull request's own changed files, and the
-// refusal must name the missing slot number.
-test('a migration change refuses on a single slot: slot 2 was never drawn', () => {
-  assert.throws(() => evaluateExactHeadApproval({
+// OWNER RULING (Albert Hazan, 2026-10-14: "change the rules so that we don't
+// need 2 reviews"). One independent exact-head APPROVE is enough for every
+// change, including migrations. The former two-slot migration minimum is
+// retired.
+test('a migration change passes with a single slot', () => {
+  const result = evaluateExactHeadApproval({
     pr: 2746, headSha: NEW,
     assignments: [{ issue: 2478, pr: 2746, headSha: NEW, slot: 1 }],
     evidence: [{ body: `APPROVE ${NEW}` }],
     changedFiles: ['supabase/migrations/20260911212849_shared_style_group_sku_key.sql'],
-  }), (error) => error instanceof ApprovalCheckError && /owes required review slot\(s\) 2/.test(error.message) && /requires 2 independent review slot/.test(error.message))
+  })
+  assert.equal(result.approved, true)
+  assert.equal(result.required_slots, 1)
+  assert.equal(result.assignments, 1)
 })
 
-test('a migration rename still requires two slots: the previous name counts', () => {
-  // The flattened form `changedPathsFromPullRequestFiles` produces for a rename
-  // row -- both the new name and the previous one reach the classifier.
-  assert.throws(() => evaluateExactHeadApproval({
+test('a migration rename also needs only one slot', () => {
+  const result = evaluateExactHeadApproval({
     pr: 2746, headSha: NEW,
     assignments: [{ issue: 2478, pr: 2746, headSha: NEW, slot: 1 }],
     evidence: [{ body: `APPROVE ${NEW}` }],
     changedFiles: ['docs/moved.md', 'supabase/migrations/20260902120000_add_thing.sql'],
-  }), /owes required review slot\(s\) 2/)
+  })
+  assert.equal(result.approved, true)
+  assert.equal(result.required_slots, 1)
 })
 
-test('a migration change with both slots approved passes and reports the required count', () => {
+test('a migration change with both slots approved still passes and reports the required count', () => {
   const result = evaluateExactHeadApproval({
     pr: 2746, headSha: NEW,
     assignments: [{ issue: 2478, pr: 2746, headSha: NEW, slot: 1 }, { issue: 2478, pr: 2746, headSha: NEW, slot: 2 }],
@@ -782,7 +951,7 @@ test('a migration change with both slots approved passes and reports the require
     changedFiles: ['supabase/migrations/20260911212849_shared_style_group_sku_key.sql'],
   })
   assert.equal(result.approved, true)
-  assert.equal(result.required_slots, 2)
+  assert.equal(result.required_slots, 1)
   assert.equal(result.assignments, 2)
 })
 
@@ -1077,4 +1246,63 @@ test('#3505: the advisory context is distinct from the real grant context', () =
     () => selectMergeAuthorizationAtMerge(disguised, Date.parse(MERGED_AT), 1931, MERGED_AT, { isDocumentsOnly: () => false }),
     /is not a lawful authorization/,
   )
+})
+
+
+test('owner no-reviewer policy: inactive or missing policy still requires an assignment', () => {
+  const input = { pr: 2102, headSha: NEW, assignments: [], verdicts: [], ownerNoReviewerPolicy: { active: false, reason: 'off' } }
+  assert.throws(() => evaluateRaw(input), /no reviewer was ever assigned head/)
+})
+
+test('owner no-reviewer policy: active policy approves with no assignment and records the reason', () => {
+  const input = {
+    pr: 2102, headSha: NEW, assignments: [], verdicts: [],
+    ownerNoReviewerPolicy: { active: true, reason: 'owner ruling 2026-10-16: if there are no reviewers currently working then skip the merge-gate assignment' },
+  }
+  const result = evaluateRaw(input)
+  assert.equal(result.approved, true)
+  assert.equal(result.owner_no_reviewer, true)
+  assert.equal(result.assignments, 0)
+})
+
+test('owner no-reviewer policy: a durable refusal at the head still blocks (non-documents fixture)', () => {
+  // Non-documents path: omit changedFiles so the owner-policy branch at
+  // check-exact-head-approval.mjs is the one under test, not documents-only.
+  const base = gatherApprovalInput({ PR_NUMBER: String(DOC_PR) }, documentsOnlyGithub({
+    files: [{ filename: 'docs/notes.md' }], recorded: { reviewer: 'grok-4.6', verdict: 'REVISE' },
+  }))
+  assert.equal(isValidatedVerdictArtifact(base.verdicts[0]), true)
+  const input = {
+    pr: base.pr, headSha: base.headSha, assignments: [], verdicts: base.verdicts,
+    changedFiles: ['supabase/migrations/20261016120000_not_real.sql'],
+    ownerNoReviewerPolicy: { active: true, reason: 'owner ruling 2026-10-16: skip merge-gate assignment' },
+  }
+  assert.throws(() => evaluateRaw(input), (error) => error instanceof ApprovalCheckError
+    && /carries a durable reviewer refusal/.test(error.message)
+    && /owner no-reviewer|exempt from DRAWING/.test(error.message)
+    && !/without artifact validation/.test(error.message))
+})
+
+test('owner no-reviewer policy file is schema-1 active and cites owner-rulings §6.28', () => {
+  const policy = JSON.parse(readFileSync(new URL('../config/owner-no-reviewer-policy.json', import.meta.url), 'utf8'))
+  assert.equal(policy.schema_version, 1)
+  assert.equal(policy.active, true)
+  assert.equal(policy.scope, 'popcre/shared-db')
+  assert.match(policy.quote, /no reviewers currently working/)
+  assert.match(String(policy.authority), /owner-rulings\.md/)
+})
+
+test('owner no-reviewer loader: live file is active and scoped to this repository', async () => {
+  const { readOwnerNoReviewerPolicy } = await import('./check-exact-head-approval.mjs')
+  const live = readOwnerNoReviewerPolicy()
+  assert.equal(live.active, true)
+  assert.match(live.reason, /owner ruling/)
+})
+
+test('owner no-reviewer loader: a caller-supplied inactive policy does not exempt', () => {
+  const input = {
+    pr: 2102, headSha: NEW, assignments: [], verdicts: [],
+    ownerNoReviewerPolicy: { active: false, reason: 'wrong scope or malformed' },
+  }
+  assert.throws(() => evaluateRaw(input), /no reviewer was ever assigned head/)
 })

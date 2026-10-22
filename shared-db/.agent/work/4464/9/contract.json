@@ -1,0 +1,82 @@
+{
+  "schema_version": 2,
+  "generation": 9,
+  "evidence_parent": {
+    "work_issue": 4464,
+    "generation": 8,
+    "contract_sha256": "fa9ff25d0205041e9be8403a4729ea348bb45dbdbd56b7f9f4ab0dcdab8345dd"
+  },
+  "work_issue": 4464,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Coordinator option (c): grant the Stage Catalog matrix (USAGE on plm, SELECT on seven catalog tables, INSERT/UPDATE/DELETE on five editor tables, INSERT/UPDATE on prod_stage_progress and prod_stage_option, INSERT on dflow_prod.AuditLog, seven role-scoped RLS policies) directly to designflow_prod_tracking_runtime instead of designflow_prod_tracking_grants, under reissued claim #4467 version 20261020125826; revoke whatever 20261018191107 granted the group; retire 20261018191107 from production; amend the #2873 proofs narrowly. No role membership change.",
+  "base_sha": "43d1861946d782c4998ca71419b170cc16fbfd44",
+  "dispatcher": "Claude chat 49144e8c-9530-49a9-a081-34792a3e6716 on edge-dev3",
+  "worker": "Claude chat 49144e8c-9530-49a9-a081-34792a3e6716 on edge-dev3",
+  "branch": "claude/4464-tracking-runtime-grant",
+  "worktree": "/var/tmp/ai-sessions-1000/claude-49144e8c-9530-49a9-a081-34792a3e6716/wt4464c",
+  "allowed_paths": [
+    "supabase/migrations/20261020125826_plm_stage_catalog_tracking_runtime_grant.sql",
+    "supabase/tests/plm_stage_catalog_prod_tracking_grant_contracts.sql",
+    "supabase/tests/plm_stage_catalog_contracts.sql",
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/2873-role-contract.sql",
+    "scripts/proofs/2873-contract.json",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    ".agent/work/4464/9/contract.json",
+    ".agent/work/4464/9/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261020125826_plm_stage_catalog_tracking_runtime_grant.sql",
+    "supabase/tests/plm_stage_catalog_prod_tracking_grant_contracts.sql",
+    "supabase/tests/plm_stage_catalog_contracts.sql",
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/2873-role-contract.sql",
+    "scripts/proofs/2873-contract.json",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    ".agent/work/4464/9/contract.json",
+    ".agent/work/4464/9/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "policy licensor_stage_option_dflow_prod_tracking on plm.licensor_stage_option",
+    "policy prod_stage_option_dflow_prod_tracking on plm.prod_stage_option",
+    "policy prod_stage_progress_dflow_prod_tracking on plm.prod_stage_progress",
+    "policy stage_dependency_dflow_prod_tracking on plm.stage_dependency",
+    "policy stage_dflow_prod_tracking on plm.stage",
+    "policy stage_duration_dflow_prod_tracking on plm.stage_duration",
+    "policy stage_list_dflow_prod_tracking on plm.stage_list",
+    "schema plm",
+    "table dflow_prod.\"AuditLog\"",
+    "table plm.licensor_stage_option",
+    "table plm.prod_stage_option",
+    "table plm.prod_stage_progress",
+    "table plm.stage",
+    "table plm.stage_dependency",
+    "table plm.stage_duration",
+    "table plm.stage_list",
+    "view dflow_prod.\"AuditLog\"",
+    "view plm.prod_stage_progress",
+    "view plm.stage_list"
+  ],
+  "prohibited_actions": [
+    "No role membership change.",
+    "No application row change.",
+    "No manual production command."
+  ],
+  "required_checks": [
+    "git diff --check",
+    "node --test scripts/proofs/shared-db-2873-observation.test.mjs",
+    "python3 -m pytest -q scripts/test_production_migration_guard.py scripts/test_post_batch_app_verification.py"
+  ],
+  "assumptions": [
+    "Production backend_runtime stays a member of tracking_grants until popcre-tracking-prod switches login (coordinator)."
+  ],
+  "stop_conditions": [
+    "Stop if any role other than the bootstrap owner is a member of designflow_prod_tracking_runtime."
+  ]
+}

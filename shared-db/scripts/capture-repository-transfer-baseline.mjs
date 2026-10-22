@@ -184,8 +184,8 @@ export function classifyReadiness({ target, operational, ownerApprovalComment })
   } else if (target.destinationActionsDisallowed.length > 0) {
     blockers.push(`destination-actions-policy-disallows: ${target.destinationActionsDisallowed.join(', ')}`)
   }
-  if (operational.orchestrator.state !== 'none') {
-    blockers.push(`orchestrator-not-quiescent: marker state ${operational.orchestrator.state}${operational.orchestrator.marker ? ` (#${operational.orchestrator.marker})` : ''}; the live orchestrator must confirm quiescence for the window`)
+  if (operational.coordination.state !== 'none') {
+    blockers.push(`coordination-not-quiescent: marker state ${operational.coordination.state}${operational.coordination.marker ? ` (#${operational.coordination.marker})` : ''}; the claim-first session must confirm quiescence for the window`)
   }
   for (const lane of operational.heldLanes) blockers.push(`mutation-lane-held: ${lane}`)
   for (const run of operational.activeRuns) blockers.push(`actions-run-active: ${run.workflow} run ${run.id} (${run.status})`)
@@ -358,13 +358,13 @@ export function captureOperational(gh, source, markerRunner) {
     }
   }
   return {
-    orchestrator: marker,
+    coordination: marker,
     heldLanes,
     activeRuns: activeRuns.sort(byKey('id')),
   }
 }
 
-/** The orchestrator marker is retired (issue #3874): there is never one to record. */
+/** The claim-first session identity is retired (issue #3874): there is never one to record. */
 export function defaultMarkerRunner() {
   return { state: 'none', marker: null, exitCode: 3 }
 }

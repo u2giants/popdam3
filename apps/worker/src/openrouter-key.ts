@@ -1,7 +1,7 @@
 /**
  * Single source of truth for the OpenRouter API key.
  *
- * The key is edited in the PopDAM admin UI (Settings → APIs), which writes it to
+ * The key is edited in the PopDAM admin UI (Settings → Processing → AI Tagging), which writes it to
  * `admin_config.OPENROUTER_API_KEY`. The Supabase edge functions already read it
  * from there. The worker used to read a SECOND copy from the Railway env var
  * OPENROUTER_API_KEY, so rotating the key in the UI left the worker on the old
@@ -71,7 +71,7 @@ export async function resolveOpenRouterApiKey(
     warnedEnvFallback = true;
     logger.warn(
       "openrouter-key: admin_config.OPENROUTER_API_KEY is empty; using the OPENROUTER_API_KEY env var. " +
-        "Set the key in PopDAM Settings → APIs so rotations apply everywhere.",
+        "Set the key in PopDAM Settings → Processing → AI Tagging so rotations apply everywhere.",
     );
   }
   if (dbKey) warnedEnvFallback = false;

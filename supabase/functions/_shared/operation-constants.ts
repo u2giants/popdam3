@@ -12,6 +12,7 @@ export const OP_NAMES: Record<string, string> = {
   "ai-tag-untagged": "AI Tag Untagged",
   "ai-tag-all": "Re-tag Everything",
   "ai-tag-groups": "AI Tag Groups",
+  "ai-tag-parallel": "Parallel File Tagging",
   "ai-tag-group-profiles": "Profile Style Groups",
   "ai-tag-bakeoff": "AI Tag Bake-Off",
   "reconcile-style-group-stats": "Reconcile Stats",
@@ -35,6 +36,7 @@ export const OP_LANES: Record<string, string> = {
   "ai-tag-untagged": "ai-tagging",
   "ai-tag-all": "ai-tagging",
   "ai-tag-groups": "ai-tagging",
+  "ai-tag-parallel": "ai-parallel",
   "ai-tag-group-profiles": "ai-tagging",
   "ai-tag-bakeoff": "ai-tagging",
   "rebuild-style-groups": "style-groups",
@@ -118,9 +120,26 @@ export function classifyInterruptionReason(
 //   licensor/property code columns on assets and style_groups → data races.
 
 export const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
-  "ai-tag-untagged": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-all": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-groups": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-untagged": [
+    "ai-tag-parallel",
+    "rebuild-style-groups",
+    "reprocess-metadata",
+    "propagate-group-tags",
+    "ai-tag-group-profiles",
+    "refresh-group-metadata",
+  ],
+  "ai-tag-all": ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-groups": ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-parallel": [
+    "ai-tag-untagged",
+    "ai-tag-all",
+    "ai-tag-groups",
+    "rebuild-style-groups",
+    "reprocess-metadata",
+    "propagate-group-tags",
+    "ai-tag-group-profiles",
+    "refresh-group-metadata",
+  ],
   "ai-tag-group-profiles": [
     "rebuild-style-groups",
     "reprocess-metadata",
@@ -128,22 +147,23 @@ export const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
     "ai-tag-untagged",
     "ai-tag-all",
     "ai-tag-groups",
+    "ai-tag-parallel",
     "ai-tag-bakeoff",
     "refresh-group-metadata",
   ],
   "ai-tag-bakeoff": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "ai-tag-group-profiles"],
-  "refresh-group-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "ai-tag-group-profiles"],
-  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "rich-pdf-extract", "ai-tag-group-profiles"],
+  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "ai-tag-group-profiles"],
+  "refresh-group-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "ai-tag-group-profiles"],
+  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "rich-pdf-extract", "ai-tag-group-profiles"],
   "rich-pdf-extract": ["rebuild-style-groups"],
-  "reprocess-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "erp-enrichment", "ai-tag-group-profiles"],
+  "reprocess-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "erp-enrichment", "ai-tag-group-profiles"],
   "backfill-sku-names": ["erp-enrichment"],
   "erp-enrichment": ["reprocess-metadata", "backfill-sku-names"],
 };
 
 /** Returns the ops that `opKey` cannot run alongside (empty array if none). */
 export function getConflicts(opKey: string): readonly string[] {
-  return OP_CONFLICTS[opKey] ?? [];
+  return OP_CONFLICTS[opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey] ?? [];
 }
 
 /**
@@ -154,6 +174,9 @@ export function findRunningConflict(
   opKey: string,
   allOps: Record<string, { status: string }>,
 ): string | null {
+  if (opKey === "ai-tag-parallel") {
+    for (const [key, op] of Object.entries(allOps)) if (key.startsWith("ai-tag-single-") && op.status === "running") return key;
+  }
   for (const conflictKey of getConflicts(opKey)) {
     if (allOps[conflictKey]?.status === "running") return conflictKey;
   }
@@ -169,6 +192,7 @@ export const OP_ACTIONS: Record<string, string> = {
   "ai-tag-untagged": "bulk-ai-tag",
   "ai-tag-all": "bulk-ai-tag-all",
   "ai-tag-groups": "bulk-ai-tag-all",
+  "ai-tag-parallel": "bulk-ai-tag-all",
   "ai-tag-group-profiles": "ai-tag-group-profiles",
   "ai-tag-bakeoff": "ai-tag-bakeoff",
   "reconcile-style-group-stats": "reconcile-style-group-stats",

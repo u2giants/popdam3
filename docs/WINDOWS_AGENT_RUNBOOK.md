@@ -1,7 +1,17 @@
 # PopDAM Windows Agent — Operator Runbook
 
 This guide covers how to uninstall, reinstall, and verify the Windows Render Agent.
-All commands must be run in **PowerShell as Administrator**.
+All commands must be run in **PowerShell as Administrator** (prefer **pwsh 7**).
+
+Two install modes exist:
+
+| Mode | How it runs | Use when |
+|------|-------------|----------|
+| **Scheduled Task** (`install-scheduled-task.ps1`) | Interactive logon session | You need Adobe Illustrator COM (the current agent build does **not** use Illustrator) |
+| **Windows Service** (`install-service.ps1`) | Boot-time service via NSSM, **no login** | Headless render PC — this is the preferred production mode |
+
+**PDF text extraction works in both modes** (mupdf + Indra OCR (tesseract.js fallback) + AI vision are in-process).
+Illustrator COM automation does **not** work in service mode (Session 0 has no interactive desktop).
 
 ---
 
@@ -16,7 +26,7 @@ cd "C:\path\to\scripts\windows-agent"
 
 **What it removes:**
 - Scheduled task
-- Legacy service (if present)
+- Windows service `PopDAMWindowsAgent` (if present)
 - Install directory (`C:\Program Files\PopDAM\WindowsAgent`)
 - Temp artifacts, shortcuts, registry entries
 
@@ -37,7 +47,7 @@ cd "C:\path\to\scripts\windows-agent"
 
 That's it — deep-clean is the **default**. Everything PopDAM-related is removed:
 - Scheduled task
-- Legacy service
+- Windows service `PopDAMWindowsAgent`
 - Install directory
 - Config, logs, and all settings
 - Temp files left by rendering tools
@@ -74,17 +84,32 @@ The installer reads `popdam-agent.ini` (template: `scripts/windows-agent/popdam-
 1. Run the deep-clean uninstall first
 2. Copy the new agent files to `C:\Program Files\PopDAM\WindowsAgent\`
 3. Create your `.env` file or `agent-config.json` with your pairing code
-4. Run the install script:
+4. Run **one** of the install scripts:
 
 ```powershell
+# Headless (preferred): Windows service, runs with no login
+.\install-service.ps1
+
+# Interactive: Scheduled Task (only if you need Illustrator COM)
 .\install-scheduled-task.ps1
 ```
 
-The install script automatically performs a **preflight scrub**:
-- Removes any existing scheduled task
-- Removes any legacy service
+Both install scripts automatically perform a **preflight scrub**:
+- Removes any existing scheduled task (exports its XML to `%ProgramData%\PopDAM\backup\` first)
+- Removes any previous `PopDAMWindowsAgent` service
 - Cleans stale temp files
 - Recreates config/log directories
+
+### Service-mode notes (`install-service.ps1`)
+
+- The service is named **`PopDAMWindowsAgent`** and wraps `popdam-launcher.bat` with [NSSM](https://nssm.cc).
+- Default account is **LocalSystem** — no password, starts at boot, survives logoff/reboot.
+- Pairing is preserved: `%ProgramData%\PopDAM\agent-config.json` is never touched.
+- **PDF text extraction and thumbnail rendering work.** Ghostscript, Poppler, ImageMagick, Inkscape, Indra OCR and tesseract.js all run in Session 0.
+- **Adobe Illustrator COM does not work** in service mode (no interactive desktop). The current agent build does not use Illustrator anyway.
+- `popdam-launcher.bat` uses `ping` (not `timeout`) for its restart delay so it works without a console.
+- Rollback to the interactive task: `.\install-scheduled-task.ps1` (the service is removed first).
+- Remove the service: `.\uninstall-service.ps1 -KeepConfig`.
 
 ---
 
@@ -167,10 +192,13 @@ This script stops the agent task, deletes all stale PopDAM/ImageMagick temp arti
 |--------|---------|
 | Deep-clean uninstall | `.\uninstall-service.ps1` |
 | Uninstall (keep config) | `.\uninstall-service.ps1 -KeepConfig` |
-| Install | `.\install-scheduled-task.ps1` |
+| Install (headless service) | `.\install-service.ps1` |
+| Install (interactive task) | `.\install-scheduled-task.ps1` |
 | Verify | `.\verify-agent.ps1` |
-| Start agent now | `Start-ScheduledTask -TaskName "PopDAM Windows Render Agent"` |
-| Stop agent | `Stop-ScheduledTask -TaskName "PopDAM Windows Render Agent"` |
+| Start service | `Start-Service PopDAMWindowsAgent` |
+| Stop service | `Stop-Service PopDAMWindowsAgent` |
+| Start scheduled task | `Start-ScheduledTask -TaskName "PopDAM Windows Render Agent"` |
+| Stop scheduled task | `Stop-ScheduledTask -TaskName "PopDAM Windows Render Agent"` |
 | View error log | `Get-Content "$env:ProgramData\PopDAM\logs\agent-error.log" -Tail 50` |
 | Clean temp files | `.\cleanup-temp.ps1` |
 
@@ -191,6 +219,10 @@ insert into admin_config (key, value, updated_at) values ('WINDOWS_LATEST_BUILD'
 on conflict (key) do update set value=excluded.value, updated_at=now();
 ```
 Get the checksum by downloading the release zip and running `sha256sum`. The agent picks it up within ~10 min.
+
+## 8. Compat-thumbnail audit (fix `.ai` warning-page thumbnails in bulk)
+
+Some `.ai` thumbnails render Adobe's "saved without PDF Content" warning page instead of artwork (an earlier render used the PDF layer). **Settings → Windows Agent → "Audit AI Compat Thumbnails"** OCR-detected these — but as of 2026-07-03 it uses a **perceptual hash** (`compat-audit.ts`, `COMPAT_REF_HASHES`), because the old OCR looked for "compatibility" while the page says "Compatible" (flagged 0). The audit hashes every `.ai` thumbnail, clears the warning ones (`thumbnail_url=null`), and re-queues them for **native (Inkscape) render**, which recovers the real artwork. Triggers: `COMPAT_AUDIT_PREVIEW_REQUEST` (read-only report) and `COMPAT_AUDIT_REQUEST` (clear + re-render) in `admin_config`. A full ~46k scan takes ~8 min. **Do not** use the ".ai Sentinel Cleanup" delete flow for these — the files contain real artwork (see AGENTS.md `.ai` quirk).
 
 ## 9. Moving the agent to another machine (lessons from edge-alien → edge-dev, 2026-10-01)
 
@@ -217,12 +249,13 @@ Only one machine should run the agent at a time. Pairing uses the same agent nam
 | 5 | The agent crashes at start with `Cannot find module '@popdam/path-filters'` | A manual install copied `package.json` and ran `npm ci`. The `file:../../packages/path-filters` dependency became a junction pointing to `C:\Program Files\packages\path-filters`, which does not exist. | Build `packages/path-filters` in a scratch copy (`npm i typescript@5`, then `tsc`). Delete the junction and copy `package.json` plus `dist\` into `node_modules\@popdam\path-filters`. **Better:** use the release installer `popdam-windows-agent-setup.exe`, which bundles it. The installer can run unattended with a `popdam-agent.ini` preset (§3 Option C). |
 | 6 | `npm` fails with `EEXIST ... _cacache\tmp` | The local npm cache was corrupt or in use | Pass `--cache <scratch folder>`. |
 | 7 | The scheduled task shows result **255** and "Ready" after the first start | On first run the agent self-updated from 0.16.4 to the release build. The swap restart ended that first run. | Start the task again. The second start stayed up (result 267009 while running). Check the heartbeat in `agent_registrations`, not the process list. A non-elevated shell cannot see the elevated `node.exe` command line. |
-| 8 | The NAS map fails with `System error 86` (wrong password) on both Z: and Y: | `admin_config.WINDOWS_AGENT_NAS_USER/PASS` still held an old pre-rotation login. The NAS passwords had been rotated that day. | Use the current NAS service-account login from 1Password (`vibe_coding` vault). First test it with `net use` against the main share from the new machine, then update `WINDOWS_AGENT_NAS_USER`, `WINDOWS_AGENT_NAS_PASS` and `WINDOWS_AGENT_SG_NAS_PASS` in `admin_config`. The agent picks them up on its next heartbeat. |
+| 8 | The NAS map fails with `System error 86` (wrong password) on both Z: and Y: | `admin_config.WINDOWS_AGENT_NAS_USER/PASS` still held an old pre-rotation login. The NAS passwords had been rotated that day. | Use the current NAS service-account login from 1Password (`vibe_coding` vault). First test it with `net use` against the main share from the new machine, then update `WINDOWS_AGENT_NAS_USER` and `WINDOWS_AGENT_NAS_PASS` in `admin_config`. The PopSG (styleguides) NAS password is no longer in `admin_config`: save it in PopSG Settings → NAS → Password, which stores it in Supabase Vault (popcre/shared-db#4168). The agent picks them up on its next heartbeat. |
 | 9 | SSH commands to edge-alien broke on quoting | The remote shell is Windows PowerShell, so `&` and `\"` get mangled | Send scripts with `powershell -NoProfile -EncodedCommand <base64 UTF-16>`. |
 | 10 | `Get-ScheduledTask` over SSH found no PopDAM task, although `schtasks /query` did | Quoting and filtering differences in the SSH session | Use `schtasks /end` and `schtasks /change /disable` with `/tn 'PopDAM Windows Render Agent'` inside an encoded script. Then kill any leftover `node.exe` under `C:\Program Files\PopDAM` and the `popdam-launcher` `cmd` process. |
 | 11 | A long log grep over SSH on edge-alien hung for more than 120 s | Large log files read over SSH | Use `-Tail` on the logs. Don't run `Select-String` over whole log files remotely. |
 | 12 | The agent's cmd window floods with JSON logs it never showed on edge-alien | The release installer's launcher redirects stdout/stderr to `%ProgramData%\PopDAM\logs\agent.log` and `agent-error.log`. The manual-install `scripts/windows-agent/popdam-launcher.bat` used to print to the console instead. | Use the fixed launcher (redirects like the installer), or prefer `popdam-windows-agent-setup.exe`. The visible window is normal for the interactive task; it should stay almost empty. |
 | 13 | `agent.log` fills with the same idle lines every few seconds | The 3s poll loop logs "NAS already accessible" and "No render jobs available" at debug. `LOG_LEVEL` defaults to `info`, which hides them. | Leave `LOG_LEVEL` unset (or `info`) in production. Set `LOG_LEVEL=debug` in the install-dir `.env` only while troubleshooting. |
+| 20 | As a Windows service, NAS preflight fails with `NAS mapped but path "Z:\" not readable: ENOENT` even though credentials are correct | `New-SmbMapping` is unreliable in Session 0 (service context): it can leave no DOS drive letter that Node's `fs.access` can see. `net use` creates a real device. | `buildSmbMappingScript` in `apps/windows-agent/src/nas-mapper.ts` now uses `net use` (secrets still passed via child env, never in agent argv). If an old dist is still installed, patch `dist\nas-mapper.js` the same way or ship a new agent build. `nas-mapper.js.bak-pre-netuse` is the pre-patch backup. |
 
 ### Pairing code without the UI
 
@@ -234,13 +267,14 @@ Insert a row into `agent_pairings` (application row data, not a schema change) w
 - Don't pair under a new agent name unless you mean to keep two agents. A second name creates a second registration.
 - Don't leave the old machine's task enabled. It restarts at logon.
 - Don't run `install-scheduled-task.ps1` with Windows PowerShell 5.1.
+- Don't run the scheduled task and the `PopDAMWindowsAgent` service at the same time — pick one install mode.
 - Don't trust `admin_config` NAS credentials without testing them first with `net use`.
 
 ### Moving back to edge-alien (fresh Windows) — done 2026-10-05
 
 The agent is back on edge-alien (0.16.4.165, same `agent_registrations.id` `d287e3f9-…`). edge-dev's task is stopped and **disabled**. The checklist was:
 
-1. Install the tools: winget `Inkscape.Inkscape`, `ImageMagick.ImageMagick`, `oschwartz10612.Poppler`, `UB-Mannheim.TesseractOCR`, `Microsoft.VCRedist.2015+.x64`, plus Ghostscript from Artifex. Also Git, Node and pwsh 7.
+1. Install the tools: winget `Inkscape.Inkscape`, `ImageMagick.ImageMagick`, `oschwartz10612.Poppler`, `UB-Mannheim.TesseractOCR`, `Microsoft.VCRedist.2015+.x64`, plus Ghostscript from Artifex. Also Git, Node, pwsh 7 and Python 3.13 (the service installer builds the Indra OCR venv at `C:\ProgramData\PopDAM\indra` from it).
 2. Enable OpenSSH Server and add the `916-alien` public key (1Password) to `C:\ProgramData\ssh\administrators_authorized_keys`.
 3. On edge-dev, run `schtasks /end` and `/change /disable` for the task.
 4. Pair with the release installer, add `POPPLER_PATH` to the install-dir `.env`, restart the task, test the NAS and queue a test job.
@@ -256,6 +290,14 @@ New problems hit on this move:
 | 18 | `ssh-keygen -N '""'` created a key with a passphrase of two quote characters | pwsh 7.3+ passes `'""'` literally to native programs | Use `-N ''` in pwsh. |
 | 19 | 1Password CLI calls fail with "a vault query must be provided" | Service-account tokens (`OP_SERVICE_ACCOUNT_TOKEN`) need an explicit vault | Pass `--vault <id>` or use `op://<vault-id>/<item-id>/<field>` references (take both ids from `op item list --format json`). |
 
-## 8. Compat-thumbnail audit (fix `.ai` warning-page thumbnails in bulk)
+## 10. Indra OCR self-check and self-install (agent >= 0.16.9)
 
-Some `.ai` thumbnails render Adobe's "saved without PDF Content" warning page instead of artwork (an earlier render used the PDF layer). **Settings → Windows Agent → "Audit AI Compat Thumbnails"** OCR-detected these — but as of 2026-07-03 it uses a **perceptual hash** (`compat-audit.ts`, `COMPAT_REF_HASHES`), because the old OCR looked for "compatibility" while the page says "Compatible" (flagged 0). The audit hashes every `.ai` thumbnail, clears the warning ones (`thumbnail_url=null`), and re-queues them for **native (Inkscape) render**, which recovers the real artwork. Triggers: `COMPAT_AUDIT_PREVIEW_REQUEST` (read-only report) and `COMPAT_AUDIT_REQUEST` (clear + re-render) in `admin_config`. A full ~46k scan takes ~8 min. **Do not** use the ".ai Sentinel Cleanup" delete flow for these — the files contain real artwork (see AGENTS.md `.ai` quirk).
+The OCR engine (Python venv + models under `C:\ProgramData\PopDAM\indra`) is provisioned **outside** the shipped code — `install-service.ps1` sets it once, and OTA updates only swap code, so a box installed before Indra existed silently OCR'd with tesseract.js. From 0.16.9 the agent closes that gap itself:
+
+- **Startup check:** `INDRA_OCR_PYTHON`, the interpreter, and the model files are checked at startup in the background, then verified by loading the model.
+- **Self-install:** if anything is missing the agent provisions in the background — venv, `pip install indra-ocr==1.1.1`, models at revision `v1.1.0`, model-load verification (loads the model from the directory it just provisioned) — then activates it for the current process and best-effort writes machine-level environment variables for the next start. If the engine is already on disk it is verified by loading the model — no download — unless verification fails, in which case it falls through to a full reprovision (snapshot re-fetches mismatched files).
+- **Panel status:** Settings → Windows Render Agent shows `OCR engine: Indra (ready)`, `Indra installing…`, or `Indra missing / install failed, using tesseract.js (<detail>)` on every heartbeat. The panel reports `installing` (with the current step in the detail) for the **whole** provisioning window — including the verify of an engine that already looks installed — and only settles to `ready` / `missing` / `error` at the end. It will not keep saying `ready` while a broken engine is being reprovisioned.
+- **Cross-process lock:** provisioning takes a lock file at `C:\ProgramData\PopDAM\indra.provision.lock`. On a multi-tenant box (`TENANTS`) every agent child shares `C:\ProgramData\PopDAM\indra`; the lock makes them queue instead of racing the venv/pip/model download. A lock is stolen when it is older than 45 minutes or its holding PID is gone past a 30 s grace window. If the lock cannot be taken within 30 minutes the agent reports an error and falls back to tesseract.js.
+- **Path escaping:** env-sourced paths (`INDRA_OCR_MODEL_DIR`) are embedded into generated Python as JSON string literals and into PowerShell as single-quoted strings (`''` for a quote). Paths with spaces, `'`, or `"` are safe; no quote-free assumption is required.
+- **Never blocking:** a failure leaves extraction on tesseract.js for that run; the panel shows the reason.
+- **Manual path:** `scripts/windows-agent/install-service.ps1` (same pins). No system Python 3.11+ → the panel reports `no system Python found` and the agent stays on tesseract.js.

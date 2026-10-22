@@ -43,7 +43,7 @@ const MUTATION_HOOKS = [
   'postCommitStatus', 'updateIssue', 'makeOwnerCommit', 'makeReviewVerdictCommit', 'pauseReviewerFailure',
   'createRef', 'deleteRef', 'releaseRefOverGit', 'updateRef', 'atomicReviewRefs', 'atomicReviewMutexRelease',
   'reserveVersion', 'createClaim', 'createIssueIn', 'commentIssue', 'closeIssue',
-  'closeClaim', 'contentPreservingRefresh', 'rewriteVersion', 'commitAndPushReversion',
+  'closeClaim', 'closePull', 'contentPreservingRefresh', 'rewriteVersion', 'commitAndPushReversion',
 ]
 // Every OTHER function on githubIo, classified by name as a read. A new githubIo
 // hook appears in NEITHER list and fails the classification test below until
@@ -64,7 +64,7 @@ const KNOWN_READ_HOOKS = new Set([
   'verifyLiveAssertion', 'verifyGeneratedTypes', 'readArtifactJson', 'readArtifactFiles', 'reversionFiles',
   'localHead', 'localClean', 'localBranch', 'localWorktreeState', 'verifyArtifact',
   'currentMaxVersion', 'commandAvailable', 'reviewerDoctor', 'reviewerAdmissionOverrides',
-  'reviewerUsability', 'resolveOrchestratorEngine', 'orchestratorFlowAdapter', 'flowSnapshot',
+  'reviewerUsability', 'resolveReviewEngine', 'flowAdapter', 'flowSnapshot',
 ])
 
 function fixtureIo({ issues, claims = [], openPulls = [], branchPulls = {} }) {
@@ -190,7 +190,7 @@ test('not-orchestrator work is reported with its age in days', () => {
   const ages = new Map(report.not_orchestrator_work.map((item) => [item.issue, item.age_days]))
   assert.equal(ages.get(401), 10, 'age is whole days from createdAt to now')
   assert.equal(ages.get(402), 15)
-  assert.match(result.err, /OUTSIDE ORCHESTRATOR — OWNED BY REPO SESSION \(aging\)/)
+  assert.match(result.err, /OWNED BY REPO SESSION \(aging\)/)
   assert.match(result.err, /#402 REJECT/)
   assert.match(result.err, /NO RETURN ADDRESS on #402/)
 })

@@ -40,7 +40,14 @@ export async function upsertConfigRowsAtomically(
   rows: Array<Record<string, unknown>>,
 ): Promise<{ error: { message: string } | null }> {
   if (rows.length === 0) return { error: null };
-  const { error } = await client.from("admin_config").upsert(rows);
+  // Service-role authentication uses a non-user sentinel, not an auth UUID.
+  const auditedRows = rows.map((row) => {
+    if (row.updated_by !== "system") {
+      return row;
+    }
+    return { ...row, updated_by: null };
+  });
+  const { error } = await client.from("admin_config").upsert(auditedRows);
   return { error };
 }
 

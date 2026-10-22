@@ -77,6 +77,8 @@ export interface ChatCompletionRequest {
     };
   };
   max_tokens?: number;
+  /** Meta-only, persisted and bounded output-exhaustion retry budget. */
+  meta_max_output_tokens?: 32768;
   temperature?: number;
 }
 
@@ -612,7 +614,10 @@ export async function chatCompletion(
 
     if (response.status === 429) {
       // Rate limited — wait and retry
-      const retryAfter = parseInt(response.headers.get("retry-after") || "5", 10);
+      // retry-after may be an HTTP date (NaN) or huge; bound it to 5..60 s so
+      // the worker loop neither spins nor sleeps for an hour.
+      const parsedRetryAfter = parseInt(response.headers.get("retry-after") || "5", 10);
+      const retryAfter = Math.min(Number.isFinite(parsedRetryAfter) && parsedRetryAfter > 0 ? parsedRetryAfter : 5, 60);
       logger.warn("openrouter: rate limited", { attempt, retryAfter });
       if (attempt < MAX_RETRIES) {
         await new Promise((r) => setTimeout(r, retryAfter * 1000));
@@ -622,6 +627,8 @@ export async function chatCompletion(
     }
 
     if (response.status >= 500 && attempt < MAX_RETRIES) {
+      // Drain the body so the socket is released before retrying.
+      await response.text().catch(() => "");
       logger.warn("openrouter: transient error, retrying", { status: response.status, attempt });
       await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
       continue;

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "source": "scripts/db-flow/evidence-bundle.mjs",
+  "sites": [
+    {
+      "site": "scripts/db-flow/evidence-bundle.mjs:27",
+      "semantic_key": "scripts/db-flow/evidence-bundle.mjs:3d2e85dff6709c3a56bb95aef800cce8d440a61fd354f5bd79c98aa8c81bdbba:context-c21f9fa61ddf14d7ef0f91729b9be7fb5bd358c0a09b74437325c336431478a5",
+      "line_sha256": "3d2e85dff6709c3a56bb95aef800cce8d440a61fd354f5bd79c98aa8c81bdbba",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:3d2e85dff6709c3a56bb95aef800cce8d440a61fd354f5bd79c98aa8c81bdbba:1"
+    },
+    {
+      "site": "scripts/db-flow/evidence-bundle.mjs:37",
+      "semantic_key": "scripts/db-flow/evidence-bundle.mjs:4e1fa52fcafbcc7d69c8cacd0f55e19584856c6304d5a3d6270a00fc7b030323:context-2ecc16bbf89c53a27194682fa820acfc6133d57cfc34218531d27806f4b24f95",
+      "line_sha256": "4e1fa52fcafbcc7d69c8cacd0f55e19584856c6304d5a3d6270a00fc7b030323",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:4e1fa52fcafbcc7d69c8cacd0f55e19584856c6304d5a3d6270a00fc7b030323:1"
+    },
+    {
+      "site": "scripts/db-flow/evidence-bundle.mjs:86",
+      "semantic_key": "scripts/db-flow/evidence-bundle.mjs:5c41f8e406c64f05a7e52701b06f03d7e1f1ff2d5701efa0c7e041a6eac38b56:context-a1414c7d06fa9dace589691c7d204719c123f98702f6f82d9eb3cae2a217ab39",
+      "line_sha256": "5c41f8e406c64f05a7e52701b06f03d7e1f1ff2d5701efa0c7e041a6eac38b56",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:5c41f8e406c64f05a7e52701b06f03d7e1f1ff2d5701efa0c7e041a6eac38b56:1"
+    },
+    {
+      "site": "scripts/db-flow/evidence-bundle.mjs:47",
+      "semantic_key": "scripts/db-flow/evidence-bundle.mjs:a4d9f0d6075ce9b08a596f917d0e0836491cf991bf5d22003c0dabb84ed1050a:context-406f82f8f8ecaed8c0efd091a201ab4cc989749a13b0a45876e6a3725bfa747c",
+      "line_sha256": "a4d9f0d6075ce9b08a596f917d0e0836491cf991bf5d22003c0dabb84ed1050a",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/evidence-bundle.mjs:a4d9f0d6075ce9b08a596f917d0e0836491cf991bf5d22003c0dabb84ed1050a:1"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-15",
+  "step": "8-live-dispatch-probe",
+  "result": "PASS",
+  "ruleset_id": 25146118,
+  "canary_pr": 4321,
+  "synthetic_shas": ["6ff65dda5c6be8f057833b9b6ac98b58fecec93e", "cbc6af115149ced760cf4f0a8df7a04bcc075d54"],
+  "merge_group_run_count_first_wave": 8,
+  "workflows_started": [
+    "ColdLion Promotion Contract Tests",
+    "Documents fast CI route",
+    "PR Guards",
+    "Shared Supabase Migrations",
+    "Tools Offline Tests",
+    "Merge Queue Gate",
+    "Migration Author Lease",
+    "Database Contract Tests"
+  ],
+  "note": "Bare merge_group triggers work. GitHub starts Actions on merge_group synthetic SHAs. Previous canary #4298 started zero runs with types:[checks_requested] pin.",
+  "step9_partial": "Canary #4321 enqueued; dispatch proven. Merge Queue Gate still refuses on exact-head containment for the evidence-tail pattern.",
+  "posted_by": "Posted by MiMo chat ffe5ec4d8a438ffeMsuIzWTbV4 on edge-dev"
+}

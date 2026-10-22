@@ -755,6 +755,7 @@ export type Database = {
           sku_sequence: string | null
           stage: string | null
           status: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at: string
           style_group_id: string | null
           tags: string[]
           technical_designer_name: string | null
@@ -825,6 +826,7 @@ export type Database = {
           sku_sequence?: string | null
           stage?: string | null
           status?: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at?: string
           style_group_id?: string | null
           tags?: string[]
           technical_designer_name?: string | null
@@ -897,6 +899,7 @@ export type Database = {
           sku_sequence?: string | null
           stage?: string | null
           status?: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at?: string
           style_group_id?: string | null
           tags?: string[]
           technical_designer_name?: string | null
@@ -1102,6 +1105,48 @@ export type Database = {
           source_updated_at?: string | null
           style_group_id?: string | null
           title?: string
+        }
+        Relationships: []
+      }
+      dam_search_keys: {
+        Row: {
+          asset_id: string | null
+          customer: string | null
+          document_type: string
+          entity_id: string
+          path: string
+          program: string | null
+          search_tsv: unknown
+          style_group_id: string | null
+          title: string
+          title_key: string
+          title_tsv: unknown
+        }
+        Insert: {
+          asset_id?: string | null
+          customer?: string | null
+          document_type: string
+          entity_id: string
+          path: string
+          program?: string | null
+          search_tsv: unknown
+          style_group_id?: string | null
+          title: string
+          title_key: string
+          title_tsv: unknown
+        }
+        Update: {
+          asset_id?: string | null
+          customer?: string | null
+          document_type?: string
+          entity_id?: string
+          path?: string
+          program?: string | null
+          search_tsv?: unknown
+          style_group_id?: string | null
+          title?: string
+          title_key?: string
+          title_tsv?: unknown
         }
         Relationships: []
       }
@@ -2784,6 +2829,7 @@ export type Database = {
           size_name: string | null
           sku: string
           stage: string | null
+          style_group_changed_at: string
           technical_designer_name: string | null
           updated_at: string | null
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
@@ -2840,6 +2886,7 @@ export type Database = {
           size_name?: string | null
           sku: string
           stage?: string | null
+          style_group_changed_at?: string
           technical_designer_name?: string | null
           updated_at?: string | null
           workflow_status?:
@@ -2898,6 +2945,7 @@ export type Database = {
           size_name?: string | null
           sku?: string
           stage?: string | null
+          style_group_changed_at?: string
           technical_designer_name?: string | null
           updated_at?: string | null
           workflow_status?:
@@ -4326,6 +4374,7 @@ export type Database = {
           sku_sequence: string | null
           stage: string | null
           status: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at: string
           style_group_id: string | null
           tags: string[]
           technical_designer_name: string | null
@@ -4405,6 +4454,7 @@ export type Database = {
           sku_sequence: string | null
           stage: string | null
           status: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at: string
           style_group_id: string | null
           tags: string[]
           technical_designer_name: string | null
@@ -4462,6 +4512,13 @@ export type Database = {
         Returns: {
           asset_count: number
           material: string
+        }[]
+      }
+      get_dam_order_sales_order_dates: {
+        Args: { p_line_ids: string[] }
+        Returns: {
+          order_line_id: string
+          sales_order_date: string
         }[]
       }
       get_dam_order_tracking: {
@@ -4534,6 +4591,8 @@ export type Database = {
           source_text_sha256: string
         }[]
       }
+      get_render_z_nas_password: { Args: never; Returns: string }
+      get_sg_nas_password: { Args: never; Returns: string }
       get_sg_preview_stats: { Args: never; Returns: Json }
       get_sg_render_queue_stats: { Args: never; Returns: Json }
       get_style_guide_deterministic_tag_batch: {
@@ -4691,16 +4750,32 @@ export type Database = {
         Returns: number
       }
       rebuild_dam_search_documents: { Args: never; Returns: Json }
-      rebuild_style_groups_batch: {
-        Args: { p_batch_size?: number; p_last_asset_id?: string }
-        Returns: {
-          assets_assigned: number
-          assets_ungrouped: number
-          done: boolean
-          groups_created: number
-          next_cursor: string
-        }[]
-      }
+      rebuild_style_groups_batch:
+        | {
+            Args: { p_batch_size?: number; p_last_asset_id?: string }
+            Returns: {
+              assets_assigned: number
+              assets_ungrouped: number
+              done: boolean
+              groups_created: number
+              next_cursor: string
+            }[]
+          }
+        | {
+            Args: {
+              p_batch_size: number
+              p_changed_since: string
+              p_last_asset_id: string
+            }
+            Returns: {
+              assets_assigned: number
+              assets_ungrouped: number
+              done: boolean
+              groups_created: number
+              next_cursor: string
+              rows_examined: number
+            }[]
+          }
       reconcile_stale_sg_files_batch: {
         Args: {
           p_batch_size?: number
@@ -5037,6 +5112,11 @@ export type Database = {
         Args: { dismissed: boolean; item_keys: string[] }
         Returns: number
       }
+      set_render_z_nas_password: {
+        Args: { p_password: string }
+        Returns: undefined
+      }
+      set_sg_nas_password: { Args: { p_password: string }; Returns: undefined }
       set_style_group_cover: {
         Args: { p_asset_id: string; p_group_id: string }
         Returns: undefined

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 3779,
+  "outcome": "ready-for-merge",
+  "pr": 4523,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3779/5",
+  "contract_sha256": "d5d656174f724cb01f1bc1bd50adcc12a6d0d4cda2b113954569c6e280e49cdc",
+  "base_sha": "356eb84d519586db72b56cce6aa6534da2527b1a",
+  "head_sha": "b4bc4536b98b8930dc0a932ada57551db98da7d6",
+  "files_changed": [
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/merge-queue-gate.yml",
+    "docs/verification/shared-release-holds/2026-10-20-guarded-merge-baseline.md",
+    "plan_shared_release_hold_reduction.md",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/guarded-merge-preparation-split.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors on the fix head against 356eb84d."
+    },
+    {
+      "command": "node --test scripts/guarded-merge-preparation-split.test.mjs scripts/check-merge-queue-workflows.test.mjs scripts/check-guarded-merge-sync-dispatch.test.mjs scripts/check-required-checks-preflight.test.mjs scripts/check-exact-head-approval.test.mjs scripts/merge-queue-contract.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/check-closeout-readiness.test.mjs scripts/check-lane-route-sync.test.mjs",
+      "exit_code": 0,
+      "evidence": "1190 passed, 0 failed on the fix head (October 20, 2026, 9:20 PM EDT, edge-dev)."
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 4 is superseded by this generation; its DeepSeek REJECT is answered by the fix commit and its pair is retired.",
+    "The fix head preceded the contract publication; this evidence pair is the only commit after it.",
+    "Live proof of the split is produced by the guarded merges that run after this change is on main and is recorded on #3779.",
+    "Plan steps 2 and 4-10 remain open and are not claimed."
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261019183716",
+  "migration_sha256": "12a00bb3852bacc632e8070690a08532c99f2ee02bfce3016662972046440dc6",
+  "checks": [],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 116,
+      "line_end": 116,
+      "disposition": "no_durable_target",
+      "reason": "Dynamic SQL only executes a fixed SELECT over api.dam_order_list; allowlisted sort and filter identifiers cannot select a runtime object, and the query performs no DDL or data mutation."
+    }
+  ]
+}

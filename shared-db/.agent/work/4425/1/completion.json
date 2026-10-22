@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 4425,
+  "outcome": "ready-for-merge",
+  "pr": 4433,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4425/1",
+  "contract_sha256": "ba5532f84cc68a78969af82d8cf1dbf825a81c22338c496b2bce9a268d1d9f74",
+  "head_sha": "adefd8f96575328ac7a4ea9ae90ef79d1f633b08",
+  "base_sha": "977eec03bf3504646efb738b6e523793e2066333",
+  "files_changed": [
+    "AGENTS.md",
+    "HANDOFF.d/2026-10-18T1421Z-edge-dev3-codex-rls-performance-plan.md",
+    "docs/verification/rls-initplan/2026-10-18-baseline.md",
+    "docs/verification/rls-initplan/4425-publication.md",
+    "plan_database_efficiency_and_api_security.md",
+    "plan_rls_request_constant_checks.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed; no migrations added."
+    },
+    {
+      "command": "node --test scripts/check-handoff-contract.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 tests passed, 0 failed."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Exit 0, no whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Adopted existing candidate without modifying its five files; validation/publication alone follows contract.",
+    "No permissions or database changes."
+  ],
+  "stop_conditions_hit": []
+}

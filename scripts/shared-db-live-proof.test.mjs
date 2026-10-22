@@ -121,3 +121,92 @@ test("4064 passes only when every concurrent increment landed", async () => {
   assert.throws(() => evaluateCounters4064({ processed: 9, stats: { proof: 10 }, marker: "live-proof-4064" }), ProofFailure);
   assert.throws(() => evaluateCounters4064({ processed: 10, stats: { proof: 7 }, marker: "live-proof-4064" }), ProofFailure);
 });
+
+import { evaluateNoReuse4257, parseRollbackResult4257, newYorkDate, expectedSoDate, evaluateSoDates4268, evaluateRawAccess4268 } from "./shared-db-live-proof.mjs";
+import { createGeneratedTypesProof } from "./shared-db-generated-types-proof.mjs";
+
+const refusedReuse = { refused: true, sqlstate: "23505", constraint: "production_po_no_reuse" };
+const good4257 = () => ({
+  trigger: { enabled: "O", definition: "CREATE TRIGGER production_po_no_reuse BEFORE INSERT OR UPDATE ON plm.production_order FOR EACH ROW EXECUTE FUNCTION plm.guard_production_po_number()" },
+  orders_readable: 3501,
+  edit_existing: { ok: true, rows: 1 },
+  change_existing_po: { refused: true, sqlstate: "23514" },
+  reuse_variant: refusedReuse, reuse_after_void: refusedReuse, reuse_after_delete: refusedReuse,
+  unreserved_existing_numbers: 0,
+  admission_guard: { app_roles_can_write_admissions: false, app_roles_can_write_reservations: false, digest_checks: 2, order_id_primary_key: true },
+});
+
+test("4257 reads the result only from the always-rollback marker", () => {
+  const message = `Failed to run sql query: ERROR:  P0001: POPDAM_LIVE_PROOF_4257:${JSON.stringify(good4257())}\nCONTEXT:  PL/pgSQL`;
+  assert.equal(parseRollbackResult4257(400, { message }).orders_readable, 3501);
+  assert.throws(() => parseRollbackResult4257(201, [{}]), ProofFailure);
+  assert.throws(() => parseRollbackResult4257(400, { message: "ERROR: P0001: POPDAM_LIVE_PROOF_4257_FAILED:no order to probe" }), ProofFailure);
+});
+
+test("4257 passes only when every writer path refuses reuse and edits still work", () => {
+  assert.ok(evaluateNoReuse4257(good4257()));
+  for (const mutate of [
+    (r) => { r.trigger.enabled = "D"; },
+    (r) => { r.edit_existing = { ok: false, sqlstate: "23514" }; },
+    (r) => { r.change_existing_po = { refused: false }; },
+    (r) => { r.reuse_variant = { refused: true, sqlstate: "23505", constraint: "other" }; },
+    (r) => { delete r.reuse_after_delete; },
+    (r) => { r.unreserved_existing_numbers = 1; },
+    (r) => { r.admission_guard.app_roles_can_write_admissions = true; },
+  ]) {
+    const r = good4257();
+    mutate(r);
+    assert.throws(() => evaluateNoReuse4257(r), ProofFailure);
+  }
+});
+
+test("4268 computes the New York calendar date from a ColdLion stamp", () => {
+  assert.equal(newYorkDate("2026-08-11 11:56:56.357-04"), "2026-08-11");
+  assert.equal(newYorkDate("2026-08-12 02:30:00+00"), "2026-08-11");
+  assert.equal(newYorkDate("1999-12-31 00:00:00+00"), null);
+  assert.equal(expectedSoDate({ kind: "single", stamp_rows: 2, stamped_rows: 2, distinct_stamps: ["2026-08-12 02:30:00+00"] }), "2026-08-11");
+  assert.equal(expectedSoDate({ kind: "missing_or_conflicting", stamp_rows: 2, stamped_rows: 2, distinct_stamps: ["a", "b"] }), null);
+});
+
+test("4268 needs exact dates for linked lines and blanks for the rest", () => {
+  const sample = [
+    { order_line_id: "a", kind: "single", stamp_rows: 1, stamped_rows: 1, distinct_stamps: ["2026-08-11 11:56:56-04"] },
+    { order_line_id: "b", kind: "missing" },
+    { order_line_id: "c", kind: "not_linked" },
+  ];
+  const rows = [{ order_line_id: "a", sales_order_date: "2026-08-11" }, { order_line_id: "b", sales_order_date: null }, { order_line_id: "c", sales_order_date: null }];
+  assert.deepEqual(evaluateSoDates4268(sample, rows), { dated: 1, blank_missing: 1, blank_not_linked: 1 });
+  assert.throws(() => evaluateSoDates4268(sample, rows.slice(0, 2)), ProofFailure);
+  assert.throws(() => evaluateSoDates4268(sample, [{ ...rows[0], sales_order_date: "2026-08-12" }, rows[1], rows[2]]), ProofFailure);
+  assert.throws(() => evaluateSoDates4268(sample, [rows[0], { order_line_id: "b", sales_order_date: "2026-08-11" }, rows[2]]), ProofFailure);
+});
+
+test("4268 rejects any raw ColdLion or anon reader access", () => {
+  const raw = { anon_select_order_history_line: false, authenticated_select_order_history_line: false, anon_usage_coldlion_schema: false, authenticated_usage_coldlion_schema: false, anon_execute_reader: false, authenticated_execute_reader: true };
+  assert.ok(evaluateRawAccess4268(raw));
+  assert.throws(() => evaluateRawAccess4268({ ...raw, anon_execute_reader: true }), ProofFailure);
+  assert.throws(() => evaluateRawAccess4268({ ...raw, authenticated_select_order_history_line: true }), ProofFailure);
+});
+
+test("generated-types proof requires each issue's objects", () => {
+  const sha = "a".repeat(40);
+  const t4268 = "export type Database = {\n get_dam_order_sales_order_dates: {\n Args: { p_line_ids: string[] }\n Returns: { order_line_id: string\n sales_order_date: string }[] } }";
+  const proof = createGeneratedTypesProof({ source: t4268, workIssue: 4268, applicationCommitSha: sha });
+  assert.equal(proof.work_issue, 4268);
+  assert.match(proof.generated_types_sha256, /^sha256:[0-9a-f]{64}$/);
+  assert.throws(() => createGeneratedTypesProof({ source: t4268, workIssue: 4257, applicationCommitSha: sha }));
+  assert.throws(() => createGeneratedTypesProof({ source: "export type Database = {}", workIssue: 4268, applicationCommitSha: sha }));
+});
+
+test("4190 passes only with both new schedules active and run since the change", async () => {
+  const { evaluateCadence4190 } = await import("./shared-db-live-proof.mjs");
+  const ok = [
+    { jobname: "refresh-style-guide-library-default-snapshot", schedule: "*/15 * * * *", active: true, succeeded_runs: 4 },
+    { jobname: "refresh-style-guide-matviews", schedule: "7 * * * *", active: true, succeeded_runs: 1 },
+  ];
+  assert.equal(evaluateCadence4190(ok), ok);
+  assert.throws(() => evaluateCadence4190([{ ...ok[0], schedule: "*/5 * * * *" }, ok[1]]), NotYetApplied);
+  assert.throws(() => evaluateCadence4190([ok[0], { ...ok[1], active: false }]), ProofFailure);
+  assert.throws(() => evaluateCadence4190([ok[0], { ...ok[1], succeeded_runs: 0 }]), ProofFailure);
+  assert.throws(() => evaluateCadence4190([ok[0]]), ProofFailure);
+});

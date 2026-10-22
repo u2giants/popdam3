@@ -3,6 +3,22 @@ import test from "node:test";
 import { buildMetaResponsesBody, isMetaDirectModel, metaChatCompletion, metaModelId } from "./meta-model-api.js";
 import { metaDispatcher } from "./meta-connection.js";
 
+test("Meta's canonical authorization, billing and rate refusals consume no generation", async () => {
+  const { classifyMetaSubmissionFailure } = await import("./meta-model-api.js");
+  for (const [status, type, code] of [
+    [401, "authentication_error", "invalid_api_key"],
+    [402, "billing_error", "billing_not_configured"],
+    [403, "permission_error", null],
+    [429, "rate_limit_error", "rate_limit_exceeded"],
+  ] as const) {
+    const error = classifyMetaSubmissionFailure(status, JSON.stringify({ error: { type, code, message: "Refused" } }));
+    assert.equal(error.name, "DefinitiveBatchRejectionError");
+    assert.equal(error.status, status);
+  }
+  assert.equal(classifyMetaSubmissionFailure(503, JSON.stringify({ error: { message: "Unknown" } })).name, "AmbiguousBatchSubmissionError");
+  assert.equal(classifyMetaSubmissionFailure(401, JSON.stringify({ error: { type: "billing_error", message: "Mismatch" } })).name, "AmbiguousBatchSubmissionError");
+});
+
 test("recognizes and unwraps explicit direct Meta model IDs", () => {
   assert.equal(isMetaDirectModel("meta-direct/muse-spark-1.3-contributor"), true);
   assert.equal(isMetaDirectModel("meta/muse-spark-1.3"), false);
@@ -121,4 +137,216 @@ test("contributor calls are capped at two in flight within this worker", async (
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("stream creation extracts chunked creation ID and stops stream; same ID retrieval works", async () => {
+  const { createStoredMetaResponse, retrieveStoredMetaResponse } = await import("./meta-model-api.js");
+  const original = globalThis.fetch; let posts = 0, gets = 0;
+  globalThis.fetch = async (_url, init) => {
+    if (init?.method === "POST") {
+      posts++; const body = JSON.parse(String(init.body)); assert.equal(body.stream,true);assert.equal(body.store,true);assert.equal(body.background,undefined);
+      const pieces=['event: response.created\r\ndata: {"type":"response.created","response":{"id":"resp_', 'test"}}\r\n\r\n'];
+      return new Response(new ReadableStream({ start(controller) { for(const piece of pieces) controller.enqueue(new TextEncoder().encode(piece)); }}));
+    }
+    gets++;return new Response('{"id":"resp_test","status":"completed"}');
+  };
+  try {
+    assert.equal(await createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]}),"resp_test");
+    assert.equal((await retrieveStoredMetaResponse("test","resp_test")).id,"resp_test");assert.equal(posts,1);assert.equal(gets,1);
+  } finally {globalThis.fetch=original;}
+});
+test("stream lost before creation ID is ambiguous and never internally re-POSTs", async()=>{
+ const {createStoredMetaResponse}=await import("./meta-model-api.js");const original=globalThis.fetch;let posts=0;
+ globalThis.fetch=async()=>{posts++;throw new DOMException("timed out","TimeoutError");};
+ try{await assert.rejects(createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]}),/ambiguous/);assert.equal(posts,1);}finally{globalThis.fetch=original;}
+});
+
+test("creation accepts multiline LF SSE with split UTF8 and an opaque stored ID",async()=>{
+ const {createStoredMetaResponse}=await import("./meta-model-api.js");const original=globalThis.fetch;
+ const bytes=new TextEncoder().encode(': café\n\nevent: response.created\ndata: {"type":"response.created",\ndata: "response":{"id":"opaque-response-id"}}\n\n');
+ globalThis.fetch=async()=>new Response(new ReadableStream({start(c){for(let i=0;i<bytes.length;i++)c.enqueue(bytes.slice(i,i+1));}}));
+ try{assert.equal(await createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]}),"opaque-response-id");}finally{globalThis.fetch=original;}
+});
+
+test("pending asynchronous generation reserves capacity across restart and terminal proof releases it",async()=>{
+ const {synchronizeMetaReservations,metaAsyncBusy,retrieveStoredMetaResponse}=await import("./meta-model-api.js");
+ const original=globalThis.fetch;
+ synchronizeMetaReservations({a:{status:"failed",run_id:"owner-a",external_job:{provider:"meta-responses",phase:"pending",provider_batch_id:"opaque-response-id"}}});
+ assert.equal(metaAsyncBusy("owner-b"),true);assert.equal(metaAsyncBusy("owner-a"),true);
+ globalThis.fetch=async()=>new Response('{"id":"opaque-response-id","status":"completed"}');
+ try{await retrieveStoredMetaResponse("test","opaque-response-id");synchronizeMetaReservations({});assert.equal(metaAsyncBusy("owner-b"),false);}finally{globalThis.fetch=original;}
+ synchronizeMetaReservations({a:{status:"failed",run_id:"owner-a",external_job:{provider:"meta-responses",phase:"ambiguous_submission"}}});assert.equal(metaAsyncBusy("owner-b"),true);assert.equal(metaAsyncBusy("owner-a"),false);synchronizeMetaReservations({});
+});
+test("Meta typed output-format rejection is definitive; HTML,404,5xx and safety are never alternate authorization",async()=>{
+ const {classifyMetaSubmissionFailure,MetaCapabilityRejectionError}=await import("./meta-model-api.js");
+ const body=JSON.stringify({error:{type:"invalid_request_error",code:null,param:"text.format",message:"Unsupported schema"}});
+ assert.ok(classifyMetaSubmissionFailure(400,body) instanceof MetaCapabilityRejectionError);
+ for(const status of [404,500,503])assert.equal(classifyMetaSubmissionFailure(status,body).name,"AmbiguousBatchSubmissionError");
+ assert.equal(classifyMetaSubmissionFailure(400,"<html>no</html>").name,"AmbiguousBatchSubmissionError");
+ assert.equal(classifyMetaSubmissionFailure(400,JSON.stringify({error:{type:"invalid_request_error",code:"safety",param:"text.format",message:"Blocked"}})).name,"AmbiguousBatchSubmissionError");
+});
+
+test("only canonical typed Meta capacity envelopes authorize bounded capacity retry",async()=>{
+ const {classifyMetaSubmissionFailure,MetaCapacityRejectionError}=await import("./meta-model-api.js");
+ assert.ok(classifyMetaSubmissionFailure(404,JSON.stringify({error:{type:"invalid_request_error",code:"model_not_found"}})) instanceof MetaCapacityRejectionError);
+ for(const code of ["server_shutting_down","service_overloaded","backend_unavailable"])assert.ok(classifyMetaSubmissionFailure(503,JSON.stringify({error:{type:"server_error",code}})) instanceof MetaCapacityRejectionError);
+ for(const body of ["<html>overload</html>",JSON.stringify({error:{type:"server_error",code:"unknown"}}),JSON.stringify({error:{type:"invalid_request_error",code:"service_overloaded"}})])assert.equal(classifyMetaSubmissionFailure(503,body).name,"AmbiguousBatchSubmissionError");
+});
+
+test("pending async generation leaves exactly one synchronous Contributor slot and blocks second async creation",async()=>{
+ const {synchronizeMetaReservations,createStoredMetaResponse,retrieveStoredMetaResponse}=await import("./meta-model-api.js");const original=globalThis.fetch;
+ synchronizeMetaReservations({a:{status:"running",run_id:"pending-owner",external_job:{provider:"meta-responses",phase:"pending",provider_batch_id:"reserved-id"}}});
+ let active=0,peak=0,posts=0;
+ globalThis.fetch=async(_url,init)=>{if(init?.method==="POST"){posts++;active++;peak=Math.max(peak,active);await new Promise(resolve=>setTimeout(resolve,3));active--;return new Response('{"status":"completed","output":[]}');}return new Response('{"id":"reserved-id","status":"completed"}');};
+ try{
+  await assert.rejects(createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]},60_000,"another-owner"),/pending/);assert.equal(posts,0);
+  await Promise.all(Array.from({length:3},()=>metaChatCompletion("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]})));assert.equal(peak,1);
+  await retrieveStoredMetaResponse("test","reserved-id");synchronizeMetaReservations({});
+ }finally{globalThis.fetch=original;}
+});
+
+test("paused matching-account response observation frees terminal capacity without changing operation; other cases remain held",async()=>{
+ const {observePausedMetaResponse,synchronizeMetaReservations,metaAsyncBusy}=await import("./meta-model-api.js");const {accountFingerprint}=await import("./batch-provider.js");
+ const paused={paused:{status:"failed" as const,run_id:"observer-owner",external_job:{provider:"meta-responses" as const,phase:"pending" as const,model:"meta-direct/muse-spark-1.3-contributor",provider_batch_id:"paused-observe-id",account_fingerprint:accountFingerprint("test")}}};
+ const before=JSON.stringify(paused);synchronizeMetaReservations(paused);let gets=0;
+ const live=async()=>{gets++;return {id:"paused-observe-id",status:"in_progress"};};
+ assert.equal(await observePausedMetaResponse(paused,"test",live,100_000),false);assert.equal(metaAsyncBusy("another-owner"),true);
+ assert.equal(await observePausedMetaResponse(paused,"test",live,100_100),false);assert.equal(gets,1);
+ const unknown=async()=>({id:"paused-observe-id",status:"unknown"});assert.equal(await observePausedMetaResponse(paused,"test",unknown,130_001),false);assert.equal(metaAsyncBusy("another-owner"),true);
+ const refused=async()=>{throw new Error("refused");};assert.equal(await observePausedMetaResponse(paused,"test",refused,160_002),false);assert.equal(metaAsyncBusy("another-owner"),true);
+ const terminal=async()=>({id:"paused-observe-id",status:"completed"});assert.equal(await observePausedMetaResponse(paused,"wrong-account",terminal,190_003),false);assert.equal(metaAsyncBusy("another-owner"),true);
+ assert.equal(await observePausedMetaResponse(paused,"test",terminal,190_003),true);synchronizeMetaReservations(paused);assert.equal(metaAsyncBusy("another-owner"),false);assert.equal(JSON.stringify(paused),before);
+ const other={other:{status:"failed" as const,external_job:{provider:"openrouter" as const,phase:"pending" as const,provider_batch_id:"other-id",account_fingerprint:accountFingerprint("test")}}};assert.equal(await observePausedMetaResponse(other,"test",terminal,220_004),false);
+});
+test("ephemeral acknowledged ID survives unbound snapshot downgrade and can be terminally released",async()=>{
+ const {createStoredMetaResponse,synchronizeMetaReservations,metaAsyncBusy,retrieveStoredMetaResponse}=await import("./meta-model-api.js");const original=globalThis.fetch;
+ globalThis.fetch=async(_url,init)=>init?.method==="POST"?new Response('data: {"type":"response.created","response":{"id":"ephemeral-id"}}\n\n'):new Response('{"id":"ephemeral-id","status":"completed"}');
+ try{
+  await createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]},60_000,"ephemeral-owner");
+  synchronizeMetaReservations({x:{status:"failed",run_id:"ephemeral-owner",external_job:{provider:"meta-responses",phase:"ambiguous_submission"}}});
+  assert.equal(metaAsyncBusy("ephemeral-owner"),true,"must retain actual ID rather than own unbound-null reservation");
+  await retrieveStoredMetaResponse("test","ephemeral-id");synchronizeMetaReservations({});assert.equal(metaAsyncBusy("another-owner"),false);
+ }finally{globalThis.fetch=original;}
+});
+test("busy create and expired actual pre-POST lease guard are never ambiguous and issue zero POSTs",async()=>{
+ const {createStoredMetaResponse,synchronizeMetaReservations}=await import("./meta-model-api.js");const {PreSubmissionError}=await import("./batch-submission-error.js");const original=globalThis.fetch;let posts=0;globalThis.fetch=async()=>{posts++;throw new Error("must not fetch");};
+ try{
+  synchronizeMetaReservations({x:{status:"failed",run_id:"busy-owner",external_job:{provider:"meta-responses",phase:"ambiguous_submission"}}});
+  await assert.rejects(createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]},60_000,"blocked-owner"),PreSubmissionError);synchronizeMetaReservations({});
+  await assert.rejects(createStoredMetaResponse("test",{model:"meta-direct/muse-spark-1.3-contributor",messages:[]},60_000,"expired-owner",()=>{throw new PreSubmissionError("lease expired");}),/lease expired/);assert.equal(posts,0);
+ }finally{globalThis.fetch=original;synchronizeMetaReservations({});}
+});
+
+test("healthy Meta request is byte-identical; the one internal budget override changes only the output limit", () => {
+  const request = { model: "meta-direct/muse-spark-1.3-contributor", messages: [{ role: "user" as const, content: "full original image analysis" }], max_tokens: 4000 };
+  const healthy = buildMetaResponsesBody(request);
+  assert.equal(JSON.stringify(healthy), JSON.stringify({ model: "muse-spark-1.3-contributor", input: [{ role: "user", content: "full original image analysis" }], max_output_tokens: 20384 }));
+  assert.deepEqual(buildMetaResponsesBody({ ...request, meta_max_output_tokens: 32768 }), { ...healthy, max_output_tokens: 32768 });
+});
+test("Meta retry budget rejects nonliteral overrides, other models, and reduction of a caller's budget before POST", () => {
+  const request = { model: "meta-direct/muse-spark-1.3-contributor", messages: [], max_tokens: 4000 };
+  for (const limit of [0, 20384, 32769, NaN, null, "32768"]) {
+    assert.throws(() => buildMetaResponsesBody({ ...request, meta_max_output_tokens: limit } as unknown as import("./openrouter.js").ChatCompletionRequest), /Invalid Meta output-exhaustion retry budget/);
+  }
+  assert.throws(() => buildMetaResponsesBody({ ...request, model: "meta-direct/other", meta_max_output_tokens: 32768 }), /Invalid Meta/);
+  assert.throws(() => buildMetaResponsesBody({ ...request, max_tokens: 20000, meta_max_output_tokens: 32768 }), /Invalid Meta/);
+  assert.throws(() => buildMetaResponsesBody({ ...request, max_tokens: NaN, meta_max_output_tokens: 32768 }), /Invalid Meta/);
+});
+
+test("invalid stored-response budget makes zero POSTs and leaves no phantom capacity reservation", async()=>{
+ const {createStoredMetaResponse,metaAsyncBusy,synchronizeMetaReservations}=await import("./meta-model-api.js");synchronizeMetaReservations({});const original=globalThis.fetch;let posts=0;
+ try{globalThis.fetch=async()=>{posts++;throw new Error("Unexpected POST");};await assert.rejects(createStoredMetaResponse("fixture-key",{model:"meta-direct/muse-spark-1.3-contributor",messages:[],max_tokens:20000,meta_max_output_tokens:32768},60000,"budget-owner"),/Invalid Meta/);assert.equal(posts,0);assert.equal(metaAsyncBusy("other-owner"),false);}finally{globalThis.fetch=original;synchronizeMetaReservations({});}
+});
+
+const ORPHAN_MODEL = "meta-direct/muse-spark-1.3-contributor";
+async function orphanFixture(owner: string, id: string) {
+ const m=await import("./meta-model-api.js");const {accountFingerprint}=await import("./batch-provider.js");
+ const job={provider:"meta-responses" as const,phase:"pending" as const,provider_batch_id:id,model:ORPHAN_MODEL,account_fingerprint:accountFingerprint("orphan-fixture-key")};
+ const snapshot={fixture:{status:"running" as const,run_id:owner,external_job:job}};m.synchronizeMetaReservations(snapshot);return {m,snapshot,job};
+}
+async function releaseFixture(id: string) {
+ const {retrieveStoredMetaResponse,synchronizeMetaReservations}=await import("./meta-model-api.js");const original=globalThis.fetch;
+ try{globalThis.fetch=async()=>new Response(JSON.stringify({id,status:"completed",model:"muse-spark-1.3-contributor"}));await retrieveStoredMetaResponse("orphan-fixture-key",id);}finally{globalThis.fetch=original;synchronizeMetaReservations({});}
+}
+test("rolling overlap: durably bound orphan GET proves terminal and frees capacity without native writes",async()=>{
+ const {m,snapshot}=await orphanFixture("overlap-owner","overlap-response");const before=JSON.stringify(snapshot);m.synchronizeMetaReservations({});let gets=0;
+ try{assert.equal(m.metaAsyncBusy("next-owner"),true);const terminal=async(_key:string,id:string,_timeout:number|undefined,expectedModel?:string)=>{gets++;assert.equal(id,"overlap-response");assert.equal(expectedModel,ORPHAN_MODEL);return {id,model:"muse-spark-1.3-contributor",status:"completed"};};assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",terminal,1_000_000),true);assert.equal(gets,1);assert.equal(m.metaAsyncBusy("next-owner"),false);assert.equal(JSON.stringify(snapshot),before);}finally{await releaseFixture("overlap-response");}
+});
+test("orphan pending, unknown, wrongID/model and transport failures retain capacity; wrong key issues no GET",async()=>{
+ const {m}=await orphanFixture("hold-owner","hold-response");m.synchronizeMetaReservations({});let gets=0;
+ try{
+  assert.equal(await m.observePausedMetaResponse({},"wrong-key",async()=>{gets++;return {};},1_100_000),false);assert.equal(gets,0);
+  const cases=[{id:"hold-response",model:"muse-spark-1.3-contributor",status:"queued"},{id:"hold-response",model:"muse-spark-1.3-contributor",status:"in_progress"},{id:"hold-response",model:"muse-spark-1.3-contributor",status:"unknown"},{id:"wrong",model:"muse-spark-1.3-contributor",status:"completed"},{id:"hold-response",model:"wrong",status:"completed"},{id:"hold-response",status:"completed"}];
+  let now=1_100_000;for(const response of cases){assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",async()=>{gets++;return response;},now),false);assert.equal(m.metaAsyncBusy("another"),true);now+=30_001;}
+  assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",async()=>{throw new Error("transport refused");},now),false);assert.equal(m.metaAsyncBusy("another"),true);
+ }finally{await releaseFixture("hold-response");}
+});
+test("strict orphan model validation occurs before the real GET helper releases a terminal reservation",async()=>{
+ const {m}=await orphanFixture("strict-owner","strict-response");m.synchronizeMetaReservations({});const original=globalThis.fetch;let gets=0;
+ try{
+  for(const model of [undefined,"wrong"]){globalThis.fetch=async()=>{gets++;return new Response(JSON.stringify({id:"strict-response",status:"completed",model}));};await assert.rejects(m.retrieveStoredMetaResponse("orphan-fixture-key","strict-response",60_000,ORPHAN_MODEL),/different or missing response model/);assert.equal(m.metaAsyncBusy("another"),true);}
+  globalThis.fetch=async()=>{gets++;return new Response(JSON.stringify({id:"strict-response",status:"completed",model:"muse-spark-1.3-contributor"}));};assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",undefined,1_400_000),true);assert.equal(gets,3);assert.equal(m.metaAsyncBusy("another"),false);
+ }finally{globalThis.fetch=original;await releaseFixture("strict-response");}
+});
+test("never durably bound acknowledgement and ambiguous NULL are never orphan polled",async()=>{
+ const m=await import("./meta-model-api.js");const original=globalThis.fetch;let gets=0;
+ try{
+  globalThis.fetch=async()=>new Response('data: {"type":"response.created","response":{"id":"unbound-orphan"}}\n\n');await m.createStoredMetaResponse("orphan-fixture-key",{model:ORPHAN_MODEL,messages:[]},60_000,"unbound-owner");m.synchronizeMetaReservations({});
+  assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",async()=>{gets++;return {};},1_500_000),false);assert.equal(gets,0);assert.equal(m.metaAsyncBusy("another"),true);await releaseFixture("unbound-orphan");
+  const ambiguous={ambiguous:{status:"failed" as const,run_id:"null-owner",external_job:{provider:"meta-responses" as const,phase:"ambiguous_submission" as const}}};m.synchronizeMetaReservations(ambiguous);assert.equal(await m.observePausedMetaResponse(ambiguous,"orphan-fixture-key",async()=>{gets++;return {};},1_500_000),false);assert.equal(m.metaAsyncBusy("another"),true);assert.equal(gets,0);
+ }finally{globalThis.fetch=original;m.synchronizeMetaReservations({});}
+});
+test("conflicting durable model/account/owner provenance holds rather than guessing",async()=>{
+ const {m,snapshot,job}=await orphanFixture("conflict-owner","conflict-response");let gets=0;
+ try{m.synchronizeMetaReservations({...snapshot,second:{status:"running",run_id:"different-owner",external_job:{...job,model:"meta-direct/different",account_fingerprint:"0123456789abcdef"}}});m.synchronizeMetaReservations({});assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",async()=>{gets++;return {id:"conflict-response",model:"muse-spark-1.3-contributor",status:"completed"};},1_600_000),false);assert.equal(gets,0);assert.equal(m.metaAsyncBusy("another"),true);}finally{await releaseFixture("conflict-response");}
+});
+test("one unified observation per tick is fair and throttled across paused and orphan jobs",async()=>{
+ const {m}=await orphanFixture("fair-orphan-owner","fair-orphan");const {accountFingerprint}=await import("./batch-provider.js");
+ const paused={paused:{status:"failed" as const,run_id:"fair-paused-owner",external_job:{provider:"meta-responses" as const,phase:"pending" as const,provider_batch_id:"fair-paused",model:ORPHAN_MODEL,account_fingerprint:accountFingerprint("orphan-fixture-key")}}};m.synchronizeMetaReservations(paused);const observed:string[]=[];
+ try{const pending=async(_key:string,id:string)=>{observed.push(id);return {id,model:"muse-spark-1.3-contributor",status:"in_progress"};};await m.observePausedMetaResponse(paused,"orphan-fixture-key",pending,1_700_000);assert.equal(observed.length,1);await m.observePausedMetaResponse(paused,"orphan-fixture-key",pending,1_705_000);assert.equal(observed.length,2);assert.equal(new Set(observed).size,2);await m.observePausedMetaResponse(paused,"orphan-fixture-key",pending,1_710_000);assert.equal(observed.length,2);await m.observePausedMetaResponse(paused,"orphan-fixture-key",pending,1_730_001);assert.equal(observed[2],observed[0]);}finally{await releaseFixture("fair-orphan");await releaseFixture("fair-paused");}
+});
+test("late orphan completion never releases the owner's newer replacement ID",async()=>{
+ const {m}=await orphanFixture("late-owner","late-old");m.synchronizeMetaReservations({});
+ try{const oldTerminal=async()=>{await orphanFixture("late-owner","late-new");return {id:"late-old",model:"muse-spark-1.3-contributor",status:"completed"};};assert.equal(await m.observePausedMetaResponse({},"orphan-fixture-key",oldTerminal,1_800_000),false);assert.equal(m.metaAsyncBusy("late-owner"),true);}finally{await releaseFixture("late-old");await releaseFixture("late-new");}
+});
+test("live and queued referenced jobs are not treated as missing-job orphans",async()=>{
+ const {m,snapshot}=await orphanFixture("active-owner","active-response");let gets=0;
+ try{for(const status of ["running","queued"] as const){const current={fixture:{...snapshot.fixture,status}};m.synchronizeMetaReservations(current);assert.equal(await m.observePausedMetaResponse(current,"orphan-fixture-key",async()=>{gets++;return {};},1_900_000),false);}assert.equal(gets,0);assert.equal(m.metaAsyncBusy("other"),true);}finally{await releaseFixture("active-response");}
+});
+
+test("real strict GET captures binding before fetch and retains conflicts/replacements introduced during await",async()=>{
+ const original=globalThis.fetch;
+ try{
+  for(const mode of ["conflict","replacement"]){
+   const oldId=`real-race-${mode}`;const {m,snapshot,job}=await orphanFixture(`real-race-owner-${mode}`,oldId);m.synchronizeMetaReservations({});
+   globalThis.fetch=async()=>{
+    if(mode==="conflict")m.synchronizeMetaReservations({...snapshot,changed:{status:"running",run_id:"different-real-owner",external_job:{...job,account_fingerprint:"0123456789abcdef"}}});
+    else await orphanFixture(`real-race-owner-${mode}`,"real-race-replacement-new");
+    return new Response(JSON.stringify({id:oldId,model:"muse-spark-1.3-contributor",status:"completed"}));
+   };
+   await assert.rejects(m.retrieveStoredMetaResponse("orphan-fixture-key",oldId,60_000,ORPHAN_MODEL),/binding changed/);
+   assert.equal(m.metaAsyncBusy("another-owner"),true,"real helper must not release the current reservation before post-GET guard");
+   await releaseFixture(oldId);if(mode==="replacement"){assert.equal(m.metaAsyncBusy("another-owner"),true);await releaseFixture("real-race-replacement-new");}
+  }
+ }finally{globalThis.fetch=original;}
+});
+
+test("an ID referenced by a live job or conflicting paused binding never enters the observation pool",async()=>{
+ const {m,snapshot,job}=await orphanFixture("referenced-owner","referenced-response");let gets=0;
+ try{
+  const duplicate={...snapshot,paused:{status:"failed" as const,run_id:"other-referenced-owner",external_job:job}};m.synchronizeMetaReservations(duplicate);
+  assert.equal(await m.observePausedMetaResponse(duplicate,"orphan-fixture-key",async()=>{gets++;return {id:"referenced-response",model:"muse-spark-1.3-contributor",status:"completed"};},2_000_000),false);assert.equal(gets,0);
+  const allPaused={paused:{...duplicate.paused}};m.synchronizeMetaReservations(allPaused);assert.equal(await m.observePausedMetaResponse(allPaused,"orphan-fixture-key",async()=>{gets++;return {};},2_000_001),false);assert.equal(gets,0);assert.equal(m.metaAsyncBusy("another"),true);
+ }finally{await releaseFixture("referenced-response");}
+});
+
+test("expired ID-less ambiguous Meta reservations stop holding a Contributor slot", async () => {
+  const { synchronizeMetaReservations, metaAsyncBusy, IDLESS_RESERVATION_TTL_MS } = await import("./meta-model-api.js");
+  const since = "2026-10-18T17:10:50.000Z";
+  const ops = { "ai-tag-all": { status: "interrupted", run_id: "stuck-owner", external_job: { provider: "meta-responses", phase: "ambiguous_submission", ambiguous_since: since } } } as never;
+  synchronizeMetaReservations(ops, Date.parse(since) + 60_000);
+  assert.equal(metaAsyncBusy("other"), true);
+  synchronizeMetaReservations(ops, Date.parse(since) + IDLESS_RESERVATION_TTL_MS);
+  assert.equal(metaAsyncBusy("other"), false);
+  synchronizeMetaReservations({});
 });

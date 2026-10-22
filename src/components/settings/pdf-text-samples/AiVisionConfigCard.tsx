@@ -8,8 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Sparkles, Save, RefreshCw, Check } from "lucide-react";
 import { toast } from "sonner";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { catalogWarningOf, modelAllowedForTask, preserveCatalogOnWarning } from "@/lib/ai-model-options";
-import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
+import { catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning } from "@/lib/ai-model-options";
 
 export interface OpenRouterModel {
   id: string;
@@ -25,19 +24,17 @@ export function AiVisionConfigCard() {
   const queryClient = useQueryClient();
 
   const { data: configData } = useQuery({
-    queryKey: ["admin-config", "PDF_EXTRACTION_CONFIG", "OPENROUTER_API_KEY"],
-    queryFn: () => call("get-config", { keys: ["PDF_EXTRACTION_CONFIG", "OPENROUTER_API_KEY"] }),
+    queryKey: ["admin-config", "PDF_EXTRACTION_CONFIG", "OPENROUTER_API_KEY", "AI_MODEL_POOL"],
+    queryFn: () => call("get-config", { keys: ["PDF_EXTRACTION_CONFIG", "OPENROUTER_API_KEY", "AI_MODEL_POOL"] }),
   });
-  const savedOpenRouterKey = ((configData?.config?.OPENROUTER_API_KEY as Record<string, unknown> | undefined)?.value
-    ?? configData?.config?.OPENROUTER_API_KEY
-    ?? "") as string;
-  const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
+  const openRouterKeyStatus = configData?.config?.OPENROUTER_API_KEY as { updated_at?: unknown } | undefined;
+  const openRouterAccountFingerprint = typeof openRouterKeyStatus?.updated_at === "string" ? openRouterKeyStatus.updated_at : "unset";
 
   // Fetch vision models live from OpenRouter and saved selection in parallel
   const pdfModelQueryKey = ["openrouter-vision-models", openRouterAccountFingerprint] as const;
   const { data: modelsData, isLoading: modelsLoading, error: modelsError } = useQuery<{ models: OpenRouterModel[]; warning: string | null }>({
     queryKey: pdfModelQueryKey,
-    enabled: !!savedOpenRouterKey && openRouterAccountFingerprint !== null,
+    enabled: !!configData,
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
       const warning = catalogWarningOf(data);
@@ -50,13 +47,23 @@ export function AiVisionConfigCard() {
     staleTime: 5 * 60_000,
   });
 
-  const visionModels: OpenRouterModel[] = ((modelsData?.models ?? []) as OpenRouterModel[])
+  const modelPool = normalizeAiModelPool(
+    (configData?.config?.AI_MODEL_POOL as Record<string, unknown> | undefined)?.value
+      ?? configData?.config?.AI_MODEL_POOL,
+  );
+  const availableVisionModels: OpenRouterModel[] = ((modelsData?.models ?? []) as OpenRouterModel[])
     .filter((m) => !hasUnavailableOpenRouterPricing(m.pricing) && modelAllowedForTask(m.id, "pdf_extraction"));
-
   const savedModelId: string = (() => {
     const raw = configData?.config?.PDF_EXTRACTION_CONFIG?.value ?? configData?.config?.PDF_EXTRACTION_CONFIG;
     return (raw as Record<string, string> | null)?.ai_vision_model_id ?? "";
   })();
+  const visionModels = availableVisionModels.filter((model) => modelInPool(model.id, modelPool));
+  const currentOutsidePool = !!savedModelId && !modelInPool(savedModelId, modelPool);
+  const currentOption = savedModelId && !visionModels.some((model) => model.id === savedModelId)
+    ? availableVisionModels.find((model) => model.id === savedModelId) ?? { id: savedModelId, name: savedModelId, context_length: null }
+    : undefined;
+  const selectModels = includeCurrentModel(visionModels, currentOption);
+  const savedModelMissingFromCatalog = !!savedModelId && !availableVisionModels.some((model) => model.id === savedModelId);
 
   const [selectedModelId, setSelectedModelId] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -92,7 +99,7 @@ export function AiVisionConfigCard() {
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
           Used as the final fallback when mupdf text extraction and OCR both fail (e.g. scanned PDFs with no machine-readable text).
-          Sourced live from OpenRouter — all models that accept image input are shown.
+          Sourced from OpenRouter. Available models in Settings → Processing → AI Tagging controls which models appear here; a saved selection that is turned off remains visible.
         </p>
         {modelsLoading && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -107,16 +114,33 @@ export function AiVisionConfigCard() {
         {modelsData?.warning && (
           <p className="text-sm text-amber-600">{modelsData.warning}; showing the last available catalog.</p>
         )}
-        {!modelsLoading && !modelsError && visionModels.length === 0 && (
+        {!modelsLoading && !modelsError && availableVisionModels.length === 0 && !savedModelId && (
           <p className="text-sm text-amber-600">
             No vision models returned. Check that <code className="text-xs">OPENROUTER_API_KEY</code> is set in admin_config.
           </p>
         )}
-        {visionModels.length > 0 && (
+        {!modelsLoading && savedModelMissingFromCatalog && !currentOutsidePool && (
+          <p className="text-sm text-amber-600">
+            The saved model is not in the current OpenRouter catalog. Its selection remains visible; refresh the catalog or check the OpenRouter API key.
+          </p>
+        )}
+        {!modelsLoading && !modelsError && currentOutsidePool && availableVisionModels.length === 0 && (
+          <p className="text-sm text-amber-600">
+            The saved model is turned off in Available models and remains selected. No OpenRouter catalog models are currently available; check the API key or refresh the catalog.
+          </p>
+        )}
+        {!modelsLoading && availableVisionModels.length > 0 && visionModels.length === 0 && (
+          <p className="text-sm text-amber-600">
+            {currentOutsidePool
+              ? "All PDF catalog models are turned off in Available models; the saved selection remains available. Turn one on in Settings → Processing → AI Tagging."
+              : "All PDF models are turned off in Available models. Turn one on in Settings → Processing → AI Tagging."}
+          </p>
+        )}
+        {selectModels.length > 0 && (
           <div className="flex items-end gap-3">
             <div className="flex-1 space-y-1.5">
               <div className="flex items-center gap-2">
-                <Label className="text-xs">Vision model ({visionModels.length} available)</Label>
+                <Label className="text-xs">Vision model ({visionModels.length} available · needs vision input)</Label>
                 <Button
                   type="button"
                   variant="ghost"
@@ -134,14 +158,18 @@ export function AiVisionConfigCard() {
                   <SelectValue placeholder="Select a vision model…" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72 sm:min-w-[34rem]">
-                  {visionModels.map((m) => (
+                  {selectModels.map((m) => (
                     <SelectItem key={m.id} value={m.id} className="text-xs" suffix={formatOpenRouterPricing(m.pricing)}>
                       {m.name}
                       <span className="ml-2 text-muted-foreground text-[10px]">{m.id}</span>
+                      {currentOutsidePool && m.id === savedModelId && <span className="ml-2 text-amber-600 text-[10px]">turned off</span>}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {currentOutsidePool && selectedModelId === savedModelId && (
+                <p className="text-[10px] text-amber-600">The saved model is turned off in Available models and remains selected until you choose a model that is turned on.</p>
+              )}
             </div>
             <Button
               size="sm"

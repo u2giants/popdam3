@@ -1,5 +1,5 @@
 export const TAG_ASSET_REQUIRED_FIELDS: readonly string[];
-export const TAG_ASSET_SCHEMA: Record<string, unknown>;
+export const TAG_ASSET_SCHEMA: Record<string, any>;
 export const CONTENT_TYPE_VALUES: readonly string[];
 
 export interface AssetTagResult {
@@ -22,6 +22,8 @@ export interface TaggingPromptContext {
   extractedPdfText?: string | null;
   customInstructions?: string | null;
   usingPriorityOnly?: boolean;
+  licensorName?: string | null;
+  propertyName?: string | null;
 }
 
 export function buildTaggingSystemPrompt(context: TaggingPromptContext): string;

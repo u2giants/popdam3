@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 4230,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/368",
+  "contract_sha256": "e74912b9abb01476a564adfe2fa049d8ad81eb85922102e4ad7c0bc7660559f4",
+  "head_sha": "394ee157f24499a566b8813d0281c7ecf30826b2",
+  "base_sha": "4dcac5d27e02bb822b191c8748c6aeb67b6ff402",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~production_catalog_verification.py.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/lib/lanes/paid-review-git-reader.test.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "real large repository blob complete byte and digest equality PASS",
+      "exit_code": 0,
+      "evidence": "Real1.44MiB UTF8 Git blob: old default ENOBUFS, bounded read full byte and SHA256 equality PASS."
+    },
+    {
+      "command": "oversized Git output loud refusal and old budget/source/evidence controls PASS",
+      "exit_code": 0,
+      "evidence": "Shipped4MiB reader full boundary bytes equality and overbound ENOBUFS refusal; semantic >4MiB refusal; historical contract/report1MiB unchanged.148 focused tests preserve cap2/2758/history/independence."
+    },
+    {
+      "command": "current exact source provenance regression and focused offline suites PASS",
+      "exit_code": 0,
+      "evidence": "Actual original2336 head09d to currentebf normal comparison returns substantive with original b48b733269285250b2fd442441de1922ca175333 types/database.types.ts witness/blobef48750c7564c5f1f9eee8c43a2569bcadf7719a, not a synthetic queue witness."
+    },
+    {
+      "command": "owned whitespace identity remote readback and canonical Git evidence PASS",
+      "exit_code": 0,
+      "evidence": "Source2f20 diff-check/Albert identity and remote readback valid. Canonical Git validation necessarily follows seal before paid review."
+    },
+    {
+      "command": "literal ACL overload selected by actual resolved OID positive, inherited/default grant leaks and missing selected routine negatives PASS",
+      "exit_code": 0,
+      "evidence": "256catalog tests pass including temporal bare/literal ambiguity, protected final selected literal/other-role leak failures, aliases/names/modes, missing/wrong routine/default/inherited leak and explicit unsupported spellings."
+    },
+    {
+      "command": "real installed style source probe and exact selected ACL read-only catalog proof PASS",
+      "exit_code": 0,
+      "evidence": "Actual production qslly target read-only exact2421 probe passed:true; final normalized full enforcing catalog verifier exit0/no hard failure.14 ACL expectations and original failedautomaticrun retained, no routine/ACL mutation."
+    },
+    {
+      "command": "global invalidator manager import closure and semantically bound per-source truth audit PASS",
+      "exit_code": 0,
+      "evidence": "Global invalidator/import closure and per-source truth audit pass:345sites96sources, unchanged39 old catalog meanings plusone new explicit hard-refusal site."
+    },
+    {
+      "command": "complete clean-source Node and Python offline suites PASS",
+      "exit_code": 0,
+      "evidence": "Exact clean source394ee: Node4930total4929pass0fail1existingWindows skip; Python1519tests43existingconditional/live skips,0fail."
+    },
+    {
+      "command": "actual PostgreSQL17 mixed/named/mode/bare/alias ACL forms and malformed/unsupported/missing controls PASS",
+      "exit_code": 0,
+      "evidence": "Actual isolated PostgreSQL17 transactions prove literal\u2192bare revoke, bare\u2192literal grant, IN/OUT named arguments and qualified custom type; all exact derived selected-OID checks pass. Unsupported search-path-dependent/complex spellings explicitly RECORD with reason, never positive proof. Known supported missing/wrong selected OID remains FAIL."
+    },
+    {
+      "command": "actual shipped reader at4MiB and above4MiB plus sibling default512MiB current digest proof PASS",
+      "exit_code": 0,
+      "evidence": "Shipped reader exact4MiB full bytes and >4MiB ENOBUFS in actual provenance path pass; sibling defaultGit code read shows existing512MiB bound, actual1184246byte original types blob and current prContentDigest before/after read successfully. No sibling bound changed."
+    },
+    {
+      "command": "real PostgreSQL temporal overload creation mixed-order cases and final explicit leak negatives PASS",
+      "exit_code": 0,
+      "evidence": "Actual PG17 transactions: bare routine uniquely binds before second overload creation, then final explicit literal grant passes; reverse valid temporal grant safely RECORDs unprovable bare target. Earlier classifier falselyFAILed twice. Final literal revoke and another-role revokes still fail selected EXECUTE leaks. Six actual native transaction cases pass; no production write."
+    }
+  ],
+  "assumptions_resolved": [
+    "Prospective367 published before fixes; parent366/365/364 and all original source/head/review/native receipts retained.",
+    "Muse6399 wrong repository-scoped session refused before provider; supported wrapper-failure replacement6401 retained original marker, no provider pause.",
+    "DeepSeek6401 real native stop returned completed nonrecordable response with extra provisional decision; full8669chars read. Original formal artifact absent, nothing rewritten/refunded. Supported superseded-target lease release0e3a273 only after real source moved1771.",
+    "F1/F2 actual compatibility findings fixed and tested. F3 sibling concern disproved from actual512MiB default and real blob/digest reads. F4 shipped boundaries tested; F5 bare-only diagnostic corrected; F6 oldCI signal not called current green.",
+    "Original366pair privately byte-verified before own-only retirement; canonical source checks fully complete before first367pair.",
+    "Unknown5419/frozen3998/DAG/source capacity/status, JSON1MiB limits, exact hashing, claim/ref history and all database routines/ACLs remain unchanged.",
+    "Current live installed-state/corrected catalog proof remains separate from application deployment/week acceptance and original failedautomaticcatalogjob.",
+    "Current source SQL/migration guards and final source CI require normal exact-head checks; no oldapproval carries.",
+    "Recorded GLM6402REVISE38ac6fcc fullyread; actualrootvalidtemporaltransaction proves concern. All findingsbatched, exactlabels/comment/site corrected, unusedregex removed.",
+    "Final-catalog ambiguous bare targets cannotprove historicaloverloadidentity and explicitlyRECORD; never claim alloverloads satisfied. Final explicit selectedliteral/default/inherited/missing remainsstrict.",
+    "Original367pair byteverified private/Gitretained before own-onlyretirement;368published before edits and complete source checks before seal."
+  ],
+  "stop_conditions_hit": []
+}

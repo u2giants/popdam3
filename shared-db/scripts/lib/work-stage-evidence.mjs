@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto'
 import { verifyProductionEvidence } from './production-catalog-recovery.mjs'
 import { isTrustedOperatorComment } from './repository-identity.mjs'
 import { findCompletionRecord, isSuccessful } from './work-dependencies.mjs'
-import { parseOutcomeEvidence } from '../orchestrator-flow/outcome-lifecycle.mjs'
-import { STRUCTURAL_ROUTES, structuralWritesMatch } from '../orchestrator-flow/admission.mjs'
+import { parseOutcomeEvidence } from '../db-flow/outcome-lifecycle.mjs'
+import { STRUCTURAL_ROUTES, structuralWritesMatch } from '../db-flow/admission.mjs'
 
 export const REQUIRED_STAGES = Object.freeze(['implementation-merged', 'database-applied', 'live-verified', 'application-accepted', 'complete'])
 export const STAGE_FENCE = 'db-work-stage'

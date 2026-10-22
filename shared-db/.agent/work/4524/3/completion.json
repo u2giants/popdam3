@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "work_issue": 4524,
+  "outcome": "ready-for-merge",
+  "pr": 4525,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4524/3",
+  "contract_sha256": "ee4e9d0cc4acbd7c10446bdbb04fe40ea3490b7270edc06f63cb4ffe188dad81",
+  "base_sha": "f6cb6cc77e2217dddf1cff1e134a7175beb2d648",
+  "head_sha": "77d22737bab5de492252fde2f6f2db6e8b5f2940",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~check-skill-drift.mjs.json",
+    "docs/verification/throughput-retired-identity-sites-4524.json",
+    "scripts/check-skill-drift.mjs",
+    "scripts/check-skill-drift.test.mjs",
+    "scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors on the implementation head."
+    },
+    {
+      "command": "AI_DEVOPS_DIR=<current popcre/ai-devops skills> node --test scripts/check-skill-drift.test.mjs",
+      "exit_code": 0,
+      "evidence": "4 passed, 0 failed against popcre/ai-devops main skills read 2026-10-20."
+    },
+    {
+      "command": "AI_DEVOPS_DIR=<current popcre/ai-devops skills> node scripts/check-skill-drift.mjs --require-skills",
+      "exit_code": 0,
+      "evidence": "OK: checked 2 canonical skills against AGENTS.md; no contradictions."
+    },
+    {
+      "command": "node --test scripts/throughput-guard/*.test.mjs",
+      "exit_code": 0,
+      "evidence": "72 passed, 0 failed with the re-reviewed catalogue and the #4524 retirement record."
+    }
+  ],
+  "assumptions_resolved": [
+    "Generations 1 and 2 are superseded; their pairs are retired in the implementation history and exactly one pair is carried.",
+    "Implementation commits preceded the contract publication; this evidence pair is the only commit after them.",
+    "Main's Tools offline tests turning green after merge is the live proof and is recorded on #4524 before it closes."
+  ],
+  "stop_conditions_hit": []
+}

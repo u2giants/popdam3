@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
+// Normalize CRLF so source-shape assertions hold on Windows checkouts
+// (core.autocrlf=true rewrites LF to CRLF in the working tree).
+const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8").replace(/\r\n/g, "\n");
 
 describe("canonical licensor/property contract", () => {
   it("reads filter taxonomy from core tables", () => {
@@ -59,17 +61,32 @@ describe("canonical licensor/property contract", () => {
 
   it("fails loudly when ColdLion is unavailable", () => {
     const coldlion = read("supabase/functions/_shared/coldlion.ts");
+    const parser = read("supabase/functions/_shared/sku-parser.ts");
     expect(coldlion).toContain("COLDLION_API_KEY is missing");
-    expect(coldlion).toContain("throw new Error");
+    expect(coldlion).toContain("class ColdLionConfigError");
+    expect(coldlion).toContain("throw new ColdLionConfigError");
     expect(coldlion).not.toContain("HARDCODED_KEY");
     expect(coldlion).not.toContain("return {};");
+    // Config errors must propagate out of the non-fatal ColdLion fallbacks.
+    expect(parser).toContain("if (e instanceof ColdLionConfigError) throw e;");
+    expect(parser.match(/instanceof ColdLionConfigError/g)?.length).toBe(2);
+    // The key is read before the circuit breaker at both call sites, so a missing key is never masked.
+    expect(coldlion.match(/await readColdLionApiKey\(\);\n {2}breaker\.assertClosed/g)?.length).toBe(2);
+    expect(coldlion).toContain("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set");
+    expect(coldlion).toContain("res.error");
+    const handlers = read("supabase/functions/_shared/admin-handlers/coldlion-handlers.ts");
+    expect(handlers).toContain("readColdLionApiKey");
+    expect(handlers).not.toContain("COLDLION_API_KEY is missing");
   });
 
   it("keeps ColdLion MG codes scoped to their division", () => {
     const parser = read("supabase/functions/_shared/sku-parser.ts");
     const coldlion = read("supabase/functions/_shared/coldlion.ts");
-    expect(parser).toContain('getMgLookup("05", division_code)');
-    expect(parser).toContain('getMgLookup("06", division_code)');
+    // Display-name lookups stay division-scoped; an outage leaves names null
+    // (unresolved) instead of failing ingest — licensing comes from the mirror.
+    expect(parser).toContain('getMgLookupOrEmpty("05", division_code)');
+    expect(parser).toContain('getMgLookupOrEmpty("06", division_code)');
+    expect(parser).toContain("getMgLookup(mgTypeCode, divisionCode)");
     expect(coldlion).not.toContain("getLicensorLookup");
     expect(coldlion).not.toContain("{ ...cw, ...sp }");
   });

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": "scripts/transfer-stopped-merged-claim-author.mjs",
+  "sites": [
+    {
+      "site": "scripts/transfer-stopped-merged-claim-author.mjs:16",
+      "semantic_key": "scripts/transfer-stopped-merged-claim-author.mjs:0b1244144680d4970a77e7074b88c01cfd743a2a5ba06bb9f397f8b30597d4f6:context-7870d35e39a8329f24242b7f665c6c140878b31921740d6f2ccdab1346a269b0",
+      "legacy_semantic_key": "scripts/transfer-stopped-merged-claim-author.mjs:0b1244144680d4970a77e7074b88c01cfd743a2a5ba06bb9f397f8b30597d4f6:1",
+      "line_sha256": "0b1244144680d4970a77e7074b88c01cfd743a2a5ba06bb9f397f8b30597d4f6",
+      "disposition": "excluded",
+      "reason": "This command-line arity validation refuses absent, repeated or unsupported arguments before any custody operation; it makes no database catalog or migration-application claim."
+    }
+  ]
+}

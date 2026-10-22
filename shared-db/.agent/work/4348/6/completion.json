@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "work_issue": 4348,
+  "outcome": "ready-for-merge",
+  "reason": "Source routing and cleanup custody verified; assigned review, CI and guarded merge remain required.",
+  "pr": 4436,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4348/6",
+  "contract_sha256": "3722f23addcd72c3f09caaf1f1f8a2ccb0d019469d1d87bcbac48522596323b5",
+  "head_sha": "e4e38edc5b6717aa71dfad5aea86f4db009f7072",
+  "base_sha": "65e68f6f285f8a0079a5237b5b47c03e110bad86",
+  "files_changed": [
+    "docs/business-rules/licensing-master-data.md",
+    "docs/disney-dcp-withdrawal-answer-routing.md",
+    "docs/verification/orchestrator-retirement-reconciliation-4348.json",
+    "docs/verification/throughput-dispositions/scripts~reap-merged-worktrees.mjs.json",
+    "docs/verification/throughput-retired-identity-sites-4348-reconciliation.json",
+    "scripts/db-flow/admission.mjs",
+    "scripts/db-flow/no-progress-alarm.mjs",
+    "scripts/db-flow/no-progress-alarm.test.mjs",
+    "scripts/historical-item-mg-reclassification/README.md",
+    "scripts/historical-item-mg-reclassification/lib/retirement-gate.mjs",
+    "scripts/lib/engine-routing.mjs",
+    "scripts/lib/lanes/queue-routing.mjs",
+    "scripts/lib/lanes/review-leases.mjs",
+    "scripts/lib/lanes/reviewer-roster.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/queue-hygiene-report.mjs",
+    "scripts/queue-hygiene-report.test.mjs",
+    "scripts/reap-merged-worktrees.mjs",
+    "scripts/reap-merged-worktrees.test.mjs",
+    "scripts/report-ledger-drift-status.mjs",
+    "scripts/report-stale-handoffs.mjs",
+    "scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/reap-merged-worktrees.test.mjs scripts/db-flow/no-progress-alarm.test.mjs scripts/queue-hygiene-report.test.mjs scripts/report-stale-handoffs.test.mjs scripts/report-ledger-drift-status.test.mjs scripts/lib/session-authority.test.mjs scripts/db-flow/admission-outcome.test.mjs scripts/claim-author-transfer.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "1191 tests passed, 0 failed; tests6.log, 18 October 2026 EDT"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=353 sources=98 derived_digest=df438b7d1eee"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+      "exit_code": 0,
+      "evidence": "8 context identity-preservation tests passed, 0 failed; context6.log"
+    }
+  ],
+  "assumptions_resolved": [
+    "Claim4337 untouched; no database read/write or cleanup apply.",
+    "Recent/unmeasurable activity protection now unconditional; unreadable claims refuse apply; force and permanent holds preserved.",
+    "Historical wire names remain compatibility only; live instructions use claim-first."
+  ],
+  "stop_conditions_hit": []
+}

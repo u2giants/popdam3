@@ -12,9 +12,9 @@
  */
 
 import { db } from "../supabase.js";
-import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { getOpenRouterApiKey } from "../openrouter-key.js";
+import { getMetaApiKey } from "../provider-api-key.js";
 import type { ChatMessage } from "../openrouter.js";
 import { getRuntimeModelCapabilities, type ModelCapabilities } from "../model-capabilities.js";
 import { executeStructuredOutput } from "../structured-output.js";
@@ -115,9 +115,9 @@ export async function handleShortenItemDescriptions(opState: OpState): Promise<B
   const client = db();
   const model = await getClassificationModel();
   const directMeta = isMetaDirectModel(model);
-  const apiKey = directMeta ? config.metaApiKey : await getOpenRouterApiKey();
+  const apiKey = directMeta ? await getMetaApiKey() : await getOpenRouterApiKey();
   if (!apiKey) {
-    return { ok: false, done: false, error: `No AI API key configured (set ${directMeta ? "META_API_KEY" : "OPENROUTER_API_KEY"})` };
+    return { ok: false, done: false, error: `No AI API key configured in Settings (${directMeta ? "Meta" : "OpenRouter"})` };
   }
   const capabilities = directMeta ? META_CAPABILITIES(model) : await getRuntimeModelCapabilities(apiKey, model);
 

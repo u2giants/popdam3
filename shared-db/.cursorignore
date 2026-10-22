@@ -1,0 +1,33 @@
+# Keep context lean. Aligns with AGENTS.md "What to ignore".
+node_modules/
+supabase/.temp/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ai/
+.ai-review/
+.ai-review*.txt
+.claude/
+.agents/
+.mimocode/
+.playwright-mcp/
+tmp/
+outputs/
+docs/verification/
+docs/archive/
+docs/investigations/
+docs/prompts/
+docs/sql-snippets/
+docs/_drafts/
+
+# Historical work records — load only when a current doc or issue names them
+plan_*.md
+fix_*.md
+branch-cleanup-audit.md
+coordinator_take_over.md
+COORDINATOR_INTAKE.md
+DB_Data_Admin.md
+
+# Local generated audit artifacts (see .gitignore)
+designer_artist_*.csv
+designer_artist_*.xlsx

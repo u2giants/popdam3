@@ -179,8 +179,10 @@ test("a manual tag and a rejected tombstone both survive an AI re-tag", () => {
 
 test("a re-tag replaces stale AI rows and no code path bypasses the atomic writer", () => {
   assert.match(handlerSource, /rpc\("replace_asset_ai_tag_result"/);
-  const directWrites = handlerSource.match(/from\("asset_tags"\)/g) ?? [];
+  const directWrites = handlerSource.match(/from\("asset_tags"\)\s*\.(?!select\b)/g) ?? [];
   assert.deepEqual(directWrites, [], "asset_tags must only ever be written by the RPC");
+  assert.equal((handlerSource.match(/from\("asset_tags"\)/g) ?? []).length, 1, "only the one saved-result verification read is allowed");
+  assert.match(handlerSource, /from\("asset_tags"\)\.select\("id"\)\.eq\("asset_id", assetId\)/);
 
   // The live writer deletes this source's prior AI-owned rows before inserting,
   // inside one transaction, so a stale tag from an earlier run cannot survive and
@@ -281,4 +283,128 @@ test("the batch writer marks the asset tagged only after its tags are written", 
   await applyBatchTagResult(groups[0].assets[1].id, typedResult(["blue", "3/4 view", "studio scene", "visible zipper"]), "fixture-model", client as never);
   assert.equal(rpcCalls.length, 1);
   assert.equal(tableCalls.at(-1)?.op, "update", "the status update is the last write");
+});
+
+test("a file_sources save failure does not block the metadata save and is reported", async () => {
+  const order: string[] = [];
+  const client = {
+    rpc: async () => ({ error: null }),
+    from(table: string) {
+      const chain: Record<string, unknown> = {
+        select: () => chain,
+        single: async () => ({
+          data: { id: "a", filename: "techpack.pdf", file_type: "pdf", sku: "SKU123" },
+          error: null,
+        }),
+        update: () => { order.push(`update:${table}`); return chain; },
+        upsert: async (payload: unknown) => {
+          order.push(`upsert:${table}`);
+          if (table === "sku_files_used") return { error: { code: "57014", message: "statement timeout" } };
+          return { error: null };
+        },
+      };
+      chain.eq = () => ({ ...chain, then: (resolve: (v: unknown) => void) => resolve({ error: null }) });
+      return chain;
+    },
+  };
+  const result = await applyBatchTagResult(
+    groups[0].assets[1].id,
+    { ...typedResult(["blue", "3/4 view"]), files_used: ["SOURCE_A", "SOURCE_B"] },
+    "fixture-model",
+    client as never,
+  );
+  assert.equal(result.fileSourcesFailed, true, "the gap is reported to the caller");
+  assert.ok(order.includes("upsert:sku_files_used"), "file_sources was attempted");
+  assert.equal(order.at(-1), "update:assets", "metadata still saves after a file_sources failure");
+});
+
+test("a successful file_sources save reports no gap", async () => {
+  const client = {
+    rpc: async () => ({ error: null }),
+    from(table: string) {
+      const chain: Record<string, unknown> = {
+        select: () => chain,
+        single: async () => ({
+          data: { id: "a", filename: "techpack.pdf", file_type: "pdf", sku: "SKU123" },
+          error: null,
+        }),
+        update: () => chain,
+        upsert: async () => ({ error: null }),
+      };
+      chain.eq = () => ({ ...chain, then: (resolve: (v: unknown) => void) => resolve({ error: null }) });
+      return chain;
+    },
+  };
+  const result = await applyBatchTagResult(
+    groups[0].assets[1].id,
+    { ...typedResult(["blue", "3/4 view"]), files_used: ["SOURCE_A"] },
+    "fixture-model",
+    client as never,
+  );
+  assert.equal(result.fileSourcesFailed, false);
+});
+
+test("file_sources retry that succeeds reports no gap", async () => {
+  let calls = 0;
+  const client = {
+    rpc: async () => ({ error: null }),
+    from(table: string) {
+      const chain: Record<string, unknown> = {
+        select: () => chain,
+        single: async () => ({
+          data: { id: "a", filename: "techpack.pdf", file_type: "pdf", sku: "SKU123" },
+          error: null,
+        }),
+        update: () => chain,
+        upsert: async () => {
+          if (table === "sku_files_used") {
+            calls++;
+            return calls === 1 ? { error: { code: "57014", message: "statement timeout" } } : { error: null };
+          }
+          return { error: null };
+        },
+      };
+      chain.eq = () => ({ ...chain, then: (resolve: (v: unknown) => void) => resolve({ error: null }) });
+      return chain;
+    },
+  };
+  const result = await applyBatchTagResult(
+    groups[0].assets[1].id,
+    { ...typedResult(["blue", "3/4 view"]), files_used: ["SOURCE_A"] },
+    "fixture-model",
+    client as never,
+  );
+  assert.equal(calls, 2, "one retry after the first failure");
+  assert.equal(result.fileSourcesFailed, false);
+});
+
+test("a thrown file_sources error is caught and still allows metadata", async () => {
+  const order: string[] = [];
+  const client = {
+    rpc: async () => ({ error: null }),
+    from(table: string) {
+      const chain: Record<string, unknown> = {
+        select: () => chain,
+        single: async () => ({
+          data: { id: "a", filename: "techpack.pdf", file_type: "pdf", sku: "SKU123" },
+          error: null,
+        }),
+        update: () => { order.push(`update:${table}`); return chain; },
+        upsert: async () => {
+          if (table === "sku_files_used") throw new Error("network down");
+          return { error: null };
+        },
+      };
+      chain.eq = () => ({ ...chain, then: (resolve: (v: unknown) => void) => resolve({ error: null }) });
+      return chain;
+    },
+  };
+  const result = await applyBatchTagResult(
+    groups[0].assets[1].id,
+    { ...typedResult(["blue", "3/4 view"]), files_used: ["SOURCE_A"] },
+    "fixture-model",
+    client as never,
+  );
+  assert.equal(result.fileSourcesFailed, true);
+  assert.equal(order.at(-1), "update:assets");
 });

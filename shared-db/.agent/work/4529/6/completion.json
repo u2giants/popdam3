@@ -1,0 +1,40 @@
+{
+ "schema_version": 1,
+ "work_issue": 4529,
+ "outcome": "ready-for-merge",
+ "pr": 4562,
+ "migration_versions": [
+  "20261021190510"
+ ],
+ "contract_ref": "refs/db-contracts/4529/6",
+ "contract_sha256": "70a842cb089926be19375cf409a7190b70388b2cfca0a976db791d00654d0288",
+ "head_sha": "630623a4e1a6ccd7abf096da9abd6139c908bb7c",
+ "base_sha": "1b5e6a6269eacc00adc2a29e58d90764bf0f5596",
+ "files_changed": [
+  "supabase/migrations/20261021190510_popdam_search_exact_relevance_paging_reland.sql"
+ ],
+ "db_reads": [],
+ "db_writes": [
+  "function public.search_dam_documents",
+  "function public.search_assets_full_text",
+  "function public.search_style_groups_full_text",
+  "function public.search_dam_document_counts"
+ ],
+ "checks": [
+  {
+   "exit_code": 0,
+   "command": "bash scripts/check-sql.sh",
+   "evidence": "Static checks passed."
+  },
+  {
+   "exit_code": 0,
+   "command": "git diff --check",
+   "evidence": "Exit 0."
+  }
+ ],
+ "assumptions_resolved": [
+  "SQL below the header is byte-identical to main's 20261021152741 (diff empty)",
+  "Base 20261020230556 is in the production and preview ledgers"
+ ],
+ "stop_conditions_hit": []
+}

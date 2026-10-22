@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261018164004",
+  "migration_sha256": "366b63f7af709b1f8a72d1e61bfbb1519e7aec5db96825d28bd6f6000e4f5f7a",
+  "checks": [],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 32,
+      "line_end": 32,
+      "disposition": "no_durable_target",
+      "reason": "This EXECUTE is a parameter-bound count SELECT using a constant table identity inside the installed snapshot function; applying the migration does not execute it or any dynamic DDL."
+    },
+    {
+      "line_start": 87,
+      "line_end": 87,
+      "disposition": "no_durable_target",
+      "reason": "This EXECUTE is a parameter-bound SELECT of source rows using constant registry identifiers inside the installed snapshot function; applying the migration executes neither the query nor dynamic DDL."
+    },
+    {
+      "line_start": 120,
+      "line_end": 120,
+      "disposition": "no_durable_target",
+      "reason": "This EXECUTE is a parameter-bound relationship SELECT using constant registry identifiers inside the installed snapshot function; applying the migration executes neither the query nor dynamic DDL."
+    }
+  ]
+}

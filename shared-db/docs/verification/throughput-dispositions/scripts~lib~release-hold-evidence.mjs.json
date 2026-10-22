@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/release-hold-evidence.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/release-hold-evidence.mjs:280",
+      "semantic_key": "scripts/lib/release-hold-evidence.mjs:4f000c23738aa2e6795e3d83618d9ce85e95258f218f827463b2027102a115f2:context-6e69925cd7f0c87aa6bff6f801b80135000bdc17afef1de619ffbc247c573fb5",
+      "line_sha256": "4f000c23738aa2e6795e3d83618d9ce85e95258f218f827463b2027102a115f2",
+      "disposition": "excluded",
+      "reason": "Refusal-string match in the pure release-hold evidence contract validator (issue #3779 step 2); the line names a missing schema field or an unproven publication and performs no database apply, ledger read or throughput accounting.",
+      "legacy_semantic_key": "scripts/lib/release-hold-evidence.mjs:4f000c23738aa2e6795e3d83618d9ce85e95258f218f827463b2027102a115f2:1"
+    },
+    {
+      "site": "scripts/lib/release-hold-evidence.mjs:79",
+      "semantic_key": "scripts/lib/release-hold-evidence.mjs:927bf67337ea47795cf1e96b9b08c7858f04802fb928c85d603085b941f54c6b:context-b45e746c7d0146cab9f3d109381408fe90cadd01824b13e5b70202d3d2a8d778",
+      "line_sha256": "927bf67337ea47795cf1e96b9b08c7858f04802fb928c85d603085b941f54c6b",
+      "disposition": "excluded",
+      "reason": "Refusal-string match in the pure release-hold evidence contract validator (issue #3779 step 2); the line names a missing schema field or an unproven publication and performs no database apply, ledger read or throughput accounting.",
+      "legacy_semantic_key": "scripts/lib/release-hold-evidence.mjs:927bf67337ea47795cf1e96b9b08c7858f04802fb928c85d603085b941f54c6b:1"
+    },
+    {
+      "site": "scripts/lib/release-hold-evidence.mjs:514",
+      "semantic_key": "scripts/lib/release-hold-evidence.mjs:ca321e8f4944a6bd0af3b5c22bacbe7f51e2e00bb6ee3771048cb9cc794107d1:context-de8502d496a136c7bbdf5aed7cfe7a481dd40cb4b0acf2106dedf9f62679e0a8",
+      "line_sha256": "ca321e8f4944a6bd0af3b5c22bacbe7f51e2e00bb6ee3771048cb9cc794107d1",
+      "disposition": "excluded",
+      "reason": "Refusal-string match in the pure release-hold evidence contract validator (issue #3779 step 2); the line names a missing schema field or an unproven publication and performs no database apply, ledger read or throughput accounting.",
+      "legacy_semantic_key": "scripts/lib/release-hold-evidence.mjs:ca321e8f4944a6bd0af3b5c22bacbe7f51e2e00bb6ee3771048cb9cc794107d1:1"
+    }
+  ]
+}

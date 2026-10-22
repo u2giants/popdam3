@@ -1,5 +1,18 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { AssetFilters, FacetCounts } from "@/types/assets";
+import { searchAccessStatus } from "../../supabase/functions/_shared/search-access";
+export { searchAccessStatus };
+export { formatCount } from "./format-count";
+
+export const SEMANTIC_QUERY_TIMEOUT_MS = 6000;
+
+async function invokeSearch(body: Record<string, unknown>) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SEMANTIC_QUERY_TIMEOUT_MS);
+  try {
+    return await supabase.functions.invoke("dam-search-ai", { body, signal: controller.signal });
+  } finally { clearTimeout(timeout); }
+}
 
 export type SearchMode = "keyword" | "hybrid";
 export type DamDocumentType = "asset" | "style_group";
@@ -17,8 +30,22 @@ export interface DamSearchPage {
   ids: string[];
   totalCount: number;
   hasMore: boolean;
+  /** True when the RPC reports totals/facets as a lower bound (facets.totalExact === false). */
+  totalIsLowerBound: boolean;
   facets: Record<string, unknown>;
 }
+
+/**
+ * search_dam_documents (shared-db 20261021190510) marks totals and facet
+ * counts as a lower bound with facets.totalExact = false /
+ * facets.totalKind = 'lower_bound' when matches exceed the 1,000-asset probe.
+ */
+export function isLowerBoundTotal(facets: unknown): boolean {
+  if (!facets || typeof facets !== "object" || Array.isArray(facets)) return false;
+  const f = facets as Record<string, unknown>;
+  return f.totalExact === false || f.totalKind === "lower_bound";
+}
+
 
 export function buildDamSearchFilters(filters: AssetFilters): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
@@ -52,6 +79,7 @@ export function parseDamSearchFacets(value: Record<string, unknown>): FacetCount
     workflowStatus: record("workflowStatus"),
     stage: record("stage"),
     isLicensed: { true: Number(licensed.true) || 0, false: Number(licensed.false) || 0 },
+    lowerBound: isLowerBoundTotal(value),
   };
 }
 
@@ -67,13 +95,14 @@ export function getSearchMode(): Promise<SearchMode> {
   if (!searchModePromise || Date.now() >= searchModeExpiresAt) {
     searchModeExpiresAt = Date.now() + SEARCH_MODE_TTL_MS;
     searchModePromise = (async () => {
-      const { data, error } = await supabase
-        .from("admin_config")
-        .select("value")
-        .eq("key", "SEARCH_MODE")
-        .maybeSingle();
-      if (error) return "keyword";
-      return parseSearchMode(data?.value);
+      try {
+        const { data, error } = await invokeSearch({ action: "search-modes" });
+        if (error) throw error;
+        return parseSearchMode(data?.modes?.dam);
+      } catch (error) {
+        if (searchAccessStatus(error)) throw error;
+        return "keyword";
+      }
     })();
   }
   return searchModePromise;
@@ -92,16 +121,14 @@ export async function fetchHybridSearchPage({
   filters = {},
   minRank = 0,
 }: DamSearchRequest): Promise<DamSearchPage> {
-  const { data, error } = await supabase.functions.invoke("dam-search-ai", {
-    body: {
-      action: "search",
-      query,
-      limit,
-      offset,
-      filters,
-      min_rank: minRank,
-      document_types: [documentType],
-    },
+  const { data, error } = await invokeSearch({
+    action: "search",
+    query,
+    limit,
+    offset,
+    filters,
+    min_rank: minRank,
+    document_types: [documentType],
   });
   if (error) throw error;
   const results = Array.isArray(data?.results) ? data.results : [];
@@ -112,13 +139,15 @@ export async function fetchHybridSearchPage({
       return result.document_type === documentType && typeof result.entity_id === "string";
     })
     .map((row) => row.entity_id);
+  const facets = data?.facets && typeof data.facets === "object" && !Array.isArray(data.facets)
+    ? data.facets as Record<string, unknown>
+    : {};
   return {
     ids,
     totalCount: typeof data?.total_count === "number" ? data.total_count : ids.length,
     hasMore: data?.has_more === true,
-    facets: data?.facets && typeof data.facets === "object" && !Array.isArray(data.facets)
-      ? data.facets as Record<string, unknown>
-      : {},
+    totalIsLowerBound: isLowerBoundTotal(facets),
+    facets,
   };
 }
 
@@ -141,7 +170,8 @@ export async function fetchSearchIds(
   if (mode === "hybrid") {
     try {
       return await fetchHybridSearchIds(query, documentType, limit);
-    } catch {
+    } catch (error) {
+      if (searchAccessStatus(error)) throw error;
       // A cold or unavailable edge function must degrade to keyword search.
     }
   }

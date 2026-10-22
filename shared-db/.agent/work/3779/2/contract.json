@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 3779,
+    "generation": 1,
+    "contract_sha256": "367e622643aadec683e8ef26450f9c2e34d86697dd35d782ffc3d66f03ca1ddb"
+  },
+  "work_issue": 3779,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Publish the owner-requested plan for all four shared release hold reductions, with discovery and handoff; satisfy full guarded publication requirements without implementing the plan or changing any release behavior.",
+  "base_sha": "5f1fa79df06b32ed16703cdcc8e4ba9c604cd10c",
+  "dispatcher": "Codex chat 01a144d8-b318-7ed0-af97-e852be49d231 on hetz",
+  "worker": "Same root planning session; bounded documentation publication only, not acceptance of implementation or other workstreams.",
+  "branch": "codex/shared-release-holds-plan",
+  "worktree": "/worksp/.worktrees/shared-release-holds-plan",
+  "allowed_paths": [
+    "AGENTS.md",
+    "plan_shared_release_hold_reduction.md",
+    "docs/shared-release-holds.md",
+    "HANDOFF.d/2026-10-16T1317Z-hetz-codex-shared-release-holds.md",
+    ".agent/work/3779/1/contract.json",
+    ".agent/work/3779/1/completion.json",
+    ".agent/work/3779/2/contract.json",
+    ".agent/work/3779/2/completion.json"
+  ],
+  "file_writes": [
+    "AGENTS.md",
+    "plan_shared_release_hold_reduction.md",
+    "docs/shared-release-holds.md",
+    "HANDOFF.d/2026-10-16T1317Z-hetz-codex-shared-release-holds.md",
+    ".agent/work/3779/1/contract.json",
+    ".agent/work/3779/1/completion.json",
+    ".agent/work/3779/2/contract.json",
+    ".agent/work/3779/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No code, workflow, setting, schema or row-data change.",
+    "No shared release claim, freeze, preview, production write or manual verdict.",
+    "Do not claim implementation complete or close issue3779.",
+    "No foreign handoff edit, reviewer replay, fabricated receipt or guard bypass."
+  ],
+  "required_checks": [
+    "git diff --check origin/main...HEAD",
+    "node --test scripts/check-handoff-contract.test.mjs scripts/check-documents-only-merge-authorization.test.mjs"
+  ],
+  "assumptions": [
+    "The four prose documents already exist at6e6cac3ad7ca41239bb4008f2ed9ab6239ade94b and were pushed/reviewed; no retrospective authority is claimed.",
+    "Actual queued merge refused the root AGENTS discovery pointer without native agent evidence and assigned exact-head approval. This contract prospectively governs evidence/forward integration/publication only.",
+    "The source plan remains a proposal and all ten implementation steps remain open.",
+    "No source is copied from another session; integrate actual current main automatically, preserving both parents.",
+    "Generation1 was published but never committed or used for review; its required bare --validate-completion command lacked mandatory arguments. Generation2 prospectively corrects the check list; immutable generation1 remains preserved. Working uncommitted generation1 may be retired; native completion validation still runs with exact keyed paths outside the circular required-check list.",
+    "Actual main integration407e5c1 was automatic and changed only a foreign handoff inherited verbatim; this session did not inspect or edit that handoff."
+  ],
+  "stop_conditions": [
+    "Stop before stronger implementation, database scope or a shared hold.",
+    "A failing native gate must be satisfied through its supported route; no bypass or fabricated evidence."
+  ]
+}

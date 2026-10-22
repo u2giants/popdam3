@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261013130102",
+  "migration_sha256": "14a97f1f999fa1ea9a70fe12362ced166a9cba317a6fd40db74763bc8c0a328d",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 211,
+      "line_end": 211,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 279,
+      "line_end": 279,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 292,
+      "line_end": 292,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 328,
+      "line_end": 328,
+      "disposition": "checks",
+      "reason": "This selected DO executes only the exact existing tree-function definition with two current-only association COUNT replacements. The named contract checks the durable function identity and exactly two filtered count clauses plus selected lifecycle/engine catalog.",
+      "check_ids": [
+        "licensing_support_forward_catalog"
+      ]
+    },
+    {
+      "line_start": 371,
+      "line_end": 371,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 426,
+      "line_end": 426,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 453,
+      "line_end": 453,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 530,
+      "line_end": 530,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 549,
+      "line_end": 549,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 557,
+      "line_end": 557,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 598,
+      "line_end": 598,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 602,
+      "line_end": 602,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 611,
+      "line_end": 611,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 614,
+      "line_end": 614,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 713,
+      "line_end": 713,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 717,
+      "line_end": 717,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 721,
+      "line_end": 721,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 726,
+      "line_end": 726,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 730,
+      "line_end": 730,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 734,
+      "line_end": 734,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 850,
+      "line_end": 850,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 854,
+      "line_end": 854,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 858,
+      "line_end": 858,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 1088,
+      "line_end": 1088,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 1093,
+      "line_end": 1093,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 1224,
+      "line_end": 1224,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 1299,
+      "line_end": 1299,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 1315,
+      "line_end": 1315,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 1323,
+      "line_end": 1323,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 1419,
+      "line_end": 1419,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 1826,
+      "line_end": 1826,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    },
+    {
+      "line_start": 1850,
+      "line_end": 1850,
+      "disposition": "no_durable_target",
+      "reason": "Runtime bound row-only read or physical support DML inside a selected pinned routine. Exact targets are closed and typed; no CREATE/ALTER/DROP/system-catalog DML can be executed by this marker. Actual-native and race tests separately prove behavior; catalog checks are not physical-apply authority."
+    }
+  ],
+  "checks": [
+    {
+      "id": "licensing_support_forward_catalog",
+      "kind": "catalog_contract",
+      "contract": "licensing_support_forward_v2",
+      "expected_count": 1
+    }
+  ]
+}

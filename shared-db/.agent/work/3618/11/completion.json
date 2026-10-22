@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "work_issue": 3618,
+  "outcome": "ready-for-merge",
+  "pr": 4267,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3618/11",
+  "contract_sha256": "23e831af4d348679b55fc0a3c0fe10ffc0e68e13c5e5c65b2e4475a95bcd0ba1",
+  "base_sha": "e5901b3ba546c7e1e202ead099b06f445b956671",
+  "head_sha": "3d1bea61c2c2c376c3ae080a15cde751feaffd85",
+  "files_changed": [
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/verification/throughput-dispositions/scripts~rebind-expired-claim-blocker.mjs.json",
+    "scripts/rebind-expired-claim-blocker.mjs",
+    "scripts/rebind-expired-claim-blocker.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/rebind-expired-claim-blocker.test.mjs scripts/claim-author-transfer.test.mjs scripts/expired-merged-claim-adoption.test.mjs",
+      "exit_code": 0,
+      "evidence": "69 focused new/preserved transfer and uncertain-rollback/cleanup tests PASS; no live writes"
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "844 manager regression tests PASS; manager unchanged"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "346 call sites/97 sources PASS"
+    }
+  ],
+  "assumptions_resolved": [
+    "API restricts original blocker and recovery to the exact source checkpoint; no external blocker can be erased.",
+    "Unexpired claims refuse before any owner commit or ref; existing transfer code remains unchanged.",
+    "Independent authentic terminal-handoff audit remains mandatory for actual runtime use.",
+    "Audit must be ready repo-maintenance with exactly one active abandonment fence; hostile counterexample now refuses.",
+    "Unknown mutex ownership preserves actual mutation evidence without rollback; cleanup fallback is owner verified and completed result remains distinguishable.",
+    "StepFun6450 malformed report remains preserved and non-authorizing; this changed source requires a fresh review."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Source capability preparation only. No claim rebind, owner adoption, lease renewal, source licensing merge, preview or production write performed. Live recovery remains gated on natural expiry and authentic exact audit; idle status alone never proves abandonment."
+}

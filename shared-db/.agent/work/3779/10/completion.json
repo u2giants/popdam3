@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "work_issue": 3779,
+  "outcome": "ready-for-merge",
+  "pr": 4528,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3779/10",
+  "contract_sha256": "9586cbf87a707a8cdae88f77096d88167e9ce072d185d6bb088028c7c4e02ab5",
+  "base_sha": "d1865ae6d831a5bec9f3dd806e1927003c4e2ee1",
+  "head_sha": "1f14c8ebe68218ec560d8a9bfafd6e23c639596c",
+  "files_changed": [
+    "plan_shared_release_hold_reduction.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "STATUS row 3 only; no runtime or database change."
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,59 @@
+{
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3536/359/contract.json",
+    ".agent/work/3536/359/completion.json"
+  ],
+  "assumptions": [
+    "Root verified actual guard38180218100 refused reviewed4197 because API basebc08 differed from actualprotectedaf4d. Existing clean-merge branch freshness explicitly permits unrelated main changes; no original source or canonical validation failure authorizes bypass.",
+    "Keep exact valid SHA and live number/open/head/ref/repository/base-main identity, trusted signature, exact Refs issue, no closing issue, complete changed inventory, canonical publication/lineage/report/scope/structural claims checks unchanged.",
+    "After existing source Git preparation, prove captured API base ancestor of captured actual main using actual Git. If unequal, reuse existing classifyBranchFreshness with captured head/main; require explicit ok and fail on error. Do not weaken its overlap, version collision, trial merge or complete diff checks. Preserve verifyGitEvidence actual main argument verbatim.",
+    "Use existing optional injectable Git runner seam only for controlled real-Git tests; real runtime defaults to real Git. Immediately before returning re-read exact live PR identity and main; any changed original metadata/head/main refuses. No stale-main substitution.",
+    "Real-Git positives cover unchanged main and unrelated documentation/code advance for both maintenance and structural routes. Negatives cover overlap, duplicate version, merge conflict, changed merged diff, invalid/unreadable/divergent API base, missing Git proof, forged canonical evidence, scope mismatch and controlled head/main races.",
+    "Only two owned source/test files and existing manager truth disposition if genuine semantic bindings require it. Preserve every foreign354 canonical/source byte,4208 sidecars and overlays,4182 vault migration and4211 docs. No global evidence retirement or unrelated provider/parser change.",
+    "Root retains security, architecture, source, reviewer and merge decisions. Canonical source CI and assigned exact-head independent approval required; no database/production/settings/lease/START/provider mutations in implementation scope."
+  ],
+  "base_sha": "544875ec8a4e4d997a16538a71ac9628dc0ca922",
+  "branch": "codex/3536-nonclosing-freshness",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex parent selected safe composition of existing branch freshness and immutable canonical evidence gates",
+  "evidence_parent": {
+    "contract_sha256": "31018e96518ac5c08c3be30d12612c8b0a48ab34ea0f2dca736305052d0bcdfb",
+    "generation": 354,
+    "work_issue": 3536
+  },
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    ".agent/work/3536/359/contract.json",
+    ".agent/work/3536/359/completion.json"
+  ],
+  "generation": 359,
+  "goal": "Repair genuine nonclosing binding refusal when an API base lags protected main: preserve exact identity, prove API-base ancestry and unchanged existing branch freshness against one captured main, preserve immutable canonical Git evidence on that same main, and refuse final head or main movement. No scope, reviewer, budget, schema or production gate reduction.",
+  "prohibited_actions": [
+    "No DB/schema/data/production/infrastructure or protected main writes",
+    "No paid budget reset/refund/exemption or reviewer/2758 evidence weakening",
+    "No parser, claims, lease, provider, status, settings or foreign artifact mutations",
+    "No new shared helper or source file; no unrelated fixes"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/check-main-tip-freshness.test.mjs",
+    "node --test scripts/agent-work-contract-git-evidence.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop on unexpected scope, missing proof, conflicts, changed source base or capability loss",
+    "Stop before source publication/canonical sealing/review/merge until root full-source decision; no bypass"
+  ],
+  "work_issue": 3536,
+  "work_type": "repo-maintenance",
+  "worker": "Codex source implementation child",
+  "worktree": "/home/ahazan/.codex/worktrees/review-target-recovery/shared-db"
+}

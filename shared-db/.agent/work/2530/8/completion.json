@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_issue": 2530,
+  "outcome": "ready-for-merge",
+  "pr": 4324,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/2530/8",
+  "contract_sha256": "3325006a36795d62e11b3af6f9078c3cda25bef2086ca76bf339a0c3ac99b3dc",
+  "head_sha": "871a0b668c210a3837a13a740b6b3caab7c771ca",
+  "base_sha": "d0c99556fe5364d5ce67066cc206c66ec2619ba2",
+  "files_changed": [
+    "HANDOFF.d/2026-10-15T1107Z-edge-dev-mimo-2530-merge-queue-steps8-10.md",
+    "docs/verification/merge-queue-live-dispatch-probe-20261015.json",
+    "docs/verification/merge-queue-ruleset-api-20261015.json",
+    "docs/verification/merge-queue-ruleset-readback-20261015.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "true",
+      "exit_code": 0,
+      "evidence": "Closeout documentation and probe evidence only; no code behavior change."
+    }
+  ],
+  "assumptions_resolved": [
+    "Dispatch probe PASS recorded in verification JSON."
+  ],
+  "stop_conditions_hit": []
+}

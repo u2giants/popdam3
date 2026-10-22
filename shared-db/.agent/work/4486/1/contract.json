@@ -1,0 +1,53 @@
+{
+  "schema_version": 2,
+  "generation": 1,
+  "work_issue": 4486,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Pin merged-main preview run 39173012894 attempt 2 (artifact 12153700170, digest-bound) as the original preview evidence for migration 20261018191107 (#4464) so the automatic production promotion can qualify; every other run keeps the attempt-1 refusal.",
+  "base_sha": "11296e405c1528a4d5939108da609224820a5d48",
+  "dispatcher": "Claude chat 49144e8c-9530-49a9-a081-34792a3e6716 on edge-dev3",
+  "worker": "Claude chat 49144e8c-9530-49a9-a081-34792a3e6716 on edge-dev3",
+  "branch": "fix/4464-requalified-preview-pin",
+  "worktree": "/var/tmp/ai-sessions-1000/claude-49144e8c-9530-49a9-a081-34792a3e6716/wt4477",
+  "allowed_paths": [
+    "scripts/db-flow/requalified-preview-runs.mjs",
+    "scripts/db-flow/requalified-preview-runs.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/production_business_risk_gate.py",
+    "scripts/requalified_preview_runs.py",
+    "scripts/test_requalified_preview_runs.py",
+    "scripts/verify_preview_apply_artifact.py",
+    ".agent/work/4486/1/contract.json",
+    ".agent/work/4486/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/db-flow/requalified-preview-runs.mjs",
+    "scripts/db-flow/requalified-preview-runs.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/production_business_risk_gate.py",
+    "scripts/requalified_preview_runs.py",
+    "scripts/test_requalified_preview_runs.py",
+    "scripts/verify_preview_apply_artifact.py",
+    ".agent/work/4486/1/contract.json",
+    ".agent/work/4486/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database change.",
+    "No production command."
+  ],
+  "required_checks": [
+    "git diff --check",
+    "node --test scripts/db-flow/requalified-preview-runs.test.mjs",
+    "python3 -m pytest -q scripts/test_requalified_preview_runs.py"
+  ],
+  "assumptions": [
+    "Run 39173012894 attempt 2 did not re-execute the preview job."
+  ],
+  "stop_conditions": [
+    "Stop if any database file changes."
+  ],
+  "evidence_parent": null
+}

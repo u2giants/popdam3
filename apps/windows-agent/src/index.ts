@@ -12,6 +12,8 @@
  * Rendering uses Sharp + Ghostscript. Hygiene scans use Illustrator ExtendScript.
  */
 
+import { toSmbClientRelativePath } from "./smb-names";
+import { resolveExistingSmbPath } from "./smb-resolve";
 import { config } from "./config";
 import { ClaimAccounting, maintenancePausesClaims, currentCommandDeferral, heartbeatDelivery } from "./maintenance-lease";
 import { getLogTail, logger } from "./logger";
@@ -23,7 +25,7 @@ import { getUpdateState, initUpdater, postRestartHealthCheck, RESTART_EXIT_CODE,
 import { compressTiff, deleteOriginalBackup, scanTiffFiles, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
 import { inspectAiFile } from "./ai-raster-inspector";
 import { captureTimestamps } from "./tiff-timestamps";
-import { ensureNasMapped } from "./nas-mapper";
+import { createNasMountGuard, ensureNasMapped } from "./nas-mapper";
 import { nasReadyForClaim, sgReadyForClaim } from "./claim-gate";
 import { resetSkipWarnings, shouldSkipPath } from "@popdam/path-filters";
 import { startJanitor } from "./janitor";
@@ -37,6 +39,7 @@ import { createCompatAuditWorker, runCompatAudit, runCompatAuditPreview } from "
 import { dispatchCommands } from "./commands/dispatch";
 import { createWindowsCommandHandlers } from "./commands/heartbeat-commands";
 import { handleDirBrowse } from "./handlers/dir-browse";
+import { beginProvisioningStatus, checkIndra, provisionIndra, type IndraStatus } from "./indra-provision";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -105,9 +108,15 @@ let cloudNasPassword = "";
 let cloudAnthropicApiKey = "";
 let cloudGoogleAiApiKey = "";
 let cloudOpenRouterApiKey = "";
+let cloudScaleDownApiKey = "";
 let cloudAiModels: AiModelDef[] = [];
 let cloudAiTaskModels: Record<string, string> = {};
 let cloudPdfExtractionConfig: { ai_vision_model_id: string } | null = null;
+
+// Indra OCR engine status — checked at startup, reported on every heartbeat so
+// the admin panel can show whether OCR runs on Indra or degrades to tesseract.
+let indraStatus: IndraStatus = checkIndra();
+let indraProvisioning: Promise<IndraStatus> | null = null;
 
 // ── Pairing ─────────────────────────────────────────────────────
 
@@ -180,7 +189,8 @@ async function doPairing() {
  */
 function toUncPath(relativePath: string): string {
   assertSafeRelativePath(relativePath);
-  const windowsPath = relativePath.replace(/\//g, "\\");
+  // Samba (catia) shows forbidden Windows characters as private-use code points.
+  const windowsPath = toSmbClientRelativePath(relativePath).replace(/\//g, "\\");
 
   // If a local mount path is configured (e.g. Z:), use it
   const mountPath = (cloudNasMountPath || "").trim()
@@ -201,7 +211,8 @@ function toUncPath(relativePath: string): string {
  */
 function toSgUncPath(relativePath: string): string {
   assertSafeRelativePath(relativePath);
-  const windowsPath = relativePath.replace(/\//g, "\\");
+  // Samba (catia) shows forbidden Windows characters as private-use code points.
+  const windowsPath = toSmbClientRelativePath(relativePath).replace(/\//g, "\\");
   const mountPath = (cloudSgNasMountPath || cloudNasMountPath || "").trim()
     .replace(/\\+$/, "");
   if (mountPath) {
@@ -328,6 +339,7 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
     if (ai.anthropic_api_key) cloudAnthropicApiKey = ai.anthropic_api_key;
     if (ai.google_ai_api_key) cloudGoogleAiApiKey = ai.google_ai_api_key;
     if (ai.openrouter_api_key) cloudOpenRouterApiKey = ai.openrouter_api_key;
+    if (ai.scaledown_api_key) cloudScaleDownApiKey = ai.scaledown_api_key;
     if (Array.isArray(ai.models) && ai.models.length > 0) cloudAiModels = ai.models as AiModelDef[];
     if (ai.ai_task_models && typeof ai.ai_task_models === "object") cloudAiTaskModels = ai.ai_task_models as Record<string, string>;
     if (ai.pdf_extraction !== undefined) {
@@ -364,6 +376,7 @@ const heartbeatCommandHandlers = createWindowsCommandHandlers({
       googleApiKey: cloudGoogleAiApiKey,
       anthropicApiKey: cloudAnthropicApiKey,
       openRouterApiKey: cloudOpenRouterApiKey,
+      scaleDownApiKey: cloudScaleDownApiKey,
       aiTaskModels: cloudAiTaskModels,
     });
   },
@@ -375,6 +388,7 @@ const heartbeatCommandHandlers = createWindowsCommandHandlers({
       googleApiKey: cloudGoogleAiApiKey,
       anthropicApiKey: cloudAnthropicApiKey,
       openRouterApiKey: cloudOpenRouterApiKey,
+      scaleDownApiKey: cloudScaleDownApiKey,
       aiTaskModels: cloudAiTaskModels,
     });
   },
@@ -384,6 +398,7 @@ const heartbeatCommandHandlers = createWindowsCommandHandlers({
     googleApiKey: cloudGoogleAiApiKey,
     anthropicApiKey: cloudAnthropicApiKey,
     openRouterApiKey: cloudOpenRouterApiKey,
+    scaleDownApiKey: cloudScaleDownApiKey,
     aiTaskModels: cloudAiTaskModels,
   }),
   triggerImmediateUpdate: (force) => (force ? triggerImmediateUpdate(agentId, true) : triggerImmediateUpdate(agentId)),
@@ -418,7 +433,7 @@ function startHeartbeat() {
         last_update_check: updateState.lastCheckAt,
         updating: updateState.updating,
         update_error: updateState.lastError,
-      }, getLogTail(50), deferral), async (response) => {
+      }, getLogTail(50), indraStatus, deferral), async (response) => {
       applyCloudConfig(response);
       consecutiveHeartbeatFailures = 0;
       // HTTP has completed; keep regular authenticated heartbeats/config flowing
@@ -476,10 +491,25 @@ function waitForIdleThenRestart() {
 
 // ── Job processing ──────────────────────────────────────────────
 
+/** A libvips/Ghostscript hang must fail the job instead of pinning an activeJobs slot forever. */
+const RENDER_JOB_TIMEOUT_MS = 10 * 60 * 1000;
+function withRenderTimeout<T>(p: Promise<T>, label: string): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => {
+      t = setTimeout(() => reject(new Error(`${label} timed out after ${RENDER_JOB_TIMEOUT_MS}ms`)), RENDER_JOB_TIMEOUT_MS);
+    }),
+  ]).finally(() => clearTimeout(t));
+}
+
 async function processJob(job: api.RenderJob): Promise<void> {
   let uncPath: string;
   try {
-    uncPath = toUncPath(job.relative_path);
+    const expected = typeof job.file_size === "number" && job.modified_at
+      ? { size: job.file_size, mtimeMs: Date.parse(job.modified_at) }
+      : undefined;
+    uncPath = resolveExistingSmbPath(toUncPath(job.relative_path), expected);
   } catch (e) {
     logger.warn("Rejected unsafe render path", { jobId: job.job_id, relativePath: job.relative_path });
     await api.completeRender(job.job_id, false, undefined, (e as Error).message.slice(0, 500));
@@ -511,7 +541,7 @@ async function processJob(job: api.RenderJob): Promise<void> {
   try {
     const fileType = (job.file_type === "psd") ? "psd" : (job.file_type === "pdf") ? "pdf" : "ai" as const;
     const cw = fileType === "ai" ? await getCompatWorker() : undefined;
-    const result = await renderFile(uncPath, fileType, cw);
+    const result = await withRenderTimeout(renderFile(uncPath, fileType, cw), `render ${job.relative_path}`);
     const thumbnailUrl = await uploadThumbnail(job.asset_id, result.buffer);
 
     // For PDFs, upload hi-res page images
@@ -589,9 +619,9 @@ async function processSgJob(job: api.SgRenderJob): Promise<void> {
   try {
     const ext = (job.file_type || "").toLowerCase();
     const NATIVE_IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "tif", "tiff"]);
-    const result = NATIVE_IMAGE_EXTS.has(ext)
-      ? await renderNativeImage(uncPath)
-      : await renderFile(uncPath, ext === "psd" ? "psd" : ext === "pdf" ? "pdf" : ext === "eps" ? "eps" : "ai");
+    const result = await withRenderTimeout(NATIVE_IMAGE_EXTS.has(ext)
+      ? renderNativeImage(uncPath)
+      : renderFile(uncPath, ext === "psd" ? "psd" : ext === "pdf" ? "pdf" : ext === "eps" ? "eps" : "ai"), `sg render ${job.relative_path}`);
     const thumbnailUrl = await uploadSgThumbnail(job.style_guide_file_id, result.buffer);
     await api.completeSgRender(job.job_id, true, thumbnailUrl);
     jobsCompleted++;
@@ -614,6 +644,8 @@ async function processSgJob(job: api.SgRenderJob): Promise<void> {
 function startPolling() {
   const maxConcurrency = config.renderConcurrency;
 
+  // Backoff + remount-on-change for the main Z: share (see nas-mapper.ts).
+  const cloudNasGuard = createNasMountGuard();
   const loop = async () => {
     if (!configReceived) {
       logger.debug("Skipping poll — waiting for cloud config (NAS host + Spaces credentials)");
@@ -635,7 +667,7 @@ function startPolling() {
           // credentials the latest heartbeat delivered from admin_config. If that still
           // fails, no PopDAM job is claimed (so none is consumed as a failure).
           const zGate = await nasReadyForClaim(cloudNasHost, () =>
-            ensureNasMapped(cloudNasMountPath, {
+            cloudNasGuard(cloudNasMountPath, {
               host: cloudNasHost,
               share: cloudNasShare,
               username: cloudNasUsername,
@@ -741,7 +773,42 @@ async function main() {
     pollIntervalMs: config.pollIntervalMs,
     paired: config.isPaired,
     rendering: "Sharp + Ghostscript (no Illustrator)",
+    indraOcr: indraStatus.state,
+    indraDetail: indraStatus.detail,
   });
+
+  // Self-heal Indra OCR: OTA updates swap code only, so a box installed before
+  // Indra existed would silently OCR with tesseract.js forever. Provisioning
+  // always runs once per start (background, single-flight): a healthy engine
+  // is verified (model load) and kept, a missing/broken one is (re)installed.
+  // Report "installing" for the whole window — a startup check that looked
+  // ready can still fall through to a full reprovision (broken engine), and
+  // the panel must not keep saying ready while that runs.
+  if (!indraProvisioning) {
+    indraStatus = beginProvisioningStatus(indraStatus);
+    indraProvisioning = provisionIndra((detail) => {
+      indraStatus = { ...indraStatus, state: "installing", detail, checked_at: new Date().toISOString() };
+    })
+      .then((status) => {
+        indraStatus = status;
+        logger.info("Indra OCR startup check finished", { state: status.state, detail: status.detail });
+        return status;
+      })
+      .catch((error) => {
+        // provisionIndra() is written not to reject; this guard keeps a bug
+        // there from taking the process down (Node treats it as fatal).
+        const message = String((error as Error)?.message ?? error).slice(0, 300);
+        indraStatus = {
+          state: "error",
+          python: null,
+          models_dir: null,
+          detail: message,
+          checked_at: new Date().toISOString(),
+        };
+        logger.error("Indra OCR startup check crashed", { error: message });
+        return indraStatus;
+      });
+  }
 
   // 1. Pair if no agent key — retry with exponential backoff
   if (!config.agentKey) {
@@ -810,7 +877,7 @@ async function main() {
 
   // 3. First heartbeat — fetch cloud config before processing
   try {
-    const initialResponse = await api.heartbeat(agentId, undefined, healthStatus);
+    const initialResponse = await api.heartbeat(agentId, undefined, healthStatus, undefined, undefined, indraStatus);
     applyCloudConfig(initialResponse);
     logger.info("Initial cloud config applied", {
       nasHost: cloudNasHost,

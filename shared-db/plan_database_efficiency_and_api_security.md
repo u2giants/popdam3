@@ -285,6 +285,8 @@ Each issue must name its rollback. For a new index, rollback is a later governed
 
 #### Step 6 — remediate confirmed policy and privileged-object problems
 
+Scoped performance repair: [plan_rls_request_constant_checks.md](plan_rls_request_constant_checks.md), tracked on [#4421](https://github.com/popcre/shared-db/issues/4421). Read its STATUS first. Its 69-policy baseline and controlled timings do not complete this broader step; access/security hardening remains separate. Current claim-first and production rules supersede historical orchestrator/manual-authority wording below.
+
 Group by business contract, not advisor rule:
 
 - For a policy repeatedly evaluating stable auth helpers, change direct `auth.uid()`/`auth.role()` calls to a scalar subquery only after an equivalent-policy test proves identical allow/deny behavior.

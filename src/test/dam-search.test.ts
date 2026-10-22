@@ -23,6 +23,7 @@ describe("DAM hybrid search", () => {
 
     await expect(fetchHybridSearchIds("snowman", "asset", 500)).resolves.toEqual(["second", "first"]);
     expect(invoke).toHaveBeenCalledWith("dam-search-ai", {
+      signal: expect.any(AbortSignal),
       body: {
         action: "search",
         query: "snowman",
@@ -57,9 +58,11 @@ describe("DAM hybrid search", () => {
       ids: ["group-2"],
       totalCount: 23,
       hasMore: true,
+      totalIsLowerBound: false,
       facets: { fileType: { psd: 12 } },
     });
     expect(invoke).toHaveBeenCalledWith("dam-search-ai", {
+      signal: expect.any(AbortSignal),
       body: {
         action: "search",
         query: "snowman",
@@ -102,9 +105,9 @@ describe("DAM hybrid search", () => {
   });
 
   it("invalidates the cached mode so activation and rollback are visible", async () => {
-    maybeSingle.mockResolvedValueOnce({ data: { value: "hybrid" }, error: null });
+    invoke.mockResolvedValueOnce({ data: { modes: { dam: "hybrid" } }, error: null });
     await expect(getSearchMode()).resolves.toBe("hybrid");
-    maybeSingle.mockResolvedValueOnce({ data: { value: "keyword" }, error: null });
+    invoke.mockResolvedValueOnce({ data: { modes: { dam: "keyword" } }, error: null });
     invalidateSearchMode();
     await expect(getSearchMode()).resolves.toBe("keyword");
   });
@@ -115,5 +118,137 @@ describe("DAM hybrid search", () => {
       .resolves.toEqual(["keyword-first", "keyword-second"]);
     expect(keywordSearch).toHaveBeenCalledOnce();
     expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it.each([401, 403])("auth_denial_never_keyword_fallback (%s)", async (status) => {
+    const denied = { context: new Response(null, { status }) };
+    invoke.mockResolvedValue({ data: null, error: denied });
+    const keyword = vi.fn();
+    await expect(fetchSearchIds("hybrid", "snowman", "asset", 50, keyword)).rejects.toBe(denied);
+    expect(keyword).not.toHaveBeenCalled();
+    await expect(getSearchMode()).rejects.toBe(denied);
+  });
+
+  it("uses keyword fallback for provider outage", async () => {
+    invoke.mockResolvedValue({ data: null, error: { context: new Response(null, { status: 503 }) } });
+    const keyword = vi.fn().mockResolvedValue(["keyword"]);
+    await expect(fetchSearchIds("hybrid", "snowman", "asset", 50, keyword)).resolves.toEqual(["keyword"]);
+    expect(keyword).toHaveBeenCalledOnce();
+    await expect(getSearchMode()).resolves.toBe("keyword");
+  });
+
+  it("cancels a stalled semantic request after six seconds before keyword fallback", async () => {
+    vi.useFakeTimers();
+    try {
+      invoke.mockImplementation((_name, options) => new Promise((_resolve, reject) => {
+        options.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+      }));
+      const keyword = vi.fn().mockResolvedValue(["retained-keyword"]);
+      const pending = fetchSearchIds("hybrid", "snowman", "asset", 50, keyword);
+      await vi.advanceTimersByTimeAsync(5999);
+      expect(keyword).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(pending).resolves.toEqual(["retained-keyword"]);
+      expect(keyword).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("uses the capability cache until its 30-second expiry", async () => {
+    vi.useFakeTimers();
+    try {
+      invoke.mockResolvedValueOnce({ data: { modes: { dam: "hybrid" } }, error: null });
+      await expect(getSearchMode()).resolves.toBe("hybrid");
+      await expect(getSearchMode()).resolves.toBe("hybrid");
+      expect(invoke).toHaveBeenCalledOnce();
+      vi.advanceTimersByTime(30_001);
+      invoke.mockResolvedValueOnce({ data: { modes: { dam: "keyword" } }, error: null });
+      await expect(getSearchMode()).resolves.toBe("keyword");
+      expect(invoke).toHaveBeenCalledTimes(2);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("deterministic_multi_page_offset_stable", async () => {
+    // Page 0 and page 1 must use the same query and complementary offsets.
+    invoke.mockResolvedValueOnce({
+      data: {
+        results: [
+          { document_type: "asset", entity_id: "a1" },
+          { document_type: "asset", entity_id: "a2" },
+        ],
+        total_count: 5,
+        has_more: true,
+        facets: { fileType: { psd: 3 } },
+      },
+      error: null,
+    });
+    invoke.mockResolvedValueOnce({
+      data: {
+        results: [
+          { document_type: "asset", entity_id: "a3" },
+          { document_type: "asset", entity_id: "a4" },
+        ],
+        total_count: 5,
+        has_more: true,
+        facets: { fileType: { psd: 3 } },
+      },
+      error: null,
+    });
+    const p0 = await fetchHybridSearchPage({ query: "snowman", documentType: "asset", limit: 2, offset: 0 });
+    const p1 = await fetchHybridSearchPage({ query: "snowman", documentType: "asset", limit: 2, offset: 2 });
+    expect(p0.ids).toEqual(["a1", "a2"]);
+    expect(p1.ids).toEqual(["a3", "a4"]);
+    expect(p0.totalCount).toBe(5);
+    expect(p1.totalCount).toBe(5);
+    expect(p0.facets).toEqual(p1.facets);
+    expect(invoke).toHaveBeenNthCalledWith(1, "dam-search-ai", expect.objectContaining({
+      body: expect.objectContaining({ query: "snowman", offset: 0, limit: 2 }),
+    }));
+    expect(invoke).toHaveBeenNthCalledWith(2, "dam-search-ai", expect.objectContaining({
+      body: expect.objectContaining({ query: "snowman", offset: 2, limit: 2 }),
+    }));
+  });
+
+  it("out_of_range_page_keeps_summary_and_drops_null_hits", async () => {
+    invoke.mockResolvedValueOnce({
+      data: {
+        results: [{ document_type: null, entity_id: null, rank: null }],
+        total_count: 40,
+        has_more: false,
+        facets: { fileType: { ai: 40 } },
+      },
+      error: null,
+    });
+    const page = await fetchHybridSearchPage({ query: "blue", documentType: "asset", limit: 10, offset: 10_000 });
+    expect(page.ids).toEqual([]);
+    expect(page.totalCount).toBe(40);
+    expect(page.hasMore).toBe(false);
+    expect(page.facets).toEqual({ fileType: { ai: 40 } });
+  });
+
+  it("full_counts_and_facets_come_from_the_same_filtered_set", async () => {
+    invoke.mockResolvedValueOnce({
+      data: {
+        results: [{ document_type: "asset", entity_id: "x" }],
+        total_count: 1386,
+        has_more: true,
+        facets: {
+          fileType: { psd: 900, ai: 486 },
+          status: { approved: 1386 },
+          isLicensed: { true: 1386, false: 0 },
+        },
+      },
+      error: null,
+    });
+    const page = await fetchHybridSearchPage({
+      query: "glitter",
+      documentType: "asset",
+      limit: 10,
+      filters: { fileType: ["psd"] },
+    });
+    expect(page.totalCount).toBe(1386);
+    expect(page.facets).toMatchObject({ fileType: { psd: 900, ai: 486 } });
+    expect(invoke).toHaveBeenCalledWith("dam-search-ai", expect.objectContaining({
+      body: expect.objectContaining({ filters: { fileType: ["psd"] } }),
+    }));
   });
 });

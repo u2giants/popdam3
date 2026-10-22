@@ -1,3 +1,5 @@
+import { parallelTagRun, parallelModel } from "./ai-tag-parallel.js";
+import { buildStructuredOutputRequest, buildJsonRepairRequest } from "../structured-output.js";
 /**
  * AI Tagging handler — persistent worker version.
  *
@@ -11,6 +13,8 @@
  * default.
  */
 
+import { handleMetaTagResponse } from "./meta-tag-response-state.js";
+import { isMetaDirectModel } from "../meta-model-api.js";
 import { db } from "../supabase.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
@@ -48,7 +52,12 @@ import {
   buildImageTaggingMessages,
   buildBatchImageTaggingMessages,
   buildImageTaggingPrompt,
+  validateCharacterReferences,
+  AssetTagApplyError,
+  CharacterReferenceValidationError,
+  CharacterCatalogDependencyError,
   callTagAssetModel,
+  isRetryableTagTransportError,
   fetchImageData,
   getAiTaggingApiKey,
   isStyleGuideSourcePdf,
@@ -99,7 +108,11 @@ export async function getVisionModels(): Promise<{ primary: string; fallback: st
     "AI task model config read",
     client.from("admin_config").select("value").eq("key", "AI_TASK_MODELS").maybeSingle(),
   );
-  if (error) logger.warn("ai-tag: model config unavailable; using the last known/default model", { error: error.message });
+  if (error) {
+    logger.warn("ai-tag: model config unavailable; using the last known/default model", { error: error.message });
+    // Keep the last known model instead of silently switching to the default.
+    if (cachedModels) { cacheExpiresAt = Date.now() + 60_000; return cachedModels; }
+  }
   const models = data?.value as Record<string, string> | null;
   cachedModels = {
     primary: models?.vision_tagging || DEFAULT_VISION_MODEL,
@@ -144,7 +157,8 @@ export function isRetryableStructuredOutputError(msg: string): boolean {
       lower.includes("tool_call") ||
       lower.includes("no parsable json") ||
       lower.includes("malformed tool call json") ||
-      lower.includes("openrouter 404")
+      lower.includes("openrouter 404") ||
+      lower.includes("invalid structured tag data")
     )
   );
 }
@@ -161,7 +175,7 @@ export function isVisualAnalysisUnavailableError(error: unknown): boolean {
 
 // ── Single-asset tagging via OpenRouter ──────────────────────────────────────
 
-type TagOutcome = { outcome: "tagged" | "skipped" | "failed" | "visual_analysis_unavailable"; error?: string };
+type TagOutcome = { outcome: "tagged" | "skipped" | "failed" | "visual_analysis_unavailable"; error?: string; fileSourcesFailed?: boolean };
 
 type BatchAsset = {
   id: string;
@@ -229,29 +243,47 @@ export async function applyBatchTagResult(
   tagData: Record<string, unknown>,
   model: string,
   injectedClient?: ReturnType<typeof db>,
-): Promise<void> {
+  characterCatalogIds?: string[],
+): Promise<{ fileSourcesFailed: boolean }> {
   validateTagAssetData(tagData, "batch");
   const client = injectedClient ?? db();
   const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku").eq("id", assetId).single();
-  if (assetError || !asset) throw new Error(`Asset reload failed: ${assetError?.message ?? assetId}`);
-  // Tags, character links and style-guide sources are written first; the
-  // asset is marked "tagged" LAST, so a failure part-way never leaves an asset
-  // that claims to be tagged with incomplete metadata.
-  await writeAssetAiTags(client, assetId, model, tagData);
-  if (Array.isArray(tagData.character_ids)) {
-    const rows = tagData.character_ids.filter(isValidUuid).map((character_id) => ({ asset_id: assetId, character_id }));
+  if (assetError || !asset) throw new AssetTagApplyError("asset_reload", assetError?.code);
+  const characterIds = await validateCharacterReferences(tagData.character_ids, characterCatalogIds, client);
+  // Tags and character links are written first; the asset is marked "tagged"
+  // LAST. Style-guide sources (sku_files_used) are supplementary and are
+  // written before metadata but are allowed to fail without blocking the
+  // metadata save — see file_sources note below.
+  try { await writeAssetAiTags(client, assetId, model, tagData); }
+  catch (error) { throw new AssetTagApplyError("asset_tags", (error as { code?: string }).code); }
+  if (characterIds.length) {
+    const rows = characterIds.map((character_id) => ({ asset_id: assetId, character_id }));
     if (rows.length) {
       const savedCharacters = await client.from("asset_characters").upsert(rows, { onConflict: "asset_id,character_id" });
-      if (savedCharacters.error) throw new Error(`Character link write failed: ${savedCharacters.error.message}`);
+      if (savedCharacters.error) throw new AssetTagApplyError("character_links", savedCharacters.error.code);
     }
   }
+  let fileSourcesFailed = false;
   if (asset && isStyleGuideSourcePdf(asset) && asset.sku && Array.isArray(tagData.files_used)) {
     const rows = tagData.files_used
       .filter((name) => typeof name === "string" && name.trim())
       .map((name) => ({ sku: asset.sku, file_name: String(name).trim(), source: "ai_tag" }));
     if (rows.length) {
-      const savedFiles = await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
-      if (savedFiles.error) throw new Error(`Style-guide source write failed: ${savedFiles.error.message}`);
+      // Best-effort with one retry: trg_fn_resolve_sku_file_used scans
+      // style_guide_files with a non-indexable normalize and can hit 57014.
+      // file_sources is supplementary; a gap is counted, not fatal. The
+      // metadata save below still runs so the asset is not left half-tagged.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const savedFiles = await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
+          if (!savedFiles.error) { fileSourcesFailed = false; break; }
+          fileSourcesFailed = true;
+          logger.warn("ai-tag: file_sources save failed", { assetId, code: savedFiles.error.code, rows: rows.length, attempt });
+        } catch (error) {
+          fileSourcesFailed = true;
+          logger.warn("ai-tag: file_sources save threw", { assetId, error: String(error).slice(0, 200), rows: rows.length, attempt });
+        }
+      }
     }
   }
   const updates: Record<string, unknown> = { status: "tagged", ai_tagged_at: new Date().toISOString(), ai_model: model };
@@ -259,7 +291,8 @@ export async function applyBatchTagResult(
     if (tagData[key]) updates[key] = tagData[key];
   }
   const { error } = await client.from("assets").update(updates).eq("id", assetId);
-  if (error) throw new Error(`DB write failed: ${error.message}`);
+  if (error) throw new AssetTagApplyError("asset_metadata", error.code);
+  return { fileSourcesFailed };
 }
 
 export function assetTagsForRpc(tagData: Record<string, unknown>) {
@@ -285,7 +318,7 @@ export async function writeAssetAiTags(
     p_model: model,
     p_tags: assetTagsForRpc(tagData),
   });
-  if (result.error) throw new Error(`Atomic AI tag write failed: ${result.error.message}`);
+  if (result.error) throw Object.assign(new Error(`Atomic AI tag write failed: ${result.error.message}`), { code: (result.error as { code?: string }).code });
 }
 
 export interface AiTagRpcClient {
@@ -297,13 +330,21 @@ export interface AiTagRpcClient {
 
 interface AiTagHandlerDependencies {
   client?: AiTagRpcClient;
-  tagAsset?: (assetId: string, force: boolean) => Promise<TagOutcome>;
+  tagAsset?: (assetId: string, force: boolean, parallelModel?: string, acceptedModels?: string[]) => Promise<TagOutcome>;
+  parallelConfig?: unknown;
   batchSize?: number;
   concurrency?: number;
 }
 
+export function requireMetaAssetRow<T>(asset: T | null, error: { message: string; code?: string; details?: string } | null, assetId: string): T {
+  if (!asset && (!error || error.code === "PGRST116" && /\b0 rows\b/i.test(error.details ?? error.message))) throw new AssetMissingError(assetId);
+  if (error) throw new Error(`Meta asset reload failed: ${error.message}`);
+  if (!asset) throw new AssetMissingError(assetId);
+  return asset;
+}
+
 /** The asset row no longer exists (deleted between paging and preparation). */
-class AssetMissingError extends Error {
+export class AssetMissingError extends Error {
   constructor(assetId: string) {
     super(`Asset no longer exists: ${assetId}`);
     this.name = "AssetMissingError";
@@ -825,13 +866,13 @@ async function handleDurableBatchTag(
   };
 }
 
-async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutcome> {
+async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: string, acceptedModels?: string[]): Promise<TagOutcome> {
   const client = db();
 
   // Fetch asset
   const { data: asset, error: fetchErr } = await client
     .from("assets")
-    .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, division_code, style_group_id")
+    .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, ai_description, ai_model, sku, division_code, style_group_id")
     .eq("id", assetId)
     .single();
 
@@ -840,6 +881,12 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
     return { outcome: "failed", error: `Asset not found: ${fetchErr?.message ?? "no data"}` };
   }
 
+  // Parallel mode never retags a saved complete asset, even on a retried page.
+  if (parallelModel && asset.ai_tagged_at && asset.ai_description?.trim() && asset.ai_model && acceptedModels?.includes(asset.ai_model)) {
+    const savedTags = await client.from("asset_tags").select("id").eq("asset_id", assetId).eq("source", "ai").eq("status", "active").eq("model", asset.ai_model).limit(1);
+    if (savedTags.error) return { outcome: "failed", error: "Saved tag verification failed" };
+    if (savedTags.data?.length) return { outcome: "skipped" };
+  }
   // Skip if already tagged (unless force)
   if (asset.status === "tagged" && asset.ai_tagged_at && !force) {
     return { outcome: "skipped" };
@@ -851,7 +898,10 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
     return { outcome: "visual_analysis_unavailable", error: "No thumbnail URL" };
   }
 
-  const systemPrompt = await buildImageTaggingPrompt(asset);
+  let characterCatalogIds: string[] | undefined;
+  const systemPrompt = await buildImageTaggingPrompt(asset, parallelModel ? {
+    requireCharacterReadSuccess: true, onCharacterCatalog: ids => { characterCatalogIds = ids; },
+  } : undefined);
   let image: { base64: string; mimeType: string };
   try {
     image = await fetchImageData(thumbnailUrl);
@@ -867,7 +917,8 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
   }
 
   // Get model from admin_config (cached for 1 min)
-  const { primary: primaryModel, fallback: fallbackModel, providerPin } = await getVisionModels();
+  const selected = parallelModel ? { primary: parallelModel, fallback: null, providerPin: null } : await getVisionModels();
+  const { primary: primaryModel, fallback: fallbackModel, providerPin } = selected;
   const providerOverride = buildProviderPin(providerPin);
 
   type AttemptResult = TagOutcome & { _rawMsg?: string };
@@ -875,7 +926,7 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
     const apiKey = await getAiTaggingApiKey(model);
     if (!apiKey) {
       const keyName = model.startsWith("meta-direct/") ? "META_API_KEY" : "OPENROUTER_API_KEY";
-      return { outcome: "failed", error: `No AI API key configured (set ${keyName} in Railway)` };
+      return { outcome: "failed", error: `No AI API key configured (set ${keyName} in Settings)` };
     }
     for (let sameModelRetry = 0; sameModelRetry <= SAME_MODEL_STRUCTURED_RETRY_COUNT; sameModelRetry++) {
       // Call through the provider selected by the model ID.
@@ -885,73 +936,40 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
           image,
           "Analyze this design asset image and return structured tags matching the tag_asset schema.",
         );
-        const { tagData, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 4000, providerOverride);
+        const { tagData, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 4000, providerOverride, parallelModel ? characterCatalogIds : undefined);
         logger.info("ai-tag: received structured tags", { assetId, model, outputMode, providerInfo, retryCount, sameModelRetry });
         if (attempts.length > 1) logger.warn("ai-tag: model needed structured-output fallback", { assetId, model, attempts });
 
-        const updates: Record<string, unknown> = {
-          status: "tagged",
-          ai_tagged_at: new Date().toISOString(),
-          ai_model: model,
-        };
-        if (tagData.ai_description) updates.ai_description = tagData.ai_description;
-        if (tagData.cover_description) updates.cover_description = tagData.cover_description;
-        if (tagData.scene_description) updates.scene_description = tagData.scene_description;
-        if (tagData.asset_type) updates.asset_type = tagData.asset_type;
-        if (tagData.content_type) updates.content_type = tagData.content_type;
-        if (tagData.art_source) updates.art_source = tagData.art_source;
-        if (tagData.design_style) updates.design_style = tagData.design_style;
-        if (tagData.design_ref) updates.design_ref = tagData.design_ref;
-        if (tagData.designer_name) updates.designer_name = tagData.designer_name;
-        if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
-        if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
-
-        const { error: updateErr } = await client.from("assets").update(updates).eq("id", assetId);
-
-        if (updateErr) {
-          logger.error("ai-tag: failed to save tags", { assetId, error: updateErr.message });
-          return { outcome: "failed", error: `DB write failed: ${humanizeError(updateErr.message ?? "").slice(0, 300)}` };
+        if (parallelModel) {
+          try {
+            const applied = await applyBatchTagResult(assetId, tagData, model, client, characterCatalogIds);
+            return { outcome: "tagged", fileSourcesFailed: applied.fileSourcesFailed };
+          }
+          catch (error) {
+            logger.warn("ai-tag: parallel save failed", {assetId, model, stage: error instanceof AssetTagApplyError ? error.stage : error instanceof CharacterReferenceValidationError ? "character_reference" : error instanceof CharacterCatalogDependencyError ? "character_catalog" : "validation", code: error instanceof AssetTagApplyError || error instanceof CharacterCatalogDependencyError ? error.code : "unknown"});
+            return { outcome: "failed", error: error instanceof AssetTagApplyError ? `Parallel tagging save failed at ${error.stage} (${error.code})` : "Parallel tagging result validation failed" };
+          }
         }
 
-        // Replace only AI-owned file tags through the production atomic RPC.
-        // Manual rows and rejected tombstones remain authoritative.
+        // Shared save path: tags and character links are written first and the
+        // asset is marked "tagged" LAST, so a failed tag write never leaves an
+        // asset flagged tagged with no tags (which ai-tag-untagged would skip
+        // forever). Character ids are validated against the catalog.
         try {
-          await writeAssetAiTags(client, assetId, model, tagData);
-        } catch (tagWriteError) {
-          const message = tagWriteError instanceof Error ? tagWriteError.message : String(tagWriteError);
-          logger.error("ai-tag: atomic tag write failed", { assetId, error: message });
-          return { outcome: "failed", error: `AI tag write failed: ${humanizeError(message).slice(0, 300)}` };
+          const applied = await applyBatchTagResult(assetId, tagData, model, client, characterCatalogIds);
+          return { outcome: "tagged", fileSourcesFailed: applied.fileSourcesFailed };
+        } catch (error) {
+          const stage = error instanceof AssetTagApplyError ? error.stage
+            : error instanceof CharacterReferenceValidationError ? "character_reference"
+            : error instanceof CharacterCatalogDependencyError ? "character_catalog"
+            : "validation";
+          const message = error instanceof Error ? error.message : String(error);
+          logger.error("ai-tag: save failed", { assetId, model, stage, error: message.slice(0, 300) });
+          return { outcome: "failed", error: `Tagging save failed at ${stage}: ${humanizeError(message).slice(0, 300)}` };
         }
-
-        // Write character links
-        if (Array.isArray(tagData.character_ids) && tagData.character_ids.length > 0) {
-          const validCharIds = (tagData.character_ids as string[]).filter((cid) => isValidUuid(cid));
-          if (validCharIds.length > 0) {
-            const charLinks = validCharIds.map((cid) => ({ asset_id: assetId, character_id: cid }));
-            await client.from("asset_characters").upsert(charLinks, { onConflict: "asset_id,character_id" });
-          }
-        }
-
-        // Upsert files_used entries to sku_files_used (licensed products only).
-        // Style Guide Sources may ONLY come from a licensing-sheet / tech-pack PDF.
-        // The DB parser and edge ai-tag path enforce the same rule; keep the
-        // persistent worker aligned because Railway runs the batch tagger.
-        if (
-          isStyleGuideSourcePdf(asset) && asset.sku &&
-          Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0
-        ) {
-          const rows = (tagData.files_used as string[])
-            .filter((f) => typeof f === "string" && f.trim().length > 0)
-            .map((f) => ({ sku: asset.sku as string, file_name: f.trim(), source: "ai_tag" }));
-          if (rows.length > 0) {
-            await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
-          }
-        }
-
-        return { outcome: "tagged" };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (sameModelRetry < SAME_MODEL_STRUCTURED_RETRY_COUNT && isRetryableStructuredOutputError(msg)) {
+        if (sameModelRetry < SAME_MODEL_STRUCTURED_RETRY_COUNT && (isRetryableStructuredOutputError(msg) || (model.startsWith("meta-direct/") && isRetryableTagTransportError(e)))) {
           logger.warn("ai-tag: structured output/routing error, retrying same model", {
             assetId,
             model,
@@ -994,15 +1012,70 @@ export async function handleBulkAiTag(
   tagAll: boolean,
   dependencies: AiTagHandlerDependencies = {},
   requireAssetIds = false,
+  requireParallel = false,
 ): Promise<BatchResult> {
   const client = (dependencies.client ?? db()) as AiTagRpcClient;
   const configuredBatchSize = dependencies.batchSize ?? config.aiBatchSize;
   const BATCH_SIZE = Math.max(10, Math.min(configuredBatchSize, opState.retry_page_size ?? configuredBatchSize));
-  const CONCURRENCY = dependencies.concurrency ?? config.aiBatchConcurrency;
+  let CONCURRENCY = dependencies.concurrency ?? config.aiBatchConcurrency;
   const tagAsset = dependencies.tagAsset ?? tagSingleAsset;
 
   const configuredModels = await getVisionModels();
-  if (opState.external_job || configuredModels.primary.trim().endsWith(":batch")) {
+  let parallel = null;
+  if (!opState.external_job) {
+    let setting = dependencies.parallelConfig;
+    if (!dependencies.tagAsset && setting === undefined && requireParallel) {
+      const result = await withDependencyTimeout("Parallel tagging config read", db().from("admin_config").select("value").eq("key", "AI_TAG_PARALLEL_RUN").maybeSingle());
+      if (result.error) return { ok: false, done: false, error: "Parallel tagging config unavailable" };
+      setting = result.data?.value;
+    }
+    try { parallel = parallelTagRun(setting, opState.run_id, opState.params?.asset_ids); }
+    catch (error) { return { ok: false, done: false, error: String(error), error_stage: "candidate_fetch" }; }
+    if (parallel) CONCURRENCY = parallel.concurrency;
+  }
+  if (requireParallel && !parallel) return {ok: false, done: false, error: "Parallel operation requires its exact-run model configuration and no provider receipt"};
+  if (opState.external_job?.provider === "meta-responses" || (!opState.external_job && isMetaDirectModel(configuredModels.primary) && !parallel && !dependencies.tagAsset)) {
+    const model = opState.external_job?.model ?? configuredModels.primary;
+    const ids = Array.isArray(opState.params?.asset_ids) ? opState.params.asset_ids as string[] : null;
+    if (requireAssetIds && !ids?.length) return { ok: false, done: true, error: "Single-asset tag operation has no asset ID" };
+    return handleMetaTagResponse(opState, {
+      model, apiKey: await getAiTaggingApiKey(model), unavailable: isVisualAnalysisUnavailableError, missing: error => error instanceof AssetMissingError, validate: async (value, binding) => { validateTagAssetData(value, "structured"); await validateCharacterReferences(value.character_ids, binding); },
+      apply: async (id, value, model, binding) => {
+        const applied = await applyBatchTagResult(id, value, model, undefined, binding);
+        if (applied.fileSourcesFailed) logger.warn("ai-tag: file_sources gap on Meta-tagged asset", { assetId: id });
+      },
+      candidate: async () => {
+        if (ids?.length) {
+          const offset = opState.cursor ?? 0;
+          if (typeof offset !== "number" || !Number.isSafeInteger(offset) || offset < 0 || offset > ids.length) throw new AiTagCursorError("invalid_cursor", "Invalid explicit Meta tagging cursor");
+          return offset === ids.length ? null : { asset_id: ids[offset], next_cursor: offset + 1, done: offset + 1 === ids.length };
+        }
+        const cursor = decodeAiTagCursor(opState.cursor);
+        const groups = Array.isArray(opState.params?.group_ids) ? opState.params.group_ids : null;
+        const result = await client.rpc("get_ai_tag_candidates", { p_mode: tagAll ? "all" : "untagged", p_limit: 1,
+          p_after_tier: cursor?.tier ?? null, p_after_id: cursor?.id ?? null, p_group_ids: groups?.length ? groups : null });
+        if (result.error) throw new Error("Meta candidate query failed");
+        const row = (result.data as Array<{ id: string; primary_sort_tier: number }> | null)?.[0];
+        return row ? { asset_id: row.id, next_cursor: encodeAiTagCursor({ tier: row.primary_sort_tier, id: row.id }), done: false } : null;
+      },
+      prepare: async (id, method, repairError, outputTokenLimit) => {
+        const { data: loadedAsset, error } = await db().from("assets").select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, division_code, style_group_id").eq("id", id).maybeSingle();
+        const asset = requireMetaAssetRow(loadedAsset, error, id);
+        if (!tagAll && asset.status === "tagged" && asset.ai_tagged_at) return null;
+        if (!asset.thumbnail_url) throw new Error(`Asset has no thumbnail: ${id}`);
+        const image = await fetchImageData(asset.thumbnail_url);
+        let characterCatalogIds: string[] = [];
+        const prompt = await buildImageTaggingPrompt(asset, { requireCharacterReadSuccess: true, onCharacterCatalog: ids => { characterCatalogIds = ids; } });
+        const messages = buildImageTaggingMessages(prompt, image, "Analyze this design asset image and return structured tags matching the tag_asset schema.");
+        const options = { model, messages, maxTokens: 4000, schemaName: "tag_asset", schema: TAG_ASSET_SCHEMA };
+        const request = method === "json_repair" ? buildJsonRepairRequest({ ...options, apiKey: "", repairSource: repairError ?? "Previous structured output failed validation" }) : buildStructuredOutputRequest(options, method);
+        if (repairError && method !== "json_repair") request.messages = [...request.messages, { role: "user", content: `Correct the previous response: ${repairError}` }];
+        if (outputTokenLimit !== undefined) request.meta_max_output_tokens = outputTokenLimit;
+        return { request, characterCatalogIds };
+      },
+    });
+  }
+  if (opState.external_job || (!parallel && configuredModels.primary.trim().endsWith(":batch"))) {
     return handleDurableBatchTag(opState, tagAll, client, BATCH_SIZE);
   }
 
@@ -1020,21 +1093,29 @@ export async function handleBulkAiTag(
     if (typeof assetOffset !== "number" || !Number.isSafeInteger(assetOffset) || assetOffset < 0 || assetOffset > assetIds.length) {
       return { ok: false, done: false, error: "Explicit asset IDs require a numeric cursor within the target list", error_stage: "candidate_fetch" };
     }
-    const page = assetIds.slice(assetOffset, assetOffset + Math.min(BATCH_SIZE, 50));
-    let tagged = 0, skipped = 0, failed = 0, visualAnalysisUnavailable = 0;
+    if (parallel?.max_cursor !== undefined && assetOffset >= parallel.max_cursor) return {ok: true, done: false, nextOffset: assetOffset, state_transition: "yield_without_save"};
+    const end = assetOffset + (parallel ? parallel.concurrency : Math.min(BATCH_SIZE, 50));
+    const page = assetIds.slice(assetOffset, parallel?.max_cursor === undefined ? end : Math.min(end, parallel.max_cursor));
+    let tagged = 0, skipped = 0, failed = 0, visualAnalysisUnavailable = 0, fileSourcesFailed = 0;
     const failureSamples: Array<{ at: string; asset_id: string; filename: string; relative_path: string; error: string }> = [];
 
     for (let i = 0; i < page.length; i += CONCURRENCY) {
       const chunk = page.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         chunk.map(async (id) => {
-          const result = await tagAsset(id, tagAll);
+          const result = await tagAsset(id, tagAll, parallel ? parallelModel(parallel, id) : undefined, parallel ? [...parallel.models, "meta-direct/muse-spark-1.3-contributor"] : undefined);
           return { ...result, asset_id: id };
         }),
       );
       for (const r of results) {
         if (r.status === "fulfilled") {
-          if (r.value.outcome === "tagged") tagged++;
+          if (r.value.outcome === "tagged") {
+            tagged++;
+            if (r.value.fileSourcesFailed) {
+              fileSourcesFailed++;
+              logger.warn("ai-tag: file_sources gap on tagged asset", { assetId: r.value.asset_id });
+            }
+          }
           else if (r.value.outcome === "skipped") skipped++;
           else if (r.value.outcome === "visual_analysis_unavailable") visualAnalysisUnavailable++;
           else { failed++; failureSamples.push({ at: new Date().toISOString(), asset_id: r.value.asset_id, filename: "", relative_path: "", error: r.value.error ?? "AI call failed" }); }
@@ -1044,9 +1125,10 @@ export async function handleBulkAiTag(
         }
       }
     }
+    if (fileSourcesFailed > 0) logger.warn("ai-tag: file_sources failed for tagged assets; metadata saved", { fileSourcesFailed, page: page.length });
 
     const nextOffset = assetOffset + page.length;
-    return { ok: true, done: nextOffset >= assetIds.length, tagged, skipped, failed, visual_analysis_unavailable: visualAnalysisUnavailable, failure_samples: failureSamples, skip_samples: [], nextOffset, last_stage: "tag_write" };
+    return { ok: true, done: nextOffset >= assetIds.length, tagged, skipped, failed, visual_analysis_unavailable: visualAnalysisUnavailable, file_sources_failed: fileSourcesFailed, failure_samples: failureSamples, skip_samples: [], nextOffset, last_stage: "tag_write" };
   }
 
   let cursor;

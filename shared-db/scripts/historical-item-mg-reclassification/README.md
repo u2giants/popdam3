@@ -98,8 +98,9 @@ observed going red for the right reason rather than merely passing.
 `lib/retirement-gate.mjs` evaluates the seven conditions in section 13 of the
 plan. It is expected to FAIL today: 127 live rows have a null creation date, and
 condition 1 alone holds it closed. Removing the cutoff from
-`api.resolve_item_mg_category(integer)` is a structural change and must be routed
-fresh through the shared-db orchestrator after this gate passes.
+`api.resolve_item_mg_category(integer)` is a structural change and uses the claim-first structural route on its existing issue after this gate passes.
+The session claims exact objects in its own worktree; no marker or dispatch is
+required. Preserve the repository’s review, rehearsal and production gates.
 
 ## Review status
 

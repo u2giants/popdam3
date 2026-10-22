@@ -188,19 +188,19 @@ test('active lanes, active runs, an open marker and missing owner approval each 
   assert.equal(baseline.readyToTransfer, false)
   assert.deepEqual(baseline.blockers, [
     'owner-authorization-not-recorded: plan Step 0 authorization comment on #2530 was not supplied (--owner-approval-comment <comment-url>)',
-    'orchestrator-not-quiescent: marker state declared (#3106); the live orchestrator must confirm quiescence for the window',
+    'coordination-not-quiescent: marker state declared (#3106); the claim-first session must confirm quiescence for the window',
     'mutation-lane-held: refs/db-coordination/merge',
     'actions-run-active: Guarded Merge run 7 (in_progress)',
   ])
 })
 
-test('an unknown orchestrator answer is not quiescence', () => {
+test('an unknown coordination answer is not quiescence', () => {
   const r = classifyReadiness({
     target: { destinationExists: false, destinationOwnerType: 'Organization', sourceAdmin: true, destinationCanCreateRepository: true, destinationActionsPolicy: {}, destinationActionsDisallowed: [] },
-    operational: { orchestrator: { state: 'unknown', marker: null }, heldLanes: [], activeRuns: [] },
+    operational: { coordination: { state: 'unknown', marker: null }, heldLanes: [], activeRuns: [] },
     ownerApprovalComment: 'x',
   })
-  assert.deepEqual(r.blockers, ['orchestrator-not-quiescent: marker state unknown; the live orchestrator must confirm quiescence for the window'])
+  assert.deepEqual(r.blockers, ['coordination-not-quiescent: marker state unknown; the claim-first session must confirm quiescence for the window'])
 })
 
 test('variables commit fingerprints, and literals only for bare flags', () => {

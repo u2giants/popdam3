@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 4414,
+  "outcome": "ready-for-merge",
+  "pr": 4473,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4414/2",
+  "contract_sha256": "1ef7630ec686735c5d3df830063b9624fe463ba07a097cce1c0ddbc3f9b587ff",
+  "head_sha": "c5c0af7f4bf02c081c1de601e1500f9916ea65af",
+  "base_sha": "fe3931607f952029ce6174073f7320d580a188b7",
+  "files_changed": [
+    ".github/workflows/migration-author-lease.yml",
+    ".github/workflows/pr-guards.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/verification/reviewer-assignment-holds.md",
+    "scripts/lib/lanes/assignment-hold-phases.test.mjs",
+    "scripts/lib/lanes/phase-trace.mjs",
+    "scripts/lib/lanes/phase-trace.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions_resolved": [],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/lanes/phase-trace.test.mjs",
+      "exit_code": 0,
+      "evidence": "6 passed."
+    },
+    {
+      "command": "node --test scripts/lib/lanes/assignment-hold-phases.test.mjs",
+      "exit_code": 0,
+      "evidence": "5 passed including slow_preparation_does_not_hold_author_mutex and stderr trace emission."
+    },
+    {
+      "command": "node --test scripts/db-flow/evidence-bundle.test.mjs",
+      "exit_code": 0,
+      "evidence": "6 passed; phase-trace.mjs in invalidator inventory."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ]
+}

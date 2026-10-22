@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 4385,
+  "outcome": "ready-for-merge",
+  "reason": "Required source checks are complete. Independent current-head review, PR CI and guarded merge are separate pending gates.",
+  "pr": 4412,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4385/5",
+  "contract_sha256": "2efaeac740c2252fb25768ae648ffb927101d97cbc147a6435e2a15673cbfeca",
+  "head_sha": "8560a38b727217111e79905305e85453c40c6be5",
+  "base_sha": "244824218791e611c40f652d83fa1d1b3ce813a5",
+  "files_changed": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts/test_production_business_risk_gate.py scripts/test_production_business_risk_gate_governed_reconciliation_mutations.py",
+      "exit_code": 0,
+      "evidence": "Ran 236 tests, OK at 8560a38b"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK at 8560a38b"
+    }
+  ],
+  "assumptions_resolved": [
+    "Pinned values match live runs 38972234570 and 38839047707 and their artifacts; migration file sha256 equals the artifact's orphan and replacement digests."
+  ],
+  "stop_conditions_hit": []
+}

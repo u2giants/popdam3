@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_issue": 4414,
+  "outcome": "ready-for-merge",
+  "pr": 4480,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4414/3",
+  "contract_sha256": "03b47c8f9b2f339211d74d237846e1c459c1fd86e6dd738b6c8c30faba7d73fc",
+  "head_sha": "f37547a159254647611e33d7da87f6557f55a1af",
+  "base_sha": "a7b32d7e8a4113f66c3d450f60fec1a1c2bf0ad2",
+  "files_changed": [
+    "docs/agents/current-workflow.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions_resolved": [],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "command": "node scripts/check-current-workflow-policy.mjs",
+      "exit_code": 0,
+      "evidence": "Current workflow policy matrix matches implementation and cited owner rulings."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ]
+}

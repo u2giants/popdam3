@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
-import { buildDamSearchFilters, expandFallbackTerms, fetchHybridSearchPage, fetchSearchIds, getSearchMode, sortByRank } from "@/lib/dam-search";
+import { searchAccessStatus, buildDamSearchFilters, expandFallbackTerms, fetchHybridSearchPage, fetchSearchIds, getSearchMode, sortByRank } from "@/lib/dam-search";
 
 type WorkflowStatus = Database["public"]["Enums"]["workflow_status"];
 import type { AssetFilters } from "@/types/assets";
@@ -111,6 +111,7 @@ async function resolveStyleGroupSearch(
 }
 
 function shouldFallbackFromFullTextRpc(error: unknown) {
+  if (searchAccessStatus(error)) return false;
   const err = error as { code?: string; message?: string; details?: string };
   const text = `${err.message ?? ""} ${err.details ?? ""}`.toLowerCase();
   return (
@@ -260,8 +261,9 @@ export function useStyleGroups(
             workflow_status: row.workflow_status ?? "other",
             thumbnail_url: row.primary_asset?.thumbnail_url ?? row.primary_thumbnail_url ?? null,
           })) as StyleGroup[], ranked.ids, (group) => group.id);
-          return { groups, totalCount: ranked.totalCount, pageSize: effectivePageSize, page };
-        } catch {
+          return { groups, totalCount: ranked.totalCount, totalIsLowerBound: ranked.totalIsLowerBound, pageSize: effectivePageSize, page };
+        } catch (error) {
+          if (searchAccessStatus(error)) throw error;
           // Preserve the existing keyword path if semantic search is unavailable.
         }
       }
@@ -313,6 +315,7 @@ export function useStyleGroups(
       return {
         groups,
         totalCount: count ?? 0,
+        totalIsLowerBound: false,
         pageSize: effectivePageSize,
         page,
       };
@@ -334,7 +337,8 @@ export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: strin
             filters: buildDamSearchFilters(filters),
           });
           return ranked.totalCount;
-        } catch {
+        } catch (error) {
+          if (searchAccessStatus(error)) throw error;
           // Continue through keyword fallback.
         }
       }

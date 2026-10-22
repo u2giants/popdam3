@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "work_issue": 4397,
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 4397,
+    "generation": 1,
+    "contract_sha256": "3f9623a206e49845e0be92c76ee8a2bc828a2f48f12f8f1239fd01c92b284f8d"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Route a conflicted replay across a protected-main rename to the existing conservative merge-gap bridge instead of a hard refusal (unblocks PR #4388)",
+  "base_sha": "7f85a9dfa67b63b2396056deca2aebcb34f66f7a",
+  "dispatcher": "Claude chat b6410b17-053b-4ff2-adc8-f25b053cb611 on edge-dev3",
+  "worker": "claude",
+  "branch": "claude/review-budget-main-renames-2",
+  "worktree": "/home/ahazan/repos/shared-db-renames",
+  "allowed_paths": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-circuit-breaker.mjs.json",
+    ".agent/work/4397/2/contract.json",
+    ".agent/work/4397/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-circuit-breaker.mjs.json",
+    ".agent/work/4397/2/contract.json",
+    ".agent/work/4397/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not weaken PR-side rename refusal or any conflicted-merge reconstruction guard",
+    "do not touch any migration or database object"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "owner-directed (Albert, verbatim: \"every chat says it's waiting on the other 2 and so nothing is progressing. so i think you need to take over all of them and complete everything.\"); this unblocks PR #4388",
+    "generation 2: disclosed — the two-line source edit and tests were drafted before this generation was published and are committed only after it",
+    "the merge-gap bridge only spends paid capacity conservatively and never grants an extra review"
+  ],
+  "stop_conditions": [
+    "stop if the fix would need to accept a rename inside the pull request itself",
+    "stop if a required check fails for an unrelated reason"
+  ]
+}

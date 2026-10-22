@@ -4,6 +4,7 @@ import { serviceClient } from "../_shared/service-client.ts";
 import { authenticateUser } from "../_shared/admin-auth.ts";
 import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
 import { parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
+import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 
 declare const Supabase: {
   ai: {
@@ -57,6 +58,19 @@ corsServe(async (req) => {
 
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
   const action = typeof body.action === "string" ? body.action : "search";
+
+  if (action === "search-modes") {
+    if (auth.serviceRole) return err("A user session is required", 403);
+    try {
+      const dam = await loadDamSearchMode(
+        auth.client,
+        () => serviceClient().from("admin_config").select("value").eq("key", "SEARCH_MODE").maybeSingle(),
+      );
+      return json({ ok: true, modes: { dam } });
+    } catch (error) {
+      return err("Search mode unavailable", searchAccessStatus(error) ?? 503);
+    }
+  }
 
   if (action === "embed-batch") {
     return err("embed-batch was retired; the Railway worker is the only embedding claimer", 410);
@@ -174,9 +188,13 @@ corsServe(async (req) => {
       p_min_rank: minRank,
       p_min_semantic_score: minSemanticScore,
     });
-    if (error) throw error;
-    const results = Array.isArray(data)
-      ? data.map((row: Record<string, unknown>) => ({
+    if (error) return err("Search unavailable", searchAccessStatus(error) ?? 503);
+    // Summary-only rows (out-of-range page) carry total_count/facets with a
+    // null entity_id; they are never search hits.
+    const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+    const results = rows
+      .filter((row) => typeof row.entity_id === "string" && row.entity_id)
+      .map((row) => ({
         document_type: row.document_type,
         entity_id: row.entity_id,
         asset_id: row.asset_id,
@@ -184,9 +202,8 @@ corsServe(async (req) => {
         keyword_rank: row.keyword_rank,
         semantic_rank: row.semantic_rank,
         rank: row.rank,
-      }))
-      : [];
-    const first = Array.isArray(data) && data.length > 0 ? data[0] as Record<string, unknown> : null;
+      }));
+    const first = rows.find((row) => row.total_count !== undefined && row.total_count !== null) ?? rows[0] ?? null;
     return json({
       ok: true,
       results,

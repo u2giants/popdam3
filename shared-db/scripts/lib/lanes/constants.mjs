@@ -53,7 +53,9 @@ export const [REPO_OWNER, REPO_NAME] = REPO.split('/')
 export const AUTHOR_CAPACITY_STATES = Object.freeze(['active', 'relinquished', 'expired-unconfirmed'])
 export const AUTHORABLE_CAPACITY_STATES = Object.freeze(AUTHOR_CAPACITY_STATES.filter((state) => state !== 'expired-unconfirmed'))
 export const WORKTREE_STATES = Object.freeze(['clean', 'dirty', 'absent', 'remote'])
-export const DEFAULT_LEASE_HOURS = 12
+export const MAX_AUTHOR_LEASE_HOURS = 0.5
+export const DEFAULT_LEASE_HOURS = MAX_AUTHOR_LEASE_HOURS
+export const AUTHOR_CHECKIN_INTERVAL_MINUTES = 10
 export const MUTEX_STALE_AFTER_MS = 2 * 60 * 1000
 export const MUTEX_REF = 'refs/db-coordination/author-acquisition'
 export const MUTEX_RECOVERY_ACTIVE_REF = 'refs/db-coordination/author-acquisition-recovery-active'
@@ -110,7 +112,7 @@ export const REVIEW_SILENCE_RELEASE_REF_PREFIX = 'refs/db-review-silences'
 export const REVIEW_QUEUE_REF_PREFIX = 'refs/db-review-queue'
 export const REVIEW_EXCLUSION_REF_PREFIX = 'refs/db-review-exclusions'
 export const REVIEW_EXCLUSION_REASONS = new Set(['already-reviewed','independence-conflict','terminal-unavailable'])
-// NO LIMIT ON REUSING A REVIEWER (owner ruling, orchestrator marker #2893,
+// NO LIMIT ON REUSING A REVIEWER (owner ruling, claim-first session identity #2893,
 // 2026-09-14). `already-reviewed` barred a provider from a pull request merely
 // because it had reviewed an earlier head. That is a reuse cap, not a safety
 // rule, and it is retired: it still PARSES so historical records stay readable,

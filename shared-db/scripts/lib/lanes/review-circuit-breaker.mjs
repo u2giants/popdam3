@@ -13,10 +13,17 @@ import { parseTerminalFailureEvidence, reviewerFailureRef } from './review-repla
 // Cause-bound reinstatement (#3536/#3999). A paid start whose immutable
 // terminal failure record proves a verdict-less REVIEWER-SIDE failure, bound to
 // the exact issue/PR/head/sequence/reviewer (and slot when recorded), produced
-// no review and does not spend the unchanged-content budget. Hard ceiling per
-// slot across the unchanged-content group so crashes can never loop forever.
-export const REINSTATABLE_FAILURE_CODES = Object.freeze(['wrapper_terminal_failure','provider_unavailable','insufficient_quota','turn_limit_cancelled'])
-export const REINSTATEMENT_CEILING = 2
+// no review and does not spend the unchanged-content decision budget. Failure
+// history is counted per reviewer so selectors can exclude a repeatedly failing
+// provider without exhausting the finite pool's review-decision allowance.
+// Exact-bound verdictless repository-read failures are service failures too;
+// unknown causes and any review decision remain conservatively charged.
+export const REINSTATABLE_FAILURE_CODES = Object.freeze(['wrapper_terminal_failure','provider_unavailable','insufficient_quota','turn_limit_cancelled','reviewer_cannot_read_repository'])
+// Released failure codes that describe the provider, its wallet, or the local
+// wrapper rather than the reviewed bytes (#4284): the replacement draw retries
+// such a name last instead of excluding it from the head forever.
+export const RETRYABLE_RELEASED_FAILURE_CODES = Object.freeze([...REINSTATABLE_FAILURE_CODES,'reviewer_cannot_emit_governed_verdict'])
+export const REVIEWER_FAILURE_CEILING = 2
 
 function reinstatedByFailure(start,io){
   if(typeof io.readRef!=='function')return false
@@ -29,7 +36,12 @@ function reinstatedByFailure(start,io){
   try{failure=parseTerminalFailureEvidence(commit)}catch{throw new LaneError('review circuit breaker: reinstatement failure evidence unreadable')}
   const message=String(commit?.message??commit?.commit?.message??'')
   const slot=/ slot=(\d+) /.exec(message)
-  if(!failure||failure.issue!==start.issue||failure.pr!==start.pr||failure.headSha!==start.headSha||failure.failedSequence!==start.sequence||failure.reviewer!==start.reviewer||(slot&&Number(slot[1])!==start.slot)||!/ verdict=none artifact=none( replacement=none)?$/.test(message))throw new LaneError('review circuit breaker: reinstatement failure binding mismatch')
+  const terminalTail=failure?.historicalProof
+    ? message.split('\n').length===2 && / proof=historical-terminal-v1 verdict=none artifact=none replacement=none$/.test(message.split('\n')[0])
+    : / verdict=none artifact=none( replacement=none)?$/.test(message)
+  const proof=failure?.historicalProof
+  const proofStartMatches=!proof||(proof.start_ref===start.ref&&proof.start_sha===start.sha&&proof.started_at===start.startedAt&&proof.slot===start.slot&&proof.current_head_sha!==start.headSha)
+  if(!failure||failure.issue!==start.issue||failure.pr!==start.pr||failure.headSha!==start.headSha||failure.failedSequence!==start.sequence||failure.reviewer!==start.reviewer||(slot&&Number(slot[1])!==start.slot)||!proofStartMatches||!terminalTail)throw new LaneError('review circuit breaker: reinstatement failure binding mismatch')
   return REINSTATABLE_FAILURE_CODES.includes(failure.failureCode)
 }
 
@@ -38,10 +50,10 @@ export function paidStart(row, commit) {
   if (!tuple || !/^[0-9a-f]{40}$/.test(row.sha)) throw new LaneError('review circuit breaker: malformed immutable start ref')
   const [, issue, pr, headSha, slot, sequence] = tuple
   const message = String(commit?.message ?? commit?.commit?.message ?? '')
-  const start = /^db-coordination review-started issue=(\d+) pr=(\d+) head=([0-9a-f]{40}) slot=(\d+) sequence=(\d+) reviewer=([a-z0-9.-]+) at=(\S+)(?: session=([A-Za-z0-9._-]+) receipt-path=sha256:[0-9a-f]{64} source=sha256:[0-9a-f]{64})?$/.exec(message)
+  const start = /^db-coordination review-started issue=(\d+) pr=(\d+) head=([0-9a-f]{40}) slot=(\d+) sequence=(\d+) reviewer=([a-z0-9.-]+) at=(\S+)(?: session=([A-Za-z0-9._-]+) receipt-path=sha256:([0-9a-f]{64}) source=sha256:([0-9a-f]{64}))?$/.exec(message)
   if (start) {
     if (start.slice(1,6).join(':') !== tuple.slice(1).join(':') || !Number.isFinite(Date.parse(start[7]))) throw new LaneError('review circuit breaker: start record binding mismatch')
-    return {issue:Number(issue),pr:Number(pr),headSha,slot:Number(slot),sequence:Number(sequence),reviewer:start[6]}
+    return {issue:Number(issue),pr:Number(pr),headSha,slot:Number(slot),sequence:Number(sequence),reviewer:start[6],startedAt:start[7],session:start[8]??null,receiptPathSha256:start[9]??null,sourceDigest:start[10]??null,ref:row.ref,sha:row.sha}
   }
   // Only the established atomic unstarted reclaim / independence conflict can
   // occupy a start marker without spending a provider attempt.
@@ -54,7 +66,7 @@ export function paidStart(row, commit) {
 
 
 // Budget-only historical normalization. Strict review equivalence is unchanged.
-function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,neededFiles) {
+function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,neededFiles,supersededCheckPrefixes=[]) {
   const run=args=>String(git(args)).trim(),raw=args=>String(git(args))
   const ancestor=(a,b)=>{try{run(['merge-base','--is-ancestor',a,b]);return true}catch(e){if(e.status===1)return false;throw e}}
   const pairPaths=(issue,generation)=>['contract','completion'].map(kind=>`.agent/work/${issue}/${generation}/${kind}.json`)
@@ -150,8 +162,33 @@ function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract
       validating.delete(generation);validated.set(generation,hash);return hash
     }
     if(!variants?.size)throw new LaneError('review budget required historical pair unavailable')
+    const entries=[...variants.values()]
+    const reportWithoutChecks=report=>JSON.stringify({...report,checks:null})
+    const prefixes=new Set()
+    // These are non-authorizing preliminary metadata, never source witnesses.
+    // A baseline/current endpoint still needs its own complete report. Only a
+    // removed intermediate pair can have a successful check prefix superseded
+    // by a later complete own-pair-only tail on the identical implementation.
+    if(generation!==baselineGeneration && generation!==(endpoint.contract.generation??1)){
+      for(const entry of entries){
+        const {record,witnesses}=entry,{contract,report}=record
+        validateContract(contract);validateCompletionReport(report,{validateCompletionRecord})
+        const result=reconcileReportWithContract(report,contract)
+        if(result.satisfied || !result.problems.length || !result.problems.every(problem=>problem.startsWith('required check was never run: ')) || !witnesses.length || !report.checks.length || report.checks.some(check=>check.exit_code!==0))continue
+        const complete=entries.find(candidate=>candidate!==entry && candidate.witnesses.length && Array.isArray(candidate.record.report.checks) &&
+          contractHash(candidate.record.contract)===contractHash(contract) &&
+          reportWithoutChecks(candidate.record.report)===reportWithoutChecks(report) &&
+          candidate.record.report.checks.length>report.checks.length &&
+          report.checks.every((check,index)=>JSON.stringify(check)===JSON.stringify(candidate.record.report.checks[index])) &&
+          reconcileReportWithContract(candidate.record.report,candidate.record.contract).satisfied &&
+          witnesses.every(start=>candidate.witnesses.some(end=>start!==end && ancestor(start,end))))
+        if(!complete)continue
+        prefixes.add(entry)
+        supersededCheckPrefixes.push({generation,sourceHead:report.head_sha,contractSha256:contractHash(contract),provisionalWitnesses:witnesses,completeWitnesses:complete.witnesses,provisionalReportJsonSha256:createHash('sha256').update(JSON.stringify(report)).digest('hex'),completeReportJsonSha256:createHash('sha256').update(JSON.stringify(complete.record.report)).digest('hex')})
+      }
+    }
     let hash
-    for(const {record,witnesses} of variants.values()){
+    for(const {record,witnesses} of entries.filter(entry=>!prefixes.has(entry))){
       const {contract,report}=record;validateContract(contract);validateCompletionReport(report,{validateCompletionRecord})
       if(!witnesses.length || contract.work_issue!==issue || (contract.generation??1)!==generation || report.work_issue!==issue || report.pr!==pr || report.contract_ref!==`refs/db-contracts/${issue}/${generation}` || !ancestor(contract.base_sha,report.head_sha) || !/^[0-9a-f]{40}$/.test(report.base_sha??contract.base_sha) || !ancestor(report.base_sha??contract.base_sha,report.head_sha))throw new LaneError('review budget historical evidence identity/ancestor/tail refused')
       const actualFiles=run(['diff','--name-only',report.base_sha??contract.base_sha,report.head_sha]).split('\n').filter(Boolean).sort()
@@ -178,9 +215,10 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
   const ancestor = (a,b) => { try { run(['merge-base','--is-ancestor',a,b]); return true } catch (error) { if(error?.status===1)return false;throw error } }
   const registry=readStoredHashRegistry(protectedMain,{gitRunner:git})
   const stored=[...new Set(registry.map(entry=>entry.file))]
-  const canonicalAppends=[]
+  const canonicalAppends=[],supersededCheckPrefixes=[]
   const canonicalPinOverlaps=[]
   const canonicalImportUnions=[]
+  const canonicalRegistryUnions=[]
   let paths = [':(top)**', ...[...excludePaths,...stored].map(p=>`:(top,literal,exclude)${p}`)]
   const tree = value => typeof value==='string'?value:value.tree
   const raw = args => String(git(args))
@@ -191,15 +229,15 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     const match=/^(100644|100755) blob ([0-9a-f]{40})\t(.+)$/.exec(record[0])
     if(!match || match[3]!==file)throw new LaneError('review budget canonical regular mode unreadable')
     const text=raw(['show',`${tree(commit)}:${file}`])
-    if(Buffer.byteLength(text)>1048576 || createHash('sha1').update(`blob ${Buffer.byteLength(text)}\0`).update(text).digest('hex')!==match[2])throw new LaneError('review budget canonical blob bytes unreadable or oversized')
+    if(Buffer.byteLength(text)>(file.startsWith('.agent/')?1048576:4194304) || createHash('sha1').update(`blob ${Buffer.byteLength(text)}\0`).update(text).digest('hex')!==match[2])throw new LaneError('review budget canonical blob bytes unreadable or oversized')
     return {mode:match[1],blob:match[2],text}
   }
   const equal = (a,b) => {
     const overrides=a?.overrides??new Map()
     const selected=[...overrides.keys()]
     if(run(['diff','--name-only',tree(a),tree(b),'--',...paths,...selected.map(p=>`:(top,literal,exclude)${p}`)])!=='')return false
-    if(!stored.every(file=>normalizedStoredHashFile(tree(a),file,registry,{gitRunner:git})===normalizedStoredHashFile(tree(b),file,registry,{gitRunner:git})))return false
-    return selected.every(file=>{const actual=entry(b,file),expected=overrides.get(file);return actual.mode===expected.mode && actual.text===expected.text})
+    if(!stored.every(file=>(overrides.get(file)?.normalizedStoredHash??normalizedStoredHashFile(tree(a),file,registry,{gitRunner:git}))===normalizedStoredHashFile(tree(b),file,registry,{gitRunner:git})))return false
+    return selected.every(file=>{if(overrides.get(file)?.normalizedStoredHash)return true;const actual=entry(b,file),expected=overrides.get(file);return actual.mode===expected.mode && actual.text===expected.text})
   }
   const canonicalAppend = (a,b,base) => {
     const file='scripts/manage-migration-author-lanes.test.mjs'
@@ -263,7 +301,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
   }
   // Budget-only reconstruction of the one independently additive test import.
   const canonicalImportUnion = (a,b,base,stages) => {
-    const file='scripts/orchestrator-flow/admission-outcome.test.mjs'
+    const file='scripts/db-flow/admission-outcome.test.mjs'
     const rows=[base,a,b].map(commit=>entry(commit,file))
     if(rows.some(row=>row.mode!=='100644'||/^(?:<{7}|\|{7}|={7}|>{7})/m.test(row.text)||row.text.includes('\0')) || stages.some((line,i)=>line!==`100644 ${rows[i].blob} ${i+1}\t${file}`))throw new LaneError('review budget import stage or regular bytes refused')
     const protectedSides=[a,b].map(commit=>ancestor(commit,protectedMain))
@@ -289,27 +327,92 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
       return new Map([[file,{mode:'100644',text}]])
     } finally {rmSync(dir,{recursive:true,force:true})}
   }
+  // Budget-only proof of an independently additive registry merge. It never
+  // changes either parent, relaxes a runtime check, or spends a paid attempt.
+  const canonicalRegistryUnion = (a,b,base,stages) => {
+    const file='config/production-verification-sidecar-registry.json'
+    const rows=[base,a,b].map(commit=>entry(commit,file))
+    if(rows.some(row=>row.mode!=='100644') || stages.some((line,i)=>line!==`100644 ${rows[i].blob} ${i+1}\t${file}`))throw new LaneError('review budget registry stage or regular mode refused')
+    const protectedSides=[a,b].map(commit=>ancestor(commit,protectedMain))
+    if(protectedSides.filter(Boolean).length!==1)throw new LaneError('review budget registry protected parent ambiguous')
+    const parse=row=>{
+      let value
+      try{value=JSON.parse(row.text)}catch{throw new LaneError('review budget registry JSON refused')}
+      if(!value || Object.keys(value).join(',')!=='schema_version,sidecars' || value.schema_version!==1 || !Array.isArray(value.sidecars) || value.sidecars.length>=1000 || row.text!==JSON.stringify(value,null,2)+'\n')throw new LaneError('review budget registry canonical shape refused')
+      let previous=''
+      for(const item of value.sidecars){
+        if(!item || Object.keys(item).join(',')!=='version,issue' || typeof item.version!=='string' || !/^\d{14}$/.test(item.version) || item.version<=previous || !(item.issue===null || Number.isSafeInteger(item.issue)&&item.issue>0))throw new LaneError('review budget registry identity or ordering refused')
+        previous=item.version
+      }
+      return value.sidecars
+    }
+    const [original,left,right]=rows.map(parse),prefix=JSON.stringify(original)
+    if([left,right].some(items=>items.length<=original.length || JSON.stringify(items.slice(0,original.length))!==prefix))throw new LaneError('review budget registry must only append unchanged base entries')
+    const additions=[...left.slice(original.length),...right.slice(original.length)]
+    if(additions.some(item=>item.issue===null) || new Set(additions.map(item=>item.version)).size!==additions.length)throw new LaneError('review budget registry additions overlap or lack issue identity')
+    if(original.length+additions.length>=1000)throw new LaneError('review budget registry union size refused')
+    additions.sort((x,y)=>x.version<y.version?-1:x.version>y.version?1:0)
+    const text=JSON.stringify({schema_version:1,sidecars:[...original,...additions]},null,2)+'\n'
+    canonicalRegistryUnions.push({base,parents:[a,b],path:file,mode:'100644',parentBlobs:rows.map(row=>row.blob),protectedParent:[a,b][protectedSides.indexOf(true)],canonicalBlob:createHash('sha1').update(`blob ${Buffer.byteLength(text)}\0`).update(text).digest('hex')})
+    return new Map([[file,{mode:'100644',text}]])
+  }
   const automaticMerge = (a,b) => {
     if (ancestor(b,a)) return run(['rev-parse',`${a}^{tree}`])
     const base=run(['merge-base',a,b])
     if(!sha.test(base))throw new LaneError('review budget merge base unreadable')
     const changed=[...new Set([a,b].flatMap(tip=>raw(['diff','--name-only','-z',base,tip]).split('\0').filter(Boolean)))]
     if(changed.length>=1000)throw new LaneError('review budget merge path bound refused')
+    let protectedRename=false
     for(const tip of [base,a,b,null]) {
       const attributes=changed.length?raw(['check-attr',...(tip?[`--source=${tip}`]:[]),'-z','merge','filter','working-tree-encoding','--',...changed]).split('\0'):[]
       for(let i=2;i<attributes.length;i+=3)if(attributes[i]!=='unspecified')throw new LaneError('review budget custom merge/filter/encoding attributes refused')
-      if(tip && raw(['diff','--name-status','-M',base,tip]).split('\n').some(line=>/^R[0-9]+\t/.test(line)))throw new LaneError('review budget renamed merge source refused')
+      if(tip && raw(['diff','--name-status','-M',base,tip]).split('\n').some(line=>/^R[0-9]+\t/.test(line))){
+        // #4397: a rename already on reviewed protected main is accepted only when
+        // git resolves the replay cleanly. A pull-request-side rename always refuses,
+        // and so does any conflicted replay with a rename on either side.
+        if(tip===base || !ancestor(tip,protectedMain))throw new LaneError('review budget renamed merge source refused')
+        protectedRename=true
+      }
     }
     let result
     try { result=run(['merge-tree','--write-tree',a,b]) }
     catch(error) {
       if(error?.status!==1 || typeof error.stdout!=='string')throw error
+      // #4397 generation 2: a conflicted replay across a protected-main rename is the
+      // moved-main merge gap, bridged only conservatively (it can spend, never grant).
+      if(protectedRename)throw new LaneError('review budget protected rename merge gap')
       const lines=error.stdout.split('\n'),resultTree=lines[0]
-      const stages=lines.slice(1).filter(line=>/^[0-9]{6} /.test(line))
+      let stages=lines.slice(1).filter(line=>/^[0-9]{6} /.test(line))
+      const metadataOverrides=new Map()
+      // The protected registry already sets aside ONLY correctly pinned hashes.
+      // Reconstruct a conflicting registered file only when all three complete
+      // regular blobs authenticate their pins and normalize to identical bytes.
+      // Source files remain in the ordinary merge and authored-witness checks.
+      for(const file of stored){
+        const group=stages.filter(line=>line.endsWith(`\t${file}`))
+        if(!group.length)continue
+        const commits=[base,a,b],rows=commits.map(commit=>entry(commit,file))
+        if(group.length!==3 || group.some((line,i)=>line!==`100644 ${rows[i].blob} ${i+1}\t${file}`))throw new LaneError('review budget stored hash conflict stages refused')
+        const normalized=commits.map(commit=>normalizedStoredHashFile(commit,file,registry,{gitRunner:git}))
+        for(const item of registry.filter(item=>item.file===file)){
+          for(let i=0;i<commits.length;i++){
+            const source=entry(commits[i],item.source)
+            const digest=createHash('sha256').update(source.text.replace(/\r\n/g,'\n')).digest('hex')
+            const matches=[...rows[i].text.matchAll(new RegExp(`("${item.field}"\\s*:\\s*")([0-9a-f]{64})(")`,'g'))]
+            if(matches.length!==1 || matches[0][2]!==digest || !normalized[i].includes(`<verified sha256 of ${item.source}>`))throw new LaneError('review budget stored hash conflict pin refused')
+          }
+        }
+        if(normalized.some(value=>value!==normalized[0]))throw new LaneError('review budget stored hash conflict changes other bytes')
+        metadataOverrides.set(file,{mode:'100644',text:rows[1].text,normalizedStoredHash:normalized[0]})
+        stages=stages.filter(line=>!group.includes(line))
+      }
+      const withMetadata=overrides=>({tree:resultTree,overrides:new Map([...metadataOverrides,...overrides])})
+      if(sha.test(resultTree) && stages.length===0 && metadataOverrides.size)return withMetadata(new Map())
       if(!sha.test(resultTree) || stages.length!==3)throw new LaneError('review budget conflict is outside the one canonical test append')
-      if(stages.every((line,i)=>new RegExp(`^(100644|100755) [0-9a-f]{40} ${i+1}\\tscripts/manage-migration-author-lanes\\.test\\.mjs$`).test(line)))return {tree:resultTree,overrides:canonicalAppend(a,b,base)}
-      if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tscripts/production_business_risk_gate\\.py$`).test(line)))return {tree:resultTree,overrides:canonicalPinOverlap(a,b,base)}
-      if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tscripts/orchestrator-flow/admission-outcome\\.test\\.mjs$`).test(line)))return {tree:resultTree,overrides:canonicalImportUnion(a,b,base,stages)}
+      if(stages.every((line,i)=>new RegExp(`^(100644|100755) [0-9a-f]{40} ${i+1}\\tscripts/manage-migration-author-lanes\\.test\\.mjs$`).test(line)))return withMetadata(canonicalAppend(a,b,base))
+      if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tscripts/production_business_risk_gate\\.py$`).test(line)))return withMetadata(canonicalPinOverlap(a,b,base))
+      if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tscripts/db-flow/admission-outcome\\.test\\.mjs$`).test(line)))return withMetadata(canonicalImportUnion(a,b,base,stages))
+      if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tconfig/production-verification-sidecar-registry\\.json$`).test(line)))return withMetadata(canonicalRegistryUnion(a,b,base,stages))
       throw new LaneError('review budget conflict is outside the one canonical test append')
     }
     if (!sha.test(result)) throw new LaneError('review budget automatic merge proof unreadable')
@@ -321,7 +424,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     const incorporatedMain = run(['merge-base',after,protectedMain])
     if (!sha.test(incorporatedMain)) throw new LaneError('review budget protected main ancestry unreadable')
     const expected = merge(before,incorporatedMain)
-    if (equal(expected,after)) return {schema:1,before,after,protectedMain,kind:'unchanged',canonicalAppends,canonicalPinOverlaps,canonicalImportUnions}
+    if (equal(expected,after)) return {schema:1,before,after,protectedMain,kind:'unchanged',canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions}
     const rows = run(['rev-list','--first-parent','--max-count=1001',after]).split('\n')
     const index = rows.indexOf(before)
     if(index<0 || index>=1000)throw new LaneError('review budget complete first-parent ancestry unavailable')
@@ -342,26 +445,56 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     for(const file of run(['diff','--name-only',tree(expected),after,'--',...paths]).split('\n').filter(Boolean)){
       if(file.startsWith('.agent/'))neededFiles.add(file)
     }
-    const intermediate = neededFiles.size?verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,[...neededFiles]):[]
+    const intermediate = neededFiles.size?verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,[...neededFiles],supersededCheckPrefixes):[]
     if(intermediate.length)paths=[...paths,...intermediate.map(p=>`:(top,literal,exclude)${p}`)]
     // Recompute with the exact authenticated historical pair paths. They can
     // explain evidence retirement but can never serve as an author witness.
-    if(intermediate.length && equal(expected,after))return {schema:1,before,after,protectedMain,kind:'unchanged',canonicalAppends,canonicalPinOverlaps,canonicalImportUnions}
+    if(intermediate.length && equal(expected,after))return {schema:1,before,after,protectedMain,kind:'unchanged',canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions,...(supersededCheckPrefixes.length?{supersededCheckPrefixes}:{})}
 
     if (index < 0 || index >= 1000) throw new LaneError('review budget complete first-parent ancestry unavailable')
+    const history=rows.slice(0,index).map((commit,position)=>({commit,position,parents:run(['rev-list','--parents','-n','1',commit]).split(' ').slice(1)}))
+    const mixed=[]
+    for(const row of history){
+      if(row.parents.length===2){
+        // A later restoration never makes foreign ancestry trustworthy.
+        if(!ancestor(row.parents[1],protectedMain))throw new LaneError('review budget noncanonical or foreign merge refused')
+        if(!equal(merge(...row.parents),row.commit))mixed.push(row)
+      }else if(row.parents.length!==1)throw new LaneError('review budget ambiguous merge provenance refused')
+    }
+    let canonicalRecovery=null
+    if(mixed.length){
+      if(mixed.length!==1)throw new LaneError('review budget noncanonical or foreign merge refused')
+      const row=mixed[0],anchor=row.parents[0],projection=merge(anchor,incorporatedMain)
+      // Forward recovery must first restore the COMPLETE clean canonical source
+      // tree. A conflict-specific projection, partial revert, or caller-supplied
+      // checkpoint cannot stand in for that proof. Metadata exclusions above
+      // have already passed their immutable contract/evidence checks.
+      if(typeof projection!=='string'||!sha.test(projection))throw new LaneError('review budget noncanonical or foreign merge refused')
+      for(let position=row.position-1;position>=0;position-=1){
+        if(equal(projection,rows[position])){
+          canonicalRecovery={anchor,mixedMerge:row.commit,checkpoint:rows[position],checkpointPosition:position,mergePosition:row.position,incorporatedMain}
+          break
+        }
+      }
+      if(!canonicalRecovery)throw new LaneError('review budget noncanonical or foreign merge refused')
+    }
     const authorCandidates=[]
     let authored = false,witness=null
-    for (const commit of rows.slice(0,index)) {
-      const parents = run(['rev-list','--parents','-n','1',commit]).split(' ').slice(1)
+    for (const {commit,position,parents} of history) {
+      // Neither the mixed merge nor the commits that neutralized it can supply
+      // authored capacity. Earlier valid edits and later standalone edits still
+      // need the existing surviving-source witness. All historical paid starts
+      // remain in the accounting input; the checkpoint refunds nothing.
+      if(canonicalRecovery&&position>=canonicalRecovery.checkpointPosition&&position<=canonicalRecovery.mergePosition)continue
       if (parents.length === 2) {
-        if (!ancestor(parents[1],protectedMain) || !equal(merge(...parents),commit)) throw new LaneError('review budget noncanonical or foreign merge refused')
+        if (!equal(merge(...parents),commit)) throw new LaneError('review budget noncanonical or foreign merge refused')
       } else if (parents.length === 1) {
         if (!ancestor(commit,protectedMain)) {
           authorCandidates.push({commit,parent:parents[0]})
         }
       } else throw new LaneError('review budget ambiguous merge provenance refused')
     }
-    const witnessExcludes=[...(canonicalAppends.length?[':(top,literal,exclude)scripts/manage-migration-author-lanes.test.mjs']:[]),...(canonicalPinOverlaps.length?[':(top,literal,exclude)scripts/production_business_risk_gate.py']:[])]
+    const witnessExcludes=[...(canonicalAppends.length?[':(top,literal,exclude)scripts/manage-migration-author-lanes.test.mjs']:[]),...(canonicalPinOverlaps.length?[':(top,literal,exclude)scripts/production_business_risk_gate.py']:[]),...(canonicalImportUnions.length?[':(top,literal,exclude)scripts/db-flow/admission-outcome.test.mjs']:[]),...(canonicalRegistryUnions.length?[':(top,literal,exclude)config/production-verification-sidecar-registry.json']:[])]
     const netPaths=run(['diff','--name-only',tree(expected),after,'--',...paths,...witnessExcludes]).split('\n').filter(Boolean)
     if(netPaths.some(file=>file.startsWith('.agent/')))throw new LaneError('review budget unverified evidence cannot witness authored repair')
     const managerFile='scripts/manage-migration-author-lanes.mjs'
@@ -409,39 +542,107 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
       }
     }
     if (!authored) throw new LaneError('review budget surviving author source edit unavailable')
-    return {schema:1,before,after,protectedMain,kind:'substantive',historyCount:index,witness,canonicalAppends,canonicalPinOverlaps,canonicalImportUnions}
+    return {schema:1,before,after,protectedMain,kind:'substantive',historyCount:index,witness,canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions,...(canonicalRecovery?{canonicalRecovery}:{}),...(supersededCheckPrefixes.length?{supersededCheckPrefixes}:{})}
   } catch (error) {
     throw new LaneError(`review budget Git provenance refused: ${String(error?.message??error).split('\n')[0]}`)
   }
 }
 
 export function assertPaidReviewCapacity(request, io) {
-  if(!Number.isInteger(request.pr)||request.pr<1||!Number.isInteger(request.slot)||request.slot<1)throw new LaneError('review circuit breaker: exact positive PR and slot required')
+  if(!Number.isInteger(request.issue)||request.issue<1||!Number.isInteger(request.pr)||request.pr<1||!Number.isInteger(request.slot)||request.slot<1)throw new LaneError('review circuit breaker: exact positive issue, PR and slot required')
   const prefix=`${REVIEW_STARTED_REF_PREFIX}/`
   const rows = typeof io.readPaidReviewStarts === 'function' ? io.readPaidReviewStarts(prefix,request.pr) : io.listRefs(prefix)
   if (!Array.isArray(rows)) throw new LaneError('review circuit breaker: immutable start listing unreadable')
   if(rows.length>=REVIEW_REF_ROW_LIMIT)throw new LaneError('review circuit breaker: bounded start listing may be truncated')
   const starts = rows.map(row=>paidStart(row,row.commit ?? io.getCommit(row.sha))).filter(row=>row && row.pr === request.pr && row.slot === request.slot)
   let count=0,reinstated=0
+  const failuresByReviewer=new Map()
   const comparisonContext={}
-  starts.sort((a,b)=>a.sequence-b.sequence)
-  for (const start of starts) {
-    let same=start.headSha === request.headSha
-    if (!same) {
-      if (typeof io.reviewContentComparison !== 'function') throw new LaneError('review circuit breaker: substantive content comparison unavailable')
-      const comparison=io.reviewContentComparison(start.headSha,request.headSha,request.pr,comparisonContext)
-      if (!comparison || !/^[0-9a-f]{64}$/.test(comparison.before) || !/^[0-9a-f]{64}$/.test(comparison.after)) throw new LaneError('review circuit breaker: substantive content proof unreadable')
-      const proof=comparison.budgetProof
-      if(!proof || proof.schema!==1 || proof.before!==start.headSha || proof.after!==request.headSha || !/^[0-9a-f]{40}$/.test(proof.protectedMain??'') || !['unchanged','substantive'].includes(proof.kind)) throw new LaneError('review circuit breaker: author-owned Git provenance proof unreadable')
-      if(proof.kind==='substantive' && (!Number.isInteger(proof.historyCount)||proof.historyCount<1||proof.historyCount>=1000)) throw new LaneError('review circuit breaker: complete substantive history proof unreadable')
-      same=proof.kind==='unchanged'
+  // One proven classification of before->after content: 'unchanged' or 'substantive'.
+  const classify=(beforeHead,afterHead)=>{
+    const context=comparisonContext
+    if (typeof io.reviewContentComparison !== 'function') throw new LaneError('review circuit breaker: substantive content comparison unavailable')
+    const comparison=io.reviewContentComparison(beforeHead,afterHead,request.pr,context)
+    if (!comparison || !/^[0-9a-f]{64}$/.test(comparison.before) || !/^[0-9a-f]{64}$/.test(comparison.after)) throw new LaneError('review circuit breaker: substantive content proof unreadable')
+    const proof=comparison.budgetProof
+    if(!proof || proof.schema!==1 || proof.before!==beforeHead || proof.after!==afterHead || !/^[0-9a-f]{40}$/.test(proof.protectedMain??'') || (context.base!==undefined && proof.protectedMain!==context.base) || !['unchanged','substantive'].includes(proof.kind)) throw new LaneError('review circuit breaker: author-owned Git provenance proof unreadable')
+    if(proof.kind==='substantive' && (!Number.isInteger(proof.historyCount)||proof.historyCount<1||proof.historyCount>=1000)) throw new LaneError('review circuit breaker: complete substantive history proof unreadable')
+    return proof.kind
+  }
+  // #4290/#4206: after the branch is refreshed from main, an OLDER reviewed head can no
+  // longer be re-merged against the moved main (its stale copies of files main has since
+  // changed conflict), so its direct classification is unprovable. It is then classified
+  // THROUGH a newer reviewed head of the same PR whose own classification is proven:
+  // older->newer (pre-refresh, directly comparable) composed with newer->request. Only a
+  // fully proven chain establishes changed content; a narrow unresolved merge gap
+  // consumes the ordinary allowance conservatively as unchanged content.
+  const proven=new Map(),unprovedHeads=new Set(),conservativeHeads=new Set()
+  // Only the moved-main MERGE gap may be bridged: re-merging an older head against the
+  // current main conflicts outside the canonical append forms. Every other provenance
+  // refusal (evidence lineage, blob integrity, foreign pairs, ...) keeps refusing.
+  const provenanceGap=(error)=>/^review budget Git provenance refused: review budget (protected rename merge gap|conflict is outside the one canonical test append|canonical append requires exactly one conflict|append marker ambiguity|append must be one EOF conflict|append cannot modify old lines or omit a parent)$/.test(String(error?.message??''))
+  // Composition table: unchanged after unchanged is unchanged; a substantive step on
+  // either side with an unchanged step on the other is substantive. Two substantive
+  // steps prove nothing (the second may revert the first), so that chain is skipped.
+  const compose=(link,kind)=>link==='unchanged'?kind:kind==='unchanged'?'substantive':null
+  // Returns {kind, direct}. A start whose direct proof hits the merge gap is classified
+  // through newer starts with DIRECT proofs; the older->newer link is derived at the same
+  // protected base as every other comparison in this operation (a reviewed head that has
+  // not absorbed main re-merges cleanly), so no second base is ever introduced. Chained
+  // results are counted but never serve as intermediates (no multi-hop).
+  const classifyStart=(start)=>{
+    try{return {kind:classify(start.headSha,request.headSha),direct:true}}catch(error){
+      if(!provenanceGap(error))throw error
+      const results=new Set()
+      for(const [head,kind] of proven.entries()){
+        if(head===start.headSha)continue
+        let link
+        try{link=classify(start.headSha,head)}catch(linkError){if(provenanceGap(linkError))continue;throw linkError}
+        const composed=compose(link,kind)
+        if(composed)results.add(composed)
+      }
+      // Unproved merge-gap content spends the ordinary allowance as unchanged.
+      // This is never a substantive proof or a chaining intermediate, and it
+      // does not suppress any non-gap transport, binding or evidence refusal.
+      if(!results.size)return {kind:'unchanged',direct:false,conservative:true}
+      // Every provable chain must agree; on disagreement count conservatively (as
+      // unchanged), which can only spend capacity, never grant an extra paid review.
+      return {kind:results.size===1?[...results][0]:'unchanged',direct:false}
     }
+  }
+  starts.sort((a,b)=>a.sequence-b.sequence)
+  // Prove newest first so an older head can compose through a newer proven one.
+  const kinds=new Map()
+  for (const start of [...starts].reverse()) {
+    if(start.headSha===request.headSha)continue
+    const result=classifyStart(start)
+    // Only DIRECT proofs serve as chain intermediates (no multi-hop): every link is then
+    // one step from a head whose classification against the request was proven directly.
+    kinds.set(start,result.kind);if(result.direct)proven.set(start.headSha,result.kind);if(result.conservative)unprovedHeads.add(start.headSha)
+  }
+  for (const start of starts) {
+    const same=start.headSha===request.headSha||kinds.get(start)==='unchanged'
     if(!same)continue
-    if(reinstated<REINSTATEMENT_CEILING && reinstatedByFailure(start,io)){reinstated++;continue}
+    if(reinstatedByFailure(start,io)){
+      reinstated++
+      failuresByReviewer.set(start.reviewer,(failuresByReviewer.get(start.reviewer)??0)+1)
+      continue
+    }
+    if(unprovedHeads.has(start.headSha))conservativeHeads.add(start.headSha)
     count++
   }
-  if(count>=2) throw new LaneError(`review circuit breaker: two paid attempts already started for unchanged reviewed content in slot ${request.slot}; third draw refused pending substantive repair or supported cause-bound reinstatement proof`)
-  return reinstated?{paidAttempts:count,remaining:2-count,reinstated}:{paidAttempts:count,remaining:2-count}
+  // Owner 2026-10-16 (#4399): spend on the same content is uncapped. Unlimited
+  // concurrent reviewer slots landed in #3130; this third-draw refusal was a leftover
+  // spend brake that reported the pool exhausted. Keep counting paidAttempts for
+  // diagnostics only; never refuse a draw on a numeric start ceiling.
+  const result={paidAttempts:count,remaining:null,uncapped:true,...(reinstated?{reinstated}:{}),...(conservativeHeads.size?{conservativeHeads:[...conservativeHeads].sort()}: {})}
+  if(failuresByReviewer.size){
+    result.failedReviewers=[...failuresByReviewer.keys()].sort()
+    // Owner 2026-10-16 (#4399): no per-reviewer failure ceiling. Failures stay visible
+    // in failedReviewers for diagnostics; they never remove a name from the draw.
+    result.exhaustedReviewers=[]
+  }
+  return result
 }
 
 // Provider outage/quota evidence differs from a local preparation failure.

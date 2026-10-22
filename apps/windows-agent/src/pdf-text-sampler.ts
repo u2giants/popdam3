@@ -4,7 +4,7 @@
  * Reads each PDF asset from the NAS and extracts text using a cascade:
  *
  *   1. mupdf  — native text extraction (primary; robust C library)
- *   2. OCR    — tesseract.js on a mupdf-rendered page image (scanned PDFs)
+ *   2. OCR    — Indra (tesseract.js fallback) on a mupdf-rendered page image (scanned PDFs)
  *   3. AI     — vision model from PDF_EXTRACTION_CONFIG/AI_MODELS catalog
  *
  * Reports per-file progress back to the cloud so the UI shows real-time status.
@@ -15,6 +15,7 @@ import { resolveUnderRoot } from "./common/path-containment.js";
 import { logger } from "./logger";
 import * as api from "./api-client";
 import { uploadPdfPage } from "./uploader";
+import { indraPython, ocrPngWithIndra } from "./common/indra-ocr.js";
 
 // OTA-safe: mupdf, tesseract.js, and @anthropic-ai/sdk are only available after
 // a full installer run, not OTA dist updates. Load them lazily inside the function.
@@ -51,6 +52,8 @@ export interface AiConfig {
   anthropicApiKey: string;
   /** OpenRouter API key — if set, all AI vision calls go through openrouter.ai */
   openRouterApiKey?: string;
+  /** ScaleDown API key — used when the selected model is a scaledown/ id */
+  scaleDownApiKey?: string;
   /** Per-task model overrides from AI_TASK_MODELS admin config */
   aiTaskModels?: Record<string, string>;
   /** Server-side direct provider route, bound to the current PopSG PDF lease. */
@@ -85,12 +88,71 @@ interface FileProgressEntry {
 
 const PDF_EXTRACTION_PROMPT = "Transcribe only text that is visually legible. Preserve reading order where possible. Do not infer, complete, correct, or invent unclear text. Omit unreadable text. Return only the transcription.";
 
+const SCALEDOWN_URL = "https://api.scaledown.xyz/v1/chat/completions";
+
+/**
+ * ScaleDown's summarize model takes the page as a base64 `document` (its own
+ * non-standard field, the same shape the worker's image tagging uses) and
+ * usually answers with {"summary": "..."} — unwrap it, but accept plain text.
+ * A truncated or error envelope is an error, not page text: extraction output
+ * is indexed for search and fed into image tagging, so JSON must never land
+ * there (the worker's ScaleDown client rejects the same condition).
+ */
+async function transcribeWithScaleDown(base64: string, apiKey: string): Promise<string> {
+  const resp = await fetch(SCALEDOWN_URL, {
+    method: "POST",
+    headers: { "x-api-key": apiKey, "content-type": "application/json" },
+    signal: AbortSignal.timeout(60_000),
+    body: JSON.stringify({
+      model: "summarize",
+      messages: [
+        { role: "system", content: PDF_EXTRACTION_PROMPT },
+        { role: "user", content: "Transcribe the document image." },
+      ],
+      document: base64,
+      document_mime_type: "image/png",
+      max_tokens: 4096,
+    }),
+  });
+  const body = await resp.text();
+  if (!resp.ok) throw new Error(`ScaleDown ${resp.status}: ${body.slice(0, 200)}`);
+  const payload = JSON.parse(body) as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> };
+  const choice = payload.choices?.[0];
+  if (choice?.finish_reason === "length") throw new Error("ScaleDown PDF transcription hit the output token limit");
+  const content = choice?.message?.content;
+  if (!content || !content.trim()) throw new Error("ScaleDown returned an empty PDF transcription");
+  const trimmed = content.trim();
+  let envelope: Record<string, unknown> | null = null;
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) envelope = parsed as Record<string, unknown>;
+  } catch {
+    // Not JSON — the model answered with the transcription itself.
+  }
+  if (envelope && ("summary" in envelope || "finish_reason" in envelope || "error" in envelope)) {
+    // The envelope's own finish_reason/error wins over a partial summary —
+    // same rule as the worker's ScaleDown client.
+    if (envelope.finish_reason === "length") throw new Error("ScaleDown PDF transcription hit the output token limit");
+    if (envelope.error) throw new Error(`ScaleDown returned an error envelope: ${trimmed.slice(0, 200)}`);
+    if (typeof envelope.summary === "string" && envelope.summary.trim()) return envelope.summary.trim();
+    throw new Error(`ScaleDown returned no transcription text: ${trimmed.slice(0, 200)}`);
+  }
+  return trimmed;
+}
+
 export async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {
   if (aiConfig.aiTaskModels?.pdf_extraction?.trim().startsWith("meta-direct/")) {
     if (!aiConfig.directPdfVision) throw new Error("Direct PDF transcription requires a server-side content lease");
     return aiConfig.directPdfVision(pngBuffer);
   }
   const base64 = pngBuffer.toString("base64");
+
+  // Checked before the OpenRouter path: a ScaleDown id must never be posted
+  // to openrouter.ai, which does not host it.
+  if (aiConfig.aiTaskModels?.pdf_extraction?.trim().startsWith("scaledown/")) {
+    if (!aiConfig.scaleDownApiKey) throw new Error("SCALEDOWN_API_KEY is not configured in Settings");
+    return transcribeWithScaleDown(base64, aiConfig.scaleDownApiKey);
+  }
 
   // ── Path 1: OpenRouter (preferred when key is configured) ───────────────
   if (aiConfig.openRouterApiKey) {
@@ -316,22 +378,32 @@ async function processSinglePdf(
     });
   }
 
-  // ── Step 3: OCR via tesseract.js ────────────────────────────────────
+  // ── Step 3: OCR via Indra (tesseract.js only where Indra is not installed) ────────────────────────────────────
   let ocrText = "";
   if (pngBuffer) {
     await reportProgress(index, total, asset.filename, "ocr", fileResults);
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tesseractLib: any = await dynamicImport("tesseract.js").catch(() => null);
-      if (!tesseractLib) throw new Error("tesseract.js not installed");
-      const worker = await tesseractLib.createWorker("eng");
-      const ocrResult = await worker.recognize(pngBuffer);
-      await worker.terminate();
-      ocrText = (ocrResult.data.text as string).trim();
-    } catch (ocrErr) {
-      logger.warn("PDF text sample: OCR failed", {
-        filename: asset.filename, error: (ocrErr as Error).message,
-      });
+    const indra = indraPython();
+    let indraFailed = false;
+    if (indra) {
+      try {
+        ocrText = await ocrPngWithIndra(indra, pngBuffer);
+      } catch (e) {
+        indraFailed = true;
+        logger.warn("PDF text sample: Indra OCR failed, falling back to tesseract.js", { filename: asset.filename, error: (e as Error).message });
+      }
+    }
+    if (!indra || indraFailed) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tesseractLib: any = await dynamicImport("tesseract.js").catch(() => null);
+        if (!tesseractLib) throw new Error("tesseract.js not installed");
+        const worker = await tesseractLib.createWorker("eng");
+        const ocrResult = await worker.recognize(pngBuffer);
+        await worker.terminate();
+        ocrText = (ocrResult.data.text as string).trim();
+      } catch (ocrErr) {
+        logger.warn("PDF text sample: OCR failed", { filename: asset.filename, error: (ocrErr as Error).message });
+      }
     }
   }
 

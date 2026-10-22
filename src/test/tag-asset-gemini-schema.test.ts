@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-// @ts-expect-error - runtime-neutral JS contract shared with the Deno edge function
 import { TAG_ASSET_SCHEMA, toGeminiSchema } from "../../supabase/functions/_shared/tag-asset-contract.js";
 
 /**

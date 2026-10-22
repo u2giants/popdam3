@@ -1,5 +1,7 @@
 # PopSG — Licensor Style Guide Library
 
+Semantic-search delivery is planned in [the combined PopDAM/PopSG plan](../plan_semantic_search_popdam_popsg.md); read its STATUS first. Existing keyword search remains the baseline until its live acceptance gates pass.
+
 > Active implementation plan: [`plan_popsg_production_readiness.md`](../plan_popsg_production_readiness.md). Read its STATUS table before work on crawl fidelity, previews, PDF/source coverage, or search/filter production readiness.
 
 ## What is PopSG?

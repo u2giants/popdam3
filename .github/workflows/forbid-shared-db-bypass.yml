@@ -44,10 +44,21 @@ jobs:
             # Supabase Management API with read_only: true. That exact line is allowed; any other
             # match, in that file or anywhere else, still fails.
             allowed_read='^\.github/workflows/db-data-admin\.yml:[0-9]+:[[:space:]]+'"'"'ledger'"'"', coalesce\(\(select jsonb_agg\(version::text\) from supabase_migrations\.schema_migrations\), '"'"'\[\]'"'"'::jsonb\),$'
-            hits="$(printf '%s\n' "$scan_files" | xargs grep -HnE "$pattern" | grep -vE "$allowed_read" || true)"
+            # The exception executor proves guard ABSENCE using only these exact
+            # catalog/ledger reads. Other reads, appended SQL, and every ledger
+            # write in this file or any other file remain forbidden.
+            allowed_guard_reads="$(cat <<'READ_ONLY_GUARD_SQL'
+          ^scripts/orderlist-settled-exception-executor\.py:[0-9]+:[[:space:]]+"to_regclass\('supabase_migrations\.schema_migrations'\) is not null"$
+          ^scripts/orderlist-settled-exception-executor\.py:[0-9]+:[[:space:]]+"exists\(select 1 from supabase_migrations\.schema_migrations where version=%s\)"$
+          READ_ONLY_GUARD_SQL
+            )"
+            hits="$(printf '%s\n' "$scan_files" | xargs grep -HnE "$pattern" | grep -vE "$allowed_read" | grep -vE "$allowed_guard_reads" || true)"
             if [ -n "$hits" ]; then
               printf '%s\n' "$hits"
               echo "App repos may not mutate or repair the shared Supabase database. Put DB changes in u2giants/shared-db."
               exit 1
             fi
           fi
+
+      - name: Verify guard precision and retained write rejection
+        run: node --test verification/forbid-shared-db-bypass.test.mjs

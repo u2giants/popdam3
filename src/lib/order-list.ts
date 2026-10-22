@@ -69,6 +69,7 @@ export function buildOrderListFilters(filterModel: Record<string, any> | null | 
     const conditions = Array.isArray(model?.conditions) && model.conditions.length > 0 ? model.conditions : [model];
     for (const condition of conditions) {
       if (!condition) continue;
+      if (!isOrderListFieldQueryable(column)) continue;
       const type = condition.type as string | undefined;
       const filterValue = condition.filter;
       const dateFrom = typeof condition.dateFrom === "string" ? condition.dateFrom.slice(0, 10) : undefined;
@@ -131,7 +132,9 @@ export function buildOrderListFilters(filterModel: Record<string, any> | null | 
 export function buildOrderListSearchClause(search: string): string | null {
   const term = search.trim();
   if (term === "") return null;
-  const pattern = `%${escapeLike(term)}%`;
+  // Quote the pattern: inside a PostgREST `or` clause a bare comma, parenthesis
+  // or quote is filter syntax and turns "Acme, Inc" into a 400.
+  const pattern = `"%${escapeLike(term).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}%"`;
   return ORDER_LIST_SEARCH_COLUMNS.map((column) => `${column}.ilike.${pattern}`).join(",");
 }
 
@@ -139,12 +142,31 @@ export type OrderListSort = { column: string; ascending: boolean };
 
 /** AG Grid sort model -> ordering, always ending on a stable tiebreaker. */
 export function buildOrderListSort(sortModel: Array<{ colId: string; sort: string }> | null | undefined): OrderListSort[] {
-  const sorts = (sortModel ?? [])
-    .filter((entry) => entry.colId && entry.sort)
-    .map((entry) => ({ column: entry.colId, ascending: entry.sort === "asc" }));
-  if (sorts.length === 0) sorts.push({ column: "order_date", ascending: false });
+  const sorts: OrderListSort[] = [];
+  for (const entry of sortModel ?? []) {
+    if (!entry.colId || !entry.sort) continue;
+    const column = orderListSortColumn(entry.colId);
+    if (!column) continue;
+    sorts.push({ column, ascending: entry.sort === "asc" });
+  }
+  if (sorts.length === 0) sorts.push({ column: "start_ship_date", ascending: false });
   sorts.push({ column: "order_line_id", ascending: true });
   return sorts;
+}
+
+/**
+ * First New York calendar day of the default 12-month window, as YYYY-MM-DD.
+ * Orders whose window date (SO date, else Sent PO, else Start Ship) is older are
+ * hidden until "Show old" is used.
+ */
+export function orderWindowStart(now: Date = new Date()): string {
+  const [year, month, day] = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now).split("-").map(Number);
+  return new Date(Date.UTC(year - 1, month - 1, day)).toISOString().slice(0, 10);
 }
 
 /**
@@ -448,6 +470,7 @@ export function summarizeOrderListRows(rows: OrderListRow[], total?: number): Or
 export type OrderListColumn = {
   field: keyof OrderListRow;
   header: string;
+  headerTooltip?: string;
   width?: number;
   /** "masterData" columns are read-only and visually marked as Master Data. */
   kind: "order" | "line" | "masterData" | "link" | "diagnostic";
@@ -459,6 +482,14 @@ export type OrderListColumn = {
   pinned?: "left";
   /** New output fields are outside the bounded Find/filter contract. */
   queryable?: boolean;
+  /** Loaded from a bounded sidecar RPC, not from `api.dam_order_list`. */
+  virtual?: boolean;
+  /**
+   * Trusted server sort alias for a UI column that is not a queryable
+   * `api.dam_order_list` field (e.g. virtual SO Date -> `sales_order_received_date`).
+   * Enables sorting only; never filter or edit.
+   */
+  sortField?: string;
 };
 
 /**
@@ -471,7 +502,8 @@ export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
   { field: "order_status", header: "PO Status", kind: "order", source: "automatic", type: "text", width: 130, pinned: "left" },
   { field: "production_order_number", header: "Import PO #", kind: "order", source: "helper", type: "text", width: 150, pinned: "left" },
   { field: "vendor_name", header: "Vendor", kind: "order", type: "text", width: 170 },
-  { field: "order_date", header: "Order Date", kind: "order", type: "date", width: 130 },
+  { field: "order_date", header: "Prod PO Date", headerTooltip: "Production PO Date in ColdLion.", kind: "order", type: "date", width: 130 },
+  { field: "sales_order_date", header: "SO Date", headerTooltip: "Date ColdLion received the Sales Order.", kind: "order", type: "date", width: 130, queryable: false, virtual: true, sortField: "sales_order_received_date" },
   { field: "sent_po_date", header: "Sent PO", kind: "order", type: "date", width: 130 },
   { field: "customer_name", header: "Customer", kind: "order", source: "input", type: "text", width: 170 },
   { field: "customer_po_number", header: "Customer PO", kind: "line", source: "input", type: "text", editable: true, width: 150 },
@@ -543,6 +575,41 @@ export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
   { field: "snapshot_professional_photos", header: "Photos (at import)", kind: "diagnostic", type: "text", hide: true, queryable: false, width: 190 },
   { field: "snapshot_contractual_sample_reorder", header: "Reorder (at import)", kind: "diagnostic", type: "boolean", hide: true, queryable: false, width: 190 },
 ];
+
+function isOrderListFieldQueryable(field: string) {
+  return ORDER_LIST_COLUMNS.some((column) => column.field === field && column.queryable !== false && !column.virtual);
+}
+
+/**
+ * Sortable means: a normal queryable non-virtual column, or a column with an
+ * explicit trusted `sortField` alias. Never accept a raw unknown backend name.
+ */
+export function isOrderListFieldSortable(field: string): boolean {
+  return ORDER_LIST_COLUMNS.some(
+    (column) =>
+      column.field === field &&
+      ((column.queryable !== false && !column.virtual) || typeof column.sortField === "string"),
+  );
+}
+
+function orderListSortColumn(field: string): string | null {
+  const column = ORDER_LIST_COLUMNS.find((entry) => entry.field === field);
+  if (!column) return null;
+  if (column.sortField) return column.sortField;
+  if (column.queryable !== false && !column.virtual) return column.field;
+  return null;
+}
+
+/** Inserts the new default-visible date into older saved layouts without changing their other choices. */
+export function ensureSalesOrderDateInSavedColumnState(state: unknown): unknown {
+  if (!Array.isArray(state) || state.some((entry) => entry?.colId === "sales_order_date")) return state;
+  const next = state.map((entry) => ({ ...entry }));
+  const orderDateIndex = next.findIndex((entry) => entry?.colId === "order_date");
+  const sentPoDateIndex = next.findIndex((entry) => entry?.colId === "sent_po_date");
+  const insertAt = orderDateIndex >= 0 ? orderDateIndex + 1 : sentPoDateIndex >= 0 ? sentPoDateIndex : next.length;
+  next.splice(insertAt, 0, { colId: "sales_order_date", hide: false });
+  return next;
+}
 
 export function isMasterDataColumn(column: OrderListColumn) {
   return column.kind === "masterData";

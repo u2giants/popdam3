@@ -3,7 +3,7 @@ import { authenticateUser as sharedAuthenticateUser, requireAdmin } from "../_sh
 import { corsServe, err, json } from "../_shared/http.ts";
 import { findRunningConflict } from "../_shared/operation-constants.ts";
 import { serviceClient } from "../_shared/service-client.ts";
-import { optionalString, requireString } from "../_shared/validators.ts";
+import { isAllowedThumbnailUrl, optionalString, requireString } from "../_shared/validators.ts";
 import {
   directGeminiBatchAllowedForServerConsumer,
   directGeminiBatchSelectionHasKey,
@@ -12,6 +12,7 @@ import {
   upsertConfigRowsAtomically,
   withValidatedCounterparts,
 } from "../_shared/direct-batch-model.ts";
+import { isAdminConfigSecretKey, redactAdminConfigSecret } from "../_shared/admin-config-secret.ts";
 
 // ── Extracted handler modules ───────────────────────────────────────
 import {
@@ -256,22 +257,6 @@ function formatPostgrestError(error: unknown): string {
   ].filter(Boolean).join(" | ");
 }
 
-function isAllowedThumbnailUrl(rawUrl: string): boolean {
-  try {
-    const url = new URL(rawUrl);
-    if (url.protocol !== "https:") return false;
-    if (!url.pathname.startsWith("/thumbnails/")) return false;
-
-    return [
-      "popdam.nyc3.digitaloceanspaces.com",
-      "popdam.nyc3.cdn.digitaloceanspaces.com",
-      "cdn.designflow.app",
-    ].includes(url.hostname);
-  } catch {
-    return false;
-  }
-}
-
 async function handleFetchThumbnailByUrl(body: Record<string, unknown>): Promise<Response> {
   const url = optionalString(body, "url");
   if (!url) return err("Missing thumbnail URL", 400);
@@ -315,7 +300,8 @@ async function handleGetConfig(body: Record<string, unknown>) {
 
   const config: Record<string, unknown> = {};
   for (const row of data || []) {
-    config[row.key] = { value: row.value, updated_at: row.updated_at };
+    const value = isAdminConfigSecretKey(row.key) ? redactAdminConfigSecret(row.value) : { value: row.value };
+    config[row.key] = { ...value, updated_at: row.updated_at };
   }
   return json({ ok: true, config });
 }
@@ -708,33 +694,42 @@ async function handleRebuildCharacterStats(body: Record<string, unknown>) {
   const threshold = typeof body.threshold === "number" ? body.threshold : 3;
   const db = serviceClient();
 
-  const { data: counts, error } = await db
-    .from("asset_characters")
-    .select("character_id, assets!inner(is_deleted)")
-    .eq("assets.is_deleted", false);
-
-  if (error) return err(error.message, 500);
-
+  // PostgREST caps a response at 1000 rows; asset_characters holds far more.
+  // Page to exhaustion so the tally covers every link, otherwise nearly every
+  // character would be reset to zero below.
+  const PAGE = 1000;
   const tally = new Map<string, number>();
-  for (const row of counts ?? []) {
-    const cid = row.character_id;
-    tally.set(cid, (tally.get(cid) ?? 0) + 1);
+  for (let from = 0;; from += PAGE) {
+    const { data: counts, error } = await db
+      .from("asset_characters")
+      .select("character_id, assets!inner(is_deleted)")
+      .eq("assets.is_deleted", false)
+      .order("asset_id").order("character_id")
+      .range(from, from + PAGE - 1);
+    if (error) return err(error.message, 500);
+    for (const row of counts ?? []) {
+      const cid = row.character_id;
+      tally.set(cid, (tally.get(cid) ?? 0) + 1);
+    }
+    if (!counts || counts.length < PAGE) break;
   }
 
-  await db.from("characters").update({
+  const { error: resetErr } = await db.from("characters").update({
     usage_count: 0,
     is_priority: false,
   }).gte("usage_count", 0);
+  if (resetErr) return err(resetErr.message, 500);
 
   let priorityCount = 0;
   const entries = [...tally.entries()];
   for (const [characterId, count] of entries) {
     const isPriority = count >= threshold;
     if (isPriority) priorityCount++;
-    await db.from("characters").update({
+    const { error: updateErr } = await db.from("characters").update({
       usage_count: count,
       is_priority: isPriority,
     }).eq("id", characterId);
+    if (updateErr) return err(`character ${characterId}: ${updateErr.message}`, 500);
   }
 
   return json({
@@ -952,7 +947,7 @@ const BUILTIN_AI_MODEL_CAPABILITY_OVERRIDES: Record<string, Record<string, unkno
   },
 };
 
-const DIRECT_VISION_MODELS = [
+const META_DIRECT_VISION_MODELS = [
   {
     id: "meta-direct/muse-spark-1.3-contributor",
     name: "Meta Muse Spark 1.3 Contributor (direct API; training data enabled)",
@@ -968,6 +963,9 @@ const DIRECT_VISION_MODELS = [
     applied_override: null,
     pricing: { prompt: "0.0000001", completion: "0.0000002", input_cache_read: "0.000000002" },
   },
+];
+
+const FALLBACK_GOOGLE_DIRECT_MODELS = [
   {
     id: "google-direct/gemini-3.8-flash:batch",
     name: "Google Gemini 3.8 Flash Batch (direct API)",
@@ -984,42 +982,197 @@ const DIRECT_VISION_MODELS = [
     pricing: null,
   },
 ];
+
+const DIRECT_VISION_MODELS = [...META_DIRECT_VISION_MODELS, ...FALLBACK_GOOGLE_DIRECT_MODELS];
 const openRouterVisionCatalogByAccount = new Map<string, Array<Record<string, unknown>>>();
+const googleDirectCatalogByAccount = new Map<string, Array<Record<string, unknown>>>();
+let openRouterPublicPricingCache: { fetchedAt: number; byId: Map<string, Record<string, unknown>> } | null = null;
+
+function usablePricing(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const pricing = value as Record<string, unknown>;
+  const prompt = pricing.prompt;
+  const completion = pricing.completion;
+  const hasPrompt = typeof prompt === "number" || (typeof prompt === "string" && prompt.trim().length > 0);
+  const hasCompletion = typeof completion === "number" || (typeof completion === "string" && completion.trim().length > 0);
+  return hasPrompt || hasCompletion ? pricing : null;
+}
+
+async function loadOpenRouterPublicPricing(): Promise<Map<string, Record<string, unknown>>> {
+  if (openRouterPublicPricingCache && Date.now() - openRouterPublicPricingCache.fetchedAt < 10 * 60_000) {
+    return openRouterPublicPricingCache.byId;
+  }
+  try {
+    const resp = await fetch("https://openrouter.ai/api/v1/models", { signal: AbortSignal.timeout(10_000) });
+    if (!resp.ok) throw new Error(`public catalog HTTP ${resp.status}`);
+    const payload = await resp.json() as { data?: Array<Record<string, unknown>> };
+    const byId = new Map<string, Record<string, unknown>>();
+    for (const item of payload.data ?? []) {
+      const id = String(item.id ?? "");
+      const pricing = usablePricing(item.pricing);
+      if (id && pricing) byId.set(id, pricing);
+    }
+    openRouterPublicPricingCache = { fetchedAt: Date.now(), byId };
+    return byId;
+  } catch {
+    return openRouterPublicPricingCache?.byId ?? new Map();
+  }
+}
+
+function findOpenRouterPricing(
+  openRouterItems: Array<Record<string, unknown>>,
+  candidates: string[],
+  publicPricing: Map<string, Record<string, unknown>>,
+): Record<string, unknown> | null {
+  for (const candidate of candidates) {
+    const fromAccount = openRouterItems.find((item) => String(item.id) === candidate);
+    const accountPricing = usablePricing(fromAccount?.pricing);
+    if (accountPricing) return accountPricing;
+    const publicPrice = publicPricing.get(candidate);
+    if (publicPrice) return publicPrice;
+  }
+  return null;
+}
+
+function googleTwinCandidates(bareId: string): string[] {
+  return [
+    `google/${bareId}`,
+    `google/${bareId}:batch`,
+    `google/${bareId}-001`,
+    `google/${bareId}-001:batch`,
+  ];
+}
+
+function googleDirectModelEntry(
+  bareId: string,
+  displayName: string,
+  contextLength: number | null,
+  openRouterItems: Array<Record<string, unknown>>,
+  publicPricing: Map<string, Record<string, unknown>>,
+  capabilitySource: string,
+) {
+  return {
+    id: `google-direct/${bareId}:batch`,
+    name: `${displayName} Batch (direct API)`,
+    context_length: contextLength,
+    input_modalities: ["text", "image"],
+    image_input: true,
+    supports_tools: false,
+    supports_tool_choice: false,
+    tool_choice_modes: [],
+    supports_structured_outputs: true,
+    supports_response_format: true,
+    capability_source: capabilitySource,
+    applied_override: null,
+    pricing: findOpenRouterPricing(openRouterItems, googleTwinCandidates(bareId), publicPricing),
+  };
+}
+
+function mapGoogleDirectModels(
+  payload: unknown,
+  openRouterItems: Array<Record<string, unknown>>,
+  publicPricing: Map<string, Record<string, unknown>>,
+  capabilitySource: string,
+): Array<Record<string, unknown>> {
+  const rawModels = (payload as { models?: unknown })?.models;
+  if (!Array.isArray(rawModels)) return [];
+  const mapped: Array<Record<string, unknown>> = [];
+  for (const raw of rawModels) {
+    const name = String((raw as { name?: unknown })?.name ?? "").replace(/^models\//, "");
+    const displayName = String((raw as { displayName?: unknown })?.displayName ?? name);
+    const methods = Array.isArray((raw as { supportedGenerationMethods?: unknown })?.supportedGenerationMethods)
+      ? (raw as { supportedGenerationMethods: unknown[] }).supportedGenerationMethods.map(String)
+      : [];
+    const inputTokenLimit = (raw as { inputTokenLimit?: unknown })?.inputTokenLimit;
+    if (!name || !/gemini/i.test(`${name} ${displayName}`)) continue;
+    if (methods.length > 0 && !methods.includes("generateContent")) continue;
+    if (/embedding|aqa|imagen|learnlm|text-embedding/i.test(name)) continue;
+    mapped.push(googleDirectModelEntry(
+      name,
+      displayName,
+      typeof inputTokenLimit === "number" ? inputTokenLimit : null,
+      openRouterItems,
+      publicPricing,
+      capabilitySource,
+    ));
+  }
+  return mapped.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
+async function fetchGoogleDirectModels(
+  googleApiKey: string | null,
+  accountFingerprint: string,
+  openRouterItems: Array<Record<string, unknown>>,
+): Promise<Array<Record<string, unknown>>> {
+  const publicPricing = await loadOpenRouterPublicPricing();
+  if (!googleApiKey?.trim()) {
+    return FALLBACK_GOOGLE_DIRECT_MODELS.map((model) => ({
+      ...model,
+      pricing: findOpenRouterPricing(
+        openRouterItems,
+        googleTwinCandidates(String(model.id).replace(/^google-direct\//, "").replace(/:batch$/, "")),
+        publicPricing,
+      ),
+    }));
+  }
+  try {
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(googleApiKey.trim())}`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!resp.ok) throw new Error(`catalog HTTP ${resp.status}`);
+    const payload = await resp.json();
+    const mapped = mapGoogleDirectModels(payload, openRouterItems, publicPricing, "direct_provider");
+    if (mapped.length === 0) return FALLBACK_GOOGLE_DIRECT_MODELS;
+    googleDirectCatalogByAccount.set(accountFingerprint, mapped);
+    if (googleDirectCatalogByAccount.size > 4) {
+      const oldest = googleDirectCatalogByAccount.keys().next().value;
+      if (oldest) googleDirectCatalogByAccount.delete(oldest);
+    }
+    return mapped;
+  } catch {
+    return googleDirectCatalogByAccount.get(accountFingerprint) ?? FALLBACK_GOOGLE_DIRECT_MODELS;
+  }
+}
 
 async function handleGetOpenrouterVisionModels() {
   const db = serviceClient();
   const { data: configRows, error: configError } = await db
     .from("admin_config")
     .select("key,value")
-    .in("key", ["OPENROUTER_API_KEY", "AI_MODEL_CAPABILITY_OVERRIDES"]);
+    .in("key", ["OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "AI_MODEL_CAPABILITY_OVERRIDES"]);
 
   const apiKey = (configRows?.find((row) => row.key === "OPENROUTER_API_KEY")?.value as string | null) ?? null;
+  const googleApiKey = (configRows?.find((row) => row.key === "GOOGLE_AI_API_KEY")?.value as string | null) ?? null;
   const overrides = (configRows?.find((row) => row.key === "AI_MODEL_CAPABILITY_OVERRIDES")?.value as Record<string, Record<string, unknown>> | null) ?? {};
   if (configError) return json({ ok: true, models: DIRECT_VISION_MODELS, catalog_warning: `AI model configuration unavailable: ${configError.message}` });
-  if (!apiKey) return json({ ok: true, models: DIRECT_VISION_MODELS });
-  const accountFingerprint = await safeSecretFingerprint(apiKey);
+  const accountFingerprint = await safeSecretFingerprint(apiKey ?? googleApiKey ?? "unset");
 
   let items: Array<Record<string, unknown>> = [];
   let catalogWarning: string | null = null;
-  try {
-    const resp = await fetch("https://openrouter.ai/api/v1/models/user", {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-    if (resp.ok) {
-      const payload = await resp.json() as { data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
-      items = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
-      openRouterVisionCatalogByAccount.set(accountFingerprint, items);
-      if (openRouterVisionCatalogByAccount.size > 4) {
-        const oldest = openRouterVisionCatalogByAccount.keys().next().value;
-        if (oldest) openRouterVisionCatalogByAccount.delete(oldest);
+  if (!apiKey) {
+    catalogWarning = null;
+  } else {
+    try {
+      const resp = await fetch("https://openrouter.ai/api/v1/models/user", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (resp.ok) {
+        const payload = await resp.json() as { data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+        items = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
+        openRouterVisionCatalogByAccount.set(accountFingerprint, items);
+        if (openRouterVisionCatalogByAccount.size > 4) {
+          const oldest = openRouterVisionCatalogByAccount.keys().next().value;
+          if (oldest) openRouterVisionCatalogByAccount.delete(oldest);
+        }
+      } else {
+        catalogWarning = `OpenRouter catalog unavailable (HTTP ${resp.status})`;
       }
-    } else {
-      catalogWarning = `OpenRouter catalog unavailable (HTTP ${resp.status})`;
+    } catch {
+      catalogWarning = "OpenRouter catalog unavailable (network error)";
     }
-  } catch {
-    catalogWarning = "OpenRouter catalog unavailable (network error)";
+    if (catalogWarning) items = openRouterVisionCatalogByAccount.get(accountFingerprint) ?? [];
   }
-  if (catalogWarning) items = openRouterVisionCatalogByAccount.get(accountFingerprint) ?? [];
+  const publicPricing = await loadOpenRouterPublicPricing();
   const models = items.map((m) => {
     const id = m.id as string;
     const params = Array.isArray(m.supported_parameters) ? m.supported_parameters as string[] : [];
@@ -1041,11 +1194,16 @@ async function handleGetOpenrouterVisionModels() {
       supports_response_format: override?.json_object ?? params.includes("response_format"),
       capability_source: override ? "override" : "live",
       applied_override: override,
-      pricing: m.pricing as Record<string, unknown> | null,
+      pricing: usablePricing(m.pricing) ?? publicPricing.get(id) ?? null,
     });
   });
 
-  return json({ ok: true, models: [...models, ...DIRECT_VISION_MODELS], catalog_warning: catalogWarning });
+  const googleDirectModels = await fetchGoogleDirectModels(googleApiKey, accountFingerprint, items);
+  return json({
+    ok: true,
+    models: [...models, ...META_DIRECT_VISION_MODELS, ...googleDirectModels],
+    catalog_warning: catalogWarning,
+  });
 }
 
 // ── Routes: AI tag bake-off ────────────────────────────────────────

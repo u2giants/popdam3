@@ -238,3 +238,41 @@ test("no-preview assets are counted as visual analysis unavailable, not failed o
   assert.equal(result.visual_analysis_unavailable, 1);
   assert.match((result.skip_samples as Array<{ reason: string }>)[0].reason, /unavailable/i);
 });
+
+test("invalid structured data receives only the existing bounded same-model retry classification", () => {
+  assert.equal(isRetryableStructuredOutputError("Structured output failed: json_schema: Model returned invalid structured tag data: every asset tag confidence must be between 0 and 1"), true);
+  assert.equal(isRetryableStructuredOutputError("DB write failed: invalid enum"), false);
+  assert.equal(isRetryableStructuredOutputError("Structured output failed: data_inspection_failed: invalid structured tag data"), false);
+});
+
+test("parallel explicit pages dispatch once per asset and preserve numeric checkpoint", async () => {
+  const ids = Array.from({length: 13}, (_, i) => `123e4567-e89b-42d3-a456-${String(i).padStart(12,"0")}`);
+  const calls: Array<Record<string, unknown>> = [];
+  const seen: Array<{id: string; model: string | undefined}> = [];
+  let active = 0, peak = 0;
+  const result = await handleBulkAiTag({run_id: "parallel", status: "running", cursor: 3, params: {asset_ids: ids}}, true, {
+    client: fakeClient([], calls),
+    parallelConfig: {run_id: "parallel", models: ["openai/gpt-6-luna", "google/gemini-2.5-flash"], concurrency: 4},
+    tagAsset: async (id, _force, model) => { active++; peak = Math.max(peak, active); await new Promise(resolve => setTimeout(resolve, 5)); seen.push({id, model}); active--; return {outcome: "tagged"}; },
+  });
+  assert.equal(result.nextOffset, 7); assert.equal(result.tagged, 4); assert.equal(peak, 4);
+  assert.deepEqual(new Set(seen.map(x => x.id)), new Set(ids.slice(3,7)));
+  assert.equal(new Set(seen.map(x => x.model)).size, 2); assert.equal(calls.length, 0);
+});
+
+test("parallel trial holds at the saved boundary without fetching or submitting more assets", async () => {
+  let submissions = 0;
+  const result = await handleBulkAiTag({run_id: "trial", status: "running", cursor: 1, params: {asset_ids: IDS}}, true, {
+    client: fakeClient([], []), parallelConfig: {run_id: "trial", models: ["openai/gpt-6-luna", "google/gemini-2.5-flash"], concurrency: 4, max_cursor: 1},
+    tagAsset: async () => { submissions++; return {outcome: "tagged"}; },
+  });
+  assert.equal(submissions, 0); assert.equal(result.state_transition, "yield_without_save"); assert.equal(result.done, false);
+});
+
+test("parallel operation refuses to infer without its matching configuration", async () => {
+  let submitted = false;
+  const result = await handleBulkAiTag({run_id: "parallel", status: "running", cursor: 0, params: {asset_ids: IDS}}, true, {
+    client: fakeClient([], []), tagAsset: async () => { submitted = true; return {outcome: "tagged"}; },
+  }, true, true);
+  assert.equal(result.ok, false); assert.equal(submitted, false);
+});

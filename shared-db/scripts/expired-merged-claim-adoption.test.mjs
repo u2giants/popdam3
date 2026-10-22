@@ -11,7 +11,7 @@ const QUOTE='I authorize the exact guarded operator adoption for the expired cla
 const ARTIFACT='artifact:'+'f'.repeat(40)
 const args={issue:2110,claim:3378,pr:3391,headSha:HEAD,oldOwner:'old-author',newOwner:'new-author',
   branch:'codex/2110-old',worktree:'C:/old-remote',targetWorktree:'/tmp/new-author',
-  abandonmentIssue:900,worktreeState:'remote',authorizationChatId:'root',authorizationQuote:QUOTE,recoveryArtifact:ARTIFACT,leaseHours:12}
+  abandonmentIssue:900,worktreeState:'remote',authorizationChatId:'root',authorizationQuote:QUOTE,recoveryArtifact:ARTIFACT,leaseHours:0.5}
 
 function fixture(overrides={}){
   resetRetirementSnapshot()
@@ -19,7 +19,7 @@ function fixture(overrides={}){
     version:VERSION,objects:['table plm.art_piece_attachment'],owner:args.oldOwner,branch:args.branch,
     worktree:args.worktree,expiresAt:new Date('2026-09-26T00:00:00Z'),
   })}
-  const work={number:2110,state:'open',body:['```db-work-scope','status: ready','work_type: structural','route: shared-db-orchestrator','priority: 1','writes:','  - table plm.art_piece_attachment','```'].join('\n')}
+  const work={number:2110,state:'open',body:['```db-work-scope','status: ready','work_type: structural','route: claim-first','priority: 1','writes:','  - table plm.art_piece_attachment','```'].join('\n')}
   const audit={number:900,state:'open',body:['```db-work-scope','status: ready','work_type: repo-maintenance','route: repo-maintenance','priority: 1','objects:','```','','```abandonment-audit','claim: 3378','pr: 3391','head_sha: '+HEAD,'owner: old-author','```'].join('\n')}
   const issues=new Map([[3378,claim],[2110,work],[900,audit]]),refs=new Map([['refs/db-claims/'+VERSION,RESERVATION]]),commits=new Map([[RESERVATION,{message:'db-coordination permanent version reservation'}]])
   let serial=0
@@ -32,7 +32,7 @@ function fixture(overrides={}){
     getPrFiles:()=>[{filename:'supabase/migrations/'+VERSION+'_retire.sql',status:'added'}],
     prSources:()=>[{label:'PR #3391',branch:args.branch,objects:['table plm.art_piece_attachment'],versions:[VERSION]}],
     branchPulls:()=>[{number:3391,head:{sha:HEAD}}],
-    orchestratorFlowAdapter:()=>({resolveMarker:()=>({live:true,calling_task:'root',task:'root'})}),
+    flowAdapter:()=>({resolveMarker:()=>({live:true,calling_task:'root',task:'root'})}),
     verifyArtifact:(reference)=>reference===ARTIFACT?{sha:'f'.repeat(40)}:null,
     readCommitMessage:(sha)=>commits.get(sha)?.message??null,
     localWorktreeState:()=>({state:'absent'}),
@@ -97,7 +97,7 @@ test('merged adoption keeps reservations, rescue, collisions and every stage gua
     [io=>io.refs.delete('refs/db-claims/'+VERSION),/permanent version reservation/],
     [io=>{io.verifyArtifact=()=>null},/cannot be dereferenced/],
     [io=>{io.localClean=()=>false},/successor worktree/],
-    [io=>{io.orchestratorFlowAdapter=()=>({resolveMarker:()=>({live:false})})},/session and authorization/],
+    [io=>{io.flowAdapter=()=>({resolveMarker:()=>({live:false})})},/session and authorization/],
     [io=>{io.openClaims=()=>[io.getIssue(3378),{number:9,body:claimBody({version:'20260923181755',objects:['table plm.art_piece_attachment'],owner:'other',branch:'other',worktree:'/tmp/other',expiresAt:new Date('2026-09-30T00:00:00Z')})}]},/object collision/],
     ...['preview','merge','production'].map(stage=>[io=>io.refs.set('refs/db-coordination/'+stage,'other'),/stage is held/]),
   ]
@@ -113,7 +113,7 @@ test('merged CLI operation is explicit and keeps ordinary transfer separate',()=
   const dir=mkdtempSync(join(tmpdir(),'merged-author-cli-')),quoteFile=join(dir,'quote.txt');writeFileSync(quoteFile,QUOTE)
   const io=mergedFixture(),log=console.log;console.log=()=>{}
   try{
-    const argv=['--issue','2110','--claim-number','3378','--pr','3391','--head-sha',HEAD,'--old-owner',args.oldOwner,'--new-owner',args.newOwner,'--branch',args.branch,'--worktree',args.worktree,'--target-worktree',args.targetWorktree,'--abandonment-issue','900','--worktree-state','remote','--authorization-chat-id','root','--authorization-quote-file',quoteFile,'--recovery-artifact',ARTIFACT,'--lease-hours','12']
+    const argv=['--issue','2110','--claim-number','3378','--pr','3391','--head-sha',HEAD,'--old-owner',args.oldOwner,'--new-owner',args.newOwner,'--branch',args.branch,'--worktree',args.worktree,'--target-worktree',args.targetWorktree,'--abandonment-issue','900','--worktree-state','remote','--authorization-chat-id','root','--authorization-quote-file',quoteFile,'--recovery-artifact',ARTIFACT,'--lease-hours','0.5']
     assert.equal(adoptionMain(argv,NOW,io),0);assert.equal(parseAuthorLease(io.issues.get(3378).body,NOW).owner,args.newOwner)
   }finally{console.log=log;rmSync(dir,{recursive:true,force:true})}
 })
@@ -137,7 +137,7 @@ test('successor source, preserved custody and reservation cannot be substituted'
   io=>io.localWorktreeState=()=>({state:'dirty'}),io=>io.verifyArtifact=()=>null,
   io=>io.getPr=()=>({state:'merged',merged:true,merge_commit_sha:MERGE,head:{sha:HEAD,ref:'foreign'}}),
   io=>io.getPrFiles=()=>[{filename:'supabase/migrations/20260923181755_wrong.sql',status:'added'}],
-  io=>io.orchestratorFlowAdapter=()=>({resolveMarker:()=>({live:true,calling_task:'other',task:'root'})}),
+  io=>io.flowAdapter=()=>({resolveMarker:()=>({live:true,calling_task:'other',task:'root'})}),
   io=>io.openClaims=()=>[],
   io=>io.openClaims=()=>[io.getIssue(3378),{number:12,body:claimBody({version:'20260923181755',objects:['table other.z'],owner:'other',branch:'other',worktree:args.targetWorktree,expiresAt:new Date('2026-09-30T00:00:00Z')})}],
  ]

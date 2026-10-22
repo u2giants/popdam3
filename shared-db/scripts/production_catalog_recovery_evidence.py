@@ -60,15 +60,37 @@ def build_binding(repo, evidence, live_ledger, catalog, jobs, inputs):
         if manifest.get(version) != digest:
             raise ValueError("original SQL bytes changed")
         hashes[version] = digest
-    if catalog.get("enforcing") is not True or catalog.get("errors") != [] or catalog.get("allowlist") != wanted:
+    # The verifier records the accepted data-only route (no catalog object, proof
+    # by hash-bound behavioral assertions) as an informational line in `errors`.
+    # It is not a failure (render_report passes on those assertions), so exactly
+    # that line is tolerated; every other error still refuses (issue #4214).
+    data_only = re.compile(r"the allowlisted migrations named no catalog object, but supplied [1-9][0-9]* hash-bound behavioral assertion\(s\)\.")
+    errors = catalog.get("errors")
+    real_errors = [e for e in errors if not (isinstance(e, str) and data_only.fullmatch(e))] if isinstance(errors, list) else None
+    if catalog.get("enforcing") is not True or real_errors != [] or catalog.get("allowlist") != wanted:
         raise ValueError("catalog recovery did not enforce the exact allowlist")
-    # For opaque DDL recovery, require a hash-bound named assertion for every version.
-    checks = catalog.get("behavior_checks", [])
-    results = catalog.get("behavior_results", {}).get("behavior_checks", [])
+    # Require a hash-bound named assertion for every version: a catalog
+    # contract (opaque DDL) or, for a data or pg_cron migration with no catalog
+    # object (issue #4207), an exact row count on a named relation.
+    checks = catalog.get("behavior_checks")
+    if not isinstance(checks, list) or any(not isinstance(check, dict) for check in checks):
+        raise ValueError("hash-bound behavior declarations must be a list of objects")
+    behavior = catalog.get("behavior_results")
+    if not isinstance(behavior, dict) or not isinstance(behavior.get("behavior_checks"), list):
+        raise ValueError("hash-bound behavior assertion results must be an object containing a list")
+    results = behavior["behavior_checks"]
+    if any(not isinstance(result, dict) for result in results):
+        raise ValueError("hash-bound behavior results must contain objects")
+    def named(c):
+        if c.get("kind") == "catalog_contract":
+            return isinstance(c.get("contract"), str) and bool(c["contract"])
+        if c.get("kind") == "exact_row_count":
+            return isinstance(c.get("relation"), str) and bool(re.fullmatch(r"[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*", c["relation"])) and isinstance(c.get("filters"), list) and bool(c["filters"])
+        return False
     for version in wanted:
-        matched = [c for c in checks if c.get("migration_version") == version and c.get("kind") == "catalog_contract" and c.get("migration_sha256") == hashes[version] and isinstance(c.get("contract"), str) and c["contract"] and isinstance(c.get("id"), str) and c["id"]]
+        matched = [c for c in checks if c.get("migration_version") == version and named(c) and c.get("migration_sha256") == hashes[version] and isinstance(c.get("id"), str) and c["id"]]
         if not matched:
-            raise ValueError("missing hash-bound named catalog contract")
+            raise ValueError("missing hash-bound named catalog contract or exact row count")
         for check in matched:
             result = [r for r in results if r.get("id") == check.get("id")]
             if len(result) != 1 or type(check.get("expected_count")) is not int or check["expected_count"] <= 0 or type(result[0].get("actual_count")) is not int or type(result[0].get("expected_count")) is not int or result[0].get("actual_count") != check["expected_count"] or result[0].get("expected_count") != check["expected_count"]:

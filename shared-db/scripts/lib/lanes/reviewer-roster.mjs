@@ -320,7 +320,28 @@ export const RETIRED_REVIEWERS = Object.freeze(['glm-5.2', 'muse-spark-1.2-contr
 // OK` on the installed command, and two live review sessions on that commit each
 // returned a single well-formed verdict on model qwen3.8-max above a substantive
 // report. Restoring the quarantine is a one-name addition back to this list.
-export const QUARANTINED_REVIEWERS = Object.freeze([])
+//
+// QUARANTINED 2026-10-13 (owner instruction, Albert's chat: "take grok out of
+// the reviewer pool for now"): 'grok-4.6'. Reason: Grok's xAI account is out of
+// credit. TEMPORARY, not a retirement: its REVIEWERS row stays so every durable
+// verdict it recorded still authorizes. Reverse by deleting 'grok-4.6' from this
+// list (and from the popcre/ai-devops config/reviewer-registry.json mirror) once
+// the account has credit and one live well-formed review passes.
+//
+// QUARANTINED 2026-10-13 (owner instruction, Albert's chat, issue
+// popcre/ai-devops#1714: "only review shared-db work; rotation pool = Muse,
+// DeepSeek, GLM, StepFun (\"Grok got expensive. use Stepfun as the 4th.\"); stop
+// maintaining other reviewers' tooling in ai-devops but leave installed so they
+// can be called by name"): 'qwen-3.8-max' and 'gemini-3.8-flash-high'.
+// TEMPORARY membership scope, not a retirement and not a quality fault: their
+// REVIEWERS rows stay so every durable verdict they recorded still authorizes.
+// They remain installed and callable by name outside the allocator. Reverse by
+// deleting each name from this list (and from the popcre/ai-devops
+// config/reviewer-registry.json mirror) under a later owner instruction.
+// Maintained rotation pool is exactly Muse, DeepSeek, GLM, and StepFun
+// (owner instruction 2026-10-13, popcre/ai-devops#1714). Grok, Qwen, and
+// Gemini stay installed and callable by name but are not drawn.
+export const QUARANTINED_REVIEWERS = Object.freeze(['grok-4.6', 'qwen-3.8-max', 'gemini-3.8-flash-high'])
 
 // The single fact the gate was missing (#2078). A verdict is evidence only if the
 // reviewer could open the file. Unknown names fail closed.
@@ -413,15 +434,30 @@ export function parseRecordedReviewerAllowlist(value){
 }
 export function reviewerAllowlistSuffix(allowlist){return allowlist?` allowlist=${allowlist.join(',')}`:''}
 export function sameReviewerAllowlist(left,right){return left===null&&right===null||Array.isArray(left)&&Array.isArray(right)&&left.length===right.length&&left.every((name,index)=>name===right[index])}
-export function inheritReviewerAllowlist(requested,recorded){
+// Strict superset: every recorded name is kept and at least one name is added.
+// A subset, a disjoint set, or a same-size rewrite is never a widening.
+export function isReviewerAllowlistSuperset(requested,recorded){
+  if(!Array.isArray(requested)||!Array.isArray(recorded)||requested.length<=recorded.length)return false
+  const have=new Set(requested)
+  return recorded.every((name)=>have.has(name))
+}
+// Owner-quoted allowlist widening (Albert, 2026-10-13, verbatim: "use stepfun"):
+// when the requested policy is a strict superset of the durable one and a
+// verbatim owner quote is supplied, the widened policy is used for THIS draw.
+// The quote is recorded on the assignment. Slot one's durable policy is never
+// rewritten, and a same-slot retry that already carries the widened durable
+// policy does not need the quote again (it matches exactly).
+export function inheritReviewerAllowlist(requested,recorded,options={}){
   recorded??=null
   if(recorded===null){
     if(requested!==null)throw new LaneError('reviewer allowlist does not match the durable unrestricted assignment')
     return null
   }
   if(requested===null)return recorded
-  if(!sameReviewerAllowlist(requested,recorded))throw new LaneError(`reviewer allowlist does not match the durable assignment (${recorded.join(',')})`)
-  return recorded
+  if(sameReviewerAllowlist(requested,recorded))return recorded
+  const ownerQuote=typeof options.ownerQuote==='string'?options.ownerQuote.trim():''
+  if(ownerQuote&&isReviewerAllowlistSuperset(requested,recorded))return Object.freeze([...requested])
+  throw new LaneError(`reviewer allowlist does not match the durable assignment (${recorded.join(',')})`)
 }
 export function reviewerAllowed(name,allowlist){return allowlist===null||allowlist.includes(name)}
 export function assertReviewerAllowlistConsistency(records){
@@ -456,7 +492,7 @@ export function inheritReturnedReviewerAllowlist(requested,request,io){
 // stays eligible (issue #2127 decision (a)).
 //
 // `undefined` and `''` remain unreadable and still refuse. That distinction is
-// load-bearing: every call site reaches this through `io.resolveOrchestratorEngine?.()`,
+// load-bearing: every call site reaches this through `io.resolveReviewEngine?.()`,
 // which yields `undefined` when the io object has no resolver at all, and that
 // must never be mistaken for "no orchestrator is running".
 //
@@ -465,12 +501,12 @@ export function inheritReturnedReviewerAllowlist(requested,request,io){
 // GLM must never review GLM code, so a `zcode` orchestrator must exclude the
 // `glm` rows even though no row carries the string 'zcode'. This map is the
 // reviewer-draw's own vocabulary: it MUST cover every engine
-// `lib/orchestrator-routing.mjs` lets a marker declare, which the lane test
+// `lib/engine-routing.mjs` lets a marker declare, which the lane test
 // suite asserts key-for-key. It lives HERE, beside the rows it filters, rather
 // than as an import from the routing module, so editing the routing contract
 // does not enter this manager's import closure and become a global evidence
 // invalidator (config/orchestrator-global-invalidators-v1.json).
-export const ENGINE_REVIEWER_EXCLUSION=Object.freeze({codex:'codex',claude:'claude',zcode:'glm'})
+export const ENGINE_REVIEWER_EXCLUSION=Object.freeze({codex:'codex',claude:'claude',zcode:'glm',mimo:'mimo'})
 
 // The authoring engine is MANDATORY and fails closed (#3874 review): an unset,
 // blank, malformed or unknown value refuses rather than silently excluding no
@@ -489,7 +525,7 @@ export function authorEngineFromEnv(value,known=knownAuthorEngines()){
 export function reviewersForOrchestrator(engine, reviewers=ACTIVE_REVIEWERS){
   if(engine===null)return reviewers.filter(()=>true)
   const normalized=String(engine??'').trim().toLowerCase()
-  if(!normalized)throw new LaneError('live orchestrator engine is unreadable; reviewer assignment refused')
+  if(!normalized)throw new LaneError('author engine is unreadable; reviewer assignment refused')
   const excluded=String(ENGINE_REVIEWER_EXCLUSION[normalized]??normalized).trim().toLowerCase()
   return reviewers.filter((row)=>String(row.orchestratorEngine??'').toLowerCase()!==excluded)
 }
@@ -534,8 +570,8 @@ export function reconcilePreflightRows(output,reviewers,{complete=true}={}){
 }
 
 export function allocatableReviewers(io){
-  const independent=reviewersForOrchestrator(io.resolveOrchestratorEngine?.())
-  if(!independent.length)throw new LaneError('no reviewer is independent from the live orchestrator engine')
+  const independent=reviewersForOrchestrator(io.resolveReviewEngine?.())
+  if(!independent.length)throw new LaneError('no reviewer is independent from the author engine')
   if(typeof io.reviewerUsability!=='function')throw new LaneError('reviewer allocation cannot read the reconciled ai-review-preflight state; no sequence or lease was consumed')
   const usability=io.reviewerUsability(independent)
   if(!(usability instanceof Map))throw new LaneError('reviewer allocation received malformed reconciled ai-review-preflight state; no sequence or lease was consumed')
@@ -555,6 +591,6 @@ export function allocatableReviewers(io){
   }
 }
 
-// The orchestrator marker resolver (issue #2127) was retired with the role
+// The claim-first session identity resolver (issue #2127) was retired with the role
 // (issue #3874); session authority lives in lib/session-authority.mjs.
 export function readSessionIdOrUnknown(){const id=readSessionId();return typeof id==='string'?id:'unknown-session'}

@@ -50,10 +50,12 @@ Always start with:
 
 Active plans (read STATUS first; do not re-derive completed steps):
 
+- plan_hetz_ai_password_rotation_179.md — rotation of the hetz OS-user ai password (#179); production gate; not yet approved
 - plan_master_data_designflow_reference_cutover.md — converge shared Master Data vs DesignFlow Item Details
 - plan_openrouter_batch_restart_recovery.md — Image Tagging batches survive Railway restarts
 - plan_ai_model_interaction_reliability.md — capability-driven model contract (replaces name guessing)
 - plan_hybrid_search_rollout.md — keyword + pgvector discovery
+- plan_semantic_search_popdam_popsg.md — combined semantic-search delivery plan and package assessment; read STATUS first
 - plan_style_group_scoped_ai_metadata.md — product vs file-level AI metadata
 - plan_popsg_production_readiness.md — PopSG library truthfulness and search
 - plan_master_data_orderlist_loading_performance.md — first-paint and OrderList Find performance
@@ -154,7 +156,7 @@ popdam3/
 │   ├── worker/                 ← Railway cloud worker (Node.js, TypeScript)
 │   │   └── src/handlers/       ← Per-operation batch handlers
 │   ├── bridge-agent/           ← Synology NAS agent (Docker, TypeScript)
-│   ├── windows-agent/          ← Windows render agent: Inkscape/ImageMagick/Ghostscript/Poppler/Tesseract (TypeScript)
+│   ├── windows-agent/          ← Windows render agent: Inkscape/ImageMagick/Ghostscript/Poppler/Indra OCR (TypeScript)
 │   └── popdam-helper/          ← Electron desktop app
 ├── packages/path-filters/      ← Shared path filter logic (Node.js workspace pkg)
 ├── packages/agent-common/      ← Source shared by bridge + windows agents (synced into apps/*/src/common at build; edit here)
@@ -266,7 +268,7 @@ Files outside project-owned areas that were intentionally modified:
 | `coolify-proxy` | Traefik reverse proxy for Coolify apps | Coolify on VPS | Traefik service `https-0-qxj8a0j3tpa9lq4q5rs6pezy@docker` routes to frontend | `traefik:v3.6` managed by Coolify |
 | Railway worker | Persistent batch processor for AI tagging, ERP, style groups, SeaDrive mirror | Railway | Railway service for `apps/worker/` (verified project/service/environment identifiers: `docs/INFRASTRUCTURE.md` → Railway Worker) | `apps/worker/Dockerfile`; Railway rebuilds on every push to `main` |
 | `popdam-bridge` | Synology NAS scanner, thumbnailer, upload/check-in verifier | Synology Container Manager / docker compose | Host `edgesynology1` (edgesynology2 copy retired 2026-09-23, #141); compose reference `deploy/synology/docker-compose.yml` | `ghcr.io/u2giants/popdam-bridge:stable` from `.github/workflows/publish-bridge-agent.yml` |
-| Windows render agent | Windows render (Inkscape, ImageMagick, Ghostscript, Poppler, Tesseract — no Illustrator) and PDF text backfill agent | Manual Windows VM install | Release channel `windows-agent-latest` | `apps/windows-agent/`, packaged by `.github/workflows/publish-windows-agent.yml` |
+| Windows render agent | Windows render (Inkscape, ImageMagick, Ghostscript, Poppler, Indra OCR — no Illustrator) and PDF text backfill agent | Manual Windows VM install | Release channel `windows-agent-latest` | `apps/windows-agent/`, packaged by `.github/workflows/publish-windows-agent.yml` |
 | POP DAM Helper | Designer desktop checkout/check-in helper | End-user desktop install | Release channel `popdam-helper-latest` | `apps/popdam-helper/`, packaged by `.github/workflows/publish-popdam-helper.yml` |
 | Supabase edge functions | Admin, agent, helper, auth, export, sync APIs | Supabase | Project `qsllyeztdwjgirsysgai` | `supabase/functions/**`, deployed by `.github/workflows/deploy-supabase.yml` |
 | PostgreSQL | PopDAM/PopSG database, auth metadata, pg_cron jobs | Supabase | Project `qsllyeztdwjgirsysgai` | Canonical `u2giants/shared-db/supabase/migrations/**`, applied through shared-db preview-first workflow |
@@ -366,6 +368,7 @@ Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read
 - The `dam` schema is NOT exposed to PostgREST — reach `dam.*` via `public` RPCs (2026-07-15)
 - Rich-PDF extraction uses DeepSeek's **direct** API, not OpenRouter (2026-07-15)
 - Compact chrome duplicates its media query in TS **and** CSS on purpose (2026-07-29)
+- Source-contract tests must normalize CRLF; AG Grid tests need a sized host (2026-10-19)
 
 ## Credentials and environment
 
@@ -399,7 +402,7 @@ Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read
 | `POPDAM_CONTAINER_NAME` / `POPDAM_COMPOSE_PATH` | Bridge self-update target container and optional host compose path | NAS docker compose / bridge `.env` | No | Yes for reliable self-update |
 | `POPDAM_IMAGE_TAG` / `POPDAM_BUILD_SHA` | Build metadata reported by agents | Docker build args/env from image workflows | No | Yes for drift detection |
 | `TENANTS` / `POPDAM_DATA_DIR` / `POPDAM_DATA_FILE` | Multi-tenant bridge supervisor and persisted agent config paths | Bridge `.env` / supervisor child env | No | Optional |
-| `WINDOWS_AGENT_NAS_HOST` / `WINDOWS_AGENT_NAS_SHARE` / `WINDOWS_AGENT_NAS_USER` / `WINDOWS_AGENT_NAS_PASS` / `WINDOWS_REPAIR_CODE` | Windows render agent NAS mapping and repair flow | `admin_config`, Windows agent local config | No | Optional, Windows-agent only |
+| `WINDOWS_AGENT_NAS_HOST` / `WINDOWS_AGENT_NAS_SHARE` / `WINDOWS_AGENT_NAS_USER` / `WINDOWS_REPAIR_CODE` | Windows render agent NAS mapping and repair flow | `admin_config`, Windows agent local config | No | Optional, Windows-agent only. As of 2026-10-15 cutover, `WINDOWS_AGENT_NAS_USER` = `popdam-render`; plaintext `WINDOWS_AGENT_NAS_PASS` is deleted — passwords come from Vault RPCs `get/set_render_z_nas_password` and `get/set_sg_nas_password` (service_role-only). |
 | `HELPER_*` keys (`HELPER_DAM_URL`, `HELPER_SEAFILE_LIBRARIES`, etc.) | Helper checkout/check-in provider config | `admin_config`, returned by `helper-api /config` | No | Yes for Helper installs |
 | `COLDLION_API_KEY` / `COLDLION_*` | ColdLion / ERP integration credentials and endpoint config | Supabase Vault and `admin_config` | No | Yes if ERP/ColdLion sync is used |
 
@@ -420,8 +423,8 @@ Full runbooks: [docs/deployment.md](docs/deployment.md), [docs/POPDAM_HELPER.md]
 | Frontend | merge PR to main → publish-frontend.yml → GHCR → Coolify | Gate is erify (lint). Green CI ≠ live site if Coolify cannot pull GHCR. |
 | Supabase edge functions | merge PR to main → deploy-supabase.yml | No supabase db push here — shared migrations go through canonical /worksp/shared-db. |
 | Railway worker | every push to main auto-deploys | No manual step. |
-| Bridge agent | publish-bridge-agent.yml → :stable | Bump pps/bridge-agent/package.json version in the same commit. |
-| Windows render agent | publish-windows-agent.yml → GitHub Release | Inkscape/ImageMagick/Ghostscript/Poppler/Tesseract — no Illustrator. |
+| Bridge agent | publish-bridge-agent.yml → :stable | Bump pps/bridge-agent/package.json version in the same commit (without a bump the NAS sees no update). The NAS applies it only on request: admin_config `AGENT_UPDATE_REQUEST` `{action:"apply"}` (the in-app Update button); `force_apply_update` metadata is Windows-only. |
+| Windows render agent | publish-windows-agent.yml → GitHub Release | Inkscape/ImageMagick/Ghostscript/Poppler/Indra OCR — no Illustrator. |
 | POP DAM Helper | publish-popdam-helper.yml → GitHub Release | Installers stay **unsigned forever** (owner decision). Never cache the electron-builder NSIS toolchain. Helper OAuth/SeaDrive rules: docs/POPDAM_HELPER.md + docs/KNOWN_QUIRKS.md. |
 
 Stale-site check: if the live header shows an old commit, inspect the latest Publish Frontend Image run and Coolify deploy logs. Rollback via an older Coolify deployment (:<sha> tags).

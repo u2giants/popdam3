@@ -1,0 +1,98 @@
+{
+  "schema_version": 2,
+  "work_issue": 2598,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Deliver the bounded NBCU source adapter guard: preserve observed_asset_co_tag as candidate evidence, retain valid direct relationships and exact source identities, carry IP Family terminology through derived provenance, and prove native planner/apply/inverse without changing real curated rows. Full current source capture and complete source adapter acceptance remain open on2598.",
+  "base_sha": "90417801b9d5513aa9ef102eeacea148395e5ef5",
+  "dispatcher": "Codex chat 01a14f42-9919-77a1-b9c9-3b1d6883d66f on edge-dev3",
+  "worker": "Root Codex retains schema/security/merge/production decisions; Luna6High performs bounded mechanical edits and reports exact evidence.",
+  "branch": "codex/2598-source-evidence-01a14f42",
+  "worktree": "/home/ahazan/.codex/worktrees/nbcu-source-evidence/shared-db",
+  "allowed_paths": [
+    "supabase/migrations/20261018164004_nbcu_candidate_evidence.sql",
+    "supabase/tests/nbcu_candidate_evidence_contracts.sql",
+    ".github/live-proofs/2598.sql",
+    ".agent/work/2598/5/contract.json",
+    ".agent/work/2598/5/completion.json",
+    "scripts/production-verification-sidecars/20261018164004.json",
+    "config/production-verification-sidecar-registry.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261018164004_nbcu_candidate_evidence.sql",
+    "supabase/tests/nbcu_candidate_evidence_contracts.sql",
+    ".github/live-proofs/2598.sql",
+    ".agent/work/2598/5/contract.json",
+    ".agent/work/2598/5/completion.json",
+    "scripts/production-verification-sidecars/20261018164004.json",
+    "config/production-verification-sidecar-registry.json"
+  ],
+  "db_reads": [
+    "function plm.plan_licensing_consolidation",
+    "function plm.apply_licensing_consolidation",
+    "table plm.nbcu_capture",
+    "table plm.nbcu_property",
+    "table plm.nbcu_character",
+    "table plm.nbcu_style_guide",
+    "table plm.nbcu_ip_family",
+    "table plm.nbcu_asset",
+    "table plm.nbcu_scope",
+    "table plm.nbcu_ip_family_property",
+    "table plm.nbcu_property_character",
+    "table plm.nbcu_asset_property",
+    "table plm.nbcu_asset_character",
+    "table plm.nbcu_asset_style_guide",
+    "table plm.nbcu_style_guide_property",
+    "table plm.nbcu_asset_ip_family",
+    "table core.licensor",
+    "table core.property",
+    "table core.franchise",
+    "table core.character",
+    "table core.property_franchise",
+    "table core.property_franchise_source_edge",
+    "table core.property_character_associations",
+    "table core.property_character_source_edge",
+    "table core.taxonomy_source_ref",
+    "table plm.source_resolution",
+    "table plm.licensing_source_scope",
+    "table plm.licensing_relationship_resolution",
+    "table plm.licensing_consolidation_plan",
+    "table plm.licensing_write_authorization"
+  ],
+  "db_writes": [
+    "function plm.licensing_consolidation_capture_snapshot"
+  ],
+  "prohibited_actions": [
+    "Do not edit or replay any applied migration or frozen3998/4170 source.",
+    "No real curated consolidation, source capture/authentication change, source-row deletion, scope inference, direct promotion of co-tags, or private licensed data in public output.",
+    "No subagent database, claim/stage, source publication, review allocation, merge or promotion operations.",
+    "No altered grants, weakened existing qualification/integrity checks, or changed Paramount/OPA outputs."
+  ],
+  "required_checks": [
+    "node --test scripts/check-live-proof-probe.test.mjs scripts/check-sql.test.mjs",
+    "bash scripts/check-sql.sh",
+    "git diff --check",
+    "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+    "python3 -m unittest scripts.test_migration_derivation"
+  ],
+  "assumptions": [
+    "Fresh actual-owner claim4439 and permanent version20261018164004 protect exactly the snapshot function.",
+    "Production read-only catalog function prosrcMD53c60cbc197bc3919056e765d3e9dbc12 matches original merged source; forward migration requires that exact prior body.",
+    "Implementation source was prepared and pushed as draft commits1f7b5a103/8a5fe5fa9 under the fresh claim before this immutable formal contract publication. This is disclosed ordering, not a prospective-start or temporal-attestation claim; publication freezes current scope before paid source review or any database write.",
+    "Static checks passed; hosted native SQL proof, independent source review and governed delivery remain future gates. A database gate refusal caused no database write.",
+    "Source access/two complete validated preview capture cycles plus injected failure/full live acceptance remain unchecked on2598. This guard must not close that whole source outcome.",
+    "Hosted CI identified dynamic SELECT marker coverage missing; two bounded sidecar/registry files were prepared after generation2 and are included prospectively in this successor before independent review or database writes. No dynamic DDL occurs inside the snapshot; applying CREATE does not execute those queries.",
+    "CI derivation mandate is satisfied by declaring exact prior snapshot source20261013130102; only new unapplied header and sidecar byte binding change. Function body MD5 remains e5e4afca9f65ee6963e7c52b18f6253f.",
+    "Ephemeral CI executed the real candidate partition successfully but caught a synthetic fixture timestamp error during inverse: artificial9999first_seen exceeded present missing_since. Only the unapplied new test is corrected to a real recent capture timestamp; native constraints/engine/ledger/actual captures remain unchanged. No hosted preview or production test is claimed."
+  ],
+  "stop_conditions": [
+    "Stop protected actions if exact ownership/check-in, target proof, required source review or native lane is unavailable; preserve source and repair through supported operations.",
+    "Scope expansion, unexpected function body, frozen-byte change or candidate direct promotion requires correction before delivery."
+  ],
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 2598,
+    "generation": 4,
+    "contract_sha256": "7e66115a55c7e8c56b1166732f2db4779d178f48c767016c4627c54efc94c998"
+  }
+}

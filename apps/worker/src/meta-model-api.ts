@@ -1,5 +1,8 @@
+import { accountFingerprint } from "./batch-provider.js";
 import type { ChatCompletionRequest, ChatCompletionResult, ChatMessage, OpenRouterProviderInfo } from "./openrouter.js";
+import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
 import { metaDispatcher } from "./meta-connection.js";
+import { isTransientInterruption } from "./operation-retry.js";
 
 // Contributor models are served only by the Responses API; Chat Completions
 // returns 404 model_not_found for them (verified 2026-09-23).
@@ -30,7 +33,7 @@ export function metaModelId(model: string): string {
 export function isTerminalMetaModelApiError(error: unknown): boolean {
   if (!(error instanceof MetaModelApiError)) return false;
   const body = error.body.toLowerCase();
-  return error.status === 401 || error.status === 403 || error.status === 429 || error.status >= 500 ||
+  return error.status === 401 || error.status === 402 || error.status === 403 || error.status === 429 || error.status >= 500 ||
     /billing|credit|payment|region|content[_ -]?policy|safety|moderation|blocked|refusal|muse contributor unavailable/.test(body);
 }
 
@@ -58,10 +61,12 @@ function toResponsesInput(messages: ChatMessage[]) {
 }
 
 export function buildMetaResponsesBody(request: ChatCompletionRequest): Record<string, unknown> {
+  const baseBudget = (request.max_tokens ?? 4096) + REASONING_TOKEN_RESERVE;
+  if (request.meta_max_output_tokens !== undefined && (request.meta_max_output_tokens !== 32768 || request.model !== META_MUSE_CONTRIBUTOR_MODEL || !Number.isFinite(baseBudget) || request.meta_max_output_tokens < baseBudget)) throw new PreSubmissionError("Invalid Meta output-exhaustion retry budget", true);
   const body: Record<string, unknown> = {
     model: metaModelId(request.model),
     input: toResponsesInput(request.messages),
-    max_output_tokens: (request.max_tokens ?? 4096) + REASONING_TOKEN_RESERVE,
+    max_output_tokens: request.meta_max_output_tokens ?? baseBudget,
   };
   if (request.temperature !== undefined) body.temperature = request.temperature;
   if (request.response_format?.type === "json_schema") {
@@ -98,9 +103,194 @@ const CONTRIBUTOR_MAX_IN_FLIGHT = Math.max(1, Number(process.env.META_CONTRIBUTO
 let contributorInFlight = 0;
 const contributorWaiters: Array<() => void> = [];
 
-async function withContributorSlot<T>(model: string, run: () => Promise<T>): Promise<T> {
+const asyncReservations = new Map<string, string | null>();
+const terminalResponses = new Set<string>();
+interface DurableMetaReservation { owner: string; model: string; fingerprint: string; conflicting: boolean; }
+interface MetaReservationSupersession { op_key: string; run_id: string; state_revision: number; interruption_reason_code: string; replacement_run_id: string; }
+// Creation alone is not durable evidence. Populate only from native snapshots.
+const durableReservations = new Map<string, DurableMetaReservation>();
+function validStoredMetaId(id: unknown): id is string {
+  return typeof id === "string" && !!id.trim() && id.length <= 256 && !Array.from(id).some(char => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127);
+}
+function recordDurableReservation(owner: string, id: unknown, model: unknown, fingerprint: unknown): void {
+  if (!validStoredMetaId(id) || typeof model !== "string" || !isMetaDirectModel(model) || !metaModelId(model) || typeof fingerprint !== "string" || !/^[0-9a-f]{16}$/.test(fingerprint) || terminalResponses.has(id)) return;
+  const prior = durableReservations.get(id);
+  if (prior) {
+    if (prior.owner !== owner || prior.model !== model || prior.fingerprint !== fingerprint) prior.conflicting = true;
+  } else durableReservations.set(id, { owner, model, fingerprint, conflicting: false });
+}
+function sameDurableBinding(id: string, binding: DurableMetaReservation | undefined, fingerprint: string, model: string): boolean {
+  return !!binding && !binding.conflicting && durableReservations.get(id) === binding && binding.fingerprint === fingerprint && binding.model === model && asyncReservations.get(binding.owner) === id;
+}
+const asyncCreating = new Set<string>();
+const loggedMetaSupersessionDecisions = new Set<string>();
+function wakeContributorWaiters() { for (const wake of contributorWaiters.splice(0)) wake(); }
+export function metaAsyncBusy(owner: string): boolean { return [...asyncReservations].some(([key, id]) => key !== owner || id !== null); }
+function logMetaSupersessionDecision(decision: "accepted" | "refused", replacementKey: string, originalKey: string, reason: string): void {
+  const signature = JSON.stringify([decision, replacementKey, originalKey, reason]);
+  if (loggedMetaSupersessionDecisions.has(signature)) return;
+  loggedMetaSupersessionDecisions.add(signature);
+  console.warn("Meta reservation supersession decision", { decision, replacement_key: replacementKey, original_key: originalKey, reason });
+}
+// An ID-less submission that Meta never acknowledged cannot still be generating
+// once this window has passed (synchronous requests time out in minutes), so it
+// stops occupying a Contributor slot. The interrupted operation itself stays
+// paused and is never resubmitted automatically.
+export const IDLESS_RESERVATION_TTL_MS = 30 * 60 * 1000;
+function idlessReservationExpired(job: { ambiguous_since?: unknown; lease_expires_at?: unknown }, nowMs: number): boolean {
+  const since = Date.parse(String(job.ambiguous_since ?? job.lease_expires_at ?? ""));
+  return Number.isFinite(since) && nowMs - since >= IDLESS_RESERVATION_TTL_MS;
+}
+export function synchronizeMetaReservations(operations: Record<string, import("./types.js").OpState>, nowMs = Date.now()): void {
+  // An admin may explicitly start a replacement run while an earlier Meta
+  // submission remains ambiguous. Keep that override narrow and durable: it
+  // names the exact interrupted operation/run and only waives its ID-less
+  // ambiguous reservation. A bound provider response is never superseded.
+  const supersededOwners = new Set<string>();
+  const replacementOwners = new Set<string>();
+  for (const [replacementKey, replacement] of Object.entries(operations)) {
+    const replacementParams = replacement.params;
+    const rawMarker = replacementParams?.meta_reservation_supersedes;
+    if (rawMarker === undefined) continue;
+    if (!rawMarker || typeof rawMarker !== "object" || Array.isArray(rawMarker)) {
+      logMetaSupersessionDecision("refused", replacementKey, "unknown", "invalid_marker");
+      continue;
+    }
+    const marker = rawMarker as Partial<MetaReservationSupersession>;
+    const originalKey = typeof marker.op_key === "string" ? marker.op_key : "unknown";
+    const reject = (reason: string) => logMetaSupersessionDecision("refused", replacementKey, originalKey, reason);
+    if (typeof marker.op_key !== "string" || !marker.op_key.trim() || typeof marker.run_id !== "string" || !marker.run_id.trim() || !Number.isSafeInteger(marker.state_revision) || typeof marker.interruption_reason_code !== "string" || !marker.interruption_reason_code.trim() || typeof marker.replacement_run_id !== "string" || !marker.replacement_run_id.trim()) {
+      reject("invalid_marker");
+      continue;
+    }
+    const replacementOwner = replacement.run_id;
+    const rawAssetIds = replacementParams?.asset_ids;
+    const hasExplicitAssetIds = Array.isArray(rawAssetIds) && rawAssetIds.length > 0
+      && rawAssetIds.every((id): id is string => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+      && new Set(rawAssetIds).size === rawAssetIds.length;
+    if (replacementKey !== "ai-tag-all" || replacement.status !== "running" || typeof replacementOwner !== "string" || !replacementOwner.trim() || replacementOwner !== marker.replacement_run_id || !hasExplicitAssetIds) {
+      reject("replacement_scope_status_or_identity_mismatch");
+      continue;
+    }
+    const replacementJob = replacement.external_job;
+    if (replacementJob && (replacementJob.provider !== "meta-responses" || typeof replacementJob.model !== "string" || !isMetaDirectModel(replacementJob.model) || !metaModelId(replacementJob.model))) {
+      reject("replacement_is_not_a_meta_direct_run");
+      continue;
+    }
+    if (Object.entries(operations).some(([otherKey, other]) => otherKey !== replacementKey && (other.run_id ?? otherKey) === replacementOwner)) {
+      reject("replacement_run_id_is_shared");
+      continue;
+    }
+    const original = operations[marker.op_key];
+    if (!original) {
+      reject("original_operation_missing");
+      continue;
+    }
+    if (marker.op_key === replacementKey || (replacement.run_id ?? replacementKey) === (original.run_id ?? marker.op_key)) {
+      reject("replacement_is_original_owner");
+      continue;
+    }
+    if (original.status !== "interrupted" || original.run_id !== marker.run_id || original.state_revision !== marker.state_revision) {
+      reject("original_identity_or_revision_changed");
+      continue;
+    }
+    if (original.interruption_reason_code !== marker.interruption_reason_code || isTransientInterruption(original.interruption_reason_code) || original.next_auto_resume_at) {
+      reject("original_reason_changed_or_auto_resume_eligible");
+      continue;
+    }
+    const job = original.external_job;
+    if (job?.provider !== "meta-responses" || job.phase !== "ambiguous_submission" || job.provider_batch_id !== undefined && job.provider_batch_id !== null) {
+      reject("original_not_idless_ambiguous_meta_submission");
+      continue;
+    }
+    const originalOwner = original.run_id ?? marker.op_key;
+    const inMemoryId = asyncReservations.get(originalOwner);
+    if (inMemoryId !== undefined && inMemoryId !== null) {
+      reject("provider_id_present_in_worker_memory");
+      continue;
+    }
+    if (asyncCreating.has(originalOwner)) {
+      reject("original_submission_still_in_progress");
+      continue;
+    }
+    const sharedOwner = Object.entries(operations).some(([otherKey, other]) => {
+      if (otherKey === marker.op_key || otherKey === replacementKey || (other.run_id ?? otherKey) !== originalOwner) return false;
+      const otherJob = other.external_job;
+      return otherJob?.provider === "meta-responses" && (validStoredMetaId(otherJob.provider_batch_id) || ["pending", "submitting", "ambiguous_submission"].includes(otherJob.phase) || !!otherJob.ambiguous_since);
+    });
+    if (sharedOwner) {
+      reject("another_meta_operation_shares_original_owner");
+      continue;
+    }
+    if (supersededOwners.has(originalOwner)) {
+      reject("another_replacement_already_supersedes_original_owner");
+      continue;
+    }
+    supersededOwners.add(originalOwner);
+    replacementOwners.add(replacementOwner);
+    logMetaSupersessionDecision("accepted", replacementKey, marker.op_key, "exact_idless_ambiguous_reservation_superseded");
+  }
+  const next = new Map<string, string | null>();
+  for (const [key, state] of Object.entries(operations)) {
+    const job = state.external_job;
+    if (job?.provider !== "meta-responses") continue;
+    const owner = state.run_id ?? key;
+    const id = job.provider_batch_id;
+    if (id && (["pending", "submitting", "ambiguous_submission"].includes(job.phase) || [...asyncReservations.values()].includes(id))) recordDurableReservation(owner, id, job.model, job.account_fingerprint);
+    if (id && !terminalResponses.has(id) && (job.phase === "pending" || job.phase === "submitting" || job.phase === "ambiguous_submission")) next.set(owner, id);
+    else if (!id && (job.phase === "submitting" || job.phase === "ambiguous_submission" || job.ambiguous_since) && !supersededOwners.has(owner) && !idlessReservationExpired(job, nowMs)) next.set(owner, null);
+  }
+  // Keep the released capacity reserved for the one named replacement until
+  // its marker stops matching. This prevents a different Meta operation from
+  // taking the slot during the replacement's initial preparation step.
+  for (const owner of replacementOwners) if (!next.has(owner)) next.set(owner, null);
+  // An acknowledged but unbound response is retained conservatively until
+  // its exact terminal state is observed; a stale snapshot cannot release it.
+  for (const [owner, id] of asyncReservations) if (id && !terminalResponses.has(id) && (!next.has(owner) || next.get(owner) === null) && !supersededOwners.has(owner)) next.set(owner, id);
+  asyncReservations.clear(); for (const entry of next) asyncReservations.set(...entry);
+  wakeContributorWaiters();
+}
+function releaseTerminalMetaResponse(id: string) {
+  terminalResponses.add(id);
+  durableReservations.delete(id);
+  for (const [owner, saved] of asyncReservations) if (saved === id) asyncReservations.delete(owner);
+  wakeContributorWaiters();
+}
+export class MetaCapacityRejectionError extends Error {
+  constructor(public readonly status: 404 | 503) { super("Meta Contributor rejected this request before generation due to known capacity/availability"); this.name = "MetaCapacityRejectionError"; }
+}
+export class MetaCapabilityRejectionError extends DefinitiveBatchRejectionError {}
+export function classifyMetaSubmissionFailure(status: number, bodyText: string): DefinitiveBatchRejectionError | AmbiguousBatchSubmissionError | MetaCapacityRejectionError {
+  let parsed: unknown; try { parsed = JSON.parse(bodyText); } catch { return new AmbiguousBatchSubmissionError("Meta", status); }
+  const envelope = parsed && typeof parsed === "object" ? (parsed as {error?:unknown}).error : null;
+  if (!envelope || typeof envelope !== "object") return new AmbiguousBatchSubmissionError("Meta", status);
+  const error = envelope as Record<string, unknown>;
+  const terminalTypes: Record<number, string> = {
+    401: "authentication_error", 402: "billing_error", 403: "permission_error", 429: "rate_limit_error",
+  };
+  if (terminalTypes[status] && terminalTypes[status] === error.type && typeof error.message === "string" && error.message.length > 0) {
+    return new DefinitiveBatchRejectionError("Meta", status as 401 | 402 | 403 | 429, { provider: "Meta", code: status });
+  }
+  if (status === 404 && error.type === "invalid_request_error" && error.code === "model_not_found" ||
+      status === 503 && error.type === "server_error" && ["server_shutting_down", "service_overloaded", "backend_unavailable"].includes(String(error.code))) return new MetaCapacityRejectionError(status as 404 | 503);
+  // Canonical Meta validation envelope, documented in /docs/error-handling.
+  if ((status === 400 || status === 422) && error.type === "invalid_request_error" && (error.code === null || error.code === undefined) && typeof error.message === "string" && error.message.length > 0) {
+    const outputParam = typeof error.param === "string" && /^(?:text(?:\.format(?:\.[a-z_]+)?)?|response_format(?:\.[a-z_]+)?|tools(?:\[\d+\])?(?:\.[a-z_]+)?|tool_choice)$/.test(error.param);
+    const summary = { provider: "Meta", code: status, category: outputParam ? "meta_output_contract" : "meta_validation" };
+    return outputParam ? new MetaCapabilityRejectionError("Meta", status, summary) : new DefinitiveBatchRejectionError("Meta", status, summary);
+  }
+  return classifySubmissionHttpFailure("Meta", status, bodyText);
+}
+async function withContributorSlot<T>(model: string, run: () => Promise<T>, reservationOwner?: string): Promise<T> {
   if (!metaModelId(model).endsWith("-contributor")) return run();
-  while (contributorInFlight >= CONTRIBUTOR_MAX_IN_FLIGHT) {
+  // Pending async reservations (e.g. an ambiguous submission left by an
+  // interrupted tagging run) only clear on operator action, so a caller that
+  // waits for them hangs indefinitely. Fail fast instead.
+  const heldByReservations = () => [...asyncReservations.keys()].filter(owner => owner !== reservationOwner).length;
+  while (contributorInFlight + heldByReservations() >= CONTRIBUTOR_MAX_IN_FLIGHT) {
+    if (heldByReservations() >= CONTRIBUTOR_MAX_IN_FLIGHT) {
+      throw new MetaModelApiError(503, "Muse Contributor unavailable: all Meta slots are held by pending submissions from other operations");
+    }
     await new Promise<void>((resolve) => contributorWaiters.push(resolve));
   }
   contributorInFlight++;
@@ -122,7 +312,7 @@ export async function metaChatCompletion(
   timeoutMs = DEFAULT_TIMEOUT_MS,
   retryDelaysMs: number[] = MODEL_NOT_FOUND_RETRY_DELAYS_MS,
 ): Promise<ChatCompletionResult> {
-  if (!apiKey) throw new MetaModelApiError(401, "META_API_KEY is not configured in Railway");
+  if (!apiKey) throw new MetaModelApiError(401, "Meta API key is not configured in Settings");
 
   let response: Response;
   let bodyText: string;
@@ -149,7 +339,11 @@ export async function metaChatCompletion(
     await new Promise((resolve) => setTimeout(resolve, delay + Math.random() * delay * 0.5));
   }
 
-  const body = JSON.parse(bodyText) as {
+  return parseMetaResponse(JSON.parse(bodyText), request.model);
+}
+
+export function parseMetaResponse(raw: unknown, model: string): ChatCompletionResult {
+  const body = raw as {
     id?: string;
     model?: string;
     status?: string;
@@ -174,7 +368,7 @@ export async function metaChatCompletion(
   const providerInfo: OpenRouterProviderInfo = {
     provider: "meta-model-api",
     endpoint: "direct",
-    model: body.model ?? metaModelId(request.model),
+    model: body.model ?? metaModelId(model),
     generationId: body.id ?? null,
   };
   return {
@@ -189,4 +383,131 @@ export async function metaChatCompletion(
     },
     providerInfo,
   };
+}
+
+
+/** One non-idempotent create. Any lost acknowledgement remains ambiguous. */
+export async function createStoredMetaResponse(apiKey: string, request: ChatCompletionRequest, timeoutMs = DEFAULT_TIMEOUT_MS, reservationOwner = "anonymous-meta-create", beforePost?: () => void): Promise<string> {
+  const body = buildMetaResponsesBody(request); // Reject an invalid override before reserving any capacity.
+  if (metaAsyncBusy(reservationOwner) || asyncCreating.has(reservationOwner)) throw new PreSubmissionError("Another Meta generation is still pending");
+  asyncReservations.set(reservationOwner, null);
+  asyncCreating.add(reservationOwner);
+  return withContributorSlot(request.model, async () => {
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    try {
+      // Slot wait may consume lease time; prove the live budget at the actual POST boundary.
+      try { beforePost?.(); } catch (error) {
+        if (asyncReservations.get(reservationOwner) === null) asyncReservations.delete(reservationOwner);
+        wakeContributorWaiters();
+        if (error instanceof PreSubmissionError) throw error;
+        throw new PreSubmissionError("Meta request failed its pre-POST guard");
+      }
+      const requestOptions = {
+        method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, stream: true, store: true }),
+        signal: AbortSignal.timeout(timeoutMs), dispatcher: metaDispatcher,
+      };
+      const response = await fetch(META_RESPONSES_URL, requestOptions);
+      if (!response.ok) throw classifyMetaSubmissionFailure(response.status, await response.text());
+      if (!response.body) throw new AmbiguousBatchSubmissionError("Meta");
+      reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8", { fatal: true }); let pending = "";
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) throw new AmbiguousBatchSubmissionError("Meta");
+        pending += decoder.decode(chunk.value, { stream: true });
+        // Only the creation envelope is needed. Bound unacknowledged stream data.
+        if (pending.length > 1_048_576) throw new AmbiguousBatchSubmissionError("Meta");
+        pending = pending.replace(/\r\n/g, "\n");
+        let boundary: number;
+        while ((boundary = pending.indexOf("\n\n")) >= 0) {
+          const event = pending.slice(0, boundary); pending = pending.slice(boundary + 2);
+          const data = event.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
+          if (!data || data === "[DONE]") continue;
+          const envelope = JSON.parse(data) as { type?: string; response?: { id?: unknown } };
+          if (envelope.type !== "response.created") continue;
+          const id = envelope.response?.id;
+          if (typeof id !== "string" || (!id.trim() || id.length > 256 || Array.from(id).some(char => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127))) throw new AmbiguousBatchSubmissionError("Meta");
+          asyncReservations.set(reservationOwner, id);
+          return id;
+        }
+      }
+    } catch (error) {
+      if (error instanceof PreSubmissionError) throw error;
+      if (error instanceof DefinitiveBatchRejectionError) { asyncReservations.delete(reservationOwner); wakeContributorWaiters(); throw error; }
+      if (error instanceof MetaCapacityRejectionError || error instanceof AmbiguousBatchSubmissionError) throw error;
+      throw new AmbiguousBatchSubmissionError("Meta");
+    } finally {
+      // Cancelling the stream leaves the stored server response retrievable.
+      asyncCreating.delete(reservationOwner);
+      if (reader) void reader.cancel().catch(() => undefined);
+    }
+  }, reservationOwner);
+}
+
+export async function retrieveStoredMetaResponse(apiKey: string, id: string, timeoutMs = DEFAULT_TIMEOUT_MS, expectedModel?: string): Promise<Record<string, unknown>> {
+  if ((!id.trim() || id.length > 256 || Array.from(id).some(char => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127))) throw new Error("Invalid saved Meta response ID");
+  const binding = expectedModel === undefined ? undefined : durableReservations.get(id);
+  const fingerprint = expectedModel === undefined ? undefined : accountFingerprint(apiKey);
+  if (expectedModel !== undefined && !sameDurableBinding(id, binding, fingerprint!, expectedModel)) throw new Error("Meta durable response binding does not match retrieval account/model");
+  const requestOptions = {
+    headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(timeoutMs), dispatcher: metaDispatcher,
+  };
+  const response = await fetch(`${META_RESPONSES_URL}/${encodeURIComponent(id)}`, requestOptions);
+  if (!response.ok) throw new MetaModelApiError(response.status, "Stored response retrieval failed");
+  const body = await response.json() as Record<string, unknown>;
+  if (body.id !== id) throw new Error("Meta returned a different response ID");
+  if (expectedModel !== undefined && body.model !== metaModelId(expectedModel)) throw new Error("Meta returned a different or missing response model");
+  if (expectedModel !== undefined && !sameDurableBinding(id, binding, fingerprint!, expectedModel)) throw new Error("Meta durable response binding changed during retrieval");
+  if (["completed", "failed", "cancelled", "incomplete"].includes(String(body.status))) releaseTerminalMetaResponse(id);
+  return body;
+}
+
+
+const pausedObservationAt = new Map<string, number>();
+/** One paused or durably bound orphan response per tick; never write native state. */
+export async function observePausedMetaResponse(
+  operations: Record<string, import("./types.js").OpState>,
+  apiKey: string,
+  retrieve: typeof retrieveStoredMetaResponse = retrieveStoredMetaResponse,
+  nowMs = Date.now(),
+): Promise<boolean> {
+  if (!apiKey) return false;
+  const fingerprint = accountFingerprint(apiKey);
+  const referenced = new Set<string>();
+  const activeReferenced = new Set<string>();
+  const candidates = new Map<string, { model: string; durable?: DurableMetaReservation }>();
+  for (const state of Object.values(operations)) {
+    const job = state.external_job; const id = job?.provider_batch_id;
+    if (job?.provider !== "meta-responses" || !validStoredMetaId(id)) continue;
+    referenced.add(id);
+    if (state.status === "running" || state.status === "queued") activeReferenced.add(id);
+    if (state.status === "running" || state.status === "queued" || job.account_fingerprint !== fingerprint || terminalResponses.has(id)) continue;
+    candidates.set(id, { model: String(job.model) });
+  }
+  for (const [id, durable] of durableReservations) {
+    if (referenced.has(id) || terminalResponses.has(id) || durable.conflicting || durable.fingerprint !== fingerprint || asyncReservations.get(durable.owner) !== id) continue;
+    candidates.set(id, { model: durable.model, durable });
+  }
+  for (const id of candidates.keys()) if (activeReferenced.has(id) || durableReservations.get(id)?.conflicting) candidates.delete(id);
+  const eligible = [...candidates].filter(([id]) => nowMs - (pausedObservationAt.get(id) ?? -Infinity) >= 30_000);
+  eligible.sort(([a], [b]) => (pausedObservationAt.get(a) ?? -Infinity) - (pausedObservationAt.get(b) ?? -Infinity));
+  const selected = eligible[0];
+  if (!selected) return false;
+  const [id, candidate] = selected;
+  pausedObservationAt.set(id, nowMs);
+  try {
+    // Strict expected model is validated inside retrieval, before its terminal release.
+    const response = await retrieve(apiKey, id, 60_000, candidate.durable ? candidate.model : undefined);
+    const modelMatches = candidate.durable ? response.model === metaModelId(candidate.model) : response.model === undefined || response.model === metaModelId(candidate.model);
+    if (response.id !== id || !modelMatches || !["completed", "failed", "incomplete", "cancelled"].includes(String(response.status))) return false;
+    if (candidate.durable) {
+      const current = durableReservations.get(id);
+      // The default retrieval may already have released this exact terminal ID.
+      if (current ? !sameDurableBinding(id, candidate.durable, fingerprint, candidate.model) : !terminalResponses.has(id)) return false;
+    }
+    releaseTerminalMetaResponse(id); // Deletes only this ID, never an owner's replacement ID.
+    return true;
+  } catch { /* Refused, unknown or mismatched retrieval cannot release capacity. */ }
+  return false;
 }

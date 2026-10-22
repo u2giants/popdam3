@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 4414,
+  "outcome": "ready-for-merge",
+  "pr": 4501,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4414/6",
+  "contract_sha256": "9423c9d3012131137a067af647286d2eb1187be1c095a36ab372a2a663aafc80",
+  "head_sha": "30cd6bf126fcb5cd15e279d856a84fe32f8b40d0",
+  "base_sha": "2a49324844e2111745dd71637d8ca2adeb365658",
+  "files_changed": [
+    ".github/workflows/pr-guards.yml",
+    "docs/verification/reviewer-assignment-holds.md",
+    "scripts/lib/lanes/github-wire.mjs",
+    "scripts/lib/lanes/section-deadline.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions_resolved": [],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/lanes/section-deadline.test.mjs scripts/lib/lanes/assignment-hold-phases.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/reviewer-wire-budget.test.mjs scripts/mutex-release-on-refusal.test.mjs scripts/lib/github-transport.test.mjs",
+      "exit_code": 0,
+      "evidence": "969 pass, 0 fail (required set); full lane suite 1590 pass, 0 fail"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ]
+}

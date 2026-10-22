@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "work_issue": 3618,
+  "outcome": "ready-for-merge",
+  "pr": 4271,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3618/25",
+  "contract_sha256": "69d51a5f1e66280345b0d4e30e2121372cc055f9d386608604847d45a8986fb8",
+  "base_sha": "8be5f2114c6f664a91381ca9b8ee65df81f91537",
+  "head_sha": "4fe51958ba404b65fe84e4dbd1cff4b67c4505a1",
+  "files_changed": [
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/owner-rulings.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "scripts/check-migration-pr-lease.mjs",
+    "scripts/check-migration-pr-lease.test.mjs",
+    "scripts/claim-author-transfer.test.mjs",
+    "scripts/coordination-scenarios.test.mjs",
+    "scripts/expired-merged-claim-adoption.test.mjs",
+    "scripts/lib/lanes/constants.mjs",
+    "scripts/lib/lanes/expired-merged-claim-adoption.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/orchestrator-flow/capacity-state.test.mjs",
+    "scripts/rebind-expired-claim-blocker.test.mjs",
+    "scripts/test-fixtures/migration-lane-race-worker.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/claim-author-transfer.test.mjs scripts/rebind-expired-claim-blocker.test.mjs scripts/expired-merged-claim-adoption.test.mjs scripts/check-migration-pr-lease.test.mjs",
+      "exit_code": 0,
+      "evidence": "117 focused positive/hostile tests PASS including direct interrupted same-ID expiry/prose mutation refusal, exact same-ID and adopted replay, stop/check-in dual-cleanup failure durable completion surfacing, unknown-lock mutation evidence with no unsafe rollback."
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "849 manager tests PASS after upstream8be integration including exact-owner exit/signal mutex safety net."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "347 call sites/97 sources PASS; stale and missing confirmation refusal assertions are metadata admission, never database-absence claims"
+    },
+    {
+      "command": "node --test scripts/coordination-scenarios.test.mjs scripts/orchestrator-flow/capacity-state.test.mjs scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+      "exit_code": 0,
+      "evidence": "63 integration/capacity/historical-context tests PASS. Original historical cutover and retirement archives unchanged; only valid resume fixture durations and new context row legacy bindings corrected."
+    },
+    {
+      "command": "native canonical contract/completion and Git evidence validation",
+      "exit_code": 0,
+      "evidence": "Generation25 published exact readback and native sealed Git evidence PASS; final completion validation before seal/push."
+    }
+  ],
+  "assumptions_resolved": [
+    "Existing lease-body format preserved exactly; separate immutable confirmation binds full current claim/source/actual session.",
+    "Fresh author grants capped30m; protected migration action requires <=10m actual-owner confirmation; stopped/expired/foreign identities refuse.",
+    "Owner-issued stopped-source readiness and actual successor consent are re-proved under native mutex with source/version/collision/recovery gates.",
+    "Independent original/successor Git repositories permit identical branch names without mutating original custody.",
+    "Read-only Luna review found no concrete defect; formal native review remains separate.",
+    "Full CI failures were outdated valid12-hour fixture inputs and wrongly resurrected retired historical identity; all hostile protection assertions and historical archives retained.",
+    "Exact PR/head binding is required for every confirmation validator caller; missing inputs refuse. Permanent reservation is a readable40-character commit and unchanged on confirmation readback.",
+    "DeepSeek6461 retained paid response factual findings inspected directly. Duplicate provisional/terminal decision correctly refused by wrapper. Its moved-head scheduling lease alone was exact-tuple CAS reaped; all paid state, assignments, credits and response evidence preserved.",
+    "Generation24 file_writes exactly names actual16 source files and current24 evidence pair; no stale21 paths or unchanged source helpers.",
+    "StepFun6462 terminal REVISE inspected and preserved. Three factual corrections applied; its proposed historical reader tightening is rejected with a positive compatibility/hostile new-grant regression because existing protected recovery capability must remain.",
+    "Upstream8be integrated without conflicts. Historical23 pair preserved in immutable commits/ref and private control copies; current PR diff carries only24.",
+    "77 canonical contract and Git evidence unit tests PASS.",
+    "Muse6464 durable1710bfd7d1789c6891534593e5a0f446f87022e0 terminal REVISE respected. Demonstrated same-ID original-body gap fixed; low cleanup/test findings batched. Native normal review recording worked; original artifacts and paid state preserved.",
+    "Generation25 exact source/readback117/849/63/77 and347/97 checks passed; previous24 pair remains immutable in history/ref/private recovery."
+  ],
+  "stop_conditions_hit": [],
+  "notes": "Maintenance only; no live ownership transfer, SQL/preview/production write, licensing acceptance or duplicate merge. Generation25 corrects all substantive Muse6464 findings and its low cleanup/test items; exact independent fresh governed review required. Historical receipt compatibility and all source/version/object protections remain."
+}

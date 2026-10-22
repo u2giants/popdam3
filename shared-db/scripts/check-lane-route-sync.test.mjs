@@ -13,12 +13,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync, readdirSync } from 'node:fs'
 import { QUEUE_ROUTES, ROUTES_BY_WORK_TYPE } from './manage-migration-author-lanes.mjs'
-import { STRUCTURAL_ROUTES } from './orchestrator-flow/admission.mjs'
+import { STRUCTURAL_ROUTES } from './db-flow/admission.mjs'
 import { BOUNDARY_SCHEMAS, SELF_SERVICE_ROUTE } from './check-self-service-additive-lane.mjs'
 
 const ROUTE = SELF_SERVICE_ROUTE
 const laneScript = readFileSync(new URL('./manage-migration-author-lanes.mjs', import.meta.url), 'utf8')
-const admissionScript = readFileSync(new URL('./orchestrator-flow/admission.mjs', import.meta.url), 'utf8')
+const admissionScript = readFileSync(new URL('./db-flow/admission.mjs', import.meta.url), 'utf8')
 // AGENTS.md is a router since #3481; its section text lives verbatim under
 // docs/agents/. The rulebook is AGENTS.md plus every file it routes to.
 const agents = [

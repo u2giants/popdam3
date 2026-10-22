@@ -1,0 +1,58 @@
+{
+  "schema_version": 2,
+  "work_issue": 4297,
+  "generation": 37,
+  "evidence_parent": {
+    "work_issue": 4297,
+    "generation": 36,
+    "contract_sha256": "3b162addc354647767dec740a386b05187051733baebdda363952a8baa93f5e3"
+  },
+  "goal": "Permit complete, bounded issue-comment history reads only in the admission-gate context: explicit numbered requests, at most five pages, unique comment identities, strict array/page validation; accept only when a page shorter than 100 proves completion (max 499 rows), and refuse a full fifth page, repeated/duplicate page, malformed response, or later-page failure before reviewer assignment. Preserve ordinary reviewer-operation refusal at 100 rows, runGitHubCommand per-attempt accounting and one attempt under mutex, the derived 25-request reviewer ceiling and reserve 15. Also repair the demonstrated documents-only merge-queue admission regression: under the existing author mutex, independently prove the exact live main-base/head inventory with the existing base-owned documents-only classifier and allow that existing route without demanding a structural or nonclosing-maintenance evidence pair. All executable, instruction, migration, unreadable or changed-source cases retain ordinary admission; exclusive merge/production locks, freeze, exact-head authorization and downstream guards remain unchanged.",
+  "route": "repo-maintenance",
+  "work_type": "repo-maintenance",
+  "base_sha": "154361984687def51366c2c539d7467b1ad64098",
+  "branch": "codex/4297-admission-comment-pages",
+  "worktree": "/home/ahazan/.codex/worktrees/4297-admission-pagination/shared-db",
+  "dispatcher": "Codex chat 01a14221-9c2c-7dd3-9047-dfaced175779 on edge-dev3",
+  "worker": "Luna 6 High subagent /root/parallel_ledger on edge-dev3",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/4297/37/contract.json",
+    ".agent/work/4297/37/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    ".agent/work/4297/37/contract.json",
+    ".agent/work/4297/37/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions": [
+    "Generation37 prospectively authorizes the added documentation-route repair before its implementation, while preserving the original pager implementation already authorized by generation28 and refreshed by generation36. Generation36 immutable ref bdf06effeabdc9ea026d06cfff3753573cea252a, digest3b162addc354647767dec740a386b05187051733baebdda363952a8baa93f5e3; current implementation head378aa30799c15aed392766f6fb73dd9e640b3ede.",
+    "Read-only --outcome-status 2336 succeeded with valid=true, state=dispatched, and three outcome events; assignment still reruns admission and must read complete history.",
+    "Native reviewer-harness triage returned NO KNOWN MATCH and LEDGER_MISSING; no incident/triage ledger path is identified for this change, so none is included.",
+    "Open PR #4357 overlaps the two implementation files but does not touch ghPaginated. Keep PR #4357 untouched; root owns same-file requalification and serialized landing.",
+    "Checkpoint PR4378 changes only one handoff; every ordinary check passed, but merge-group Queue interlock run38893178765 refused its acquire-merge with nonclosing maintenance binding requiring a canonical evidence pair. Existing owner documents-only policy authorizes this prose route; preserve strong admission for every non-documentation change."
+  ],
+  "required_checks": [
+    "node scripts/agent-work-contract.mjs --validate-contract --contract-file .agent/work/4297/37/contract.json",
+    "node --test scripts/manage-migration-author-lanes.test.mjs scripts/reviewer-wire-budget.test.mjs",
+    "python3 -m unittest scripts.test_production_business_risk_gate",
+    "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs scripts/run-governed-review.test.mjs scripts/check-exact-head-approval.test.mjs",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "Stop before reviewer assignment/ref creation on any incomplete, malformed, repeated, duplicate-ID, failed, or cap-full page; mutex cleanup must still be proved.",
+    "Stop if ordinary reviewer pagination refusal, 25-request budget, reserve, or single-attempt-under-lock behavior changes.",
+    "Stop if PR #4357 changes such that the source overlap cannot be integrated without touching its work; root serializes this dependency.",
+    "Stop on any failing required check or request for paid/external review, publication, push, PR update, merge, claim, or database/production action by this delegated worker."
+  ],
+  "prohibited_actions": [
+    "This delegated worker performs no database/production activity, structural claim, new ticket, secret access, paid reviewer/provider call, staff message, or external publication.",
+    "Do not modify frozen #2336 source/evidence or PR #4357 files, review, or PR; do not change the reviewer budget/reserve or ordinary reviewer pagination guard; do not edit an unrelated ledger. Root retains native publication, review, and merge decisions."
+  ]
+}

@@ -3,11 +3,18 @@
   "source": "scripts/lib/lanes/review-replacement.mjs",
   "sites": [
     {
-      "site": "scripts/lib/lanes/review-replacement.mjs:22",
+      "site": "scripts/lib/lanes/review-replacement.mjs:23",
       "semantic_key": "scripts/lib/lanes/review-replacement.mjs:f30023772b56725e26d2ee56709548ccdbe3ba11879aad96d6fe6f357c85079a:context-4ae354304adcc3c35ac45e23aff6786c84fd84a8cb4a56bc61f12b4005c6535e",
       "line_sha256": "f30023772b56725e26d2ee56709548ccdbe3ba11879aad96d6fe6f357c85079a",
       "disposition": "excluded",
       "reason": "Fail-closed immutable reviewer-evidence validation; the word missing does not describe database or migration state."
+    },
+    {
+      "site": "scripts/lib/lanes/review-replacement.mjs:91",
+      "semantic_key": "scripts/lib/lanes/review-replacement.mjs:6ef91c76b2037d9122e2ab5b037fcdf161e9c38d9055aefb6df30a5d74e6eb86:context-83e0b32e5a7eb461f0db56e998fbad3b86b140a842ec063c3347a46026df94a9",
+      "line_sha256": "6ef91c76b2037d9122e2ab5b037fcdf161e9c38d9055aefb6df30a5d74e6eb86",
+      "disposition": "excluded",
+      "reason": "Fail-closed validation of original reviewer start, private evidence or historical failure proof; missing describes coordination evidence, not database or migration state."
     }
   ]
 }

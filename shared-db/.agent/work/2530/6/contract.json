@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "work_issue": 2530,
+  "generation": 6,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Harden merge_group dispatch: bare merge_group triggers and dual-rule queue ruleset shape so GitHub starts Actions on merge groups (issue #2530).",
+  "base_sha": "d55c69499121705268ffded099087ab45ba1abf1",
+  "dispatcher": "MiMo chat ffe5ec4d8a438ffeMsuIzWTbV4 on edge-dev",
+  "worker": "MiMo",
+  "branch": "mimo/2530-mq-dispatch-hardening",
+  "worktree": "C:\\\\repos\\\\shared-db-wt-2530-mqdispatch-20261014",
+  "allowed_paths": [
+    ".agent/work/2530/6/completion.json",
+    ".agent/work/2530/6/contract.json",
+    ".github/workflows/coldlion-promotion-contract-tests.yml",
+    ".github/workflows/database-contract-tests.yml",
+    ".github/workflows/documents-fast-ci.yml",
+    ".github/workflows/merge-queue-gate.yml",
+    ".github/workflows/migration-author-lease.yml",
+    ".github/workflows/pr-guards.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "scripts/documents-fast-ci-workflow.test.mjs",
+    "scripts/merge-queue-contract.mjs",
+    "scripts/merge-queue-contract.test.mjs"
+  ],
+  "file_writes": [
+    ".agent/work/2530/6/completion.json",
+    ".agent/work/2530/6/contract.json",
+    ".github/workflows/coldlion-promotion-contract-tests.yml",
+    ".github/workflows/database-contract-tests.yml",
+    ".github/workflows/documents-fast-ci.yml",
+    ".github/workflows/merge-queue-gate.yml",
+    ".github/workflows/migration-author-lease.yml",
+    ".github/workflows/pr-guards.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/configure-merge-queue.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "scripts/documents-fast-ci-workflow.test.mjs",
+    "scripts/merge-queue-contract.mjs",
+    "scripts/merge-queue-contract.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not change any migration, database object, or live database row.",
+    "Do not touch branch protection beyond the additive required-status-checks list.",
+    "Do not edit PR #3998, #4298 history, or other sessions worktrees."
+  ],
+  "required_checks": [
+    "node --test scripts/check-merge-queue-workflows.test.mjs scripts/configure-merge-queue.test.mjs scripts/merge-queue-contract.test.mjs scripts/documents-fast-ci-workflow.test.mjs"
+  ],
+  "assumptions": [
+    "Bare merge_group is the correct trigger form.",
+    "The 14 live required contexts are canonical."
+  ],
+  "stop_conditions": [
+    "Refuse if any workflow loses its merge_group trigger or gains path filters.",
+    "Refuse if the ruleset payload omits either merge_queue or required_status_checks."
+  ]
+}

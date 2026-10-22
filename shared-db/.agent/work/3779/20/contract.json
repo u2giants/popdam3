@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "generation": 20,
+  "evidence_parent": {
+    "work_issue": 3779,
+    "generation": 19,
+    "contract_sha256": "b07a4dfba12225bb90973caefe8f7cf2b3e61f4e542bd19494aa9308d57a5713"
+  },
+  "work_issue": 3779,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Implement and prove plan_shared_release_hold_reduction.md step 8a, first backward-compatible landing: every --release-<lane> CLI call runs releaseExclusive under the coordination mutex; a legacy --owner-sha is resolved to holder + generation from its acquisition commit and a moved or recovered lease refuses without touching the successor; --holder-id/--generation accepted on every lane; legacy-header leases keep exact-sha release and are never upgraded or taken over; legacy SHA-release call-site audit recorded. No workflow caller, schema, data, setting or safeguard change.",
+  "base_sha": "486ca058174c6ae2f7244d2f94e24436fbd6aeee",
+  "dispatcher": "Claude chat 745ea991-2041-4729-8860-ca595c6faf46 on edge-dev",
+  "worker": "Same session; the lane-manager release change, its adversarial tests, the call-site audit and plan STATUS row 8.",
+  "branch": "claude/3779-8a-owner-generation-release",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/3779-8a",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/release-hold-ownership.test.mjs",
+    "scripts/guarded-merge-preparation-split.test.mjs",
+    ".github/workflows/migration-author-lease.yml",
+    "docs/verification/shared-release-holds/2026-10-21-legacy-sha-release-call-site-audit.md",
+    "docs/verification/shared-release-holds/README.md",
+    "plan_shared_release_hold_reduction.md",
+    ".agent/work/3779/19/contract.json",
+    ".agent/work/3779/19/completion.json",
+    ".agent/work/3779/20/contract.json",
+    ".agent/work/3779/20/completion.json"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/release-hold-ownership.test.mjs",
+    "scripts/guarded-merge-preparation-split.test.mjs",
+    ".github/workflows/migration-author-lease.yml",
+    "docs/verification/shared-release-holds/2026-10-21-legacy-sha-release-call-site-audit.md",
+    "docs/verification/shared-release-holds/README.md",
+    "plan_shared_release_hold_reduction.md",
+    ".agent/work/3779/19/contract.json",
+    ".agent/work/3779/19/completion.json",
+    ".agent/work/3779/20/contract.json",
+    ".agent/work/3779/20/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No schema, row-data, repository-setting, ruleset or branch-protection change.",
+    "No removal or weakening of object claims, exclusive locks, exact-head approval, required checks, freeze or queue-mode checks; the stage lease remains the sole mutation authority.",
+    "No edit to guarded-migration-merge.yml, shared-supabase-migrations.yml, merge-queue-gate.yml or preview-ledger-orphan-reconciliation.yml; their --owner-sha release calls keep working through the locked adapter.",
+    "No automatic takeover or implicit upgrade of a legacy lease; no manual lease write outside a workflow.",
+    "Do not close issue #3779 or mark any plan row done from an unmerged or unproven branch."
+  ],
+  "required_checks": [
+    "git diff --check origin/main...HEAD",
+    "node --test scripts/release-hold-ownership.test.mjs scripts/lib/release-hold-evidence.test.mjs scripts/lib/exclusive-lease.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/manage-migration-author-lanes-surface.test.mjs scripts/guarded-merge-preparation-split.test.mjs scripts/lib/lanes/exclusive-policy.test.mjs scripts/mutex-release-on-refusal.test.mjs scripts/check-merge-queue-workflows.test.mjs scripts/coordination-scenarios.test.mjs scripts/queue-hygiene-report.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node scripts/check-current-workflow-policy.mjs"
+  ],
+  "assumptions": [
+    "Generation 19 was sealed against f1f63c7a; main then moved with PR #4547 (merge freeze cap), so the branch merges current main and retires generation 19 unmerged.",
+    "The refreshed implementation head 7be8e444064640b4ac3a51d00d111ef10faab134 was authored before this contract was published; disclosed, and every later commit follows it.",
+    "The five workflow release sites passing holder/generation, point-of-use --assert-exclusive, 8b and 8c stay open and are recorded as such in STATUS row 8."
+  ],
+  "stop_conditions": [
+    "Stop before any production, preview, database or repository-setting action.",
+    "A failing native gate is satisfied through its supported route; no bypass or fabricated evidence."
+  ]
+}

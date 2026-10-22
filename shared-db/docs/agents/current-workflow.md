@@ -13,7 +13,7 @@ It documents existing authority; it does not activate a new release route.
 | ordinary-rows | application-owner | AGENTS.md section 0.0-B |
 | authors | unlimited | Owner ruling 2026-09-16 |
 | reviewer-concurrency | unlimited | Owner ruling 2026-09-16 |
-| migration-reviews | 2 | scripts/check-exact-head-approval.mjs |
+| migration-reviews | 1 | scripts/check-exact-head-approval.mjs |
 | governed-code-reviews | 1 | scripts/check-exact-head-approval.mjs |
 | standalone-plans | documentation | scripts/lib/documents-only-change.mjs |
 | agent-instructions | guarded | scripts/lib/documents-only-change.mjs |
@@ -30,6 +30,16 @@ the task gate, the applicable scoped evidence and independent code review, and
 the guarded merge path. A maintenance change does not claim database objects or
 wait for structural intake. A merged loader repair still requires
 its stated runtime acceptance; merged code is not automatically delivered work.
+
+**Landing a ready pull request (do not skip):** green required checks and an
+exact-head approval do **not** merge the PR by themselves. The required
+`Migration guarded merge authorization` status is published only by the
+**Guarded Merge** workflow (`guarded-migration-merge.yml`) after it re-proves
+the head under the merge lock. Auto-merge / the merge queue stays blocked until
+that status exists. When a PR is ready, dispatch Guarded Merge with the PR
+number and the **full 40-character** head SHA (a short SHA is checked out as a
+branch name and fails). Observed live on PR #4473 (2026-10-18): the queue sat
+idle for hours after checks were green until Guarded Merge ran.
 
 **Documentation:** a change containing only prose, including standalone
 `plan_*.md` proposals, uses the documentation route. Albert authorizes merging

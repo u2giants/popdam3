@@ -65,6 +65,7 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    "20261005025111",  # #2176 immutable slot7 REVISE; never-installed source retired.
     "20261001122410",
     # #2508: replaced originals; immutable successor provenance and live ledger verified.
     "20260914061331",
@@ -291,12 +292,17 @@ HARD_BLOCKED = {
     "20260825031841",
     # #3907: original preview producer differs from authoring merge; immutable forward reissue only.
     "20261006221530",
+    # #4464: production run 39425038130 rolled it back at its own #2873 post-check
+    # (backend_runtime is a member of tracking_grants in production). Reissued as
+    # 20261020125826 under claim #4467 (coordinator decision: grant the runtime role).
+    "20261018191107",
 }
 
 # One authority for versions that must never be applied. The post-batch
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261005025111": "#2176 merged-stranded: immutable PR3839 head dd269428fc3953e98366142cec24c71e25d71b09 carries slot7 REVISE verdict45d5766e4e3d62d777c19d057e3d59825f150a1c; preview and production never applied original; claim3838 supported reissue retirement6328e126316baca16b7f3d842f79a769599f478c reserves standalone safe replacement20261011224904, not yet installed. Preserve original SQL and all reviews; never apply original.",
     "20261001122410": "#3859 / #3948: preview-era PR3862 original replaced by production-path successor 20261006004845 (PR3951), applied automatically in run37400719394; immutable successor header pins the same static index statement. Live production successor ledger and exact btree(company_code,prod_order_no) index reverified October11,2026. Preserve original SQL; never promote original.",
     "20260914061331": "#2879 / #2885: production run 34819885746 refused original PR2882 provenance; #2885 forbids reuse of this version. Forward replacement 20260914075758 applied in run34834533519; live production ledger reverified October11,2026. Preserve original SQL and preview ledger; never promote original.",
     "20260930212107": "#3234: preview-era PR3852 original replaced by production-path successor 20261005044103, applied run37292826682; source issue records complete live constraint proof. Live production successor ledger reverified October11,2026. Preserve original SQL and preview ledger; never promote original.",
@@ -335,6 +341,7 @@ RETIRED_VERSION_REASONS = {
     "20260903200951": "unpromotable producer provenance (original apply run 33754529571 was a pre-merge branch rehearsal whose producer files differ from PR 2199 merge commit 477ef03cd516c79188d81b6c21260575a43a9239) and preview already holds the version after orphan reconciliation run 33821298999, so no qualifying evidence can ever be produced; replaced byte-for-byte by 20260905024139 under issue 2349",
     "20260825031841": "preview-only historical #1471 forward; production timed out and rolled back because its full reconciliation remained one statement; use prerequisite 20260825041343 and its governed dependent recovery",
     "20261006221530": "Original preview37542145935 at fd62f194fb9ca8fed3513d589a26c5ed9384f60d differs in session-authority producer from authoring merge74e4ee847d3e960af5cfbcddfe2e0ae9aaafb248. Qualification37550480001 refused before production dispatch. Preserve original migration and preview history; governed replacement20261007002113 under issue3907 claim4004 only.",
+    "20261018191107": "production apply run 39425038130 rolled back at its own #2873 post-check because designflow_prod_backend_runtime is a member of designflow_prod_tracking_grants in production; preview-only; forward reissue 20261020125826 under issue 4464 claim 4467 grants designflow_prod_tracking_runtime directly",
 }
 RETIRED_VERSIONS = frozenset(RETIRED_VERSION_REASONS)
 HELD_VERSIONS = frozenset({"20260802170000", "20260802171000"})

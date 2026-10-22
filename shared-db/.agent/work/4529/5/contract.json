@@ -1,0 +1,53 @@
+{
+  "schema_version": 2,
+  "generation": 5,
+  "work_issue": 4529,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Correct the derived-from header of 20261021152741 to the base production actually holds (20261020230556) so the merged-main preview rehearsal can apply it without 20261021063716; no SQL body change",
+  "base_sha": "1b7edfedb5190f6b6d9ed9767d9e877e1ec35bae",
+  "dispatcher": "Claude chat 5ad0641a-8b6d-4992-b794-fcd04535db5d on hetz (PopDAM #97 claim-first)",
+  "worker": "claude-5ad0641a-hetz-4529",
+  "branch": "claude/4529-hdf-relevance-v2",
+  "worktree": "/worksp/shared-db-wt-4529-promo",
+  "allowed_paths": [
+    "supabase/migrations/20261021152741_popdam_search_exact_relevance_paging.sql",
+    ".agent/work/4529/5/contract.json",
+    ".agent/work/4529/5/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261021152741_popdam_search_exact_relevance_paging.sql",
+    ".agent/work/4529/5/contract.json",
+    ".agent/work/4529/5/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_dam_documents",
+    "function public.search_assets_full_text",
+    "function public.search_style_groups_full_text",
+    "function public.search_dam_document_counts"
+  ],
+  "prohibited_actions": [
+    "No PopSG objects, no SEARCH_MODE change, no new tables or indexes",
+    "Never reuse 20261020230556 or 20261021063716; claim #4542 reserves 20261021152741",
+    "Keep the 8s statement_timeout, the summary envelope, the semantic model predicate and grants"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "20261021152741 is not applied to preview or production (preview run 39641928924 refused before apply), so its header may be corrected in place.",
+    "The migration drops and recreates every object it writes, so it is complete on top of 20261020230556 (production) and on top of 20261021063716 alike.",
+    "20261021063716 stays unapplied: it is wholly superseded by 20261021152741."
+  ],
+  "stop_conditions": [
+    "Stop if claim #4542 does not cover the four function objects",
+    "Stop if spider-man or stitch cannot finish under 8s on production-sized data"
+  ],
+  "evidence_parent": {
+    "work_issue": 4529,
+    "generation": 4,
+    "contract_sha256": "86977ba8c4a3b4dce5ec6117a3019596826b587a64c91439d33963554238baef"
+  }
+}

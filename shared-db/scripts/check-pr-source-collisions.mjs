@@ -46,15 +46,25 @@ export const PROTECTED_SOURCE_PATHS=new Set([
 // to merge or close them. A place in the queue is now FORFEIT when ALL three
 // hold, and only then:
 //
-//   (a) the pull request has had no activity for 24+ hours;
+//   (a) the pull request has had no activity for 1+ hour (it was 24 hours
+//       before owner ruling 2026-10-21, Albert Hazan: "make it 1hr");
 //   (b) its latest checks are failing OR it conflicts with main;
 //   (c) the newer pull request's session has posted a DATED nudge comment on
 //       it naming the stale state (see parseStalePlaceNudge).
 //
 // The place is RECLAIMED automatically: once the earlier pull request is
-// refreshed (any non-nudge activity inside 24h) and green (no failing check,
+// refreshed (any non-nudge activity inside the last hour) and green (no failing check,
 // no conflict), condition (a) or (b) stops holding and it precedes again. No
 // state is reset by hand because no state is kept.
+//
+// WHOSE ACTIVITY. Only events the stalled pull request's own session can
+// cause refresh its clock. GitHub also writes timeline rows when SOMEONE ELSE
+// mentions it: `cross-referenced` (another issue or PR body says #<n>),
+// `referenced` (a commit elsewhere names it), `mentioned` and `subscribed`
+// (notification side effects of those mentions). Those are ignored -- on
+// 2026-10-21 bare mentions kept a PR idle since the day before "active" and
+// blocking. Everything else still counts, including labels by bots: when it
+// is unclear whether an event is the owner's work, it counts (no skip).
 //
 // FAIL CLOSED. Skipping a queue predecessor is the relaxation, so every
 // unreadable or absent signal -- activity, checks, mergeability, comments --
@@ -67,9 +77,23 @@ export const PROTECTED_SOURCE_PATHS=new Set([
 // proxy is the machine-readable marker naming the newer pull request's number,
 // posted as a dated comment on the stale one. A nudge that names a different
 // number yields the place to nobody.
-export const STALE_PLACE_AFTER_MS=24*60*60*1000
+// Skipping a stalled predecessor costs at most one refresh and re-review of
+// the newer pull request if the older one later lands; it never merges
+// anything. One hour still covers an owner mid-fix waiting on a normal check.
+export const STALE_PLACE_AFTER_MS=60*60*1000
+// The window rendered for humans, derived from the constant so the message can
+// never state a different window than the one enforced.
+export function stalePlaceWindowText(ms=STALE_PLACE_AFTER_MS){
+  const hours=ms/(60*60*1000)
+  return Number.isInteger(hours)?`${hours}h`:`${Math.round(ms/60000)}m`
+}
+export function stalePlaceSkipLine(row){
+  return `STALE-PLACE SKIP: ${row.file} — PR #${row.pr} "${row.title}" is inactive ${stalePlaceWindowText()}+ with failing checks or a main conflict, and a dated nudge names this pull request; it no longer precedes this one.`
+}
 export const STALE_PLACE_NUDGE_PREFIX='stale-place-nudge:'
-export const STALE_PLACE_STATES=Object.freeze(['inactive-24h','checks-failing','conflicts-with-main'])
+// `inactive-24h` stays accepted so nudges already posted under the old window
+// still parse; new nudges should say `inactive-1h`.
+export const STALE_PLACE_STATES=Object.freeze(['inactive-1h','inactive-24h','checks-failing','conflicts-with-main'])
 
 export function stalePlaceNudgeLine(forPr,{date,states}){
   return `${STALE_PLACE_NUDGE_PREFIX} pr=#${Number(forPr)} date=${date} state=${states.join('+')}`
@@ -99,8 +123,10 @@ export function parseStalePlaceNudge(body,{commentedAt}={}){
 // The newest activity a pull request shows, EXCLUDING nudge comments: a nudge
 // must not refresh the stale pull request it was posted on, or condition (a)
 // could never survive its own notification. Commits, reviews, labels, edits
-// and every ordinary comment all count as activity. Returns null when nothing
+// and every ordinary comment all count as activity; timeline rows other
+// people's mentions create (FOREIGN_TIMELINE_EVENTS) do not. Returns null when nothing
 // datable exists -- and null means NO skip downstream.
+export const FOREIGN_TIMELINE_EVENTS=Object.freeze(new Set(['commented','cross-referenced','referenced','mentioned','subscribed']))
 export function lastActivityAt({detail,timeline=[],commits=[],comments=[]}={}){
   const stamps=[]
   const push=(value)=>{const stamp=Date.parse(value??'');if(Number.isFinite(stamp))stamps.push(stamp)}
@@ -111,7 +137,7 @@ export function lastActivityAt({detail,timeline=[],commits=[],comments=[]}={}){
     push(comment?.created_at)
   }
   for(const row of timeline){
-    if(String(row?.event??'')==='commented')continue
+    if(FOREIGN_TIMELINE_EVENTS.has(String(row?.event??'')))continue
     push(row?.created_at)
     push(row?.submitted_at)
   }
@@ -306,7 +332,7 @@ export function main(env=process.env,{gatherInput=gather,groupFacts=()=>readMerg
   }
   let input;try{input=gatherInput(env)}catch(cause){error(`ERROR: protected source collision audit is unavailable: ${cause.message}`);return 2}
   const skips=stalePlaceSkips(input.current,input.others,{now})
-  for(const row of skips)log(`STALE-PLACE SKIP: ${row.file} — PR #${row.pr} "${row.title}" is inactive 24h+ with failing checks or a main conflict, and a dated nudge names this pull request; it no longer precedes this one.`)
+  for(const row of skips)log(stalePlaceSkipLine(row))
   const ahead=openProtectedCollisions(input.current,input.others,{now})
   if(!ahead.length){log('No other ready open pull request edits the same protected coordination source.');return 0}
   log('QUEUED: an earlier ready open pull request edits the same protected coordination source. This pull request waits its turn in the merge queue; its merge group must be its base plus only this pull request, and is re-tested there.')

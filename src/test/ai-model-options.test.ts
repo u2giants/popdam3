@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { catalogWarningOf, modelAllowedForTask, preserveCatalogOnWarning } from "@/lib/ai-model-options";
+import { aiModelEndpoint, catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, modelSelectorPresentation, normalizeAiModelPool, preserveCatalogOnWarning, sameAiModelPool, shouldLoadAiModelCatalog } from "@/lib/ai-model-options";
 import { directGeminiBatchAllowedForServerConsumer, directGeminiBatchSelectionHasKey, safeSecretFingerprint, upsertConfigRowsAtomically, withValidatedCounterparts } from "../../supabase/functions/_shared/direct-batch-model";
 
 describe("direct Gemini batch model scope", () => {
@@ -14,6 +14,20 @@ describe("direct Gemini batch model scope", () => {
 
   it("does not change normal provider choices", () => {
     expect(modelAllowedForTask("google/gemini-3.7-flash", "pdf_extraction")).toBe(true);
+  });
+
+  it("keeps Meta Direct available to supported task routes and limits ScaleDown to PDF extraction", () => {
+    const meta = "meta-direct/muse-spark-1.3-contributor";
+    expect(modelAllowedForTask(meta, "vision_tagging")).toBe(true);
+    expect(modelAllowedForTask(meta, "vision_tagging", true)).toBe(true);
+    expect(modelAllowedForTask(meta, "text_classification")).toBe(true);
+    expect(modelAllowedForTask(meta, "pdf_extraction")).toBe(true);
+    expect(modelAllowedForTask("scaledown/summarize", "pdf_extraction")).toBe(true);
+    expect(modelAllowedForTask(" scaledown/summarize ", "pdf_extraction")).toBe(true);
+    expect(modelAllowedForTask("scaledown/summarize", "vision_tagging")).toBe(false);
+    expect(modelAllowedForTask(" scaledown/summarize ", "vision_tagging")).toBe(false);
+    expect(modelAllowedForTask("scaledown/summarize", "text_classification")).toBe(false);
+    expect(modelAllowedForTask("scaledown/summarize", "pdf_extraction", true)).toBe(false);
   });
 
   it("is rejected server-side for bake-off and PDF but allowed for production tagging", () => {
@@ -98,5 +112,90 @@ describe("direct Gemini batch model scope", () => {
       expect(directGeminiBatchSelectionHasKey(table.AI_TASK_MODELS, table.GOOGLE_AI_API_KEY)).toBe(true);
     }
     expect(withValidatedCounterparts({ A: 1 }, { A: 2, B: null })).toEqual({ A: 1 });
+  });
+});
+
+describe("AI Model Pool", () => {
+  it("chooses a dropdown, pool-empty status, or editable fallback for every selector state", () => {
+    expect(modelSelectorPresentation(2, true, false)).toBe("select");
+    expect(modelSelectorPresentation(1, false, true)).toBe("select");
+    expect(modelSelectorPresentation(0, false, true)).toBe("pool-empty");
+    expect(modelSelectorPresentation(0, false, false)).toBe("input");
+    expect(modelSelectorPresentation(1, false, false)).toBe("input");
+  });
+
+  it("loads direct-provider choices after configuration is available without an OpenRouter key", () => {
+    expect(shouldLoadAiModelCatalog(false, "", null)).toBe(false);
+    expect(shouldLoadAiModelCatalog(true, "", null)).toBe(true);
+    expect(shouldLoadAiModelCatalog(true, "openrouter-key", null)).toBe(false);
+    expect(shouldLoadAiModelCatalog(true, "openrouter-key", "account-fingerprint")).toBe(true);
+  });
+
+  it("groups built-in models by their API endpoint", () => {
+    expect(aiModelEndpoint("google-direct/gemini-3.8-flash:batch")).toBe("google-direct");
+    expect(aiModelEndpoint("meta-direct/muse-spark-1.3-contributor")).toBe("meta-direct");
+    expect(aiModelEndpoint("scaledown/summarize")).toBe("scaledown-direct");
+    expect(aiModelEndpoint("anthropic/claude-haiku-4.5")).toBe("openrouter");
+  });
+
+  it("shows all models before an endpoint has a saved selection", () => {
+    expect(modelInPool("openai/gpt-5", {})).toBe(true);
+    expect(modelInPool("meta-direct/muse-spark-1.3-contributor", {})).toBe(true);
+  });
+
+  it("filters only the endpoint with an explicit model selection", () => {
+    const pool = normalizeAiModelPool({ openrouter: ["anthropic/claude-haiku-4.5"] });
+    expect(modelInPool("anthropic/claude-haiku-4.5", pool)).toBe(true);
+    expect(modelInPool("openai/gpt-5", pool)).toBe(false);
+    expect(modelInPool("google-direct/gemini-3.8-flash:batch", pool)).toBe(true);
+  });
+
+  it("treats an explicit empty endpoint selection as hiding every model", () => {
+    const pool = normalizeAiModelPool({ openrouter: [] });
+    expect(modelInPool("openai/gpt-5", pool)).toBe(false);
+    expect(modelInPool("google-direct/gemini-3.8-flash:batch", pool)).toBe(true);
+  });
+
+  it("normalizes duplicate and invalid model IDs and compares endpoint selections", () => {
+    const pool = normalizeAiModelPool({
+      openrouter: ["b/model", "a/model", "a/model", 2],
+      "future-endpoint": ["future/model"],
+      future_metadata: { version: 1, options: { enabled: true } },
+    });
+    expect(pool).toEqual({
+      openrouter: ["a/model", "b/model"],
+      "future-endpoint": ["future/model"],
+      future_metadata: { version: 1, options: { enabled: true } },
+    });
+    expect(sameAiModelPool(pool, {
+      future_metadata: { options: { enabled: true }, version: 1 },
+      "future-endpoint": ["future/model"],
+      openrouter: ["b/model", "a/model"],
+    })).toBe(true);
+    expect(sameAiModelPool(pool, { openrouter: ["a/model"] })).toBe(false);
+  });
+
+  it("keeps a selected model visible while retaining the filtered catalog", () => {
+    const selected = { id: "hidden/model", name: "Hidden model", supportsTools: true };
+    const visible = [{ id: "visible/model", name: "Visible model", supportsTools: false }];
+    const withCurrent = includeCurrentModel(visible, selected);
+    expect(withCurrent).toEqual([selected, ...visible]);
+    expect(withCurrent[0].supportsTools).toBe(true);
+    expect(includeCurrentModel(visible, visible[0])).toEqual(visible);
+  });
+});
+
+describe("system config attribution", () => {
+  it("uses nullable system attribution while preserving ordinary users and atomic writes", async () => {
+    const calls: Array<Array<Record<string, unknown>>> = [];
+    const client = { from: (_table: "admin_config") => ({ upsert: async (rows: Array<Record<string, unknown>>) => { calls.push(rows); return { error: null }; } }) };
+    const user = "123e4567-e89b-42d3-a456-426614174000";
+    const rows = [{ key: "AI_TAG_PARALLEL_RUN", value: {enabled: false}, updated_by: "system" }, {key: "OTHER", value: "preserved", updated_by: user}];
+    expect(await upsertConfigRowsAtomically(client, rows)).toEqual({error:null});
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toEqual({...rows[0],updated_by:null});
+    expect(calls[0][1]).toEqual(rows[1]);
+    expect(rows[0].updated_by).toBe("system");
+    expect(calls[0][0].value).toEqual({enabled:false});
   });
 });

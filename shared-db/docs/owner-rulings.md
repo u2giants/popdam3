@@ -2114,8 +2114,8 @@ automatic-promotion re-proof), accept that shared reviewer only when the pull re
 for more than one later slot; slot 1 is not kept independent of slots 2 and above collectively. Open pull requests keep strict slot independence. Code:
 `mergedPrReviewerReuseAllowed` in `scripts/manage-migration-author-lanes.mjs`.
 
-**Promotion merge freeze.** `--acquire-promotion-freeze --issue <n> --pr <n> --owner <text>
---ttl-minutes <1-180>` sets the create-only ref `refs/db-coordination/promotion-freeze` before the
+**Promotion merge freeze.** Cap: 60 minutes. Owner rule, Albert Hazan in his chat 2026-10-21 (verbatim): "no session is allowed to freeze merges for more than 1hr. that's the new rule" `--acquire-promotion-freeze --issue <n> --pr <n> --owner <text>
+--ttl-minutes <1-60>` sets the create-only ref `refs/db-coordination/promotion-freeze` before the
 risk assessment is drawn. While it is live, `--acquire-merge` (guarded merge and merge-queue gate)
 and repository-maintenance authorization refuse, naming the holder and expiry. It never blocks
 preview or production. It expires by TTL, so it cannot wedge merges (a corrupt, unreadable freeze record
@@ -2124,3 +2124,37 @@ number releases an unreadable record, by design, so it can never wedge merges); 
 --owner <text>` (or `--pr <n>`) ends it, and the production job's always() cleanup releases the
 freeze for its source PR. Release ownership is an accident guard, not a security boundary: the production
 job must be able to release a freeze it did not set.
+
+### 6.27 OWNER RULING — one independent review is enough for every change (Albert Hazan, 2026-10-14)
+
+Verbatim from Albert's chat (2026-10-14):
+
+> "change the rules so that we don't need 2 reviews"
+
+**Effect.** scripts/check-exact-head-approval.mjs requires **one** independent exact-head APPROVE for every pull request, including migrations. The former two-slot migration minimum is retired. No gate, test or helper may demand two slots. A drawn slot still owes its own APPROVE; a returned or refused slot is never revived. Branch protection is never disabled.
+
+Posted by MiMo chat ffe5ed27-27a0-dffe-92fd-227bed167df0 on EDGE-DEV
+
+### 6.28 OWNER RULING — no external reviewer for popcre/shared-db; skip merge-gate assignment when none are working (Albert Hazan, 2026-10-15 and 2026-10-16)
+
+Verbatim from Albert's chat:
+
+> "the new rules say this repo does not get reveiwers anymore" (2026-10-15)
+
+> "if there are no reviewers currently working then skip the merge-gate assignment" (2026-10-16)
+
+> "i allow one assignment to bootstrap that policy onto main" (2026-10-16)
+
+**Effect.** For `popcre/shared-db` only: this repository has no working reviewers (standing premise from the 2026-10-15 quote), so the exact-head approval gate (`scripts/check-exact-head-approval.mjs`) skips the external reviewer APPROVE requirement. This is not a per-run liveness probe. This ruling does not by itself change `--assign-reviewer` drawing rules. The exemption is from the reviewer POOL only. Every other required check, the guarded merge lane, the merge lock, and a durable refusal already recorded at the head still bind. One assignment is authorized to bootstrap this policy onto main. The policy is the committed file `config/owner-no-reviewer-policy.json` (schema-1) so the decision is auditable and cannot be toggled by a pull-request author or environment variable. This retires the one-review minimum from §6.27 for this repository only; §6.27 remains the rule for every other repository.
+
+Posted by MiMo chat 0ffe5ebedd0b70ffe on edge-dev
+
+### 6.29 OWNER RULING — a stalled protected-source pull request loses its queue place after one hour (Albert Hazan, 2026-10-21)
+
+Verbatim from Albert's chat (2026-10-21), answering whether the 24-hour stale-place window could be 30 minutes:
+
+> "make it 1hr."
+
+**Effect.** `STALE_PLACE_AFTER_MS` in `scripts/check-pr-source-collisions.mjs` is one hour. An earlier open pull request that edits a protected coordination source forfeits its place to a newer one only when all three conditions still hold: no activity for one hour, failing checks or a main conflict, and a dated `stale-place-nudge:` comment naming the newer pull request. Unreadable signals still mean no skip, and the earlier pull request reclaims its place automatically once refreshed and green. Nudges written with the old `inactive-24h` state still parse; new ones say `inactive-1h`.
+
+Posted by Claude chat 745ea991-2041-4729-8860-ca595c6faf46 on edge-dev

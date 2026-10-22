@@ -4,7 +4,15 @@
 
 **Closed:** all nine integration steps are complete. Reviewed delivery documentation landed in https://github.com/u2giants/popdam3/pull/290; application issue #281, matching issue #275 and shared outcome #4111 are closed. The completed session handoff is retired after confirming live results and closure. Historical attempts below remain evidence, not instructions to restart completed work. Separate source decisions remain on #277.
 
-Current production is PR #289 merge `9883315c7d64b9ed274cc92ae3c1d0c73cc6597b`.
+**October 13, 2026 continuity:** these nine integration steps remain complete;
+do not replay them. Subsequent #277 work verified the Production PO tooltip and
+601 populated dates live. On October 14, 2026 the SO Date column, future
+production PO non-reuse enforcement, the settled55 source corrections and the
+20 confirmed special-assortment pairs went live; proof is on
+https://github.com/u2giants/popdam3/issues/277.
+This does not reopen the completed integration or Jessica's choices.
+
+Historical integration acceptance production was PR #289 merge `9883315c7d64b9ed274cc92ae3c1d0c73cc6597b`.
 Publish run `37986360726` succeeded at 4:25 PM EDT. Production served HTTP 200
 with token `9883315`, asset `/assets/index-B2s-PtZY.js` (SHA-256
 `574bdff6df39c7533993996c591b04c8133e62e82b3e25626f29a5258c8c46fb`), and

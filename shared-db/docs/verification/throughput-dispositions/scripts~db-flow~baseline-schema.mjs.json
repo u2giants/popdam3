@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source": "scripts/db-flow/baseline-schema.mjs",
+  "sites": [
+    {
+      "site": "scripts/db-flow/baseline-schema.mjs:8",
+      "semantic_key": "scripts/db-flow/baseline-schema.mjs:53788602953037e4bb623980cb4757d79be764f90dceec7ac90565483a5f9a02:context-34f5948c3cc2418ac063ef96627a9c160b1fe0b43615508a7177ed19f6d728b9",
+      "line_sha256": "53788602953037e4bb623980cb4757d79be764f90dceec7ac90565483a5f9a02",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/baseline-schema.mjs:53788602953037e4bb623980cb4757d79be764f90dceec7ac90565483a5f9a02:1"
+    },
+    {
+      "site": "scripts/db-flow/baseline-schema.mjs:28",
+      "semantic_key": "scripts/db-flow/baseline-schema.mjs:ab4ccb5fcaaafd5dbb35560b81c05b7fcff85ca3a759ecc3bc054c114cc8c0cc:context-09a44f426c9c02c29bc49006349240c37a75e624dcdff84713fd4e3de3cdb6a2",
+      "line_sha256": "ab4ccb5fcaaafd5dbb35560b81c05b7fcff85ca3a759ecc3bc054c114cc8c0cc",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/orchestrator-flow/baseline-schema.mjs:ab4ccb5fcaaafd5dbb35560b81c05b7fcff85ca3a759ecc3bc054c114cc8c0cc:1"
+    }
+  ]
+}

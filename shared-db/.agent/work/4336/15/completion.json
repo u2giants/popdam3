@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 4336,
+  "outcome": "ready-for-merge",
+  "pr": 4485,
+  "migration_versions": [
+    "20261019113819"
+  ],
+  "contract_ref": "refs/db-contracts/4336/15",
+  "contract_sha256": "e59eb543d734550d27c18c5ba7b10e66499e64590c58d7a02705c7ac33c3e979",
+  "head_sha": "350b6bcfa312d04737f0b7260986917bd1243145",
+  "base_sha": "9b14f44d1d6a2e2fc6814c1e6943d6f545ae3ab6",
+  "files_changed": [
+    "supabase/migrations/20261019113819_orderlist_order_window_date.sql"
+  ],
+  "db_reads": [
+    "table coldlion.order_history_line",
+    "table plm.production_order_line",
+    "table plm.production_order_line_source_ref"
+  ],
+  "db_writes": [
+    "view api.dam_order_list",
+    "function dam.orderlist_sales_order_received_date"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL checks passed on the implementation head."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "Sidecar registry OK; 20261019113819 has no verification markers."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Production column list matched the repo view (90 columns) before authoring.",
+    "Muse REJECT H-1 fixed: helper EXECUTE granted to service_role; drift guard added (Medium-1)."
+  ],
+  "stop_conditions_hit": []
+}

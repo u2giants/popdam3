@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/engine-routing.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/engine-routing.mjs:334",
+      "semantic_key": "scripts/lib/engine-routing.mjs:441e8f95de0650ecb13605ede2729b0ba709feb8f6f72e693fb0a70c400efc09:context-23d294bc724f959d9cb0e54ece4cd0566a0eda90758662a95186f6da6e90159b",
+      "line_sha256": "441e8f95de0650ecb13605ede2729b0ba709feb8f6f72e693fb0a70c400efc09",
+      "disposition": "excluded",
+      "reason": "Issue #2318. A source comment explaining why the renderer emits the authorization field blank rather than silently missing; it is prose about marker authoring and states nothing about migration or object state.",
+      "legacy_semantic_key": "scripts/lib/orchestrator-routing.mjs:441e8f95de0650ecb13605ede2729b0ba709feb8f6f72e693fb0a70c400efc09:1"
+    },
+    {
+      "site": "scripts/lib/engine-routing.mjs:218",
+      "semantic_key": "scripts/lib/engine-routing.mjs:7319eba8ac13186491dbe421fd89ac14f2c50eaf078c7428f3fac6479e2d0434:context-b99a8ff5337c1d830bb0b5b7a5ec618d8c1f301c8ac670e0c4be9af3ba5ee23b",
+      "line_sha256": "7319eba8ac13186491dbe421fd89ac14f2c50eaf078c7428f3fac6479e2d0434",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "legacy_semantic_key": "scripts/lib/orchestrator-routing.mjs:7319eba8ac13186491dbe421fd89ac14f2c50eaf078c7428f3fac6479e2d0434:1"
+    }
+  ]
+}

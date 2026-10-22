@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "generation": 10,
+  "evidence_parent": {
+    "work_issue": 3779,
+    "generation": 9,
+    "contract_sha256": "621d2fe25104e65d51f6885bc7cb9f740a310ef3b098c219d83eebcda54b7677"
+  },
+  "work_issue": 3779,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Update plan_shared_release_hold_reduction.md STATUS row 3 to done with the merged SHA and live-proof run IDs. Rulebook plan file only (reviewer-safety class); no runtime, workflow or database change.",
+  "base_sha": "d1865ae6d831a5bec9f3dd806e1927003c4e2ee1",
+  "dispatcher": "Claude chat b23dac91-af2c-4c34-b450-4686c6b1ccb7 on edge-dev",
+  "worker": "Same session; one STATUS row plus this evidence pair.",
+  "branch": "claude/3779-plan-status-step3",
+  "worktree": "scratch worktree of the same checkout on edge-dev",
+  "allowed_paths": [
+    "plan_shared_release_hold_reduction.md",
+    ".agent/work/3779/10/contract.json",
+    ".agent/work/3779/10/completion.json"
+  ],
+  "file_writes": [
+    "plan_shared_release_hold_reduction.md",
+    ".agent/work/3779/10/contract.json",
+    ".agent/work/3779/10/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No code, workflow, setting, schema or row-data change.",
+    "Do not close #3779; rows 1 (partial), 2 and 4-10 stay as they are."
+  ],
+  "required_checks": [
+    "git diff --check origin/main...HEAD"
+  ],
+  "assumptions": [
+    "The STATUS commit preceded this contract; disclosed, and every later commit follows it.",
+    "Row 3's evidence (PR #4523 merged 8cd8fce4; runs 39529158952, 39529161151, 39526198749, 39526346432) is recorded on #3779."
+  ],
+  "stop_conditions": [
+    "Stop before any production, preview, database or repository-setting action."
+  ]
+}

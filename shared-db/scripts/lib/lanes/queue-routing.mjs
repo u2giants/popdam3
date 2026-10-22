@@ -1,8 +1,8 @@
 // Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { reviewTargetIsRecordable } from './admission.mjs'
-import { SERVICE_CLASSES, CHANGE_TYPES, evaluateAdmission, parseImpactBlock } from '../../orchestrator-flow/admission.mjs'
-import { OUTCOME_STATES } from '../../orchestrator-flow/outcome-lifecycle.mjs'
+import { SERVICE_CLASSES, CHANGE_TYPES, evaluateAdmission, parseImpactBlock } from '../../db-flow/admission.mjs'
+import { OUTCOME_STATES } from '../../db-flow/outcome-lifecycle.mjs'
 import { conflicts } from '../../lib/hold-reason.mjs'
 import { validateDependencyDeclaration, classifyDependencies, findDependencyCycles } from '../../lib/work-dependencies.mjs'
 import { LaneError, parseAuthorLease, validateClaimObjects } from './claims.mjs'
@@ -168,7 +168,7 @@ export function requiresReturnAddress(workType) {
 export function queueExit(workType) {
   if (workType === 'structural') return 'accept'
   const exit = NON_STRUCTURAL_EXITS[workType]
-  if (!exit) throw new LaneError(`no orchestrator exit is defined for work_type ${workType}`)
+  if (!exit) throw new LaneError(`no structural-lane exit is defined for work_type ${workType}`)
   return exit
 }
 
@@ -256,7 +256,7 @@ export function parseQueueScope(body = '') {
   return { status, workType, route, priority, dependencies, returnTo, writes, reads, legacyObjects, objects: writes, serviceClass, changeType, applicationReturnTo, liveAssertion, generatedTypes, outcomeStage }
 }
 
-// orchestrator-alarm marks the no-progress alarm fallback issue (scripts/orchestrator-flow/no-progress-alarm.mjs); the queue audit excludes it too.
+// orchestrator-alarm marks the no-progress alarm fallback issue (scripts/db-flow/no-progress-alarm.mjs); the queue audit excludes it too.
 export const COORDINATION_LABELS = new Set(['db-claim','orchestrator-marker','orchestrator-alarm'])
 export const WORK_LABEL = 'db-work'
 
@@ -507,7 +507,7 @@ export function returnIssueToOwner(number, io, { alreadyReturned } = {}) {
   if (copyOf) throw new LaneError(`issue #${number} is itself a returned copy (${copyOf}); returning it again would mint another generation`)
 
   const body = [
-    `Returned from ${REPO}#${number} by the shared-db orchestrator.`,
+    `Returned from ${REPO}#${number} by the owning repository session.`,
     `${RETURNED_COPY_MARKER} https://github.com/${REPO}/issues/${number}`,
     '',
     `This is **${scope.workType}** work. Under the shared-db admission test (AGENTS.md 0.0-C) it changes the CONTENTS of the shared database, not its SHAPE, so the session working in this repository owns it outright — no shared-db issue, no dispatch, no migration.`,

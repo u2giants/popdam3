@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 4366,
+  "outcome": "ready-for-merge",
+  "pr": 4310,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4366/3",
+  "contract_sha256": "03be3ae55db6cd6037d9518793d4f2dea1adb9a467878f86f2b79a5e50204850",
+  "head_sha": "f7378beabdfd831173ce7618e63cb2b091e9bdf4",
+  "base_sha": "3fcb3c65e7f85147edd10bd457d8c1179bbf6390",
+  "files_changed": [
+    "HANDOFF.d/2026-10-14T2247Z-edge-dev-mimo-2336-production-live-proof.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-handoff-contract.test.mjs",
+      "exit_code": 0,
+      "evidence": "16 pass"
+    }
+  ],
+  "assumptions_resolved": [
+    "#2336 stays open",
+    "preview ref left as PREVIEW_PROJECT_REF not a literal"
+  ],
+  "stop_conditions_hit": []
+}

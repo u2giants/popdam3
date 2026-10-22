@@ -65,6 +65,28 @@ class OriginalArtifactTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             verify(request, self.archive(request, files), lambda _: b'SELECT 1;')
 
+    def test_pinned_requalified_run_requires_its_exact_artifact_and_version(self):
+        # #4486: the pinned attempt-2 run passes the attempt check, but only with
+        # its own pinned artifact id, digest and version.
+        head = 'fe3931607f952029ce6174073f7320d580a188b7'
+        for mutate in (lambda r: None,
+                       lambda r: r['artifact'].update(id=12153700170),
+                       lambda r: r.update(versions=['20261018191107'])):
+            with self.subTest(mutation=mutate):
+                request, files = self.fixture()
+                request['run'].update(id=39173012894, run_attempt=2, head_sha=head)
+                archive = self.archive(request, files)
+                mutate(request)
+                with self.assertRaisesRegex(ValueError, 'pinned re-qualified run'):
+                    verify(request, archive, lambda _: b'SELECT 1;')
+
+    def test_pinned_run_at_another_attempt_is_not_an_original(self):
+        request, files = self.fixture()
+        request['run'].update(id=39173012894, run_attempt=3,
+                              head_sha='fe3931607f952029ce6174073f7320d580a188b7')
+        with self.assertRaisesRegex(ValueError, 'not a successful original apply run'):
+            verify(request, self.archive(request, files), lambda _: b'SELECT 1;')
+
     def test_refuses_changed_metadata(self):
         mutations = [lambda r: r['run'].update(conclusion='failure'),
                      lambda r: r['run'].update(run_attempt=2),

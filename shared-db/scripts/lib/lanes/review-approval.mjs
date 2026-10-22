@@ -262,7 +262,7 @@ export function headVerdictBlocksReplacement(issue,pr,headSha,io,options={}){
   })
 }
 
-// A MERGE FROM MAIN DOES NOT VOID AN APPROVAL (orchestrator marker #2758). The
+// A MERGE FROM MAIN DOES NOT VOID AN APPROVAL (claim-first session identity #2758). The
 // same rule `evaluateApprovalWithRefresh` applies at the merge gate: an APPROVE
 // that fully satisfies an earlier head A stands for head B when A is an ancestor
 // of B and the pull request's own diff is identical at both (`.agent/` aside).

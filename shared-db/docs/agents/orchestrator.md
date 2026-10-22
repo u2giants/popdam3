@@ -1,4 +1,4 @@
-# AGENTS.md — §0.0-C admission test, §11b to §11d (orchestrator role, routing contract, admission)
+# AGENTS.md — historical retirement note: §0.0-C admission test, §11b to §11d (retired orchestrator role)
 
 > **Historical / reference only.** The orchestrator role was retired by owner ruling
 > (Albert Hazan, 2026-10-02: "there is no longer an orchestrator"; AGENTS.md §0.0-D).
@@ -9,7 +9,7 @@
 > and §11d (the role, marker routing, `check-orchestrator-marker.mjs --resolve`, starting as
 > or handing over to an orchestrator, queueing to wait for one). New structural issues use
 > `route: claim-first`; `route: shared-db-orchestrator` is accepted only as a legacy alias and
-> names no session (#3874).
+> names no session (#3874). The body below is retained as the historical record of the retired role and its marker/dispatch machinery — do not follow it.
 
 > Moved verbatim from `AGENTS.md` by issue #3481 so that file stays a short router. Section numbers and headings are unchanged; a citation of "AGENTS.md §X" resolves here. Relative link targets were re-pointed from this folder; no rule text changed.
 
@@ -37,7 +37,7 @@ objects listed, dispatched to a sub-agent in an isolated worktree as usual.
 is additive and every named object lives in the app-owned `{crm, pim, dam, plm}` schemas. The boundary
 is enforced AT MERGE TIME by `scripts/check-self-service-additive-lane.mjs` inside the guarded
 merge, pre-lock — a declared route whose pull request fails the classifier never merges. The
-author session claims the lane (`--claim --admit-issue`), draws both reviewers itself
+author session claims the lane (`--claim --admit-issue`), draws one reviewer itself
 (`--assign-reviewer`), and dispatches the guarded merge itself; every existing gate (collision
 locks, version reservation, exact-head review, serial preview/merge/promotion) is unchanged. The
 orchestrator never dispatches, refills or reviews this route; `--queue-audit` prints it in its own
@@ -375,3 +375,4 @@ a failure. An unreadable creation
 date is treated as in force, never as grandfathered.
 
 ---
+

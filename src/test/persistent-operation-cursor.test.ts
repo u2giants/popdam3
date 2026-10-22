@@ -22,3 +22,11 @@ describe("persistent operation cursor validation", () => {
     expect(isResumableOperationCursor("ai-tag-group-profiles", 3)).toBe(false);
   });
 });
+
+describe("reprocess-metadata fill mode cursor", () => {
+  it("resumes a UUID keyset cursor and still resumes numeric offsets", () => {
+    expect(isResumableOperationCursor("reprocess-metadata", "123e4567-e89b-42d3-a456-426614174000")).toBe(true);
+    expect(isResumableOperationCursor("reprocess-metadata", 500)).toBe(true);
+    expect(isResumableOperationCursor("reprocess-metadata", "garbage")).toBe(false);
+  });
+});

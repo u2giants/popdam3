@@ -1,0 +1,53 @@
+{
+ "schema_version": 2,
+ "generation": 6,
+ "work_issue": 4529,
+ "work_type": "structural",
+ "route": "claim-first",
+ "goal": "Re-land the reviewed search_dam_documents body as one added migration 20261021190510 (base 20261020230556) so the single-source automatic promotion can rehearse and apply it; 20261021063716 and 20261021152741 stay unapplied and superseded",
+ "base_sha": "1b5e6a6269eacc00adc2a29e58d90764bf0f5596",
+ "dispatcher": "Claude chat 5ad0641a-8b6d-4992-b794-fcd04535db5d on hetz (PopDAM #97 claim-first)",
+ "worker": "claude-5ad0641a-hetz-4529",
+ "branch": "claude/4529-hdf-relevance-v3",
+ "worktree": "/worksp/shared-db-wt-4529-promo",
+ "allowed_paths": [
+  "supabase/migrations/20261021190510_popdam_search_exact_relevance_paging_reland.sql",
+  ".agent/work/4529/6/contract.json",
+  ".agent/work/4529/6/completion.json"
+ ],
+ "file_writes": [
+  "supabase/migrations/20261021190510_popdam_search_exact_relevance_paging_reland.sql",
+  ".agent/work/4529/6/contract.json",
+  ".agent/work/4529/6/completion.json"
+ ],
+ "db_reads": [],
+ "db_writes": [
+  "function public.search_dam_documents",
+  "function public.search_assets_full_text",
+  "function public.search_style_groups_full_text",
+  "function public.search_dam_document_counts"
+ ],
+ "prohibited_actions": [
+  "No PopSG objects, no SEARCH_MODE change, no new tables or indexes",
+  "Never reuse 20261020230556, 20261021063716 or 20261021152741; claim #4561 reserves 20261021190510",
+  "Keep the 8s statement_timeout, the summary envelope, the semantic model predicate and grants"
+ ],
+ "required_checks": [
+  "bash scripts/check-sql.sh",
+  "git diff --check"
+ ],
+ "assumptions": [
+  "20261021152741 was modified after it was added (PR #4555), so neither #4543 nor #4555 can be the single source the automatic promotion lane requires (runs 39655975123, 39657640887, review packet refusal).",
+  "The new file is byte-identical SQL to main's 20261021152741 apart from its header; its base is production's 20261020230556.",
+  "20261021063716 and 20261021152741 must never be promoted after this version."
+ ],
+ "stop_conditions": [
+  "Stop if claim #4542 does not cover the four function objects",
+  "Stop if spider-man or stitch cannot finish under 8s on production-sized data"
+ ],
+ "evidence_parent": {
+  "work_issue": 4529,
+  "generation": 5,
+  "contract_sha256": "c7c9741dd68dc4510c4308e69eebe34e4e5798e81a00e13760d64fcdf310406e"
+ }
+}

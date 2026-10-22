@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 4216,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/359",
+  "contract_sha256": "21f7dc13474f3b3ad51b920098478b3b9e797f81ae3174bbedec1a42476be444",
+  "head_sha": "9cd617e5b51797a3dd606f7611543e4e0b06b343",
+  "base_sha": "544875ec8a4e4d997a16538a71ac9628dc0ca922",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~manage-migration-author-lanes.mjs.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual root combined real-Git/regression verification897PASS/0FAIL/0SKIP; retained private359-root-verification.log"
+    },
+    {
+      "command": "node --test scripts/check-main-tip-freshness.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual root combined real-Git/regression verification897PASS/0FAIL/0SKIP; retained private359-root-verification.log"
+    },
+    {
+      "command": "node --test scripts/agent-work-contract-git-evidence.test.mjs",
+      "exit_code": 0,
+      "evidence": "Actual root combined real-Git/regression verification897PASS/0FAIL/0SKIP; retained private359-root-verification.log"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Actual root truth342/96PASS; retained private359-root-truth.log"
+    }
+  ],
+  "assumptions_resolved": [
+    "Root verified actual guard38180218100 refused reviewed4197 because API basebc08 differed from actualprotectedaf4d. Existing clean-merge branch freshness explicitly permits unrelated main changes; no original source or canonical validation failure authorizes bypass.",
+    "Keep exact valid SHA and live number/open/head/ref/repository/base-main identity, trusted signature, exact Refs issue, no closing issue, complete changed inventory, canonical publication/lineage/report/scope/structural claims checks unchanged.",
+    "After existing source Git preparation, prove captured API base ancestor of captured actual main using actual Git. If unequal, reuse existing classifyBranchFreshness with captured head/main; require explicit ok and fail on error. Do not weaken its overlap, version collision, trial merge or complete diff checks. Preserve verifyGitEvidence actual main argument verbatim.",
+    "Use existing optional injectable Git runner seam only for controlled real-Git tests; real runtime defaults to real Git. Immediately before returning re-read exact live PR identity and main; any changed original metadata/head/main refuses. No stale-main substitution.",
+    "Real-Git positives cover unchanged main and unrelated documentation/code advance for both maintenance and structural routes. Negatives cover overlap, duplicate version, merge conflict, changed merged diff, invalid/unreadable/divergent API base, missing Git proof, forged canonical evidence, scope mismatch and controlled head/main races.",
+    "Only two owned source/test files and existing manager truth disposition if genuine semantic bindings require it. Preserve every foreign354 canonical/source byte,4208 sidecars and overlays,4182 vault migration and4211 docs. No global evidence retirement or unrelated provider/parser change.",
+    "Root retains security, architecture, source, reviewer and merge decisions. Canonical source CI and assigned exact-head independent approval required; no database/production/settings/lease/START/provider mutations in implementation scope.",
+    "Root fully read all three selected source/test/disposition changes and independently reran897tests and truth audit. Actual SOURCE SQL workflow38182012575 completed success at exact9cd617e5b51797a3dd606f7611543e4e0b06b343. Full database suite38182012335 and final-head CI may still be pending; no claim they passed. Independent assigned exact-head APPROVE and passing final required checks remain mandatory before root merge. Foreign4203 main advancement preserves all source and canonical bytes; evidence remains bound to actual merge base544875, unchanged existing freshness proof independently required."
+  ],
+  "stop_conditions_hit": []
+}

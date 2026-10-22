@@ -13,8 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
-import { catalogWarningOf, modelAllowedForTask, preserveCatalogOnWarning } from "@/lib/ai-model-options";
-import { useSecretFingerprint } from "@/hooks/useSecretFingerprint";
+import { catalogWarningOf, includeCurrentModel, modelAllowedForTask, modelInPool, normalizeAiModelPool, preserveCatalogOnWarning, SCALEDOWN_SUMMARIZE_MODEL } from "@/lib/ai-model-options";
 
 const SLOTS = ["a", "b", "c", "d", "e"] as const;
 type Slot = typeof SLOTS[number];
@@ -30,6 +29,16 @@ type VisionModel = {
   architecture?: { input_modalities?: string[] };
   pricing?: OpenRouterPricing | null;
 };
+
+// Direct (non-OpenRouter) models only the bake-off worker can call.
+// The worker's scaledown.ts handles "scaledown/" ids with SCALEDOWN_API_KEY.
+const BAKEOFF_ONLY_MODELS: VisionModel[] = [
+  {
+    ...SCALEDOWN_SUMMARIZE_MODEL,
+    architecture: { input_modalities: ["text", "image"] },
+    pricing: { prompt: "0.00000005", completion: "0" },
+  },
+];
 
 type OpenRouterModelResponse = {
   id: string;
@@ -110,10 +119,6 @@ function supportsImageTaggingContract(model: VisionModel) {
     Array.isArray(model.architecture?.input_modalities) &&
     model.architecture.input_modalities.includes("image")
   );
-}
-
-function unwrapConfigString(value: unknown) {
-  return ((value as Record<string, unknown>)?.value ?? value ?? "") as string;
 }
 
 function runModelId(run: BakeoffRun, slot: Slot) {
@@ -215,26 +220,30 @@ function providerPatterns(results: BakeoffResult[]) {
 }
 
 /**
- * The bake-off mirrors production tagging, so it must show the same structured
- * asset-only shape production writes: "tag (category)". Categories live in the
- * stored raw_output; result.tags is the flattened compatibility array.
+ * Bake-off tags are search terms only. Categories live in raw_output and must
+ * not be printed beside the tag.
  */
+const TAG_CATEGORY_SUFFIX = /\s*\((?:file_type|view|scene|color|visible_content|technique|other|legacy_unscoped|product_type|theme|style|occasion|audience)\)\s*$/i;
+
+function displayTagText(tag: string): string {
+  return tag.replace(TAG_CATEGORY_SUFFIX, "").trim();
+}
+
 export function structuredTagSummary(result: Pick<BakeoffResult, "tags" | "raw_output">): string {
   const structured = result.raw_output?.asset_tags;
   if (Array.isArray(structured) && structured.length > 0) {
-    const labelled = structured
+    const tags = structured
       .map((item) => {
         if (!item || typeof item !== "object") return null;
         const row = item as Record<string, unknown>;
-        const tag = typeof row.tag === "string" ? row.tag.trim() : "";
-        if (!tag) return null;
-        const category = typeof row.category === "string" ? row.category.trim() : "";
-        return category ? `${tag} (${category})` : tag;
+        const tag = typeof row.tag === "string" ? displayTagText(row.tag.trim()) : "";
+        return tag || null;
       })
       .filter((value): value is string => Boolean(value));
-    if (labelled.length > 0) return labelled.join(", ");
+    if (tags.length > 0) return tags.join(", ");
   }
-  return result.tags.length ? result.tags.join(", ") : "No tags";
+  const flat = result.tags.map((tag) => displayTagText(String(tag).trim())).filter(Boolean);
+  return flat.length ? flat.join(", ") : "No tags";
 }
 
 function fieldValue(result: BakeoffResult | undefined, field: Field) {
@@ -274,12 +283,17 @@ export default function AiTagBakeoffTab() {
   const [models, setModels] = useState<string[]>(["", "", "", "", ""]);
 
   const { data: openRouterConfig } = useQuery({
-    queryKey: ["admin-config", "OPENROUTER_API_KEY"],
-    queryFn: () => call("get-config", { keys: ["OPENROUTER_API_KEY"] }),
+    queryKey: ["admin-config", "OPENROUTER_API_KEY", "AI_MODEL_POOL"],
+    queryFn: () => call("get-config", { keys: ["OPENROUTER_API_KEY", "AI_MODEL_POOL"] }),
     staleTime: 30_000,
   });
-  const savedOpenRouterKey = unwrapConfigString(openRouterConfig?.config?.OPENROUTER_API_KEY);
-  const openRouterAccountFingerprint = useSecretFingerprint(savedOpenRouterKey);
+  const openRouterKeyStatus = openRouterConfig?.config?.OPENROUTER_API_KEY as { configured?: unknown; updated_at?: unknown } | undefined;
+  const openRouterKeyConfigured = openRouterKeyStatus?.configured === true;
+  const openRouterAccountFingerprint = typeof openRouterKeyStatus?.updated_at === "string" ? openRouterKeyStatus.updated_at : "unset";
+  const modelPool = normalizeAiModelPool(
+    (openRouterConfig?.config?.AI_MODEL_POOL as Record<string, unknown> | undefined)?.value
+      ?? openRouterConfig?.config?.AI_MODEL_POOL,
+  );
 
   const bakeoffModelQueryKey = ["openrouter-vision-models-bakeoff", openRouterAccountFingerprint] as const;
   const {
@@ -290,7 +304,7 @@ export default function AiTagBakeoffTab() {
     refetch: refetchModels,
   } = useQuery<{ models: VisionModel[]; warning: string | null }>({
     queryKey: bakeoffModelQueryKey,
-    enabled: !!savedOpenRouterKey && openRouterAccountFingerprint !== null,
+    enabled: !!openRouterConfig,
     queryFn: async () => {
       const data = await call("get-openrouter-vision-models");
       const warning = catalogWarningOf(data);
@@ -315,15 +329,24 @@ export default function AiTagBakeoffTab() {
   });
 
   const modelData = modelCatalog?.models;
+  const availableVisionModels = useMemo(() => (modelData ?? [])
+    .filter((model) => supportsImageTaggingContract(model) && modelAllowedForTask(model.id, "vision_tagging", true)), [modelData]);
   const visionModels = useMemo(() => {
-    const list = (modelData ?? []).filter((model) => supportsImageTaggingContract(model) && modelAllowedForTask(model.id, "vision_tagging", true));
-    return [...list].sort((a, b) => {
+    const list = availableVisionModels.filter((model) => modelInPool(model.id, modelPool));
+    const ordered = [...list].sort((a, b) => {
       if (a.supports_tools !== b.supports_tools) return a.supports_tools ? -1 : 1;
       if (a.supports_structured_outputs !== b.supports_structured_outputs) return a.supports_structured_outputs ? -1 : 1;
       if (a.supports_response_format !== b.supports_response_format) return a.supports_response_format ? -1 : 1;
       return a.id.localeCompare(b.id);
     });
-  }, [modelData]);
+    const byId = new Map(ordered.map((model) => [model.id, model]));
+    for (const model of BAKEOFF_ONLY_MODELS) {
+      if (modelInPool(model.id, modelPool)) byId.set(model.id, model);
+    }
+    return [...byId.values()];
+  }, [availableVisionModels, modelPool]);
+  const poolHidesAllBakeoffModels = !modelsLoading && visionModels.length === 0
+    && availableVisionModels.length + BAKEOFF_ONLY_MODELS.length > 0;
 
   async function refreshModels() {
     const toastId = toast.loading("Refreshing OpenRouter vision models...");
@@ -389,6 +412,20 @@ export default function AiTagBakeoffTab() {
   }, [currentRun, results, reviews]);
   const providerPatternSummary = useMemo(() => providerPatterns(results), [results]);
 
+  // Re-queues an existing run; the worker only calls models whose answer for
+  // an image has not succeeded yet.
+  const retryFailed = useMutation({
+    mutationFn: async (runId: string) => {
+      await op.queue({
+        params: { run_id: runId },
+        initialProgress: { evaluated: 0, failed: 0, total: summary.totalResponses },
+        forceRestart: true,
+      });
+    },
+    onSuccess: () => toast.success("Retrying failed answers"),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const createRun = useMutation({
     mutationFn: async () => {
       const selectedModels = models.map((m) => m.trim());
@@ -433,40 +470,55 @@ export default function AiTagBakeoffTab() {
   const opDone = ((opProgress.evaluated as number) || 0) + ((opProgress.failed as number) || 0);
   const progressPct = opTotal > 0 ? Math.min(100, Math.round((opDone / opTotal) * 100)) : 0;
 
-  const modelSelect = (idx: number) => (
-    <div key={SLOTS[idx]} className="space-y-1">
-      <Label className="text-xs">{SLOT_LABELS[SLOTS[idx]]}</Label>
-      {visionModels.length > 0 ? (
-        <Select value={models[idx]} onValueChange={(value) => setModels((prev) => {
-          const next = [...prev];
-          next[idx] = value;
-          return next;
-        })}>
-          <SelectTrigger className="h-8 font-mono text-xs">
-            <SelectValue placeholder={modelsLoading ? "Loading..." : "Select model"} />
-          </SelectTrigger>
-          <SelectContent className="sm:min-w-[28rem]">
-            {visionModels.map((model) => (
-              <SelectItem key={model.id} value={model.id} className="font-mono text-xs" suffix={formatOpenRouterPricing(model.pricing)}>
-                {fmtModel(model.id)}{model.supports_tools ? model.tool_choice_modes?.includes("named") ? " (tool named)" : model.tool_choice_modes?.includes("required") ? " (tool required)" : " (tool auto)" : model.supports_structured_outputs ? " (schema)" : " (json)"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : (
-        <Input
-          value={models[idx]}
-          onChange={(e) => setModels((prev) => {
+  const modelSelect = (idx: number) => {
+    const selectedId = models[idx];
+    const selectedOutsidePool = !!selectedId && !modelInPool(selectedId, modelPool);
+    const currentOption = selectedId
+      ? availableVisionModels.find((model) => model.id === selectedId)
+        ?? BAKEOFF_ONLY_MODELS.find((model) => model.id === selectedId)
+        ?? { id: selectedId, name: selectedId }
+      : undefined;
+    const visibleModelsForSlot = includeCurrentModel(visionModels, currentOption);
+
+    return (
+      <div key={SLOTS[idx]} className="space-y-1">
+        <Label className="text-xs">{SLOT_LABELS[SLOTS[idx]]}</Label>
+        {visibleModelsForSlot.length > 0 ? (
+          <Select value={models[idx]} onValueChange={(value) => setModels((prev) => {
             const next = [...prev];
-            next[idx] = e.target.value;
+            next[idx] = value;
             return next;
-          })}
-          className="h-8 font-mono text-xs"
-          placeholder="provider/model"
-        />
-      )}
-    </div>
-  );
+          })}>
+            <SelectTrigger className="h-8 font-mono text-xs">
+              <SelectValue placeholder={modelsLoading ? "Loading..." : "Select model"} />
+            </SelectTrigger>
+            <SelectContent className="sm:min-w-[28rem]">
+              {visibleModelsForSlot.map((model) => (
+                <SelectItem key={model.id} value={model.id} className="font-mono text-xs" suffix={formatOpenRouterPricing(model.pricing)}>
+                  {fmtModel(model.id)}{selectedOutsidePool && model.id === selectedId ? " (turned off)" : ""}{model.supports_tools ? model.tool_choice_modes?.includes("named") ? " · tool named" : model.tool_choice_modes?.includes("required") ? " · tool required" : " · tool auto" : model.supports_structured_outputs ? " · schema" : " · json"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="text-[10px] text-amber-600">
+            {poolHidesAllBakeoffModels
+              ? "All bake-off models are turned off in Available models. Turn one on in Settings → Processing → AI Tagging."
+              : "No bake-off models are available."}
+          </p>
+        )}
+        {visibleModelsForSlot.length > 0 && (selectedOutsidePool || poolHidesAllBakeoffModels) && (
+          <p className="text-[10px] text-amber-600">
+            {selectedOutsidePool
+              ? poolHidesAllBakeoffModels
+                ? "This selected model is turned off in Available models and remains available. No other bake-off models are shown; turn one on in Settings → Processing → AI Tagging."
+                : "This selected model is turned off in Available models and remains available until you replace it."
+              : "No other bake-off models are shown. Add one in Settings → Processing → AI Tagging."}
+          </p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -481,7 +533,7 @@ export default function AiTagBakeoffTab() {
             size="icon"
             className="h-7 w-7"
             title="Refresh model list from OpenRouter"
-            disabled={!savedOpenRouterKey || modelsFetching}
+            disabled={!openRouterKeyConfigured || modelsFetching}
             onClick={refreshModels}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${modelsFetching ? "animate-spin" : ""}`} />
@@ -554,6 +606,18 @@ export default function AiTagBakeoffTab() {
                   ))}
                 </SelectContent>
               </Select>
+              {currentRun && summary.failed > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  disabled={retryFailed.isPending || op.isActive || op.isQueued}
+                  onClick={() => retryFailed.mutate(currentRun.id)}
+                >
+                  {retryFailed.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                  Retry {summary.failed} failed
+                </Button>
+              )}
               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => {
                 queryClient.invalidateQueries({ queryKey: ["ai-tag-bakeoff-runs"] });
                 if (activeRunId) queryClient.invalidateQueries({ queryKey: ["ai-tag-bakeoff-run", activeRunId] });

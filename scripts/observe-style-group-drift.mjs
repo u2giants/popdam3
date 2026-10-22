@@ -10,8 +10,9 @@ const COUNT_FIELDS = [
   "effective_tag_sample_assets", "effective_tag_missing_rows",
   "effective_tag_extra_rows", "effective_tag_drifted_assets",
 ];
-const ASSIGNMENT_DRIFT = [
+const DRIFT_FIELDS = [
   "assets_missing_or_wrong_group", "assets_with_unexpected_group", "orphan_group_references",
+  "effective_tag_drifted_assets",
 ];
 
 export function assessDriftRow(rows) {
@@ -37,8 +38,10 @@ export function assessDriftRow(rows) {
       counts.effective_tag_drifted_assets > counts.effective_tag_sample_assets) {
     throw new Error("reconciler aggregate counts are inconsistent");
   }
-  const failures = ASSIGNMENT_DRIFT.filter((field) => counts[field] !== 0)
-    .map((field) => `${field}=${counts[field]}`);
+  const failures = DRIFT_FIELDS.filter((field) => counts[field] !== 0)
+    .map((field) => field === "effective_tag_drifted_assets"
+      ? `${field}=${counts[field]} of ${counts.effective_tag_sample_assets} sampled assets`
+      : `${field}=${counts[field]}`);
   return { observed_at: new Date(observedAt).toISOString(), ...counts,
     effective_tag_drift_rate: rate, failures };
 }

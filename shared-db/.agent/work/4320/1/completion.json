@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 4320,
+  "outcome": "ready-for-merge",
+  "pr": 4318,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4320/1",
+  "contract_sha256": "4032a4f72dfea67f7b99acc69bde45b1dcaa20c94254424b396eafd1a5ce1916",
+  "head_sha": "36ec1efa7665eba549d8ed61ca5fe93acee56dd7",
+  "base_sha": "eb8077fadcbde7754e98bce4f22e46d72c655c57",
+  "files_changed": [
+    "AGENTS.md",
+    "README.md",
+    "CLAUDE.md",
+    ".claudeignore",
+    ".cursorignore",
+    "docs/architecture.md",
+    "docs/configuration.md",
+    "docs/deployment.md",
+    "docs/development.md",
+    "docs/verification/throughput-dispositions/scripts~check-exact-head-approval.mjs.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-lane-route-sync.test.mjs scripts/check-review-parallelism-brief.test.mjs scripts/check-current-workflow-policy.test.mjs",
+      "exit_code": 0,
+      "evidence": "local 36 pass including these suites"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=348 sources=98"
+    },
+    {
+      "command": "node --test scripts/check-lane-route-sync.test.mjs scripts/check-review-parallelism-brief.test.mjs scripts/check-current-workflow-policy.test.mjs scripts/check-business-rule-library.test.mjs scripts/check-handoff-contract.test.mjs",
+      "exit_code": 0,
+      "evidence": "36 pass 0 fail"
+    }
+  ],
+  "assumptions_resolved": [
+    "guarded rulebook strings still pass",
+    "no secrets written"
+  ],
+  "stop_conditions_hit": []
+}

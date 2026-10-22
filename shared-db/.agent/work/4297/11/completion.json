@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "work_issue": 4297,
+  "outcome": "ready-for-merge",
+  "pr": 4294,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4297/11",
+  "contract_sha256": "5a205ae42d39c8a63354e7f85dd1207105cc2c9627a874bafbc2602c739b7beb",
+  "head_sha": "82488971cbe9015f5432ae6303c06e9c52b36f37",
+  "base_sha": "0b498f0734415da1cb44c0ead866ddb2ab531fe6",
+  "files_changed": [
+    "AGENTS.md",
+    "docs/agents/anti-collision-summary.md",
+    "docs/agents/merge-protocol.md",
+    "docs/agents/review-recovery-policy.md",
+    "docs/agents/standing-facts.md",
+    "plan_review_recovery_4297.md",
+    "scripts/check-exact-head-approval.mjs",
+    "scripts/check-exact-head-approval.test.mjs",
+    "scripts/lib/lanes/github-wire.mjs",
+    "scripts/lib/lanes/review-assignment.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "scripts/lib/lanes/review-records.mjs",
+    "scripts/lib/lanes/reviewer-roster.mjs",
+    "scripts/lib/orchestrator-routing.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/run-governed-review.mjs",
+    "scripts/run-governed-review.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs",
+      "exit_code": 0,
+      "evidence": "174 passed, zero failures. Full suite passed after fifth-code refund/exhaustion/invalid-evidence regressions."
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "885 passed, zero failures. Full suite passed; three genuine hard-failure scenarios retained with confirmed unfixable local dependencies; repository-read retry-last covered."
+    },
+    {
+      "command": "node --test scripts/run-governed-review.test.mjs",
+      "exit_code": 0,
+      "evidence": "113 passed, zero failures. Full suite passed, one existing skip; fifth code guarded exact-start release included."
+    },
+    {
+      "command": "node --test scripts/check-exact-head-approval.test.mjs",
+      "exit_code": 0,
+      "evidence": "109 passed, zero failures. Full suite passed; private carry, latest replacements, cross-equivalent return barrier and exact quorum retained."
+    }
+  ],
+  "assumptions_resolved": [
+    "Original source and latest MiMo31a79 remain ancestors; current main0b498 retained.",
+    "Generation11 prospectively authorized this reconciliation and corrected inherited contradictory publication prohibition.",
+    "Exactly the 19 declared source paths plus this current evidence-only pair appear in the final candidate; original refs/history remain immutable.",
+    "Old627 GLM run remains UNKNOWN, immutable and conservatively counted; current31 had no paid starts at verified publication preparation. The additional code requires fresh review.",
+    "Assigned exact-current-head independent approval, required CI, guarded merge and real merged-source verification remain pending; outcome ready-for-merge is local implementation readiness, not an authorization or delivery claim."
+  ],
+  "stop_conditions_hit": []
+}

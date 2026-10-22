@@ -3,12 +3,11 @@
   "source": ".github/workflows/migration-author-lease.yml",
   "sites": [
     {
-      "site": ".github/workflows/migration-author-lease.yml:46",
-      "semantic_key": ".github/workflows/migration-author-lease.yml:5d027dd51abeaa7641677b41ece3751aef1e82b8b35fe8fbdc0d5ddd811fec55:context-2f6139b63b1117308e9950f24c097b2af4a50acad913d5a1f213e9234bd0b9a0",
-      "line_sha256": "5d027dd51abeaa7641677b41ece3751aef1e82b8b35fe8fbdc0d5ddd811fec55",
+      "site": ".github/workflows/migration-author-lease.yml:45",
+      "semantic_key": ".github/workflows/migration-author-lease.yml:9f58991dca375bde83e82c50a334d77744e5b096075189ae3bcb481bf788820d:context-0608da320e6426845c4d64bb36793da993908e2f3ad193b2a36683fe548a0252",
+      "line_sha256": "9f58991dca375bde83e82c50a334d77744e5b096075189ae3bcb481bf788820d",
       "disposition": "excluded",
-      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
-      "legacy_semantic_key": ".github/workflows/migration-author-lease.yml:5d027dd51abeaa7641677b41ece3751aef1e82b8b35fe8fbdc0d5ddd811fec55:1"
+      "reason": "Path rename only (orchestrator retirement, #4348); disposition carried from the previous catalogue entry or excluded pending re-review."
     }
   ]
 }

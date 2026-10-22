@@ -149,14 +149,16 @@ MANAGEMENT_ROLE_POLICY = {
 
 def validated_probe_statement(probe_sql):
     """Reuse the shared lexer; old lexers cannot activate the API adapter."""
-    module = Path(__file__).with_name("check-live-proof-probe.mjs").resolve().as_uri()
-    program = ("const m=await import(process.argv[1]);let s='';"
+    module = str(Path(__file__).with_name("check-live-proof-probe.mjs").resolve())
+    program = ("import {pathToFileURL} from 'node:url';"
+               "const m=await import(pathToFileURL(process.argv[2]).href);let s='';"
                "for await(const c of process.stdin)s+=c;"
                "if(m.PROBE_SQL_LEXER_VERSION!==2 || m.probeShapeProblem(s)!==null || "
                "typeof m.probeStatementText!=='function')process.exit(2);"
                "process.stdout.write(JSON.stringify({statement:m.probeStatementText(s)}))")
     try:
-        checked = subprocess.run(["node", "--input-type=module", "-e", program, module],
+        checked = subprocess.run(["node", "--input-type=module", "-e", program,
+                                  "sql-lexer-module", module],
                                  input=probe_sql, text=True, capture_output=True, timeout=15)
     except Exception as exc:
         raise LiveProofError(f"probe parser unavailable ({type(exc).__name__})") from None

@@ -1,12 +1,17 @@
 # Implementation plan — make throughput guards tell the truth
 
+> **SUPERSEDED 2026-10-15 (issue #4348).** The orchestrator role is retired
+> (owner ruling 2026-10-02, AGENTS.md §0.0-D). Structural work is claim-first and
+> that is canonical. Text below that names an orchestrator session, marker, or
+> dispatch is historical narrative of this completed plan — do not follow it.
+
 **Repository:** `u2giants/shared-db`
 **Tracking issue:** [#1680](https://github.com/u2giants/shared-db/issues/1680)
 **Work class:** repository maintenance only
 **Created:** 2026-08-27; consensus revision 2026-08-28 after Claude Opus 5 and Grok 4.6 adjudication
 **Handoff:** [`HANDOFF.d/2026-08-28T0230Z-edge-dev-codex-throughput-plan-consensus.md`](HANDOFF.d/2026-08-28T0230Z-edge-dev-codex-throughput-plan-consensus.md)
 
-This plan changes scripts, tests, workflows and documentation. It authorizes no migration, database write, preview apply, production apply, infrastructure mutation or new credential. Under `AGENTS.md` §0.0-C, a repository-maintenance session owns it; the schema orchestrator does not.
+This plan changes scripts, tests, workflows and documentation. It authorizes no migration, database write, preview apply, production apply, infrastructure mutation or new credential. Under `AGENTS.md` §0.0-C, a repository-maintenance session owns it; it is not structural-lane work.
 
 ## STATUS — read first
 
@@ -176,7 +181,7 @@ A preliminary case-insensitive audit found that roughly 44% of the 554 migration
 - All database reads reuse the existing read-only Management API path; unavailable evidence exits 2.
 - File, ledger, preview and production outcomes remain separate; no single combined verdict hides the sources.
 - False alarms are executable fixtures.
-- Migrations, production/data movement and security/RLS work keep two independent reviewers. Scripts/docs/CI-only work requires one.
+- Owner ruling 2026-10-14: one independent reviewer is enough for every change.
 - Reviewer replacement follows the existing tool-enforced route: never replace a substantive `REVISE`; skip providers already failed on the exact head; after all active rotation providers fail, use Codex overflow once; if overflow also fails, refuse and return the exact blocker to the owner.
 
 **Implementer judgment**
@@ -487,3 +492,4 @@ No owner decision is required before implementation. Language/module boundaries 
 3. **Is the goal sufficient for judgment calls? Yes.** §1 makes truthful evidence without weakened refusal controlling; §§4, 8 and 13 require fail-loud behavior and route any acceptance change to a new issue.
 
 All 13 required sections are present. Every implementation step names files or functions, behavior, dependencies and a verification gate. Tests are behavior-specific; secrets are locations only; definition of done includes commit, merge and post-merge proof.
+

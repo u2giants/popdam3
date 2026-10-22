@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "work_issue": 4257,
+  "outcome": "ready-for-merge",
+  "reason": "Native reserved-version supersession and ledger-key update complete; local checks, two fresh reviews, CI and governed promotion remain explicit gates.",
+  "contract_ref": "refs/db-contracts/4257/4",
+  "contract_sha256": "545a1ccb0312c96610221de2b256596e756b48ada322ce50d6bc19da150772ae",
+  "head_sha": "9f1342da463b0f3b55b70c5c09769f577756c715",
+  "base_sha": "e5901b3ba546c7e1e202ead099b06f445b956671",
+  "files_changed": [
+    ".github/live-proofs/4257.sql",
+    "docs/business-rules/erp-orders-and-source-meaning.md",
+    "supabase/migrations/20261013201822_production_po_no_reuse.sql",
+    "supabase/tests/production_po_no_reuse.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table plm.production_order",
+    "table plm.production_po_reservation",
+    "table plm.production_po_legacy_admission",
+    "function plm.normalize_production_po_number",
+    "function plm.guard_production_po_number",
+    "trigger production_po_no_reuse on plm.production_order"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL passed on current main; CI must independently check live ledgers."
+    },
+    {
+      "command": "docker exec -i codex-po-no-reuse-01a12aec psql -U postgres -d normalized_test -v ON_ERROR_STOP=1 < supabase/tests/production_po_no_reuse.sql",
+      "exit_code": 0,
+      "evidence": "Transactional suite passed: BEGIN/DO/ROLLBACK plus temporary service-role INSERT fixture and duplicate rejection, with privilege changes rolled back."
+    },
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "Owned current-main source diff has no whitespace errors."
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Application-returning outcome is exempt; committed catalog-only probe separately passed read-only as mock supabase_read_only_user with current_user=session_user, NOSUPERUSER/BYPASSRLS and no normalizer EXECUTE privilege; result one passed=true column."
+    }
+  ],
+  "assumptions_resolved": [
+    "Canonical source-key INSERT ON CONFLICT is not used by any current audited writer; exact-ID retry is supported, new source identities cannot reuse a number.",
+    "Existing historical duplicate headers remain byte-for-byte unchanged in pre-cutover test.",
+    "POSIX surrounding whitespace and NBSP normalize along with case; punctuation and leading zeros remain significant.",
+    "No production or shared-preview database was read or mutated during implementation tests.",
+    "Two reviews, required CI, governed merge/promotion and application live proof remain separate unverified coordinator delivery gates.",
+    "Current main incorporated; source and tests rechecked after refresh.",
+    "Catalog-only probe no longer calls restricted functions or reads private reservation rows; no production access grants were added.",
+    "Whitespace-only legacy number fixture refuses cutover and rolls all schema changes back; pre-cutover historical duplicates remain unchanged.",
+    "PostgreSQL has_table_privilege with comma-separated privileges detects ANY listed privilege; direct isolated SELECT-only grant confirmed true. Explicit per-privilege checks now improve clarity.",
+    "The formal reviews, required CI, governed promotion, and direct application live proof remain pending at this changed source head.",
+    "Reserved-version supersession changed only the migration filename and catalog probe ledger version; full SQL bodies/tests are unchanged. Previous reviews were valid on their prior head and must be repeated for this head."
+  ],
+  "stop_conditions_hit": [],
+  "pr": 4262,
+  "migration_versions": [
+    "20261013201822"
+  ]
+}

@@ -1,0 +1,58 @@
+{
+ "schema_version": 2,
+ "generation": 4,
+ "work_issue": 4529,
+ "work_type": "structural",
+ "route": "claim-first",
+ "goal": "Fix forward 20261021063716 after Muse production-risk REJECT: rank every candidate before any bound, exact title first, correct paging and exact has_more, exact-or-flagged totals, high-DF under 8s",
+ "base_sha": "f2438ee10035758e86bc1c3c09a77af79d4bc0b4",
+ "dispatcher": "Claude chat 5ad0641a-8b6d-4992-b794-fcd04535db5d on hetz (PopDAM #97 claim-first)",
+ "worker": "claude-5ad0641a-hetz-4529",
+ "branch": "claude/4529-hdf-relevance-v2",
+ "worktree": "/worksp/shared-db-wt-4529-promo",
+ "allowed_paths": [
+  "supabase/migrations/20261021152741_popdam_search_exact_relevance_paging.sql",
+  "supabase/tests/popdam_search_high_df_timeout_contracts.sql",
+  "supabase/tests/popdam_authorized_ranked_search_contracts.sql",
+  ".agent/work/4529/4/contract.json",
+  ".agent/work/4529/4/completion.json"
+ ],
+ "file_writes": [
+  "supabase/migrations/20261021152741_popdam_search_exact_relevance_paging.sql",
+  "supabase/tests/popdam_search_high_df_timeout_contracts.sql",
+  "supabase/tests/popdam_authorized_ranked_search_contracts.sql",
+  ".agent/work/4529/4/contract.json",
+  ".agent/work/4529/4/completion.json"
+ ],
+ "db_reads": [],
+ "db_writes": [
+  "function public.search_dam_documents",
+  "function public.search_assets_full_text",
+  "function public.search_style_groups_full_text",
+  "function public.search_dam_document_counts"
+ ],
+ "prohibited_actions": [
+  "No PopSG objects, no SEARCH_MODE change, no new tables or indexes",
+  "Never reuse 20261020230556 or 20261021063716; claim #4542 reserves 20261021152741",
+  "Keep the 8s statement_timeout, the summary envelope, the semantic model predicate and grants"
+ ],
+ "required_checks": [
+  "bash scripts/check-sql.sh",
+  "git diff --check"
+ ],
+ "assumptions": [
+  "Exact totals over 20k-50k high-DF keys cannot fit in 8s on production (assets heap ~2 GB, cold random probes); totals are exact below a 1000-asset rank-ordered probe and flagged lower_bound above it.",
+  "search_dam_document_counts has no consumer and is not on production; it is dropped.",
+  "Keyword mode (live) reads search_assets_full_text ids only; hybrid totals consumers need an N+ display before activation.",
+  "Generation 4 re-lands the reviewed SQL of PR #4538 (approved by Muse at 05f14905 and StepFun at de81650a) on a clean branch: PR #4538 history carried an intermediate evidence state the review budget cannot prove, so it was parked; claim #4542 reserves 20261021152741."
+ ],
+ "stop_conditions": [
+  "Stop if claim #4542 does not cover the four function objects",
+  "Stop if spider-man or stitch cannot finish under 8s on production-sized data"
+ ],
+ "evidence_parent": {
+  "work_issue": 4529,
+  "generation": 3,
+  "contract_sha256": "9cbc8898fd84f70899ccd962a8e40cc753b549fd79cb7aaf1181f2ccf897764f"
+ }
+}

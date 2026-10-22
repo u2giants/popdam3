@@ -80,9 +80,33 @@ The summary counts (total, linked, ambiguous, not linked) are read as sequential
 count queries over the whole dataset, not derived from loaded rows. They start
 after visible rows have loaded so they cannot hold up the grid.
 
-The default view is sorted by newest **Order Date** first and shows 1,500 rows per
-page. Users can change the sort or page size, and saved views can restore their
-own sort.
+**Date authority (October 13, 2026):** **Prod PO Date** is the Production PO
+Date in ColdLion; its live header tooltip says “Production PO Date in ColdLion.”
+The reviewed source backfill populated 601 previously blank dates and preserved
+42 held headers exactly. Missing or ambiguous dates remain blank.
+
+**SO Date** is a separate read-only column for the date ColdLion received the
+Sales Order, with tooltip “Date ColdLion received the Sales Order.” Its frontend
+is prepared in https://github.com/u2giants/popdam3/pull/377; the shared reader is
+merged in https://github.com/popcre/shared-db/pull/4270 but is not yet promoted,
+so this column is **not yet published to production**. The bounded reader uses
+only exact primary ColdLion source references and one consistent non-null full
+source timestamp per Sales Order, displayed in America/New_York. Ambiguous or
+missing source dates return blank; reader failure preserves the primary rows and
+shows a warning. SO Date is live (October 14, 2026): shared-db version
+20261013211042 is in production and the column shows ColdLion SO received dates
+with the tooltip **Date ColdLion received the Sales Order.**
+
+**Default 12-month window (October 15, 2026):** `/orders` shows only orders whose window date is in the last 12 months (New York calendar). The window date is the SO Date, else Sent PO, else Start Ship, else Prod PO Date. Orders with no window date at all stay visible. **Show old** lifts the limit in the same table; **Hide old** restores it. The window is applied in the database view (`api.dam_order_list.order_window_date`, shared-db #4336 / claim #4337), so the row count follows it.
+
+Also live October 14, 2026: the 55 settled source corrections, future production
+PO non-reuse enforcement (20261013201822), and Yuchen's 20 special-assortment
+pairs shown once under D3682–D3689. Proof is on
+https://github.com/u2giants/popdam3/issues/277.
+
+The default view is sorted by newest **Prod PO Date** first and shows 1,500 rows
+per page. **Sent PO** remains a separate field. Users can change the sort or page
+size, and saved views can restore their own sort.
 
 The grid virtualizes cells, so the browser does not create DOM text for every
 off-screen row. Ctrl+F is therefore captured and focuses the page's database-backed
@@ -99,6 +123,10 @@ load those statements competed and the bounded row query could still fail with
 `canceling statement due to statement timeout`. The grid now renders each
 500-row block alone and discovers the exact end when the last block is shorter.
 See `docs/KNOWN_QUIRKS.md` #75. Do not put a count back on the row-loading path.
+Since 2026-10-19 (popdam3#441) the "N shown of N lines" counter follows the
+12-month window, Show old and column filters: after the first block renders, the
+page starts one separate `fetchOrderListCount` for that view (a short first block
+supplies the count directly) and ignores counts from superseded views.
 
 **What the exact count actually costs** (re-measured on production as
 `authenticated`, 2026-08-27, issue #100). The original "~2.2 s under RLS"

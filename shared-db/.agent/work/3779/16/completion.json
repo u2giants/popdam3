@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "work_issue": 3779,
+  "outcome": "ready-for-merge",
+  "pr": 4553,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3779/16",
+  "contract_sha256": "ffb6d3e590140407ce587452a5fe034b3917e7315e8afe050a3d0a7237320ac2",
+  "base_sha": "1b7edfedb5190f6b6d9ed9767d9e877e1ec35bae",
+  "head_sha": "7f51079741203b1714bed7d7e6aaf23c8c07a672",
+  "files_changed": [
+    "docs/owner-rulings.md",
+    "scripts/check-pr-source-collisions.mjs",
+    "scripts/check-pr-source-collisions.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    },
+    {
+      "command": "node --test scripts/check-pr-source-collisions.test.mjs scripts/lib/open-pr-files.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "948 passed, 0 failed on 7f510797 (October 21, 2026, edge-dev), including the derived-message test."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK."
+    }
+  ],
+  "assumptions_resolved": [
+    "StepFun must-fix 1 and low 2 are fixed; generation 15 is retired."
+  ],
+  "stop_conditions_hit": []
+}

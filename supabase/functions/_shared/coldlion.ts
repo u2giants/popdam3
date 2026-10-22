@@ -1,4 +1,8 @@
+import { ColdLionBreaker } from "./coldlion-breaker.ts";
 import { createClient } from "./supabase-js.ts";
+
+// One breaker per isolate: an outage costs one timeout per cooldown, not one per call.
+const breaker = new ColdLionBreaker();
 
 const COLDLION_BASE = "http://x5.coldlion.com/EhpApi";
 const COMPANY = "EDGEHOME";
@@ -10,26 +14,44 @@ const cache: Record<string, Record<string, string>> = {};
 const inFlight = new Map<string, Promise<Record<string, string>>>();
 let _apiKey: string | null = null;
 
-async function getApiKey(): Promise<string> {
+/** Configuration failures must never be swallowed by per-lookup fallbacks. */
+export class ColdLionConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ColdLionConfigError";
+  }
+}
+
+/**
+ * Reads COLDLION_API_KEY. Missing env or a missing/empty row is a configuration
+ * error (ColdLionConfigError, must surface). A failed read (network, PostgREST
+ * error object, thrown client) is transient and stays non-fatal like any outage.
+ */
+export async function readColdLionApiKey(): Promise<string> {
   if (_apiKey) return _apiKey;
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) {
+    throw new ColdLionConfigError("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set");
+  }
+  let data: { value?: unknown } | null;
   try {
-    const db = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-    const { data } = await db
+    const db = createClient(url, serviceKey);
+    const res = await db
       .from("admin_config")
       .select("value")
       .eq("key", "COLDLION_API_KEY")
       .maybeSingle();
-    if (data?.value && typeof data.value === "string" && data.value.trim()) {
-      _apiKey = data.value.trim();
-      return _apiKey;
-    }
+    if (res.error) throw new Error(res.error.message);
+    data = res.data;
   } catch (e) {
-    console.warn("Failed to read COLDLION_API_KEY from admin_config:", e);
+    throw new Error(`COLDLION_API_KEY read failed: ${e instanceof Error ? e.message : e}`);
   }
-  throw new Error("COLDLION_API_KEY is missing from admin_config");
+  if (data?.value && typeof data.value === "string" && data.value.trim()) {
+    _apiKey = data.value.trim();
+    return _apiKey;
+  }
+  throw new ColdLionConfigError("COLDLION_API_KEY is missing from admin_config");
 }
 
 export async function getMgLookup(
@@ -56,7 +78,8 @@ async function fetchMgLookup(
   divisionCode: string,
   cacheKey: string,
 ): Promise<Record<string, string>> {
-  const apiKey = await getApiKey();
+  const apiKey = await readColdLionApiKey();
+  breaker.assertClosed(`${mgTypeCode}/${divisionCode}`);
   const url = `${COLDLION_BASE}/merchGroupDetails?companyCode=${COMPANY}` +
     `&mgTypeCode=${mgTypeCode}&divisionCode=${divisionCode}`;
 
@@ -78,9 +101,11 @@ async function fetchMgLookup(
       map[item.mgCode] = item.mgDesc;
     }
     cache[cacheKey] = map;
+    breaker.recordSuccess();
     return map;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
+    breaker.recordFailure(message);
     throw new Error(`ColdLion API fetch failed for ${mgTypeCode}/${divisionCode}: ${message}`);
   }
 }
@@ -95,14 +120,22 @@ const itemCache = new Map<string, ColdLionItemInfo | null>();
 export async function getColdLionItemInfo(itemNo: string): Promise<ColdLionItemInfo | null> {
   const key = itemNo.toUpperCase();
   if (itemCache.has(key)) return itemCache.get(key)!;
-  const apiKey = await getApiKey();
+  const apiKey = await readColdLionApiKey();
+  breaker.assertClosed(`items/${key}`);
   const url = `${COLDLION_BASE}/items?companyCode=${COMPANY}&itemNo=${encodeURIComponent(key)}`;
-  const res = await fetch(url, {
-    headers: { "X-API-Key": apiKey },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) throw new Error(`ColdLion API items/${key} returned ${res.status}`);
-  const data = await res.json();
+  let data;
+  try {
+    const res = await fetch(url, {
+      headers: { "X-API-Key": apiKey },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) throw new Error(`ColdLion API items/${key} returned ${res.status}`);
+    data = await res.json();
+  } catch (e) {
+    breaker.recordFailure(e instanceof Error ? e.message : String(e));
+    throw e;
+  }
+  breaker.recordSuccess();
   const items = Array.isArray(data) ? data : (data.content ?? data.value ?? []);
   const hit = items.find((i: { itemNo?: string }) => i.itemNo?.toUpperCase() === key);
   const info = hit ? { createdTime: String(hit.createdTime), divisionCode: String(hit.divisionCode) } : null;

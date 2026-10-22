@@ -17,7 +17,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { readdirSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { emittedJobNames, jobBlockByName, jobBlocks, jobEvents, stepBlock } from './lib/workflow-jobs.mjs'
 
 const readWorkflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
@@ -47,6 +49,50 @@ printf 'workflow-head=%s\\n' "$GITHUB_SHA"
       GITHUB_REPOSITORY: 'popcre/shared-db', GITHUB_WORKSPACE: '/synthetic',
       FIXTURE_JSON: JSON.stringify(pr), FETCH_FAILS: fetchFails ? '1' : '0' },
   })
+}
+
+function guardedQueueDecision(mode, { readFails = false } = {}) {
+  const workflow = readWorkflow('guarded-migration-merge.yml')
+  const step = stepBlock(workflow, 'Re-prove the head and merge while the lock is held')
+  const start = step.indexOf('queue_mode="$(node "$GITHUB_WORKSPACE/trusted-policy/scripts/merge-queue-contract.mjs" --queue-mode)"')
+  const endMarker = `test "$merged" = '1'`
+  const end = step.indexOf(endMarker, start)
+  assert.ok(start >= 0 && end > start, 'the actual queue decision block must be present in the guarded merge step')
+  const decision = step.slice(start, end + endMarker.length)
+    .replaceAll('${{ inputs.pull_request }}', '$PR_NUMBER')
+    .replaceAll('${{ inputs.head_sha }}', '$REQUESTED_SHA')
+  const script = `set -euo pipefail
+merge_calls=0
+trap 'echo MERGE_CALL_COUNT=$merge_calls' EXIT
+node() {
+  if [ "$1" = "$GITHUB_WORKSPACE/trusted-policy/scripts/merge-queue-contract.mjs" ] && [ "$2" = '--queue-mode' ]; then
+    [ "$QUEUE_READ_FAILS" = 0 ] || return 1
+    printf '%s' "$QUEUE_MODE"
+  else
+    command node "$@"
+  fi
+}
+gh() {
+  [ "$1" = pr ] && [ "$2" = merge ] || return 91
+  merge_calls=$((merge_calls + 1))
+  return 0
+}
+prove_retained_all14() { return 0; }
+${decision}
+`
+  const runnerTemp = mkdtempSync(join(tmpdir(), 'guarded-queue-decision-'))
+  try {
+    const result = spawnSync('bash', ['-c', script], {
+      encoding: 'utf8', timeout: 10000,
+      env: { ...process.env, QUEUE_MODE: mode, QUEUE_READ_FAILS: readFails ? '1' : '0',
+        PR_NUMBER: '7', REQUESTED_SHA: 'a'.repeat(40), GITHUB_REPOSITORY: 'popcre/shared-db',
+        GITHUB_WORKSPACE: '/synthetic', RUNNER_TEMP: runnerTemp },
+    })
+    const count = /MERGE_CALL_COUNT=(\d+)/.exec(result.stdout)?.[1]
+    return { ...result, mergeCalls: count === undefined ? null : Number(count) }
+  } finally {
+    rmSync(runnerTemp, { recursive: true, force: true })
+  }
 }
 
 const guardedCollisionPull = () => ({ number: 7, state: 'open', head: { sha: 'a'.repeat(40), repo: { full_name: 'popcre/shared-db' } }, base: { ref: 'main', repo: { full_name: 'popcre/shared-db' } } })
@@ -94,7 +140,7 @@ const MIRROR = JSON.parse(readFileSync(new URL('../docs/verification/main-requir
 // dated readback artifact below (16 contexts, strict false), so nothing is pending.
 const KNOWN_LIVE_ADDITIONS = []
 // Contexts still present in the dated mirror but no longer live-required and no
-// longer emitted: the orchestrator marker guard was retired with the role (#3874);
+// longer emitted: the Orchestrator marker guard was retired with the role (#3874);
 // live branch protection already omitted it (made advisory 2026-09-28).
 const RETIRED_MIRROR_CONTEXTS = new Set(['Orchestrator marker guard', 'Agent work contract'])
 
@@ -168,13 +214,17 @@ test('the emitter check matches exact job names, not substrings or comments', ()
   assert.equal(names.has('Tools offline tests'), true)
 })
 
-test('every check-run emitter triggers on pull_request AND merge_group checks_requested', () => {
+test('every check-run emitter triggers on pull_request AND merge_group (bare trigger, no types pin)', () => {
   for (const [context, spec] of Object.entries(CONTEXT_MAP)) {
     if (spec.kind !== 'check-run') continue
     const text = readWorkflow(spec.workflow)
     assert.match(text, /^ {2}pull_request:$/m, `${spec.workflow} (${context}) lost its pull_request trigger`)
     assert.match(text, /^ {2}merge_group:$/m, `${spec.workflow} (${context}) does not trigger for merge_group`)
-    assert.match(text, /^ {4}types: \[checks_requested\]$/m, `${spec.workflow} (${context}) does not pin merge_group checks_requested`)
+    // Bare merge_group: — GitHub's official merge-queue CI example uses bare
+    // on: merge_group:. A types: [checks_requested] pin is a known dispatch
+    // footgun (#2530 canary #4298: zero Actions runs on a valid merge group).
+    assert.doesNotMatch(text, /^ {2}merge_group:\r?\n {4}types:/m, `${spec.workflow} (${context}) still pins merge_group types; use bare merge_group:`)
+    assert.doesNotMatch(text, /types: \[checks_requested\]/, `${spec.workflow} (${context}) still declares types: [checks_requested]`)
     // Exact object: a job whose display name (literal, or the default branch of a
     // lane-capable name expression) equals the context. A substring or comment is not enough.
     assert.ok(emittedJobNames(text).has(spec.job), `${spec.workflow} does not emit a job named exactly "${spec.job}"`)
@@ -221,6 +271,9 @@ test('no required-context workflow is path-filtered (a filtered required check s
     const text = readWorkflow(spec.workflow)
     const onBlock = /^on:\n([\s\S]*?)^\w/m.exec(text)?.[1] ?? ''
     assert.ok(!/^ {4}paths(-ignore)?:/m.test(onBlock), `${spec.workflow} (${context}) has a paths filter on a required context`)
+    // merge_group must stay bare: on.merge_group does not support paths, and
+    // any child key there is a dispatch footgun (#2530).
+    assert.doesNotMatch(text, /^ {2}merge_group:\r?\n {4}\S/m, `${spec.workflow} (${context}) has child keys under merge_group; use bare merge_group:`)
   }
 })
 
@@ -348,7 +401,28 @@ test('every authorization status reader uses the shared paginated helper, not co
   assert.ok(contract.includes('--paginate') && contract.includes('--slurp'), 'the shared reader must paginate')
 })
 
-test('the guarded merge lane is dual-mode and never uses --admin', () => {
+test('the actual guarded queue decision queues active, directly merges inactive, and refuses unknown before gh', () => {
+  const active = guardedQueueDecision('active')
+  assert.equal(active.status, 0, active.stderr)
+  assert.equal(active.mergeCalls, 1)
+  assert.match(active.stdout, /Queue admission complete/)
+
+  const inactive = guardedQueueDecision('inactive')
+  assert.equal(inactive.status, 0, inactive.stderr)
+  assert.equal(inactive.mergeCalls, 1)
+  assert.doesNotMatch(inactive.stdout, /Queue admission complete/)
+
+  const unknown = guardedQueueDecision('unknown')
+  assert.equal(unknown.status, 1)
+  assert.equal(unknown.mergeCalls, 0)
+  assert.match(unknown.stderr + unknown.stdout, /unknown; refusing before any merge attempt/)
+
+  const unreadable = guardedQueueDecision('', { readFails: true })
+  assert.equal(unreadable.status, 1)
+  assert.equal(unreadable.mergeCalls, 0)
+})
+
+test('the guarded merge lane pins exact heads and never uses --admin', () => {
   const text = readWorkflow('guarded-migration-merge.yml')
   assert.ok(text.includes('--queue-mode'), 'the guarded lane does not read live queue state')
   assert.ok(!text.includes('--admin'), 'the guarded lane must never bypass with --admin')
@@ -402,7 +476,10 @@ test('both authority reads precede every pull-request script and run from protec
   assert.match(underlock, /PREFLIGHT_WAIT_SECONDS: '0'/)
   const release = workflow.slice(workflow.indexOf('      - name: Release the exclusive merge lane with ownership proof'))
   assert.match(release, /working-directory: trusted-policy/)
-  assert.match(release, /TRUSTED_MAIN_SHA: \$\{\{ steps\.trusted_preflight\.outputs\.sha \}\}/)
+  // #3779: the release runs in the `merge` job, whose own pre-lock binding step
+  // (`executable_source`) proved trusted-policy == origin/main. The `prepare`
+  // job's preflight SHA is a different job's output and is NOT the release key.
+  assert.match(release, /TRUSTED_MAIN_SHA: \$\{\{ steps\.executable_source\.outputs\.sha \}\}/)
   assert.match(release, /test "\$\(git rev-parse HEAD\)" = "\$TRUSTED_MAIN_SHA"/)
   assert.match(release, /NODE_OPTIONS: ''/)
   assert.match(release, /node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/manage-migration-author-lanes\.mjs" --release-merge/)

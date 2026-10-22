@@ -9,6 +9,8 @@ test("auto-resume accepts only known AI string cursors", () => {
   assert.equal(isValidAutoResumeCursor("ai-tag-all", "uuid-only"), false);
   assert.equal(isValidAutoResumeCursor("erp-enrichment", CURSOR), false);
   assert.equal(isValidAutoResumeCursor("erp-enrichment", 10), true);
+  assert.equal(isValidAutoResumeCursor("reprocess-metadata", "123e4567-e89b-42d3-a456-426614174000"), true);
+  assert.equal(isValidAutoResumeCursor("reprocess-metadata", "not-a-uuid"), false);
 });
 
 test("backoff is bounded and jittered around the configured schedule", () => {

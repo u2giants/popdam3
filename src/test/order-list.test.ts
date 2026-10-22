@@ -3,12 +3,15 @@ import { describe, expect, it } from "vitest";
 import {
   ORDER_LIST_COLUMNS,
   ORDER_LIST_SEARCH_COLUMNS,
+  ensureSalesOrderDateInSavedColumnState,
   ORDER_LIST_DEFAULT_PAGE_SIZE,
   ORDER_LIST_PAGE_SIZE_OPTIONS,
   buildOrderListFilters,
   buildOrderListSearchClause,
   orderListRowMatchesSearch,
   buildOrderListSort,
+  orderWindowStart,
+  isOrderListFieldSortable,
   ORDER_LIST_FETCH_BATCH_SIZE,
   buildOrderListEdit,
   eligibleLinkCandidates,
@@ -250,13 +253,75 @@ describe("OrderList summary and loading", () => {
 });
 
 describe("OrderList columns", () => {
+  it("labels the production order date distinctly from the sent PO date", () => {
+    expect(ORDER_LIST_COLUMNS.find((column) => column.field === "order_date")?.header).toBe("Prod PO Date");
+    expect(ORDER_LIST_COLUMNS.find((column) => column.field === "sent_po_date")?.header).toBe("Sent PO");
+  });
+
+  it("explains that the production PO date comes from ColdLion", () => {
+    expect(ORDER_LIST_COLUMNS.find((column) => column.field === "order_date")?.headerTooltip)
+      .toBe("Production PO Date in ColdLion.");
+  });
+
+  it("shows the ColdLion received SO date beside the production PO date without server query support", () => {
+    const prodIndex = ORDER_LIST_COLUMNS.findIndex((column) => column.field === "order_date");
+    const soDate = ORDER_LIST_COLUMNS[prodIndex + 1];
+    expect(soDate).toMatchObject({
+      field: "sales_order_date",
+      header: "SO Date",
+      headerTooltip: "Date ColdLion received the Sales Order.",
+      queryable: false,
+      virtual: true,
+      sortField: "sales_order_received_date",
+    });
+    expect(soDate.hide).toBeUndefined();
+    expect(buildOrderListFilters({ sales_order_date: { type: "equals", dateFrom: "2026-10-01" }, eta: { type: "equals", dateFrom: "2026-10-02" } }))
+      .toEqual([{ column: "eta", operator: "eq", value: "2026-10-02" }]);
+    expect(buildOrderListSort([{ colId: "sales_order_date", sort: "desc" }]))
+      .toEqual([
+        { column: "sales_order_received_date", ascending: false },
+        { column: "order_line_id", ascending: true },
+      ]);
+    expect(buildOrderListSort([{ colId: "sales_order_date", sort: "asc" }]))
+      .toEqual([
+        { column: "sales_order_received_date", ascending: true },
+        { column: "order_line_id", ascending: true },
+      ]);
+    expect(isOrderListFieldSortable("sales_order_date")).toBe(true);
+    expect(isOrderListFieldSortable("order_date")).toBe(true);
+    expect(isOrderListFieldSortable("unknown_backend_alias")).toBe(false);
+    expect(buildOrderListSort([{ colId: "unknown_backend_alias", sort: "desc" }]))
+      .toEqual([
+        { column: "start_ship_date", ascending: false },
+        { column: "order_line_id", ascending: true },
+      ]);
+    expect(ORDER_LIST_SEARCH_COLUMNS).not.toContain("sales_order_date" as any);
+  });
+
+  it("inserts SO Date beside Prod PO Date in saved layouts that predate the column", () => {
+    const oldState = [
+      { colId: "vendor_name" },
+      { colId: "order_date", sort: "desc" },
+      { colId: "sent_po_date", hide: true },
+    ];
+    expect(ensureSalesOrderDateInSavedColumnState(oldState)).toEqual([
+      { colId: "vendor_name" },
+      { colId: "order_date", sort: "desc" },
+      { colId: "sales_order_date", hide: false },
+      { colId: "sent_po_date", hide: true },
+    ]);
+    const alreadySaved = [...oldState, { colId: "sales_order_date", hide: true }];
+    expect(ensureSalesOrderDateInSavedColumnState(alreadySaved)).toEqual(alreadySaved);
+  });
+
   it("opens with the recognizable legacy sheet order", () => {
     const visible = ORDER_LIST_COLUMNS.filter((column) => !column.hide).map((column) => column.field);
-    expect(visible.slice(0, 9)).toEqual([
+    expect(visible.slice(0, 10)).toEqual([
       "order_status",
       "production_order_number",
       "vendor_name",
       "order_date",
+      "sales_order_date",
       "sent_po_date",
       "customer_name",
       "customer_po_number",
@@ -344,9 +409,15 @@ describe("OrderList database query building", () => {
 
   it("searches the recognizable columns in the database, not just loaded rows", () => {
     const clause = buildOrderListSearchClause(" D0644 ");
-    expect(clause).toContain("production_order_number.ilike.%D0644%");
-    expect(clause).toContain("sku.ilike.%D0644%");
+    expect(clause).toContain('production_order_number.ilike."%D0644%"');
+    expect(clause).toContain('sku.ilike."%D0644%"');
     expect(buildOrderListSearchClause("   ")).toBeNull();
+  });
+
+  it("quotes search terms so PostgREST syntax characters cannot break the or clause", () => {
+    expect(buildOrderListSearchClause("Acme, Inc")).toContain('sku.ilike."%Acme, Inc%"');
+    expect(buildOrderListSearchClause('Set (A) "B"')).toContain('sku.ilike."%Set (A) \\"B\\"%"');
+    expect(buildOrderListSearchClause("100% x")).toContain('sku.ilike."%100\\\\% x%"');
   });
 
   it("highlights a loaded row using the same recognizable search columns", () => {
@@ -361,7 +432,7 @@ describe("OrderList database query building", () => {
       { column: "order_line_id", ascending: true },
     ]);
     expect(buildOrderListSort([])).toEqual([
-      { column: "order_date", ascending: false },
+      { column: "start_ship_date", ascending: false },
       { column: "order_line_id", ascending: true },
     ]);
   });
@@ -386,5 +457,16 @@ describe("OrderList database query building", () => {
     for (const size of ORDER_LIST_PAGE_SIZE_OPTIONS) {
       expect(size % ORDER_LIST_FETCH_BATCH_SIZE).toBe(0);
     }
+  });
+});
+
+describe("orderWindowStart", () => {
+  it("is the same New York day one year earlier", () => {
+    expect(orderWindowStart(new Date("2026-10-15T16:00:00Z"))).toBe("2025-10-15");
+  });
+
+  it("uses the New York calendar day, not UTC", () => {
+    // 02:30 UTC on Oct 16 is still Oct 15 in New York.
+    expect(orderWindowStart(new Date("2026-10-16T02:30:00Z"))).toBe("2025-10-15");
   });
 });

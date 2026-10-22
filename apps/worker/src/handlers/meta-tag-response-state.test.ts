@@ -1,0 +1,235 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { handleMetaTagResponse, type MetaTagDependencies } from "./meta-tag-response-state.js";
+import type { OpState } from "../types.js";
+const id = "123e4567-e89b-42d3-a456-426614174000";
+const model = "meta-direct/muse-spark-1.3-contributor";
+const attempt = { asset_id: id, method_index: 0, same_model_retry: 0 };
+
+test("an acknowledged response's initial storage lag polls the same ID without charging a tagging failure", async () => {
+  const { MetaModelApiError } = await import("../meta-model-api.js");
+  const s = state();
+  s.external_job!.submitted_at = new Date(0).toISOString();
+  const d = deps();
+  d.now = () => 40_000;
+  d.retrieve = async () => { throw new MetaModelApiError(404, "Stored response retrieval failed"); };
+  const result = await handleMetaTagResponse(s, d);
+  assert.equal(result.ok, true);
+  assert.equal(result.failed, undefined);
+  const job = result.external_job as { provider_batch_id: string; next_poll_at: string; transient_poll_failures?: number };
+  assert.equal(job.provider_batch_id, "resp_test");
+  assert.equal(Date.parse(job.next_poll_at), 50_000);
+  assert.equal(job.transient_poll_failures, undefined);
+});
+
+test("all server errors retry retrieval of the same accepted response; billing stops with pointer intact", async () => {
+  const { MetaModelApiError } = await import("../meta-model-api.js");
+  for (const status of [429, 500, 501, 502, 503, 504, 505]) {
+    const d = deps();
+    d.retrieve = async () => { throw new MetaModelApiError(status, "Temporary retrieval failure"); };
+    const result = await handleMetaTagResponse(state(), d);
+    assert.equal(result.ok, true);
+    assert.equal(result.failed, undefined);
+    assert.equal((result.external_job as { provider_batch_id: string }).provider_batch_id, "resp_test");
+  }
+  const d = deps();
+  d.retrieve = async () => { throw new MetaModelApiError(402, "Stored response retrieval failed"); };
+  const result = await handleMetaTagResponse(state(), d);
+  assert.equal(result.ok, false);
+  assert.equal((result.external_job as { provider_batch_id: string }).provider_batch_id, "resp_test");
+});
+function state(phase = "pending"): OpState {
+  return { status: "running", cursor: 0, meta_tag_attempt: attempt, external_job: { provider: "meta-responses", meta_character_catalog_ids: [], phase: phase as "pending", model, output_method: "json_schema", provider_batch_id: "resp_test", page_cursor: 0, next_cursor: 1, lease_token: "receipt", lease_expires_at: new Date(Date.now()+120_000).toISOString(), items: [{asset_id:id,custom_id:"fixture",status:"submitted"}] } };
+}
+function deps(): MetaTagDependencies {
+  return { model, apiKey: "test", candidate: async () => ({ asset_id:id,next_cursor:1,done:true }), prepare: async () => ({request:{model,messages:[]},characterCatalogIds:[]}), validate: value => {if(value.answer!=="ok") throw new Error("invalid");}, apply:async()=>{}, retrieve:async()=>({id:"resp_test",status:"completed",output:[{type:"message",content:[{type:"output_text",text:'{"answer":"ok"}'}]}]}), create:async()=>{throw new Error("Never submit saved response");} };
+}
+test("restart with saved response retrieves without POST, checkpoints apply then completed", async()=>{
+ const d=deps();let applies=0;d.apply=async()=>{applies++;};
+ const pending=await handleMetaTagResponse(state(),d);assert.equal((pending.external_job as {phase:string}).phase,"applying");assert.equal(applies,0);
+ const applied=await handleMetaTagResponse(state("applying"),d);assert.equal(applied.tagged,1);assert.equal((applied.external_job as {phase:string}).phase,"completed");assert.equal(applies,1);
+});
+test("known-ID GET timeout preserves exact ID and retries only retrieval",async()=>{
+ const d=deps();d.retrieve=async()=>{throw new DOMException("timed out","TimeoutError");};
+ const result=await handleMetaTagResponse(state(),d);assert.equal(result.ok,true);assert.equal(result.failed,undefined);assert.equal((result.external_job as {provider_batch_id:string}).provider_batch_id,"resp_test");
+});
+test("invalid terminal output saves bounded next attempt on completed job before exact clear",async()=>{
+ const d=deps();d.validate=()=>{throw new Error("invalid");};const result=await handleMetaTagResponse(state(),d);
+ const job=result.external_job as {phase:string;meta_next_attempt:{method_index:number};provider_batch_id:string};assert.equal(job.phase,"completed");assert.equal(job.meta_next_attempt.method_index,1);assert.equal(job.provider_batch_id,"resp_test");assert.equal(result.failed,undefined);
+});
+test("wrong asset/method metadata fails closed",async()=>{
+ const s=state();s.meta_tag_attempt={...attempt,asset_id:"different"};assert.equal((await handleMetaTagResponse(s,deps())).ok,false);
+ s.meta_tag_attempt={...attempt,method_index:4};assert.equal((await handleMetaTagResponse(s,deps())).ok,false);
+});
+test("exhausted structured attempts record failure without another POST",async()=>{
+ const s=state();s.meta_tag_attempt={...attempt,method_index:3,same_model_retry:1};s.external_job!.output_method="json_object";
+ const d=deps();d.validate=()=>{throw new Error("invalid");};assert.equal((await handleMetaTagResponse(s,d)).failed,1);
+});
+
+test("missing preview is unavailable before creation and never fabricated",async()=>{
+ const d=deps();d.prepare=async()=>{throw new Error("Asset has no thumbnail");};d.unavailable=()=>true;
+ const result=await handleMetaTagResponse({status:"running",cursor:0},d);assert.equal(result.visual_analysis_unavailable,1);assert.equal(result.nextOffset,1);assert.equal(result.external_job,undefined);
+});
+test("completed clear after lost receipt retains exact job and finite next attempt",async()=>{
+ const s=state("completed");delete s.external_job!.lease_token;s.external_job!.lease_expires_at=new Date(0).toISOString();s.params={asset_ids:[id]};s.external_job!.meta_asset_terminal=false;s.external_job!.meta_next_attempt={...attempt,method_index:1};
+ const result=await handleMetaTagResponse(s,deps());assert.equal(result.meta_tag_attempt && (result.meta_tag_attempt as {method_index:number}).method_index,1);assert.equal(result.nextOffset,0);assert.equal((result.external_job as {provider_batch_id:string}).provider_batch_id,"resp_test");
+});
+
+test("unknown saved status never advances or clears the accepted ID",async()=>{
+ const d=deps();d.retrieve=async()=>({id:"resp_test",status:"unknown"});const result=await handleMetaTagResponse(state(),d);
+ assert.equal(result.ok,false);assert.equal(result.failed,undefined);assert.equal((result.external_job as {provider_batch_id:string}).provider_batch_id,"resp_test");
+});
+test("known response GET5xx and429 remain GET-only transient while wrongID fails closed",async()=>{
+ const {MetaModelApiError}=await import("../meta-model-api.js");
+ for(const status of [429,500,502,503,504]){const d=deps();d.retrieve=async()=>{throw new MetaModelApiError(status,"server");};const result=await handleMetaTagResponse(state(),d);assert.equal(result.ok,true);assert.equal(result.failed,undefined);}
+ const d=deps();d.retrieve=async()=>({id:"other",status:"completed"});assert.equal((await handleMetaTagResponse(state(),d)).ok,false);
+});
+test("proven unsupported-format reset advances bounded method only after fresh CAS; failed reset cannot advance",async()=>{
+ const {advanceMetaCapabilityRejection}=await import("./meta-tag-response-state.js");const {MetaCapabilityRejectionError}=await import("../meta-model-api.js");
+ const s=state("submitting");delete s.external_job!.provider_batch_id;
+ const rejection=new MetaCapabilityRejectionError("Meta",400,{code:400,category:"meta_output_contract"});const calls:string[]=[];
+ const rpc=(async(name:string,params:Record<string,unknown>)=>{calls.push(name);if(name==="reset_bulk_operation_submission_lease")return {data:{ok:true,state_revision:9,lease_receipt_issued:false,operation:{...s,external_job:{...s.external_job!,phase:"prepared",last_definitive_rejection_at:"test"}}},error:null};assert.equal(params.p_expected_revision,9);return {data:{ok:true,state_revision:10},error:null};}) as import("../provider-submission-recovery.js").RpcCall;
+ const next=await advanceMetaCapabilityRejection(rpc,{opKey:"op",expectedRevision:8,submissionOwner:"owner",leaseToken:"receipt"},s,rejection);assert.equal(next?.meta_tag_attempt?.method_index,1);assert.deepEqual(calls,["reset_bulk_operation_submission_lease","update_bulk_operation"]);
+ let attempts=0;const refuse=(async()=>{attempts++;return {data:{ok:false},error:{message:"refused"}};}) as import("../provider-submission-recovery.js").RpcCall;
+ await assert.rejects(advanceMetaCapabilityRejection(refuse,{opKey:"op",expectedRevision:8,submissionOwner:"owner",leaseToken:"receipt"},s,rejection));assert.equal(attempts,1);assert.equal(s.meta_tag_attempt?.method_index,0);
+});
+
+test("known capacity delay is checkpointed; retry requires existing-receipt renewal and seventh rejection stops",async()=>{
+ const {MetaCapacityRejectionError}=await import("../meta-model-api.js");
+ const s=state("submitting");delete s.external_job!.provider_batch_id;s.state_revision=8;
+ const d=deps();let posts=0;d.create=async()=>{posts++;throw new MetaCapacityRejectionError(503);};d.now=()=>Date.now();
+ const delayed=await handleMetaTagResponse(s,d);assert.equal(posts,1);const job=delayed.external_job as NonNullable<OpState["external_job"]>;assert.equal(job.meta_capacity_retries,1);assert.equal(job.meta_capacity_required_revision,9);
+ const waiting={...s,state_revision:9,external_job:job};assert.equal((await handleMetaTagResponse(waiting,d)).state_transition,"yield_without_save");assert.equal(posts,1);
+ d.now=()=>Date.parse(job.next_poll_at!)+1;
+ assert.equal((await handleMetaTagResponse(waiting,d)).state_transition,"claim_submission");assert.equal(posts,1);
+ const renewed={...waiting,state_revision:10};await handleMetaTagResponse(renewed,d);assert.equal(posts,2);
+ renewed.external_job={...job,meta_capacity_retries:6};assert.equal((await handleMetaTagResponse(renewed,d)).error_code,"meta_capacity_exhausted");assert.equal(posts,3);
+ const restarted={...renewed,external_job:{...renewed.external_job!}};delete restarted.external_job!.lease_token;assert.equal((await handleMetaTagResponse(restarted,d)).state_transition,"claim_submission");assert.equal(posts,3);
+});
+
+test("real unavailable and missing-asset predicates preserve per-item outcomes and transient DB reason",async()=>{
+ const {isVisualAnalysisUnavailableError,AssetMissingError}=await import("./ai-tagging.js");
+ const d=deps();d.unavailable=isVisualAnalysisUnavailableError;d.missing=error=>error instanceof AssetMissingError;
+ d.prepare=async()=>{throw new Error(`Asset has no thumbnail: ${id}`);};
+ const initial={status:"running" as const,cursor:0};const unavailable=await handleMetaTagResponse(initial,d);assert.equal(unavailable.visual_analysis_unavailable,1);assert.equal(unavailable.nextOffset,1);
+ d.prepare=async()=>{throw new AssetMissingError(id);};const missing=await handleMetaTagResponse(initial,d);assert.equal(missing.skipped,1);assert.equal(missing.nextOffset,1);assert.equal((missing.skip_samples as Array<{reason:string}>)[0].reason,"Asset no longer exists");
+ d.prepare=async()=>{throw new Error("Meta asset reload failed: canceling statement due to statement timeout (57014)");};const transient=await handleMetaTagResponse(initial,d);assert.equal(transient.error_code,"dependency_timeout");assert.match(String(transient.error),/57014/);assert.equal(transient.skipped,undefined);
+ d.prepare=async()=>{throw new Error("Meta asset reload failed: permission denied");};await assert.rejects(handleMetaTagResponse(initial,d),/permission denied/);
+});
+test("candidate cursor error keeps the original invalid_cursor code",async()=>{
+ const {AiTagCursorError}=await import("../ai-tag-cursor.js");const d=deps();d.candidate=async()=>{throw new AiTagCursorError("invalid_cursor","invalid fixture");};assert.equal((await handleMetaTagResponse({status:"running"},d)).error_code,"invalid_cursor");
+});
+
+test("actual reload classifier distinguishes empty and PGRST116 zero rows from nonmissing database errors",async()=>{
+ const {requireMetaAssetRow,AssetMissingError}=await import("./ai-tagging.js");
+ assert.throws(()=>requireMetaAssetRow(null,null,id),AssetMissingError);
+ assert.throws(()=>requireMetaAssetRow(null,{code:"PGRST116",message:"Cannot coerce",details:"The result contains 0 rows"},id),AssetMissingError);
+ assert.throws(()=>requireMetaAssetRow(null,{code:"PGRST116",message:"Cannot coerce",details:"The result contains 2 rows"},id),/Cannot coerce/);
+ assert.throws(()=>requireMetaAssetRow(null,{code:"42501",message:"permission denied"},id),/permission denied/);
+ assert.throws(()=>requireMetaAssetRow(null,{code:"57014",message:"statement timeout"},id),/statement timeout/);
+ assert.equal(requireMetaAssetRow({id},null,id).id,id);
+});
+
+test("active inference bound pauses exact ID without generation or cursor advance, and explicit resume retrieves same completion",async()=>{
+ const s=state();s.external_job!.submitted_at=new Date(1_000).toISOString();const d=deps();d.now=()=>1_000+30*60_000;let creates=0;d.create=async()=>{creates++;throw new Error("No new generation");};
+ d.retrieve=async()=>({id:"resp_test",status:"queued"});const paused=await handleMetaTagResponse(s,d);assert.equal(paused.error_code,"meta_inference_deadline");assert.equal(paused.nextOffset,undefined);assert.equal((paused.external_job as {provider_batch_id:string}).provider_batch_id,"resp_test");assert.equal(creates,0);
+ d.retrieve=deps().retrieve;const resumed=await handleMetaTagResponse({...s,status:"running"},d);assert.equal((resumed.external_job as {phase:string}).phase,"applying");assert.equal(creates,0);
+ delete s.external_job!.submitted_at;d.retrieve=async()=>({id:"resp_test",status:"in_progress"});assert.equal((await handleMetaTagResponse(s,d)).error_code,"contract_error");assert.equal(creates,0);
+});
+
+test("invalid semantic character references advance bounded correction with zero metadata writes",async()=>{
+ const {CharacterReferenceValidationError}=await import("./ai-tagging-shared.js");const s=state();const d=deps();let writes=0,creates=0;d.validate=async()=>{throw new CharacterReferenceValidationError();};d.apply=async()=>{writes++;};d.create=async()=>{creates++;throw new Error("No generation");};
+ const result=await handleMetaTagResponse(s,d);const job=result.external_job as NonNullable<OpState["external_job"]>;assert.equal(job.phase,"completed");assert.equal((job.meta_next_attempt as {method_index:number}).method_index,1);assert.match((job.meta_next_attempt as {repair_error:string}).repair_error,/supplied character catalog/);assert.equal(writes,0);assert.equal(creates,0);
+});
+test("semantic catalog database failure holds accepted ID without correction, writes or POST",async()=>{
+ const {CharacterCatalogDependencyError}=await import("./ai-tagging-shared.js");const s=state();const d=deps();let writes=0,creates=0;d.validate=async()=>{throw new CharacterCatalogDependencyError("57014");};d.apply=async()=>{writes++;};d.create=async()=>{creates++;throw new Error("No generation");};
+ const result=await handleMetaTagResponse(s,d);assert.equal(result.error_code,"dependency_timeout");assert.equal((result.external_job as {provider_batch_id:string}).provider_batch_id,"resp_test");assert.equal((result.external_job as {meta_next_attempt?:unknown}).meta_next_attempt,undefined);assert.equal(writes,0);assert.equal(creates,0);
+});
+test("legacy unsubmitted unleased prepared job checkpoints exact catalog before any claim or POST",async()=>{
+ const s=state("prepared");delete s.external_job!.provider_batch_id;delete s.external_job!.meta_character_catalog_ids;delete s.external_job!.lease_token;delete s.external_job!.lease_expires_at;const d=deps();let creates=0;d.create=async()=>{creates++;throw new Error("No generation");};
+ const result=await handleMetaTagResponse(s,d);assert.deepEqual((result.external_job as {meta_character_catalog_ids:string[]}).meta_character_catalog_ids,[]);assert.equal(result.state_transition,undefined);assert.equal(result.nextOffset,0);assert.equal(creates,0);
+});
+test("accepted old response without binding holds rather than guessing the original supplied catalog",async()=>{
+ const s=state();delete s.external_job!.meta_character_catalog_ids;const d=deps();let preparations=0;d.prepare=async()=>{preparations++;return {request:{model,messages:[]},characterCatalogIds:[]};};
+ const result=await handleMetaTagResponse(s,d);assert.equal(result.error_code,"contract_error");assert.equal(preparations,0);assert.equal((result.external_job as {provider_batch_id:string}).provider_batch_id,"resp_test");
+});
+test("restart rebuilt or cached request must match the persisted catalog before POST",async()=>{
+ const s=state("submitting");delete s.external_job!.provider_batch_id;s.external_job!.meta_character_catalog_ids=[id];const d=deps();let creates=0;d.create=async()=>{creates++;return "never";};
+ await assert.rejects(handleMetaTagResponse(s,d),/catalog changed/);assert.equal(creates,0);
+ s.transient_prepared_batch={request:{model,messages:[]},characterCatalogIds:[]};await assert.rejects(handleMetaTagResponse(s,d),/catalog changed/);assert.equal(creates,0);
+});
+
+test("catalog deletion discovered at apply reuses bounded semantic correction rather than retrying the same failing save",async()=>{
+ const {CharacterReferenceValidationError}=await import("./ai-tagging-shared.js");const s=state("applying");const d=deps();d.apply=async()=>{throw new CharacterReferenceValidationError();};
+ const result=await handleMetaTagResponse(s,d);const job=result.external_job as NonNullable<OpState["external_job"]>;assert.equal(job.phase,"completed");assert.equal((job.meta_next_attempt as {method_index:number}).method_index,1);assert.equal(job.meta_apply_failures,undefined);
+});
+test("legacy prepared missing asset stays contract-held while typed catalog read failure is a dependency hold",async()=>{
+ const {AssetMissingError}=await import("./ai-tagging.js");const {CharacterCatalogDependencyError}=await import("./ai-tagging-shared.js");
+ const s=state("prepared");delete s.external_job!.provider_batch_id;delete s.external_job!.meta_character_catalog_ids;delete s.external_job!.lease_token;delete s.external_job!.lease_expires_at;const d=deps();
+ d.prepare=async()=>{throw new AssetMissingError(id);};assert.equal((await handleMetaTagResponse(s,d)).error_code,"contract_error");
+ d.prepare=async()=>{throw new CharacterCatalogDependencyError("57014");};assert.equal((await handleMetaTagResponse(s,d)).error_code,"dependency_timeout");
+});
+
+test("accepted output exhaustion checkpoints exactly one same-method budget retry and retains original ID until guarded clear", async () => {
+ const { metaCompletedTransition } = await import("./meta-tag-response-state.js");
+ const s=state();s.params={asset_ids:[id]};s.external_job!.meta_character_catalog_ids=[id];const d=deps();let posts=0,writes=0;d.create=async()=>{posts++;return "new";};d.apply=async()=>{writes++;};
+ d.retrieve=async()=>({id:"resp_test",status:"incomplete",incomplete_details:{reason:"max_output_tokens"},output:[{type:"message",content:[{type:"output_text",text:'{"answer":"ok"}'}]}]});
+ const result=await handleMetaTagResponse(s,d);assert.equal(result.failed,undefined);assert.equal(posts,0);assert.equal(writes,0);
+ const checkpoint={...s,external_job:result.external_job} as OpState;
+ assert.deepEqual(checkpoint.external_job?.meta_character_catalog_ids,[id]);assert.equal(checkpoint.external_job?.provider_batch_id,"resp_test");assert.equal(checkpoint.external_job?.meta_asset_terminal,false);
+ assert.deepEqual(checkpoint.external_job?.meta_next_attempt,{...attempt,same_model_retry:1,output_token_limit:32768,repair_error:"Previous response exhausted its output allowance. Return the complete full analysis matching the schema."});
+ const transition=metaCompletedTransition(checkpoint);assert.equal(transition?.cursor,0);assert.equal(transition?.meta_tag_attempt?.method_index,0);assert.equal(transition?.meta_tag_attempt?.same_model_retry,1);
+ // A restarted completed receipt requests the same guarded clear; it cannot create a generation.
+ delete checkpoint.external_job!.lease_token;checkpoint.external_job!.lease_expires_at=new Date(0).toISOString();
+ const clear=await handleMetaTagResponse(checkpoint,d);assert.equal(clear.nextOffset,0);assert.equal(clear.meta_tag_attempt && (clear.meta_tag_attempt as {output_token_limit:number}).output_token_limit,32768);assert.equal(posts,0);assert.equal(writes,0);
+ // Only after the exact clear may the new attempt be prepared; preparation still performs zero POSTs.
+ const next={...s,...transition,external_job:undefined} as OpState;
+ let preparedLimit:unknown;d.prepare=async (_id,_method,_repair,limit)=>{preparedLimit=limit;return {request:{model,messages:[],meta_max_output_tokens:limit},characterCatalogIds:[]};};
+ const prepared=await handleMetaTagResponse(next,d);assert.equal(preparedLimit,32768);assert.equal(prepared.nextOffset,0);assert.equal(posts,0);
+ assert.equal((await handleMetaTagResponse({...next,external_job:prepared.external_job} as OpState,d)).state_transition,"claim_submission");assert.equal(posts,0);
+});
+test("second exhaustion and unrelated terminal outcomes fail once without parsing, writing, or budget escalation", async()=>{
+ for(const status of ["failed","cancelled","incomplete"]){
+  const s=state();s.meta_tag_attempt={...attempt,same_model_retry:1,output_token_limit:32768};const d=deps();let writes=0;d.apply=async()=>{writes++;};
+  d.retrieve=async()=>({id:"resp_test",status,incomplete_details:{reason:"max_output_tokens"},output:[]});
+  const result=await handleMetaTagResponse(s,d);assert.equal(result.failed,1);assert.equal((result.external_job as OpState["external_job"])?.meta_next_attempt,undefined);assert.equal(writes,0);
+ }
+ for(const reason of ["content_filter",undefined,"unknown"]){const d=deps();d.retrieve=async()=>({id:"resp_test",status:"incomplete",incomplete_details:{reason}});const result=await handleMetaTagResponse(state(),d);assert.equal(result.failed,1);assert.equal((result.external_job as OpState["external_job"])?.meta_next_attempt,undefined);}
+ const d=deps();d.retrieve=async()=>({id:"wrong",status:"incomplete",incomplete_details:{reason:"max_output_tokens"}});assert.equal((await handleMetaTagResponse(state(),d)).ok,false);
+});
+test("budget transition rejects absent accepted ID, forged marker, changed method, or dropped/raised budget",async()=>{
+ const {metaCompletedTransition}=await import("./meta-tag-response-state.js");
+ const s=state("completed");s.params={asset_ids:[id]};s.external_job!.meta_asset_terminal=false;s.external_job!.meta_output_token_exhausted=true;s.external_job!.meta_next_attempt={...attempt,same_model_retry:1,output_token_limit:32768};
+ assert.ok(metaCompletedTransition(s));
+ for(const change of [{provider_batch_id:undefined},{meta_output_token_exhausted:undefined},{meta_next_attempt:{...attempt,method_index:1,same_model_retry:1,output_token_limit:32768}},{meta_next_attempt:{...attempt,same_model_retry:1}},{meta_next_attempt:{...attempt,same_model_retry:1,output_token_limit:65536}}]) assert.equal(metaCompletedTransition({...s,external_job:{...s.external_job,...change}} as OpState),null);
+});
+test("cached and rebuilt request must match the persisted retry budget before a POST",async()=>{
+ for(const cached of [true,false])for(const limit of [undefined,32768] as const){
+  const s=state("submitting");delete s.external_job!.provider_batch_id;s.meta_tag_attempt={...attempt,same_model_retry:1,output_token_limit:32768};let posts=0;const d=deps();d.create=async()=>{posts++;return "new-response";};
+  const prepared={request:{model,messages:[],meta_max_output_tokens:limit},characterCatalogIds:[]};
+  d.prepare=async(_id,_method,_repair,budget)=>{assert.equal(budget,32768);return prepared;};if(cached)s.transient_prepared_batch=prepared;
+  if(limit===undefined){await assert.rejects(handleMetaTagResponse(s,d),/output budget does not match/);assert.equal(posts,0);}
+  else{const result=await handleMetaTagResponse(s,d);assert.equal((result.external_job as OpState["external_job"])?.provider_batch_id,"new-response");assert.equal(posts,1);assert.deepEqual((result.external_job as OpState["external_job"])?.meta_character_catalog_ids,[]);}
+ }
+});
+test("malformed persisted retry budgets hold before preparation or retrieval",async()=>{
+ for(const budget of [0,65536,"32768",null]){const s=state();s.meta_tag_attempt={...attempt,same_model_retry:1,output_token_limit:budget} as unknown as NonNullable<OpState["meta_tag_attempt"]>;let reads=0;const d=deps();d.retrieve=async()=>{reads++;return {};};assert.equal((await handleMetaTagResponse(s,d)).error_code,"contract_error");assert.equal(reads,0);}
+ const s=state();s.meta_tag_attempt={...attempt,output_token_limit:32768};assert.equal((await handleMetaTagResponse(s,deps())).error_code,"contract_error");
+});
+
+test("an unbound pending receipt and unknown status never earn an output-limit retry",async()=>{
+ const s=state();delete s.external_job!.provider_batch_id;const d=deps();let reads=0,posts=0;d.retrieve=async()=>{reads++;return {status:"incomplete",incomplete_details:{reason:"max_output_tokens"}};};d.create=async()=>{posts++;return "new";};
+ assert.equal((await handleMetaTagResponse(s,d)).ok,false);assert.equal(reads,0);assert.equal(posts,0);
+ const unknown=deps();unknown.retrieve=async()=>({id:"resp_test",status:"unknown",incomplete_details:{reason:"max_output_tokens"}});const result=await handleMetaTagResponse(state(),unknown);assert.equal(result.ok,false);assert.equal((result.external_job as OpState["external_job"])?.meta_next_attempt,undefined);
+});
+test("structured corrections retain an authorized retry budget but cannot escalate it",async()=>{
+ const {metaCompletedTransition}=await import("./meta-tag-response-state.js");const s=state();s.params={asset_ids:[id]};s.meta_tag_attempt={...attempt,same_model_retry:1,output_token_limit:32768};const d=deps();d.validate=()=>{throw new Error("Model returned invalid character reference");};
+ const result=await handleMetaTagResponse(s,d);const completed={...s,external_job:result.external_job} as OpState;assert.equal(metaCompletedTransition(completed)?.meta_tag_attempt?.output_token_limit,32768);assert.equal(metaCompletedTransition(completed)?.meta_tag_attempt?.method_index,1);
+ completed.external_job!.meta_next_attempt={...attempt,method_index:1,same_model_retry:1};assert.equal(metaCompletedTransition(completed),null);
+});
+
+test("output-exhaustion budget policy is restricted to exact Contributor",async()=>{
+ const s=state();s.external_job!.model="meta-direct/other";const d=deps();d.model="meta-direct/other";d.retrieve=async()=>({id:"resp_test",status:"incomplete",incomplete_details:{reason:"max_output_tokens"}});
+ const result=await handleMetaTagResponse(s,d);assert.equal(result.failed,1);assert.equal((result.external_job as OpState["external_job"])?.meta_next_attempt,undefined);
+ s.meta_tag_attempt={...attempt,same_model_retry:1,output_token_limit:32768};assert.equal((await handleMetaTagResponse(s,d)).error_code,"contract_error");
+});

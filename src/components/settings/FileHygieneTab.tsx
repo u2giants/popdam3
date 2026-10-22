@@ -118,6 +118,16 @@ export default function FileHygieneTab() {
 
   const isAgentScanning = scanPending || scanReqValue?.status === "pending" || scanReqValue?.status === "claimed";
 
+  // scanPending is a local optimistic flag set when the user clicks Scan. Once
+  // the server reports a terminal status, clear it; otherwise the derived
+  // isAgentScanning can never become false and the tab polls forever.
+  const serverStatus = scanReqValue?.status;
+  useEffect(() => {
+    if (scanPending && serverStatus && serverStatus !== "pending" && serverStatus !== "claimed") {
+      setScanPending(false);
+    }
+  }, [scanPending, serverStatus]);
+
   useEffect(() => {
     if (isAgentScanning) {
       setScanPending(true);

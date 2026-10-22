@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "work_issue": 4350,
+  "outcome": "ready-for-merge",
+  "pr": 4356,
+  "migration_versions": [
+    "20261015193344"
+  ],
+  "contract_ref": "refs/db-contracts/4350/5",
+  "contract_sha256": "2ca98805dfa9574a95f24a022a363fd69c170ccba6aeab2039dac8b4b4ec2a50",
+  "base_sha": "a79c2d281c9c0b25627bfff2eb06f914674f764b",
+  "head_sha": "fc3014a05512bb8ad6072667cbe6180fb7117f38",
+  "files_changed": [
+    ".github/live-proofs/4350.sql",
+    "config/db-data-admin-property-source-coverage.json",
+    "supabase/migrations/20261015193344_plm_stage_catalog.sql",
+    "supabase/tests/plm_stage_catalog_contracts.sql"
+  ],
+  "db_reads": [
+    "table dflow.users (ids of Ilona, Yuchen, Marcel)",
+    "table plm.LicensingTime (live licensing durations win over the sheet)",
+    "table plm.ProdOrderHeader (key type only)"
+  ],
+  "db_writes": [
+    "function plm.stage_catalog_bump_version",
+    "table plm.licensor_stage_option",
+    "table plm.prod_stage_progress",
+    "table plm.stage",
+    "table plm.stage_dependency",
+    "table plm.stage_duration",
+    "table plm.stage_list",
+    "column plm.prod_stage_progress.sku",
+    "column plm.stage.applies_to",
+    "column plm.stage.counts_toward_total",
+    "column plm.stage.default_duration",
+    "column plm.stage.done_signal",
+    "column plm.stage.name",
+    "column plm.stage.pending_label",
+    "column plm.stage.shown_on_tracker",
+    "column plm.stage.updated_by",
+    "column plm.stage_list.maintainers",
+    "column plm.stage_list.version",
+    "index plm.licensor_stage_option_stage_id_idx",
+    "index plm.prod_stage_progress_order_sku_stage_key",
+    "index plm.prod_stage_progress_stage_id_idx",
+    "index plm.stage_dependency_depends_on_idx",
+    "trigger licensor_stage_option_bump_version on plm.licensor_stage_option",
+    "trigger stage_bump_version on plm.stage",
+    "trigger stage_dependency_bump_version on plm.stage_dependency",
+    "trigger stage_duration_bump_version on plm.stage_duration",
+    "trigger stage_list_bump_version on plm.stage_list"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed."
+    },
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "The guard reported not applicable (outcome #4350 returns to popcre/designflow-tracking); the probe itself is proven only at live-proof time on production."
+    },
+    {
+      "command": "psql --set ON_ERROR_STOP=1 -f supabase/tests/plm_stage_catalog_contracts.sql",
+      "exit_code": 0,
+      "evidence": "Run after its prerequisites, as the CI job does: on a local postgres:15 container, 'create schema plm; create role anon; create role authenticated' then the migration file applied with ON_ERROR_STOP, then this test; it passed. The binding run is CI 'supabase/tests against an ephemeral database' on the PR head."
+    }
+  ],
+  "assumptions_resolved": [
+    "maintainers integer[] because dflow.users.id is integer.",
+    "Audit reuses app.AuditLog.",
+    "Generation 1 (claim #4351) superseded.",
+    "Generation 2 superseded (exact parsed objects).",
+    "Generation 3 superseded (first review findings answered).",
+    "Generation 4 superseded (retired generation-3 evidence paths allowed)."
+  ],
+  "stop_conditions_hit": []
+}

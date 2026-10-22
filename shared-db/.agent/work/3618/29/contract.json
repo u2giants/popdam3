@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "generation": 29,
+  "evidence_parent": {
+    "work_issue": 3618,
+    "generation": 28,
+    "contract_sha256": "efe9d315085eccf3dcea31d92739006a2944d4a54085b9d2fc6cb98851785903"
+  },
+  "work_issue": 3618,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Address DeepSeek exact-head REJECT for generation27: bounded retry with fresh stopped observations and immutable attempt receipts, recognized recoverable canonical mutex, bounded git probes, physical custody alias refusal, required CI test wiring, and the prospective generation28 per-source audit records; preserve source/object/permission/live-proof safeguards.",
+  "base_sha": "a3eecc4214337fd2e86b41d1c75a85bdc471dd50",
+  "dispatcher": "Codex chat 01a14fa2-bd3e-7d62-ba77-7bdfd7976f0e on edge-dev3",
+  "worker": "codex",
+  "branch": "codex/rls-custody-01a14fa2",
+  "worktree": "/home/ahazan/.codex/worktrees/rls-custody-01a14fa2/shared-db",
+  "allowed_paths": [
+    "scripts/lib/lanes/stopped-merged-claim-adoption.mjs",
+    "scripts/transfer-stopped-merged-claim-author.mjs",
+    "scripts/stopped-merged-claim-adoption.test.mjs",
+    "docs/agents/stopped-merged-claim-recovery.md",
+    "docs/verification/claim4158-recovery/manifest.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~stopped-merged-claim-adoption.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~transfer-stopped-merged-claim-author.mjs.json",
+    ".github/workflows/pr-guards.yml"
+  ],
+  "file_writes": [
+    "scripts/lib/lanes/stopped-merged-claim-adoption.mjs",
+    "scripts/transfer-stopped-merged-claim-author.mjs",
+    "scripts/stopped-merged-claim-adoption.test.mjs",
+    "docs/agents/stopped-merged-claim-recovery.md",
+    "docs/verification/claim4158-recovery/manifest.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~stopped-merged-claim-adoption.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~transfer-stopped-merged-claim-author.mjs.json",
+    ".github/workflows/pr-guards.yml"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Do not modify expired/open/cooperative recovery paths or relax their guards",
+    "Do not fabricate owner-issued ready consent, abandonment, expiry or human authentication",
+    "Do not release claims, close application issues or mutate databases",
+    "Do not modify original worktree/source/branch/reservation/objects",
+    "No ownership mutation until exact manifest and capability pass independent review and normal merge"
+  ],
+  "required_checks": [
+    "node --test scripts/stopped-merged-claim-adoption.test.mjs scripts/expired-merged-claim-adoption.test.mjs scripts/claim-author-transfer.test.mjs",
+    "git diff --check",
+    "node --test scripts/throughput-guard/*.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "Original claim4158 is relinquished on an ordinary dependency and source PR4161 is merged; existing paths honestly refuse",
+    "Current user explicitly authorized recovery while preserving source; no original-owner ready receipt exists",
+    "Generation27 already authorizes the five implementation files; generation28 is published before any new disposition catalogue edit. Original contract/evidence remain preserved in immutable refs and commit history.",
+    "DeepSeek reviewd17426af90967fa0350b298e876c58ee73fe28d0 REJECT retained; do not replay it as approval. New retry never extends the original thirty-minute grant or reactivates stopped/changed adopted custody.",
+    "Reuse the existing recognized claim-author-transfer-mutex kind instead of weakening recovery allowlists; unrelated sibling mutex defect remains recorded on3618."
+  ],
+  "stop_conditions": [
+    "Any proof cannot be obtained without weakening or spoofing current safety",
+    "Existing unrelated recovery behavior changes",
+    "Source/custody or current user authorization disagrees"
+  ]
+}

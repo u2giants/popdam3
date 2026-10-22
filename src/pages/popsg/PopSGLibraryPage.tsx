@@ -1200,7 +1200,7 @@ export default function PopSGLibraryPage() {
                 <div className="flex items-center gap-2">
                   <Select
                     value={String(pageSize)}
-                    onValueChange={(v) => { setPageSize(Number(v)); setPage(0); }}
+                    onValueChange={(v) => { setPageSize(Number(v) as PageSize); setPage(0); }}
                   >
                     <SelectTrigger className="h-7 w-24 text-xs">
                       <SelectValue />

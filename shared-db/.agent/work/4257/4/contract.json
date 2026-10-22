@@ -1,0 +1,71 @@
+{
+  "schema_version": 2,
+  "generation": 4,
+  "work_issue": 4257,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Prevent reuse of normalized production PO numbers for new production orders while preserving existing historical duplicates and permitting only the exact reviewed historical admissions.",
+  "base_sha": "e5901b3ba546c7e1e202ead099b06f445b956671",
+  "dispatcher": "Codex chat 01a12aec-192c-7703-a62c-b2671e88c11d",
+  "worker": "Codex chat 01a12aec-192c-7703-a62c-b2671e88c11d",
+  "branch": "codex/issue277-po-no-reuse",
+  "worktree": "/worksp/shared-db-issue277-po-no-reuse",
+  "allowed_paths": [
+    ".agent/work/4257/4/contract.json",
+    ".agent/work/4257/4/completion.json",
+    ".github/live-proofs/4257.sql",
+    "docs/business-rules/erp-orders-and-source-meaning.md",
+    "supabase/migrations/20261013201822_production_po_no_reuse.sql",
+    "supabase/tests/production_po_no_reuse.sql"
+  ],
+  "file_writes": [
+    ".agent/work/4257/4/contract.json",
+    ".agent/work/4257/4/completion.json",
+    ".github/live-proofs/4257.sql",
+    "docs/business-rules/erp-orders-and-source-meaning.md",
+    "supabase/migrations/20261013201822_production_po_no_reuse.sql",
+    "supabase/tests/production_po_no_reuse.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table plm.production_order",
+    "table plm.production_po_reservation",
+    "table plm.production_po_legacy_admission",
+    "function plm.normalize_production_po_number",
+    "function plm.guard_production_po_number",
+    "trigger production_po_no_reuse on plm.production_order"
+  ],
+  "prohibited_actions": [
+    "Do not mutate shared preview or production outside the governed reviewed workflow; read-only target proof and acceptance checks are permitted.",
+    "Do not rewrite historical production orders or remove historical duplicates.",
+    "Do not create broad source, service-role, or import bypasses around PO reservation.",
+    "Do not claim tests, independent reviews, CI, merge, or live proof passed without direct evidence."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "docker exec -i codex-po-no-reuse-01a12aec psql -U postgres -d normalized_test -v ON_ERROR_STOP=1 < supabase/tests/production_po_no_reuse.sql",
+    "git diff --check origin/main...HEAD",
+    "node scripts/check-live-proof-probe.mjs"
+  ],
+  "assumptions": [
+    "The migration and business-rule draft were authored before this contract was prepared; the contract is prospective and does not backdate or authorize that earlier work retroactively.",
+    "Historical duplicates remain unchanged; any legacy admission is limited to the exact frozen UUID manifest and does not create a date-wide or source-key bypass.",
+    "No current source-key upsert compatibility claim is made without separate evidence.",
+    "The isolated PostgreSQL regression, independent approvals, CI, and live proof remain unverified and must be completed by the coordinator or assigned reviewers.",
+    "Generation 2 explicitly declares the production_order trigger discovered by the static claim lexer; generation 1 remains preserved in its published immutable ref and Git history.",
+    "Generation 3 follows the supported refresh helper; that helper committed the current-main implementation and stopped because it cannot rerun SQL checks. Coordinator reruns the exact isolated SQL checks and uses a catalog-only probe qualified under the read-only execution role. No production permissions were broadened.",
+    "Generation 4 follows native active-claim version supersession after main advanced; SQL bytes are unchanged, and the catalog probe ledger key follows reserved version 20261013201822. Older approvals do not authorize this changed head."
+  ],
+  "stop_conditions": [
+    "Stop if any writer can bypass the reservation guard or if normalization does not match the reviewed PO identity rule.",
+    "Stop if historical duplicate rows are rewritten or admitted beyond the exact frozen UUID manifest.",
+    "Stop if static SQL or isolated PostgreSQL tests fail.",
+    "Stop before merge without two independent exact-head approvals and required CI checks.",
+    "Stop before production acceptance without the exact bounded live proof and a verified production target."
+  ],
+  "evidence_parent": {
+    "work_issue": 4257,
+    "generation": 3,
+    "contract_sha256": "85a222d7882f85046901b74d57270a8ef198e108bd6051883e3317d5ddb75849"
+  }
+}

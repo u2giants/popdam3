@@ -112,6 +112,26 @@ export function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
               const isUpdating = versionInfo?.updating === true;
               const updateError = versionInfo?.update_error as string | null;
 
+              // Indra OCR engine status (agent self-check / self-provision)
+              const ocr = meta?.ocr_indra as { state?: string; detail?: string | null } | undefined;
+              const ocrDetail = ocr?.detail ? ` — ${ocr.detail}` : "";
+              const ocrLine =
+                ocr?.state === "ready"
+                  ? "OCR engine: Indra (ready)"
+                  : ocr?.state === "installing"
+                    ? "OCR engine: Indra installing…"
+                    : ocr?.state === "error"
+                      ? `OCR engine: Indra install failed, using tesseract.js${ocrDetail}`
+                      : ocr?.state === "missing"
+                        ? `OCR engine: Indra missing, using tesseract.js${ocrDetail}`
+                        : null;
+              const ocrTone =
+                ocr?.state === "ready"
+                  ? "text-[hsl(var(--success))]"
+                  : ocr?.state === "installing"
+                    ? "text-[hsl(var(--warning))]"
+                    : "text-destructive";
+
               return (
                 <div key={agent.id as string} className="border border-border rounded-md p-3 space-y-2">
                   <div className="flex items-center gap-2">
@@ -187,6 +207,15 @@ export function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                     {updateError && (
                       <div className="text-destructive">Update error: {updateError}</div>
                     )}
+                    {ocrLine ? (
+                      <div className={ocrTone}>{ocrLine}</div>
+                    ) : isOn ? (
+                      <div>
+                        {ocr
+                          ? `OCR engine: unexpected status "${ocr.state ?? "unknown"}"`
+                          : "OCR engine: not reported yet — waiting for an agent update"}
+                      </div>
+                    ) : null}
                   </div>
                   {isOn && hasHealth && (
                     <div className="text-xs space-y-1 mt-1">

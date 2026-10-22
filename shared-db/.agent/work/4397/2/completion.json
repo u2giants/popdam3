@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "work_issue": 4397,
+  "outcome": "ready-for-merge",
+  "reason": "Required source checks are complete. Independent current-head review, PR CI and guarded merge are separate pending gates.",
+  "pr": 4401,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4397/2",
+  "contract_sha256": "75cb40b2c2f5ca644f1973003249ae34dfa1e6cd56fb2db303bc3ea59a50a294",
+  "head_sha": "c4048ad74d94d7b5f40df6c7dc0a3a2dc754c318",
+  "base_sha": "4b46788bf7aa18b03614b6fba90740ed54dc2d36",
+  "files_changed": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "{\"passed\": 1111, \"failed\": 0} at c4048ad7"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK at c4048ad7"
+    }
+  ],
+  "assumptions_resolved": [
+    "Both new #4397 generation-2 tests fail without the change and pass with it.",
+    "GLM REJECT seq 6645 fixed: the new capacity assertion now expects the uncapped shape from #4400; checks re-run at this exact head after the main merge."
+  ],
+  "stop_conditions_hit": []
+}

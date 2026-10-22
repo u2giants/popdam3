@@ -1,0 +1,715 @@
+#!/usr/bin/env python3
+"""Synthetic tests for conservative production-date matching and plan guards."""
+from __future__ import annotations
+
+from copy import deepcopy
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import stat
+from types import SimpleNamespace
+import tempfile
+import unittest
+from unittest import mock
+
+SCRIPT = Path(__file__).with_name('orderlist-production-date-plan.py')
+SPEC = importlib.util.spec_from_file_location('production_date_plan', SCRIPT)
+planmod = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(planmod)
+EXECUTOR_SCRIPT = Path(__file__).with_name('apply-orderlist-production-date-plan.py')
+EXECUTOR_SPEC = importlib.util.spec_from_file_location('apply_production_date_plan_regression', EXECUTOR_SCRIPT)
+executormod = importlib.util.module_from_spec(EXECUTOR_SPEC)
+EXECUTOR_SPEC.loader.exec_module(executormod)
+
+
+def base_capture():
+    header = {
+        'id': 'header-1', 'production_order_number': 'D-100', 'order_date': None,
+        'metadata': {'customer_name': ' Acme Customer ', 'vendor_id_raw': ' vendor-1 '},
+    }
+    line = {
+        'id': 'line-1', 'production_order_id': 'header-1', 'sku': 'STYLE-1',
+        'customer_po_number': 'CPO-9',
+    }
+    common = {
+        'company_code': 'EDGEHOME', 'prod_order_no': 555, 'prod_line_seq': 1,
+        'prod_reference_no': 'D-100', 'cust_po_number': 'CPO-9',
+        'customer_code': 'CUST-1',
+        'customer_desc': 'ACME CUSTOMER', 'vendor_code': 'VENDOR-1',
+        'item_no': 'STYLE-1', 'short_item_no': None, 'warehouse_sku': None,
+        'sales_order_no': 987, 'sales_order_link_present': True,
+        'retention_identity_ambiguous': False, 'retention_ordering_ambiguous': False,
+        'partition_ambiguous': False,
+    }
+    issued = {**common, 'id': 'src-iss', 'stage_code': 'ISS',
+              'prod_order_date': '2024-03-04', 'source_observed_at': '2026-10-13T14:00:00Z',
+              'line_source_hash': 'a' * 64}
+    received = {**common, 'id': 'src-rec', 'stage_code': 'REC',
+                'cust_po_number': None, 'prod_order_date': '2024-03-04',
+                'source_observed_at': '2026-10-13T14:01:00Z', 'line_source_hash': 'b' * 64}
+    return {
+        'schema': planmod.CAPTURE_SCHEMA,
+        'captured_at': '2026-10-13T14:02:00Z',
+        'latest_source_observation_at': '2026-10-13T14:01:00Z',
+        'source_digest': planmod.digest([issued, received]),
+        'database_project': planmod.DB_PROJECT,
+        'database_region': planmod.DB_REGION,
+        'database_host': planmod.DB_HOST,
+        'database_port': planmod.DB_PORT,
+        'database_name': planmod.DB_NAME,
+        'database_fingerprint': ['db', 'addr', 'started'],
+        'repository_head': '1' * 40,
+        'headers': [header], 'lines': [line], 'line_source_refs': [],
+        'held_header_ids': [], 'prod_history_rows': [issued, received],
+        'customer_identity_rows': [], 'customer_identity_snapshot_complete': True,
+        'customer_identity_snapshot_row_limit': planmod.CUSTOMER_IDENTITY_SNAPSHOT_LIMIT,
+    }
+
+
+def build_plan(capture):
+    # Existing tests mutate source rows to exercise matching rules; keep their
+    # capture commitments internally valid unless a test explicitly targets drift.
+    capture['source_digest'] = planmod.digest(capture['prod_history_rows'])
+    return planmod.build_plan(capture)
+
+
+class ProductionDatePlannerTests(unittest.TestCase):
+    def test_capture_source_digest_must_bind_exact_history_rows(self):
+        capture = base_capture()
+        capture['prod_history_rows'][0]['prod_order_date'] = '2024-03-05'
+        with self.assertRaisesRegex(ValueError, 'source digest does not match'):
+            planmod._validate_capture(capture)
+
+    def test_capture_requires_exact_virginia_target_and_complete_fingerprint(self):
+        for field, bad_value in (
+                ('database_project', 'wrong-project'),
+                ('database_region', 'us-west-2'),
+                ('database_host', 'unapproved.example'),
+                ('database_port', 6543),
+                ('database_name', 'other'),
+                ('database_fingerprint', ['db', '', 'started'])):
+            with self.subTest(field=field):
+                capture = base_capture()
+                capture[field] = bad_value
+                with self.assertRaisesRegex(ValueError, 'approved Virginia database target|fingerprint is incomplete'):
+                    planmod._validate_capture(capture)
+
+    def test_source_order_partition_preserves_raw_company_and_order_strings(self):
+        self.assertEqual(planmod._source_order_key({
+            'company_code': ' EDGEHOME ', 'prod_order_no': ' 555 ',
+        }), (' EDGEHOME ', ' 555 '))
+
+    def test_optional_partition_ambiguity_must_be_false_when_present(self):
+        capture = base_capture()
+        source_rows = capture['prod_history_rows']
+        self.assertIsNone(planmod._valid_source_partition(source_rows)[2])
+        for value in (None, True):
+            with self.subTest(value=value):
+                rows = deepcopy(source_rows)
+                rows[0]['partition_ambiguous'] = value
+                self.assertEqual(planmod._valid_source_partition(rows)[2], 'source_partition_ambiguous')
+        rows = deepcopy(source_rows)
+        rows[0]['partition_ambiguous'] = False
+        self.assertIsNone(planmod._valid_source_partition(rows)[2])
+
+    def test_protected_capture_reads_hash_and_json_from_the_same_owned_file_bytes(self):
+        raw = b'{"example":"pinned bytes"}\n'
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'capture.json'
+            path.write_bytes(raw)
+            path.chmod(0o600)
+            expected = hashlib.sha256(raw).hexdigest()
+            capture, actual = planmod._read_protected_capture(path, expected)
+            self.assertEqual(capture, {'example': 'pinned bytes'})
+            self.assertEqual(actual, expected)
+            path.write_bytes(b'{"example":"later replacement"}\n')
+            self.assertEqual(capture, {'example': 'pinned bytes'})
+            self.assertEqual(actual, expected)
+
+    def test_protected_capture_rejects_descriptor_changes_during_read(self):
+        raw = b'{}'
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'capture.json'
+            path.write_bytes(raw)
+            path.chmod(0o600)
+            real_fstat = os.fstat
+            calls = 0
+
+            def changed_after_read(fd):
+                nonlocal calls
+                calls += 1
+                result = real_fstat(fd)
+                values = {name: getattr(result, name) for name in (
+                    'st_dev', 'st_ino', 'st_uid', 'st_mode', 'st_size',
+                    'st_mtime_ns', 'st_ctime_ns')}
+                if calls == 2:
+                    values['st_size'] += 1
+                return SimpleNamespace(**values)
+
+            with mock.patch.object(planmod.os, 'fstat', side_effect=changed_after_read):
+                with self.assertRaisesRegex(ValueError, 'changed while being read'):
+                    planmod._read_protected_capture(path, hashlib.sha256(raw).hexdigest())
+
+    def test_protected_capture_rejects_oversized_inode_before_reading(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'capture.json'
+            path.write_bytes(b'{}')
+            path.chmod(0o600)
+            fake_stat = SimpleNamespace(
+                st_dev=1, st_ino=2, st_uid=os.geteuid(), st_mode=stat.S_IFREG | 0o600,
+                st_size=planmod.MAX_PROTECTED_INPUT_BYTES + 1,
+                st_mtime_ns=1, st_ctime_ns=1)
+            with (mock.patch.object(planmod.os, 'fstat', return_value=fake_stat),
+                  mock.patch.object(planmod.os, 'fdopen', side_effect=AssertionError('must not read'))):
+                with self.assertRaisesRegex(ValueError, '128 MiB input bound'):
+                    planmod._read_protected_capture(path, hashlib.sha256(b'{}').hexdigest())
+
+    def test_protected_capture_rejects_symlinks_bad_permissions_and_malformed_json(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            target = root / 'target.json'
+            target.write_bytes(b'{}')
+            target.chmod(0o600)
+            link = root / 'capture-link.json'
+            link.symlink_to(target)
+            with self.assertRaisesRegex(ValueError, 'cannot be opened safely'):
+                planmod._read_protected_capture(link, hashlib.sha256(b'{}').hexdigest())
+
+            wide = root / 'wide.json'
+            wide.write_bytes(b'{}')
+            wide.chmod(0o644)
+            with self.assertRaisesRegex(ValueError, 'mode-0600'):
+                planmod._read_protected_capture(wide, hashlib.sha256(b'{}').hexdigest())
+
+            malformed = root / 'malformed.json'
+            malformed.write_bytes(b'{')
+            malformed.chmod(0o600)
+            with self.assertRaisesRegex(ValueError, 'valid JSON'):
+                planmod._read_protected_capture(malformed, hashlib.sha256(b'{').hexdigest())
+
+    def test_private_output_requires_owned_0700_parent_and_no_git_ancestor(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            private = root / 'private'
+            private.mkdir(mode=0o700)
+            private.chmod(0o700)
+            checkout = private / 'checkout'
+            checkout.mkdir(mode=0o700)
+            (checkout / '.git').write_text('gitdir: /tmp/not-used')
+            with self.assertRaisesRegex(ValueError, 'under a Git checkout'):
+                planmod._validate_private_output_path(checkout / 'plan.json')
+            public = root / 'public'
+            public.mkdir(mode=0o700)
+            public.chmod(0o755)
+            with self.assertRaisesRegex(ValueError, 'parent has unsafe ownership or permissions'):
+                planmod._validate_private_output_path(public / 'plan.json')
+        with self.assertRaisesRegex(ValueError, 'repository root'):
+            planmod._validate_private_output_path(planmod.PROJECT_ROOT)
+        with self.assertRaisesRegex(ValueError, 'outside the repository'):
+            planmod._validate_private_output_path(planmod.PROJECT_ROOT / 'capture.json')
+
+    def test_private_output_is_exclusive_and_mode_0600(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'plan.json'
+            planmod._write_private_exclusive(path, b'protected')
+            self.assertEqual(path.read_bytes(), b'protected')
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+            with self.assertRaisesRegex(ValueError, 'already exists'):
+                planmod._write_private_exclusive(path, b'overwrite')
+
+    def test_capture_rejects_source_observation_fraction_after_capture(self):
+        capture = base_capture()
+        capture['captured_at'] = '2026-10-13T14:00:00Z'
+        capture['latest_source_observation_at'] = '2026-10-13T14:00:00.500Z'
+        capture['prod_history_rows'][0]['source_observed_at'] = '2026-10-13T14:00:00Z'
+        capture['prod_history_rows'][1]['source_observed_at'] = '2026-10-13T14:00:00.500Z'
+        with self.assertRaisesRegex(ValueError, 'later than the capture time'):
+            build_plan(capture)
+
+    def test_capture_selects_latest_observation_by_utc_instant_not_string_order(self):
+        capture = base_capture()
+        capture['captured_at'] = '2026-10-13T14:00:00.750Z'
+        capture['latest_source_observation_at'] = '2026-10-13T14:00:00.500Z'
+        capture['prod_history_rows'][0]['source_observed_at'] = '2026-10-13T14:00:00Z'
+        capture['prod_history_rows'][1]['source_observed_at'] = '2026-10-13T14:00:00.500Z'
+        plan = build_plan(capture)
+        self.assertEqual(plan['latest_source_observation_at'], '2026-10-13T14:00:00.500000Z')
+        self.assertEqual(plan['counts']['proposed'], 1)
+
+    def test_exact_source_identity_proposes_only_order_date(self):
+        capture = base_capture()
+        result = build_plan(capture)
+        self.assertEqual(result['counts']['proposed'], 1)
+        proposal = result['proposals'][0]
+        self.assertEqual(proposal['date'], '2024-03-04')
+        self.assertIsNone(proposal['header_preimage']['order_date'])
+        self.assertEqual(proposal['source_partition'], ['EDGEHOME', '555'])
+        self.assertEqual(proposal['match_route'], 'exact_customer_name')
+        self.assertEqual(proposal['source_row_preimages'], capture['prod_history_rows'])
+        self.assertEqual(proposal['source_line_source_refs'], [])
+
+    def test_exact_sales_order_source_ref_is_second_customer_route(self):
+        capture = base_capture()
+        capture['headers'][0]['metadata']['customer_name'] = 'unmapped legacy customer alias'
+        capture['line_source_refs'] = [{
+            'id': 'ref-1', 'production_order_line_id': 'line-1',
+            'source_system': 'coldlion',
+            'source_id': 'coldlion:so:987:line:1:component:1',
+        }]
+        result = build_plan(capture)
+        self.assertEqual(result['counts']['proposed'], 1)
+        self.assertEqual(result['proposals'][0]['match_route'], 'coldlion_sales_order_reference')
+        self.assertEqual(result['proposals'][0]['source_line_source_refs'], capture['line_source_refs'])
+
+    def test_explicit_erp_customer_bridge_allows_exact_google_alias(self):
+        capture = base_capture()
+        capture['headers'][0]['metadata']['customer_name'] = 'Acme Retail Alias'
+        capture['prod_history_rows'][0]['customer_desc'] = 'Legacy ERP customer label'
+        capture['prod_history_rows'][1]['customer_desc'] = 'Legacy ERP customer label'
+        capture['customer_identity_rows'] = [{
+            'company_code': 'EDGEHOME', 'customer_code': 'CUST-1',
+            'customer_id': 'customer-1', 'canonical_name': 'Acme Incorporated',
+            'display_name': 'Acme Retail Alias', 'routing_aliases': ['ACME STORE'],
+            'normalized_name': 'acme incorporated', 'erp_updated_at': '2026-10-12T12:00:00Z',
+            'customer_updated_at': '2026-10-12T13:00:00Z',
+        }]
+        result = build_plan(capture)
+        self.assertEqual(result['counts']['proposed'], 1)
+        self.assertEqual(result['proposals'][0]['match_route'], 'erp_customer_bridge')
+        self.assertEqual(result['proposals'][0]['identity_scope_customer_identity_preimages'],
+                         capture['customer_identity_rows'])
+
+    def test_missing_issued_customer_code_round_trips_alias_scope_through_executor(self):
+        capture = base_capture()
+        capture['prod_history_rows'][0]['customer_code'] = None
+        mapping = {
+            'company_code': 'EDGEHOME', 'customer_code': 'CUST-1',
+            'customer_id': 'customer-1', 'canonical_name': 'Acme Incorporated',
+            'display_name': 'Acme Customer', 'routing_aliases': [],
+            'normalized_name': 'acme incorporated', 'erp_updated_at': '2026-10-12T12:00:00Z',
+            'customer_updated_at': '2026-10-12T13:00:00Z',
+        }
+        capture['customer_identity_rows'] = [mapping]
+        plan = build_plan(capture)
+        self.assertEqual(plan['counts']['proposed'], 1)
+        proposal = plan['proposals'][0]
+        self.assertEqual(proposal['customer_identity_scope_pairs'], [['EDGEHOME', 'CUST-1']])
+        self.assertEqual(proposal['identity_scope_customer_identity_preimages'], [mapping])
+        snapshot = {
+            'headers': proposal['identity_scope_header_preimages'],
+            'lines': proposal['identity_scope_line_preimages'],
+            'refs': proposal['identity_scope_ref_preimages'],
+            'source': proposal['identity_scope_source_preimages'],
+            'customer_rows': [mapping],
+        }
+        executormod._assert_batch_snapshot(plan, snapshot)
+
+        snapshot['customer_rows'][0] = {**mapping, 'display_name': 'Renamed Customer'}
+        with self.assertRaisesRegex(ValueError, 'ERP customer identity bridge changed'):
+            executormod._assert_batch_snapshot(plan, snapshot)
+
+    def test_unavailable_customer_name_still_returns_frozen_rows_and_pairs(self):
+        issued = [{'company_code': 'EDGEHOME', 'customer_code': 'CUST-1'}]
+        mapping = {
+            'company_code': 'EDGEHOME', 'customer_code': 'CUST-1',
+            'customer_id': 'customer-1', 'canonical_name': 'Acme Incorporated',
+            'display_name': 'Acme Customer', 'routing_aliases': [],
+            'normalized_name': 'acme incorporated', 'erp_updated_at': '2026-10-12T12:00:00Z',
+            'customer_updated_at': '2026-10-12T13:00:00Z',
+        }
+        status, scoped_rows, pairs = planmod._customer_bridge_scope(
+            None, issued, [mapping], True, [('EDGEHOME', 'CUST-1')])
+        self.assertEqual(status, 'unavailable')
+        self.assertEqual(scoped_rows, [mapping])
+        self.assertEqual(pairs, [['EDGEHOME', 'CUST-1']])
+
+    def test_reused_d_bridge_scope_round_trips_through_batch_executor_and_detects_drift(self):
+        capture = base_capture()
+        capture['headers'][0]['metadata']['customer_name'] = 'Acme Retail Alias'
+        capture['prod_history_rows'][0]['customer_desc'] = 'Legacy ERP customer label'
+        capture['prod_history_rows'][1]['customer_desc'] = 'Legacy ERP customer label'
+        selected_mapping = {
+            'company_code': 'EDGEHOME', 'customer_code': 'CUST-1',
+            'customer_id': 'customer-1', 'canonical_name': 'Acme Incorporated',
+            'display_name': 'Acme Retail Alias', 'routing_aliases': [],
+            'normalized_name': 'acme incorporated', 'erp_updated_at': '2026-10-12T12:00:00Z',
+            'customer_updated_at': '2026-10-12T13:00:00Z',
+        }
+        competitor_mapping = {
+            **selected_mapping, 'company_code': 'OTHERCO', 'customer_code': 'CUST-9',
+            'display_name': 'Legacy Other Label',
+        }
+        capture['customer_identity_rows'] = [selected_mapping, competitor_mapping]
+        competitor = deepcopy(capture['prod_history_rows'][0])
+        competitor.update(
+            id='src-reused-d-other-company', company_code='OTHERCO', prod_order_no=556,
+            customer_code='CUST-9', customer_desc='Legacy ERP customer label',
+            cust_po_number='CPO-OTHER', vendor_code='OTHER-VENDOR', item_no='OTHER-STYLE',
+            source_observed_at='2026-10-13T14:03:00Z', line_source_hash='c' * 64)
+        capture['prod_history_rows'].append(competitor)
+        capture['captured_at'] = '2026-10-13T14:04:00Z'
+        capture['latest_source_observation_at'] = '2026-10-13T14:03:00Z'
+
+        plan = build_plan(capture)
+        self.assertEqual(plan['counts']['proposed'], 1)
+        proposal = plan['proposals'][0]
+        self.assertEqual(proposal['customer_identity_scope_pairs'], [
+            ['EDGEHOME', 'CUST-1'], ['OTHERCO', 'CUST-9']])
+        self.assertEqual(proposal['identity_scope_customer_identity_preimages'],
+                         [selected_mapping, competitor_mapping])
+        snapshot = {
+            'headers': proposal['identity_scope_header_preimages'],
+            'lines': proposal['identity_scope_line_preimages'],
+            'refs': proposal['identity_scope_ref_preimages'],
+            'source': proposal['identity_scope_source_preimages'],
+            'customer_rows': capture['customer_identity_rows'],
+        }
+        executormod._assert_batch_snapshot(plan, snapshot)
+
+        snapshot['customer_rows'][1] = {**competitor_mapping, 'customer_updated_at': 'changed'}
+        with self.assertRaisesRegex(ValueError, 'ERP customer identity bridge changed'):
+            executormod._assert_batch_snapshot(plan, snapshot)
+
+    def test_customer_bridge_requires_every_issued_code_and_one_customer(self):
+        capture = base_capture()
+        capture['headers'][0]['metadata']['customer_name'] = 'Acme Retail Alias'
+        capture['prod_history_rows'][0]['customer_desc'] = 'Legacy ERP customer label'
+        capture['prod_history_rows'][1]['customer_desc'] = 'Legacy ERP customer label'
+        mapping = {
+            'company_code': 'EDGEHOME', 'customer_code': 'CUST-1', 'customer_id': 'customer-1',
+            'canonical_name': 'Acme Incorporated', 'display_name': 'Acme Retail Alias',
+            'routing_aliases': [], 'normalized_name': 'acme incorporated',
+            'erp_updated_at': '2026-10-12T12:00:00Z', 'customer_updated_at': '2026-10-12T13:00:00Z',
+        }
+        capture['customer_identity_rows'] = []
+        self.assertEqual(build_plan(capture)['counts']['proposed'], 0)
+        second_code = deepcopy(capture['prod_history_rows'][0])
+        second_code.update(id='src-iss-second-code', customer_code='CUST-2',
+                           source_observed_at='2026-10-13T14:00:30Z', line_source_hash='c' * 64)
+        capture['prod_history_rows'].append(second_code)
+        capture['customer_identity_rows'] = [mapping]
+        self.assertEqual(build_plan(capture)['counts']['proposed'], 0)
+        capture['customer_identity_rows'].append({**mapping, 'customer_code': 'CUST-2', 'customer_id': 'customer-2'})
+        self.assertEqual(build_plan(capture)['counts']['proposed'], 0)
+
+    def test_customer_bridge_rejects_alias_collision_across_customer_ids(self):
+        capture = base_capture()
+        capture['headers'][0]['metadata']['customer_name'] = 'Acme Retail Alias'
+        capture['prod_history_rows'][0]['customer_desc'] = 'Legacy ERP customer label'
+        capture['prod_history_rows'][1]['customer_desc'] = 'Legacy ERP customer label'
+        base_mapping = {
+            'canonical_name': None, 'routing_aliases': [], 'normalized_name': None,
+            'erp_updated_at': '2026-10-12T12:00:00Z',
+            'customer_updated_at': '2026-10-12T13:00:00Z',
+        }
+        capture['customer_identity_rows'] = [
+            {**base_mapping, 'company_code': 'EDGEHOME', 'customer_code': 'CUST-1',
+             'customer_id': 'customer-1', 'display_name': 'Acme Retail Alias'},
+            {**base_mapping, 'company_code': 'OTHERCO', 'customer_code': 'CUST-9',
+             'customer_id': 'customer-2', 'display_name': 'Acme Retail Alias'},
+        ]
+        self.assertEqual(build_plan(capture)['counts']['proposed'], 0)
+
+    def test_unrelated_alias_owner_for_same_customer_id_is_safe_and_frozen(self):
+        capture = base_capture()
+        capture['headers'][0]['metadata']['customer_name'] = 'Acme Retail Alias'
+        capture['prod_history_rows'][0]['customer_desc'] = 'Legacy ERP customer label'
+        capture['prod_history_rows'][1]['customer_desc'] = 'Legacy ERP customer label'
+        base_mapping = {
+            'canonical_name': 'Acme Incorporated', 'routing_aliases': [],
+            'normalized_name': 'acme incorporated',
+            'erp_updated_at': '2026-10-12T12:00:00Z',
+            'customer_updated_at': '2026-10-12T13:00:00Z',
+        }
+        capture['customer_identity_rows'] = [
+            {**base_mapping, 'company_code': 'EDGEHOME', 'customer_code': 'CUST-1',
+             'customer_id': 'customer-1', 'display_name': 'Acme Retail Alias'},
+            {**base_mapping, 'company_code': 'OTHERCO', 'customer_code': 'CUST-9',
+             'customer_id': 'customer-1', 'display_name': 'Acme Retail Alias'},
+        ]
+        proposal = build_plan(capture)['proposals'][0]
+        self.assertEqual(proposal['match_route'], 'erp_customer_bridge')
+        self.assertEqual(len(proposal['identity_scope_customer_identity_preimages']), 2)
+        self.assertEqual({row['customer_code'] for row in proposal['identity_scope_customer_identity_preimages']},
+                         {'CUST-1', 'CUST-9'})
+
+    def test_customer_bridge_capture_requires_exact_join_projection(self):
+        capture = base_capture()
+        capture['customer_identity_rows'] = [{'company_code': 'EDGEHOME', 'customer_code': 'CUST-1'}]
+        with self.assertRaisesRegex(ValueError, 'projection is incomplete'):
+            build_plan(capture)
+
+    def test_incomplete_customer_bridge_snapshot_cannot_produce_an_unusable_plan(self):
+        capture = base_capture()
+        capture['customer_identity_snapshot_complete'] = False
+        with self.assertRaisesRegex(ValueError, 'requires a complete customer identity bridge snapshot'):
+            build_plan(capture)
+
+    def test_customer_bridge_snapshot_requires_the_declared_full_row_limit(self):
+        capture = base_capture()
+        capture['customer_identity_snapshot_row_limit'] = 100
+        with self.assertRaisesRegex(ValueError, 'requires a complete customer identity bridge snapshot'):
+            build_plan(capture)
+
+    def test_held_header_ids_must_be_an_array_of_uuid_strings(self):
+        capture = base_capture()
+        capture['held_header_ids'] = 'not-an-array'
+        with self.assertRaisesRegex(ValueError, 'must be an array'):
+            build_plan(capture)
+        capture = base_capture()
+        capture['held_header_ids'] = ['not-a-uuid']
+        with self.assertRaisesRegex(ValueError, 'UUID strings'):
+            build_plan(capture)
+
+    def test_source_ref_mismatch_is_a_contradiction_not_fallback(self):
+        capture = base_capture()
+        capture['line_source_refs'] = [{
+            'id': 'ref-1', 'production_order_line_id': 'line-1',
+            'source_system': 'coldlion', 'source_id': 'coldlion:so:123:line:1:component:1',
+        }]
+        result = build_plan(capture)
+        self.assertEqual(result['counts']['proposed'], 0)
+        self.assertIn('coldlion_source_ref_contradiction', {x['reason'] for x in result['unresolved']})
+
+    def test_reused_production_number_with_two_source_orders_stays_unresolved(self):
+        capture = base_capture()
+        second = deepcopy(capture['prod_history_rows'][0])
+        second.update(id='src-iss-second-order', prod_order_no=556,
+                      source_observed_at='2026-10-13T14:00:30Z', line_source_hash='c' * 64)
+        capture['prod_history_rows'].append(second)
+        capture['latest_source_observation_at'] = '2026-10-13T14:01:00Z'
+        result = build_plan(capture)
+        self.assertEqual(result['counts']['proposed'], 0)
+        self.assertIn('multiple_source_orders_match', {x['reason'] for x in result['unresolved']})
+
+    def test_matched_partition_identity_scope_does_not_leak_from_later_company(self):
+        capture = base_capture()
+        selected_mapping = {
+            'company_code': 'EDGEHOME', 'customer_code': 'CUST-1',
+            'customer_id': 'customer-1', 'canonical_name': 'Acme Customer',
+            'display_name': 'Acme Customer', 'routing_aliases': [],
+            'normalized_name': 'acme customer', 'erp_updated_at': '2026-10-12T12:00:00Z',
+            'customer_updated_at': '2026-10-12T13:00:00Z',
+        }
+        other_mapping = {
+            'company_code': 'OTHERCO', 'customer_code': 'CUST-9',
+            'customer_id': 'customer-9', 'canonical_name': 'Other Customer',
+            'display_name': 'Other Customer', 'routing_aliases': [],
+            'normalized_name': 'other customer', 'erp_updated_at': '2026-10-12T12:00:00Z',
+            'customer_updated_at': '2026-10-12T13:00:00Z',
+        }
+        capture['customer_identity_rows'] = [selected_mapping, other_mapping]
+        later_company_order = deepcopy(capture['prod_history_rows'][0])
+        later_company_order.update(
+            id='src-other-company', company_code='OTHERCO', prod_order_no=555,
+            prod_reference_no='D-200', customer_code='CUST-9',
+            cust_po_number='CPO-OTHER', customer_desc='Other Customer',
+            vendor_code='OTHER-VENDOR', item_no='OTHER-STYLE',
+            source_observed_at='2026-10-13T14:03:00Z', line_source_hash='c' * 64)
+        capture['prod_history_rows'].append(later_company_order)
+        capture['captured_at'] = '2026-10-13T14:04:00Z'
+        capture['latest_source_observation_at'] = '2026-10-13T14:03:00Z'
+
+        proposal = build_plan(capture)['proposals'][0]
+        self.assertEqual(proposal['source_partition'], ['EDGEHOME', '555'])
+        self.assertEqual(proposal['customer_identity_scope_pairs'], [['EDGEHOME', 'CUST-1']])
+        self.assertEqual(proposal['identity_scope_customer_identity_preimages'], [selected_mapping])
+
+    def test_reused_d_across_distinct_customer_vendor_partitions_uses_full_identity(self):
+        capture = base_capture()
+        second = deepcopy(capture['prod_history_rows'][0])
+        second.update(id='src-iss-reused-d', prod_order_no=556, prod_reference_no='D-100',
+                      cust_po_number='CPO-OTHER', customer_desc='Other Customer',
+                      vendor_code='VENDOR-OTHER', item_no='STYLE-OTHER',
+                      source_observed_at='2026-10-13T14:00:30Z', line_source_hash='c' * 64)
+        capture['prod_history_rows'].append(second)
+        result = build_plan(capture)
+        self.assertEqual(result['counts']['proposed'], 1)
+        self.assertEqual(result['proposals'][0]['source_partition'], ['EDGEHOME', '555'])
+        self.assertEqual(result['counts']['unresolved'], 0)
+
+    def test_plan_pins_every_source_row_sharing_the_production_reference(self):
+        capture = base_capture()
+        other_company = deepcopy(capture['prod_history_rows'][0])
+        other_company.update(id='src-other-company', company_code='OTHERCO',
+                             prod_order_no=999, source_observed_at='2026-10-13T14:00:30Z',
+                             line_source_hash='c' * 64)
+        capture['prod_history_rows'].append(other_company)
+        result = build_plan(capture)
+        proposal = result['proposals'][0]
+        self.assertEqual(len(proposal['source_row_preimages']), 2)
+        self.assertEqual(len(proposal['identity_scope_source_preimages']), 3)
+        self.assertEqual({row['id'] for row in proposal['identity_scope_source_preimages']},
+                         {'src-iss', 'src-rec', 'src-other-company'})
+
+    def test_reused_d_can_match_two_distinct_headers_without_merging_them(self):
+        capture = base_capture()
+        capture['headers'].append({
+            'id': 'header-2', 'production_order_number': 'D-100', 'order_date': None,
+            'metadata': {'customer_name': 'Other Customer', 'vendor_id_raw': 'VENDOR-OTHER'},
+        })
+        capture['lines'].append({
+            'id': 'line-2', 'production_order_id': 'header-2', 'sku': 'STYLE-OTHER',
+            'customer_po_number': 'CPO-OTHER',
+        })
+        second = deepcopy(capture['prod_history_rows'][0])
+        second.update(id='src-iss-reused-d', prod_order_no=556,
+                      cust_po_number='CPO-OTHER', customer_desc='Other Customer',
+                      vendor_code='VENDOR-OTHER', item_no='STYLE-OTHER',
+                      prod_order_date='2025-03-04', source_observed_at='2026-10-13T14:00:30Z',
+                      line_source_hash='c' * 64)
+        capture['prod_history_rows'].append(second)
+        result = build_plan(capture)
+        self.assertEqual(result['counts']['proposed'], 2)
+        self.assertEqual({p['header_id'] for p in result['proposals']}, {'header-1', 'header-2'})
+        self.assertEqual({p['date'] for p in result['proposals']}, {'2024-03-04', '2025-03-04'})
+
+    def test_padded_production_references_keep_distinct_exact_scopes_through_frozen_executor_plan(self):
+        capture = base_capture()
+        capture['headers'].append({
+            'id': 'header-padded', 'production_order_number': ' D-100 ', 'order_date': None,
+            'metadata': {'customer_name': 'Other Customer', 'vendor_id_raw': 'VENDOR-OTHER'},
+        })
+        capture['lines'].append({
+            'id': 'line-padded', 'production_order_id': 'header-padded', 'sku': 'STYLE-OTHER',
+            'customer_po_number': 'CPO-OTHER',
+        })
+        padded_rows = []
+        for original, suffix, stage in zip(capture['prod_history_rows'], ('iss', 'rec'), ('ISS', 'REC')):
+            row = deepcopy(original)
+            row.update(
+                id=f'src-padded-{suffix}', prod_order_no=556,
+                prod_reference_no=' D-100 ', customer_desc='Other Customer',
+                vendor_code='VENDOR-OTHER', item_no='STYLE-OTHER',
+                cust_po_number='CPO-OTHER' if stage == 'ISS' else None,
+                stage_code=stage, prod_order_date='2025-03-04',
+                source_observed_at='2026-10-13T14:02:00Z',
+                line_source_hash=('c' if stage == 'ISS' else 'd') * 64)
+            padded_rows.append(row)
+        capture['prod_history_rows'].extend(padded_rows)
+        capture['captured_at'] = '2026-10-13T14:03:00Z'
+        capture['latest_source_observation_at'] = '2026-10-13T14:02:00Z'
+        plan = build_plan(capture)
+        self.assertEqual(plan['counts']['proposed'], 2)
+        by_header = {item['header_id']: item for item in plan['proposals']}
+        self.assertEqual(by_header['header-1']['date'], '2024-03-04')
+        self.assertEqual(by_header['header-padded']['date'], '2025-03-04')
+        self.assertEqual([row['id'] for row in by_header['header-1']['identity_scope_header_preimages']],
+                         ['header-1'])
+        self.assertEqual([row['id'] for row in by_header['header-padded']['identity_scope_header_preimages']],
+                         ['header-padded'])
+        self.assertEqual(by_header['header-1']['evidence']['production_order_number'], 'D-100')
+        self.assertEqual(by_header['header-padded']['evidence']['production_order_number'], ' D-100 ')
+
+        frozen = planmod.build_plan(capture, 'b' * 64)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'frozen.json'
+            raw = planmod.canonical(frozen).encode()
+            path.write_bytes(raw)
+            path.chmod(0o600)
+            loaded = executormod.load_frozen_plan(path, hashlib.sha256(raw).hexdigest())
+        d_numbers, _, header_ids, _ = executormod._batch_scope_keys(loaded)
+        self.assertEqual(d_numbers, [' D-100 ', 'D-100'])
+        self.assertEqual(header_ids, ['header-1', 'header-padded'])
+
+    def test_line_scoped_po_and_style_must_match_exactly(self):
+        for field, wrong in (('customer_po_number', 'CPO-X'), ('sku', 'STYLE-X')):
+            with self.subTest(field=field):
+                capture = base_capture()
+                capture['lines'][0][field] = wrong
+                result = build_plan(capture)
+                self.assertEqual(result['counts']['proposed'], 0)
+
+    def test_vendor_and_customer_identity_are_not_fuzzy(self):
+        capture = base_capture()
+        capture['headers'][0]['metadata']['vendor_id_raw'] = 'VENDOR-2'
+        result = build_plan(capture)
+        self.assertEqual(result['counts']['proposed'], 0)
+
+    def test_mixed_customer_names_with_same_d_number_stay_ambiguous_even_with_refs(self):
+        capture = base_capture()
+        capture['line_source_refs'] = [{
+            'id': 'ref-1', 'production_order_line_id': 'line-1',
+            'source_system': 'coldlion',
+            'source_id': 'coldlion:so:987:line:1:component:1',
+        }]
+        second = deepcopy(capture['prod_history_rows'][0])
+        second.update(id='src-iss-other-customer', prod_line_seq=2, item_no='STYLE-OTHER',
+                      customer_desc='another customer', source_observed_at='2026-10-13T14:00:30Z',
+                      line_source_hash='c' * 64)
+        capture['prod_history_rows'].append(second)
+        capture['latest_source_observation_at'] = '2026-10-13T14:01:00Z'
+        result = build_plan(capture)
+        self.assertEqual(result['counts']['proposed'], 0)
+        self.assertIn('issued_customer_identity_conflict', {x['reason'] for x in result['unresolved']})
+        capture = base_capture()
+        capture['headers'][0]['metadata']['customer_name'] = 'a different business'
+        result = build_plan(capture)
+        self.assertEqual(result['counts']['proposed'], 0)
+
+    def test_date_drift_sentinel_and_ambiguous_partition_are_rejected(self):
+        changes = (
+            lambda c: c['prod_history_rows'][1].update(prod_order_date='2024-03-05'),
+            lambda c: c['prod_history_rows'][1].update(prod_order_date='1900-01-01'),
+            lambda c: c['prod_history_rows'][0].update(retention_identity_ambiguous=True),
+        )
+        for mutate in changes:
+            with self.subTest(mutate=mutate):
+                capture = base_capture()
+                mutate(capture)
+                result = build_plan(capture)
+                self.assertEqual(result['counts']['proposed'], 0)
+
+    def test_conflicting_date_in_an_older_source_version_blocks_match(self):
+        capture = base_capture()
+        older = deepcopy(capture['prod_history_rows'][0])
+        older.update(id='src-iss-older-version', prod_order_date='2024-03-03',
+                     source_observed_at='2026-10-12T14:00:00Z', line_source_hash='d' * 64)
+        capture['prod_history_rows'].append(older)
+        result = build_plan(capture)
+        self.assertEqual(result['counts']['proposed'], 0)
+        self.assertIn('source_date_drift', {x['reason'] for x in result['unresolved']})
+
+    def test_same_date_source_versions_do_not_duplicate_line_identity(self):
+        capture = base_capture()
+        newer = deepcopy(capture['prod_history_rows'][0])
+        newer.update(id='src-iss-new-version', source_observed_at='2026-10-13T14:00:30Z',
+                     line_source_hash='e' * 64)
+        capture['prod_history_rows'].append(newer)
+        result = build_plan(capture)
+        self.assertEqual(result['counts']['proposed'], 1)
+
+    def test_held_and_nonblank_orders_are_never_proposed(self):
+        capture = base_capture()
+        capture['headers'][0]['id'] = '00000000-0000-0000-0000-000000000001'
+        capture['lines'][0]['production_order_id'] = capture['headers'][0]['id']
+        capture['held_header_ids'] = [capture['headers'][0]['id']]
+        self.assertEqual(build_plan(capture)['counts']['proposed'], 0)
+        capture = base_capture()
+        capture['headers'][0]['order_date'] = '2020-02-03'
+        self.assertEqual(build_plan(capture)['counts']['proposed'], 0)
+
+    def test_duplicate_target_identity_blocks_date(self):
+        capture = base_capture()
+        capture['headers'].append({**deepcopy(capture['headers'][0]), 'id': 'header-2'})
+        capture['lines'].append({**deepcopy(capture['lines'][0]), 'id': 'line-2',
+                                 'production_order_id': 'header-2'})
+        result = build_plan(capture)
+        self.assertEqual(result['counts']['proposed'], 0)
+        self.assertIn('duplicate_target_identity', {x['reason'] for x in result['unresolved']})
+
+    def test_capture_freshness_must_be_explicit_and_true(self):
+        capture = base_capture()
+        capture['latest_source_observation_at'] = '2026-10-13T13:59:00Z'
+        with self.assertRaisesRegex(ValueError, 'Latest source observation'):
+            build_plan(capture)
+        capture = base_capture()
+        capture['captured_at'] = '2026-10-13T13:59:00Z'
+        with self.assertRaisesRegex(ValueError, 'later than the capture'):
+            build_plan(capture)
+
+
+if __name__ == '__main__':
+    unittest.main()

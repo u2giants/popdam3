@@ -12,7 +12,7 @@
 // continuously. A promotion, a rehearsal, or a piece of review evidence was
 // therefore voided by ANY commit reaching main between dispatch and run --
 // including a handover document, which cannot change what a single line of SQL
-// does. That is a real cost: during orchestrator marker #2026 the promotion had
+// does. That is a real cost: during claim-first session identity #2026 the promotion had
 // to be re-dispatched for exactly this reason, and #2030 records the same defect
 // against the historical-recovery lane.
 //
@@ -252,7 +252,7 @@ function nulPaths(raw) {
  * The `--contains` question: may this pull request head merge although main has
  * moved past its merge base with changes that are not documentation?
  *
- * MAIN MOVING IS NOT A REFUSAL BY ITSELF (orchestrator marker #2758, 2026-09-11).
+ * MAIN MOVING IS NOT A REFUSAL BY ITSELF (claim-first session identity #2758, 2026-09-11).
  * A guarded merge round takes ~25 minutes and main moves faster, so PR #2761 lost
  * the race twice while nothing it touched had changed. Main may have moved when
  * ALL of these hold, each proven from git:

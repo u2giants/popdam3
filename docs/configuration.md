@@ -118,13 +118,16 @@ Runtime configuration lives in the `admin_config` table (`key`, `value` jsonb co
 | `PROD_ORDER_API_*` | PLM production PO sync non-secret config: optional token header-name overrides and optional `PROD_ORDER_API_ENDPOINT`. Store token values and Google service account JSON as Supabase Edge Function secrets, not in `admin_config`. `PROD_ORDER_API_TOKEN_2` is currently the PLM `X-User-Authorization` app token; browser-copied values expire and are not a durable integration path. |
 | `BRIDGE_LATEST_BUILD` | Latest published bridge agent build: `{ version, sha, published_at, ... }`. The `sha` (git commit) is the immutable identity the admin UI compares the agent's reported `build_sha` against to detect drift — see the "Agent `version` can lie" quirk in `AGENTS.md`. |
 | `AI_TASK_MODELS` | Per-task AI model overrides (`vision_tagging`, `vision_tagging_fallback`, `vision_tagging_provider`, `text_classification`, `pdf_extraction`). `vision_tagging_provider` = optional comma-separated OpenRouter provider slug(s) that pin Image Tagging to those endpoints with fallbacks disabled — see `docs/KNOWN_QUIRKS.md` #60. |
+| `AI_MODEL_POOL` | Optional endpoint-specific model lists controlling which models appear in Processing model dropdowns. A missing endpoint list shows all models from that endpoint; an empty list hides all of them. This affects dropdown visibility only and leaves saved selections and runtime routing unchanged. |
 | `BLANK_THUMB_CLEANUP_REQUEST` | Pending blank thumbnail cleanup trigger |
 | `UPDATE_REQUEST` | Bridge agent self-update trigger |
 | `CHECKIN_VERIFICATION_ENABLED` | **Feature flag** (boolean). When true, Seafile-sourced check-ins park in `verifying` until the bridge agent confirms receipt on the Synology (size + quick-hash); when false/absent they complete immediately on upload. Activated 2026-06-09. Set to `false` for instant rollback — no redeploy. See the "Seafile check-ins park in `verifying`" quirk in `AGENTS.md`. |
 
 ### AI model dropdown refresh
 
-Settings → AI Models and Settings → Processing model pickers refresh from OpenRouter using the saved `admin_config.OPENROUTER_API_KEY`. The UI calls OpenRouter's key-scoped `/api/v1/models/user` endpoint so the list reflects the account's guardrails, not the public model catalog. Image Tagging and Vision Bake-Off then apply the same filter: image-capable models that support tool calling, OpenRouter `response_format` JSON-schema structured outputs, or JSON mode (`response_format: { "type": "json_object" }`). Any `:batch` model (OpenRouter or `google-direct/<model>:batch`) appears only in the primary Image Tagging selector; fallback, PDF and Bake-Off selectors exclude it, and the server rejects it there. When a catalog refresh returns a warning, every selector keeps the last available catalog and shows the warning. JSON-mode outputs are parsed and must include the required `tags`, `ai_description`, `scene_description`, and `content_type` fields before the worker stores a result.
+Settings → AI Models and Settings → Processing model pickers request the catalog through `admin-api`, which uses the saved `admin_config.OPENROUTER_API_KEY` to fetch OpenRouter's account-scoped `/api/v1/models/user` endpoint. Provider keys are write-only in browser Settings: reads return whether a key is saved, never its value; blank inputs keep the saved key, and clearing requires an explicit action. Image Tagging and Vision Bake-Off then apply the same filter: image-capable models that support tool calling, OpenRouter `response_format` JSON-schema structured outputs, or JSON mode (`response_format: { "type": "json_object" }`). Any `:batch` model (OpenRouter or `google-direct/<model>:batch`) appears only in the primary Image Tagging selector; fallback, PDF and Bake-Off selectors exclude it, and the server rejects it there. When a catalog refresh returns a warning, every selector keeps the last available catalog and shows the warning. JSON-mode outputs are parsed and must include the required `tags`, `ai_description`, `scene_description`, and `content_type` fields before the worker stores a result.
+
+The Available models catalog in Settings → Processing → AI Tagging stores endpoint-specific allow-lists in `admin_config.AI_MODEL_POOL` for OpenRouter, direct Google AI, direct Meta AI, and direct ScaleDown models. It lists every model with capability chips (Vision, Tools, JSON schema, JSON mode, Batch), structured-output summary, and OpenRouter pricing per 1M tokens. A per-model switch turns a model on or off for the whole program; search and endpoint/capability filters narrow the table; bulk actions turn shown rows on or off; **Reset to all models** returns to the include-new-catalog-models default. **Save available models** writes and reads back only the pool setting, without saving unrelated AI settings. The pool filters choices in AI task, Vision Bake-Off, and PDF vision dropdowns, while each dropdown only shows providers its existing route supports and labels the capabilities that task requires. Direct Gemini Batch remains limited to primary Image Tagging; ScaleDown is limited to PDF Text Extraction (and the Vision Bake-Off). Meta Direct remains available to existing supported consumers, including Image Tagging, PopSG PDF transcription, and text-classification paths. A saved choice outside the pool remains visible only while it is the current selection, with a warning, so an existing setting is not silently cleared. The pool does not restrict model execution or alter saved task selections.
 
 The Railway worker reads `admin_config.AI_TASK_MODELS.vision_tagging` for production Image Tagging and falls back to `qwen/qwen3-vl-32b-instruct` (`DEFAULT_VISION_MODEL` in `apps/worker/src/handlers/ai-tagging.ts`) only when that row is missing. `vision_tagging_fallback` is optional. The worker caches the model config for 60 seconds.
 
@@ -198,14 +201,19 @@ Runs on Railway. Environment variables are set in the Railway project dashboard.
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
 | `OPENROUTER_API_KEY` | No | Fallback when database-managed `OPENROUTER_API_KEY` is empty or unreadable |
-| `META_API_KEY` | No | Railway: direct Meta Image Tagging. Supabase `agent-api` environment: content-lease-bound PopSG PDF transcription; never returned to agents. |
+| `META_API_KEY` | No | Fallback for direct Meta Image Tagging and content-lease-bound PopSG PDF transcription when no saved Settings key exists or the database read fails. |
 | `GOOGLE_AI_API_KEY` | No | Fallback when database-managed `GOOGLE_AI_API_KEY` is empty or unreadable |
+| `SCALEDOWN_API_KEY` | No | Worker fallback for the direct ScaleDown Vision Bake-Off when no saved Settings key exists or the database read fails. Agents do not read this variable: they receive only the saved `SCALEDOWN_API_KEY` row. |
 | `BULK_OPERATION_ALERT_WEBHOOK_URL` | Yes once the `bulk-operation-alert` function is deployed | Receives terminal `rebuild-style-groups` failure alerts; an unset value is logged as an undelivered alert, never treated as success. Set it to the deployed `bulk-operation-alert` function URL including its `?key=` shared secret (see below). |
 
-**Critical:** the worker resolves OpenRouter and Google keys from `admin_config`
-first, with a 60-second cache. Matching Railway environment variables are only
-fallbacks during an empty or failed database read. Meta direct access remains
-Railway-environment-only.
+**Critical:** the worker resolves OpenRouter, Google, Meta, and ScaleDown keys
+from `admin_config` first, with a 60-second cache. For Meta and ScaleDown, a
+saved row is authoritative, including an explicitly blank row; Railway values
+are used only when the row is missing or unreadable. The PopSG transcription
+edge function uses the saved Meta key and falls back to its environment only
+when the Settings row is missing. Settings → Processing → AI Tagging shows the
+OpenRouter, Google, Meta, ScaleDown, Anthropic, and OpenAI key fields. Reads
+report only whether a key is saved; key values remain hidden.
 
 ---
 

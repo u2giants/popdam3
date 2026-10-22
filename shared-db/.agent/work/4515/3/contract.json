@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "generation": 3,
+  "work_issue": 4515,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Grant SELECT, INSERT (the only privileges tracking's overdue-notify uses) on dflow_prod.user_notification directly to designflow_prod_tracking_runtime (same pattern as 20261020125826, #4464) under claim #4519 version 20261020151326 (claim #4516 released: its owner label could not pass session check-in), closing the one gap found before popcre-tracking-prod switches login (#4475). Amend #2873 proofs narrowly, including matrix_entries 454->456 and its test pin (GLM REVISE on 416f8874). No sequence grant (identity id). No role membership change.",
+  "base_sha": "24c9c1bc147ee7e39ffbbdc6534bbaaf34737b10",
+  "dispatcher": "Claude chat 49144e8c-9530-49a9-a081-34792a3e6716 on edge-dev3",
+  "worker": "Claude chat 49144e8c-9530-49a9-a081-34792a3e6716 on edge-dev3",
+  "branch": "claude/4515-tracking-user-notification",
+  "worktree": "/home/ahazan/repos/shared-db-4515-notif",
+  "allowed_paths": [
+    "supabase/migrations/20261020151326_dflow_prod_user_notification_tracking_runtime_grant.sql",
+    "supabase/tests/dflow_prod_user_notification_tracking_runtime_grant_contracts.sql",
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/2873-role-contract.sql",
+    "scripts/proofs/2873-contract.json",
+    ".agent/work/4515/3/contract.json",
+    ".agent/work/4515/3/completion.json",
+    "scripts/proofs/shared-db-2873-observation.test.mjs"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261020125826_plm_stage_catalog_tracking_runtime_grant.sql",
+    "supabase/tests/plm_stage_catalog_prod_tracking_grant_contracts.sql",
+    "supabase/tests/plm_stage_catalog_contracts.sql",
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/2873-role-contract.sql",
+    "scripts/proofs/2873-contract.json",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/test_post_batch_app_verification.py",
+    ".agent/work/4464/9/contract.json",
+    ".agent/work/4464/9/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table dflow_prod.user_notification",
+    "view dflow_prod.user_notification"
+  ],
+  "prohibited_actions": [
+    "No role membership change.",
+    "No application row change.",
+    "No manual production command."
+  ],
+  "required_checks": [
+    "git diff --check",
+    "node --test scripts/proofs/shared-db-2873-observation.test.mjs",
+    "python3 -m pytest -q scripts/test_production_migration_guard.py scripts/test_post_batch_app_verification.py"
+  ],
+  "assumptions": [
+    "Production backend_runtime stays a member of tracking_grants until popcre-tracking-prod switches login; the grant goes to the runtime role so it cannot reach the backend."
+  ],
+  "stop_conditions": [
+    "Stop if any role other than the bootstrap owner is a member of designflow_prod_tracking_runtime."
+  ],
+  "evidence_parent": {
+    "work_issue": 4515,
+    "generation": 2,
+    "contract_sha256": "185100becbbf363193595fe6c663b93a88bb24672c90d948e0f65bbb83f45e24"
+  }
+}

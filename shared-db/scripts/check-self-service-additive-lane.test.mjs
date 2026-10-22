@@ -256,6 +256,8 @@ test('workIssueRouteOf routes through the operation fork, never structural admis
   })
   assert.equal(route('repo-maintenance', { route: 'repo-maintenance', workType: 'repo-maintenance', changeType: 'ci' }).operationRoute, 'repo-maintenance')
   assert.equal(route('structural', { route: 'self-service-additive' }).scope.route, 'self-service-additive')
+  assert.equal(route('structural', { route: 'claim-first' }).scope.route, 'claim-first')
+  // legacy alias still passes through unchanged for old issues
   assert.equal(route('structural', { route: 'shared-db-orchestrator' }).scope.route, 'shared-db-orchestrator')
   // An unreadable derivation still throws, and the CLI maps a throw to exit 2.
   assert.throws(() => workIssueRouteOf(42, {

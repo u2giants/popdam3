@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { externalSupabase } from "@/lib/external-supabase";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await externalSupabase.auth.signOut();
-  }, []);
+    // Drop every cached query so the next sign-in on this tab never sees the
+    // previous user's data (roles, filters, checkouts, current-user).
+    queryClient.clear();
+  }, [queryClient]);
 
   return (
     <AuthContext.Provider value={{ user, session, loading, signOut }}>

@@ -1,0 +1,61 @@
+{
+  "allowed_paths": [
+    "scripts/production-verification-sidecars/20261012012727.json",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/test_production_catalog_verification.py",
+    ".agent/work/3536/371/contract.json",
+    ".agent/work/3536/371/completion.json"
+  ],
+  "assumptions": [
+    "Guarded4230main63aec installed148focusedtestsPASS; exactGLMsourceAPP466a407 fullyread.",
+    "Read-only recovery38234599718 passed all originalapply/artifact/target/delta/catalog stages but binding failed onbehavior_resultsNone because static12727hadno named sidecar. Do not weaken requirednamedassertion; supply exactexistingcommittedprobe hash-bound instead.",
+    "Original apply38221234278/main4dc artifact11734438278 digestsha256:951f9adbfe6673fb6630b7b3359e2ad9fd2aa41b602e436213f388d7ce5d0672 and migrationSQLbytes remainimmutable.",
+    "Owner of new verifier declaration isexisting2421 installedprobe; necessity original recoveryrequires namedassertion; consolidation source isauthoritativeprobe with byte-equalitytest, notcompetinglogic.",
+    "Guardedmerge38238527865 correctly refused unknown newcontract name in base-trusted reader; not a transientfailure. Mustlandpolicyfirstthenactivation, neverretryunchangedoroverride trustedpolicy.",
+    "Policy-first exact1982da54 independentlyAPP Muse6405 e56eb679; actual guardedmerge38241067985 mustsuccess and currentmaincontain policy before editing activation."
+  ],
+  "base_sha": "63aec8b0d15a886e0522036e5b93fbe65de424bd",
+  "branch": "codex/3536-style-recovery-activation",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Current Codex root exact-safety repair under Albert resume instruction",
+  "evidence_parent": {
+    "work_issue": 3536,
+    "generation": 370,
+    "contract_sha256": "5a1aeed120871dd7a329bc7fa15ff66396dd9810100ebbe569bac5cec94c44f6"
+  },
+  "file_writes": [
+    "scripts/production-verification-sidecars/20261012012727.json",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/test_production_catalog_verification.py",
+    ".agent/work/3536/371/contract.json",
+    ".agent/work/3536/371/completion.json"
+  ],
+  "generation": 371,
+  "goal": "After reviewed policy-first PR4231 actually lands on main, activate only the previously preserved immutable12727 sidecar: SQL hash9d302667821858a87b972f87f4c5addd0a1cdd4bee359d73152508faed84ab8e, namedexactauthoritative2421contract expected1, registryowner2421 and matching validationtest. No source migration/schema/ACL/ledger or verifier/recovery-policy change. Complete all source checks and first canonical371pair before fresh independent review/guardedmerge. Then genuine read-only originalapply38221234278 recovery against exactartifact951f9a with all prior target/delta/hash/assertion guards preserved; no productionapply rerun.",
+  "prohibited_actions": [
+    "No claim/ref/lease/history/source migration/function/production or frozenqueue edits",
+    "No missing/foreign caller authority, caller-pattern widening or substring identity",
+    "No cron disable, test weakening/quarantine/removal, old verdict carry, budget/refund/2758 bypass",
+    "No manual production action or prior-main risk assessment reuse",
+    "No source SQL/ACL mutation, schema or production write; no ordinary-source bound beyond4MiB; no contract/report1MiB change; no semantic capacity/hash/history/source witness waiver."
+  ],
+  "required_checks": [
+    "current main contains approved exact policy definition before sidecar activation PASS",
+    "immutable SQL hash and registry owner and exact committed probe declaration PASS",
+    "full source focused tests and normal sidecar/truth inventory guards PASS",
+    "owned complete current-source and canonical Git/contract checks PASS"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Any cross-chat, malformed or arbitrary alias accepts",
+    "Any selected change edits foreign claim/evidence or source SQL",
+    "Any independent reviewer refuses or required check fails",
+    "Any original gate/cap/claim scope loses enforcement"
+  ],
+  "work_issue": 3536,
+  "work_type": "repo-maintenance",
+  "worker": "Current Codex root retains security and landing decisions",
+  "worktree": "/home/ahazan/.codex/worktrees/eight-issues-review-read/shared-db"
+}

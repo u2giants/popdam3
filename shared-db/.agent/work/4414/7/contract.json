@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "work_issue": 4414,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Plan step 5: prove the section 10 hostile matrix for reviewer-assignment holds with named tests and a traceability table, and bound the paid-content comparison's local digest helpers under ownership.",
+  "base_sha": "ab9f1224d4d8ad7deb524567a2d293fb0225edec",
+  "dispatcher": "Claude chat a088737b-5617-4cac-8d80-4e0b2f056ba3 on edge-dev3",
+  "worker": "Claude chat a088737b-5617-4cac-8d80-4e0b2f056ba3 on edge-dev3",
+  "branch": "claude/4414-step5",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/reviewer-assignment-holds-plan-2461e1",
+  "allowed_paths": [
+    ".agent/work/4414/7/contract.json",
+    ".agent/work/4414/7/completion.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/test-fixtures/review-assignment-io.mjs",
+    "scripts/lib/lanes/assignment-hostile-matrix.test.mjs",
+    "scripts/lib/lanes/section-deadline.test.mjs",
+    ".github/workflows/pr-guards.yml",
+    "docs/verification/reviewer-assignment-holds.md"
+  ],
+  "file_writes": [
+    ".agent/work/4414/7/contract.json",
+    ".agent/work/4414/7/completion.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/test-fixtures/review-assignment-io.mjs",
+    "scripts/lib/lanes/assignment-hostile-matrix.test.mjs",
+    "scripts/lib/lanes/section-deadline.test.mjs",
+    ".github/workflows/pr-guards.yml",
+    "docs/verification/reviewer-assignment-holds.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database change.",
+    "Do not widen request ceilings (25/15).",
+    "Do not add a new mutex or lock."
+  ],
+  "required_checks": [
+    "node --test scripts/lib/lanes/assignment-hostile-matrix.test.mjs scripts/lib/lanes/section-deadline.test.mjs scripts/lib/lanes/assignment-hold-phases.test.mjs scripts/lib/lanes/phase-trace.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/reviewer-wire-budget.test.mjs scripts/mutex-release-on-refusal.test.mjs scripts/run-governed-review.test.mjs scripts/lib/github-transport.test.mjs scripts/lib/pr-content-equivalence.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Disclosure: the step-5 tests and edits were drafted in this worktree before this contract was published; they are committed only after publication and are not claimed as pre-declared work."
+  ],
+  "stop_conditions": [
+    "Stop if a test can pass only by adding a lock or widening a ceiling.",
+    "Stop if a database change appears."
+  ],
+  "generation": 7,
+  "evidence_parent": {
+    "work_issue": 4414,
+    "generation": 6,
+    "contract_sha256": "9423c9d3012131137a067af647286d2eb1187be1c095a36ab372a2a663aafc80"
+  }
+}

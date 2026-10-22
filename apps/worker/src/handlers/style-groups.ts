@@ -11,7 +11,8 @@
  *   - Same REBUILD_STYLE_GROUPS_STATE schema in admin_config
  */
 
-import { db } from "../supabase.js";
+import { createHash } from "node:crypto";
+import { db, type DB } from "../supabase.js";
 import { logger } from "../logger.js";
 import type { BatchResult, OpState } from "../types.js";
 
@@ -25,7 +26,8 @@ const DEFAULT_REBUILD_BATCH = 100;
 const COUNTS_BATCH = 100;
 const PRIMARIES_BATCH = 25;
 
-type RebuildState = {
+export type RebuildState = {
+  watermark?: RebuildWatermark;
   stage: "clear_assets" | "delete_groups" | "rebuild_assets" | "finalize_stats";
   last_asset_id?: string | null;
   last_group_id?: string | null;
@@ -40,6 +42,99 @@ type RebuildState = {
   finalize_sub?: string;
   finalize_cursor?: number;
 };
+
+export type RebuildWatermark = {
+  run_id: string;
+  changed_since: string | null;
+  changed_cutoff: string;
+  rebuild_mode: "full" | "incremental";
+};
+
+type SafeRebuildIdentity = {
+  run_id: string | null;
+  changed_since: string | null;
+  changed_cutoff: string | null;
+  rebuild_mode: RebuildWatermark["rebuild_mode"] | null;
+};
+
+function checkpointCursor(state: RebuildState): { field: string; value: string | number | null; substage?: string } {
+  switch (state.stage) {
+    case "clear_assets": return { field: "last_asset_id", value: state.last_asset_id ?? null };
+    case "delete_groups": return { field: "last_group_id", value: state.last_group_id ?? null };
+    case "finalize_stats": return { field: "last_stats_group_id", value: state.last_stats_group_id ?? null, substage: state.finalize_sub ?? "counts" };
+    case "rebuild_assets": return { field: "last_rebuild_asset_id", value: state.last_rebuild_asset_id ?? null };
+  }
+}
+
+export function hashCursorCheckpoint(scope: "stage" | "operation", stage: string, field: string, cursor: string | number | null, substage?: string): string {
+  const canonical = JSON.stringify(["popdam-style-group-checkpoint-v1", scope, stage, field, substage ?? null, typeof cursor, cursor]);
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
+export function safeRebuildWatermark(op: OpState): SafeRebuildIdentity {
+  const params = op.params;
+  const since = params?.changed_since;
+  const cutoff = params?.changed_cutoff;
+  const mode = params?.rebuild_mode;
+  return {
+    run_id: typeof op.run_id === "string" ? op.run_id : null,
+    changed_since: since === null || typeof since === "string" && Number.isFinite(Date.parse(since)) ? since : null,
+    changed_cutoff: typeof cutoff === "string" && Number.isFinite(Date.parse(cutoff)) ? cutoff : null,
+    rebuild_mode: mode === "full" || mode === "incremental" ? mode : null,
+  };
+}
+
+function logCheckpoint(event: "batch_started" | "rpc_failed" | "checkpoint_saved" | "checkpoint_cleared", op: OpState, state: RebuildState, cursor = checkpointCursor(state), after?: RebuildState): void {
+  const identity = safeRebuildWatermark(op);
+  const afterCursor = after ? checkpointCursor(after) : undefined;
+  const meta = {
+    event,
+    ...identity,
+    auto_resume_attempts: op.auto_resume_attempts ?? 0,
+    stage: state.stage,
+    ...(cursor.substage ? { substage: cursor.substage } : {}),
+    cursor_sha256: hashCursorCheckpoint("stage", state.stage, cursor.field, cursor.value, cursor.substage),
+    ...(after && afterCursor ? {
+      next_stage: after.stage,
+      next_cursor_sha256: hashCursorCheckpoint("stage", after.stage, afterCursor.field, afterCursor.value, afterCursor.substage),
+    } : {}),
+  };
+  const msg = `rebuild-style-groups: ${event.replaceAll("_", " ")}`;
+  if (event === "rpc_failed") logger.error(msg, meta);
+  else logger.info(msg, meta);
+}
+
+export function rebuildWatermark(op: OpState): RebuildWatermark | undefined {
+  if (op.params?.watermark_protocol === undefined) return undefined;
+  if (op.params.watermark_protocol !== 1 || !op.run_id) throw new Error("Invalid scheduled rebuild protocol/run identity");
+  const { changed_since, changed_cutoff, rebuild_mode } = op.params;
+  if (typeof changed_cutoff !== "string" || !Number.isFinite(Date.parse(changed_cutoff))) throw new Error("Invalid scheduled rebuild cutoff");
+  if (rebuild_mode !== "full" && rebuild_mode !== "incremental") throw new Error("Invalid scheduled rebuild mode");
+  if (rebuild_mode === "full" ? changed_since !== null : typeof changed_since !== "string" || !Number.isFinite(Date.parse(changed_since)) || Date.parse(changed_since) >= Date.parse(changed_cutoff)) throw new Error("Invalid scheduled rebuild lower bound");
+  return { run_id: op.run_id, changed_since: changed_since as string | null, changed_cutoff, rebuild_mode };
+}
+
+export function bindRebuildWatermark(state: RebuildState, op: OpState, fresh: boolean): RebuildState {
+  const watermark = rebuildWatermark(op);
+  const saved = state.watermark ?? undefined;
+  const sameIdentity = saved === undefined && watermark === undefined ||
+    saved !== undefined && typeof saved === "object" && watermark !== undefined &&
+    saved.run_id === watermark.run_id && saved.changed_since === watermark.changed_since &&
+    saved.changed_cutoff === watermark.changed_cutoff && saved.rebuild_mode === watermark.rebuild_mode;
+  if (!fresh && !sameIdentity) throw new Error("Rebuild resume bounds/run identity changed; restart explicitly");
+  return { ...state, watermark };
+}
+
+export function rebuildRpcArgs(state: RebuildState, batchSize: number): Record<string, unknown> {
+  return { p_last_asset_id: state.last_rebuild_asset_id ?? null, p_batch_size: batchSize,
+    ...(state.watermark ? { p_changed_since: state.watermark.changed_since } : {}) };
+}
+
+export function rebuildProcessedRows(row: Record<string, unknown>, watermark: RebuildWatermark | undefined, legacyBatch: number): number {
+  if (!watermark) return legacyBatch;
+  if (!Number.isInteger(row.rows_examined) || Number(row.rows_examined) < 0) throw new Error("Differential rebuild returned no valid selected-row count");
+  return Number(row.rows_examined);
+}
 
 export function formatError(e: unknown, http?: { status?: number | null; statusText?: string | null }): string {
   const httpParts = [
@@ -84,8 +179,8 @@ export function formatError(e: unknown, http?: { status?: number | null; statusT
 async function countRowsForProgress(
   table: "assets" | "style_groups",
   applyFilters: boolean,
+  client: DB = db(),
 ): Promise<{ count: number | null; error: string | null }> {
-  const client = db();
   let q = client.from(table).select("id", { count: "planned", head: false }).limit(0);
   if (applyFilters) q = q.eq("is_deleted", false);
   const res = await q;
@@ -123,19 +218,26 @@ function formatBatchError(context: {
   return `Database RPC batch failed (${fields.join(", ")})\n${context.rawError}`;
 }
 
-async function saveState(state: RebuildState): Promise<void> {
-  const client = db();
-  await client.from("admin_config").upsert({
+class CheckpointStoreError extends Error {
+  constructor(readonly action: "read" | "save" | "delete", message: string, readonly stage: RebuildState["stage"] = "rebuild_assets") {
+    super(`Rebuild checkpoint ${action} failed: ${message}`);
+    this.name = "CheckpointStoreError";
+  }
+}
+
+async function saveState(client: DB, state: RebuildState): Promise<void> {
+  const { error } = await client.from("admin_config").upsert({
     key: STATE_KEY,
     value: state,
     updated_at: new Date().toISOString(),
     updated_by: null,
   });
+  if (error) throw new CheckpointStoreError("save", formatError(error), state.stage);
 }
 
-async function clearState(): Promise<void> {
-  const client = db();
-  await client.from("admin_config").delete().eq("key", STATE_KEY);
+async function clearState(client: DB): Promise<void> {
+  const { error } = await client.from("admin_config").delete().eq("key", STATE_KEY);
+  if (error) throw new CheckpointStoreError("delete", formatError(error), "delete_groups");
 }
 
 export function normalizeRebuildState(state: RebuildState | null): RebuildState {
@@ -146,6 +248,7 @@ export function normalizeRebuildState(state: RebuildState | null): RebuildState 
     // unnecessary - and it destroyed every column that lives only on the group
     // (item_description, group AI profile, rich_metadata, cover choice, and the
     // ON DELETE CASCADE child rows) every night.
+    watermark: state?.watermark,
     stage: state?.stage ?? "rebuild_assets",
     last_asset_id: state?.last_asset_id ?? null,
     last_group_id: state?.last_group_id ?? null,
@@ -196,8 +299,22 @@ export async function findEmptyGroupIds(
 
 // ── Rebuild handler — called from operation-loop per batch ───────────────────
 
-export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchResult> {
-  const client = db();
+export async function handleRebuildStyleGroups(opState: OpState, client: DB = db()): Promise<BatchResult> {
+  try {
+    return await handleRebuildStyleGroupsWithClient(opState, client);
+  } catch (error) {
+    if (!(error instanceof CheckpointStoreError)) throw error;
+    return {
+      ok: false,
+      done: false,
+      error: error.message,
+      error_code: `checkpoint_${error.action}_failed`,
+      error_stage: error.stage,
+    };
+  }
+}
+
+async function handleRebuildStyleGroupsWithClient(opState: OpState, client: DB): Promise<BatchResult> {
   const forceRestart = opState.cursor === 0 && !opState.params?.resumed;
 
   // Load tunable knobs from admin_config
@@ -221,24 +338,30 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
   } catch { /* defaults are fine */ }
 
   // Load existing state
-  const { data: existingStateRow } = await client
+  const { data: existingStateRow, error: stateReadError } = await client
     .from("admin_config")
     .select("value")
     .eq("key", STATE_KEY)
     .maybeSingle();
+  if (stateReadError) throw new CheckpointStoreError("read", formatError(stateReadError));
 
   let state = (existingStateRow?.value as RebuildState | null) ?? null;
 
-  if (forceRestart || !state) {
-    state = normalizeRebuildState(null);
-    await saveState(state);
+  const fresh = forceRestart || !state;
+  try {
+    state = bindRebuildWatermark(normalizeRebuildState(fresh ? null : state), opState, fresh);
+  } catch (error) {
+    return { ok: false, done: false, error: formatError(error), error_stage: "rebuild_assets" };
+  }
+  if (fresh) {
+    await saveState(client, state);
   }
 
   state = normalizeRebuildState(state);
 
   // Count total assets once. Progress reporting only - never fatal.
   if (typeof state.total_assets !== "number") {
-    const { count, error: countErr } = await countRowsForProgress("assets", true);
+    const { count, error: countErr } = await countRowsForProgress("assets", true, client);
     if (countErr) {
       logger.warn("rebuild-style-groups: asset count unavailable, continuing without a progress total", {
         query: "assets_planned_count",
@@ -247,16 +370,17 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
       });
     }
     state.total_assets = count ?? 0;
-    await saveState(state);
+    await saveState(client, state);
   }
 
   // Legacy compat
   if (state.stage === "rebuild_assets" && state.last_rebuild_asset_id === undefined) {
     state = { ...state, stage: "rebuild_assets", last_rebuild_asset_id: null, last_stats_group_id: null };
-    await saveState(state);
+    await saveState(client, state);
   }
 
   logger.info("rebuild-style-groups: batch start", { stage: state.stage, total_assets: state.total_assets, total_processed: state.total_processed });
+  logCheckpoint("batch_started", opState, state);
 
   // ── Stage 1: clear style_group_id ─────────────────────────────────
   if (state.stage === "clear_assets") {
@@ -294,6 +418,7 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
         rawError: msg,
       });
       if (!isStatementTimeout(msg) || batchSize === clearMinBatch) {
+        logCheckpoint("rpc_failed", opState, state);
         logger.error("rebuild-style-groups: RPC batch failed", {
           rpc: "clear_style_group_batch",
           stage: "clear_assets",
@@ -326,7 +451,7 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
 
     let totalGroupsBeforeDelete: number | undefined;
     if (!hasMore) {
-      const { count, error: sgCountErr } = await countRowsForProgress("style_groups", false);
+      const { count, error: sgCountErr } = await countRowsForProgress("style_groups", false, client);
       if (sgCountErr) {
         logger.warn("rebuild-style-groups: style group count unavailable", {
           query: "style_groups_planned_count",
@@ -341,7 +466,8 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
       ? { ...state, stage: "rebuild_assets", last_asset_id: null, last_rebuild_asset_id: null, total_groups_before_delete: totalGroupsBeforeDelete, stage_started_at: new Date().toISOString() }
       : { ...state, stage: "clear_assets", last_asset_id: result.last_id ?? null };
 
-    await saveState(nextState);
+    await saveState(client, nextState);
+    logCheckpoint("checkpoint_saved", opState, state, checkpointCursor(state), nextState);
 
     return {
       ok: true,
@@ -375,7 +501,8 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
 
     const reachedEnd = ids.length < GROUP_DELETE_BATCH;
     if (reachedEnd) {
-      await clearState();
+      await clearState(client);
+      logCheckpoint("checkpoint_cleared", opState, state);
       return {
         ok: true,
         done: true,
@@ -386,7 +513,9 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
       };
     }
 
-    await saveState({ ...state, stage: "delete_groups", last_group_id: ids[ids.length - 1] });
+    const nextState = { ...state, stage: "delete_groups" as const, last_group_id: ids[ids.length - 1] };
+    await saveState(client, nextState);
+    logCheckpoint("checkpoint_saved", opState, state, checkpointCursor(state), nextState);
     return {
       ok: true,
       done: false,
@@ -404,10 +533,7 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     let rpcResult: unknown;
     let rpcErr: unknown;
     try {
-      const res = await client.rpc("rebuild_style_groups_batch", {
-        p_last_asset_id: state.last_rebuild_asset_id ?? null,
-        p_batch_size: rebuildBatch,
-      });
+      const res = await client.rpc("rebuild_style_groups_batch", rebuildRpcArgs(state, rebuildBatch));
       rpcResult = res.data;
       rpcErr = res.error;
     } catch (e) {
@@ -417,6 +543,7 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
 
     if (rpcErr) {
       const msg = formatError(rpcErr);
+      logCheckpoint("rpc_failed", opState, state);
       logger.error("rebuild-style-groups: RPC batch failed", {
         rpc: "rebuild_style_groups_batch",
         stage: "rebuild_assets",
@@ -444,13 +571,17 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     if (!row) return { ok: false, done: false, error: "No result from rebuild_style_groups_batch", error_stage: "rebuild_assets" };
 
     const reachedEnd = row.done ?? true;
-    const totalProcessed = (state.total_processed ?? 0) + rebuildBatch;
+    let selectedRows: number;
+    try { selectedRows = rebuildProcessedRows(row, state.watermark, rebuildBatch); }
+    catch (error) { return { ok: false, done: false, error: formatError(error), error_stage: "rebuild_assets" }; }
+    const totalProcessed = (state.total_processed ?? 0) + selectedRows;
 
     const nextState: RebuildState = reachedEnd
       ? { ...state, stage: "finalize_stats", last_stats_group_id: null, total_processed: totalProcessed, stage_started_at: new Date().toISOString() }
       : { ...state, stage: "rebuild_assets", last_rebuild_asset_id: row.next_cursor ?? null, total_processed: totalProcessed };
 
-    await saveState(nextState);
+    await saveState(client, nextState);
+    logCheckpoint("checkpoint_saved", opState, state, checkpointCursor(state), nextState);
 
     return {
       ok: true,
@@ -458,6 +589,8 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
       stage: "rebuild_assets",
       groups_created: row.groups_created ?? 0,
       assets_assigned: row.assets_assigned ?? 0,
+      assets_ungrouped: row.assets_ungrouped ?? 0,
+      rows_examined: selectedRows,
       total_processed: totalProcessed,
       total_assets: nextState.total_assets ?? 0,
       nextOffset: (typeof opState.cursor === "number" ? opState.cursor : 0) + 1,
@@ -487,6 +620,7 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     const elapsedMs = Date.now() - started;
     if (rpcErr) {
       const msg = formatError(rpcErr);
+      logCheckpoint("rpc_failed", opState, state, { field: "last_stats_group_id", value: cursor, substage: sub });
       logger.error("rebuild-style-groups: RPC batch failed", {
         rpc: "reconcile_style_group_stats_batch",
         stage: "finalize_stats",
@@ -521,7 +655,9 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     const processed = (row.processed as number) ?? 0;
 
     if (isDone || returnedSub === "complete") {
-      await saveState({ ...state, stage: "delete_groups", last_group_id: null, stage_started_at: new Date().toISOString() });
+      const nextState = { ...state, stage: "delete_groups" as const, last_group_id: null, stage_started_at: new Date().toISOString() };
+      await saveState(client, nextState);
+      logCheckpoint("checkpoint_saved", opState, state, checkpointCursor(state), nextState);
       return {
         ok: true,
         done: false,
@@ -544,7 +680,8 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
       finalize_sub: nextSub,
       last_stats_group_id: nextStatsCursor,
     };
-    await saveState(nextState);
+    await saveState(client, nextState);
+    logCheckpoint("checkpoint_saved", opState, state, checkpointCursor(state), nextState);
 
     return {
       ok: true,

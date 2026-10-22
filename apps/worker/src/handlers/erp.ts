@@ -43,11 +43,16 @@ let classCacheExpires = 0;
 export async function getClassificationModel(): Promise<string> {
   if (cachedClassModel && Date.now() < classCacheExpires) return cachedClassModel;
   const client = db();
-  const { data } = await client
+  const { data, error } = await client
     .from("admin_config")
     .select("value")
     .eq("key", "AI_TASK_MODELS")
     .maybeSingle();
+  if (error && cachedClassModel) {
+    // Transient config read failure: keep the last known model.
+    classCacheExpires = Date.now() + 60_000;
+    return cachedClassModel;
+  }
   const models = data?.value as Record<string, string> | null;
   cachedClassModel = models?.text_classification || DEFAULT_CLASSIFICATION_MODEL;
   classCacheExpires = Date.now() + 60_000;

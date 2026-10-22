@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "work_issue": 2598,
+  "outcome": "ready-for-merge",
+  "pr": 4440,
+  "migration_versions": [
+    "20261018164004"
+  ],
+  "contract_ref": "refs/db-contracts/2598/5",
+  "contract_sha256": "f3166630cd6f6f5a5af34e1ea5a441e6e10bdcb34b2caa844bddc76da6cd4711",
+  "head_sha": "cc9d0c83ffec8b7076724af4abefd7c1fba63149",
+  "base_sha": "90417801b9d5513aa9ef102eeacea148395e5ef5",
+  "files_changed": [
+    ".github/live-proofs/2598.sql",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/production-verification-sidecars/20261018164004.json",
+    "supabase/migrations/20261018164004_nbcu_candidate_evidence.sql",
+    "supabase/tests/nbcu_candidate_evidence_contracts.sql"
+  ],
+  "db_reads": [
+    "function plm.licensing_consolidation_capture_snapshot"
+  ],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-live-proof-probe.test.mjs scripts/check-sql.test.mjs",
+      "exit_code": 0,
+      "evidence": "87 native static/unit tests passed on this exact implementation head, no hosted SQL."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL checks passed on this implementation head; no database execution."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Literal git diff --check and supplemental origin/main...HEAD whitespace checks passed."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "Native sidecar checker83passed; current migration markers32,87,120 covered and exacthashbound."
+    },
+    {
+      "command": "python3 -m unittest scripts.test_migration_derivation",
+      "exit_code": 0,
+      "evidence": "46 offline derivation tests passed on this implementation head; exact prior snapshot source declared."
+    }
+  ],
+  "assumptions_resolved": [
+    "Fresh claim4439/version20261018164004 and actual root identity; original applied/frozen source unchanged.",
+    "Production read-only function body matched expected3c60cbc197bc3919056e765d3e9dbc12. No database write or real source consolidation occurred.",
+    "This conventional premerge source record is not live/application completion. Independent exact-source review and hosted native SQL proof remain pending; no merge/promotion until their gates pass.",
+    "Formal contract publication followed disclosed draft implementation preparation; no prospective-start attestation is claimed.",
+    "Successor generation2 explicitly binds immutable generation1; current upstream contains only unrelated handoff and timeline documentation changes.",
+    "CI sidecar omission corrected with exact migration hash and three explicit runtime-SELECT dispositions, without suppressing static catalog/live proof.",
+    "Currentmain90417801b custody tooling merged without changing the five NBCU implementation files. Native snapshot body unchanged except reviewed candidate/derived-term correction.",
+    "Actual ephemeral native candidate partition passed; inverse fixture rejected future first_seen. Fixture-only recent clock timestamps correct the synthetic input while preserving native timestamp constraint. Full ephemeral rerun and hosted SQL remain pending."
+  ],
+  "stop_conditions_hit": []
+}

@@ -35,6 +35,18 @@ describe("tag asset contract", () => {
     expect(TAG_ASSET_SCHEMA.properties).not.toHaveProperty("property_id");
   });
 
+  it("puts licensor in tags only and property in tags and description", () => {
+    const prompt = buildTaggingSystemPrompt({
+      asset: { filename: "a.psd", relative_path: "a.psd", file_type: "psd", tags: [] },
+      taxonomyContext: "",
+      licensorName: "Marvel",
+      propertyName: "Spider-Man",
+    });
+    expect(prompt).toContain("Licensing for this file (authoritative): Licensor: Marvel; Property: Spider-Man");
+    expect(prompt).toContain("Always include the licensor and property names as tags");
+    expect(prompt).toContain("never the licensor");
+  });
+
   it("keeps descriptions search-oriented without forcing product categories", () => {
     const properties = TAG_ASSET_SCHEMA.properties as Record<string, { description: string }>;
     expect(properties.ai_description.description).toContain("search-friendly");
@@ -68,7 +80,7 @@ describe("tag asset contract", () => {
     expect(prompt).toContain('"freelancer illustration"');
     expect(prompt).toContain("Magenta placement overlays take priority");
     expect(prompt).toContain("Do not guess");
-    expect(prompt).toContain("read-only context owned by the Style Group");
+    expect(prompt).toContain("Never return or rewrite their IDs");
     expect(prompt).toContain("Use character_ids only");
   });
 

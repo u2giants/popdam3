@@ -1,3 +1,4 @@
+import { isMetaDirectModel } from "../meta-model-api.js";
 /**
  * AI tag model bake-off handler.
  *
@@ -10,6 +11,7 @@ import { getOpenRouterApiKey } from "../openrouter-key.js";
 import { logger } from "../logger.js";
 import { OpenRouterError, type OpenRouterProviderInfo } from "../openrouter.js";
 import type { BatchResult, OpState } from "../types.js";
+import { isScaleDownModel, SCALEDOWN_PRICE_PER_TOKEN, scaleDownTagImage } from "../scaledown.js";
 import {
   buildImageTaggingMessages,
   buildImageTaggingPrompt,
@@ -18,6 +20,8 @@ import {
 } from "./ai-tagging-shared.js";
 
 const AI_TIMEOUT_MS = 60_000;
+// Muse reasons before answering and routinely needs well over a minute.
+const META_TIMEOUT_MS = 300_000;
 const ASSETS_PER_BATCH = 2;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -344,13 +348,15 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
 
   const started = Date.now();
   try {
-    const apiKey = await getOpenRouterApiKey();
-    const messages = buildImageTaggingMessages(
-      prompt,
-      image,
-      "Analyze this design asset image and return structured tags matching the tag_asset schema.",
-    );
-    const { tagData: output, usage, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(apiKey, modelId, messages, AI_TIMEOUT_MS, 4000);
+    const { tagData: output, usage, outputMode, providerInfo, retryCount, attempts } = isScaleDownModel(modelId)
+      ? { ...(await scaleDownTagImage(modelId, prompt, image, AI_TIMEOUT_MS)), outputMode: "scaledown_summary_json", providerInfo: undefined, retryCount: 0, attempts: [] }
+      : await callTagAssetModel(
+        await getOpenRouterApiKey(),
+        modelId,
+        buildImageTaggingMessages(prompt, image, "Analyze this design asset image and return structured tags matching the tag_asset schema."),
+        isMetaDirectModel(modelId) ? META_TIMEOUT_MS : AI_TIMEOUT_MS,
+        4000,
+      );
 
     const tags = normalizeTags(
       Array.isArray(output.asset_tags)
@@ -505,7 +511,7 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
 
   const { data: assets, error: assetErr } = await client
     .from("assets")
-    .select("id, filename, relative_path, file_type, tags, thumbnail_url, licensor_id, property_id, sku, division_code")
+    .select("id, filename, relative_path, file_type, tags, thumbnail_url, licensor_id, property_id, sku, division_code, style_group_id")
     .in("id", batchIds);
   if (assetErr) return { ok: false, done: false, error: assetErr.message };
 
@@ -525,17 +531,30 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
     }
   }
 
+  // A re-queued run only fills in answers that have not succeeded yet, so a
+  // retry never re-pays for (or overwrites) a model's existing answer.
+  const { data: doneRows } = await client
+    .from("ai_tag_bakeoff_results")
+    .select("asset_id, model_slot")
+    .eq("run_id", runId)
+    .eq("status", "succeeded")
+    .in("asset_id", batchIds);
+  const succeeded = new Set((doneRows ?? []).map((r: { asset_id: string; model_slot: string }) => `${r.asset_id}:${r.model_slot}`));
+
   for (const asset of (assets ?? []) as BakeoffAsset[]) {
+    const pending = models.filter(([slot]) => !succeeded.has(`${asset.id}:${slot}`));
+    evaluated += models.length - pending.length;
+    if (pending.length === 0) continue;
     const source = await resolveBakeoffImageUrl(asset);
     if (!source) {
-      failed += models.length;
+      failed += pending.length;
       failureSamples.push({ at: new Date().toISOString(), asset_id: asset.id, filename: asset.filename ?? "", relative_path: asset.relative_path ?? "", error: "No image URL" });
       continue;
     }
     try {
       const [prompt, image] = await Promise.all([buildImageTaggingPrompt(asset), fetchImageData(source.url)]);
-      for (const [slot, modelId] of models) {
-        const result = await runModel(runId, asset, slot, modelId, prompt, image, source.rendition, prices.get(modelId));
+      for (const [slot, modelId] of pending) {
+        const result = await runModel(runId, asset, slot, modelId, prompt, image, source.rendition, isScaleDownModel(modelId) ? { prompt: SCALEDOWN_PRICE_PER_TOKEN, completion: 0 } : prices.get(modelId));
         if (result.ok) evaluated++;
         else {
           failed++;
@@ -544,7 +563,7 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      failed += models.length;
+      failed += pending.length;
       failureSamples.push({ at: new Date().toISOString(), asset_id: asset.id, filename: asset.filename ?? "", relative_path: asset.relative_path ?? "", error: msg.slice(0, 500) });
     }
   }

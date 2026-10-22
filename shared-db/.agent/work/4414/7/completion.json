@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "work_issue": 4414,
+  "outcome": "ready-for-merge",
+  "pr": 4504,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4414/7",
+  "contract_sha256": "8b442e6cb4aaf7a0ed4764b830fa6ae66180aecd0838c6296596e9519418912c",
+  "head_sha": "478601b3c8e74f360867d6414704a278e31d2f4b",
+  "base_sha": "ab9f1224d4d8ad7deb524567a2d293fb0225edec",
+  "files_changed": [
+    ".github/workflows/pr-guards.yml",
+    "docs/verification/reviewer-assignment-holds.md",
+    "scripts/lib/lanes/assignment-hostile-matrix.test.mjs",
+    "scripts/lib/lanes/section-deadline.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/test-fixtures/review-assignment-io.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions_resolved": [],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/lanes/assignment-hostile-matrix.test.mjs scripts/lib/lanes/section-deadline.test.mjs scripts/lib/lanes/assignment-hold-phases.test.mjs scripts/lib/lanes/phase-trace.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/reviewer-wire-budget.test.mjs scripts/mutex-release-on-refusal.test.mjs scripts/run-governed-review.test.mjs scripts/lib/github-transport.test.mjs scripts/lib/pr-content-equivalence.test.mjs",
+      "exit_code": 0,
+      "evidence": "1129 pass, 0 fail"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "clean"
+    }
+  ]
+}

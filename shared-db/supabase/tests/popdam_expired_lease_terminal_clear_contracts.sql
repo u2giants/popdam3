@@ -75,6 +75,11 @@ begin
     raise exception 'public.update_bulk_operation is missing';
   end if;
 
+  -- The real writers and scheduled queue lock BULK before the state row.
+  -- Fixture writes must use that order too: otherwise a live cron contender
+  -- can hold BULK while waiting for our row, and our first guarded call cycles.
+  perform pg_advisory_xact_lock(hashtext('BULK_OPERATIONS'));
+
   -- A completed, bound job whose receipt lease expired an hour ago.
   v_job := jsonb_build_object(
     'phase', 'completed',

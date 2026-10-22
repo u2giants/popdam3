@@ -48,7 +48,7 @@ test('complete profile fits the original 8192-byte artifact bound and the query 
  const sqlBytes=await readFile(new URL('./2873-catalog.sql',import.meta.url));const contractBytes=await readFile(new URL('./2873-contract.json',import.meta.url));
  assert.ok(buildObservation({rows:rows(),env:env(),sqlBytes,contractBytes,observedAt:'2026-10-06T21:00:00.000Z'}).length<=8192);
  const sql=sqlBytes.toString();assert.match(sql,/WITH expected/);assert.doesNotMatch(sql,/^\s*(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|GRANT|REVOKE)\b/im);
- assert.equal(expected.catalog.role_count,8);assert.equal(expected.catalog.matrix_entries,427);
+ assert.equal(expected.catalog.role_count,8);assert.equal(expected.catalog.matrix_entries,456);
 });
 
 // #2873: Supabase's non-superuser postgres receives PostgreSQL 16+'s implicit creator

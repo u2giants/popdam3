@@ -131,7 +131,7 @@ commit;`;
 
 export function detectShape(options = {}) {
   if (!interpretOrderStampColumns(queryRows(orderStampColumnsSql(), options))) {
-    throw new Error("coldlion.order_history_line has no ColdLion stamp columns; apply migration 20261009170724 first");
+    throw new Error("coldlion.order_history_line has no ColdLion stamp columns; apply migration 20261013111713 (or 20261009170724) first");
   }
   const rows = queryRows(
     `select attname from pg_attribute

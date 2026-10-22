@@ -10,7 +10,7 @@ const expected = expectedPolicy({ activation: { active: true }, approvalSource: 
 
 test('current procedure records the current review counts and owner rulings', () => assert.equal(checkPolicy(document, expected), true))
 test('current_policy_matrix_mismatch_refuses', () => {
-  for (const [before, after] of [['| authors | unlimited |', '| authors | 8 |'], ['| reviewer-concurrency | unlimited |', '| reviewer-concurrency | one-per-provider |'], ['| migration-reviews | 2 |', '| migration-reviews | 1 |'], ['| automatic-production-policy | active |', '| automatic-production-policy | inactive |'], ['| standalone-plans | documentation |', '| standalone-plans | guarded |']]) {
+  for (const [before, after] of [['| authors | unlimited |', '| authors | 8 |'], ['| reviewer-concurrency | unlimited |', '| reviewer-concurrency | one-per-provider |'], ['| migration-reviews | 1 |', '| migration-reviews | 2 |'], ['| automatic-production-policy | active |', '| automatic-production-policy | inactive |'], ['| standalone-plans | documentation |', '| standalone-plans | guarded |']]) {
     assert.throws(() => checkPolicy(document.replace(before, after), expected), /matrix mismatch/)
   }
 })

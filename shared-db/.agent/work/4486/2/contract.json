@@ -1,0 +1,48 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 4486,
+    "generation": 1,
+    "contract_sha256": "87a8e1fd48f7313257e7921cbe63f487be74a885307e23a893331adf0abe4544"
+  },
+  "work_issue": 4486,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Address exact-main DeepSeek REJECT of f30e765: pin scripts/db-flow/requalified-preview-runs.mjs in PREVIEW_PRODUCER_PATHS, make the Python twin reject a non-int run_attempt, and add direct admission tests for the pinned re-qualified run.",
+  "base_sha": "f30e7650a9987b3b1ef46865b8d6dd66803018f2",
+  "dispatcher": "Claude chat 49144e8c-9530-49a9-a081-34792a3e6716 on edge-dev3",
+  "worker": "Claude chat 49144e8c-9530-49a9-a081-34792a3e6716 on edge-dev3",
+  "branch": "fix/4486-pin-requalified-module",
+  "worktree": "/var/tmp/ai-sessions-1000/claude-49144e8c-9530-49a9-a081-34792a3e6716/wt4477",
+  "allowed_paths": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/requalified_preview_runs.py",
+    "scripts/test_requalified_preview_runs.py",
+    "scripts/test_verify_preview_apply_artifact.py",
+    ".agent/work/4486/2/contract.json",
+    ".agent/work/4486/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/production_business_risk_gate.py",
+    "scripts/requalified_preview_runs.py",
+    "scripts/test_requalified_preview_runs.py",
+    "scripts/test_verify_preview_apply_artifact.py",
+    ".agent/work/4486/2/contract.json",
+    ".agent/work/4486/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database change.",
+    "No production command."
+  ],
+  "required_checks": [
+    "git diff --check",
+    "python3 -m pytest -q scripts/test_requalified_preview_runs.py scripts/test_verify_preview_apply_artifact.py scripts/test_production_business_risk_gate.py"
+  ],
+  "assumptions": [],
+  "stop_conditions": [
+    "Stop if any database file changes."
+  ]
+}

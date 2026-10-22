@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261012005136",
+  "migration_sha256": "262c520aa6d5595068b2a89a5d0548a0d34954e81de33d1cd932fff331ee00ca",
+  "checks": [],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 373,
+      "line_end": 373,
+      "disposition": "no_durable_target",
+      "reason": "This EXECUTE is a constant parameter-bound SELECT inside the search function and runs only when callers request Guides. Applying the migration executes neither that SELECT nor any dynamic DDL, so the marker creates no additional durable catalog target. The static CREATE OR REPLACE FUNCTION is covered by ordinary catalog verification and the hash-bound live RPC owner/settings/grants proof."
+    }
+  ]
+}

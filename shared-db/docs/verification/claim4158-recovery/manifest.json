@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "kind": "registered-stopped-merged-claim-adoption",
+  "claim": 4158,
+  "work_issue": 2421,
+  "source_pr": 4161,
+  "source_head_sha": "09583df0f6d822479e9821234f7071f505a54953",
+  "source_merge_sha": "3ed8c2ed7b1eb8e5b2f7291340a3d35421012072",
+  "version": "20261012012727",
+  "original_owner": "codex/01a12d90-cce8-7131-b1eb-eff6becc806e-2421",
+  "original_owner_session": "01a12d90-cce8-7131-b1eb-eff6becc806e",
+  "actor": "01a14fa2-bd3e-7d62-ba77-7bdfd7976f0e",
+  "original_claim_body_sha256": "514c6511f890166e9744c516d80a86e212231b0778bc5096e6fdcbec1378c981",
+  "reservation_sha": "99148a74024a801fbd5e941f7e437b14ed6d25e6",
+  "request_sha256": "94c399cd1b2f1e103d24b65ac256ae4c14ca29e41c45e24442ea50eb84c43e46",
+  "original_worktree_sha256": "22e151dadc1764618ccc45173492cadb424581e8595a32080155221e6556f010",
+  "successor_worktree_sha256": "1f04b553d3185a824a784a3425d1ad7d617bc19be2996fdefaa6093dd0ce51a6",
+  "source_bundle_sha256": "f46d2c2b110cfcabe8134c6ad9f4bec14f5b2a4288b32959945d596b43bc445a",
+  "human_identity_authenticated": false
+}

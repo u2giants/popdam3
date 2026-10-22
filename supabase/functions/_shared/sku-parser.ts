@@ -1,4 +1,4 @@
-import { getColdLionItemInfo, getMgLookup } from "./coldlion.ts";
+import { ColdLionConfigError, getColdLionItemInfo, getMgLookup } from "./coldlion.ts";
 import { getMg02Desc, getMg03Desc } from "./mg-lookup.ts";
 import { getLegacyMgDesc, MG_REWORK_CUTOFF } from "./mg-legacy.ts";
 
@@ -117,10 +117,21 @@ async function isLegacyItem(sku: string, fileDate?: string | null): Promise<{ le
   try {
     info = await getColdLionItemInfo(sku);
   } catch (e) {
+    if (e instanceof ColdLionConfigError) throw e;
     console.warn(`ColdLion item lookup failed for ${sku}:`, e);
   }
   if (info) return { legacy: info.createdTime.slice(0, 10) < MG_REWORK_CUTOFF, division: info.divisionCode };
   return { legacy: !!fileDate && fileDate.slice(0, 10) < MG_REWORK_CUTOFF, division: null };
+}
+
+async function getMgLookupOrEmpty(mgTypeCode: string, divisionCode: string): Promise<Record<string, string>> {
+  try {
+    return await getMgLookup(mgTypeCode, divisionCode);
+  } catch (e) {
+    if (e instanceof ColdLionConfigError) throw e;
+    console.warn(`ColdLion MG lookup unavailable for ${mgTypeCode}/${divisionCode}; names left unresolved:`, e instanceof Error ? e.message : e);
+    return {};
+  }
 }
 
 export async function parseSku(filename: string, opts: { fileDate?: string | null } = {}): Promise<ParsedSku | null> {
@@ -180,9 +191,11 @@ export async function parseSku(filename: string, opts: { fileDate?: string | nul
   }
 
   const is_licensed = (division_code === "CW001" || division_code === "SP001") && licensor_code !== "ZZ";
+  // Display names only. A ColdLion outage must not fail the caller (scan ingest
+  // calls this per file); authoritative licensing comes from the item mirror.
   const [mg05, mg06] = await Promise.all([
-    getMgLookup("05", division_code),
-    getMgLookup("06", division_code),
+    getMgLookupOrEmpty("05", division_code),
+    getMgLookupOrEmpty("06", division_code),
   ]);
   // Return null when ColdLion has no mapping. Folder names are never used as a
   // licensing fallback.

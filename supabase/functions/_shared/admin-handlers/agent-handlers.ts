@@ -7,6 +7,7 @@
  */
 
 import { err, formatPostgrestError, json, optionalString, requireString, serviceClient } from "../admin-utils.ts";
+import { redactAdminConfigValues } from "../admin-config-secret.ts";
 
 // ── generate-agent-key ──────────────────────────────────────────────
 
@@ -587,7 +588,7 @@ export async function handleRequeueRenderJob(body: Record<string, unknown>) {
 
   const { data, error } = await db
     .from("render_queue")
-    .update({ status: "pending", error_message: null, claimed_by: null, claimed_at: null, completed_at: null })
+    .update({ status: "pending", error_message: null, claimed_by: null, claimed_at: null, completed_at: null, attempts: 0 })
     .eq("id", jobId)
     .eq("status", "failed")
     .select("id")
@@ -810,7 +811,7 @@ export async function handleRetryFailedRenders() {
 
   const { data, error } = await db
     .from("render_queue")
-    .update({ status: "pending", claimed_by: null, claimed_at: null, error_message: null })
+    .update({ status: "pending", claimed_by: null, claimed_at: null, error_message: null, attempts: 0 })
     .in("id", safeToRetry)
     .select("id");
 
@@ -1271,10 +1272,7 @@ export async function handleDoctor() {
 
   // ── Config (non-sensitive) ──
   const { data: configRows } = await db.from("admin_config").select("key, value, updated_at");
-  const config: Record<string, unknown> = {};
-  for (const row of configRows ?? []) {
-    config[row.key] = row.value;
-  }
+  const config = redactAdminConfigValues(configRows);
 
   // ── Additional issue checks ──
   const { count: staleJobs } = await db

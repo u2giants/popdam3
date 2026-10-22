@@ -4,7 +4,7 @@
 // WHAT THIS DECIDES
 // -----------------
 // A pull request whose linked work issue declares `route: self-service-additive`
-// may merge WITHOUT orchestrator triage only when EVERY named object of EVERY
+// may merge WITHOUT coordinator triage only when EVERY named object of EVERY
 // statement lives in one of the app-owned schemas {crm, pim, dam, plm} and every
 // statement is an additive, low-lock shape. The boundary is the whole safety of
 // the lane: a `CREATE TABLE crm.foo (… REFERENCES core.customer(id))` creates an
@@ -16,7 +16,7 @@
 // of a non-boundary schema anywhere outside a string literal, any file that is
 // not a brand-new migration → refuse with the named reason. Refusals return
 // instantly when the route is removed from the lane machinery; nothing here is
-// a gate for orchestrator-routed pull requests.
+// a gate for claim-first-routed pull requests.
 //
 // NO THIRD PARSER (plan §6.5). Statement splitting, comment stripping and
 // literal neutralisation come from the production gate's own tokenizer
@@ -30,7 +30,7 @@
 //
 // MERGE-TIME INVOCATION (Phase B3): `--pr <n>` reads the pull request's files,
 // finds its claim and that claim's work issue, and applies the classifier only
-// when that issue's route is `self-service-additive`. Orchestrator-routed pull
+// when that issue's route is `self-service-additive`. Claim-first-routed pull
 // requests exit 0 "not applicable" — this classifier never judges them.
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'

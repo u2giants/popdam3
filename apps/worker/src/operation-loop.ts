@@ -1,3 +1,6 @@
+import { synchronizeMetaReservations, observePausedMetaResponse, MetaCapabilityRejectionError } from "./meta-model-api.js";
+import { getMetaApiKey } from "./provider-api-key.js";
+import { metaCompletedTransition, advanceMetaCapabilityRejection } from "./handlers/meta-tag-response-state.js";
 /**
  * Operation loop — polls admin_config.BULK_OPERATIONS, dispatches to handlers,
  * persists state after each batch.
@@ -19,7 +22,7 @@ import { hasSubmissionLeaseReceipt, isGuardedEnvelope } from "./operation-lease.
 import { handleBulkAiTag } from "./handlers/ai-tagging.js";
 import { handleAiTagBakeoff } from "./handlers/ai-tag-bakeoff.js";
 import { handleStyleGroupProfiles } from "./handlers/ai-style-group-profile.js";
-import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "./handlers/style-groups.js";
+import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileStyleGroupStats, hashCursorCheckpoint, safeRebuildWatermark } from "./handlers/style-groups.js";
 import { handleRelinkOrphanedAssets } from "./handlers/relink-orphaned.js";
 import { handleLegacyPropagationAlias, handleRefreshGroupMetadata } from "./handlers/group-metadata-refresh.js";
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handlers/erp.js";
@@ -29,9 +32,10 @@ import { handlePopSGFileTags, processPendingPopSGTags } from "./handlers/popsg-t
 import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
+import { isDeepStrictEqual } from "node:util";
 import { withDependencyTimeout } from "./bounded-dependency.js";
 import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError, PreSubmissionError } from "./batch-submission-error.js";
-import { awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, failOperationAfterNotSubmitted, failClaimedOperation, failOperationWithoutResetContract, failOperationWithoutResetContractNotSubmitted, finishInterruptedReset, ResetContractUnavailableError, type RpcCall } from "./provider-submission-recovery.js";
+import { alreadyBoundAcceptedAcknowledgement, createSubmissionOwnerFactory, persistAcceptedProviderAcknowledgement, type AcceptedProviderAcknowledgement, awaitsDefinitiveRejectionFailure, failOperationAfterDefinitiveRejection, failOperationAfterNotSubmitted, failClaimedOperation, failOperationWithoutResetContract, failOperationWithoutResetContractNotSubmitted, finishInterruptedReset, ResetContractUnavailableError, type RpcCall } from "./provider-submission-recovery.js";
 import { alertTerminalFailure, appendTerminalRun, type TerminalRun } from "./terminal-outcomes.js";
 import {
   getNextAutoResumeAt,
@@ -50,7 +54,86 @@ export const STALE_RUN_MS = STALE_RUN_MINUTES * 60 * 1000;
 export const WAIT_HEARTBEAT_MS = 2 * 60 * 1000;
 const INTERRUPT_CHECK_EVERY = 10;
 const AUTO_RESUME_MAX_ATTEMPTS = 10;
+
+export function rebuildCursorReceipt(opKey: string, state: OpState, cursor: number | string | null | undefined, lastSuccessful: number | string | null | undefined) {
+  if (opKey !== "rebuild-style-groups") return {};
+  const safeWatermark = safeRebuildWatermark(state);
+  return {
+    ...safeWatermark,
+    operation_cursor_sha256: hashCursorCheckpoint("operation", opKey, "cursor", cursor ?? null),
+    operation_last_successful_cursor_sha256: hashCursorCheckpoint("operation", opKey, "last_successful_cursor", lastSuccessful ?? null),
+  };
+}
 const submissionLeaseTokens = new Map<string, string>();
+export const submissionOwnerForRun = createSubmissionOwnerFactory();
+// RAM only; a known acknowledgement may never return to the submission path.
+const acceptedAcknowledgements = new Map<string, AcceptedProviderAcknowledgement>();
+// Accepted receipts prove only this exact bound job; they cannot authorize creation.
+const acceptedBindingReceipts = new Map<string, AcceptedProviderAcknowledgement>();
+function boundGroupIdentity(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.some(item => !item || typeof item !== "object" || typeof item.style_group_id !== "string" || typeof item.custom_id !== "string")) return null;
+  return value.map(item => [item.style_group_id, item.custom_id, item.sku]);
+}
+export function boundProviderReceipt(opKey: string, current: OpState): string | undefined {
+  const ack = acceptedBindingReceipts.get(opKey);
+  const original = ack?.submitted;
+  const job = current.external_job;
+  const bound = original?.external_job;
+  if (!ack || !original || !job?.provider_batch_id || job.provider_batch_id !== bound?.provider_batch_id ||
+      current.run_id !== original.run_id || current.started_at !== original.started_at ||
+      (current.cursor !== original.cursor && !(job.phase === "completed" && bound.next_cursor !== undefined && current.cursor === bound.next_cursor)) ||
+      !isDeepStrictEqual(current.params, original.params) || !isDeepStrictEqual(current.meta_tag_attempt, original.meta_tag_attempt) ||
+      job.provider !== bound.provider || job.model !== bound.model || job.prepared_at !== bound.prepared_at ||
+      job.page_cursor !== bound.page_cursor || job.submission_owner !== ack.claimed.external_job?.submission_owner ||
+      job.lease_proof !== ack.claimed.external_job?.lease_proof ||
+      job.account_fingerprint !== bound.account_fingerprint || job.output_method !== bound.output_method ||
+      job.next_cursor !== bound.next_cursor || job.provider_pin !== bound.provider_pin ||
+      boundGroupIdentity(job.group_items) === null || boundGroupIdentity(bound.group_items) === null ||
+      !isDeepStrictEqual(boundGroupIdentity(job.group_items), boundGroupIdentity(bound.group_items)) ||
+      !isDeepStrictEqual(job.meta_character_catalog_ids, bound.meta_character_catalog_ids) ||
+      !isDeepStrictEqual(job.items?.map(item => [item.asset_id, item.custom_id]), bound.items?.map(item => [item.asset_id, item.custom_id]))) return undefined;
+  return ack.leaseToken;
+}
+/** Called exclusively after a successful receipt-proven guarded phase write. */
+export function refreshBoundProviderAccount(opKey: string, before: OpState, offered: OpState, saved: { ok: boolean; operation?: unknown }): boolean {
+  const ack = acceptedBindingReceipts.get(opKey);
+  const token = boundProviderReceipt(opKey, before);
+  const next = offered.external_job?.account_fingerprint;
+  const stored = saved.operation as OpState | undefined;
+  if (!ack || !token || (ack.submitted.external_job?.provider !== undefined && ack.submitted.external_job.provider !== "openrouter") || !saved.ok || offered.external_job?.lease_token !== token || typeof next !== "string" || !next || !stored) return false;
+  const check = (state: OpState) => boundProviderReceipt(opKey, { ...state, external_job: { ...state.external_job!, account_fingerprint: ack.submitted.external_job?.account_fingerprint } }) === token;
+  if (!check(offered) || !check(stored) || stored.external_job?.account_fingerprint !== next) return false;
+  ack.submitted = { ...ack.submitted, external_job: { ...ack.submitted.external_job!, account_fingerprint: next } };
+  return true;
+}
+function retainBoundAcknowledgement(ack: AcceptedProviderAcknowledgement): void {
+  acceptedBindingReceipts.set(ack.opKey, ack);
+  submissionLeaseTokens.delete(ack.opKey);
+  submissionLeaseRetryAfter.delete(ack.opKey);
+  preSubmissionRetries.delete(ack.opKey);
+  acceptedAcknowledgements.delete(ack.opKey);
+}
+export function holdsAcceptedAcknowledgement(opKey: string): boolean { return acceptedAcknowledgements.has(opKey); }
+export function reconcileHeldAcknowledgement(opKey: string, current: OpState): boolean {
+  const held = acceptedAcknowledgements.get(opKey);
+  if (held && alreadyBoundAcceptedAcknowledgement(held, current)) retainBoundAcknowledgement(held);
+  return acceptedAcknowledgements.has(opKey);
+}
+export async function saveAcceptedAcknowledgement(
+  ack: AcceptedProviderAcknowledgement,
+  rpc: RpcCall,
+  read: () => Promise<OpState | null>,
+) {
+  const held = acceptedAcknowledgements.get(ack.opKey);
+  if (held && held !== ack) return { saved: false, reason: "acknowledgement_already_held" };
+  acceptedAcknowledgements.set(ack.opKey, ack);
+  submissionLeaseTokens.delete(ack.opKey); // One-time creation authority is consumed.
+  submissionLeaseRetryAfter.delete(ack.opKey);
+  const result = await persistAcceptedProviderAcknowledgement(rpc, read, ack);
+  if (result.saved) retainBoundAcknowledgement(ack);
+  return result;
+}
 const submissionLeaseRetryAfter = new Map<string, number>();
 // Pre-POST local failures while this worker holds a live receipt (count only
 // for logging). The receipt is never discarded for these: nothing was sent, so
@@ -88,6 +171,7 @@ export function rememberSubmissionReceipt(opKey: string, leaseToken: string): vo
 
 /** Drop every in-memory submission artifact for an operation that has ended. */
 export function forgetSubmissionState(opKey: string): void {
+  acceptedBindingReceipts.delete(opKey);
   submissionLeaseTokens.delete(opKey);
   submissionLeaseRetryAfter.delete(opKey);
   pendingNotSubmittedResets.delete(opKey);
@@ -233,7 +317,9 @@ export async function failDefinitivelyRejectedSubmission(
   let outcome: { state: OpState };
   try {
     try {
-      outcome = await failOperationAfterDefinitiveRejection(
+      const advanced = rejection instanceof MetaCapabilityRejectionError ? await advanceMetaCapabilityRejection(rpc, { opKey, expectedRevision: revision, submissionOwner: owner, leaseToken }, state, rejection) : null;
+      if (advanced) outcome = { state: advanced };
+      else outcome = await failOperationAfterDefinitiveRejection(
         rpc,
         { opKey, expectedRevision: revision, submissionOwner: owner, leaseToken },
         rejection,
@@ -301,6 +387,11 @@ async function failNeverSentSubmissionOnce(
  *  worker has no timeout, so 50 keeps ops running hot while still yielding often
  *  enough to check for user interruptions and serve other lanes. */
 const MAX_BATCHES_PER_TICK = 50;
+export function operationBatchLimit(opKey: string): number {
+  // Yield after one persisted benchmark page (up to two assets/five models).
+  // Tagging keeps its normal full turn so slow benchmarks cannot dominate it.
+  return opKey === "ai-tag-bakeoff" ? 1 : MAX_BATCHES_PER_TICK;
+}
 
 async function recordStyleGroupTerminalOutcome(
   opKey: string,
@@ -333,6 +424,7 @@ const OP_LANES: Record<string, string> = {
   "ai-tag-untagged": "ai-tagging",
   "ai-tag-all": "ai-tagging",
   "ai-tag-groups": "ai-tagging",
+  "ai-tag-parallel": "ai-parallel",
   "ai-tag-group-profiles": "ai-tagging",
   "ai-tag-bakeoff": "ai-tagging",
   "rebuild-style-groups": "style-groups",
@@ -358,19 +450,27 @@ const OP_LANES: Record<string, string> = {
 //   supabase/functions/_shared/operation-constants.ts  (backend enforcement)
 //   src/components/settings/diagnostics/types.ts       (UI pre-flight check)
 const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
-  "ai-tag-untagged":      ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-all":           ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-groups":        ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-group-profiles": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "refresh-group-metadata"],
+  "ai-tag-untagged":      ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-all":           ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-groups":        ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-parallel":        ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-group-profiles": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "refresh-group-metadata"],
   "ai-tag-bakeoff":       ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "ai-tag-group-profiles"],
-  "refresh-group-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "ai-tag-group-profiles"],
-  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "rich-pdf-extract", "ai-tag-group-profiles"],
+  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "ai-tag-group-profiles"],
+  "refresh-group-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "ai-tag-group-profiles"],
+  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "rich-pdf-extract", "ai-tag-group-profiles"],
   "rich-pdf-extract":     ["rebuild-style-groups"],
-  "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "erp-enrichment", "ai-tag-group-profiles"],
+  "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "erp-enrichment", "ai-tag-group-profiles"],
   "backfill-sku-names":   ["erp-enrichment"],
   "erp-enrichment":       ["reprocess-metadata", "backfill-sku-names"],
 };
+
+export function runningTagConflict(opKey: string, running: Iterable<string>): boolean {
+  const normalized = opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey;
+  const keys = [...running];
+  return (normalized === "ai-tag-parallel" && keys.some(key => key.startsWith("ai-tag-single-"))) ||
+    (OP_CONFLICTS[normalized] ?? []).some(key => keys.includes(key));
+}
 
 function getLane(opKey: string): string {
   if (opKey.startsWith("ai-tag-single-")) return "ai-tagging";
@@ -386,13 +486,32 @@ function detectStaleRun(op: OpState): boolean {
 
 // ── Progress accumulator — mirrors buildProgress() in bulk-job-runner ────────
 
+function isRebuildRowCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+export function qualifyRebuildRowCounts(batch: BatchResult, op: OpState): BatchResult {
+  if (!batch.ok || batch.stage !== "rebuild_assets") return batch;
+  // The legacy handler estimates selected rows from its configured batch size.
+  // Only the scheduled watermark contract returns actual selected candidates;
+  // these counts do not describe physical database reads.
+  const exact = op.params?.watermark_protocol === 1
+    && isRebuildRowCount(batch.rows_examined)
+    && isRebuildRowCount(batch.assets_assigned)
+    && isRebuildRowCount(batch.assets_ungrouped)
+    && Number.isSafeInteger(batch.assets_assigned + batch.assets_ungrouped)
+    && batch.assets_assigned + batch.assets_ungrouped <= batch.rows_examined;
+  return { ...batch, rebuild_counts_exact: exact };
+}
+
 export function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: BatchResult): Record<string, unknown> {
   // Normalize dynamic keys for matching
   const normalizedKey = opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey;
   switch (normalizedKey) {
     case "ai-tag-untagged":
     case "ai-tag-all":
-    case "ai-tag-groups": {
+    case "ai-tag-groups":
+    case "ai-tag-parallel": {
       const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples as unknown[] : [];
       const batchFail = Array.isArray(batch.failure_samples) ? batch.failure_samples as unknown[] : [];
       const prevSkip = Array.isArray(prev.skip_samples) ? prev.skip_samples as unknown[] : [];
@@ -432,21 +551,53 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         failure_samples: [...prevFail, ...batchFail].slice(-100),
       };
     }
-    case "rebuild-style-groups":
+    case "rebuild-style-groups": {
+      let rowCounts = {
+        rows_examined: prev.rows_examined,
+        rows_written: prev.rows_written,
+        rebuild_counts_exact: prev.rebuild_counts_exact,
+      };
+      if (batch.ok && batch.stage === "rebuild_assets") {
+        const freshPrefix = prev.rebuild_counts_exact === undefined
+          && prev.rows_examined === undefined && prev.rows_written === undefined
+          && (prev.total_processed === undefined || prev.total_processed === 0);
+        const exactPrefix = prev.rebuild_counts_exact === true
+          && isRebuildRowCount(prev.rows_examined) && isRebuildRowCount(prev.rows_written);
+        const selected = batch.rows_examined;
+        const assigned = batch.assets_assigned;
+        const ungrouped = batch.assets_ungrouped;
+        if (batch.rebuild_counts_exact === true && (freshPrefix || exactPrefix)
+          && isRebuildRowCount(selected) && isRebuildRowCount(assigned) && isRebuildRowCount(ungrouped)) {
+          const examined = (freshPrefix ? 0 : Number(prev.rows_examined)) + selected;
+          const written = (freshPrefix ? 0 : Number(prev.rows_written)) + assigned + ungrouped;
+          // The handler commits its cursor/total before this separate progress
+          // write. A crash between them must not label an incomplete sum exact.
+          const reconciled = isRebuildRowCount(batch.total_processed) && batch.total_processed === examined;
+          rowCounts = reconciled && Number.isSafeInteger(examined) && Number.isSafeInteger(written)
+            ? { rows_examined: examined, rows_written: written, rebuild_counts_exact: true }
+            : { rows_examined: null, rows_written: null, rebuild_counts_exact: false };
+        } else {
+          // A resumed legacy prefix cannot be reconstructed from total_processed.
+          rowCounts = { rows_examined: null, rows_written: null, rebuild_counts_exact: false };
+        }
+      }
+      const successful: Partial<BatchResult> = batch.ok ? batch : {};
       return {
-        groups: ((prev.groups as number) || 0) + ((batch.groups_created as number) || 0),
-        assigned: ((prev.assigned as number) || 0) + ((batch.assets_assigned as number) || 0),
-        cleared: ((prev.cleared as number) || 0) + ((batch.cleared_assets as number) || 0),
-        groups_deleted: ((prev.groups_deleted as number) || 0) + ((batch.groups_deleted as number) || 0),
-        total_groups_before_delete: Math.max((prev.total_groups_before_delete as number) || 0, (batch.total_groups_before_delete as number) || 0),
-        total_processed: Math.max((prev.total_processed as number) || 0, (batch.total_processed as number) || 0),
-        total_assets: Math.max((prev.total_assets as number) || 0, (batch.total_assets as number) || 0),
-        counts_processed: Math.max((prev.counts_processed as number) || 0, (batch.counts_processed as number) || 0),
-        primaries_processed: Math.max((prev.primaries_processed as number) || 0, (batch.primaries_processed as number) || 0),
-        finalize_total_groups: Math.max((prev.finalize_total_groups as number) || 0, (batch.finalize_total_groups as number) || 0),
+        ...rowCounts,
+        groups: ((prev.groups as number) || 0) + ((successful.groups_created as number) || 0),
+        assigned: ((prev.assigned as number) || 0) + ((successful.assets_assigned as number) || 0),
+        cleared: ((prev.cleared as number) || 0) + ((successful.cleared_assets as number) || 0),
+        groups_deleted: ((prev.groups_deleted as number) || 0) + ((successful.groups_deleted as number) || 0),
+        total_groups_before_delete: Math.max((prev.total_groups_before_delete as number) || 0, (successful.total_groups_before_delete as number) || 0),
+        total_processed: Math.max((prev.total_processed as number) || 0, (successful.total_processed as number) || 0),
+        total_assets: Math.max((prev.total_assets as number) || 0, (successful.total_assets as number) || 0),
+        counts_processed: Math.max((prev.counts_processed as number) || 0, (successful.counts_processed as number) || 0),
+        primaries_processed: Math.max((prev.primaries_processed as number) || 0, (successful.primaries_processed as number) || 0),
+        finalize_total_groups: Math.max((prev.finalize_total_groups as number) || 0, (successful.finalize_total_groups as number) || 0),
         stage: batch.stage || prev.stage,
         substage: batch.sub || batch.substage || prev.substage,
       };
+    }
     case "reconcile-style-group-stats":
       return {
         counts_processed: Math.max((prev.counts_processed as number) || 0, (batch.counts_processed as number) || 0),
@@ -474,6 +625,7 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
     case "erp-classify":
       return {
         classified: ((prev.classified as number) || 0) + ((batch.classified as number) || 0),
+        failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
         skipped_unclassifiable: ((prev.skipped_unclassifiable as number) || 0) + ((batch.skipped_unclassifiable as number) || 0),
         total: ((prev.total as number) || 0) + ((batch.total as number) || 0),
       };
@@ -586,7 +738,7 @@ export function classifyError(msg: string): string {
 }
 
 export function interruptionReason(result: BatchResult): string {
-  if (result.error_code === "legacy_cursor" || result.error_code === "invalid_cursor") {
+  if (result.error_code === "legacy_cursor" || result.error_code === "invalid_cursor" || result.error_code === "meta_inference_deadline") {
     return result.error_code;
   }
   return classifyError(normalizeBatchError(result.error));
@@ -655,13 +807,19 @@ export function buildResultMessage(opKey: string, progress: Record<string, unkno
     case "ai-tag-untagged":
     case "ai-tag-all":
     case "ai-tag-groups":
+    case "ai-tag-parallel":
       return `Tagged ${progress.tagged}. ${(Number(progress.visual_analysis_unavailable) || 0) + (Number(progress.image_unusable) || 0)} visual analyses unavailable. ${progress.skipped || 0} skipped. ${progress.failed || 0} failed${progress.image_unusable ? ` (${progress.image_unusable} with unusable images)` : ""}.`;
     case "ai-tag-group-profiles":
       return `Profiled ${progress.profiled || 0} style groups. ${(Number(progress.visual_analysis_unavailable) || 0) + (Number(progress.image_unusable) || 0)} without usable representative images. ${progress.failed || 0} failed${progress.image_unusable ? ` (${progress.image_unusable} with unusable images)` : ""}.`;
     case "ai-tag-bakeoff":
       return `Evaluated ${progress.evaluated || 0} model responses. ${progress.failed || 0} failed.`;
-    case "rebuild-style-groups":
-      return `Created ${progress.groups} style groups, assigned ${progress.assigned} assets`;
+    case "rebuild-style-groups": {
+      const counts = progress.rebuild_counts_exact === true
+        && isRebuildRowCount(progress.rows_examined) && isRebuildRowCount(progress.rows_written)
+        ? `${progress.rows_examined} assets checked, ${progress.rows_written} assignments changed`
+        : "Asset check/change counts unavailable for this run";
+      return `Created ${progress.groups} style groups, assigned ${progress.assigned} assets. ${counts}`;
+    }
     case "reconcile-style-group-stats":
       return `Reconciled counts for ${progress.counts_processed || 0} groups, primaries for ${progress.primaries_processed || 0} groups`;
     case "erp-enrichment":
@@ -717,12 +875,14 @@ export async function dispatch(opKey: string, opState: OpState): Promise<BatchRe
     case "ai-tag-all":
     case "ai-tag-groups":
       return handleBulkAiTag(opState, true);
+    case "ai-tag-parallel":
+      return handleBulkAiTag(opState, true, {}, true, true);
     case "ai-tag-bakeoff":
       return handleAiTagBakeoff(opState);
     case "ai-tag-group-profiles":
       return handleStyleGroupProfiles(opState);
     case "rebuild-style-groups":
-      return handleRebuildStyleGroups(opState);
+      return qualifyRebuildRowCounts(await handleRebuildStyleGroups(opState), opState);
     case "reconcile-style-group-stats":
       return handleReconcileStyleGroupStats(opState);
     case "propagate-group-tags":
@@ -842,9 +1002,12 @@ export async function clearCompletedJobNow(
   const stored = saved.operation as OpState | undefined;
   const storedJob = stored?.external_job;
   if (!stored || storedJob?.phase !== "completed" || !storedJob.provider_batch_id) return false;
+  const metaTransition = storedJob.provider === "meta-responses" ? metaCompletedTransition(stored) : {};
+  if (!metaTransition) return false;
   const clearState: OpState = {
     ...stored,
     status: storedJob.operation_done_after_clear === true ? "completed" : "running",
+    ...metaTransition,
     external_job: { ...storedJob, lease_token: leaseToken, clear_after_reconciliation: true },
     updated_at: new Date().toISOString(),
   };
@@ -859,6 +1022,7 @@ export async function clearCompletedJobNow(
     return false;
   }
   submissionLeaseTokens.delete(opKey);
+  acceptedBindingReceipts.delete(opKey);
   return true;
 }
 
@@ -877,6 +1041,13 @@ export function needsWaitHeartbeat(op: OpState, nowMs = Date.now()): boolean {
 async function heartbeatWhileWaiting(opKey: string, state: OpState): Promise<void> {
   if (!needsWaitHeartbeat(state)) return;
   try {
+    // A handler may have saved several pages since this snapshot was read.
+    // Heartbeat only the latest exact-run checkpoint, never the caller's copy.
+    const { data, error } = await withDependencyTimeout("Waiting operation checkpoint read", db().from("admin_config").select("value").eq("key", CONFIG_KEY).maybeSingle());
+    if (error) throw new Error("Waiting operation checkpoint unavailable");
+    const fresh = (data?.value as Record<string, OpState> | undefined)?.[opKey];
+    if (!fresh || fresh.run_id !== state.run_id || !needsWaitHeartbeat(fresh)) return;
+    state = fresh;
     const { lease_token: _leaseToken, ...storedJob } = state.external_job ?? ({} as NonNullable<OpState["external_job"]>);
     const heartbeat: OpState = {
       ...state,
@@ -909,11 +1080,11 @@ export async function tick(): Promise<void> {
   }
 
   // Load all operations
-  const { data: configRow, error: configErr } = await client
+  const { data: configRow, error: configErr } = await withDependencyTimeout("Bulk operation acknowledgement reconciliation", client
     .from("admin_config")
     .select("value")
     .eq("key", CONFIG_KEY)
-    .maybeSingle();
+    .maybeSingle());
 
   if (configErr) {
     logger.error("tick: failed to load BULK_OPERATIONS", { error: configErr.message });
@@ -921,6 +1092,9 @@ export async function tick(): Promise<void> {
   }
 
   const allOps = (configRow?.value as Record<string, OpState>) || {};
+  for (const [key, state] of Object.entries(allOps)) reconcileHeldAcknowledgement(key, state);
+  synchronizeMetaReservations(allOps);
+  await observePausedMetaResponse(allOps, await getMetaApiKey());
   const originalOps: Record<string, OpState> = { ...allOps };
 
   // Stale lock detection
@@ -961,7 +1135,7 @@ export async function tick(): Promise<void> {
   for (const [key, op] of Object.entries(allOps)) {
     const lane = getLane(key);
     const laneBusy = [...autoResumeRunningKeys].some((runningKey) => getLane(runningKey) === lane);
-    const crossLaneBusy = (OP_CONFLICTS[key] ?? []).some((conflictKey) => autoResumeRunningKeys.has(conflictKey));
+    const crossLaneBusy = runningTagConflict(key, autoResumeRunningKeys);
     if (
       op.status === "interrupted" &&
       op.interruption_reason_code !== "user_stop" &&
@@ -973,7 +1147,12 @@ export async function tick(): Promise<void> {
       !crossLaneBusy
     ) {
       const attempts = (op.auto_resume_attempts ?? 0) + 1;
-      logger.info("tick: auto-resuming interrupted op", { opKey: key, attempts, reason: op.interruption_reason_code });
+      logger.info("tick: auto-resuming interrupted op", {
+        opKey: key,
+        attempts,
+        reason: op.interruption_reason_code,
+        ...(key === "rebuild-style-groups" ? { run_id: op.run_id, ...rebuildCursorReceipt(key, op, op.cursor, op.last_successful_cursor) } : {}),
+      });
       allOps[key] = {
         ...op,
         status: "running",
@@ -1015,8 +1194,7 @@ export async function tick(): Promise<void> {
     if (activeLanes.has(lane)) continue;
 
     // Cross-lane conflict check: skip if any currently-running op conflicts with this one
-    const crossConflicts = OP_CONFLICTS[nextOpKey] ?? [];
-    const hasConflict = crossConflicts.some((conflictKey) => runningKeys.has(conflictKey));
+    const hasConflict = runningTagConflict(nextOpKey, runningKeys);
     if (hasConflict) continue;
 
     logger.info("tick: promoting queued op", { opKey: nextOpKey, lane });
@@ -1049,6 +1227,22 @@ export async function tick(): Promise<void> {
   });
 
   const [opKey, opState] = runningEntries[0] as [string, OpState];
+
+  // Old UI bundles can create an already-running manual tag through the RPC.
+  // Queue it before any dispatch; it promotes normally after the parallel run.
+  if (opKey.startsWith("ai-tag-single-") && runningKeys.has("ai-tag-parallel")) {
+    await persistOpState(opKey, {...opState, status: "queued", updated_at: new Date().toISOString()}, {
+      onlyIfRunning: true, expectedRevision: opState.state_revision ?? 0,
+    });
+    return;
+  }
+
+  // A failed known-ID save is never re-dispatched or re-POSTed. Keep its original
+  // receipt/acknowledgement in RAM for owned reconciliation, even after three CASes.
+  if (acceptedAcknowledgements.has(opKey)) {
+    await heartbeatWhileWaiting(opKey, opState);
+    return;
+  }
 
   // Legacy op: no cursor — it cannot be resumed safely.
   if (opState.cursor === undefined) {
@@ -1130,7 +1324,7 @@ export async function tick(): Promise<void> {
       if (pendingReset?.kind === "definitive_rejection") {
         const failed = await failDefinitivelyRejectedSubmission(
           opKey, currentState, currentState.state_revision ?? 0,
-          `railway:${currentState.run_id ?? "unknown"}`, heldRetryToken, pendingReset.rejection,
+          submissionOwnerForRun(currentState.run_id), heldRetryToken, pendingReset.rejection,
         );
         await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
         return;
@@ -1139,7 +1333,7 @@ export async function tick(): Promise<void> {
       // rebuild plus renewal. Reset it as never-submitted while it is live.
       await failNeverSentSubmission(
         opKey, currentState, currentState.state_revision ?? 0,
-        `railway:${currentState.run_id ?? "unknown"}`, heldRetryToken,
+        submissionOwnerForRun(currentState.run_id), heldRetryToken,
         new PreSubmissionError("Submission lease cannot cover another preparation attempt"),
       );
       return;
@@ -1148,11 +1342,11 @@ export async function tick(): Promise<void> {
     let result: BatchResult;
     try {
       const retryAfter = submissionLeaseRetryAfter.get(opKey) ?? 0;
-      if (currentState.external_job && !submissionLeaseTokens.has(opKey) && retryAfter > Date.now()) {
+      if (currentState.external_job && !submissionLeaseTokens.has(opKey) && !boundProviderReceipt(opKey, currentState) && retryAfter > Date.now()) {
         await heartbeatWhileWaiting(opKey, currentState);
         return;
       }
-      const rememberedLeaseToken = submissionLeaseTokens.get(opKey);
+      const rememberedLeaseToken = boundProviderReceipt(opKey, currentState) ?? submissionLeaseTokens.get(opKey);
       const cachedPayload = preparedPayloads.get(opKey);
       preparedPayloads.delete(opKey);
       const reusablePayload = cachedPayload && currentState.external_job?.phase === "prepared"
@@ -1177,7 +1371,7 @@ export async function tick(): Promise<void> {
         if (!holdReceiptAfterPreSubmissionFailure(opKey, e, heldJob.lease_expires_at)) {
           await failNeverSentSubmission(
             opKey, currentState, currentState.state_revision ?? 0,
-            `railway:${currentState.run_id ?? "unknown"}`, heldReceiptToken, e,
+            submissionOwnerForRun(currentState.run_id), heldReceiptToken, e,
           );
         }
         return;
@@ -1204,7 +1398,7 @@ export async function tick(): Promise<void> {
     }
 
     if (result.state_transition === "claim_submission") {
-      const owner = `railway:${currentState.run_id ?? "unknown"}`;
+      const owner = submissionOwnerForRun(currentState.run_id);
       const claimState: OpState = {
         ...currentState,
         cursor,
@@ -1260,8 +1454,12 @@ export async function tick(): Promise<void> {
           // revision- and receipt-guarded). The receipt is kept until that lands.
           preSubmissionRetries.delete(opKey);
           const failed = await failDefinitivelyRejectedSubmission(opKey, claimedState, claim.state_revision, owner, leaseToken, error);
-          await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
-          logger.error("tick: provider definitively rejected the batch submission", { opKey, error: failed.error });
+          if (failed.status === "failed") {
+            await recordStyleGroupTerminalOutcome(opKey, failed, "failed");
+            logger.error("tick: provider definitively rejected the batch submission", { opKey, error: failed.error });
+          } else {
+            logger.info("tick: advancing Meta structured-output method after a definitive rejection", { opKey });
+          }
           return;
         }
         submissionLeaseTokens.delete(opKey);
@@ -1308,35 +1506,43 @@ export async function tick(): Promise<void> {
         });
         return;
       }
-      const submittedState: OpState = {
-        ...claimedState,
-        status: result.done ? "completed" : "running",
-        cursor: (result.nextOffset as number | string | undefined) ?? claimedState.cursor,
-        progress: mergeProgress(opKey, progress, result),
-        external_job: result.external_job as OpState["external_job"],
-        updated_at: new Date().toISOString(),
-      };
-      let idSaved = false;
-      try {
-        const saved = await guardedPersistOpState(opKey, submittedState, {
-          expectedRevision: claim.state_revision,
-        });
-        idSaved = saved.ok && saved.provider_batch_id === submittedState.external_job?.provider_batch_id;
-      } finally {
-        if (!idSaved) {
-          // The POST happened. Never keep the receipt for a rebuild/resubmit:
-          // drop it so the lease lapses into the database's ambiguous state.
-          releaseReceiptAfterPost(opKey, claimedState.external_job?.lease_expires_at);
+      if (claimedState.external_job?.provider_batch_id) {
+        // A reattached known-ID job was polled/applied, not submitted. Its
+        // returned phase may already be completed, so it must use the normal
+        // receipt-proven phase writer below, not the new-POST acknowledgement
+        // binder (which requires the old state to be unbound/submitting).
+        // Continue from the freshly claimed revision; never reuse the pre-claim
+        // revision or mint another submission acknowledgement for this job.
+        currentState = claimedState;
+      } else {
+        const submittedState: OpState = {
+          ...claimedState,
+          status: result.done ? "completed" : "running",
+          cursor: (result.nextOffset as number | string | undefined) ?? claimedState.cursor,
+          progress: mergeProgress(opKey, progress, result),
+          external_job: result.external_job as OpState["external_job"],
+          updated_at: new Date().toISOString(),
+        };
+        const acknowledgement: AcceptedProviderAcknowledgement = { opKey, claimed: structuredClone(claimedState), submitted: structuredClone(submittedState), leaseToken, owner, attempts: 0 };
+        const savedAcknowledgement = await saveAcceptedAcknowledgement(acknowledgement,
+          (fn, params) => db().rpc(fn, params),
+          async () => {
+            const { data, error } = await db().from("admin_config").select("value").eq("key", CONFIG_KEY).maybeSingle();
+            if (error) throw new Error("Accepted acknowledgement read failed");
+            return (data?.value as Record<string, OpState> | undefined)?.[opKey] ?? null;
+          });
+        if (!savedAcknowledgement.saved) {
+          logger.error("tick: accepted provider acknowledgement remains held in memory; no new submission is authorized", { attempts: acknowledgement.attempts, reason: savedAcknowledgement.reason });
+          return;
         }
+        preSubmissionRetries.delete(opKey);
+        if (result.done) submissionLeaseTokens.delete(opKey);
+        logger.info("tick: durable provider batch saved", {
+          opKey,
+          batchId: submittedState.external_job?.provider_batch_id,
+        });
+        return;
       }
-      if (!idSaved) throw new Error("The provider accepted the batch but its ID could not be safely saved");
-      preSubmissionRetries.delete(opKey);
-      if (result.done) submissionLeaseTokens.delete(opKey);
-      logger.info("tick: durable provider batch saved", {
-        opKey,
-        batchId: submittedState.external_job?.provider_batch_id,
-      });
-      return;
     }
     if (result.state_transition === "yield_without_save") {
       await heartbeatWhileWaiting(opKey, currentState);
@@ -1351,6 +1557,7 @@ export async function tick(): Promise<void> {
         expectedRevision: currentState.state_revision ?? 0,
       });
       if (!saved.ok) throw new Error(`Protected provider failure save refused: ${saved.reason}`);
+      refreshBoundProviderAccount(opKey, currentState, protectedErrorState, saved);
       // The guarded write only applies to a still-running operation at the
       // expected revision, so the terminal outcome is recorded exactly once.
       if (protectedErrorState.status === "failed") await recordStyleGroupTerminalOutcome(opKey, protectedErrorState, "failed");
@@ -1364,6 +1571,7 @@ export async function tick(): Promise<void> {
         status: result.done ? "completed" : "running",
         cursor: (result.nextOffset as number | string | undefined) ?? cursor,
         progress: mergeProgress(opKey, progress, result),
+        meta_tag_attempt: result.meta_tag_attempt !== undefined ? result.meta_tag_attempt as OpState["meta_tag_attempt"] : currentState.meta_tag_attempt,
         external_job: resultJob,
         updated_at: new Date().toISOString(),
       };
@@ -1371,12 +1579,15 @@ export async function tick(): Promise<void> {
         expectedRevision: currentState.state_revision ?? 0,
       });
       if (!saved.ok && saved.reason === "already_cleared" && resultJob.clear_after_reconciliation) {
+        acceptedBindingReceipts.delete(opKey);
         // Idempotent repeat clear: another tick already cleared this job.
         submissionLeaseTokens.delete(opKey);
         return;
       }
       if (!saved.ok) throw new Error(`Protected provider state save refused: ${saved.reason}`);
+      refreshBoundProviderAccount(opKey, currentState, guardedState, saved);
       if (result.done || resultJob.clear_after_reconciliation) {
+        acceptedBindingReceipts.delete(opKey);
         submissionLeaseTokens.delete(opKey);
         return;
       }
@@ -1425,6 +1636,9 @@ export async function tick(): Promise<void> {
         cursor_version: typeof cursor === "string" ? cursor.split(":", 1)[0] : "numeric",
         elapsed_ms: result.elapsed_ms,
         postgres_code: result.postgres_code,
+        // The loop cursor reflects the latest operation checkpoint whose save returned true;
+        // currentState still holds the prior persisted snapshot until the next iteration.
+        ...rebuildCursorReceipt(opKey, currentState, cursor, cursor),
       });
       const failureState: OpState = {
         ...currentState,
@@ -1475,8 +1689,12 @@ export async function tick(): Promise<void> {
       return;
     }
 
+    const operationCursorBeforeBatch = cursor;
+    const wasAutoResumed = opKey === "rebuild-style-groups" && (currentState.auto_resume_attempts ?? 0) > 0;
+    const autoResumeAttempts = currentState.auto_resume_attempts ?? 0;
     currentState = {
       ...currentState,
+      meta_tag_attempt: result.meta_tag_attempt !== undefined ? result.meta_tag_attempt as OpState["meta_tag_attempt"] : currentState.meta_tag_attempt,
       external_job: result.clear_external_job
         ? undefined
         : (result.external_job as OpState["external_job"] | undefined) ?? currentState.external_job,
@@ -1516,6 +1734,17 @@ export async function tick(): Promise<void> {
       return;
     }
 
+    if (wasAutoResumed) {
+      logger.info("tick: resumed rebuild batch persisted", {
+        opKey,
+        run_id: currentState.run_id,
+        attempts: autoResumeAttempts,
+        ...rebuildCursorReceipt(opKey, currentState, cursor, cursor),
+        operation_cursor_before_sha256: hashCursorCheckpoint("operation", opKey, "cursor", operationCursorBeforeBatch ?? null),
+        operation_cursor_after_sha256: hashCursorCheckpoint("operation", opKey, "cursor", cursor ?? null),
+      });
+    }
+
     // Reload the database-assigned revision before attempting the submission
     // lease. Continuing in this same loop would claim with the old revision.
     if (result.external_job) {
@@ -1548,7 +1777,7 @@ export async function tick(): Promise<void> {
     }
 
     // Yield after MAX_BATCHES_PER_TICK so other operations get a turn
-    if (batchCount >= MAX_BATCHES_PER_TICK) {
+    if (batchCount >= operationBatchLimit(opKey)) {
       logger.info("tick: yielding after max batches", { opKey, batches: batchCount, cursor });
       return; // State already saved above; main loop re-enters tick()
     }

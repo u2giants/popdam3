@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "work_issue": 4281,
+  "outcome": "ready-for-merge",
+  "pr": 4284,
+  "migration_versions": [
+    "20261014043757"
+  ],
+  "contract_ref": "refs/db-contracts/4281/5",
+  "contract_sha256": "2815b8141fa8ce02bd01596945cb07d870f7fd39a009f34d66dbfc90199da4ab",
+  "base_sha": "08d0b593a1f3eeb95623b703373345b7a412b11b",
+  "head_sha": "2f9fce9ce785d216df32df99a455960d298132ea",
+  "files_changed": [
+    ".github/live-proofs/4281.sql",
+    "supabase/migrations/20261014043757_render_z_nas_password_vault.sql",
+    "supabase/tests/render_z_nas_password_vault_contracts.sql"
+  ],
+  "db_reads": [
+    "table public.admin_config (WINDOWS_AGENT_NAS_PASS value, read once and copied into Vault)",
+    "table vault.secrets (row popdam_render_z_nas_password, written only by set_render_z_nas_password)",
+    "table vault.decrypted_secrets (read by get_render_z_nas_password)"
+  ],
+  "db_writes": [
+    "function public.get_render_z_nas_password",
+    "function public.set_render_z_nas_password"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed."
+    },
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    },
+    {
+      "command": "node scripts/check-live-proof-probe.mjs",
+      "exit_code": 0,
+      "evidence": "Not applicable: outcome #4281 returns to u2giants/popdam3 (the shared-db probe is kept accurate for the record)."
+    },
+    {
+      "command": "psql --set ON_ERROR_STOP=1 -f supabase/tests/render_z_nas_password_vault_contracts.sql",
+      "exit_code": 0,
+      "evidence": "Ran in CI 'supabase/tests against an ephemeral database' on head ef2f925 (run 38523696424), whose migration, test and probe bytes are identical to implementation head 2f9fce9: migration applied, contract test incl. empty-string clear passed."
+    }
+  ],
+  "assumptions_resolved": [
+    "Contract generation 4 published before the implementation commit; generations 1 to 3 superseded."
+  ],
+  "stop_conditions_hit": []
+}

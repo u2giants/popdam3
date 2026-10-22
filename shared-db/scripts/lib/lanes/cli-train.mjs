@@ -1,7 +1,7 @@
 // Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
-import { MigrationTrainError, TRAIN_REF_PREFIX, proposeTrain, validateTrain, transitionTrain, trainRecordRef, assertRecordedTrain, assertTrainProductionEvidence, assertDispatchMatchesTrain } from '../../orchestrator-flow/migration-train.mjs'
-import { sha256, canonicalJson } from '../../orchestrator-flow/evidence-bundle.mjs'
+import { MigrationTrainError, TRAIN_REF_PREFIX, proposeTrain, validateTrain, transitionTrain, trainRecordRef, assertRecordedTrain, assertTrainProductionEvidence, assertDispatchMatchesTrain } from '../../db-flow/migration-train.mjs'
+import { sha256, canonicalJson } from '../../db-flow/evidence-bundle.mjs'
 import { createHash } from 'node:crypto'
 import { main } from '../../manage-migration-author-lanes.mjs'
 

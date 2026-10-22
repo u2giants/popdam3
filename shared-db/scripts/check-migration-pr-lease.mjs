@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import path from 'node:path'
 import { dispatchObjectKeys } from './check-pr-object-collisions.mjs'
-import { parseAuthorLease, REPO } from './manage-migration-author-lanes.mjs'
+import { parseAuthorLease, REPO, authorCheckinRef, validateAuthorCheckin, AUTHOR_CHECKIN_MESSAGE } from './manage-migration-author-lanes.mjs'
 import { validateHistoricalRestorationFile } from './historical-migration-restorations.mjs'
 
 export class LeaseCheckError extends Error {}
@@ -18,7 +18,7 @@ export function declarationCoversActual(declared, actual) {
   return Boolean(column && declared.has(`table ${column[1]}`))
 }
 
-export function validateMigrationLease({ claims, branch, files, now = new Date(), reservationExists, retirementExists = () => false }) {
+export function validateMigrationLease({ claims, branch, files, now = new Date(), reservationExists, retirementExists = () => false, confirmationForClaim = () => null, pr, headSha }) {
   const migrations=files.filter(f=>f.filename?.startsWith('supabase/migrations/')&&f.filename.endsWith('.sql')&&f.status!=='removed')
   if (!migrations.length) return { relevant:false }
   if(migrations.length===1){
@@ -37,6 +37,7 @@ export function validateMigrationLease({ claims, branch, files, now = new Date()
   const holder=matching[0]
   if(!holder.lease.active) throw new LeaseCheckError(`claim #${holder.number} is expired`)
   if(holder.lease.capacityState !== 'active') throw new LeaseCheckError(`claim #${holder.number} author capacity is ${holder.lease.capacityState}`)
+  try{validateAuthorCheckin(confirmationForClaim(holder),holder,now,{pr,headSha})}catch(error){throw new LeaseCheckError(`claim #${holder.number} needs a current owner check-in before a protected action: ${error.message}`)}
   // WRITES ONLY. A migration's statically extracted objects are things it CHANGES,
   // so only the claim's writes can cover them. A read declaration must never
   // satisfy a write: that is the whole point of separating the two lists.
@@ -97,7 +98,13 @@ export function gatherPrInput(env=process.env){
   // The claim list is read only when the PR changes a migration: without one the
   // validator returns before it looks at claims, so the full issue listing was wasted.
   const claims=files.some(f=>f.filename?.startsWith('supabase/migrations/')&&f.filename.endsWith('.sql')&&f.status!=='removed')?openClaimIssues(pages(`repos/${REPO}/issues?state=open&per_page=100`)):[]
-  return {claims,branch:pr.head.ref,files,reservationExists:(version)=>{try{return Boolean(json(['api',`repos/${REPO}/git/ref/db-claims/${version}`])?.object?.sha)}catch{return false}},
+  return {claims,branch:pr.head.ref,files,pr:number,headSha:pr.head.sha,confirmationForClaim:(claim)=>{
+    const ref=authorCheckinRef(claim.number,claim.body),sha=json(['api',`repos/${REPO}/git/ref/${ref.slice(5)}`])?.object?.sha
+    if(!/^[0-9a-f]{40}$/.test(String(sha)))throw new LeaseCheckError('author check-in reference is unreadable')
+    const message=String(json(['api',`repos/${REPO}/git/commits/${sha}`])?.message??'')
+    if(!message.startsWith(AUTHOR_CHECKIN_MESSAGE))throw new LeaseCheckError('author check-in receipt is malformed')
+    try{return JSON.parse(message.slice(AUTHOR_CHECKIN_MESSAGE.length))}catch{throw new LeaseCheckError('author check-in receipt is malformed')}
+  },reservationExists:(version)=>{try{return Boolean(json(['api',`repos/${REPO}/git/ref/db-claims/${version}`])?.object?.sha)}catch{return false}},
     // A retirement lookup is a single ref read for the ONE version this PR
     // carries, so it costs nothing per claim. It is fail-CLOSED on an unreadable
     // answer only when the ref exists: a hard failure here would let a retired

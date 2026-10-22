@@ -1,10 +1,43 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { buildResultMessage, classifyError, interruptionReason, isProtectedExternalJob, mergeProgress, nextAutoResumeAt, normalizeBatchError, scopeSingleAssetTag } from "./operation-loop.js";
+import { buildResultMessage, classifyError, interruptionReason, isProtectedExternalJob, mergeProgress, nextAutoResumeAt, normalizeBatchError, qualifyRebuildRowCounts, rebuildCursorReceipt, scopeSingleAssetTag } from "./operation-loop.js";
+import { hashCursorCheckpoint } from "./handlers/style-groups.js";
 import type { OpState } from "./types.js";
 
 const ASSET_ID = "123e4567-e89b-42d3-a456-426614174000";
+
+test("rebuild operation receipts hash typed cursors and keep only approved watermark metadata", () => {
+  const marker = "sentinel-private-asset-uuid-123e4567-e89b-42d3-a456-426614174000";
+  const state: OpState = {
+    status: "interrupted",
+    run_id: "rebuild-safe-run",
+    params: {
+      watermark_protocol: 1,
+      rebuild_mode: "incremental",
+      changed_since: "2026-10-14T06:00:00.000Z",
+      changed_cutoff: "2026-10-15T06:00:00.000Z",
+      private_name: marker,
+      private_tag: marker,
+    },
+  };
+  const receipt = rebuildCursorReceipt("rebuild-style-groups", state, marker, null);
+  assert.deepEqual(receipt, {
+    run_id: "rebuild-safe-run",
+    changed_since: "2026-10-14T06:00:00.000Z",
+    changed_cutoff: "2026-10-15T06:00:00.000Z",
+    rebuild_mode: "incremental",
+    operation_cursor_sha256: hashCursorCheckpoint("operation", "rebuild-style-groups", "cursor", marker),
+    operation_last_successful_cursor_sha256: hashCursorCheckpoint("operation", "rebuild-style-groups", "last_successful_cursor", null),
+  });
+  assert.doesNotMatch(JSON.stringify(receipt), /sentinel-private-asset-uuid/);
+  const numericZero = hashCursorCheckpoint("operation", "rebuild-style-groups", "cursor", 0);
+  const stringZero = hashCursorCheckpoint("operation", "rebuild-style-groups", "cursor", "0");
+  const nullCursor = hashCursorCheckpoint("operation", "rebuild-style-groups", "cursor", null);
+  assert.notEqual(numericZero, stringZero, "numeric and string cursors must retain distinct identities");
+  assert.notEqual(nullCursor, numericZero, "a null cursor must not collide with numeric zero");
+  assert.deepEqual(rebuildCursorReceipt("other-operation", state, marker, null), {});
+});
 
 test("a live provider job is protected from being cleared; an idle one is not", () => {
   // Live phases the guarded writer refuses to drop (shared-db migration
@@ -61,6 +94,95 @@ test("style-group rebuild progress sums deletions and preserves the largest pre-
 
   assert.equal(progress.groups_deleted, 400);
   assert.equal(progress.total_groups_before_delete, 10_868);
+});
+
+const scheduledRebuild: OpState = { status: "running", params: { watermark_protocol: 1 } };
+
+test("actual rebuild counts survive multiple batches, interrupted persistence and finalization", () => {
+  let progress = mergeProgress("rebuild-style-groups", {}, { ok: true, done: false, stage: "delete_groups", groups_deleted: 2 });
+  for (const batch of [
+    { ok: true, done: false, stage: "rebuild_assets", rows_examined: 3, assets_assigned: 1, assets_ungrouped: 1, total_processed: 3 },
+    { ok: true, done: false, stage: "rebuild_assets", rows_examined: 4, assets_assigned: 0, assets_ungrouped: 1, total_processed: 7 },
+  ]) progress = mergeProgress("rebuild-style-groups", progress, qualifyRebuildRowCounts(batch, scheduledRebuild));
+
+  // This is the persisted progress restored after an interrupted worker restart.
+  progress = JSON.parse(JSON.stringify(progress));
+  progress = mergeProgress("rebuild-style-groups", progress, qualifyRebuildRowCounts({
+    ok: true, done: false, stage: "rebuild_assets", rows_examined: 2, assets_assigned: 1, assets_ungrouped: 0, total_processed: 9,
+  }, scheduledRebuild));
+  progress = mergeProgress("rebuild-style-groups", progress, { ok: true, done: true, stage: "finalize_stats", counts_processed: 12 });
+
+  assert.equal(progress.rows_examined, 9, "selected candidates accumulate, including unchanged candidates");
+  assert.equal(progress.rows_written, 4, "assignments and ungroup operations accumulate, not all selected candidates");
+  assert.equal(progress.groups_deleted, 2);
+  assert.equal(progress.total_processed, 9);
+  assert.equal(progress.counts_processed, 12);
+  assert.match(buildResultMessage("rebuild-style-groups", progress), /9 assets checked, 4 assignments changed/);
+});
+
+test("an empty scheduled candidate batch reports exact zero rather than unavailable counts", () => {
+  const progress = mergeProgress("rebuild-style-groups", {}, qualifyRebuildRowCounts({
+    ok: true, done: false, stage: "rebuild_assets", rows_examined: 0, assets_assigned: 0, assets_ungrouped: 0, total_processed: 0,
+  }, scheduledRebuild));
+  assert.equal(progress.rebuild_counts_exact, true);
+  assert.equal(progress.rows_examined, 0);
+  assert.equal(progress.rows_written, 0);
+  assert.match(buildResultMessage("rebuild-style-groups", progress), /0 assets checked, 0 assignments changed/);
+});
+
+test("legacy batch-size estimates and old interrupted prefixes never become actual run totals", () => {
+  const legacy = qualifyRebuildRowCounts({
+    ok: true, done: false, stage: "rebuild_assets", rows_examined: 500, assets_assigned: 2, assets_ungrouped: 0,
+  }, { status: "running" });
+  assert.equal(legacy.ok, true, "the original recovery operation still succeeds");
+  assert.equal(legacy.rebuild_counts_exact, false);
+  let progress = mergeProgress("rebuild-style-groups", {}, legacy);
+  progress = mergeProgress("rebuild-style-groups", JSON.parse(JSON.stringify(progress)), qualifyRebuildRowCounts({
+    ok: true, done: false, stage: "rebuild_assets", rows_examined: 3, assets_assigned: 1, assets_ungrouped: 0,
+  }, scheduledRebuild));
+  assert.equal(progress.rows_examined, null);
+  assert.equal(progress.rows_written, null);
+  assert.match(buildResultMessage("rebuild-style-groups", progress), /counts unavailable/);
+  const oldPrefix = mergeProgress("rebuild-style-groups", { total_processed: 500, assigned: 2 }, qualifyRebuildRowCounts({
+    ok: true, done: false, stage: "rebuild_assets", rows_examined: 3, assets_assigned: 1, assets_ungrouped: 0,
+  }, scheduledRebuild));
+  assert.equal(oldPrefix.rows_examined, null, "missing pre-restart actual counts cannot be inferred from a legacy estimate");
+});
+
+test("missing or malformed scheduled counts remain unknown without failing the original batch", () => {
+  for (const counts of [
+    { assets_assigned: 0, assets_ungrouped: 0 },
+    { rows_examined: -1, assets_assigned: 0, assets_ungrouped: 0 },
+    { rows_examined: 1.5, assets_assigned: 0, assets_ungrouped: 0 },
+    { rows_examined: 1, assets_assigned: "1", assets_ungrouped: 0 },
+    { rows_examined: 1, assets_assigned: 1, assets_ungrouped: 1 },
+  ]) {
+    const batch = qualifyRebuildRowCounts({ ok: true, done: false, stage: "rebuild_assets", ...counts }, scheduledRebuild);
+    assert.equal(batch.ok, true);
+    assert.equal(batch.done, false);
+    const progress = mergeProgress("rebuild-style-groups", {}, batch);
+    assert.equal(progress.rebuild_counts_exact, false);
+    assert.equal(progress.rows_examined, null);
+  }
+});
+
+test("a failed rebuild batch advances neither actual counters nor completion", () => {
+  const previous = { rows_examined: 3, rows_written: 2, rebuild_counts_exact: true, groups: 4, assigned: 2, cleared: 5, groups_deleted: 3, total_processed: 11 };
+  const failed = qualifyRebuildRowCounts({
+    ok: false, done: false, stage: "rebuild_assets", error: "statement timeout", rows_examined: 10, assets_assigned: 8, assets_ungrouped: 1, groups_created: 3, cleared_assets: 4, groups_deleted: 2, total_processed: 100,
+  }, scheduledRebuild);
+  assert.equal(failed.ok, false);
+  assert.equal(failed.done, false);
+  assert.equal(failed.error, "statement timeout");
+  const progress = mergeProgress("rebuild-style-groups", previous, failed);
+  assert.equal(progress.rows_examined, 3);
+  assert.equal(progress.rows_written, 2);
+  assert.equal(progress.rebuild_counts_exact, true);
+  assert.equal(progress.groups, 4);
+  assert.equal(progress.assigned, 2);
+  assert.equal(progress.cleared, 5);
+  assert.equal(progress.groups_deleted, 3);
+  assert.equal(progress.total_processed, 11);
 });
 
 test("blank handler errors are made explicit and are not classified as unknown", () => {
@@ -321,4 +443,43 @@ test("receipt-less clear after a crash matches the vendored #3543 contract and t
   const source = readFileSync(new URL("./operation-loop.ts", import.meta.url), "utf8");
   assert.match(source, /resultJob\?\.lease_token \|\| resultJob\?\.clear_after_reconciliation/);
   assert.match(source, /saved\.reason === "already_cleared" && resultJob\.clear_after_reconciliation/);
+});
+
+
+test("a state cursor ahead of loop progress never labels the partial sum exact", () => {
+  const previous = { rows_examined: 3, rows_written: 2, rebuild_counts_exact: true, total_processed: 3 };
+  const progress = mergeProgress("rebuild-style-groups", previous, qualifyRebuildRowCounts({
+    ok: true, done: false, stage: "rebuild_assets", rows_examined: 2, assets_assigned: 1, assets_ungrouped: 0, total_processed: 8,
+  }, scheduledRebuild));
+  assert.equal(progress.total_processed, 8, "the authoritative handler total and job progress are preserved");
+  assert.equal(progress.rebuild_counts_exact, false);
+  assert.equal(progress.rows_examined, null);
+  assert.equal(progress.rows_written, null);
+  assert.match(buildResultMessage("rebuild-style-groups", progress), /counts unavailable/);
+});
+test("missing authoritative scheduled total never becomes an exact run count", () => {
+  const progress = mergeProgress("rebuild-style-groups", {}, qualifyRebuildRowCounts({
+    ok: true, done: false, stage: "rebuild_assets", rows_examined: 2, assets_assigned: 1, assets_ungrouped: 0,
+  }, scheduledRebuild));
+  assert.equal(progress.rebuild_counts_exact, false);
+  assert.equal(progress.rows_examined, null);
+});
+
+test("Meta guarded exact clear advances one asset or persists bounded retry, never malformed or refused state", async () => {
+ const {clearCompletedJobNow}=await import("./operation-loop.js");
+ const id="123e4567-e89b-42d3-a456-426614174000";
+ const stored:OpState={status:"running",cursor:0,params:{asset_ids:[id]},meta_tag_attempt:{asset_id:id,method_index:0,same_model_retry:0},external_job:{provider:"meta-responses",phase:"completed",provider_batch_id:"opaque-id",next_cursor:1,operation_done_after_clear:true,meta_asset_terminal:true,items:[{asset_id:id,custom_id:"x",status:"applied"}]}};
+ const writes:OpState[]=[];
+ const persist=(async(_key:string,state:OpState)=>{writes.push(state);return {ok:true,state_revision:2,reason:"ok"};}) as never;
+ assert.equal(await clearCompletedJobNow("meta",{ok:true,state_revision:1,operation:stored},"receipt",persist),true);
+ assert.equal(writes[0].cursor,1);assert.equal(writes[0].meta_tag_attempt,null);assert.equal(writes[0].status,"completed");
+ const retry={...stored,external_job:{...stored.external_job!,meta_asset_terminal:false,meta_next_attempt:{asset_id:id,method_index:1,same_model_retry:0}}};
+ assert.equal(await clearCompletedJobNow("meta",{ok:true,state_revision:1,operation:retry},"receipt",persist),true);
+ assert.equal(writes[1].cursor,0);assert.equal(writes[1].meta_tag_attempt?.method_index,1);assert.equal(writes[1].status,"running");
+ assert.equal(await clearCompletedJobNow("meta",{ok:true,state_revision:1,operation:{...stored,external_job:{...stored.external_job!,next_cursor:2}}},"receipt",persist),false);
+ assert.equal(await clearCompletedJobNow("meta",{ok:true,state_revision:1,operation:{...retry,external_job:{...retry.external_job!,meta_next_attempt:{asset_id:id,method_index:3,same_model_retry:0}}}},"receipt",persist),false);
+ assert.equal(writes.length,2);
+ const refused=(async()=>({ok:false,state_revision:1,reason:"revision_conflict"})) as never;
+ assert.equal(await clearCompletedJobNow("meta",{ok:true,state_revision:1,operation:stored},"receipt",refused),false);
+ assert.equal(stored.cursor,0);assert.equal(stored.external_job?.provider_batch_id,"opaque-id");
 });

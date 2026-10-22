@@ -1,0 +1,40 @@
+{
+  "schema_version": 2,
+  "generation": 1,
+  "evidence_parent": null,
+  "work_issue": 4556,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Add the read-only production live-proof probe .github/live-proofs/2358.sql for #2358 so the Shared DB Live Proof workflow can produce the live artifact --complete-outcome requires.",
+  "base_sha": "1b7edfedb5190f6b6d9ed9767d9e877e1ec35bae",
+  "dispatcher": "Claude chat 2e76ba1f-5ba3-4866-8e6f-4369feebcb0a on edge-dev3",
+  "worker": "same session",
+  "branch": "claude/4556-live-proof-2358",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/shared-holds-closeout-pr-4be006",
+  "allowed_paths": [
+    ".github/live-proofs/2358.sql",
+    ".agent/work/4556/1/contract.json",
+    ".agent/work/4556/1/completion.json"
+  ],
+  "file_writes": [
+    ".github/live-proofs/2358.sql",
+    ".agent/work/4556/1/contract.json",
+    ".agent/work/4556/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration, schema, or data change.",
+    "Do not change files outside allowed_paths."
+  ],
+  "required_checks": [
+    "node scripts/check-live-proof-probe.mjs",
+    "git diff --check origin/main...HEAD"
+  ],
+  "assumptions": [
+    "The probe is consumed only by the read-only live-proof workflow after merge."
+  ],
+  "stop_conditions": [
+    "Stop if a required check fails."
+  ]
+}

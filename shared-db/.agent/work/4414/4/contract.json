@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "work_issue": 4414,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Land the #4414 remaining-steps handoff file.",
+  "base_sha": "a7b32d7e8a4113f66c3d450f60fec1a1c2bf0ad2",
+  "dispatcher": "MiMo chat ses-ffe5eaf-8884-1ffe-yWs7-yCi5D5 on edge-dev",
+  "worker": "MiMo chat ses-ffe5eaf-8884-1ffe-yWs7-yCi5D5 on edge-dev",
+  "branch": "mimo/4414-handoff",
+  "worktree": "D:/repos/shared-db-worktrees/4414-handoff",
+  "allowed_paths": [
+    ".agent/work/4414/4/contract.json",
+    ".agent/work/4414/4/completion.json",
+    "HANDOFF.d/2026-10-18T1952Z-edge-dev-mimo-4414-assignment-holds-remaining.md"
+  ],
+  "file_writes": [
+    ".agent/work/4414/4/contract.json",
+    ".agent/work/4414/4/completion.json",
+    "HANDOFF.d/2026-10-18T1952Z-edge-dev-mimo-4414-assignment-holds-remaining.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database change."
+  ],
+  "required_checks": [
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Handoff-only prose."
+  ],
+  "stop_conditions": [
+    "Stop if non-prose files appear."
+  ],
+  "generation": 4,
+  "evidence_parent": {
+    "work_issue": 4414,
+    "generation": 3,
+    "contract_sha256": "03b47c8f9b2f339211d74d237846e1c459c1fd86e6dd738b6c8c30faba7d73fc"
+  }
+}

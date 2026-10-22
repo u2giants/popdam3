@@ -11,7 +11,7 @@
 // NOT YET APPLIED, sets step output applied=false, writes no proof, exits 0.
 // Every 2911/2934 call is read-only: the PostgREST OpenAPI schema document,
 // a one-row select, and the read-only preview guard function.
-import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
@@ -35,6 +35,9 @@ const ASSERTIONS = {
   3457: "On production, public.search_dam_documents has the 8-arg signature with p_min_semantic_score real default null, the 7-arg signature is dropped, execute is granted to authenticated and service_role only, a semantic floor is applied only inside the semantic leg before blend, and null floor preserves prior blended-rank behaviour exactly.",
   4064: "production public.admin_config_apply_counters(text,jsonb,jsonb) exists, is executable by service_role and not by anon/authenticated, and atomically increments admin_config JSON counters",
   4037: "production app.handle_new_auth_user() inserts app.app_access(profile_id,'dam') for new users whose email ends in @popcre.com, keeping existing behaviour",
+  4190: "production cron.job 'refresh-style-guide-matviews' schedule is '7 * * * *' and 'refresh-style-guide-library-default-snapshot' schedule is '*/15 * * * *', both active, with succeeded runs after the change",
+  4257: "Existing orders remain readable and editable; all writers reject reused production PO numbers and preserve permanent reservations; historical exceptions require sealed exact-order admissions.",
+  4268: "Authenticated OrderList users see the correct New York SO received date for exactly linked lines; missing or conflicting dates remain blank; anon and oversized requests are rejected without raw ColdLion access.",
   2934: "From the application's production service-role connection, read-only: public.deactivate_stale_sg_files no longer exists, and the application's stale-file deactivation path (public.preview_stale_sg_files guard ahead of public.reconcile_stale_sg_files_batch) is still exposed and its read-only guard call succeeds.",
 };
 
@@ -562,7 +565,219 @@ async function proveCounters() {
   }
 }
 
-const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant, 4064: proveCounters };
+// ── 4257 / 4268: PopDAM #277 order-list outcomes ─────────────────────────────
+// plm and coldlion are not exposed to PostgREST, and PopDAM's production-order
+// writers are direct Postgres writers, so these proofs read the database through
+// the Supabase Management API query endpoint (SUPABASE_ACCESS_TOKEN). The 4257
+// SQL is one DO block that always ends in RAISE EXCEPTION, so its guarded write
+// attempts are always rolled back; the 4268 SQL is a plain SELECT.
+const MANAGEMENT_API = "https://api.supabase.com/v1/projects";
+const PROJECT_REF = "qsllyeztdwjgirsysgai";
+const SQL_DIR = new URL(".", import.meta.url);
+
+async function managementQuery(query) {
+  const token = process.env.SUPABASE_ACCESS_TOKEN || "";
+  if (!token) fail("SUPABASE_ACCESS_TOKEN is empty");
+  const started = Date.now();
+  const response = await fetch(`${MANAGEMENT_API}/${PROJECT_REF}/database/query`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+  const text = await response.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+  return { status: response.status, json, elapsedMs: Date.now() - started };
+}
+
+const proofSql = (name) => readFile(new URL(name, SQL_DIR), "utf8");
+
+// Pure: the always-rollback block reports its result inside the error message.
+export function parseRollbackResult4257(status, json) {
+  const message = String(json?.message ?? "");
+  const failed = /POPDAM_LIVE_PROOF_4257_FAILED:([^\n]*)/.exec(message);
+  if (failed) fail(`4257 probe failed: ${failed[1]}`);
+  const match = /POPDAM_LIVE_PROOF_4257:(\{.*\})\s*(?:\n|$)/.exec(message);
+  if (status < 400 || !match) fail(`4257 probe did not end in its rollback marker (HTTP ${status})`);
+  try { return JSON.parse(match[1]); } catch { fail("4257 rollback marker is not JSON"); }
+}
+
+const refused = (probe, sqlstate, constraint) => probe?.refused === true && probe.sqlstate === sqlstate && (!constraint || probe.constraint === constraint);
+
+// Pure: every clause of the 4257 live assertion.
+export function evaluateNoReuse4257(r) {
+  if (r?.trigger?.enabled !== "O" || !/BEFORE INSERT OR UPDATE ON plm\.production_order FOR EACH ROW EXECUTE FUNCTION plm\.guard_production_po_number\(\)/.test(r.trigger.definition ?? "")) {
+    fail("trigger production_po_no_reuse is not an enabled BEFORE INSERT OR UPDATE row trigger");
+  }
+  if (!(Number(r.orders_readable) > 0)) fail("existing orders were not readable");
+  if (r.edit_existing?.ok !== true || r.edit_existing.rows !== 1) fail(`existing order edit failed (${r.edit_existing?.sqlstate ?? "no row"})`);
+  if (!refused(r.change_existing_po, "23514")) fail("changing an existing order's PO number was not refused");
+  for (const name of ["reuse_variant", "reuse_after_void", "reuse_after_delete"]) {
+    if (!refused(r[name], "23505", "production_po_no_reuse")) fail(`${name} was not refused by production_po_no_reuse`);
+  }
+  if (r.unreserved_existing_numbers !== 0) fail(`${r.unreserved_existing_numbers} existing numbers have no reservation`);
+  const g = r.admission_guard ?? {};
+  if (g.app_roles_can_write_admissions !== false || g.app_roles_can_write_reservations !== false) fail("an application role can write admissions or reservations");
+  if (g.digest_checks !== 2 || g.order_id_primary_key !== true) fail("legacy admissions are not sealed exact-order records");
+  return r;
+}
+
+async function proveNoReuse() {
+  const { status, json, elapsedMs } = await managementQuery(await proofSql("shared-db-live-proof-4257.sql"));
+  const r = evaluateNoReuse4257(parseRollbackResult4257(status, json));
+  return {
+    call: "always-rollback guarded writer probes on plm.production_order (Management API, one DO block ending in RAISE)",
+    elapsed_ms: elapsedMs,
+    committed_writes: 0,
+    ...r,
+  };
+}
+
+// ── 4190: style-guide refresh cron cadence (u2giants/popdam3#293) ────────────
+// cron is not exposed to PostgREST, so this read-only SELECT goes through the
+// Management API query endpoint. Runs count only after the cadence change.
+export const CADENCE_CHANGED_AT = "2026-10-11T19:59:00Z";
+export const EXPECTED_CADENCE_4190 = {
+  "refresh-style-guide-matviews": "7 * * * *",
+  "refresh-style-guide-library-default-snapshot": "*/15 * * * *",
+};
+const CADENCE_SQL_4190 = `select j.jobname, j.schedule, j.active,
+  count(d.runid) filter (where d.status = 'succeeded')::int as succeeded_runs,
+  max(d.end_time) filter (where d.status = 'succeeded') as last_succeeded_at
+from cron.job j left join cron.job_run_details d on d.jobid = j.jobid and d.start_time > '${CADENCE_CHANGED_AT}'
+where j.jobname in (${Object.keys(EXPECTED_CADENCE_4190).map((n) => `'${n}'`).join(", ")})
+group by j.jobname, j.schedule, j.active order by j.jobname`;
+
+// Pure: each job has its new schedule, is active, and has run since the change.
+export function evaluateCadence4190(rows) {
+  if (!Array.isArray(rows)) fail("4190 cron query did not return rows");
+  for (const [name, schedule] of Object.entries(EXPECTED_CADENCE_4190)) {
+    const row = rows.find((r) => r.jobname === name);
+    if (!row) fail(`cron job ${name} not found`);
+    if (row.schedule !== schedule) throw new NotYetApplied(`${name} schedule is ${row.schedule}`);
+    if (row.active !== true) fail(`${name} is not active`);
+    if (!(row.succeeded_runs > 0)) fail(`${name} has no succeeded run since the change`);
+  }
+  return rows;
+}
+
+async function proveCadence() {
+  const { status, json, elapsedMs } = await managementQuery(CADENCE_SQL_4190);
+  if (status >= 400) fail(`4190 cron query returned HTTP ${status}`);
+  return {
+    call: "read-only SELECT on cron.job and cron.job_run_details (Management API)",
+    elapsed_ms: elapsedMs,
+    since: CADENCE_CHANGED_AT,
+    jobs: evaluateCadence4190(json),
+  };
+}
+
+// Pure: New York calendar date of one ColdLion stamp, with the reader's floor.
+export function newYorkDate(stamp) {
+  const at = Date.parse(String(stamp).replace(" ", "T").replace(/([+-]\d\d)$/, "$1:00"));
+  if (Number.isNaN(at)) fail(`unparseable ColdLion stamp ${stamp}`);
+  if (at <= Date.parse("2000-01-01T00:00:00Z")) return null;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" })
+    .formatToParts(new Date(at)).map((p) => [p.type, p.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+// Pure: expected date per sampled line, computed from the raw stamps.
+export function expectedSoDate(line) {
+  if (line.kind !== "single") return null;
+  const stamps = line.distinct_stamps ?? [];
+  if (stamps.length !== 1 || line.stamp_rows !== line.stamped_rows) return null;
+  return newYorkDate(stamps[0]);
+}
+
+// Pure: the authenticated reader returned exactly the expected date per line.
+export function evaluateSoDates4268(sample, returned) {
+  if (!Array.isArray(sample) || !Array.isArray(returned)) fail("4268 sample or reader result is not an array");
+  if (!sample.some((l) => l.kind === "single")) fail("no exactly linked line with a single stamp to observe");
+  const byId = new Map(returned.map((row) => [row.order_line_id, row.sales_order_date]));
+  const counts = {};
+  for (const line of sample) {
+    if (!byId.has(line.order_line_id)) fail(`reader omitted visible line ${line.order_line_id}`);
+    const want = expectedSoDate(line);
+    const got = byId.get(line.order_line_id) ?? null;
+    if (got !== want) fail(`line ${line.order_line_id} (${line.kind}) read ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
+    const key = want ? "dated" : `blank_${line.kind}`;
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return counts;
+}
+
+// Pure: no raw ColdLion access for anon/authenticated; only authenticated runs the reader.
+export function evaluateRawAccess4268(raw) {
+  for (const name of ["anon_select_order_history_line", "authenticated_select_order_history_line", "anon_usage_coldlion_schema", "authenticated_usage_coldlion_schema", "anon_execute_reader"]) {
+    if (raw?.[name] !== false) fail(`${name} is not false`);
+  }
+  if (raw.authenticated_execute_reader !== true) fail("authenticated cannot execute the reader");
+  return raw;
+}
+
+async function publishableKey() {
+  const config = JSON.parse(await readFile(new URL("../public/dam-config.json", SQL_DIR), "utf8"));
+  if (config.supabase_url !== EXPECTED_URL || !String(config.supabase_anon_key).startsWith("sb_publishable_")) fail("public/dam-config.json is not the production publishable config");
+  return config.supabase_anon_key;
+}
+
+async function userPost(path, body, { apikey, bearer }) {
+  const started = Date.now();
+  const response = await fetch(`${url}${path}`, {
+    method: "POST",
+    headers: { apikey, ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}), "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+  return { status: response.status, json, elapsedMs: Date.now() - started };
+}
+
+async function proveSoDates() {
+  const email = process.env.POPDAM_VIEWER_TEST_USER || "";
+  const password = process.env.POPDAM_VIEWER_TEST_PASSWORD || "";
+  if (!email || !password) fail("POPDAM_VIEWER_TEST_USER / POPDAM_VIEWER_TEST_PASSWORD are empty");
+  const anonKey = await publishableKey();
+  const sampled = await managementQuery(await proofSql("shared-db-live-proof-4268.sql"));
+  if (sampled.status >= 400) fail(`4268 sample query returned HTTP ${sampled.status}`);
+  const { sample, raw_access: raw } = sampled.json?.[0]?.proof ?? {};
+  evaluateRawAccess4268(raw);
+
+  const signIn = await userPost("/auth/v1/token?grant_type=password", { email, password }, { apikey: anonKey });
+  if (signIn.status !== 200 || !signIn.json?.access_token) fail(`viewer sign-in returned HTTP ${signIn.status}`);
+  const user = { apikey: anonKey, bearer: signIn.json.access_token };
+  const fn = "/rest/v1/rpc/get_dam_order_sales_order_dates";
+  const ids = sample.map((l) => l.order_line_id);
+  const read = await userPost(fn, { p_line_ids: ids }, user);
+  if (read.status !== 200) fail(`authenticated reader returned HTTP ${read.status} (${read.json?.code})`);
+  const counts = evaluateSoDates4268(sample, read.json);
+
+  const anon = await userPost(fn, { p_line_ids: ids.slice(0, 1) }, { apikey: anonKey });
+  const oversized = await userPost(fn, { p_line_ids: Array.from({ length: 1501 }, () => randomUUID()) }, user);
+  const nullId = await userPost(fn, { p_line_ids: [ids[0], null] }, user);
+  const rawRead = await fetch(`${url}/rest/v1/order_history_line?select=sales_order_no&limit=1`, {
+    headers: { apikey: anonKey, Authorization: `Bearer ${user.bearer}`, "Accept-Profile": "coldlion" },
+  });
+  const rawJson = await rawRead.json().catch(() => null);
+  if (rawRead.ok) fail("authenticated user read coldlion.order_history_line directly");
+  return {
+    call: "public.get_dam_order_sales_order_dates as the PopDAM viewer test user, plus anon, oversized and raw ColdLion calls",
+    elapsed_ms: read.elapsedMs,
+    lines_checked: sample.length,
+    results: counts,
+    refusals: [
+      evaluateRefusal("anon_call", anon.status, anon.json, "42501"),
+      evaluateRefusal("oversized_1501_ids", oversized.status, oversized.json, "22023"),
+      evaluateRefusal("null_line_id", nullId.status, nullId.json, "22023"),
+      { guard: "authenticated_raw_coldlion_read", http: rawRead.status, code: rawJson?.code ?? null },
+    ],
+    raw_access: raw,
+  };
+}
+
+const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant, 4064: proveCounters, 4190: proveCadence, 4257: proveNoReuse, 4268: proveSoDates };
 
 async function main() {
   if (url !== EXPECTED_URL) fail("SUPABASE_URL is not the production project");

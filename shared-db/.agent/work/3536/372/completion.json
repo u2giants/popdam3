@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 3536,
+  "outcome": "ready-for-merge",
+  "pr": 4247,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/3536/372",
+  "contract_sha256": "cc26dd849c74b4db85fa04bfb9f4f7befbf7056de4f6143335276fde1ff3acb1",
+  "head_sha": "b7c6031a32b4b35ef4b0073a7e060d924c224ac6",
+  "base_sha": "c9cc89fb6a44b53fc1859fd9f5e09aedff2c58e7",
+  "files_changed": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "Focused complete reviewer circuit suite PASS",
+      "exit_code": 0,
+      "evidence": "172 complete tests passed:151 reviewer circuit and21 content equivalence, no skips"
+    },
+    {
+      "command": "Authenticated metadata conflict positive and malformed/source/other-byte/mode/foreign-path negatives PASS",
+      "exit_code": 0,
+      "evidence": "Positive registered hash and registry reconstruction; stale/source/other-byte/mode/stage-forgery negatives all pass"
+    },
+    {
+      "command": "Original paid caps and unchanged source exceptions PASS",
+      "exit_code": 0,
+      "evidence": "Existing paid cap unchanged; complete original circuit tests pass; no report/history/claim changes"
+    },
+    {
+      "command": "Actual licensing Git reconstruction proof",
+      "exit_code": 0,
+      "evidence": "Actual09d to09b against0a39 proof substantive historyCount10 genuine b48 typed-source witness; original source conflicts registry plus detector hash confirmed"
+    }
+  ],
+  "assumptions_resolved": [
+    "Published prospective372 before source edits",
+    "Only registered correct hash metadata reconstructed; source conflict exceptions and allcaps preserved",
+    "Frozen3998 old5373 inventory remains invalid and5419 UNKNOWN; not repaired by licensing proof"
+  ],
+  "stop_conditions_hit": []
+}

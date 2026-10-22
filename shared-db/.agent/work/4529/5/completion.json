@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 4529,
+  "outcome": "ready-for-merge",
+  "pr": 4555,
+  "migration_versions": [
+    "20261021152741"
+  ],
+  "contract_ref": "refs/db-contracts/4529/5",
+  "contract_sha256": "c7c9741dd68dc4510c4308e69eebe34e4e5798e81a00e13760d64fcdf310406e",
+  "head_sha": "f93c4b1620e21cb4a0ec65dff0f3281a0640a749",
+  "base_sha": "1b7edfedb5190f6b6d9ed9767d9e877e1ec35bae",
+  "files_changed": [
+    ".agent/work/4529/5/completion.json",
+    ".agent/work/4529/5/contract.json",
+    "supabase/migrations/20261021152741_popdam_search_exact_relevance_paging.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_dam_documents",
+    "function public.search_assets_full_text",
+    "function public.search_style_groups_full_text",
+    "function public.search_dam_document_counts"
+  ],
+  "checks": [
+    {
+      "exit_code": 0,
+      "command": "bash scripts/check-sql.sh",
+      "evidence": "Static checks passed."
+    },
+    {
+      "exit_code": 0,
+      "command": "git diff --check",
+      "evidence": "Exit 0."
+    }
+  ],
+  "assumptions_resolved": [
+    "20261021152741 absent from preview and production ledgers (preview refused before apply)",
+    "Header and COMMENT ON layout only; executable SQL body identical to merged 1b7edfed"
+  ],
+  "stop_conditions_hit": []
+}

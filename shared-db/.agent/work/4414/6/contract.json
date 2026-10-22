@@ -1,0 +1,55 @@
+{
+  "schema_version": 2,
+  "work_issue": 4414,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Plan step 4: bound every gh/git child launched under the reviewer author-acquisition mutex by a monotonic section deadline with a reserved release allowance, and reconcile ambiguous atomic assignment batches by exact readback.",
+  "base_sha": "2a49324844e2111745dd71637d8ca2adeb365658",
+  "dispatcher": "Claude chat a088737b-5617-4cac-8d80-4e0b2f056ba3 on edge-dev3",
+  "worker": "Claude chat a088737b-5617-4cac-8d80-4e0b2f056ba3 on edge-dev3",
+  "branch": "claude/4414-step4",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/reviewer-assignment-holds-plan-2461e1",
+  "allowed_paths": [
+    ".agent/work/4414/6/contract.json",
+    ".agent/work/4414/6/completion.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/lib/lanes/github-wire.mjs",
+    "scripts/lib/lanes/section-deadline.test.mjs",
+    ".github/workflows/pr-guards.yml",
+    "docs/verification/reviewer-assignment-holds.md"
+  ],
+  "file_writes": [
+    ".agent/work/4414/6/contract.json",
+    ".agent/work/4414/6/completion.json",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/lib/lanes/github-wire.mjs",
+    "scripts/lib/lanes/section-deadline.test.mjs",
+    ".github/workflows/pr-guards.yml",
+    "docs/verification/reviewer-assignment-holds.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database change.",
+    "Do not widen request ceilings (25/15).",
+    "Do not add a new mutex or lock."
+  ],
+  "required_checks": [
+    "node --test scripts/lib/lanes/section-deadline.test.mjs scripts/lib/lanes/assignment-hold-phases.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/reviewer-wire-budget.test.mjs scripts/mutex-release-on-refusal.test.mjs scripts/lib/github-transport.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Disclosure: a draft of this change (commit 452684879, PR #4501) was written before this contract was published. The implementation commit on this branch is re-authored after publication; the draft is not claimed as post-contract work.",
+    "Supersedes the unwired partial branch mimo/4414-step4-bounded-io (8bc097216) per the 2026-10-19 handoff marking remaining steps unowned."
+  ],
+  "stop_conditions": [
+    "Stop if any request ceiling or new lock is needed.",
+    "Stop if a database change appears."
+  ],
+  "generation": 6,
+  "evidence_parent": {
+    "work_issue": 4414,
+    "generation": 5,
+    "contract_sha256": "969cdbb1d74226f32acce5b464ac7d53e4e42f9563936c0bb0fd74f0786215a5"
+  }
+}

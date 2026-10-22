@@ -46,6 +46,7 @@ Use this exact shape for every new quirk:
 **Looks like:** "Audit AI Compat Thumbnails" (Settings → Windows Agent) OCRs thumbnails for the word "compatibility" to find the warning-page thumbnails.
 **Actually (fixed 2026-07-03):** the OCR check matched the literal `"compatibility"`, but Adobe's warning says "PDF **Compatible** File" — so it flagged **0**, ran ~1 img/sec (≈12 h full-library), and died on a transient 502. `apps/windows-agent/src/compat-audit.ts` now detects via a **256-bit dHash** against a small reference set of the fixed warning image (threshold 30; validated: boilerplate hashes to distance 0, real art ≥53), with 16-way fetch concurrency + batch-fetch retry. It flags → clears (`thumbnail_url=null`) → re-queues for **native** render (Inkscape). A full 45,841-thumbnail scan takes ~8 min and found **547** boilerplate thumbnails.
 **Do not change because:** reverting to OCR silently flags nothing. If you change the warning-page render, recompute the reference dHashes in `COMPAT_REF_HASHES`.
+**Dispatch note (2026-10-20):** compat requests are sent only to `windows-render` agents (`agent-api` gates on `agentType`), so the OCR-based compat handler still sitting in `apps/bridge-agent/src/handlers/compat-audit.ts` never runs. Do not put Indra (or any OCR engine) in it — retire it if it comes up for cleanup.
 
 ## Windows agent self-update was silently frozen (WINDOWS_LATEST_BUILD, fixed 2026-07-03)
 
@@ -275,3 +276,11 @@ October 11 live origin comparison disproved treating every such 404 as a capacit
 **Actually:** Albert has explicitly decided not to buy an AG Grid license. Ignore the warning and preserve the existing grid features. This is settled owner direction, not an unanswered business question or a release blocker.
 **Why:** Albert reiterated his instruction on October 11, 2026: “we are not buying an AG-grid license. i must have mentioned to ignore that warning 1000 times. why is it not being documented or obeyed?” Recorded in PopDAM issue #196.
 **Do not change because:** Recommending a purchase again, disabling grid features, or treating the warning as unfinished work would contradict the owner's instruction. Do not add a fake key, suppress messages in code, or change the licensing implementation as part of this documentation decision. A future change requires a new explicit owner instruction.
+
+## Source-contract tests must normalize CRLF; AG Grid tests need a sized host (2026-10-19)
+
+**Looks like:** random test failures on Windows (`core-licensor-property-contract`) or intermittent OrderList grid cases dropping cells.
+
+**Actually:** two independent test-harness traps. (1) Git stores LF but `core.autocrlf=true` rewrites Windows working trees to CRLF, so source-shape assertions that hardcode `\n` never match — normalize with `.replace(/\r\n/g, "\n")` when reading files for contract checks (`operation-registry-sync.test.ts` already does). (2) AG Grid measures its host for column virtualization; a 0×0 jsdom host makes that timing-dependent. OrderList AG Grid tests must wrap the grid in an explicit `height`/`width` (see `order-list-grid-refresh.test.tsx`) and deliver infinite-row data asynchronously.
+
+**Do not change because:** raising timeouts, retrying, or skipping the tests hides the race and leaves Windows checkouts and loaded CI still failing. Fixed in PR #443.
