@@ -12,7 +12,7 @@ set -euo pipefail
 set +x
 [ $# = 3 ] || { echo "FAIL: usage"; exit 1; }
 H=$1; MODE=$2; STAGING=$3
-case $MODE in probe|rotate|rollback) ;; *) echo "FAIL: mode"; exit 1 ;; esac
+case $MODE in probe|agentcheck|rotate|rollback) ;; *) echo "FAIL: mode"; exit 1 ;; esac
 [[ $STAGING =~ ^[a-z0-9]{26}$ ]] || { echo "FAIL: staging item id"; exit 1; }
 case $H in
   edgesynology1) OLD_ITEM=gtwd6lf6ntwxolpbj5rvfno5xy; AI_ITEM="edgesynology1 NAS - ai service account" ;;
@@ -54,6 +54,7 @@ shred -u "$T/sudo"
 # Status words only; refuse to print anything that is not one. If
 # other_lines > 0, rerun the failing step by hand with output to a root 0600
 # file on the NAS and inspect it there by grep for known error words.
-grep -E '^(STEP|OK|FAIL|ROLLBACK|BREAK-GLASS|set response|password confirm|login refused|env:|agent |compose |restore )' "$T/out" || true
-echo "rc=$rc other_lines=$(grep -cvE '^(STEP|OK|FAIL|ROLLBACK|BREAK-GLASS|set response|password confirm|login refused|env:|agent |compose |restore )' "$T/out")"
+W='^(STEP|OK|FAIL|ROLLBACK|BREAK-GLASS|set response|password confirm|login refused|env:|agent |compose |restore |backup )'
+grep -E "$W" "$T/out" || true
+echo "rc=$rc other_lines=$(grep -cvE "$W" "$T/out")"
 exit $rc

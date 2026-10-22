@@ -24,6 +24,8 @@ DC=/var/packages/ContainerManager/target/usr/bin/docker-compose
 DK=/usr/local/bin/docker
 API=https://localhost:5001/webapi/entry.cgi
 SVC=synology-monitor-agent
+# ACCOUNT is overridable only for the throwaway-user rehearsal (mode selftest).
+ACCOUNT=${ROTATE_ACCOUNT:-popdam}
 C="/usr/bin/curl -sk --max-time 30"
 PATH=/usr/sbin:/usr/bin:/sbin:/bin; export PATH
 umask 077
@@ -35,7 +37,7 @@ perm() { stat -c %a "$1"; }
 
 login() { # $1 = secret file; prints "SID SYNOTOKEN" or nothing
   r=$($C "$API" --data api=SYNO.API.Auth --data version=7 --data method=login \
-    --data account=popdam --data-urlencode "passwd@$1" --data format=sid \
+    --data "account=$ACCOUNT" --data-urlencode "passwd@$1" --data format=sid \
     --data session=webui --data enable_syno_token=yes)
   sid=$(echo "$r" | sed -n 's/.*"sid":"\([^"]*\)".*/\1/p')
   tok=$(echo "$r" | sed -n 's/.*"synotoken":"\([^"]*\)".*/\1/p')
@@ -57,7 +59,7 @@ setpw() { # $1 = current (auth) file, $2 = target file
       --data-urlencode "password@$S/json.auth" --data "_sid=${sid%% *}")
   ctok=$(echo "$c" | sed -n 's/.*"SynoConfirmPWToken":"\([^"]*\)".*/\1/p')
   if ! echo "$c" | grep -q '"success":true' || [ -z "$ctok" ]; then
-    rm -f "$S/json.auth" "$S/json.pw"; logout "$sid"; echo "password confirm refused"; return 1
+    shred -u "$S/json.auth" "$S/json.pw"; logout "$sid"; echo "password confirm refused"; return 1
   fi
   r=$($C "$API" -b "id=${sid%% *}" -H "X-SYNO-TOKEN: ${sid#* }" -H "X-SYNO-CONFIRM-PW-TOKEN: $ctok" \
       --data api=SYNO.Core.NormalUser --data version=2 --data method=set \
@@ -109,7 +111,8 @@ restore_old() { # end state OLD everywhere; $1 = backup file holding OLD
 }
 
 # --- input checks ---
-for b in "$DC" "$DK" /usr/bin/curl /usr/bin/sha256sum /usr/bin/flock /usr/bin/stat /usr/bin/cmp; do [ -x "$b" ] || die "missing $b"; done
+for b in "$DC" "$DK" /usr/bin/curl /usr/bin/sha256sum /usr/bin/flock /usr/bin/stat /usr/bin/cmp \
+    "$(command -v install)" "$(command -v shred)" "$(command -v sync)"; do [ -x "$b" ] || die "missing $b"; done
 # Agent log strings pinned to u2giants/synology-monitor apps/agent/cmd/agent/main.go
 # ("Connected to DSM API" after loginWithRetry; "DSM login attempt %d failed").
 [ -d "$S" ] && [ "$(perm "$S")" = 700 ] || die "secret dir must be 0700"
@@ -118,10 +121,25 @@ for f in old new; do
   [ "$(wc -l < "$S/$f")" = 0 ] || die "$f has a newline"
   LC_ALL=C grep -q '["\\[:cntrl:]]' "$S/$f" && die "$f needs JSON escaping"
 done
-[ "$(digest "$S/old")" != "$(digest "$S/new")" ] || die "new equals old"
+case $MODE in probe|agentcheck) ;; *) false;; esac || [ "$(digest "$S/old")" != "$(digest "$S/new")" ] || die "new equals old"
 install -d -m 700 -o root /run/rotate-popdam && exec 9>/run/rotate-popdam/lock && flock -n 9 || die "another run holds the lock"
 
 case $MODE in
+selftest)
+  # Throwaway-user rehearsal of the mutating DSM path: old→new, prove
+  # new accepted / old refused, then new→old and prove old accepted.
+  [ "$ACCOUNT" != popdam ] || die "selftest refuses popdam"
+  setpw "$S/old" "$S/new" || die "selftest set failed"
+  accepts "$S/new" && echo "STEP new accepted" || die "selftest new refused"
+  accepts "$S/old" && die "selftest old still accepted" || echo "STEP old refused"
+  setpw "$S/new" "$S/old" || die "selftest reset failed"
+  accepts "$S/old" && echo "OK selftest $(hostname)" || die "selftest old refused after reset";;
+agentcheck)
+  # Non-mutating proof of the agent path: env digest = old, recreate with the
+  # unchanged .env, clean reconnect, auto-block settings.
+  container_env_is "$S/old" && echo "STEP container env holds old" || die "container env mismatch"
+  agent_up && echo "STEP agent connected" || die "agent did not reconnect"
+  echo "OK agentcheck $(hostname) autoblock: $(grep -E '^autoblock_' /etc/synoinfo.conf 2>/dev/null | tr '\n' ' ')";;
 probe)
   # Reconcile: which value does DSM accept? At most one failed login each.
   echo "OK probe $(hostname) old=$(accepts "$S/old" && echo accepted || echo refused) new=$(accepts "$S/new" && echo accepted || echo refused)";;

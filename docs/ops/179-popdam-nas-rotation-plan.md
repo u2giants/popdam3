@@ -55,6 +55,29 @@ Binaries: `/usr/local/bin/docker`,
 container name `synology-monitor-agent` (one container per unit, compose
 project dir `/volume1/docker/synology-monitor-agent`, verified both units).
 
+## Rehearsal evidence (2026-10-21)
+- **Mutating DSM path, both units:** `selftest` on a throwaway local user
+  `r179test` (random non-secret test values; created with `synouser --add`,
+  deleted after): set old→new `success`, new accepted, old refused, reset
+  new→old, old accepted → `OK selftest` on edgesynology2 and edgesynology1;
+  user gone afterwards (`/etc/passwd` count 0), no staging dir left.
+- **probe** via the caller on both units: `old=accepted new=refused`
+  (`new` was a dummy item; one failed DSM login per unit).
+- **agentcheck** via the caller on both units (non-mutating): running
+  container env digest = current value; agent recreated with the unchanged
+  `.env` and logged "Connected to DSM API" → `OK agentcheck`. This proves
+  `container_env_is`, `agent_up`, compose recreate and log reading.
+- **Auto-block** (`/etc/synoinfo.conf`, both units): 10 attempts in 5 min,
+  `autoblock_expriedday=0` (blocks never expire). Budget per unit per run:
+  rotate ≤ 2 failed DSM logins (old-refused probe, plus one in a rollback
+  probe); probe ≤ 1; agent stopped during the change so it adds none, and
+  `agent_up` stops the agent after its 2nd failed attempt. Total stays well
+  below 10. If a block appears, remove only the 127.0.0.1 row from
+  `/etc/synoautoblock.db` (`sqlite3 … "delete from AutoBlockIP where IP='127.0.0.1'"`).
+- Password policy read on edge1 (min 6, needs a digit, `exclude_history:false`
+  = reuse allowed, so rollback to OLD is permitted); edge2 is covered by the
+  `selftest` (32-char alnum-with-digit value accepted).
+
 ## Preflight evidence (2026-10-21, no change)
 - Transport proven end to end on both units with the committed caller:
   `rollback` with a dummy item stopped at "no backup holding old" (before any
@@ -123,7 +146,7 @@ project dir `/volume1/docker/synology-monitor-agent`, verified both units).
    far above 1), rewrites `DSM_PASSWORD` (exactly-one-line check, other lines
    byte-identical via `cmp`, value digest check, root 0600, `compose config
    -q`), recreates the agent with `up -d --force-recreate`, waits up to 3 min
-   for "Connected to DSM API" with 0 "DSM login attempt N failed" lines, and
+   for "Connected to DSM API" (the agent is stopped at its 2nd failed attempt), and
    checks the running container env digest. If `set` reports an error the
    script probes whether NEW is now accepted before claiming "unchanged". Any
    failure after the password may have changed runs the state-aware restore
@@ -132,8 +155,8 @@ project dir `/volume1/docker/synology-monitor-agent`, verified both units).
 3. edgesynology1: same, only after step 2 printed `OK rotate`.
    **Split-brain:** if edge1 fails, run `rollback` on edge2 so both units and
    the vault stay on the old value; staging item → `ABANDONED …`. If that
-   edge2 rollback also fails, the staging item still holds the value edge2
-   accepts: copy it into the edge2 canonical item only, mark edge1/edge2
+   edge2 rollback also fails, `probe` edge2 first; if it accepts the staging
+   value, copy that into the edge2 canonical item only, mark edge1/edge2
    values as different in both item notes, and report Blocked on #179.
 4. 1Password: for each canonical item (edge2 fkyspggk…, then edge1
    gtwd6lf6…): `op read -n op://vibe_coding/<staging>/password > $T/v` (0600);
