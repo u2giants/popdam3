@@ -5,7 +5,8 @@
  * Match order: exact base name, then a single PDF sharing the file's leading
  * token (SKU-style prefix before the first "_", "-", "." or space, at least
  * 6 characters). E.g. "CRM62SWDV01_ART.ai" → "CRM62SWDV01_LICENSING SHEET.pdf".
- * Ambiguous prefix matches (2+ PDFs) return null rather than guess.
+ * With several prefix matches the shortest name wins (the plain
+ * "X tech pack.pdf" over a dated "X tech pack_102423.pdf"); a tie returns null.
  */
 const MIN_TOKEN = 6;
 
@@ -23,5 +24,8 @@ export function pickSiblingPdf(fileName: string, dirEntries: string[]): string |
   const token = leadingToken(base);
   if (token.length < MIN_TOKEN) return null;
   const candidates = pdfs.filter((f) => leadingToken(f) === token);
-  return candidates.length === 1 ? candidates[0] : null;
+  if (candidates.length === 0) return null;
+  const sorted = [...candidates].sort((a, b) => a.length - b.length);
+  if (sorted.length > 1 && sorted[0].length === sorted[1].length) return null;
+  return sorted[0];
 }

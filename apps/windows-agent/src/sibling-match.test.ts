@@ -11,7 +11,13 @@ test("SKU prefix match", () => {
     "CRM62SWDV01_LICENSING SHEET.pdf",
   );
 });
-test("ambiguous prefix returns null", () => {
+test("shortest prefix match wins", () => {
+  assert.equal(
+    pickSiblingPdf("PTE66MVSP02 packaging.ai", ["PTE66MVSP02 tech pack_102423.pdf", "PTE66MVSP02 tech pack.pdf"]),
+    "PTE66MVSP02 tech pack.pdf",
+  );
+});
+test("equal-length tie returns null", () => {
   assert.equal(pickSiblingPdf("CRM62SWDV01_ART.ai", ["CRM62SWDV01_a.pdf", "CRM62SWDV01_b.pdf"]), null);
 });
 test("short token does not fuzzy match", () => {
