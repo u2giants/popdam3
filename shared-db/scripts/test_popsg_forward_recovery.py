@@ -16,7 +16,7 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 OLD = ROOT / 'supabase/migrations/20261012005136_popsg_parse_search_query_once.sql'
-NEW = ROOT / 'supabase/migrations/20261022032116_popsg_search_forward_delivery_recovery.sql'
+NEW = ROOT / 'supabase/migrations/20261022043547_popsg_guides_matched_set_via_search_index.sql'
 SIGNATURE = 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)'
 
 
@@ -70,12 +70,13 @@ create function auth.role() returns text language sql stable as $b$select coales
 create function auth.uid() returns uuid language sql stable as $b$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$b$;
 create function public.has_app_access(uuid,public.app_name) returns boolean language sql stable as $b$select $1='00000000-0000-0000-0000-000000000001'::uuid$b$;
 create table public.style_guide_files(id uuid primary key,is_active boolean,thumbnail_url text,thumbnail_error text);
-create table public.style_guide_render_queue(style_guide_file_id uuid,status text,attempts integer);
+create type public.queue_status as enum ('pending','claimed','processing','done','failed');
+create table public.style_guide_render_queue(style_guide_file_id uuid,status public.queue_status,attempts integer);
 create table public.style_guide_search_documents(style_guide_file_id uuid primary key,root_label text,licensor_name text,property_folder text,style_guide_folder text,style_guide_name text,directory_path text,relative_path text,filename text,file_extension text,tag_names text[],size_bytes bigint,modified_at timestamptz,pdf_text_status text,pdf_text_length integer,is_active boolean,search_vector tsvector);
 create materialized view public.style_guide_library_default_summary as select ''::text result_mode,0::bigint total,'{}'::jsonb facets where false;
 create materialized view public.style_guide_library_default_guides as select '{}'::jsonb result,null::timestamptz modified_at,''::text sort_name,''::text entity_key where false;
 insert into public.style_guide_files select ('00000000-0000-0000-0000-'||lpad(i::text,12,'0'))::uuid,i<>8,case when i%3=0 then null else 'https://fixture.invalid/preview' end,case when i=6 then 'invented_failure' end from generate_series(1,8)i;
-insert into public.style_guide_search_documents select id,'Fixture root','Fixture licensor',case when row_number() over()<=4 then 'A' else 'B' end,'Fixture guide folder',case when row_number() over()<=4 then 'Guide A' else 'Guide B' end,'fixture','fixture', 'ART-'||row_number() over()||'.pdf','pdf',array['blue','fixture'],123,timestamptz '2026-10-01 12:00:00+00'+(row_number() over())*interval '1 minute','extracted',100,true,to_tsvector('simple',case when row_number() over()<=5 then 'blue ART123 playful shapes' else 'red ART999 quiet shapes' end) from public.style_guide_files;
+insert into public.style_guide_search_documents select id,'Fixture root',case when n=7 then 'Other licensor' else 'Fixture licensor' end,case when n<=4 then 'A' else 'B' end,'Fixture guide folder',case when n<=4 then 'Guide A' else 'Guide B' end,'fixture','fixture', 'ART-'||n||'.pdf',case when n=4 then 'ai' else 'pdf' end,array['blue','fixture'],123,timestamptz '2026-10-01 12:00:00+00'+(case when n=6 then 20 else n end)*interval '1 minute','extracted',100,true,to_tsvector('simple',case when n<=5 then 'blue ART123 playful shapes' else 'red ART999 quiet shapes' end) from (select id,row_number() over(order by id) n from public.style_guide_files) f;
 insert into public.style_guide_render_queue select id,'pending',0 from public.style_guide_files where thumbnail_url is null;
 """ + cls.definition + f"revoke all on function {SIGNATURE} from public; grant execute on function {SIGNATURE} to authenticated, service_role;")
 
@@ -101,7 +102,9 @@ insert into public.style_guide_render_queue select id,'pending',0 from public.st
                 for sort in ('relevance','modified_desc','modified_asc','name_asc'):
                     for offset in (0,2,99):
                         calls.append(f"select public.search_style_guide_library_v2(p_result_mode=>'{mode}',p_query=>{query},p_sort=>'{sort}',p_limit=>2,p_offset=>{offset})")
-            for parameter,value in [('p_properties',"array['A']"),('p_extensions',"array['PDF']"),('p_tags',"array['blue']"),('p_preview_states',"array['missing']"),('p_render_exception_states',"array['waiting']"),('p_pdf_content_states',"array['available']")]:
+            for limit in (1,50):
+                calls.append(f"select public.search_style_guide_library_v2(p_result_mode=>'{mode}',p_query=>'shapes',p_limit=>{limit})")
+            for parameter,value in [('p_licensors',"array['Other licensor']"),('p_style_guides',"array['Guide B']"),('p_modified_after',"timestamptz '2026-10-01 12:03:00+00'"),('p_modified_before',"timestamptz '2026-10-01 12:04:30+00'"),('p_properties',"array['A']"),('p_extensions',"array['PDF']"),('p_tags',"array['blue']"),('p_preview_states',"array['missing']"),('p_render_exception_states',"array['waiting']"),('p_pdf_content_states',"array['available']")]:
                 calls.append(f"select public.search_style_guide_library_v2(p_result_mode=>'{mode}',p_query=>'blue',{parameter}=>{value})")
         statements=';\n'.join(calls)+';'
         before,_=self.sql(statements)
@@ -109,10 +112,13 @@ insert into public.style_guide_render_queue select id,'pending',0 from public.st
         self.sql(NEW.read_text())
         after,_=self.sql(statements)
         self.assertEqual(before,after)
-        self.assertEqual(len(after.splitlines()),108)
+        self.assertEqual(len(after.splitlines()),120)
         first=json.loads(after.splitlines()[0]);self.assertEqual(first['total'],7)
         keyword,_=self.sql("select public.search_style_guide_library_v2(p_query=>'ART123')->>'total';")
         self.assertEqual(keyword,'5')
+        # Guide B's newest child (n=6) has no preview: the thumbnail must fall back to n=5.
+        thumb,_=self.sql("select r->>'thumbnail_url' from jsonb_array_elements(public.search_style_guide_library_v2(p_result_mode=>'guides',p_query=>'shapes')->'results') r where r->>'style_guide_name'='Guide B' and r->>'licensor_name'='Fixture licensor';")
+        self.assertEqual(thumb,'https://fixture.invalid/preview')
         empty,_=self.sql("select public.search_style_guide_library_v2(p_query=>'zznomatch')->>'total';")
         self.assertEqual(empty,'0')
         acl_after,_=self.sql(f"select proacl::text from pg_proc where oid='{SIGNATURE}'::regprocedure;")
@@ -126,6 +132,8 @@ insert into public.style_guide_render_queue select id,'pending',0 from public.st
         mutations=[
             f"alter function {SIGNATURE} set work_mem='128MB';",
             f"alter function {SIGNATURE} set statement_timeout='30s';",
+            f"alter function {SIGNATURE} reset all;",
+            "alter table public.style_guide_search_documents alter column pdf_text_length type bigint;",
             f"alter function {SIGNATURE} security invoker;",
             f"alter function {SIGNATURE} volatile;",
             f"alter function {SIGNATURE} owner to authenticated;",
@@ -146,11 +154,11 @@ class RepairMarkers(unittest.TestCase):
 
     def test_repaired_body_markers_and_static_provenance(self):
         text = NEW.read_text()
-        self.assertIn('-- derived-from: 20260917024050\n', text)
-        self.assertIn("md5(prosrc) = '9d5dd045810fa3fce5cc3d508e1210ff'", text)
-        self.assertIn("md5(prosrc) = '97e0d7ed121765f239867a48618f695b'", text)
+        self.assertIn('-- derived-from: 20261012005136\n', text)
+        self.assertIn("md5(prosrc) in ('9d5dd045810fa3fce5cc3d508e1210ff', '97e0d7ed121765f239867a48618f695b')", text)
+        self.assertIn("md5(prosrc) = 'eb7e64398002f7f575d97708bf6641a5'", text)
         body = text.split('as $function$',1)[1].rsplit('$function$;',1)[0]
-        self.assertEqual(hashlib.md5(body.encode()).hexdigest(), '97e0d7ed121765f239867a48618f695b')
+        self.assertEqual(hashlib.md5(body.encode()).hexdigest(), 'eb7e64398002f7f575d97708bf6641a5')
         # A: live_files materialized once (no remaining not-materialized form).
         self.assertIn('live_files as materialized (', body)
         self.assertNotIn('live_files as not materialized (', body)
@@ -168,13 +176,17 @@ class RepairMarkers(unittest.TestCase):
         self.assertIn('join public.style_guide_files f on f.id = t.style_guide_file_id', body)
         # Files path keeps its live style_guide_files join; Guides path must not.
         guides_body = body.split('execute $guides_query$', 1)[1]
+        # Guides matched set starts from the search_vector GIN predicate, not a pkey probe per live file.
+        guides_children = guides_body.split('active_children as materialized (',1)[1].split('), entities as materialized',1)[0]
+        self.assertIn('m.is_active and m.search_vector @@ mt.query', guides_children)
+        self.assertNotIn('from public.style_guide_search_documents d\n    join live_files', guides_children)
         self.assertIn('live_payload.thumbnail_url', body)  # Files path still live-joins
         self.assertNotIn('live_payload.thumbnail_url', guides_body)
         # C/D/E landmarks.
         self.assertIn('cross join lateral (', body)
         self.assertIn('pdf_text_available', body)
         self.assertIn('group by d.root_label, d.licensor_name, d.property_folder, d.style_guide_folder, d.style_guide_name', body)
-        sidecar = json.loads((ROOT / 'scripts/production-verification-sidecars/20261022032116.json').read_text())
+        sidecar = json.loads((ROOT / 'scripts/production-verification-sidecars/20261022043547.json').read_text())
         self.assertEqual(sidecar['migration_sha256'], hashlib.sha256(NEW.read_bytes()).hexdigest())
         for marker in sidecar['marker_reviews']:
             self.assertIn('execute $guides_query$', text.splitlines()[marker['line_start']-1])

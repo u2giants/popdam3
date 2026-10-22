@@ -237,3 +237,30 @@ silently.
 Test executability remains fixture-local (invented rows only). Body hashes,
 parameter mapping, volatility, grants and authorization are unchanged from the
 prior REVISE response.
+
+## 2026-10-22 — migration 20261022043547 (Guides matched set via search index)
+
+Read-only production probes (Management API, `SET TRANSACTION READ ONLY`, 8 s ceiling,
+work_mem 64MB), broad term `disney` (94,503 matched documents, 367 guides):
+
+| body | plan shape for the matched set | buffers touched | wall-clock |
+|---|---|---|---|
+| serving 9d5dd045 | live_files (220,791) → pkey probe per file | ~997k hit | 57014 at 8.2 s |
+| retired 97e0d7ed (#4507) | same pkey probe per file | ~997k hit | 4.5–4.7 s quiet; 57014 at 8.3 s ×2 later |
+| 20261022043547 | GIN `idx_sg_search_documents_search_vector` bitmap → heap | ~107–135k | 4.6–4.9 s warm; 6.2 s; 57014 once cold |
+
+Plan-node budgets from the design doc §3: `idx_sgf_live_preview_ids`,
+`idx_sgf_live_missing_clean_ids`, `idx_sgf_live_missing_error_ids` each loops=1;
+`style_guide_files_pkey` loops = 50 (= p_limit) for page thumbnails; no per-child
+`style_guide_files` join. Byte-identical JSON versus the serving body for six
+production cases (poster/relevance, star/name_asc offset 40, logo+pdf+missing,
+marvel/modified_asc limit 200, null-query `ai` filter, no-match). The local
+fixture parity run is 120 cases (not the 224 the design doc §4 projected).
+
+Remaining limit, measured: the cold-cache run spent 8.1 s in one Bitmap Heap Scan
+reading 28,146 of 29,742 `style_guide_search_documents` heap blocks from disk. The
+table is 249 MB (357 MB with indexes) in a 20 GB database with `shared_buffers`
+512MB, and relevance ranking needs `search_vector` from the heap for every match.
+Broad Guides searches therefore stay under 8 s when that table is cached and can
+still exceed it on a cold read. Closing that gap needs either more database memory
+or a narrower search-only relation; neither is in this migration.

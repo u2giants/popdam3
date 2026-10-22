@@ -1,6 +1,6 @@
 # PopSG broad Guides search repair design — issue #4210
 
-Status: design only. No migration is edited by this document.
+Status: implemented by 20261022032116 (retired, unpromoted) and 20261022043547; see popsg-search-4210.md for measured results.
 Branch: `codex/popsg-4210-forward-recovery` at `ee263c32`.
 Serving body today: `public.search_style_guide_library_v2`, `md5(prosrc) = 9d5dd045810fa3fce5cc3d508e1210ff`
 (merged parse-once repair, `supabase/migrations/20261012005136_popsg_parse_search_query_once.sql`).

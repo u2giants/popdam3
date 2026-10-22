@@ -1,8 +1,13 @@
 begin;
 -- Read-only post-apply search contract. Performance proof remains on #4210.
 select exists (select 1 from pg_proc where oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)')
-  and md5(prosrc) = '97e0d7ed121765f239867a48618f695b' and proowner = 'postgres'::regrole and prosecdef and provolatile = 's'
-  and proconfig @> array['search_path=pg_catalog, auth','work_mem=64MB'])
+  and md5(prosrc) = 'eb7e64398002f7f575d97708bf6641a5' and proowner = 'postgres'::regrole and prosecdef and provolatile = 's'
+  and prorettype = 'jsonb'::regtype
+  and (select coalesce(array_agg(setting order by setting), '{}') from unnest(coalesce(proconfig, '{}'::text[])) setting) = array['search_path=pg_catalog, auth','work_mem=64MB'])
+  and to_regtype('public.app_name') is not null
+  and exists (select 1 from pg_proc a where a.oid = to_regprocedure('auth.uid()') and a.provolatile in ('s','i'))
+  and exists (select 1 from pg_proc a where a.oid = to_regprocedure('auth.role()') and a.provolatile in ('s','i'))
+  and exists (select 1 from pg_proc a where a.oid = to_regprocedure('public.has_app_access(uuid,public.app_name)') and a.provolatile in ('s','i'))
   and has_function_privilege('authenticated','public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)','execute')
   and not has_function_privilege('anon','public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)','execute')
   and to_regprocedure('public.has_app_access(uuid,public.app_name)') is not null
@@ -30,7 +35,18 @@ select exists (select 1 from pg_proc where oid = to_regprocedure('public.search_
     ('public.style_guide_library_default_guides','result','jsonb'),
     ('public.style_guide_library_default_guides','modified_at','timestamptz'),
     ('public.style_guide_library_default_guides','sort_name','text'),
-    ('public.style_guide_library_default_guides','entity_key','text')
+    ('public.style_guide_library_default_guides','entity_key','text'),
+    ('public.style_guide_files','thumbnail_error','text'),
+    ('public.style_guide_render_queue','status','public.queue_status'),
+    ('public.style_guide_search_documents','root_label','text'),
+    ('public.style_guide_search_documents','directory_path','text'),
+    ('public.style_guide_search_documents','relative_path','text'),
+    ('public.style_guide_search_documents','filename','text'),
+    ('public.style_guide_search_documents','file_extension','text'),
+    ('public.style_guide_search_documents','size_bytes','bigint'),
+    ('public.style_guide_search_documents','modified_at','timestamptz'),
+    ('public.style_guide_search_documents','pdf_text_status','text'),
+    ('public.style_guide_search_documents','pdf_text_length','integer')
   ) required(relation_name,column_name,type_name) where not exists (
     select 1 from pg_attribute a where a.attrelid=to_regclass(required.relation_name)
       and a.attname=required.column_name and a.atttypid=to_regtype(required.type_name)
@@ -41,8 +57,13 @@ do $contract$
 declare b text; passed boolean;
 begin
  select exists (select 1 from pg_proc where oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)')
-  and md5(prosrc) = '97e0d7ed121765f239867a48618f695b' and proowner = 'postgres'::regrole and prosecdef and provolatile = 's'
-  and proconfig @> array['search_path=pg_catalog, auth','work_mem=64MB'])
+  and md5(prosrc) = 'eb7e64398002f7f575d97708bf6641a5' and proowner = 'postgres'::regrole and prosecdef and provolatile = 's'
+  and prorettype = 'jsonb'::regtype
+  and (select coalesce(array_agg(setting order by setting), '{}') from unnest(coalesce(proconfig, '{}'::text[])) setting) = array['search_path=pg_catalog, auth','work_mem=64MB'])
+  and to_regtype('public.app_name') is not null
+  and exists (select 1 from pg_proc a where a.oid = to_regprocedure('auth.uid()') and a.provolatile in ('s','i'))
+  and exists (select 1 from pg_proc a where a.oid = to_regprocedure('auth.role()') and a.provolatile in ('s','i'))
+  and exists (select 1 from pg_proc a where a.oid = to_regprocedure('public.has_app_access(uuid,public.app_name)') and a.provolatile in ('s','i'))
   and has_function_privilege('authenticated','public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)','execute')
   and not has_function_privilege('anon','public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)','execute')
   and to_regprocedure('public.has_app_access(uuid,public.app_name)') is not null
@@ -70,7 +91,18 @@ begin
     ('public.style_guide_library_default_guides','result','jsonb'),
     ('public.style_guide_library_default_guides','modified_at','timestamptz'),
     ('public.style_guide_library_default_guides','sort_name','text'),
-    ('public.style_guide_library_default_guides','entity_key','text')
+    ('public.style_guide_library_default_guides','entity_key','text'),
+    ('public.style_guide_files','thumbnail_error','text'),
+    ('public.style_guide_render_queue','status','public.queue_status'),
+    ('public.style_guide_search_documents','root_label','text'),
+    ('public.style_guide_search_documents','directory_path','text'),
+    ('public.style_guide_search_documents','relative_path','text'),
+    ('public.style_guide_search_documents','filename','text'),
+    ('public.style_guide_search_documents','file_extension','text'),
+    ('public.style_guide_search_documents','size_bytes','bigint'),
+    ('public.style_guide_search_documents','modified_at','timestamptz'),
+    ('public.style_guide_search_documents','pdf_text_status','text'),
+    ('public.style_guide_search_documents','pdf_text_length','integer')
   ) required(relation_name,column_name,type_name) where not exists (
     select 1 from pg_attribute a where a.attrelid=to_regclass(required.relation_name)
       and a.attname=required.column_name and a.atttypid=to_regtype(required.type_name)
