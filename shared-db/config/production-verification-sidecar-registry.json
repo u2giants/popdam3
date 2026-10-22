@@ -2,6 +2,10 @@
   "schema_version": 1,
   "sidecars": [
     {
+      "version": "20261022032116",
+      "issue": 4210
+    },
+    {
       "version": "20260621151155",
       "issue": null
     },
