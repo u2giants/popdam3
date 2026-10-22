@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { formatDate } from "@/lib/format-date";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -117,6 +117,8 @@ function formatBytes(n: number | null): string {
   return `${v.toFixed(v < 10 ? 1 : 0)} ${units[u]}`;
 }
 
+const POPSG_SEARCH_DEBOUNCE_MS = 350;
+
 interface LibraryFilters {
   licensor: string;
   property: string;
@@ -132,6 +134,7 @@ async function fetchPopSGV2Page(
   sortDirection: SortDirection,
   page: number,
   pageSize: PageSize,
+  signal?: AbortSignal,
 ) {
   const pageOffset = page * pageSize;
   const expandedTerms = filters.nameSearch
@@ -152,7 +155,7 @@ async function fetchPopSGV2Page(
       sortDirection,
       limit,
       offset,
-    }));
+    })).abortSignal(signal);
     if (error) throw error;
     const payload = parsePopSGV2Payload(data);
     if (payload.result_mode !== mode) {
@@ -717,6 +720,13 @@ export default function PopSGLibraryPage() {
   const [licensor, setLicensor] = useState<string>("all");
   const [property, setProperty] = useState<string>("all");
   const [nameSearch, setNameSearch] = useState<string>("");
+  // Each search is a multi-second RPC; wait for typing to pause so one search
+  // sends one request instead of one per keystroke (popcre/shared-db#4210).
+  const [debouncedNameSearch, setDebouncedNameSearch] = useState<string>("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedNameSearch(nameSearch.trim()), POPSG_SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [nameSearch]);
   const [fileTypes, setFileTypes] = useState<string[]>([]);
   const [thumbStatus, setThumbStatus] = useState<ThumbStatus>("any");
   const [displayMode, setDisplayMode] = useState<PopSGDisplayMode>("guides");
@@ -758,16 +768,16 @@ export default function PopSGLibraryPage() {
   });
 
   const filters = useMemo(
-    () => ({ licensor, property, nameSearch: nameSearch.trim(), fileTypes, thumbStatus }),
-    [licensor, property, nameSearch, fileTypes, thumbStatus],
+    () => ({ licensor, property, nameSearch: debouncedNameSearch, fileTypes, thumbStatus }),
+    [licensor, property, debouncedNameSearch, fileTypes, thumbStatus],
   );
 
   const { data: groupResults, isLoading: groupsLoading, refetch: refetchGroups, isFetching: groupsFetching, error: groupsError } = useQuery({
     queryKey: ["popsg", "groups", filters, sortField, sortDirection, page, pageSize],
     enabled: displayMode === "guides",
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (canUsePopSGV2("guides", filters.thumbStatus, sortField, sortDirection, filters.nameSearch)) {
-        return fetchPopSGV2Page("guides", filters, sortField, sortDirection, page, pageSize);
+        return fetchPopSGV2Page("guides", filters, sortField, sortDirection, page, pageSize, signal);
       }
 
       // search_style_guide_library_v2 does not yet expose size ordering or
@@ -806,7 +816,7 @@ export default function PopSGLibraryPage() {
       q = q.order("directory_path", { ascending: true });
       q = q.range(page * pageSize, page * pageSize + pageSize - 1);
 
-      const { data, error, count } = await q;
+      const { data, error, count } = await q.abortSignal(signal);
       if (error) throw error;
       return { rows: (data ?? []) as StyleGuideGroup[], total: count ?? 0 };
     },
@@ -815,9 +825,9 @@ export default function PopSGLibraryPage() {
   const { data: fileResults, isLoading: filesLoading, refetch: refetchFiles, isFetching: filesFetching, error: filesError } = useQuery({
     queryKey: ["popsg", "files", filters, sortField, sortDirection, page, pageSize],
     enabled: displayMode === "files",
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (canUsePopSGV2("files", filters.thumbStatus, sortField, sortDirection, filters.nameSearch)) {
-        return fetchPopSGV2Page("files", filters, sortField, sortDirection, page, pageSize);
+        return fetchPopSGV2Page("files", filters, sortField, sortDirection, page, pageSize, signal);
       }
 
       // See the guide-mode compatibility note above. These are the only
@@ -860,7 +870,7 @@ export default function PopSGLibraryPage() {
         .order("property_folder", { ascending: true, nullsFirst: false })
         .range(page * pageSize, page * pageSize + pageSize - 1);
 
-      const { data, error, count } = await q;
+      const { data, error, count } = await q.abortSignal(signal);
       if (error) throw error;
       return { rows: (data ?? []) as StyleGuideFile[], total: count ?? 0 };
     },
