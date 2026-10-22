@@ -4760,26 +4760,69 @@ export function verifyCompletionAcceptance({ issue, record }, io = githubIo) {
  * recovered lane could be released by the holder it replaced. Identity is the
  * right key; the sha is an implementation detail that legitimately moves.
  */
-export function releaseExclusive(kind, expected, io = githubIo) {
+export function releaseExclusive(kind, expected = {}, io = githubIo) {
   const ref = EXCLUSIVE_REFS[kind]
   if (!ref) throw new LaneError(`unknown exclusive lane: ${kind}`)
+  const hasIdentity = expected.holderId !== undefined && expected.holderId !== null && expected.holderId !== ''
+  const hasGeneration = expected.generation !== undefined && expected.generation !== null && expected.generation !== ''
+  if (hasIdentity !== hasGeneration) throw new LaneError('release by identity needs BOTH --holder-id and --generation')
+  if (hasGeneration && (!Number.isInteger(expected.generation) || expected.generation <= 0)) throw new LaneError('--generation must be a positive integer')
+  if (!hasIdentity && !expected.ownerSha) throw new LaneError('release needs --holder-id and --generation, or the acquisition --owner-sha')
+  if (expected.ownerSha !== undefined && expected.ownerSha !== null && !/^[0-9a-f]{40}$/i.test(String(expected.ownerSha))) throw new LaneError('--owner-sha must be the full 40-hex acquisition sha')
   const ownerSha = io.makeOwnerCommit(`db-coordination ${kind} release-${randomUUID()}`)
   acquireMutex(ownerSha, io)
   try {
+    // RE-READ UNDER THE MUTEX. Nothing observed before acquisition counts.
     const lease = readExclusiveLease(kind, io)
-    if (!lease) return { kind, ref, released: false, reason: 'the lane was already free' }
-    // A legacy lease has no identity to check, so it keeps the old sha contract
-    // rather than being releasable by anyone who asks.
+    // An absent ref releases idempotently and touches nothing.
+    if (!lease) return { kind, ref, released: false, idempotent: true, reason: 'the lane was already free' }
+    // A legacy lease has no identity to check, so it keeps the exact-sha
+    // contract rather than being releasable by anyone who asks. It is never
+    // upgraded implicitly and never taken over.
     if (lease.legacy) {
-      if (!expected.ownerSha) throw new LaneError('this lane holds a pre-Step-6 lease; release it with its acquisition sha')
+      if (!expected.ownerSha) throw new LaneError('this lane holds a pre-Step-6 lease; release it with its exact acquisition sha')
+      if (lease.sha !== expected.ownerSha) throw new LaneError(`refusing to release ${ref}: it belongs to another owner (legacy lease ${lease.sha}, caller named ${expected.ownerSha})`)
       requireOwnedRef(MUTEX_REF, ownerSha, io)
-      releaseOwnedRef(ref, expected.ownerSha, io)
+      releaseOwnedRef(ref, lease.sha, io)
+      proveReleased()
       return { kind, ref, released: true, legacy: true }
     }
-    assertLease(lease, expected)
+    // LEGACY SHA CALLER (issue #3779 step 8a): a caller that still passes only the
+    // acquisition sha is resolved to holder + generation from THAT commit, under
+    // the mutex, and then held to the same identity rule as a modern caller. A
+    // lease that has since been recovered carries a new sha, holder and
+    // generation, so the old holder's release refuses and the successor is never
+    // touched. A different ref sha is NEVER read as "we already released".
+    const identity = { kind }
+    if (hasIdentity) { identity.holderId = String(expected.holderId); identity.generation = expected.generation }
+    if (expected.ownerSha) {
+      let message = null
+      try { message = io.readCommitMessage?.(expected.ownerSha) ?? null } catch { message = null }
+      if (!message) throw new LaneError(`refusing to release ${ref}: the acquisition commit ${expected.ownerSha} is unreadable, so its holder and generation cannot be proved`)
+      let acquired
+      try { acquired = parseLeaseMessage(message) } catch (error) { throw new LaneError(`refusing to release ${ref}: ${expected.ownerSha} is not a lease commit (${error.message})`) }
+      if (acquired.legacy) throw new LaneError(`refusing to release ${ref}: ${expected.ownerSha} is a pre-Step-6 lease commit but the lane holds a fenced lease`)
+      if (hasIdentity && (acquired.holderId !== identity.holderId || acquired.generation !== identity.generation)) throw new LaneError(`refusing to release ${ref}: --owner-sha ${expected.ownerSha} was acquired by ${acquired.holderId} generation ${acquired.generation}, not ${identity.holderId} generation ${identity.generation}`)
+      identity.holderId = acquired.holderId
+      identity.generation = acquired.generation
+      if (lease.sha !== expected.ownerSha) {
+        // Same holder and generation but a moved sha would mean the ref was
+        // rewritten outside acquisition/recovery; refuse that too.
+        assertLease(lease, identity)
+        throw new LaneError(`refusing to release ${ref}: it now points at ${lease.sha}, not the acquisition sha ${expected.ownerSha}; ownership moved and the current holder is untouched`)
+      }
+    }
+    assertLease(lease, identity)
     requireOwnedRef(MUTEX_REF, ownerSha, io)
     releaseOwnedRef(ref, lease.sha, io)
-    return { kind, ref, released: true, holderId: lease.holderId, generation: lease.generation }
+    proveReleased()
+    return { kind, ref, released: true, holderId: lease.holderId, generation: lease.generation, ownerSha: lease.sha }
+    // Absence is the only proof of our own release. We hold the mutex, so a
+    // different sha here means a writer bypassed serialization; say so.
+    function proveReleased() {
+      const after = io.readRef(ref)
+      if (after !== null) throw new LaneError(`release of ${ref} is not proven: it reads back as ${after}; a different sha is not proof that this lease was deleted, and the current owner is untouched`)
+    }
   } finally { releaseMutexOnExit(ownerSha,io) }
 }
 
@@ -5408,7 +5451,9 @@ export function main(argv, now = new Date(), io = githubIo) {
     if(o.assignReviewer){assertReviewerDrawHandoff(o,io,{path:'assign'});console.log(JSON.stringify(assignWithMutexRetry({issue:o.issue,pr:o.pr,headSha:o.headSha,slot:o.reviewSlot!==undefined?Number(o.reviewSlot):1,reviewerAllowlist:o.reviewerAllowlist,ownerQuote:o.ownerQuoteFile?readFileSync(o.ownerQuoteFile,'utf8').trim():'',admissionOptions:io.enforceAdmission===true?o:null},io),null,2));return 0}
     if(o.activateReviewCutover){console.log(JSON.stringify(activateReviewCutover(io),null,2));return 0}
     if (o.acquireExclusive) { if(o.acquireExclusive!=='merge')requireAdmissionArguments(o,io,{pr:o.pr??null});console.log(JSON.stringify(acquireExclusive(o.acquireExclusive, { owner:o.owner, pr:o.pr, headSha:o.headSha, versions:o.versions, versionPrMap:o.versionPrMap, admissionOptions:o }, io), null, 2)); return 0 }
-    if (o.releaseExclusive) { if (!o.ownerSha) throw new LaneError('--owner-sha is required for safe release'); releaseOwnedRef(EXCLUSIVE_REFS[o.releaseExclusive], o.ownerSha, io); return 0 }
+    // Issue #3779 step 8a: the direct `releaseOwnedRef` CLI fast path is gone.
+    // Every --release-<lane> call, legacy SHA callers included, is handled below
+    // by `releaseExclusive` under the coordination mutex.
     if(o.claim){
       for (const k of ['task','owner','branch','worktree']) if (!o[k]) throw new LaneError(`--${k} is required`)
       if (!o.objects.length) throw new LaneError('--objects must name every database object exactly')

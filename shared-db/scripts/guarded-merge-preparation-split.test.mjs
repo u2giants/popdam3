@@ -186,7 +186,7 @@ test('simultaneous_merges_admit_one_writer', () => {
   assertExclusive('merge', { holderId: runA.owner, kind: 'merge', headSha: runA.headSha, pr: runA.pr }, io)
   assert.throws(() => assertExclusive('merge', { holderId: runB.owner, kind: 'merge' }, io), /held by github-actions:1001/)
   // Ownership-aware release: the loser cannot release the winner's lease.
-  assert.throws(() => releaseExclusive('merge', { holderId: runB.owner }, io), /held by github-actions:1001/)
+  assert.throws(() => releaseExclusive('merge', { holderId: runB.owner, generation: 1 }, io), /held by github-actions:1001/)
   assert.equal(io.readRef(EXCLUSIVE_REFS.merge), first.ownerSha)
   const released = releaseExclusive('merge', { holderId: runA.owner, generation: 1 }, io)
   assert.equal(released.released, true)
