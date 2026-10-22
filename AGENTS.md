@@ -404,7 +404,7 @@ Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read
 | `TENANTS` / `POPDAM_DATA_DIR` / `POPDAM_DATA_FILE` | Multi-tenant bridge supervisor and persisted agent config paths | Bridge `.env` / supervisor child env | No | Optional |
 | `WINDOWS_AGENT_NAS_HOST` / `WINDOWS_AGENT_NAS_SHARE` / `WINDOWS_AGENT_NAS_USER` / `WINDOWS_REPAIR_CODE` | Windows render agent NAS mapping and repair flow | `admin_config`, Windows agent local config | No | Optional, Windows-agent only. As of 2026-10-15 cutover, `WINDOWS_AGENT_NAS_USER` = `popdam-render`; plaintext `WINDOWS_AGENT_NAS_PASS` is deleted — passwords come from Vault RPCs `get/set_render_z_nas_password` and `get/set_sg_nas_password` (service_role-only). |
 | `HELPER_*` keys (`HELPER_DAM_URL`, `HELPER_SEAFILE_LIBRARIES`, etc.) | Helper checkout/check-in provider config | `admin_config`, returned by `helper-api /config` | No | Yes for Helper installs |
-| `COLDLION_API_KEY` / `COLDLION_*` | ColdLion / ERP integration credentials and endpoint config | Supabase Vault and `admin_config` | No | Yes if ERP/ColdLion sync is used |
+| `COLDLION_API_KEY` / `COLDLION_*` | ColdLion / ERP integration credentials and endpoint config | Supabase Vault and `admin_config` | No | Only for the prepack landing loader script. PopDAM app code never calls the ColdLion API — it reads the shared-db mirror (`coldlion.merch_group_detail`, `plm.item`); see `docs/ADMIN_OPERATIONS.md` → ColdLion Integration |
 
 Do not put secret values, PATs, passwords, private keys, or service-role keys in documentation. The frontend's hardcoded Supabase anon key is publishable client config; the service-role key is never bundled.
 

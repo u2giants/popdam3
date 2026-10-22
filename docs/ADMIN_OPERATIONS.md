@@ -495,10 +495,19 @@ Maximum 50 images per call.
 
 ## ColdLion Integration
 
-ColdLion (`http://x5.coldlion.com/EhpApi`) is an external API used for merchandise group code lookups.
+ColdLion (`http://x5.coldlion.com/EhpApi`) is the external ERP API.
 
-The Edge Function credential is read only from
-`admin_config.COLDLION_API_KEY`; there is no source-code fallback. The separate
+**PopDAM app code never calls the ColdLion API** (owner directive, 2026-10-21,
+PR #465 / issue #357). Every ColdLion fact PopDAM needs is already mirrored in
+the shared database: merch group names in `coldlion.merch_group_detail`, items
+(with `raw.createdTime` / `raw.divisionCode`) in `plm.item` where
+`source_system = 'coldlion'`. `_shared/coldlion.ts` reads those through the
+`execute_readonly_query` RPC. Do not reintroduce HTTP calls to ColdLion in edge
+functions, the worker, or the bridge; if data is missing, fix the shared-db
+mirror instead.
+
+The edge functions no longer read `admin_config.COLDLION_API_KEY`; there is
+no source-code fallback. The separate
 landing loader requires protected environment injection. A former fallback was
 removed in `d2bdbe6d`. On 2026-09-20 Albert confirmed that POP does not control
 ColdLion's system and has no way to rotate this credential, and directed that
@@ -531,7 +540,7 @@ Operational lessons from the production loader:
 - Extract the scalar from JSONB before applying text functions such as `btrim`.
 
 ### `debug-coldlion-lookup`
-Performs a test lookup against the ColdLion API and returns the raw response. Used for diagnosing integration issues.
+Looks up one ColdLion merch group list from the database mirror (`coldlion.merch_group_detail`). Used for diagnosing integration issues.
 
 | Field | Type | Notes |
 |-------|------|-------|
