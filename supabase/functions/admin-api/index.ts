@@ -2032,7 +2032,9 @@ corsServe(async (req: Request) => {
     // Choose auth level: some actions are open to all authenticated users
     const authResult = DESIGNER_OR_ADMIN_ACTIONS.has(action)
       ? await authenticateDesignerOrAdmin(req)
-      : USER_ACCESSIBLE_ACTIONS.has(action) ? await authenticateUser(req) : await authenticateAdmin(req);
+      : USER_ACCESSIBLE_ACTIONS.has(action)
+      ? await authenticateUser(req)
+      : await authenticateAdmin(req);
     if (authResult instanceof Response) return authResult;
     const { userId } = authResult;
 
