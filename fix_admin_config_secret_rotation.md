@@ -28,7 +28,7 @@ needed to stop the leak. What remains is rotation, because the values were expos
 | 4 | `GOOGLE_AI_API_KEY` | Google AI | aistudio.google.com | `ai-provider-api-keys` → `gemini_popdam_shared_supabase` |
 | 5 | `DO_SPACES_KEY` | DigitalOcean Spaces | DO console → API → Spaces keys | `DigitalOcean Spaces - popdam bucket (nyc3)` |
 | 6 | `DO_SPACES_SECRET` | DigitalOcean Spaces | (same key pair as #5) | (same item) |
-| 7 | `WINDOWS_AGENT_SG_NAS_PASS` | AD account `popdam` (styleguides share, edge2) | **Active Directory** `IML.isaacmorris.com` | `Synology edgesynology2 - styleguides SMB share` |
+| 7 | `WINDOWS_AGENT_SG_NAS_PASS` (row deleted Oct 2026; Y: now uses `popdam-render`) | Synology-LOCAL `popdam` (corrected 2026-10-21) | DSM on each unit — see `docs/ops/179-popdam-nas-rotation-plan.md` | `Synology edgesynology2 - styleguides SMB share` |
 | 8 | `WINDOWS_AGENT_NAS_PASS` | AD account `ahazan` (mac share, edge2) | **Active Directory** `IML.isaacmorris.com` | `Synology 192.168.3.101 - mac SMB share` |
 
 All 1Password items are in the `vibe_coding` vault.
@@ -52,9 +52,9 @@ For each credential:
   unexpected activity during the exposure window (2026-07-24 back to whenever the policy
   was created).
 - **DO Spaces** is a single key *pair* (#5 + #6) — rotating replaces both together.
-- **(Corrected 2026-10-21, #179:** `popdam` is a Synology-LOCAL user on both units; see docs/ops/179-popdam-nas-rotation-plan.md.) Earlier note: NAS passwords are AD domain accounts, not Synology-local. Changing `popdam`/`ahazan`
-  in AD **immediately breaks the Windows scraping agents** until the new value is saved in
-  Settings — do it in a quiet window. Both agents read from `edgesynology2` (the read
+- **Corrected 2026-10-21 (#179):** `popdam` is a Synology-LOCAL user on both units (not
+  AD; neither unit is domain-joined) and the Windows agents no longer use it — Z:/Y: use
+  `popdam-render` from Vault. Rotate popdam per `docs/ops/179-popdam-nas-rotation-plan.md`. Both agents read from `edgesynology2` (the read
   replica); see the NAS topology spec.
 - Two of these (the NAS passwords) are slated to move into **Supabase Vault** and the 6
   API/storage keys into **environment variables** — see
