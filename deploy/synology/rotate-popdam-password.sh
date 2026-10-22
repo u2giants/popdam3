@@ -48,6 +48,13 @@ accepts() { # $1 = secret file; 0 if DSM login succeeds
   s=$(login "$1"); [ -n "$s" ] || return 1; logout "$s"; return 0
 }
 setpw() { # $1 = current (auth) file, $2 = target file
+  if [ "${ROTATE_SETPW:-api}" = synouser ]; then
+    # For accounts with "disallow password change" (edge1 popdam): root tool.
+    # The value is in this process's argv for milliseconds (root-only NAS).
+    accepts "$1" || { echo "login refused"; return 2; }
+    /usr/syno/sbin/synouser --setpw "$ACCOUNT" "$(cat "$2")" >/dev/null 2>&1 && return 0
+    echo "set response: synouser failed"; return 1
+  fi
   # Self-service change: SYNO.Core.User.PasswordConfirm v2 then
   # SYNO.Core.NormalUser v2 set (JSON-encoded values). SYNO.Core.User set
   # returns 105 for this account and is not used.

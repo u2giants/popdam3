@@ -1,5 +1,12 @@
 # #179 — Rotate NAS user `popdam` (edgesynology1 + edgesynology2)
 
+**Executed 2026-10-21 ~11:25 PM EDT** on Albert's override of the reviewer
+gate ("changing a password doesn't need a reviewer. just do it", quoted by
+the coordinator session). edge2 via the DSM self-service API; edge1 has
+"disallow password change" set for popdam, so it used `ROTATE_SETPW=synouser`
+(root tool). Both units: new accepted, old refused, agent connected; both
+1Password items updated and digest-verified; staging item retired.
+
 Owner request (Albert, quoted verbatim from his chat by the coordinator
 session local_24a4f673, 2026-10-21; the coordinator relays owner words, and
 the owner rule is that no human approval is requested): "change the NAS password for user 'popdam' and record it in 1password".

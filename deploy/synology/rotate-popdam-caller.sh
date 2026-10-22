@@ -46,7 +46,7 @@ shred -u "$T/old" "$T/new"
 
 # sudo -S reads the first stdin line; the script never reads stdin.
 set +e
-"${SSH[@]}" "sudo -S -p '' sh -c 'chown -R root:root $RD && chmod 700 $RD && chmod 600 $RD/old $RD/new $RD/rotate-popdam-password.sh && [ \"\$(sha256sum $RD/rotate-popdam-password.sh | cut -c1-64)\" = $SH ] || { echo \"FAIL: staged files\"; exit 1; }; sh $RD/rotate-popdam-password.sh $MODE $RD; rc=\$?; shred -u $RD/old $RD/new 2>/dev/null; rm -rf $RD; exit \$rc'; rc=\$?; sudo -k; exit \$rc" \
+"${SSH[@]}" "sudo -S -p '' sh -c 'chown -R root:root $RD && chmod 700 $RD && chmod 600 $RD/old $RD/new $RD/rotate-popdam-password.sh && [ \"\$(sha256sum $RD/rotate-popdam-password.sh | cut -c1-64)\" = $SH ] || { echo \"FAIL: staged files\"; exit 1; }; ROTATE_SETPW=${ROTATE_SETPW:-api} sh $RD/rotate-popdam-password.sh $MODE $RD; rc=\$?; shred -u $RD/old $RD/new 2>/dev/null; rm -rf $RD; exit \$rc'; rc=\$?; sudo -k; exit \$rc" \
   < "$T/sudo" > "$T/out" 2>&1
 rc=$?
 set -e
