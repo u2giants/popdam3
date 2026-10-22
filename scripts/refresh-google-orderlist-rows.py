@@ -38,8 +38,8 @@ def normalized(value):
 
 def source_rows(path):
     rows=json.loads(path.read_text())
-    if len(rows)!=12925 or any(len(r)!=48 for r in rows):
-        raise ValueError('Source range must be exactly Order!A1:AV12925')
+    if len(rows)<2 or any(len(r)!=48 for r in rows):
+        raise ValueError('Source range must be Order!A1:AV with a header and data rows')
     for index,expected in {0:'PO Status',1:'Import',13:'Customer',14:'Assortment',15:'Style#',20:'Quantity',21:'Case'}.items():
         if expected not in rows[0][index]:
             raise ValueError('Source header contract changed')
@@ -115,10 +115,22 @@ def overlap_key(row):
     return normalized(fields[0]),normalized(fields[1]),str(quantity.normalize())
 
 
-def assert_existing_identity(old, line, expected_parent):
+def allowed_parent_move(old_order, line):
+    """Same-SKU moves the October review approved: a blank-PO placeholder gaining
+    its PO, or an order renamed to its own cancelled form."""
+    if not old_order:
+        return False
+    number = normalized(old_order.get('production_order_number'))
+    target = line.order_source_id
+    return (number == normalized('GOOGLE-ROW-%d' % line.sheet_row)
+            or target == 'order:po:' + number + '-cancelled')
+
+
+def assert_existing_identity(old, line, expected_parent, old_order=None):
     """Physical sheet positions are not authority to replace real line identity."""
     if old and (normalized(old.get('sku')) != normalized(line.payload.get('sku'))
-                or old['production_order_id'] != expected_parent):
+                or (old['production_order_id'] != expected_parent
+                    and not allowed_parent_move(old_order, line))):
         raise ValueError('Existing Google source identity changed; reviewed reconciliation required: '+line.source_id)
 
 
@@ -187,7 +199,7 @@ def main():
             old=lines.get(lrefs.get(line.source_id))
             if old and old['id'] in cold_refs:
                 held.append({'source_id':line.source_id,'reason':'shared_coldlion_line'});continue
-            assert_existing_identity(old,line,orefs.get(line.order_source_id))
+            assert_existing_identity(old,line,orefs.get(line.order_source_id),old and orders.get(old['production_order_id']))
             if old is None and overlap_key(line.payload) in cold_index:
                 held.append({'source_id':line.source_id,'reason':'new_cross_source_overlap','coldlion_ids':cold_index[overlap_key(line.payload)]});continue
             desired_lines[line.source_id]={'order_source_id':line.order_source_id,'payload':merged_payload(old,line.payload,line.metadata,m.LINE_COLUMNS)}
@@ -235,7 +247,10 @@ def main():
         after_orders={r[0]['id']:r[0] for r in conn.execute('select to_jsonb(t) from '+TABLES[0]+' t').fetchall()}
         after_lines={r[0]['id']:r[0] for r in conn.execute('select to_jsonb(t) from '+TABLES[1]+' t').fetchall()}
         if any(after_lines[key]!=value for key,value in cold.items()):raise ValueError('ColdLion line changed')
-        if any(after_orders[key]!=orders[key] for key in {r['production_order_id'] for r in cold.values()}):raise ValueError('ColdLion header changed')
+        # Consolidated ColdLion lines may sit under a Google-owned header, which
+        # this refresh legitimately updates; only ColdLion's own headers are frozen.
+        google_headers=set(orefs.values())
+        if any(after_orders[key]!=orders[key] for key in {r['production_order_id'] for r in cold.values()}-google_headers):raise ValueError('ColdLion header changed')
         if len(after_lines)!=len(lines)+changes['lines_inserted']:raise ValueError('Line count mismatch')
         if len(after_orders)!=len(orders)+changes['orders_inserted']:raise ValueError('Order count mismatch')
         for sid,entry in desired_lines.items():

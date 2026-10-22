@@ -62,4 +62,13 @@ class RefreshBoundaryTests(unittest.TestCase):
   line=SimpleNamespace(payload={'sku':' SAME '},source_id='order:row:2')
   s.assert_existing_identity({'sku':'same','production_order_id':'parent'},line,'parent')
   s.assert_existing_identity(None,line,None)
+ def test_only_placeholder_and_cancellation_parent_moves_are_allowed(self):
+  from types import SimpleNamespace
+  old={'sku':'a','production_order_id':'old'}
+  line=SimpleNamespace(payload={'sku':'a'},source_id='order:row:7',sheet_row=7,order_source_id='order:po:d1-cancelled')
+  s.assert_existing_identity(old,line,None,{'production_order_number':'D1'})
+  s.assert_existing_identity(old,line,None,{'production_order_number':'GOOGLE-ROW-7'})
+  for number in ['D2','GOOGLE-ROW-8']:
+   with self.assertRaises(ValueError):s.assert_existing_identity(old,line,None,{'production_order_number':number})
+  with self.assertRaises(ValueError):s.assert_existing_identity(old,line,None)
 unittest.main()
