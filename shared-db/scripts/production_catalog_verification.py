@@ -4371,6 +4371,24 @@ def verify(
     return 1
 
 
+# Durable catalog outcome of the guarded DO block in migration 20261022052540
+# (issue #4578): the idempotent re-apply of 20260722221200 must leave the
+# sample quantity-state column and its three named constraints in place.
+CATEGORY_DFLOW_SAMPLE_QUANTITY_STATE = """
+  (to_regclass('dflow.sample') is not null
+   and to_regclass('dflow.sample_box') is not null
+   and exists (select 1 from pg_attribute a
+                where a.attrelid = to_regclass('dflow.sample')
+                  and a.attname = 'quantity_migration_state' and not a.attisdropped)
+   and (select count(*) from pg_constraint c
+         where (c.conrelid, c.conname) in (
+           (to_regclass('dflow.sample'), 'sample_quantity_migration_state_check'),
+           (to_regclass('dflow.sample_box'), 'sample_box_ownership_state_check'),
+           (to_regclass('dflow.sample_box'), 'sample_box_owner_factory_fkey'))) = 3)
+"""
+CATALOG_CONTRACTS["dflow_sample_quantity_state_v1"] = CATEGORY_DFLOW_SAMPLE_QUANTITY_STATE
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", type=Path, required=True)
@@ -5346,3 +5364,4 @@ CATALOG_CONTRACTS["style_group_differential_installed_v1"] = "(-- #2421 installe
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
