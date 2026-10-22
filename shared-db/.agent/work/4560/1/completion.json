@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 4560,
+  "outcome": "ready-for-merge",
+  "pr": 4594,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4560/1",
+  "contract_sha256": "ab633000785cbdbd470f7ea86052001198cf68c3dec41667b9dc63271549affd",
+  "base_sha": "c4b4c179d9a0adf52a0fe73381e22c0cec7c64ff",
+  "head_sha": "2850b32d27e942ade2ed95c417c3ab5bdd89e230",
+  "files_changed": [
+    "tools/coldlion-landing-history.test.mjs",
+    "tools/coldlion-landing/lib/load-window.mjs",
+    "tools/coldlion-landing/sync-history.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test tools/coldlion-landing-history.test.mjs tools/coldlion-order-intake-window-arithmetic.test.mjs",
+      "exit_code": 0,
+      "evidence": "99 pass, 0 fail."
+    },
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Offline tests cover the created/modified window; live proof follows on #4560 after merge."
+  ],
+  "stop_conditions_hit": []
+}

@@ -22,7 +22,8 @@ import { buildOrderHistoryLoadSql, buildProdHistoryLoadSql } from "./coldlion-la
 import { assertHistoryShape, hasOrderStampColumns, historyShapeSql, interpretOrderStampColumns, loadedWindowsSql, loadWindowScope, orderStampColumnsSql } from "./coldlion-landing/lib/run-history.mjs";
 import { createHash } from "node:crypto";
 import { newYorkToday, parseArgs as parseBackfillArgs, runUnsealedOrderWindow, selectScopes, validateUnsealedOrderWindow } from "./coldlion-landing/backfill-history.mjs";
-import { forwardScan, parseArgs as parseSyncArgs } from "./coldlion-landing/sync-history.mjs";
+import { forwardScan, headerTrackScan, parseArgs as parseSyncArgs } from "./coldlion-landing/sync-history.mjs";
+import { headerTrackWindow as headerTrackWindowForTest } from "./coldlion-landing/lib/order-intake-windows.mjs";
 
 // ---------------------------------------------------------------------------------
 // The fixed grid
@@ -1173,4 +1174,46 @@ test("the sandbox sync runs the offline tests first, masks the password and boun
 
 test("--today is validated", () => {
   assert.throws(() => parseSyncArgs(["--today", "2026-13-40"]), /--today/);
+});
+
+// ---------------------------------------------------------------------------------
+// Header tracks (#4560): created/modified filters over a wide start window.
+// ---------------------------------------------------------------------------------
+
+test("a header-track load sends the wide start window and filters, and skips the sealed-window check", () => {
+  const window = { ...headerTrackWindowForTest("2026-10-21", "created") };
+  const sql = orderSql({ sealed: false, window });
+  assert.match(sql, /"fromDate":"2019-01-01","toDate":"2099-12-31","createdFrom":"2026-10-16","createdTo":"2026-10-22"/);
+  assert.match(sql, /"unsealedHeaderTrack":true/);
+  assert.match(sql, /"unsealedForward":true/, "children rules treat it as a forward load");
+  assert.doesNotMatch(sql, /already loaded \(sealed\)/);
+  assert.doesNotMatch(sql, /insert into coldlion\.window_ledger/);
+});
+
+test("header tracks run by default and --no-header-tracks turns them off", () => {
+  assert.equal(parseSyncArgs(["--today", "2026-10-21"]).headerTracks, true);
+  assert.equal(parseSyncArgs(["--no-header-tracks"]).headerTracks, false);
+});
+
+test("the header scan loads created then modified, unsealed, and reports a failed track without stopping", async () => {
+  const seen = [];
+  const failures = [];
+  const result = await headerTrackScan({
+    args: { today: "2026-10-21", company: "TESTCO", pageSize: 200 },
+    apiKey: "k",
+    failures,
+    load: async ({ window, sealed, scope }) => {
+      assert.equal(sealed, false);
+      assert.equal(scope.endpoint, "/orderHistory");
+      assert.equal(window.requestFrom, "2019-01-01");
+      assert.equal(window.requestTo, "2099-12-31");
+      seen.push(Object.keys(window.filters)[0]);
+      if (window.filters.createdFrom) throw new Error("vendor down");
+      return { fetched: { rows: 4 }, summary: { lines: 4 } };
+    },
+  });
+  assert.deepEqual(seen, ["createdFrom", "modifiedFrom"]);
+  assert.equal(result.tracks, 1);
+  assert.equal(result.lines, 4);
+  assert.equal(failures.length, 1);
 });

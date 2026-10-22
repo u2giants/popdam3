@@ -30,6 +30,12 @@
 // The scan stops after FORWARD_EMPTY_MONTH_STOP consecutive start-date months that land
 // no sales-order line, or at the FORWARD_HARD_CAP_MONTHS horizon (order-intake-windows.mjs
 // owns both constants, shared with the order-intake poll).
+//
+// HEADER TRACKS (#4560) run every time unless --no-header-tracks: one /orderHistory read per
+// track (createdFrom / modifiedFrom over the last few days, start window held wide at
+// 2019-01-01..2099-12-31, ColdLion 2026-10-16). They find every order ENTERED or CHANGED
+// recently whatever its start date, so an order keyed today that starts months out lands now
+// instead of waiting for the week its start date closes. Loaded unsealed, like --forward.
 
 import { readColdlionApiKey } from "../coldlion-sync-common.mjs";
 import { isoDate, lastClosedWindowIndex, windowAtIndex, windowsEndingAt } from "./lib/grid.mjs";
@@ -38,7 +44,9 @@ import { COMPANY_CODE, PAGE_SIZE } from "./lib/scopes.mjs";
 import { allScopes, assertHistoryShape, ledgerKey, loadWindowScope, loadedWindows, scopeLabel } from "./lib/run-history.mjs";
 import { ORDER_HISTORY } from "./lib/scopes.mjs";
 import {
+  HEADER_TRACKS,
   closesStagedMonth,
+  headerTrackWindow,
   forwardStopReached,
   forwardWindows,
   recordStagedWindow,
@@ -48,7 +56,7 @@ import { parseIsoDate, windowContaining } from "./lib/grid.mjs";
 export const DEFAULT_WINDOWS = 3;
 
 export function parseArgs(argv) {
-  const args = { windows: DEFAULT_WINDOWS, company: COMPANY_CODE, pageSize: PAGE_SIZE, dryRun: false, forward: false };
+  const args = { windows: DEFAULT_WINDOWS, company: COMPANY_CODE, pageSize: PAGE_SIZE, dryRun: false, forward: false, headerTracks: true };
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     const value = argv[index + 1];
@@ -59,6 +67,7 @@ export function parseArgs(argv) {
       case "--page-size": args.pageSize = Number(value); index += 1; break;
       case "--dry-run": args.dryRun = true; break;
       case "--forward": args.forward = true; break;
+      case "--no-header-tracks": args.headerTracks = false; break;
       case "--today": args.today = value; index += 1; break;
       default:
         throw new Error(`unknown argument ${flag}`);
@@ -103,6 +112,7 @@ export async function main(argv = process.argv.slice(2)) {
       `${work.length} window/scope pair(s) outstanding`,
   );
   if (args.dryRun) {
+    if (args.headerTracks) console.log(`header tracks ${HEADER_TRACKS.join(", ")} would run (dry run: nothing fetched)`);
     if (args.forward) console.log(`forward scan from ${windowContaining(args.today).from} would run (dry run: nothing fetched)`);
     return { outstanding: work.length, loaded: 0, failures: 0 };
   }
@@ -131,6 +141,7 @@ export async function main(argv = process.argv.slice(2)) {
       console.error(`${window.from} ${scopeLabel(scope)} FAILED: ${error.message}`);
     }
   }
+  const header = args.headerTracks ? await headerTrackScan({ args, apiKey, failures }) : null;
   let forward = null;
   if (args.forward) {
     forward = await forwardScan({ args, apiKey, failures });
@@ -140,7 +151,37 @@ export async function main(argv = process.argv.slice(2)) {
     error.failures = failures;
     throw error;
   }
-  return { outstanding: work.length, loaded, failures: 0, forward };
+  return { outstanding: work.length, loaded, failures: 0, header, forward };
+}
+
+/**
+ * The header tracks: every sales order created, then modified, in the last
+ * HEADER_LOOKBACK_DAYS, whatever its start date, each loaded unsealed. A failure is
+ * reported through `failures` and does not stop the other track.
+ */
+export async function headerTrackScan({ args, apiKey, failures, load = loadWindowScope }) {
+  const result = { tracks: 0, lines: 0 };
+  for (const track of HEADER_TRACKS) {
+    const window = headerTrackWindow(args.today, track);
+    try {
+      const loaded = await load({
+        scope: ORDER_HISTORY,
+        window,
+        apiKey,
+        companyCode: args.company,
+        pageSize: args.pageSize,
+        requestedBy: `coldlion-landing sync-history ${track}`,
+        sealed: false,
+      });
+      result.tracks += 1;
+      result.lines += loaded.summary.lines;
+      console.log(`/orderHistory ${track} ${window.from}..${window.to} (start ${window.requestFrom}..${window.requestTo}, unsealed) ${loaded.fetched.rows} row(s), ${loaded.summary.lines} line(s)`);
+    } catch (error) {
+      failures.push(`/orderHistory ${track} ${window.from}: ${error.message}`);
+      console.error(`/orderHistory ${track} ${window.from} FAILED: ${error.message}`);
+    }
+  }
+  return result;
 }
 
 /**

@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "generation": 1,
+  "evidence_parent": null,
+  "work_issue": 4560,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "ColdLion history sync loads orders created or modified in the last 5 days (orderHistory created/modified filters) every run, unsealed, with offline tests.",
+  "base_sha": "c4b4c179d9a0adf52a0fe73381e22c0cec7c64ff",
+  "dispatcher": "Claude chat bf297d5a-f771-44e7-82d2-4ed6a839e477 on edge-dev3",
+  "worker": "same session",
+  "branch": "claude/4560-orderhistory-created-modified",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/reviewer-assignment-holds-plan-2461e1",
+  "allowed_paths": [
+    "tools/coldlion-landing/sync-history.mjs",
+    "tools/coldlion-landing/lib/load-window.mjs",
+    "tools/coldlion-landing-history.test.mjs",
+    ".agent/work/4560/1/contract.json",
+    ".agent/work/4560/1/completion.json"
+  ],
+  "file_writes": [
+    "tools/coldlion-landing/sync-history.mjs",
+    "tools/coldlion-landing/lib/load-window.mjs",
+    "tools/coldlion-landing-history.test.mjs",
+    ".agent/work/4560/1/contract.json",
+    ".agent/work/4560/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration, schema, or data change.",
+    "Do not change files outside allowed_paths."
+  ],
+  "required_checks": [
+    "node --test tools/coldlion-landing-history.test.mjs tools/coldlion-order-intake-window-arithmetic.test.mjs",
+    "git diff --check origin/main...HEAD"
+  ],
+  "assumptions": [
+    "The sync tool runs offline-tested; live proof follows on the issue after merge."
+  ],
+  "stop_conditions": [
+    "Stop if a required check fails."
+  ]
+}

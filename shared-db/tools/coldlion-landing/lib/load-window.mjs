@@ -17,6 +17,7 @@
 // identity, so a re-run of a partially-written window finishes it instead of doubling it.
 
 import { PAGE_SIZE } from "./scopes.mjs";
+import { headerFilterEntries } from "./http.mjs";
 import {
   sqlBool,
   sqlDate,
@@ -383,8 +384,14 @@ function unsealedPreamble({ scope, window, runId, requestedBy, companyCode, star
   if (scope.stage || scope.endpoint !== "/orderHistory") {
     throw new Error("an unsealed forward load is defined for /orderHistory only");
   }
+  // A header-track load (created/modified filters over a wide start window) is not a grid
+  // window, so it cannot collide with a sealed one; only a start-date window is checked.
+  const headerTrack = headerFilterEntries(window).length > 0;
+  const params = headerTrack
+    ? { companyCode, fromDate: window.requestFrom, toDate: window.requestTo, ...Object.fromEntries(headerFilterEntries(window)), size: pageSize, unsealedHeaderTrack: true, unsealedForward: true }
+    : { companyCode, fromDate: window.from, toDate: window.to, size: pageSize, unsealedForward: true };
   return `begin;
-
+${headerTrack ? "" : `
 -- A sealed window is never touched by a forward load.
 do $loaded$
 begin
@@ -399,14 +406,14 @@ begin
   ) then
     raise exception 'window ${window.from} for ${scope.endpoint} is already loaded (sealed); a forward load may not touch it';
   end if;
-end $loaded$;
+end $loaded$;`}
 
 insert into coldlion.sync_run
   (id, endpoint, company_code, request_params, window_from, window_to,
    status, requested_by, started_at, http_status, body_status, rows_fetched)
 values
   (${sqlUuid(runId)}, ${sqlText(scope.endpoint)}, ${sqlText(companyCode)},
-   ${sqlJson({ companyCode, fromDate: window.from, toDate: window.to, size: pageSize, unsealedForward: true })},
+   ${sqlJson(params)},
    ${sqlDate(window.from)}, ${sqlDate(window.to)},
    'running', ${sqlText(requestedBy)}, ${sqlTimestamp(startedAt)}, ${sqlNumber(httpStatus)}, ${sqlNumber(bodyStatus)}, ${sqlNumber(rowsFetched)});
 
