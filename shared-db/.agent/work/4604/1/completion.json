@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 4604,
+  "outcome": "ready-for-merge",
+  "pr": 4605,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4604/1",
+  "contract_sha256": "481e1cd72d262332cc793e0fcd697e00570d47a75b00a5a0d3b61a7fb54e387c",
+  "base_sha": "ddd1be0d9d8581fe31285446f1f610036a61938d",
+  "head_sha": "c7821107e74045f871e1e14e85eddf0c208b44f9",
+  "files_changed": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/release-hold-ownership.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    },
+    {
+      "command": "node --test scripts/release-hold-ownership.test.mjs scripts/lib/release-hold-evidence.test.mjs scripts/lib/exclusive-lease.test.mjs scripts/manage-migration-author-lanes.test.mjs scripts/manage-migration-author-lanes-surface.test.mjs scripts/guarded-merge-preparation-split.test.mjs scripts/lib/lanes/exclusive-policy.test.mjs scripts/mutex-release-on-refusal.test.mjs scripts/check-merge-queue-workflows.test.mjs scripts/coordination-scenarios.test.mjs scripts/queue-hygiene-report.test.mjs",
+      "exit_code": 0,
+      "evidence": "1108 passed, 0 failed on c7821107 (October 22, 2026, 1:40 AM EDT, edge-dev); the new issue 4604 test fails on the unfixed code."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK."
+    }
+  ],
+  "assumptions_resolved": [
+    "Lane-manager release identity and its regression test only."
+  ],
+  "stop_conditions_hit": []
+}

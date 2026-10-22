@@ -4793,7 +4793,12 @@ export function releaseExclusive(kind, expected = {}, io = githubIo) {
     // lease that has since been recovered carries a new sha, holder and
     // generation, so the old holder's release refuses and the successor is never
     // touched. A different ref sha is NEVER read as "we already released".
-    const identity = { kind }
+    // preview, preview-recovery and preview-rehearsal share ONE ref (issue
+    // #4604). The workflows release by ref name (--release-preview), so the
+    // caller's kind may legitimately differ from the lease's exact kind. The
+    // ref equality is what matters; holder, generation and sha still bind.
+    if (EXCLUSIVE_REFS[lease.kind] !== ref) throw new LaneError(`refusing to release ${ref}: it holds a ${lease.kind} lease, which does not live on this ref`)
+    const identity = { kind: lease.kind }
     if (hasIdentity) { identity.holderId = String(expected.holderId); identity.generation = expected.generation }
     if (expected.ownerSha) {
       let message = null

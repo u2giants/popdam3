@@ -250,3 +250,36 @@ test('the direct releaseOwnedRef CLI fast path is gone and every --release-<lane
     mutexReleased(io)
   }
 })
+
+test('issue 4604: a shared-ref release accepts any preview kind but still binds owner and generation', () => {
+  for (const held of ['preview', 'preview-recovery', 'preview-rehearsal']) {
+    for (const asked of ['preview', 'preview-recovery', 'preview-rehearsal']) {
+      const io = leaseIo()
+      const lock = seedLease(io, held)
+      const result = releaseExclusive(asked, { ownerSha: lock.ownerSha }, io)
+      assert.equal(result.released, true, `${asked} releases a ${held} lease on the shared ref`)
+      assert.equal(io.refs.has(EXCLUSIVE_REFS.preview), false)
+      mutexReleased(io)
+    }
+  }
+  // The CLI path the workflows use, with the rehearsal lease that broke #4604.
+  const io = leaseIo()
+  const lock = seedLease(io, 'preview-rehearsal')
+  assert.equal(quiet(() => main(['--release-preview', '--owner-sha', lock.ownerSha], NOW, io)), 0)
+  assert.equal(io.refs.has(EXCLUSIVE_REFS.preview), false)
+  // Identity still binds: a different holder or generation on the shared ref refuses.
+  const io2 = leaseIo()
+  seedLease(io2, 'preview-rehearsal')
+  assert.throws(() => releaseExclusive('preview', { holderId: 'github-actions:999', generation: 1 }, io2), /held by github-actions:100/)
+  assert.throws(() => releaseExclusive('preview', { holderId: 'github-actions:100', generation: 2 }, io2), /generation is 1/)
+  assert.equal(io2.refs.has(EXCLUSIVE_REFS.preview), true)
+  // A lease on a DIFFERENT ref is never released through this lane.
+  const io3 = leaseIo()
+  const merge = seedLease(io3, 'merge')
+  assert.equal(releaseExclusive('production', { ownerSha: merge.ownerSha }, io3).released, false)
+  io3.refs.set(EXCLUSIVE_REFS.production, merge.ownerSha)
+  assert.throws(() => releaseExclusive('production', { ownerSha: merge.ownerSha }, io3), /does not live on this ref/)
+  io3.refs.delete(EXCLUSIVE_REFS.production)
+  assert.equal(io3.refs.get(EXCLUSIVE_REFS.merge), merge.ownerSha)
+  mutexReleased(io3)
+})
