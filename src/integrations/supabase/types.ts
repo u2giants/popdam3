@@ -3062,6 +3062,35 @@ export type Database = {
         }
         Relationships: []
       }
+      style_guide_file_preview_state: {
+        Row: {
+          has_error: boolean
+          has_preview: boolean
+          is_active: boolean
+          style_guide_file_id: string
+        }
+        Insert: {
+          has_error: boolean
+          has_preview: boolean
+          is_active: boolean
+          style_guide_file_id: string
+        }
+        Update: {
+          has_error?: boolean
+          has_preview?: boolean
+          is_active?: boolean
+          style_guide_file_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_file_preview_state_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: true
+            referencedRelation: "style_guide_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       style_guide_file_tags: {
         Row: {
           confidence: number
@@ -4639,6 +4668,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      hts_rag_fold_text: { Args: { value: string }; Returns: string }
+      hts_rag_tariff_subheadings: { Args: { tariffs: Json }; Returns: string[] }
       infer_path_attrs: { Args: { p_path: string }; Returns: Json }
       is_style_guide_source_pdf: {
         Args: { p_file_type: string; p_filename: string }
