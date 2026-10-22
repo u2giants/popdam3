@@ -76,11 +76,12 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   const pageSize = typeof body.page_size === "number" ? Math.min(body.page_size, 200) : 100;
   const offset = (page - 1) * pageSize;
 
-  const validStatuses = ["pending", "low_confidence", "auto_applied", "approved", "rejected", "unclassifiable", "all"];
+  const validStatuses = ["pending", "low_confidence", "auto_applied", "approved", "rejected", "unclassifiable", "all", "sample"];
   if (!validStatuses.includes(statusFilter)) return err(`Invalid status filter: ${statusFilter}`);
 
+  const isSample = statusFilter === "sample";
   const isLowConfidenceFilter = statusFilter === "low_confidence";
-  const effectiveStatus = isLowConfidenceFilter ? "pending" : statusFilter;
+  const effectiveStatus = isSample ? "all" : isLowConfidenceFilter ? "pending" : statusFilter;
 
   let countQuery = db.from("product_category_predictions").select("id", { count: "exact", head: true });
   if (effectiveStatus !== "all") countQuery = countQuery.eq("status", effectiveStatus);
@@ -102,15 +103,21 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   for (const r of statusResults) statusCounts[r.status] = r.count;
   statusCounts["low_confidence"] = lowConfRes.count ?? 0;
 
-  let query = db.from("product_category_predictions")
-    .select(
-      "id, external_id, plm_item_id, item_identity_status, predicted_category, confidence, rationale, classification_source, ai_model, status, created_at",
-    );
+  const predictionColumns = "id, external_id, plm_item_id, item_identity_status, predicted_category, confidence, rationale, classification_source, ai_model, status, created_at";
+  let query = db.from("product_category_predictions").select(predictionColumns);
   if (effectiveStatus !== "all") query = query.eq("status", effectiveStatus);
   if (isLowConfidenceFilter) query = query.lt("confidence", 0.5);
   query = query.order("confidence", { ascending: true }).range(offset, offset + pageSize - 1);
 
-  const { data, error } = await query;
+  // Draw from the full eligible population on every request, without changing
+  // review status or rerunning classification. Fixed SQL contains no user input.
+  const { data, error } = isSample
+    ? await db.rpc("execute_readonly_query", {
+      query_text: `SELECT ${predictionColumns} FROM public.product_category_predictions
+        WHERE classification_source = 'ai' AND status IN ('pending', 'auto_applied', 'approved')
+        ORDER BY random() LIMIT 10`,
+    })
+    : await query;
   if (error) return err(error.message, 500);
 
   // Enrich with item descriptions
@@ -142,10 +149,10 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   return json({
     ok: true,
     items,
-    total: totalCount ?? 0,
-    page,
-    page_size: pageSize,
-    total_pages: Math.ceil((totalCount ?? 0) / pageSize),
+    total: isSample ? items.length : totalCount ?? 0,
+    page: isSample ? 1 : page,
+    page_size: isSample ? 10 : pageSize,
+    total_pages: isSample ? 1 : Math.ceil((totalCount ?? 0) / pageSize),
     status_counts: statusCounts,
   });
 }
