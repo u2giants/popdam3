@@ -17,10 +17,19 @@ export function ReviewQueue() {
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["erp-review-queue", statusFilter, page],
     queryFn: () => call("erp-review-queue", { status: statusFilter, page, page_size: 100 }),
   });
+
+  const refreshQueue = async () => {
+    const result = await refetch();
+    if (result.isError) {
+      toast.error(`Could not refresh the queue: ${result.error.message}`);
+    } else {
+      toast.success("Review queue refreshed");
+    }
+  };
 
   const items = data?.items || [];
   const totalPages = data?.total_pages ?? 1;
@@ -178,8 +187,15 @@ export function ReviewQueue() {
           )}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={() => refetch()}>
-                <RefreshCw className="h-4 w-4" />
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Refresh the queue"
+                aria-busy={isFetching}
+                disabled={isFetching}
+                onClick={refreshQueue}
+              >
+                <RefreshCw className={`h-4 w-4${isFetching ? " animate-spin" : ""}`} />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Refresh the queue</TooltipContent>
@@ -209,9 +225,14 @@ export function ReviewQueue() {
           ))}
         </div>
 
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            Could not load the review queue: {error.message}. Try refreshing again.
+          </p>
+        )}
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
-        ) : items.length === 0 ? (
+        ) : error && !data ? null : items.length === 0 ? (
           <p className="text-sm text-muted-foreground">No items in this status.</p>
         ) : (
           <div className="overflow-x-auto border border-border rounded-md">

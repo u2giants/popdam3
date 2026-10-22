@@ -239,8 +239,11 @@ describe("OrderList grid refresh", () => {
     const requestsBefore = requests.length;
     revision = 2;
     act(() => api!.startEditingCell({ rowIndex: 10_380, colKey: "revision" }));
-    const editor = document.querySelector<HTMLInputElement>(".ag-cell-inline-editing input");
-    expect(editor).not.toBeNull();
+    const editor = await waitFor(() => {
+      const input = document.querySelector<HTMLInputElement>(".ag-cell-inline-editing input");
+      expect(input).not.toBeNull();
+      return input!;
+    });
     fireEvent.change(editor!, { target: { value: "99" } });
     fireEvent.input(editor!, { target: { value: "99" } });
 
@@ -289,8 +292,11 @@ describe("OrderList grid refresh", () => {
       api!.startEditingCell({ rowIndex: 10_380, colKey: "revision" });
       refreshOrderListRows(api);
     });
-    const editor = document.querySelector<HTMLInputElement>(".ag-cell-inline-editing input");
-    expect(editor).not.toBeNull();
+    const editor = await waitFor(() => {
+      const input = document.querySelector<HTMLInputElement>(".ag-cell-inline-editing input");
+      expect(input).not.toBeNull();
+      return input!;
+    });
     fireEvent.change(editor!, { target: { value: "99" } });
     fireEvent.input(editor!, { target: { value: "99" } });
     expect(editor!.value).toBe("99");
