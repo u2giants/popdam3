@@ -10,14 +10,18 @@
 # again by a cleanup ssh if that command was cut off.
 set -euo pipefail
 set +x
+[ $# = 3 ] || { echo "FAIL: usage"; exit 1; }
 H=$1; MODE=$2; STAGING=$3
+case $MODE in rotate|rollback) ;; *) echo "FAIL: mode"; exit 1 ;; esac
+[[ $STAGING =~ ^[a-z0-9]{26}$ ]] || { echo "FAIL: staging item id"; exit 1; }
 case $H in
   edgesynology1) OLD_ITEM=gtwd6lf6ntwxolpbj5rvfno5xy; AI_ITEM="edgesynology1 NAS - ai service account" ;;
   edgesynology2) OLD_ITEM=fkyspggksudrz6uw3iwqfcim2u; AI_ITEM="edgesynology2 NAS - ai service account" ;;
   *) echo "FAIL: host"; exit 1 ;;
 esac
 HERE=$(cd "$(dirname "$0")" && pwd)
-RD=/var/services/homes/ai/.r179
+# Unique per run, so two callers can never share or delete each other's dir.
+RD=/var/services/homes/ai/.r179-$(date -u +%Y%m%dT%H%M%SZ)-$$
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=15 -l ai "$H")
 umask 077
 T=$(mktemp -d "${TMPDIR:-/tmp}/r179.XXXXXX")
@@ -28,8 +32,11 @@ op read -n "op://vibe_coding/$OLD_ITEM/password" > "$T/old"
 op read -n "op://vibe_coding/$STAGING/password" > "$T/new"
 op read -n "op://vibe_coding/$AI_ITEM/password" > "$T/sudo"
 for f in old new sudo; do [ -s "$T/$f" ] || { echo "FAIL: $f empty"; exit 1; }; done
+# Transport (proven 2026-10-21): hetz ~/.ssh config key for each unit with
+# `-l ai` (edge2 100.107.131.36:1904, edge1 100.107.131.35:22) and `scp -O`
+# (legacy SCP protocol; SFTP is off on these units, -O does not need it).
 
-"${SSH[@]}" "rm -rf $RD && mkdir -m 700 $RD"
+"${SSH[@]}" "mkdir -m 700 $RD"
 scp -q -O -o BatchMode=yes -o ConnectTimeout=15 -o User=ai \
   "$T/old" "$T/new" "$HERE/rotate-popdam-password.sh" "ai@$H:$RD/"
 "${SSH[@]}" "chmod 600 $RD/old $RD/new"
@@ -42,7 +49,9 @@ set +e
 rc=$?
 set -e
 rm -f "$T/sudo"
-# Status words only; refuse to print anything that is not one.
+# Status words only; refuse to print anything that is not one. If
+# other_lines > 0, rerun the failing step by hand with output to a root 0600
+# file on the NAS and inspect it there by grep for known error words.
 grep -E '^(STEP|OK|FAIL|ROLLBACK|BREAK-GLASS|set response|password confirm|login refused|env:|agent |compose |restore )' "$T/out" || true
 echo "rc=$rc other_lines=$(grep -cvE '^(STEP|OK|FAIL|ROLLBACK|BREAK-GLASS|set response|password confirm|login refused|env:|agent |compose |restore )' "$T/out")"
 exit $rc

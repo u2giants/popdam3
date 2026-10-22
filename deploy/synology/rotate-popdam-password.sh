@@ -86,6 +86,7 @@ env_install() { # $1 = file whose content becomes .env (temp + rename)
 env_rewrite() { # $1 = secret file to install as DSM_PASSWORD
   [ "$(grep -c '^DSM_PASSWORD=' "$D/.env")" = 1 ] || { echo "env: DSM_PASSWORD count"; return 1; }
   grep '^DSM_PASSWORD=' "$D/.env" | grep -q "[\"'$(printf '\r')]" && { echo "env: quoted/CR line"; return 1; }
+  [ -z "$(tail -c1 "$D/.env")" ] || { echo "env: no trailing newline"; return 1; }
   grep -v '^DSM_PASSWORD=' "$D/.env" > "$S/env.rest" || return 1
   { cat "$S/env.rest"; printf 'DSM_PASSWORD='; cat "$1"; printf '\n'; } > "$S/env.new"
   grep -v '^DSM_PASSWORD=' "$S/env.new" | cmp -s - "$S/env.rest" || { echo "env: other lines changed"; return 1; }
@@ -103,7 +104,9 @@ restore_old() { # end state OLD everywhere; $1 = backup file
 }
 
 # --- input checks ---
-for b in "$DC" "$DK"; do [ -x "$b" ] || die "missing $b"; done
+for b in "$DC" "$DK" /usr/bin/curl /usr/bin/sha256sum /usr/bin/flock /usr/bin/stat /usr/bin/cmp; do [ -x "$b" ] || die "missing $b"; done
+# Agent log strings pinned to u2giants/synology-monitor apps/agent/cmd/agent/main.go
+# ("Connected to DSM API" after loginWithRetry; "DSM login attempt %d failed").
 [ -d "$S" ] && [ "$(perm "$S")" = 700 ] || die "secret dir must be 0700"
 for f in old new; do
   [ -s "$S/$f" ] || die "$f empty"; [ "$(perm "$S/$f")" = 600 ] || die "$f must be 0600"
@@ -119,6 +122,10 @@ rotate)
   [ ${#n} = 32 ] && echo "$n" | grep -qE '^[A-Za-z0-9]+$' && echo "$n" | grep -q '[0-9]' || { n=; die "new must be 32 chars [A-Za-z0-9] with a digit"; }
   n=
   accepts "$S/old" || die "old not accepted; unit not in expected state"
+  # .env shape checks before anything changes.
+  [ -z "$(tail -c1 "$D/.env")" ] || die "env: no trailing newline"
+  [ "$(grep -c '^DSM_PASSWORD=' "$D/.env")" = 1 ] || die "env: DSM_PASSWORD count"
+  grep '^DSM_PASSWORD=' "$D/.env" | grep -q "[\"'$(printf '\r')]" && die "env: quoted/CR line"
   TS=$(date -u +%Y%m%dT%H%M%SZ); B="$D/.env.bak.179-$TS"
   cp -p "$D/.env" "$B" && [ "$(perm "$B")" = 600 ] || die "backup"
   $DK stop "$SVC" >/dev/null 2>&1 || { agent_up; die "agent stop"; }

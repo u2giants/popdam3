@@ -66,8 +66,12 @@ project dir `/volume1/docker/synology-monitor-agent`, verified both units).
 - Password policy (edge1): min 6, must include a digit, excludes common and
   username, `exclude_history:false`. New value: 32 chars `[A-Za-z0-9]` with
   at least one digit.
+- Current value shape (both canonical items, `op read -n`, checked locally
+  without printing): non-empty, contains no `"`, `\` or newline, so it is a
+  valid JSON string body and passes the script's input checks.
 - `.env` on both: exactly one `DSM_PASSWORD=` line, unquoted, no CR, no
-  `export`; its digest equals the 1Password value; `DSM_USERNAME=popdam`.
+  `export`; the script re-checks the line count, quoting/CR and trailing
+  newline before the password is changed; its digest equals the 1Password value; `DSM_USERNAME=popdam`.
 - Write shape: `SYNO.Core.User.PasswordConfirm` v2 `auth` (→
   `SynoConfirmPWToken`) then `SYNO.Core.NormalUser` v2 `set`
   (`old_password`, `password`, JSON-quoted) over a `session=webui` SID with
@@ -86,13 +90,21 @@ project dir `/volume1/docker/synology-monitor-agent`, verified both units).
 - Only live consumer: the monitor agent on each unit (value scan above).
 
 ## Steps
-0. Coordination: re-read #179 and linked sessions for a competing NAS claim;
+0. Reconcile first (also after any crash): for each unit, DSM login probe
+   with the canonical value and with every unarchived `NAS popdam staging 179-*`
+   value (accept → that is the unit's value). Converge: unit on a staging
+   value and the other on canonical → run `rotate` on the other with that
+   staging value, or `rollback` on the first; both on staging → finish step 4.
+   Never generate a new staging item while an older one is accepted anywhere.
+   Coordination: re-read #179 and linked sessions for a competing NAS claim;
    post a start notice on #179. `ai-task-gates check --before production`
    with this plan's reviewer APPROVE (exact head).
 1. Generate the new value with the 1Password generator into a NEW item
    `NAS popdam staging 179-<UTC ts>` (unique per attempt) with
    `op item create --generate-password=32,letters,digits` (value never
-   displayed). Canonical items
+   displayed); then `op read -n` into a 0600 file and check 32 chars,
+   `[A-Za-z0-9]`, at least one digit; otherwise archive it and generate again.
+   Canonical items
    keep the old value until step 4, so a crash always leaves both values in
    the vault.
 2. edgesynology2: `rotate` (edge2 first: it is the read replica, so a
