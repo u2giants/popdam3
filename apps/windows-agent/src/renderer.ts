@@ -40,6 +40,7 @@ import { readFileWithinLimit } from "./common/bounded-read.js";
 import { isCompatAlertBuffer, createCompatAuditWorker } from "./compat-audit";
 import { compositePsdWithPsdTools, isPsdDecodeFailure, psdToolsPython } from "./psd-tools-fallback";
 import { longPath as withLongPathPrefix } from "./smb-resolve";
+import { pickSiblingPdf } from "./sibling-match";
 
 // On Windows, paths longer than MAX_PATH (260) fail silently with Win32 APIs.
 // Prefixing with \\?\ enables extended-length paths in Node fs and Sharp (libvips).
@@ -611,6 +612,15 @@ async function renderFromSibling(
         height: meta.height || 0,
       };
     }
+  }
+
+  // Then a similarly named PDF in the same folder (owner rule: .ai files that
+  // cannot be thumbnailed use the matching PDF, e.g. the licensing sheet).
+  const pdf = pickSiblingPdf(path.basename(filePath), files);
+  if (pdf) {
+    logger.info("Using sibling PDF", { filePath, sibling: pdf });
+    const { buffer, width, height } = await renderPdf(path.join(dir, pdf));
+    return { buffer, width, height };
   }
 
   throw new Error("no_sibling_image");
