@@ -1,15 +1,11 @@
 /**
- * Extracted admin-api handlers for ColdLion API lookups and property name repairs.
+ * Extracted admin-api handlers for ColdLion mirror lookups and property name repairs.
+ * Both read the shared database mirror; PopDAM never calls the ColdLion API.
  */
 
 import { err, json } from "../http.ts";
-import { readColdLionApiKey } from "../coldlion.ts";
+import { getMgLookup } from "../coldlion.ts";
 import { serviceClient } from "../service-client.ts";
-
-const COLDLION_BASE = "http://x5.coldlion.com/EhpApi";
-const COLDLION_COMPANY = "EDGEHOME";
-
-export const getColdlionApiKey = readColdLionApiKey;
 
 // ── debug-coldlion-lookup ───────────────────────────────────────────
 
@@ -18,29 +14,8 @@ export async function handleDebugColdlionLookup(body: Record<string, unknown>) {
   const division = (body.division as string) || "CW001";
   const searchCode = (body.search_code as string)?.toUpperCase() || null;
 
-  const apiKey = await getColdlionApiKey();
-  const url = `${COLDLION_BASE}/merchGroupDetails?companyCode=${COLDLION_COMPANY}&mgTypeCode=${mgType}&divisionCode=${division}`;
-
   try {
-    const res = await fetch(url, {
-      headers: { "X-API-Key": apiKey },
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    if (!res.ok) {
-      return err(`ColdLion API returned ${res.status}`, 502);
-    }
-
-    const data = await res.json();
-    const items = Array.isArray(data) ? data : (data.value ?? []);
-
-    // Build lookup map
-    const lookup: Record<string, string> = {};
-    for (const item of items) {
-      if (item.mgCode && item.mgDesc) {
-        lookup[item.mgCode] = item.mgDesc;
-      }
-    }
+    const lookup = await getMgLookup(mgType, division);
 
     // If searching for a specific code, check if it exists
     let searchResult: { found: boolean; code: string; name: string | null } | null = null;
@@ -66,7 +41,7 @@ export async function handleDebugColdlionLookup(body: Record<string, unknown>) {
       all_codes: lookup,
     });
   } catch (e) {
-    return err(`ColdLion API error: ${e instanceof Error ? e.message : String(e)}`, 502);
+    return err(`ColdLion mirror error: ${e instanceof Error ? e.message : String(e)}`, 502);
   }
 }
 
@@ -74,23 +49,8 @@ export async function handleDebugColdlionLookup(body: Record<string, unknown>) {
 
 export async function handleRepairInvalidPropertyNames() {
   const db = serviceClient();
-  const apiKey = await getColdlionApiKey();
-
-  const fetchPropertyCodes = async (division: string): Promise<Set<string>> => {
-    const url = `${COLDLION_BASE}/merchGroupDetails?companyCode=${COLDLION_COMPANY}&mgTypeCode=06&divisionCode=${division}`;
-    try {
-      const res = await fetch(url, {
-        headers: { "X-API-Key": apiKey },
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!res.ok) return new Set();
-      const data = await res.json();
-      const items = Array.isArray(data) ? data : (data.value ?? []);
-      return new Set(items.map((i: { mgCode: string }) => i.mgCode));
-    } catch {
-      return new Set();
-    }
-  };
+  const fetchPropertyCodes = async (division: string): Promise<Set<string>> =>
+    new Set(Object.keys(await getMgLookup("06", division)));
 
   const [cw001Codes, sp001Codes, eh001Codes] = await Promise.all([
     fetchPropertyCodes("CW001"),
