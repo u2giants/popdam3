@@ -27,7 +27,7 @@ export const SESSION_ID_ENV = 'SHARED_DB_SESSION_ID'
 const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@-]{2,119}$/
 // Existing claim labels name the same exact chat, never an arbitrary alias.
 // Anchor the whole established label; UUID substrings or extra owners cannot match.
-const CHAT_OWNER_PATTERN = /^(?:Codex|Claude) chat ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}) on [A-Za-z0-9][A-Za-z0-9._-]{0,119}$/
+const CHAT_OWNER_PATTERN = /^(?:Codex|Claude|ZCode) chat ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}) on [A-Za-z0-9][A-Za-z0-9._-]{0,119}$/
 // Supported operator adoption also records Codex's exact chat plus work issue.
 // Preserve that lease label; it identifies the same UUID, not another actor.
 // The whole label is anchored: legacy aliases and UUID substrings do not qualify.

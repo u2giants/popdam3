@@ -54,7 +54,7 @@ test('#3874 the refusal names the variable and the reason', () => {
 const ownChat='01a1126f-6efb-7a22-8034-4471909f2c86';
 const foreignChat='01a111e8-4c90-7df0-9106-4547392130ce';
 test('#3972 established full chat owner labels match only their exact UUID',()=>{
-  for(const engine of ['Codex','Claude']){
+  for(const engine of ['Codex','Claude','ZCode']){
     const owner=`${engine} chat ${ownChat} on edge-dev3`;
     const authority=resolveSessionAuthority({env:env(ownChat),claimOwner:owner});
     assert.equal(authority.live,true);assert.equal(authority.task,ownChat);assert.equal(authority.calling_task,ownChat);
