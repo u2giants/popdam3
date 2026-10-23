@@ -60,7 +60,7 @@ owner: mimo/edge-dev-dinov3-siglip2-ready
 - **Image-similarity feature (find similar artwork):** designed and reviewed, **not built**. Waiting on owner yes (§0). Design reviews live as untracked local files (not on GitHub yet):
   - `.ai-review-brief-image-similarity-plan.md` and muse/glm siblings in the repo root (untracked)
   - Review extracts under `.ai/reviews/muse-image-similarity-plan-audit*.md` (untracked)
-- **`plan_image_similarity_upload_search.md` is MISSING from the working tree.** Reviews quote it (it was untracked during review on 2026-10-22). A successor who needs the full plan text must recover it from review packets / Muse work copies / chat history, or rewrite from the review findings. Do not assume the file is on `main`.
+- **`plan_image_similarity_upload_search.md` was missing from this working tree while the session ran** (it was untracked during the 2026-10-22 reviews). After PR https://github.com/u2giants/popdam3/pull/484 merged, `git pull` showed it is now on `main`: https://github.com/u2giants/popdam3/blob/main/plan_image_similarity_upload_search.md . Use that file as the design; do not re-plan from scratch.
 
 ### Commit / push / deploy status
 
@@ -102,7 +102,7 @@ owner: mimo/edge-dev-dinov3-siglip2-ready
 ## 6. Exact next steps
 
 1. **Ask Albert the one business question in §0** (build picture embeddings or not) in a single message together with any other open owner questions from other handoffs. Recommendation: yes.
-2. **If yes:** recover or rewrite `plan_image_similarity_upload_search.md` into the repo (it is missing), then implement through the **canonical `popcre/shared-db` branch + PR** path (never app-side DDL). Dual columns for DINOv3 + SigLIP 2 (768 dims each), model-version stamp, freshness markers, job/lease queue — matching the reviewed design. Verification gate: a migration lands on shared-db, a GPU worker run writes both vectors for one asset, and a similarity query returns a sensible neighbour list.
+2. **If yes:** use https://github.com/u2giants/popdam3/blob/main/plan_image_similarity_upload_search.md as the design, then implement through the **canonical `popcre/shared-db` branch + PR** path (never app-side DDL). Dual columns for DINOv3 + SigLIP 2 (768 dims each), model-version stamp, freshness markers, job/lease queue — matching the reviewed design. Verification gate: a migration lands on shared-db, a GPU worker run writes both vectors for one asset, and a similarity query returns a sensible neighbour list.
 3. **If no:** leave the models on this PC; do not build schema. Verification gate: nothing new in shared-db.
 4. **Optional cleanup (only if asked):** the earlier timm DINOv3 cache copy can be removed once the official model is the only one in use. Not urgent.
 5. **Re-run `ai-shared-db-closeout-check --session-id ses_ffe5e968e81d5ffevSR9vK3hnH`** when GitHub is healthy. Success looks like `ok: true` with empty blocking lists. (Technical, not an owner ask.)
@@ -133,7 +133,7 @@ owner: mimo/edge-dev-dinov3-siglip2-ready
 ## 9. Open questions and risks
 
 - **2026-10-23:** Whether to build picture embeddings is still an owner decision (§0). Until then the GPU install is idle capacity.
-- **2026-10-23:** `plan_image_similarity_upload_search.md` is not in the tree; risk is a successor re-plans from scratch or trusts a stale quote. Recover the file before implementing.
+- **2026-10-23 (corrected after merge):** `plan_image_similarity_upload_search.md` is on `main` (https://github.com/u2giants/popdam3/blob/main/plan_image_similarity_upload_search.md) even though it was absent from this working tree during the session. Earlier “missing plan” risk is closed for anyone who pulls current `main`.
 - **2026-10-23:** `ai-shared-db-closeout-check` is currently unreliable when GitHub times out; do not treat its exit code as proof of claims without reading its JSON body.
 - **Scope note:** issue https://github.com/u2giants/popdam3/issues/97 is **text** hybrid search. Do not close #97 because this handoff’s models are ready — image embeddings are a separate gated item under that umbrella.
 
@@ -142,7 +142,7 @@ owner: mimo/edge-dev-dinov3-siglip2-ready
 ## Self-audit (handoff-writer gate)
 
 1. **Comprehensive for a brand-new developer?** **Yes** — §1 orients the app and machine; §3 tables what is proven; §6 gives ordered next steps with verification gates; §8 lists every secret *location* and tool.
-2. **As effective as this session?** **Yes** — includes the gated-repo dead end, NLVML false alarm, missing plan file, closeout-check residual, and the text-vs-picture embedding distinction that took real time to sort out (§4–§5).
+2. **As effective as this session?** **Yes** — includes the gated-repo dead end, NVML false alarm, closeout-check residual, text-vs-picture embedding distinction, and the plan-file timing note (absent locally during the session, present on `main` after merge) (§4–§5).
 3. **Every relevant detail for flawless execution?** **Yes** — background (§1–§2), state (§3), failures (§4), findings (§5), next actions (§6), constraints (§7), access (§8), risks (§9). File refs use GitHub URLs where the content is on GitHub; untracked local review files are named as untracked on purpose.
 4. **If the owner read only §0, would he see every business decision and no technical approval?** **Yes** — one business yes/no (build picture embeddings), plus settled items marked do-not-re-ask. Technical residual (closeout-check) is in §6 as a tool step, not an owner ask.
 
