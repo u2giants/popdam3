@@ -5,7 +5,7 @@
   "application_branch": "develop",
   "project_ref": "qsllyeztdwjgirsysgai",
   "schema": "dflow_prod",
-  "live_assertion": "dflow_prod has four NOLOGIN designflow_prod_<service>_grants roles holding exactly the published per-service matrix and four password-less LOGIN designflow_prod_<service>_runtime identities holding only that membership, with no CREATE, TRUNCATE, dflow, hts_rag, client-role or admin access, and no plm access except the tracking Stage Catalog entries, held directly by designflow_prod_tracking_runtime (#4464, option (c)), which also holds SELECT, INSERT on dflow_prod.user_notification directly (#4515); the tracking grant role also holds SELECT, INSERT, DELETE on dflow_prod.tracking_grid_archive (#4585); the backend grant role also holds SELECT, INSERT, UPDATE on dflow_prod.vendor_wechat_identity (#4634)",
+  "live_assertion": "dflow_prod has four NOLOGIN designflow_prod_<service>_grants roles holding exactly the published per-service matrix and four password-less LOGIN designflow_prod_<service>_runtime identities holding only that membership, with no CREATE, TRUNCATE, dflow, hts_rag, client-role or admin access, and no plm access except the tracking Stage Catalog entries, held directly by designflow_prod_tracking_runtime (#4464, option (c)), which also holds SELECT, INSERT on dflow_prod.user_notification directly (#4515); the tracking grant role also holds SELECT, INSERT, DELETE on dflow_prod.tracking_grid_archive (#4585); the backend grant role also holds SELECT, INSERT, UPDATE on dflow_prod.vendor_wechat_identity (#4634); the backend grant role also holds SELECT, INSERT, UPDATE, DELETE on dflow_prod.user_roles (#4638); the Item Master grant role also holds SELECT on dflow_prod.item_detail_upc and column-scoped SELECT on its thirteen underlying dflow_prod.itemDetail fields (#4659)",
   "catalog": {
     "role_count": 8,
     "no_defaults": true,
@@ -14,7 +14,7 @@
     "no_ownership": true,
     "passwordless": true,
     "schema_exact": true,
-    "matrix_entries": 462,
+    "matrix_entries": 467,
     "global_no_create": true,
     "no_grant_options": true,
     "inherited_helpers": [

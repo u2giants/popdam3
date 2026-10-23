@@ -1,11 +1,50 @@
 # UPC storage and exposure — the shared-database contract
 
 **Migration:** `supabase/migrations/20260803150000_itemdetail_coldlion_item_identity_and_upc_contract.sql`
-**Applied to:** preview `rjyboqwcdzcocqgmsyel` on 2026-08-03. **NOT promoted to production** (owner gate).
+**Historical legacy apply:** preview on 2026-08-03. The legacy `dflow` migration is not the production contract; current preview identity comes from `PREVIEW_PROJECT_REF`.
 **Audience:** the DesignFlow app session that owns `designflow-data-syncing`, `designflow-item-master`,
 `designflow-bff` and `designflow-frontend`.
 
 ---
+
+## Current production read contract (#4659)
+
+The production source is `dflow_prod."itemDetail"`, projected through the new
+`dflow_prod.item_detail_upc` security-invoker view. Its migration is
+`20261022232130_dflow_prod_item_upc_read_contract.sql`; delivery remains pending
+until its qualified preview/apply evidence and live production read are recorded
+on #4659. Do not infer production delivery from this document or the legacy view.
+The production view preserves all thirteen legacy output columns and the exact
+item/company/division identity and nonempty-UPC predicate. It grants the existing
+Item Master group only those thirteen underlying columns and view SELECT; no
+business rows, writes, browser access or role memberships are added.
+
+Fresh read-only production metadata on October22 confirms the deployed backend
+identity currently inherits all four service grant groups, including Item Master,
+as documented by the unresolved #4475 service-identity cutover. The actual deployed
+Item Master production service revision `popcre-item-prod-00030-c95` identifies as
+`designflow_prod_backend_runtime`; its legacy UPC query returned SQLSTATE42501 at
+5:20 PM EDT on October22. A subsequent read-only catalog check confirms the new
+production view remains absent and the Item Master group has no whole-table SELECT
+on the production source. The intended isolated identity remains
+`designflow_prod_item_master_runtime`. This change does not bless the temporary
+backend membership drift: the #2873 membership/effective-access checks remain strict
+and continue to expose #4475. Production release readiness independently requires
+the actual configured runtime's read, in addition to the intended Item Master read.
+When #4475 isolates the runtime, update the app's configured identity and release
+contract together. A missing bridge never creates new membership or backend grants.
+
+App schema selection: existing multi-schema environments retain `dflow`; the
+single-schema production environment uses configured `dflow_prod`. Select only the
+allowlisted schema before issuing the query. Always filter the full identity triple
+and preserve ordered warehouse/item output. Do not route production reads to the
+legacy `dflow.item_detail_upc` view. No supporting triple index is added: the source
+has about21841 rows and a sequential-scan estimate, with no measured latency problem.
+A later measured lookup regression belongs to a separately claimed index change;
+the legacy index described below is not a production performance guarantee.
+
+The remaining sections record the August legacy contract and historical data
+measurements; their row counts and sync state are not current production evidence.
 
 ## 1. What the app session gets
 
@@ -87,7 +126,7 @@ column the UI presents as fact. **The identity is re-synced from ColdLion, which
 3. **Put the route on a schedule.** `GET /getItemDetailFromCL/` appears to be manually triggered.
    Without a schedule, a corrected UPC still only arrives when someone remembers to press the button.
 
-4. **BFF/UI:** read `dflow.item_detail_upc` and join on the full triple. Surface
+4. **BFF/UI:** read the environment-specific view (`dflow_prod.item_detail_upc` in production, legacy `dflow.item_detail_upc` in multi-schema environments) and join on the full triple. Surface
    `coldlion_synced_at` — a row whose value is NULL or old is a stale snapshot, not current truth.
 
 ---
