@@ -115,7 +115,7 @@ begin
 
   -- Deterministic hashes preserve unchanged embeddings and invalidate changed ones.
   select content_sha256 into v_before from public.dam_search_documents where document_type='asset' and entity_id=v_asset;
-  update public.dam_search_documents set embedding=array_fill(0::real,array[384])::extensions.vector,
+  update public.dam_search_documents set embedding=array_fill(0::real,array[768])::extensions.vector,
     embedding_model='fixture',embedding_updated_at=now() where document_type='asset' and entity_id=v_asset;
   perform public.refresh_dam_search_asset_document(v_asset);
   if (select embedding is null from public.dam_search_documents where document_type='asset' and entity_id=v_asset) then
@@ -136,7 +136,7 @@ begin
     raise exception 'live embedding lease was stolen';
   end if;
   select public.upsert_dam_search_embedding('asset',v_doc,'stale-hash',v_claim.lease_token,
-    array_fill(0::real,array[384])::extensions.vector,'fixture') into v_result;
+    array_fill(0::real,array[768])::extensions.vector,'fixture') into v_result;
   if v_result then raise exception 'stale hash was accepted'; end if;
   update public.dam_search_documents set embedding_lease_expires_at=now()-interval '1 second' where entity_id=v_doc;
   select * into v_claim2 from public.claim_dam_search_embedding_documents(1,'worker-b',60);
@@ -160,3 +160,4 @@ begin
 end $$;
 
 rollback;
+

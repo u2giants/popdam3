@@ -74,7 +74,7 @@ insert into public.assets (id, filename, relative_path, file_type, quick_hash, m
   ('34570000-0000-4000-8000-000000000012','cerulean-lampstone.ai','cerulean-lampstone.ai','ai','zz3457-sl',now(),'https://example.invalid/sl.png',false),
   ('34570000-0000-4000-8000-000000000013','zz3457-mixed.ai','zz3457-mixed.ai','ai','zz3457-mx',now(),'https://example.invalid/mx.png',false);
 
--- dam_search_documents rows. Embeddings are 384-dim unit vectors.
+-- dam_search_documents rows. Embeddings are 768-dim unit vectors.
 -- Query embedding for the semantic tests is the first basis vector e0.
 -- Distances are exact by construction (no exact 1.0 match, so no float-boundary coin flip):
 --   sem-high cosine similarity 0.90  -> semantic_rank 0.90
@@ -91,38 +91,38 @@ values
    'zz3457 kw only canvas','zz3457-kw-only.ai',null,null, null, null),
   ('asset','34570000-0000-4000-8000-000000000011','34570000-0000-4000-8000-000000000011',null,
    'zz3457 sem high unrelated','zz3457-sem-high.ai',null,null,
-   (select array_fill(0.0::real, array[384])::extensions.vector), 'gte-small'),
+   (select array_fill(0.0::real, array[768])::extensions.vector), 'google/siglip2-base-patch16-naflex'),
   ('asset','34570000-0000-4000-8000-000000000012','34570000-0000-4000-8000-000000000012',null,
    'cerulean lampstone canvas','cerulean-lampstone.ai',null,null,
-   (select array_fill(0.5::real, array[384])::extensions.vector), 'gte-small'),
+   (select array_fill(0.5::real, array[768])::extensions.vector), 'google/siglip2-base-patch16-naflex'),
   ('asset','34570000-0000-4000-8000-000000000013','34570000-0000-4000-8000-000000000013',null,
    'zz3457 mixed canvas','zz3457-mixed.ai',null,null,
-   (select array_fill(0.5::real, array[384])::extensions.vector), 'gte-small');
+   (select array_fill(0.5::real, array[768])::extensions.vector), 'google/siglip2-base-patch16-naflex');
 
 -- Make the embeddings distinguishable unit vectors along known angles to qemb=e0.
 -- sem-high: cos=0.90 (high, but strictly below 1.0 so floor=1.0 cannot pass it).
 update public.dam_search_documents
 set embedding = (
-  select (array[0.9::real, sqrt(0.19)::real] || array_fill(0.0::real, array[382]))::extensions.vector
-), embedding_model = 'gte-small'
+  select (array[0.9::real, sqrt(0.19)::real] || array_fill(0.0::real, array[766]))::extensions.vector
+), embedding_model = 'google/siglip2-base-patch16-naflex'
 where asset_id = '34570000-0000-4000-8000-000000000011';
 
 update public.dam_search_documents
 set embedding = (
-  select (array[0.2::real, sqrt(0.96)::real] || array_fill(0.0::real, array[382]))::extensions.vector
-), embedding_model = 'gte-small'
+  select (array[0.2::real, sqrt(0.96)::real] || array_fill(0.0::real, array[766]))::extensions.vector
+), embedding_model = 'google/siglip2-base-patch16-naflex'
 where asset_id = '34570000-0000-4000-8000-000000000012';
 
 update public.dam_search_documents
 set embedding = (
-  select (array[0.3::real, sqrt(0.91)::real] || array_fill(0.0::real, array[382]))::extensions.vector
-), embedding_model = 'gte-small'
+  select (array[0.3::real, sqrt(0.91)::real] || array_fill(0.0::real, array[766]))::extensions.vector
+), embedding_model = 'google/siglip2-base-patch16-naflex'
 where asset_id = '34570000-0000-4000-8000-000000000013';
 
 do $$
 declare
   dam_uid uuid := '34570000-0000-4000-8000-000000000001';
-  qemb extensions.vector(384);
+  qemb extensions.vector(768);
   fixture_asset_ids uuid[] := array[
     '34570000-0000-4000-8000-000000000010'::uuid,
     '34570000-0000-4000-8000-000000000011'::uuid,
@@ -133,7 +133,7 @@ declare
   sem real;
 begin
   -- Query embedding aligned with sem-high (first dim = 1, rest 0).
-  qemb := (select (array_fill(1.0::real, array[1]) || array_fill(0.0::real, array[383]))::extensions.vector(384));
+  qemb := (select (array_fill(1.0::real, array[1]) || array_fill(0.0::real, array[767]))::extensions.vector(768));
   -- Prove the three UPDATEs actually established the intended fixture scores.
   if not exists (
     select 1 from public.dam_search_documents
@@ -335,3 +335,5 @@ end;
 $$;
 
 rollback;
+
+

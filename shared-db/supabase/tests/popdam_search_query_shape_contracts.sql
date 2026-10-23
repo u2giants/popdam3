@@ -129,7 +129,7 @@ begin
   values
     ('asset', v_id, v_id,
      'zz4508 foreign model canvas', 'zz4508-foreign.ai',
-     (select array_fill(0.0::real, array[384])::extensions.vector), 'other-model')
+     (select array_fill(0.0::real, array[768])::extensions.vector), 'other-model')
   on conflict (document_type, entity_id) do update
     set embedding = excluded.embedding, embedding_model = excluded.embedding_model,
         title = excluded.title, path = excluded.path;
@@ -138,7 +138,7 @@ begin
   if not exists (
     select 1 from public.search_dam_documents(
       'zz4508 foreign model canvas', '{}'::jsonb, 10, 0, array['asset']::text[],
-      (select array_fill(0.0::real, array[384])::extensions.vector), 0, null)
+      (select array_fill(0.0::real, array[768])::extensions.vector), 0, null)
     where entity_id = v_id
   ) then
     raise exception 'fixture asset was not visible to keyword search (test would be vacuous)';
@@ -146,7 +146,7 @@ begin
   if exists (
     select 1 from public.search_dam_documents(
       'zz4508 foreign model canvas', '{}'::jsonb, 10, 0, array['asset']::text[],
-      (select array_fill(0.0::real, array[384])::extensions.vector), 0, null)
+      (select array_fill(0.0::real, array[768])::extensions.vector), 0, null)
     where entity_id = v_id and semantic_rank is not null
   ) then
     raise exception 'foreign embedding_model was admitted to the semantic leg';
@@ -154,3 +154,4 @@ begin
   delete from public.dam_search_documents where entity_id = v_id;
   delete from public.assets where id = v_id;
 end $$;
+
