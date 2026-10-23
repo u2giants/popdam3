@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "work_issue": 4655,
+  "outcome": "ready-for-merge",
+  "pr": 4666,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4655/12",
+  "contract_sha256": "ded0bc035f7467cdb542d1de5eaa1de2c3a04c1f04f50b661cb8382a735b3ffa",
+  "base_sha": "77310fc5a05de1ba3e31712328b11949d984a05b",
+  "head_sha": "cf34128be61204718c83bc1101ecd7e433007708",
+  "files_changed": [
+    "config/designflow-db-releases.json",
+    "docs/designflow-db-release.md",
+    "scripts/designflow-db-release.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/designflow-db-release.test.mjs scripts/designflow-db-release.test.mjs",
+      "exit_code": 0,
+      "evidence": "Validated current implementation; full release suite152passed, zero skipped/failed. No other implementation changes beyond base77310."
+    },
+    {
+      "command": "node scripts/check-cancelled-work.mjs",
+      "exit_code": 0,
+      "evidence": "Validated current implementation; full release suite152passed, zero skipped/failed. No other implementation changes beyond base77310."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Validated current implementation; full release suite152passed, zero skipped/failed. No other implementation changes beyond base77310."
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_business_risk_gate",
+      "exit_code": 0,
+      "evidence": "Validated current implementation; full release suite152passed, zero skipped/failed. No other implementation changes beyond base77310."
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "Validated current implementation; full release suite152passed, zero skipped/failed. No other implementation changes beyond base77310."
+    },
+    {
+      "command": "node scripts/check-repository-identity-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "Validated current implementation; full release suite152passed, zero skipped/failed. No other implementation changes beyond base77310."
+    }
+  ],
+  "assumptions_resolved": [
+    "Exact protected settings semantics preserved; only unsupported empty contexts removed beside explicit App-bound checks. HTTP422 positively rejected both prior requests, no settings mutated.",
+    "Complete live baselines verified twice: five authenticated absence/null baselines and frontend full1review baseline. Future apply aborts any complete baseline drift.",
+    "No new commit/sandbox/develop gate, no additional review requirement, no production deployment or app merge. Existing source observer1de and UPC77310 merged through guarded workflow; this is settings-input correction only."
+  ],
+  "stop_conditions_hit": []
+}

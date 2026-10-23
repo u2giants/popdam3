@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { canonicalJson, sha256 } from './db-flow/evidence-bundle.mjs';
 import { manifestDigest } from './lib/designflow-db-release.mjs';
 import { assessRelease, runObserver, releasePolicy, dispatchTitle, verifyApplyReceipt, verifyAppliedFiles, workflowRuns, artifactContainsSource, assertObserverSource, publishAppStatus, prepareReleaseReady, productionRunMatches } from './designflow-db-release.mjs';
 
@@ -284,5 +286,20 @@ test('admission and session authority are rechecked under mutex before any ready
  for(const mutate of [f=>f.state.closed=true,f=>f.state.sql='create table core.foreign_source(id bigint);',f=>f.flow.resolveMarker=()=>({live:true,task:'other',calling_task:'release'})]){
   const f=nativeReleaseFixture();f.state.race=()=>{f.state.race=null;mutate(f);};
   assert.throws(()=>prepareReleaseReady(requirement,f.native));assert.deepEqual(f.effects,['mutex']);assert.equal(f.events.length,0);assert.equal(f.refs.size,0);
+ }
+});
+
+test('sealed protection requests use one GitHub status-check schema and preserve exact enforcement',()=>{
+ const policy=JSON.parse(readFileSync(new URL('../config/designflow-db-releases.json',import.meta.url),'utf8'));
+ assert.equal(policy.repositories.length,6);
+ for(const app of policy.repositories){
+  const {baseline,baseline_sha256,settings}=app.main_protection;
+  assert.equal(baseline_sha256,sha256(canonicalJson(baseline)));
+  // GitHub oneOf rejects contexts and checks together, even when contexts is empty.
+  assert.equal(Object.hasOwn(settings.required_status_checks,'contexts'),false);
+  assert.deepEqual(settings.required_status_checks,{strict:true,checks:[{context:policy.status_context,app_id:5112061}]});
+  assert.equal(settings.enforce_admins,true);assert.equal(settings.allow_force_pushes,false);assert.equal(settings.allow_deletions,false);
+  assert.equal(settings.required_pull_request_reviews.required_approving_review_count,app.repository.endsWith('frontend')?1:0);
+  assert.deepEqual(settings.required_pull_request_reviews.bypass_pull_request_allowances,{users:[],teams:[],apps:[]});
  }
 });

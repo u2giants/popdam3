@@ -1,0 +1,89 @@
+{
+  "schema_version": 2,
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Finish automatic DesignFlow database release readiness and reviewed exact six-app main protection without adding ordinary commit or sandbox approval gates",
+  "base_sha": "1de015d2068d4eb729c0c78e84abc5520fe23891",
+  "dispatcher": "Codex chat 01a164d2-4b63-7713-ae00-054036db0416 on edge-dev3",
+  "worker": "codex",
+  "branch": "codex/dflow-protection-payload-fix",
+  "worktree": "/home/ahazan/.codex/worktrees/dflow-database-release-gate/shared-db",
+  "allowed_paths": [
+    "scripts/lib/designflow-db-release.mjs",
+    "scripts/lib/designflow-db-release.test.mjs",
+    "scripts/designflow-db-release.mjs",
+    "scripts/designflow-db-release.test.mjs",
+    "config/designflow-db-releases.json",
+    ".github/workflows/designflow-db-release.yml",
+    "docs/designflow-db-release.md",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "scripts/lib/designflow-db-catalog.mjs",
+    "scripts/lib/designflow-db-catalog.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~lib~designflow-db-catalog.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~designflow-db-release.mjs.json",
+    "scripts/production_business_risk_gate.py",
+    "docs/verification/throughput-dispositions/scripts~production_business_risk_gate.py.json",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/4655/**",
+    "docs/agents/current-workflow.md"
+  ],
+  "file_writes": [
+    "scripts/lib/designflow-db-release.mjs",
+    "scripts/lib/designflow-db-release.test.mjs",
+    "scripts/designflow-db-release.mjs",
+    "scripts/designflow-db-release.test.mjs",
+    "config/designflow-db-releases.json",
+    ".github/workflows/designflow-db-release.yml",
+    "docs/designflow-db-release.md",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "scripts/lib/designflow-db-catalog.mjs",
+    "scripts/lib/designflow-db-catalog.test.mjs",
+    "docs/verification/throughput-dispositions/scripts~lib~designflow-db-catalog.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~designflow-db-release.mjs.json",
+    "scripts/production_business_risk_gate.py",
+    "docs/verification/throughput-dispositions/scripts~production_business_risk_gate.py.json",
+    "scripts/test_production_business_risk_gate.py",
+    ".agent/work/4655/**",
+    "docs/agents/current-workflow.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database schema or data writes in this maintenance change",
+    "No manual production apply, foreign claim adoption, app merge, billing/visibility change, or unreviewed platform mutation",
+    "No user-provided SQL/shell execution or credentials in application manifests",
+    "No additional promotion engine or new scheduler outside existing GitHub Actions process"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/designflow-db-release.test.mjs scripts/designflow-db-release.test.mjs",
+    "node scripts/check-cancelled-work.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "python3 -m unittest scripts.test_production_business_risk_gate",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs"
+  ],
+  "assumptions": [
+    "Existing merged-preview and automatic production workflow remains canonical",
+    "All six DesignFlow application default branches are develop",
+    "Platform protection403 is a real limitation and must not be represented as an enforced main-merge gate",
+    "Existing migration workflow already has25 inputs; add only a deterministic run-name from existing inputs to authenticate delayed dispatch correlation, no new dispatch field",
+    "Owner authorized Team up to8USD monthly beforetax; purchase stillpending. Native main protection may replace the proposed extra CloudBuild wrapper only after authenticated publisher and live enforcement proof, preserving existing release capability.",
+    "Application root agent guides remain unchanged: canonical reviewed current-workflow documentation carries the release-manifest obligation instead of six competing copies. Frozen reviewer tooling is untouched.",
+    "Owner emphasized existing major commit friction. Narrow to one automatic release-readiness status, existing structural review, actual per-app requirements, no extra source-fingerprint review gate and no blanket wait on unrelated application prerequisites. Future requirement recording is governed by the reviewed canonical current-workflow rule. Sourcefingerprint draft9 remainsprivate/unimplemented.",
+    "Actual GitHub main protection gates live production releases. Installed context-spec stronger-class route permits truthful production declaration, retaining existing deployment/localtest proofs. Infrastructure checkout prohibition remains untouched. Exact six-app desired protection payloads and complete baseline digests will be recorded in the existing central policy and reviewed at the final source head before any settings mutation. Preserve existing stricter requirements; abort changed baselines. No alternative approval or GitHub identity bypass.",
+    "Team activation is complete. Five absent main protections are complete authenticated404 Branch not protected baselines, not unknown values; frontend baseline preserves existing1review.",
+    "GitHub REST2022 protection schema rejects simultaneous contexts and checks via oneOf (HTTP422); use only explicit checks with identical App5112061/context/strict controls. Both prior writes were rejected with no mutation."
+  ],
+  "stop_conditions": [
+    "Unverified credentials or artifact evidence refuses before dispatch/readiness",
+    "Exact source or target drift refuses; missing protected dependency remains blocked",
+    "Scope outside listed files requires a new prospective contract generation"
+  ],
+  "generation": 12,
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 11,
+    "contract_sha256": "8e5b9b93f4bdf3a4671f94c8a367668198c3853f2af9de1ca38c3fde3d5e3b94"
+  }
+}

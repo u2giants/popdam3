@@ -162,3 +162,10 @@ application deployment triggers. A missing status may not be replaced by a
 manual success; the wrong-publisher probe deliberately proves this restriction. Read
 back main protection after activation and record publisher-bound enforcement proof
 on #4655. No actual main push or application release is used as a negative test.
+
+GitHub's protection request uses only `required_status_checks.checks`, including
+the designated App ID. Do not also send `contexts`, even an empty array: the REST
+schema rejects the overlapping alternatives with HTTP422. An absent baseline is
+a positively authenticated `404 Branch not protected` plus a verified branch,
+sealed as JSON null and its SHA256; it is not unknown or missing evidence. A fresh
+complete read must still match that absence immediately before activation.

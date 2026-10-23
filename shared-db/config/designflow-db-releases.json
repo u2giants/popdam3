@@ -33,7 +33,6 @@
         "settings": {
           "required_status_checks": {
             "strict": true,
-            "contexts": [],
             "checks": [
               {
                 "context": "database/production-ready",
@@ -80,7 +79,6 @@
         "settings": {
           "required_status_checks": {
             "strict": true,
-            "contexts": [],
             "checks": [
               {
                 "context": "database/production-ready",
@@ -140,7 +138,6 @@
         "settings": {
           "required_status_checks": {
             "strict": true,
-            "contexts": [],
             "checks": [
               {
                 "context": "database/production-ready",
@@ -187,7 +184,6 @@
         "settings": {
           "required_status_checks": {
             "strict": true,
-            "contexts": [],
             "checks": [
               {
                 "context": "database/production-ready",
@@ -224,7 +220,6 @@
         "settings": {
           "required_status_checks": {
             "strict": true,
-            "contexts": [],
             "checks": [
               {
                 "context": "database/production-ready",
@@ -282,7 +277,6 @@
         "settings": {
           "required_status_checks": {
             "strict": true,
-            "contexts": [],
             "checks": [
               {
                 "context": "database/production-ready",
