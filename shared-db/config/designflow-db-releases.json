@@ -1,0 +1,389 @@
+{
+  "schema_version": 1,
+  "production_project_ref": "qsllyeztdwjgirsysgai",
+  "manifest_path": ".release/database.json",
+  "branch": "develop",
+  "status_context": "database/production-ready",
+  "repositories": [
+    {
+      "repository": "popcre/designflow-backend",
+      "roles": [
+        "designflow_prod_backend_runtime",
+        "designflow_hts_prod_worker"
+      ],
+      "schemas": [
+        "dflow_prod",
+        "hts_rag"
+      ],
+      "required_sources": [
+        {
+          "work_issue": 4638,
+          "source_pr": 4640
+        },
+        {
+          "work_issue": 4634,
+          "source_pr": 4636
+        }
+      ],
+      "contract_manifest_sha256": "178574a19b71c8f4630dab1880f8ae8932c123d39f665c6d3ce776c1fbe8a9f6",
+      "main_protection": {
+        "branch": "main",
+        "baseline_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "baseline_absent": true,
+        "settings": {
+          "required_status_checks": {
+            "strict": true,
+            "contexts": [],
+            "checks": [
+              {
+                "context": "database/production-ready",
+                "app_id": 5112061
+              }
+            ]
+          },
+          "enforce_admins": true,
+          "required_pull_request_reviews": {
+            "required_approving_review_count": 0,
+            "bypass_pull_request_allowances": {
+              "users": [],
+              "teams": [],
+              "apps": []
+            }
+          },
+          "restrictions": null,
+          "allow_force_pushes": false,
+          "allow_deletions": false
+        },
+        "baseline": null
+      }
+    },
+    {
+      "repository": "popcre/designflow-item-master",
+      "roles": [
+        "designflow_prod_item_master_runtime",
+        "designflow_prod_backend_runtime"
+      ],
+      "schemas": [
+        "dflow_prod"
+      ],
+      "required_sources": [
+        {
+          "work_issue": 4659,
+          "source_pr": 4661
+        }
+      ],
+      "contract_manifest_sha256": "cbb8c245e2c4665b55e1682822205f95e9e366440899c9481a203342456d7a8b",
+      "main_protection": {
+        "branch": "main",
+        "baseline_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "baseline_absent": true,
+        "settings": {
+          "required_status_checks": {
+            "strict": true,
+            "contexts": [],
+            "checks": [
+              {
+                "context": "database/production-ready",
+                "app_id": 5112061
+              }
+            ]
+          },
+          "enforce_admins": true,
+          "required_pull_request_reviews": {
+            "required_approving_review_count": 0,
+            "bypass_pull_request_allowances": {
+              "users": [],
+              "teams": [],
+              "apps": []
+            }
+          },
+          "restrictions": null,
+          "allow_force_pushes": false,
+          "allow_deletions": false
+        },
+        "baseline": null
+      }
+    },
+    {
+      "repository": "popcre/designflow-tracking",
+      "roles": [
+        "designflow_prod_tracking_runtime",
+        "designflow_prod_backend_runtime"
+      ],
+      "schemas": [
+        "dflow_prod",
+        "coldlion"
+      ],
+      "required_sources": [
+        {
+          "work_issue": 4638,
+          "source_pr": 4640
+        },
+        {
+          "work_issue": 3869,
+          "source_pr": 4648
+        },
+        {
+          "work_issue": 4646,
+          "source_pr": 4653
+        },
+        {
+          "work_issue": 4585,
+          "source_pr": 4587
+        }
+      ],
+      "contract_manifest_sha256": "aa68f0eb26d310f48f1213cd05f4890f5c00c2bc0e2c872a8f62c161a03c61c1",
+      "main_protection": {
+        "branch": "main",
+        "baseline_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "baseline_absent": true,
+        "settings": {
+          "required_status_checks": {
+            "strict": true,
+            "contexts": [],
+            "checks": [
+              {
+                "context": "database/production-ready",
+                "app_id": 5112061
+              }
+            ]
+          },
+          "enforce_admins": true,
+          "required_pull_request_reviews": {
+            "required_approving_review_count": 0,
+            "bypass_pull_request_allowances": {
+              "users": [],
+              "teams": [],
+              "apps": []
+            }
+          },
+          "restrictions": null,
+          "allow_force_pushes": false,
+          "allow_deletions": false
+        },
+        "baseline": null
+      }
+    },
+    {
+      "repository": "popcre/designflow-data-syncing",
+      "roles": [
+        "designflow_prod_data_sync_runtime",
+        "designflow_prod_backend_runtime"
+      ],
+      "schemas": [
+        "dflow_prod"
+      ],
+      "required_sources": [
+        {
+          "work_issue": 4638,
+          "source_pr": 4640
+        }
+      ],
+      "contract_manifest_sha256": "be6acee5372525737f2e9cb64524a0a0a9f1873d0a51706be76ce7a123d7d930",
+      "main_protection": {
+        "branch": "main",
+        "baseline_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "baseline_absent": true,
+        "settings": {
+          "required_status_checks": {
+            "strict": true,
+            "contexts": [],
+            "checks": [
+              {
+                "context": "database/production-ready",
+                "app_id": 5112061
+              }
+            ]
+          },
+          "enforce_admins": true,
+          "required_pull_request_reviews": {
+            "required_approving_review_count": 0,
+            "bypass_pull_request_allowances": {
+              "users": [],
+              "teams": [],
+              "apps": []
+            }
+          },
+          "restrictions": null,
+          "allow_force_pushes": false,
+          "allow_deletions": false
+        },
+        "baseline": null
+      }
+    },
+    {
+      "repository": "popcre/designflow-bff",
+      "roles": [],
+      "schemas": [],
+      "required_sources": [],
+      "contract_manifest_sha256": "c9c19a5806cd7eed07af8d3b9b33d79bc13bd3821f647b806d2d924bf9853713",
+      "main_protection": {
+        "branch": "main",
+        "baseline_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "baseline_absent": true,
+        "settings": {
+          "required_status_checks": {
+            "strict": true,
+            "contexts": [],
+            "checks": [
+              {
+                "context": "database/production-ready",
+                "app_id": 5112061
+              }
+            ]
+          },
+          "enforce_admins": true,
+          "required_pull_request_reviews": {
+            "required_approving_review_count": 0,
+            "bypass_pull_request_allowances": {
+              "users": [],
+              "teams": [],
+              "apps": []
+            }
+          },
+          "restrictions": null,
+          "allow_force_pushes": false,
+          "allow_deletions": false
+        },
+        "baseline": null
+      }
+    },
+    {
+      "repository": "popcre/designflow-frontend",
+      "roles": [],
+      "schemas": [],
+      "required_sources": [
+        {
+          "work_issue": 4638,
+          "source_pr": 4640
+        },
+        {
+          "work_issue": 4634,
+          "source_pr": 4636
+        },
+        {
+          "work_issue": 3869,
+          "source_pr": 4648
+        },
+        {
+          "work_issue": 4585,
+          "source_pr": 4587
+        },
+        {
+          "work_issue": 4659,
+          "source_pr": 4661
+        }
+      ],
+      "contract_manifest_sha256": "370eef80113ca10002830ccf9f580539cfa956e704cc7f8a43db6864cebc088e",
+      "main_protection": {
+        "branch": "main",
+        "baseline_sha256": "c868759449867ae02860efe549fa38fb01126f9e9ae453fda9cc468aa0297c41",
+        "baseline_absent": false,
+        "settings": {
+          "required_status_checks": {
+            "strict": true,
+            "contexts": [],
+            "checks": [
+              {
+                "context": "database/production-ready",
+                "app_id": 5112061
+              }
+            ]
+          },
+          "enforce_admins": true,
+          "required_pull_request_reviews": {
+            "dismiss_stale_reviews": false,
+            "require_code_owner_reviews": false,
+            "required_approving_review_count": 1,
+            "require_last_push_approval": false,
+            "bypass_pull_request_allowances": {
+              "users": [],
+              "teams": [],
+              "apps": []
+            }
+          },
+          "restrictions": null,
+          "allow_force_pushes": false,
+          "allow_deletions": false,
+          "required_linear_history": false,
+          "required_conversation_resolution": false,
+          "lock_branch": false,
+          "allow_fork_syncing": false,
+          "block_creations": false
+        },
+        "baseline": {
+          "url": "https://api.github.com/repos/popcre/designflow-frontend/branches/main/protection",
+          "required_pull_request_reviews": {
+            "url": "https://api.github.com/repos/popcre/designflow-frontend/branches/main/protection/required_pull_request_reviews",
+            "dismiss_stale_reviews": false,
+            "require_code_owner_reviews": false,
+            "require_last_push_approval": false,
+            "required_approving_review_count": 1
+          },
+          "required_signatures": {
+            "url": "https://api.github.com/repos/popcre/designflow-frontend/branches/main/protection/required_signatures",
+            "enabled": false
+          },
+          "enforce_admins": {
+            "url": "https://api.github.com/repos/popcre/designflow-frontend/branches/main/protection/enforce_admins",
+            "enabled": false
+          },
+          "required_linear_history": {
+            "enabled": false
+          },
+          "allow_force_pushes": {
+            "enabled": false
+          },
+          "allow_deletions": {
+            "enabled": false
+          },
+          "block_creations": {
+            "enabled": false
+          },
+          "required_conversation_resolution": {
+            "enabled": false
+          },
+          "lock_branch": {
+            "enabled": false
+          },
+          "allow_fork_syncing": {
+            "enabled": false
+          }
+        }
+      }
+    }
+  ],
+  "release_branches": [
+    "develop",
+    "main"
+  ],
+  "enforcement_probe": {
+    "base_branch": "codex/db-release-protection-probe-4655",
+    "head_branch": "codex/db-release-protection-probe-head-4655",
+    "base_source": "main",
+    "file_path": ".release/protection-probe-4655.txt",
+    "file_content": "Synthetic release protection verification for shared-db issue4655.\n",
+    "repositories": [
+      "popcre/designflow-backend",
+      "popcre/designflow-item-master",
+      "popcre/designflow-tracking",
+      "popcre/designflow-data-syncing",
+      "popcre/designflow-bff",
+      "popcre/designflow-frontend"
+    ],
+    "actions": [
+      "create temporary branches from current main",
+      "create one synthetic pull request per temporary base",
+      "apply exact main_protection.settings to temporary base",
+      "verify missing required App status refuses merge",
+      "publish same-context success with ordinary operator identity and verify merge still refuses",
+      "delete only owned temporary probe PR/branches after proof"
+    ],
+    "prohibited_actions": [
+      "no real main merge or direct push",
+      "no production deployment trigger changes",
+      "no weakening required App identity or existing main requirements"
+    ],
+    "cleanup": "close owned probe PR; remove own temporary protection; delete own temporary branches"
+  }
+}

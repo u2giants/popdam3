@@ -839,6 +839,15 @@ PREVIEW_PRODUCER_PATHS = (
 PREVIEW_RUNTIME_DATA_DIRS = ("supabase", "config")
 
 PREVIEW_RUNTIME_DATA_EXEMPTIONS = {
+    "config/designflow-db-releases.json": (
+        "Never read by the preview job. Read only by the separate DesignFlow "
+        "release observer. The preview job "
+        "and its native migration helpers never import that observer or load this "
+        "application contract policy. The observer resolves a stored native preview "
+        "instruction, whose exact source, allowlist, current main, target and "
+        "qualification are independently re-proven by the preview job; this policy "
+        "cannot change migration bytes or weaken those existing producer guards."
+    ),
     "supabase/.temp": (
         "Created locally by the Supabase CLI and excluded by the repository's "
         "gitignore rules. These machine-specific link and tool-version files "

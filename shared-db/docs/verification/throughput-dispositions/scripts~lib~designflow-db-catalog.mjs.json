@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/designflow-db-catalog.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/designflow-db-catalog.mjs:16",
+      "semantic_key": "scripts/lib/designflow-db-catalog.mjs:c32bca412b7e03736566d7cd2d7aee6b80429abe12cd86395e2b4c65727e834e:context-46fd7b613a29c50fafdaa37c69f6c04956580a0e355fee4cbe98accba9140eb1",
+      "legacy_semantic_key": "scripts/lib/designflow-db-catalog.mjs:c32bca412b7e03736566d7cd2d7aee6b80429abe12cd86395e2b4c65727e834e:1",
+      "line_sha256": "c32bca412b7e03736566d7cd2d7aee6b80429abe12cd86395e2b4c65727e834e",
+      "disposition": "excluded",
+      "reason": "Identifier refusal for a missing or malformed manifest field before read-only metadata SQL is constructed; no apply result, ledger state or throughput accounting is inferred (#4655)."
+    }
+  ]
+}

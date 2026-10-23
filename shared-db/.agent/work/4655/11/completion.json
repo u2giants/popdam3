@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "work_issue": 4655,
+  "outcome": "ready-for-merge",
+  "pr": 4656,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4655/11",
+  "contract_sha256": "8e5b9b93f4bdf3a4671f94c8a367668198c3853f2af9de1ca38c3fde3d5e3b94",
+  "base_sha": "fd810b397b3b0fd322c2a9b53f6a9695d2619b02",
+  "head_sha": "57f01254a0a0f024a4003c84c7c43df642b40386",
+  "files_changed": [
+    ".github/workflows/designflow-db-release.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "config/designflow-db-releases.json",
+    "docs/agents/current-workflow.md",
+    "docs/designflow-db-release.md",
+    "docs/verification/throughput-dispositions/scripts~lib~designflow-db-catalog.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~lib~designflow-db-release.mjs.json",
+    "scripts/designflow-db-release.mjs",
+    "scripts/designflow-db-release.test.mjs",
+    "scripts/lib/designflow-db-catalog.mjs",
+    "scripts/lib/designflow-db-catalog.test.mjs",
+    "scripts/lib/designflow-db-release.mjs",
+    "scripts/lib/designflow-db-release.test.mjs",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "DFLOW_RELEASE_CATALOG_TEST_CONTAINER=dflow-release-gate-01a164d2 node --test scripts/lib/designflow-db-release.test.mjs scripts/lib/designflow-db-catalog.test.mjs scripts/designflow-db-release.test.mjs",
+      "exit_code": 0,
+      "evidence": "150 passed, zero failures/skips including isolated PostgreSQL17 and real native admission/preparation composition. Repeat/two-app/race reuse creates one ready event/ref, no issue reopen or periodic mutex."
+    },
+    {
+      "command": "node scripts/check-cancelled-work.mjs",
+      "exit_code": 0,
+      "evidence": "Two cancellation rows checked; no cancelled instruction reintroduced."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    },
+    {
+      "command": "node --test scripts/lib/designflow-db-release.test.mjs scripts/designflow-db-release.test.mjs",
+      "exit_code": 0,
+      "evidence": "Required release contract and orchestration tests passed; full isolated PostgreSQL suite separately recorded."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "361 call sites in103 sources audited with exact per-source dispositions."
+    },
+    {
+      "command": "node --test scripts/throughput-guard/*.test.mjs",
+      "exit_code": 0,
+      "evidence": "72 passed, zero failed/skipped."
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_business_risk_gate",
+      "exit_code": 0,
+      "evidence": "230 production risk gate tests passed, including preview producer data/exemption boundaries and multi-source rehearsal compatibility."
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "438 files scanned; every GitHub call uses canonical shared transport."
+    },
+    {
+      "command": "node scripts/check-repository-identity-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "Every literal slug matches native allowlist counts."
+    },
+    {
+      "command": "node scripts/check-current-workflow-policy.mjs",
+      "exit_code": 0,
+      "evidence": "Canonical release routing preserves the current workflow policy matrix and cited rulings."
+    }
+  ],
+  "assumptions_resolved": [
+    "Six baseline requirements are application-specific. Actual deployed Item Master read-only UPC query returned42501; new canonical source4659/4661 and production-view contract keep Item Master/frontend fail-closed until delivered. Source4648 was retimestamped to20261022221940 and current manifests now match actual source bytes. No new source fingerprint check, manual approval or ordinary commit gate introduced.",
+    "GitHub UI and authenticated organization API independently confirm Team/two seats8USD monthly beforetax. Main protections/observer activation/application manifest rollout are NOT yet delivered. Existing source or dispatch refusal never waived.",
+    "Only current generation10 pair is in PRdiff; previous generations retained in immutable refs/Git history/private records. All own source remains in prospective allowed scope. Current main refreshed atfd810b397b3b0fd322c2a9b53f6a9695d2619b02.",
+    "Generation11 exact source fixes both blocking DeepSeek findings and all five accompanying observations: native read-only admission/current-ready reuse, one-time under-lock preparation, unordered version matching, normal waiting without failed workflow, never-replayed delayed dispatch, and no scheduled test containers.",
+    "Prospective historical Team-pending assumption resolved: Team active at authorized two-seat8USD/month. Exact six complete baselines, baseline hashes and desired main settings plus harmless temporary-branch negative probes are sealed in central policy. These production-class actions require the assigned reviewer explicit exact-resource/action APPROVE before mutation; live activation remains pending."
+  ],
+  "stop_conditions_hit": []
+}

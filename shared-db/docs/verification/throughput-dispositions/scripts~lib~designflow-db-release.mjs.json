@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/designflow-db-release.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/designflow-db-release.mjs:38",
+      "semantic_key": "scripts/lib/designflow-db-release.mjs:8e3eefe9713aee89d80596cff07f3896e1bf80c54cbc31d523a1eb5d00926cfb:context-7db48cb3a7207f0ee676604addf2c0ad8cbe7179daf4ee7766202a7b8d7f57fa",
+      "legacy_semantic_key": "scripts/lib/designflow-db-release.mjs:8e3eefe9713aee89d80596cff07f3896e1bf80c54cbc31d523a1eb5d00926cfb:1",
+      "line_sha256": "8e3eefe9713aee89d80596cff07f3896e1bf80c54cbc31d523a1eb5d00926cfb",
+      "disposition": "excluded",
+      "reason": "Strict manifest field/shape validation refuses a missing required field before any database or GitHub effect; this is an input error, not evidence that a migration was not applied (#4655)."
+    },
+    {
+      "site": "scripts/lib/designflow-db-release.mjs:60",
+      "semantic_key": "scripts/lib/designflow-db-release.mjs:a523341f7fa99be8094a69b7640002361cb0ef31e3e15bd352b4febc336bc1a2:context-1950b43ef3370c25fc337bfc9e6eef852350030111a7f6d978019e3ef8d9f2cf",
+      "legacy_semantic_key": "scripts/lib/designflow-db-release.mjs:a523341f7fa99be8094a69b7640002361cb0ef31e3e15bd352b4febc336bc1a2:1",
+      "line_sha256": "a523341f7fa99be8094a69b7640002361cb0ef31e3e15bd352b4febc336bc1a2",
+      "disposition": "excluded",
+      "reason": "Strict manifest field/shape validation refuses a missing required field before any database or GitHub effect; this is an input error, not evidence that a migration was not applied (#4655)."
+    }
+  ]
+}

@@ -78,6 +78,24 @@ production dispatch, a new isolated-to-production trigger, or an unverified
 target. Re-prove the configured target immediately before every write. Resolve
 preview from `PREVIEW_PROJECT_REF`; historical project IDs are not authority.
 
+## DesignFlow code and database release requirements
+
+For the six DesignFlow applications, keep each code release's
+`.release/database.json` aligned with the required canonical source migrations and
+runtime table/column/access contracts. Update the reviewed central policy in
+`config/designflow-db-releases.json` with contract changes. Sandbox-only SQL is not
+a recorded production prerequisite. The source author/application session owns the
+manifest update as part of the same application need; do not close its acceptance
+while the required production proof is missing.
+
+[DesignFlow release readiness](../designflow-db-release.md) defines the strict
+manifest, authenticated central publisher, existing-promotion integration and
+pre-main enforcement checks. It creates no new SQL executor or application merge
+authority. Its source implementation, six manifest publication and live enforcement
+are separate deliveries tracked on #4655 / popcre/designflow-backend#232. Do not
+claim activation from source publication alone. Keep this operating rule canonical;
+consumer copies mirror it instead of maintaining six competing agent guides.
+
 ## Completion and recovery
 
 Use the acceptance contract appropriate to the outcome: reviewed publication,
