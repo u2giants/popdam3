@@ -13,3 +13,7 @@ underlying evidence in the private repository.
 
 Historical Git commits still contain the former files. Removing those immutable
 copies requires a separately planned history rewrite and clone/branch recovery.
+
+## 2026-10-23 additions
+
+- DesignFlow legacy column crosswalk (923 rows): [`designflow-legacy-column-crosswalk.csv`](https://github.com/u2giants/licensor-source-data/blob/main/shared-db-relocated/2026-10-23/docs/verification/cloudsql-piecemeal-cutover-20261002/designflow-legacy-column-crosswalk.csv), summarized in `docs/verification/cloudsql-piecemeal-cutover-20261002/designflow-legacy-column-crosswalk.md`.

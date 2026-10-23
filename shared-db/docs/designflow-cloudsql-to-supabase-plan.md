@@ -258,3 +258,31 @@ Sources in this workspace
 •	`designflow-backend/models/db.js` — `search_path` is set only when multi-schema is on
 •	`designflow-backend/shared-db/docs/designflow-master-data-migration/designflow-schema-segregation.md` — target homes, and the 21 July 2026 `SET SCHEMA` incident
 •	`designflow-backend/shared-db/docs/unified-supabase-schema-map.md` — production project `qsllyeztdwjgirsysgai` and why `users` / `customers` are not dumped into `app` / `core`
+
+## Value-mapping decisions (owner rulings)
+
+Detail and live match rates: `docs/verification/cloudsql-piecemeal-cutover-20261002/designflow-legacy-column-crosswalk.md`.
+
+- 2026-10-23, Albert: every field the DesignFlow code uses must have a home; where Supabase production already has a table for the same data, its design is used and extended, or the legacy values are only mapped into it.
+- 2026-10-23, Albert: legacy license `NU` (NBCUniversal) → licensor `NB` NBC.
+- 2026-10-23, Albert: legacy license `NK` (Nick) → licensor `VM` Viacom Multi.
+- 2026-10-23, Albert: legacy licenses `GC` (Generic) and `MP` (Multiple) → licensor `ZZ` DTR - No License.
+- 2026-10-23, Albert: Disney, Marvel and Star Wars are three separate licensors regardless of ownership. Legacy `DS` (Dis/Mrv/SW) has no items in production (checked live 2026-10-23), so it maps to nothing and is retired.
+- 2026-10-23, Albert: licensed and non-licensed divisions use different MG05 and MG06 codes and meanings; value mapping is done per division, never across divisions. Division comes from ColdLion (`plm.item.raw->>'divisionCode'`), not DesignFlow `div_code_fk`, which disagrees for about 3,700 items (checked live 2026-10-23).
+- 2026-10-23, Albert: division EP001 is a different company that will not be in the system; its 451 DesignFlow items and their codes (`00 BK CO FB1 HCE KK KK1 LE RK SA SA2 SA3 SA4 SO SO1` …) are not migrated.
+- 2026-10-23, Albert: Roaring Brook (`RB`), Frida Kahlo (`FK`) and ZAG (`ZG`) are inactive licensors; they are kept as inactive, not active, licensors. Friends TV (`FR`) was named in the same ruling, but the earlier owner ruling erases `FR` as a licensor (`docs/owner-rulings.md`, migration `20260820183334`); `FR` stays erased and its DesignFlow items are an open question to Albert.
+- Live 2026-10-23: `GC` Global Culture (6 items) occurs only in ColdLion division EH001, together with the other non-licensed theme codes (`AB AN BA DF FA FP HD KS KT MS ND PH ST WM`); in EH001 slot MG05 is a theme, not a licensor. The earlier `GC` → `ZZ` ruling applies only to the license list entry "Generic", not to these items.
+- Auto-mapped by name (no ruling needed): `NA` → NASA (`X-NASA`), `PF` → Paul Frank, `SB` → Steal-A-Brainrot, `DMC` → Miller Coors (`X-MILLERCOORS`).
+- 2026-10-23, Albert: ColdLion division codes are right: SP001 = Spruce Licensed, EH001 = Spruce non-Licensed, CW001 = POP. DesignFlow `divisionCode.external_divisoncode` has SP001/EH001 swapped and is not used.
+- 2026-10-23, Albert: POP (CW001) leftover licensor codes go to a review list. Live: only 16 CW001 items — `MM`/`ABMM` Marilyn Monroe (13), `GEN` (2: invoicing, lenticular), `BK` (1: ticketing). `BK`'s other 111 items are EP001 and not migrated.
+- 2026-10-23, Albert: Marilyn Monroe (`MM`, `ABMM`; 13 POP items) is an old inactive licensor; kept as an inactive licensor.
+- 2026-10-23, Albert: items marked non-inventory are not imported. Authority is ColdLion `nonInventoryItem` (`plm.item.raw`); DesignFlow `non_inv_item` disagrees and is not used. Live: 50 DesignFlow items are non-inventory in ColdLion, including `TICKETING` (`BK`). The two `GEN` items (invoicing, lenticular) are inventory items in ColdLion, so they stay on the POP review list.
+- 2026-10-23, Albert: do not import the two `GEN` items (invoicing, lenticular). POP licensor review list is now closed.
+- Live 2026-10-23 (imported scope: CW001, EH001, SP001, inventory items only = 18,048 items): item size (MG04) codes map to `core.product_size` for 17,149 items (95%); 708 blank; 38 distinct codes on the rest go to a review list. DesignFlow's own `itemSize` list (metric labels) is not used for mapping.
+- Live 2026-10-23: production-order vendor codes map to `core.factory` codes for 3,412 of 3,622 orders (94%). DesignFlow's `Factory` list (181 rows, 4 test rows) matches ColdLion vendors by name for only 34 rows; open question to Albert.
+- 2026-10-23, Albert (factories): DesignFlow factories and ColdLion vendors overlap but are not the same list. ColdLion holds the legal name (who POP pays); DesignFlow refers to a factory by trade name or, more often, the factory rep's name. Design: one canonical `core.factory`, ColdLion legal name kept as is, extended with:
+  - trade name;
+  - nickname — the name shown everywhere in the apps (existing `display_name` is its home unless review finds it used otherwise);
+  - rep names, one or more per factory (child table, not a list column);
+  - vendor user accounts, one or more per factory (`core.vendor` logins linked to the canonical factory id).
+  Factories POP has not yet done business with exist only in DesignFlow and are created without a ColdLion source reference; ColdLion attaches later by source identity. Mapping the 181 DesignFlow factories: automatic where name/trade name/nickname matches (34 today), the rest on a licensing-style review list; the 4 test rows are not imported.
