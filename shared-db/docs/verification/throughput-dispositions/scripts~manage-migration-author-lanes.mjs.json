@@ -4,9 +4,9 @@
   "sites": [
     {
       "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:4042",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:13a4c3d2e87e38098bde0b858edfee82cd18eff91a2a2ce6a14443ace04b3892:context-84bafc218be161b2fd009bcaaa4c5ed07d21041d95216ff94c2cde5cb46fb59a",
-      "line_sha256": "13a4c3d2e87e38098bde0b858edfee82cd18eff91a2a2ce6a14443ace04b3892",
+      "site": "scripts/manage-migration-author-lanes.mjs:4371",
+      "semantic_key": "scripts/manage-migration-author-lanes.mjs:a0a855da1e62f55e6049d273f43cb1521d8fe5e2231dabddb4ed8ffa0c7e0a1f:context-4638a58a41bf3397fe7c661dbe4d55c5700830bb8545e9121e0f1705a219174d",
+      "line_sha256": "a0a855da1e62f55e6049d273f43cb1521d8fe5e2231dabddb4ed8ffa0c7e0a1f",
       "disposition": "excluded",
       "reason": "Refuses missing, future or stale owner confirmation; this is ownership admission evidence, not an assertion of database absence."
     },
@@ -20,7 +20,7 @@
     },
     {
       "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:4102",
+      "site": "scripts/manage-migration-author-lanes.mjs:4431",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816:context-b14c2b509c5d652fb51a545fa5b29f6114c6cd100d6252c6adb0b224f5b1fde2",
       "line_sha256": "1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816",
       "disposition": "excluded",

@@ -11,7 +11,7 @@ test('issue 2958 lease re-check keeps only labelled db-claim issues from the unf
 })
 import { claimBody } from './manage-migration-author-lanes.mjs'
 const now=new Date('2026-08-14T20:00:00Z')
-const claim=(overrides={})=>({number:12,body:claimBody({version:'20260814170219',objects:['table core.x'],owner:'owner-a',branch:'codex/x',worktree:'C:/w',expiresAt:new Date('2026-08-14T20:30:00Z'),...overrides})})
+const claim=(overrides={})=>({number:12,body:claimBody({version:'20260814170219',objects:['table core.x'],owner:'owner-a',branch:'codex/x',worktree:'C:/w',expiresAt:new Date('2026-08-14T21:00:00Z'),...overrides})})
 const confirmation=(holder=claim(),overrides={})=>({schema_version:1,kind:'author-checkin',human_identity_authenticated:false,claim:12,issue:10,pr:20,head_sha:'a'.repeat(40),owner:'owner-a',branch:'codex/x',worktree:'C:/w',version:'20260814170219',body_sha256:createHash('sha256').update(holder.body).digest('hex'),expires_at:holder.body.match(/^expires_at: (.*)$/m)[1],author_session:'owner-a',checked_in_at:now.toISOString(),...overrides})
 const file=(sql='create table core.x(id bigint);')=>({filename:'supabase/migrations/20260814170219_x.sql',status:'added',sql})
 const run=(x={})=>validateMigrationLease({claims:[claim()],branch:'codex/x',files:[file()],now,reservationExists:()=>true,confirmationForClaim:(holder)=>confirmation(holder),pr:20,headSha:'a'.repeat(40),...x})
@@ -69,10 +69,12 @@ test('101 migration files are all validated, including the last file',()=>{
 })
 
 
-test('author must explicitly check in within ten minutes; missing, stale, future and oversized permissions refuse',()=>{
-  for(const record of [null,confirmation(claim(),{checked_in_at:new Date(now.valueOf()-10*60000-1).toISOString()}),confirmation(claim(),{checked_in_at:new Date(now.valueOf()+1).toISOString()})])assert.throws(()=>run({confirmationForClaim:()=>record}),/check-in|permission/)
+test('author must explicitly check in within sixty minutes; missing, stale, future and oversized permissions refuse',()=>{
+  for(const record of [null,confirmation(claim(),{checked_in_at:new Date(now.valueOf()-60*60000-1).toISOString()}),confirmation(claim(),{checked_in_at:new Date(now.valueOf()+1).toISOString()})])assert.throws(()=>run({confirmationForClaim:()=>record}),/check-in|permission/)
   assert.throws(()=>run({claims:[claim({expiresAt:new Date(now.valueOf()+12*3600000)})]}),/permission/)
-  assert.equal(run({now:new Date(now.valueOf()+10*60000)}).claim,12)
+  assert.equal(run({now:new Date(now.valueOf()+60*60000-1)}).claim,12)
+  assert.equal(run({now:new Date(now.valueOf()+45*60000)}).claim,12)
+  assert.throws(()=>run({claims:[claim({expiresAt:new Date(now.valueOf()+61*60000)})]}),/permission/)
 })
 test('confirmation is immutable and binds full claim body, actual author session and exact PR head',()=>{
   for(const override of [{owner:'codex/other'},{author_session:'other'},{body_sha256:'b'.repeat(64)},{claim:13},{head_sha:'bad'},{extra:true}])assert.throws(()=>run({confirmationForClaim:holder=>confirmation(holder,override)}),/check-in/)

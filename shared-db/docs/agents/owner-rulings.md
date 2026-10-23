@@ -21,8 +21,9 @@ to be part of wrap-up as a fallback and asked whether a session should confirm
 that it still needs the reservation. This changes execution ownership, never
 removes permanent migration reservations or protection for unfinished source.
 
-The coordinator implements thirty-minute fresh author permissions and explicit
-confirmation every ten minutes, including a hard confirmation check before
+The coordinator implements thirty-minute default author permissions under a
+one-hour cap (widened 2026-10-23) and explicit
+confirmation every sixty minutes, including a hard confirmation check before
 protected migration admission. These bounds are implementation choices, not a
 verbatim owner-specified duration. A stopped owner immediately publishes native
 handoff-ready consent; a qualified actual successor takes over without waiting

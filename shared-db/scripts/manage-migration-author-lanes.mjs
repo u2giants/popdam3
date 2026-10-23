@@ -2978,7 +2978,7 @@ function changeClaimAuthor(options,now,io,voluntary){
 
 export function reissueMergedStrandedClaim(options,now=new Date(),io=githubIo){
   const request={issue:Number(options.issue),claim:Number(options.claim),sourcePr:Number(options.sourcePr),owner:String(options.owner??''),targetBranch:String(options.targetBranch??''),targetWorktree:String(options.targetWorktree??''),oldVersion:String(options.oldVersion??''),leaseHours:Number(options.leaseHours)}
-  if(!Number.isInteger(request.issue)||!Number.isInteger(request.claim)||!Number.isInteger(request.sourcePr)||!request.owner||!request.targetBranch||!request.targetWorktree||!/^[0-9]{14}$/.test(request.oldVersion)||!Number.isFinite(request.leaseHours)||request.leaseHours<=0||request.leaseHours>MAX_AUTHOR_LEASE_HOURS)throw new LaneError('merged claim reissue requires exact issue, claim, source PR, owner, target branch, target worktree, old version, and a lease of no more than 0.5 hours')
+  if(!Number.isInteger(request.issue)||!Number.isInteger(request.claim)||!Number.isInteger(request.sourcePr)||!request.owner||!request.targetBranch||!request.targetWorktree||!/^[0-9]{14}$/.test(request.oldVersion)||!Number.isFinite(request.leaseHours)||request.leaseHours<=0||request.leaseHours>MAX_AUTHOR_LEASE_HOURS)throw new LaneError(`merged claim reissue requires exact issue, claim, source PR, owner, target branch, target worktree, old version, and a lease of no more than ${MAX_AUTHOR_LEASE_HOURS} hours`)
   const evidenceRef=`refs/db-claim-retirements/${request.claim}-${request.oldVersion}`
   const priorSha=io.readRef(evidenceRef)
   let prior=null
@@ -4098,7 +4098,7 @@ function requireAdmissionGate(options, io, { pr = null, timestamp, mutexOwner = 
 }
 export function acquireAuthorLane(options, now = new Date(), io = githubIo) {
   options={...options,leaseHours:options.leaseHours??DEFAULT_LEASE_HOURS}
-  if(!Number.isFinite(options.leaseHours)||options.leaseHours<=0||options.leaseHours>MAX_AUTHOR_LEASE_HOURS)throw new LaneError('author permission must be greater than zero and no more than30 minutes')
+  if(!Number.isFinite(options.leaseHours)||options.leaseHours<=0||options.leaseHours>MAX_AUTHOR_LEASE_HOURS)throw new LaneError(`author permission must be greater than zero and no more than ${MAX_AUTHOR_LEASE_HOURS*60} minutes`)
   options = { ...options, objects: validateClaimObjects(options.objects) }
   assertUnambiguousClaimTitle(options.task)
   if(io.enforceAdmission===true&&(!Number.isInteger(Number(options.admitIssue))||Number(options.admitIssue)<=0))throw new LaneError('--admit-issue <work issue> is required before claim, reviewer assignment, or shared-stage acquisition')
@@ -4256,7 +4256,7 @@ export function relinquishAuthorLease(options, now = new Date(), io = githubIo) 
 
 export function resumeAuthorLease(options, now = new Date(), io = githubIo) {
   for(const key of ['claim','owner','leaseHours'])if(options[key]===undefined||options[key]===null||options[key]==='')throw new LaneError(`author-capacity resume requires ${key}`)
-  if(!Number.isFinite(options.leaseHours)||options.leaseHours<=0||options.leaseHours>MAX_AUTHOR_LEASE_HOURS)throw new LaneError('resume lease hours must be greater than 0 and no more than 0.5')
+  if(!Number.isFinite(options.leaseHours)||options.leaseHours<=0||options.leaseHours>MAX_AUTHOR_LEASE_HOURS)throw new LaneError(`resume lease hours must be greater than 0 and no more than ${MAX_AUTHOR_LEASE_HOURS}`)
   const ownerSha=io.makeOwnerCommit(`db-coordination author-capacity-resume claim=${options.claim}`)
   acquireMutex(ownerSha,io,options.mutexAttempts??100)
   let before,changed=false
@@ -4368,8 +4368,8 @@ export function validateAuthorCheckin(record,claim,now=new Date(),{pr,headSha}={
   const lease=parseAuthorLease(claim.body,now),fields=['schema_version','kind','human_identity_authenticated','claim','issue','pr','head_sha','owner','branch','worktree','version','body_sha256','expires_at','author_session','checked_in_at']
   if(!record||Array.isArray(record)||Object.keys(record).length!==fields.length||fields.some(k=>!Object.hasOwn(record,k))||record.schema_version!==1||record.kind!=='author-checkin'||record.human_identity_authenticated!==false||!['claim','issue','pr'].every(k=>Number.isSafeInteger(record[k])&&record[k]>0)||!/^[0-9a-f]{40}$/.test(record.head_sha)||record.claim!==Number(claim.number)||record.owner!==lease.owner||record.branch!==lease.branch||record.worktree!==lease.worktree||record.version!==lease.version||record.body_sha256!==sha256(claim.body)||record.expires_at!==lease.expiresAt.toISOString()||!resolveSessionAuthority({env:{SHARED_DB_SESSION_ID:record.author_session},claimOwner:record.owner}).live||(pr!==undefined&&record.pr!==Number(pr))||(headSha!==undefined&&record.head_sha!==headSha))throw new LaneError('author check-in confirmation differs from exact owner, source or claim')
   const checked=Date.parse(record.checked_in_at)
-  if(!Number.isFinite(checked)||checked>now.valueOf()||now.valueOf()-checked>AUTHOR_CHECKIN_INTERVAL_MINUTES*60000)throw new LaneError('author check-in confirmation is missing, future or older than ten minutes')
-  if(lease.expiresAt.valueOf()-checked>MAX_AUTHOR_LEASE_HOURS*3600000||lease.expiresAt.valueOf()<=checked)throw new LaneError('author permission exceeds 30 minutes or is expired')
+  if(!Number.isFinite(checked)||checked>now.valueOf()||now.valueOf()-checked>AUTHOR_CHECKIN_INTERVAL_MINUTES*60000)throw new LaneError(`author check-in confirmation is missing, future or older than ${AUTHOR_CHECKIN_INTERVAL_MINUTES} minutes`)
+  if(lease.expiresAt.valueOf()-checked>MAX_AUTHOR_LEASE_HOURS*3600000||lease.expiresAt.valueOf()<=checked)throw new LaneError(`author permission exceeds ${MAX_AUTHOR_LEASE_HOURS*60} minutes or is expired`)
   return record
 }
 export function checkInAuthor(options,now=new Date(),io=githubIo){
@@ -4396,7 +4396,7 @@ export function checkInAuthor(options,now=new Date(),io=githubIo){
 }
 export function renewExpiredClaim(options, now = new Date(), io = githubIo) {
   for(const key of ['claim','issue','owner','branch','worktree','pr','headSha','leaseHours'])if(options[key]===undefined||options[key]===null||options[key]==='')throw new LaneError(`claim renewal requires ${key}`)
-  if(!Number.isFinite(options.leaseHours)||options.leaseHours<=0||options.leaseHours>MAX_AUTHOR_LEASE_HOURS)throw new LaneError('renewal lease hours must be greater than 0 and no more than 0.5')
+  if(!Number.isFinite(options.leaseHours)||options.leaseHours<=0||options.leaseHours>MAX_AUTHOR_LEASE_HOURS)throw new LaneError(`renewal lease hours must be greater than 0 and no more than ${MAX_AUTHOR_LEASE_HOURS}`)
   const desiredExpiry=new Date(now.valueOf()+options.leaseHours*3600000)
   const requestId=options.requestId??randomUUID(),ownerSha=io.makeOwnerCommit(`db-coordination claim-lease-renewal ${requestId}`)
   acquireMutex(ownerSha,io,options.mutexAttempts??100)
@@ -4466,7 +4466,7 @@ export function renewExpiredClaim(options, now = new Date(), io = githubIo) {
 export function recoverExpiredClaimFromPr(options, now = new Date(), io = githubIo) {
   for(const key of ['claim','issue','owner','branch','worktree','pr','headSha','leaseHours'])if(options[key]===undefined||options[key]===null||options[key]==='')throw new LaneError(`expired claim recovery requires ${key}`)
   if(!/^\d+$/.test(String(options.issue))||!/^\d+$/.test(String(options.claim))||!/^\d+$/.test(String(options.pr))||!/^[0-9a-f]{40}$/i.test(String(options.headSha)))throw new LaneError('expired claim recovery requires numeric issue, claim, PR, and an exact 40-character head SHA')
-  if(!Number.isFinite(options.leaseHours)||options.leaseHours<=0||options.leaseHours>MAX_AUTHOR_LEASE_HOURS)throw new LaneError('recovery lease hours must be greater than 0 and no more than 0.5')
+  if(!Number.isFinite(options.leaseHours)||options.leaseHours<=0||options.leaseHours>MAX_AUTHOR_LEASE_HOURS)throw new LaneError(`recovery lease hours must be greater than 0 and no more than ${MAX_AUTHOR_LEASE_HOURS}`)
   const desiredExpiry=new Date(now.valueOf()+options.leaseHours*3600000)
   const requestId=options.requestId??randomUUID(),ownerSha=io.makeOwnerCommit(`db-coordination expired-claim-recovery ${requestId}`)
   acquireMutex(ownerSha,io,options.mutexAttempts??100)
@@ -5476,7 +5476,7 @@ export function main(argv, now = new Date(), io = githubIo) {
       for (const k of ['task','owner','branch','worktree']) if (!o[k]) throw new LaneError(`--${k} is required`)
       if (!o.objects.length) throw new LaneError('--objects must name every database object exactly')
       o.leaseHours ??= DEFAULT_LEASE_HOURS
-      if (!Number.isFinite(o.leaseHours) || o.leaseHours <= 0 || o.leaseHours > MAX_AUTHOR_LEASE_HOURS) throw new LaneError('--lease-hours must be greater than 0 and no more than 0.5')
+      if (!Number.isFinite(o.leaseHours) || o.leaseHours <= 0 || o.leaseHours > MAX_AUTHOR_LEASE_HOURS) throw new LaneError(`--lease-hours must be greater than 0 and no more than ${MAX_AUTHOR_LEASE_HOURS}`)
       const claimed=acquireAuthorLane(o, now, io)
       console.log(JSON.stringify(claimed, null, 2));return 0
     }

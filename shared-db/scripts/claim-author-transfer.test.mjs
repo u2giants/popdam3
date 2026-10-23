@@ -310,9 +310,9 @@ test('native CLI refuses malformed request IDs and retries an expired handoff re
     assert.ok(firstRef)
     const firstSha=io.refs.get(firstRef),firstRecord=JSON.parse(io.getCommit(firstSha).message.split('claim-author-voluntary-handoff ')[1])
     assert.equal(firstRecord.request_id,'first-attempt')
-    assert.equal(firstRecord.expires_at,new Date(NOW.valueOf()+30*60000).toISOString())
+    assert.equal(firstRecord.expires_at,new Date(NOW.valueOf()+60*60000).toISOString())
 
-    const later=new Date(NOW.valueOf()+31*60000)
+    const later=new Date(NOW.valueOf()+61*60000)
     assert.equal(main(argv('first-attempt'),later,io),2)
     assert.equal(io.getIssue(request.claim).body,stoppedBody)
     assert.equal(io.refs.get(firstRef),firstSha)
@@ -323,7 +323,7 @@ test('native CLI refuses malformed request IDs and retries an expired handoff re
     const second=[...records].find(([ref])=>ref!==firstRef)
     const secondRecord=JSON.parse(io.getCommit(second[1]).message.split('claim-author-voluntary-handoff ')[1])
     assert.equal(secondRecord.request_id,'retry-after-expiry')
-    assert.equal(secondRecord.expires_at,new Date(later.valueOf()+30*60000).toISOString())
+    assert.equal(secondRecord.expires_at,new Date(later.valueOf()+60*60000).toISOString())
     const lease=parseAuthorLease(io.getIssue(request.claim).body,later)
     assert.equal(lease.owner,request.newOwner);assert.equal(lease.worktree,request.targetWorktree);assert.equal(lease.capacityState,'active')
     assert.equal(lease.expiresAt.toISOString(),secondRecord.expires_at)
@@ -355,9 +355,9 @@ test('voluntary original-owner handoff works hours before expiry without audit, 
   io.getIssue=n=>{assert.notEqual(Number(n),900,'voluntary transfer must not read an abandonment audit');return get(n)}
   const result=handoffClaimAuthor(request,NOW,io),after=parseAuthorLease(io.getIssue(3378).body,NOW)
   assert.equal(after.owner,args.newOwner);assert.equal(after.worktree,args.targetWorktree);assert.equal(after.capacityActive,true)
-  assert.equal(after.expiresAt.toISOString(),new Date(NOW.valueOf()+30*60000).toISOString());assert.deepEqual(after.objects,before.objects);assert.equal(after.version,before.version);assert.equal(io.readRef('refs/db-claims/'+VERSION),RESERVATION)
+  assert.equal(after.expiresAt.toISOString(),new Date(NOW.valueOf()+60*60000).toISOString());assert.deepEqual(after.objects,before.objects);assert.equal(after.version,before.version);assert.equal(io.readRef('refs/db-claims/'+VERSION),RESERVATION)
   assert.ok(result.ref.startsWith(CLAIM_AUTHOR_HANDOFF_REF_PREFIX))
-  const receipt=JSON.parse(io.getCommit(result.sha).message.split('claim-author-voluntary-handoff ')[1]);assert.equal(receipt.kind,'voluntary-owner-handoff');assert.equal(receipt.original_expires_at,expiry.toISOString());assert.equal(receipt.expires_at,new Date(NOW.valueOf()+30*60000).toISOString());assert.equal(receipt.human_identity_authenticated,false);assert.equal('abandonment_issue' in receipt,false);assert.equal('lease_hours' in receipt,false)
+  const receipt=JSON.parse(io.getCommit(result.sha).message.split('claim-author-voluntary-handoff ')[1]);assert.equal(receipt.kind,'voluntary-owner-handoff');assert.equal(receipt.original_expires_at,expiry.toISOString());assert.equal(receipt.expires_at,new Date(NOW.valueOf()+60*60000).toISOString());assert.equal(receipt.human_identity_authenticated,false);assert.equal('abandonment_issue' in receipt,false);assert.equal('lease_hours' in receipt,false)
   const body=io.getIssue(3378).body;assert.equal(handoffClaimAuthor(request,NOW,io).sha,result.sha);assert.equal(io.getIssue(3378).body,body)
 })
 for(const [name,change,pattern] of [
@@ -459,12 +459,12 @@ test('check-in reports its durable completion when both owned mutex release path
   try{checkInAuthor(options,at,io)}catch(error){caught=error}
   assert.ok(caught);assert.match(caught.message,/OPERATION_COMPLETED/);assert.match(caught.message,/API release failed.*git release failed/i)
   const completed=caught.completedResult
-  assert.ok(completed);assert.equal(completed.claim,request.claim);assert.equal(completed.checkedInAt,at.toISOString());assert.equal(completed.nextCheckinMinutes,10)
+  assert.ok(completed);assert.equal(completed.claim,request.claim);assert.equal(completed.checkedInAt,at.toISOString());assert.equal(completed.nextCheckinMinutes,60)
   assert.ok(io.readRef(completed.checkinRef));assert.ok(io.getCommit(completed.sha).message.startsWith('db-coordination author-checkin '))
   const heldLock=io.readRef('refs/db-coordination/author-acquisition')
   assert.match(io.getCommit(heldLock).message,/operation=author-checkin/,'failed cleanup leaves the exact operation lock for named recovery')
   const lease=parseAuthorLease(io.getIssue(request.claim).body,at)
-  assert.equal(lease.owner,request.newOwner);assert.equal(lease.worktree,request.targetWorktree);assert.equal(lease.expiresAt.valueOf()-at.valueOf(),30*60000)
+  assert.equal(lease.owner,request.newOwner);assert.equal(lease.worktree,request.targetWorktree);assert.equal(lease.expiresAt.valueOf()-at.valueOf(),60*60000)
   assert.equal(io.readRef('refs/db-claims/'+VERSION),RESERVATION)
 })
 
@@ -495,7 +495,7 @@ test('normal stop publishes owner-ready consent with no successor and actual rec
   const record=JSON.parse(io.getCommit(ready.sha).message.split('author-handoff-ready ')[1]);assert.equal(record.execution_stopped,true);assert.equal(record.author_session,'old-author');assert.equal(record.expires_at,expiry.toISOString())
   io.resolveSessionAuthority=({claimOwner}={})=>{const task='new-author';if(claimOwner!==undefined&&claimOwner!==task)return {live:false,state:'claim-owner-mismatch',task:claimOwner,calling_task:task,reason:'mismatch'};return {live:true,state:'declared',task,calling_task:task,reason:null}};io.flowAdapter=()=>({resolveMarker:()=>({live:true,task:'new-author',calling_task:'new-author'})})
   const accepted=handoffClaimAuthor({...request,authorizationChatId:'new-author',handoffReadyRef:ready.handoffReadyRef},NOW,io)
-  assert.equal(accepted.owner,'new-author');const lease=parseAuthorLease(io.getIssue(3378).body,NOW);assert.equal(lease.expiresAt.valueOf()-NOW.valueOf(),30*60000);assert.equal(io.readRef('refs/db-claims/'+VERSION),RESERVATION)
+  assert.equal(accepted.owner,'new-author');const lease=parseAuthorLease(io.getIssue(3378).body,NOW);assert.equal(lease.expiresAt.valueOf()-NOW.valueOf(),60*60000);assert.equal(io.readRef('refs/db-claims/'+VERSION),RESERVATION)
 })
 test('wrap-up fallback stops active capacity and publishes ready proof before returning',()=>{
   const {io,request}=voluntaryFixture();io.issues.get(3378).body=io.issues.get(3378).body.replace('capacity_state: relinquished','capacity_state: active').replace(/^(blocked_on|worktree_state|recovery):.*\n/gm,'')
@@ -514,8 +514,8 @@ test('check-in confirms actual owner continued need and renews only a bounded pe
   io.resolveSessionAuthority=({claimOwner}={})=>{const task='new-author';if(claimOwner!==undefined&&claimOwner!==task)return {live:false,state:'claim-owner-mismatch',task:claimOwner,calling_task:task,reason:'mismatch'};return {live:true,state:'declared',task,calling_task:task,reason:null}};io.flowAdapter=()=>({resolveMarker:()=>({live:true,task:'new-author',calling_task:'new-author'})})
   const options={issue:request.issue,claim:request.claim,pr:request.pr,headSha:HEAD,owner:request.newOwner,branch:request.branch,worktree:request.targetWorktree}
   const at=new Date(NOW.valueOf()+10*60000),result=checkInAuthor(options,at,io),lease=parseAuthorLease(io.getIssue(3378).body,at)
-  assert.equal(result.checkedInAt,at.toISOString());assert.equal(result.nextCheckinMinutes,10);assert.ok(io.readRef(result.checkinRef));assert.equal(JSON.parse(io.getCommit(result.sha).message.split('author-checkin ')[1]).checked_in_at,at.toISOString());assert.equal(lease.expiresAt.valueOf()-at.valueOf(),30*60000);assert.deepEqual(lease.objects,['table plm.art_piece_attachment']);assert.equal(io.readRef('refs/db-claims/'+VERSION),RESERVATION)
-  assert.throws(()=>checkInAuthor(options,new Date(at.valueOf()+31*60000),io),/expired/)
+  assert.equal(result.checkedInAt,at.toISOString());assert.equal(result.nextCheckinMinutes,60);assert.ok(io.readRef(result.checkinRef));assert.equal(JSON.parse(io.getCommit(result.sha).message.split('author-checkin ')[1]).checked_in_at,at.toISOString());assert.equal(lease.expiresAt.valueOf()-at.valueOf(),60*60000);assert.deepEqual(lease.objects,['table plm.art_piece_attachment']);assert.equal(io.readRef('refs/db-claims/'+VERSION),RESERVATION)
+  assert.throws(()=>checkInAuthor(options,new Date(at.valueOf()+61*60000),io),/expired/)
 })
 test('check-in refuses a foreign session and a stopped owner without extending either reservation',()=>{
   const {io,request}=voluntaryFixture(),options={issue:request.issue,claim:request.claim,pr:request.pr,headSha:HEAD,owner:request.oldOwner,branch:request.branch,worktree:request.worktree},body=io.getIssue(3378).body
@@ -529,7 +529,7 @@ test('failed confirmation publication preserves renewed protection and reports a
   const create=io.createRef;io.createRef=(ref,sha)=>ref.startsWith('refs/db-author-checkins/')?false:create(ref,sha)
   const at=new Date(NOW.valueOf()+10*60000),options={issue:request.issue,claim:request.claim,pr:request.pr,headSha:HEAD,owner:request.newOwner,branch:request.branch,worktree:request.targetWorktree}
   assert.throws(()=>checkInAuthor(options,at,io),/PERMISSION_RENEWED_BUT_CONFIRMATION_UNVERIFIED/)
-  assert.equal(parseAuthorLease(io.getIssue(3378).body,at).expiresAt.valueOf()-at.valueOf(),30*60000)
+  assert.equal(parseAuthorLease(io.getIssue(3378).body,at).expiresAt.valueOf()-at.valueOf(),60*60000)
   assert.equal(io.readRef('refs/db-claims/'+VERSION),RESERVATION);assert.doesNotMatch(io.getIssue(3378).body,/last_checkin/)
 })
 test('merged-source check-in uses real main ancestry and structural parser without reviving a closed unmerged PR',()=>{

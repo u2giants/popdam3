@@ -1358,14 +1358,17 @@ future consolidation into the canonical claim module requires separate review.
 
 ### Immediate voluntary stop, succession and check-ins (#3618)
 
-Fresh author grants are at most thirty minutes. The native `--check-in-author`
+Author leases are capped at one hour; a fresh claim defaults to thirty
+minutes, and `--check-in-author` renews to the full hour (2026-10-23: a
+check-in taken before CI must still be valid when the guarded merge job
+runs). The native `--check-in-author`
 entry point confirms the actual current owner, exact claim/issue/PR/head and
 local branch/head, re-proves canonical scope/source/reservation/collisions under
 the existing mutex, and creates a separate immutable owner confirmation bound
 to the full current claim body and a bounded expiry. Existing lease-body fields
 remain unchanged for older readers. Run it
-explicitly every ten minutes while execution is needed and before protected
-actions. The migration author gate refuses missing, future or older-than-ten-
+explicitly every sixty minutes while execution is needed and before protected
+actions. The migration author gate refuses missing, future or older-than-sixty-
 minute confirmation and any oversized grant. A process merely existing is not
 continued-need confirmation. A stopped or expired owner cannot use check-in to
 revive execution; normal recovery remains separate. Legacy claims stay readable
@@ -1410,7 +1413,7 @@ Acceptance re-proves source/version/parser/custody/main ancestry, scope, entire
 claim body, ready evidence, permanent reservation, foreign collisions and stages
 under the canonical mutex. A distinct create-only acceptance receipt binds both
 full claim bodies and the ready-ref SHA. It records the old deadline and gives
-the successor a new real-time grant of at most thirty minutes, with explicit
+the successor a new real-time grant of at most one hour, with explicit
 confirmation. Ownership, worktree and execution state move atomically; objects,
 source and permanent version remain protected. Open and merged source proofs
 remain distinct; merged sources use the canonical exact-head structural parser

@@ -53,9 +53,17 @@ export const [REPO_OWNER, REPO_NAME] = REPO.split('/')
 export const AUTHOR_CAPACITY_STATES = Object.freeze(['active', 'relinquished', 'expired-unconfirmed'])
 export const AUTHORABLE_CAPACITY_STATES = Object.freeze(AUTHOR_CAPACITY_STATES.filter((state) => state !== 'expired-unconfirmed'))
 export const WORKTREE_STATES = Object.freeze(['clean', 'dirty', 'absent', 'remote'])
-export const MAX_AUTHOR_LEASE_HOURS = 0.5
-export const DEFAULT_LEASE_HOURS = MAX_AUTHOR_LEASE_HOURS
-export const AUTHOR_CHECKIN_INTERVAL_MINUTES = 10
+// 2026-10-23 CI-speedup Step A1 (owner-authorized): the author-lease cap and
+// the check-in window both cover a full required-check run (~25 min), so a
+// check-in taken before CI is still valid when the guarded merge job runs.
+// The default grant stays thirty minutes; any explicit lease request,
+// including a --check-in-author renewal, may take up to one hour.
+// Anti-collision invariants (exact objects, mutex, permanent version
+// reservation) are unchanged, and docs/agents/owner-rulings.md records these
+// bounds as implementation choices, not owner-specified durations.
+export const MAX_AUTHOR_LEASE_HOURS = 1
+export const DEFAULT_LEASE_HOURS = 0.5
+export const AUTHOR_CHECKIN_INTERVAL_MINUTES = 60
 export const MUTEX_STALE_AFTER_MS = 2 * 60 * 1000
 export const MUTEX_REF = 'refs/db-coordination/author-acquisition'
 export const MUTEX_RECOVERY_ACTIVE_REF = 'refs/db-coordination/author-acquisition-recovery-active'
