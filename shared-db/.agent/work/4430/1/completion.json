@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 4430,
+  "outcome": "ready-for-merge",
+  "pr": 4682,
+  "migration_versions": [
+    "20261023151801"
+  ],
+  "contract_ref": "refs/db-contracts/4430/1",
+  "contract_sha256": "c3d5533a5f5658d5cc474f5ea6736077117bcdddec82563298f415ef0e3d6f5b",
+  "head_sha": "f3dd5a80b378ab24fd98f2ef0b31a987e087d1cc",
+  "base_sha": "c092d1b4b9462f940fc477a628e7b2119efb2244",
+  "files_changed": [
+    ".github/live-proofs/4430.sql",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/rls-packaging-access-initplan.test.mjs",
+    "supabase/migrations/20261023151801_packaging_access_initplans.sql",
+    "supabase/tests/rls_packaging_access_initplan_contracts.sql"
+  ],
+  "db_reads": [
+    "function app.has_role",
+    "function app.has_any_role",
+    "function auth.jwt",
+    "type app.app_role"
+  ],
+  "db_writes": [
+    "policy admin_or_packaging_manager_write on core.packaging_type",
+    "policy shared_read on core.packaging_type",
+    "table core.packaging_type"
+  ],
+  "checks": [
+    {
+      "command": "node --test scripts/rls-packaging-access-initplan.test.mjs",
+      "exit_code": 0,
+      "evidence": "4/4 pass."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "SQL guards passed."
+    }
+  ],
+  "assumptions_resolved": [
+    "Permissions preserved. Live acceptance still open on #4430."
+  ],
+  "stop_conditions_hit": []
+}

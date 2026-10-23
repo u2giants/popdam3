@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "generation": 1,
+  "evidence_parent": null,
+  "work_issue": 4430,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Wrap only qualified constant helper subexpressions in 2 packaging policies under claim #4681 version 20261023151801.",
+  "base_sha": "c092d1b4b9462f940fc477a628e7b2119efb2244",
+  "dispatcher": "ses_ffe5ea037df8fffe3G25lkMmEh",
+  "worker": "ses_ffe5ea037df8fffe3G25lkMmEh",
+  "branch": "mimo/rls-4430-live",
+  "worktree": "D:/repos/shared-db-worktrees/rls-4430-live",
+  "allowed_paths": [
+    "supabase/migrations/20261023151801_packaging_access_initplans.sql",
+    "supabase/tests/rls_packaging_access_initplan_contracts.sql",
+    "scripts/rls-packaging-access-initplan.test.mjs",
+    ".github/live-proofs/4430.sql",
+    ".github/workflows/tools-offline-tests.yml",
+    ".agent/work/4430/1/*"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261023151801_packaging_access_initplans.sql",
+    "supabase/tests/rls_packaging_access_initplan_contracts.sql",
+    "scripts/rls-packaging-access-initplan.test.mjs",
+    ".github/live-proofs/4430.sql",
+    ".github/workflows/tools-offline-tests.yml",
+    ".agent/work/4430/1/contract.json",
+    ".agent/work/4430/1/completion.json"
+  ],
+  "db_reads": [
+    "function app.has_role",
+    "function app.has_any_role",
+    "function auth.jwt",
+    "type app.app_role"
+  ],
+  "db_writes": [
+    "policy admin_or_packaging_manager_write on core.packaging_type",
+    "policy shared_read on core.packaging_type",
+    "table core.packaging_type"
+  ],
+  "prohibited_actions": [
+    "Do not reuse reserved version 20261023151801.",
+    "Do not change grants, roles, RLS flags, or overlapping policies.",
+    "Do not publish allowlisted email values."
+  ],
+  "required_checks": [
+    "node --test scripts/rls-packaging-access-initplan.test.mjs",
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "Permissions preserved. Live acceptance remains open on #4430."
+  ],
+  "stop_conditions": [
+    "Any permission change stops the work."
+  ]
+}
