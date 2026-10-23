@@ -5,7 +5,7 @@
   "application_branch": "develop",
   "project_ref": "qsllyeztdwjgirsysgai",
   "schema": "dflow_prod",
-  "live_assertion": "dflow_prod has four NOLOGIN designflow_prod_<service>_grants roles holding exactly the published per-service matrix and four password-less LOGIN designflow_prod_<service>_runtime identities holding only that membership, with no CREATE, TRUNCATE, dflow, hts_rag, client-role or admin access, and no plm access except the tracking Stage Catalog entries, held directly by designflow_prod_tracking_runtime (#4464, option (c)), which also holds SELECT, INSERT on dflow_prod.user_notification directly (#4515); the tracking grant role also holds SELECT, INSERT, DELETE on dflow_prod.tracking_grid_archive (#4585); the backend grant role also holds SELECT, INSERT, UPDATE on dflow_prod.vendor_wechat_identity (#4634); the backend grant role also holds SELECT, INSERT, UPDATE, DELETE on dflow_prod.user_roles (#4638); the Item Master grant role also holds SELECT on dflow_prod.item_detail_upc and column-scoped SELECT on its thirteen underlying dflow_prod.itemDetail fields (#4659)",
+  "live_assertion": "Required service identity contract: dflow_prod has four NOLOGIN designflow_prod_<service>_grants roles holding exactly the published per-service matrix and four password-less LOGIN designflow_prod_<service>_runtime identities holding only that membership, with no CREATE, TRUNCATE, dflow, hts_rag, client-role or admin access, and no plm access except the tracking Stage Catalog entries, held directly by designflow_prod_tracking_runtime (#4464, option (c)), which also holds SELECT, INSERT on dflow_prod.user_notification directly (#4515); the tracking grant role also holds SELECT, INSERT, DELETE on dflow_prod.tracking_grid_archive (#4585); the backend grant role also holds SELECT, INSERT, UPDATE on dflow_prod.vendor_wechat_identity (#4634); the backend grant role also holds SELECT, INSERT, UPDATE, DELETE on dflow_prod.user_roles (#4638); the Item Master grant role also holds SELECT on dflow_prod.item_detail_upc and column-scoped SELECT on its thirteen underlying dflow_prod.itemDetail fields (#4659); #3869 narrowly permits tracking_grants USAGE on coldlion and SELECT on its order_history_line/prod_history_line plus dflow_prod.v_prod_order_sales_order_link, reaching intended tracking_runtime and currently deployed backend_runtime through the existing tracking bridge. No other ColdLion application access or writes/CREATE are accepted; #4475 unrelated backend memberships and effective privileges remain unresolved and their existing assertions remain mandatory.",
   "catalog": {
     "role_count": 8,
     "no_defaults": true,
@@ -14,7 +14,7 @@
     "no_ownership": true,
     "passwordless": true,
     "schema_exact": true,
-    "matrix_entries": 467,
+    "matrix_entries": 470,
     "global_no_create": true,
     "no_grant_options": true,
     "inherited_helpers": [
@@ -42,6 +42,7 @@
     "client_schema_closed": true,
     "forbidden_schemas_closed": true,
     "effective_relations_exact": true,
-    "effective_function_extras_exact": true
+    "effective_function_extras_exact": true,
+    "tracking_history_policies_exact": true
   }
 }

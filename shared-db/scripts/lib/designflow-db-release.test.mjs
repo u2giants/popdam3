@@ -39,7 +39,7 @@ for(const [name,change] of [
  ['duplicate role',m=>m.contracts[0].privileges.push({...m.contracts[0].privileges[0]})],
  ['duplicate column',m=>m.contracts[0].columns.push('id')],
  ['duplicate relation',m=>m.contracts.push(structuredClone(m.contracts[0]))],
- ['duplicate issue',m=>m.requirements.push({...structuredClone(m.requirements[0]),source_pr:4654})],
+ ['duplicate pair',m=>m.requirements.push(structuredClone(m.requirements[0]))],
  ['duplicate PR',m=>m.requirements.push({...structuredClone(m.requirements[0]),work_issue:4647})],
  ['duplicate version across issues',m=>m.requirements.push({...structuredClone(m.requirements[0]),work_issue:4647,source_pr:4654})],
  ['duplicate path',m=>m.requirements[0].migrations.push({...m.requirements[0].migrations[0]})],
@@ -109,4 +109,11 @@ test('rejects declaration of extra migration not authored by PR even when count 
 test('authored byte hash is exact including newline and Unicode; LF/CRLF drift fails',()=>{
  const r=manifest().requirements[0],s=facts();s.files[0].content='-- café\nSELECT 1;\n';r.migrations[0].sha256=hash(s.files[0].content);
  verifyRequirementSource(r,s);s.files[0].content=s.files[0].content.replaceAll('\n','\r\n');assert.throws(()=>verifyRequirementSource(r,s),/hash mismatch/);
+});
+
+
+test('same application issue accepts two independently authored unique source PRs',()=>{
+ const m=manifest();const second=structuredClone(m.requirements[0]);second.source_pr++;
+ second.migrations=[{version:'20261022194648',path:'supabase/migrations/20261022194648_companion.sql',sha256:'d'.repeat(64)}];
+ m.requirements.push(second);assert.equal(validateManifest(m).requirements.length,2);
 });

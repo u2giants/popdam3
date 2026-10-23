@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { validateManifest, manifestDigest, verifyRequirementSource } from './lib/designflow-db-release.mjs';
-import { githubIo, parseQueueScope } from './manage-migration-author-lanes.mjs';
+import { githubIo, parseQueueScope, trainIo } from './manage-migration-author-lanes.mjs';
 import { readyRecord, preparePreviewDispatch } from './db-flow/reconcile.mjs';
 import { canonicalJson, sha256 } from './db-flow/evidence-bundle.mjs';
 import { admitIssue } from './lib/lanes/admission.mjs';
@@ -14,6 +14,8 @@ import { selectArtifactFiles } from './lib/lanes/review-leases.mjs';
 import { fileMatchesLedgerStatements } from './check-applied-migration-edit.mjs';
 import { runGitHubCommand } from './lib/github-transport.mjs';
 import { createTreeReader } from './lib/github-tree.mjs';
+
+import { proposeTrain, trainRecordRef, assertDispatchMatchesTrain } from './db-flow/migration-train.mjs';
 
 const CANONICAL = 'popcre/shared-db';
 const WORKFLOW = 'shared-supabase-migrations.yml';
@@ -57,6 +59,12 @@ export async function assessRelease({ repository, head, manifest, policy, branch
       if (branch === 'main') return { ...identity, status: 'waiting', requirement: requirement.work_issue,
         progress: { state: 'develop-database-promotion-required' } };
       if (await current() !== head) throw Error('Application develop head changed before promotion');
+      const companions = m.requirements.filter(r => r.work_issue === requirement.work_issue);
+      if (companions.length > 1) {
+        for (const companion of companions) verifyRequirementSource(companion, await io.sourceFacts(companion));
+        return { ...identity, status: 'waiting', requirement: requirement.work_issue,
+          progress: { state: 'qualified-migration-train-required', source_prs: companions.map(r => r.source_pr) } };
+      }
       const progress = await io.promote(requirement, facts);
       return { ...identity, status: 'waiting', requirement: requirement.work_issue, progress };
     }
@@ -143,17 +151,25 @@ function sourceFacts(requirement) {
     merge_sha40: pr.merge_commit_sha, merge_in_main: ['ahead', 'identical'].includes(comparison.status) && comparison.behind_by === 0, files };
 }
 
-export function verifyApplyReceipt(requirement, facts, receipt, ledger) {
+export function verifyApplyReceipt(requirement, facts, receipt, ledger, batchProof = null) {
   const keys = ['schema_version', 'work_issue', 'source_pr', 'source_head_sha', 'source_merge_sha',
     'production_main_sha', 'production_run_id', 'production_run_attempt', 'artifact_id', 'artifact_digest',
     'migration_hashes', 'ledger_fingerprints', 'catalog_sha256', 'captured_at'];
-  if (!receipt || Object.keys(receipt).length !== keys.length || keys.some(k => !Object.hasOwn(receipt, k)) || receipt.schema_version !== 1 ||
+  if (receipt?.schema_version === 2) keys.push('batch');
+  if (!receipt || Object.keys(receipt).length !== keys.length || keys.some(k => !Object.hasOwn(receipt, k)) || ![1, 2].includes(receipt.schema_version) ||
       receipt.work_issue !== requirement.work_issue || receipt.source_pr !== requirement.source_pr ||
       receipt.source_head_sha !== facts.head_sha40 || receipt.source_merge_sha !== facts.merge_sha40 ||
       !SHA.test(receipt.production_main_sha) || !/^sha256:[a-f0-9]{64}$/.test(receipt.artifact_digest) ||
       !/^[a-f0-9]{64}$/.test(receipt.catalog_sha256) ||
       !['production_run_id', 'production_run_attempt', 'artifact_id'].every(k => Number.isSafeInteger(receipt[k]) && receipt[k] > 0) ||
       !Number.isFinite(Date.parse(receipt.captured_at)) || Date.parse(receipt.captured_at) > Date.now()) throw Error('Malformed immutable production receipt');
+  if (receipt.schema_version === 2 && (!batchProof || canonicalJson(receipt.batch) !== canonicalJson(batchProof)))
+    throw Error('Batch receipt lacks independently authenticated current source/train/ledger proof');
+  if (receipt.schema_version === 2 && (receipt.production_main_sha !== batchProof.production_main_sha ||
+      receipt.production_run_id !== batchProof.production_run_id || receipt.production_run_attempt !== batchProof.production_run_attempt))
+    throw Error('Batch receipt producer binding differs');
+  if (receipt.schema_version === 2 && receipt.catalog_sha256 !== batchProof.catalog_sha256)
+    throw Error('Batch receipt catalog binding differs');
   const expected = requirement.migrations.map(m => m.version).sort().join(',');
   for (const data of [receipt.migration_hashes, receipt.ledger_fingerprints, ledger])
     if (!data || Array.isArray(data) || Object.keys(data).sort().join(',') !== expected) throw Error('Receipt/ledger migration set differs');
@@ -192,6 +208,129 @@ export function verifyAppliedFiles(requirement, files) {
   return Object.fromEntries(requirement.migrations.map(m => [m.version, manifest[m.version]]));
 }
 
+// Candidate detection grants no authority. Only an authenticated native train
+// and the complete producer/archive/ledger proof below can establish application.
+export function batchRunCandidate(title, requirement) {
+  const match = /^DB production apply ([a-f0-9]{40}) PR(?:[1-9][0-9]*)? ([0-9,]+)$/.exec(title ?? '');
+  const versions = match?.[2].split(',');
+  return !!versions && new Set(versions).size === versions.length &&
+    requirement.migrations.every(m => versions.includes(m.version));
+}
+export function batchArtifactCandidate(requirement, files) {
+  const manifest = JSON.parse(files.get('migration-content-manifest.json'));
+  const catalog = JSON.parse(files.get('production-catalog-verification.json'));
+  return Array.isArray(catalog.allowlist) && catalog.allowlist.length > requirement.migrations.length &&
+    requirement.migrations.every(m => catalog.allowlist.includes(m.version) && manifest?.[m.version] === m.sha256);
+}
+
+// Pure verification consumes authenticated canonical I/O facts, never app claims.
+// Every train entry must be accounted for by an exact independently merged PR.
+export function verifyBatchProductionFiles(requirement, facts, files, proof) {
+  verifyRequirementSource(requirement, facts);
+  const { run, jobs, train_ref, train_sha, record, sources, ledger } = proof;
+  if (!files.get('production-apply.txt')?.trim()) throw Error('Batch has no original production apply output');
+  if (run.repository?.full_name !== CANONICAL || run.repository?.id !== 1275568548 ||
+      run.head_repository?.id !== run.repository.id || run.path !== `.github/workflows/${WORKFLOW}` ||
+      run.event !== 'workflow_dispatch' || run.status !== 'completed' || run.conclusion !== 'success' ||
+      !SHA.test(run.head_sha) || !Number.isSafeInteger(run.id) || run.id < 1 ||
+      !Number.isSafeInteger(run.run_attempt) || run.run_attempt < 1) throw Error('Batch producer identity refused');
+  for (const name of ['SQL migration guards', 'Production apply review (immutable evidence + hard guards)', 'Production apply (automatic evidence gates)']) {
+    const rows = jobs.jobs?.filter(j => j.name === name && j.status === 'completed' && j.conclusion === 'success' && j.run_id === run.id && j.run_attempt === run.run_attempt);
+    if (rows?.length !== 1) throw Error('Batch producer job proof incomplete');
+  }
+  const guards = jobs.jobs.find(j => j.name === 'SQL migration guards');
+  if (guards.steps?.filter(s => s.name === 'Refuse a migration-train dispatch that is not the exact recorded train' && s.conclusion === 'success').length !== 1)
+    throw Error('Batch producer did not verify an exact native train');
+  const identity = proposeTrain(record);
+  if (!SHA.test(train_sha) || record.train_id !== identity.train_id || record.manifest_digest !== identity.manifest_digest ||
+      trainRecordRef(record) !== train_ref || record.target_identity !== 'qsllyeztdwjgirsysgai') throw Error('Batch native train identity changed');
+  const catalog = JSON.parse(files.get('production-catalog-verification.json'));
+  assertDispatchMatchesTrain(record, { target: 'production', commit_sha: run.head_sha, allowlist: catalog.allowlist });
+  if (!Array.isArray(sources) || !sources.length || new Set(sources.map(s => s.requirement.source_pr)).size !== sources.length)
+    throw Error('Batch source map is absent or ambiguous');
+  const sourceMap = [];
+  for (const source of sources) {
+    verifyRequirementSource(source.requirement, source.facts);
+    for (const migration of source.requirement.migrations) {
+      const entries = record.entries.filter(e => e.version === migration.version && e.source_pr === source.requirement.source_pr &&
+        e.file_sha256 === migration.sha256 && e.merge_sha === source.facts.merge_sha40);
+      if (entries.length !== 1) throw Error('Batch entry differs from exact authenticated source');
+      sourceMap.push({ work_issue: source.requirement.work_issue, source_pr: source.requirement.source_pr,
+        source_head_sha: source.facts.head_sha40, source_merge_sha: source.facts.merge_sha40, ...migration });
+    }
+  }
+  sourceMap.sort((a, b) => a.version.localeCompare(b.version));
+  if (sourceMap.length !== record.entries.length || new Set(sourceMap.map(m => m.version)).size !== sourceMap.length ||
+      sourceMap.map(m => m.version).join(',') !== record.entries.map(e => e.version).join(',')) throw Error('Batch source map does not cover the complete train');
+  const own = sources.filter(s => s.requirement.source_pr === requirement.source_pr && s.requirement.work_issue === requirement.work_issue);
+  if (own.length !== 1 || canonicalJson(own[0].facts) !== canonicalJson(facts) || canonicalJson(own[0].requirement) !== canonicalJson(requirement))
+    throw Error('Batch cannot supply a different requirement source');
+  const migration_hashes = verifyAppliedFiles({ migrations: sourceMap }, files);
+  if (!ledger || Object.keys(ledger).sort().join(',') !== sourceMap.map(m => m.version).join(',') ||
+      Object.values(ledger).some(value => !/^[a-f0-9]{64}$/.test(value))) throw Error('Batch live ledger proof is incomplete');
+  return { train_ref, train_sha, train_id: record.train_id, production_main_sha: run.head_sha,
+    production_run_id: run.id, production_run_attempt: run.run_attempt, source_map: sourceMap,
+    migration_hashes, ledger_fingerprints: ledger, catalog_sha256: hash(files.get('production-catalog-verification.json')) };
+}
+
+async function productionArchive(run, artifactId, expectedDigest) {
+  const artifact = api(`repos/${CANONICAL}/actions/artifacts/${artifactId}`);
+  if (artifact.id !== artifactId || artifact.expired !== false || artifact.name !== `production-migration-apply-${run.head_sha}` ||
+      artifact.digest !== expectedDigest || artifact.workflow_run?.head_sha !== run.head_sha || artifact.workflow_run?.id !== run.id)
+    throw Error('Batch production archive producer changed');
+  let bytes;
+  try { bytes = runGitHubCommand(['api', `repos/${CANONICAL}/actions/artifacts/${artifactId}/zip`],
+    { encoding: null, timeoutMs: 60_000, maxBuffer: 16 * 1024 * 1024 }); }
+  catch { throw Error('Batch production archive is unavailable'); }
+  if (`sha256:${hash(bytes)}` !== expectedDigest) throw Error('Batch archive digest differs');
+  return selectArtifactFiles(readZipEntries(bytes), ['production-apply.txt', 'production-ledger-before.txt', 'production-ledger-after.txt',
+    'migration-content-manifest.json', 'production-catalog-verification.json']);
+}
+
+export function validatedTrainRefFromLog(log) {
+  if (typeof log !== 'string' || Buffer.byteLength(log) > 20 * 1024 * 1024) throw Error('Batch guard log is unreadable');
+  const refs = [...new Set([...log.matchAll(/^\d{4}-\d{2}-\d{2}T[^ \r\n]+Z[ \t]+TRAIN_REF: (refs\/db-migration-trains\/[a-f0-9]{64}\/[0-9]{6}-dispatched)[ \t]*\r?$/gm)].map(m => m[1]))];
+  if (refs.length !== 1) throw Error('Batch exact validated train input is unavailable');
+  return refs[0];
+}
+
+async function authenticateBatch(requirement, facts, run, files) {
+  const jobs = api(`repos/${CANONICAL}/actions/runs/${run.id}/attempts/${run.run_attempt}/jobs?per_page=100`);
+  if (!Array.isArray(jobs.jobs) || jobs.total_count > 100) throw Error('Batch producer jobs incomplete');
+  const guards = jobs.jobs.filter(j => j.name === 'SQL migration guards' && j.conclusion === 'success');
+  if (guards.length !== 1 || guards[0].run_id !== run.id || guards[0].run_attempt !== run.run_attempt)
+    throw Error('Batch guard job identity differs');
+  // The existing workflow does not archive its train input. Its authenticated
+  // guard-job log records the exact input while the successful native step
+  // proves it was validated. Never guess a train from a coincident allowlist.
+  const log = command(['api', `repos/${CANONICAL}/actions/jobs/${guards[0].id}/logs`]);
+  const train_ref = validatedTrainRefFromLog(log), train_sha = githubIo.readRef(train_ref);
+  const payload = trainIo(githubIo).readImmutable(train_ref);
+  if (!payload || !train_sha) throw Error('Batch immutable native train is unavailable');
+  const record = payload.record, sources = [], ledger = {};
+  if (!Array.isArray(record.entries) || record.entries.length > 200) throw Error('Batch train entry bound exceeded');
+  for (const source_pr of [...new Set(record.entries.map(e => e.source_pr))]) {
+    const linked = githubIo.closingIssuesForPr(source_pr);
+    if (linked.length !== 1) throw Error('Batch source issue binding is ambiguous');
+    const entries = record.entries.filter(e => e.source_pr === source_pr);
+    const mainFiles = githubIo.treeFiles(run.head_sha);
+    const migrations = entries.map(e => {
+      const paths = mainFiles.filter(p => p.startsWith(`supabase/migrations/${e.version}_`) && p.endsWith('.sql'));
+      if (paths.length !== 1) throw Error('Batch migration source path is ambiguous');
+      return { version: e.version, path: paths[0], sha256: e.file_sha256 };
+    });
+    const required = { work_issue: Number(linked[0].number), source_pr, migrations };
+    const source = sourceFacts(required);
+    const comparison = api(`repos/${CANONICAL}/compare/${source.merge_sha40}...${run.head_sha}`);
+    if (!['identical', 'ahead'].includes(comparison.status) || comparison.behind_by !== 0) throw Error('Batch source was absent from producer main');
+    for (const migration of migrations) if (hash(content(CANONICAL, migration.path, run.head_sha)) !== migration.sha256)
+      throw Error('Batch producer migration bytes changed');
+    Object.assign(ledger, await ledgerFingerprints(required, source));
+    sources.push({ requirement: required, facts: source });
+  }
+  return verifyBatchProductionFiles(requirement, facts, files, { run, jobs, train_ref, train_sha, record, sources, ledger });
+}
+
 async function ledgerFingerprints(requirement, facts) {
   const literal = JSON.stringify(requirement.migrations.map(m => m.version)).replaceAll("'", "''");
   const rows = await readProduction(`BEGIN READ ONLY;
@@ -228,10 +367,14 @@ async function productionEvidence(requirement, facts) {
     const message = githubIo.getCommit(archived)?.message, prefix = 'designflow-db-apply-receipt ';
     if (!message?.startsWith(prefix)) throw Error('Production receipt has unknown provenance');
     const receipt = JSON.parse(message.slice(prefix.length));
-    const result = verifyApplyReceipt(requirement, facts, receipt, ledger);
     const run = api(`repos/${CANONICAL}/actions/runs/${receipt.production_run_id}/attempts/${receipt.production_run_attempt}`);
     if (run.head_sha !== receipt.production_main_sha || !verifyProducer(run)) throw Error('Archived production producer no longer verifies');
-    return result;
+    let batchProof = null;
+    if (receipt.schema_version === 2) {
+      const files = await productionArchive(run, receipt.artifact_id, receipt.artifact_digest);
+      batchProof = await authenticateBatch(requirement, facts, run, files);
+    }
+    return verifyApplyReceipt(requirement, facts, receipt, ledger, batchProof);
   }
   if (Object.keys(ledger).length !== requirement.migrations.length) return null;
   const scope = parseQueueScope(api(`repos/${CANONICAL}/issues/${requirement.work_issue}`).body);
@@ -241,7 +384,7 @@ async function productionEvidence(requirement, facts) {
   if (!source.merged_at || source.head.sha !== facts.head_sha40) throw Error('Production discovery source changed');
   const since = encodeURIComponent(`>=${source.merged_at}`);
   const discovered = workflowRuns(api, `repos/${CANONICAL}/actions/workflows/${WORKFLOW}/runs?event=workflow_dispatch&status=success&created=${since}`);
-  const ids = [...new Set([...mentioned, ...discovered.filter(r => productionRunMatches(r.display_title, requirement)).map(r => String(r.id))])];
+  const ids = [...new Set([...mentioned, ...discovered.filter(r => productionRunMatches(r.display_title, requirement) || batchRunCandidate(r.display_title, requirement)).map(r => String(r.id))])];
   if (ids.length > 50) throw Error('Production evidence candidates exceed bounded verification');
   const verified = [];
   for (const id of ids) {
@@ -263,16 +406,19 @@ async function productionEvidence(requirement, facts) {
       if (artifact.digest !== `sha256:${hash(bytes)}`) throw Error('Production archive digest differs');
       const files = selectArtifactFiles(readZipEntries(bytes), ['production-apply.txt', 'production-ledger-before.txt', 'production-ledger-after.txt',
         'migration-content-manifest.json', 'production-catalog-verification.json']);
-      if (!artifactContainsSource(requirement, files)) continue;
-      const actualHashes = verifyAppliedFiles(requirement, files);
-      const verifier = { ...githubIo, readArtifactFiles: () => files };
-      if (verifier.verifyProductionApply(evidence) !== true) throw Error('Native production artifact verifier refused');
-      const receipt = { schema_version: 1, work_issue: requirement.work_issue, source_pr: requirement.source_pr,
+      if (!artifactContainsSource(requirement, files) && !batchArtifactCandidate(requirement, files)) continue;
+      const batch = artifactContainsSource(requirement, files) ? null : await authenticateBatch(requirement, facts, run, files);
+      const actualHashes = batch ? Object.fromEntries(requirement.migrations.map(m => [m.version, m.sha256])) : verifyAppliedFiles(requirement, files);
+      if (!batch) {
+        const verifier = { ...githubIo, readArtifactFiles: () => files };
+        if (verifier.verifyProductionApply(evidence) !== true) throw Error('Native production artifact verifier refused');
+      }
+      const receipt = { schema_version: batch ? 2 : 1, work_issue: requirement.work_issue, source_pr: requirement.source_pr,
         source_head_sha: facts.head_sha40, source_merge_sha: facts.merge_sha40, production_main_sha: run.head_sha,
         production_run_id: run.id, production_run_attempt: run.run_attempt, artifact_id: artifact.id, artifact_digest: artifact.digest,
         migration_hashes: actualHashes, ledger_fingerprints: ledger, catalog_sha256: hash(files.get('production-catalog-verification.json')),
-        captured_at: new Date().toISOString() };
-      verifyApplyReceipt(requirement, facts, receipt, ledger);
+        captured_at: new Date().toISOString(), ...(batch ? { batch } : {}) };
+      verifyApplyReceipt(requirement, facts, receipt, ledger, batch);
       verified.push({ receipt, result: { work_issue: requirement.work_issue, source_pr: requirement.source_pr, run_id: run.id,
         artifact_id: artifact.id, artifact_digest: artifact.digest } });
     }

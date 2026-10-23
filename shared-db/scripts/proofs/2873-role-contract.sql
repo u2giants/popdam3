@@ -392,7 +392,10 @@ insert into t2873_expected values
   ('designflow_prod_tracking_grants','table','dflow_prod.sample_workflow','UPDATE'),
   ('designflow_prod_tracking_grants','table','dflow_prod.sample_workflow','DELETE'),
   -- #4585 tracking-grid Archive (20261022132119), on the group role.
-  ('designflow_prod_tracking_grants','table','dflow_prod.tracking_grid_archive','SELECT'),
+ ('designflow_prod_tracking_grants','table','coldlion.order_history_line','SELECT'),
+ ('designflow_prod_tracking_grants','table','coldlion.prod_history_line','SELECT'),
+ ('designflow_prod_tracking_grants','view','dflow_prod.v_prod_order_sales_order_link','SELECT'),
+('designflow_prod_tracking_grants','table','dflow_prod.tracking_grid_archive','SELECT'),
   ('designflow_prod_tracking_grants','table','dflow_prod.tracking_grid_archive','INSERT'),
   ('designflow_prod_tracking_grants','table','dflow_prod.tracking_grid_archive','DELETE'),
   ('designflow_prod_tracking_grants','table','dflow_prod.users','SELECT'),
@@ -535,12 +538,22 @@ begin
        or (v_role <> 'designflow_prod_tracking_runtime' and has_schema_privilege(v_role,'plm','USAGE'))
        or (v_role = 'designflow_prod_tracking_runtime' and not has_schema_privilege(v_role,'plm','USAGE')))
     then raise exception '#2873: % plm schema boundary wrong', v_role; end if;
+    if has_schema_privilege(v_role,'coldlion','CREATE')
+       or (v_role in ('designflow_prod_tracking_runtime','designflow_prod_backend_runtime')) <> has_schema_privilege(v_role,'coldlion','USAGE')
+    then raise exception '#2873: % coldlion schema boundary wrong', v_role; end if;
     if to_regnamespace('hts_rag') is not null and has_schema_privilege(v_role,'hts_rag','USAGE') then raise exception '#2873: % reaches hts_rag', v_role; end if;
     if pg_has_role(v_role,'anon','USAGE') or pg_has_role(v_role,'authenticated','USAGE') or pg_has_role(v_role,'service_role','USAGE')
        or pg_has_role(v_role,'postgres','USAGE')
     then raise exception '#2873: % inherits a client or admin role', v_role; end if;
   end loop;
 end $t$;
+
+-- #3869 exact source RLS/policies; unrelated role memberships remain refused above.
+do $tracking_history$ begin
+ if not ((SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='coldlion' AND c.relname IN ('order_history_line','prod_history_line') AND c.relkind='r' AND c.relrowsecurity)=2
+ AND (SELECT count(*) FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='coldlion' AND c.relname IN ('order_history_line','prod_history_line') AND (0=ANY(p.polroles) OR EXISTS(SELECT 1 FROM pg_roles audience WHERE audience.rolname ~ '^designflow_prod_(backend|item_master|tracking|data_sync)_(grants|runtime)$' AND audience.oid=ANY(p.polroles))))=2
+ AND (SELECT count(*) FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='coldlion' AND c.relname IN ('order_history_line','prod_history_line') AND p.polname='coldlion_history_tracking_read' AND p.polcmd='r' AND p.polpermissive AND p.polroles=ARRAY['designflow_prod_tracking_grants'::regrole]::oid[] AND pg_get_expr(p.polqual,p.polrelid)='true' AND p.polwithcheck IS NULL)=2) then raise exception '#2873: tracking history policies or RLS differ'; end if;
+end $tracking_history$;
 
 -- Live refusal controls as the Tracking runtime identity.
 set local role designflow_prod_tracking_runtime;

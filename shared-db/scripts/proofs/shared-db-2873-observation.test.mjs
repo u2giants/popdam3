@@ -48,7 +48,7 @@ test('complete profile fits the original 8192-byte artifact bound and the query 
  const sqlBytes=await readFile(new URL('./2873-catalog.sql',import.meta.url));const contractBytes=await readFile(new URL('./2873-contract.json',import.meta.url));
  assert.ok(buildObservation({rows:rows(),env:env(),sqlBytes,contractBytes,observedAt:'2026-10-06T21:00:00.000Z'}).length<=8192);
  const sql=sqlBytes.toString();assert.match(sql,/WITH expected/);assert.doesNotMatch(sql,/^\s*(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|GRANT|REVOKE)\b/im);
- assert.equal(expected.catalog.role_count,8);assert.equal(expected.catalog.matrix_entries,467);
+ assert.equal(expected.catalog.role_count,8);assert.equal(expected.catalog.matrix_entries,470);
 });
 
 // #2873: Supabase's non-superuser postgres receives PostgreSQL 16+'s implicit creator
@@ -80,11 +80,13 @@ test('global_no_truncate exempts only PUBLIC-inherited TRUNCATE in schema net',a
 });
 
 
-test('both exact matrices contain only the five newly admitted relation privileges', async()=>{
+test('both exact matrices contain the exact prerequisite and tracking-access relation privileges', async()=>{
  const parse=sql=>[...sql.matchAll(/\('([^']+)','([^']+)','([^']+)','([^']+)'\)/g)].map(m=>m.slice(1));
  const matrices=await Promise.all(['2873-catalog.sql','2873-role-contract.sql'].map(async name=>parse(await readFile(new URL(name,import.meta.url),'utf8'))));
  for(const rows of matrices){
-  assert.equal(rows.length,467);assert.equal(new Set(rows.map(JSON.stringify)).size,467);
+  assert.equal(rows.length,470);
+  assert.deepEqual(rows.filter(r=>r[2].startsWith('coldlion.')).sort(),[['designflow_prod_tracking_grants','table','coldlion.order_history_line','SELECT'],['designflow_prod_tracking_grants','table','coldlion.prod_history_line','SELECT']]);
+  assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.v_prod_order_sales_order_link'),[['designflow_prod_tracking_grants','view','dflow_prod.v_prod_order_sales_order_link','SELECT']]);assert.equal(new Set(rows.map(JSON.stringify)).size,470);
   assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.user_roles').sort(),['DELETE','INSERT','SELECT','UPDATE'].map(priv=>['designflow_prod_backend_grants','table','dflow_prod.user_roles',priv]));
   assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.item_detail_upc'),[['designflow_prod_item_master_grants','view','dflow_prod.item_detail_upc','SELECT']]);
  }

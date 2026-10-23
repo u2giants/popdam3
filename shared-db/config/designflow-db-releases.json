@@ -122,6 +122,10 @@
           "source_pr": 4648
         },
         {
+          "work_issue": 3869,
+          "source_pr": 4673
+        },
+        {
           "work_issue": 4646,
           "source_pr": 4653
         },
@@ -259,6 +263,10 @@
         {
           "work_issue": 3869,
           "source_pr": 4648
+        },
+        {
+          "work_issue": 3869,
+          "source_pr": 4673
         },
         {
           "work_issue": 4585,

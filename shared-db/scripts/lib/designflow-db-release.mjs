@@ -102,7 +102,7 @@ export function validateManifest(input) {
   if (m.production_project_ref !== PROJECT) reject('production target mismatch');
   list(m.requirements, LIMITS.requirements, 'requirements');
   m.requirements.forEach(requirementRecord);
-  unique(m.requirements.map(r => r.work_issue), 'requirement issue'); unique(m.requirements.map(r => r.source_pr), 'source PR');
+  unique(m.requirements.map(r => `${r.work_issue}:${r.source_pr}`), 'requirement pair'); unique(m.requirements.map(r => r.source_pr), 'source PR');
   const migrations = m.requirements.flatMap(r => r.migrations);
   if (migrations.length > LIMITS.migrations) reject('total migrations limit exceeded');
   unique(migrations.map(r => r.version), 'migration version'); unique(migrations.map(r => r.path), 'migration path');

@@ -1,0 +1,84 @@
+{
+  "schema_version": 2,
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Complete companion-source release readiness and explicitly verify the exact required tracking read access while preserving every unrelated privilege refusal",
+  "base_sha": "7b333686f7b2b284734870a2ad6bc4db3e0ab127",
+  "dispatcher": "Codex chat 01a164d2-4b63-7713-ae00-054036db0416 on edge-dev3",
+  "worker": "codex",
+  "branch": "codex/dflow-db-final-delivery",
+  "worktree": "/home/ahazan/.codex/worktrees/dflow-db-final-delivery/shared-db",
+  "allowed_paths": [
+    "scripts/lib/designflow-db-release.mjs",
+    "scripts/lib/designflow-db-release.test.mjs",
+    "scripts/designflow-db-release.mjs",
+    "scripts/designflow-db-release.test.mjs",
+    "config/designflow-db-releases.json",
+    "docs/designflow-db-release.md",
+    "docs/verification/throughput-dispositions/scripts~lib~designflow-db-release.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~designflow-db-release.mjs.json",
+    ".agent/work/4655/**",
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/2873-role-contract.sql",
+    "scripts/proofs/2873-contract.json",
+    "scripts/proofs/shared-db-2873-observation.test.mjs",
+    "scripts/proofs/dflow-tracking-access-exception.test.mjs",
+    "docs/upc-item-identity-contract.md",
+    ".github/workflows/tools-offline-tests.yml"
+  ],
+  "file_writes": [
+    "scripts/lib/designflow-db-release.mjs",
+    "scripts/lib/designflow-db-release.test.mjs",
+    "scripts/designflow-db-release.mjs",
+    "scripts/designflow-db-release.test.mjs",
+    "config/designflow-db-releases.json",
+    "docs/designflow-db-release.md",
+    "docs/verification/throughput-dispositions/scripts~lib~designflow-db-release.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~designflow-db-release.mjs.json",
+    ".agent/work/4655/**",
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/2873-role-contract.sql",
+    "scripts/proofs/2873-contract.json",
+    "scripts/proofs/shared-db-2873-observation.test.mjs",
+    "scripts/proofs/dflow-tracking-access-exception.test.mjs",
+    "docs/upc-item-identity-contract.md",
+    ".github/workflows/tools-offline-tests.yml"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database schema or data writes in this maintenance change",
+    "No manual production apply, foreign claim adoption, app merge, billing/visibility change, or unreviewed platform mutation",
+    "No user-provided SQL/shell execution or credentials in application manifests",
+    "No additional promotion engine or new scheduler outside existing GitHub Actions process"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/designflow-db-release.test.mjs scripts/designflow-db-release.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node scripts/check-cancelled-work.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs",
+    "node --test scripts/proofs/shared-db-2873-observation.test.mjs scripts/proofs/dflow-tracking-access-exception.test.mjs"
+  ],
+  "assumptions": [
+    "Existing approved train and existing qualified single-source automatic promotion remain canonical. No new SQL executor, scheduler, reviewer tooling, source fingerprint gate or ordinary commit requirement.",
+    "Multiple PRs may legitimately implement the same still-open application issue; authenticate unique source PR and exact authored migration set separately. Preserve duplicate-PR/version/path refusals.",
+    "All batched production receipts must prove exact source map, native immutable artifact producer, source hashes, ledger and catalog. Never infer production readiness from schema alone.",
+    "Tracking/frontend require both original4648 and companion4673. Unreviewed/missing/stale/ambiguous proof remains blocked.",
+    "Tracking original4648 plus hardening4673 require precisely two ColdLion history-table SELECT grants and one order-link view SELECT for tracking_grants; existing deployed backend runtime inherits tracking_grants. Explicitly assess this material access change without accepting unrelated4475 four-group membership drift.",
+    "Keep all coldlion CREATE/write/other-role/other-relation/admin/browser/grant-option refusals. Whole2873 existing membership/effective failures remain visible until4475 separately resolved. No schema or application source changes in this maintenance PR.",
+    "Run the new synthetic tracking permission test in the existing isolated PG17 CI step; reuse its container and cleanup. This adds no commit hook or new release gate. Require an explicitly synthetic container name before docker commands."
+  ],
+  "stop_conditions": [
+    "Unverified credentials or artifact evidence refuses before dispatch/readiness",
+    "Exact source or target drift refuses; missing protected dependency remains blocked",
+    "Scope outside listed files requires a new prospective contract generation"
+  ],
+  "generation": 18,
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 17,
+    "contract_sha256": "c5d3d210da1825e62afe172f2f784276a1fc3a621e30317c128de3e34e80467c"
+  }
+}

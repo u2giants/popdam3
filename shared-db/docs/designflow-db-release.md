@@ -169,3 +169,30 @@ schema rejects the overlapping alternatives with HTTP422. An absent baseline is
 a positively authenticated `404 Branch not protected` plus a verified branch,
 sealed as JSON null and its SHA256; it is not unknown or missing evidence. A fresh
 complete read must still match that absence immediately before activation.
+
+
+## Companion sources on one application issue
+
+A requirement identifies one canonical source PR and exactly the migrations it
+added. Two different source PRs may implement the same issue; PRs, issue/PR
+pairs, migration versions and paths remain unique. Tracking and frontend require
+both #4648 and its #4673 companion. Contract digests remain independent of this
+source list. A pending companion set reports `qualified-migration-train-required`
+and never starts its members as unrelated single-source promotions. An operator
+must qualify the existing native train; this observer grants no train authority.
+
+A successful combined apply may satisfy each original requirement only through
+its complete native train proof. The observer authenticates the canonical run,
+attempt and successful guard/review/apply jobs. The original guard-job log must
+name exactly one dispatched train input, and the immutable record must reproduce
+the native train identity, production target, main SHA and full allowlist. Every
+entry is independently checked against its actual merged PR, current source
+bytes and source issue; the entire ledger delta, manifest hashes and enforced
+catalog must match. A subset or unrelated artifact cannot stand in for the batch.
+
+Version 2 immutable receipts retain the complete train/source map and full live
+ledger fingerprints alongside the individual requirement identity. On reuse,
+the original archive, producer, train, all current sources and the entire live
+ledger are authenticated again. Missing or expired archive/log provenance,
+changed source, partial apply or ambiguous maps refuse readiness. Existing
+version 1 single-source receipt checks and promotion behavior remain unchanged.

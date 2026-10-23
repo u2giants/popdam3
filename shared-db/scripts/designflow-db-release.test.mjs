@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { canonicalJson, sha256 } from './db-flow/evidence-bundle.mjs';
+import { proposeTrain, trainRecordRef } from './db-flow/migration-train.mjs';
 import { manifestDigest } from './lib/designflow-db-release.mjs';
-import { assessRelease, runObserver, releasePolicy, dispatchTitle, verifyApplyReceipt, verifyAppliedFiles, workflowRuns, artifactContainsSource, assertObserverSource, publishAppStatus, prepareReleaseReady, productionRunMatches } from './designflow-db-release.mjs';
+import { assessRelease, runObserver, releasePolicy, dispatchTitle, verifyApplyReceipt, verifyAppliedFiles, workflowRuns, artifactContainsSource, assertObserverSource, publishAppStatus, prepareReleaseReady, productionRunMatches, verifyBatchProductionFiles, batchRunCandidate, validatedTrainRefFromLog } from './designflow-db-release.mjs';
 
 const head = 'a'.repeat(40), repository = 'popcre/designflow-tracking';
 const path = 'supabase/migrations/20261022194647_synthetic.sql', content = '-- synthetic only\n';
@@ -302,4 +303,78 @@ test('sealed protection requests use one GitHub status-check schema and preserve
   assert.equal(settings.required_pull_request_reviews.required_approving_review_count,app.repository.endsWith('frontend')?1:0);
   assert.deepEqual(settings.required_pull_request_reviews.bypass_pull_request_allowances,{users:[],teams:[],apps:[]});
  }
+});
+
+
+function batchFixture() {
+ const f=fixture();const second={work_issue:requirement.work_issue,source_pr:4654,migrations:[{version:'20261022194648',path:'supabase/migrations/20261022194648_companion.sql',sha256:sha256('-- companion\n')}]};
+ const sources=[{requirement:structuredClone(requirement),facts:{repository:'popcre/shared-db',base_branch:'main',merged:true,source_pr:4653,work_issue:4646,head_sha40:'b'.repeat(40),merge_sha40:'c'.repeat(40),merge_in_main:true,files:[{path,content}]}},
+  {requirement:second,facts:{repository:'popcre/shared-db',base_branch:'main',merged:true,source_pr:4654,work_issue:4646,head_sha40:'d'.repeat(40),merge_sha40:'e'.repeat(40),merge_in_main:true,files:[{path:second.migrations[0].path,content:'-- companion\n'}]}}];
+ const proposed=proposeTrain({target:'production',target_identity:'qsllyeztdwjgirsysgai',base_main_sha:head,entries:sources.flatMap(s=>s.requirement.migrations.map(m=>({version:m.version,file_sha256:m.sha256,source_pr:s.requirement.source_pr,merge_sha:s.facts.merge_sha40,dependencies:[],risk_class:'material_access_change',role:'synthetic_role',preview_assertion:'synthetic preview',production_assertion:'synthetic production'})))});
+ const record={...proposed,state:'dispatched',generation:3};
+ const run={id:123,run_attempt:1,head_sha:head,path:'.github/workflows/shared-supabase-migrations.yml',event:'workflow_dispatch',status:'completed',conclusion:'success',repository:{id:1275568548,full_name:'popcre/shared-db'},head_repository:{id:1275568548}};
+ const jobs={jobs:['SQL migration guards','Production apply review (immutable evidence + hard guards)','Production apply (automatic evidence gates)'].map(name=>({id:1,name,run_id:123,run_attempt:1,status:'completed',conclusion:'success',steps:name==='SQL migration guards'?[{name:'Refuse a migration-train dispatch that is not the exact recorded train',conclusion:'success'}]:[]}))};
+ const files=appliedFiles();files.set('production-apply.txt','Applied synthetic batch');
+ const versions=record.entries.map(e=>e.version);files.set('migration-content-manifest.json',JSON.stringify(Object.fromEntries(record.entries.map(e=>[e.version,e.file_sha256]))));
+ files.set('production-catalog-verification.json',JSON.stringify({enforcing:true,errors:[],allowlist:versions}));
+ files.set('production-ledger-after.txt',files.get('production-ledger-after.txt')+` ${versions[1]} | ${versions[1]} | companion\n`);
+ const ledger=Object.fromEntries(versions.map(v=>[v,'f'.repeat(64)]));
+ return {f,second,files,proof:{run,jobs,record,train_ref:trainRecordRef(record),train_sha:'9'.repeat(40),sources,ledger}};
+}
+const batchVerify=b=>verifyBatchProductionFiles(requirement,b.proof.sources[0].facts,b.files,b.proof);
+
+test('authenticated native batch proves each original requirement without relabeling a companion receipt',()=>{
+ const b=batchFixture(),proof=batchVerify(b);assert.equal(proof.source_map.length,2);
+ assert.equal(proof.source_map[0].source_pr,4653);assert.equal(proof.source_map[1].source_pr,4654);
+ assert.equal(verifyBatchProductionFiles(b.second,b.proof.sources[1].facts,b.files,b.proof).train_id,proof.train_id);
+ assert.equal(batchRunCandidate(`DB production apply ${head} PR4654 20261022194647,20261022194648`,requirement),true);
+});
+test('batch proof refuses absent map, forged source, changed hash, wrong producer, partial apply and stale source',()=>{
+ const changes=[
+ b=>b.proof.sources=[],b=>b.proof.sources.pop(),b=>b.proof.sources[1].requirement.source_pr=4653,
+ b=>b.proof.record.entries[1].source_pr=4653,b=>b.proof.record.entries[1].file_sha256='0'.repeat(64),
+ b=>b.proof.run.repository.full_name='fork/shared-db',b=>b.proof.run.head_repository.id=1,
+ b=>b.proof.run.path='.github/workflows/foreign.yml',b=>b.proof.run.conclusion='failure',
+ b=>b.proof.jobs.jobs[0].steps[0].conclusion='skipped',b=>b.proof.jobs.jobs[0].run_attempt=2,
+ b=>b.proof.sources[1].facts.merge_sha40='0'.repeat(40),
+ b=>b.proof.sources[1].facts.merge_in_main=false,b=>b.proof.sources[1].facts.files[0].content+='changed',
+ b=>b.files.set('production-ledger-after.txt',b.files.get('production-ledger-after.txt').split(' 20261022194648')[0]),
+ b=>b.files.set('production-catalog-verification.json',JSON.stringify({enforcing:true,errors:[],allowlist:['20261022194647']})),
+ b=>b.files.set('production-apply.txt',''),b=>delete b.proof.ledger['20261022194648'],
+ b=>b.proof.train_ref=b.proof.train_ref.replace('dispatched','authorized')];
+ for(const change of changes){const b=batchFixture();change(b);assert.throws(()=>batchVerify(b));}
+});
+test('batch receipt requires independently reauthenticated full train proof and current source',()=>{
+ const b=batchFixture(),batch=batchVerify(b),facts=b.proof.sources[0].facts;
+ const ledger={'20261022194647':'f'.repeat(64)};
+ const receipt={schema_version:2,work_issue:4646,source_pr:4653,source_head_sha:facts.head_sha40,source_merge_sha:facts.merge_sha40,production_main_sha:head,production_run_id:123,production_run_attempt:1,artifact_id:9,artifact_digest:'sha256:'+'7'.repeat(64),migration_hashes:{'20261022194647':requirement.migrations[0].sha256},ledger_fingerprints:ledger,catalog_sha256:batch.catalog_sha256,captured_at:new Date().toISOString(),batch};
+ assert.equal(verifyApplyReceipt(requirement,facts,receipt,ledger,batch).source_pr,4653);
+ assert.throws(()=>verifyApplyReceipt(requirement,facts,receipt,ledger));
+ assert.throws(()=>verifyApplyReceipt(b.second,b.proof.sources[1].facts,receipt,ledger,batch));
+ assert.throws(()=>verifyApplyReceipt(requirement,{...facts,head_sha40:'0'.repeat(40)},receipt,ledger,batch));
+ const changed=structuredClone(batch);changed.source_map[1].source_pr=999;
+ assert.throws(()=>verifyApplyReceipt(requirement,facts,receipt,ledger,changed));
+});
+test('pending companions await the existing qualified train and never dispatch single-source promotion',async()=>{
+ const b=batchFixture();b.f.manifest.requirements.push(b.second);
+ b.f.policy.repositories[0].required_sources.push({work_issue:b.second.work_issue,source_pr:b.second.source_pr});
+ b.f.io.sourceFacts=async r=>structuredClone(b.proof.sources.find(s=>s.requirement.source_pr===r.source_pr).facts);
+ b.f.io.productionEvidence=async()=>null;
+ const result=await assess(b.f);assert.equal(result.progress.state,'qualified-migration-train-required');
+ assert.deepEqual(result.progress.source_prs,[4653,4654]);assert.deepEqual(b.f.effects,[]);
+});
+
+
+test('native train input extraction refuses missing, guessed and ambiguous map provenance',()=>{
+ const ref=`refs/db-migration-trains/${'a'.repeat(64)}/000003-dispatched`;
+ const line=`2026-10-23T09:00:00.0000000Z   TRAIN_REF: ${ref}\n`;
+ assert.equal(validatedTrainRefFromLog(line+line),ref);assert.equal(validatedTrainRefFromLog(line.replace('\n','\r\n')),ref);
+ for(const log of ['',`TRAIN_REF: ${ref}`,line.replace('dispatched','authorized'),line+line.replace('a'.repeat(64),'b'.repeat(64))])assert.throws(()=>validatedTrainRefFromLog(log));
+});
+test('both applied companions yield readiness without another promotion',async()=>{
+ const b=batchFixture();b.f.manifest.requirements.push(b.second);
+ b.f.policy.repositories[0].required_sources.push({work_issue:b.second.work_issue,source_pr:b.second.source_pr});
+ b.f.io.sourceFacts=async r=>structuredClone(b.proof.sources.find(s=>s.requirement.source_pr===r.source_pr).facts);
+ b.f.io.productionEvidence=async(r,facts)=>{verifyBatchProductionFiles(r,facts,b.files,b.proof);return {source_pr:r.source_pr,run_id:b.proof.run.id};};
+ const result=await assess(b.f);assert.equal(result.status,'ready');assert.equal(result.requirements.length,2);assert.deepEqual(b.f.effects,['catalog']);
 });
