@@ -12802,3 +12802,29 @@ test('#4348 reviewer-budget PR file inventory follows pages and fails closed pas
   assert.throws(()=>withReviewRequestBudget(()=>ghPaginated('repos/x/y/pulls/7/files?per_page=100',{readJson:()=>null}),50,'test-op'),/incomplete or malformed/)
   assert.throws(()=>withReviewRequestBudget(()=>ghPaginated('repos/x/y/issues/7/labels?per_page=100',{readJson:full}),50,'test-op'),/reached 100 rows/)
 })
+
+test('real flowAdapter admits only qualified closed merged proof selectors without changing custody',()=>{
+ const prior=process.env.SHARED_DB_SESSION_ID;process.env.SHARED_DB_SESSION_ID='codex-closed-selector-test';
+ try {
+  function fixture(){
+   const {io}=mergedRehearsalIo(),claim={...io.openClaims()[0],state:'closed'};
+   const getWork=io.getIssue;io.getIssue=n=>Number(n)===claim.number?claim:getWork(n);
+   io.openClaims=()=>[];io.closedClaimsForWork=()=>[claim];let writes=0;
+   io.createRef=()=>{writes++;throw new Error('unexpected ready mutation')};
+   return {io,claim,writes:()=>writes,adapter:(admission={admitIssue:1769,pr:1809})=>githubIo.flowAdapter.call(io,claim.number,admission)};
+  }
+  const good=fixture();assert.equal(good.adapter().resolveMarker().live,true);assert.match(good.claim.body,/owner: agent\/issue-1769/);assert.equal(good.writes(),0);
+  const open=fixture();open.claim.state='open';open.io.openClaims=()=>[open.claim];assert.equal(open.adapter().resolveMarker().live,false);assert.equal(open.writes(),0);
+  for(const change of [
+   f=>{f.io.branchPulls=()=>[]},
+   f=>{f.io.mergeCommitInMain=()=>false},
+   f=>{f.io.getIssue=()=>null},
+   f=>{f.claim.body='malformed'},
+   f=>{f.claim.title='CLAIM: #1769 #1770'},
+   f=>{const original=f.io.branchPulls;f.io.branchPulls=b=>[...original(b),{...original(b)[0],number:1810}]},
+   f=>{f.io.openClaims=()=>[{...f.claim,state:'open'}]},
+  ]){const f=fixture();change(f);assert.throws(()=>f.adapter().resolveMarker());assert.equal(f.writes(),0);}
+  const mismatch=fixture();assert.throws(()=>mismatch.adapter({admitIssue:1769,pr:1810}).resolveMarker(),/not the admitted/);assert.equal(mismatch.writes(),0);
+  const undeclared=fixture();delete process.env.SHARED_DB_SESSION_ID;assert.equal(undeclared.adapter().resolveMarker().live,false);
+ } finally {if(prior===undefined)delete process.env.SHARED_DB_SESSION_ID;else process.env.SHARED_DB_SESSION_ID=prior;}
+});

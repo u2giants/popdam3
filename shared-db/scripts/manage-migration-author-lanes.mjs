@@ -1430,9 +1430,22 @@ function githubFlowAdapter(io,claimNumber=null,admissionOptions=null){
     // session, is never live. There is no role marker.
     resolveMarker(){
       if(claimNumber===null||claimNumber===undefined)return resolveSessionAuthority()
-      let owner=null
-      try{owner=parseAuthorLease(io.getIssue(Number(claimNumber))?.body??'').owner}catch{owner=null}
-      return resolveSessionAuthority({claimOwner:owner})
+      const actor=resolveSessionAuthority()
+      if(!actor.live)return actor
+      const claim=io.getIssue(Number(claimNumber))
+      const lease=parseAuthorLease(claim?.body??'')
+      if(claim?.state==='closed'){
+        // A closed selector chooses immutable merged proof, never author custody.
+        // Reuse the full candidate proof before admitting the declared operator,
+        // both before and under the preparation mutex. Open claims keep ownership.
+        const issue=claimWorkIssue(claim)
+        if(io.openClaims().some((row)=>claimTitleIssues(row).includes(issue)))throw new LaneError(`closed claim #${claimNumber} cannot select historical proof while work issue #${issue} has an open claim`)
+        const candidate=this.selectCurrent(issue)
+        if(!['merged_rehearsal','historical_rebind'].includes(candidate.route))throw new LaneError('closed claim selector requires a qualified merged preview source')
+        return actor
+      }
+      if(claim?.state!=='open')throw new LaneError('named preview claim state is unreadable')
+      return resolveSessionAuthority({claimOwner:lease.owner})
     },
     actor:()=>readSessionIdOrUnknown(),now:()=>new Date().toISOString(),
     appendEvent(event){io.commentIssue(event.work_issue,formatEventComment(event))},

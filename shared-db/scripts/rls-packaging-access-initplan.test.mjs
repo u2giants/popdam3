@@ -17,10 +17,10 @@ test('exactly 2 ALTER POLICY statements wrap only helper subexpressions', () => 
   const alters = [...sql.matchAll(/^ALTER POLICY [\s\S]*?;$/gm)]
   assert.equal(alters.length, 2)
   for (const m of alters) {
-    assert.match(m[0], /\( SELECT app\.has_role\(/)
+    assert.match(m[0], /\( SELECT (app\.)?has_role\(/)
     assert.match(m[0], /apinilla@popcre\.com/)
   }
-  assert.match(sql, /\( SELECT app\.has_any_role\(/)
+  assert.match(sql, /\( SELECT (app\.)?has_any_role\(/)
 })
 
 test('before and after guards are present and fail closed', () => {

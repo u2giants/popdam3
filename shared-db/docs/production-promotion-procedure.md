@@ -286,3 +286,5 @@ allowlist containing an already-applied version, so if a run dies between a crea
 the fix ALONE is the only legal recovery allowlist. A symmetric rule would refuse that recovery
 and force an operator to edit the safety guard under pressure while production sits exposed.
 Do not "tidy" it into symmetry.
+
+A named CLOSED historical claim in native preview preparation selects proof, not custody: a declared acting session may prepare only after the existing candidate path proves the uniquely selected claim, exact merged source PR, main ancestry, admitted issue/PR and complete scope/source/route gates. These checks run again under the preparation mutex. Any matching open claim, unreadable claim, malformed or ambiguous history, unmerged source or admission mismatch refuses before ready-record publication. OPEN claims still require their actual lease owner; this route neither adopts nor edits a historical claim.

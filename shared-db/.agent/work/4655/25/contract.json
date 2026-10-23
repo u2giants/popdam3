@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Repair native stored preview preparation for an explicitly selected already-merged closed foreign claim without adopting its custody; retain all active-claim, merged-source, scope, admission and target proofs",
+  "base_sha": "4a062785f3941fd03f735ac64f1eede05ba7c8fa",
+  "dispatcher": "Codex chat 01a164d2-4b63-7713-ae00-054036db0416 on edge-dev3",
+  "worker": "codex",
+  "branch": "codex/dflow-merged-preview-preparation",
+  "worktree": "/home/ahazan/.codex/worktrees/dflow-merged-preview-preparation/shared-db",
+  "allowed_paths": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/production-promotion-procedure.md",
+    ".agent/work/4655/**",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/rls-packaging-access-initplan.test.mjs"
+  ],
+  "file_writes": [
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "docs/production-promotion-procedure.md",
+    ".agent/work/4655/**",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/rls-packaging-access-initplan.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database schema or data writes in this maintenance change",
+    "No manual production apply, foreign claim adoption, app merge, billing/visibility change, or unreviewed platform mutation",
+    "No user-provided SQL/shell execution or credentials in application manifests",
+    "No additional promotion engine or new scheduler outside existing GitHub Actions process"
+  ],
+  "required_checks": [
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/lib/session-authority.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node scripts/check-cancelled-work.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs",
+    "node --test scripts/rls-style-guide-access-initplan.test.mjs scripts/rls-packaging-access-initplan.test.mjs"
+  ],
+  "assumptions": [
+    "The selected historical claim is CLOSED and its uniquely matched source PR is MERGED with exact immutable migrations in current main. This operation prepares merged bytes, never changes claim custody or invokes an authoring operation.",
+    "Open, unreadable, malformed, unmerged or ambiguous claims retain refusal; the real acting session must stay declared; no caller impersonation, direct-workflow workaround, ledger edits or fabricated readiness records.",
+    "Native prepare remains required; fix its contradictory closed-selector owner check rather than bypassing it. Source/target admission and all role, scope, review, lane, proof and immutable recording gates remain intact.",
+    "Reuse exact prepared CI repaircommit4f56f97a9fbee9af13e079b3957a28ab4bfae45a from existingPR4688 because mainliteralconflictmarkers prevent ANY Tools offline tests job and make requiredchecks impossible. RetainbothRLSsteps and equivalentlive-deparsecoverage; preserveforeignsource/provenance/branch. No new CI implementation or skipping/bypassingrequiredchecks."
+  ],
+  "stop_conditions": [
+    "Unverified credentials or artifact evidence refuses before dispatch/readiness",
+    "Exact source or target drift refuses; missing protected dependency remains blocked",
+    "Scope outside listed files requires a new prospective contract generation"
+  ],
+  "generation": 25,
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 24,
+    "contract_sha256": "326f7378e7b6bf677e4f6b801d2f1b4925267a93ae9578580fbe3fd01eef3da8"
+  }
+}
