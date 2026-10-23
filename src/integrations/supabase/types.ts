@@ -4190,6 +4190,7 @@ export type Database = {
           lease_expires_at: string
           lease_token: string
           search_text: string
+          thumbnail_url: string
         }[]
       }
       claim_jobs: {
@@ -4725,6 +4726,7 @@ export type Database = {
           stale_candidates: number
         }[]
       }
+      prewarm_style_guide_search: { Args: never; Returns: undefined }
       promote_coldlion_source_owned: {
         Args: { p_client_plan?: Json; p_expected: Json; p_is_drill?: boolean }
         Returns: {
