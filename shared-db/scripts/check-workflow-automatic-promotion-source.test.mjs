@@ -126,20 +126,20 @@ test('the guard block stays runnable offline: no gh, curl or git', () => {
   for (const forbidden of ['gh ', 'curl', 'git ']) assert.ok(!block.includes(forbidden), `the guard block must not use ${forbidden.trim()}`)
 })
 
-test('the job is reachable from a single-PR recovery, and never from a recovery map', () => {
+test('the job admits maps only through an explicit train and retains single-source recovery', () => {
   const text = workflowText()
   const header = text.split('automatic-production-promotion:', 2)[1].split('needs:', 1)[0]
   assert.match(header, /inputs\.historical_preview_source_pr != '' && inputs\.historical_preview_source_pr_map == ''/)
-  assert.doesNotMatch(header, /historical_preview_source_pr_map != ''/)
+  assert.match(header, /inputs\.migration_train_ref != '' && inputs\.historical_preview_source_pr_map != ''/)
   assert.match(header, /inputs\.mode == 'apply'/)
   assert.match(header, /inputs\.target == 'preview'/)
 })
 
 test('every later step uses the guarded source PR, and recovery re-proves the live merge hash', () => {
   const job = jobSection()
-  const afterGuard = job.split('# <<< END automatic-promotion-source-guard', 2)[1]
+  const afterGuard = job.split('      - name: Re-prove current main, guarded merge, and durable exact-head verdict', 2)[1]
   assert.doesNotMatch(afterGuard, /SOURCE_PR: \$\{\{ inputs\./, 'a step after the guard reads the raw input instead of the guarded output')
-  assert.equal((afterGuard.match(/SOURCE_PR: \$\{\{ steps\.source_guard\.outputs\.source_pr \}\}/g) ?? []).length, 4)
+  assert.equal((afterGuard.match(/SOURCE_PR: \$\{\{ steps\.source_guard\.outputs\.source_pr \|\| steps\.train_source_guard\.outputs\.source_pr \}\}/g) ?? []).length, 4)
   assert.match(afterGuard, /git merge-base --is-ancestor "\$RECOVERED_MERGE_SHA" "\$MAIN_SHA"/)
   for (const gate of ['check-exact-head-approval.mjs', 'Migration guarded merge authorization', '--resolve-admitted-issue-for-pr']) assert.ok(afterGuard.includes(gate), `shared gate ${gate} is absent`)
 })
@@ -148,3 +148,20 @@ test('Windows executes the workflow shell through supported Git Bash', () => {
   if (process.platform === 'win32') assert.equal(bashCommand, gitBash)
   else assert.equal(bashCommand, 'bash')
 })
+
+test('existing train validation changes target only for explicit mapped historical preview apply',()=>{
+ const text=workflowText();
+ const expression=text.match(/TRAIN_TARGET: \$\{\{ ([^\n]+) \}\}/)[1];
+ const target=Function('inputs',`return (${expression})`);
+ const base={target:'preview',mode:'apply',historical_preview_source_pr_map:'v:1',historical_preview_source_pr:'',merged_preview_source_pr:'',merged_preview_source_pr_map:'',claim_pr:'',claim_head_sha:'',source_pr:''};
+ assert.equal(target(base),'production');
+ for(const [key,value] of Object.entries({mode:'dry-run',historical_preview_source_pr_map:'',historical_preview_source_pr:'1',merged_preview_source_pr:'1',merged_preview_source_pr_map:'v:1',claim_pr:'1',claim_head_sha:'a',source_pr:'4673'}))assert.equal(target({...base,[key]:value}),'preview');
+ assert.equal(target({...base,target:'production'}),'production');
+ const trainGuard=text.split('name: Refuse a migration-train dispatch that is not the exact recorded train',2)[1].split('- name:',1)[0];
+ assert.match(trainGuard,/--verify-train-dispatch "\$TRAIN_REF" --target "\$TRAIN_TARGET"/);
+ assert.match(jobSection(),/if: inputs\.migration_train_ref == '' \|\| inputs\.historical_preview_source_pr_map == ''/);
+ assert.match(jobSection(),/if: steps\.train_source_guard\.outputs\.source_pr == ''/);
+ assert.match(jobSection(),/test "\$WORK_ISSUE" = "\$TRAIN_WORK_ISSUE"/);
+ assert.match(jobSection(),/migration_train_ref:\$train_ref/);
+ assert.equal((text.slice(0,text.indexOf('\npermissions:')).match(/^      [a-z_]+:/gm)||[]).length,25);
+});

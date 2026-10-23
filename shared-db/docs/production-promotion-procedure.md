@@ -288,3 +288,19 @@ and force an operator to edit the safety guard under pressure while production s
 Do not "tidy" it into symmetry.
 
 A named CLOSED historical claim in native preview preparation selects proof, not custody: a declared acting session may prepare only after the existing candidate path proves the uniquely selected claim, exact merged source PR, main ancestry, admitted issue/PR and complete scope/source/route gates. These checks run again under the preparation mutex. Any matching open claim, unreadable claim, malformed or ambiguous history, unmerged source or admission mismatch refuses before ready-record publication. OPEN claims still require their actual lease owner; this route neither adopts nor edits a historical claim.
+
+An explicit `migration_train_ref` on a mapped historical preview APPLY may qualify
+an immutable latest DISPATCHED **production** train through the existing automatic
+job. This narrow preview input has exactly two ordered versions from two authoring
+PRs, an exact current-main and recovered-source/merge map, full native source proof
+for both PRs and exactly one common open work issue. The last entry selects the
+source whose unchanged guarded-merge, durable verdict and current scope admission
+must pass before automatic review evidence or dispatch. A durable rejection still
+refuses. Other maps remain refused; ordinary single-source handling is unchanged.
+This route accepts preview proof only, never ephemeral substitution. It uses the
+same v2 evidence artifact and serial production workflow with the verified train
+ref; it creates no manual production authority. Genuine native train authorization
+and dry-run provenance remain prerequisites. After a workflow change, launch a new
+historical recovery on reviewed current main; original apply runs retain their
+native historical byte/provenance checks. Qualification is not database delivery
+or application acceptance, and current reviewer-capability blockers remain open.

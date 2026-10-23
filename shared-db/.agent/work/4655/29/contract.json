@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Qualify an explicit immutable production train only after mapped historical preview apply, reusing existing automatic evidence and serial dispatcher without changing single-source admission",
+  "base_sha": "2f9647bcad7f09d0582da381a18e2ed4599ee108",
+  "dispatcher": "Codex chat 01a164d2-4b63-7713-ae00-054036db0416 on edge-dev3",
+  "worker": "codex",
+  "branch": "codex/dflow-automatic-train-promotion",
+  "worktree": "/home/ahazan/.codex/worktrees/dflow-automatic-train-promotion/shared-db",
+  "allowed_paths": [
+    ".github/workflows/shared-supabase-migrations.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/qualify_automatic_promotion_train.py",
+    "scripts/test_qualify_automatic_promotion_train.py",
+    "scripts/check-workflow-automatic-promotion-source.test.mjs",
+    "docs/production-promotion-procedure.md",
+    ".agent/work/4655/**"
+  ],
+  "file_writes": [
+    ".github/workflows/shared-supabase-migrations.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/qualify_automatic_promotion_train.py",
+    "scripts/test_qualify_automatic_promotion_train.py",
+    "scripts/check-workflow-automatic-promotion-source.test.mjs",
+    "docs/production-promotion-procedure.md",
+    ".agent/work/4655/**"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database schema or data writes in this maintenance change",
+    "No manual production apply, foreign claim adoption, app merge, billing/visibility change, or unreviewed platform mutation",
+    "No user-provided SQL/shell execution or credentials in application manifests",
+    "No additional promotion engine or new scheduler outside existing GitHub Actions process"
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts.test_qualify_automatic_promotion_train",
+    "node --test scripts/check-workflow-automatic-promotion-source.test.mjs scripts/db-flow/migration-train.test.mjs",
+    "python3 -m unittest scripts.test_production_business_risk_gate",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node scripts/check-cancelled-work.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs"
+  ],
+  "assumptions": [
+    "Only explicit historical mapped preview APPLY may qualify a latest immutable DISPATCHED production train; all exact source/map/main/issue/native admission/verdict proofs retain refusal.",
+    "Single-source guard bytes remain unchanged; no manual production launcher, SQL, toolkit or reviewer changes.",
+    "New helper runs only automatic qualification job, never preview producer; no producer-path exemption is added.",
+    "Reuse existing migration_train_ref input; exactly25 dispatch inputs retained. Only mapped historical preview APPLY with no other source selectors verifies a production train against preview allowlist; ordinary target validation unchanged."
+  ],
+  "stop_conditions": [
+    "Missing or ambiguous native authority/source/target/evidence refuses before artifact or dispatch",
+    "Scope outside explicit files requires prospective successor"
+  ],
+  "generation": 29,
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 28,
+    "contract_sha256": "e911b65215beb07833a6edf7e4dbbf9f22863ee1b2bfaa291a1cc7b7e86003ad"
+  }
+}
