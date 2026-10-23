@@ -43,6 +43,7 @@ source quoted so the transcription is auditable without opening the file.
 from __future__ import annotations
 
 import re
+import hashlib
 from pathlib import Path
 
 VERSION_RE = re.compile(r"^\d{14}$")
@@ -163,6 +164,18 @@ IMMUTABLE_NON_LEDGER_DERIVATIONS: dict[str, tuple[str, str]] = {
         "INSERT/UPDATE, admitted by the curated data-only proof), so it depends on no "
         "earlier rewrite and its base set is empty; the merged bytes stay unedited.",
     ),
+    "20261022132119": (
+        "-- derived-from: 20261022014315\n",
+        "Issue #4585's immutable production archive migration creates a new table in "
+        "dflow_prod; its declared sandbox pattern creates dflow.tracking_grid_archive "
+        "and supplies no replaced object or ledger dependency. Full source hash is pinned.",
+    ),
+}
+
+# Only this exact immutable source may correct a numeric pattern declaration.
+# Older malformed-prose entries retain their existing declaration validation.
+IMMUTABLE_NON_LEDGER_SOURCE_SHA256 = {
+    "20261022132119": "072227995c866194c7ea42ab27a331a7b57d565836babb07a569f6776e339a5f",
 }
 
 
@@ -231,6 +244,11 @@ def immutable_non_ledger_derivation(version: str, raw: str) -> frozenset[str] | 
     if record is None:
         return None
     expected_source, _why = record
+    expected_hash = IMMUTABLE_NON_LEDGER_SOURCE_SHA256.get(version)
+    if expected_hash is not None and hashlib.sha256(raw.encode("utf-8")).hexdigest() != expected_hash:
+        raise DerivationError(
+            f"{version}: immutable historical non-ledger source SHA256 differs; refusing changed migration bytes."
+        )
     expected_declaration = expected_source.splitlines()[0].removeprefix("-- derived-from: ")
     matches = DECLARATION_RE.findall(raw)
     if expected_source not in raw or matches != [expected_declaration]:

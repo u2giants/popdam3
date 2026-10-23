@@ -148,6 +148,35 @@ class LegacyOverlay(unittest.TestCase):
             [],
         )
 
+    def test_archive_numeric_pattern_exception_requires_exact_full_immutable_source(self):
+        version = "20261022132119"
+        path = local_migrations(REPO)[version]
+        raw = path.read_text(encoding="utf-8")
+        self.assertEqual(declared_bases(version, raw=raw), frozenset())
+        self.assertEqual(replaced_objects(raw), set())
+        self.assertIn("create table dflow_prod.tracking_grid_archive", raw.lower())
+        base = local_migrations(REPO)["20261022014315"].read_text(encoding="utf-8")
+        self.assertIn("create table if not exists dflow.tracking_grid_archive", base.lower())
+        self.assertEqual(assert_derivation_bases([version], {version:path}, remote=set()), [])
+        for altered in [
+            raw.replace("create table dflow_prod", "create table dflow_foreign"),
+            raw.replace("-- Issue #4585", "-- Issue #9999"),
+            raw + "\n-- appended bytes\n", "-- prepended bytes\n" + raw,
+            raw.replace("-- derived-from: 20261022014315", "-- derived-from: none"),
+            raw.replace("-- derived-from: 20261022014315", "-- derived-from: 20261022014316"),
+            raw + "-- derived-from: none\n",
+        ]:
+            with self.subTest(altered=altered[:60]), self.assertRaises(DerivationError):
+                declared_bases(version, raw=altered)
+        # Unknown versions do not receive this exception: the genuine declared
+        # ledger base remains mandatory through the actual promotion guard.
+        self.assertEqual(declared_bases("20261023132119", raw=raw), frozenset({"20261022014315"}))
+        with tempfile.TemporaryDirectory() as directory:
+            wrong = Path(directory) / "20261023132119_wrong.sql"
+            wrong.write_text(raw, encoding="utf-8")
+            with self.assertRaises(DerivationRefusal):
+                assert_derivation_bases(["20261023132119"], {"20261023132119":wrong}, remote=set())
+
     def test_every_migration_file_declaration_parses(self):
         # #4172: a malformed declaration on a new migration passed PR CI and was
         # refused only at the promotion hard guard, after merge. Parse every file

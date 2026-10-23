@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Repair the exact immutable archive migration metadata so existing native rehearsal and automatic production release can deliver it without changing historical SQL, foreign claims, or ordinary commit rules",
+  "base_sha": "c85f75a132cf9be00b7585a053b260d0c200d858",
+  "dispatcher": "Codex chat 01a164d2-4b63-7713-ae00-054036db0416 on edge-dev3",
+  "worker": "codex",
+  "branch": "codex/dflow-archive-metadata-recovery",
+  "worktree": "/home/ahazan/.codex/worktrees/dflow-archive-metadata-recovery/shared-db",
+  "allowed_paths": [
+    "scripts/migration_derivation.py",
+    "scripts/test_migration_derivation.py",
+    "docs/verification/throughput-dispositions/scripts~migration_derivation.py.json",
+    ".agent/work/4655/**"
+  ],
+  "file_writes": [
+    "scripts/migration_derivation.py",
+    "scripts/test_migration_derivation.py",
+    "docs/verification/throughput-dispositions/scripts~migration_derivation.py.json",
+    ".agent/work/4655/**"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database schema or data writes in this maintenance change",
+    "No manual production apply, foreign claim adoption, app merge, billing/visibility change, or unreviewed platform mutation",
+    "No user-provided SQL/shell execution or credentials in application manifests",
+    "No additional promotion engine or new scheduler outside existing GitHub Actions process"
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts.test_migration_derivation",
+    "python3 -m unittest scripts.test_production_business_risk_gate",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node scripts/check-cancelled-work.mjs",
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "Existing merged-preview and automatic production workflow remains canonical",
+    "All six DesignFlow application default branches are develop",
+    "Platform protection403 is a real limitation and must not be represented as an enforced main-merge gate",
+    "Existing migration workflow already has25 inputs; add only a deterministic run-name from existing inputs to authenticate delayed dispatch correlation, no new dispatch field",
+    "Owner authorized Team up to8USD monthly beforetax; purchase stillpending. Native main protection may replace the proposed extra CloudBuild wrapper only after authenticated publisher and live enforcement proof, preserving existing release capability.",
+    "Application root agent guides remain unchanged: canonical reviewed current-workflow documentation carries the release-manifest obligation instead of six competing copies. Frozen reviewer tooling is untouched.",
+    "Owner emphasized existing major commit friction. Narrow to one automatic release-readiness status, existing structural review, actual per-app requirements, no extra source-fingerprint review gate and no blanket wait on unrelated application prerequisites. Future requirement recording is governed by the reviewed canonical current-workflow rule. Sourcefingerprint draft9 remainsprivate/unimplemented.",
+    "Actual GitHub main protection gates live production releases. Installed context-spec stronger-class route permits truthful production declaration, retaining existing deployment/localtest proofs. Infrastructure checkout prohibition remains untouched. Exact six-app desired protection payloads and complete baseline digests will be recorded in the existing central policy and reviewed at the final source head before any settings mutation. Preserve existing stricter requirements; abort changed baselines. No alternative approval or GitHub identity bypass.",
+    "Team activation is complete. Five absent main protections are complete authenticated404 Branch not protected baselines, not unknown values; frontend baseline preserves existing1review.",
+    "GitHub REST2022 protection schema rejects simultaneous contexts and checks via oneOf (HTTP422); use only explicit checks with identical App5112061/context/strict controls. Both prior writes were rejected with no mutation.",
+    "Archive source20261022132119 creates a new dflow_prod table and references no object from the declared dflow sandbox migration20261022014315. Existing immutable non-ledger registry is the canonical metadata repair route; require full source SHA256 for this single exact entry and leave all other ancestry validation intact.",
+    "This metadata-only repair neither edits the already-merged migration nor adopts/renews another author claim; it preserves original source/head/version/bytes, existing exact review and all rehearsal/automatic-production locks and live proof. Foreign correctionPR4620 is preserved."
+  ],
+  "stop_conditions": [
+    "Unverified credentials or artifact evidence refuses before dispatch/readiness",
+    "Exact source or target drift refuses; missing protected dependency remains blocked",
+    "Scope outside listed files requires a new prospective contract generation"
+  ],
+  "generation": 13,
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 12,
+    "contract_sha256": "ded0bc035f7467cdb542d1de5eaa1de2c3a04c1f04f50b661cb8382a735b3ffa"
+  }
+}

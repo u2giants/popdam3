@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "work_issue": 4655,
+  "outcome": "ready-for-merge",
+  "contract_ref": "refs/db-contracts/4655/13",
+  "contract_sha256": "a6dc91aeebd7448d35cbda4e0ad4d8113e72e8a640327e400be967e628a2bf78",
+  "base_sha": "c85f75a132cf9be00b7585a053b260d0c200d858",
+  "head_sha": "218cb99fdda756772e5aafbaaad906b16fa6adc3",
+  "files_changed": [
+    "scripts/migration_derivation.py",
+    "scripts/test_migration_derivation.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts.test_migration_derivation",
+      "exit_code": 0,
+      "evidence": "...............................................\n----------------------------------------------------------------------\nRan 47 tests in 0.181s\n\nOK\n",
+      "evidence_sha256": "b9b0d142688cb775a84ef1de77c726c8ae81ae631431cb671244cd75e1b2914d"
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_business_risk_gate",
+      "exit_code": 0,
+      "evidence": " Names commonly chosen instead of 'master' are 'main', 'trunk' and\nhint: 'development'. The just-created branch can be renamed via this command:\nhint:\nhint: \tgit branch -m <name>\nhint:\nhint: Disable this message with \"git config set advice.defaultBranchName false\"\n..hint: Using 'master' as the name for the initial branch. This default branch name\nhint: will change to \"main\" in Git 3.0. To configure the initial branch name\nhint: to use in all of your new repositories, which will suppress this warning,\nhint: call:\nhint:\nhint: \tgit config --global init.defaultBranch <name>\nhint:\nhint: Names commonly chosen instead of 'master' are 'main', 'trunk' and\nhint: 'development'. The just-created branch can be renamed via this command:\nhint:\nhint: \tgit branch -m <name>\nhint:\nhint: Disable this message with \"git config set advice.defaultBranchName false\"\n...............................................\n----------------------------------------------------------------------\nRan 230 tests in 4.525s\n\nOK\n",
+      "evidence_sha256": "5e669c0ebe251699e11f617577f361ad31b6db954e4f8e2dafd67225f5baca19"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=361 sources=103 derived_digest=6b7257133267\n",
+      "evidence_sha256": "f51c95b3af94939b40a079b7fce213b49571cbf5b37ec4b14d214a982899970f"
+    },
+    {
+      "command": "node scripts/check-cancelled-work.mjs",
+      "exit_code": 0,
+      "evidence": "OK \u2014 no cancelled instruction reintroduced (2 row(s) checked).\n",
+      "evidence_sha256": "3f59b1b36f42b639b3c82a89879263a2c60361a26ea58787277210aa2775ffa0"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Guard B: no migration sorts before the base branch's newest version 20261022234252 (source: git:origin/main).\nWARNING: Guard B2 (backdated against a LIVE LEDGER) did not run -- no ledger\nsource configured. Guard B only compared this branch against the base branch,\nwhich is NOT what the databases have actually applied (issue #651).\nConfigure one of:\n  CHECK_SQL_PREVIEW_DB_URL / CHECK_SQL_PRODUCTION_DB_URL   (queried directly)\n  CHECK_SQL_PREVIEW_LEDGER / CHECK_SQL_PRODUCTION_LEDGER   (file of versions)\nIssue #1235 expected-count guard passed: added migrations validate JSON count types and avoid raw integer casts.\nVerify-cost guard passed: 0 added migration(s) contain no prohibited verification read.\nIssue #1684 EOL reference guard passed: no new dependency was introduced.\nStatic checks passed. Set DATABASE_URL to run migrations against a disposable database.\n",
+      "evidence_sha256": "4227a8d6c5e536c2134093d8fc2cdcfcca03115747f91e7ac5bea91334fdc552"
+    }
+  ],
+  "assumptions_resolved": [
+    "Exact immutable archive SHA256 verified and replaced_objects empty; sandbox pattern creates separate dflow table.",
+    "Only pinned archive version/full bytes return empty dependency. Altered body/header/prepend/append/declaration refuse; unknown version still requires actual ledger base.",
+    "Existing two registry entries, real ancestry checks and migration SQL/version/history untouched.",
+    "Earlier ship preflight correctly required review; this completion records implementation readiness, not permission to merge or apply. Assigned exact review remains separately mandatory."
+  ],
+  "stop_conditions_hit": [],
+  "pr": 4667,
+  "migration_versions": []
+}
