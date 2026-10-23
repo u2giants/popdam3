@@ -2174,3 +2174,15 @@ Verbatim from Albert's chat (2026-10-21), answering whether the 24-hour stale-pl
 **Effect.** `STALE_PLACE_AFTER_MS` in `scripts/check-pr-source-collisions.mjs` is one hour. An earlier open pull request that edits a protected coordination source forfeits its place to a newer one only when all three conditions still hold: no activity for one hour, failing checks or a main conflict, and a dated `stale-place-nudge:` comment naming the newer pull request. Unreadable signals still mean no skip, and the earlier pull request reclaims its place automatically once refreshed and green. Nudges written with the old `inactive-24h` state still parse; new ones say `inactive-1h`.
 
 Posted by Claude chat 745ea991-2041-4729-8860-ca595c6faf46 on edge-dev
+
+### 6.30 OWNER RULING — the typed OWNER-OVERRIDE production confirmation is standing policy when reviewer tooling fails (Albert Hazan, 2026-10-22 and 2026-10-23)
+
+Verbatim from Albert's chat:
+
+> "don't do a second review for #4430" (2026-10-22, recorded in `plan_ci-speedup.md` §3 from the RLS InitPlan sessions)
+
+> "yes, skip should exist because reviewer tooling keep failing over and over again and prevent us from doing anything." (2026-10-23, to ZCode)
+
+**Effect.** The `OWNER-OVERRIDE <sha>` typed confirmation in `.github/workflows/shared-supabase-migrations.yml` (added 2026-10-22) is standing owner policy, not a one-day exception. When reviewer tooling is failing, skipped or undrawable, an AI dispatcher may confirm a production apply with exactly `OWNER-OVERRIDE <sha>`; the run skips only the automated business-risk gate and records `owner_override` evidence naming the owner, date, exact SHA and ordered allowlist. Every other production gate still binds: exact target pin, exclusive production lock, ordered allowlist, hard blocks, and post-apply live verification. Under §6.23 this is the owner accepting a business risk during a tooling outage, never the owner performing technical review; the automated gate returns the moment a reviewer is drawable. `docs/production-promotion-procedure.md` documents the dispatch procedure.
+
+Posted by ZCode chat unknown on edge-dev

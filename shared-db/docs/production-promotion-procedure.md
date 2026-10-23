@@ -118,6 +118,15 @@ production dispatch is a recovery/engineering path only and is not authorized by
 policy. That recovery path still requires the successful review-evidence workflow run ID and its
 exact `sha256:` artifact digest; #2716 removes transcription only from the ordinary automatic path.
 
+**Owner-override confirmation (owner ruling 2026-10-22, affirmed standing 2026-10-23,
+`docs/owner-rulings.md` §6.30).** The production apply workflow also accepts a confirmation of
+exactly `OWNER-OVERRIDE <sha>`. It skips only the automated business-risk gate and records
+`owner_override` evidence naming the owner, date, exact SHA and ordered allowlist. An AI
+dispatcher uses it when reviewer tooling is failing, skipped or undrawable — the owner has
+accepted that business risk; he performs no technical review (§6.23 unchanged). Every other
+gate still binds: exact target pin, production lock, ordered allowlist, hard blocks, and
+post-apply live verification. The automated gate returns the moment a reviewer is drawable.
+
 **Three gates, and NONE of them is sufficient alone:**
 
 1. **`production-apply-review`** — deterministic. The typed string, the exact SHA, and the whole
