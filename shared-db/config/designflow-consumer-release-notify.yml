@@ -1,0 +1,53 @@
+{
+  "name": "Notify central database release checks",
+  "on": {
+    "push": {
+      "branches": [
+        "develop",
+        "main"
+      ]
+    },
+    "pull_request": {
+      "branches": [
+        "main"
+      ],
+      "types": [
+        "opened",
+        "reopened",
+        "synchronize",
+        "ready_for_review"
+      ]
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "jobs": {
+    "notify-central": {
+      "if": "github.repository_owner == 'popcre' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)",
+      "runs-on": "ubuntu-latest",
+      "timeout-minutes": 5,
+      "steps": [
+        {
+          "name": "Mint dedicated central dispatch token",
+          "id": "dispatch-token",
+          "uses": "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1",
+          "with": {
+            "app-id": "${{ vars.DFLOW_RELEASE_DISPATCH_APP_ID }}",
+            "private-key": "${{ secrets.DFLOW_RELEASE_DISPATCH_PRIVATE_KEY }}",
+            "owner": "popcre",
+            "repositories": "shared-db",
+            "permission-actions": "write"
+          }
+        },
+        {
+          "name": "Request existing central release check",
+          "env": {
+            "GH_TOKEN": "${{ steps.dispatch-token.outputs.token }}"
+          },
+          "run": "printf '%s' '{\"ref\":\"main\"}' | gh api --method POST \\\n  repos/popcre/shared-db/actions/workflows/designflow-db-release.yml/dispatches \\\n  --input -\n"
+        }
+      ]
+    }
+  }
+}

@@ -839,6 +839,13 @@ PREVIEW_PRODUCER_PATHS = (
 PREVIEW_RUNTIME_DATA_DIRS = ("supabase", "config")
 
 PREVIEW_RUNTIME_DATA_EXEMPTIONS = {
+    "config/designflow-consumer-release-notify.yml": (
+        "Never read by the preview job or its migration helpers. This "
+        "inert consumer Actions notification template is copied to consumer "
+        "repositories; it only dispatches the existing central release observer "
+        "with fixed ref main. No shared-db workflow loads or executes this config "
+        "file, so it cannot affect migration bytes or preview evidence."
+    ),
     "config/designflow-db-releases.json": (
         "Never read by the preview job. Read only by the separate DesignFlow "
         "release observer. The preview job "

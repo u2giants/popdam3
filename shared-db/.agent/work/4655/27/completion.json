@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "work_issue": 4655,
+  "outcome": "ready-for-merge",
+  "contract_ref": "refs/db-contracts/4655/27",
+  "contract_sha256": "0089ceed1d145f30e7b1d4609dcd570e54444e5815bc29243ab7e34459b3b439",
+  "base_sha": "2f9647bcad7f09d0582da381a18e2ed4599ee108",
+  "head_sha": "40210fec76668c8c54fe243ecc7f1b8d98e02a7d",
+  "files_changed": [
+    "config/designflow-consumer-release-notify.yml",
+    "docs/designflow-db-release.md",
+    "scripts/production_business_risk_gate.py",
+    "scripts/test_designflow_release_notify_template.py",
+    "scripts/test_production_business_risk_gate.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -S -m unittest scripts.test_designflow_release_notify_template",
+      "exit_code": 0,
+      "evidence": ".......\n----------------------------------------------------------------------\nRan 7 tests in 0.000s\n\nOK\n",
+      "evidence_sha256": "fe836cbecd3b6b4f70bec51b58d30c3e45ad72ae7fb3cb63421a0f7337e651ae"
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_business_risk_gate.ProductionBusinessRiskGateTests.test_preview_producer_paths_cover_runtime_read_data_files",
+      "exit_code": 0,
+      "evidence": ".\n----------------------------------------------------------------------\nRan 1 test in 0.012s\n\nOK\n",
+      "evidence_sha256": "1635a6194f78c5e89329e41ae3b95909ced52dd425f9291840b91d6deaa41ba0"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=361 sources=103 derived_digest=6b7257133267\n",
+      "evidence_sha256": "f51c95b3af94939b40a079b7fce213b49571cbf5b37ec4b14d214a982899970f"
+    },
+    {
+      "command": "node scripts/check-cancelled-work.mjs",
+      "exit_code": 0,
+      "evidence": "OK — no cancelled instruction reintroduced (2 row(s) checked).\n",
+      "evidence_sha256": "3f59b1b36f42b639b3c82a89879263a2c60361a26ea58787277210aa2775ffa0"
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "GitHub transport conformance: 443 files scanned, every GitHub call goes through scripts/lib/github-transport.mjs.\n",
+      "evidence_sha256": "7ef3f9f1dd21c99997b4c8f090a4b484dba86b0a76f9ce417b8f8c128fc42c19"
+    },
+    {
+      "command": "node scripts/check-repository-identity-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "Repository identity conformance OK: every remaining literal slug is allowlisted with an exact count (41 entries).\n",
+      "evidence_sha256": "f8fc9efe8e2e551bef107c31428a941f2adc9d99a824dc6249d88ffbe332085c"
+    },
+    {
+      "command": "node --test scripts/rls-style-guide-access-initplan.test.mjs scripts/rls-packaging-access-initplan.test.mjs",
+      "exit_code": 0,
+      "evidence": "TAP version 13\n# Subtest: canonical DDL inspector recognizes exactly the admitted packaging writes\nok 1 - canonical DDL inspector recognizes exactly the admitted packaging writes\n  ---\n  duration_ms: 20.937862\n  type: 'test'\n  ...\n# Subtest: exactly 2 ALTER POLICY statements wrap only helper subexpressions\nok 2 - exactly 2 ALTER POLICY statements wrap only helper subexpressions\n  ---\n  duration_ms: 0.229569\n  type: 'test'\n  ...\n# Subtest: before and after guards are present and fail closed\nok 3 - before and after guards are present and fail closed\n  ---\n  duration_ms: 0.101412\n  type: 'test'\n  ...\n# Subtest: offline CI runs this suite (\\#4430)\nok 4 - offline CI runs this suite (\\#4430)\n  ---\n  duration_ms: 0.119921\n  type: 'test'\n  ...\n# Subtest: canonical DDL inspector recognizes exactly the admitted style-guide writes\nok 5 - canonical DDL inspector recognizes exactly the admitted style-guide writes\n  ---\n  duration_ms: 19.52757\n  type: 'test'\n  ...\n# Subtest: exactly 4 ALTER POLICY statements wrap has_app_access\nok 6 - exactly 4 ALTER POLICY statements wrap has_app_access\n  ---\n  duration_ms: 0.213804\n  type: 'test'\n  ...\n# Subtest: before and after guards are present and fail closed\nok 7 - before and after guards are present and fail closed\n  ---\n  duration_ms: 0.113948\n  type: 'test'\n  ...\n# Subtest: offline CI runs this suite (\\#4429)\nok 8 - offline CI runs this suite (\\#4429)\n  ---\n  duration_ms: 0.140023\n  type: 'test'\n  ...\n1..8\n# tests 8\n# suites 0\n# pass 8\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 147.651661\n",
+      "evidence_sha256": "e3c0c34e7f7d1cf5218a899204d6a5c39c6cb9d2000dd131cfffc1bf7b272a52"
+    },
+    {
+      "command": "python3 -m unittest scripts.test_production_business_risk_gate.ProductionBusinessRiskGateTests.test_every_runtime_data_exemption_is_verified_somewhere scripts.test_production_business_risk_gate.ProductionBusinessRiskGateTests.test_preview_job_reads_no_repository_file_outside_the_pinned_surface",
+      "exit_code": 0,
+      "evidence": "..\n----------------------------------------------------------------------\nRan 2 tests in 0.057s\n\nOK\n",
+      "evidence_sha256": "6faccb810eae43a47f70667251b2002aba05e97b52ce27f15caa2400781e9fd2"
+    }
+  ],
+  "assumptions_resolved": [
+    "JSON-valid YAML preserves workflow data; timeout remains integer5.",
+    "Seven tests pass with python3 -S and standard library only.",
+    "One explicit inert consumer-template exemption is checked by existing negative preview-producer coverage.",
+    "No App/key/platform/application activation; actual infrastructure shipping awaits exact-head independent review.",
+    "Attributed exact cherry-pick 4f56f97a9fbee9af13e079b3957a28ab4bfae45a restores actual offline workflow parsing and retains both RLS test steps; source SQL unchanged."
+  ],
+  "stop_conditions_hit": [],
+  "migration_versions": [],
+  "pr": 4689
+}

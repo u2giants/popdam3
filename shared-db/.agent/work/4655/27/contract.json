@@ -1,0 +1,74 @@
+{
+  "schema_version": 2,
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Start existing central database readiness checks promptly after DesignFlow develop/main events using a dedicated central Actions-only GitHub App, without commit hooks or new required checks; repair CI portability with dependency-free parsing and explicitly document why the inert consumer template cannot influence preview evidence",
+  "base_sha": "2f9647bcad7f09d0582da381a18e2ed4599ee108",
+  "dispatcher": "Codex chat 01a164d2-4b63-7713-ae00-054036db0416 on edge-dev3",
+  "worker": "codex",
+  "branch": "codex/dflow-release-notify-clean-26",
+  "worktree": "/home/ahazan/.codex/worktrees/dflow-release-notify-clean-26/shared-db",
+  "allowed_paths": [
+    "config/designflow-consumer-release-notify.yml",
+    "scripts/test_designflow_release_notify_template.py",
+    "docs/designflow-db-release.md",
+    ".agent/work/4655/**",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/production_business_risk_gate.py",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/rls-packaging-access-initplan.test.mjs"
+  ],
+  "file_writes": [
+    "config/designflow-consumer-release-notify.yml",
+    "scripts/test_designflow_release_notify_template.py",
+    "docs/designflow-db-release.md",
+    ".agent/work/4655/**",
+    "scripts/test_production_business_risk_gate.py",
+    "scripts/production_business_risk_gate.py",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/rls-packaging-access-initplan.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database schema or data writes in this maintenance change",
+    "No manual production apply, foreign claim adoption, app merge, billing/visibility change, or unreviewed platform mutation",
+    "No user-provided SQL/shell execution or credentials in application manifests",
+    "No additional promotion engine or new scheduler outside existing GitHub Actions process"
+  ],
+  "required_checks": [
+    "python3 -S -m unittest scripts.test_designflow_release_notify_template",
+    "python3 -m unittest scripts.test_production_business_risk_gate.ProductionBusinessRiskGateTests.test_preview_producer_paths_cover_runtime_read_data_files",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node scripts/check-cancelled-work.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs",
+    "node --test scripts/rls-style-guide-access-initplan.test.mjs scripts/rls-packaging-access-initplan.test.mjs"
+  ],
+  "assumptions": [
+    "GitHub cron actual two events 04:51Z and09:38Z despite five-minute configuration causes hours of delay; retain cron as fallback and reuse existing central workflow_dispatch authority.",
+    "New dedicated private App popcre-dflow-db-release-dispatch ownedpopcre; repositoryActionsWRITE plusimplicitmetadataREAD ONLY; installationONLYpopcre/shared-db; nowebhook/OAuth/orgpermissions. Exact planned settings and limited residual Actions-write risk must receive assigned independent APPROVE before provisioning.",
+    "New dedicated private key savedvibe_coding throughprotectedfiles/pipes; repositorysecretDFLOW_RELEASE_DISPATCH_PRIVATE_KEY andpublicvariableDFLOW_RELEASE_DISPATCH_APP_ID on exactlysixDesignFlowapps. NevercopyexistingcentralSYNC_TOKEN orwatcherkey.",
+    "Consumer notifications use fixed centralworkflow/ref,no userinputs,no checkout/runtimecommands,forkPRskip; nonewrequiredcheck/commit hook/executor/service/scheduler. Noappmerge orprematuredeployment.",
+    "Source publishing and App/credential activation are distinct; prove actual limitedAppinstallation/permissions, metadataonlysecretreadbacks and realcentraldispatch/statuspublication before claiming activation.",
+    "CI lacksPyYAML; canonical template may useJSON syntax, which isvalidYAML, preservingexactworkflowsemantics andusingstdlibjson tests. No dependencyinstallation/new parser.",
+    "Existing preview-runtime-data coverage has an explicit reasoned exemption interface for inert files. AddONLYthistemplate with checkable no-preview-use reason, retainingallothercoverageguards.",
+    "Prior documents-only merge authorization failed solelybecauseanactiveproductionfreeze, notsourceclassification; re-runexistingcheckwhenfreezefree.",
+    "The existing PREVIEW_RUNTIME_DATA_EXEMPTIONS interface is defined in production_business_risk_gate.py, imported by the test; amend its real dictionary with only the canonical inert template and a checkable reason. Never monkeypatch it in tests or weaken any other producer coverage.",
+    "Reuse exact already prepared external repair commit4f56f97a9fbee9af13e079b3957a28ab4bfae45a from PR4688: remove literal workflow conflict markers preserving BOTH RLS test steps; permit equivalent schema qualification in its test. Preserve author/provenance and foreign branch/PR; no new implementation/claim/source override. This is prerequisite CI repair, not permission to weaken or skip Tools offline tests.",
+    "Fresh owned branch from valid reviewed222064 preserves old4678 history and reuses exact attributedCIrepair; remove ownpredecessor23pair before implementation bind, then add sole26pair. Authenticate native paidcontent provenance before newPR/provider; no historyrewrite or reviewerbudgetbypass.",
+    "ExistingPR4689 branch rebuild explicitly authorized after verified remote recovery backup and exact lease; startcurrentmain containingCIrepair, restoreonlyexactnotificationfiles fromapproved17ab, bindsole27pair toexistingPR4689 before sourceimplementation. Preserveoldbranchhistoryremotely; no foreignhistoryrewrite."
+  ],
+  "stop_conditions": [
+    "Unverified credentials or artifact evidence refuses before dispatch/readiness",
+    "Exact source or target drift refuses; missing protected dependency remains blocked",
+    "Scope outside listed files requires a new prospective contract generation"
+  ],
+  "generation": 27,
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 26,
+    "contract_sha256": "04816d9bb025b8bf7556cc27e6e23ba3ea5c41d9a5fe2c838e180be723fe6873"
+  }
+}

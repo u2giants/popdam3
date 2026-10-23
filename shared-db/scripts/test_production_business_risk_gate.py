@@ -2118,6 +2118,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     # fails test_every_runtime_data_exemption_is_verified_somewhere until someone
     # either words it with the phrase or writes it a test.
     PHRASE_VERIFIED_EXEMPTIONS = frozenset({
+        "config/designflow-consumer-release-notify.yml",
         "config/designflow-db-releases.json",
         "config/blocker-ledger",
         # #4054: read only by the administrative completed-claim recovery command.
