@@ -6,20 +6,13 @@ import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
 import { parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 
-declare const Supabase: {
-  ai: {
-    Session: new (
-      model: "gte-small",
-    ) => {
-      run: (
-        input: string,
-        options?: { mean_pool?: boolean; normalize?: boolean },
-      ) => Promise<number[]>;
-    };
-  };
-};
-
-const model = new Supabase.ai.Session("gte-small");
+/**
+ * Query embeddings must use the SAME model as document picture vectors:
+ * google/siglip2-base-patch16-naflex text tower → 768, L2-normalized.
+ * Hosted by apps/text-embed (TEXT_EMBED_URL). Never mix gte-small/384 here.
+ */
+const SIGLIP2_MODEL = "google/siglip2-base-patch16-naflex";
+const SIGLIP2_DIM = 768;
 
 async function authenticateCaller(req: Request) {
   // Shared helper: exact match on the deployed service key (sb_secret_), plus the
@@ -43,11 +36,51 @@ async function authenticateCaller(req: Request) {
   return { userId: result.userId, serviceRole: false, admin: rolesGrantAdmin(roles), client };
 }
 
-async function embedText(input: string) {
-  return await model.run(input.slice(0, 8000), {
-    mean_pool: true,
-    normalize: true,
-  });
+/**
+ * Embed typed query words with SigLIP2 text tower via apps/text-embed.
+ * Returns null when the service is not configured or unavailable so the
+ * search call can still run the keyword leg.
+ */
+async function embedQueryText(input: string): Promise<number[] | null> {
+  const base = Deno.env.get("TEXT_EMBED_URL");
+  if (!base) {
+    console.error("TEXT_EMBED_URL is not configured; semantic leg skipped");
+    return null;
+  }
+  const key = Deno.env.get("TEXT_EMBED_KEY") ?? "";
+  try {
+    const res = await fetch(new URL("/embed-text", base), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(key ? { "X-Embed-Key": key } : {}),
+      },
+      body: JSON.stringify({ text: input.slice(0, 8000) }),
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) {
+      console.error(`text-embed failed: HTTP ${res.status}`);
+      return null;
+    }
+    const payload = await res.json() as {
+      ok?: boolean;
+      dim?: number;
+      model?: string;
+      vector?: number[];
+    };
+    if (!payload.ok || !Array.isArray(payload.vector) || payload.vector.length !== SIGLIP2_DIM) {
+      console.error(`text-embed returned bad vector dim=${payload.vector?.length ?? 0}`);
+      return null;
+    }
+    if (payload.model && payload.model !== SIGLIP2_MODEL) {
+      console.error(`text-embed model mismatch: ${payload.model}`);
+      return null;
+    }
+    return payload.vector;
+  } catch (e) {
+    console.error("text-embed call failed", e instanceof Error ? e.message : e);
+    return null;
+  }
 }
 
 corsServe(async (req) => {
@@ -73,63 +106,17 @@ corsServe(async (req) => {
   }
 
   if (action === "embed-batch") {
-    return err("embed-batch was retired; the Railway worker is the only embedding claimer", 410);
+    return err("embed-batch was retired; document picture vectors come from the GPU image pipeline", 410);
   }
 
   if (action === "embed-leased") {
-    if (!auth.serviceRole) return err("embed-leased requires service-role authorization", 403);
-    const input = Array.isArray(body.documents) ? body.documents.slice(0, 100) : [];
-    if (input.length === 0) return err("No leased documents supplied", 400);
-    const db = serviceClient();
-    let embedded = 0;
-    let failed = 0;
-    let stale = 0;
-    for (const doc of input) {
-      const row = doc as {
-        document_type: string;
-        entity_id: string;
-        search_text: string;
-        content_sha256: string;
-        lease_token: string;
-      };
-
-      if (!(["asset", "style_group"].includes(row.document_type)) || !row.entity_id || !row.search_text || !row.content_sha256 || !row.lease_token) {
-        failed += 1;
-        continue;
-      }
-
-      try {
-        const embedding = await embedText(row.search_text);
-        if (!Array.isArray(embedding) || embedding.length !== 384) {
-          throw new Error(`Permanent: expected 384 embedding dimensions, received ${embedding?.length ?? 0}`);
-        }
-        const { data: updated, error } = await db.rpc("upsert_dam_search_embedding", {
-          p_document_type: row.document_type,
-          p_entity_id: row.entity_id,
-          p_content_sha256: row.content_sha256,
-          p_lease_token: row.lease_token,
-          p_embedding: embedding,
-          p_embedding_model: "gte-small",
-        });
-        if (error) throw error;
-        if (updated) embedded += 1;
-        else stale += 1;
-      } catch (e) {
-        failed += 1;
-        const message = e instanceof Error ? e.message : String(e);
-        await db.rpc("mark_dam_search_embedding_error", {
-          p_document_type: row.document_type,
-          p_entity_id: row.entity_id,
-          p_content_sha256: row.content_sha256,
-          p_lease_token: row.lease_token,
-          p_error: message,
-          p_category: message.startsWith("Permanent:") ? "permanent" : "transient",
-        });
-      }
-    }
-
-    const { data: status } = await db.rpc("get_dam_search_embedding_status");
-    return json({ ok: true, embedded, failed, stale, status });
+    // Document embeddings are picture vectors from thumbnails (SigLIP2 image
+    // tower on the GPU runner), not text vectors of search_text. Writing text
+    // vectors here would mix modalities and break ranking.
+    return err(
+      "embed-leased was retired for picture vectors; run the SigLIP2 GPU image re-embed instead",
+      410,
+    );
   }
 
   if (action === "embedding-status") {
@@ -167,7 +154,7 @@ corsServe(async (req) => {
       return err("Invalid filters", 400);
     }
     const [embedding, floorConfig] = await Promise.all([
-      embedText(query),
+      embedQueryText(query),
       // Server-side only: callers cannot override the admin-configured floor.
       serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle(),
     ]);
@@ -178,6 +165,8 @@ corsServe(async (req) => {
 
     // The caller-scoped client is required here: the RPC enforces DAM access
     // from auth.uid(), which a service-role client would bypass.
+    // p_query_embedding stays null when the text-embed service is down so the
+    // keyword leg still answers (hybrid degrades, never mixes models).
     const { data, error } = await auth.client.rpc("search_dam_documents", {
       p_query: query,
       p_filters: filters,
@@ -210,6 +199,7 @@ corsServe(async (req) => {
       total_count: typeof first?.total_count === "number" ? first.total_count : 0,
       has_more: first?.has_more === true,
       facets: first?.facets && typeof first.facets === "object" ? first.facets : {},
+      semantic: embedding ? "siglip2" : "skipped",
     });
   }
 
