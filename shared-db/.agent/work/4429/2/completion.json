@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "work_issue": 4429,
+  "outcome": "ready-for-merge",
+  "pr": 4680,
+  "migration_versions": [
+    "20261023141625"
+  ],
+  "contract_ref": "refs/db-contracts/4429/2",
+  "contract_sha256": "1ada9e4eff28682b28fd008420205a2e579c499374a052ec07df9e3d9624d2a1",
+  "head_sha": "c3d76c1360df435b12875ccf682a8acda267bd55",
+  "base_sha": "c092d1b4b9462f940fc477a628e7b2119efb2244",
+  "files_changed": [
+    ".github/live-proofs/4429.sql",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/rls-style-guide-access-initplan.test.mjs",
+    "supabase/migrations/20261023141625_style_guide_access_initplans.sql",
+    "supabase/tests/rls_style_guide_access_initplan_contracts.sql"
+  ],
+  "db_reads": [
+    "function auth.uid",
+    "function public.has_app_access",
+    "type public.app_name"
+  ],
+  "db_writes": [
+    "policy style_guide_file_tags_read on public.style_guide_file_tags",
+    "policy style_guide_tag_aliases_read on public.style_guide_tag_aliases",
+    "policy style_guide_tagging_state_read on public.style_guide_tagging_state",
+    "policy style_guide_tags_read on public.style_guide_tags",
+    "table public.style_guide_file_tags",
+    "table public.style_guide_tag_aliases",
+    "table public.style_guide_tagging_state",
+    "table public.style_guide_tags"
+  ],
+  "checks": [
+    {
+      "command": "node --test scripts/rls-style-guide-access-initplan.test.mjs",
+      "exit_code": 0,
+      "evidence": "4/4 pass."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "SQL guards passed."
+    }
+  ],
+  "assumptions_resolved": [
+    "Permissions preserved. Live acceptance still open on #4429."
+  ],
+  "stop_conditions_hit": []
+}
