@@ -4,6 +4,8 @@
 
 **Controlling owner rulings:** Albert Hazan, 2026-08-16, 2026-08-19, 2026-08-23, 2026-08-25, 2026-09-06, and 2026-09-14. The 2026-09-14 ruling records that Disney, Marvel, and Lucasfilm / Star Wars are three separate Licensors. The 2026-09-06 ruling records that Paramount, Viacom Multi and Nickelodeon are one Licensor. The 2026-08-23 ruling establishes signed-contract authority for Warner Bros. licensing membership. The 2026-08-25 ruling records the Marvel portal-authority split effective December 2025.
 
+**Structure at a glance:** [One-page structure map](../licensing-master-data-structure-map.md) — layers, live table counts, relationship rules, and where each mapping stands.
+
 ## Official business objects
 
 Licensing Master Data consists of Licensors, Properties, Characters, Style Guides, licensed Asset metadata, and Franchises or equivalent source-defined families.
