@@ -694,3 +694,13 @@ test('all job executable scripts use protected source before any credential and 
  assert.match(workflow,/check-sql\.sh" --data-root/)
  assert.match(workflow,/check-production-verification-sidecars\.mjs" --base origin\/main --data-root/)
 })
+
+// #4729: the merge-lane hold must outlast the slowest required merge-group check
+// (supabase/tests, ~7 minutes) and stay inside its job timeout.
+test('Queue interlock hold budget outlasts the slowest required check', () => {
+  const src = readFileSync(new URL('../.github/workflows/merge-queue-gate.yml', import.meta.url), 'utf8')
+  const attempts = Number(src.match(/for attempt in \$\(seq 1 (\d+)\); do/)?.[1])
+  const jobTimeout = Number(src.match(/name: Queue interlock[\s\S]*?timeout-minutes: (\d+)/)?.[1])
+  assert.ok(attempts * 5 >= 15 * 60, `hold budget ${attempts * 5}s must be at least 15 minutes`)
+  assert.ok(jobTimeout * 60 >= attempts * 5 + 8 * 60, `job timeout ${jobTimeout}m must leave margin over the hold`)
+})

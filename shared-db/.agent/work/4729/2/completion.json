@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "work_issue": 4729,
+  "outcome": "ready-for-merge",
+  "pr": 4730,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4729/2",
+  "contract_sha256": "5121bfbf1f1a73935a15168d7ef0130da8400a7f59e17564d82c853ae3587855",
+  "base_sha": "ec3d04dfe1aac46b287042cdf34e25551dec9811",
+  "head_sha": "f9b82308411f6e15816112b416880d1598a7e28a",
+  "files_changed": [".github/workflows/merge-queue-gate.yml","scripts/check-merge-queue-workflows.test.mjs"],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"command": "git diff --check origin/main...HEAD", "exit_code": 0, "evidence": "No whitespace errors."},
+    {"command": "node --test scripts/check-merge-queue-workflows.test.mjs", "exit_code": 0, "evidence": "pass 38, 0 failed on f9b82308 (October 23, 2026, 10:12 PM EDT, edge-dev3)."}
+  ],
+  "assumptions_resolved": ["Hold budget, job timeout and pinning test only."],
+  "stop_conditions_hit": []
+}

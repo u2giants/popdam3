@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "generation": 2,
+  "work_issue": 4729,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Fix #4729: raise the Queue interlock merge-lane hold from 5 to 15 minutes and its job timeout from 15 to 25, pinned by a test, so a ~7-minute required check no longer ejects every merge group. Generation 2 re-cuts from current origin/main after generation 1 was based on a stale main.",
+  "base_sha": "ec3d04dfe1aac46b287042cdf34e25551dec9811",
+  "dispatcher": "Claude chat e5de9239-fb20-41fb-be2b-15e891dc1d83 on edge-dev3",
+  "worker": "Same session.",
+  "branch": "claude/mq-hold-budget",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/mq-hold-budget",
+  "allowed_paths": [".github/workflows/merge-queue-gate.yml","scripts/check-merge-queue-workflows.test.mjs",".agent/work/4729/2/contract.json",".agent/work/4729/2/completion.json"],
+  "file_writes": [".github/workflows/merge-queue-gate.yml","scripts/check-merge-queue-workflows.test.mjs",".agent/work/4729/2/contract.json",".agent/work/4729/2/completion.json"],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": ["No change to authorization, interlock, or revoke logic; only the hold budget, job timeout and a pinning test."],
+  "required_checks": ["git diff --check origin/main...HEAD","node --test scripts/check-merge-queue-workflows.test.mjs"],
+  "assumptions": ["The implementation head f9b82308411f6e15816112b416880d1598a7e28a was authored before this contract was published; disclosed."],
+  "stop_conditions": ["Stop before any production, preview, database or repository-setting action."]
+}
