@@ -25,6 +25,7 @@ import {
   redactPsqlError,
   urlToPgEnv,
 } from "../../coldlion-sync-common.mjs";
+import { requestParams } from "./http.mjs";
 
 // ONE parser, ONE redactor serve both transports: they live in
 // coldlion-sync-common.mjs (the module the production feed actually runs
@@ -198,9 +199,7 @@ insert into coldlion.sync_run
    status, requested_by, started_at, finished_at, http_status, body_status, error_message)
 values
   ('${runId}', ${literal(scope.endpoint)}, ${literal(companyCode)},
-   jsonb_build_object('fromDate', ${literal(window.from)}, 'toDate', ${literal(window.to)}${
-     scope.stage ? `, 'stageCode', ${literal(scope.stage)}` : ""
-   }${sealed ? "" : ", 'unsealedForward', true"}),
+   ${literal(JSON.stringify(failedRequestParams(scope, window, companyCode, error, sealed)))}::jsonb,
    date ${literal(window.from)}, date ${literal(window.to)},
    'failed', ${literal(requestedBy)}, now(), now(),
    ${error?.httpStatus ?? "null"}, ${error?.bodyStatus ?? "null"}, ${literal(message)})
@@ -220,6 +219,16 @@ select pg_notify('coldlion_sync_alert', ${literal(
 commit;`;
   runSql(sql, options);
   return true;
+}
+
+/**
+ * The request as sent (#4602): a header-track window asks ColdLion for a wide start-date
+ * range plus createdFrom/To or modifiedFrom/To, not the 5-day ledger window. Prefer the
+ * exact page request the failing fetch carried; otherwise rebuild it from the window.
+ */
+export function failedRequestParams(scope, window, companyCode, error, sealed) {
+  const { page: _page, size: _size, ...sent } = error?.requestParams ?? requestParams(scope, window, 0, { companyCode });
+  return sealed ? sent : { ...sent, unsealedForward: true };
 }
 
 /** Record and alert a terminal current-state master failure. Dry runs never call this. */

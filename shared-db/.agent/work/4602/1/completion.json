@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "work_issue": 4602,
+  "outcome": "ready-for-merge",
+  "pr": 4632,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4602/1",
+  "contract_sha256": "0f1f86bb3897ee362b49239187461ddce4d9ddb2deed9986fe392a43991bb2a1",
+  "base_sha": "977e12cf15bb2243af6e2ccbb3e561b3b8ad471c",
+  "head_sha": "decea8aa048f45436f81723e5e66d560defc3b50",
+  "files_changed": ["tools/coldlion-landing/lib/db.mjs","tools/coldlion-sync-common-runsql.test.mjs"],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"command": "git diff --check origin/main...HEAD", "exit_code": 0, "evidence": "No whitespace errors."},
+    {"command": "node --test tools/coldlion-sync-common-runsql.test.mjs", "exit_code": 0, "evidence": "pass 26, 0 failed on decea8aa (October 23, 2026, 7:28 PM EDT, edge-dev3)."}
+  ],
+  "assumptions_resolved": ["Failure-record request_params only; ledger and window columns unchanged."],
+  "stop_conditions_hit": []
+}

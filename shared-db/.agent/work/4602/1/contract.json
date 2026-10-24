@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 4602,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Fix #4602: ColdLion recordFailure stores the request as sent (header-track wide start-date range plus created/modified filters) in sync_run.request_params instead of the 5-day ledger window. Regression test added.",
+  "base_sha": "977e12cf15bb2243af6e2ccbb3e561b3b8ad471c",
+  "dispatcher": "Claude chat e5de9239-fb20-41fb-be2b-15e891dc1d83 on edge-dev3",
+  "worker": "Same session.",
+  "branch": "claude/4602-coldlion-failure-request",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/wizardly-mclean-b07b5c",
+  "allowed_paths": ["tools/coldlion-landing/lib/db.mjs","tools/coldlion-sync-common-runsql.test.mjs",".agent/work/4602/1/contract.json",".agent/work/4602/1/completion.json"],
+  "file_writes": ["tools/coldlion-landing/lib/db.mjs","tools/coldlion-sync-common-runsql.test.mjs",".agent/work/4602/1/contract.json",".agent/work/4602/1/completion.json"],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": ["No schema, data, workflow or setting change.","No change to window_from/window_to columns or window_ledger handling."],
+  "required_checks": ["git diff --check origin/main...HEAD","node --test tools/coldlion-sync-common-runsql.test.mjs"],
+  "assumptions": ["The implementation head decea8aa048f45436f81723e5e66d560defc3b50 was authored before this contract was published; disclosed, and every later commit follows it."],
+  "stop_conditions": ["Stop before any production, preview, database or repository-setting action."]
+}

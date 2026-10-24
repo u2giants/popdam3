@@ -581,3 +581,24 @@ test("BOTH database spawns pass the timeout and a SIGKILL, not just one of them"
     "use SPAWN_TIMEOUT_MS at both sites — never an inline number",
   );
 });
+
+// #4602: a failed /orderHistory header-track load must record the request as sent, not
+// the 5-day ledger window it was filed under.
+test("recordFailure stores the header-track request as sent", async () => {
+  const { failedRequestParams } = await import("./coldlion-landing/lib/db.mjs");
+  const scope = { endpoint: "/orderHistory" };
+  const window = {
+    from: "2026-10-01", to: "2026-10-05",
+    requestFrom: "2019-01-01", requestTo: "2099-12-31",
+    filters: { modifiedFrom: "2026-10-01", modifiedTo: "2026-10-05" },
+  };
+  const sent = failedRequestParams(scope, window, "FIX", new Error("boom"), false);
+  assert.equal(sent.fromDate, "2019-01-01");
+  assert.equal(sent.toDate, "2099-12-31");
+  assert.equal(sent.companyCode, "FIX");
+  assert.equal(sent.modifiedFrom, "2026-10-01");
+  assert.equal(sent.unsealedForward, true);
+  assert.ok(!("page" in sent) && !("size" in sent));
+  const plain = failedRequestParams({ endpoint: "/x", stage: "S1" }, { from: "2026-01-01", to: "2026-01-05" }, "FIX", null, true);
+  assert.deepEqual(plain, { companyCode: "FIX", fromDate: "2026-01-01", toDate: "2026-01-05", stageCode: "S1" });
+});
