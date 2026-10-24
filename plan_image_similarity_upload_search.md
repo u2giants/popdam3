@@ -12,10 +12,10 @@
 
 | Step | Status | Evidence (artifact, not a number) |
 |------|--------|-----------------------------------|
-| 0. Owner approval | ✅ done 2026-10-22 | Plan header |
-| 0b. File PopDAM tracking issue | ⬜ open | — |
-| 1. Spike: dims, VRAM, crop, bytea proof | ⬜ open | `docs/verification/image-similarity-spike.md` |
-| 2. shared-db: tables, public wrappers, trigger | ⬜ open | shared-db PR + `popdam_image_similarity_contracts.sql` |
+| 0. Owner approval | ✅ done 2026-10-22, reconfirmed 2026-10-23 | Plan header; Albert chat "Yes — build it" 2026-10-23 |
+| 0b. File PopDAM tracking issue | ✅ done 2026-10-23 | #486 |
+| 1. Spike: dims, VRAM, crop, bytea proof | 🟡 dims proven 768/768 on edge-dev GPU (2026-10-23 handoff); VRAM/crop/bytea proof still open | `HANDOFF.d/2026-10-23T1901Z-edge-dev-mimo-dinov3-siglip2-ready.md`; `docs/verification/image-similarity-spike.md` pending |
+| 2. shared-db: tables, public wrappers, trigger | 🟡 PR popcre/shared-db#4700 approved (exact-head DeepSeek APPROVE, all required CI green) and admitted to the merge queue; blocked ONLY by a wedged shared merge queue on 2026-10-23/24 night — merge, then merged-main preview → automatic production, then vector proof | popcre/shared-db#4700 + claim #4725; contract tests in that PR |
 | 3. GPU poller (pooler TLS, LOGIN role, heartbeat) | ⬜ open | worker install doc |
 | 4. Incremental trigger + backfill enqueue-only | ⬜ open | — |
 | 5. Edge `image-similarity` + UI + status route | ⬜ open | `docs/verification/image-similarity-ui.md` |
