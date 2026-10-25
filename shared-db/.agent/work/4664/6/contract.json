@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "work_issue": 4664,
+  "generation": 6,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Owner ruling 2026-10-25: picture search timeout 30s + ANN order-by distance. Includes the ranked-search contract test that asserts the edge timeout.",
+  "branch": "mimo/issue97-search-ann-order-by-v2",
+  "worktree": "C:/repos/shared-db-worktrees/issue97-search-ann-limit",
+  "base_sha": "c349d2a2801aac0c730cc68c5becf81540f8f880",
+  "dispatcher": "MiMo chat ses-ffe5e956bce8effew1hl6hdIZN on edge-dev",
+  "worker": "MiMo chat ses-ffe5e956bce8effew1hl6hdIZN on edge-dev",
+  "db_reads": [],
+  "db_writes": ["function public.search_dam_documents"],
+  "file_writes": [
+    "supabase/migrations/20261025163006_dam_search_semantic_order_by_distance.sql",
+    "supabase/tests/popdam_authorized_ranked_search_contracts.sql",
+    ".agent/work/4664/6/contract.json",
+    ".agent/work/4664/6/completion.json"
+  ],
+  "allowed_paths": [
+    "supabase/migrations/20261025163006_dam_search_semantic_order_by_distance.sql",
+    "supabase/tests/popdam_authorized_ranked_search_contracts.sql",
+    ".agent/work/4664/6/*"
+  ],
+  "required_checks": ["bash scripts/check-sql.sh"],
+  "assumptions": ["Albert 2026-10-25: picture matching may take longer than keyword."],
+  "stop_conditions": ["Any SQL hash or remote source change stops the work."],
+  "prohibited_actions": ["Do not change PopSG.", "Do not break keyword search."],
+  "evidence_parent": {
+    "work_issue": 4664,
+    "generation": 5,
+    "contract_sha256": "16e21dfdf25ba40792ea7d6a5209fe399137dcfdb862c99f41b78c08349e4c1c"
+  }
+}

@@ -239,7 +239,7 @@ begin
   if not exists (
     select 1 from pg_proc
     where oid = 'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'::regprocedure
-      and 'statement_timeout=8s' = any(coalesce(proconfig,'{}'))
+      and 'statement_timeout=30s' = any(coalesce(proconfig,'{}'))
   ) then
     raise exception 'ranked search lost its explicit edge timeout';
   end if;
@@ -375,3 +375,4 @@ end;
 $$;
 
 rollback;
+

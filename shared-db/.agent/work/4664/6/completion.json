@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "work_issue": 4664,
+  "outcome": "ready-for-merge",
+  "pr": 4759,
+  "contract_ref": "refs/db-contracts/4664/6",
+  "contract_sha256": "5eaeb3e16265e8106a0388bf0dc51833134270148eeefa938c56a911e1a05ae4",
+  "base_sha": "c349d2a2801aac0c730cc68c5becf81540f8f880",
+  "head_sha": "6010014fd5ec35621e7bf76ee7161779a58c690b",
+  "files_changed": [
+    "supabase/migrations/20261025163006_dam_search_semantic_order_by_distance.sql",
+    "supabase/tests/popdam_authorized_ranked_search_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_dam_documents"
+  ],
+  "migration_versions": [
+    "20261025163006"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "static checks passed"
+    }
+  ],
+  "assumptions_resolved": [
+    "Albert 2026-10-25: picture matching may take longer"
+  ],
+  "stop_conditions_hit": []
+}
