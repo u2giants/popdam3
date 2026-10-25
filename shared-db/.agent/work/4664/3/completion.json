@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 4664,
+  "outcome": "ready-for-merge",
+  "pr": 4744,
+  "contract_ref": "refs/db-contracts/4664/3",
+  "contract_sha256": "3548f23c8c7a9b18e549a8bea817f14cb0de0f8713dc1040d4afb6c04024a8f0",
+  "base_sha": "211c1290be6409605417308a4c1e1fe80598503e",
+  "head_sha": "6c5c8b3275b2259302aa4114b71c2785f75b34c9",
+  "files_changed": [
+    "supabase/migrations/20261025033910_dam_search_semantic_ann_limit.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_dam_documents"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Guard B: no migration sorts before the base branch's newest version 20261024234538 (source: git:origin/main).\nWARNING: Guard B2 (backdated against a LIVE LEDGER) did not run -- no ledger\nsource configured. Guard B only compared this branch against the base branch,\nwhich is NOT what the databases have actually applied (issue #651).\nConfigure one of:\n  CHECK_SQL_PREVIEW_DB_URL / CHECK_SQL_PRODUCTION_DB_URL   (queried directly)\n  CHECK_SQL_PREVIEW_LEDGER / CHECK_SQL_PRODUCTION_LEDGER   (file of versions)\nIssue #1235 expected-count guard passed: added migrations validate JSON count types and avoid raw integer casts.\nVerify-cost guard passed: 1 added migration(s) contain no prohibited verification read.\nIssue #1684 EOL reference guard passed: no new dependency was introduced.\nStatic checks passed. Set DATABASE_URL to run migrations against a disposable database.\n"
+    }
+  ],
+  "assumptions_resolved": [
+    "Existing SQL authored by ZCode before generation3; not authored or originally prospectively authorized by this coordinator.",
+    "SQL exact SHA256a63c6c399dec0c5e998678eaed20f9c7bb7c26369143bfa5fc821ea9228d7f5d retained.",
+    "Claim4727 and SQL/production ownership remain ZCode. Metadata work only; no preview, production, claim or runtime writes."
+  ],
+  "stop_conditions_hit": [],
+  "migration_versions": [
+    "20261025033910"
+  ]
+}
