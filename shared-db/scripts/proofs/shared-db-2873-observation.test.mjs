@@ -48,7 +48,7 @@ test('complete profile fits the original 8192-byte artifact bound and the query 
  const sqlBytes=await readFile(new URL('./2873-catalog.sql',import.meta.url));const contractBytes=await readFile(new URL('./2873-contract.json',import.meta.url));
  assert.ok(buildObservation({rows:rows(),env:env(),sqlBytes,contractBytes,observedAt:'2026-10-06T21:00:00.000Z'}).length<=8192);
  const sql=sqlBytes.toString();assert.match(sql,/WITH expected/);assert.doesNotMatch(sql,/^\s*(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|GRANT|REVOKE)\b/im);
- assert.equal(expected.catalog.role_count,8);assert.equal(expected.catalog.matrix_entries,470);
+ assert.equal(expected.catalog.role_count,8);assert.equal(expected.catalog.matrix_entries,473);
 });
 
 // #2873: Supabase's non-superuser postgres receives PostgreSQL 16+'s implicit creator
@@ -84,11 +84,13 @@ test('both exact matrices contain the exact prerequisite and tracking-access rel
  const parse=sql=>[...sql.matchAll(/\('([^']+)','([^']+)','([^']+)','([^']+)'\)/g)].map(m=>m.slice(1));
  const matrices=await Promise.all(['2873-catalog.sql','2873-role-contract.sql'].map(async name=>parse(await readFile(new URL(name,import.meta.url),'utf8'))));
  for(const rows of matrices){
-  assert.equal(rows.length,470);
+  assert.equal(rows.length,473);
   assert.deepEqual(rows.filter(r=>r[2].startsWith('coldlion.')).sort(),[['designflow_prod_tracking_grants','table','coldlion.order_history_line','SELECT'],['designflow_prod_tracking_grants','table','coldlion.prod_history_line','SELECT']]);
-  assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.v_prod_order_sales_order_link'),[['designflow_prod_tracking_grants','view','dflow_prod.v_prod_order_sales_order_link','SELECT']]);assert.equal(new Set(rows.map(JSON.stringify)).size,470);
+  assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.v_prod_order_sales_order_link'),[['designflow_prod_tracking_grants','view','dflow_prod.v_prod_order_sales_order_link','SELECT']]);assert.equal(new Set(rows.map(JSON.stringify)).size,473);
   assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.user_roles').sort(),['DELETE','INSERT','SELECT','UPDATE'].map(priv=>['designflow_prod_backend_grants','table','dflow_prod.user_roles',priv]));
   assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.item_detail_upc'),[['designflow_prod_item_master_grants','view','dflow_prod.item_detail_upc','SELECT']]);
+  assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.prod_order_milestone_schedule').sort(),['INSERT','SELECT','UPDATE'].map(priv=>['designflow_prod_tracking_grants','table','dflow_prod.prod_order_milestone_schedule',priv]));
+  assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.prod_order_milestone_schedule_id_seq'),[]);
  }
  // The observer pins function signatures; the SQL role contract resolves names.
  const normalized=rows=>rows.map(([role,kind,name,priv])=>JSON.stringify([role,kind,kind==='function'?name.replace(/\(.*$/,''):name,priv])).sort();
@@ -97,4 +99,13 @@ test('both exact matrices contain the exact prerequisite and tracking-access rel
  assert.match(source,/GRANT SELECT, INSERT, UPDATE, DELETE ON dflow_prod\.user_roles TO designflow_prod_backend_grants;/);
  assert.match(expected.live_assertion,/thirteen underlying dflow_prod\.itemDetail fields/);
  assert.equal(expected.catalog.memberships_exact,true);assert.equal(expected.catalog.effective_relations_exact,true);assert.equal(expected.catalog.effective_function_extras_exact,true);
+});
+
+// #4646: scoped inherited backend exception must not expand history access or other objects.
+test('milestone inherited backend allowance is exactly three rights on one table',async()=>{
+ const sql=(await readFile(new URL('./2873-catalog.sql',import.meta.url),'utf8')).replace(/\s+/g,' ');
+ const clause="(r.rolname='designflow_prod_backend_runtime' AND v.priv IN ('SELECT','INSERT','UPDATE') AND e.grantee='designflow_prod_tracking_grants' AND e.name='dflow_prod.prod_order_milestone_schedule' AND e.name=n.nspname||'.'||c.relname AND e.priv=v.priv)";
+ assert.equal(sql.split(clause).length-1,1);
+ assert.ok(sql.includes("v.priv='SELECT' AND e.grantee='designflow_prod_tracking_grants' AND e.priv='SELECT'"),'existing history exception stays SELECT only');
+ assert.match(expected.live_assertion,/#4646.*No DELETE or direct identity sequence rights/);
 });

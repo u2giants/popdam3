@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "work_issue": 4646,
+  "outcome": "ready-for-merge",
+  "pr": 4752,
+  "migration_versions": [
+    "20261025125632"
+  ],
+  "contract_ref": "refs/db-contracts/4646/5",
+  "contract_sha256": "ae69dd3cca72ea4c1a50b37c0dcb81acb7e1c3800d521e7cac07b5ec40610306",
+  "base_sha": "fe3de0f863a51552df756a409ccd6fbe1ed3063e",
+  "head_sha": "fe7266a06a902712c6c2e4de4d797b587d2bf35b",
+  "files_changed": [
+    "config/designflow-db-releases.json",
+    "scripts/dflow-prod-milestone-schedule.test.mjs",
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/2873-contract.json",
+    "scripts/proofs/2873-role-contract.sql",
+    "scripts/proofs/shared-db-2873-observation.test.mjs",
+    "supabase/migrations/20261025125632_dflow_prod_milestone_schedule.sql",
+    "supabase/tests/dflow_prod_contract.sql"
+  ],
+  "db_reads": [
+    "table dflow_prod.\"ProdOrderHeader\"",
+    "table dflow_prod.\"FactoryTime\""
+  ],
+  "db_writes": [
+    "table dflow_prod.prod_order_milestone_schedule",
+    "sequence dflow_prod.prod_order_milestone_schedule_id_seq",
+    "index dflow_prod.prod_order_milestone_schedule_upsert_key",
+    "index dflow_prod.prod_order_milestone_schedule_status_needed_idx",
+    "index dflow_prod.prod_order_milestone_schedule_factory_time_id_idx",
+    "index dflow_prod.prod_order_milestone_schedule_catalog_stage_key",
+    "index dflow_prod.prod_order_milestone_schedule_legacy_name_key"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static migration guards passed against currentmain; no sharedtarget executed. Output SHA256 3e01d8a37adbff76e19e6dd36ad0a97220858c6858e4436990246ed5c9aae06d"
+    },
+    {
+      "command": "node --test scripts/proofs/shared-db-2873-observation.test.mjs",
+      "exit_code": 0,
+      "evidence": "10 observer tests passed;473 matrices and restrictive backend exception unchanged. Output SHA256 83958bd23d721655987f5dfa58902d3c1953260c89a492e7f9de91b3b6d96ddb"
+    },
+    {
+      "command": "DFLOW_TRACKING_TEST_CONTAINER=codex-milestone4646-owned-20261025 node --test scripts/dflow-prod-milestone-schedule.test.mjs",
+      "exit_code": 0,
+      "evidence": "24 PG17 tests passed0skip on owned network-none/tmpfs fixture including frozenbaseline regression; originalSQL bytes unchanged. Output SHA256 f2f3e733430b1a7861748186fd0841904cc152106a7263906240fd6d8dda5911"
+    },
+    {
+      "command": "node --test scripts/designflow-db-release.test.mjs scripts/lib/designflow-db-release.test.mjs",
+      "exit_code": 0,
+      "evidence": "107 release tests passed0skip on merged currentmain policy; allmain retiredguard files byte-identical. Output SHA256 94db43a89e07facf50ecf460eb24492844710778d61588cb425b085ffdd7ebb0"
+    }
+  ],
+  "assumptions_resolved": [
+    "Fresh claim4753 and version20261025125632 replace own natively parked4750; no prior version reused or applied.",
+    "Native park note explicitly allows reopening same4752; original source and old evidence remain preserved.",
+    "No schema change from prior seventeen-field candidate; directtracking runtime and restrictive grants retained.",
+    "Only central4646 requirement changed to4752; no peer source edits.",
+    "Native review, merge, preview and automatic production not completed by this source report.",
+    "Superseded generation2 files and earlier generation3 draft retained in immutable Git history and native refs; final PR diff contains only current generation3 pair as native resolver requires.",
+    "Authentic CI sole nonquarantined failure expected103 tables found104 repaired by exact table and identity-sequence frozen baseline exclusions; original baseline103/97 unchanged. Superseded generation3 pair retained in immutable history/native ref, only current4 pair in PR diff.",
+    "Ordinary nonrewriting merge of currentmainfe3de0 preserves4751tracking+FE3869source4735 and allretiredguards. Fullconfig compared equal currentmain with only4646source4653\u21924752.",
+    "No SQL/version/schema changes; SQLhashaa3d831dd707428eac45639f14ad1db1a90b6418e40cc0d211b368a9bcad84c4 preserved. Priorapproved1a is immutable history; refreshedhead requires normal review.",
+    "Only generation5 pair retained in finaldiff; gen4 remainsimmutable git/native history."
+  ],
+  "stop_conditions_hit": []
+}

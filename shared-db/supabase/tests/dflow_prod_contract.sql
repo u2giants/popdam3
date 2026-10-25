@@ -16,7 +16,8 @@ begin
       'sample_approval_event', 'sample_carrier', 'sample_creation_batch', 'sample_factory_visit', 'sample_factory_visit_event', 'sample_import_job', 'sample_import_row', 'sample_inventory_balance', 'sample_movement', 'sample_path_revision', 'sample_piece_lineage', 'sample_remote_request', 'sample_remote_request_history', 'sample_remote_request_item', 'sample_reservation', 'sample_shipment', 'sample_shipment_line', 'sample_stop_closeout', 'sample_workflow',  -- #2875
       'sample_shipment_notice', 'sample_shipment_notice_recipient', 'product_type_factory_time',  -- #3737
       'tracking_grid_archive',  -- #4585
-      'vendor_wechat_identity'  -- #4634; proved by its own exact contract
+      'vendor_wechat_identity',  -- #4634; proved by its own exact contract
+      'prod_order_milestone_schedule'  -- #4646; isolated milestone contracts prove its shape and access
     );
   if v_tables <> 103 then
     raise exception 'expected 103 dflow_prod tables, found %', v_tables;
@@ -35,7 +36,7 @@ begin
             where t.relnamespace = n.oid
               and t.relname in ('item_user_assignment', 'item_workflow_action',
                 'sample_approval_event', 'sample_carrier', 'sample_creation_batch', 'sample_factory_visit', 'sample_factory_visit_event', 'sample_import_job', 'sample_import_row', 'sample_inventory_balance', 'sample_movement', 'sample_path_revision', 'sample_piece_lineage', 'sample_remote_request', 'sample_remote_request_history', 'sample_remote_request_item', 'sample_reservation', 'sample_shipment', 'sample_shipment_line', 'sample_stop_closeout', 'sample_workflow',
-                'sample_shipment_notice', 'sample_shipment_notice_recipient', 'product_type_factory_time', 'vendor_wechat_identity')  -- #2874, #2875 and #3737
+                'sample_shipment_notice', 'sample_shipment_notice_recipient', 'product_type_factory_time', 'vendor_wechat_identity', 'prod_order_milestone_schedule')  -- #2874, #2875 and #3737
          )
     );
   if v_sequences <> 97 then

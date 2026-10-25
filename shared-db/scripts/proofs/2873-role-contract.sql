@@ -395,6 +395,10 @@ insert into t2873_expected values
  ('designflow_prod_tracking_grants','table','coldlion.order_history_line','SELECT'),
  ('designflow_prod_tracking_grants','table','coldlion.prod_history_line','SELECT'),
  ('designflow_prod_tracking_grants','view','dflow_prod.v_prod_order_sales_order_link','SELECT'),
+ -- #4646: milestone persistence, no DELETE or identity sequence grant.
+ ('designflow_prod_tracking_grants','table','dflow_prod.prod_order_milestone_schedule','SELECT'),
+ ('designflow_prod_tracking_grants','table','dflow_prod.prod_order_milestone_schedule','INSERT'),
+ ('designflow_prod_tracking_grants','table','dflow_prod.prod_order_milestone_schedule','UPDATE'),
 ('designflow_prod_tracking_grants','table','dflow_prod.tracking_grid_archive','SELECT'),
   ('designflow_prod_tracking_grants','table','dflow_prod.tracking_grid_archive','INSERT'),
   ('designflow_prod_tracking_grants','table','dflow_prod.tracking_grid_archive','DELETE'),
@@ -589,6 +593,32 @@ begin
   exception when insufficient_privilege then null; end;
 end $r$;
 reset role;
+
+-- #4646: milestone effective access is scoped to intended tracking and the existing backend bridge.
+do $milestone$
+declare r text;
+begin
+ foreach r in array array['designflow_prod_tracking_runtime','designflow_prod_backend_runtime'] loop
+  if r='designflow_prod_tracking_runtime' or pg_has_role(r,'designflow_prod_tracking_grants','member') then
+   if not has_table_privilege(r,'dflow_prod.prod_order_milestone_schedule','SELECT')
+      or not has_table_privilege(r,'dflow_prod.prod_order_milestone_schedule','INSERT')
+      or not has_table_privilege(r,'dflow_prod.prod_order_milestone_schedule','UPDATE')
+      or has_table_privilege(r,'dflow_prod.prod_order_milestone_schedule','DELETE') then
+    raise exception '#4646: milestone runtime privilege boundary differs: %',r;
+   end if;
+  end if;
+ end loop;
+ foreach r in array array['anon','authenticated','service_role','designflow_prod_item_master_runtime','designflow_prod_data_sync_runtime'] loop
+  if has_table_privilege(r,'dflow_prod.prod_order_milestone_schedule','SELECT,INSERT,UPDATE,DELETE') then
+   raise exception '#4646: unintended milestone access: %',r;
+  end if;
+ end loop;
+ foreach r in array array['designflow_prod_tracking_runtime','designflow_prod_backend_runtime','anon','authenticated','service_role'] loop
+  if has_sequence_privilege(r,'dflow_prod.prod_order_milestone_schedule_id_seq','SELECT,USAGE,UPDATE') then
+   raise exception '#4646: direct identity sequence access: %',r;
+  end if;
+ end loop;
+end $milestone$;
 
 -- And as the backend runtime identity: allowed read, refused sample-only write.
 set local role designflow_prod_backend_runtime;

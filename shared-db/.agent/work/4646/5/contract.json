@@ -1,0 +1,99 @@
+{
+  "schema_version": 2,
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 4646,
+    "generation": 4,
+    "contract_sha256": "1e82e3164710fc1467af75a80f536c3c7af6bd3270f67b98070f67621d8548fe"
+  },
+  "work_issue": 4646,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Create empty production milestone persistence after physically delivered tracking3869 without changing parent or history objects; preserve seventeen fields, legacy conflict key and minimum tracking access.",
+  "base_sha": "fe3de0f863a51552df756a409ccd6fbe1ed3063e",
+  "dispatcher": "Codex root chat 01a16a92-7296-7f42-9465-79db583ec931 authorizes existing4646 scope",
+  "worker": "codex",
+  "branch": "codex/dflow-milestone4646-fresh",
+  "worktree": "/tmp/dflow-milestone4646-author-20261025",
+  "allowed_paths": [
+    "supabase/migrations/20261025125632_dflow_prod_milestone_schedule.sql",
+    "scripts/dflow-prod-milestone-schedule.test.mjs",
+    "scripts/proofs/2873-contract.json",
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/2873-role-contract.sql",
+    "scripts/proofs/shared-db-2873-observation.mjs",
+    "scripts/proofs/shared-db-2873-observation.test.mjs",
+    "config/designflow-db-releases.json",
+    ".agent/work/4646/2/contract.json",
+    ".agent/work/4646/2/completion.json",
+    ".agent/work/4646/3/contract.json",
+    ".agent/work/4646/3/completion.json",
+    "supabase/tests/dflow_prod_contract.sql",
+    ".agent/work/4646/4/contract.json",
+    ".agent/work/4646/4/completion.json",
+    ".agent/work/4646/5/contract.json",
+    ".agent/work/4646/5/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261025125632_dflow_prod_milestone_schedule.sql",
+    "scripts/dflow-prod-milestone-schedule.test.mjs",
+    "scripts/proofs/2873-contract.json",
+    "scripts/proofs/2873-catalog.sql",
+    "scripts/proofs/2873-role-contract.sql",
+    "scripts/proofs/shared-db-2873-observation.mjs",
+    "scripts/proofs/shared-db-2873-observation.test.mjs",
+    "config/designflow-db-releases.json",
+    ".agent/work/4646/2/contract.json",
+    ".agent/work/4646/2/completion.json",
+    ".agent/work/4646/3/contract.json",
+    ".agent/work/4646/3/completion.json",
+    "supabase/tests/dflow_prod_contract.sql",
+    ".agent/work/4646/4/contract.json",
+    ".agent/work/4646/4/completion.json",
+    ".agent/work/4646/5/contract.json",
+    ".agent/work/4646/5/completion.json"
+  ],
+  "db_reads": [
+    "table dflow_prod.\"ProdOrderHeader\"",
+    "table dflow_prod.\"FactoryTime\""
+  ],
+  "db_writes": [
+    "table dflow_prod.prod_order_milestone_schedule",
+    "sequence dflow_prod.prod_order_milestone_schedule_id_seq",
+    "index dflow_prod.prod_order_milestone_schedule_upsert_key",
+    "index dflow_prod.prod_order_milestone_schedule_status_needed_idx",
+    "index dflow_prod.prod_order_milestone_schedule_factory_time_id_idx",
+    "index dflow_prod.prod_order_milestone_schedule_catalog_stage_key",
+    "index dflow_prod.prod_order_milestone_schedule_legacy_name_key"
+  ],
+  "prohibited_actions": [
+    "No parent/view/history/schema writes, data copies or backfills",
+    "No preview or production action until root confirms exclusive lanes clear",
+    "No direct sequence rights, DELETE, browser or other application grants",
+    "No real app grid actions or business-row writes in source delivery",
+    "No foreign custody changes or old4653/version reuse",
+    "No merge without native exact-head independent APPROVE and green required checks",
+    "No live stage delivery or acceptance inferred from this source completion report"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node --test scripts/proofs/shared-db-2873-observation.test.mjs",
+    "DFLOW_TRACKING_TEST_CONTAINER=codex-milestone4646-owned-20261025 node --test scripts/dflow-prod-milestone-schedule.test.mjs"
+  ],
+  "assumptions": [
+    "Existing production tracking3869 physical delivery and header unique id independently proven",
+    "Tracking group backend inheritance preexists; only schedule SELECT INSERT UPDATE included as scoped exception;4475 drift remains",
+    "Production app acceptance is separate and needs exact one-PO reviewed feature activation",
+    "Generation2 corrects pre-merge source completion checks only; independent review, guarded merge, preview, production and application acceptance remain separate mandatory gates, not falsely completed checks",
+    "Own4750/version20261025124542 natively parked with source retained; fresh4753/version20261025125632 uses supported exact Codex chat label; unused prior7113 reviewer draw is not a provider failure",
+    "Source PR4752 resumes exactly as native park note instructs; prior generation2 records preserved immutable history",
+    "Generation4 updates frozen baseline count exclusions for new independently tested milestone table and identity sequence after authentic CI expected103 found104; baseline103/97 and all existing assertions remain unchanged.",
+    "Generation5 ordinary main merge preserves incoming4751 tracking+FE3869source4735 and retired migration guards; only milestone4646 requirement becomes4752. No SQL/schema/version changes; prior native review remains historical and freshhead needs normal independent review."
+  ],
+  "stop_conditions": [
+    "Native dependency or collision refusal",
+    "Need any object/path outside exact prospective contract",
+    "Schema or source drift invalidates parent prerequisites",
+    "Root has not cleared preview/production lanes"
+  ]
+}
