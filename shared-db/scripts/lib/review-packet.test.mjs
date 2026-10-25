@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildProductionRiskRequest, buildReviewBrief, loadReviewBrief, REVIEW_ASSESSMENTS, storeReviewBrief } from './review-packet.mjs'
-import { ASSESSMENT_SCHEMA, parseRiskAssessment } from '../prove-production-risk-acceptance.mjs'
+import { buildProductionRiskRequest, buildProductionRiskPreMergeRequest, buildReviewBrief, loadReviewBrief, REVIEW_ASSESSMENTS, storeReviewBrief, validateProductionRiskOptions } from './review-packet.mjs'
+import { ASSESSMENT_SCHEMA, ASSESSMENT_SCHEMA_V2, parseRiskAssessment } from '../prove-production-risk-acceptance.mjs'
 import { prepareCompleteReviewBrief, runGovernedReview } from '../run-governed-review.mjs'
 
 const source = { repository: 'popcre/shared-db', pr: 34, mergeBase: 'b'.repeat(40), headSha: 'a'.repeat(40), sourceDigest: 'c'.repeat(64), files: [{ filename: 'supabase/migrations/20260920000000_test.sql', status: 'added' }] }
@@ -152,5 +152,69 @@ test('loadReviewBrief reads compare and one tree per ref only when asked, and pl
   assert.ok(!paths.some(p => p.includes('/contents/')))
   assert.ok(asked.indexOf('Production-risk assessment request') < asked.indexOf('## Evidence supplied by the author'))
   assert.throws(() => loadReviewBrief(ask, source, { github: args => gh(args, { truncated: true, tree: [] }) }), /truncated or unreadable/)
-  assert.throws(() => loadReviewBrief({ ...options, productionRiskClasses: riskClasses }, source, { github: gh }), /exact 40-hex main/)
+  // classes without an allowlist and without a main still refuse, naming both valid shapes
+  assert.throws(() => loadReviewBrief({ ...options, productionRiskClasses: riskClasses }, source, { github: gh }), /needs either --production-risk-main/)
+  // a malformed main refuses rather than silently becoming a pre-merge request
+  assert.throws(() => loadReviewBrief({ ...options, productionRiskMain: 'abc', productionRiskClasses: riskClasses, productionRiskAllowlist: '20260920000000' }, source, { github: gh }), /exact 40-hex main/)
+})
+
+// Pre-merge (v2) production-risk request: classes + ordered allowlist on an OPEN
+// source PR, no main named. Every shared guard still applies; the promoted-main
+// proofs do not exist yet and are re-derived by the promotion gate at apply time.
+test('pre-merge production-risk request binds the PR head honestly and keeps every shared guard', () => {
+  const section = buildProductionRiskPreMergeRequest({ source: src2, pullRequest, risks: riskClasses, allowlist: '20260921000000,20260920000000' })
+  assert.match(section, /pre-merge; this section is not author text/)
+  assert.ok(section.includes(`OPEN at the reviewed head ${src2.headSha}`))
+  const json = skeletonOf(section)
+  assert.deepEqual(Object.keys(json).sort(), ['assessed_risks', 'head_sha', 'ordered_allowlist', 'schema', 'source_pr'])
+  assert.equal(json.schema, ASSESSMENT_SCHEMA_V2)
+  assert.equal(json.head_sha, src2.headSha)
+  assert.deepEqual(json.ordered_allowlist, ['20260921000000', '20260920000000'])
+  assert.equal(json.source_pr, 34)
+  assert.ok(!('main_sha' in json))
+  assert.ok(!section.includes('```production-risk-assessment'))
+  assert.ok(!section.includes('supabase/migrations/'), 'only numeric versions enter the trusted section')
+  // the honest binding statement: no main exists yet, the gate re-proves at apply time
+  assert.match(section, /NEW main that contains your reviewed bytes/)
+  assert.match(section, /re-proves through GitHub, at apply time/)
+  assert.match(section, /this block authorizes nothing/)
+  assert.match(section, /REVISE or REJECT/)
+  // a merged PR must not take the pre-merge path
+  assert.throws(() => buildProductionRiskPreMergeRequest({ source: src2, pullRequest: mergedPr, risks: riskClasses, allowlist: '20260920000000' }), /open source pull request/)
+  // every shared guard from the merged request still applies
+  const cases = [
+    [{ risks: '' }, /nonempty subset/],
+    [{ risks: 'recovery_unproven' }, /nonempty subset/],
+    [{ allowlist: '20260920000000,20260920000000' }, /exact ordered allowlist/],
+    [{ allowlist: '20260922000000' }, /not a migration of source pull request/],
+    [{ source: { ...src2, files: [...src2.files, { filename: 'docs/x.sql', status: 'renamed', previous_filename: 'supabase/migrations/20260920000001_moved.sql' }] } }, /renames or moves/],
+    [{ source: { ...source, files: [{ filename: mig, status: 'removed' }] } }, /added or modified/],
+  ]
+  for (const [patch, pattern] of cases) assert.throws(() => buildProductionRiskPreMergeRequest({ source: src2, pullRequest, risks: riskClasses, allowlist: '20260920000000', ...patch }), pattern)
+  // the emitted skeleton parses as a v2 block bound to the PR head
+  const filled = { ...json, assessed_risks: Object.fromEntries(Object.keys(json.assessed_risks).map(k => [k, 'a concrete written assessment of this class, long enough'])) }
+  assert.equal(parseRiskAssessment('```production-risk-assessment\n' + JSON.stringify(filled) + '\n```', { mainSha: riskMain, headSha: src2.headSha, allowlist: json.ordered_allowlist, sourcePr: 34, risks: riskClasses.split(',') }).schema, ASSESSMENT_SCHEMA_V2)
+})
+
+test('validateProductionRiskOptions admits exactly the merged and pre-merge shapes', () => {
+  assert.deepEqual(validateProductionRiskOptions({}), { mode: 'none' })
+  assert.deepEqual(validateProductionRiskOptions({ productionRiskMain: riskMain, productionRiskClasses: 'expected_downtime', productionRiskAllowlist: '20260920000000' }), { mode: 'merged', main: riskMain })
+  assert.deepEqual(validateProductionRiskOptions({ productionRiskClasses: 'expected_downtime', productionRiskAllowlist: '20260920000000' }), { mode: 'pre-merge' })
+  for (const partial of [{ productionRiskMain: riskMain }, { productionRiskMain: riskMain, productionRiskClasses: 'expected_downtime' }, { productionRiskAllowlist: '20260920000000' }, { productionRiskClasses: 'expected_downtime' }]) {
+    assert.ok(validateProductionRiskOptions(partial).error, `expected refusal for ${JSON.stringify(partial)}`)
+  }
+  assert.match(validateProductionRiskOptions({ productionRiskMain: 'abc', productionRiskClasses: 'expected_downtime', productionRiskAllowlist: '20260920000000' }).error, /exact 40-hex main/)
+})
+
+test('loadReviewBrief builds the pre-merge section on an open PR without compare or tree reads', () => {
+  const paths = []
+  const gh = args => {
+    paths.push(args[1])
+    return github(args)
+  }
+  const ask = { ...options, productionRiskClasses: riskClasses, productionRiskAllowlist: '20260920000000,20260921000000' }
+  const asked = loadReviewBrief(ask, src2, { github: gh })
+  assert.match(asked, /pre-merge; this section is not author text/)
+  assert.ok(!paths.some(p => p.includes('/compare/') || p.includes('/git/trees/')))
+  assert.ok(asked.indexOf('Production-risk assessment request') < asked.indexOf('## Evidence supplied by the author'))
 })

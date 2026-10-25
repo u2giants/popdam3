@@ -14,7 +14,7 @@ import { reviewerStartDecision, NON_VERDICT_TERMINAL_REASONS } from './db-flow/s
 // Issue #2492: size the reviewer's turn budget to the migration it must read.
 import { withTurnBudget, changedMigrationLines, turnBudgetDiagnostic } from './lib/reviewer-turn-budget.mjs'
 import { REVIEW_CALLER_VARIABLES, reviewCallerEnvironment } from './lib/reviewer-caller-env.mjs'
-import { loadReviewBrief, storeReviewBrief } from './lib/review-packet.mjs'
+import { loadReviewBrief, storeReviewBrief, validateProductionRiskOptions } from './lib/review-packet.mjs'
 import { GOVERNED_VERDICT_WRAPPERS, VERDICT_CONTRACT_FLAG_WRAPPERS, forbiddenGovernedSubcommand, wrapperBaseName } from './lib/reviewer-capabilities.mjs'
 import { REINSTATABLE_FAILURE_CODES } from './lib/lanes/review-circuit-breaker.mjs'
 
@@ -1118,6 +1118,14 @@ export function prepareGovernedReview(options,{env=process.env,github=readGitHub
   const live=readLivePullRequestHead(options.pr,github)
   const named=String(options.headSha??'').trim().toLowerCase()
   if(named&&named!==live)throw new Error(`--head-sha ${named} is stale: pull request #${Number(options.pr)} is now at ${live}. No reviewer was started. Omit --head-sha to use the live head, after the reviewer assignment is moved to it.`)
+  // Fail fast on an incoherent production-risk option set BEFORE any reviewer
+  // draw is spent: --production-risk-main <40-hex> with classes and allowlist is
+  // the merged-head request (unchanged), classes + allowlist WITHOUT a main is
+  // the pre-merge request for an open PR (one review carries the risk block;
+  // the promotion gate re-proves the binding at apply time), anything else
+  // refuses here.
+  const riskShape=validateProductionRiskOptions(options)
+  if(riskShape.error)throw new Error(`${riskShape.error}; no reviewer was started`)
   const poolProvider=lifecyclePoolProvider(options)
   if(options.tests!==undefined&&!poolProvider)throw new Error('top-level --tests is supported only for lifecycle-metered pool reviewers; no reviewer was started')
   if(poolProvider&&!/^[a-z0-9-]+$/.test(lifecyclePoolImplementer(env)))throw new Error('lifecycle-metered review requires a known implementing engine before the reviewer starts')

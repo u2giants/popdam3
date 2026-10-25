@@ -1716,6 +1716,24 @@ test('issue #4410: production-risk request options parse as runner options, not 
   assert.deepEqual(parsed.wrapperArgs, ['new', 's'])
 })
 
+// The pre-merge fold: classes + allowlist WITHOUT a main is a valid invocation
+// on an open PR (the first review carries the risk block); partial or malformed
+// combinations refuse in prepareGovernedReview BEFORE any reviewer draw.
+test('pre-merge production-risk options are admitted and incoherent ones refuse before a reviewer draw', () => {
+  const live = 'a'.repeat(40)
+  const github = () => ({ status: 0, stdout: JSON.stringify({ head: { sha: live } }) })
+  const files = { readFile: () => 'Review it.', writeFile: () => {}, tempDir: () => 'T' }
+  const base = { pr: 4386, issue: 4373, wrapper: 'ai-muse', wrapperArgs: ['new', 's1', '--prompt-file', 'brief.md'] }
+  const preMerge = prepareGovernedReview({ ...base, productionRiskClasses: 'expected_downtime', productionRiskAllowlist: '20261016210024' }, { env: { CLAUDECODE: '1' }, github, files })
+  assert.equal(preMerge.options.headSha, live)
+  assert.equal(preMerge.options.productionRiskMain, undefined)
+  const merged = prepareGovernedReview({ ...base, productionRiskMain: 'e'.repeat(40), productionRiskClasses: 'expected_downtime', productionRiskAllowlist: '20261016210024' }, { env: { CLAUDECODE: '1' }, github, files })
+  assert.equal(merged.options.productionRiskMain, 'e'.repeat(40))
+  assert.throws(() => prepareGovernedReview({ ...base, productionRiskClasses: 'expected_downtime' }, { env: { CLAUDECODE: '1' }, github, files }), /needs either --production-risk-main.*no reviewer was started/)
+  assert.throws(() => prepareGovernedReview({ ...base, productionRiskAllowlist: '20261016210024' }, { env: { CLAUDECODE: '1' }, github, files }), /needs either --production-risk-main.*no reviewer was started/)
+  assert.throws(() => prepareGovernedReview({ ...base, productionRiskMain: 'abc', productionRiskClasses: 'expected_downtime', productionRiskAllowlist: '20261016210024' }, { env: { CLAUDECODE: '1' }, github, files }), /exact 40-hex main.*no reviewer was started/)
+})
+
 import { sameReviewPath } from './run-governed-review.mjs'
 test('lifecycle report path comparison folds Git Bash MSYS forms onto native Windows paths (PR #4572)',()=>{
   const tmp='C:\\Users\\me\\AppData\\Local\\Temp'

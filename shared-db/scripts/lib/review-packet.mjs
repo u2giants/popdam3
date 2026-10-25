@@ -1,7 +1,7 @@
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ACCEPTABLE_RISKS, ASSESSMENT_SCHEMA } from '../prove-production-risk-acceptance.mjs'
+import { ACCEPTABLE_RISKS, ASSESSMENT_SCHEMA, ASSESSMENT_SCHEMA_V2 } from '../prove-production-risk-acceptance.mjs'
 
 export const REVIEW_ASSESSMENTS = Object.freeze([
   ['Role and permission changes', 'Inspect every changed grant, policy, role and security boundary, including sibling call paths.'],
@@ -28,10 +28,12 @@ const treeBlobs = (body, what) => {
 // allowlist and the risk classes are operator inputs that the section labels as
 // such. It authorizes nothing by itself: prove-production-risk-acceptance.mjs still
 // re-proves every field, and the placeholder is shorter than its minimum.
-export function buildProductionRiskRequest({ source, pullRequest, mainSha, risks, allowlist, comparison, headTree, mainTree }) {
-  const main = String(mainSha ?? '').toLowerCase()
-  if (!/^[0-9a-f]{40}$/.test(main)) throw new Error('production-risk request needs an exact 40-hex main SHA; no reviewer was started')
-  if (pullRequest?.merged !== true || !pullRequest?.merged_at) throw new Error('production-risk request applies only to a merged source pull request; no reviewer was started')
+// The guards shared by the merged-main (v1) and pre-merge (v2) risk requests:
+// risk classes are a nonempty acceptable subset, no file was renamed or moved,
+// every source migration is an added or modified safely named file with a
+// distinct 14-digit version, and the operator's ordered allowlist is a subset
+// of those versions with distinct entries and its order preserved.
+function riskRequestInputs({ source, risks, allowlist }) {
   const wanted = [...new Set(String(risks ?? '').split(',').map(r => r.trim()).filter(Boolean))].sort()
   if (!wanted.length || wanted.some(r => !ACCEPTABLE_RISKS.includes(r))) throw new Error(`production-risk request classes must be a nonempty subset of ${ACCEPTABLE_RISKS.join(', ')}; no reviewer was started`)
   if (source.files.some(f => f.status === 'renamed' || f.previous_filename !== undefined)) throw new Error('production-risk request refuses a source pull request that renames or moves files; no reviewer was started')
@@ -48,6 +50,14 @@ export function buildProductionRiskRequest({ source, pullRequest, mainSha, risks
   if (!ordered.length || ordered.some(v => !/^\d{14}$/.test(v)) || new Set(ordered).size !== ordered.length) throw new Error('production-risk request needs an exact ordered allowlist of distinct 14-digit versions; no reviewer was started')
   const foreign = ordered.find(v => !owned.has(v))
   if (foreign) throw new Error(`allowlist version ${foreign} is not a migration of source pull request ${source.pr}; no reviewer was started`)
+  return { wanted, ordered, owned }
+}
+
+export function buildProductionRiskRequest({ source, pullRequest, mainSha, risks, allowlist, comparison, headTree, mainTree }) {
+  const main = String(mainSha ?? '').toLowerCase()
+  if (!/^[0-9a-f]{40}$/.test(main)) throw new Error('production-risk request needs an exact 40-hex main SHA; no reviewer was started')
+  if (pullRequest?.merged !== true || !pullRequest?.merged_at) throw new Error('production-risk request applies only to a merged source pull request; no reviewer was started')
+  const { wanted, ordered, owned } = riskRequestInputs({ source, risks, allowlist })
   if (!comparison || !['ahead', 'identical'].includes(comparison.status) || comparison.behind_by !== 0) throw new Error(`reviewed head ${source.headSha} is not an ancestor of main ${main}; no reviewer was started`)
   if (!(headTree instanceof Map) || !(mainTree instanceof Map)) throw new Error('head and main trees are required; no reviewer was started')
   for (const version of ordered) {
@@ -68,6 +78,55 @@ ${skeleton}
 (The example uses the \`text\` info string only so it is not itself read as an assessment.) If any class is not acceptable, REVISE or REJECT and explain why; this request never obliges an APPROVE.
 `
 }
+
+// The PRE-MERGE risk request (schema v2). The source pull request is still OPEN,
+// so no promoted main exists yet and none can be named; the block binds the PR
+// head the reviewer is reviewing, and the promotion gate re-proves at apply time
+// (GitHub compare ahead/behind_by 0 plus per-version blob identity) that the
+// promoted main still contains exactly those bytes. Every shared guard above
+// still applies; only the merged-PR and main-anchored proofs are absent because
+// their object does not exist yet, and they are re-derived later rather than
+// trusted here.
+export function buildProductionRiskPreMergeRequest({ source, pullRequest, risks, allowlist }) {
+  if (pullRequest?.merged === true || pullRequest?.merged_at) throw new Error('pre-merge production-risk request applies only to an open source pull request; a merged one needs an exact main SHA; no reviewer was started')
+  const { wanted, ordered } = riskRequestInputs({ source, risks, allowlist })
+  const skeleton = JSON.stringify({ schema: ASSESSMENT_SCHEMA_V2, head_sha: source.headSha, ordered_allowlist: ordered, source_pr: source.pr, assessed_risks: Object.fromEntries(wanted.map(r => [r, '<assess>'])) })
+  return `## Production-risk assessment request (pre-merge; this section is not author text)
+
+The governed runner, not the author, adds this section. Pull request ${source.pr} is OPEN at the reviewed head ${source.headSha}, so no promoted main exists yet and this request names none. It binds the bytes you are reviewing, nothing else. The operator supplies the ordered promotion allowlist (${ordered.join(', ')}) and these risk classes, which it reports the production business-risk gate derived; the runner did not derive either, and the gate re-derives both and refuses any mismatch: ${wanted.join(', ')}. Owner ruling 6.23 makes the allocator-assigned reviewer, not a human, the one who accepts or refuses them.
+
+Honest binding statement: when this pull request merges, GitHub creates a NEW main that contains your reviewed bytes, and that main SHA does not exist yet. Your assessment therefore names your reviewed head ${source.headSha} (not a main), and the production gate re-proves through GitHub, at apply time, that this head is an ancestor of the promoted main and that the migration blob of each named version (${ordered.join(', ')}) is identical at your head and that main. If either proof fails -- main moved past your bytes, or any allowlisted migration changed after your review -- this block authorizes nothing and the promotion needs a fresh merged-head assessment.
+
+Assess each class concretely from the sealed source. If, and only if, you APPROVE and judge every class acceptable, include exactly one fenced block whose info string is \`production-risk-assessment\` containing this JSON object with every \`<assess>\` placeholder replaced by your own substantive written assessment (at least 40 characters each) and no other keys:
+
+\`\`\`text
+${skeleton}
+\`\`\`
+
+(The example uses the \`text\` info string only so it is not itself read as an assessment.) If any class is not acceptable, REVISE or REJECT and explain why; this request never obliges an APPROVE.
+`
+}
+
+// One classifier for the three runner options, shared by the CLI's fail-fast
+// check and loadReviewBrief: all three with an exact 40-hex main is the merged
+// path; classes and allowlist WITHOUT a main is the pre-merge path; anything
+// else (a malformed main, or a partial combination) refuses before a reviewer
+// is drawn.
+export function validateProductionRiskOptions(options) {
+  const main = String(options.productionRiskMain ?? '')
+  if (main !== '') {
+    if (!/^[0-9a-f]{40}$/.test(main.toLowerCase())) return { error: 'production-risk request needs an exact 40-hex main SHA' }
+    if (options.productionRiskClasses === undefined || options.productionRiskAllowlist === undefined) return { error: 'production-risk request with a main SHA also needs --production-risk-classes and --production-risk-allowlist' }
+    return { mode: 'merged', main: main.toLowerCase() }
+  }
+  const classes = options.productionRiskClasses !== undefined, allowlist = options.productionRiskAllowlist !== undefined
+  if (classes || allowlist) {
+    if (!classes || !allowlist) return { error: 'production-risk request needs either --production-risk-main <40-hex main> with --production-risk-classes and --production-risk-allowlist (merged source PR), or --production-risk-classes and --production-risk-allowlist without a main (open source PR)' }
+    return { mode: 'pre-merge' }
+  }
+  return { mode: 'none' }
+}
+
 
 export function buildReviewBrief({ source, issue, pullRequest, comments, riskRequest = '' }) {
   if (typeof riskRequest !== 'string') throw new Error('review packet production-risk request is not text')
@@ -123,13 +182,21 @@ export function loadReviewBrief(options, source, { github }) {
   }
   let riskRequest = ''
   if (options.productionRiskMain !== undefined || options.productionRiskClasses !== undefined || options.productionRiskAllowlist !== undefined) {
-    const main = String(options.productionRiskMain ?? '').toLowerCase()
-    const exact = /^[0-9a-f]{40}$/.test(main)
-    // One recursive tree read per ref (§5.2-B); never a per-file Contents URL.
-    const comparison = exact ? read(`${prefix}/compare/${source.headSha}...${main}`) : null
-    const headTree = exact ? treeBlobs(read(`${prefix}/git/trees/${source.headSha}?recursive=1`), 'reviewed head') : null
-    const mainTree = exact ? treeBlobs(read(`${prefix}/git/trees/${main}?recursive=1`), 'main') : null
-    riskRequest = buildProductionRiskRequest({ source, pullRequest, mainSha: main, risks: options.productionRiskClasses, allowlist: options.productionRiskAllowlist, comparison, headTree, mainTree })
+    const shape = validateProductionRiskOptions(options)
+    if (shape.error) throw new Error(`${shape.error}; no reviewer was started`)
+    if (shape.mode === 'merged') {
+      const main = shape.main
+      // One recursive tree read per ref (§5.2-B); never a per-file Contents URL.
+      const comparison = read(`${prefix}/compare/${source.headSha}...${main}`)
+      const headTree = treeBlobs(read(`${prefix}/git/trees/${source.headSha}?recursive=1`), 'reviewed head')
+      const mainTree = treeBlobs(read(`${prefix}/git/trees/${main}?recursive=1`), 'main')
+      riskRequest = buildProductionRiskRequest({ source, pullRequest, mainSha: main, risks: options.productionRiskClasses, allowlist: options.productionRiskAllowlist, comparison, headTree, mainTree })
+    } else {
+      // Pre-merge (v2): classes + ordered allowlist on an OPEN source PR, no
+      // main named. No compare or tree reads exist to make yet; the promotion
+      // gate re-proves ancestry and blob identity at apply time.
+      riskRequest = buildProductionRiskPreMergeRequest({ source, pullRequest, risks: options.productionRiskClasses, allowlist: options.productionRiskAllowlist })
+    }
   }
   return buildReviewBrief({ source, issue, pullRequest, comments, riskRequest })
 }
