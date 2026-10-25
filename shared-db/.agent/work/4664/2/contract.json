@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 4664,
+    "generation": 1,
+    "contract_sha256": "d4371fcf7da04580aa6e455671dd6737b7ccfc2f58618f58222e824fa0ad38f8"
+  },
+  "work_issue": 4664,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Bound the DAM semantic leg of public.search_dam_documents to an ANN top-2000 with hnsw.ef_search 100 under claim #4727 version 20261023230623, keeping the signature, grants, keyword leg, access checks and 8 s statement timeout unchanged. Successor to generation 1: the four other admitted objects landed with PR #4665, so this generation admits only the remaining search function repair.",
+  "base_sha": "b1e4c5bd3b5f43a5a6537177944199f448f36073",
+  "dispatcher": "547dc06d-34e9-4178-a27b-b502278c5676",
+  "worker": "547dc06d-34e9-4178-a27b-b502278c5676",
+  "branch": "mimo/issue97-search-ann-limit",
+  "worktree": "C:/repos/shared-db-worktrees/issue97-landing-zcode",
+  "allowed_paths": [
+    "supabase/migrations/20261023230623_dam_search_semantic_ann_limit.sql",
+    ".agent/work/4664/2/*"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261023230623_dam_search_semantic_ann_limit.sql",
+    ".agent/work/4664/2/contract.json",
+    ".agent/work/4664/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_dam_documents"
+  ],
+  "prohibited_actions": [
+    "Do not reuse reserved version 20261023230623.",
+    "Do not change the function signature, grants, keyword leg, access checks or the 8 s statement timeout."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "The 8 s failure was reproduced live on production dam-search-ai before the change (u2giants/popdam3 #97). Live acceptance remains open on #4664."
+  ],
+  "stop_conditions": [
+    "Any change to the keyword leg, access checks or signature stops the work."
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "work_issue": 4664,
+  "outcome": "ready-for-merge",
+  "pr": 4728,
+  "migration_versions": [
+    "20261023230623"
+  ],
+  "contract_ref": "refs/db-contracts/4664/2",
+  "contract_sha256": "3769f25c0e7eaf7cd91c37d82597156ed2339c2d84b9ed19ace1ce46725a755d",
+  "head_sha": "1a908c22733b7b55fd2722268e177b3ca4ea991b",
+  "base_sha": "b1e4c5bd3b5f43a5a6537177944199f448f36073",
+  "files_changed": [
+    "supabase/migrations/20261023230623_dam_search_semantic_ann_limit.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_dam_documents"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed on the PR branch: Issue #1235 expected-count guard passed for 1 added migration; verify-cost guard passed (no prohibited verification read); Issue #1684 EOL reference guard passed (no new dependency)."
+    }
+  ],
+  "assumptions_resolved": [
+    "The 8 s failure was reproduced live on production dam-search-ai before the change (u2giants/popdam3 #97). Live acceptance remains open on #4664."
+  ],
+  "stop_conditions_hit": []
+}
