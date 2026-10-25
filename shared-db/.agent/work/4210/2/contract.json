@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 4210,
+    "generation": 1,
+    "contract_sha256": "189f351404e9e9bb6803650b2589bce226a99b1c48dd0400db475a908dbb0fef"
+  },
+  "work_issue": 4210,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Broad PopSG Guides searches must not fail with SQLSTATE 57014: give public.search_style_guide_library_v2 a 30 s function-level statement_timeout (owner decision 2026-10-23: a slow search is acceptable, a failed one is not). Body, grants and owner unchanged.",
+  "base_sha": "2e78ceb92ba3a736510e02e52cc288f91bf8f687",
+  "dispatcher": "Albert Hazan (2026-10-23 chat: \"don't let it fail. if it takes 8 seconds, it takes 8 seconds\")",
+  "worker": "Claude chat 58b26124-2d47-4acb-879b-60976000189a on edge-dev3",
+  "branch": "claude/4210-popsg-search-timeout",
+  "worktree": "/home/ahazan/repos/shared-db-4210",
+  "allowed_paths": [
+    ".agent/work/4210/2/completion.json",
+    ".agent/work/4210/2/contract.json",
+    "supabase/migrations/20261025121119_popsg_search_statement_timeout.sql",
+    "supabase/tests/popsg_parse_search_query_once_contracts.sql",
+    "supabase/tests/popsg_search_style_guide_library_v2_contracts.sql"
+  ],
+  "file_writes": [
+    ".agent/work/4210/2/completion.json",
+    ".agent/work/4210/2/contract.json",
+    "supabase/migrations/20261025121119_popsg_search_statement_timeout.sql",
+    "supabase/tests/popsg_parse_search_query_once_contracts.sql",
+    "supabase/tests/popsg_search_style_guide_library_v2_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_style_guide_library_v2"
+  ],
+  "prohibited_actions": [
+    "Do not change the function body, grants, owner or return type.",
+    "Do not change any role-level or database-level statement_timeout."
+  ],
+  "required_checks": [
+    "database-contract-tests popsg_search_style_guide_library_v2_contracts.sql popsg_parse_search_query_once_contracts.sql"
+  ],
+  "assumptions": [
+    "PostgREST applies a function-level statement_timeout to RPC calls (Supabase timeouts guide, function level)."
+  ],
+  "stop_conditions": [
+    "The live function body md5 or settings differ from the guard."
+  ]
+}

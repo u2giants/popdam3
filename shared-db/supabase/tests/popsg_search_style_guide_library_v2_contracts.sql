@@ -251,8 +251,9 @@ begin
   end if;
   if not exists (select 1 from pg_proc p
                   where p.oid = 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)'::regprocedure
-                    and p.proconfig = array['search_path=pg_catalog, auth', 'work_mem=64MB']::text[]) then
-    raise exception 'contract 10: function settings changed beyond search_path and work_mem';
+                    and (select array_agg(setting order by setting) from unnest(p.proconfig) setting)
+                        = array['search_path=pg_catalog, auth', 'statement_timeout=30s', 'work_mem=64MB']::text[]) then
+    raise exception 'contract 10: function settings changed beyond search_path, statement_timeout and work_mem';
   end if;
 
   execute 'set local role authenticated';

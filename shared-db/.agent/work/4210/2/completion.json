@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 4210,
+  "outcome": "ready-for-merge",
+  "pr": 4702,
+  "migration_versions": [
+    "20261025121119"
+  ],
+  "contract_ref": "refs/db-contracts/4210/2",
+  "contract_sha256": "f91da4b399a17dec132a441ee95ebc29883120d01c57f143343a03007bac1c23",
+  "head_sha": "f8e68088481a405ae5716ddb4258dcb46fa18462",
+  "base_sha": "2e78ceb92ba3a736510e02e52cc288f91bf8f687",
+  "files_changed": [
+    "supabase/migrations/20261025121119_popsg_search_statement_timeout.sql",
+    "supabase/tests/popsg_parse_search_query_once_contracts.sql",
+    "supabase/tests/popsg_search_style_guide_library_v2_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_style_guide_library_v2"
+  ],
+  "checks": [
+    {
+      "command": "database-contract-tests popsg_search_style_guide_library_v2_contracts.sql popsg_parse_search_query_once_contracts.sql",
+      "exit_code": 0,
+      "evidence": "Passed in PR #4702 CI job 121164896740 (supabase/tests against an ephemeral database, run 40192030907) at implementation head f8e68088481a405ae5716ddb4258dcb46fa18462."
+    }
+  ],
+  "assumptions_resolved": [
+    "Function-level statement_timeout is documented by Supabase as honoured for REST/RPC calls; verified live after promotion."
+  ],
+  "stop_conditions_hit": []
+}
