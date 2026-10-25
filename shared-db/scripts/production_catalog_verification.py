@@ -224,6 +224,15 @@ ALTER_RELATION_RE = re.compile(
     r"^\s*alter\s+(table|view|materialized\s+view|foreign\s+table)\s+"
     rf"(if\s+exists\s+)?(?:only\s+)?{QUALIFIED}"
 )
+# Issue #4761: `alter function <name>(<args>) set|reset <setting>` changes only
+# `pg_proc.proconfig`. It names a routine that must still exist and a setting
+# whose presence is a catalog fact, so it is derived and checked rather than
+# leaving the batch with "nothing to verify" (production run 40209290700).
+ALTER_ROUTINE_SETTING_RE = re.compile(
+    rf"^\s*alter\s+(?:function|procedure|routine)\s+{QUALIFIED}\s*(\([^()]*\))?\s+"
+    rf"(set|reset)\s+({IDENT}|all)\b"
+)
+ALTER_ROUTINE_HEAD_RE = re.compile(r"^\s*alter\s+(?:function|procedure|routine)\b")
 ALTER_SCHEMA_RENAME_RE = re.compile(
     rf"^\s*alter\s+schema\s+({IDENT})\s+rename\s+to\s+({IDENT})\s*$"
 )
@@ -1677,6 +1686,7 @@ class Targets:
         noop_declaration: dict | None = None,
         indexes: set[tuple[str, str]] | None = None,
         schema_renames: set[tuple[str, str, str | None]] | None = None,
+        function_settings: list[tuple[str, str | None, str, str]] | None = None,
     ) -> None:
         # ORDER IS LOAD-BEARING and must be the order the statements appear in,
         # not sorted: a batch may `grant` a privilege and then `revoke` it, and
@@ -1699,6 +1709,9 @@ class Targets:
         self.seeded = sorted(seeded)
         self.indexes = sorted(indexes or set())
         self.schema_renames = sorted(schema_renames or set())
+        # (family, normalized signature or None, setting, "set"|"reset"), in
+        # statement order with only the last word per routine+setting kept.
+        self.function_settings = list(function_settings or [])
         # Relations an `... if exists` statement named. Read if present, NEVER
         # required: the migration said in its own SQL that it tolerates absence.
         self.optional = sorted(set(optional or set()) - set(tables) - set(views))
@@ -1732,6 +1745,7 @@ class Targets:
             or self.privileges
             or self.indexes
             or self.schema_renames
+            or self.function_settings
         )
 
     def as_dict(self) -> dict[str, list[str]]:
@@ -1747,6 +1761,10 @@ class Targets:
             "schema_renames": [
                 f"{source}|{destination}|{comment if comment is not None else ''}"
                 for source, destination, comment in self.schema_renames
+            ],
+            "function_settings": [
+                f"{signature or family}|{action}|{setting}"
+                for family, signature, setting, action in self.function_settings
             ],
             "privilege_assertions": [e.describe() for e in self.privileges],
             "unassertable_statements": self.notes,
@@ -2810,6 +2828,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     indexes: set[tuple[str, str]] = set()
     schema_rename_pairs: set[tuple[str, str]] = set()
     schema_comments: dict[str, str] = {}
+    settings: dict[tuple[str, str | None, str], tuple[str, str | None, str, str]] = {}
 
     for version in allowlist:
         path = migrations.get(version)
@@ -2850,6 +2869,29 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                     notes.append(f"{version}: excluded session-temporary routine `{name}` from durable catalog verification")
                 else:
                     functions.add(name)
+                    # CREATE OR REPLACE rewrites proconfig from its own SET
+                    # clauses; an earlier ALTER ... SET no longer describes it.
+                    settings = {k: v for k, v in settings.items() if k[0] != name}
+                continue
+            if match := ALTER_ROUTINE_SETTING_RE.match(statement):
+                name = f"{match.group(1)}.{match.group(2)}"
+                arguments, action, setting = match.group(3), match.group(4), match.group(5)
+                functions.add(name)
+                signature = None
+                if arguments is not None:
+                    signature, problem = normalize_function_acl_signature(name + arguments)
+                    if signature is None:
+                        notes.append(f"{version}: routine setting target `{name}{arguments}` is checked by family only: {problem}")
+                if setting == "all":
+                    settings = {k: v for k, v in settings.items() if k[:2] != (name, signature)}
+                settings.pop((name, signature, setting), None)
+                settings[(name, signature, setting)] = (name, signature, setting, action)
+                continue
+            if ALTER_ROUTINE_HEAD_RE.match(statement):
+                notes.append(
+                    f"{version}: ALTER of a routine was not safely parseable and was not "
+                    f"silently accepted: `{statement.strip()[:240]}`"
+                )
                 continue
             if match := CREATE_POLICY_RE.match(statement):
                 rls.add(f"{match.group(1)}.{match.group(2)}")
@@ -2964,7 +3006,53 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         noop_declaration=noop,
         indexes=indexes,
         schema_renames=schema_renames,
+        function_settings=list(settings.values()),
     )
+
+
+def _render_function_settings(add, targets: Targets, data: dict) -> list[str]:
+    """Check `alter routine ... set|reset` against `pg_proc.proconfig` (#4761).
+
+    Only the setting NAME is asserted: strip_sql blanks literals, so the value is
+    not compared. A SET whose name is absent, a RESET whose name is still present,
+    or a literal signature that resolves to no routine is a HARD FAIL.
+    """
+    if not targets.function_settings:
+        return []
+    failures: list[str] = []
+    families = {row.get("name"): row.get("overloads") or [] for row in data.get("functions") or []}
+    oids = {row.get("signature"): row.get("oid") for row in data.get("function_setting_signatures") or []}
+    add("## Routine settings (`pg_proc.proconfig`)")
+    add("")
+    add("| routine | statement | setting | proconfig | verdict |")
+    add("| --- | --- | --- | --- | --- |")
+    for family, signature, setting, action in targets.function_settings:
+        overloads = families.get(family) or []
+        label = signature or family
+        if signature is not None:
+            oid = oids.get(signature)
+            overloads = [o for o in overloads if oid is not None and str(o.get("oid")) == str(oid)]
+            if len(overloads) != 1:
+                add(f"| `{label}` | {action} | `{setting}` | | **FAIL** |")
+                failures.append(f"{label}: routine named by `alter ... {action} {setting}` does not resolve to exactly one overload")
+                continue
+        elif len(overloads) != 1:
+            add(f"| `{label}` | {action} | `{setting}` | | RECORD |")
+            continue
+        config = [str(x) for x in overloads[0].get("config") or []]
+        names = {entry.split("=", 1)[0] for entry in config}
+        if action == "set":
+            ok = setting in names
+        elif setting == "all":
+            ok = not config
+        else:
+            ok = setting not in names
+        shown = ", ".join(f"`{x}`" for x in config) or "_none_"
+        add(f"| `{label}` | {action} | `{setting}` | {shown} | {'PASS' if ok else '**FAIL**'} |")
+        if not ok:
+            failures.append(f"{label}: `alter ... {action} {setting}` applied but proconfig does not reflect it")
+    add("")
+    return failures
 
 
 def diagnose_catalog_coverage(repo_root: Path, allowlist: list[str]) -> dict[str, Any]:
@@ -3023,6 +3111,8 @@ def build_catalog_sql(targets: Targets) -> str:
     signature_values = "array[" + ", ".join("'" + x.replace("'", "''") + "'" for x in signatures) + "]::text[]"
     normalized_signatures = [normalize_function_acl_signature(x)[0] for x in signatures]
     normalized_values = "array[" + ", ".join("NULL" if x is None else "'" + x.replace("'", "''") + "'" for x in normalized_signatures) + "]::text[]"
+    setting_values = sorted({row[1] for row in targets.function_settings if row[1] is not None})
+    setting_signatures = "array[" + ", ".join("'" + x.replace("'", "''") + "'" for x in setting_values) + "]::text[]"
     index_names = _sql_array([row[0] for row in targets.indexes])
     index_relations = _sql_array([row[1] for row in targets.indexes])
     schema_names = _sql_array(
@@ -3173,6 +3263,11 @@ select jsonb_build_object(
     from rel
     join pg_class c on c.oid = rel.oid
     cross join lateral aclexplode(c.relacl) a), '[]'::jsonb),
+  'function_setting_signatures', coalesce((
+    select jsonb_agg(jsonb_build_object('signature', signature,
+      'oid', to_regprocedure(signature)::oid::text) order by signature)
+    from unnest({setting_signatures}) as s(signature)
+  ), '[]'::jsonb),
   'function_acl_signatures', coalesce((
     select jsonb_agg(jsonb_build_object('signature', signature,
       'oid', to_regprocedure(normalized_signature)::oid::text) order by signature)
@@ -3188,6 +3283,7 @@ select jsonb_build_object(
           'prokind', p.prokind::text,
           'owner', pg_get_userbyid(p.proowner),
           'has_definition', pg_get_functiondef(p.oid) is not null,
+          'config', coalesce(to_jsonb(p.proconfig), '[]'::jsonb),
           -- FUNCTION PRIVILEGES (issue #697 review, H1). Without these the
           -- report showed a function existing with a readable definition and
           -- said NOTHING about whether its revoke took -- while a section
@@ -4177,6 +4273,7 @@ def render_report(
                 f"`{overload.get('prokind')}` | {overload.get('has_definition')} |"
             )
     add("")
+    failures.extend(_render_function_settings(add, targets, data))
 
     add("## Function privileges (`proacl` + `has_function_privilege`)")
     add("")
