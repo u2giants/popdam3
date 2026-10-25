@@ -8,8 +8,10 @@ design history, never cherry-picked). This is repository maintenance; it changes
 
 - GitHub builds and merges one pull request at a time: ruleset `main merge queue`, `ALLGREEN`,
   `max_entries_to_build=1`, `max_entries_to_merge=1`, `min_entries_to_merge=1`, zero minimum wait,
-  merge method `MERGE`, `check_response_timeout_minutes=30` (justified in Step 8's dry-run evidence
-  from current required-check runtimes; the 25-minute preview hold fits inside it).
+  merge method `MERGE`, `check_response_timeout_minutes=90` (raised from 30 in issue #4746: the
+  2026-10-23/24 Actions starvation starved three all-green entries to the 30-minute timeout behind
+  one-at-a-time batching, so the window must absorb check-start delay, not just the check runtimes
+  that sized the original 30; the 25-minute preview hold still fits inside it).
 - The reviewed pull-request head is immutable. The queue tests a separate synthetic commit containing
   that exact head plus current `main`; `.github/workflows/merge-queue-gate.yml` proves the reviewed
   head is an ancestor of the group commit before anything passes.
@@ -73,6 +75,21 @@ Activation must happen only after the implementation PR is merged and green on `
 Do not activate the ruleset from the implementation branch: GitHub would request `merge_group`
 checks from `main`, where the workflows did not exist yet, and the queue would correctly deadlock.
 
+## Changing queue parameters (issue #4746)
+
+The guarded lane pins the live ruleset's exact shape to `QUEUE_RULE` in
+`scripts/merge-queue-contract.mjs`; a live ruleset edit that does not move the pin makes every lane
+run refuse (`not the exact approved one-PR queue`) — observed 2026-10-23 when a direct 30→90 edit
+was reverted within minutes. A parameter change therefore lands as ONE PR, in this order:
+
+1. The PR updates `QUEUE_RULE` (pin), its test fixtures, and this document together.
+2. The PR merges through the queue while the live ruleset still matches the OLD pin — the lane
+   reads its policy from `main`, not the PR head, so admission and the group run stay green.
+3. Immediately after the merge lands, run `node scripts/configure-merge-queue.mjs` (dry run, saved
+   as evidence), then `--apply` from the merged `main`: it updates the recorded ruleset in place,
+   carrying forward its exact `bypass_actors`, and read-back must match the new pin. Between the
+   merge and the apply the lane refuses (fail-closed, minutes only) — apply promptly.
+
 ## Observing the queue
 
 - `gh api repos/popcre/shared-db/rulesets` lists the ruleset; read it back by ID for full rules.
@@ -88,7 +105,7 @@ checks from `main`, where the workflows did not exist yet, and the queue would c
 ## Bounded failures
 
 - The gate's preview hold waits 25 minutes (`PREVIEW_HOLD_MAX_SECONDS`), inside the ruleset's
-  30-minute check-response timeout. A group that times out is removed by GitHub and can be
+  90-minute check-response timeout. A group that times out is removed by GitHub and can be
   re-queued after the hold clears; nothing is merged partially.
 - A failed rehearsal means the next group stays blocked. Recover preview through the existing
   governed procedures; never post the status manually and never bypass with `--admin`.

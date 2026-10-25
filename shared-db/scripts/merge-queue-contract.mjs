@@ -47,10 +47,14 @@ export const GUARDED_AUTHORIZATION_CONTEXT = 'Migration guarded merge authorizat
 // activation both compare against THIS object, so a queue with different
 // parameters is never silently treated as the approved one.
 export const RULESET_NAME = 'main merge queue'
+// check_response_timeout_minutes is 90 (raised from 30, issue #4746): during the
+// 2026-10-23/24 Actions starvation three all-green entries starved to the
+// 30-minute timeout behind one-at-a-time batching, so the window must absorb
+// check-start delay, not just check runtime.
 export const QUEUE_RULE = Object.freeze({
   type: 'merge_queue',
   parameters: Object.freeze({
-    check_response_timeout_minutes: 30,
+    check_response_timeout_minutes: 90,
     grouping_strategy: 'ALLGREEN',
     max_entries_to_build: 1,
     max_entries_to_merge: 1,

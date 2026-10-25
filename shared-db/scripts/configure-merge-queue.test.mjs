@@ -27,7 +27,7 @@ const SHA_B = 'b'.repeat(40)
 
 test('queue is exactly one all-green PR built and merged at a time', () => {
   assert.deepEqual(QUEUE_RULE.parameters, {
-    check_response_timeout_minutes: 30,
+    check_response_timeout_minutes: 90,
     grouping_strategy: 'ALLGREEN',
     max_entries_to_build: 1,
     max_entries_to_merge: 1,
@@ -169,7 +169,7 @@ test('read-back preserves a nonempty bypass actor list exactly', () => {
 })
 
 test('read-back accepts GitHub key order for identical queue parameters (#3566, ruleset 24024180)', () => {
-  const githubOrder = { merge_method: 'MERGE', max_entries_to_build: 1, min_entries_to_merge: 1, max_entries_to_merge: 1, min_entries_to_merge_wait_minutes: 0, grouping_strategy: 'ALLGREEN', check_response_timeout_minutes: 30 }
+  const githubOrder = { merge_method: 'MERGE', max_entries_to_build: 1, min_entries_to_merge: 1, max_entries_to_merge: 1, min_entries_to_merge_wait_minutes: 0, grouping_strategy: 'ALLGREEN', check_response_timeout_minutes: 90 }
   const written = { id: 24024180, ...desiredRuleset(), rules: [{ type: 'merge_queue', parameters: githubOrder }, REQUIRED_STATUS_CHECKS_RULE] }
   assert.equal(verifyReadback(written).id, 24024180)
   assert.throws(() => verifyReadback({ ...written, rules: [{ type: 'merge_queue', parameters: { ...githubOrder, grouping_strategy: 'HEADGREEN' } }, REQUIRED_STATUS_CHECKS_RULE] }), /read-back mismatch: queue parameters/)

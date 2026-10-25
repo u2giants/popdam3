@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "work_issue": 4746,
+  "outcome": "ready-for-merge",
+  "pr": 4755,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4746/3",
+  "contract_sha256": "00c0f96dbd71d614ef8a01b41d30da6e1784fbeea83c750836b632e69631bf79",
+  "head_sha": "4728dab4ca168a3f85583f693e368227761af0d2",
+  "base_sha": "83b6cb6af3165e85de1043d7cb82408d03e2ad9c",
+  "files_changed": ["docs/merge-queue-operation.md", "scripts/configure-merge-queue.test.mjs", "scripts/merge-queue-contract.mjs", "scripts/merge-queue-contract.test.mjs"],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/merge-queue-contract.test.mjs scripts/configure-merge-queue.test.mjs",
+      "exit_code": 0,
+      "evidence": "53 tests, 53 pass, 0 fail at 4728dab4 after refreshing onto origin/main 83b6cb6af."
+    }
+  ],
+  "assumptions_resolved": [
+    "Generations 1-2 reviewed APPROVE (muse at 5e82f15c7, deepseek at b87055812); generation 3 is the byte-identical change refreshed onto the moved main after queue starvation drops."
+  ],
+  "stop_conditions_hit": []
+}

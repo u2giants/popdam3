@@ -1,0 +1,50 @@
+{
+  "schema_version": 2,
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 4746,
+    "generation": 2,
+    "contract_sha256": "47c44960207c2427cb24c10ef58cddcd1db98acad718e614c1f413ada75e4432"
+  },
+  "work_issue": 4746,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Raise the merge-queue entry timeout 30 to 90 minutes as one paired change: move the guarded lane's approved-shape pin QUEUE_RULE in scripts/merge-queue-contract.mjs together with its two test fixtures and docs/merge-queue-operation.md (including the new Changing queue parameters section). The live ruleset itself is never edited on the side: configure-merge-queue re-applies it from merged main immediately after this PR lands through the queue. Generation 2 refreshes the implementation head onto main 993186f37 (generation 1 reviewed at the pre-merge base); the change is byte-identical. Generation 3 refreshes onto main 83b6cb6af after two queue starvation drops; the change stays byte-identical.",
+  "base_sha": "83b6cb6af3165e85de1043d7cb82408d03e2ad9c",
+  "dispatcher": "zcode-chat-unknown",
+  "worker": "zcode-chat-unknown",
+  "branch": "zcode/ci-speedup-queue-timeout",
+  "worktree": "D:/repos/shared-db-worktrees/ci-speedup-4746",
+  "allowed_paths": [
+    "scripts/merge-queue-contract.mjs",
+    "scripts/merge-queue-contract.test.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "docs/merge-queue-operation.md",
+    ".agent/work/4746/3/*"
+  ],
+  "file_writes": [
+    "scripts/merge-queue-contract.mjs",
+    "scripts/merge-queue-contract.test.mjs",
+    "scripts/configure-merge-queue.test.mjs",
+    "docs/merge-queue-operation.md",
+    ".agent/work/4746/3/contract.json",
+    ".agent/work/4746/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Never edit the live merge-queue ruleset outside this paired sequence; the pin and the ruleset move as one change.",
+    "Never admin-merge; the ruleset has no bypass actors.",
+    "Never delete or rename rulesets, branch protection, or required contexts."
+  ],
+  "required_checks": [
+    "node --test scripts/merge-queue-contract.test.mjs scripts/configure-merge-queue.test.mjs"
+  ],
+  "assumptions": [
+    "The post-merge configure-merge-queue --apply refusal window (pin 90 vs live ruleset 30) is minutes and fail-closed; no other lane dispatch is expected in it."
+  ],
+  "stop_conditions": [
+    "The guarded lane refuses admission for any reason other than the documented post-merge window.",
+    "configure-merge-queue read-back does not match the new pin."
+  ]
+}

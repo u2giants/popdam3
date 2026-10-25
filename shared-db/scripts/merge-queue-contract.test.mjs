@@ -129,7 +129,7 @@ const approvedDetail = {
 
 test('the approved rule is exactly one all-green PR built and merged at a time', () => {
   assert.deepEqual(QUEUE_RULE.parameters, {
-    check_response_timeout_minutes: 30,
+    check_response_timeout_minutes: 90,
     grouping_strategy: 'ALLGREEN',
     max_entries_to_build: 1,
     max_entries_to_merge: 1,
@@ -452,7 +452,7 @@ test('--recheck-interlock CLI uses newest status and fail-closed production 404 
 
 // #3566: GitHub read back ruleset 24024180 with identical values in ITS key order;
 // JSON-string comparison refused the live approved queue.
-const GITHUB_ORDER_PARAMETERS = { merge_method: 'MERGE', max_entries_to_build: 1, min_entries_to_merge: 1, max_entries_to_merge: 1, min_entries_to_merge_wait_minutes: 0, grouping_strategy: 'ALLGREEN', check_response_timeout_minutes: 30 }
+const GITHUB_ORDER_PARAMETERS = { merge_method: 'MERGE', max_entries_to_build: 1, min_entries_to_merge: 1, max_entries_to_merge: 1, min_entries_to_merge_wait_minutes: 0, grouping_strategy: 'ALLGREEN', check_response_timeout_minutes: 90 }
 
 test('queue parameters compare by key and value, not by key order (#3566)', () => {
   assert.notEqual(JSON.stringify(GITHUB_ORDER_PARAMETERS), JSON.stringify(QUEUE_RULE.parameters), 'fixture must reproduce the differing order')
