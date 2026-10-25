@@ -378,3 +378,18 @@ test('both applied companions yield readiness without another promotion',async()
  b.f.io.productionEvidence=async(r,facts)=>{verifyBatchProductionFiles(r,facts,b.files,b.proof);return {source_pr:r.source_pr,run_id:b.proof.run.id};};
  const result=await assess(b.f);assert.equal(result.status,'ready');assert.equal(result.requirements.length,2);assert.deepEqual(b.f.effects,['catalog']);
 });
+
+test('canonical tracking/frontend baselines require the actual successor and reject original-only manifests',()=>{
+ const policy=JSON.parse(readFileSync(new URL('../config/designflow-db-releases.json',import.meta.url),'utf8'));
+ for(const repository of ['popcre/designflow-tracking','popcre/designflow-frontend']){
+  const app=policy.repositories.find(a=>a.repository===repository);
+  assert.deepEqual(app.required_sources.filter(r=>r.work_issue===3869),[{work_issue:3869,source_pr:4735}]);
+  const manifest={schema_version:1,repository,production_project_ref:policy.production_project_ref,contracts:[],requirements:app.required_sources.map((r,i)=>({...r,migrations:[{version:`2026102500000${i}`,path:`supabase/migrations/2026102500000${i}_fixture.sql`,sha256:'a'.repeat(64)}]}))};
+  const isolated={...policy,repositories:[{...app,contract_manifest_sha256:manifestDigest({...manifest,requirements:[]})}]};
+  assert.equal(releasePolicy(manifest,isolated).requirements.some(r=>r.source_pr===4735),true);
+  const old=structuredClone(manifest);old.requirements=old.requirements.filter(r=>r.work_issue!==3869);
+  for(const [i,source_pr]of [4648,4673].entries())old.requirements.push({work_issue:3869,source_pr,migrations:[{version:`2026102500010${i}`,path:`supabase/migrations/2026102500010${i}_old.sql`,sha256:'b'.repeat(64)}]});
+  assert.throws(()=>releasePolicy(old,isolated),/Required baseline migration was omitted/);
+ }
+ assert.deepEqual(policy.repositories.find(a=>a.repository==='popcre/designflow-backend').required_sources,[{work_issue:4638,source_pr:4640},{work_issue:4634,source_pr:4636}]);
+});

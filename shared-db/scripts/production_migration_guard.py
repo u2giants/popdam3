@@ -65,6 +65,9 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # #3869: production uses reviewed successor4735; preserve historical SQL/preview ledgers.
+    "20261022221940",
+    "20261023014911",
     "20261005025111",  # #2176 immutable slot7 REVISE; never-installed source retired.
     "20261001122410",
     # #2508: replaced originals; immutable successor provenance and live ledger verified.
@@ -302,6 +305,8 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261022221940": "#3869: historical PR4648 source eaeb970ff29a1badc8fccac63284ecc521d2e8c4 retains its durable reviewer refusals and immutable SQL; preview run 39879949104 applied this original, but production received the combined idempotent successor20261024234538 from PR4735 (merge75691064b17f0cef76835453c7ec29a979d3ec7a), production apply40151562831 attempt1 SUCCESS. Root independently verified exact successor source and actual runtime login/ledger. Preserve original source, review/refusal history and preview ledger; never apply this historical version again.",
+    "20261023014911": "#3869: historical PR4673 source b20da395e92bfbca1744f72fc2ced63996935ec6 retains its durable reviewer refusals and immutable SQL; preview run 40011713642 applied this original, but production received the combined idempotent successor20261024234538 from PR4735 (merge75691064b17f0cef76835453c7ec29a979d3ec7a), production apply40151562831 attempt1 SUCCESS. Root independently verified exact successor source and actual runtime login/ledger. Preserve original source, review/refusal history and preview ledger; never apply this historical version again.",
     "20261005025111": "#2176 merged-stranded: immutable PR3839 head dd269428fc3953e98366142cec24c71e25d71b09 carries slot7 REVISE verdict45d5766e4e3d62d777c19d057e3d59825f150a1c; preview and production never applied original; claim3838 supported reissue retirement6328e126316baca16b7f3d842f79a769599f478c reserves standalone safe replacement20261011224904, not yet installed. Preserve original SQL and all reviews; never apply original.",
     "20261001122410": "#3859 / #3948: preview-era PR3862 original replaced by production-path successor 20261006004845 (PR3951), applied automatically in run37400719394; immutable successor header pins the same static index statement. Live production successor ledger and exact btree(company_code,prod_order_no) index reverified October11,2026. Preserve original SQL; never promote original.",
     "20260914061331": "#2879 / #2885: production run 34819885746 refused original PR2882 provenance; #2885 forbids reuse of this version. Forward replacement 20260914075758 applied in run34834533519; live production ledger reverified October11,2026. Preserve original SQL and preview ledger; never promote original.",

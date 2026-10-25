@@ -276,6 +276,31 @@ class GuardTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(GuardError):
                 parse_allowlist(value)
 
+    def test_tracking_original_pair_is_retired_without_rewriting_preview_history(self):
+        import hashlib
+        originals = {
+            "20261022221940": ("dflow_prod_prod_order_sales_order_link", "bbf5dcc2cc6a477a86bcd215225e6cf780e23d95dd7f80bb03cd0223bfd7e604"),
+            "20261023014911": ("dflow_prod_link_hardening", "1cf8c70dcad9dce563f6a7ca5554c8e67ee9accbeb7f493351b4b4bc891eca1a"),
+        }
+        successor = "20261024234538"
+        for version, (name, digest) in originals.items():
+            with self.subTest(version=version):
+                self.assertIn(version, HARD_BLOCKED)
+                reason = production_migration_guard.RETIRED_VERSION_REASONS[version]
+                self.assertIn("PR4735", reason)
+                self.assertIn(successor, reason)
+                self.assertIn("40151562831", reason)
+                self.assertEqual(hashlib.sha256((REPO / "supabase/migrations" / f"{version}_{name}.sql").read_bytes()).hexdigest(), digest)
+                for target in ("production", "preview", "designflow-nonprod"):
+                    for batch in (version, f"{version},{successor}", ",".join(originals)):
+                        with self.subTest(target=target, batch=batch), self.assertRaises(GuardError):
+                            parse_allowlist(batch, remote=set(originals), target=target)
+                for ledger in (set(), set(originals), {successor}):
+                    self.assertEqual(classify_pending_version(version, ledger, REPO)["kind"], "retired")
+        self.assertEqual(parse_allowlist(successor), [successor])
+        self.assertNotIn(successor, HARD_BLOCKED)
+        self.assertEqual(hashlib.sha256((REPO / "supabase/migrations" / f"{successor}_dflow_prod_link_reland.sql").read_bytes()).hexdigest(), "98210290dca92fbbf9b8a995c4bbc13e8bd6af22d88e6ff8eb75c73984640d04")
+
     def test_2176_unsafe_original_is_retired_and_replacement_remains_pending(self):
         self.assertIn("20261005025111", HARD_BLOCKED)
         self.assertIn("20261005025111", production_migration_guard.RETIRED_VERSION_REASONS)
@@ -334,6 +359,8 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(
             HARD_BLOCKED,
             {
+                "20261022221940",
+                "20261023014911",
                 "20261005025111",
                 "20261001122410",
                 "20260914061331",

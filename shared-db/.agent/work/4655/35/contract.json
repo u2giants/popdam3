@@ -1,0 +1,63 @@
+{
+  "allowed_paths": [
+    "config/designflow-db-releases.json",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/designflow-db-release.test.mjs",
+    "docs/designflow-db-release.md",
+    "scripts/test_post_batch_app_verification.py",
+    ".agent/work/4655/34/**",
+    ".agent/work/4655/35/**"
+  ],
+  "assumptions": [
+    "Root independently verified4735 merged and actual production40151562831 attempt1 success plus runtime login/ledger proof.",
+    "Only Tracking and frontend contain the superseded4648/4673 pair; backend requirements remain unchanged.",
+    "Existing reservations, refusals and preview ledgers remain immutable; retiring old allowlist admission is maintenance without structural claim.",
+    "Milestone4653 stays pending its separate fresh4646 delivery; this work does not claim full application readiness.",
+    "CI fullPythonretirementcontractfailure is a fixed expectedset requiring exactold2addition, not weakenedassertions.",
+    "Sourceedits wait until active8823DeepSeekreview reaches terminal; freshchangedheadrequiresnormalreview."
+  ],
+  "base_sha": "211c1290be6409605417308a4c1e1fe80598503e",
+  "branch": "codex/dflow-successor-release-baselines",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex root chat01a16a92-7296-7f42-9465-79db583ec931 on edge-dev3",
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 34,
+    "contract_sha256": "4cfc48d94d44cca240faf30fe23ff1fa08e047ec3e775c4519020b9da1579eaf"
+  },
+  "file_writes": [
+    "config/designflow-db-releases.json",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "scripts/designflow-db-release.test.mjs",
+    "docs/designflow-db-release.md",
+    "scripts/test_post_batch_app_verification.py",
+    ".agent/work/4655/34/**",
+    ".agent/work/4655/35/**"
+  ],
+  "generation": 35,
+  "goal": "Make proven tracking successor4735 the canonical release prerequisite and permanently refuse both historical tracking versions without altering historical SQL, ledgers, reviews or consumer source; include full Python retirement contract regression proof and immutable production attempt1 delivery citation",
+  "prohibited_actions": [
+    "No migration SQL, database shape/data/ledger write, foreign claim/source4732 change, consumer source publication, credential or platform mutation",
+    "No historical source/review deletion, fabricated apply receipt, manual production dispatch or weakened safety guard"
+  ],
+  "required_checks": [
+    "python3 -m unittest discover -s scripts -p test_*.py",
+    "node --test scripts/designflow-db-release.test.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop if4735 merged bytes differ from independently verified successor or its version/hash.",
+    "Stop on new scope, ownership collision or unexplained test failure; publish any widened scope prospectively."
+  ],
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "worker": "codex",
+  "worktree": "/tmp/shared-db-successor-release-baselines"
+}

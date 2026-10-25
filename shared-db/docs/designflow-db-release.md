@@ -175,9 +175,19 @@ complete read must still match that absence immediately before activation.
 
 A requirement identifies one canonical source PR and exactly the migrations it
 added. Two different source PRs may implement the same issue; PRs, issue/PR
-pairs, migration versions and paths remain unique. Tracking and frontend require
-both #4648 and its #4673 companion. Contract digests remain independent of this
-source list. A pending companion set reports `qualified-migration-train-required`
+pairs, migration versions and paths remain unique. Tracking and frontend now
+require the combined successor #4735 (version `20261024234538`, source SHA256
+`98210290dca92fbbf9b8a995c4bbc13e8bd6af22d88e6ff8eb75c73984640d04`),
+which production apply [40151562831 attempt 1](https://github.com/popcre/shared-db/actions/runs/40151562831/attempts/1)
+delivered successfully. The later attempt 2 refused stale main and did not change
+that successful attempt 1 delivery. The historical #4648/#4673 SQL files, reviewer refusals and preview
+ledgers remain intact. Both original versions are permanently blocked from any
+new allowlist by `HARD_BLOCKED` and classified as retired by the existing pending
+version policy; no ledger row is fabricated and no historical claim is adopted.
+Consumer manifests must name the actual successor before they can pass the
+updated central baseline. Other requirements, including milestone persistence,
+remain independent and are not declared delivered by this replacement.
+Contract digests remain independent of this source list. A pending companion set reports `qualified-migration-train-required`
 and never starts its members as unrelated single-source promotions. An operator
 must qualify the existing native train; this observer grants no train authority.
 
