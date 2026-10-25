@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "source": "scripts/db-flow/lane-watchdog.mjs",
+  "sites": [
+    {
+      "site": "scripts/db-flow/lane-watchdog.mjs:222",
+      "semantic_key": "scripts/db-flow/lane-watchdog.mjs:13a27ed9fcf7b19bc1ead155e5a5d9c6fa358e71b76e31b8a976df100b592cf2:context-db2a233a511c58f7a0e82e22efe452ab7f3d12d906ceb289703ca8de486ac167",
+      "line_sha256": "13a27ed9fcf7b19bc1ead155e5a5d9c6fa358e71b76e31b8a976df100b592cf2",
+      "disposition": "excluded",
+      "reason": "Watchdog log/diagnostic lines (missing lane run contexts); read-only observation plus a bounded workflow dispatch, no database or merge semantics."
+    },
+    {
+      "site": "scripts/db-flow/lane-watchdog.mjs:95",
+      "semantic_key": "scripts/db-flow/lane-watchdog.mjs:65dcc597dfa0c266f02192ce264e2ade45eccf1c5aca5657c00954e08f61231f:context-a98034dff5af62313ef1b1178f433a7b284a8ab73439866844f619ea66bdccbe",
+      "line_sha256": "65dcc597dfa0c266f02192ce264e2ade45eccf1c5aca5657c00954e08f61231f",
+      "disposition": "excluded",
+      "reason": "Watchdog log/diagnostic lines (missing lane run contexts); read-only observation plus a bounded workflow dispatch, no database or merge semantics."
+    },
+    {
+      "site": "scripts/db-flow/lane-watchdog.mjs:10",
+      "semantic_key": "scripts/db-flow/lane-watchdog.mjs:c105dd29d67b12262ed76c97fe7ffb500c3f9cd897b4d68d580df71520542228:context-ebfa34a2675f2264f9c4a306afa5165f661803c9bd652c3f1f2461d2ed626e4f",
+      "line_sha256": "c105dd29d67b12262ed76c97fe7ffb500c3f9cd897b4d68d580df71520542228",
+      "disposition": "excluded",
+      "reason": "Watchdog log/diagnostic lines (missing lane run contexts); read-only observation plus a bounded workflow dispatch, no database or merge semantics."
+    }
+  ]
+}

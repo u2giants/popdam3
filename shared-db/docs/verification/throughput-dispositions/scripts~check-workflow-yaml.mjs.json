@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-workflow-yaml.mjs",
+  "sites": [
+    {
+      "site": "scripts/check-workflow-yaml.mjs:256",
+      "semantic_key": "scripts/check-workflow-yaml.mjs:bd6b4fdffe3faa1d26377ed36d6f069c325b55acc63d3d19bdebe36f4a6809e4:context-ad2830d675282cbf3ae09915df9d77f870820cbebae709d63a0d537d2022af80",
+      "line_sha256": "bd6b4fdffe3faa1d26377ed36d6f069c325b55acc63d3d19bdebe36f4a6809e4",
+      "disposition": "excluded",
+      "reason": "Validity guard output lines (missing marker/parse-failure diagnostics); no database or coordination semantics, read-only check."
+    },
+    {
+      "site": "scripts/check-workflow-yaml.mjs:11",
+      "semantic_key": "scripts/check-workflow-yaml.mjs:dc10265f54b60d6bbe66ab494b2cb5b3cea2b3409977a7b82adbe59907e36f06:context-c777fdc6fe8b41b83d6c71de7bcf236852d9d24b3eeaef006ca27d78b4328546",
+      "line_sha256": "dc10265f54b60d6bbe66ab494b2cb5b3cea2b3409977a7b82adbe59907e36f06",
+      "disposition": "excluded",
+      "reason": "Validity guard output lines (missing marker/parse-failure diagnostics); no database or coordination semantics, read-only check."
+    }
+  ]
+}
