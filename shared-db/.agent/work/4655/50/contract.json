@@ -1,0 +1,58 @@
+{
+  "allowed_paths": [
+    "scripts/production_catalog_verification.py",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/test_dflow_tracking_catalog_contract.py",
+    ".github/workflows/tools-offline-tests.yml",
+    "docs/designflow-db-release.md",
+    ".agent/work/4655/50/**"
+  ],
+  "assumptions": [
+    "Protected merge40225070813 correctly refuses new sidecar20261024234538 because trusted main does not yet register dflow_tracking_catalog_v1. Do not execute PR verifier as trusted policy or suppress the guard.",
+    "PhaseA contains fixed verifier registration, regenerated baseline and self-contained fixture/CI only, no producer sidecar or registry entry. Existing90 producer sidecars remain unchanged.",
+    "Fixture loader tests use exact canonical source-hash synthetic declaration in a temporary repository until phaseB lands the real sidecar; physical PG17 negative tests remain. PhaseB must then assert its actual committed sidecar.",
+    "PR4774/head60f84e2dad4a0a9bda861b2ab1564964c13b9014 has genuine assigned GLM APPROVE482e3ca717817f0861f9fb5f870dc62117ce7960; this new source still gets normal independent review. No sourceSQL, production writes, sandbox restrictions or app merge ownership changes."
+  ],
+  "base_sha": "83b6cb6af3165e85de1043d7cb82408d03e2ad9c",
+  "branch": "codex/dflow-tracking-catalog-registration-20261025",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex chat 01a17409-8c59-7b53-abb1-5e7b55e9eb42",
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 49,
+    "contract_sha256": "bae7ce66c17b3a3b396e221ae6e5840017c645a17fafdb37f5e6ff0c76b3f030"
+  },
+  "file_writes": [
+    "scripts/production_catalog_verification.py",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/test_dflow_tracking_catalog_contract.py",
+    ".github/workflows/tools-offline-tests.yml",
+    "docs/designflow-db-release.md",
+    ".agent/work/4655/50/**"
+  ],
+  "generation": 50,
+  "goal": "Register the reviewed fixed Tracking catalogue contract in trusted main before adding its producer sidecar; preserve trusted-source rejection of unknown contracts",
+  "prohibited_actions": [
+    "No SQL, database, migration or production writes; no fabricated evidence; no changes to sandbox restrictions or app merge ownership.",
+    "No weakening structural preview, exact-head review, source approval, target proof or production interlock."
+  ],
+  "required_checks": [
+    "DFLOW_TRACKING_CATALOG_DOCKER=1 python3 -m unittest scripts.test_dflow_tracking_catalog_contract scripts.test_production_catalog_verification scripts.test_production_catalog_recovery_evidence",
+    "node scripts/check-production-verification-sidecars.mjs --base 83b6cb6af3165e85de1043d7cb82408d03e2ad9c",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node scripts/check-workflow-yaml.mjs",
+    "node --test scripts/check-workflow-yaml.test.mjs"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop on necessary authority/design expansion, never fabricate historical artifacts or relax original source/refusal checks."
+  ],
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "worker": "codex",
+  "worktree": "/tmp/dflow-tracking-catalog-registration"
+}
