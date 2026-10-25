@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "generation": 2,
+  "work_issue": 4731,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Fix #4731: guarded merge admits to the merge queue with a token from the dedicated popcre-merge-queue-admission app (contents:write + merge_queues:write, installed on shared-db only; owner-approved 2026-10-25) so merge_group checks start. Pinned by tests. Generation 2 rebases onto main after #4762 touched the same test file.",
+  "base_sha": "85a37a9b8ce757c51a1c56274a307ef7bfb4a9b5",
+  "dispatcher": "Claude chat e5de9239-fb20-41fb-be2b-15e891dc1d83 on edge-dev3",
+  "worker": "Same session.",
+  "branch": "claude/4731-queue-admission-app",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/mq-admission-4731",
+  "allowed_paths": [".github/workflows/guarded-migration-merge.yml","scripts/check-merge-queue-workflows.test.mjs",".agent/work/4731/2/contract.json",".agent/work/4731/2/completion.json"],
+  "file_writes": [".github/workflows/guarded-migration-merge.yml","scripts/check-merge-queue-workflows.test.mjs",".agent/work/4731/2/contract.json",".agent/work/4731/2/completion.json"],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": ["No change to authorization, interlock, lock, or revoke logic; only the queue-admission token and call.","No use of SYNC_TOKEN or authority secrets in the merge step."],
+  "required_checks": ["git diff --check origin/main...HEAD","node --test scripts/check-merge-queue-workflows.test.mjs scripts/check-guarded-merge-sync-dispatch.test.mjs scripts/guarded-merge-preparation-split.test.mjs"],
+  "assumptions": ["The implementation head 793fed18567a69fc8d0581371320e00b6c9cfff5 was authored before this contract was published; disclosed."],
+  "stop_conditions": ["Stop before any production, preview, database or repository-setting action beyond the owner-approved app setup."]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "work_issue": 4731,
+  "outcome": "ready-for-merge",
+  "pr": 4766,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4731/2",
+  "contract_sha256": "3711d357c9d775ee1d49fffc02a611f54d6c275791f00d1df0c9ed15651ca2d3",
+  "base_sha": "85a37a9b8ce757c51a1c56274a307ef7bfb4a9b5",
+  "head_sha": "793fed18567a69fc8d0581371320e00b6c9cfff5",
+  "files_changed": [".github/workflows/guarded-migration-merge.yml","scripts/check-merge-queue-workflows.test.mjs"],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"command": "git diff --check origin/main...HEAD", "exit_code": 0, "evidence": "No whitespace errors."},
+    {"command": "node --test scripts/check-merge-queue-workflows.test.mjs scripts/check-guarded-merge-sync-dispatch.test.mjs scripts/guarded-merge-preparation-split.test.mjs", "exit_code": 0, "evidence": "pass 52, 0 failed on 793fed18 (October 25, 2026, 2:31 PM EDT, edge-dev3). Live probe: app token with contents+merge_queues write reached GitHub's head check on enqueue (nothing queued); merge_queues alone was refused."}
+  ],
+  "assumptions_resolved": ["Queue-admission token and call only; rebase kept #4762's new test alongside this one."],
+  "stop_conditions_hit": []
+}

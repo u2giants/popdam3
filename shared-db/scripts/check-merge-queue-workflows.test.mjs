@@ -65,7 +65,9 @@ function guardedQueueDecision(mode, { readFails = false } = {}) {
 merge_calls=0
 trap 'echo MERGE_CALL_COUNT=$merge_calls' EXIT
 node() {
-  if [ "$1" = "$GITHUB_WORKSPACE/trusted-policy/scripts/merge-queue-contract.mjs" ] && [ "$2" = '--queue-mode' ]; then
+  if [ "$1" = "$GITHUB_WORKSPACE/trusted-policy/scripts/gh-read.mjs" ] && [ "$2" = pr ] && [ "$3" = view ]; then
+    printf 'PR_node'
+  elif [ "$1" = "$GITHUB_WORKSPACE/trusted-policy/scripts/merge-queue-contract.mjs" ] && [ "$2" = '--queue-mode' ]; then
     [ "$QUEUE_READ_FAILS" = 0 ] || return 1
     printf '%s' "$QUEUE_MODE"
   else
@@ -73,9 +75,10 @@ node() {
   fi
 }
 gh() {
-  [ "$1" = pr ] && [ "$2" = merge ] || return 91
-  merge_calls=$((merge_calls + 1))
-  return 0
+  if [ "$1" = pr ] && [ "$2" = merge ]; then merge_calls=$((merge_calls + 1)); return 0; fi
+  # #4731: queue admission enqueues through GraphQL as the admission app.
+  if [ "$1" = api ] && [ "$2" = graphql ] && [[ "$*" == *enqueuePullRequest* ]]; then merge_calls=$((merge_calls + 1)); return 0; fi
+  return 91
 }
 prove_retained_all14() { return 0; }
 ${decision}
@@ -85,7 +88,7 @@ ${decision}
     const result = spawnSync('bash', ['-c', script], {
       encoding: 'utf8', timeout: 10000,
       env: { ...process.env, QUEUE_MODE: mode, QUEUE_READ_FAILS: readFails ? '1' : '0',
-        PR_NUMBER: '7', REQUESTED_SHA: 'a'.repeat(40), GITHUB_REPOSITORY: 'popcre/shared-db',
+        PR_NUMBER: '7', REQUESTED_SHA: 'a'.repeat(40), GITHUB_REPOSITORY: 'popcre/shared-db', QUEUE_ADMISSION_TOKEN: 'synthetic',
         GITHUB_WORKSPACE: '/synthetic', RUNNER_TEMP: runnerTemp },
     })
     const count = /MERGE_CALL_COUNT=(\d+)/.exec(result.stdout)?.[1]
@@ -671,7 +674,7 @@ test('retained14 runs before every mutation without widening authority secret en
   assert.match(workflow,/--capture-authority-file/)
   assert.match(workflow,/Remove this run's protected authority scratch file[\s\S]*if: always\(\)[\s\S]*--cleanup-authority-file/)
   const lines=guarded.split('\n')
-  const calls=lines.map((line,i)=>({line,i})).filter(({line})=>/^\s*(?:if )?gh pr merge /.test(line))
+  const calls=lines.map((line,i)=>({line,i})).filter(({line})=>/^\s*(?:if )?gh pr merge /.test(line)||/^\s*admit_to_queue\s*$/.test(line))
   assert.equal(calls.length,3)
   for(const {i}of calls)assert.equal(lines[i-1].trim(),'prove_retained_all14')
   assert.match(guarded,/\[ "\$PR_NUMBER" = 3998 \] \|\| return 0/)
@@ -711,4 +714,20 @@ test('preview ordering uses the candidate migration paths and retains the latest
   assert.ok(text.includes('--preview-rehearsal-target --base-sha "$BASE_SHA" --group-sha "$GITHUB_SHA"'))
   assert.ok(text.includes('--require-preview-rehearsal --sha "$target"'))
   assert.ok(!text.includes('--require-preview-rehearsal --sha "$BASE_SHA"'))
+})
+
+// #4731: queue admission must use the dedicated admission app token, never
+// github.token alone (GITHUB_TOKEN-created queue entries start no merge_group
+// checks) and never a broad authority secret.
+test('guarded merge admits to the queue with the merge-queue admission app token', () => {
+  const src = readFileSync(new URL('../.github/workflows/guarded-migration-merge.yml', import.meta.url), 'utf8')
+  assert.match(src, /id: queue_admission_token[\s\S]*?app-id: \$\{\{ secrets\.MERGE_QUEUE_ADMISSION_APP_ID \}\}[\s\S]*?permission-merge-queues: write/)
+  assert.match(src, /QUEUE_ADMISSION_TOKEN: \$\{\{ steps\.queue_admission_token\.outputs\.token \|\| github\.token \}\}/)
+  assert.match(src, /GH_TOKEN="\$QUEUE_ADMISSION_TOKEN" gh api graphql[\s\S]*?enqueuePullRequest\(input:\{pullRequestId:\$id,expectedHeadOid:\$oid\}\)/)
+  const admissions = src.match(/^\s*admit_to_queue\s*$/gm) ?? []
+  assert.equal(admissions.length, 2, 'both queue-mode admissions must go through admit_to_queue')
+  const mint = src.match(/id: queue_admission_token[\s\S]*?(?=\n\s*- name:)/)[0]
+  // Exactly the two permissions GitHub's enqueue needs, nothing broader.
+  assert.deepEqual(mint.match(/permission-[a-z-]+: \w+/g), ['permission-contents: write', 'permission-merge-queues: write'])
+  assert.doesNotMatch(mint, /SYNC_TOKEN|AUTHORITY_TOKEN/)
 })
