@@ -10,7 +10,7 @@
 **Work class:** repository maintenance only
 **Created:** 2026-08-28; consensus revision in progress after Grok 4.6 and Claude Opus 5 review
 **Evidence session:** Codex task `01a0461f-d1bf-7e02-8c84-ee8783f965b0`, title `shared-db.orch`, observed 2026-08-28 02:08–03:56 UTC with final issue-state audit at 09:47 UTC
-**Handoff:** [`HANDOFF.d/2026-08-28T1000Z-edge-dev-codex-throughput-phase-2.md`](HANDOFF.d/2026-08-28T1000Z-edge-dev-codex-throughput-phase-2.md)
+**Handoff:** `HANDOFF.d/2026-08-28T1000Z-edge-dev-codex-throughput-phase-2.md`
 **Consensus ledger:** [`docs/verification/orchestrator-throughput-phase-2-consensus-20260828.md`](docs/verification/orchestrator-throughput-phase-2-consensus-20260828.md)
 
 This is Phase 2 of the throughput repair. Phase 1 is [`plan_orchestrator_throughput_guard_truth.md`](plan_orchestrator_throughput_guard_truth.md): it makes guard diagnoses truthful, reproducible and measurable. Phase 2 removes avoidable cross-issue waiting and repeated evidence work. It incorporates Albert's 2026-08-27 instruction in [`plan_author_lane_capacity_five_to_eight.md`](plan_author_lane_capacity_five_to_eight.md): after capacity is separated from protection and reviewer capacity is grown to at least six active rotation providers, the active-author cap becomes eight. It changes coordination scripts, workflows, tests and operating documentation only. It authorizes no migration, preview write, production write, infrastructure mutation or credential change.

@@ -82,7 +82,7 @@ authoritative statement of policy.
 - **`public` schema anon lockdown (2026-07-29) — read before creating a function or a view in `public`:** [`docs/security/public-schema-execute-audit.md`](../../docs/security/public-schema-execute-audit.md) (EXECUTE grants; 88 of 99 SECURITY DEFINER functions were anon-callable) and [`docs/security/public-schema-anon-read-audit.md`](../../docs/security/public-schema-anon-read-audit.md) (table/view reads; ~27,000 rows were anon-readable). Summarised as a standing rule in §10.2 above.
 - **PopDAM access — read before granting/revoking/debugging a user's access:** [`docs/popdam-access-provisioning.md`](../../docs/popdam-access-provisioning.md). Permissions run on **three independent axes across two schemas**. `public.app_access('popdam')` alone lets someone log in and **see nothing**: every `core.*`/`api.*` policy is **app-schema** gated (`app.has_any_role(...)`), so a user with no active `app.user_role` gets `HTTP 200` with an empty array — success-shaped and data-free. On 2026-07-26, **18 of 35 PopDAM users** were in exactly that state.
 
-- **Cross-workflow take-over (2026-07-31; historical record of the retired orchestrator role):** [`orchestrator_take_over.md`](../../orchestrator_take_over.md).
+- **Cross-workflow take-over (2026-07-31; historical record of the retired orchestrator role):** `orchestrator_take_over.md` (its §1 table survives only in the historical record).
   Splits four in-flight threads — characters/style guides, ColdLion source-of-truth, licensing
   coordination, shared-db hygiene — into what is done, what is verified vs merely documented, what
   blocks each, and the failed paths not to repeat. **Read its §1 table before picking up any of

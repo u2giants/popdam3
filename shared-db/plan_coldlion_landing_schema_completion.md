@@ -1,7 +1,7 @@
 # Implementation plan — complete and correct the ColdLion landing schema
 
 **Written:** 2026-09-02 · **Tracker:** GitHub issue #2081 · **Repository:** `u2giants/shared-db`
-**Handoff:** [`HANDOFF.d/2026-09-02T2245Z-edge-dev-codex-coldlion-schema-plan.md`](HANDOFF.d/2026-09-02T2245Z-edge-dev-codex-coldlion-schema-plan.md)
+**Handoff:** `HANDOFF.d/2026-09-02T2245Z-edge-dev-codex-coldlion-schema-plan.md`
 
 ## STATUS
 

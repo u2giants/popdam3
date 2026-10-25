@@ -981,7 +981,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    reverted …`. **Never run that repair** — those rows belong to another team's
    applied work, and clearing them leaves the objects in place so their next
    push collides. Land or coordinate the other branch instead. Full procedure:
-   [`docs/ai-session-instructions/shared-supabase-branch-workflow.md`](docs/ai-session-instructions/shared-supabase-branch-workflow.md)
+   [`docs/ai-session-instructions/shared-supabase-branch-workflow.md`](../../docs/ai-session-instructions/shared-supabase-branch-workflow.md)
    → "When preview holds another workstream's unmerged rehearsal". A migration
    left rehearsed-but-unmerged blocks everyone, so **open its PR the same
    session** (seen 2026-07-27: 17 PopPIM migrations blocked all preview
@@ -1055,7 +1055,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    **What that lock does NOT do, stated exactly.** It does not exclude a merge
    or a production promotion. `EXCLUSIVE_REFS` gives merge and production their
    own refs, and only two cross-checks exist — both inside `acquireExclusive` in
-   [`scripts/manage-migration-author-lanes.mjs`](scripts/manage-migration-author-lanes.mjs),
+   [`scripts/manage-migration-author-lanes.mjs`](../../scripts/manage-migration-author-lanes.mjs),
    findable by their refusal text rather than by a line number, which drifts:
    a promotion waits for the merge ref (`a guarded merge is active; production
    promotion must wait`), and a merge waits for the production ref

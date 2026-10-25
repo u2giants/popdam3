@@ -8,9 +8,9 @@
 
 > ✅ **The #611 gate is DISCHARGED — corrected 2026-08-12.** It **RAN** on 2026-08-10 against
 > `main` tip `bc29d36` on the pinned **Supabase CLI 2.105.0**
-> ([`scripts/experiment_611_db_push_atomicity.sh`](scripts/experiment_611_db_push_atomicity.sh);
+> ([`scripts/experiment_611_db_push_atomicity.sh`](../scripts/experiment_611_db_push_atomicity.sh);
 > full result in
-> [`docs/verification/issue-611-db-push-atomicity-20260810.md`](docs/verification/issue-611-db-push-atomicity-20260810.md)).
+> [`docs/verification/issue-611-db-push-atomicity-20260810.md`](../docs/verification/issue-611-db-push-atomicity-20260810.md)).
 > **Licensor batches are no longer blocked by #611.** This block previously still read *"no
 > licensor batch may go until … has been RUN"*, directly contradicting §5.1-A two hundred lines
 > below, which has recorded the gate as discharged since 2026-08-10. A reader following the old
@@ -81,13 +81,13 @@ contract in July 2026 (`20260723183000_step11_bounded_production_forward.sql`,
 `20260727154500_db_data_admin_bounded_production_forward.sql`), which is why three already-live
 migrations still had to be replayed as no-ops on 2026-07-27 just to close the ledger gap. Full
 worked example, including the verification queries:
-[`docs/migration-backlog-triage-2026-07-27.md`](docs/migration-backlog-triage-2026-07-27.md).
+[`docs/migration-backlog-triage-2026-07-27.md`](../docs/migration-backlog-triage-2026-07-27.md).
 
 #### 5.1-A The lane is now RUNNABLE — how a production apply actually happens (built 2026-08-10, issue #617/#660)
 
 **Everything in §5.1 above still describes the mechanics.** What changed is that you no longer
 perform them by hand. The workflow
-[`.github/workflows/shared-supabase-migrations.yml`](.github/workflows/shared-supabase-migrations.yml)
+[`.github/workflows/shared-supabase-migrations.yml`](../.github/workflows/shared-supabase-migrations.yml)
 now has an `apply` mode that does the whole bounded-temp-checkout recipe for you, under gates.
 Before 2026-08-10 that job opened with a step called `Refuse production apply`, so the lane could
 never run at all — which is why four licensor features queued up behind it.
@@ -240,11 +240,11 @@ literal). Do not send Disney, Paramount, NBCU or Warner through untested write m
   certify. The authoritative gate is the rehearsal against a production-shaped database.
 - ⚠️ **`db push` is atomic PER FILE, NOT per batch. Issue #611 was MEASURED, and the gate is
   DISCHARGED.** The experiment
-  [`scripts/experiment_611_db_push_atomicity.sh`](scripts/experiment_611_db_push_atomicity.sh)
+  [`scripts/experiment_611_db_push_atomicity.sh`](../scripts/experiment_611_db_push_atomicity.sh)
   RAN on the hetz VPS on 2026-08-10 against `main` tip `bc29d36`, on the pinned **Supabase CLI
   2.105.0**, with the tripwires `ledger rows seeded: 424` and `container TLS: on` both confirmed.
   Full result, both binary checksums, every Q1–Q6 block and the complete raw log:
-  [`docs/verification/issue-611-db-push-atomicity-20260810.md`](docs/verification/issue-611-db-push-atomicity-20260810.md).
+  [`docs/verification/issue-611-db-push-atomicity-20260810.md`](../docs/verification/issue-611-db-push-atomicity-20260810.md).
   **Licensor batches are no longer blocked by #611.**
 
   **What was FOUND — say it this way, and no wider:**

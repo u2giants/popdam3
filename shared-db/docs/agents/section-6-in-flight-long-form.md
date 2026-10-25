@@ -12,7 +12,7 @@ carries the headlines and points here.
 Coldlion ERP pull tables (`public.erp_*`, `public.prod_order_*`) are being moved
 out of `public` into the designed `ingest` / `plm` / `api` layers. The full
 5-phase plan, current state, and rationale live in
-[`fix_schema_for_api.md`](fix_schema_for_api.md) (repo root). **Phase 1 is done
+[`fix_schema_for_api.md`](../../fix_schema_for_api.md) (repo root). **Phase 1 is done
 and live in production** (`api.plm_item_list` serving view + `style_tracker_rows_with_bridge`
 repointed; migration `20260715193000_erp_phase1_api_plm_item_list.sql`). Phases
 2–5 are pending. Before touching `erp_*`, `prod_order_*`, `api.plm_item_list`,
@@ -20,13 +20,13 @@ repointed; migration `20260715193000_erp_phase1_api_plm_item_list.sql`). Phases
 read that plan first and continue it in order — do not start a parallel ERP
 schema change. Note the still-open source decision (keep sourcing **through
 dflow** for free enrichment vs. pull **Coldlion directly**) documented in
-[`docs/coldlion-erp-to-supabase-field-mapping.md`](docs/coldlion-erp-to-supabase-field-mapping.md);
+[`docs/coldlion-erp-to-supabase-field-mapping.md`](../../docs/coldlion-erp-to-supabase-field-mapping.md);
 it affects Phase 3.
 
 **Which entities are on ColdLion vs. still on DesignFlow?** Do not re-derive this by
 querying — it has cost multiple sessions already. The answer, with row counts, blockers,
 and the `plm.*_import` vs `plm.erp_*` naming rule, is in
-[`docs/master-data-cutover-scoreboard.md`](docs/master-data-cutover-scoreboard.md).
+[`docs/master-data-cutover-scoreboard.md`](../../docs/master-data-cutover-scoreboard.md).
 Short version: **customer and vendor are cut over to ColdLion; licensor and property are
 not** (and `plm.licensor_import` / `plm.property_import` are DesignFlow staging, *not* a
 ColdLion mirror — a previous session got this wrong).
@@ -34,7 +34,7 @@ ColdLion mirror — a previous session got this wrong).
 **ColdLion purchase/sales history (`prodHistory` / `orderHistory`) — read the shape doc before
 writing any loader.** These two endpoints (new to us 2026-08-14) carry order history for buying
 and selling. Their payload is documented from live probing in
-[`docs/coldlion-history-endpoints-shape.md`](docs/coldlion-history-endpoints-shape.md). Five
+[`docs/coldlion-history-endpoints-shape.md`](../../docs/coldlion-history-endpoints-shape.md). Five
 traps that will silently corrupt a load if you skip it:
 
 - **⚠️ The default `prodHistory` response is INCOMPLETE.** Without `stageCode` you get only the
@@ -60,13 +60,13 @@ traps that will silently corrupt a load if you skip it:
   on `prodHistory`. A report built on them reads zero and looks like a business fact.
 
 **Every open ColdLion question lives in one register:**
-[`docs/coldlion-open-questions.md`](docs/coldlion-open-questions.md) — what is blocking, what is
+[`docs/coldlion-open-questions.md`](../../docs/coldlion-open-questions.md) — what is blocking, what is
 merely open, what is already ANSWERED (do not re-ask), and which owner rulings keep getting
 re-litigated. Check it before asking Albert or ColdLion anything, and move answers into its §4
 rather than deleting them.
 
 **What the ERP data MEANS** (as opposed to its shape) lives in
-[`docs/business-rules-erp-data.md`](docs/business-rules-erp-data.md) — a new file, because this
+[`docs/business-rules-erp-data.md`](../../docs/business-rules-erp-data.md) — a new file, because this
 repo documented shape thoroughly and meaning not at all, and a session already inferred a business
 rule wrongly from field populations. **That file holds business meaning ONLY** — no
 implementation advice, no build notes; those belong on the workstream's GitHub issue. First entry,

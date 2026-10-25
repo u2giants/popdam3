@@ -63,7 +63,7 @@ Evidence: [`step11-consumer-audit-20260723.md`](step11-consumer-audit-20260723.m
 | Tests | PopDAM 62 tests passed; preview rollback contract `DAM_PICKER_READ_CONTRACTS_OK` with canonical DAM access removed and legacy PopDAM access alone |
 | Production visual acceptance | **PASS** by Grok through read-only Playwright: Licensed Originally Designed For, Licensed Sample Vendor, and Generic Special Customer all displayed curated labels; both list endpoints returned HTTP 200; all editors canceled with Escape |
 | Visual evidence | `C:\Users\ahazan2\AppData\Local\Temp\grok-step11-final\step11-licensed-originally-designed-for-dropdown.png`, `step11-licensed-sample-vendor-dropdown.png`, `step11-generic-special-customer-dropdown.png`, `step11-styles-grid-loaded.png` |
-| Detail | [`../../popdam3 docs`](../../../popdam3/docs/verification/step11-dam-factory-picker-20260723.md) (in popdam3 repo) |
+| Detail | `popdam3/docs/verification/step11-dam-factory-picker-20260723.md` (in popdam3 repo) |
 
 ## 5. popcrm-web (main)
 

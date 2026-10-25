@@ -210,7 +210,7 @@ built on preview, and the elapsed-time gate was replaced by the accelerated read
 | Artifact | Path | Role |
 |---|---|---|
 | Phase 4 verification README | [`../coldlion-licensor-property-phase4-20260725/README.md`](../coldlion-licensor-property-phase4-20260725/README.md) | PASS record: 542 links, zero creates, Phase 5 ruled NOT NEEDED |
-| Phase 4 approved mapping | [`../coldlion-licensor-property-phase4-20260725/approved-mapping.json`](../coldlion-licensor-property-phase4-20260725/approved-mapping.json) | Frozen input hash `1230f5a12d0f2a3029f1d3df17fc5b5f`; exclusions include Phase 5 creates (0) |
+| Phase 4 approved mapping | `../coldlion-licensor-property-phase4-20260725/approved-mapping.json` | Frozen input hash `1230f5a12d0f2a3029f1d3df17fc5b5f`; exclusions include Phase 5 creates (0) |
 | Phase 4 handoff | [`../../../fix_coldlion_licensor_property_phase4_handoff.md`](../../../fix_coldlion_licensor_property_phase4_handoff.md) | Full run IDs, migrations, immutability, next steps |
 | Phase 3 dispositions / ledgers | [`../coldlion-licensor-property-phase3-20260725/`](../coldlion-licensor-property-phase3-20260725/README.md) | 570-row ruling ledger; NASA pending hash; ColdLion-only property list |
 | Cutover plan Phase 5 | [`../../../fix_coldlion_licensor_property_cutover.md`](../../../fix_coldlion_licensor_property_cutover.md) | Authoritative phase definition + 2026-07-26 NOT NEEDED ruling |

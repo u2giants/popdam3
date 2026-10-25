@@ -53,16 +53,16 @@ Start from the business object, not the old shared table:
 
 - Licensor, Property, Character, Style Guide, Franchise, licensed Asset, source authority,
   or Property Active/Inactive starts at
-  [`docs/business-rules/licensing-master-data.md`](docs/business-rules/licensing-master-data.md).
+  [`docs/business-rules/licensing-master-data.md`](../docs/business-rules/licensing-master-data.md).
 - MG01–MG14, `mgCategory`, product type/subtype, big theme, little theme, art type,
   art source, artist, age group, division meaning, or `mgTypeCode` starts at
-  [`docs/business-rules/merchandise-and-product-taxonomy.md`](docs/business-rules/merchandise-and-product-taxonomy.md).
+  [`docs/business-rules/merchandise-and-product-taxonomy.md`](../docs/business-rules/merchandise-and-product-taxonomy.md).
 
 The merchandise-group document explains legacy shape. It does not override the settled
 2026-08-16 licensing authority rules.
 
 For the active ColdLion Licensor/Property source cutover, read the STATUS table in
-[`plan_coldlion_licensor_property_accelerated_cutover.md`](plan_coldlion_licensor_property_accelerated_cutover.md)
+[`plan_coldlion_licensor_property_accelerated_cutover.md`](../plan_coldlion_licensor_property_accelerated_cutover.md)
 before re-deriving or re-planning anything.
 
 **Step 7A (the real recurring feed) is BUILT and preview-proven as of 2026-07-29; the next action
@@ -81,7 +81,7 @@ is Step 8, the production business-risk gate in §4.** Two rules that catch sess
 
 - **A skipped promotion cycle is NOT a failed one.** Since 2026-07-31 the promotion is
   serialized by transaction-scoped advisory lock `720260729` (registry:
-  [`docs/advisory-lock-registry.md`](docs/advisory-lock-registry.md)), because the scheduled
+  [`docs/advisory-lock-registry.md`](../docs/advisory-lock-registry.md)), because the scheduled
   lane and a manual drill could otherwise promote the same rows at once and leave an
   unreadable audit trail. A caller that loses that race records an `ingest.sync_run` row with
   `status = 'cancelled'` and `metadata.outcome = 'skipped_already_running'`, and the runner
@@ -90,14 +90,14 @@ is Step 8, the production business-risk gate in §4.** Two rules that catch sess
   healthy overlapping cycles and block promotion until an authorized reset.
 
 Evidence and the full defect list:
-[`docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md`](docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md). Albert decided on 2026-07-26 to replace the original
+[`docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md`](../docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md). Albert decided on 2026-07-26 to replace the original
 14-day elapsed-time gate with an invariant-based readiness gate plus rapid post-cutover monitoring.
 The existing production prohibition remains in force until that plan's preview rehearsal,
 readiness, and explicit production-approval gates pass.
 
 For **PopSG folder-derived Property matching and reconciliation**, the single
 bounded execution plan is
-[`fix_popsg_property_taxonomy_reconciliation.md`](fix_popsg_property_taxonomy_reconciliation.md).
+[`fix_popsg_property_taxonomy_reconciliation.md`](../fix_popsg_property_taxonomy_reconciliation.md).
 It applies the ColdLion and style-guide architecture decisions without replacing
 either authority document. Its phases are named `PSG-0` through `PSG-7` to
 avoid collision with ColdLion phases. `PSG-0`–`PSG-4` are preparation only;
@@ -105,9 +105,9 @@ avoid collision with ColdLion phases. `PSG-0`–`PSG-4` are preparation only;
 must not overlap ColdLion Phase 7.
 
 **If your work touches characters, style guides, or royalty rates, read
-[`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md)
+[`docs/style-guides-characters-and-royalties.md`](../docs/style-guides-characters-and-royalties.md)
 FIRST.** Read its historical measurements under the controlling 2026-08-16 architecture in
-[`docs/business-rules/licensing-master-data.md`](docs/business-rules/licensing-master-data.md).
+[`docs/business-rules/licensing-master-data.md`](../docs/business-rules/licensing-master-data.md).
 There are **two axes, and chaining them is the classic bug**: Licensor-to-Property is one-to-many;
 Property-to-Character is many-to-many; and style is many-to-many — **a style guide holds many
 characters and a character appears in many style guides**. A style guide is *not* a level
@@ -201,9 +201,9 @@ set is `active = Y` **and** `itemDiscontinued = N` **and** `itemAvailable = Y` �
 "in the current line" list does not exist there and must come from elsewhere.
 
 **Before touching any `core."merchGroup"` division value**, read all three, in this order:
-1. [`docs/division-code-answers-from-uma-20260813.md`](docs/division-code-answers-from-uma-20260813.md) — the answers, with two withdrawn fix rules
-2. [`docs/merchgroup-271-division-conflicts-back-to-uma-20260817.md`](docs/merchgroup-271-division-conflicts-back-to-uma-20260817.md) — why the 271-row fix creates 142 duplicates
-3. [`docs/division-code-round2-answers-and-reference-check-20260817.md`](docs/division-code-round2-answers-and-reference-check-20260817.md) — the reference check: **178 of 363 unclean rows are safe to clean, 185 are not**
+1. [`docs/division-code-answers-from-uma-20260813.md`](../docs/division-code-answers-from-uma-20260813.md) — the answers, with two withdrawn fix rules
+2. [`docs/merchgroup-271-division-conflicts-back-to-uma-20260817.md`](../docs/merchgroup-271-division-conflicts-back-to-uma-20260817.md) — why the 271-row fix creates 142 duplicates
+3. [`docs/division-code-round2-answers-and-reference-check-20260817.md`](../docs/division-code-round2-answers-and-reference-check-20260817.md) — the reference check: **178 of 363 unclean rows are safe to clean, 185 are not**
 
 ⚠️ Three rows (`mg_id` 2, 3, 4) carry **no division at all**, look like obvious junk, and hold
 **573 item references** between them. Deleting them on sight is the mistake this section exists
@@ -238,7 +238,7 @@ Three things this settles for good:
    > trading, so filtering it at the loader means the seven-year backfill captures **none** of
    > that division's sales or purchase history — and he chose to filter it out completely
    > anyway. This confirms decision **D11** in
-   > [`docs/plan_coldlion-landing-phases-2-6.md`](docs/plan_coldlion-landing-phases-2-6.md).
+   > [`docs/plan_coldlion-landing-phases-2-6.md`](../docs/plan_coldlion-landing-phases-2-6.md).
    >
    > **What this means, by table:**
    >
@@ -274,8 +274,8 @@ is live — `plm.sync_coldlion_vendors` via `public.sync_coldlion_vendors`, with
 `(source_system,source_table,source_id)` (migration `20260722213000`). **Never re-introduce the old
 `plm.import_coldlion_vendors` pattern** (it clobbered curated status; it was dropped). Recurring
 **scheduling (Phase B — Edge Function + alerting) is NOT built yet**; the importer runs on demand. Full
-design/state: [`fix_vendor_sync.md`](fix_vendor_sync.md). Detail:
-[`docs/coldlion-erp-api-reference.md`](docs/coldlion-erp-api-reference.md) (✅ box).
+design/state: [`fix_vendor_sync.md`](../fix_vendor_sync.md). Detail:
+[`docs/coldlion-erp-api-reference.md`](../docs/coldlion-erp-api-reference.md) (✅ box).
 
 ### 6.3 OWNER RULING — Coldlion ERP data is canonical (Albert Hazan, 2026-07-31)
 
@@ -376,7 +376,7 @@ curated ruling, **including the 2026-08-02 FRIENDS TV / FRIDA KAHLO decision (§
 The daily `systemd/plm-sync.timer` lane still exists; it has simply not succeeded since
 2026-07-08. **Do not run, re-enable, or repair that lane before the fix is applied.**
 Full evidence, every overwrite path, and the scoped proposal (not an implementation):
-[`docs/google-sheets-import-authority-20260803.md`](docs/google-sheets-import-authority-20260803.md).
+[`docs/google-sheets-import-authority-20260803.md`](../docs/google-sheets-import-authority-20260803.md).
 
 **The compliant reference already exists — copy it, do not reinvent it.** `plm.sync_coldlion_vendors`
 refreshes non-status fields only and states in-line that status/name are app-owned;
@@ -518,14 +518,14 @@ The exception applies only when all of these are true:
 3. durable source resolution identifies the matched canonical row without ambiguity;
 4. a dry-run plan is reviewed and its exact hash is required by the apply;
 5. every changed field is inside the source-authority matrix in
-   [`docs/core-master-data-consolidation-aim.md`](docs/core-master-data-consolidation-aim.md);
+   [`docs/core-master-data-consolidation-aim.md`](../docs/core-master-data-consolidation-aim.md);
 6. the change and the prior value are audited and reversible;
 7. Property status is untouched, because only guarded ColdLion membership controls Active/Inactive.
 
 This does **not** exempt a spreadsheet dump, pasted rows, a one-off API pull, direct SQL, or an AI
 session that decides to imitate the future consolidator. Those remain fully bound by §6.4-C and
 write nothing on matched rows. Until the guarded consolidator in
-[`plan_licensing_master_data_implementation.md`](plan_licensing_master_data_implementation.md) is
+[`plan_licensing_master_data_implementation.md`](../plan_licensing_master_data_implementation.md) is
 implemented, preview-proven, and applied, the existing matched-row abstention remains the only safe
 behavior for manual sessions. The exception is a contract for that named controlled path, not a
 permission shortcut.
@@ -551,7 +551,7 @@ dependency order. This is a safety-preserving supersession of the implementation
 Albert's settled business ruling.
 
 **All three are enforced by name, and the version numbers here are load-bearing (2026-08-18).**
-`parse_allowlist` in [`scripts/production_migration_guard.py`](scripts/production_migration_guard.py)
+`parse_allowlist` in [`scripts/production_migration_guard.py`](../scripts/production_migration_guard.py)
 refuses an allowlist containing ANY member of `FR_HELD_20260803` **or** `FR_COMPATIBILITY_VERSIONS`
 until `FR_REMOVAL_VERSIONS` is populated and the whole ship set is present. Until 2026-08-18 the
 code triggered only on `FR_HELD_20260803`, so `20260817225127` promoted **alone** parsed clean —
@@ -999,7 +999,7 @@ AI's preference, and do not reorder ruling 5.
 
 **1. Coco IS a Disney license.** This closes the long-open question of whether `Coco` sitting under a
 "NO LICENSE" licensor was deliberate. It was not. Detail and the resulting open technical question
-live in [`fix_characters_style_guides.md`](fix_characters_style_guides.md).
+live in [`fix_characters_style_guides.md`](../fix_characters_style_guides.md).
 
 **2. The CODE alone is meaningless — the DESCRIPTION decides the licensor.**
 
@@ -1013,7 +1013,7 @@ the row.
 **3. Licensor → Property is parent-child, and property codes are NOT globally unique.** The same code
 may exist under many licensors. `core.property` is keyed `(licensor_id, code)`
 (`20260724030000_coldlion_licensor_property_phase1_mirror_schema.sql`, and see
-[`docs/licensor-property-parent-child-design-20260802.md`](docs/licensor-property-parent-child-design-20260802.md) §2.1).
+[`docs/licensor-property-parent-child-design-20260802.md`](../docs/licensor-property-parent-child-design-20260802.md) §2.1).
 
 > **This corrected a wrong assumption the orchestrator held on 2026-08-06, and that assumption is
 > baked into at least one committed tool.** `tools/validate-licensing-answers.mjs` (the property
@@ -1095,7 +1095,7 @@ That migration aborts loudly if any legacy licensor fails to map, and it did not
 The full census — every Disney-related row in both licensor lists, the per-licensor child counts, the
 4,048 `plm.style_tracker_item_bridge` rows that already carry the `DY` and `DS` UUIDs *on the same
 row*, and the read/write map per application — is in
-[`docs/verification/disney-licensor-identity-20260807/README.md`](docs/verification/disney-licensor-identity-20260807/README.md).
+[`docs/verification/disney-licensor-identity-20260807/README.md`](../docs/verification/disney-licensor-identity-20260807/README.md).
 **Read it there; do not duplicate or re-measure those numbers here.**
 
 **The same shape exists for WWE, and nobody has documented it.** `public.licensors` spells it `WWE`;
@@ -1149,7 +1149,7 @@ parentage is durable".
 
 Five rulings, all made on the evening of 2026-08-07, **two of them since superseded** (see the box
 above and §6.13-A). Full record with the reasoning and the
-costs: [`docs/verification/owner-rulings-20260807/README.md`](docs/verification/owner-rulings-20260807/README.md).
+costs: [`docs/verification/owner-rulings-20260807/README.md`](../docs/verification/owner-rulings-20260807/README.md).
 Read that file before acting on any of them.
 
 1. **Per-licensor landing tables, not one shared table.** Each licensor's raw scrape data gets its
@@ -1171,7 +1171,7 @@ Read that file before acting on any of them.
 3. **The Paramount authorized-title list is 26, and the count is CLOSED.** The removed `902010`
    entry was a duplicate. Do not re-open it and do not hunt for a 27th title. The *"Viacom Multi
    (Paramount) — 27 codes"* section of
-   [`docs/coldlion-unmatched-properties-by-licensor-20260731.md`](docs/coldlion-unmatched-properties-by-licensor-20260731.md)
+   [`docs/coldlion-unmatched-properties-by-licensor-20260731.md`](../docs/coldlion-unmatched-properties-by-licensor-20260731.md)
    is a **different population** (unmatched ColdLion property codes) — do not reconcile the two.
 
 4. ~~**Build waits for the second Paramount recon.**~~ **SUPERSEDED 2026-08-09 — the hold is
@@ -1663,9 +1663,9 @@ and run read-only queries**, under the conditions below.
 **Why.** DesignFlow PLM production is the last environment still on Cloud SQL; every other
 DesignFlow environment is already on the shared Supabase project, and the owner has decided
 to start moving production over. Three separate migration plans over eight days
-([`docs/cloudsql-first-migration-candidate-20260803.md`](docs/cloudsql-first-migration-candidate-20260803.md),
-[`docs/age-group-cloudsql-migration-plan-20260804.md`](docs/age-group-cloudsql-migration-plan-20260804.md),
-[`docs/licensor-property-cloudsql-cutover-plan-20260806.md`](docs/licensor-property-cloudsql-cutover-plan-20260806.md))
+([`docs/cloudsql-first-migration-candidate-20260803.md`](../docs/cloudsql-first-migration-candidate-20260803.md),
+[`docs/age-group-cloudsql-migration-plan-20260804.md`](../docs/age-group-cloudsql-migration-plan-20260804.md),
+[`docs/licensor-property-cloudsql-cutover-plan-20260806.md`](../docs/licensor-property-cloudsql-cutover-plan-20260806.md))
 all stalled at the same wall: **nobody has ever looked inside that database**, so every
 estimate of effort, downtime and risk was a guess. Reading it is how that stops.
 
@@ -1735,7 +1735,7 @@ re-deriving it:
   **new** objects elsewhere, not the power to write DesignFlow. Those grants are a real
   production-infrastructure exposure and #705 records them; they are simply not a write path
   into `designflow`.
-- [`scripts/capture-postgres-schema.sql`](scripts/capture-postgres-schema.sql) sets
+- [`scripts/capture-postgres-schema.sql`](../scripts/capture-postgres-schema.sql) sets
   `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY`, which is why that particular run
   could not have written. It is a session-scoped guard that the same session can reset to
   `READ WRITE`, so it is **never** a substitute for the proof rule for any other credential.
@@ -1753,7 +1753,7 @@ contents, not catalog metadata, because `most_common_vals` and `histogram_bounds
 values from real columns. Catalog-only is the
 scope Albert was asked about and the scope he approved. So a row count, a sample row, a
 `SELECT` queued by a migration plan (for example
-[`docs/parent-child-answers-20260803.md`](docs/parent-child-answers-20260803.md) or the
+[`docs/parent-child-answers-20260803.md`](../docs/parent-child-answers-20260803.md) or the
 age_group plan's Step D1), and a client-side `pg_dump` are all **outside** this exception and
 each needs **its own ruling from Albert**. Not from the Cloud SQL instance owner — instance
 admin is not business authority here. The list above enumerates; this sentence closes.
@@ -1780,7 +1780,7 @@ changes for it and do not re-raise it as a blocker.
   value anywhere.
 
 **Evidence.** The completed capture is at
-[`docs/verification/cloudsql-designflow-capture-2026-08-10/`](docs/verification/cloudsql-designflow-capture-2026-08-10/);
+[`verification/cloudsql-designflow-capture-2026-08-10/README.md`](verification/cloudsql-designflow-capture-2026-08-10/README.md);
 the ruling and the privilege analysis are on issue **#705**. That capture's README describes
 the waiver as "for this capture only" and "not a general waiver"; **this section supersedes
 that wording** — the exception is standing, on the terms above.
@@ -1939,7 +1939,7 @@ fix it when you see it. And no session may act on a snapshot it did not re-deriv
 proposed twice, built once (B13) and deleted once, and three models re-reviewed it on
 2026-08-13 and rejected every variant. The reasoning, the verified false-positive rates and
 the one narrower check that could earn its place later are in
-[`docs/artifact-consistency-checker-rejected-20260813.md`](docs/artifact-consistency-checker-rejected-20260813.md).
+[`docs/artifact-consistency-checker-rejected-20260813.md`](../docs/artifact-consistency-checker-rejected-20260813.md).
 The mitigation for unsourced figures is this section plus the plan standard's rule that a
 status row marked done must cite an artifact, never a bare number.
 

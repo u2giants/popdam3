@@ -18,7 +18,7 @@ and the user approval of 2026-07-25: link **ONLY** the 542 exact-compatible prop
 
 ## 1. Approved input (frozen artifact)
 
-[`approved-mapping.json`](approved-mapping.json) — derived deterministically from the Phase 3
+`approved-mapping.json` — derived deterministically from the Phase 3
 `phase4-proposed-auto-mapping.csv` (no Phase 3 artifact or generator modified):
 
 | Field | Value |

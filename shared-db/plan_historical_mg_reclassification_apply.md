@@ -15,7 +15,7 @@
 
 **Fresh-session start:** Step 1, after re-reading §9.1 and §9.2. Re-run Phase 0 before Phase 3 and again before Phase 4 as §9 requires. Original fresh-session start was Step 0. Re-read all downstream phases before beginning each phase because the source snapshot, production rows, preview project, active taxonomy, and orchestrator route can change.
 
-**Tracking issue:** [#1984](https://github.com/u2giants/shared-db/issues/1984). **Session handoff:** [HANDOFF.d/2026-08-31T1457Z-edge-dev-codex-historical-mg-apply-plan.md](HANDOFF.d/2026-08-31T1457Z-edge-dev-codex-historical-mg-apply-plan.md).
+**Tracking issue:** [#1984](https://github.com/u2giants/shared-db/issues/1984). **Session handoff:** `HANDOFF.d/2026-08-31T1457Z-edge-dev-codex-historical-mg-apply-plan.md`.
 
 ## 1. Ultimate goal
 

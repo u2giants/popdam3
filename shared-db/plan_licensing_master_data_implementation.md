@@ -6,7 +6,7 @@
 
 **Implementation tracker:** [GitHub #1090](https://github.com/u2giants/shared-db/issues/1090). The architecture is not an issue. #1090 tracks execution only.
 
-**Paired handoff:** [`HANDOFF.d/2026-08-17T0016Z-al8960ofc-codex-licensing-plan-review-fixes.md`](HANDOFF.d/2026-08-17T0016Z-al8960ofc-codex-licensing-plan-review-fixes.md)
+**Paired handoff:** `HANDOFF.d/2026-08-17T0016Z-al8960ofc-codex-licensing-plan-review-fixes.md`
 
 **Repository:** `u2giants/shared-db`
 

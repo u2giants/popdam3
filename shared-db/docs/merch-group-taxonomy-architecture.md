@@ -203,7 +203,7 @@ and only five models exist in the whole spec (`ItemDetail`, `ItemHeader`, `ItemI
 >
 > | Original wording (2026-07-19) | Verdict | What is true instead | Evidence |
 > |---|---|---|---|
-> | "`mgCategory` … is **empty on every row**" | **Wrong as written** | Empty on 100% of licensor (`05`) and property (`06`) rows. **Populated on the product-axis rows** `01`/`02`/`03` with values like `Wall` (648), `Tabletop` (190), `Workspace` (177), `Storage` (139), `Floor` (60), `Garden` (44), `Clock` (39). §4.2 of this same document already said so and was ignored. | [`docs/verification/master-data-designflow-reference-cutover-20260807/baseline.json`](verification/master-data-designflow-reference-cutover-20260807/baseline.json); §4.2 line "MG Category (mgCategory — allowlisted per division by substring match)" |
+> | "`mgCategory` … is **empty on every row**" | **Wrong as written** | Empty on 100% of licensor (`05`) and property (`06`) rows. **Populated on the product-axis rows** `01`/`02`/`03` with values like `Wall` (648), `Tabletop` (190), `Workspace` (177), `Storage` (139), `Floor` (60), `Garden` (44), `Clock` (39). §4.2 of this same document already said so and was ignored. | `docs/verification/master-data-designflow-reference-cutover-20260807/baseline.json`; §4.2 line "MG Category (mgCategory — allowlisted per division by substring match)" |
 > | "`mgCode2` and `itemNoCode` are near-duplicates of `mgCode`" | **Wrong as a general rule** | True for licensors, not generally. `mgCode2` carries independent values (`00`, `02`, `04`, `83`) on other types. | same `baseline.json` |
 > | "There is no parent-child link. **At all.**" | **Overstated** | No field *reproduces* parentage, but the residual signal is not zero: of 503 real DesignFlow edges, **14 have `mgCode2` = the parent's `mg_code`, 20 share `ItemNoCode`, 27 share a `mg_code` prefix**. No rule reproduces the data — which is a *measured* finding, not an absence. | `docs/dflow-parent-logic-and-curation-home-20260803.md:105` |
 > | "There is no active/inactive flag." (unqualified) | **Superseded** | The July and early-August observations are retained as history, but `/merchGroupDetails` now exposes a functioning `active` flag. It feeds typed `source_active` mirrors and guarded lifecycle synchronization. ColdLion `/customers` and `/vendors` also carry an `active` flag; the customer one is known-unreliable, so `core.customer.status` remains app-owned. | Albert, 2026-08-24; PR #1432; `docs/coldlion-open-questions.md` §4 |
@@ -356,7 +356,7 @@ the category. If `mgCategory` is repeated on MG02 or MG03 source rows, it must a
 the category assigned through their MG01 ancestor.
 
 Authoritative mapping. Nineteen of the twenty rows come from
-[`MerchGroup_Rework.xlsx`](verification/item-mg-reclassification-20260814/data/MerchGroup_Rework.xlsx),
+`MerchGroup_Rework.xlsx`,
 sheet `Final Version`, columns A–C. The twentieth, `Q` TBD storage, comes from an **owner
 ruling by Albert Hazan on 2026-08-18**: `Q` is real and belongs under Storage.
 

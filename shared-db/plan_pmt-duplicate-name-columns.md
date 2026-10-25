@@ -5,7 +5,7 @@
 Every repo-verifiable claim in this plan was re-checked against the tree; see §5a for what that
 established, and the change log at the end of this section for what the revision fixed.
 **Repo:** `u2giants/shared-db` · **Target branch:** a new branch off `main`, PR to `main`
-**Handoff that owns this plan:** [HANDOFF.d/2026-08-14T1700Z-al8960ofc-claude-curation-persistence-plans.md](HANDOFF.d/2026-08-14T1700Z-al8960ofc-claude-curation-persistence-plans.md)
+**Handoff that owns this plan:** `HANDOFF.d/2026-08-14T1700Z-al8960ofc-claude-curation-persistence-plans.md`
 **Sibling plans:** [plan_curated-decisions-survive-syncs.md](plan_curated-decisions-survive-syncs.md) ·
 [plan_pmt-metadata-element-normalization.md](plan_pmt-metadata-element-normalization.md)
 

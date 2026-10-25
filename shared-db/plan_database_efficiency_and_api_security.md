@@ -8,7 +8,7 @@
 
 **Work class:** umbrella planning and evidence collection; later work splits by owner
 
-**Handoff:** [`HANDOFF.d/2026-09-03T1608Z-edge-dev-codex-database-efficiency-plan.md`](HANDOFF.d/2026-09-03T1608Z-edge-dev-codex-database-efficiency-plan.md)
+**Handoff:** `HANDOFF.d/2026-09-03T1608Z-edge-dev-codex-database-efficiency-plan.md`
 
 This plan was requested after the Supabase dashboard AI proposed performance, resource-use, and security changes. The plan itself authorizes no database write, migration, privilege change, statistics reset, infrastructure change, or application-data change.
 

@@ -47,7 +47,7 @@ row are written in ONE transaction — PER FILE. The BATCH is NOT one transactio
 | Script | `scripts/experiment_611_db_push_atomicity.sh` |
 | Ledger tripwire | **`ledger rows seeded: 424`** — the run had a realistic ledger, so only fixture files were pending |
 | Transport tripwire | **`container TLS: on`** (log line 2) |
-| Raw log | [`issue-611-run-output-20260810.txt`](issue-611-run-output-20260810.txt) — 671 lines, complete and unedited |
+| Raw log | `issue-611-run-output-20260810.txt` — 671 lines, complete and unedited |
 | Databases touched | **none besides the throwaway container.** No `supabase link`, no production `qsllyeztdwjgirsysgai`, no preview `rjyboqwcdzcocqgmsyel` |
 
 The version string alone does **not** establish the pin — see issue #688 and "the two-binary

@@ -6,7 +6,7 @@
 `01a000d1-2173-7821-a968-293e348f3fe6`) · **Verdict:** REVISE
 **Repo:** `u2giants/shared-db` · **Target branch:** a new branch off `main`, PR to `main`
 **Issues:** implementation #965 · orchestrator #960
-**Handoff that owns this plan:** [HANDOFF.d/2026-08-14T1700Z-al8960ofc-claude-curation-persistence-plans.md](HANDOFF.d/2026-08-14T1700Z-al8960ofc-claude-curation-persistence-plans.md)
+**Handoff that owns this plan:** `HANDOFF.d/2026-08-14T1700Z-al8960ofc-claude-curation-persistence-plans.md`
 **Sibling plans:** [plan_curated-decisions-survive-syncs.md](plan_curated-decisions-survive-syncs.md) ·
 [plan_pmt-duplicate-name-columns.md](plan_pmt-duplicate-name-columns.md)
 

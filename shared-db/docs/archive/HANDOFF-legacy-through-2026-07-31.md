@@ -49,7 +49,7 @@
 >
 > **The exposure itself remains a recorded fact.** The key was found hardcoded in the public
 > repository `u2giants/popdam3`. That finding is written up in
-> [`HANDOFF.d/2026-08-10T0130Z-al8960ofc-claude-orchestrator-addendum-late-findings.md`](../../HANDOFF.d/2026-08-10T0130Z-al8960ofc-claude-orchestrator-addendum-late-findings.md)
+> `HANDOFF.d/2026-08-10T0130Z-al8960ofc-claude-orchestrator-addendum-late-findings.md`
 > §1 and in its item 0.1. Those are **write-once records and were deliberately left intact.**
 > This ruling supersedes the *action* they call for; it does not rewrite the history, and no
 > one should delete the security record. Never write the key value into any file or message.
@@ -1371,7 +1371,7 @@ incident.
 > the missing property codes `EX` / `LB` / `JL`. **Read the STATUS table at the top of
 > [`fix_characters_style_guides.md`](../../fix_characters_style_guides.md) first — do not re-derive the
 > phases.** Cross-workflow context, including the failed paths, is in
-> [`orchestrator_take_over.md`](../../orchestrator_take_over.md). **Phase 3 writes rows into three shared
+> `orchestrator_take_over.md` (retired). **Phase 3 writes rows into three shared
 > tables when it runs, so it must be scheduled by whoever owns collision control — do not start
 > it opportunistically.**
 
@@ -1858,7 +1858,7 @@ mode is silent data-logic loss.
 >
 > ### Re-assessment: would the guard catch this shape today?
 >
-> **The guard is built.** [`.github/workflows/pr-object-collision.yml`](../../.github/workflows/pr-object-collision.yml)
+> **The guard is built.** `.github/workflows/pr-object-collision.yml` (retired; the `Cross-PR object collision` check now lives in `.github/workflows/pr-guards.yml`)
 > exists, its check-run name is **`Cross-PR object collision`**, and it is one of the six required
 > contexts on `main` (`AGENTS.md` §6.7). The original "not yet built" wording below is stale.
 >
@@ -2016,7 +2016,7 @@ production workflow.
 >
 > **If you want the underlying good idea** — mechanical enforcement instead of written
 > discipline — it already exists in a better form: the required
-> [`Intake pointer guard`](../../.github/workflows/intake-pointer-guard.yml) check fails any PR in
+> `Intake pointer guard` check fails any PR in
 > which the retired file starts growing a queue back. That is B10's intent, aimed at
 > preventing the queue rather than maintaining it.
 >
@@ -2150,9 +2150,9 @@ was given the `Stop-Process` commands to clear them. Whether he ran them is UNVE
 #### B13 (original, 2026-07-31) — CI check: every BACKLOG `B<n>` should have a `REQUEST QUEUE` entry
 
 > **DONE — implemented 2026-07-31.** The check is
-> [`scripts/check-backlog-queue-sync.mjs`](../../scripts/check-backlog-queue-sync.mjs), unit-tested by
-> `scripts/check-backlog-queue-sync.test.mjs`, and wired into CI by
-> [`.github/workflows/backlog-queue-sync.yml`](../../.github/workflows/backlog-queue-sync.yml) — its own
+> `scripts/check-backlog-queue-sync.mjs` (retired), unit-tested by
+> `scripts/check-backlog-queue-sync.test.mjs` (retired), and wired into CI by (retired) CI wiring
+> `.github/workflows/backlog-queue-sync.yml` — its own
 > small workflow with **no `paths:` filter**, per AGENTS.md §5.2, because the check reads both
 > `HANDOFF.md` and `COORDINATOR_INTAKE.md` and widening the `DB Data Admin` filter would fire a
 > Docker build, the Playwright tests and the Coolify deploy on every docs PR.

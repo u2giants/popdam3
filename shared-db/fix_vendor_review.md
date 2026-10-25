@@ -22,7 +22,7 @@
 >
 > **Remaining (not blocking):** step 6 serving/exposure is now folded into `DB_Data_Admin.md`
 > (the standalone admin app). A broader FUZZY-duplicate sweep was generated for human review:
-> [`docs/vendor-review/vendor_fuzzy_dupes.csv`](docs/vendor-review/vendor_fuzzy_dupes.csv) — 69
+> `docs/vendor-review/vendor_fuzzy_dupes.csv` — 69
 > trigram candidate pairs, tiered LIKELY/MAYBE/UNLIKELY with a `claude_hint`, blank decision
 > columns awaiting Albert's rulings. This file can be retired once the admin app's vendor screen
 > ships.
@@ -48,7 +48,7 @@
 > |---|---|
 > | Fresh Coldlion vendor re-pull | ✅ done — `plm.erp_vendor` = **97 active / 442 inactive**; `ingest.sync_run` `coldlion_vendors_api` succeeded, 539 rows |
 > | Additive schema migration (`core.factory.display_name` + trgm, `core.factory_alias`, `core.merge_factory`) | ✅ drafted + **rehearsed rolled-back against prod (passed)** → **[PR #102](https://github.com/u2giants/shared-db/pull/102), OPEN, NOT merged, NOT applied.** Review + merge + apply this first. |
-> | Dedup review CSVs for Albert | ✅ in **[`docs/vendor-review/`](docs/vendor-review/)** — `vendor_multicode.csv` (8 groups), `vendor_directus.csv` (6 rows), `vendor_coldlion_dupes.csv` (0 rows — none found) |
+> | Dedup review CSVs for Albert | ✅ in **`docs/vendor-review/`** — `vendor_multicode.csv` (8 groups), `vendor_directus.csv` (6 rows), `vendor_coldlion_dupes.csv` (0 rows — none found) |
 > | Status-seeding preview (not applied) | ✅ seeding from the fresh flag would give **96 active / 431 inactive** (vs 529 all-active today) |
 >
 > **Codex's FK enumeration for `core.factory`** (its `merge_factory` repoints all of these):

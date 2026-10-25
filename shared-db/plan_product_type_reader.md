@@ -1,6 +1,6 @@
 # Implementation plan — product-type reader (issue #3024)
 
-Handoff for this plan: [`HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type-reader-plan.md`](HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type-reader-plan.md)
+Handoff for this plan: `HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type-reader-plan.md`
 
 ## STATUS
 

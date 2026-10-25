@@ -32,14 +32,14 @@ header pairs. `mgTypeCode` is never interpreted without its division and descrip
 
 ## Row-level artifacts
 
-- [`coldlion-division-type-inventory.csv`](coldlion-division-type-inventory.csv) — every
+- `coldlion-division-type-inventory.csv` — every
   `(companyCode, divisionCode, mgTypeCode, mgTypeDesc)` header and the licensed-detail count
   fetched for it.
-- [`source-references.csv`](source-references.csv) — all 505 preview
+- `source-references.csv` — all 505 preview
   `core.taxonomy_source_ref` Licensor/Property rows.
-- [`parent-edges.csv`](parent-edges.csv) — all 256 preview
+- `parent-edges.csv` — all 256 preview
   `core.property.licensor_id` edges with both canonical UUIDs, codes, names, and statuses.
-- [`unmatched-ambiguous-ledger.csv`](unmatched-ambiguous-ledger.csv) — every source row not
+- `unmatched-ambiguous-ledger.csv` — every source row not
   matched by exact compatible code plus every canonical-only row. Division duplicates remain
   separate because the ColdLion natural key includes division.
 

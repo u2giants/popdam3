@@ -9,7 +9,7 @@
 **Tracking issue:** [#1680](https://github.com/u2giants/shared-db/issues/1680)
 **Work class:** repository maintenance only
 **Created:** 2026-08-27; consensus revision 2026-08-28 after Claude Opus 5 and Grok 4.6 adjudication
-**Handoff:** [`HANDOFF.d/2026-08-28T0230Z-edge-dev-codex-throughput-plan-consensus.md`](HANDOFF.d/2026-08-28T0230Z-edge-dev-codex-throughput-plan-consensus.md)
+**Handoff:** `HANDOFF.d/2026-08-28T0230Z-edge-dev-codex-throughput-plan-consensus.md`
 
 This plan changes scripts, tests, workflows and documentation. It authorizes no migration, database write, preview apply, production apply, infrastructure mutation or new credential. Under `AGENTS.md` §0.0-C, a repository-maintenance session owns it; it is not structural-lane work.
 

@@ -9,7 +9,7 @@ Tracking issue: [#3199](https://github.com/u2giants/shared-db/issues/3199) (`db-
 
 Companion plan (do NOT re-plan it here): [`plan_shared_db_popcre_transfer_merge_queue.md`](plan_shared_db_popcre_transfer_merge_queue.md) — issue #2530, the org transfer + native merge queue.
 
-Paired handoff: [`HANDOFF.d/2026-09-17T1325Z-zcode-plan-orchestrator-load-reduction.md`](HANDOFF.d/2026-09-17T1325Z-zcode-plan-orchestrator-load-reduction.md)
+Paired handoff: `HANDOFF.d/2026-09-17T1325Z-zcode-plan-orchestrator-load-reduction.md`
 
 **Review record.** Muse Spark 1.3 was asked first and could not complete (wrapper failure, incident `20260917T141421Z-edge-dev-muse-4088612` in the ai-devops reviewer-issue log; three fenced sessions). The owner authorized substituting Grok 4.6 on 2026-09-17. Grok 4.6's verdict: **sound-with-changes** (session `01a0afc1-854d-7be2-9bab-f2202f92063c`, 15 turns, $0.43; full review preserved at `.ai/reviews/grok-orchestrator-load-plan-review-20260917T142326Z-4117926.md` on the authoring worktree — its material findings are folded into this revision; the merge-dispatch right it surfaced was independently verified against `.github/workflows/guarded-migration-merge.yml` before being locked in §8).
 

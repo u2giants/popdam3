@@ -102,7 +102,7 @@ matched a member code.
 ## 4. What does the exclusion actually remove?
 
 The documented chain in
-[`unmapped-licensor-population.md`](unmapped-licensor-population.md) applies the
+[`unmapped-licensor-population.md`](../../docs/business-rules/unmapped-licensor-population.md) applies the
 non-licensed-division exclusion **first**, and that ordering is load-bearing:
 
 ```sql

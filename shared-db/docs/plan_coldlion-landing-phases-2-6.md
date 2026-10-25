@@ -13,7 +13,7 @@
 
 **Written:** 2026-08-19 · **Repo:** `u2giants/shared-db` · **Branch:** your own, PR to `main`
 **Governing issue:** [#1184](https://github.com/u2giants/shared-db/issues/1184) · **Companions:** [#1204](https://github.com/u2giants/shared-db/issues/1204) (phases 2-6 authorized), [#1202](https://github.com/u2giants/shared-db/issues/1202) (rulings that supersede the design doc), [#1031](https://github.com/u2giants/shared-db/issues/1031) (backfill runner — reconcile, do not duplicate)
-**Handoff:** [`../HANDOFF.d/2026-08-19T1500Z-al8960ofc-claude-coldlion-phases-2-6-plan.md`](../HANDOFF.d/2026-08-19T1500Z-al8960ofc-claude-coldlion-phases-2-6-plan.md)
+**Handoff:** `../HANDOFF.d/2026-08-19T1500Z-al8960ofc-claude-coldlion-phases-2-6-plan.md`
 
 ## HISTORICAL STATUS — DO NOT EXECUTE
 

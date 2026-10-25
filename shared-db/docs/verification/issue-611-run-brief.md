@@ -13,7 +13,7 @@ unblocks a production gate, so it is worth getting right rather than fast.
 The run happened on the **hetz** VPS on 2026-08-10 against `main` tip `bc29d36`, on CLI
 **2.105.0**. The gate is discharged. The result lives in
 [`issue-611-db-push-atomicity-20260810.md`](issue-611-db-push-atomicity-20260810.md) with the
-complete raw log in [`issue-611-run-output-20260810.txt`](issue-611-run-output-20260810.txt).
+complete raw log in `issue-611-run-output-20260810.txt`.
 
 **You only need to run this again if the pinned Supabase CLI version changes.** The behaviour
 belongs to the CLI, so a version bump reopens issue #611.

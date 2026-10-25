@@ -40,9 +40,9 @@ header focus after debounce, lazy detail rendering, and narrow viewport behavior
 
 ## Visual evidence
 
-- [Customer grid and lazy detail panel](db-data-admin-step7-customer-detail.png)
-- [Vendor grid](db-data-admin-step7-vendor-wide.png)
-- [Narrow Customer grid](db-data-admin-step7-narrow.png)
+- Customer grid and lazy detail panel: `db-data-admin-step7-customer-detail.png`
+- Vendor grid: `db-data-admin-step7-vendor-wide.png`
+- Narrow Customer grid: `db-data-admin-step7-narrow.png`
 
 ## Deployment gate
 

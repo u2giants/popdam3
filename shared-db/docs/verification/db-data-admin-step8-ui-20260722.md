@@ -32,8 +32,8 @@ rendered. Database behavior is independently proven against preview by
 
 ## Visual evidence
 
-- [Customer detail with audit history](db-data-admin-step8-detail-audit.png)
-- [Whitelisted Customer editor](db-data-admin-step8-editor.png)
+- Customer detail with audit history: `db-data-admin-step8-detail-audit.png`
+- Whitelisted Customer editor: `db-data-admin-step8-editor.png`
 
 Production writes remain disabled. `fix_impl_visual_admin_page.md` remains untouched.
 

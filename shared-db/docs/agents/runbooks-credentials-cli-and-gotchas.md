@@ -263,10 +263,10 @@ Notes and traps:
   anon key.
 
 Full background, the audit queries to re-run, and what was deliberately left alone:
-[`docs/security/public-schema-execute-audit.md`](docs/security/public-schema-execute-audit.md)
-and [`docs/security/public-schema-anon-read-audit.md`](docs/security/public-schema-anon-read-audit.md).
+[`docs/security/public-schema-execute-audit.md`](../../docs/security/public-schema-execute-audit.md)
+and [`docs/security/public-schema-anon-read-audit.md`](../../docs/security/public-schema-anon-read-audit.md).
 
-**Before creating any database LOGIN role:** read [`docs/security/pg-net-direct-login-rule.md`](docs/security/pg-net-direct-login-rule.md)
+**Before creating any database LOGIN role:** read [`docs/security/pg-net-direct-login-rule.md`](../../docs/security/pg-net-direct-login-rule.md)
 (owner ruling §6.21: no new direct database logins except trusted in-house server services).
 
 **Still pending on production:** `20260729120000_lock_down_public_security_definer_execute.sql`

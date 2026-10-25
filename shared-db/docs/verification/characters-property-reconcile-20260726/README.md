@@ -82,9 +82,9 @@ unnecessarily re-review the small exact-agreement population.
 
 ## Evidence files
 
-- [`property-reconcile.csv`](property-reconcile.csv) — all 500 legacy property
+- `property-reconcile.csv` — all 500 legacy property
   rows, character counts, and direct canonical match where one exists.
-- [`residual-properties-with-characters.csv`](residual-properties-with-characters.csv)
+- `residual-properties-with-characters.csv`
   — the 314 populated legacy properties without a direct canonical match.
 
 ## Reproduction notes

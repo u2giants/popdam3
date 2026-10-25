@@ -2,7 +2,7 @@
 
 **Written:** 2026-08-14 · **Machine:** al8960ofc · **Agent:** claude (Opus 5)
 **Repo:** `u2giants/shared-db` · **Target branch:** a new branch off `main`, PR to `main`
-**Handoff that owns this plan:** [HANDOFF.d/2026-08-14T1700Z-al8960ofc-claude-curation-persistence-plans.md](HANDOFF.d/2026-08-14T1700Z-al8960ofc-claude-curation-persistence-plans.md)
+**Handoff that owns this plan:** `HANDOFF.d/2026-08-14T1700Z-al8960ofc-claude-curation-persistence-plans.md`
 **Sibling plans:** [plan_pmt-duplicate-name-columns.md](plan_pmt-duplicate-name-columns.md) ·
 [plan_pmt-metadata-element-normalization.md](plan_pmt-metadata-element-normalization.md)
 
@@ -94,7 +94,7 @@ by hand — see §12.
 
 On 2026-08-14 an audit of the Paramount landing schema (`plm.pmt_*`) was run — the audit the
 previous session's handoff asked for, at
-[HANDOFF.d/2026-08-14T1346Z-al8960ofc-claude-scrape-schema-normalization.md](HANDOFF.d/2026-08-14T1346Z-al8960ofc-claude-scrape-schema-normalization.md) §6 step 4.
+`HANDOFF.d/2026-08-14T1346Z-al8960ofc-claude-scrape-schema-normalization.md` §6 step 4.
 The audit was performed by Qwen 3.8 Max against a schema dump, and its four principal findings
 were then verified directly against production.
 

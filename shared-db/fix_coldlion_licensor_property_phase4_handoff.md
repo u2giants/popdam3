@@ -29,7 +29,7 @@ production access, no Phase 5 creates, no schedule, no app deployment, no Design
 - **Approval:** Albert Hazan approved ONLY the 542 exact-compatible proposed mappings on 2026-07-25
   (38 licensor + 504 property mappings → 271 distinct canonical UUIDs: 19 licensor + 252 property).
   Frozen artifact:
-  [`docs/verification/coldlion-licensor-property-phase4-20260725/approved-mapping.json`](docs/verification/coldlion-licensor-property-phase4-20260725/approved-mapping.json),
+  `docs/verification/coldlion-licensor-property-phase4-20260725/approved-mapping.json`,
   hash `1230f5a12d0f2a3029f1d3df17fc5b5f`. Explicit exclusions recorded: NASA ×2 (pending), FRIDA
   KAHLO licensor ×2, ZAG ×2, 12 ColdLion-only properties, 10 canonical-only incl. FRIENDS TV, and
   all Phase 5 creates.
