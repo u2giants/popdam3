@@ -43,7 +43,16 @@ A workflow transition is not complete unless its rule states:
 
 ## Licensing status — backwards moves
 
-**Status: Settled. Authority: Albert Hazan, chat 2026-10-09. Effective: 2026-10-09.**
+**Status: Retired. Authority: Albert Hazan, chat 2026-10-21 and 2026-10-25.**
+
+Albert Hazan's exact words (2026-10-21): “completely remove the backwards
+licensing prevention. it's doing more damage than it's helping”. Confirmed
+retired on 2026-10-25. Licensing statuses may now move in any order; no
+application may block, or require a reason or role for, a backwards move.
+Everything below in this section is historical record only and must not be
+implemented.
+
+**Former status: Settled 2026-10-09 (retired 2026-10-21).**
 
 A licensing item may move backwards only when **all** of the following hold:
 
