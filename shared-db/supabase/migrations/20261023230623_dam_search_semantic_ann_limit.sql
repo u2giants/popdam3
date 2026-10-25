@@ -5,9 +5,12 @@
 -- After the SigLIP2 library backfill (150k x 768), order-by-distance + limit 50000
 -- exceeded the function's 8s statement_timeout. Use a bounded ANN candidate set
 -- (limit 2000) and pin hnsw.ef_search so the HNSW index is the access path.
+-- The ef_search pin runs as set_config inside the body: hosted Supabase's
+-- non-superuser apply role may not attach an extension GUC as a function
+-- SET clause (SQLSTATE 42501 at create time, proven on preview 2026-10-24).
 
 set statement_timeout = '15min';
-create or replace function public.search_dam_documents(
+create or replace function public.search_dam_documents (
   p_query text,
   p_filters jsonb,
   p_limit integer,
@@ -34,8 +37,11 @@ stable
 security definer
 set search_path = public, extensions
 set statement_timeout = '8s'
-set hnsw.ef_search = 100
 as $$
+
+  -- Pin the HNSW candidate list for this call (see header). Runs as the body's
+  -- first statement; the main query below is the function's result.
+  select set_config('hnsw.ef_search', '100', true);
 
   with params as materialized (
     select nullif(trim(p_query),'') query_text,
