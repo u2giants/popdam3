@@ -261,6 +261,8 @@ Sources in this workspace
 
 ## Value-mapping decisions (owner rulings)
 
+Status 2026-10-25: rulings below are complete except the per-factory review (waiting on Albert). Area issues #4705–#4710 are open and claimed; start at #4705. Handoff: `HANDOFF.d/2026-10-25T2338Z-edge-dev3-claude-dflow-canonical-areas.md`.
+
 Detail and live match rates: `docs/verification/cloudsql-piecemeal-cutover-20261002/designflow-legacy-column-crosswalk.md`.
 
 - 2026-10-23, Albert: every field the DesignFlow code uses must have a home; where Supabase production already has a table for the same data, its design is used and extended, or the legacy values are only mapped into it.
