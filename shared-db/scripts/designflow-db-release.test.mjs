@@ -393,3 +393,22 @@ test('canonical tracking/frontend baselines require the actual successor and rej
  }
  assert.deepEqual(policy.repositories.find(a=>a.repository==='popcre/designflow-backend').required_sources,[{work_issue:4638,source_pr:4640},{work_issue:4634,source_pr:4636}]);
 });
+
+import {parseOriginalUpload,authenticatedMissingArtifact} from './designflow-db-release.mjs';
+test('original upload requires exactly one authenticated log identity',()=>{
+ const sha='a'.repeat(40),hex='b'.repeat(64),log=`Artifact ID 12\nSHA256 digest of uploaded artifact zip is ${hex}\nArtifact production-migration-apply-${sha}.zip successfully finalized\n`;
+ assert.equal(parseOriginalUpload(log,{head_sha:sha},3).artifact_id,12);
+ for(const text of ['',log+'Artifact ID 13\n',log+`SHA256 digest of uploaded artifact zip is ${'c'.repeat(64)}\n`,log.replace(sha,'d'.repeat(40))])assert.throws(()=>parseOriginalUpload(text,{head_sha:sha},3));
+});
+test('artifact absence accepts authenticated exact404 only, never transport/auth failures',()=>{
+ const error={stdout:'HTTP/2.0 404 Not Found\r\nContent-Type: application/json\r\n\r\n{"message":"Not Found","status":"404"}'};
+ assert.equal(authenticatedMissingArtifact(error),true);
+ for(const e of [{}, {...error,transientTransport:true},{...error,rateLimitExhausted:true},{stdout:error.stdout.replace('404 Not Found','403 Forbidden')},{stdout:error.stdout.replace('Not Found\",','Unauthorized\",')},{stdout:'HTTP/2 404\n\nnot json'},{stdout:'HTTP/2 200\n\n'+error.stdout}])assert.throws(()=>authenticatedMissingArtifact(e));
+});
+
+import {parseCurrentLiveInputs} from './designflow-db-release.mjs';
+function currentLiveInputs(){return {mode:'current-live-reverification',source_pr:'4735',work_issue:'3869',original_attempt:'1',original_artifact_id:'30',main_sha:'a'.repeat(40),apply_main_sha:'b'.repeat(40),ordered_allowlist:'20261024234538',apply_run_id:'10',apply_artifact_digest:'sha256:'+'c'.repeat(64)}}
+test('workflow JSON inputs preserve quoted values and reject duplicate/unknown identity keys',()=>{
+ const input=currentLiveInputs();assert.equal(parseCurrentLiveInputs(JSON.stringify(input)).original_run_id,10);
+ for(const raw of [JSON.stringify({...input,source_pr:'4735","main_sha":"'+'d'.repeat(40)}),JSON.stringify(input).replace('"source_pr":"4735"','"source_pr":"4735","source_pr":"4736"'),JSON.stringify(input).replace('"main_sha":','"m\\u0061in_sha":"'+'d'.repeat(40)+'","main_sha":'),JSON.stringify({...input,unknown:'value'}),JSON.stringify({...input,mode:'legacy-catalog-failure'}),JSON.stringify({...input,work_issue:3869}),JSON.stringify({...input,source_pr:'1e3'}),JSON.stringify(input).slice(0,-1)+',}'])assert.throws(()=>parseCurrentLiveInputs(raw));
+});

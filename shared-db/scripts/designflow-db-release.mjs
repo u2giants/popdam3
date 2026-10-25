@@ -1,7 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { CURRENT_LIVE_KIND, assertCurrentLiveProducer, validateCurrentLiveBinding, proveCurrentLiveAssignedSource, authenticatedArtifact404, currentLiveArtifactMetadata, openCurrentLivePackage, retainedCurrentLivePackage, CURRENT_LIVE_RECEIPT_PREFIX } from './lib/production-catalog-recovery.mjs';
 import { validateManifest, manifestDigest, verifyRequirementSource } from './lib/designflow-db-release.mjs';
 import { githubIo, parseQueueScope, trainIo } from './manage-migration-author-lanes.mjs';
 import { readyRecord, preparePreviewDispatch } from './db-flow/reconcile.mjs';
@@ -132,7 +134,7 @@ export function dispatchTitle(manifest, mode) {
   return `DB preview ${mode} ${manifest.commit_sha} PR${manifest.merged_preview_source_pr} ${manifest.preview_allowlist}`;
 }
 
-function sourceFacts(requirement) {
+export function sourceFacts(requirement) {
   const pr = api(`repos/${CANONICAL}/pulls/${requirement.source_pr}`);
   const linked = githubIo.closingIssuesForPr(requirement.source_pr);
   if (linked.length !== 1 || Number(linked[0].number) !== requirement.work_issue)
@@ -424,7 +426,7 @@ async function productionEvidence(requirement, facts) {
     }
   }
   if (verified.length > 1) throw Error('Ambiguous production evidence requires reconciliation');
-  if (!verified.length) return null;
+  if (!verified.length) return currentLiveEvidence(requirement, facts, ledger);
   const candidate = verified[0];
   const sha = githubIo.makeOwnerCommit('designflow-db-apply-receipt ' + JSON.stringify(candidate.receipt));
   if (!githubIo.createRef(ref, sha) || githubIo.readRef(ref) !== sha) throw Error('Immutable application receipt could not be preserved');
@@ -595,7 +597,163 @@ export function publishAppStatus(repository, head, body, token, send = api) {
   return result;
 }
 
+
+function exactPositive(value) {
+  if(typeof value!=='number'&&!/^[1-9][0-9]*$/.test(String(value)))throw Error('Exact positive identity required');
+  const n=Number(value);if(!Number.isSafeInteger(n)||n<1)throw Error('Current-live positive identity required');return n;
+}
+export function parseCurrentLiveInputs(raw){
+ // Workflow inputs are a flat string map. Parse its original tokens so duplicate
+ // keys cannot be silently replaced by JSON.parse, even outside Actions.
+ if(typeof raw!=='string'||raw.length>8192)throw Error('Bounded workflow inputs required');
+ const parsed=JSON.parse(raw);if(!parsed||Array.isArray(parsed)||typeof parsed!=='object'||Object.values(parsed).some(v=>typeof v!=='string'))throw Error('Flat string input map required');
+ let at=0;const space=()=>{while(/\s/.test(raw[at]??'')&&at<raw.length)at++};
+ const token=()=>{space();const m=/^"(?:[^"\\\x00-\x1f]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*"/.exec(raw.slice(at));if(!m)throw Error('Flat string workflow input required');at+=m[0].length;return JSON.parse(m[0])};
+ space();if(raw[at++]!=='{')throw Error('Workflow input object required');const values={};
+ space();while(raw[at]!=='}'){
+  const key=token();if(Object.hasOwn(values,key))throw Error('Duplicate workflow input');space();if(raw[at++]!==':')throw Error('Input separator required');values[key]=token();space();if(raw[at]===','){at++;continue}if(raw[at]!=='}')throw Error('Input map malformed');
+ }
+ at++;space();if(at!==raw.length)throw Error('Trailing workflow input');
+ const keys=['mode','source_pr','work_issue','original_attempt','original_artifact_id','main_sha','apply_main_sha','ordered_allowlist','apply_run_id','apply_artifact_digest'];
+ if(Object.keys(values).length!==keys.length||keys.some(k=>!Object.hasOwn(values,k))||values.mode!=='current-live-reverification')throw Error('Exact current-live workflow inputs required');
+ if(!SHA.test(values.main_sha)||!SHA.test(values.apply_main_sha)||!/^sha256:[a-f0-9]{64}$/.test(values.apply_artifact_digest)||!/^\d{14}(?:,\d{14})*$/.test(values.ordered_allowlist)||new Set(values.ordered_allowlist.split(',')).size!==values.ordered_allowlist.split(',').length)throw Error('Exact current-live source bindings required');
+ return {main_sha:values.main_sha,apply_main_sha:values.apply_main_sha,ordered_allowlist:values.ordered_allowlist,source_pr:exactPositive(values.source_pr),work_issue:exactPositive(values.work_issue),original_run_id:exactPositive(values.apply_run_id),original_attempt:exactPositive(values.original_attempt),original_artifact_id:exactPositive(values.original_artifact_id),original_artifact_digest:values.apply_artifact_digest};
+}
+function assertAncestor(base,head) {
+  const c=api(`repos/${CANONICAL}/compare/${base}...${head}`);
+  if(!['ahead','identical'].includes(c.status)||c.behind_by!==0)throw Error('Current-live producer ancestry refused');
+}
+function liveSource(requirement,facts) {
+  return {work_issue:requirement.work_issue,source_pr:requirement.source_pr,head_sha:facts.head_sha40,merge_sha:facts.merge_sha40,migrations:requirement.migrations};
+}
+function proveAssignedSource(requirement) {
+  return hash(proveCurrentLiveAssignedSource(requirement.source_pr));
+}
+export function parseOriginalUpload(log,run,jobId) {
+  if(typeof log!=='string'||Buffer.byteLength(log)>20*1024*1024)throw Error('Original upload log unavailable');
+  const digests=[...new Set([...log.matchAll(/SHA256 digest of uploaded artifact zip is ([a-f0-9]{64})/g)].map(x=>x[1]))];
+  const ids=[...new Set([...log.matchAll(/Artifact ID(?: is)? ([1-9][0-9]*)/g)].map(x=>Number(x[1])))];
+  const names=[...new Set([...log.matchAll(/Artifact (production-migration-apply-[a-f0-9]{40})\.zip successfully finalized/g)].map(x=>x[1]))];
+  if(digests.length!==1||ids.length!==1||names.length!==1||names[0]!==`production-migration-apply-${run.head_sha}`)throw Error('Original upload identity is ambiguous');
+  return {artifact_id:ids[0],digest:`sha256:${digests[0]}`,name:names[0],job_id:jobId,log_sha256:hash(log)};
+}
+export function authenticatedMissingArtifact(error) {return authenticatedArtifact404(error);}
+function originalArtifact(upload,run) {
+  // Same authenticated principal must read the repository, original Actions job
+  // and artifact listing. A hidden repository or unavailable Actions scope never
+  // becomes an accepted 404. All calls use the governed transport.
+  const repo=api(`repos/${CANONICAL}`);if(repo.full_name!==CANONICAL)throw Error('Artifact repository unavailable');
+  const listed=api(`repos/${CANONICAL}/actions/runs/${run.id}/artifacts?per_page=100`);
+  if(!Array.isArray(listed.artifacts)||listed.total_count>100)throw Error('Artifact visibility is incomplete');
+  let artifact;
+  try { const raw=runGitHubCommand(['api','-i',`repos/${CANONICAL}/actions/artifacts/${upload.artifact_id}`],{timeoutMs:60_000,maxBuffer:1024*1024});
+    const text=String(raw),at=text.search(/\r?\n\r?\n/);if(at<0)throw Error('Artifact response headers unavailable');artifact=JSON.parse(text.slice(at).trim()); }
+  catch(error){authenticatedMissingArtifact(error);if(listed.artifacts.some(a=>a.id===upload.artifact_id))throw Error('Artifact listing contradicts 404');return {artifact:null,absence:'authenticated-404'};}
+  if(artifact.expired!==true)throw Error('Original archive remains available; use the original verification route');
+  return {artifact,absence:'verified-expiration'};
+}
+function currentLiveProducer(input) {
+  const id=exactPositive(input.original_run_id),attempt=exactPositive(input.original_attempt);
+  const original=api(`repos/${CANONICAL}/actions/runs/${id}/attempts/${attempt}`);
+  if(original.id!==id||original.run_attempt!==attempt)throw Error('Original attempt identity differs');
+  const jobs=api(`repos/${CANONICAL}/actions/runs/${id}/attempts/${attempt}/jobs?per_page=100`);
+  const apply=(jobs.jobs??[]).filter(j=>j.name==='Production apply (automatic evidence gates)');if(apply.length!==1)throw Error('Original apply job ambiguous');
+  const log=command(['api',`repos/${CANONICAL}/actions/jobs/${apply[0].id}/logs`,'--allow-escape-sequences']);
+  const upload=parseOriginalUpload(log,original,apply[0].id);
+  if(upload.artifact_id!==exactPositive(input.original_artifact_id)||upload.digest!==input.original_artifact_digest)throw Error('Original artifact differs from specified inputs');
+  const latest=api(`repos/${CANONICAL}/actions/runs/${id}`),later=[];
+  if(!Number.isSafeInteger(latest.run_attempt)||latest.run_attempt<attempt||latest.run_attempt-attempt>100)throw Error('Later attempt discovery is incomplete');
+  for(let n=attempt+1;n<=latest.run_attempt;n++)later.push({run:api(`repos/${CANONICAL}/actions/runs/${id}/attempts/${n}`),jobs:api(`repos/${CANONICAL}/actions/runs/${id}/attempts/${n}/jobs?per_page=100`)});
+  const producer={original,jobs,later,latestAttempt:latest.run_attempt,upload,...originalArtifact(upload,original)};
+  assertCurrentLiveProducer(producer);return producer;
+}
+function recheckProducerCounter(producer) {
+  const latest=api(`repos/${CANONICAL}/actions/runs/${producer.original.id}`);
+  if(latest.id!==producer.original.id||latest.head_sha!==producer.original.head_sha||latest.path!==producer.original.path||latest.event!==producer.original.event||latest.run_attempt!==producer.latestAttempt||latest.status!=='completed')throw Error('Original producer gained a later or unfinished attempt');
+}
+async function runCurrentLiveReverification() {
+  if(process.env.GITHUB_REPOSITORY!==CANONICAL||process.env.GITHUB_REF!=='refs/heads/main')throw Error('Current-live proof only runs on canonical main');
+  const input=parseCurrentLiveInputs(process.env.CURRENT_LIVE_INPUTS);if(!input||input.main_sha!==process.env.GITHUB_SHA||(process.env.GITHUB_WORKFLOW_SHA&&process.env.GITHUB_WORKFLOW_SHA!==input.main_sha)||!SHA.test(input.main_sha))throw Error('Exact current verifier main required');
+  if(api(`repos/${CANONICAL}/commits/main`).sha!==input.main_sha||execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()!==input.main_sha)throw Error('Verifier main changed');
+  const source_pr=exactPositive(input.source_pr),work_issue=exactPositive(input.work_issue),versions=String(input.ordered_allowlist??'').split(',');
+  if(!versions.length||versions.some(v=>!/^\d{14}$/.test(v))||new Set(versions).size!==versions.length)throw Error('Exact ordered versions required');
+  // Source bytes are authenticated independently, never supplied by the caller.
+  const provisional={work_issue,source_pr,migrations:[]},facts=sourceFacts(provisional);
+  const migrations=versions.map(version=>{const found=facts.files.filter(f=>f.path.startsWith(`supabase/migrations/${version}_`));if(found.length!==1)throw Error('Source version differs');return {version,path:found[0].path,sha256:hash(found[0].content)};});
+  const requirement={work_issue,source_pr,migrations};verifyRequirementSource(requirement,facts);const source=liveSource(requirement,facts);
+  const producer=currentLiveProducer(input);if(!SHA.test(input.apply_main_sha??'')||input.apply_main_sha!==producer.original.head_sha)throw Error('Specified original main differs');assertAncestor(facts.merge_sha40,producer.original.head_sha);assertAncestor(producer.original.head_sha,input.main_sha);
+  const approval_sha256=proveAssignedSource(requirement),ledger=await ledgerFingerprints(requirement,facts);
+  if(Object.keys(ledger).length!==versions.length)throw Error('Applied source is incomplete');
+  const rows=await readProduction('BEGIN READ ONLY; SELECT version FROM supabase_migrations.schema_migrations ORDER BY version LIMIT 10001; ROLLBACK;');
+  if(rows.length>10000||rows.some(r=>!/^\d{14}$/.test(r.version)))throw Error('Current ledger co-presence capture incomplete');
+  const out=process.env.CURRENT_LIVE_OUTPUT;if(!out)throw Error('Current-live output directory required');mkdirSync(out,{recursive:true,mode:0o700});
+  writeFileSync(join(out,'current-ledger.txt'),rows.map(r=>` | ${r.version} |`).join('\n')+'\n',{mode:0o600});
+  execFileSync('python',['-c','import os,sys;from pathlib import Path;sys.path.insert(0,"scripts");from production_catalog_recovery_evidence import verify_current_live_catalog;verify_current_live_catalog(Path.cwd(),os.environ["CURRENT_LIVE_ALLOWLIST"],Path(os.environ["CURRENT_LIVE_OUTPUT"]),os.environ["SUPABASE_ACCESS_TOKEN"])'],{stdio:['ignore','pipe','pipe'],timeout:180_000,env:{...process.env,CURRENT_LIVE_ALLOWLIST:versions.join(',')}});
+  const catalogBytes=readFileSync(join(out,'production-catalog-verification.json')),catalog=JSON.parse(catalogBytes);
+  const binding={schema:CURRENT_LIVE_KIND,verifier_run_id:exactPositive(process.env.GITHUB_RUN_ID),verifier_run_attempt:exactPositive(process.env.GITHUB_RUN_ATTEMPT),repository_id:exactPositive(process.env.GITHUB_REPOSITORY_ID),owner_id:exactPositive(process.env.GITHUB_REPOSITORY_OWNER_ID),read_only:true,target:'qsllyeztdwjgirsysgai',historical_ledger_delta:null,verifier_sha:input.main_sha,verified_at:new Date().toISOString(),source,producer,approval_sha256,ledger_fingerprints:ledger,catalog_sha256:hash(catalogBytes)};
+  validateCurrentLiveBinding(binding,{source,ledger,catalog,producer});
+  if(JSON.stringify(await ledgerFingerprints(requirement,sourceFacts(requirement)))!==JSON.stringify(ledger)||proveAssignedSource(requirement)!==approval_sha256||api(`repos/${CANONICAL}/commits/main`).sha!==input.main_sha)throw Error('Current-live source, approval, ledger or main changed');
+  recheckProducerCounter(producer);writeFileSync(join(out,'current-live-binding.json'),JSON.stringify(binding,null,2)+'\n',{mode:0o600});
+  execFileSync('python',['-c','import os,zipfile;from pathlib import Path;p=Path(os.environ["CURRENT_LIVE_OUTPUT"]);z=zipfile.ZipFile(p/"current-live-content.zip","w",compression=zipfile.ZIP_STORED);[z.write(p/n,n) for n in ["current-live-binding.json","production-catalog-verification.json"]];z.close()'],{stdio:['ignore','pipe','pipe'],timeout:10000,env:process.env});
+  console.log('CURRENT-LIVE REVERIFICATION: present state only; no historical delta or application acceptance claimed.');
+}
+async function currentLiveEvidence(requirement,facts,ledger) {
+  const runs=workflowRuns(api,`repos/${CANONICAL}/actions/workflows/production-catalog-verification-recovery.yml/runs?event=workflow_dispatch&status=success`),verified=[];
+  const source=liveSource(requirement,facts),prefix=`refs/designflow-db-current-live-receipts/${requirement.work_issue}/${requirement.source_pr}/${facts.head_sha40}/`;
+  const repo=api(`repos/${CANONICAL}`);if(repo.full_name!==CANONICAL)throw Error('Canonical certificate repository differs');
+  const retainedRows=githubIo.listRefs(prefix);
+  for(const run of runs){
+    if(run.status!=='completed'||run.conclusion!=='success'||run.path!=='.github/workflows/production-catalog-verification-recovery.yml'||run.head_branch!=='main'||!githubIo.mergeCommitInMain(run.head_sha))continue;
+    const proofJobs=api(`repos/${CANONICAL}/actions/runs/${run.id}/attempts/${run.run_attempt}/jobs?per_page=100`);
+    if(!Array.isArray(proofJobs.jobs)||proofJobs.total_count!==proofJobs.jobs.length||proofJobs.total_count>100||proofJobs.jobs.filter(j=>j.name==='Current live reverification'&&j.run_attempt===run.run_attempt&&j.run_id===run.id&&j.conclusion==='success'&&j.status==='completed').length!==1)continue;
+    const currentMain=api(`repos/${CANONICAL}/commits/main`).sha;
+    const trustedPaths=['.github/workflows/production-catalog-verification-recovery.yml','scripts/designflow-db-release.mjs','scripts/lib/production-catalog-recovery.mjs','scripts/lib/current-live-attestation.mjs','scripts/production_catalog_recovery_evidence.py','scripts/production_catalog_verification.py','scripts/check-exact-head-approval.mjs','scripts/check-applied-migration-edit.mjs','scripts/atomic_migration_apply.py'];
+    if(trustedPaths.some(path=>content(CANONICAL,path,run.head_sha)!==content(CANONICAL,path,currentMain)))continue;
+    const retained=retainedRows.filter(r=>r.ref===`${prefix}${run.id}`);if(retained.length>1)throw Error('Ambiguous retained certificate ref');
+    const candidates=[];
+    if(retained.length){
+      const message=githubIo.getCommit(retained[0].sha)?.message;if(!message?.startsWith(CURRENT_LIVE_RECEIPT_PREFIX))throw Error('Retained certificate is malformed');
+      const receipt=JSON.parse(message.slice(CURRENT_LIVE_RECEIPT_PREFIX.length)),proof=receipt.proof;
+      if(proof?.work_issue!==requirement.work_issue||proof.source_pr!==requirement.source_pr||proof.proof_kind!==CURRENT_LIVE_KIND||proof.reverification_run_id!==run.id)throw Error('Retained certificate locator differs');
+      const a=currentLiveArtifactMetadata(CANONICAL,exactPositive(proof.artifact_id));
+      if(a&&(a.id!==proof.artifact_id||a.digest!==proof.artifact_digest||a.workflow_run?.id!==run.id||a.workflow_run?.head_sha!==run.head_sha))throw Error('Available certificate storage metadata differs');
+      if(!a||a.expired===true)candidates.push({artifact:{id:proof.artifact_id,digest:proof.artifact_digest},packageFiles:retainedCurrentLivePackage(receipt,proof)});
+      else candidates.push({artifact:a});
+    }else{
+      const artifacts=api(`repos/${CANONICAL}/actions/runs/${run.id}/artifacts?per_page=100`);if(!Array.isArray(artifacts.artifacts)||artifacts.total_count!==artifacts.artifacts.length||artifacts.total_count>100)throw Error('Current-live artifacts incomplete');
+      for(const a of artifacts.artifacts.filter(a=>a.name.startsWith(`production-current-live-${requirement.source_pr}-`)&&a.expired===false))candidates.push({artifact:a});
+    }
+    for(const candidate of candidates){
+      const a=candidate.artifact;let packageFiles=candidate.packageFiles;
+      if(!packageFiles){
+        if(a.workflow_run?.id!==run.id||a.workflow_run?.head_sha!==run.head_sha)throw Error('Current-live artifact producer changed');
+        const bytes=runGitHubCommand(['api',`repos/${CANONICAL}/actions/artifacts/${a.id}/zip`],{encoding:null,timeoutMs:60000,maxBuffer:16*1024*1024});if(a.digest!==`sha256:${hash(bytes)}`)throw Error('Current-live artifact digest changed');
+        packageFiles=selectArtifactFiles(readZipEntries(bytes),['current-live-content.zip','current-live-attestation.jsonl']);
+      }
+      const files=openCurrentLivePackage(packageFiles,{repositoryId:repo.id,ownerId:repo.owner?.id,verifierSha:run.head_sha,runId:run.id,runAttempt:run.run_attempt});
+      const binding=JSON.parse(files.get('current-live-binding.json')),catalogBytes=files.get('production-catalog-verification.json'),catalog=JSON.parse(catalogBytes);
+      if(binding.verifier_sha!==run.head_sha||binding.verifier_run_id!==run.id||binding.verifier_run_attempt!==run.run_attempt||binding.repository_id!==repo.id||binding.owner_id!==repo.owner?.id||binding.catalog_sha256!==hash(catalogBytes))throw Error('Current-live signed producer identity differs');
+      const producer=currentLiveProducer({original_run_id:binding.producer?.original?.id,original_attempt:binding.producer?.original?.run_attempt,original_artifact_id:binding.producer?.upload?.artifact_id,original_artifact_digest:binding.producer?.upload?.digest});
+      assertAncestor(facts.merge_sha40,producer.original.head_sha);assertAncestor(producer.original.head_sha,run.head_sha);
+      if(proveAssignedSource(requirement)!==binding.approval_sha256)throw Error('Current-live assigned approval changed');
+      validateCurrentLiveBinding(binding,{source,ledger,catalog,producer});recheckProducerCounter(producer);
+      const result={work_issue:requirement.work_issue,source_pr:requirement.source_pr,run_id:producer.original.id,proof_kind:CURRENT_LIVE_KIND,reverification_run_id:run.id,artifact_id:a.id,artifact_digest:a.digest};
+      const receipt={schema:'shared-db-current-live-reverification-receipt/v1',source,ledger_fingerprints:ledger,proof:result,certificate:files.certificate};
+      const ref=`${prefix}${run.id}`,message=CURRENT_LIVE_RECEIPT_PREFIX+JSON.stringify(receipt);
+      if(Buffer.byteLength(message)>96*1024)throw Error('Metadata-only retained receipt exceeds reviewed size bound');
+      const prior=githubIo.readRef(ref);
+      if(prior){if(githubIo.getCommit(prior)?.message!==message)throw Error('Immutable retained certificate changed');}
+      else{const sha=githubIo.makeOwnerCommit(message);if(!githubIo.createRef(ref,sha)||githubIo.readRef(ref)!==sha)throw Error('Retained certificate preservation refused');}
+      verified.push(result);
+    }
+  }
+  // Multiple authentic verification-only runs can prove the same exact current
+  // source/ledger; no additional apply or historical delta is inferred.
+  return verified.sort((a,b)=>b.reverification_run_id-a.reverification_run_id)[0]??null;
+}
+
 export async function main() {
+  if (process.argv.slice(2).join(' ') === '--reverify-current-live') return runCurrentLiveReverification();
   if (process.argv.slice(2).join(' ') !== '--observe' || process.env.GITHUB_REPOSITORY !== CANONICAL || process.env.GITHUB_REF !== 'refs/heads/main')
     throw Error('Observer executes only from canonical main with --observe');
   assertObserverSource(process.env, execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 10_000 }).trim());

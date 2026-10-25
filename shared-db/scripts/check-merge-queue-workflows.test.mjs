@@ -704,3 +704,11 @@ test('Queue interlock hold budget outlasts the slowest required check', () => {
   assert.ok(attempts * 5 >= 15 * 60, `hold budget ${attempts * 5}s must be at least 15 minutes`)
   assert.ok(jobTimeout * 60 >= attempts * 5 + 8 * 60, `job timeout ${jobTimeout}m must leave margin over the hold`)
 })
+
+
+test('preview ordering uses the candidate migration paths and retains the latest first-parent migration target', () => {
+  const text = readWorkflow('merge-queue-gate.yml')
+  assert.ok(text.includes('--preview-rehearsal-target --base-sha "$BASE_SHA" --group-sha "$GITHUB_SHA"'))
+  assert.ok(text.includes('--require-preview-rehearsal --sha "$target"'))
+  assert.ok(!text.includes('--require-preview-rehearsal --sha "$BASE_SHA"'))
+})

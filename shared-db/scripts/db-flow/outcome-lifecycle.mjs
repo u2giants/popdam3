@@ -33,6 +33,7 @@ export function parseOutcomeEvidence(body = '', { requiredStage = 'complete' } =
   const known = new Set([
     'schema_version', 'work_issue', 'merge_pr', 'merge_sha', 'application_repository',
     'production_evidence', 'production_commit_sha', 'production_artifact_id', 'production_artifact_digest',
+    'production_proof_kind', 'production_reverification_evidence', 'production_reverification_commit_sha', 'production_reverification_artifact_id', 'production_reverification_artifact_digest',
     'production_recovery_evidence', 'production_recovery_commit_sha', 'production_recovery_artifact_id', 'production_recovery_artifact_digest',
     'application_commit_sha', 'generated_types_evidence', 'generated_types_artifact_id', 'generated_types_artifact_digest', 'generated_types_output_digest', 'live_assertion',
     'live_evidence', 'live_artifact_id', 'live_artifact_digest', 'environment', 'verified_at',
@@ -49,6 +50,13 @@ export function parseOutcomeEvidence(body = '', { requiredStage = 'complete' } =
   const recoveryFields=['production_recovery_evidence','production_recovery_commit_sha','production_recovery_artifact_id','production_recovery_artifact_digest']
   if(recoveryFields.some(key=>Object.hasOwn(record,key))){
     if(recoveryFields.some(key=>!Object.hasOwn(record,key))||typeof record.production_recovery_evidence!=='string'||!EVIDENCE_REF.test(record.production_recovery_evidence)||!SHA.test(record.production_recovery_commit_sha??'')||!Number.isSafeInteger(record.production_recovery_artifact_id)||record.production_recovery_artifact_id<=0||!/^sha256:[0-9a-f]{64}$/i.test(record.production_recovery_artifact_digest??''))throw new OutcomeError('db-outcome-evidence must completely pin production catalog recovery')
+  }
+  // This additive envelope selects a verifier; parsing it never authorizes production.
+  // Historical apply pins above remain mandatory and retain their original meaning.
+  const reverificationFields=['production_proof_kind','production_reverification_evidence','production_reverification_commit_sha','production_reverification_artifact_id','production_reverification_artifact_digest']
+  if(reverificationFields.some(key=>Object.hasOwn(record,key))){
+    if(recoveryFields.some(key=>Object.hasOwn(record,key)))throw new OutcomeError('db-outcome-evidence cannot combine current-live reverification with historical production recovery')
+    if(reverificationFields.some(key=>!Object.hasOwn(record,key))||record.production_proof_kind!=='shared-db-current-live-reverification/v1'||typeof record.production_reverification_evidence!=='string'||!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[1-9][0-9]*$/.test(record.production_reverification_evidence)||typeof record.production_reverification_commit_sha!=='string'||!SHA.test(record.production_reverification_commit_sha)||!Number.isSafeInteger(record.production_reverification_artifact_id)||record.production_reverification_artifact_id<=0||typeof record.production_reverification_artifact_digest!=='string'||!/^sha256:[0-9a-f]{64}$/i.test(record.production_reverification_artifact_digest))throw new OutcomeError('db-outcome-evidence must completely pin the exact current-live reverification kind and certificate')
   }
   if (!REPOSITORY.test(record.application_repository ?? '')) throw new OutcomeError('db-outcome-evidence must name application_repository as owner/repo')
   if (requiredStage === 'database-applied') {

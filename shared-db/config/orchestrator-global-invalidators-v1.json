@@ -32,6 +32,7 @@
     "scripts/lib/agent-evidence-paths.mjs",
     "scripts/lib/authority-token-read.mjs",
     "scripts/lib/claim-recovery-dependencies.mjs",
+    "scripts/lib/current-live-attestation.mjs",
     "scripts/lib/documents-only-change.mjs",
     "scripts/lib/evidence-generation-lineage.mjs",
     "scripts/lib/exclusive-lease.mjs",

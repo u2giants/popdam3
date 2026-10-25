@@ -829,6 +829,32 @@ test('catalog recovery evidence is optional but must be completely pinned',()=>{
   for(const [key,value] of Object.entries({production_recovery_evidence:'unbound',production_recovery_commit_sha:'invented',production_recovery_artifact_id:0,production_recovery_artifact_digest:'unknown'}))assert.throws(()=>parseOutcomeEvidence(body({...original,...recovery,[key]:value})),/completely pin/)
 })
 
+test('current-live certificate envelope is explicit, additive, and never substitutes historical apply pins',()=>{
+  const {io}=completionFixture(),original=parseOutcomeEvidence(io.readOutcomeEvidence())
+  const certificate={production_proof_kind:'shared-db-current-live-reverification/v1',production_reverification_evidence:'https://github.com/popcre/shared-db/actions/runs/101',production_reverification_commit_sha:'c'.repeat(40),production_reverification_artifact_id:124,production_reverification_artifact_digest:`sha256:${'d'.repeat(64)}`}
+  const body=x=>['```db-outcome-evidence',JSON.stringify(x),'```'].join('\n')
+  const parsed=parseOutcomeEvidence(body({...original,...certificate}))
+  assert.deepEqual(parsed,{...original,...certificate})
+  assert.equal(parseOutcomeEvidence(body({...original,...certificate}),{requiredStage:'database-applied'}).production_proof_kind,certificate.production_proof_kind)
+  for(const key of Object.keys(certificate)){
+    const value={...original,...certificate};delete value[key]
+    assert.throws(()=>parseOutcomeEvidence(body(value)),/current-live reverification/,key)
+  }
+  for(const [key,value] of Object.entries({production_proof_kind:'shared-db-production-catalog-recovery/v1',production_reverification_evidence:'artifact:unbound',production_reverification_commit_sha:'invented',production_reverification_artifact_id:0,production_reverification_artifact_digest:'unknown'}))assert.throws(()=>parseOutcomeEvidence(body({...original,...certificate,[key]:value})),/current-live reverification/,key)
+  for(const url of ['http://github.com/popcre/shared-db/actions/runs/101','https://github.com/popcre/shared-db/actions/runs/0','https://github.com/popcre/shared-db/actions/runs/101?attempt=2','https://github.com/popcre/shared-db/actions/runs/101/jobs/2','https://github.com/popcre/shared-db/issues/101'])assert.throws(()=>parseOutcomeEvidence(body({...original,...certificate,production_reverification_evidence:url})),/current-live reverification/,url)
+  for(const key of ['production_reverification_commit_sha','production_reverification_artifact_digest'])for(const value of [null,[certificate[key]],{value:certificate[key]}])assert.throws(()=>parseOutcomeEvidence(body({...original,...certificate,[key]:value})),/current-live reverification/)
+  for(const value of [null,'124',1.5,Number.MAX_SAFE_INTEGER+1])assert.throws(()=>parseOutcomeEvidence(body({...original,...certificate,production_reverification_artifact_id:value})),/current-live reverification/)
+  for(const key of ['production_evidence','production_commit_sha','production_artifact_id','production_artifact_digest']){
+    const value={...original,...certificate};delete value[key]
+    assert.throws(()=>parseOutcomeEvidence(body(value)),/production/,key)
+  }
+  for(const key of ['production_recovery_evidence','production_recovery_commit_sha','production_recovery_artifact_id','production_recovery_artifact_digest'])assert.throws(()=>parseOutcomeEvidence(body({...original,...certificate,[key]:'historical'})),/production/,key)
+  const historical={production_recovery_evidence:'https://github.com/popcre/shared-db/actions/runs/102',production_recovery_commit_sha:'e'.repeat(40),production_recovery_artifact_id:125,production_recovery_artifact_digest:`sha256:${'f'.repeat(64)}`}
+  assert.throws(()=>parseOutcomeEvidence(body({...original,...certificate,...historical})),/cannot combine/)
+  assert.throws(()=>parseOutcomeEvidence(body({...original,...certificate,production_reverification_historical_success:true})),/unknown field/)
+  assert.deepEqual(parseOutcomeEvidence(body(original)),original)
+})
+
 test('completion re-derives merge, application, generated types, and live assertion before one authoritative completion', () => {
   const {io,comments}=completionFixture({generated:'required'})
   const result=completeOutcome({issue:41,evidenceRef:'https://github.com/u2giants/shared-db/issues/41#issuecomment-9',actor:'test',timestamp:'2026-09-11T02:00:00Z'},io)

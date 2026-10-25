@@ -18,7 +18,7 @@
 //   3. GitHub's 3,000-file pull-request coverage ceiling, refused rather than
 //      treated as a complete file list;
 //   4. the shared-preview hold: a main commit that added migrations blocks the
-//      next merge group until that EXACT commit carries a successful
+//      next migration merge group until that EXACT commit carries a successful
 //      `Post-merge preview rehearsal` status;
 //   5. queue-mode detection for the guarded merge lane: the exact approved
 //      one-PR ruleset, and nothing else, counts as "queue active".
@@ -152,9 +152,24 @@ export function assertOldestMigration(candidateNumber, candidateFiles, openPullR
 }
 
 // Does a commit's changed-path list add a migration? The shared-preview hold
-// keys off this: only a migration-bearing main tip holds the next group.
+// keys off migration paths; maintenance groups do not mutate shared preview.
 export function baseNeedsPreview(paths) {
   return migrationVersions(paths).length > 0
+}
+
+// Maintenance may repair evidence needed by the pending rehearsal. A later
+// migration still selects the latest migration-bearing first-parent commit,
+// even when maintenance commits have since advanced main. No successful status
+// is fabricated for the maintenance group or the pending migration.
+export function previewRehearsalTarget({ baseSha, groupSha }, readGit = (args) => execFileSync('git', args, { encoding: 'utf8' }).trim()) {
+  if (![baseSha, groupSha].every((sha) => /^[a-f0-9]{40}$/.test(sha ?? ''))) throw new MergeQueueError('preview hold requires exact base and group SHAs')
+  readGit(['merge-base', '--is-ancestor', baseSha, groupSha])
+  const paths = readGit(['diff', '--name-only', baseSha, groupSha]).split(/\r?\n/).filter(Boolean)
+  if (!baseNeedsPreview(paths)) return null
+  const target = readGit(['log', '--first-parent', '-1', '--format=%H', baseSha, '--', 'supabase/migrations/']).trim()
+  if (!/^[a-f0-9]{40}$/.test(target)) throw new MergeQueueError('latest preceding migration commit is unavailable')
+  readGit(['merge-base', '--is-ancestor', target, baseSha])
+  return target
 }
 
 // ---------------------------------------------------------------------------
@@ -597,6 +612,11 @@ export async function main(argv, env = process.env, deps = {}) {
   if (argv.includes('--queue-mode')) {
     const mode = queueMode({ repo, read })
     console.log(mode)
+    return 0
+  }
+
+  if (argv.includes('--preview-rehearsal-target')) {
+    console.log(previewRehearsalTarget({ baseSha: flagValue(argv, '--base-sha'), groupSha: flagValue(argv, '--group-sha') }, deps.readGit) ?? 'none')
     return 0
   }
 

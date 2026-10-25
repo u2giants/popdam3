@@ -117,4 +117,23 @@ class RecoveryEvidenceTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.build(catalog=row)
 
 
+class CurrentLiveCatalogueTests(unittest.TestCase):
+    def test_current_capture_uses_enforcing_verifier_without_historical_delta(self):
+        from unittest.mock import patch
+        from scripts.production_catalog_recovery_evidence import verify_current_live_catalog
+        with tempfile.TemporaryDirectory() as raw:
+            out = Path(raw)
+            ledger = out / "current-ledger.txt"
+            ledger.write_text(" | " + VERSION + " |\n")
+            with patch("production_catalog_verification.verify", return_value=0) as verify:
+                verify_current_live_catalog(Path.cwd(), VERSION, out, "synthetic-token")
+                self.assertEqual(verify.call_args.args[4:], ("synthetic-token", True))
+                self.assertEqual(verify.call_args.kwargs, {"remote_ledger": ledger})
+            for allowlist in (VERSION + "," + VERSION, "20260101000000", ""):
+                with self.assertRaises(ValueError):
+                    verify_current_live_catalog(Path.cwd(), allowlist, out, "synthetic-token")
+            with patch("production_catalog_verification.verify", return_value=1), self.assertRaises(ValueError):
+                verify_current_live_catalog(Path.cwd(), VERSION, out, "synthetic-token")
+
+
 if __name__ == "__main__": unittest.main()

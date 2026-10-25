@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": "scripts/publish-work-stage-evidence.mjs",
+  "sites": [
+    {
+      "site": "scripts/publish-work-stage-evidence.mjs:18",
+      "semantic_key": "scripts/publish-work-stage-evidence.mjs:7ded5a7e3c437b503d67201852729706a48987d270d1b72bc63d7a663d87b528:context-c728f084ff3cca7d7dc87e93274988466ec5205806299293e26d5393059a7d2a",
+      "legacy_semantic_key": "scripts/publish-work-stage-evidence.mjs:7ded5a7e3c437b503d67201852729706a48987d270d1b72bc63d7a663d87b528:1",
+      "line_sha256": "7ded5a7e3c437b503d67201852729706a48987d270d1b72bc63d7a663d87b528",
+      "disposition": "excluded",
+      "reason": "Required serial argument validation: a flag without its exact value refuses before any evidence lookup or publication; this is not a database absence inference."
+    }
+  ]
+}

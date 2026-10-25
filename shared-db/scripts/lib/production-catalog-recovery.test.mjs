@@ -82,3 +82,108 @@ test('data-only recovery accepts a hash-bound exact row count and only the verif
     ['failed count',r=>{r.catalog.behavior_results.behavior_checks[0].actual_count=0}],
   ])assert.equal(matchesCatalogRecovery(dataOnly(mutate)),false,name)
 })
+
+import {CURRENT_LIVE_KIND,assertCurrentLiveProducer,validateCurrentLiveBinding} from './production-catalog-recovery.mjs'
+function liveFixture(){
+ const original={id:10,run_attempt:1,head_branch:'main',head_sha:apply,path:'.github/workflows/shared-supabase-migrations.yml',event:'workflow_dispatch',status:'completed',conclusion:'success'};
+ const names=['SQL migration guards','Production apply review (immutable evidence + hard guards)','Production apply (automatic evidence gates)'];
+ const jobs={total_count:3,jobs:names.map((name,i)=>({id:20+i,run_id:10,run_attempt:1,name,status:'completed',conclusion:'success'}))};
+ const run={...original,run_attempt:2,conclusion:'failure'};
+ const laterJobs={total_count:3,jobs:jobs.jobs.map(j=>({...j,run_attempt:2,conclusion:j.name===names[2]?'skipped':'success'}))};
+ const producer={original,jobs,later:[{run,jobs:laterJobs}],latestAttempt:2,artifact:null,absence:'authenticated-404',upload:{artifact_id:30,digest,name:`production-migration-apply-${apply}`,job_id:22,log_sha256:hash}};
+ const source={work_issue:3869,source_pr:4735,head_sha:apply,merge_sha:main,migrations:[{version:v,path:`supabase/migrations/${v}_source.sql`,sha256:hash}]};
+ const ledger={[v]:hash};const catalog=fixture().catalog;
+ const binding={schema:CURRENT_LIVE_KIND,verifier_run_id:40,verifier_run_attempt:1,repository_id:100,owner_id:200,read_only:true,target:'qsllyeztdwjgirsysgai',historical_ledger_delta:null,verifier_sha:main,verified_at:'2026-01-01T00:00:00Z',source,producer,ledger_fingerprints:ledger,catalog_sha256:hash};
+ return {binding,source,ledger,catalog,producer};
+}
+test('separate current-state proof accepts successful original and later skipped apply without historical delta',()=>{const x=liveFixture();assert.equal(assertCurrentLiveProducer(x.producer),true);assert.equal(validateCurrentLiveBinding(x.binding,x),true)})
+for(const [name,change] of Object.entries({
+ 'failed original':x=>x.producer.original.conclusion='failure',
+ 'non-main original':x=>x.producer.original.head_branch='other',
+ 'duplicate native job':x=>{x.producer.jobs.jobs.push(x.producer.jobs.jobs[0]);x.producer.jobs.total_count++},
+ 'incomplete job enumeration':x=>x.producer.jobs.total_count++,
+ 'missing later attempt':x=>x.producer.later=[],
+ 'later applied':x=>x.producer.later[0].jobs.jobs[2].conclusion='success',
+ 'later in progress':x=>x.producer.later[0].run.status='in_progress',
+ 'later wrong source':x=>x.producer.later[0].run.head_sha=main,
+ 'unverified absence':x=>x.producer.absence='not-found',
+ 'available original':x=>{x.producer.artifact={id:30,name:x.producer.upload.name,digest,expired:false,workflow_run:{id:10,head_sha:apply}};x.producer.absence='verified-expiration'},
+ 'wrong upload hash':x=>x.producer.upload.digest='bad',
+ 'missing repository ID':x=>delete x.binding.repository_id,
+ 'missing producer attempt':x=>delete x.binding.verifier_run_attempt,
+ 'invented historical delta':x=>x.binding.historical_ledger_delta=[v],
+ 'missing ledger':x=>x.ledger={},
+ 'changed catalogue SQL':x=>x.catalog.behavior_checks[0].migration_sha256='0'.repeat(64),
+ 'catalogue failure':x=>x.catalog.errors=['error'],
+ 'failed behavior':x=>x.catalog.behavior_results.behavior_checks[0].actual_count=0,
+ 'extra behavior result':x=>x.catalog.behavior_results.behavior_checks.push(x.catalog.behavior_results.behavior_checks[0]),
+}))test(`current-state refuses ${name}`,()=>{const x=liveFixture();change(x);assert.throws(()=>validateCurrentLiveBinding(x.binding,x))})
+
+import {createHash} from 'node:crypto'
+import {verifyCurrentLiveEvidence} from './production-catalog-recovery.mjs'
+function nativeLiveFixture(){
+ const x=liveFixture(),bytes='-- exact source\n',digest=x=>createHash('sha256').update(x).digest('hex'),approval=JSON.stringify({result:{approved:true},verdicts:[{ref:'synthetic'}]});
+ x.source.migrations[0].sha256=digest(bytes);x.catalog.behavior_checks[0].migration_sha256=digest(bytes);
+ const cat=JSON.stringify(x.catalog);x.binding.catalog_sha256=digest(cat);x.binding.approval_sha256=digest(approval);
+ const e={work_issue:3869,merge_pr:4735,merge_sha:main,production_evidence:'https://github.com/popcre/shared-db/actions/runs/10',production_commit_sha:apply,production_artifact_id:30,production_artifact_digest:x.producer.upload.digest,production_proof_kind:CURRENT_LIVE_KIND,production_reverification_evidence:'https://github.com/popcre/shared-db/actions/runs/40',production_reverification_commit_sha:main,production_reverification_artifact_id:50,production_reverification_artifact_digest:'sha256:'+'d'.repeat(64)};
+ const run={id:40,run_attempt:1,status:'completed',conclusion:'success',event:'workflow_dispatch',path:'.github/workflows/production-catalog-verification-recovery.yml',head_branch:'main',head_sha:main};
+ const artifact={id:50,expired:false,digest:e.production_reverification_artifact_digest,name:'production-current-live-4735-10-1',workflow_run:{id:40,head_sha:main}};
+ const files=new Map([['current-live-binding.json',JSON.stringify(x.binding)],['production-catalog-verification.json',cat]]);
+ const io={closingIssuesForPr:()=>[{number:3869}],mergeCommitInMain:()=>true,getPr:()=>({base:{ref:'main'},merged_at:'2026-01-01',head:{sha:apply},merge_commit_sha:main}),getPrFiles:()=>[{filename:x.source.migrations[0].path,status:'added'}],readArtifactFiles:()=>files};
+ const read=([_,url])=>{
+  const p=url.replace('repos/popcre/shared-db/','');
+  if(p==='repos/popcre/shared-db')return {full_name:'popcre/shared-db',id:100,owner:{id:200}};
+  if(p==='commits/main')return {sha:main};
+  if(p.startsWith('contents/'))return {encoding:'base64',content:Buffer.from(p.includes('_source.sql')?bytes:'identical verifier').toString('base64')};
+  if(p.startsWith('compare/'))return {status:'ahead',behind_by:0};
+  if(p==='actions/runs/40')return run;
+  if(p==='actions/runs/40/attempts/1/jobs?per_page=100')return {total_count:1,jobs:[{name:'Current live reverification',run_id:40,run_attempt:1,status:'completed',conclusion:'success'}]};
+  if(p==='actions/runs/40/artifacts?per_page=100')return {total_count:1,artifacts:[artifact]};
+  if(p==='actions/runs/10')return {...x.producer.original,run_attempt:2};
+  for(const row of [{run:x.producer.original,jobs:x.producer.jobs},...x.producer.later]){if(p===`actions/runs/10/attempts/${row.run.run_attempt}`)return row.run;if(p===`actions/runs/10/attempts/${row.run.run_attempt}/jobs?per_page=100`)return row.jobs;}
+  throw Error(`unexpected ${p}`)
+ };
+ return {x,e,run,artifact,files,io,read,prove:()=>approval};
+}
+test('native current-live route verifies trusted certificate without a database call',()=>{const f=nativeLiveFixture();assert.equal(verifyCurrentLiveEvidence(f.e,f.io,f.read,'popcre/shared-db',f.prove,()=>f.files,()=>f.files),true)})
+for(const [name,change] of Object.entries({
+ 'foreign certificate':f=>f.e.production_reverification_evidence='https://github.com/foreign/repo/actions/runs/40',
+ 'wrong certificate kind':f=>f.e.production_proof_kind='legacy',
+ 'failed certifier':f=>f.run.conclusion='failure',
+ 'wrong verifier main':f=>f.run.head_sha=apply,
+ 'expired certificate':f=>f.artifact.expired=true,
+ 'changed certificate digest':f=>f.artifact.digest='sha256:'+'0'.repeat(64),
+ 'changed original pin':f=>f.e.production_artifact_id=99,
+ 'invented binding':f=>f.files.set('current-live-binding.json','{}'),
+ 'changed catalogue bytes':f=>f.files.set('production-catalog-verification.json','{}'),
+ 'missing actual approval':f=>f.prove=()=> 'Merged pull request approval audit verified:',
+ 'unreadable GitHub':f=>f.read=()=>{throw Error('403')},
+}))test(`native current-live refuses ${name}`,()=>{const f=nativeLiveFixture();change(f);assert.equal(verifyCurrentLiveEvidence(f.e,f.io,f.read,'popcre/shared-db',f.prove,()=>f.files,()=>f.files),false)})
+
+import {execFileSync} from 'node:child_process'
+import {openCurrentLivePackage,retainedCurrentLivePackage} from './production-catalog-recovery.mjs'
+function retainedFixture(){
+ const x=liveFixture(),proof={work_issue:3869,source_pr:4735,run_id:10,proof_kind:CURRENT_LIVE_KIND,reverification_run_id:40,artifact_id:50,artifact_digest:'sha256:'+'d'.repeat(64)};
+ const zip=execFileSync('python3',['-c','import sys,json,zipfile,io;b=io.BytesIO();z=zipfile.ZipFile(b,"w");[z.writestr(k,v) for k,v in json.load(sys.stdin).items()];z.close();sys.stdout.buffer.write(b.getvalue())'],{input:JSON.stringify({'current-live-binding.json':JSON.stringify(x.binding),'production-catalog-verification.json':JSON.stringify(x.catalog)})});
+ const bundle=Buffer.from('synthetic verification bundle'),hash=createHash('sha256').update(zip).digest('hex');
+ const receipt={schema:'shared-db-current-live-reverification-receipt/v1',source:x.source,ledger_fingerprints:x.ledger,proof,certificate:{zip_base64:zip.toString('base64'),bundle_base64:bundle.toString('base64')}};
+ const authenticate=({zipBytes,bundleBytes})=>{assert.equal(createHash('sha256').update(zipBytes).digest('hex'),hash);assert.equal(bundleBytes.toString(),bundle.toString())};
+ return {receipt,proof,authenticate};
+}
+test('retained exact inner ZIP and bundle roundtrip without artifact or log dependency',()=>{
+ const f=retainedFixture(),files=openCurrentLivePackage(retainedCurrentLivePackage(f.receipt,f.proof),{},f.authenticate);
+ assert.equal(files.certificate.zip_base64,f.receipt.certificate.zip_base64);assert.equal(files.certificate.bundle_base64,f.receipt.certificate.bundle_base64);
+});
+test('bare ref, mutated signed authorizing fields, altered inner bytes and oversized retention refuse',()=>{
+ for(const mutate of [f=>delete f.receipt.certificate,f=>f.receipt.source={...f.receipt.source,source_pr:99},f=>f.receipt.ledger_fingerprints={},f=>f.receipt.proof={...f.receipt.proof,run_id:99},f=>f.receipt.certificate.zip_base64=Buffer.from('forged').toString('base64'),f=>f.receipt.certificate.bundle_base64=Buffer.from('forged').toString('base64'),f=>f.receipt.certificate.zip_base64='A'.repeat(100*1024)]){
+  const f=retainedFixture();mutate(f);assert.throws(()=>openCurrentLivePackage(retainedCurrentLivePackage(f.receipt,f.proof),{},f.authenticate));
+ }
+});
+test('native retained receipt permits authentic expiry or404 but rejects403/network and available mismatch',()=>{
+ for(const state of ['expired','404','403','network','mismatch']){
+  const f=nativeLiveFixture(),r=retainedFixture();r.receipt.proof={work_issue:3869,source_pr:4735,run_id:10,proof_kind:CURRENT_LIVE_KIND,reverification_run_id:40,artifact_id:50,artifact_digest:f.e.production_reverification_artifact_digest};
+  f.io.readRef=()=> 'e'.repeat(40);f.io.getCommit=()=>({message:'designflow-db-current-live-receipt '+JSON.stringify(r.receipt)});
+  const metadata=()=>{if(state==='403'||state==='network')throw Error(state);if(state==='404')return null;return {...f.artifact,expired:state==='expired',...(state==='mismatch'?{digest:'sha256:'+'0'.repeat(64)}:{})}};
+  assert.equal(verifyCurrentLiveEvidence(f.e,f.io,f.read,'popcre/shared-db',f.prove,()=>f.files,()=>f.files,metadata),state==='expired'||state==='404');
+ }
+});

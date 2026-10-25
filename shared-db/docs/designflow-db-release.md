@@ -225,3 +225,60 @@ Proposed exact actions:
 Recovery: before any activation preserve current App/secret metadata; changes are additive. If verification fails, leave notifications unactivated and repair within scope; do not remove existing checks/scheduler or weaken status-publisher binding. No production SQL or app runtime modification is part of these configuration actions.
 
 The fixed template accepts only develop/main pushes and same-repository PR events targeting main. It checks out no application code and accepts no caller-provided workflow, ref or SQL. Repository Actions-write is the minimum dispatch permission but also permits cancellation/other Actions operations in shared-db; this residual risk remains explicit. The dedicated key is new, never the existing central operator credential or watcher key. No required check, commit hook, webhook receiver, scheduler or executor is added.
+
+### Separate current-live reverification
+
+When an original successful production apply archive is authentically unavailable,
+`Production Catalog Verification Recovery` has an explicit
+`current-live-reverification` mode. Its default remains the existing failed-catalog
+recovery mode. This separate mode never applies SQL, reconstructs historical ledger
+deltas, or grants application acceptance. Issue #4655 owns this mode; retire it only
+when its callers and retained certificates have a reviewed replacement.
+
+The mode requires the exact original successful attempt, all three successful
+native jobs, authenticated upload identity, and positively authenticated artifact
+404 or verified expiry. Every later attempt must have completed with its unique
+production apply job skipped. Canonical merged source bytes, durable assigned
+approval, ancestry, exact live ledger statements and enforcing catalogue assertions
+are checked before a separately typed certificate is uploaded. Main/source/approval
+and the original attempt counter are checked again before publication.
+
+The central observer independently checks its existing fresh live ledger and
+catalogue. Native dependency checks consume the trusted completed Recovery
+certificate through GitHub only; they do not claim to have queried the database.
+The additive outcome proof kind is `shared-db-current-live-reverification/v1`;
+original apply pins remain mandatory, and legacy recovery fields cannot be mixed
+with this kind. A verified database stage still requires the existing native stage
+publisher and a genuine evidence comment. Neither certificate nor stage closes
+application live proof or changes who releases DesignFlow applications.
+
+The certificate's exact metadata-only inner ZIP is signed by GitHub artifact
+attestation from this Recovery workflow on the exact main commit and run attempt.
+Verification pins the GitHub OIDC issuer, workflow, source commit/ref, immutable
+repository and owner identifiers, invocation, and subject SHA256. Only the two
+named metadata files are allowed; no business rows or secrets are included.
+The uploaded outer Actions archive is authenticated by its GitHub digest during
+initial capture. Its storage identifier/digest records transport history; it is
+not the lasting acceptance authority and no expired outer archive is reconstructed.
+
+A create-only receipt retains the exact inner ZIP and signature bundle, bounded
+together with its metadata to 96 KiB. After positively authenticated outer404 or
+verified expiry, the same signature and fresh canonical producer/source checks
+still apply. Available storage metadata mismatch,403,network failure, malformed
+signature or unavailable trust always refuse. Changing any authorizing receipt
+field must disagree with the signed inner subject and refuse. A bare Git ref or
+bot identity never substitutes for cryptographic verification. Ordinary native
+checks receive no production credential; their database state claim is the signed
+read-only workflow observation, while central readiness still checks its own
+fresh ledger and catalogue.
+
+### Maintenance recovery while a migration rehearsal is pending
+
+The merge queue's preview ordering hold applies to migration-bearing groups.
+Maintenance may repair the evidence needed by a pending rehearsal; it creates no
+preview success status and grants no database authority. The next migration group
+selects the latest migration-bearing commit on main's first-parent history, even
+when maintenance commits intervened, and still requires that exact commit's
+successful rehearsal. Missing history, malformed identities and unreadable status
+remain refusals. Existing review, authorization, merge lock and production freeze
+checks apply to every group. Tracked with the delivery-evidence repair on #4655.

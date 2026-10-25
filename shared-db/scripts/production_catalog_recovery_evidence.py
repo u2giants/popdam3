@@ -100,6 +100,18 @@ def build_binding(repo, evidence, live_ledger, catalog, jobs, inputs):
             "original_failure": "Post-apply catalog verification", "verification_only": True}
 
 
+def verify_current_live_catalog(repo, raw_allowlist, output, token):
+    """Separate present-state mode: this ledger is CURRENT co-presence, never before-apply evidence."""
+    from production_catalog_verification import verify
+    current_ledger = output / "current-ledger.txt"
+    live = parse_remote_versions(current_ledger)
+    wanted = raw_allowlist.split(",")
+    if not wanted or len(wanted) != len(set(wanted)) or any(v not in live for v in wanted):
+        raise ValueError("current-live ledger does not contain exact source versions")
+    if verify(repo, raw_allowlist, output, PROJECT, token, True, remote_ledger=current_ledger) != 0:
+        raise ValueError("current-live enforcing catalogue verification failed")
+
+
 if __name__ == "__main__":
     temp = Path(os.environ["RUNNER_TEMP"])
     inputs = {"main_sha": os.environ["MAIN_SHA"], "apply_main_sha": os.environ["APPLY_MAIN_SHA"],

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/production-catalog-recovery.mjs",
+  "sites": [
+    {
+      "site": "scripts/lib/production-catalog-recovery.mjs:127",
+      "semantic_key": "scripts/lib/production-catalog-recovery.mjs:00f6512135512ba50744eaffd1c7fd0e6b9529af04ad8a749dc90c2e0529ad9a:context-d2a3cd86deb866b07f85887c935616e2302bcba95201815af899627f99694043",
+      "legacy_semantic_key": "scripts/lib/production-catalog-recovery.mjs:00f6512135512ba50744eaffd1c7fd0e6b9529af04ad8a749dc90c2e0529ad9a:1",
+      "line_sha256": "00f6512135512ba50744eaffd1c7fd0e6b9529af04ad8a749dc90c2e0529ad9a",
+      "disposition": "excluded",
+      "reason": "Required serial response validation: a metadata response without its HTTP envelope refuses normal JSON acceptance; the catch still requires the independent authenticated exact-404 checks and cannot treat malformed success as artifact absence."
+    },
+    {
+      "site": "scripts/lib/production-catalog-recovery.mjs:123",
+      "semantic_key": "scripts/lib/production-catalog-recovery.mjs:42be7bcbdf15187f08b3edf13ecd94a76970126e08182c27031fccd6a39c7244:context-f4c7e06ffa2c6f6515e23cf9424850300388a27a6cb8ec2f3e35022daf0d4529",
+      "legacy_semantic_key": "scripts/lib/production-catalog-recovery.mjs:42be7bcbdf15187f08b3edf13ecd94a76970126e08182c27031fccd6a39c7244:1",
+      "line_sha256": "42be7bcbdf15187f08b3edf13ecd94a76970126e08182c27031fccd6a39c7244",
+      "disposition": "excluded",
+      "reason": "Required serial response validation: absent HTTP header/body separation refuses authenticated artifact-absence classification before any fallback receipt can be accepted; it proves no database or artifact absence."
+    }
+  ]
+}

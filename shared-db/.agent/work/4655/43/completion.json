@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "work_issue": 4655,
+  "outcome": "ready-for-merge",
+  "pr": 4762,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4655/43",
+  "contract_sha256": "e26847fbfcf3b1f9a126e03ce763e87e8a2afe1269d9408d08608d9a606f1cd4",
+  "base_sha": "c349d2a2801aac0c730cc68c5becf81540f8f880",
+  "head_sha": "4562028e9381209e4e08eff2c86b72b10b834d65",
+  "files_changed": [
+    ".github/workflows/merge-queue-gate.yml",
+    ".github/workflows/production-catalog-verification-recovery.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/designflow-db-release.md",
+    "docs/verification/throughput-dispositions/scripts~lib~production-catalog-recovery.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~publish-work-stage-evidence.mjs.json",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/db-flow/admission-outcome.test.mjs",
+    "scripts/db-flow/outcome-lifecycle.mjs",
+    "scripts/designflow-db-release.mjs",
+    "scripts/designflow-db-release.test.mjs",
+    "scripts/lib/current-live-attestation.mjs",
+    "scripts/lib/current-live-attestation.test.mjs",
+    "scripts/lib/production-catalog-recovery.mjs",
+    "scripts/lib/production-catalog-recovery.test.mjs",
+    "scripts/merge-queue-contract.mjs",
+    "scripts/merge-queue-contract.test.mjs",
+    "scripts/production_catalog_recovery_evidence.py",
+    "scripts/publish-work-stage-evidence.mjs",
+    "scripts/publish-work-stage-evidence.test.mjs",
+    "scripts/test_production_catalog_recovery_evidence.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts.test_production_catalog_recovery_evidence",
+      "exit_code": 0,
+      "evidence": "...........\n----------------------------------------------------------------------\nRan 11 tests in 0.046s\n\nOK\n; sha256 a74854b58927d50f48f1bf9bfee51635b5688f562679538d7a39aa294421e65f"
+    },
+    {
+      "command": "node --test scripts/lib/production-catalog-recovery.test.mjs scripts/designflow-db-release.test.mjs scripts/db-flow/admission-outcome.test.mjs scripts/publish-work-stage-evidence.test.mjs scripts/lib/current-live-attestation.test.mjs",
+      "exit_code": 0,
+      "evidence": " zero writes\nok 218 - report recognizes existing verified comment and still makes zero writes\n  ---\n  duration_ms: 0.613749\n  type: 'test'\n  ...\n# Subtest: contradictory changed durable evidence and wrong actor refuse without writes\nok 219 - contradictory changed durable evidence and wrong actor refuse without writes\n  ---\n  duration_ms: 0.607296\n  type: 'test'\n  ...\n# Subtest: immutable final completion contradiction stops both modes before mutation\nok 220 - immutable final completion contradiction stops both modes before mutation\n  ---\n  duration_ms: 0.619555\n  type: 'test'\n  ...\n1..220\n# tests 220\n# suites 0\n# pass 220\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 1290.352062\n; sha256 64a70d1c89bb1e7704bf40164513a0c24ff0b2c71b85071f77f5603a3d48f5a6"
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "Passed with exit0; direct current-run output retained in session transcript.; sha256 c25def798aa3510dbf1068dc3d40238160a36a5e2eb16c775efda62b1f232bfa"
+    },
+    {
+      "command": "node scripts/check-repository-identity-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "Passed with exit0; direct current-run output retained in session transcript.; sha256 c25def798aa3510dbf1068dc3d40238160a36a5e2eb16c775efda62b1f232bfa"
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Passed with exit0; direct current-run output retained in session transcript.; sha256 c25def798aa3510dbf1068dc3d40238160a36a5e2eb16c775efda62b1f232bfa"
+    },
+    {
+      "command": "node --test scripts/db-flow/*.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "e form; --park alone is refused\n  ---\n  duration_ms: 0.259255\n  type: 'test'\n  ...\n# Subtest: \\#4348 reviewer-budget PR file inventory follows pages and fails closed past the cap\nok 1369 - \\#4348 reviewer-budget PR file inventory follows pages and fails closed past the cap\n  ---\n  duration_ms: 0.638851\n  type: 'test'\n  ...\n# Subtest: real flowAdapter admits only qualified closed merged proof selectors without changing custody\nok 1370 - real flowAdapter admits only qualified closed merged proof selectors without changing custody\n  ---\n  duration_ms: 2.291597\n  type: 'test'\n  ...\n1..1370\n# tests 1370\n# suites 0\n# pass 1370\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 19488.839469\n; sha256 4b059a5cf2148c9807dde54187460608a2953ffa6b8c182ec5b0e8c9f8abdded"
+    },
+    {
+      "command": "node --test scripts/merge-queue-contract.test.mjs scripts/check-merge-queue-workflows.test.mjs scripts/configure-merge-queue.test.mjs scripts/guarded-merge-preparation-split.test.mjs",
+      "exit_code": 0,
+      "evidence": " is bound\n  ---\n  duration_ms: 0.133785\n  type: 'test'\n  ...\n# Subtest: resolveAuthorizedHead: empty tree span over an authorized ancestor is mode=ancestor, never exact\nok 97 - resolveAuthorizedHead: empty tree span over an authorized ancestor is mode=ancestor, never exact\n  ---\n  duration_ms: 0.064987\n  type: 'test'\n  ...\n# Subtest: maintenance can repair evidence while a later migration retains the pending first-parent rehearsal\nok 98 - maintenance can repair evidence while a later migration retains the pending first-parent rehearsal\n  ---\n  duration_ms: 0.297502\n  type: 'test'\n  ...\n1..98\n# tests 98\n# suites 0\n# pass 98\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 948.986522\n; sha256 243bcc4735c00fde2c58cae339e60066c1d92a9e448e32fe01e3cca2fb0e3ecc"
+    },
+    {
+      "command": "node --test scripts/check-sql.test.mjs",
+      "exit_code": 0,
+      "evidence": "t rejects changed bytes and unrelated dependencies\n  ---\n  duration_ms: 848.95276\n  type: 'test'\n  ...\n# Subtest: 3890 forward transition admits exact new bytes only, preserving retired-reference refusal\nok 69 - 3890 forward transition admits exact new bytes only, preserving retired-reference refusal\n  ---\n  duration_ms: 1290.237144\n  type: 'test'\n  ...\n# Subtest: protected SQL source validates actual PR SQL and never executes PR helper scripts\nok 70 - protected SQL source validates actual PR SQL and never executes PR helper scripts\n  ---\n  duration_ms: 730.56661\n  type: 'test'\n  ...\n1..70\n# tests 70\n# suites 0\n# pass 70\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 17860.390258\n; sha256 d0e823ce2d45ce8542808f6fbc3fa9b324d77ec3cfa16c80b969e9f3e9f3f167"
+    }
+  ],
+  "assumptions_resolved": [
+    "Source4762 is preserved in ancestry; original41 evidence remains in its immutable contract ref and original source commit.",
+    "Actual full manager suite1370 passes; focused220 and queue98 and SQL70 pass. No SQL test source suppression.",
+    "Maintenance groups create no preview success. Migration groups retain latest migration first-parent status across maintenance merges.",
+    "User resumed execution. Independent review and actual production verification remain required, and no sandbox restrictions change.",
+    "Only evidence binding changed since passing checks: generation43 branch matches actual existing PR source branch; non-agent implementation tree is unchanged."
+  ],
+  "stop_conditions_hit": []
+}
