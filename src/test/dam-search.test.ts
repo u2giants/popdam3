@@ -137,7 +137,7 @@ describe("DAM hybrid search", () => {
     await expect(getSearchMode()).resolves.toBe("keyword");
   });
 
-  it("cancels a stalled semantic request after six seconds before keyword fallback", async () => {
+  it("cancels a stalled semantic request after 30 seconds before keyword fallback", async () => {
     vi.useFakeTimers();
     try {
       invoke.mockImplementation((_name, options) => new Promise((_resolve, reject) => {
@@ -145,7 +145,7 @@ describe("DAM hybrid search", () => {
       }));
       const keyword = vi.fn().mockResolvedValue(["retained-keyword"]);
       const pending = fetchSearchIds("hybrid", "snowman", "asset", 50, keyword);
-      await vi.advanceTimersByTimeAsync(5999);
+      await vi.advanceTimersByTimeAsync(29_999);
       expect(keyword).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(1);
       await expect(pending).resolves.toEqual(["retained-keyword"]);
