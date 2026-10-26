@@ -30,6 +30,15 @@ export default defineConfig(({ mode }) => {
       hmr: {
         overlay: false,
       },
+      // Dev parity with the nginx /spaces/ proxy (see nginx.conf): the product
+      // mockup tool fetches item thumbnails same-origin.
+      proxy: {
+        "/spaces": {
+          target: "https://popdam.nyc3.digitaloceanspaces.com",
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/spaces/, ""),
+        },
+      },
     },
     define: {
       __APP_COMMIT__: JSON.stringify(hash),
