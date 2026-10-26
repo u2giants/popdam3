@@ -132,7 +132,15 @@ export const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
     "ai-tag-group-profiles",
     "refresh-group-metadata",
   ],
-  "ai-tag-all": ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata", "rebuild-image-vectors"],
+  "ai-tag-all": [
+    "ai-tag-parallel",
+    "rebuild-style-groups",
+    "reprocess-metadata",
+    "propagate-group-tags",
+    "ai-tag-group-profiles",
+    "refresh-group-metadata",
+    "rebuild-image-vectors",
+  ],
   "ai-tag-groups": ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
   "ai-tag-parallel": [
     "ai-tag-untagged",
