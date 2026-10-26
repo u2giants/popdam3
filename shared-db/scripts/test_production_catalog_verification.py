@@ -61,6 +61,13 @@ class ThroughputSequenceContractTests(unittest.TestCase):
         self.assertIn("to_regprocedure('public.expand_dam_search_queries(text)')", sql)
         self.assertIn("p.prorows = 32", sql)
 
+    def test_popsg_statement_timeout_contract_pins_exact_body_and_sorted_settings(self):
+        sql = CATALOG_CONTRACTS["popsg_search_v2_statement_timeout_v1"]
+        self.assertIn("md5(p.prosrc)='4cdde9e8fed849a203374f7e93139afd'", sql)
+        self.assertIn("array_agg(s order by s)", sql)
+        self.assertIn("array['search_path=pg_catalog, auth','statement_timeout=30s','work_mem=64MB']::text[]", sql)
+        self.assertIn("not has_function_privilege('anon',p.oid,'EXECUTE')", sql)
+
     def test_sequence_contract_compares_next_value_with_live_table_maximum(self):
         sql = CATALOG_CONTRACTS["dflow_sequence_ceilings_v1"]
         self.assertIn("is_called then last_value + 1", sql)
