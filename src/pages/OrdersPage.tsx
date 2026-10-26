@@ -396,7 +396,9 @@ export default function OrdersPage() {
             const api = gridRef.current?.api;
             if (!api) return;
             // The side bar starts hidden, so it has to be shown before opening.
-            const open = api.isToolPanelShowing();
+            // A tool panel can count as "showing" while the side bar itself is
+            // hidden, so toggle on the side bar's visibility.
+            const open = api.isSideBarVisible() && api.isToolPanelShowing();
             api.setSideBarVisible(!open);
             if (!open) api.openToolPanel("columns");
           }}
