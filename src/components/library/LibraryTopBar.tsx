@@ -13,6 +13,7 @@ import {
   ArrowDown,
   Check,
   Square,
+  ScanSearch,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CardStyle, ViewMode, SortField, SortDirection, LibraryMode } from "@/types/assets";
@@ -20,6 +21,15 @@ import type { ScanProgress } from "@/hooks/useScanProgress";
 import { useCompactChrome } from "@/hooks/use-compact-chrome";
 import { cn } from "@/lib/utils";
 import { formatCount } from "@/lib/format-count";
+import ImageSimilarityResults, { type ImageSimilarityPhase } from "./ImageSimilarityResults";
+import {
+  fetchImageSimQueryStatus,
+  fileToBase64,
+  getImageSimEnabled,
+  IMAGE_SIM_UI_POLL_MAX_MS,
+  IMAGE_SIM_UI_POLL_MS,
+  searchByImageBase64,
+} from "@/lib/image-similarity";
 
 function useElapsed(active: boolean): string {
   const startRef = useRef<number | null>(null);
@@ -218,6 +228,99 @@ export default function LibraryTopBar({
   useOutsideClick(sortRef, () => setSortOpen(false));
   useOutsideClick(cardRef, () => setCardOpen(false));
 
+  // ----- image similarity (upload → find same artwork; issue #486) -----
+  const [simEnabled, setSimEnabled] = useState(false);
+  const [simOpen, setSimOpen] = useState(false);
+  const [simPhase, setSimPhase] = useState<ImageSimilarityPhase | null>(null);
+  const [simDragOver, setSimDragOver] = useState(false);
+  const simFileRef = useRef<HTMLInputElement>(null);
+  const simPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getImageSimEnabled().then((enabled) => {
+      if (alive) setSimEnabled(enabled);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => () => {
+    if (simPollRef.current) clearInterval(simPollRef.current);
+  }, []);
+
+  const startSimPolling = (queryJobId: string) => {
+    if (simPollRef.current) clearInterval(simPollRef.current);
+    const startedAt = Date.now();
+    setSimPhase({ kind: "pending", sinceMs: startedAt });
+    simPollRef.current = setInterval(async () => {
+      if (Date.now() - startedAt > IMAGE_SIM_UI_POLL_MAX_MS) {
+        if (simPollRef.current) clearInterval(simPollRef.current);
+        setSimPhase({ kind: "error", message: "The embed worker did not finish in time. Please try again." });
+        return;
+      }
+      try {
+        const response = await fetchImageSimQueryStatus(queryJobId);
+        if (response.status === "ok") {
+          if (simPollRef.current) clearInterval(simPollRef.current);
+          setSimPhase({
+            kind: "done",
+            matches: response.matches ?? [],
+            floor: response.floor ?? 0.9,
+            truncated: Boolean(response.truncated),
+          });
+        } else if (response.status === "rejected") {
+          if (simPollRef.current) clearInterval(simPollRef.current);
+          setSimPhase({ kind: "rejected", reason: response.reason });
+        } else if (response.status === "disabled" || response.status === "unavailable") {
+          if (simPollRef.current) clearInterval(simPollRef.current);
+          setSimPhase({ kind: "unavailable", reason: response.reason });
+        }
+        // pending: keep polling
+      } catch {
+        // transient poll failure: keep polling until the budget expires
+      }
+    }, IMAGE_SIM_UI_POLL_MS);
+  };
+
+  const runImageSearch = async (file: File) => {
+    if (file.size > 15 * 1024 * 1024) {
+      setSimPhase({ kind: "error", message: "Image is larger than 15 MB." });
+      return;
+    }
+    if (simPollRef.current) clearInterval(simPollRef.current);
+    setSimPhase({ kind: "uploading" });
+    try {
+      const base64 = await fileToBase64(file);
+      const response = await searchByImageBase64(base64);
+      if (response.status === "ok") {
+        setSimPhase({
+          kind: "done",
+          matches: response.matches ?? [],
+          floor: response.floor ?? 0.9,
+          truncated: Boolean(response.truncated),
+        });
+      } else if (response.status === "pending" && response.query_job_id) {
+        startSimPolling(response.query_job_id);
+      } else if (response.status === "rejected") {
+        setSimPhase({ kind: "rejected", reason: response.reason });
+      } else if (response.status === "unavailable") {
+        setSimPhase({ kind: "unavailable", reason: response.reason });
+      } else {
+        setSimPhase({ kind: "error", message: "Image similarity is disabled." });
+      }
+    } catch (error) {
+      setSimPhase({ kind: "error", message: error instanceof Error ? error.message : "Upload failed." });
+    }
+  };
+
+  const closeSimPanel = () => {
+    if (simPollRef.current) clearInterval(simPollRef.current);
+    setSimOpen(false);
+    setSimPhase(null);
+  };
+
   // When switching modes, reset sort to modified_at if current sort is invalid
   useEffect(() => {
     const valid = sortOptions.some((o) => o.value === sortField);
@@ -230,6 +333,7 @@ export default function LibraryTopBar({
   const currentCardLabel = CARD_STYLE_OPTIONS.find((o) => o.value === cardStyle)?.label ?? "Gallery";
 
   return (
+    <>
     <div
       style={{
         borderBottom: "1px solid var(--pd-border)",
@@ -406,6 +510,38 @@ export default function LibraryTopBar({
           </button>
         )}
       </div>
+
+      {/* 3b. Image similarity — upload a picture, find the same artwork.
+             Hidden entirely while admin_config.IMAGE_SIM_ENABLED is false. */}
+      {simEnabled && (
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => (simOpen ? closeSimPanel() : setSimOpen(true))}
+                title="Find by picture"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: `${H}px`,
+                  height: `${H}px`,
+                  borderRadius: "6px",
+                  border: "1px solid var(--pd-border)",
+                  background: simOpen ? "var(--pd-accent-soft)" : "transparent",
+                  color: simOpen ? "var(--pd-accent)" : "var(--pd-fg)",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+              >
+                <ScanSearch style={{ width: 15, height: 15 }} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Upload a picture to find the same artwork</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
 
       {/* 4. Result count — replaced by the folded-in selection controls when
              something is selected in compact chrome mode. */}
@@ -824,5 +960,56 @@ export default function LibraryTopBar({
       )}
 
     </div>
+
+      {simEnabled && simOpen && (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setSimDragOver(true);
+          }}
+          onDragLeave={() => setSimDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setSimDragOver(false);
+            const file = e.dataTransfer.files?.[0];
+            if (file) void runImageSearch(file);
+          }}
+          onClick={() => simFileRef.current?.click()}
+          style={{
+            borderBottom: "1px solid var(--pd-border)",
+            background: simDragOver ? "var(--pd-accent-soft)" : "var(--pd-surface)",
+            padding: compact ? "10px 12px" : "14px 18px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+            cursor: "pointer",
+            borderLeft: "none",
+            borderRight: "none",
+            borderTop: simDragOver ? "2px dashed var(--pd-accent)" : "none",
+            fontSize: "13px",
+            color: "var(--pd-fg-muted)",
+          }}
+        >
+          <input
+            ref={simFileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,image/bmp"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void runImageSearch(file);
+              e.target.value = "";
+            }}
+          />
+          <ScanSearch style={{ width: 15, height: 15, flexShrink: 0 }} />
+          Drop an image here or click to browse — matches at 90%+ appear below
+        </div>
+      )}
+
+      {simEnabled && simOpen && simPhase && (
+        <ImageSimilarityResults phase={simPhase} onClose={closeSimPanel} />
+      )}
+    </>
   );
 }
