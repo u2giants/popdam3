@@ -5,6 +5,7 @@ import { authenticateUser } from "../_shared/admin-auth.ts";
 import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
 import { parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
+import { expandProductPhrases } from "../_shared/search-query-expand.ts";
 
 /**
  * Query embeddings must use the SAME model as document picture vectors:
@@ -81,6 +82,56 @@ async function embedQueryText(input: string): Promise<number[] | null> {
     console.error("text-embed call failed", e instanceof Error ? e.message : e);
     return null;
   }
+}
+
+type SearchHit = {
+  document_type: string;
+  entity_id: string;
+  asset_id: string | null;
+  style_group_id: string | null;
+  keyword_rank: number | null;
+  semantic_rank: number | null;
+  rank: number;
+};
+
+type SearchPage = {
+  results: SearchHit[];
+  total_count: number;
+  has_more: boolean;
+  facets: Record<string, unknown>;
+};
+
+function mergeSearchPages(pages: SearchPage[]): SearchPage {
+  const byKey = new Map<string, SearchHit>();
+  let totalCount = 0;
+  let hasMore = false;
+  let facets: Record<string, unknown> = {};
+  for (const page of pages) {
+    if (page.total_count > totalCount) {
+      totalCount = page.total_count;
+      facets = page.facets;
+    }
+    hasMore = hasMore || page.has_more;
+    for (const hit of page.results) {
+      const key = `${hit.document_type}:${hit.entity_id}`;
+      const prev = byKey.get(key);
+      if (!prev) {
+        byKey.set(key, { ...hit });
+        continue;
+      }
+      // Keep the best score from any product-type variant (mat vs rug vs original).
+      byKey.set(key, {
+        ...prev,
+        keyword_rank: Math.max(prev.keyword_rank ?? 0, hit.keyword_rank ?? 0),
+        semantic_rank: Math.max(prev.semantic_rank ?? 0, hit.semantic_rank ?? 0),
+        rank: Math.max(prev.rank ?? 0, hit.rank ?? 0),
+      });
+    }
+  }
+  const results = [...byKey.values()].sort(
+    (a, b) => (b.rank ?? 0) - (a.rank ?? 0) || a.document_type.localeCompare(b.document_type) || a.entity_id.localeCompare(b.entity_id),
+  );
+  return { results, total_count: totalCount, has_more: hasMore, facets };
 }
 
 corsServe(async (req) => {
@@ -167,38 +218,63 @@ corsServe(async (req) => {
     // from auth.uid(), which a service-role client would bypass.
     // p_query_embedding stays null when the text-embed service is down so the
     // keyword leg still answers (hybrid degrades, never mixes models).
-    const { data, error } = await auth.client.rpc("search_dam_documents", {
-      p_query: query,
-      p_filters: filters,
-      p_limit: limit,
-      p_offset: offset,
-      p_document_types: documentTypes,
-      p_query_embedding: embedding,
-      p_min_rank: minRank,
-      p_min_semantic_score: minSemanticScore,
-    });
-    if (error) return err("Search unavailable", searchAccessStatus(error) ?? 503);
-    // Summary-only rows (out-of-range page) carry total_count/facets with a
-    // null entity_id; they are never search hits.
-    const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
-    const results = rows
-      .filter((row) => typeof row.entity_id === "string" && row.entity_id)
-      .map((row) => ({
-        document_type: row.document_type,
-        entity_id: row.entity_id,
-        asset_id: row.asset_id,
-        style_group_id: row.style_group_id,
-        keyword_rank: row.keyword_rank,
-        semantic_rank: row.semantic_rank,
-        rank: row.rank,
-      }));
-    const first = rows.find((row) => row.total_count !== undefined && row.total_count !== null) ?? rows[0] ?? null;
+    // Product-type phrases ("floor covering") also run as catalog nouns
+    // ("mat", "rug") so compound queries do not drop real mats.
+    const queryVariants = expandProductPhrases(query);
+    const variantEmbeddings = new Map<string, number[] | null>();
+    await Promise.all(
+      queryVariants.map(async (variant) => {
+        variantEmbeddings.set(variant, variant === query ? embedding : await embedQueryText(variant));
+      }),
+    );
+
+    const pages: SearchPage[] = [];
+    let lastError: unknown = null;
+    for (const variant of queryVariants) {
+      const { data, error } = await auth.client.rpc("search_dam_documents", {
+        p_query: variant,
+        p_filters: filters,
+        p_limit: limit,
+        p_offset: offset,
+        p_document_types: documentTypes,
+        p_query_embedding: variantEmbeddings.get(variant) ?? null,
+        p_min_rank: minRank,
+        p_min_semantic_score: minSemanticScore,
+      });
+      if (error) {
+        lastError = error;
+        continue;
+      }
+      const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+      const results: SearchHit[] = rows
+        .filter((row) => typeof row.entity_id === "string" && row.entity_id)
+        .map((row) => ({
+          document_type: String(row.document_type ?? ""),
+          entity_id: String(row.entity_id),
+          asset_id: (row.asset_id as string | null) ?? null,
+          style_group_id: (row.style_group_id as string | null) ?? null,
+          keyword_rank: (row.keyword_rank as number | null) ?? null,
+          semantic_rank: (row.semantic_rank as number | null) ?? null,
+          rank: Number(row.rank ?? 0),
+        }));
+      const first = rows.find((row) => row.total_count !== undefined && row.total_count !== null) ?? rows[0] ?? null;
+      pages.push({
+        results,
+        total_count: typeof first?.total_count === "number" ? first.total_count : 0,
+        has_more: first?.has_more === true,
+        facets: first?.facets && typeof first.facets === "object" ? (first.facets as Record<string, unknown>) : {},
+      });
+    }
+    if (pages.length === 0) {
+      return err("Search unavailable", searchAccessStatus(lastError) ?? 503);
+    }
+    const merged = mergeSearchPages(pages);
     return json({
       ok: true,
-      results,
-      total_count: typeof first?.total_count === "number" ? first.total_count : 0,
-      has_more: first?.has_more === true,
-      facets: first?.facets && typeof first.facets === "object" ? first.facets : {},
+      results: merged.results,
+      total_count: merged.total_count,
+      has_more: merged.has_more,
+      facets: merged.facets,
       semantic: embedding ? "siglip2" : "skipped",
     });
   }
