@@ -87,11 +87,23 @@ function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract
     const h=record.report.head_sha;if(!/^[0-9a-f]{40}$/.test(h??'') || !ancestor(h,commit))return false
     const tail=run(['rev-list','--first-parent','--max-count=1001',`${h}..${commit}`]).split('\n').filter(Boolean)
     if(!tail.length || tail.length>=1000)return false
+    // #4797: the repository's generation-advance convention deletes the prior
+    // pair of the SAME work issue in the very commit that adds the new pair
+    // (a paid-start head is routinely such a commit). The tail may therefore
+    // also add/modify/delete other generation pairs of the same issue; their
+    // contents are still authenticated by the groups loop below. Any other
+    // path — source, foreign issue, unknown metadata — keeps refusing.
+    const issueDir=record.paths[0]?.split('/').slice(0,3).join('/') ?? ''
+    const sameIssuePair=new RegExp(`^${issueDir.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}/\\d+/(contract|completion)\\.json$`)
     const touched=new Set()
     for(const c of tail){
       const parents=run(['rev-list','--parents','-n','1',c]).split(' ').slice(1);if(parents.length!==1)return false
       const lines=raw(['diff','--name-status','--no-renames',parents[0],c]).split('\n').filter(Boolean)
-      for(const line of lines){const [status,file]=line.split('\t');if(!['A','M'].includes(status)||!record.paths.includes(file))return false;touched.add(file)}
+      for(const line of lines){
+        const [status,file]=line.split('\t')
+        if(record.paths.includes(file)){if(!['A','M'].includes(status))return false;touched.add(file)}
+        else if(!(['A','M','D'].includes(status)&&sameIssuePair.test(file)))return false
+      }
     }
     return touched.size===2
   }
@@ -402,8 +414,26 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
             if(matches.length!==1 || matches[0][2]!==digest || !normalized[i].includes(`<verified sha256 of ${item.source}>`))throw new LaneError('review budget stored hash conflict pin refused')
           }
         }
-        if(normalized.some(value=>value!==normalized[0]))throw new LaneError('review budget stored hash conflict changes other bytes')
-        metadataOverrides.set(file,{mode:'100644',text:rows[1].text,normalizedStoredHash:normalized[0]})
+        // #4797: after a paid start, protected main itself keeps evolving a
+        // registered file (sidecar counts plus its own re-pin). The conflict
+        // still bridges when exactly one side drifted beyond its verified pin:
+        // main's own bytes win when only main drifted, and the author's bytes
+        // win when only the author drifted and the drift is byte-insignificant
+        // line endings or a trailing newline (the wholesale rewrites Python
+        // text mode produces). Both sides drifting, or any other author byte
+        // change, is a genuine conflict and keeps refusing. The winning bytes
+        // come from protected main, or from the paid-start side when only the
+        // author drifted, and the resolution at the merged head still has to
+        // normalize to the winning side exactly, so an author can never
+        // smuggle new bytes through.
+        const authorDrift=normalized[1]!==normalized[0],mainDrift=normalized[2]!==normalized[0]
+        const foldLineEndings=text=>text.replace(/\r\n/g,'\n')
+        const trailingNewlineEqual=(x,y)=>x===y || x===`${y}\n` || y===`${x}\n`
+        if((authorDrift||mainDrift)&&!ancestor(b,protectedMain))throw new LaneError('review budget stored hash conflict changes other bytes')
+        if(authorDrift&&mainDrift)throw new LaneError('review budget stored hash conflict changes other bytes')
+        if(authorDrift&&!trailingNewlineEqual(foldLineEndings(normalized[1]),foldLineEndings(normalized[0])))throw new LaneError('review budget stored hash conflict changes other bytes')
+        const side=mainDrift?2:1
+        metadataOverrides.set(file,{mode:'100644',text:rows[side].text,normalizedStoredHash:normalized[side],...(authorDrift||mainDrift?{singleSideStoredHash:mainDrift?'main':'author'}:{})})
         stages=stages.filter(line=>!group.includes(line))
       }
       const withMetadata=overrides=>({tree:resultTree,overrides:new Map([...metadataOverrides,...overrides])})
@@ -423,10 +453,16 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
   try {
     const incorporatedMain = run(['merge-base',after,protectedMain])
     if (!sha.test(incorporatedMain)) throw new LaneError('review budget protected main ancestry unreadable')
-    const expected = merge(before,incorporatedMain)
-    if (equal(expected,after)) return {schema:1,before,after,protectedMain,kind:'unchanged',canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions}
     const rows = run(['rev-list','--first-parent','--max-count=1001',after]).split('\n')
     const index = rows.indexOf(before)
+    const expected = merge(before,incorporatedMain)
+    // #4797: the single-side stored-hash bridge may only classify a head that
+    // still reaches the paid start through first-parent ancestry. A rebase that
+    // orphans the paid start keeps its refusal even when the rewritten tree
+    // happens to equal the bridged merge; ordinary clean content-identical
+    // rewrites below stay accepted as before.
+    const singleSideBridged=[...((typeof expected==='string'||!expected?new Map():expected.overrides)??new Map()).values()].some(entry=>entry?.singleSideStoredHash)
+    if (equal(expected,after) && (!singleSideBridged || (index>=0 && index<1000))) return {schema:1,before,after,protectedMain,kind:'unchanged',canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions}
     if(index<0 || index>=1000)throw new LaneError('review budget complete first-parent ancestry unavailable')
     const neededFiles=new Set()
     for(const commit of rows.slice(0,index)){

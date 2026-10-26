@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 4797,
+  "outcome": "ready-for-merge",
+  "pr": 4821,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4797/1",
+  "contract_sha256": "179079e09e6e3ffb1756c492ab5ddd962492ee71110e3e1f1d28203c6ef60ae8",
+  "head_sha": "1b902e1115b61f19396fbbe430d208f807b44353",
+  "base_sha": "1750572e9ea80cfc40070b83ead0b076f6dcc96e",
+  "files_changed": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs",
+      "exit_code": 0,
+      "evidence": "200/200 pass, 0 fail; includes the six new #4797 tests (main-side evolution merge, author trailing-newline merge, orphaning rebase refused, both-sides drift refused, same-issue generation advance, foreign-issue tail refused)"
+    },
+    {
+      "command": "node --test scripts/lib/pr-content-equivalence.test.mjs scripts/check-exact-head-approval.test.mjs scripts/claim-recovery-dependencies.test.mjs",
+      "exit_code": 0,
+      "evidence": "141/141 pass, 0 fail"
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs scripts/manage-migration-author-lanes-surface.test.mjs scripts/lib/lanes/paid-review-git-reader.test.mjs scripts/reviewer-wire-budget.test.mjs scripts/record-review-verdict.test.mjs scripts/run-governed-review.test.mjs scripts/check-review-parallelism-brief.test.mjs",
+      "exit_code": 0,
+      "evidence": "1079 pass, 0 fail, 1 pre-existing filesystem 8.3-alias skip in run-governed-review.test.mjs"
+    }
+  ],
+  "assumptions_resolved": [
+    "Offline reproduction at production parameters: derivePaidContentProof(8a6da28f -> c5eb6822, origin/main) returns kind=substantive with witness 66f42f87b, and assertPaidReviewCapacity with the real round-1 start (deepseek, seq 7159) returns paidAttempts 0, uncapped"
+  ],
+  "stop_conditions_hit": []
+}

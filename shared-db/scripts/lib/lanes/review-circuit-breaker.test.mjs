@@ -341,7 +341,7 @@ test('zero-byte added file supplies no surviving source byte witness',t=>{
 
 import {contractHash} from '../../agent-work-contract.mjs'
 import {verifiedEvidencePaths} from '../pr-content-equivalence.mjs'
-function generationsFixture(t,{repair=true,revert=false,bad=null,publishedOnly=false,ordinaryRetirement=false,checkPrefix=false,prefixFailure=null}={}){
+function generationsFixture(t,{repair=true,revert=false,bad=null,publishedOnly=false,ordinaryRetirement=false,checkPrefix=false,prefixFailure=null,startAdvance=false}={}){
  const f=realGitFixture(t),sha=()=>f.git(['rev-parse','HEAD']).trim()
  const contract=(generation,parent)=>({schema_version:2,generation,work_issue:3536,work_type:'repo-maintenance',route:'repo-maintenance',goal:'Fixture source proof',base_sha:f.base,dispatcher:'fixture',worker:'fixture',branch:'feature',worktree:f.dir,allowed_paths:['app.txt','.agent/work/3536/**'],file_writes:['app.txt','.agent/work/3536/**'],db_reads:[],db_writes:[],prohibited_actions:[],required_checks:['fixture'],assumptions:[],stop_conditions:['Stop on unknown'],evidence_parent:parent})
  const root=contract(312,{work_issue:3536,generation:311,contract_sha256:'a'.repeat(64)})
@@ -366,7 +366,18 @@ function generationsFixture(t,{repair=true,revert=false,bad=null,publishedOnly=f
   writeFileSync(file,JSON.stringify(r));f.git(['add',file]);f.git(['commit','-qm','complete only the same-source canonical check list'])
   if(prefixFailure==='revert-prefix'){writeFileSync(file,original);f.git(['add',file]);f.git(['commit','-qm','revert to incomplete prefix after completion'])}
  }
- const before=writePair(root,sha())
+ // #4797: the paid-start head may itself be a same-issue generation-advance
+ // commit (delete the prior pair, add the new pair in one commit). 'foreign'
+ // plants a foreign-issue deletion in that same tail, which must keep refusing.
+ const startImplementation=sha()
+ if(startAdvance){
+  const priorIssue=startAdvance==='foreign'?9999:3536,priorGeneration=startAdvance==='foreign'?1:311
+  const priorDir=path.join(f.dir,`.agent/work/${priorIssue}/${priorGeneration}`);mkdirSync(priorDir,{recursive:true})
+  writeFileSync(path.join(priorDir,'contract.json'),'retired placeholder');writeFileSync(path.join(priorDir,'completion.json'),'retired placeholder')
+  f.git(['add',`.agent/work/${priorIssue}/${priorGeneration}`]);f.git(['commit','-qm','fixture prior generation'])
+  f.git(['rm','-r',`.agent/work/${priorIssue}/${priorGeneration}`])
+ }
+ const before=writePair(root,startImplementation)
  if(prefixFailure==='baseline')finishPrefix(root)
  const published=contract(315,{work_issue:3536,generation:312,contract_sha256:contractHash(root)})
  const middle=contract(317,{work_issue:3536,generation:publishedOnly?315:312,contract_sha256:contractHash(publishedOnly?published:root)})
@@ -397,6 +408,15 @@ function generationsFixture(t,{repair=true,revert=false,bad=null,publishedOnly=f
  const after=writePair(last,sha())
  return {...f,before,after,main,published,proof:()=>derivePaidContentProof(before,after,main,f.git,verifiedEvidencePaths(before,after,{gitRunner:f.git}),3999)}
 }
+test('#4797 same-issue generation advance at the paid start keeps the trusted start pair',t=>{
+ const standard=generationsFixture(t).proof(),advanced=generationsFixture(t,{startAdvance:true}).proof()
+ assert.equal(advanced.kind,standard.kind);assert.equal(advanced.kind,'substantive')
+ assert.equal(advanced.canonicalRegistryUnions.length,0)
+})
+test('#4797 foreign-issue deletion inside the paid start tail still refuses the trusted start pair',t=>{
+ assert.throws(()=>generationsFixture(t,{startAdvance:'foreign'}).proof(),/trusted start pair unavailable/)
+})
+
 test('actual repaired endpoint ignores preserved incomplete tail without authenticating removed bad pairs',t=>{
  const f=generationsFixture(t),dir=path.join(f.dir,'.agent/work/3536/319')
  const report=JSON.parse(readFileSync(path.join(dir,'completion.json'),'utf8'))
@@ -842,6 +862,65 @@ test('resolved metadata requires a valid source hash and all other bytes',t=>{
   else f.commit(file,JSON.stringify(record,null,2)+'\n')
   assert.throws(()=>derivePaidContentProof(f.before,f.git(['rev-parse','HEAD']).trim(),f.main,f.git),/provenance refused/)
  }
+})
+
+// #4797: after a paid start, main itself evolves a registered stored-hash file
+// (sidecar counts plus its own re-pin), or the author side re-pins while a
+// byte-level rewrite dropped a trailing newline. The branch must still absorb
+// main by an ordinary merge. Exactly one side may drift beyond its verified
+// pin; a rebase that orphans the paid start, or a pull request that edits the
+// same non-pin bytes as main, keeps refusing.
+function storedHashEvolutionFixture(t,{variant='main-drift',orphan=false}={}){
+ const f=realGitFixture(t),file='docs/baseline.json',source='scripts/detector.py'
+ mkdirSync(path.join(f.dir,'docs'),{recursive:true});mkdirSync(path.join(f.dir,'scripts'),{recursive:true});mkdirSync(path.join(f.dir,'config'),{recursive:true})
+ const sha=text=>createHash('sha256').update(text.replace(/\r\n/g,'\n')).digest('hex')
+ const detector=({pr=false,main=false})=>`# detector\n${pr?'pr edit':'base line B'}\nbase line 1\nbase line 2\nbase line 3\nbase line 4\nbase line 5\nbase line 6\nbase line 7\n${main?'main edit':'base line C'}\n`
+ const registryText='config/review-carry-forward-stored-hashes-v1.json',registry=JSON.stringify({schema_version:1,entries:[{file,field:'detector_source_sha256',source}]})+'\n'
+ const baseline=({pin,total=771,matched=106,newline=true})=>JSON.stringify({detector_schema_version:1,detector_source_sha256:pin,command:'node scripts/check-production-verification-sidecars.mjs',total_migration_files:total,matched_count:matched},null,2)+(newline?'\n':'')
+ const commitAll=entries=>{for(const [p,text] of entries)writeFileSync(path.join(f.dir,p),text);f.git(['add','.']);f.git(['commit','-qm','fixture']);return f.git(['rev-parse','HEAD']).trim()}
+ f.git(['switch','main'])
+ const base=commitAll([[source,detector({})],[file,baseline({pin:sha(detector({}))})],[registryText,registry],['app.txt','context\nseparator1\nseparator2\nauthor\nend\n']])
+ f.git(['switch','-qc','evolution-author',base])
+ const authorBaseline={pin:sha(detector({pr:true})),newline:variant!=='author-newline'}
+ if(variant==='both-drift')authorBaseline.matched=107
+ const before=commitAll([[source,detector({pr:true})],[file,baseline(authorBaseline)],['app.txt','context\nseparator1\nseparator2\nfixed\nend\n']])
+ f.git(['switch','main'])
+ const mainBaseline={pin:sha(detector({main:true}))}
+ if(variant==='main-drift'||variant==='both-drift')mainBaseline.total=772
+ const main=commitAll([[source,detector({main:true})],[file,baseline(mainBaseline)]])
+ const mergedDetector=detector({pr:true,main:true}),resolved={pin:sha(mergedDetector),newline:variant!=='author-newline'}
+ if(variant==='main-drift')resolved.total=772
+ if(variant==='both-drift')resolved.matched=107
+ if(orphan){
+  f.git(['switch','-qc','evolution-orphan',main])
+  const after=commitAll([['app.txt','context\nseparator1\nseparator2\nfixed\nend\n'],[source,mergedDetector],[registryText,registry],[file,baseline(resolved)]])
+  return {...f,file,before,main,after}
+ }
+ f.git(['switch','evolution-author']);assert.throws(()=>f.git(['merge','--no-commit','main']),/./)
+ writeFileSync(path.join(f.dir,file),baseline(resolved))
+ f.git(['add',file]);f.git(['commit','-qm','absorb main'])
+ const after=f.git(['rev-parse','HEAD']).trim()
+ return {...f,file,before,main,after}
+}
+test('#4797 main-side stored-hash evolution merge preserves the paid budget walk',t=>{
+ const f=storedHashEvolutionFixture(t),proof=derivePaidContentProof(f.before,f.after,f.main,f.git)
+ assert.equal(proof.kind,'unchanged')
+ const rows=[1,2].map(n=>({...row(n,f.before),commit:{message:message(n,f.before)}}))
+ assert.doesNotThrow(()=>assertPaidReviewCapacity({...request,headSha:f.after},{listRefs:()=>rows,reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}))
+})
+test('#4797 author-side trailing-newline re-pin merge (PR #4772 topology) preserves the budget walk',t=>{
+ const f=storedHashEvolutionFixture(t,{variant:'author-newline'}),proof=derivePaidContentProof(f.before,f.after,f.main,f.git)
+ assert.equal(proof.kind,'unchanged')
+ const rows=[1,2].map(n=>({...row(n,f.before),commit:{message:message(n,f.before)}}))
+ assert.doesNotThrow(()=>assertPaidReviewCapacity({...request,headSha:f.after},{listRefs:()=>rows,reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}))
+})
+test('#4797 an orphaning rebase still refuses through the single-side stored-hash bridge',t=>{
+ const f=storedHashEvolutionFixture(t,{variant:'main-drift',orphan:true})
+ assert.throws(()=>derivePaidContentProof(f.before,f.after,f.main,f.git),/complete first-parent ancestry/)
+})
+test('#4797 both sides changing stored-hash non-pin bytes still refuses',t=>{
+ const f=storedHashEvolutionFixture(t,{variant:'both-drift'})
+ assert.throws(()=>derivePaidContentProof(f.before,f.after,f.main,f.git),/stored hash conflict changes other bytes/)
 })
 
 // #4290 / PR #4206: after a branch refresh from main, an older reviewed head cannot be

@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "generation": 1,
+  "evidence_parent": null,
+  "work_issue": 4797,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Fix the paid-review budget walk so a pull request that already spent a paid review can still draw a reviewer after main-side stored-hash drift: bridge exactly-one-side stored-hash drift (main's own evolution, or an author-side byte-insignificant line-ending/trailing-newline rewrite) and accept the repository's same-issue generation-advance convention in the trusted start pair, while a rebase that orphans the paid start, and a genuine both-sides non-pin conflict, keep refusing (issue #4797, PR #4772 topology).",
+  "base_sha": "1750572e9ea80cfc40070b83ead0b076f6dcc96e",
+  "dispatcher": "Posted by ZCode chat unknown on hetz",
+  "worker": "Same session.",
+  "branch": "zcode/4797-review-draw-fix",
+  "worktree": "/worksp/shared-db/.wt-4797-reviewdraw",
+  "allowed_paths": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    ".agent/work/4797/1/*"
+  ],
+  "file_writes": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    ".agent/work/4797/1/contract.json",
+    ".agent/work/4797/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "do not weaken any refusal that still has a legal refusal path: an orphaning rebase, a both-sides non-pin stored-hash conflict, an author byte change beyond line endings or a trailing newline, and any foreign-issue tail path must all keep refusing",
+    "do not touch strict review equivalence (isContentPreservingRefresh, check-exact-head-approval.mjs) or the stored-hash registry config",
+    "do not touch any migration or database object",
+    "do not edit another session's handoff, worktree, branch, or claim"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "node --test scripts/lib/pr-content-equivalence.test.mjs scripts/check-exact-head-approval.test.mjs scripts/claim-recovery-dependencies.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs scripts/manage-migration-author-lanes-surface.test.mjs scripts/lib/lanes/paid-review-git-reader.test.mjs scripts/reviewer-wire-budget.test.mjs scripts/record-review-verdict.test.mjs scripts/run-governed-review.test.mjs scripts/check-review-parallelism-brief.test.mjs"
+  ],
+  "assumptions": [
+    "issue #4797 is the governing defect record; the reproduction topology is PR #4772's paid start 8a6da28f, merge d423fe709 of main 31ce85a4, head c5eb6822",
+    "reviewer spend remains uncapped per owner ruling 2026-10-16 (#4399); the budget walk classifies spend and never refuses on counts"
+  ],
+  "stop_conditions": [
+    "stop if the fix would allow both sides of a stored-hash conflict to drift beyond verified pins",
+    "stop if the fix would let an orphaning rebase classify through the single-side bridge",
+    "stop if any existing circuit-breaker or lane test fails for a reason unrelated to these two files"
+  ]
+}
