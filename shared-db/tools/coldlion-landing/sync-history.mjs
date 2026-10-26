@@ -2,6 +2,7 @@
 // The scheduled ongoing history sync.
 //
 //   node tools/coldlion-landing/sync-history.mjs [--windows 3] [--to 2026-09-07] [--forward]
+//                                                [--prod-open] [--no-header-tracks]
 //                                                [--today YYYY-MM-DD]   (tests/rehearsal: the scan date)
 //
 // It re-fetches the most recent N CLOSED grid windows every run, because a window that is
@@ -37,12 +38,19 @@
 // recently whatever its start date, so an order keyed today that starts months out lands now
 // instead of waiting for the week its start date closes. Loaded unsealed, like --forward.
 
+// --prod-open re-reads the OPEN current week of /prodHistory, once per stage, UNSEALED
+// (Albert Hazan, 2026-10-26: "production-history feed should match order feed run
+// timing"). /prodHistory is dated by past events, so later windows are empty (probed
+// 2026-10-26: 12 forward weeks, 0 rows on every stage) and only the open week moves.
+// The hourly order-intake workflow runs it; the sealed trailing load still seals the week
+// with full page evidence once it closes.
+
 import { readColdlionApiKey } from "../coldlion-sync-common.mjs";
 import { isoDate, lastClosedWindowIndex, windowAtIndex, windowsEndingAt } from "./lib/grid.mjs";
 import { proveTarget } from "./lib/db.mjs";
 import { COMPANY_CODE, PAGE_SIZE } from "./lib/scopes.mjs";
 import { allScopes, assertHistoryShape, ledgerKey, loadWindowScope, loadedWindows, scopeLabel } from "./lib/run-history.mjs";
-import { ORDER_HISTORY } from "./lib/scopes.mjs";
+import { ORDER_HISTORY, PROD_STAGES, prodHistoryScope } from "./lib/scopes.mjs";
 import {
   HEADER_TRACKS,
   closesStagedMonth,
@@ -56,7 +64,7 @@ import { parseIsoDate, windowContaining } from "./lib/grid.mjs";
 export const DEFAULT_WINDOWS = 3;
 
 export function parseArgs(argv) {
-  const args = { windows: DEFAULT_WINDOWS, company: COMPANY_CODE, pageSize: PAGE_SIZE, dryRun: false, forward: false, headerTracks: true };
+  const args = { windows: DEFAULT_WINDOWS, company: COMPANY_CODE, pageSize: PAGE_SIZE, dryRun: false, forward: false, prodOpen: false, headerTracks: true };
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     const value = argv[index + 1];
@@ -67,6 +75,7 @@ export function parseArgs(argv) {
       case "--page-size": args.pageSize = Number(value); index += 1; break;
       case "--dry-run": args.dryRun = true; break;
       case "--forward": args.forward = true; break;
+      case "--prod-open": args.prodOpen = true; break;
       case "--no-header-tracks": args.headerTracks = false; break;
       case "--today": args.today = value; index += 1; break;
       default:
@@ -113,6 +122,7 @@ export async function main(argv = process.argv.slice(2)) {
   );
   if (args.dryRun) {
     if (args.headerTracks) console.log(`header tracks ${HEADER_TRACKS.join(", ")} would run (dry run: nothing fetched)`);
+    if (args.prodOpen) console.log(`/prodHistory open week ${windowContaining(args.today).from} would run (dry run: nothing fetched)`);
     if (args.forward) console.log(`forward scan from ${windowContaining(args.today).from} would run (dry run: nothing fetched)`);
     return { outstanding: work.length, loaded: 0, failures: 0 };
   }
@@ -141,6 +151,7 @@ export async function main(argv = process.argv.slice(2)) {
       console.error(`${window.from} ${scopeLabel(scope)} FAILED: ${error.message}`);
     }
   }
+  const prodOpen = args.prodOpen ? await prodOpenScan({ args, apiKey, failures }) : null;
   const header = args.headerTracks ? await headerTrackScan({ args, apiKey, failures }) : null;
   let forward = null;
   if (args.forward) {
@@ -151,7 +162,37 @@ export async function main(argv = process.argv.slice(2)) {
     error.failures = failures;
     throw error;
   }
-  return { outstanding: work.length, loaded, failures: 0, header, forward };
+  return { outstanding: work.length, loaded, failures: 0, prodOpen, header, forward };
+}
+
+/**
+ * The open current week of /prodHistory, one unsealed read per stage, serialized. A
+ * failure is reported through `failures` and does not stop the other stages.
+ */
+export async function prodOpenScan({ args, apiKey, failures, load = loadWindowScope }) {
+  const window = windowContaining(args.today);
+  const result = { stages: 0, lines: 0 };
+  for (const stage of PROD_STAGES) {
+    const scope = prodHistoryScope(stage);
+    try {
+      const loaded = await load({
+        scope,
+        window,
+        apiKey,
+        companyCode: args.company,
+        pageSize: args.pageSize,
+        requestedBy: "coldlion-landing sync-history prod-open",
+        sealed: false,
+      });
+      result.stages += 1;
+      result.lines += loaded.summary.lines;
+      console.log(`${window.from}..${window.to} ${scopeLabel(scope)} open week (unsealed) ${loaded.fetched.rows} row(s), ${loaded.summary.lines} line(s)`);
+    } catch (error) {
+      failures.push(`${window.from} ${scopeLabel(scope)} open week: ${error.message}`);
+      console.error(`${window.from} ${scopeLabel(scope)} open week FAILED: ${error.message}`);
+    }
+  }
+  return result;
 }
 
 /**

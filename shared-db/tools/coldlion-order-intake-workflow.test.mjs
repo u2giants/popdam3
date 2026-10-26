@@ -24,7 +24,7 @@ function step(name, nextName) {
 }
 
 test("the writer step is skipped on dry-run and claim-only dispatches, and writes only otherwise", () => {
-  const writer = step("Write canonical placeholder orders", null);
+  const writer = step("Write canonical placeholder orders", "Sync production history (closed weeks + open week)");
   assert.match(
     writer,
     /if: github\.event\.inputs\.dry_run != 'true' && github\.event\.inputs\.claim_only != 'true'/,
@@ -39,7 +39,7 @@ test("the writer step is skipped on dry-run and claim-only dispatches, and write
 test("the writer step runs after decode in the same job, with the declared-target env block, limit, and summary", () => {
   const decode = step("Stage, detect, and decode", "Write canonical placeholder orders");
   assert.match(decode, /order-intake\.mjs/);
-  const writer = step("Write canonical placeholder orders", null);
+  const writer = step("Write canonical placeholder orders", "Sync production history (closed weeks + open week)");
   assert.match(writer, /DATABASE_URL: \$\{\{ secrets\.SUPABASE_DB_URL_PRODUCTION \}\}/);
   assert.match(writer, /COLDLION_EXPECTED_PROJECT_REF: qsllyeztdwjgirsysgai/);
   // The writer never reads the API key — it must not receive it (round-7 hardening).
@@ -49,8 +49,8 @@ test("the writer step runs after decode in the same job, with the declared-targe
   const mappings = workflow.match(/COLDLION_API_KEY:\s*\$\{\{\s*secrets\.COLDLION_API_KEY\s*\}\}/g) ?? [];
   assert.equal(
     mappings.length,
-    2,
-    "exactly the two fetch-side steps may map the COLDLION_API_KEY secret; the writer must never see it",
+    3,
+    "exactly the three fetch-side steps (target proof, intake, production history) may map the COLDLION_API_KEY secret; the writer must never see it",
   );
   assert.doesNotMatch(writer, /COLDLION_API_KEY/);
   assert.match(writer, /GITHUB_STEP_SUMMARY/);
@@ -115,4 +115,13 @@ test("scheduled runs do not inject --limit (oldest-first budget would starve new
   for (const block of runBlocks) {
     assert.doesNotMatch(block, /--limit\s+\d+/, "run blocks must not hard-code --limit");
   }
+});
+
+test("the production-history step runs last, is gated by the history contracts, and is skipped on dry-run and claim-only", () => {
+  const history = step("Sync production history (closed weeks + open week)", null);
+  assert.match(history, /if: \$\{\{ !cancelled\(\) && steps\.gate\.outcome == 'success' && steps\.target\.outcome == 'success' && github\.event\.inputs\.dry_run != 'true' && github\.event\.inputs\.claim_only != 'true' \}\}/);
+  assert.match(step("Run the offline intake tests before touching anything", "Refuse to run without an explicit target"), /id: gate/);
+  assert.match(step("Refuse to run without an explicit target", "Stage, detect, and decode"), /id: target/);
+  assert.match(history, /sync-history\.mjs --windows 3 --prod-open --no-header-tracks/);
+  assert.match(workflow, /node --test tools\/coldlion-order-intake-\*\.test\.mjs tools\/coldlion-landing-history\.test\.mjs/);
 });

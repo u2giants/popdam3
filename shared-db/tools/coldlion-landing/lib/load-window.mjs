@@ -366,7 +366,7 @@ create temp table _inserted (grain text not null, n bigint not null) on commit d
 }
 
 // ---------------------------------------------------------------------------------
-// Unsealed forward loads (/orderHistory only)
+// Unsealed loads (/orderHistory forward and header tracks; /prodHistory open week)
 // ---------------------------------------------------------------------------------
 //
 // Sales orders are normally keyed into ColdLion with FUTURE start dates, and the vendor's
@@ -379,17 +379,24 @@ create temp table _inserted (grain text not null, n bigint not null) on commit d
 // its full page proof -- once it closes. Replaying identical rows is absorbed by the same
 // ON CONFLICT identities, and a changed line lands as a new version, exactly as in the
 // sealed path.
+//
+// /prodHistory is dated by past events (issue, in-transit, receipt), so its later windows
+// are empty; the OPEN current week is what changes during the day. It is re-read unsealed
+// on the hourly intake cadence (Albert Hazan, 2026-10-26: "production-history feed should
+// match order feed run timing"), one request per stage, and sealed once it closes.
 
 function unsealedPreamble({ scope, window, runId, requestedBy, companyCode, startedAt, rowsFetched, pageSize, httpStatus, bodyStatus }) {
-  if (scope.stage || scope.endpoint !== "/orderHistory") {
-    throw new Error("an unsealed forward load is defined for /orderHistory only");
-  }
+  assertUnsealedScope(scope);
+  const stage = scope.stage ? sqlText(scope.stage) : "null";
   // A header-track load (created/modified filters over a wide start window) is not a grid
   // window, so it cannot collide with a sealed one; only a start-date window is checked.
   const headerTrack = headerFilterEntries(window).length > 0;
+  if (headerTrack && scope.stage) {
+    throw new Error("header tracks are /orderHistory filters; a /prodHistory header-track load is refused");
+  }
   const params = headerTrack
     ? { companyCode, fromDate: window.requestFrom, toDate: window.requestTo, ...Object.fromEntries(headerFilterEntries(window)), size: pageSize, unsealedHeaderTrack: true, unsealedForward: true }
-    : { companyCode, fromDate: window.from, toDate: window.to, size: pageSize, unsealedForward: true };
+    : { companyCode, fromDate: window.from, toDate: window.to, size: pageSize, ...(scope.stage ? { stageCode: scope.stage } : {}), unsealedForward: true };
   return `begin;
 ${headerTrack ? "" : `
 -- A sealed window is never touched by a forward load.
@@ -400,11 +407,11 @@ begin
      where endpoint = ${sqlText(scope.endpoint)}
        and company_code = ${sqlText(companyCode)}
        and division_code is not distinct from null
-       and stage_code is not distinct from null
+       and stage_code is not distinct from ${stage}
        and window_from = ${sqlDate(window.from)}
        and state = 'loaded'
   ) then
-    raise exception 'window ${window.from} for ${scope.endpoint} is already loaded (sealed); a forward load may not touch it';
+    raise exception 'window ${window.from} for ${scope.endpoint}${scope.stage ? ` ${scope.stage}` : ""} is already loaded (sealed); a forward load may not touch it';
   end if;
 end $loaded$;`}
 
@@ -418,6 +425,15 @@ values
    'running', ${sqlText(requestedBy)}, ${sqlTimestamp(startedAt)}, ${sqlNumber(httpStatus)}, ${sqlNumber(bodyStatus)}, ${sqlNumber(rowsFetched)});
 
 create temp table _inserted (grain text not null, n bigint not null) on commit drop;`;
+}
+
+/** Unsealed loads exist for /orderHistory (unstaged) and every /prodHistory stage. */
+export function assertUnsealedScope(scope) {
+  const order = scope.endpoint === "/orderHistory" && !scope.stage;
+  const prod = scope.endpoint === "/prodHistory" && Boolean(scope.stage);
+  if (!order && !prod) {
+    throw new Error("an unsealed load is defined for /orderHistory and staged /prodHistory only");
+  }
 }
 
 function unsealedEpilogue({ runId, finishedAt, durationMs, notes }) {
@@ -445,20 +461,20 @@ commit;`;
 // with no line-grain change after the first load is not recorded; a line-grain change lands
 // as a new version with its own children. Line versions created by sealed loads are not
 // affected: _old_line is empty for them, exactly as before forward loads existed.
-function forwardCreatedLinesSql() {
+function forwardCreatedLinesSql(lineTable = "coldlion.order_history_line") {
   return `create temp table _old_line on commit drop as
 select m.local_id
   from _map_line m
-  join coldlion.order_history_line l on l.id = m.id
+  join ${lineTable} l on l.id = m.id
   join coldlion.sync_run r on r.id = l.run_id
  where r.request_params ? 'unsealedForward';`;
 }
 
-function unsealedOldLinesSql(runId) {
+function unsealedOldLinesSql(runId, lineTable = "coldlion.order_history_line") {
   return `create temp table _old_line on commit drop as
 select m.local_id
   from _map_line m
-  join coldlion.order_history_line l on l.id = m.id
+  join ${lineTable} l on l.id = m.id
  where l.run_id is distinct from ${sqlUuid(runId)};`;
 }
 
@@ -562,7 +578,7 @@ insert into _inserted (grain, n) select ${sqlText(count)}, count(*) from ins;`;
 
 /**
  * Say out loud, in the run log, when a window carried production lines whose evidence was
- * already sealed by an earlier window. Their child rows were skipped on purpose above;
+ * already sealed by an earlier load. Their child rows were skipped on purpose above;
  * silence would make that indistinguishable from a vendor that sent nothing.
  */
 function sealedRecurrenceNoticeSql() {
@@ -575,7 +591,7 @@ begin
     join coldlion.prod_history_line l on l.id = m.id
    where l.component_quantities_asserted;
   if v_n > 0 then
-    raise notice 'skipped component and lookup evidence for % production line(s) already sealed by an earlier window', v_n;
+    raise notice 'skipped component and lookup evidence for % production line(s) already sealed by an earlier load', v_n;
   end if;
 end $sealed$;`;
 }
@@ -601,6 +617,7 @@ export function buildOrderHistoryLoadSql({
   stampColumns = false,
   sealed = true,
 }) {
+  if (scope.endpoint !== "/orderHistory" || scope.stage) throw new Error("buildOrderHistoryLoadSql takes the /orderHistory scope only");
   const lineSpec = orderLineSpec(stampColumns);
   const head = {
     scope,
@@ -718,25 +735,30 @@ export function buildProdHistoryLoadSql({
   finishedAt,
   durationMs,
   notes,
+  sealed = true,
 }) {
+  if (scope.endpoint !== "/prodHistory" || !scope.stage) throw new Error("buildProdHistoryLoadSql takes a staged /prodHistory scope only");
   const lines = withLocals(projected.lines);
   const components = withLocals(projected.components);
   const lookups = withLocals(projected.lastLookups);
   const assertable = projected.assertableLineIds ?? [];
 
+  const head = {
+    scope,
+    window,
+    runId,
+    requestedBy,
+    companyCode,
+    startedAt,
+    rowsFetched: completion.rows,
+    pageSize,
+    httpStatus: pages.at(-1).httpStatus,
+    bodyStatus: pages.at(-1).bodyStatus,
+  };
+  const lineTable = "coldlion.prod_history_line";
+
   return [
-    preamble({
-      scope,
-      window,
-      runId,
-      requestedBy,
-      companyCode,
-      startedAt,
-      rowsFetched: completion.rows,
-      pageSize,
-      httpStatus: pages.at(-1).httpStatus,
-      bodyStatus: pages.at(-1).bodyStatus,
-    }),
+    sealed ? preamble(head) : unsealedPreamble(head),
     stageSql("_stage_line", PROD_LINE_SPEC, LOCAL, lines),
     insertSql({
       target: "coldlion.prod_history_line",
@@ -752,7 +774,10 @@ export function buildProdHistoryLoadSql({
       ["stage_code", false],
       ["line_source_hash", false],
     ]),
+    // Same one-child-set-per-line-version rule as /orderHistory (see forwardCreatedLinesSql).
+    sealed ? forwardCreatedLinesSql(lineTable) : unsealedOldLinesSql(runId, lineTable),
     stageSql("_stage_component", PROD_COMPONENT_SPEC, LOCAL_AND_PARENT, components),
+    dropChildrenOfOldLinesSql("_stage_component"),
     insertSql({
       target: "coldlion.prod_history_component",
       constraint: "coldlion_prod_history_component_identity_unique",
@@ -764,6 +789,7 @@ export function buildProdHistoryLoadSql({
       count: "prod_history_component",
     }),
     stageSql("_stage_lookup", PROD_LOOKUP_SPEC, LOCAL_AND_PARENT, lookups),
+    dropChildrenOfOldLinesSql("_stage_lookup"),
     insertSql({
       target: "coldlion.prod_history_last_lookup",
       constraint: "coldlion_prod_history_last_lookup_identity_unique",
@@ -775,9 +801,13 @@ export function buildProdHistoryLoadSql({
       count: "prod_history_last_lookup",
     }),
     sealedRecurrenceNoticeSql(),
-    assertionSql(assertable),
-    pageLedgerSql({ scope, window, runId, companyCode, pages }),
-    epilogue({ scope, window, runId, companyCode, completion, finishedAt, durationMs, notes }),
+    // Quantity assertion seals a line's evidence. An open week is still accumulating, so
+    // only the sealed close-of-week load asserts; an hourly read never does.
+    sealed ? assertionSql(assertable) : "",
+    sealed ? pageLedgerSql({ scope, window, runId, companyCode, pages }) : "",
+    sealed
+      ? epilogue({ scope, window, runId, companyCode, completion, finishedAt, durationMs, notes })
+      : unsealedEpilogue({ runId, finishedAt, durationMs, notes }),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -796,5 +826,9 @@ function assertionSql(localIds) {
   from _map_line m
  where m.id = l.id
    and m.local_id in (${list})
-   and not l.component_quantities_asserted;`;
+   and not l.component_quantities_asserted
+   -- A line version an hourly open-week read created first keeps the children THAT load
+   -- wrote; this load's children were dropped above. The guard checks STORED evidence, so
+   -- asserting from this fetch's reconciliation could abort the window on every retry.
+   and not exists (select 1 from _old_line o where o.local_id = m.local_id);`;
 }

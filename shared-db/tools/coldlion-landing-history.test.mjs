@@ -22,7 +22,7 @@ import { buildOrderHistoryLoadSql, buildProdHistoryLoadSql } from "./coldlion-la
 import { assertHistoryShape, hasOrderStampColumns, historyShapeSql, interpretOrderStampColumns, loadedWindowsSql, loadWindowScope, orderStampColumnsSql } from "./coldlion-landing/lib/run-history.mjs";
 import { createHash } from "node:crypto";
 import { newYorkToday, parseArgs as parseBackfillArgs, runUnsealedOrderWindow, selectScopes, validateUnsealedOrderWindow } from "./coldlion-landing/backfill-history.mjs";
-import { forwardScan, headerTrackScan, parseArgs as parseSyncArgs } from "./coldlion-landing/sync-history.mjs";
+import { forwardScan, headerTrackScan, parseArgs as parseSyncArgs, prodOpenScan } from "./coldlion-landing/sync-history.mjs";
 import { headerTrackWindow as headerTrackWindowForTest } from "./coldlion-landing/lib/order-intake-windows.mjs";
 
 // ---------------------------------------------------------------------------------
@@ -592,7 +592,7 @@ test("no stage is invented for sales history anywhere in the transaction", () =>
   assert.match(sql, /stage_code is not distinct from null/);
 });
 
-function prodSql() {
+function prodSql(extra = {}) {
   counter = 0;
   const runId = "22222222-2222-4222-8222-222222222222";
   const projected = projectProdHistoryWindow(
@@ -612,6 +612,7 @@ function prodSql() {
     finishedAt: "2026-09-08T00:00:01Z",
     durationMs: 1000,
     notes: "lines=1",
+    ...extra,
   });
 }
 
@@ -881,7 +882,7 @@ test("evidence for a production line sealed by an earlier window is skipped, not
       `${target} would abort the whole window against a sealed parent, and every retry with it`,
     );
   }
-  assert.match(sql, /already sealed by an earlier window/, "a skip nobody can see is a silent loss");
+  assert.match(sql, /already sealed by an earlier load/, "a skip nobody can see is a silent loss");
 });
 
 // ---------------------------------------------------------------------------------
@@ -1074,8 +1075,33 @@ test("the loaders refuse a target that is not the canonical landing shape", () =
   assert.throws(() => assertHistoryShape({}, () => [["order_history_line.id"]]), /not the canonical landing shape/);
 });
 
-test("forward mode is /orderHistory only", () => {
-  assert.throws(() => orderSql({ sealed: false, scope: prodHistoryScope("ISS") }), /orderHistory only/);
+test("each builder refuses the other feed's scope", () => {
+  assert.throws(() => orderSql({ sealed: false, scope: prodHistoryScope("ISS") }), /\/orderHistory scope only/);
+  assert.throws(() => buildProdHistoryLoadSql({ scope: ORDER_HISTORY }), /staged \/prodHistory scope only/);
+});
+
+test("a /prodHistory header-track load is refused", () => {
+  const window = headerTrackWindowForTest("2026-10-26", "created");
+  assert.throws(() => prodSql({ sealed: false, window }), /header-track load is refused/);
+});
+
+test("--prod-open is off by default and parsed when given", () => {
+  assert.equal(parseSyncArgs(["--today", "2026-10-26"]).prodOpen, false);
+  assert.equal(parseSyncArgs(["--prod-open"]).prodOpen, true);
+});
+
+test("a sealed production load filters children of open-week line versions and never asserts them", () => {
+  const sql = prodSql();
+  assert.match(sql, /create temp table _old_line on commit drop as\n[\s\S]*?join coldlion\.prod_history_line l on l\.id = m\.id\n[\s\S]*?where r\.request_params \? 'unsealedForward';/);
+  assert.match(sql, /delete from _stage_component s using _old_line o where s\.line_local_id = o\.local_id;/);
+  assert.match(sql, /delete from _stage_lookup s using _old_line o where s\.line_local_id = o\.local_id;/);
+  assert.match(sql, /set component_quantities_asserted = true[\s\S]*?and not exists \(select 1 from _old_line o where o\.local_id = m\.local_id\);/);
+  assert.ok(sql.indexOf("create temp table _old_line") < sql.indexOf("set component_quantities_asserted"));
+});
+
+test("unsealed mode is /orderHistory or a STAGED /prodHistory scope only", () => {
+  assert.throws(() => prodSql({ sealed: false, scope: { endpoint: "/prodHistory", stage: null } }), /staged \/prodHistory/);
+  assert.throws(() => orderSql({ sealed: false, scope: { endpoint: "/orderHistory", stage: "ISS" } }), /\/orderHistory scope only/);
 });
 
 test("--forward is parsed and --today drives the closed-window clamp", () => {
@@ -1169,7 +1195,7 @@ test("the sandbox sync runs the offline tests first, masks the password and boun
   const echoes = sandboxSync.match(/echo[^\n]*\$SANDBOX_PASSWORD[^\n]*/g) ?? [];
   assert.deepEqual(echoes, ['echo "::add-mask::$SANDBOX_PASSWORD"'], "the raw password is only ever masked, never printed");
   assert.match(sandboxSync, /--from "\$FROM" --limit "\$LIMIT"/);
-  assert.match(sandboxSync, /--windows "\$WINDOWS" --forward/);
+  assert.match(sandboxSync, /--windows "\$WINDOWS" --forward --prod-open/);
 });
 
 test("--today is validated", () => {
@@ -1216,4 +1242,58 @@ test("the header scan loads created then modified, unsealed, and reports a faile
   assert.equal(result.tracks, 1);
   assert.equal(result.lines, 4);
   assert.equal(failures.length, 1);
+});
+
+// ---------------------------------------------------------------------------------
+// /prodHistory open week, unsealed (Albert Hazan, 2026-10-26: "production-history feed
+// should match order feed run timing")
+// ---------------------------------------------------------------------------------
+
+test("the open-week production scan reads every stage of the current week, unsealed, in order", async () => {
+  const seen = [];
+  const failures = [];
+  const result = await prodOpenScan({
+    args: { today: "2026-10-26", company: "EDGEHOME", pageSize: 200 },
+    apiKey: "synthetic-test-key",
+    failures,
+    load: async ({ scope, window, sealed }) => {
+      seen.push(`${scope.stage} ${window.from} ${sealed}`);
+      if (scope.stage === "INTRAN") throw new Error("vendor down");
+      return { fetched: { rows: 2 }, summary: { lines: 2 } };
+    },
+  });
+  assert.deepEqual(seen, ["ISS 2026-10-20 false", "INTRAN 2026-10-20 false", "REC 2026-10-20 false"]);
+  assert.equal(result.stages, 2, "one stage failing does not stop the others");
+  assert.equal(failures.length, 1, "and the failure keeps the run red");
+});
+
+test("an unsealed production load writes no ledger or page evidence and refuses a sealed week", () => {
+  const sql = buildProdHistoryLoadSql({
+    window: windowContaining("2026-10-26"),
+    scope: prodHistoryScope("REC"),
+    runId: "00000000-0000-4000-8000-000000000001",
+    requestedBy: "test",
+    companyCode: "EDGEHOME",
+    pages: [{ httpStatus: 200, bodyStatus: 200 }],
+    completion: { rows: 0 },
+    projected: { lines: [], components: [], lastLookups: [], assertableLineIds: [] },
+    startedAt: "2026-10-26T12:00:00Z",
+    finishedAt: "2026-10-26T12:00:01Z",
+    durationMs: 1000,
+    notes: "",
+    sealed: false,
+  });
+  assert.doesNotMatch(sql, /insert into coldlion\.window_ledger|history_page_ledger|update coldlion\.window_ledger/);
+  assert.match(sql, /stage_code is not distinct from 'REC'/);
+  assert.match(sql, /already loaded \(sealed\)/);
+  assert.match(sql, /"unsealedForward":true/);
+  assert.match(sql, /"stageCode":"REC"/);
+  assert.match(sql, /delete from _stage_component s using _old_line/);
+  assert.doesNotMatch(sql, /component_quantities_asserted = true/, "an open week never seals evidence");
+});
+
+test("the hourly intake also runs the production open-week sync", () => {
+  const intake = readWorkflow("coldlion-order-intake.yml");
+  assert.match(intake, /sync-history\.mjs --windows 3 --prod-open --no-header-tracks/);
+  assert.match(readWorkflow("coldlion-landing-sync.yml"), /--forward --prod-open/);
 });
