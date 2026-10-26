@@ -4,7 +4,10 @@ import { searchAccessStatus } from "../../supabase/functions/_shared/search-acce
 export { searchAccessStatus };
 export { formatCount } from "./format-count";
 
-export const SEMANTIC_QUERY_TIMEOUT_MS = 6000;
+// Albert 2026-10-25: picture/semantic matching may take longer than keyword;
+// the shared function statement_timeout is 30s. The browser must not give up
+// earlier and silently drop to the keyword path.
+export const SEMANTIC_QUERY_TIMEOUT_MS = 30_000;
 
 async function invokeSearch(body: Record<string, unknown>) {
   const controller = new AbortController();
