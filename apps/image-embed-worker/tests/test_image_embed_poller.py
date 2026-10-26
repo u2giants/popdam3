@@ -94,15 +94,38 @@ def _jpeg_bytes(img) -> bytes:
     return buf.getvalue()
 
 
-def test_poller_rejects_bomb():
-    # PNG whose IHDR claims 30000x30000 (900 MP) — decompression bomb.
-    def chunk(tag, data):
-        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+def _chunk(tag: bytes, data: bytes) -> bytes:
+    return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
 
-    ihdr = chunk(b"IHDR", struct.pack(">IIBBBBB", 30000, 30000, 8, 6, 0, 0, 0))
-    bomb = b"\x89PNG\r\n\x1a\n" + ihdr
-    with pytest.raises(poller.PermanentReject, match="bomb|too large"):
+
+def test_poller_rejects_bomb():
+    # Valid-structure PNG whose IHDR claims 30000x30000 (900 MP) — Pillow's
+    # own decompression-bomb guard must fire and become a permanent reject.
+    comp = zlib.compressobj()
+    compressed = comp.compress(b"\x00" + b"\x00\x00\x00\xff" * 30000) + comp.flush()
+    bomb = (
+        b"\x89PNG\r\n\x1a\n"
+        + _chunk(b"IHDR", struct.pack(">IIBBBBB", 30000, 30000, 8, 6, 0, 0, 0))
+        + _chunk(b"IDAT", compressed)
+        + _chunk(b"IEND", b"")
+    )
+    with pytest.raises(poller.PermanentReject, match="bomb|too large|decode"):
         poller.open_upload(bomb)
+
+    # A malformed header-only bomb is still a permanent reject (never retried).
+    header_only = b"\x89PNG\r\n\x1a\n" + _chunk(
+        b"IHDR", struct.pack(">IIBBBBB", 30000, 30000, 8, 6, 0, 0, 0)
+    )
+    with pytest.raises(poller.PermanentReject):
+        poller.open_upload(header_only)
+
+
+def test_upload_pixel_guard(monkeypatch):
+    # Our own 60 MP guard sits below Pillow's bomb threshold; prove it fires
+    # by shrinking it under this small fixture image's pixel count.
+    monkeypatch.setattr(config, "UPLOAD_MAX_PIXELS", 1000)
+    with pytest.raises(poller.PermanentReject, match="too large"):
+        poller.open_upload(_jpeg_bytes(_art(size=(64, 64))))
 
 
 def test_poller_rejects_unsupported():
