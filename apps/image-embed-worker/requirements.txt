@@ -1,0 +1,10 @@
+# PopDAM image-embed GPU poller — pinned to the edge-dev RTX 3060 Ti
+# environment that embedded the whole library on 2026-10-25 (Python 3.13).
+# The model stamp records torch2.6.0; upgrading torch means a NEW stamp and
+# a re-embed window (plan section 8, IMAGE_SIM_REEMBED_IN_PROGRESS).
+torch==2.6.0
+transformers==5.20.2
+pillow==12.3.0
+numpy==2.5.2
+scipy==1.18.1
+psycopg[binary]==3.3.6
