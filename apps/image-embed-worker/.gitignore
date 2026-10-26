@@ -1,0 +1,5 @@
+# Local install artifacts (see README.md) — never commit credentials.
+.venv/
+worker.dsn
+worker.stamp
+__pycache__/
