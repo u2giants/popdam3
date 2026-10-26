@@ -104,6 +104,27 @@ function masterDataRenderer(field: keyof OrderListRow) {
   };
 }
 
+// Grid option objects MUST keep a stable identity across renders. A fresh
+// `defaultColDef` (or similar) on every parent re-render makes AG Grid rebuild
+// its columns from the column definitions, re-applying each `hide` default and
+// silently removing any column the user just added from the Columns panel.
+// The page re-renders whenever a new block of rows loads (i.e. on scroll).
+const DEFAULT_COL_DEF: ColDef<OrderListRow> = { minWidth: 90, wrapHeaderText: true, autoHeaderHeight: true };
+const CELL_SELECTION = { handle: { mode: "fill" as const, direction: "xy" as const } };
+const ROW_SELECTION = { mode: "multiRow" as const, checkboxes: true, headerCheckbox: false };
+const SIDE_BAR = {
+  toolPanels: [
+    {
+      id: "columns",
+      labelDefault: "Columns",
+      labelKey: "columns",
+      iconKey: "columns",
+      toolPanel: "agColumnsToolPanel",
+    },
+  ],
+  hiddenByDefault: true,
+};
+
 export type OrderListGridProps = {
   datasource: IDatasource;
   onCellEdited: (event: CellValueChangedEvent<OrderListRow>) => void;
@@ -203,7 +224,7 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
       ref={ref}
       theme={theme === "dark" ? darkGridTheme : lightGridTheme}
       columnDefs={columnDefs}
-      defaultColDef={{ minWidth: 90, wrapHeaderText: true, autoHeaderHeight: true }}
+      defaultColDef={DEFAULT_COL_DEF}
       // Bounded blocks: sorting, filtering and search happen in the database.
       rowModelType="infinite"
       datasource={datasource}
@@ -228,21 +249,10 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
       onModelUpdated={(event) => onDisplayedRowsChanged?.(event.api.getDisplayedRowCount())}
       suppressDragLeaveHidesColumns
       maintainColumnOrder
-      cellSelection={{ handle: { mode: "fill", direction: "xy" } }}
-      rowSelection={{ mode: "multiRow", checkboxes: true, headerCheckbox: false }}
+      cellSelection={CELL_SELECTION}
+      rowSelection={ROW_SELECTION}
       onSelectionChanged={(event) => onSelectionChanged?.(event.api.getSelectedRows())}
-      sideBar={{
-        toolPanels: [
-          {
-            id: "columns",
-            labelDefault: "Columns",
-            labelKey: "columns",
-            iconKey: "columns",
-            toolPanel: "agColumnsToolPanel",
-          },
-        ],
-        hiddenByDefault: true,
-      }}
+      sideBar={SIDE_BAR}
       pagination
       paginationPageSize={ORDER_LIST_DEFAULT_PAGE_SIZE}
       paginationPageSizeSelector={ORDER_LIST_PAGE_SIZE_OPTIONS}
