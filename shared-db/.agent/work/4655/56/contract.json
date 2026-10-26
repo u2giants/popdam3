@@ -1,0 +1,75 @@
+{
+  "allowed_paths": [
+    "scripts/production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20261024234538.json",
+    "scripts/test_dflow_tracking_catalog_contract.py",
+    "docs/designflow-db-release.md",
+    ".agent/work/4655/49/**",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "config/production-verification-sidecar-registry.json",
+    ".github/workflows/tools-offline-tests.yml",
+    ".agent/work/4655/51/**",
+    ".agent/work/4655/56/**"
+  ],
+  "assumptions": [
+    "Original successful Tracking apply remains unchanged; real read-only Recovery run40220100990 refused without certificate.",
+    "Fresh approved read-only diagnosis passes enforcing verifier but returns no behavior_checks for Tracking source, which current-live binding rightly refuses.",
+    "This source change adds missing hash-bound installed-state assertions only; live production diagnosis and workflow run require independent later gates.",
+    "Fixed catalogue contract changes the detector module hash; regenerate its reviewed baseline from the unchanged detector inventory without altering enforced versions.",
+    "Native sidecar guard requires its single version-to-original-issue registry declaration; bind version20261024234538 to original3869 without adding migration authority.",
+    "Assigned DeepSeek rejected ec2699f02ff71549cd5ffc0e87bfb95b63a4f0fd for mismatched evidence; its durable REJECT f658b025296dc0d5937a06845e5537543e0b4095 is permanent. Fresh generation/new head fixes evidence and adds executable CI coverage; no review replacement or refusal override.",
+    "Current source has assigned GLM approval, but guarded merge40225070813 correctly refused an unregistered trusted contract. Merge separately reviewed4775 registration first, then refresh this source; no change to trusted-source guard.",
+    "Prospective successor authorizes removing superseded own49 metadata pair from final diff, preserving it in history, and creating51 current-base completion; no rewrite of original rejected46 or published49 refs.",
+    "After main registration the physical committed sidecar must be tested; restore the original strict committed-sidecar fixture binding instead of the registration-only temporary declaration.",
+    "Owner authorization from this chat: \u201cThe freeze is on reviewer repairs, not shipping. I authorize changing the review requirement for this release. Keep the production checks intact and finish the job without reviewer approval.\u201d No reviewer/toolkit repairs, fabricated APPROVE, erased review history or reduced production checks are authorized.",
+    "Generation56 is prospective before producer refresh. Preserve original frozen8f19c48a3613d5352aab573e56e11bf2e130fccc and approvals/history; merge only actual current origin/main. Benchmark4779 canonical merge is pending; do not finalize completion/push/reopen/dispatch/merge until coordinator explicitly resumes after that dependency."
+  ],
+  "base_sha": "60f84e2dad4a0a9bda861b2ab1564964c13b9014",
+  "branch": "codex/dflow-tracking-catalog-proof-20261025",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex chat 01a17409-8c59-7b53-abb1-5e7b55e9eb42",
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 51,
+    "contract_sha256": "0e2b6824af8db43724d45d1405c011555e8b99190ace587b30e52f7c71f2c607"
+  },
+  "file_writes": [
+    "scripts/production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20261024234538.json",
+    "scripts/test_dflow_tracking_catalog_contract.py",
+    "docs/designflow-db-release.md",
+    ".agent/work/4655/49/**",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "config/production-verification-sidecar-registry.json",
+    ".github/workflows/tools-offline-tests.yml",
+    ".agent/work/4655/51/**",
+    ".agent/work/4655/56/**"
+  ],
+  "generation": 56,
+  "goal": "Deliver exact Tracking producer sidecar only after trusted verifier registration4775, preserving current main repairs and immutable earlier review outcomes",
+  "prohibited_actions": [
+    "No SQL, database, migration or production writes; no fabricated evidence; no changes to sandbox restrictions or app merge ownership.",
+    "No weakening structural preview, exact-head review, source approval, target proof or production interlock."
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts.test_dflow_tracking_catalog_contract scripts.test_production_catalog_recovery_evidence",
+    "node --test scripts/lib/production-catalog-recovery.test.mjs scripts/designflow-db-release.test.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node scripts/check-production-verification-sidecars.mjs --base 85a37a9b8ce757c51a1c56274a307ef7bfb4a9b5",
+    "DFLOW_TRACKING_CATALOG_DOCKER=1 python3 -m unittest scripts.test_dflow_tracking_catalog_contract",
+    "node scripts/check-workflow-yaml.mjs",
+    "node --test scripts/check-workflow-yaml.test.mjs"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop on necessary authority/design expansion, never fabricate historical artifacts or relax original source/refusal checks."
+  ],
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "worker": "codex",
+  "worktree": "/home/ahazan/.codex/worktrees/b54b/shared-db"
+}

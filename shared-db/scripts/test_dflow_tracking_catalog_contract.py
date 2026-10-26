@@ -15,34 +15,19 @@ import production_catalog_verification as verifier
 
 VERSION = "20261024234538"
 MIGRATION = ROOT / "supabase/migrations/20261024234538_dflow_prod_link_reland.sql"
-EXPECTED_MIGRATION_SHA256 = "98210290dca92fbbf9b8a995c4bbc13e8bd6af22d88e6ff8eb75c73984640d04"
+SIDECAR = ROOT / f"scripts/production-verification-sidecars/{VERSION}.json"
 
 
 class DflowTrackingCatalogContractTests(unittest.TestCase):
     def test_sidecar_is_exactly_bound_to_canonical_migration(self):
+        sidecar = json.loads(SIDECAR.read_text())
         digest = hashlib.sha256(MIGRATION.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
-        self.assertEqual(digest, EXPECTED_MIGRATION_SHA256)
-        with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp)
-            migration = repo / f"supabase/migrations/{VERSION}_dflow_prod_link_reland.sql"
-            migration.parent.mkdir(parents=True)
-            migration.write_bytes(MIGRATION.read_bytes())
-            sidecar = repo / f"scripts/production-verification-sidecars/{VERSION}.json"
-            sidecar.parent.mkdir(parents=True)
-            sidecar.write_text(json.dumps({
-                "schema_version": 1,
-                "migration_version": VERSION,
-                "migration_sha256": EXPECTED_MIGRATION_SHA256,
-                "checks": [{
-                    "id": "dflow_tracking_catalog",
-                    "kind": "catalog_contract",
-                    "contract": "dflow_tracking_catalog_v1",
-                    "expected_count": 1,
-                }],
-            }) + "\n")
-            loaded = verifier.load_behavior_sidecars(repo, {VERSION: migration}, [VERSION])
-            self.assertEqual([item["id"] for item in loaded], ["dflow_tracking_catalog"])
-            self.assertEqual(loaded[0]["migration_sha256"], EXPECTED_MIGRATION_SHA256)
+        self.assertEqual(sidecar["migration_sha256"], digest)
+        checks = sidecar["checks"]
+        self.assertEqual(len(checks), 1)
+        self.assertEqual(checks[0]["contract"], "dflow_tracking_catalog_v1")
+        loaded = verifier.load_behavior_sidecars(ROOT, {VERSION: MIGRATION}, [VERSION])
+        self.assertEqual([item["id"] for item in loaded], ["dflow_tracking_catalog"])
 
     def test_missing_or_malformed_sidecar_is_rejected_when_present(self):
         with tempfile.TemporaryDirectory() as temp:

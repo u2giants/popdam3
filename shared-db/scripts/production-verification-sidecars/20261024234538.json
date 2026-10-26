@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261024234538",
+  "migration_sha256": "98210290dca92fbbf9b8a995c4bbc13e8bd6af22d88e6ff8eb75c73984640d04",
+  "checks": [
+    {
+      "id": "dflow_tracking_catalog",
+      "kind": "catalog_contract",
+      "contract": "dflow_tracking_catalog_v1",
+      "expected_count": 1
+    }
+  ]
+}
