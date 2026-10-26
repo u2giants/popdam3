@@ -23,7 +23,7 @@ D:\ai\siglip2-embed\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.
 
 Docker image is CPU-capable. Point Supabase function secrets at it:
 
-- `TEXT_EMBED_URL` — base URL, e.g. `https://text-embed.example`
+- `TEXT_EMBED_URL` — `https://text-embed.designflow.app` (Coolify on the Hetz VPS, image built by `publish-text-embed.yml`)
 - `TEXT_EMBED_KEY` — shared secret
 
 `dam-search-ai` calls this for every typed query. If it is down, search degrades
