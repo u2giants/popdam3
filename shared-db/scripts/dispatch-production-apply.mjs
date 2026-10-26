@@ -13,6 +13,7 @@ import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import { ghJson, runGitHubCommand } from './lib/github-transport.mjs'
 import { currentRepository, RepositoryIdentityError } from './lib/repository-identity.mjs'
+import { classifyMainTip } from './check-main-tip-freshness.mjs'
 
 export class DispatchError extends Error {}
 export const WORKFLOW = '.github/workflows/shared-supabase-migrations.yml'
@@ -118,7 +119,8 @@ export function plan(options, deps = {}) {
   gitRun(['fetch', '-q', 'origin', 'main'])
   const mainSha = gitRun(['rev-parse', 'origin/main'])
   const commitSha = options.commitSha ?? mainSha
-  if (commitSha !== mainSha) throw new DispatchError(`--commit-sha ${commitSha} is not the current origin/main ${mainSha}; the workflow would refuse it`)
+  // #4845: a verified prefix of main is dispatchable; the workflow re-proves it.
+  if (commitSha !== mainSha && !(deps.prefixOk ?? ((head, tip) => classifyMainTip({ mainSha: head, tipSha: tip, production: true, gitRunner: (args) => gitRun(args) }).ok))(commitSha, mainSha)) throw new DispatchError(`--commit-sha ${commitSha} is not the current origin/main ${mainSha} or a verified prefix of it; the workflow would refuse it`)
   const declared = declaredInputs(gitRun(['show', `origin/main:${WORKFLOW}`]))
   const digests = {}
   for (const [kind, runId] of [['review', options.reviewRunId], ['preview', options.previewRunId], ['owner_decision', options.ownerDecisionRunId]]) {

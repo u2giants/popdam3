@@ -65,3 +65,10 @@ test('#507(c) plan refuses a stale commit and main dispatches one JSON body only
   assert.equal(main(['--mode', 'x'], { log: () => {} }), 1)
   assert.ok(new DispatchError('x') instanceof Error)
 })
+
+test('#4845 plan dispatches a verified prefix of main and still refuses an unproven one', () => {
+  const gitRun = (args) => (args[0] === 'rev-parse' ? SHA : args[0] === 'show' ? workflowText : '')
+  const prefix = 'c'.repeat(40)
+  assert.doesNotThrow(() => plan({ mode: 'dry-run', versions: ['20260101000000'], commitSha: prefix }, { gitRun, prefixOk: (head, tip) => head === prefix && tip === SHA }))
+  assert.throws(() => plan({ mode: 'dry-run', versions: ['20260101000000'], commitSha: prefix }, { gitRun, prefixOk: () => false }), /or a verified prefix of it/)
+})

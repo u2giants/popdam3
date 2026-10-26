@@ -218,7 +218,11 @@ export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git, product
     }
   }
 
-  const blocking = paths.filter((path) => !inert(path)).sort()
+  let appended = new Set()
+  if (production) {
+    try { appended = laterAppendedMigrationPaths({ mainSha, tipSha, paths, cwd, gitRunner }) } catch { appended = new Set() }
+  }
+  const blocking = paths.filter((path) => !inert(path) && !appended.has(path)).sort()
   if (blocking.length > 0) {
     const shown = blocking.slice(0, 10)
     const suffix = blocking.length > shown.length ? `, and ${blocking.length - shown.length} more` : ''
@@ -228,6 +232,17 @@ export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git, product
         `REFUSED: origin/main (${tipSha}) has moved past the dispatched commit ` +
         `(${mainSha}) with changes that are not ${production ? 'production-inert (documentation, .agent evidence or test files)' : 'documentation'}: ` +
         `${shown.join(', ')}${suffix}. Re-dispatch against the current tip.`,
+      movedBy: paths,
+    }
+  }
+
+  if (appended.size > 0) {
+    return {
+      ok: true,
+      reason:
+        `origin/main has advanced to ${tipSha}, but every change since ${mainSha} is ` +
+        `production-inert or a migration appended strictly after the dispatched ledger (${appended.size}), ` +
+        'so the dispatched commit is a verified prefix of main for the purposes of this gate.',
       movedBy: paths,
     }
   }
@@ -243,6 +258,34 @@ export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git, product
 }
 
 const MIGRATION_PATH = /^supabase\/migrations\/(\d{14})_[^/]+\.sql$/
+
+// VERIFIED-PREFIX PROMOTION (#4845). A production run executes only the
+// dispatched commit's bytes, so a migration that main gained AFTER it cannot
+// change what that run applies or proves -- it only extends main's ledger past
+// the promoted prefix and still needs its own promotion. Such a path is
+// tolerated only when ALL hold, each proven from git, and only in --production:
+//   - it was ADDED between the two commits (never modified, deleted or renamed);
+//   - its version sorts strictly after every migration in the dispatched tree,
+//     so the production ledger stays a strict prefix of main's order;
+//   - the dispatched tree has at least one migration to order against.
+// Added `supabase/tests/*.sql` files ride along: no production step reads them.
+// Any git error returns the empty set, so the caller refuses exactly as before.
+const SUPABASE_TEST_PATH = /^supabase\/tests\/[^/]+\.sql$/
+export function laterAppendedMigrationPaths({ mainSha, tipSha, paths, cwd, gitRunner = git }) {
+  const added = new Set(nulPaths(gitRunner(['diff', '--name-only', '--no-renames', '--diff-filter=A', '-z', mainSha, tipSha], { cwd })))
+  const versions = nulPaths(gitRunner(['ls-tree', '-r', '-z', '--name-only', mainSha, '--', 'supabase/migrations'], { cwd }))
+    .map((path) => MIGRATION_PATH.exec(path)?.[1]).filter(Boolean).sort()
+  const ledgerEnd = versions.at(-1)
+  if (!ledgerEnd) return new Set()
+  const tolerated = new Set()
+  let migrations = 0
+  for (const path of paths) {
+    if (!added.has(path)) continue
+    const version = MIGRATION_PATH.exec(path)?.[1]
+    if (version && version > ledgerEnd) { tolerated.add(path); migrations += 1 } else if (SUPABASE_TEST_PATH.test(path)) tolerated.add(path)
+  }
+  return migrations > 0 ? tolerated : new Set()
+}
 
 function nulPaths(raw) {
   return [...new Set(String(raw).split('\0').filter((entry) => entry.length > 0))]
@@ -378,7 +421,7 @@ function main() {
   }
   console.log(`OK -- ${verdict.reason}`)
   if (verdict.movedBy?.length) {
-    for (const path of verdict.movedBy) console.log(`  ${production ? 'production-inert' : 'documentation'}: ${path}`)
+    for (const path of verdict.movedBy) console.log(`  ${production ? (/^supabase\/(?:migrations|tests)\//.test(path) ? 'appended after dispatched ledger' : 'production-inert') : 'documentation'}: ${path}`)
   }
 }
 

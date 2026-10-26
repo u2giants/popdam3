@@ -16,7 +16,7 @@ import { OWN_START_ONLY_ACTIVITY, ENGINE_REVIEWER_EXCLUSION } from './manage-mig
 import { assignWithMutexRetry } from './manage-migration-author-lanes.mjs'
 import { resolvePeerSlots } from './lib/lanes/review-assignment.mjs'
 import { authorizeRepositoryMaintenanceStatus } from './manage-migration-author-lanes.mjs'
-import { mergedPrReviewerReuseAllowed, acquirePromotionFreeze, releasePromotionFreeze, readPromotionFreeze, PROMOTION_FREEZE_REF } from './manage-migration-author-lanes.mjs'
+import { freezeTolerantMerge, mergedPrReviewerReuseAllowed, acquirePromotionFreeze, releasePromotionFreeze, readPromotionFreeze, PROMOTION_FREEZE_REF } from './manage-migration-author-lanes.mjs'
 import { SLOT_INDEPENDENCE_CONFLICT } from './manage-migration-author-lanes.mjs'
 import { canonicalReviewerAllowlist, REVIEWER_FALLBACK_PROVIDERS, orderedReviewers } from './manage-migration-author-lanes.mjs'
 import { inheritReviewerAllowlist, isReviewerAllowlistSuperset, sameReviewerAllowlist } from './manage-migration-author-lanes.mjs'
@@ -11989,6 +11989,40 @@ test('promotion merge freeze blocks merges, never production, and expires by TTL
   assert.equal(releasePromotionFreeze({pr:3902},io).released,true,'the production cleanup releases by source PR')
   assert.equal(io.refs.has(PROMOTION_FREEZE_REF),false)
   assert.equal(releasePromotionFreeze({pr:3902},io).released,false)
+})
+
+test('#4845: a freeze lets only appended-migration, test and evidence merges through',()=>{
+  const now=new Date('2026-10-02T12:00:00Z')
+  const tolerant=[{filename:'supabase/migrations/20261026155023_b.sql',status:'added'},{filename:'supabase/tests/b.sql',status:'added'},{filename:'.agent/work/4811/1/contract.json',status:'added'},{filename:'docs/x.md',status:'modified'}]
+  const io=freezeIo();io.getPrFiles=()=>tolerant
+  acquirePromotionFreeze({issue:3901,pr:3902,owner:'claude-session',ttlMinutes:30,now},io)
+  assert.equal(freezeTolerantMerge(io,1),true)
+  assert.ok(acquireExclusive('merge',{owner:'a',pr:1,headSha:'abc',now},io).ownerSha,'a non-colliding appended migration merges through the freeze')
+  for(const [name,files] of [
+    ['modified migration',[{filename:'supabase/migrations/20261026150931_a.sql',status:'modified'}]],
+    ['removed migration',[{filename:'supabase/migrations/20261026150931_a.sql',status:'removed'}]],
+    ['renamed migration',[{filename:'supabase/migrations/20261026150932_a.sql',status:'renamed'}]],
+    ['gate code',[...tolerant,{filename:'scripts/production_business_risk_gate.py',status:'modified'}]],
+    ['workflow',[{filename:'.github/workflows/shared-supabase-migrations.yml',status:'modified'}]],
+    ['empty list',[]],
+  ]){
+    const blocked=freezeIo();blocked.getPrFiles=()=>files
+    acquirePromotionFreeze({issue:3901,pr:3902,owner:'claude-session',ttlMinutes:30,now},blocked)
+    assert.throws(()=>acquireExclusive('merge',{owner:'a',pr:1,headSha:'abc',now},blocked),/merges are paused for a production run/,name)
+  }
+  const unreadable=freezeIo();unreadable.getPrFiles=()=>{throw new Error('api down')}
+  assert.equal(freezeTolerantMerge(unreadable,1),false,'an unreadable file list fails closed')
+})
+
+test('#4845: production lane accepts a verified prefix of main and refuses anything unproven',()=>{
+  const io=freezeIo(),now=new Date('2026-10-02T12:00:00Z')
+  io.mainSha=()=>'tip';io.productionPrefixOk=(head,tip)=>head==='prefix'&&tip==='tip'
+  const lane=acquireExclusive('production',{owner:'p',headSha:'prefix',now},io)
+  assert.ok(lane.ownerSha)
+  releaseOwnedRef(EXCLUSIVE_REFS.production,lane.ownerSha,io)
+  assert.throws(()=>acquireExclusive('production',{owner:'p',headSha:'other',now},io),/exact current main SHA or a verified prefix/)
+  delete io.productionPrefixOk
+  assert.throws(()=>acquireExclusive('production',{owner:'p',headSha:'f'.repeat(40),now},io),/exact current main SHA or a verified prefix/,'the default git proof fails closed')
 })
 
 test('an expired promotion freeze is replaced by a new one',()=>{

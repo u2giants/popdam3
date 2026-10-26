@@ -5,6 +5,7 @@ import {recoveryCodeUnchangedAt} from './lib/claim-recovery-dependencies.mjs'
 import {recoverCompletedForeignClaim,recoveryDigest,RECOVERY_CODE_PATHS} from './lib/lanes/completed-claim-recovery.mjs'
 import { createStageEvidenceVerifier } from './lib/work-stage-evidence.mjs'
 import { resolveEvidencePair, isEvidencePath } from './lib/agent-evidence-paths.mjs'
+import { isProductionInertPath, classifyMainTip } from './check-main-tip-freshness.mjs'
 import { contractHash, validateContract, validateCompletionReport, validatePullRequestCompletion, reconcileReportWithContract } from './agent-work-contract.mjs'
 import { verifyGitEvidence, gitIo, readPublishedContractFromGit } from './agent-work-contract-git-evidence.mjs'
 
@@ -4922,7 +4923,11 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
       else requireAdmission(metadata.admissionOptions,io,{pr:metadata.pr??null,mutexOwner:ownerSha})
     }
     if (kind === 'production') {
-      if (metadata.headSha !== io.mainSha?.()) throw new LaneError('production lane requires the exact current main SHA')
+      // #4845: the dispatched commit may be a verified prefix of main -- main moved
+      // only by production-inert paths or migrations appended strictly after its
+      // ledger, proven from local git; any other move or git failure refuses.
+      const tip = io.mainSha?.()
+      if (metadata.headSha !== tip && !(io.productionPrefixOk ?? productionPrefixOk)(metadata.headSha, tip)) throw new LaneError('production lane requires the exact current main SHA or a verified prefix of it')
       if (io.readRef(EXCLUSIVE_REFS.merge)) throw new LaneError(`a guarded merge is active; production promotion must wait; ${leaseHoldText('merge',io)}`)
     } else if (kind === 'preview-rehearsal') {
       // POST-MERGE PREVIEW REHEARSAL -- the path that makes "merge first, then
@@ -5033,7 +5038,7 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
         if (!verdict?.ok) throw new LaneError('pull request is not based on the current main tip')
       }
       if (kind === 'merge' && io.readRef(EXCLUSIVE_REFS.production)) throw new LaneError(`production promotion is active; merges are frozen; ${leaseHoldText('production',io)}`)
-      if (kind === 'merge') assertNoPromotionFreeze(io, metadata.now ?? new Date())
+      if (kind === 'merge' && !freezeTolerantMerge(io, metadata.pr)) assertNoPromotionFreeze(io, metadata.now ?? new Date())
     }
     requireOwnedRef(MUTEX_REF,ownerSha,io)
     acquireRef(ref, ownerSha, io)
@@ -5072,6 +5077,28 @@ export function readPromotionFreeze(io = githubIo, now = new Date()) {
 
 function promotionFreezeText(freeze) {
   return freeze.unreadable ? `promotion freeze ${PROMOTION_FREEZE_REF} at ${freeze.sha} is unreadable; clear it with --release-promotion-freeze --pr <n> (any positive PR number releases an unreadable record)` : `promotion merge freeze held by ${JSON.stringify(freeze.owner)} for PR #${freeze.pr} (issue #${freeze.issue}) until ${freeze.expiresAt}`
+}
+
+// PATH-SCOPED FREEZE (#4845). The freeze exists so main does not move in a way
+// the running production gate would refuse. `check-main-tip-freshness --production`
+// tolerates production-inert paths and migrations APPENDED strictly after the
+// dispatched ledger, so a merge made only of those cannot disturb the run; it
+// merges through the freeze. Version order is re-proven by the production gate
+// itself, which refuses (as before) if it does not hold. Gate code, workflows,
+// config, modified/removed migrations, and an unreadable file list still wait.
+export function productionPrefixOk(headSha, tipSha) {
+  try { return classifyMainTip({ mainSha: headSha, tipSha, production: true }).ok === true } catch { return false }
+}
+
+export function freezeTolerantMerge(io, pr) {
+  let files
+  try { files = io.getPrFiles?.(Number(pr)) } catch { return false }
+  if (!Array.isArray(files) || files.length === 0) return false
+  return files.every((file) => {
+    const path = String(file?.filename ?? file?.path ?? '')
+    if (isProductionInertPath(path)) return true
+    return file?.status === 'added' && /^supabase\/(?:migrations\/\d{14}_[^/]+|tests\/[^/]+)\.sql$/.test(path)
+  })
 }
 
 export function assertNoPromotionFreeze(io = githubIo, now = new Date()) {

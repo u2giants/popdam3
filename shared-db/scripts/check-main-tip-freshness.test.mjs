@@ -451,3 +451,61 @@ test('POSITIVE CONTROL #3153: production mode still refuses migrations, gate cod
     }
   }
 })
+
+// #4845 / #4810 vs #4813 (2026-10-26): #4810's production apply was refused only
+// because main gained #4813's later, unrelated migration. The dispatched commit
+// is a verified prefix of main, so production mode accepts it.
+function prefixFixture() {
+  const { repo } = makeRepo()
+  const sha = commitFiles(repo, { 'supabase/migrations/20261026150931_a.sql': 'create table a (id int);\n' }, '#4810')
+  return { repo, sha }
+}
+const prod = (repo, mainSha, tipSha) => classifyMainTip({ mainSha, tipSha, gitRunner: (args) => git(repo, args), production: true })
+
+test('#4845: production accepts a tip moved only by a strictly later appended migration, its test and evidence', () => {
+  const { repo, sha } = prefixFixture()
+  try {
+    const tip = commitFiles(repo, {
+      'supabase/migrations/20261026155023_b.sql': 'create function b() returns int language sql as $$ select 1 $$;\n',
+      'supabase/tests/b_contracts.sql': 'select 1;\n',
+      '.agent/work/4811/1/contract.json': '{}\n',
+    }, '#4813')
+    const verdict = prod(repo, sha, tip)
+    assert.equal(verdict.ok, true, verdict.reason)
+    assert.match(verdict.reason, /verified prefix/)
+    assert.equal(classify(repo, sha, tip).ok, false, 'the default (merge/preview) lane is unchanged')
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+test('POSITIVE CONTROL #4845: production still refuses back-dated, equal, modified and deleted migrations, and mixed code', () => {
+  const cases = [
+    ['back-dated', (repo) => commitFiles(repo, { 'supabase/migrations/20261026150000_old.sql': 'x;\n' }, 'back')],
+    ['equal version', (repo) => commitFiles(repo, { 'supabase/migrations/20261026150931_twin.sql': 'x;\n' }, 'eq')],
+    ['modified', (repo) => commitFiles(repo, { 'supabase/migrations/20261026150931_a.sql': 'drop table a;\n' }, 'mod')],
+    ['deleted', (repo) => { git(repo, ['rm', '-q', 'supabase/migrations/20261026150931_a.sql']); git(repo, ['commit', '-q', '-m', 'del']); return git(repo, ['rev-parse', 'HEAD']).trim() }],
+    ['appended plus gate code', (repo) => commitFiles(repo, { 'supabase/migrations/20261026160000_c.sql': 'x;\n', 'scripts/production_business_risk_gate.py': 'x\n' }, 'mixed')],
+    ['modified supabase test', (repo) => { commitFiles(repo, { 'supabase/tests/t.sql': 'a;\n' }, 'pre'); return null }],
+    ['nested migration dir', (repo) => commitFiles(repo, { 'supabase/migrations/sub/20261026160000_c.sql': 'x;\n' }, 'nested')],
+    ['test without migration', (repo) => commitFiles(repo, { 'supabase/tests/only.sql': 'x;\n' }, 'test-only')],
+  ]
+  for (const [name, move] of cases) {
+    const { repo, sha } = prefixFixture()
+    try {
+      let base = sha
+      let tip = move(repo)
+      if (tip === null) {
+        base = git(repo, ['rev-parse', 'HEAD']).trim()
+        tip = commitFiles(repo, { 'supabase/tests/t.sql': 'b;\n', 'supabase/migrations/20261026160000_c.sql': 'x;\n' }, 'modify test')
+      }
+      assert.equal(prod(repo, base, tip).ok, false, name)
+    } finally { rmSync(repo, { recursive: true, force: true }) }
+  }
+})
+
+test('POSITIVE CONTROL #4845: an appended migration needs a dispatched ledger to order against', () => {
+  const { repo, sha } = makeRepo()
+  try {
+    const tip = commitFiles(repo, { 'supabase/migrations/20261026160000_c.sql': 'x;\n' }, 'first')
+    assert.equal(prod(repo, sha, tip).ok, false)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
