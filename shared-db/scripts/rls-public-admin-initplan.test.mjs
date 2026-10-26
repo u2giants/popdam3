@@ -52,8 +52,8 @@ test('drift checks cover complete original predicates and preserve metadata and 
   assert.doesNotMatch(sql, /\b(?:CREATE|DROP|GRANT|REVOKE|TRUNCATE|INSERT|UPDATE|DELETE)\s+(?:TABLE|FUNCTION|ROLE|POLICY|INTO|FROM)\b/i)
 })
 
-// Retained evidence must remain tied to the exact executable SQL, not a stale green run.
-test('retained isolated runtime evidence matches current SQL and complete measured results', () => {
+// Historical evidence remains tied to the exact archived executable SQL that produced it.
+test('retained historical runtime evidence matches its archived SQL and complete measured results', () => {
   const base = new URL('../docs/verification/rls-initplan/4427/', import.meta.url)
   const summary = JSON.parse(readFileSync(new URL('source-runtime-summary.json', base)))
   const packed = readFileSync(new URL('source-runtime-evidence.json.gz', base))
@@ -65,7 +65,10 @@ test('retained isolated runtime evidence matches current SQL and complete measur
   assert.equal(evidence.ci_run_id, 39154055887)
   assert.equal(evidence.tested_head, '2fbc889e50ccc59090742531e049a1c3232b1778')
   for (const [file, digest] of Object.entries(evidence.source_sha256)) {
-    assert.equal(hash(readFileSync(new URL('../' + file, import.meta.url))), digest, file)
+    const source = file === 'supabase/tests/rls_public_admin_initplan_contracts.sql'
+      ? 'docs/verification/rls-initplan/4427/source-runtime-test-legacy.sql'
+      : file
+    assert.equal(hash(readFileSync(new URL('../' + source, import.meta.url))), digest, file)
   }
   assert.equal(evidence.access.length, 2124)
   const outcomes = new Map(evidence.access.map(row => [row.phase + ':' + row.context + ':' + row.probe, row.result]))
@@ -82,6 +85,93 @@ test('retained isolated runtime evidence matches current SQL and complete measur
     assert.equal(stats.loops_above_1, 0)
     if (name.startsWith('candidate ')) assert.equal(stats.initplans, stats.loops_equal_1)
   }
+})
+
+test('current batched runtime evidence binds the complete current source and plan matrix', () => {
+  const base = new URL('../docs/verification/rls-initplan/4427/batched-20261025/', import.meta.url)
+  const summary = JSON.parse(readFileSync(new URL('source-runtime-summary.json', base)))
+  const packed = readFileSync(new URL('source-runtime-evidence.json.gz', base))
+  const raw = gunzipSync(packed)
+  const hash = value => createHash('sha256').update(value).digest('hex')
+  assert.equal(hash(packed), summary.compressed_sha256)
+  assert.equal(hash(raw), summary.uncompressed_sha256)
+  const evidence = JSON.parse(raw)
+  const sourceFiles = [
+    'supabase/migrations/20261021190604_public_admin_rls_initplans.sql',
+    'supabase/tests/rls_public_admin_initplan_contracts.sql',
+  ]
+  assert.equal(evidence.ci_run_id, 40231840088)
+  assert.equal(evidence.tested_head, 'feca7cdb0f1fcb0dc4601a2383a9adcfd1508a12')
+  assert.equal(summary.ci_run_id, evidence.ci_run_id)
+  assert.equal(summary.tested_head, evidence.tested_head)
+  assert.deepEqual(Object.keys(evidence.source_sha256).sort(), sourceFiles)
+  assert.deepEqual(evidence.source_sha256, summary.source_sha256)
+  for (const file of sourceFiles) {
+    assert.equal(hash(readFileSync(new URL('../' + file, import.meta.url))), evidence.source_sha256[file], file)
+  }
+  assert.equal(evidence.production_proof, false)
+  assert.equal(summary.production_proof, false)
+  assert.deepEqual(summary.provenance, evidence.provenance)
+  assert.equal(evidence.provenance.raw_log_sha256, '5479ff706e85ce50a9c2883828916c0316d4a2b49d40adb2612d3fde7e740d13')
+  assert.equal(evidence.provenance.artifact_id, 12613812802)
+  assert.equal(evidence.provenance.artifact_digest, 'sha256:304c204ffe6205c714c9ba85b8485aa75c6885ac8e54ecaffda0a648cdfaf035')
+
+  assert.equal(evidence.access.length, 2124)
+  const outcomes = new Map(evidence.access.map(row => [row.phase + ':' + row.context + ':' + row.probe, row.result]))
+  assert.equal(outcomes.size, 2124)
+  assert.equal(evidence.access.filter(row => row.phase === 'original').length, 1062)
+  assert.equal(evidence.access.filter(row => row.phase === 'candidate').length, 1062)
+  for (const row of evidence.access.filter(row => row.phase === 'original')) {
+    assert.deepEqual(outcomes.get('candidate:' + row.context + ':' + row.probe), row.result)
+  }
+
+  const samples = evidence.performance.samples
+  assert.equal(samples.length, 198)
+  const sampleKeys = samples.map(row => [row.cardinality, row.command, row.sample, row.variant].join(':'))
+  assert.equal(new Set(sampleKeys).size, 198)
+  assert.deepEqual([...new Set(samples.map(row => row.cardinality))].sort((a, b) => a - b), [1, 100, 10000])
+  assert.deepEqual([...new Set(samples.map(row => row.command))].sort(), ['DELETE', 'INSERT', 'UPDATE'])
+  assert.deepEqual([...new Set(samples.map(row => row.sample))].sort((a, b) => a - b), [...Array(11).keys()])
+  assert.deepEqual([...new Set(samples.map(row => row.variant))].sort(), ['candidate', 'original'])
+  for (const row of samples) {
+    assert.equal(row.returned_rows, row.cardinality)
+    assert.equal(row.raw_plan[0].Plan['Actual Rows'], row.cardinality)
+    assert.equal(row.warmup, row.sample === 0)
+  }
+  assert.equal(evidence.performance.summary.length, 9)
+  assert.equal(evidence.performance.any_regression_requires_investigation, false)
+  for (const measured of evidence.performance.summary) {
+    assert.equal(measured.original_samples, 10)
+    assert.equal(measured.candidate_samples, 10)
+    assert.equal(measured.requires_regression_investigation, false)
+  }
+
+  const initplanStats = {}
+  for (const row of samples) {
+    const key = `${row.variant} admin_config ${row.command}`
+    const stats = initplanStats[key] ??= { samples: 0, initplans: 0, loops_equal_1: 0, loops_above_1: 0 }
+    stats.samples += 1
+    const visit = plan => {
+      if (plan['Parent Relationship'] === 'InitPlan') {
+        stats.initplans += 1
+        if (plan['Actual Loops'] === 1) stats.loops_equal_1 += 1
+        if (plan['Actual Loops'] > 1) stats.loops_above_1 += 1
+      }
+      for (const child of plan.Plans ?? []) visit(child)
+    }
+    for (const plan of row.raw_plan) visit(plan.Plan)
+  }
+  assert.deepEqual(initplanStats, summary.initplan_execution_counts)
+  assert.deepEqual(Object.values(initplanStats).map(stats => stats.samples), [33, 33, 33, 33, 33, 33])
+  const candidateStats = Object.entries(initplanStats).filter(([name]) => name.startsWith('candidate '))
+  assert.equal(candidateStats.reduce((total, [, stats]) => total + stats.initplans, 0), 264)
+  assert.equal(candidateStats.filter(([name]) => name.endsWith(' UPDATE'))
+    .every(([, stats]) => stats.initplans === 132), true)
+  assert.equal(candidateStats.filter(([name]) => name.endsWith(' INSERT') || name.endsWith(' DELETE'))
+    .every(([, stats]) => stats.initplans === 66), true)
+  assert.equal(candidateStats.every(([, stats]) => stats.loops_above_1 === 0 && stats.loops_equal_1 === stats.initplans), true)
+  assert.equal(Object.entries(initplanStats).filter(([name]) => name.startsWith('original '))
+    .every(([, stats]) => stats.initplans === 0), true)
 })
 
 test('automatic live probe binds the complete installed catalog without authorizing closure', () => {

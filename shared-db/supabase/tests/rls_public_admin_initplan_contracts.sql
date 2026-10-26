@@ -779,13 +779,16 @@ create temp table rls4427_performance(
  primary key(cardinality,command,sample,variant)
 ) on commit drop;
 
-do $measurements$
-declare v_n integer; v_command text; v_sample integer; v_variant text; v_order text[];
+create function pg_temp.rls4427_measure_batch(v_n integer,v_command text) returns void
+language plpgsql security invoker as $measure_batch$
+declare v_sample integer; v_variant text; v_order text[];
  v_policy record; v_clause text; v_sql text; v_plan jsonb; v_rows integer;
  v_subject text:='00000000-7541-4000-8000-000000000001';
 begin
- foreach v_n in array array[1,100,10000] loop
-  foreach v_command in array array['UPDATE','INSERT','DELETE'] loop
+ if v_n is null or v_command is null or v_n not in (1,100,10000)
+ or v_command not in ('UPDATE','INSERT','DELETE') then
+  raise exception '4427 invalid measurement batch arguments';
+ end if;
    for v_sample in 0..10 loop
     -- Reverse pair order every repetition to avoid favoring the second cache state.
     v_order:=case when v_sample%2=0 then array['original','candidate'] else array['candidate','original'] end;
@@ -837,8 +840,20 @@ begin
      end if;
     end loop;
    end loop;
-  end loop;
- end loop;
+end $measure_batch$;
+
+select pg_temp.rls4427_measure_batch(1,'UPDATE');
+select pg_temp.rls4427_measure_batch(1,'INSERT');
+select pg_temp.rls4427_measure_batch(1,'DELETE');
+select pg_temp.rls4427_measure_batch(100,'UPDATE');
+select pg_temp.rls4427_measure_batch(100,'INSERT');
+select pg_temp.rls4427_measure_batch(100,'DELETE');
+select pg_temp.rls4427_measure_batch(10000,'UPDATE');
+select pg_temp.rls4427_measure_batch(10000,'INSERT');
+select pg_temp.rls4427_measure_batch(10000,'DELETE');
+do $post_measurement_checks$
+declare v_policy record; v_clause text;
+begin
  -- Restore exact candidate expressions regardless of alternating final order.
  for v_policy in select * from rls4427_perf_candidates where polname in
  ('Admin read all admin_config','Admin write admin_config','Admin update admin_config','Admin delete admin_config') loop
@@ -857,7 +872,7 @@ begin
  where (b.polname,b.polrelid,b.polcmd,b.polpermissive,b.polroles,b.qual_text,b.check_text)
  is distinct from(a.polname,a.polrelid,a.polcmd,a.polpermissive,a.polroles,a.qual_text,a.check_text))then
  raise exception '4427 performance probe changed policy union metadata'; end if;
-end $measurements$;
+end $post_measurement_checks$;
 
 -- This raw JSON is the evidence: retain all warmups, all plans and buffer counts.
 -- >=10 percent median regression is explicit and requires investigation, never hidden.

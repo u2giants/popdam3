@@ -1,0 +1,79 @@
+{
+  "allowed_paths": [
+    "supabase/tests/rls_public_admin_initplan_contracts.sql",
+    "docs/designflow-db-release.md",
+    ".agent/work/4655/52/**",
+    ".agent/work/4655/53/**",
+    "scripts/rls-public-admin-initplan.test.mjs",
+    "docs/verification/rls-initplan/4427/source-runtime-test-legacy.sql",
+    "docs/verification/rls-initplan/4427/batched-20261025/source-runtime-evidence.json.gz",
+    "docs/verification/rls-initplan/4427/batched-20261025/source-runtime-summary.json",
+    "docs/verification/rls-initplan/4427/batched-20261025/verification.md",
+    ".agent/work/4655/54/**",
+    ".agent/work/4655/55/**"
+  ],
+  "assumptions": [
+    "Producer4774 exacthead8f19c48 is approved by assigned DeepSeek7143 and passes its ordinary CI, but queue Database Contract Tests40229765085 attempts1 and2 both time out at unchanged RLS4427 benchmark block860. No third unchanged retry.",
+    "Both successful main4c and source8f test bytes hashcd050bcb22c264ea9c0b69a15b4dfbf898c3327dbb63c6d58ef6e3826b0a6778; actual existing30s block-local timer currently covers all198 timing samples in one DO, not one DML statement.",
+    "Use a temporary SECURITY INVOKER measurement batch function and nine separate top-level statements in exactly existing cardinality/command order. Each retains the30s statement timeout,22 samples per batch (one warmup plus10 pairs), actual authenticated nonowner/nonbypass role enforcement, EXPLAIN ANALYZE+buffers, sample rollback and fixture checks. Final count198 and exact policy/ACL/helper/RLS/owner restoration checks remain.",
+    "This changes the aggregate timer boundary intentionally, without reducing samples, sizes, controls, reported timings or safety checks; total job budget stays unchanged. Independent reviewer must explicitly judge that scope. No production or shared-preview execution is authorized.",
+    "Latest main07dca16 also includes foreign completed4759 structural source and4755 queue repair; preserve them. This source is separate from unchanged approved producer4774 and retained-storage48.",
+    "Original52 was genuinely published before sourcefeca, but accidentally recorded a39-character base prefix. Its immutable contract and source history remain preserved; native Git evidence correctly refuses it.53 is a transparent forward correction, not a claim it existed before original implementation.",
+    "Only retirement of own52 pair and successor53 evidence follows this publication. The implementation source tree remains byte-identical to genuinely qualified feca7cdb0f1fcb0dc4601a2383a9adcfd1508a12. Keep that run explicitly pinned to feca, never relabel it as execution on a different SHA. Current-head CI still must pass independently before merge.",
+    "Current53 Tools CI correctly refuses old retained39154055887 proof against changed fixture SHAffab6a8c9ab2d0d62576b0c47561577c6ce5d6e2a659f70d8d675d1caf4ad0ad. Do not merely overwrite its hash, omit the check or reuse old runtime as new execution.",
+    "Keep original compressed proof/summary byte-identical. Retain the actual old tested fixture blob (hashcd050...) as historical source, then separately add qualified40231840088/feca runtime evidence extracted from its authenticated artifact12613812802. New evidence has2124 paired access outcomes,198 complete raw DML plans and264 candidate InitPlans all loops1; no regression flags.",
+    "Extend offline tests to validate historical proof against its archived exact fixture, and current proof against BOTH actual current executable SQL sources. Preserve all old measured checks and strengthen current full-cartesian/actualrows/InitPlan checks. No automatic source-hash fallback or fabricated evidence.",
+    "The SQL benchmark itself stays byte-identical to genuinely qualified feca. Current-head full CI remains mandatory.53 review may finish on its frozen/live unchanged head before any successor push; preserve any genuine verdict/refusal.",
+    "Observed fixture path raises task class to shared-db; declared shared-db and fresh review gate passes. Route remains fixture-only repo-maintenance with no shared-target/schema writes, not a structural claim.",
+    "Owner authorization from this chat: \u201cThe freeze is on reviewer repairs, not shipping. I authorize changing the review requirement for this release. Keep the production checks intact and finish the job without reviewer approval.\u201d No reviewer or toolkit repairs, fabricated APPROVE, erased historical REJECT, or reduced production checks are authorized.",
+    "Refresh implementation 8b6a1e5788dd94d898f1e2615973ff7f30278157 already exists before generation55 publication. It merges current main 2e4b4d93305a3a2962a089334d13e94d2dcde74e and retires own generation54 pair. Only new generation55 evidence follows this publication; no retrospective claim of prospective source authorization. Historical physical qualification remains pinned to feca, and native current-head CI remains separately required."
+  ],
+  "base_sha": "9d716038df0e2d91454ad1021c8d8c0aa1ac740b",
+  "branch": "codex/dflow-rls-benchmark-batches-20261025",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex chat 01a17409-8c59-7b53-abb1-5e7b55e9eb42",
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 54,
+    "contract_sha256": "7a2c41ec0ab93760a9647d159e644e87938df09d1caf1d772311af46b84da4bc"
+  },
+  "file_writes": [
+    "supabase/tests/rls_public_admin_initplan_contracts.sql",
+    "docs/designflow-db-release.md",
+    ".agent/work/4655/52/**",
+    ".agent/work/4655/53/**",
+    "scripts/rls-public-admin-initplan.test.mjs",
+    "docs/verification/rls-initplan/4427/source-runtime-test-legacy.sql",
+    "docs/verification/rls-initplan/4427/batched-20261025/source-runtime-evidence.json.gz",
+    "docs/verification/rls-initplan/4427/batched-20261025/source-runtime-summary.json",
+    "docs/verification/rls-initplan/4427/batched-20261025/verification.md",
+    ".agent/work/4655/54/**",
+    ".agent/work/4655/55/**"
+  ],
+  "generation": 55,
+  "goal": "Preserve historical RLS runtime proof and add genuine current-source qualified batch evidence so source binding remains enforced after the benchmark repair",
+  "prohibited_actions": [
+    "No SQL, database, migration or production writes; no fabricated evidence; no changes to sandbox restrictions or app merge ownership.",
+    "No weakening structural preview, exact-head review, source approval, target proof or production interlock."
+  ],
+  "required_checks": [
+    "node --test scripts/rls-public-admin-initplan.test.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs",
+    "git diff --check",
+    "gh run view 40231840088 --repo popcre/shared-db --json status,conclusion,headSha,url,jobs",
+    "git diff --exit-code feca7cdb0f1fcb0dc4601a2383a9adcfd1508a12 HEAD -- supabase/tests/rls_public_admin_initplan_contracts.sql supabase/migrations/20261021190604_public_admin_rls_initplans.sql"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop if necessary to reduce the198-sample matrix, row sizes, role/rollback/restoration controls, increase the30s per-statement timeout, quarantine/skip checks, change production/schema or bypass exact-head review.",
+    "Retain feca physical qualification only as exact source-tree evidence; never relabel its head. Require real current-head CI before protected merge. Stop on non-identical implementation source or any guard/refusal requiring broader work.",
+    "Stop rather than mutate original historical compressed proof/summary, relabel a run/head, fabricate/miss access or plan records, weaken source binding or change qualified SQL."
+  ],
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "worker": "codex",
+  "worktree": "/tmp/dflow-rls-benchmark-batching"
+}

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "work_issue": 4655,
+  "outcome": "ready-for-merge",
+  "pr": 4779,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4655/55",
+  "contract_sha256": "73fb0858a2c8213c9dafd5b42bbc3a9cc6cc94342ced32e61598e42ac76ec324",
+  "base_sha": "2e4b4d93305a3a2962a089334d13e94d2dcde74e",
+  "head_sha": "8b6a1e5788dd94d898f1e2615973ff7f30278157",
+  "files_changed": [
+    "docs/designflow-db-release.md",
+    "docs/verification/rls-initplan/4427/batched-20261025/source-runtime-evidence.json.gz",
+    "docs/verification/rls-initplan/4427/batched-20261025/source-runtime-summary.json",
+    "docs/verification/rls-initplan/4427/batched-20261025/verification.md",
+    "docs/verification/rls-initplan/4427/source-runtime-test-legacy.sql",
+    "scripts/rls-public-admin-initplan.test.mjs",
+    "supabase/tests/rls_public_admin_initplan_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/rls-public-admin-initplan.test.mjs",
+      "exit_code": 0,
+      "evidence": "TAP version 13\n# Subtest: the canonical DDL inspector recognizes exactly the admitted policy and table writes\nok 1 - the canonical DDL inspector recognizes exactly the admitted policy and table writes\n  ---\n  duration_ms: 54.790618\n  type: 'test'\n  ...\n# Subtest: each of 44 qualified policies wraps the entire helper and retains absent clauses\nok 2 - each of 44 qualified policies wraps the entire helper and retains absent clauses\n  ---\n  duration_ms: 0.383013\n  type: 'test'\n  ...\n# Subtest: drift checks cover complete original predicates and preserve metadata and policy unions\nok 3 - drift checks cover complete original predicates and preserve metadata and policy unions\n  ---\n  duration_ms: 1.236089\n  type: 'test'\n  ...\n# Subtest: retained historical runtime evidence matches its archived SQL and complete measured results\nok 4 - retained historical runtime evidence matches its archived SQL and complete measured results\n  ---\n  duration_ms: 5.005685\n  type: 'test'\n  ...\n# Subtest: current batched runtime evidence binds the complete current source and plan matrix\nok 5 - current batched runtime evidence binds the complete current source and plan matrix\n  ---\n  duration_ms: 4.817523\n  type: 'test'\n  ...\n# Subtest: automatic live probe binds the complete installed catalog without authorizing closure\nok 6 - automatic live probe binds the complete installed catalog without authorizing closure\n  ---\n  duration_ms: 1.611821\n  type: 'test'\n  ...\n# Subtest: required offline CI executes the admin qualification suite on engineering changes\nok 7 - required offline CI executes the admin qualification suite on engineering changes\n  ---\n  duration_ms: 0.266308\n  type: 'test'\n  ...\n1..7\n# tests 7\n# suites 0\n# pass 7\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 194.257708\n\nFull captured stdout/stderr SHA256: 3a0b4cd3a3388d970386e613614869109d44188982a51ab8ee39959dd1fe876b"
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "GitHub transport conformance: 453 files scanned, every GitHub call goes through scripts/lib/github-transport.mjs.\n\nFull captured stdout/stderr SHA256: 4f65c89be34fd6ec3110b0617e5f33216d4a980f8d62d013b1b21a19526e491d"
+    },
+    {
+      "command": "node scripts/check-repository-identity-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "Repository identity conformance OK: every remaining literal slug is allowlisted with an exact count (41 entries).\n\nFull captured stdout/stderr SHA256: f8fc9efe8e2e551bef107c31428a941f2adc9d99a824dc6249d88ffbe332085c"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "\nFull captured stdout/stderr SHA256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "gh run view 40231840088 --repo popcre/shared-db --json status,conclusion,headSha,url,jobs",
+      "exit_code": 0,
+      "evidence": "{\"conclusion\":\"success\",\"headSha\":\"feca7cdb0f1fcb0dc4601a2383a9adcfd1508a12\",\"jobs\":[{\"completedAt\":\"2026-10-25T20:40:17Z\",\"conclusion\":\"success\",\"databaseId\":121285033868,\"name\":\"Database contract applicability\",\"startedAt\":\"2026-10-25T20:40:09Z\",\"status\":\"completed\",\"steps\":[{\"completedAt\":\"2026-10-25T20:40:11Z\",\"conclusion\":\"success\",\"name\":\"Set up job\",\"number\":1,\"startedAt\":\"2026-10-25T20:40:10Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:13Z\",\"conclusion\":\"success\",\"name\":\"Run actions/checkout@v4\",\"number\":2,\"startedAt\":\"2026-10-25T20:40:11Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:14Z\",\"conclusion\":\"success\",\"name\":\"Run actions/setup-node@v4\",\"number\":3,\"startedAt\":\"2026-10-25T20:40:13Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:14Z\",\"conclusion\":\"success\",\"name\":\"Classify the complete pull request file list from trusted policy\",\"number\":4,\"startedAt\":\"2026-10-25T20:40:14Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:15Z\",\"conclusion\":\"success\",\"name\":\"Post Run actions/setup-node@v4\",\"number\":7,\"startedAt\":\"2026-10-25T20:40:14Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:15Z\",\"conclusion\":\"success\",\"name\":\"Post Run actions/checkout@v4\",\"number\":8,\"startedAt\":\"2026-10-25T20:40:15Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:15Z\",\"conclusion\":\"success\",\"name\":\"Complete job\",\"number\":9,\"startedAt\":\"2026-10-25T20:40:15Z\",\"status\":\"completed\"}],\"url\":\"https://github.com/popcre/shared-db/actions/runs/40231840088/job/121285033868\"},{\"completedAt\":\"2026-10-25T20:48:07Z\",\"conclusion\":\"success\",\"databaseId\":121285082218,\"name\":\"supabase/tests against an ephemeral database\",\"startedAt\":\"2026-10-25T20:40:24Z\",\"status\":\"completed\",\"steps\":[{\"completedAt\":\"2026-10-25T20:40:27Z\",\"conclusion\":\"success\",\"name\":\"Set up job\",\"number\":1,\"startedAt\":\"2026-10-25T20:40:25Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:28Z\",\"conclusion\":\"success\",\"name\":\"Set up runner\",\"number\":2,\"startedAt\":\"2026-10-25T20:40:27Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:28Z\",\"conclusion\":\"skipped\",\"name\":\"Refuse an unreadable applicability decision\",\"number\":3,\"startedAt\":\"2026-10-25T20:40:28Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:28Z\",\"conclusion\":\"skipped\",\"name\":\"Report a truthful inapplicable result for a prose-only pull request\",\"number\":4,\"startedAt\":\"2026-10-25T20:40:28Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:30Z\",\"conclusion\":\"success\",\"name\":\"Run actions/checkout@v4\",\"number\":5,\"startedAt\":\"2026-10-25T20:40:28Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:30Z\",\"conclusion\":\"success\",\"name\":\"Refuse to run if this workflow can reach a shared database\",\"number\":6,\"startedAt\":\"2026-10-25T20:40:30Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:32Z\",\"conclusion\":\"success\",\"name\":\"Run supabase/setup-cli@v1\",\"number\":7,\"startedAt\":\"2026-10-25T20:40:30Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:32Z\",\"conclusion\":\"success\",\"name\":\"Ensure a working PostgreSQL client (psql)\",\"number\":8,\"startedAt\":\"2026-10-25T20:40:32Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:51Z\",\"conclusion\":\"success\",\"name\":\"Start an empty ephemeral database\",\"number\":9,\"startedAt\":\"2026-10-25T20:40:32Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:53Z\",\"conclusion\":\"success\",\"name\":\"Prove atomic migration DDL and ledger commit or roll back together\",\"number\":10,\"startedAt\":\"2026-10-25T20:40:51Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:40:54Z\",\"conclusion\":\"success\",\"name\":\"Prove preview ledger reconciliation rolls back an in-lock failure\",\"number\":11,\"startedAt\":\"2026-10-25T20:40:53Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:42:09Z\",\"conclusion\":\"success\",\"name\":\"Replay every migration, recording failures (pass 1)\",\"number\":12,\"startedAt\":\"2026-10-25T20:40:54Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:42:10Z\",\"conclusion\":\"success\",\"name\":\"Apply the captured pre-adoption baseline\",\"number\":13,\"startedAt\":\"2026-10-25T20:42:09Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:43:08Z\",\"conclusion\":\"success\",\"name\":\"Re-run the migrations that failed, now on the baseline (pass 2)\",\"number\":14,\"startedAt\":\"2026-10-25T20:42:10Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:43:08Z\",\"conclusion\":\"success\",\"name\":\"Prove pass-2 routine restoration against live PostgreSQL\",\"number\":15,\"startedAt\":\"2026-10-25T20:43:08Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:43:08Z\",\"conclusion\":\"success\",\"name\":\"Apply the synthetic test-fixture seed\",\"number\":16,\"startedAt\":\"2026-10-25T20:43:08Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:47:33Z\",\"conclusion\":\"success\",\"name\":\"Run every supabase/tests/*.sql\",\"number\":17,\"startedAt\":\"2026-10-25T20:43:08Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:47:43Z\",\"conclusion\":\"success\",\"name\":\"Prove source-resolution concurrent first-writer conflict\",\"number\":18,\"startedAt\":\"2026-10-25T20:47:33Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:47:49Z\",\"conclusion\":\"success\",\"name\":\"Prove Flow 4 concurrent replay serialization\",\"number\":19,\"startedAt\":\"2026-10-25T20:47:43Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:47:51Z\",\"conclusion\":\"success\",\"name\":\"Upload every test's output\",\"number\":20,\"startedAt\":\"2026-10-25T20:47:49Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:48:03Z\",\"conclusion\":\"success\",\"name\":\"Stop the ephemeral database\",\"number\":21,\"startedAt\":\"2026-10-25T20:47:51Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:48:03Z\",\"conclusion\":\"success\",\"name\":\"Post Run actions/checkout@v4\",\"number\":41,\"startedAt\":\"2026-10-25T20:48:03Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:48:04Z\",\"conclusion\":\"success\",\"name\":\"Complete runner\",\"number\":42,\"startedAt\":\"2026-10-25T20:48:03Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-25T20:48:04Z\",\"conclusion\":\"success\",\"name\":\"Complete job\",\"number\":43,\"startedAt\":\"2026-10-25T20:48:04Z\",\"status\":\"completed\"}],\"url\":\"https://github.com/popcre/shared-db/actions/runs/40231840088/job/121285082218\"}],\"status\":\"completed\",\"url\":\"https://github.com/popcre/shared-db/actions/runs/40231840088\"}\n\nFull captured stdout/stderr SHA256: b6bd4fe9c96128914a75ee9ea015845e49ee7a07fda346b7ac0371693f03a632"
+    },
+    {
+      "command": "git diff --exit-code feca7cdb0f1fcb0dc4601a2383a9adcfd1508a12 HEAD -- supabase/tests/rls_public_admin_initplan_contracts.sql supabase/migrations/20261021190604_public_admin_rls_initplans.sql",
+      "exit_code": 0,
+      "evidence": "\nFull captured stdout/stderr SHA256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "assumptions_resolved": [
+    "Refresh implementation 8b6a1e5788dd94d898f1e2615973ff7f30278157 existed before prospective generation55 publication. Only this evidence pair follows publication.",
+    "Owner expressly authorized this release without reviewer approval; no review was called, fabricated or erased. Reviewer-repair freeze and production checks remain intact.",
+    "Historical run40231840088 remains pinned to feca7cdb0f1fcb0dc4601a2383a9adcfd1508a12; current SQL equality verified separately. Native current-head CI remains independently required."
+  ],
+  "stop_conditions_hit": []
+}
