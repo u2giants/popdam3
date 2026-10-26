@@ -46,7 +46,7 @@ describe("bandForScore", () => {
 
   it("supports admin-retuned bands without a redeploy", () => {
     expect(bandForScore(96.0, { sameExport: 0.95, sameArt: 0.92, close: 0.88, floor: 0.88 })).toBe("same_export");
-    expect(bandForScore(91.0, { sameExport: 0.95, sameArt: 0.92, close: 0.88, floor: 0.88 })).toBe("same_art");
+    expect(bandForScore(92.5, { sameExport: 0.95, sameArt: 0.92, close: 0.88, floor: 0.88 })).toBe("same_art");
     expect(bandForScore(88.0, { sameExport: 0.95, sameArt: 0.92, close: 0.88, floor: 0.88 })).toBe("close");
     expect(bandForScore(87.0, { sameExport: 0.95, sameArt: 0.92, close: 0.88, floor: 0.80 })).toBe("review");
   });
