@@ -4671,6 +4671,16 @@ export type Database = {
       }
       hts_rag_fold_text: { Args: { value: string }; Returns: string }
       hts_rag_tariff_subheadings: { Args: { tariffs: Json }; Returns: string[] }
+      image_embed_enqueue_index: {
+        Args: { p_asset_id: string }
+        Returns: boolean
+      }
+      image_embed_enqueue_query: {
+        Args: { p_payload: string }
+        Returns: string
+      }
+      image_embed_query_status: { Args: { p_id: string }; Returns: Json }
+      image_embed_status: { Args: never; Returns: Json }
       infer_path_attrs: { Args: { p_path: string }; Returns: Json }
       is_style_guide_source_pdf: {
         Args: { p_file_type: string; p_filename: string }
@@ -5081,6 +5091,27 @@ export type Database = {
           semantic_rank: number
           style_group_id: string
           total_count: number
+        }[]
+      }
+      search_dam_image_similarity: {
+        Args: {
+          p_dino_weight?: number
+          p_floor?: number
+          p_limit?: number
+          p_model_stamps?: string[]
+          p_query_dino: unknown
+          p_query_siglip: unknown
+          p_top_k?: number
+        }
+        Returns: {
+          asset_id: string
+          combined_pct: number
+          dino_pct: number
+          filename: string
+          relative_path: string
+          siglip_pct: number
+          sku: string
+          thumbnail_url: string
         }[]
       }
       search_style_groups_full_text: {
