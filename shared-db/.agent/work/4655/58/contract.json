@@ -1,0 +1,62 @@
+{
+  "allowed_paths": [
+    "scripts/lib/production-catalog-recovery.mjs",
+    "scripts/lib/production-catalog-recovery.test.mjs",
+    "docs/designflow-db-release.md",
+    "scripts/designflow-db-release.mjs",
+    "scripts/designflow-db-release.test.mjs",
+    ".agent/work/4655/58/**",
+    ".agent/work/4655/51/contract.json",
+    ".agent/work/4655/51/completion.json"
+  ],
+  "assumptions": [
+    "Actual captured producer compact56758bytes and producer-alone prettybinding exceeds98304byte retainedreceiptcap afterbase64; no cap enlargement or evidence omission is allowed.",
+    "Storage encoding may change; signed ZIP bytes, bundle, source/ledger/producer/approval/attestation checks and receipt96KiB bound stay intact.",
+    "Current47 starts from upstream85a37a9 then fast-forwards owned pending4774; no foreign source changes.4774 must first pass its independent review and normal merge.",
+    "An existing immutable receipt may use oldencoding or another losslessgzip stream; byte-identical authenticated restoredZIP/bundle and identical authorizing fields preserve that existing ref instead of requiring re-encoding identity or overwriting it.",
+    "Albert authorized in this chat: The freeze is on reviewer repairs, not shipping. I authorize changing the review requirement for this release. Keep the production checks intact and finish the job without reviewer approval. Existing no-reviewer guarded route is used; no reviewer/toolkit repair or paid reviewer invocation. Every other production, identity, source, claim, preview and evidence check remains mandatory.",
+    "Preserved source3829b280bf038369c6b92bfb50422fe77366abd9 already exists under predecessor48 authority.57 is prospective refresh/evidence authority only, not a claim that57 preceded that source. Incorporate actual current main after4779 and4774 canonical merge, preserve all foreign source and original authenticated signed ZIP bytes.",
+    "Fresh storage tree inspection found inherited producer51 pair as the only added predecessor evidence relative to current main. Normal producer56 refresh retires51; storage refresh must retire the same inherited51 pair before its own58 completion so the final storage PR carries exactly its own pair. Original51 immutable ref and all source/history are retained. This explicit prospective successor widens57 before any such retirement or source merge."
+  ],
+  "base_sha": "2e4b4d93305a3a2962a089334d13e94d2dcde74e",
+  "branch": "codex/dflow-retained-proof-storage-20261025",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex chat 01a17580-c46e-7c92-9679-b0e5475e84d0",
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 57,
+    "contract_sha256": "c629117d714e7e5dad555e94f64f9a71ec7d2f1c28c5f542a8058c3c1ad24f8e"
+  },
+  "file_writes": [
+    "scripts/lib/production-catalog-recovery.mjs",
+    "scripts/lib/production-catalog-recovery.test.mjs",
+    "docs/designflow-db-release.md",
+    "scripts/designflow-db-release.mjs",
+    "scripts/designflow-db-release.test.mjs",
+    ".agent/work/4655/58/**",
+    ".agent/work/4655/51/contract.json",
+    ".agent/work/4655/51/completion.json"
+  ],
+  "generation": 58,
+  "goal": "Retain complete authentic current-live certificate within unchanged96KiB limit using bounded lossless ZIP storage compression; keep original signed bytes and authentication",
+  "prohibited_actions": [
+    "No SQL, database, migration or production writes in this maintenance change; no fabricated evidence; no changes to sandbox restrictions or app merge ownership.",
+    "No reviewer/toolkit repairs or installs; no weakening of preview, target proof, production interlocks, source authenticity, rejection history or existing size bounds. Owner-authorized no-reviewer release exception only."
+  ],
+  "required_checks": [
+    "node --test scripts/lib/production-catalog-recovery.test.mjs scripts/lib/current-live-attestation.test.mjs scripts/designflow-db-release.test.mjs scripts/publish-work-stage-evidence.test.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop on necessary authority/design expansion, never fabricate historical artifacts or relax original source/refusal checks."
+  ],
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "worker": "codex",
+  "worktree": "/tmp/dflow-retained-proof-storage"
+}

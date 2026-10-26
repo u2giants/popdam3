@@ -120,6 +120,7 @@ for(const [name,change] of Object.entries({
 }))test(`current-state refuses ${name}`,()=>{const x=liveFixture();change(x);assert.throws(()=>validateCurrentLiveBinding(x.binding,x))})
 
 import {createHash} from 'node:crypto'
+import {gzipSync,gunzipSync} from 'node:zlib'
 import {verifyCurrentLiveEvidence} from './production-catalog-recovery.mjs'
 function nativeLiveFixture(){
  const x=liveFixture(),bytes='-- exact source\n',digest=x=>createHash('sha256').update(x).digest('hex'),approval=JSON.stringify({result:{approved:true},verdicts:[{ref:'synthetic'}]});
@@ -161,7 +162,7 @@ for(const [name,change] of Object.entries({
 }))test(`native current-live refuses ${name}`,()=>{const f=nativeLiveFixture();change(f);assert.equal(verifyCurrentLiveEvidence(f.e,f.io,f.read,'popcre/shared-db',f.prove,()=>f.files,()=>f.files),false)})
 
 import {execFileSync} from 'node:child_process'
-import {openCurrentLivePackage,retainedCurrentLivePackage} from './production-catalog-recovery.mjs'
+import {openCurrentLivePackage,retainedCurrentLivePackage,assertEquivalentRetainedCurrentLiveReceipt} from './production-catalog-recovery.mjs'
 function retainedFixture(){
  const x=liveFixture(),proof={work_issue:3869,source_pr:4735,run_id:10,proof_kind:CURRENT_LIVE_KIND,reverification_run_id:40,artifact_id:50,artifact_digest:'sha256:'+'d'.repeat(64)};
  const zip=execFileSync('python3',['-c','import sys,json,zipfile,io;b=io.BytesIO();z=zipfile.ZipFile(b,"w");[z.writestr(k,v) for k,v in json.load(sys.stdin).items()];z.close();sys.stdout.buffer.write(b.getvalue())'],{input:JSON.stringify({'current-live-binding.json':JSON.stringify(x.binding),'production-catalog-verification.json':JSON.stringify(x.catalog)})});
@@ -172,7 +173,8 @@ function retainedFixture(){
 }
 test('retained exact inner ZIP and bundle roundtrip without artifact or log dependency',()=>{
  const f=retainedFixture(),files=openCurrentLivePackage(retainedCurrentLivePackage(f.receipt,f.proof),{},f.authenticate);
- assert.equal(files.certificate.zip_base64,f.receipt.certificate.zip_base64);assert.equal(files.certificate.bundle_base64,f.receipt.certificate.bundle_base64);
+ const retainedZip=files.certificate.zip_gzip_base64?Buffer.from(files.certificate.zip_gzip_base64,'base64'):Buffer.from(files.certificate.zip_base64,'base64');
+ assert.deepEqual(files.certificate.zip_gzip_base64?gunzipSync(retainedZip):retainedZip,Buffer.from(f.receipt.certificate.zip_base64,'base64'));assert.equal(files.certificate.bundle_base64,f.receipt.certificate.bundle_base64);
 });
 test('bare ref, mutated signed authorizing fields, altered inner bytes and oversized retention refuse',()=>{
  for(const mutate of [f=>delete f.receipt.certificate,f=>f.receipt.source={...f.receipt.source,source_pr:99},f=>f.receipt.ledger_fingerprints={},f=>f.receipt.proof={...f.receipt.proof,run_id:99},f=>f.receipt.certificate.zip_base64=Buffer.from('forged').toString('base64'),f=>f.receipt.certificate.bundle_base64=Buffer.from('forged').toString('base64'),f=>f.receipt.certificate.zip_base64='A'.repeat(100*1024)]){
@@ -186,4 +188,66 @@ test('native retained receipt permits authentic expiry or404 but rejects403/netw
   const metadata=()=>{if(state==='403'||state==='network')throw Error(state);if(state==='404')return null;return {...f.artifact,expired:state==='expired',...(state==='mismatch'?{digest:'sha256:'+'0'.repeat(64)}:{})}};
   assert.equal(verifyCurrentLiveEvidence(f.e,f.io,f.read,'popcre/shared-db',f.prove,()=>f.files,()=>f.files,metadata),state==='expired'||state==='404');
  }
+});
+
+test('lossless gzip retention fits the cap while old uncompressed input still refuses',()=>{
+ const f=retainedFixture(),x=liveFixture(),proof=f.proof;
+ const zip=execFileSync('python3',['-c','import sys,json,zipfile,io;b=io.BytesIO();z=zipfile.ZipFile(b,"w");[z.writestr(k,v) for k,v in json.load(sys.stdin).items()];z.close();sys.stdout.buffer.write(b.getvalue())'],{input:JSON.stringify({'current-live-binding.json':JSON.stringify({...x.binding,padding:'x'.repeat(120000)}),'production-catalog-verification.json':JSON.stringify({...x.catalog,padding:'x'.repeat(120000)})})});
+ const old={...f.receipt,certificate:{zip_base64:zip.toString('base64'),bundle_base64:f.receipt.certificate.bundle_base64}};
+ assert.throws(()=>retainedCurrentLivePackage(old,proof),/exceeds reviewed size bound/);
+ const compressed=gzipSync(zip),modern={...f.receipt,certificate:{zip_gzip_base64:compressed.toString('base64'),bundle_base64:f.receipt.certificate.bundle_base64}};
+ const files=retainedCurrentLivePackage(modern,proof);assert.deepEqual(files.get('current-live-content.zip'),zip);
+});
+
+test('large gzip receipt roundtrips through authenticated open and preserves subject bytes',()=>{
+ const f=retainedFixture(),x=liveFixture(),proof=f.proof,bundle=Buffer.from('synthetic attestation bundle'.repeat(2000));
+ const zip=execFileSync('python3',['-c','import sys,json,zipfile,io;b=io.BytesIO();z=zipfile.ZipFile(b,"w");[z.writestr(k,v) for k,v in json.load(sys.stdin).items()];z.close();sys.stdout.buffer.write(b.getvalue())'],{input:JSON.stringify({'current-live-binding.json':JSON.stringify({...x.binding,padding:'x'.repeat(120000)}),'production-catalog-verification.json':JSON.stringify({...x.catalog,padding:'x'.repeat(120000)})})});
+ const subjectHash=createHash('sha256').update(zip).digest('hex'),calls=[];
+ const authenticate=({zipBytes,bundleBytes})=>{calls.push({zip:zipBytes,bundle:bundleBytes});assert.equal(createHash('sha256').update(zipBytes).digest('hex'),subjectHash);assert.deepEqual(bundleBytes,bundle)};
+ const opened=openCurrentLivePackage(new Map([['current-live-content.zip',zip],['current-live-attestation.jsonl',bundle]]),{},authenticate);
+ const receipt={schema:'shared-db-current-live-reverification-receipt/v1',source:x.source,ledger_fingerprints:x.ledger,proof,certificate:opened.certificate};
+ assert.ok(Buffer.byteLength(JSON.stringify(receipt))<96*1024);
+ const retained=retainedCurrentLivePackage(receipt,proof),reopened=openCurrentLivePackage(retained,{},authenticate);
+ assert.deepEqual(reopened.get('current-live-binding.json'),opened.get('current-live-binding.json'));assert.deepEqual(reopened.get('production-catalog-verification.json'),opened.get('production-catalog-verification.json'));assert.equal(calls.length,2);
+});
+
+test('gzip receipt never bypasses authentication or authorizing-field checks',()=>{
+ const f=retainedFixture(),x=liveFixture(),zip=Buffer.from(f.receipt.certificate.zip_base64,'base64'),bundle=Buffer.from(f.receipt.certificate.bundle_base64,'base64'),hash=createHash('sha256').update(zip).digest('hex');
+ const cert={zip_gzip_base64:gzipSync(zip).toString('base64'),bundle_base64:bundle.toString('base64')},receipt={...f.receipt,certificate:cert};
+ const authenticate=({zipBytes,bundleBytes})=>{assert.equal(createHash('sha256').update(zipBytes).digest('hex'),hash);assert.deepEqual(bundleBytes,bundle)};
+ const changedZip=execFileSync('python3',['-c','import sys,json,zipfile,io;b=io.BytesIO();z=zipfile.ZipFile(b,"w");[z.writestr(k,v) for k,v in json.load(sys.stdin).items()];z.close();sys.stdout.buffer.write(b.getvalue())'],{input:JSON.stringify({'current-live-binding.json':'{}','production-catalog-verification.json':'{}'})});
+ assert.throws(()=>openCurrentLivePackage(new Map([['current-live-content.zip',changedZip],['current-live-attestation.jsonl',bundle]]),{},authenticate));
+ assert.throws(()=>openCurrentLivePackage(new Map([['current-live-content.zip',zip],['current-live-attestation.jsonl',Buffer.from('changed')]]),{},authenticate));
+ assert.throws(()=>openCurrentLivePackage(retainedCurrentLivePackage({...receipt,source:{...receipt.source,source_pr:99}},f.proof),{},authenticate));
+ assert.throws(()=>openCurrentLivePackage(retainedCurrentLivePackage({...receipt,proof:{...f.proof,run_id:99}},f.proof),{},authenticate));
+});
+
+test('gzip retention refuses mixed keys, corrupt or truncated data, noncanonical base64 and oversized output',()=>{
+ const f=retainedFixture(),zip=Buffer.from(f.receipt.certificate.zip_base64,'base64'),good=gzipSync(zip);
+ for(const [index,certificate] of [
+  {zip_gzip_base64:good.toString('base64'),zip_base64:f.receipt.certificate.zip_base64,bundle_base64:f.receipt.certificate.bundle_base64},
+  {zip_gzip_base64:Buffer.from('not-gzip').toString('base64'),bundle_base64:f.receipt.certificate.bundle_base64},
+  {zip_gzip_base64:good.subarray(0,good.length-2).toString('base64'),bundle_base64:f.receipt.certificate.bundle_base64},
+  {zip_gzip_base64:good.toString('base64')+'\n',bundle_base64:f.receipt.certificate.bundle_base64},
+  {zip_gzip_base64:gzipSync(Buffer.alloc(0)).toString('base64'),bundle_base64:f.receipt.certificate.bundle_base64},
+  {zip_gzip_base64:gzipSync(Buffer.alloc(4*1024*1024+1)).toString('base64'),bundle_base64:f.receipt.certificate.bundle_base64},
+  {zip_gzip_base64:good.toString('base64'),bundle_base64:f.receipt.certificate.bundle_base64,extra:'refused'},
+ ].entries()) assert.throws(()=>retainedCurrentLivePackage({...f.receipt,certificate},f.proof),undefined,`mutation ${index}`);
+});
+
+test('legacy retained receipts remain immutable while equivalent gzip encodings are accepted',()=>{
+ const f=retainedFixture(),old=f.receipt,authenticated=retainedCurrentLivePackage(old,f.proof),zip=authenticated.get('current-live-content.zip'),bundle=authenticated.get('current-live-attestation.jsonl');
+ const desired={...old,certificate:{zip_gzip_base64:gzipSync(zip,{level:9}).toString('base64'),bundle_base64:bundle.toString('base64')}};
+ assert.equal(assertEquivalentRetainedCurrentLiveReceipt(old,desired,authenticated),true);
+ const alternate={...old,certificate:{zip_gzip_base64:gzipSync(zip,{level:1}).toString('base64'),bundle_base64:bundle.toString('base64')}};
+ assert.equal(assertEquivalentRetainedCurrentLiveReceipt(old,alternate,authenticated),true);
+ for(const mutate of [
+  r=>({...r,source:{...r.source,source_pr:99}}),
+  r=>({...r,ledger_fingerprints:{}}),
+  r=>({...r,proof:{...r.proof,run_id:99}}),
+  r=>({...r,certificate:{...r.certificate,extra:'refused'}}),
+  r=>({...r,certificate:{zip_gzip_base64:gzipSync(Buffer.from('changed')).toString('base64'),bundle_base64:r.certificate.bundle_base64}}),
+  r=>({...r,certificate:{zip_gzip_base64:r.certificate.zip_gzip_base64,bundle_base64:Buffer.from('changed').toString('base64')}}),
+  r=>({...r,certificate:{zip_gzip_base64:'A'.repeat(100*1024),bundle_base64:r.certificate.bundle_base64}}),
+ ])assert.throws(()=>assertEquivalentRetainedCurrentLiveReceipt(old,mutate(desired),authenticated));
 });

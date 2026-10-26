@@ -3,6 +3,7 @@ import {runGitHubCommand} from './github-transport.mjs'
 import {readZipEntries} from './zip-entries.mjs'
 import {selectArtifactFiles} from './lanes/review-leases.mjs'
 import {createHash} from 'node:crypto'
+import {gzipSync,gunzipSync} from 'node:zlib'
 import {execFileSync} from 'node:child_process'
 import {ghJson} from './lanes/github-wire.mjs'
 import {currentRepository,isThisRepositoryOrHistorical} from './repository-identity.mjs'
@@ -131,14 +132,28 @@ export function openCurrentLivePackage(packageFiles,expected,authenticate=verify
  authenticate({zipBytes,bundleBytes,...expected});
  const files=readMetadataZip(zipBytes);
  if(packageFiles.retainedReceipt){const r=packageFiles.retainedReceipt,b=JSON.parse(files.get('current-live-binding.json'));if(!same(r.source,b.source)||!same(r.ledger_fingerprints,b.ledger_fingerprints)||r.proof.work_issue!==b.source.work_issue||r.proof.source_pr!==b.source.source_pr||r.proof.run_id!==b.producer.original.id||r.proof.reverification_run_id!==b.verifier_run_id||r.proof.proof_kind!==CURRENT_LIVE_KIND)throw Error('Retained authorizing fields differ from signed inner subject')}
- files.certificate={zip_base64:zipBytes.toString('base64'),bundle_base64:bundleBytes.toString('base64')};return files;
+ const originalZipBase64=zipBytes.toString('base64'),gzipZipBase64=gzipSync(zipBytes).toString('base64');
+ files.certificate=gzipZipBase64.length<originalZipBase64.length?{zip_gzip_base64:gzipZipBase64,bundle_base64:bundleBytes.toString('base64')}:{zip_base64:originalZipBase64,bundle_base64:bundleBytes.toString('base64')};return files;
 }
 export function retainedCurrentLivePackage(receipt,expected){
  if(Buffer.byteLength(JSON.stringify(receipt))>96*1024)throw Error('Retained receipt exceeds reviewed size bound');
- if(!receipt||Object.keys(receipt).sort().join(',')!=='certificate,ledger_fingerprints,proof,schema,source'||Object.keys(receipt.certificate??{}).sort().join(',')!=='bundle_base64,zip_base64')throw Error('Malformed retained certificate fields');
+ if(!receipt||Object.keys(receipt).sort().join(',')!=='certificate,ledger_fingerprints,proof,schema,source')throw Error('Malformed retained certificate fields');
+ const certificateKeys=Object.keys(receipt.certificate??{}).sort().join(','),oldEncoding=certificateKeys==='bundle_base64,zip_base64',gzipEncoding=certificateKeys==='bundle_base64,zip_gzip_base64';
+ if(!oldEncoding&&!gzipEncoding)throw Error('Malformed retained certificate fields');
  if(receipt?.schema!=='shared-db-current-live-reverification-receipt/v1'||!same(receipt.proof,expected))throw Error('Retained current-live locator differs');
  const decode=value=>{if(typeof value!=='string'||value.length>8*1024*1024)throw Error('Retained certificate bound exceeded');const b=Buffer.from(value,'base64');if(!b.length||b.toString('base64')!==value)throw Error('Malformed retained certificate');return b};
- const files=new Map([['current-live-content.zip',decode(receipt.certificate?.zip_base64)],['current-live-attestation.jsonl',decode(receipt.certificate?.bundle_base64)]]);files.retainedReceipt=receipt;return files;
+ let zipBytes=decode(oldEncoding?receipt.certificate.zip_base64:receipt.certificate.zip_gzip_base64);
+ if(gzipEncoding){try{zipBytes=gunzipSync(zipBytes,{maxOutputLength:4*1024*1024})}catch{throw Error('Malformed retained gzip certificate')}if(!zipBytes.length)throw Error('Malformed retained gzip certificate')}
+ const files=new Map([['current-live-content.zip',zipBytes],['current-live-attestation.jsonl',decode(receipt.certificate.bundle_base64)]]);files.retainedReceipt=receipt;return files;
+}
+export function assertEquivalentRetainedCurrentLiveReceipt(priorReceipt,desiredReceipt,authenticatedPackageFiles){
+ const priorFiles=retainedCurrentLivePackage(priorReceipt,desiredReceipt.proof);
+ const desiredFiles=retainedCurrentLivePackage(desiredReceipt,desiredReceipt.proof);
+ if(!same(priorReceipt.source,desiredReceipt.source)||!same(priorReceipt.ledger_fingerprints,desiredReceipt.ledger_fingerprints))throw Error('Prior retained authorizing fields differ');
+ const priorZip=priorFiles.get('current-live-content.zip'),priorBundle=priorFiles.get('current-live-attestation.jsonl'),candidateZip=authenticatedPackageFiles?.get('current-live-content.zip'),candidateBundle=authenticatedPackageFiles?.get('current-live-attestation.jsonl');
+ const desiredZip=desiredFiles.get('current-live-content.zip'),desiredBundle=desiredFiles.get('current-live-attestation.jsonl');
+ if(!Buffer.isBuffer(candidateZip)||!Buffer.isBuffer(candidateBundle)||!priorZip.equals(candidateZip)||!priorBundle.equals(candidateBundle)||!desiredZip.equals(candidateZip)||!desiredBundle.equals(candidateBundle))throw Error('Prior retained certificate bytes differ');
+ return true;
 }
 const readCurrentLiveArchive=(repository,artifact)=>{
  const bytes=runGitHubCommand(['api',`repos/${repository}/actions/artifacts/${artifact.id}/zip`],{encoding:null,timeoutMs:60000,maxBuffer:16*1024*1024})

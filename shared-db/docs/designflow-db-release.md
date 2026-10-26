@@ -305,6 +305,23 @@ view-definition, index, RLS, policy and grant-option mutation negatives. Each
 completion check records its own freshly captured output; the rejected generation46
 record remains unchanged in history and its immutable published contract.
 
+### Retained certificate storage remains bounded (#4655)
+
+A real current-live producer carries the complete authenticated original run,
+job and later-attempt facts. Its signed metadata ZIP can exceed the receipt's
+96 KiB limit after base64 encoding. New receipts therefore store that exact ZIP
+with lossless gzip compression; the signed ZIP itself and attestation bundle
+are unchanged. Legacy uncompressed receipts remain readable. The reader rejects
+mixed encodings, malformed data, receipts above the unchanged 96 KiB limit and
+ZIP expansion beyond the existing 4 MiB authenticated-package bound. Restored
+bytes must still pass the original signature, producer, source and ledger checks.
+This storage change grants no new production or application acceptance.
+
+Existing immutable receipt references are preserved when a lossless encoding
+changes. Their restored ZIP and bundle must exactly equal the newly authenticated
+candidate bytes and all source, ledger and proof fields must remain identical.
+A different encoding never authorizes a changed certificate or rewritten reference.
+
 ### Local RLS benchmark statement boundaries (#4655)
 
 Tracking producer delivery exposed two consecutive queue failures in the unchanged

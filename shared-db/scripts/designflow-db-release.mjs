@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
-import { CURRENT_LIVE_KIND, assertCurrentLiveProducer, validateCurrentLiveBinding, proveCurrentLiveAssignedSource, authenticatedArtifact404, currentLiveArtifactMetadata, openCurrentLivePackage, retainedCurrentLivePackage, CURRENT_LIVE_RECEIPT_PREFIX } from './lib/production-catalog-recovery.mjs';
+import { CURRENT_LIVE_KIND, assertCurrentLiveProducer, validateCurrentLiveBinding, proveCurrentLiveAssignedSource, authenticatedArtifact404, currentLiveArtifactMetadata, openCurrentLivePackage, retainedCurrentLivePackage, assertEquivalentRetainedCurrentLiveReceipt, CURRENT_LIVE_RECEIPT_PREFIX } from './lib/production-catalog-recovery.mjs';
 import { validateManifest, manifestDigest, verifyRequirementSource } from './lib/designflow-db-release.mjs';
 import { githubIo, parseQueueScope, trainIo } from './manage-migration-author-lanes.mjs';
 import { readyRecord, preparePreviewDispatch } from './db-flow/reconcile.mjs';
@@ -742,7 +742,14 @@ async function currentLiveEvidence(requirement,facts,ledger) {
       const ref=`${prefix}${run.id}`,message=CURRENT_LIVE_RECEIPT_PREFIX+JSON.stringify(receipt);
       if(Buffer.byteLength(message)>96*1024)throw Error('Metadata-only retained receipt exceeds reviewed size bound');
       const prior=githubIo.readRef(ref);
-      if(prior){if(githubIo.getCommit(prior)?.message!==message)throw Error('Immutable retained certificate changed');}
+      if(prior){
+        const priorMessage=githubIo.getCommit(prior)?.message;
+        if(priorMessage!==message){
+          if(!priorMessage?.startsWith(CURRENT_LIVE_RECEIPT_PREFIX)||Buffer.byteLength(priorMessage)>96*1024)throw Error('Immutable retained certificate changed');
+          let priorReceipt;try{priorReceipt=JSON.parse(priorMessage.slice(CURRENT_LIVE_RECEIPT_PREFIX.length))}catch{throw Error('Immutable retained certificate changed')}
+          assertEquivalentRetainedCurrentLiveReceipt(priorReceipt,receipt,packageFiles);
+        }
+      }
       else{const sha=githubIo.makeOwnerCommit(message);if(!githubIo.createRef(ref,sha)||githubIo.readRef(ref)!==sha)throw Error('Retained certificate preservation refused');}
       verified.push(result);
     }
