@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
 import { searchAccessStatus, buildDamSearchFilters, expandFallbackTerms, fetchHybridSearchPage, fetchSearchIds, getSearchMode, sortByRank } from "@/lib/dam-search";
+import { sortByConceptThenRank } from "@/lib/search-concept-rank";
 
 type WorkflowStatus = Database["public"]["Enums"]["workflow_status"];
 import type { AssetFilters } from "@/types/assets";
@@ -255,12 +256,16 @@ export function useStyleGroups(
             .select(`*, primary_asset:assets!style_groups_primary_asset_id_fkey(thumbnail_url, thumbnail_error)`)
             .in("id", ranked.ids.length ? ranked.ids : [NO_MATCH_UUID]);
           if (error) throw error;
-          const groups = sortByRank((data ?? []).map((row: any) => ({
-            ...row,
-            asset_count: row.asset_count ?? 0,
-            workflow_status: row.workflow_status ?? "other",
-            thumbnail_url: row.primary_asset?.thumbnail_url ?? row.primary_thumbnail_url ?? null,
-          })) as StyleGroup[], ranked.ids, (group) => group.id);
+          const groups = sortByConceptThenRank(
+            sortByRank((data ?? []).map((row: any) => ({
+              ...row,
+              asset_count: row.asset_count ?? 0,
+              workflow_status: row.workflow_status ?? "other",
+              thumbnail_url: row.primary_asset?.thumbnail_url ?? row.primary_thumbnail_url ?? null,
+            })) as StyleGroup[], ranked.ids, (group) => group.id),
+            searchTerm,
+            (group) => [group.sku, group.item_description, group.cover_description, group.item_short_description].filter(Boolean).join(" "),
+          );
           return { groups, totalCount: ranked.totalCount, totalIsLowerBound: ranked.totalIsLowerBound, pageSize: effectivePageSize, page };
         } catch (error) {
           if (searchAccessStatus(error)) throw error;
