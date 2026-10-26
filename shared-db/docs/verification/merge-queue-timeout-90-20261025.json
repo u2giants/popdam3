@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 4746,
+  "record": "merge-queue entry timeout 30->90 paired change (#4746 item 1, PR #4755)",
+  "merged_commit": "07dca16e7614162cc2e6e9cacb28b307dc42222d",
+  "generation_head_at_merge": "1f55ae4f282d8cacd8f8ae023f6a8c96e8bec596",
+  "apply": {
+    "command": "node scripts/configure-merge-queue.mjs --apply (from merged main 07dca16e7)",
+    "result": "ACTIVATED ruleset 25808522: read-back matches the approved one-PR queue exactly.",
+    "dry_run_note": "the dry-run seconds earlier correctly refused while the merge lane was still held (refs/db-coordination/merge, refs/db-coordination/author-acquisition); the apply re-ran its own gates after the lanes released"
+  },
+  "readback": {
+    "ruleset_id": 25808522,
+    "name": "main merge queue",
+    "enforcement": "active",
+    "merge_queue_parameters": {
+      "check_response_timeout_minutes": 90,
+      "grouping_strategy": "ALLGREEN",
+      "max_entries_to_build": 1,
+      "max_entries_to_merge": 1,
+      "merge_method": "MERGE",
+      "min_entries_to_merge": 1,
+      "min_entries_to_merge_wait_minutes": 0
+    },
+    "previous_ruleset": "25753925 (30-minute shape) no longer exists after the apply; only the exact shape is pinned, never the id"
+  },
+  "queue_mode_after_apply": "active",
+  "live_proof_of_rationale": {
+    "description": "four all-green entries starved out at the 30-minute entry timeout during the 2026-10-25 Actions/Blacksmith degradation while this PR itself waited to merge",
+    "drops_utc": [
+      "2026-10-25T16:35:57Z",
+      "~2026-10-25T17:22Z",
+      "~2026-10-25T19:22Z",
+      "queue convoy drops by other sessions' entries observed alongside"
+    ],
+    "merge_landed_utc": "2026-10-25T20:28Z"
+  }
+}

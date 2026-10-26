@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "work_issue": 4746,
+  "outcome": "ready-for-merge",
+  "pr": 4778,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4746/11",
+  "contract_sha256": "dd824c4ee97a5cac7fff8edd4519e8d9e367f5758a53e192726b7d7e8c06a478",
+  "head_sha": "9b89135731f51ba8cbba03b68d18574375bf9d66",
+  "base_sha": "0f66d63b7e4b5eb8dfe1dc69e8316d5d1d57e862",
+  "files_changed": [
+    "docs/verification/merge-queue-timeout-90-20261025.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/merge-queue-contract.test.mjs scripts/configure-merge-queue.test.mjs",
+      "exit_code": 0,
+      "evidence": "53/53 pass on merged main; the evidence records the live ruleset read-back (25808522, 90-minute shape) and queue-mode active."
+    }
+  ],
+  "assumptions_resolved": [
+    "Ruleset read-back captured from the live GitHub API post-apply."
+  ],
+  "stop_conditions_hit": []
+}

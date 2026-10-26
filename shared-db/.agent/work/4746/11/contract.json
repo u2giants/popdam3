@@ -1,0 +1,41 @@
+{
+  "schema_version": 2,
+  "generation": 11,
+  "evidence_parent": {
+    "work_issue": 4746,
+    "generation": 10,
+    "contract_sha256": "6ca3cbb6da0ddcfed5e33ed465b7382d42d54878b7a7ad693357f6cff8a08ac0"
+  },
+  "work_issue": 4746,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Closeout evidence for issue #4746: the merge-queue timeout 30->90 paired change (PR #4755, merge 07dca16e7), the immediate ruleset re-apply from merged main (ruleset 25808522, 90-minute shape, queue-mode active), and the four 2026-10-25 starvation drops that live-proved the rationale.",
+  "base_sha": "0f66d63b7e4b5eb8dfe1dc69e8316d5d1d57e862",
+  "dispatcher": "zcode-chat-unknown",
+  "worker": "zcode-chat-unknown",
+  "branch": "zcode/4746-closeout",
+  "worktree": "D:/repos/shared-db-worktrees/ci-speedup-4746",
+  "allowed_paths": [
+    "docs/verification/merge-queue-timeout-90-20261025.json",
+    ".agent/work/4746/11/*"
+  ],
+  "file_writes": [
+    "docs/verification/merge-queue-timeout-90-20261025.json",
+    ".agent/work/4746/11/contract.json",
+    ".agent/work/4746/11/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Never edit rulesets, branch protection, or required contexts from this PR; the ruleset change rode PR #4755."
+  ],
+  "required_checks": [
+    "node --test scripts/merge-queue-contract.test.mjs scripts/configure-merge-queue.test.mjs"
+  ],
+  "assumptions": [
+    "The recorded ruleset state was read back live from the GitHub API after the apply."
+  ],
+  "stop_conditions": [
+    "queue-mode stops reading active on main."
+  ]
+}
