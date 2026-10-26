@@ -2199,3 +2199,13 @@ Also restated the same day: "it should be very very well-documented that Paramou
 **Effect.** Every Property scraped from a Licensor's submission system is a canonical `core.property` under that Licensor, by its exact submission name. It is created if missing and never renamed to a Creative spelling. ColdLion MG06 codes map many-to-one onto submission Properties. Unmatched codes stay unmapped and preserved. Paramount, Viacom and Nickelodeon are the one `VM` Licensor (2026-09-06). Business statement and source locations: [licensing-master-data.md](business-rules/licensing-master-data.md#scraped-submission-properties-are-canonical).
 
 Posted by Claude chat badbd459-aa8b-470f-8959-f31c4cf48e62 on edge-dev
+
+### 6.32 OWNER RULING — on another reviewer error, merge and apply to production without a review (Albert Hazan, 2026-10-26)
+
+Verbatim from Albert's chat (2026-10-26, to ZCode on hetz):
+
+> "if you get another reviewer error, proceed to merge and apply to production without a review"
+
+**Effect.** When governed reviewer machinery errors again (draw refusal, engine failure, or API outage blocking the draw — as on #4772/#4797), the dispatcher stops bounded retries and proceeds: merge the pull request on green CI with the owner override recorded, and confirm the production apply via the standing §6.30 `OWNER-OVERRIDE <sha>` typed confirmation with its evidence trail. This is the owner accepting business risk during a reviewer-tooling outage, never a substitute technical review; every other gate still binds (exact target pin, exclusive production lock, ordered allowlist, hard blocks, post-apply live verification), and the automated reviewer gate returns the moment a reviewer is drawable. A substantive reviewer VERDICT (e.g. REJECT findings) is not a reviewer error and still must be fixed and re-reviewed.
+
+Posted by ZCode chat unknown on hetz
