@@ -14,8 +14,8 @@
 |------|--------|-----------------------------------|
 | 0. Owner approval | ✅ done 2026-10-22, reconfirmed 2026-10-23 | Plan header; Albert chat "Yes — build it" 2026-10-23 |
 | 0b. File PopDAM tracking issue | ✅ done 2026-10-23 | #486 |
-| 1. Spike: dims, VRAM, crop, bytea proof | 🟡 dims proven 768/768 on edge-dev GPU (2026-10-23 handoff); VRAM/crop/bytea proof still open | `HANDOFF.d/2026-10-23T1901Z-edge-dev-mimo-dinov3-siglip2-ready.md`; `docs/verification/image-similarity-spike.md` pending |
-| 2. shared-db: tables, public wrappers, trigger | 🟡 PR popcre/shared-db#4700 approved (exact-head DeepSeek APPROVE, all required CI green) and admitted to the merge queue; blocked ONLY by a wedged shared merge queue on 2026-10-23/24 night — merge, then merged-main preview → automatic production, then vector proof | popcre/shared-db#4700 + claim #4725; contract tests in that PR |
+| 1. Spike: dims, VRAM, crop, bytea proof | 🟡 dims/crop/speed proven on edge-dev GPU (2026-10-25): both models 768, whole-library staging at ~15–25 img/s; full 139,309-asset dual-embed computed and verified in `D:\ai\siglip2-embed\staged_vectors.jsonl`; VRAM fits 8 GB alongside resident services; bytea proof still open | `HANDOFF.d/2026-10-25T2140Z-hetz-zcode-dinov3-vectors-ready.md`; `docs/verification/image-similarity-spike.md` pending |
+| 2. shared-db: tables, public wrappers, trigger | 🟡 PR popcre/shared-db#4700 all checks green, owner review-waiver recorded 2026-10-25; blocked only by a merge-queue exact-SHA rehearsal deadlock — fix PR #4786 (+ issue #4787) in flight; then merge → merged-main rehearsal → automatic production apply → vector load | #4700, #4786, #4787; claim #4725 (takeover session owns lease) |
 | 3. GPU poller (pooler TLS, LOGIN role, heartbeat) | ⬜ open | worker install doc |
 | 4. Incremental trigger + backfill enqueue-only | ⬜ open | — |
 | 5. Edge `image-similarity` + UI + status route | ⬜ open | `docs/verification/image-similarity-ui.md` |
