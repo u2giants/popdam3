@@ -1,4 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createRef } from "react";
+import type { AgGridReact } from "ag-grid-react";
 import { describe, expect, it, vi } from "vitest";
 
 import { OrderListGrid } from "@/components/orders/OrderListGrid";
@@ -107,5 +109,45 @@ describe("OrderList grid: opening an existing order", () => {
     await waitFor(() => expect(screen.getByText("PO-1")).toBeTruthy(), { timeout: 10_000 });
     const struck = container.querySelector('.ag-row[style*="line-through"]');
     expect(struck).toBeTruthy();
+  });
+});
+
+describe("OrderList grid column visibility", () => {
+  it("keeps a column the user added after the page re-renders (e.g. rows loading on scroll)", async () => {
+    const rows = [row({})];
+    const datasource = {
+      getRows: (params: any) => {
+        void Promise.resolve().then(() => params.successCallback(rows, rows.length));
+      },
+    };
+    const ref = createRef<AgGridReact<OrderListRow>>();
+    const onCellEdited = vi.fn();
+    const onRelink = vi.fn();
+    const onEditOrder = vi.fn();
+    const view = (search: string) => (
+      <div style={{ height: 360, width: 720 }}>
+        <OrderListGrid
+          ref={ref}
+          datasource={datasource}
+          search={search}
+          onCellEdited={onCellEdited}
+          onRelink={onRelink}
+          onEditOrder={onEditOrder}
+        />
+      </div>
+    );
+    const { rerender } = render(view(""));
+    await waitFor(() => expect(screen.getByText("PO-1")).toBeTruthy(), { timeout: 10_000 });
+
+    const api = ref.current!.api;
+    expect(api.getColumn("line_number")?.isVisible()).toBe(false);
+    act(() => api.setColumnsVisible(["line_number"], true));
+    expect(api.getColumn("line_number")?.isVisible()).toBe(true);
+
+    // The Orders page re-renders as new row blocks load; that must not reset columns.
+    rerender(view(""));
+    rerender(view("x"));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(ref.current!.api.getColumn("line_number")?.isVisible()).toBe(true);
   });
 });

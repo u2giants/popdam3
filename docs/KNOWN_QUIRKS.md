@@ -1276,3 +1276,24 @@ already carries every field.
 **Operator view**: The normal behavior remains blocked. The exception is limited to the explicitly running `ai-tag-all` replacement with a unique run ID and a non-empty, unique list of UUID asset IDs. Its marker names both the old operation and the replacement run. While the marker matches, the freed capacity stays reserved for that replacement alone. If any provider ID value exists in the old row, worker memory, or a durable receipt, or the old submission is still in progress in the worker, supersession is refused and the worker remains blocked.
 
 **Do not change because**: The durable replacement marker `params.meta_reservation_supersedes = { op_key, run_id, state_revision, interruption_reason_code, replacement_run_id }` is an explicit operator decision to let a new request proceed while the old request may still finish and incur duplicate cost. The worker only honors it while every named field still matches, the old run remains interrupted for a non-transient reason with no auto-resume time, it has no provider ID value in storage or worker memory and no submission still in progress, and the replacement is the matching, uniquely identified, running `ai-tag-all` operation with a non-empty list of unique UUID asset IDs. The freed capacity stays reserved for the replacement alone and returns to the old ambiguous operation when the marker stops matching. This does not change, clear, recover, or cancel the old operation. Never add this marker without the owner's recorded direction; never use it to supersede an operation with a saved provider ID. This logic does not modify the provider key or model; the run plan must verify the existing key and exact configured model before dispatch.
+
+## 80. ColdLion Prepack Lines Carry Several Items on One Order Line (found 2026-10-26)
+
+**Symptom:** Orders received 2026-10-23 (62012010, 62011865, 62012009,
+62012011, 62012012, 62012008, 62011483) showed only 1–2 of their 4 SKUs in
+OrderList.
+
+**Cause:** A prepack is one ERP sales-order line that holds several distinct
+items (e.g. 62012010 line 1 = BRG62SESR01, BRG62SESR02, BRG62NBSF01,
+BRG62NBSF02). ColdLion sends every item, and all reach the ColdLion order
+intake staging table. The promotion into OrderList treated rows sharing an
+order + line number as successive versions of one row and kept only one, so
+the other items were discarded (9 lines affected).
+
+**Rule:** An ERP order line number is not unique per item. Identify a line by
+order + line + item, and give each prepack item its own position. Never
+dedupe staging rows by order + line alone.
+
+**Fix:** shared-db promotion change plus a re-run of promotion for the
+affected orders (tracked in `popcre/shared-db`). Re-running corrects existing
+rows in place and adds the missing items.
