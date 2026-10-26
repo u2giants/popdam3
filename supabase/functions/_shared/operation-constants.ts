@@ -25,6 +25,7 @@ export const OP_NAMES: Record<string, string> = {
   "relink-orphaned-assets": "Relink Orphaned Assets",
   "rich-pdf-extract": "Rich PDF Extract",
   "embed-dam-search": "Embed DAM Search",
+  "sg-embed-search": "Embed PopSG Search",
   "tag-popsg-files": "Tag PopSG Files",
 };
 
@@ -52,6 +53,7 @@ export const OP_LANES: Record<string, string> = {
   "relink-orphaned-assets": "style-groups",
   "rich-pdf-extract": "rich-pdf",
   "embed-dam-search": "search-index",
+  "sg-embed-search": "search-index",
   "tag-popsg-files": "popsg-tags",
 };
 
@@ -204,5 +206,6 @@ export const OP_ACTIONS: Record<string, string> = {
   "cleanup-mega-group-tags": "cleanup-mega-group-tags",
   "rich-pdf-extract": "rich-pdf-extract",
   "embed-dam-search": "embed-dam-search",
+  "sg-embed-search": "sg-embed-search",
   "tag-popsg-files": "tag-popsg-files",
 };
