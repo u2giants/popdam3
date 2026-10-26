@@ -25,10 +25,10 @@ import {
   IMAGE_SIM_ENABLED_KEY,
   IMAGE_SIM_MAX_WAIT_MS,
   IMAGE_SIM_POLL_INTERVAL_MS,
-  validateUploadPayload,
-  resolveTunables,
   type ImageSimMatch,
   type ImageSimResponse,
+  resolveTunables,
+  validateUploadPayload,
 } from "../_shared/image-similarity-config.ts";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -61,9 +61,7 @@ async function readConfigRows() {
 function configFlag(rows: Array<{ key: string; value: unknown }>, key: string): boolean {
   const row = rows.find((r) => r.key === key);
   const v = row?.value;
-  const inner = v && typeof v === "object" && "value" in (v as Record<string, unknown>)
-    ? (v as Record<string, unknown>).value
-    : v;
+  const inner = v && typeof v === "object" && "value" in (v as Record<string, unknown>) ? (v as Record<string, unknown>).value : v;
   if (typeof inner === "boolean") return inner;
   if (typeof inner === "string") return inner.trim().toLowerCase() === "true";
   return false;

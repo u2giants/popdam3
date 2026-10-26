@@ -79,11 +79,13 @@ describe("buildModelStamps", () => {
   });
 
   it("adds the previous stamp while a re-embed is in progress (empty-search window)", () => {
-    expect(buildModelStamps([
-      { key: "IMAGE_SIM_EMBEDDING_MODEL", value: "stamp-a" },
-      { key: "IMAGE_SIM_EMBEDDING_MODEL_PREVIOUS", value: "stamp-old" },
-      { key: "IMAGE_SIM_REEMBED_IN_PROGRESS", value: true },
-    ]).sort()).toEqual(["stamp-a", "stamp-old"]);
+    expect(
+      buildModelStamps([
+        { key: "IMAGE_SIM_EMBEDDING_MODEL", value: "stamp-a" },
+        { key: "IMAGE_SIM_EMBEDDING_MODEL_PREVIOUS", value: "stamp-old" },
+        { key: "IMAGE_SIM_REEMBED_IN_PROGRESS", value: true },
+      ]).sort(),
+    ).toEqual(["stamp-a", "stamp-old"]);
   });
 
   it("is empty before any stamp exists (nothing indexed yet)", () => {
