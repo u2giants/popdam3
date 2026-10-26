@@ -35,6 +35,20 @@ The full URL is stored in `assets.thumbnail_url`. The UI always loads thumbnails
 
 ---
 
+## SigLIP2 Text-Embed Service
+
+Turns typed search words into SigLIP2 vectors for `dam-search-ai`. Source
+`apps/text-embed/`; image `ghcr.io/u2giants/popdam-text-embed` built and deployed
+by `.github/workflows/publish-text-embed.yml` to Coolify app
+`popdam-text-embed` (UUID `vhwmf1pkqcjjuuuog3rwqy5g`, project PopDAM) at
+`https://text-embed.designflow.app` (Cloudflare A record, DNS-only). CPU torch,
+model baked into the image. Container env `EMBED_API_KEY`; Supabase function
+secrets `TEXT_EMBED_URL` / `TEXT_EMBED_KEY` (1Password vibe_coding "PopDAM
+text-embed SigLIP2 query key"). If it is down, search silently becomes
+keyword-only: check function logs for `text-embed call failed`, and check that
+`dam-search-ai` responses say `semantic: "siglip2"`. Replaced the temporary edge-dev
+trycloudflare tunnel on 2026-10-26 (that tunnel died and caused keyword-only search).
+
 ## Railway Worker
 
 All batch AI operations are handled by a persistent Node.js worker running on Railway, **not** by Supabase edge functions. The edge functions (`ai-tag`, `bulk-job-runner`) are legacy stubs or supporting roles.
