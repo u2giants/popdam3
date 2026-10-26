@@ -63,6 +63,7 @@ If restoration fails for any file:
 - MUST NOT host the database
 - MUST NOT implement search/filter/count logic (that belongs in the cloud DB)
 - MAY claim bounded DAM search-document embedding work through the governed lease RPC. The worker is the sole claimer; the edge function only computes vectors for live leased rows, and the database validates lease plus content hash before saving.
+- The cloud worker (not the bridge) also claims PopSG search-document embedding work through `claim_sg_search_embedding_documents` (shared-db #4437 stage 1, migration 20261025180137) and writes only through `upsert_sg_search_embedding` / `mark_sg_search_embedding_error` under the claim's lease token; document text is embedded by the apps/text-embed SigLIP2 text tower (`sg-embed-search`, see `docs/BULK_JOBS.md`). Until that migration reaches the database the operation fails honestly with a missing-RPC error instead of pretending success.
 - MUST NOT do AI tagging inference locally (unless explicitly added as a future phase)
 - MUST NOT require inbound networking from the cloud into the NAS
 - MUST NOT transfer full PSD/AI files to the cloud

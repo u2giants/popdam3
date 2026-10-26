@@ -63,6 +63,13 @@ export const config = {
   // Assets fetched per AI tagging batch
   aiBatchSize: optionalInt("AI_BATCH_SIZE", 50),
 
+  // apps/text-embed (SigLIP2 text tower) endpoint and shared secret. The
+  // database-managed values (admin_config.TEXT_EMBED_URL / _KEY) are
+  // authoritative; these environment values are only a worker fallback,
+  // mirroring the OpenRouter key rule.
+  textEmbedUrl: optional("TEXT_EMBED_URL", ""),
+  textEmbedKey: optional("TEXT_EMBED_KEY", ""),
+
   // Owner-selected operational destination for terminal bulk-operation failures.
   // Empty is intentional until an existing monitored destination is supplied.
   bulkOperationAlertWebhookUrl: optional("BULK_OPERATION_ALERT_WEBHOOK_URL", ""),
