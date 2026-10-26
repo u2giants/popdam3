@@ -230,40 +230,49 @@ corsServe(async (req) => {
 
     const pages: SearchPage[] = [];
     let lastError: unknown = null;
-    for (const variant of queryVariants) {
-      const { data, error } = await auth.client.rpc("search_dam_documents", {
-        p_query: variant,
-        p_filters: filters,
-        p_limit: limit,
-        p_offset: offset,
-        p_document_types: documentTypes,
-        p_query_embedding: variantEmbeddings.get(variant) ?? null,
-        p_min_rank: minRank,
-        p_min_semantic_score: minSemanticScore,
-      });
+    const variantPages = await Promise.all(
+      queryVariants.map(async (variant) => {
+        const { data, error } = await auth.client.rpc("search_dam_documents", {
+          p_query: variant,
+          p_filters: filters,
+          p_limit: limit,
+          p_offset: offset,
+          p_document_types: documentTypes,
+          p_query_embedding: variantEmbeddings.get(variant) ?? null,
+          p_min_rank: minRank,
+          p_min_semantic_score: minSemanticScore,
+        });
+        if (error) return { error, page: null };
+        const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+        const results: SearchHit[] = rows
+          .filter((row) => typeof row.entity_id === "string" && row.entity_id)
+          .map((row) => ({
+            document_type: String(row.document_type ?? ""),
+            entity_id: String(row.entity_id),
+            asset_id: (row.asset_id as string | null) ?? null,
+            style_group_id: (row.style_group_id as string | null) ?? null,
+            keyword_rank: (row.keyword_rank as number | null) ?? null,
+            semantic_rank: (row.semantic_rank as number | null) ?? null,
+            rank: Number(row.rank ?? 0),
+          }));
+        const first = rows.find((row) => row.total_count !== undefined && row.total_count !== null) ?? rows[0] ?? null;
+        return {
+          error: null,
+          page: {
+            results,
+            total_count: typeof first?.total_count === "number" ? first.total_count : 0,
+            has_more: first?.has_more === true,
+            facets: first?.facets && typeof first.facets === "object" ? (first.facets as Record<string, unknown>) : {},
+          } satisfies SearchPage,
+        };
+      }),
+    );
+    for (const { error, page } of variantPages) {
       if (error) {
         lastError = error;
         continue;
       }
-      const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
-      const results: SearchHit[] = rows
-        .filter((row) => typeof row.entity_id === "string" && row.entity_id)
-        .map((row) => ({
-          document_type: String(row.document_type ?? ""),
-          entity_id: String(row.entity_id),
-          asset_id: (row.asset_id as string | null) ?? null,
-          style_group_id: (row.style_group_id as string | null) ?? null,
-          keyword_rank: (row.keyword_rank as number | null) ?? null,
-          semantic_rank: (row.semantic_rank as number | null) ?? null,
-          rank: Number(row.rank ?? 0),
-        }));
-      const first = rows.find((row) => row.total_count !== undefined && row.total_count !== null) ?? rows[0] ?? null;
-      pages.push({
-        results,
-        total_count: typeof first?.total_count === "number" ? first.total_count : 0,
-        has_more: first?.has_more === true,
-        facets: first?.facets && typeof first.facets === "object" ? (first.facets as Record<string, unknown>) : {},
-      });
+      if (page) pages.push(page);
     }
     if (pages.length === 0) {
       return err("Search unavailable", searchAccessStatus(lastError) ?? 503);
