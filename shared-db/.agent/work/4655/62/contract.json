@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "generation": 62,
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 61,
+    "contract_sha256": "503b8de08ee93c9e5bc4fba4edd413cbd7e930dc9a475ab6e80098d123489476"
+  },
+  "goal": "Separate immutable read-only merged source identity from open-work admission while preserving all existing admission/reviewer closed-issue refusals",
+  "base_sha": "7e418bd89c0a2272b08163481129415c4ad7bcdf",
+  "branch": "codex/dflow-source-issue-binding-20261026",
+  "worktree": "/tmp/dflow-source-issue-binding-4655",
+  "dispatcher": "Codex chat 01a17580-c46e-7c92-9679-b0e5475e84d0",
+  "worker": "codex",
+  "allowed_paths": [
+    "scripts/designflow-db-release.mjs",
+    "scripts/designflow-db-release.test.mjs",
+    "docs/designflow-db-release.md",
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/merged-pr-issue-binding.test.mjs",
+    ".agent/work/4655/61/contract.json",
+    ".agent/work/4655/61/completion.json",
+    ".agent/work/4655/62/**"
+  ],
+  "file_writes": [
+    "scripts/designflow-db-release.mjs",
+    "scripts/designflow-db-release.test.mjs",
+    "docs/designflow-db-release.md",
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/merged-pr-issue-binding.test.mjs",
+    ".agent/work/4655/61/contract.json",
+    ".agent/work/4655/61/completion.json",
+    ".agent/work/4655/62/**"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions": [
+    "Owner authorized in this chat: The freeze is on reviewer repairs, not shipping. I authorize changing the review requirement for this release. Keep the production checks intact and finish the job without reviewer approval. No reviewer/toolkit repair or forged approval; all remaining gates intact.",
+    "Merged source4752 has zero closing links and workissue4646 remains OPEN. Use existing withMergedPrIssueBinding per declared requirement; no environment bypass, synthetic closinglink, broad sourceIo change or schema work.",
+    "A tiny injected I/O seam permits exercising actual sourceFacts with unchanged canonical facts. Native helper retains body/completion/version/permanent reservation and conflict checks.",
+    "Trusted verifier closure changes require fresh genuine certificate after eventual merge; no certificate execution or merge authorized here.",
+    "Root explicitly authorized prospective62 before expansion; retire only own unmerged61 evidence pair, retaining61 immutable ref and implementation history.",
+    "Private common identity verifier takes explicit requireOpen. Existing exported admission/reviewer bindings always require OPEN unchanged. Separately named read-only source binding accepts actual OPEN or CLOSED state only while enforcing complete immutable merged/source/body/evidence/published-contract/version/reservation identity and conflict checks. No environment flag, spoofed state, admission permission or write.",
+    "Tests must prove existing admission/reviewer closed-issue refusals unchanged; mocked governed-review test is offline with no provider calls."
+  ],
+  "prohibited_actions": [
+    "No SQL, database, production or shared-preview writes; no reviewer/toolkit repairs, forged approvals, erased rejections or weakening source/target/evidence bounds.",
+    "No foreign source edits, application merges or release decision."
+  ],
+  "required_checks": [
+    "node --test scripts/designflow-db-release.test.mjs scripts/merged-pr-issue-binding.test.mjs scripts/lib/production-catalog-recovery.test.mjs scripts/publish-work-stage-evidence.test.mjs scripts/run-governed-review.test.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "stop_conditions": [
+    "Stop on necessary authority/design expansion; never fabricate historical facts or relax conflicting-link or exact-source guards."
+  ]
+}

@@ -8,7 +8,7 @@ import { validateManifest, manifestDigest, verifyRequirementSource } from './lib
 import { githubIo, parseQueueScope, trainIo } from './manage-migration-author-lanes.mjs';
 import { readyRecord, preparePreviewDispatch } from './db-flow/reconcile.mjs';
 import { canonicalJson, sha256 } from './db-flow/evidence-bundle.mjs';
-import { admitIssue } from './lib/lanes/admission.mjs';
+import { admitIssue, mergedPrSourceIssues } from './lib/lanes/admission.mjs';
 import { formatEventComment } from './db-coordination-events.mjs';
 import { productionCatalogQuery, verifyCatalogProof } from './lib/designflow-db-catalog.mjs';
 import { readZipEntries } from './lib/zip-entries.mjs';
@@ -134,9 +134,10 @@ export function dispatchTitle(manifest, mode) {
   return `DB preview ${mode} ${manifest.commit_sha} PR${manifest.merged_preview_source_pr} ${manifest.preview_allowlist}`;
 }
 
-export function sourceFacts(requirement) {
+export function sourceFacts(requirement, sourceIo = { api, pages, content, githubIo }) {
+  const { api, pages, content, githubIo } = sourceIo;
   const pr = api(`repos/${CANONICAL}/pulls/${requirement.source_pr}`);
-  const linked = githubIo.closingIssuesForPr(requirement.source_pr);
+  const linked = mergedPrSourceIssues(githubIo, `${requirement.source_pr}:${requirement.work_issue}`);
   if (linked.length !== 1 || Number(linked[0].number) !== requirement.work_issue)
     throw Error('Canonical source must link exclusively to its required work issue');
   const main = api(`repos/${CANONICAL}/commits/main`).sha;

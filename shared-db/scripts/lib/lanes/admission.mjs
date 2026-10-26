@@ -129,7 +129,7 @@ export function parseMergedPrIssueBinding(value) {
   return {pr:Number(match[1]),issue:Number(match[2])}
 }
 
-export function verifyMergedPrIssueBinding({pr,issue}, io = githubIo) {
+function verifyMergedPrIdentity({pr,issue}, io, requireOpen) {
   const livePr=io.getPr(pr)
   if(!livePr?.merged_at||!/^[0-9a-f]{40}$/i.test(String(livePr?.head?.sha??'')))throw new LaneError(`merged PR issue binding refused: pull request #${pr} is not merged with a readable head`)
   const workLines=[...String(livePr.body??'').matchAll(/\bWork issue #(\d+)\b/gi)].map((m)=>Number(m[1]))
@@ -138,7 +138,9 @@ export function verifyMergedPrIssueBinding({pr,issue}, io = githubIo) {
   if(branchIssue&&Number(branchIssue[1])!==issue)throw new LaneError(`merged PR issue binding refused: branch ${livePr.head.ref} names issue #${branchIssue[1]}`)
   const work=io.getIssue(issue)
   if(!work||Number(work.number)!==issue)throw new LaneError(`merged PR issue binding refused: issue #${issue} is unreadable`)
-  if(String(work.state??'').toLowerCase()!=='open')throw new LaneError(`merged PR issue binding refused: issue #${issue} is not open; a binding never reopens closed work`)
+  const state=String(work.state??'').toLowerCase()
+  if(requireOpen&&state!=='open')throw new LaneError(`merged PR issue binding refused: issue #${issue} is not open; a binding never reopens closed work`)
+  if(!requireOpen&&!['open','closed'].includes(state))throw new LaneError(`merged PR source binding refused: issue #${issue} state is unreadable`)
   const prFiles=io.getPrFiles(pr)
   if(!Array.isArray(prFiles)||!prFiles.length)throw new LaneError(`merged PR issue binding refused: pull request #${pr} file inventory is unreadable`)
   for(const file of prFiles){
@@ -178,6 +180,23 @@ export function verifyMergedPrIssueBinding({pr,issue}, io = githubIo) {
   if(!versions.length||versions.length!==recorded.length||versions.some((v,i)=>v!==recorded[i]))throw new LaneError(`merged PR issue binding refused: PR migrations ${versions.join(',')||'none'} do not equal completion record ${recorded.join(',')||'none'}`)
   for(const version of versions)if(!io.readRef(`refs/db-claims/${version}`))throw new LaneError(`merged PR issue binding refused: version ${version} has no permanent claim reservation`)
   return {pr,issue,versions,state:String(work.state??'').toLowerCase()}
+}
+
+export function verifyMergedPrIssueBinding(binding, io = githubIo) {
+  return verifyMergedPrIdentity(binding,io,true)
+}
+
+// Historical identity only: this never supplies admission or reviewer adapters.
+export function mergedPrSourceIssues(io, value) {
+  const binding=parseMergedPrIssueBinding(value)
+  const linked=io.closingIssuesForPr(binding.pr)
+  if(!Array.isArray(linked))throw new LaneError('merged PR source binding refused: closing links are unreadable')
+  if(linked.length){
+    if(linked.length!==1||Number(linked[0]?.number)!==binding.issue)throw new LaneError(`merged PR issue binding refused: pull request #${binding.pr} already closes ${linked.map(item=>`#${item?.number}`).join(',')}`)
+    return linked
+  }
+  const verified=verifyMergedPrIdentity(binding,io,false)
+  return [{number:binding.issue,state:verified.state,bound:true}]
 }
 
 export function withMergedPrIssueBinding(io, value, log = (line)=>console.error(line)) {

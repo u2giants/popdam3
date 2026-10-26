@@ -1,3 +1,4 @@
+import {mergedPrSourceIssues} from './lib/lanes/admission.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { parseMergedPrIssueBinding, verifyMergedPrIssueBinding, withMergedPrIssueBinding, resolveAdmittedIssueForPr, reviewTargetIsRecordable } from './manage-migration-author-lanes.mjs'
@@ -203,3 +204,11 @@ test('inherited, partial, ambiguous, foreign and removed evidence never bind',()
   ]
   for(const [files,pattern] of cases)assert.throws(()=>verifyMergedPrIssueBinding({pr:2726,issue:2506},fixture({files}).io),pattern)
 })
+
+test('read-only merged source identity accepts closed work without granting admission',()=>{
+ const f=fixture({issueState:'closed'});
+ assert.deepEqual(mergedPrSourceIssues(f.io,'2726:2506'),[{number:2506,state:'closed',bound:true}]);
+ assert.throws(()=>verifyMergedPrIssueBinding({pr:2726,issue:2506},f.io),/not open/);
+ assert.throws(()=>withMergedPrIssueBinding(f.io,'2726:2506').closingIssuesForPr(2726),/not open/);
+ for(const overrides of [{issueState:'unknown'},{issueState:'closed',linked:[{number:77}]},{issueState:'closed',completion:{work_issue:77,pr:2726,migration_versions:['20260911213429']}},{issueState:'closed',refs:new Set()}])assert.throws(()=>mergedPrSourceIssues(fixture(overrides).io,'2726:2506'));
+});

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { canonicalJson, sha256 } from './db-flow/evidence-bundle.mjs';
 import { proposeTrain, trainRecordRef } from './db-flow/migration-train.mjs';
 import { manifestDigest } from './lib/designflow-db-release.mjs';
-import { assessRelease, runObserver, releasePolicy, dispatchTitle, verifyApplyReceipt, verifyAppliedFiles, workflowRuns, artifactContainsSource, assertObserverSource, publishAppStatus, prepareReleaseReady, productionRunMatches, verifyBatchProductionFiles, batchRunCandidate, validatedTrainRefFromLog } from './designflow-db-release.mjs';
+import { sourceFacts, assessRelease, runObserver, releasePolicy, dispatchTitle, verifyApplyReceipt, verifyAppliedFiles, workflowRuns, artifactContainsSource, assertObserverSource, publishAppStatus, prepareReleaseReady, productionRunMatches, verifyBatchProductionFiles, batchRunCandidate, validatedTrainRefFromLog } from './designflow-db-release.mjs';
 
 const head = 'a'.repeat(40), repository = 'popcre/designflow-tracking';
 const path = 'supabase/migrations/20261022194647_synthetic.sql', content = '-- synthetic only\n';
@@ -411,4 +411,29 @@ function currentLiveInputs(){return {mode:'current-live-reverification',source_p
 test('workflow JSON inputs preserve quoted values and reject duplicate/unknown identity keys',()=>{
  const input=currentLiveInputs();assert.equal(parseCurrentLiveInputs(JSON.stringify(input)).original_run_id,10);
  for(const raw of [JSON.stringify({...input,source_pr:'4735","main_sha":"'+'d'.repeat(40)}),JSON.stringify(input).replace('"source_pr":"4735"','"source_pr":"4735","source_pr":"4736"'),JSON.stringify(input).replace('"main_sha":','"m\\u0061in_sha":"'+'d'.repeat(40)+'","main_sha":'),JSON.stringify({...input,unknown:'value'}),JSON.stringify({...input,mode:'legacy-catalog-failure'}),JSON.stringify({...input,work_issue:3869}),JSON.stringify({...input,source_pr:'1e3'}),JSON.stringify(input).slice(0,-1)+',}'])assert.throws(()=>parseCurrentLiveInputs(raw));
+});
+
+function sourceBindingFixture(){
+ const migration='supabase/migrations/20261025125632_dflow_prod_milestone_schedule.sql';
+ const pr={number:4752,merged:true,merged_at:'2026-10-25T15:44:37Z',body:'Work issue #4646',head:{sha:'a'.repeat(40),ref:'codex/issue-4646-milestone'},base:{ref:'main',repo:{full_name:'popcre/shared-db'}},merge_commit_sha:'b'.repeat(40),changed_files:3};
+ const contract={schema_version:1,generation:1,work_issue:4646};
+ const completion={work_issue:4646,pr:4752,migration_versions:['20261025125632']};
+ const state={pr,linked:[],issueState:'open',reserved:true,completion};
+ const files=[{filename:'.agent/contract.json',status:'added'},{filename:'.agent/completion.json',status:'added'},{filename:migration,status:'added'}];
+ const githubIo={closingIssuesForPr:()=>state.linked,getPr:()=>state.pr,getIssue:n=>({number:n,state:state.issueState}),getPrFiles:()=>files,getFileAt:p=>JSON.stringify(p.endsWith('/completion.json')?state.completion:contract),readRef:()=>state.reserved?'c'.repeat(40):null};
+ const io={githubIo,api:p=>{if(p.endsWith('/pulls/4752'))return state.pr;if(p.endsWith('/commits/main'))return{sha:'d'.repeat(40)};if(p.includes('/compare/'))return{status:'ahead',behind_by:0};throw Error(p)},pages:()=>files,content:()=> '-- unchanged migration'};
+ return{state,io,required:{work_issue:4646,source_pr:4752,migrations:[]}};
+}
+test('actual sourceFacts accepts a rigorously verified merged reference-only work issue',()=>{
+ const f=sourceBindingFixture();const facts=sourceFacts(f.required,f.io);
+ assert.equal(facts.work_issue,4646);assert.equal(facts.source_pr,4752);assert.equal(facts.merge_in_main,true);assert.equal(facts.files.length,1);
+});
+test('actual sourceFacts preserves real links and refuses conflicting or invalid fallback evidence',()=>{
+ const linked=sourceBindingFixture();linked.state.linked=[{number:4646}];assert.equal(sourceFacts(linked.required,linked.io).work_issue,4646);
+ for(const mutate of [f=>f.state.linked=[{number:99}],f=>f.state.linked=[{number:4646},{number:99}],f=>f.state.pr.body='Refs #4646',f=>f.state.pr.merged_at=null,f=>f.state.issueState='unknown',f=>f.state.completion.work_issue=99,f=>f.state.completion.migration_versions=[],f=>f.state.reserved=false]){const f=sourceBindingFixture();mutate(f);assert.throws(()=>sourceFacts(f.required,f.io));}
+ const changed=sourceBindingFixture();let reads=0;changed.io.content=()=>++reads===1?'original':'modified';assert.throws(()=>sourceFacts(changed.required,changed.io),/changed after source approval/);
+});
+
+test('sourceFacts retains historical identity after reference-only work is genuinely closed',()=>{
+ const f=sourceBindingFixture();f.state.issueState='closed';assert.equal(sourceFacts(f.required,f.io).work_issue,4646);
 });
