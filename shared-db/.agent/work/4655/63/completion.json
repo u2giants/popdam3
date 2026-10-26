@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "work_issue": 4655,
+  "outcome": "ready-for-merge",
+  "pr": 4847,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4655/63",
+  "contract_sha256": "d7c02fc91d2b624bb21ed8242d7d4ccab9d27ca236bd6147ab0895da2fc5f161",
+  "base_sha": "f07920dd65e76add7da74362f03b597a489da4a6",
+  "head_sha": "2e64bf7ea280a38eff3517a13e9fa38a7d7a0aa5",
+  "files_changed": [
+    ".github/workflows/sync.yml",
+    "config/designflow-consumer-release-notify.yml",
+    "docs/designflow-db-release.md",
+    "scripts/test_designflow_release_notify_template.py",
+    "scripts/test_designflow_sync_notification_batch.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts/test_designflow_release_notify_template.py scripts/test_designflow_sync_notification_batch.py",
+      "exit_code": 0,
+      "evidence": ".................\n----------------------------------------------------------------------\nRan 17 tests in 1.528s\n\nOK\n"
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "GitHub transport conformance: 453 files scanned, every GitHub call goes through scripts/lib/github-transport.mjs.\n"
+    },
+    {
+      "command": "node scripts/check-repository-identity-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "Repository identity conformance OK: every remaining literal slug is allowlisted with an exact count (41 entries).\n"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "git diff --check exited 0 with no errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Published prospective contract before implementation. Existing readiness decisions and production proof paths unchanged.",
+    "Central completion is additive and runs after partial failure. Consumer activation waits for real central dispatch proof; existing notifications remain active.",
+    "17 actual classifier and dispatch tests passed including mixed changes, malformed metadata and partial sync failure. No database writes, reviewer invocation or toolkit repair."
+  ],
+  "stop_conditions_hit": []
+}

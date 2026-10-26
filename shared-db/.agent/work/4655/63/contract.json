@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "generation": 63,
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 62,
+    "contract_sha256": "b06928510b6ce072f56c376d4f36d04d04178bde3840bfdc5ddd34bdb2277192"
+  },
+  "goal": "Consolidate real DesignFlow mirror notifications into one canonical completion dispatch while preserving all per-head production checks and staged fallback",
+  "base_sha": "f07920dd65e76add7da74362f03b597a489da4a6",
+  "branch": "codex/dflow-notification-batch-4655",
+  "worktree": "/tmp/dflow-notification-batch-4655",
+  "dispatcher": "Codex chat 01a17580-c46e-7c92-9679-b0e5475e84d0",
+  "worker": "codex",
+  "allowed_paths": [
+    ".github/workflows/sync.yml",
+    "config/designflow-consumer-release-notify.yml",
+    "scripts/test_designflow_release_notify_template.py",
+    "scripts/test_designflow_sync_notification_batch.py",
+    "docs/designflow-db-release.md",
+    ".agent/work/4655/63/**"
+  ],
+  "file_writes": [
+    ".github/workflows/sync.yml",
+    "config/designflow-consumer-release-notify.yml",
+    "scripts/test_designflow_release_notify_template.py",
+    "scripts/test_designflow_sync_notification_batch.py",
+    "docs/designflow-db-release.md",
+    ".agent/work/4655/63/**"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions": [
+    "Owner in this chat explicitly authorizes dependency-lock fixes then sync notification consolidation. This maintenance authors no SQL, app merge or production setting change.",
+    "Existing production reader, catalog/source/attestation, target, pending/failure/success semantics, designated App, locks and fallback remain untouched. No reviewer repair or invocation.",
+    "Additive central completion notification first, regardless partial mirror failure, assesses actual current heads. Consumer mirror-only push filtering is published only after the central completion dispatch is proved. Real/mixed app changes and relevant PR events keep notifying.",
+    "All old signatures, parked source and unrestricted sandbox/develop branches are preserved. No new scheduler, receiver, credential or SQL executor."
+  ],
+  "prohibited_actions": [
+    "No SQL/database writes or production application/configuration mutation.",
+    "No status copying, pending suppression, weakened source/catalog proof, reviewer/toolkit repair, foreign evidence edits or app self-merge."
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts/test_designflow_release_notify_template.py scripts/test_designflow_sync_notification_batch.py",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs",
+    "git diff --check"
+  ],
+  "stop_conditions": [
+    "Stop for a prospective scope amendment before any needed path outside this list.",
+    "Stop before consumer cutover if central completion dispatch is not genuinely proved."
+  ]
+}

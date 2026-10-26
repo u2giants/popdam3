@@ -29,6 +29,14 @@
       "timeout-minutes": 5,
       "steps": [
         {
+          "name": "Recognize canonical mirror-only pushes without reading app source",
+          "id": "mirror-only",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "run": "python3 - <<'PY'\nimport json, os, re, subprocess\nfrom pathlib import Path\n\ndef mirror_only(event):\n    if os.environ.get(\"GITHUB_EVENT_NAME\") != \"push\":\n        return False\n    repository = os.environ.get(\"GITHUB_REPOSITORY\", \"\")\n    allowed = {\"popcre/designflow-\" + name for name in\n               (\"backend\", \"frontend\", \"tracking\", \"item-master\", \"data-syncing\", \"bff\")}\n    if repository not in allowed:\n        return False\n    before, after = event.get(\"before\", \"\"), event.get(\"after\", \"\")\n    if any(not re.fullmatch(r\"[a-f0-9]{40}\", value) or value == \"0\" * 40\n           for value in (before, after)):\n        return False\n    head = event.get(\"head_commit\") or {}\n    if (head.get(\"id\") != after or\n        head.get(\"author\", {}).get(\"name\") != \"shared-db-sync[bot]\" or\n        not re.fullmatch(r\"chore: sync shared-db @ popcre/shared-db@[a-f0-9]{7,40}\",\n                         head.get(\"message\", \"\").strip())):\n        return False\n    def read(endpoint):\n        result = subprocess.run([\"gh\", \"api\", \"repos/\" + repository + endpoint],\n                                check=True, capture_output=True, text=True, timeout=20)\n        if len(result.stdout.encode()) > 2 * 1024 * 1024:\n            raise ValueError(\"bounded metadata response exceeded\")\n        return json.loads(result.stdout)\n    def root(commit):\n        record = read(\"/git/commits/\" + commit)\n        if record.get(\"sha\") != commit:\n            raise ValueError(\"commit identity changed\")\n        tree_sha = record[\"tree\"][\"sha\"]\n        if not re.fullmatch(r\"[a-f0-9]{40}\", tree_sha):\n            raise ValueError(\"invalid root identity\")\n        record = read(\"/git/trees/\" + tree_sha)\n        if record.get(\"sha\") != tree_sha or record.get(\"truncated\") is not False:\n            raise ValueError(\"incomplete root\")\n        entries = record[\"tree\"]\n        if not isinstance(entries, list) or len(entries) > 10000:\n            raise ValueError(\"invalid root entries\")\n        result = {}\n        for entry in entries:\n            path = entry[\"path\"]\n            if not isinstance(path, str) or not path or \"/\" in path or path in result:\n                raise ValueError(\"ambiguous root path\")\n            mode, kind, sha = entry[\"mode\"], entry[\"type\"], entry[\"sha\"]\n            if kind not in (\"blob\", \"tree\", \"commit\") or not re.fullmatch(r\"[a-f0-9]{40}\", sha):\n                raise ValueError(\"invalid root entry\")\n            result[path] = (mode, kind, sha)\n        return result\n    old, new = root(before), root(after)\n    old_mirror, new_mirror = old.pop(\"shared-db\", None), new.pop(\"shared-db\", None)\n    return bool(old_mirror and new_mirror and old_mirror[:2] == (\"040000\", \"tree\")\n                and new_mirror[:2] == (\"040000\", \"tree\")\n                and old_mirror != new_mirror and old == new)\n\ntry:\n    event = json.loads(Path(os.environ[\"GITHUB_EVENT_PATH\"]).read_text())\n    skip = mirror_only(event)\nexcept Exception:\n    skip = False  # Uncertain metadata always retains the existing notification.\nwith open(os.environ[\"GITHUB_OUTPUT\"], \"a\") as output:\n    output.write(\"skip=\" + str(skip).lower() + \"\\n\")\nprint(\"Canonical mirror-only push: completion notifier covers it\" if skip\n      else \"Retaining the normal central notification\")\nPY\n"
+        },
+        {
           "name": "Mint dedicated central dispatch token",
           "id": "dispatch-token",
           "uses": "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1",
@@ -38,14 +46,16 @@
             "owner": "popcre",
             "repositories": "shared-db",
             "permission-actions": "write"
-          }
+          },
+          "if": "steps.mirror-only.outputs.skip != 'true'"
         },
         {
           "name": "Request existing central release check",
           "env": {
             "GH_TOKEN": "${{ steps.dispatch-token.outputs.token }}"
           },
-          "run": "printf '%s' '{\"ref\":\"main\"}' | gh api --method POST \\\n  repos/popcre/shared-db/actions/workflows/designflow-db-release.yml/dispatches \\\n  --input -\n"
+          "run": "printf '%s' '{\"ref\":\"main\"}' | gh api --method POST \\\n  repos/popcre/shared-db/actions/workflows/designflow-db-release.yml/dispatches \\\n  --input -\n",
+          "if": "steps.mirror-only.outputs.skip != 'true'"
         }
       ]
     }

@@ -347,3 +347,11 @@ The pinned attestation build type is `https://actions.github.io/buildtypes/workf
 Declared release requirements use a separately named read-only merged-source identity binding when GitHub has no closing link. The existing body, current completion, migration-version and permanent reservation checks remain mandatory; conflicting real links refuse. This changes the trusted reader closure and requires a fresh certificate after merge.
 
 Read-only source identity accepts genuinely open or closed work after proving the same immutable merged-head evidence, published contract and reserved migrations. Admission and reviewer bindings still require open work, with no closed-work option or state override.
+
+## Consolidated mirror notifications (issue #4655)
+
+The canonical sync workflow sends one readiness notification after the complete consumer-sync matrix, including partial failure or cancellation. It reads the actual current application heads through the existing readiness workflow. A failed sync stays failed; the notification does not certify delivery or copy any status. The normal periodic fallback and every production proof, App binding, and exact-head readiness requirement remain unchanged.
+
+Rollout is additive: merge and prove the central completion notification before activating the consumer filter. Keep existing consumer notifications active until that proof exists. The canonical consumer template skips only an authenticated mirror-only push: its bot identity and message must match, and bounded root-tree metadata must prove that only the shared-db tree changed. Real application changes, mixed changes, relevant production PR events, unknown metadata, and API errors all retain their normal notification. Filtering affects duplicate delivery only, never readiness decisions or pending/failure/success publication.
+
+Issue #4655 owns the template and all six byte-identical consumer copies. Unit tests exercise the actual classifier and completion dispatch, including partial failures, malformed metadata, mixed changes, and dispatch failures. Synthetic tests do not replace actual central dispatch and consumer rollout evidence recorded on that issue.
