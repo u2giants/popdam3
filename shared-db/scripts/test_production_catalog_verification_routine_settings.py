@@ -91,6 +91,61 @@ class RoutineSettingTests(unittest.TestCase):
         targets = self._derive("alter function app.f(numeric(10,2)) owner to postgres;\n")
         self.assertTrue(any("not safely parseable" in n for n in targets.notes))
 
+    def test_set_schema_is_not_a_proconfig_setting(self):
+        targets = self._derive("alter function app.f() set schema other;\n")
+        self.assertEqual(targets.functions, ["app.f"])
+        self.assertEqual(targets.function_settings, [])
+
+    def test_set_to_default_is_reset(self):
+        for stmt in (
+            "alter function app.f(integer) set work_mem to default;",
+            "alter function app.f(integer) set work_mem = default;",
+        ):
+            targets = self._derive(stmt + "\n")
+            self.assertEqual(
+                targets.function_settings,
+                [("app.f", "app.f(integer)", "work_mem", "reset")],
+                stmt)
+
+    def test_create_or_replace_of_one_overload_keeps_other_overloads(self):
+        targets = self._derive(
+            "alter function app.f(integer) set work_mem = '1MB';\n"
+            "alter function app.f(text) set search_path = 'public';\n"
+            "create or replace function app.f(integer) returns int language sql as $$select 1$$;\n")
+        self.assertEqual(
+            targets.function_settings,
+            [("app.f", "app.f(text)", "search_path", "set")])
+
+    def test_parenthesized_type_args_derive_routine_existence(self):
+        targets = self._derive("alter function app.f(numeric(10,2)) set work_mem = '1MB';\n")
+        self.assertEqual(targets.functions, ["app.f"])
+        # Signature stays unassertable (complex type spelling), but the routine
+        # is derived and the setting is tracked at family level (#4776).
+        self.assertEqual(targets.function_settings, [("app.f", None, "work_mem", "set")])
+        self.assertFalse(any("not safely parseable" in n for n in targets.notes))
+        self.assertTrue(any("family only" in n for n in targets.notes))
+
+    def test_create_or_replace_of_unnormalizable_overload_keeps_other_families_only(self):
+        targets = self._derive(
+            "alter function app.f(integer) set work_mem = '1MB';\n"
+            "alter function app.f(text) set search_path = 'public';\n"
+            "create or replace function app.f(numeric(10,2)) returns numeric language sql as $$select 1$$;\n")
+        # Unresolvable create still cannot pin an overload, so the family is
+        # cleared (false-negative) rather than left asserting a wiped proconfig.
+        self.assertEqual(targets.function_settings, [])
+
+    def test_reset_all_with_unnormalizable_args_clears_family_settings(self):
+        targets = self._derive(
+            "alter function app.f(integer) set work_mem = '1MB';\n"
+            "alter function app.f(migration_enum) reset all;\n")
+        self.assertEqual(targets.function_settings, [("app.f", None, "all", "reset")])
+
+    def test_bare_reset_all_clears_family_settings(self):
+        targets = self._derive(
+            "alter function app.f(integer) set work_mem = '1MB';\n"
+            "alter function app.f reset all;\n")
+        self.assertEqual(targets.function_settings, [("app.f", None, "all", "reset")])
+
 
 if __name__ == "__main__":
     unittest.main()

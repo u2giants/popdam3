@@ -207,8 +207,11 @@ CREATE_VIEW_RE = re.compile(
     r"^\s*create\s+(?:or\s+replace\s+)?(?:materialized\s+|recursive\s+)?view\s+"
     rf"(?:if\s+not\s+exists\s+)?{QUALIFIED}"
 )
+# One nesting level covers type modifiers (`numeric(10,2)`); deeper shapes are
+# left to the "not safely parseable" note rather than over-matched.
+ROUTINE_ARGLIST = r"(\((?:[^()]|\([^()]*\))*\))?"
 CREATE_ROUTINE_RE = re.compile(
-    rf"^\s*create\s+(?:or\s+replace\s+)?(?:function|procedure)\s+{QUALIFIED}"
+    rf"^\s*create\s+(?:or\s+replace\s+)?(?:function|procedure)\s+{QUALIFIED}\s*{ROUTINE_ARGLIST}"
 )
 # `alter view` matters as much as `alter table` here: `alter view
 # api.dam_order_list set (security_invoker = true)` (20260810110000) is a real
@@ -228,9 +231,11 @@ ALTER_RELATION_RE = re.compile(
 # `pg_proc.proconfig`. It names a routine that must still exist and a setting
 # whose presence is a catalog fact, so it is derived and checked rather than
 # leaving the batch with "nothing to verify" (production run 40209290700).
+# The trailing group captures the rest of the clause so `SET x TO|{=} DEFAULT`
+# and `SET SCHEMA y` can be told apart from a proconfig write (#4776).
 ALTER_ROUTINE_SETTING_RE = re.compile(
-    rf"^\s*alter\s+(?:function|procedure|routine)\s+{QUALIFIED}\s*(\([^()]*\))?\s+"
-    rf"(set|reset)\s+({IDENT}|all)\b"
+    rf"^\s*alter\s+(?:function|procedure|routine)\s+{QUALIFIED}\s*{ROUTINE_ARGLIST}\s+"
+    rf"(set|reset)\s+({IDENT}|all)\b(.*)$"
 )
 ALTER_ROUTINE_HEAD_RE = re.compile(r"^\s*alter\s+(?:function|procedure|routine)\b")
 ALTER_SCHEMA_RENAME_RE = re.compile(
@@ -2421,6 +2426,8 @@ def normalize_function_acl_signature(signature: str) -> tuple[str | None, str | 
             if mode.group(1) == "out": continue
         # Parenthesized type modifiers and quoted forms require a SQL parser;
         # the current lexer must not call to_regprocedure with invalid input.
+        # (`numeric(10,2)` is unassertable here on purpose; the ALTER path still
+        # derives family existence for it. #4776.)
         if any(c in value for c in '()"'):
             return None, "complex or quoted routine argument types need explicit catalog evidence"
         words = value.split()
@@ -2874,18 +2881,49 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                     functions.add(name)
                     # CREATE OR REPLACE rewrites proconfig from its own SET
                     # clauses; an earlier ALTER ... SET no longer describes it.
-                    settings = {k: v for k, v in settings.items() if k[0] != name}
+                    # Only this overload is rewritten (#4776).
+                    arguments = match.group(3)
+                    if arguments:
+                        created_signature, _ = normalize_function_acl_signature(name + arguments)
+                    else:
+                        created_signature = None
+                    if created_signature is not None:
+                        settings = {
+                            k: v for k, v in settings.items()
+                            if k[:2] != (name, created_signature)
+                        }
+                    else:
+                        settings = {k: v for k, v in settings.items() if k[0] != name}
                 continue
             if match := ALTER_ROUTINE_SETTING_RE.match(statement):
                 name = f"{match.group(1)}.{match.group(2)}"
                 arguments, action, setting = match.group(3), match.group(4), match.group(5)
+                rest = match.group(6) or ""
                 functions.add(name)
+                # #4776: `SET SCHEMA x` moves the routine; it does not write
+                # proconfig. (`SET schema TO|{=} ...` would be a GUC form.)
+                if action == "set" and setting == "schema" and not re.match(r"\s*(?:to|=)\b", rest):
+                    continue
                 signature = None
                 if arguments is not None:
                     signature, problem = normalize_function_acl_signature(name + arguments)
                     if signature is None:
                         notes.append(f"{version}: routine setting target `{name}{arguments}` is checked by family only: {problem}")
-                if setting == "all":
+                # #4776: `SET x {TO|=} DEFAULT` removes the proconfig entry.
+                if action == "set" and re.match(r"\s*(?:to|=)\s*default\b", rest):
+                    action = "reset"
+                if action == "reset" and signature is None:
+                    # Bare or unnormalizable RESET cannot be pinned to one
+                    # overload. Clear every expectation it may have wiped so a
+                    # later assertion cannot demand a value already removed.
+                    if setting == "all":
+                        settings = {k: v for k, v in settings.items() if k[0] != name}
+                    else:
+                        settings = {
+                            k: v for k, v in settings.items()
+                            if not (k[0] == name and k[2] == setting)
+                        }
+                elif setting == "all":
                     settings = {k: v for k, v in settings.items() if k[:2] != (name, signature)}
                 settings.pop((name, signature, setting), None)
                 settings[(name, signature, setting)] = (name, signature, setting, action)
