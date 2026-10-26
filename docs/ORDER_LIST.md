@@ -53,7 +53,11 @@ duplicates. **Prepack trap:** ColdLion's prepack import was keeping one item per
 prepack line, so the Google refresh inserted the 24 missing components (POs
 62011865, 62012009–62012012). They were deleted again the same day (backup kept
 privately) to avoid duplicates once the prepack import fix backfills them. Until
-that fix lands, a rerun will re-insert them — delete them again or wait.
+that fix landed (shared-db #4823, 2026-10-26). The refresh now also holds a new
+Google line with a blank quantity whose PO + style already exists in ColdLion
+(reason `blank_quantity_coldlion_overlap`); the 4 older blank-quantity Google
+duplicates on PO 62011483 were deleted (backup kept privately). A dry run after
+both changes inserts nothing.
 
 ## Database contract
 
