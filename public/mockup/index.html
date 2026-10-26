@@ -18793,10 +18793,11 @@ for(const id in TOOLS){ if(TOOLS[id].ready) attachMockupSave(document.getElement
 (async function loadFromLink(){
   const q=new URLSearchParams(location.search);
   const art=q.get("art"); if(!art) return;
+  // capture the link's own route now, before the app's boot can normalize the hash
+  const route0=(location.hash.replace(/^#\/?/,"")||"").toLowerCase();
+  const explicit=TOOLS[route0]?route0:null;
   let name=q.get("name")||"";
   try{ if(!name) name=decodeURIComponent(new URL(art,location.href).pathname.split("/").pop()||"")||"art"; }catch(_){ name="art"; }
-  const wanted=q.get("product")||( /\.(ai|pdf|psd|psb)$/i.test(name) ? "shadowbox" : "canvas" );
-  const product=TOOLS[wanted]?wanted:"canvas";
   const note=(msg)=>{ const t=document.createElement("p");
     t.setAttribute("role","status");
     t.textContent=msg;
@@ -18806,11 +18807,19 @@ for(const id in TOOLS){ if(TOOLS[id].ready) attachMockupSave(document.getElement
   let blob;
   try{ const r=await fetch(art,{credentials:"omit"}); if(!r.ok) throw new Error("HTTP "+r.status); blob=await r.blob(); }
   catch(e){ return note("The art could not be loaded from the link ("+((e&&e.message)||e)+"). Save it and drop it here instead."); }
-  if(!location.hash.replace(/^#\/?/,"")) location.hash="#/"+product;
+  // the product: an explicit #/route in the link wins; else the file type decides.
+  // A rendered image (PopDAM thumbnails are JPGs even when the source file is .ai) opens in Canvas.
+  let product=explicit;
+  if(!product){
+    const looksImage=/^image\//.test(blob.type||"");
+    const wanted=q.get("product")||( looksImage ? "canvas" : /\.(ai|pdf|psd|psb)$/i.test(name) ? "shadowbox" : "canvas" );
+    product=TOOLS[wanted]?wanted:"canvas";
+  }
+  if((location.hash.replace(/^#\/?/,"")||"").toLowerCase()!==product) location.hash="#/"+product;
   await new Promise(res=>{ window.addEventListener("hashchange",res,{once:true}); setTimeout(res,400); });
   // a timer, not an animation frame: frames never fire while the tab paints in the background
   await new Promise(res=>setTimeout(res,100));
-  const inp=document.querySelector('.tool:not([hidden]) input[type="file"]');
+  const inp=document.querySelector("#tool-"+product+' input[type="file"]');
   if(!inp) return note("No product page is open. Pick a product, then drop the file.");
   try{
     const f=new File([blob],name,{type:blob.type||"application/octet-stream"});
