@@ -251,3 +251,27 @@ test('legacy retained receipts remain immutable while equivalent gzip encodings 
   r=>({...r,certificate:{zip_gzip_base64:'A'.repeat(100*1024),bundle_base64:r.certificate.bundle_base64}}),
  ])assert.throws(()=>assertEquivalentRetainedCurrentLiveReceipt(old,mutate(desired),authenticated));
 });
+
+import {selectCurrentLivePackageFiles} from './production-catalog-recovery.mjs'
+import {readZipEntries} from './zip-entries.mjs'
+import {selectArtifactFiles} from './lanes/review-leases.mjs'
+test('current-live artifact ZIP selection preserves non-UTF8 signed ZIP and bundle bytes',()=>{
+ const zipBytes=Buffer.from([0x50,0x4b,0x03,0x04,0xff,0x80,0x00,0xfe]);
+ const bundleBytes=Buffer.from([0xff,0x00,0x81,0x7b,0x7d]);
+ const archive=execFileSync('python3',['-c','import sys,json,zipfile,io,base64;b=io.BytesIO();z=zipfile.ZipFile(b,"w",zipfile.ZIP_DEFLATED);[z.writestr(k,base64.b64decode(v)) for k,v in json.load(sys.stdin).items()];z.close();sys.stdout.buffer.write(b.getvalue())'],{input:JSON.stringify({'current-live-content.zip':zipBytes.toString('base64'),'current-live-attestation.jsonl':bundleBytes.toString('base64')})});
+ const entries=readZipEntries(archive);
+ const textFiles=selectArtifactFiles(entries,['current-live-content.zip','current-live-attestation.jsonl']);
+ assert.equal(typeof textFiles.get('current-live-content.zip'),'string');
+ assert.notDeepEqual(Buffer.from(textFiles.get('current-live-content.zip')),zipBytes);
+ const files=selectCurrentLivePackageFiles(entries);
+ assert.deepEqual(files.get('current-live-content.zip'),zipBytes);
+ assert.deepEqual(files.get('current-live-attestation.jsonl'),bundleBytes);
+ assert.throws(()=>readZipEntries(Buffer.from('malformed archive')));
+});
+test('current-live package selector refuses missing ambiguous malformed or excessive members',()=>{
+ const valid=()=>new Map([['current-live-content.zip',Buffer.from('zip')],['current-live-attestation.jsonl',Buffer.from('bundle')]]);
+ for(const mutate of [m=>m.delete('current-live-content.zip'),m=>m.set('nested/current-live-content.zip',Buffer.from('other')),m=>m.set('unexpected',Buffer.from('other')),m=>{m.delete('current-live-content.zip');m.set('../current-live-content.zip',Buffer.from('zip'))},m=>m.set('current-live-content.zip','zip'),m=>m.set('current-live-attestation.jsonl',Buffer.alloc(0)),m=>m.set('current-live-content.zip',Buffer.alloc(4*1024*1024+1))]){
+  const members=valid();mutate(members);assert.throws(()=>selectCurrentLivePackageFiles(members));
+ }
+ assert.throws(()=>selectCurrentLivePackageFiles({}));
+});

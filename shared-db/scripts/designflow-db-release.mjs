@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
-import { CURRENT_LIVE_KIND, assertCurrentLiveProducer, validateCurrentLiveBinding, proveCurrentLiveAssignedSource, authenticatedArtifact404, currentLiveArtifactMetadata, openCurrentLivePackage, retainedCurrentLivePackage, assertEquivalentRetainedCurrentLiveReceipt, CURRENT_LIVE_RECEIPT_PREFIX } from './lib/production-catalog-recovery.mjs';
+import { selectCurrentLivePackageFiles, CURRENT_LIVE_KIND, assertCurrentLiveProducer, validateCurrentLiveBinding, proveCurrentLiveAssignedSource, authenticatedArtifact404, currentLiveArtifactMetadata, openCurrentLivePackage, retainedCurrentLivePackage, assertEquivalentRetainedCurrentLiveReceipt, CURRENT_LIVE_RECEIPT_PREFIX } from './lib/production-catalog-recovery.mjs';
 import { validateManifest, manifestDigest, verifyRequirementSource } from './lib/designflow-db-release.mjs';
 import { githubIo, parseQueueScope, trainIo } from './manage-migration-author-lanes.mjs';
 import { readyRecord, preparePreviewDispatch } from './db-flow/reconcile.mjs';
@@ -728,7 +728,7 @@ async function currentLiveEvidence(requirement,facts,ledger) {
       if(!packageFiles){
         if(a.workflow_run?.id!==run.id||a.workflow_run?.head_sha!==run.head_sha)throw Error('Current-live artifact producer changed');
         const bytes=runGitHubCommand(['api',`repos/${CANONICAL}/actions/artifacts/${a.id}/zip`],{encoding:null,timeoutMs:60000,maxBuffer:16*1024*1024});if(a.digest!==`sha256:${hash(bytes)}`)throw Error('Current-live artifact digest changed');
-        packageFiles=selectArtifactFiles(readZipEntries(bytes),['current-live-content.zip','current-live-attestation.jsonl']);
+        packageFiles=selectCurrentLivePackageFiles(readZipEntries(bytes));
       }
       const files=openCurrentLivePackage(packageFiles,{repositoryId:repo.id,ownerId:repo.owner?.id,verifierSha:run.head_sha,runId:run.id,runAttempt:run.run_attempt});
       const binding=JSON.parse(files.get('current-live-binding.json')),catalogBytes=files.get('production-catalog-verification.json'),catalog=JSON.parse(catalogBytes);

@@ -1,7 +1,6 @@
 import {verifyCurrentLiveAttestation,readMetadataZip} from './current-live-attestation.mjs'
 import {runGitHubCommand} from './github-transport.mjs'
 import {readZipEntries} from './zip-entries.mjs'
-import {selectArtifactFiles} from './lanes/review-leases.mjs'
 import {createHash} from 'node:crypto'
 import {gzipSync,gunzipSync} from 'node:zlib'
 import {execFileSync} from 'node:child_process'
@@ -155,10 +154,21 @@ export function assertEquivalentRetainedCurrentLiveReceipt(priorReceipt,desiredR
  if(!Buffer.isBuffer(candidateZip)||!Buffer.isBuffer(candidateBundle)||!priorZip.equals(candidateZip)||!priorBundle.equals(candidateBundle)||!desiredZip.equals(candidateZip)||!desiredBundle.equals(candidateBundle))throw Error('Prior retained certificate bytes differ');
  return true;
 }
+export function selectCurrentLivePackageFiles(entries){
+ const expected=['current-live-content.zip','current-live-attestation.jsonl'];
+ if(!(entries instanceof Map)||entries.size!==expected.length)throw Error('Current-live artifact must contain exactly two package members');
+ const selected=new Map();
+ for(const name of expected){
+  const bytes=entries.get(name);
+  if(!Buffer.isBuffer(bytes)||!bytes.length||bytes.length>4*1024*1024)throw Error(`Invalid current-live package member: ${name}`);
+  selected.set(name,bytes);
+ }
+ return selected;
+}
 const readCurrentLiveArchive=(repository,artifact)=>{
  const bytes=runGitHubCommand(['api',`repos/${repository}/actions/artifacts/${artifact.id}/zip`],{encoding:null,timeoutMs:60000,maxBuffer:16*1024*1024})
  if(`sha256:${createHash('sha256').update(bytes).digest('hex')}`!==artifact.digest)throw Error('Certificate ZIP digest differs')
- return selectArtifactFiles(readZipEntries(bytes),['current-live-content.zip','current-live-attestation.jsonl'])
+ return selectCurrentLivePackageFiles(readZipEntries(bytes))
 }
 export function verifyCurrentLiveEvidence(e,io,read=ghJson,repository=currentRepository(),proveApproval=currentLiveApproval,readArchive=readCurrentLiveArchive,openPackage=openCurrentLivePackage,artifactMetadata=currentLiveArtifactMetadata) {
  try {

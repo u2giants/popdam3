@@ -9,9 +9,9 @@ const zip=(files={'current-live-binding.json':'{}','production-catalog-verificat
 function fixture(){
  const zipBytes=zip(),hash=createHash('sha256').update(zipBytes).digest('hex')
  // Shape pinned to actual gh verificationResult from the official cli/cli
- // attest-demo fixture. This injected result tests policy, not cryptography.
+ // attest-demo fixture and authenticated current-live run40258907625. This injected result tests policy, not cryptography.
  const certificate={issuer:'https://token.actions.githubusercontent.com',subjectAlternativeName:signer,buildSignerURI:signer,buildSignerDigest:sha,sourceRepositoryURI:uri,sourceRepositoryDigest:sha,sourceRepositoryRef:'refs/heads/main',sourceRepositoryIdentifier:'11',sourceRepositoryOwnerIdentifier:'12',runInvocationURI:invocation,buildTrigger:'workflow_dispatch'}
- const statement={_type:'https://in-toto.io/Statement/v1',subject:[{name:'current-live-content.zip',digest:{sha256:hash}}],predicateType:'https://slsa.dev/provenance/v1',predicate:{buildDefinition:{buildType:'https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1',externalParameters:{workflow:{repository:uri,path:workflow,ref:'refs/heads/main'}},internalParameters:{github:{event_name:'workflow_dispatch',repository_id:'11',repository_owner_id:'12'}},resolvedDependencies:[{uri:`git+${uri}@refs/heads/main`,digest:{gitCommit:sha}}]},runDetails:{metadata:{invocationId:invocation}}}}
+ const statement={_type:'https://in-toto.io/Statement/v1',subject:[{name:'current-live-content.zip',digest:{sha256:hash}}],predicateType:'https://slsa.dev/provenance/v1',predicate:{buildDefinition:{buildType:'https://actions.github.io/buildtypes/workflow/v1',externalParameters:{workflow:{repository:uri,path:workflow,ref:'refs/heads/main'}},internalParameters:{github:{event_name:'workflow_dispatch',repository_id:'11',repository_owner_id:'12'}},resolvedDependencies:[{uri:`git+${uri}@refs/heads/main`,digest:{gitCommit:sha}}]},runDetails:{metadata:{invocationId:invocation}}}}
  const result=[{verificationResult:{signature:{certificate},statement}}]
  const input={zipBytes,bundleBytes:Buffer.from('fixture bundle'),repositoryId:11,ownerId:12,verifierSha:sha,runId:101,runAttempt:2}
  return {input,result,certificate,statement,run:()=>JSON.stringify(result)}
@@ -42,3 +42,13 @@ test('ZIP accepts only bounded exact two metadata files before any inflation',()
  assert.equal(readMetadataZip(zip()).size,2)
  for(const bytes of [Buffer.from('invalid'),zip({'current-live-binding.json':'{}'}),zip({'current-live-binding.json':'{}','production-catalog-verification.json':'{}','business-rows.json':'[]'}),zip({'../current-live-binding.json':'{}','production-catalog-verification.json':'{}'}),zip(undefined,8),Buffer.alloc(4*1024*1024+1)])assert.throws(()=>readMetadataZip(bytes))
 })
+
+test('only the actual GitHub Actions workflow buildType is admitted',()=>{
+ const f=fixture();
+ assert.equal(f.statement.predicate.buildDefinition.buildType,'https://actions.github.io/buildtypes/workflow/v1');
+ assert.doesNotThrow(()=>verifyCurrentLiveAttestation(f.input,{execFileSync:f.run}));
+ for(const type of ['https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1','https://actions.github.io/buildtypes/workflow/v2','https://example.com/buildtypes/workflow/v1','',null]){
+  const wrong=fixture();wrong.statement.predicate.buildDefinition.buildType=type;
+  assert.throws(()=>verifyCurrentLiveAttestation(wrong.input,{execFileSync:wrong.run}));
+ }
+});

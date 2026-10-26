@@ -1,0 +1,61 @@
+{
+  "allowed_paths": [
+    "scripts/lib/production-catalog-recovery.mjs",
+    "scripts/lib/production-catalog-recovery.test.mjs",
+    "scripts/designflow-db-release.mjs",
+    "scripts/designflow-db-release.test.mjs",
+    "docs/designflow-db-release.md",
+    "scripts/lib/current-live-attestation.mjs",
+    "scripts/lib/current-live-attestation.test.mjs",
+    ".agent/work/4655/60/**"
+  ],
+  "assumptions": [
+    "Real signed read-only current-live run40258907625 succeeded at exact61c6c209ec50efbc1c33c11cf1601b25cac0fc40; native publication refused because text-only selectArtifactFiles converted ZIP/bundle to UTF8 strings before bounded Buffer authentication. This is a current-live artifact reader repair, not a reviewer repair.",
+    "Albert authorized in this chat: The freeze is on reviewer repairs, not shipping. I authorize changing the review requirement for this release. Keep the production checks intact and finish the job without reviewer approval.",
+    "Use a dedicated strict binary package selector for current-live paths; retain existing generic text selector semantics, signature verification, exact original ZIP/bundle bytes, immutable refs,96KiB receipt and4MiB expansion bounds. No SQL writes or original migration reapply.",
+    "Changing verifier closure requires a fresh real signed read-only certificate after this repair merges. Preserve prior genuine certificate and diagnostic evidence; do not relabel it as authorizing the changed reader.",
+    "Root genuine gh attestation verify accepted certificate40258907625 under all pinned signer/source/issuer flags. Actual authenticated buildDefinition.buildType is https://actions.github.io/buildtypes/workflow/v1, while current parser and synthetic fixture incorrectly require https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1. Correct the exact constant to the real pinned-action contract, do not broaden to arbitrary build types or remove any other check.",
+    "Successor60 prospectively authorizes attestation source/test expansion BEFORE those edits; existing59 binary implementation c8d2fa5beaa749c3398b0bd8d3621c977b734b88 remains attributed to59 and all published59 custody is preserved. Root must verify the real signed artifact through the resulting native reader before declaring repair complete."
+  ],
+  "base_sha": "61c6c209ec50efbc1c33c11cf1601b25cac0fc40",
+  "branch": "codex/dflow-current-live-binary-20261026",
+  "db_reads": [],
+  "db_writes": [],
+  "dispatcher": "Codex chat 01a17580-c46e-7c92-9679-b0e5475e84d0",
+  "evidence_parent": {
+    "work_issue": 4655,
+    "generation": 59,
+    "contract_sha256": "6de233c5e011694e36d6c7cd18dc01ea5c9d6a424459f25ed0bbe1219c49ecae"
+  },
+  "file_writes": [
+    "scripts/lib/production-catalog-recovery.mjs",
+    "scripts/lib/production-catalog-recovery.test.mjs",
+    "scripts/designflow-db-release.mjs",
+    "scripts/designflow-db-release.test.mjs",
+    "docs/designflow-db-release.md",
+    "scripts/lib/current-live-attestation.mjs",
+    "scripts/lib/current-live-attestation.test.mjs",
+    ".agent/work/4655/60/**"
+  ],
+  "generation": 60,
+  "goal": "Preserve current-live binary package bytes and validate the actual pinned GitHub Actions attestation buildType while retaining all exact certificate, subject, workflow, source, invocation, identity and size checks",
+  "prohibited_actions": [
+    "No SQL, database, migration or production writes in this maintenance change; no fabricated evidence; no changes to sandbox restrictions or app merge ownership.",
+    "No reviewer/toolkit repairs or installs; no weakening of preview, target proof, production interlocks, source authenticity, rejection history or existing size bounds. Owner-authorized no-reviewer release exception only."
+  ],
+  "required_checks": [
+    "node --test scripts/lib/production-catalog-recovery.test.mjs scripts/lib/current-live-attestation.test.mjs scripts/designflow-db-release.test.mjs scripts/publish-work-stage-evidence.test.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "node scripts/check-repository-identity-conformance.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "route": "repo-maintenance",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Stop on necessary authority/design expansion, never fabricate historical artifacts or relax original source/refusal checks."
+  ],
+  "work_issue": 4655,
+  "work_type": "repo-maintenance",
+  "worker": "codex",
+  "worktree": "/tmp/dflow-current-live-binary-4655"
+}
