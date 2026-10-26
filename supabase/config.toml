@@ -28,3 +28,10 @@ verify_jwt = false
 
 [functions.verify-app-access]
 verify_jwt = false
+
+# Image similarity: upload a picture, find the same artwork (#486).
+# Public on purpose: the function authenticates the caller itself
+# (authenticateUser, strict) and then uses the caller-scoped client for the
+# search RPC.
+[functions.image-similarity]
+verify_jwt = false
