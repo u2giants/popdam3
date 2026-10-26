@@ -27,6 +27,7 @@ export const OP_NAMES: Record<string, string> = {
   "embed-dam-search": "Embed DAM Search",
   "sg-embed-search": "Embed PopSG Search",
   "tag-popsg-files": "Tag PopSG Files",
+  "rebuild-image-vectors": "Rebuild Image Vectors",
 };
 
 // ── Parallel Lane System ────────────────────────────────────────────
@@ -55,6 +56,7 @@ export const OP_LANES: Record<string, string> = {
   "embed-dam-search": "search-index",
   "sg-embed-search": "search-index",
   "tag-popsg-files": "popsg-tags",
+  "rebuild-image-vectors": "embed",
 };
 
 export function getLane(opKey: string): string {
@@ -130,7 +132,7 @@ export const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
     "ai-tag-group-profiles",
     "refresh-group-metadata",
   ],
-  "ai-tag-all": ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-all": ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata", "rebuild-image-vectors"],
   "ai-tag-groups": ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
   "ai-tag-parallel": [
     "ai-tag-untagged",
@@ -161,6 +163,9 @@ export const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
   "reprocess-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "erp-enrichment", "ai-tag-group-profiles"],
   "backfill-sku-names": ["erp-enrichment"],
   "erp-enrichment": ["reprocess-metadata", "backfill-sku-names"],
+  // rebuild-image-vectors mass-enqueues image-embed index jobs while ai-tag-all
+  // churns assets and thumbnails — keep them apart (plan Step 4b, L-6).
+  "rebuild-image-vectors": ["ai-tag-all"],
 };
 
 /** Returns the ops that `opKey` cannot run alongside (empty array if none). */
@@ -208,4 +213,5 @@ export const OP_ACTIONS: Record<string, string> = {
   "embed-dam-search": "embed-dam-search",
   "sg-embed-search": "sg-embed-search",
   "tag-popsg-files": "tag-popsg-files",
+  "rebuild-image-vectors": "rebuild-image-vectors",
 };

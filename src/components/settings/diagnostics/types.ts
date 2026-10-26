@@ -81,6 +81,7 @@ export const OP_NAMES: Record<string, string> = {
   "tag-popsg-files": "Tag PopSG Files",
   "embed-dam-search": "Embed DAM Search",
   "sg-embed-search": "Embed PopSG Search",
+  "rebuild-image-vectors": "Rebuild Image Vectors",
 };
 
 // Operations in DIFFERENT lanes can run simultaneously — UNLESS they appear
@@ -108,6 +109,7 @@ export const OP_LANES: Record<string, string> = {
   "tag-popsg-files": "popsg-tags",
   "embed-dam-search": "search-index",
   "sg-embed-search": "search-index",
+  "rebuild-image-vectors": "embed",
 };
 
 export function getLane(opKey: string): string {
@@ -119,7 +121,7 @@ export function getLane(opKey: string): string {
 // Entries are symmetric: if A blocks B then B also blocks A.
 export const OP_CONFLICTS: Record<string, readonly string[]> = {
   "ai-tag-untagged":      ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-all":           ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-all":           ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata", "rebuild-image-vectors"],
   "ai-tag-groups":        ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
   "ai-tag-parallel":        ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
   "ai-tag-group-profiles": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "refresh-group-metadata"],
@@ -131,6 +133,7 @@ export const OP_CONFLICTS: Record<string, readonly string[]> = {
   "backfill-sku-names":   ["erp-enrichment"],
   "erp-enrichment":       ["reprocess-metadata", "backfill-sku-names"],
   "rich-pdf-extract":     ["rebuild-style-groups"],
+  "rebuild-image-vectors": ["ai-tag-all"],
 };
 
 export const REASON_LABELS: Record<string, string> = {

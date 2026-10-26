@@ -24,7 +24,8 @@ export function isValidAutoResumeCursor(opKey: string, cursor: unknown): boolean
   // Style Group profiling keysets by style_groups.id, so its resumable cursor is a
   // bare UUID. Without this the op cannot auto-resume after a Railway restart.
   // reprocess-metadata in fill-missing-licensing mode keysets by assets.id.
-  if (opKey === "ai-tag-group-profiles" || opKey === "shorten-item-descriptions" || opKey === "reprocess-metadata") {
+  // rebuild-image-vectors keysets its stale-asset enumeration by assets.id too.
+  if (opKey === "ai-tag-group-profiles" || opKey === "shorten-item-descriptions" || opKey === "reprocess-metadata" || opKey === "rebuild-image-vectors") {
     return typeof cursor === "string" && UUID_CURSOR_RE.test(cursor);
   }
   return false;
