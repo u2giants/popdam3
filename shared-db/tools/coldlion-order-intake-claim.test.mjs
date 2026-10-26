@@ -88,14 +88,18 @@ test("winning-version selection: DISTINCT ON per identity with the two-key tiebr
   // coldlion_intake_order_line_winner_idx declares, so two runs can never
   // mint different winners for the same logical line.
   const versionWinners = sql.slice(sql.indexOf("line_version_winners as ("), sql.indexOf("winning_lines as ("));
-  assert.match(versionWinners, /select distinct on \(l\.sales_order_no, l\.sales_order_line_no, l\.master_item_no\)/);
-  assert.match(versionWinners, /order by l\.sales_order_no, l\.sales_order_line_no, l\.master_item_no,\s*l\.last_seen_run desc, l\.line_source_hash/);
-  // Component grain: same winner rule per (line_id, sub_item_no,
-  // sub_label_code), with NULLS LAST on the identity keys so the direct
-  // line's NULL-sub component is unambiguous.
+  // Prepack siblings (one staged row per component, same identity, distinct
+  // hashes) are NOT versions: every row of the latest run is kept, ranked by
+  // the run's started_at (a uuid run id has no time order).
+  assert.doesNotMatch(versionWinners, /distinct on/);
+  assert.match(versionWinners, /rank\(\) over \(partition by l\.sales_order_no, l\.sales_order_line_no\s*order by r\.started_at desc nulls last, l\.last_seen_run desc\) as run_rank/);
+  assert.match(versionWinners, /left join coldlion\.sync_run r on r\.id = l\.last_seen_run/);
+  assert.match(cteBlock(sql, "winning_lines"), /where w\.run_rank = 1/);
+  // Component grain: one winner per (line number, master item, sub_item_no,
+  // sub_label_code) across sibling rows, NULLS LAST on the identity keys.
   const components = sql.slice(sql.indexOf("winning_components as ("), sql.indexOf("ordinalled as ("));
-  assert.match(components, /select distinct on \(c\.line_id, c\.sub_item_no, c\.sub_label_code\)/);
-  assert.match(components, /order by c\.line_id, c\.sub_item_no asc nulls last, c\.sub_label_code asc nulls last,\s*c\.last_seen_run desc, c\.component_source_hash/);
+  assert.match(components, /select distinct on \(wl\.sales_order_no, wl\.sales_order_line_no,\s*wl\.master_item_no, c\.sub_item_no, c\.sub_label_code\)/);
+  assert.match(components, /order by wl\.sales_order_no, wl\.sales_order_line_no, wl\.master_item_no,\s*c\.sub_item_no asc nulls last, c\.sub_label_code asc nulls last,\s*c\.last_seen_run desc, wl\.line_source_hash, c\.component_source_hash/);
   // Constancy: within one hash group the staging identity uniques hold the
   // projection constant (one row per identity+hash), so the writer MERGES
   // NOTHING and SUMS NOTHING — a version fork is resolved by winner
@@ -113,22 +117,21 @@ test("winning-version selection: DISTINCT ON per identity with the two-key tiebr
   }
 });
 
-test("an item fork under one line number resolves to ONE line ref winner, never collides the source-id grammar (round-2 review H2)", () => {
-  // master_item_no is part of the line projection, so a corrected item is a
-  // new version whose per-item winner sits beside the old one. The ref
-  // grammar coldlion:so:<so>:line:<n>:component:<ord> has ONE slot per line
-  // number, so the second tier resolves the fork by the same two-key
-  // tiebreak plus master_item_no — deterministically, never by quarantine,
-  // and never two winners onto one source_id.
+test("prepack siblings under one line number each keep their own slot, never collapsed to one (2026-10-23 PO 62012010)", () => {
+  // ColdLion explodes a prepack line into one staged row per item under the
+  // same (so, line, master_item_no). All rows of the latest run survive, and
+  // the ordinal numbers items across the whole line number, so four items
+  // mint four distinct source_ids instead of one winner.
   const secondTier = cteBlock(sql, "winning_lines");
   assert.match(secondTier, /from line_version_winners w/);
-  assert.match(secondTier, /select distinct on \(w\.sales_order_no, w\.sales_order_line_no\)/);
-  assert.match(secondTier, /order by w\.sales_order_no, w\.sales_order_line_no,\s*w\.last_seen_run desc, w\.line_source_hash, w\.master_item_no/);
+  assert.doesNotMatch(secondTier, /distinct on/);
+  const ordinalled = cteBlock(sql, "ordinalled");
+  assert.match(ordinalled, /partition by wc\.sales_order_no, wc\.sales_order_line_no/);
 });
 
 test("deterministic ordinal: row_number over (sub_item_no NULLS LAST, sub_label_code NULLS LAST), 1-based, in the source_id", () => {
   const ordinalled = sql.slice(sql.indexOf("ordinalled as ("), sql.indexOf("case_pack as ("));
-  assert.match(ordinalled, /row_number\(\) over \(partition by wc\.line_id\s*order by wc\.sub_item_no asc nulls last,\s*wc\.sub_label_code asc nulls last\) as component_ordinal/);
+  assert.match(ordinalled, /row_number\(\) over \(partition by wc\.sales_order_no, wc\.sales_order_line_no\s*order by wc\.master_item_no,\s*wc\.sub_item_no asc nulls last,\s*wc\.sub_label_code asc nulls last\) as component_ordinal/);
   // The ordinal rides the deterministic line source ref verbatim.
   assert.match(sql, /'coldlion:so:' \|\| wl\.sales_order_no::text \|\| ':line:'\s*\|\| wl\.sales_order_line_no::text \|\| ':component:'\s*\|\| o\.component_ordinal::text as line_source_id/);
   // One canonical line per winning component — the join is ordinalled, never
@@ -198,7 +201,9 @@ test("version fan-out resolves by winner selection, never quarantines, and the r
   // The bounded enablement vocabulary (plan B0): --limit bounds the pending
   // orders this run may claim, deterministically by ascending sales order.
   const scope = sql.slice(sql.indexOf("scope as ("), sql.indexOf("winning_lines as ("));
-  assert.match(scope, /where n\.state = 'pending'/);
+  assert.match(scope, /where n\.state in \('pending'\)/);
+  // An explicit --order may re-process a created order (in-place correction).
+  assert.match(singleSql, /where n\.state in \('pending', 'created'\)/);
   assert.match(limitedSql, /order by n\.sales_order_no\s*\n\s*limit 5/);
   assert.doesNotMatch(sql, /\n\s*limit 5/);
   // --order targets exactly one sales order (the preview-gate shape).

@@ -114,6 +114,10 @@ export function buildWriteSql({ runId, write = false, limit = null, order = null
     throw new Error("order must be a positive sales order number (salesOrderNo = 0 is never written)");
   }
   const scopeFilter = order !== null ? `and n.sales_order_no = ${sqlNumber(order)}` : "";
+  // An explicit --order also re-processes an already-created order, so a
+  // writer fix can correct its existing lines in place (every UPDATE stays
+  // IS DISTINCT FROM guarded; the state transitions stay pending-only).
+  const scopeStates = order !== null ? "('pending', 'created')" : "('pending')";
   const scopeLimit = limit !== null ? `\n  limit ${sqlNumber(limit)}` : "";
   return `begin;
 
@@ -130,7 +134,7 @@ on conflict (id) do nothing;
 with scope as (
   select n.sales_order_no, n.warehouse_code
   from coldlion.intake_new_order n
-  where n.state = 'pending'
+  where n.state in ${scopeStates}
     -- The table check refuses sales_order_no = 0 outright; this predicate is
     -- defence in depth so a relaxed future constraint can never mint
     -- COLDLION-SO-0, whose header ref would collapse every zero-SO row onto
@@ -145,73 +149,69 @@ with scope as (
   order by n.sales_order_no${scopeLimit}
 ),
 line_version_winners as (
-  -- C2 step 0, first tier: the winning VERSION of every staged line, per
-  -- (sales_order_no, sales_order_line_no, master_item_no): greatest
-  -- last_seen_run, then line_source_hash — both tiebreak keys ride the
-  -- coldlion_intake_order_line_winner_idx the Phase A migration declares (the
-  -- identity unique omits last_seen_run and cannot serve this sort). Cross-
-  -- version forks are RESOLVED here, never quarantined and never merged.
-  select distinct on (l.sales_order_no, l.sales_order_line_no, l.master_item_no)
-    l.id, l.sales_order_no, l.sales_order_line_no, l.master_item_no,
+  -- C2 step 0, first tier: the latest OBSERVATION of every staged line
+  -- number. ColdLion explodes a prepack line into one row per component, and
+  -- the stager stores each as its own line row (one component each, distinct
+  -- line_source_hash) under the SAME (sales_order_no, sales_order_line_no,
+  -- master_item_no). Those rows are siblings, not versions: picking ONE per
+  -- identity dropped 3 of 4 prepack items (2026-10-23, POs 62012010 et al.).
+  -- So every row from the most recent run that observed the line number is
+  -- kept; rows only an OLDER run saw are superseded versions (changed or
+  -- removed items) and drop out. Runs order by sync_run.started_at — a uuid
+  -- run id carries no time order — with the run id as the total tiebreak.
+  select l.id, l.sales_order_no, l.sales_order_line_no, l.master_item_no,
     l.last_seen_run,
     l.company_code, l.division_code, l.customer_code, l.po_number,
     l.sales_person_code1, l.start_date, l.cancel_date, l.line_qty,
-    l.warehouse_code, l.line_source_hash
+    l.warehouse_code, l.line_source_hash,
+    rank() over (partition by l.sales_order_no, l.sales_order_line_no
+                 order by r.started_at desc nulls last, l.last_seen_run desc) as run_rank
   from coldlion.intake_order_line l
   join scope s on s.sales_order_no = l.sales_order_no
+  left join coldlion.sync_run r on r.id = l.last_seen_run
   -- Defence in depth: EP001 was filtered at ingestion AND refused by the
   -- staging check constraint; the claim path asserts it again so a future
   -- constraint relaxation can never write Edgeucational rows canonically.
   where l.division_code is distinct from 'EP001'
-  order by l.sales_order_no, l.sales_order_line_no, l.master_item_no,
-           l.last_seen_run desc, l.line_source_hash
 ),
 winning_lines as (
-  -- Second tier (round-2 review H2): master_item_no is PART of the line
-  -- projection, so a corrected item is a new version whose identity row sits
-  -- beside the old one — two per-item winners can share one
-  -- (sales_order_no, sales_order_line_no). The line ref grammar
-  -- coldlion:so:<so>:line:<lineNo>:component:<ord> (plan §8, binding) has
-  -- ONE slot per line number, so the fork is resolved once more by
-  -- winner-selection (§603: forks are never quarantined, never merged): the
-  -- same two-key tiebreak over the per-item winners, with master_item_no as
-  -- the final deterministic key. The identity unique makes the
-  -- (run, hash, item) triple distinct, so the order is total and two runs
-  -- can never mint different winners — nor collide two winners on one
-  -- source_id. The winner index serves the first tier; this tier sorts a
-  -- bounded per-order set already narrowed by it.
-  select distinct on (w.sales_order_no, w.sales_order_line_no)
-    w.id, w.sales_order_no, w.sales_order_line_no, w.master_item_no,
+  -- Second tier: every line row of the latest observation. Several rows may
+  -- share one (sales_order_no, sales_order_line_no) — prepack siblings or
+  -- several master items — and each keeps its own component slot below.
+  select w.id, w.sales_order_no, w.sales_order_line_no, w.master_item_no,
     w.company_code, w.division_code, w.customer_code, w.po_number,
     w.sales_person_code1, w.start_date, w.cancel_date, w.line_qty,
     w.warehouse_code, w.line_source_hash
   from line_version_winners w
-  order by w.sales_order_no, w.sales_order_line_no,
-           w.last_seen_run desc, w.line_source_hash, w.master_item_no
+  where w.run_rank = 1
 ),
 winning_components as (
-  -- Same winner rule at component grain, per (line_id, sub_item_no,
-  -- sub_label_code), riding coldlion_intake_order_component_winner_idx. NULL
-  -- sub keys are one identity to the NULLS NOT DISTINCT constraint and to
-  -- DISTINCT ON alike; the sort keys keep NULLS LAST so the direct line's
-  -- NULL-sub component is unambiguous.
-  select distinct on (c.line_id, c.sub_item_no, c.sub_label_code)
-    c.line_id, c.sub_item_no, c.sub_label_code, c.order_qty,
+  -- One winner per (line number, master item, sub_item_no, sub_label_code)
+  -- across the sibling rows, riding coldlion_intake_order_component_winner_idx
+  -- per line_id. NULL sub keys are one identity to DISTINCT ON; the sort keys
+  -- keep NULLS LAST so the direct line's NULL-sub component is unambiguous.
+  -- The hash tiebreaks make the winner total-order deterministic.
+  select distinct on (wl.sales_order_no, wl.sales_order_line_no,
+                      wl.master_item_no, c.sub_item_no, c.sub_label_code)
+    c.line_id, wl.sales_order_no, wl.sales_order_line_no, wl.master_item_no,
+    c.sub_item_no, c.sub_label_code, c.order_qty,
     c.component_source_hash
   from coldlion.intake_order_component c
-  where c.line_id in (select id from winning_lines)
-  order by c.line_id, c.sub_item_no asc nulls last, c.sub_label_code asc nulls last,
-           c.last_seen_run desc, c.component_source_hash
+  join winning_lines wl on wl.id = c.line_id
+  order by wl.sales_order_no, wl.sales_order_line_no, wl.master_item_no,
+           c.sub_item_no asc nulls last, c.sub_label_code asc nulls last,
+           c.last_seen_run desc, wl.line_source_hash, c.component_source_hash
 ),
 ordinalled as (
-  -- The component ordinal for source_id determinism: order of first
-  -- appearance sorted by (sub_item_no NULLS LAST, sub_label_code NULLS LAST)
-  -- — stable across runs (§9 C2 step 0). One canonical line per winning
-  -- component, direct line included (its single NULL-sub component is
-  -- ordinal 1).
+  -- The component ordinal for source_id determinism, numbered across the
+  -- whole line NUMBER (all sibling rows), sorted by (master_item_no,
+  -- sub_item_no NULLS LAST, sub_label_code NULLS LAST) — stable across runs,
+  -- one slot per item so prepack siblings never collide on one source_id. A
+  -- single-item line keeps ordinal 1 exactly as before.
   select wc.*,
-         row_number() over (partition by wc.line_id
-                            order by wc.sub_item_no asc nulls last,
+         row_number() over (partition by wc.sales_order_no, wc.sales_order_line_no
+                            order by wc.master_item_no,
+                                     wc.sub_item_no asc nulls last,
                                      wc.sub_label_code asc nulls last) as component_ordinal
   from winning_components wc
 ),
