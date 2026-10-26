@@ -128,9 +128,18 @@ function mergeSearchPages(pages: SearchPage[]): SearchPage {
       });
     }
   }
-  const results = [...byKey.values()].sort(
-    (a, b) => (b.rank ?? 0) - (a.rank ?? 0) || a.document_type.localeCompare(b.document_type) || a.entity_id.localeCompare(b.entity_id),
-  );
+  // Picture match leads: greatest(keyword, semantic + 0.35*keyword).
+  // Exact-title keyword stays 1.0+ so SKU search still wins on identifiers.
+  const pictureLeadRank = (hit: SearchHit) => {
+    const kw = hit.keyword_rank ?? 0;
+    const sem = hit.semantic_rank ?? 0;
+    return Math.max(kw, sem + 0.35 * kw);
+  };
+  const results = [...byKey.values()]
+    .map((hit) => ({ ...hit, rank: pictureLeadRank(hit) }))
+    .sort(
+      (a, b) => (b.rank ?? 0) - (a.rank ?? 0) || a.document_type.localeCompare(b.document_type) || a.entity_id.localeCompare(b.entity_id),
+    );
   return { results, total_count: totalCount, has_more: hasMore, facets };
 }
 
