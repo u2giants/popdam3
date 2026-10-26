@@ -5,6 +5,7 @@ import type { Asset, AssetFilters, SortField, SortDirection, FacetCounts } from 
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
 import { searchAccessStatus, buildDamSearchFilters, expandFallbackTerms, fetchHybridSearchPage, fetchSearchIds, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
+import { sortByConceptThenRank } from "@/lib/search-concept-rank";
 
 const PAGE_SIZE = 200;
 const FULL_TEXT_SEARCH_LIMIT = 500;
@@ -394,7 +395,11 @@ export function useAssets(
           );
           if (error) throw error;
           return {
-            assets: sortByRank((data ?? []) as Asset[], ranked.ids, (asset) => asset.id),
+            assets: sortByConceptThenRank(
+              sortByRank((data ?? []) as Asset[], ranked.ids, (asset) => asset.id),
+              searchTerm,
+              (asset) => [asset.filename, asset.relative_path].filter(Boolean).join(" "),
+            ),
             totalCount: ranked.totalCount,
             totalIsLowerBound: ranked.totalIsLowerBound,
             pageSize: effectivePageSize,
