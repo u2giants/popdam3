@@ -1,0 +1,65 @@
+name: Publish Text-Embed Image
+
+# SigLIP2 query-embedding service used by dam-search-ai. Runs on the Hetz VPS
+# via Coolify (replaced the temporary edge-dev quick tunnel, 2026-10-26).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apps/text-embed/**"
+      - ".github/workflows/publish-text-embed.yml"
+
+concurrency:
+  group: publish-text-embed
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: u2giants/popdam-text-embed
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Capture git metadata
+        id: meta
+        run: echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image to GHCR
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
+        with:
+          context: apps/text-embed
+          file: apps/text-embed/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.commit }}
+
+      - name: Deploy via Coolify
+        env:
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_TEXT_EMBED_APP_UUID }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+        run: |
+          code=$(curl -s -o /tmp/resp -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}" -H "Accept: application/json" \
+            "${COOLIFY_URL}/api/v1/deploy?uuid=${COOLIFY_APP_UUID}&force=false")
+          cat /tmp/resp; echo
+          [ "$code" = "200" ] || { echo "Coolify deploy trigger failed with HTTP $code"; exit 1; }
