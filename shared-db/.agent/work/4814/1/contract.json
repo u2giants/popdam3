@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "generation": 1,
+  "work_issue": 4814,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Land #4814 public.image_embed_stale_assets service_role enumeration wrapper as migration 20261026155459 under claim #4818, unblocking the popdam3 #486 Step 4b rebuild-image-vectors backfill op.",
+  "base_sha": "1750572e9ea80cfc40070b83ead0b076f6dcc96e",
+  "dispatcher": "zcode-hetz-486-step4b on hetz (claim #4818 owner; dispatched by the owner-session subagent handoff 2026-10-26T0545Z Track 1)",
+  "worker": "Same session.",
+  "branch": "zcode/486-stale-assets-wrapper",
+  "worktree": "/worksp/shared-db/.wt-486-stale-assets",
+  "allowed_paths": [
+    "supabase/migrations/20261026155459_dam_image_embed_stale_assets.sql",
+    "supabase/tests/popdam_image_embed_stale_assets_contracts.sql",
+    ".agent/work/4814/1/contract.json",
+    ".agent/work/4814/1/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261026155459_dam_image_embed_stale_assets.sql",
+    "supabase/tests/popdam_image_embed_stale_assets_contracts.sql",
+    ".agent/work/4814/1/contract.json",
+    ".agent/work/4814/1/completion.json"
+  ],
+  "db_reads": [
+    "table public.admin_config",
+    "table public.assets",
+    "table dam.dam_asset_image_vectors"
+  ],
+  "db_writes": [
+    "function public.image_embed_stale_assets"
+  ],
+  "prohibited_actions": [
+    "No enqueue or embedding work in this change: the wrapper only enumerates; popdam3 owns the op.",
+    "No production or preview apply from this session; promotion follows the automatic workflow.",
+    "No change outside the claimed object."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "ephemeral-database contract tests pass on the PR head in CI"
+  ],
+  "assumptions": [
+    "The implementation commits (526fd4ffc and its test fix 890fefc36) were authored before this contract was published; the work issue #4814 and claim #4818 were filed before implementation and name every object, so scope was declared first by the claim; disclosed here for honesty (same disclosure pattern as the #4692 generation).",
+    "Live production verification 2026-10-26 (read-only): service_role holds no SELECT on dam.dam_asset_image_vectors and dam is not in the PostgREST search_path, so the wrapper is required."
+  ],
+  "stop_conditions": [
+    "Stop if the claim cannot be renewed or a collision is reported.",
+    "Stop if the ephemeral contract tests find a defect in the wrapper semantics."
+  ]
+}

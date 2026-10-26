@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 4814,
+  "outcome": "ready-for-merge",
+  "pr": 4819,
+  "migration_versions": ["20261026155459"],
+  "contract_ref": "refs/db-contracts/4814/1",
+  "contract_sha256": "73139b3d82ce6a50d65e5c3d4ec161606d2834dc9926777e2f8c738ec3689a7f",
+  "base_sha": "1750572e9ea80cfc40070b83ead0b076f6dcc96e",
+  "head_sha": "890fefc3619d7b2440de784988a7bd79843c16b6",
+  "files_changed": [
+    "supabase/migrations/20261026155459_dam_image_embed_stale_assets.sql",
+    "supabase/tests/popdam_image_embed_stale_assets_contracts.sql"
+  ],
+  "db_reads": [
+    "table public.admin_config",
+    "table public.assets",
+    "table dam.dam_asset_image_vectors"
+  ],
+  "db_writes": [
+    "function public.image_embed_stale_assets"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed on 890fefc36 (October 26, 2026, hetz): guards A/B/#1235/verify-cost/#1684 green."
+    },
+    {
+      "command": "git diff --check origin/main...890fefc36",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    },
+    {
+      "command": "ephemeral-database contract tests pass on the PR head in CI",
+      "exit_code": 0,
+      "evidence": "First run failed only in the test's array_agg column reference (setof uuid has no id column); fixed in 890fefc36; the 'supabase/tests against an ephemeral database' check passed on head 890fefc36 (the migration itself applied and the grant posture phases passed on the first run)."
+    }
+  ],
+  "assumptions_resolved": [
+    "Live production read-only verification 2026-10-26 confirmed the blocker: dam not in the PostgREST search_path, service_role has no SELECT on dam.dam_asset_image_vectors; stale set measured at exactly the 55 known missing-thumbnail assets (no watermark or stamp drift).",
+    "Post-hoc contract publication disclosed in the contract's assumptions; claim #4818 declared the exact object before implementation."
+  ],
+  "stop_conditions_hit": []
+}
