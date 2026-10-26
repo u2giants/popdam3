@@ -25,7 +25,12 @@ design history, never cherry-picked). This is repository maintenance; it changes
   It never uses `--admin`. After activation, GitHub is the sole merger.
 - After a migration-bearing merge, the next merge group waits until that exact `main` commit carries
   `Post-merge preview rehearsal: success`, posted only by a successful post-merge rehearsal run of
-  `.github/workflows/shared-supabase-migrations.yml` (never on failure, never manually).
+  `.github/workflows/shared-supabase-migrations.yml` (never on failure, never manually). A success
+  recorded on a later `main` commit that contains it also releases the hold (#4782/#4787): a
+  rehearsal on a later tip replays the same pending migration, so it proves at least as much. This
+  covers the case where non-migration merges advanced `main` while the target's own rehearsal was
+  blocked and the rehearsal workflow (correctly) refuses any tip that is no longer current — the
+  exact-SHA-only wait deadlocked every migration group on 2026-10-25.
 - **Queue interlock through the mutation** (issue #3421). The preview hold can wait 25 minutes after
   the gate first reads authorization, and a production freeze in that window revokes the PR-head
   status and takes the production lane. A stale pre-wait read must never authorize the merge. The
@@ -99,8 +104,10 @@ was reverted within minutes. A parameter change therefore lands as ONE PR, in th
 - If `Merge queue gate` fails on the preview hold, the preceding migration's exact merge SHA needs
   its post-merge rehearsal: dispatch `shared-supabase-migrations.yml` with `target=preview`,
   `mode=apply`, `merged_preview_source_pr` (or the map form) and `commit_sha` = that merge commit,
-  under the existing preview lock. The gate releases the next group only when that exact SHA carries
-  the success status.
+  under the existing preview lock. If that commit is no longer the current tip (non-migration
+  merges advanced `main` past it), dispatch the rehearsal against the current tip instead; the gate
+  releases the next group on the success status posted on the exact SHA or on any later `main`
+  commit that contains it.
 
 ## Bounded failures
 
