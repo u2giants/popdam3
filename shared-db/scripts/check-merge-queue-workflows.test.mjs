@@ -713,6 +713,7 @@ test('preview ordering uses the candidate migration paths and retains the latest
   const text = readWorkflow('merge-queue-gate.yml')
   assert.ok(text.includes('--preview-rehearsal-target --base-sha "$BASE_SHA" --group-sha "$GITHUB_SHA"'))
   assert.ok(text.includes('--require-preview-rehearsal --sha "$target"'))
+  assert.ok(text.includes('--require-preview-rehearsal --sha "$target" --base-sha "$BASE_SHA"'), 'the hold must name the group base so descendant rehearsals are bounded by it (#4782)')
   assert.ok(!text.includes('--require-preview-rehearsal --sha "$BASE_SHA"'))
 })
 

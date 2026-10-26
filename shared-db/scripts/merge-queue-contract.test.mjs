@@ -660,3 +660,26 @@ test('maintenance can repair evidence while a later migration retains the pendin
   assert.throws(() => previewRehearsalTarget({ baseSha: 'main', groupSha }, git('')), /exact/)
   assert.throws(() => previewRehearsalTarget({ baseSha, groupSha }, () => { throw new Error('git unavailable') }), /git unavailable/)
 })
+
+// #4782: the rehearsal workflow rehearses only the current main tip, so a pass
+// recorded on a main descendant of the migration commit must count.
+const MIG = 'a'.repeat(40), TIP = 'b'.repeat(40), OTHER = 'c'.repeat(40)
+const rehearsal = (state) => [{ context: PREVIEW_REHEARSAL_CONTEXT, state, created_at: '2026-10-25T20:00:00Z', id: 1 }]
+const noWait = async () => {}
+test('#4782 preview hold accepts a success recorded on a descendant that contains the migration commit', async () => {
+  const result = await awaitPreviewRehearsal({ sha: MIG, descendants: [TIP], budgetMs: 1000, readStatuses: async (sha) => (sha === TIP ? rehearsal('success') : []), sleep: noWait, log: () => {} })
+  assert.equal(result.state, 'success')
+  assert.equal(result.rehearsedSha, TIP)
+})
+test('#4782 preview hold still refuses when no rehearsal success exists on the commit or any descendant', async () => {
+  await assert.rejects(awaitPreviewRehearsal({ sha: MIG, descendants: [TIP], budgetMs: 10, intervalMs: 5, readStatuses: async () => [], sleep: noWait, log: () => {} }), /did not complete a successful post-merge preview rehearsal/)
+})
+test('#4782 a success on a commit outside the descendant list never counts', async () => {
+  await assert.rejects(awaitPreviewRehearsal({ sha: MIG, descendants: [TIP], budgetMs: 10, intervalMs: 5, readStatuses: async (sha) => (sha === OTHER ? rehearsal('success') : []), sleep: noWait, log: () => {} }), /did not complete/)
+})
+test('#4782 a failed rehearsal on the migration commit still refuses even if a descendant passed', async () => {
+  await assert.rejects(awaitPreviewRehearsal({ sha: MIG, descendants: [TIP], budgetMs: 1000, readStatuses: async (sha) => rehearsal(sha === MIG ? 'failure' : 'success'), sleep: noWait, log: () => {} }), /is failure/)
+})
+test('#4782 malformed descendants refuse', async () => {
+  await assert.rejects(awaitPreviewRehearsal({ sha: MIG, descendants: ['nope'], budgetMs: 10, readStatuses: async () => [], sleep: noWait }), /descendants must be/)
+})

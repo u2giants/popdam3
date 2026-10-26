@@ -536,14 +536,29 @@ export function rehearsalState(statuses, context = PREVIEW_REHEARSAL_CONTEXT) {
 
 // Bounded wait for the exact-SHA rehearsal status. Every dependency is
 // injected in tests; the workflow calls the CLI, which uses live reads.
-export async function awaitPreviewRehearsal({ sha, readStatuses, sleep, now = Date.now, budgetMs, intervalMs = 15000, log = console.log }) {
+// `descendants` (#4782): main commits that contain `sha` (git rev-list
+// --ancestry-path sha..base). The rehearsal workflow rehearses only the exact
+// current main tip, so once main moves past the migration commit its pass is
+// recorded on a descendant that already contains the migration. A success there
+// counts; nothing else changes: no success anywhere still holds and refuses, and
+// a failure on the migration commit itself still refuses.
+export async function awaitPreviewRehearsal({ sha, descendants = [], readStatuses, sleep, now = Date.now, budgetMs, intervalMs = 15000, log = console.log }) {
   if (!/^[0-9a-f]{40}$/i.test(String(sha ?? ''))) throw new MergeQueueError('a 40-character main commit SHA is required for the preview hold')
   if (typeof readStatuses !== 'function') throw new MergeQueueError('a status reader is required')
+  if (!Array.isArray(descendants) || descendants.some((each) => !/^[0-9a-f]{40}$/i.test(String(each ?? '')))) throw new MergeQueueError('preview hold descendants must be 40-character main commit SHAs')
   const started = now()
   const deadline = started + budgetMs
   for (let attempt = 1; ; attempt++) {
     const state = rehearsalState(await readStatuses(sha))
-    if (state === 'success') return { waitedMs: now() - started, state }
+    if (state === 'success') return { waitedMs: now() - started, state, rehearsedSha: sha }
+    if (state !== 'failure' && state !== 'error') {
+      for (const descendant of descendants) {
+        if (rehearsalState(await readStatuses(descendant)) === 'success') {
+          log(`${PREVIEW_REHEARSAL_CONTEXT}: success on ${descendant}, which contains migration commit ${sha}`)
+          return { waitedMs: now() - started, state: 'success', rehearsedSha: descendant }
+        }
+      }
+    }
     if (state === 'failure' || state === 'error') {
       throw new MergeQueueError(`${PREVIEW_REHEARSAL_CONTEXT} on ${sha} is ${state}; recover preview through the governed procedures, never by marking the status manually`)
     }
@@ -635,8 +650,17 @@ export async function main(argv, env = process.env, deps = {}) {
     }
     const budgetMs = seconds(env.PREVIEW_HOLD_MAX_SECONDS, 1500) * 1000
     const intervalMs = seconds(env.PREVIEW_HOLD_POLL_SECONDS, 15) * 1000
+    const baseSha = flagValue(argv, '--base-sha')
+    let descendants = []
+    if (baseSha !== undefined && baseSha !== null) {
+      if (!/^[0-9a-f]{40}$/i.test(String(baseSha))) throw new MergeQueueError('--base-sha must be a 40-character commit SHA')
+      const readGit = deps.readGit ?? ((args) => execFileSync('git', args, { encoding: 'utf8' }).trim())
+      readGit(['merge-base', '--is-ancestor', sha, baseSha])
+      descendants = readGit(['rev-list', '--ancestry-path', '--max-count=500', `${sha}..${baseSha}`]).split(/\r?\n/).filter(Boolean)
+    }
     await awaitPreviewRehearsal({
       sha,
+      descendants,
       budgetMs,
       intervalMs,
       readStatuses: deps.readStatuses ?? (async (commit) => readAuthorizationStatuses(commit, { repo, read })),
