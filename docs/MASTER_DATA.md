@@ -72,6 +72,14 @@ Ambiguous identities are replaced without guessing. Refreshed rows are stamped
 as system updates, and changed source cells are recorded in audit history.
 Recovery preimages and source/database fingerprints are mandatory.
 
+**Latest refresh (2026-10-26, ~12:40 PM EDT):** source is the plain Google
+`export?format=xlsx` download of the workbook (anonymous export works again).
+Result: 16,137 → 16,156 rows (12,872 Licensed, 3,284 Generic), 16,114 IDs
+retained, 23 unprovable identities replaced, post-load source equality passed.
+The script needs `openpyxl` and `psycopg` (use a venv). PopDAM's reviewer gate is
+waived (owner ruling 2026-10-15): run `ai-task-gates start --class production`
+first; `--reviewer-approval` still needs a file path, and the gate passes with it.
+
 The 2026-08-28 refresh used workbook SHA-256
 `14f771331f2de0ffea7b2ac8e23ff3f9cb1332c7d2bc93ff51352e8a66708874`.
 The atomic post-load checks confirmed 15,734 bridge rows, including 14,732

@@ -41,6 +41,20 @@ The historical first-import CLI's production replacement refusal remains intact.
 Do not delete or merge ColdLion records based on matching PO/style/quantity;
 uncertain identities and malformed Google entries stay held on the same issue.
 
+**Latest refresh (2026-10-26, ~12:45 PM EDT).** Source: Google `export?format=csv&gid=0`
+parsed with Python's `csv` module (multiline cells survive) and padded to 48
+columns; the dry run matched the earlier clipboard-acquired data closely (only 42
+line updates). Applied 7 new / 5 updated orders, 24 new / 42 updated lines; 562
+ColdLion lines preserved. Report field `held_new_lines` (366) is **not** a set of
+new duplicates: every one had reason `shared_coldlion_line` — Google rows already
+linked to a ColdLion line, so they are left as ColdLion has them (208 identical,
+158 assortment pieces). Check `withheld-source.json` reasons before calling them
+duplicates. **Prepack trap:** ColdLion's prepack import was keeping one item per
+prepack line, so the Google refresh inserted the 24 missing components (POs
+62011865, 62012009–62012012). They were deleted again the same day (backup kept
+privately) to avoid duplicates once the prepack import fix backfills them. Until
+that fix lands, a rerun will re-insert them — delete them again or wait.
+
 ## Database contract
 
 All objects are owned by canonical `popcre/shared-db`. Nothing here may be changed from
