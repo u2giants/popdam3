@@ -115,6 +115,17 @@ def overlap_key(row):
     return normalized(fields[0]),normalized(fields[1]),str(quantity.normalize())
 
 
+def blank_quantity_key(row):
+    # Google often leaves prepack component quantities blank while ColdLion
+    # carries them; a blank-quantity line on a ColdLion PO+style is the same
+    # line, not a new one (2026-10-26 prepack duplicates).
+    if row.get('quantity_ordered') is not None and str(row.get('quantity_ordered')).strip():
+        return None
+    po,sku=row.get('customer_po_number'),row.get('sku')
+    if not normalized(po) or not normalized(sku):return None
+    return normalized(po),normalized(sku)
+
+
 def allowed_parent_move(old_order, line):
     """Same-SKU moves the October review approved: a blank-PO placeholder gaining
     its PO, or an order renamed to its own cancelled form."""
@@ -187,10 +198,12 @@ def main():
         lrefs={r['source_id']:r['production_order_line_id'] for r in records[TABLES[3]].values() if r['source_system']==m.SOURCE_SYSTEM}
         cold_refs={r['production_order_line_id'] for r in records[TABLES[3]].values() if r['source_system']=='coldlion'}
         cold={key:lines[key] for key in cold_refs}
-        cold_index=defaultdict(list)
+        cold_index=defaultdict(list);cold_po_style=defaultdict(list)
         for row in cold.values():
             key=overlap_key(row)
             if key:cold_index[key].append(row['id'])
+            if normalized(row.get('customer_po_number')) and normalized(row.get('sku')):
+                cold_po_style[normalized(row['customer_po_number']),normalized(row['sku'])].append(row['id'])
         desired_orders={};desired_lines={};held=[]
         for order in source_plan.writable_orders():
             old=orders.get(orefs.get(order.source_id))
@@ -202,6 +215,8 @@ def main():
             assert_existing_identity(old,line,orefs.get(line.order_source_id),old and orders.get(old['production_order_id']))
             if old is None and overlap_key(line.payload) in cold_index:
                 held.append({'source_id':line.source_id,'reason':'new_cross_source_overlap','coldlion_ids':cold_index[overlap_key(line.payload)]});continue
+            if old is None and blank_quantity_key(line.payload) in cold_po_style:
+                held.append({'source_id':line.source_id,'reason':'blank_quantity_coldlion_overlap','coldlion_ids':cold_po_style[blank_quantity_key(line.payload)]});continue
             desired_lines[line.source_id]={'order_source_id':line.order_source_id,'payload':merged_payload(old,line.payload,line.metadata,m.LINE_COLUMNS)}
         changes={'orders_inserted':0,'orders_updated':0,'lines_inserted':0,'lines_updated':0}
         for sid,payload in desired_orders.items():

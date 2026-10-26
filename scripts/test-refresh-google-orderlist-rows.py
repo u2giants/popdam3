@@ -20,6 +20,10 @@ class RefreshBoundaryTests(unittest.TestCase):
   for value in [-3,0]:self.assertEqual(s.overlap_key({'sku':'style','customer_po_number':'PO','quantity_ordered':value}),('po','style',str(value)))
  def test_source_identity_only_trims_and_casefolds(self):
   self.assertNotEqual(s.overlap_key({'sku':'A-B','customer_po_number':'PO','quantity_ordered':1}),s.overlap_key({'sku':'AB','customer_po_number':'PO','quantity_ordered':1}))
+ def test_blank_quantity_matches_coldlion_po_and_style(self):
+  self.assertEqual(s.blank_quantity_key({'sku':' CAC62DCJK01 ','customer_po_number':'62011483','quantity_ordered':None}),('62011483','cac62dcjk01'))
+  self.assertIsNone(s.blank_quantity_key({'sku':'a','customer_po_number':'PO','quantity_ordered':5}))
+  self.assertIsNone(s.blank_quantity_key({'sku':'','customer_po_number':'PO','quantity_ordered':None}))
  def test_wrong_connection_refused(self):
   from types import SimpleNamespace
   c=SimpleNamespace(info=SimpleNamespace(host='wrong',user='postgres.'+s.TARGET,port=5432))
