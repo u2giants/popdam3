@@ -14,8 +14,8 @@
 |------|--------|-----------------------------------|
 | 0. Owner approval | ✅ done 2026-10-22, reconfirmed 2026-10-23 | Plan header; Albert chat "Yes — build it" 2026-10-23 |
 | 0b. File PopDAM tracking issue | ✅ done 2026-10-23 | #486 |
-| 1. Spike: dims, VRAM, crop, bytea proof | 🟡 dims/crop/speed proven on edge-dev GPU (2026-10-25): both models 768, whole-library staging at ~15–25 img/s; full 139,309-asset dual-embed computed and verified in `D:\ai\siglip2-embed\staged_vectors.jsonl`; VRAM fits 8 GB alongside resident services; bytea proof still open | `HANDOFF.d/2026-10-25T2140Z-hetz-zcode-dinov3-vectors-ready.md`; `docs/verification/image-similarity-spike.md` pending |
-| 2. shared-db: tables, public wrappers, trigger | 🟡 PR popcre/shared-db#4700 all checks green, owner review-waiver recorded 2026-10-25; blocked only by a merge-queue exact-SHA rehearsal deadlock — fix PR #4786 (+ issue #4787) in flight; then merge → merged-main rehearsal → automatic production apply → vector load | #4700, #4786, #4787; claim #4725 (takeover session owns lease) |
+| 1. Spike: dims, VRAM, crop, speed | ✅ done 2026-10-26 — whole library dual-embedded on edge-dev GPU (~15–25 img/s); bytea proof deferred to Step 5 (no upload path exercised yet) | #486 comment 6408936634; tools on edge-dev `D:\ai\siglip2-embed\` |
+| 2. shared-db: tables, public wrappers, trigger | ✅ done 2026-10-26 — #4700 merged; migration `20261025163955` LIVE on production (preview rehearsal pass, then OWNER-OVERRIDE apply per owner ruling 2026-10-25); **139,403/139,458 assets carry both vectors (99.96%)**, 2 HNSW indexes, single stamp; 55 gaps = missing Spaces thumbnails; login credential in 1Password; stamp in admin_config; `IMAGE_EMBED_ENABLED` still false | #486 comment 6408936634; run 40264183001 |
 | 3. GPU poller (pooler TLS, LOGIN role, heartbeat) | ⬜ open | worker install doc |
 | 4. Incremental trigger + backfill enqueue-only | ⬜ open | — |
 | 5. Edge `image-similarity` + UI + status route | ⬜ open | `docs/verification/image-similarity-ui.md` |
