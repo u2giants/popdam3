@@ -50,6 +50,19 @@ The owner described existing Item links as MG05. In the licensed divisions, the 
 
 **Unknown / not yet delivered:** the complete approved legacy Item mapping, the final qualified submission Property set for each Licensor, the cutover date, and verified ColdLion selection/update behavior. The owner reported the mapping work in progress; no independently verified last activity time was supplied. The old admission count is not authority to bypass these requirements.
 
+## Scraped submission Properties are canonical
+
+**Settled - Albert Hazan, 2026-10-26.** Verbatim: "properties scraped from the submissions sites are 100% canonical. that should also have been well-documented. If these are not in a place you can easily find them, then the place you looked should link to them."
+
+Every Property scraped from a Licensor's submission system is a canonical Property of that Licensor, under its exact submission name. Create it in `core.property` when it is missing. Never rename it to a Creative or art-library spelling; those stay provenance only. Several ColdLion MG06 codes may point to one submission Property. A code is a mapping, not a reason to merge or invent a canonical Property. A ColdLion code with no submission match stays unmapped and preserved, never deleted or guessed. Record: [owner-rulings §6.31](../owner-rulings.md#631-owner-ruling-scraped-submission-properties-are-100-canonical-albert-hazan-2026-10-26).
+
+Where the canonical submission lists and reviewed mappings live (private repository `u2giants/licensor-source-data`; paths only, rows never copied here):
+
+- Paramount / Viacom Multi (`VM`) TrackerPlus submission Properties: `paramount/properties-canonical.csv` (method in `paramount/README.md`; production load receipts in `paramount/load-receipts/trackerplus-production-*.json`; production table `plm.pmt_trackerplus_submission_property`).
+- Licensing team's reviewed ColdLion MG06 → submission Property mapping, received 2026-10-15: `outputs/eight-issues-01a13fd0-6bf1-7a80-b1cc-818fe11cec0b/mg06-to-submissions-mapping-20261015-received144149EDT.xlsx` (sha256 `32917567f1f57c78346922361faf0792e4a1fc3142c1bb82747141f4278ee724`; qualification note `2541-oct15-exact-key-division-qualification.md` beside it). Tracked on [#2541](https://github.com/popcre/shared-db/issues/2541).
+- Other licensors' scraped submission vocabularies: `api.db_data_admin_scraped_source_inventory('property')` in production, rows with `source_purpose='Submissions'`.
+- Paramount = Viacom = Nickelodeon is the one `VM` Licensor: [licensing-master-data.md § Licensor naming aliases](licensing-master-data.md#licensor-naming-aliases).
+
 ## Licensor naming aliases
 
 **Settled - Albert Hazan, 2026-09-06.** The Licensor recorded as `VM` / "Viacom Multi" is Paramount, and is also the Nickelodeon licensor. Paramount, Viacom and Nickelodeon are one Licensor under this single record, not three. Any item, property or asset whose description names Paramount or Nickelodeon resolves to this Licensor. Never create a separate Paramount or Nickelodeon Licensor, and never report such an item as having an unknown Licensor because the word "Paramount" does not appear in the Licensor list.

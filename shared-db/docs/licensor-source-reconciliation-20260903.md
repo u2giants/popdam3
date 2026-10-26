@@ -8,6 +8,15 @@ read-only transaction, which is itself evidence no mutation occurred).
 **Nothing here is a decision.** Every disagreement below is an owner decision per #640 §5.
 Absence in a source is not a delete instruction (#640 §4).
 
+> **Superseded for canonical identity (2026-10-26).** Scraped submission Properties are 100% canonical ([ruling](business-rules/licensing-master-data.md#scraped-submission-properties-are-canonical)); Paramount = Viacom = Nickelodeon is the one `VM` Licensor ([ruling](business-rules/licensing-master-data.md#licensor-naming-aliases)).
+>
+> Where the canonical submission lists and reviewed mappings live (private repository `u2giants/licensor-source-data`; paths only, rows never copied here):
+>
+> - Paramount / Viacom Multi (`VM`) TrackerPlus submission Properties: `paramount/properties-canonical.csv` (method in `paramount/README.md`; production load receipts in `paramount/load-receipts/trackerplus-production-*.json`; production table `plm.pmt_trackerplus_submission_property`).
+> - Licensing team's reviewed ColdLion MG06 → submission Property mapping, received 2026-10-15: `outputs/eight-issues-01a13fd0-6bf1-7a80-b1cc-818fe11cec0b/mg06-to-submissions-mapping-20261015-received144149EDT.xlsx` (sha256 `32917567f1f57c78346922361faf0792e4a1fc3142c1bb82747141f4278ee724`; qualification note `2541-oct15-exact-key-division-qualification.md` beside it). Tracked on [#2541](https://github.com/popcre/shared-db/issues/2541).
+> - Other licensors' scraped submission vocabularies: `api.db_data_admin_scraped_source_inventory('property')` in production, rows with `source_purpose='Submissions'`.
+> - Paramount = Viacom = Nickelodeon is the one `VM` Licensor: [licensing-master-data.md § Licensor naming aliases](business-rules/licensing-master-data.md#licensor-naming-aliases).
+
 ---
 
 ## 0. Headline

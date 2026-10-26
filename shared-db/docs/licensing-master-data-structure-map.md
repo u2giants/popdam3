@@ -48,12 +48,23 @@ measurement — 111 unparented of 614 properties, 51 of them active — dates fr
 2026-08-03 over a 2026-05-07 snapshot, and the cutover plan's Phase 3B still
 owns the re-measure. Treat 111/51 as dated history, not current fact.
 
+## Canonical submission lists — where to find them
+
+- **2026-10-26** Scraped submission Properties are 100% canonical ([ruling](business-rules/licensing-master-data.md#scraped-submission-properties-are-canonical)).
+
+Where the canonical submission lists and reviewed mappings live (private repository `u2giants/licensor-source-data`; paths only, rows never copied here):
+
+- Paramount / Viacom Multi (`VM`) TrackerPlus submission Properties: `paramount/properties-canonical.csv` (method in `paramount/README.md`; production load receipts in `paramount/load-receipts/trackerplus-production-*.json`; production table `plm.pmt_trackerplus_submission_property`).
+- Licensing team's reviewed ColdLion MG06 → submission Property mapping, received 2026-10-15: `outputs/eight-issues-01a13fd0-6bf1-7a80-b1cc-818fe11cec0b/mg06-to-submissions-mapping-20261015-received144149EDT.xlsx` (sha256 `32917567f1f57c78346922361faf0792e4a1fc3142c1bb82747141f4278ee724`; qualification note `2541-oct15-exact-key-division-qualification.md` beside it). Tracked on [#2541](https://github.com/popcre/shared-db/issues/2541).
+- Other licensors' scraped submission vocabularies: `api.db_data_admin_scraped_source_inventory('property')` in production, rows with `source_purpose='Submissions'`.
+- Paramount = Viacom = Nickelodeon is the one `VM` Licensor: [licensing-master-data.md § Licensor naming aliases](business-rules/licensing-master-data.md#licensor-naming-aliases).
+
 ## Selected settled rulings (5 of roughly 15 — the full set lives in the business-rules file)
 
 - **2026-09-14** Disney, Marvel, Lucasfilm/Star Wars are **three separate
   licensors**; minimum guarantees not cross-collateralized; never merge.
 - **2026-09-06** Paramount, Viacom Multi and Nickelodeon are **one** licensor
-  (`VM`).
+  (`VM`) — [ruling](business-rules/licensing-master-data.md#licensor-naming-aliases).
 - **2026-08-23** Warner's licensed properties are defined by the signed
   agreement + Amendments 1–3 (163 properties; confidential list only in the
   private `licensor-source-data` repo).

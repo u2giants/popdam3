@@ -34,6 +34,7 @@
 | [6.13-A](#613-a-owner-ruling-the-paramount-five-table-cap-is-lifted-and-the-build-hold-is-released-albert-hazan-2026-08-09) | OWNER RULING — the Paramount five-table cap is lifted and the build hold is released (Albert Hazan, 2026-08-09) |
 | [6.14](#614-owner-ruling-this-repository-is-public-no-personal-identifiers-in-anything-you-write-from-now-on-albert-hazan-2026-08-09) | OWNER RULING — this repository is PUBLIC; no personal identifiers in anything you write from now on (Albert Hazan, 2026-08-09) |
 | [6.15](#615-historical-owner-ruling-two-source-lists--entity-destination-superseded-by-1684) | HISTORICAL OWNER RULING — two source lists; entity destination superseded by #1684 |
+| [6.31](#631-owner-ruling-scraped-submission-properties-are-100-canonical-albert-hazan-2026-10-26) | OWNER RULING — scraped submission Properties are 100% canonical (Albert Hazan, 2026-10-26) |
 | [6.17](#617-owner-ruling-designflows-numeric-division-ids-are-wrong-and-do-not-come-to-this-database-the-coldlion-division-code-is-the-only-division-there-is-albert-hazan-2026-08-19) | OWNER RULING — DesignFlow's numeric division ids are WRONG and do NOT come to this database; the ColdLion division CODE is the only division there is (Albert Hazan, 2026-08-19) |
 | [6.16](#616-owner-ruling-licence-contracts-are-not-a-source-for-this-database-and-licence-term-and-territory-do-not-belong-in-it-at-all-albert-hazan-2026-08-19) | OWNER RULING — licence CONTRACTS are NOT a source for this database, and licence TERM and TERRITORY do not belong in it at all (Albert Hazan, 2026-08-19) |
 | [6.18](#618-owner-ruling-albert-does-not-sign-off-on-technical-risk-never-gate-on-a-judgement-he-cannot-make-albert-hazan-2026-08-18) | OWNER RULING — Albert does not sign off on technical risk; never gate on a judgement he cannot make (Albert Hazan, 2026-08-18) |
@@ -2186,3 +2187,15 @@ Verbatim from Albert's chat:
 **Effect.** The `OWNER-OVERRIDE <sha>` typed confirmation in `.github/workflows/shared-supabase-migrations.yml` (added 2026-10-22) is standing owner policy, not a one-day exception. When reviewer tooling is failing, skipped or undrawable, an AI dispatcher may confirm a production apply with exactly `OWNER-OVERRIDE <sha>`; the run skips only the automated business-risk gate and records `owner_override` evidence naming the owner, date, exact SHA and ordered allowlist. Every other production gate still binds: exact target pin, exclusive production lock, ordered allowlist, hard blocks, and post-apply live verification. Under §6.23 this is the owner accepting a business risk during a tooling outage, never the owner performing technical review; the automated gate returns the moment a reviewer is drawable. `docs/production-promotion-procedure.md` documents the dispatch procedure.
 
 Posted by ZCode chat unknown on edge-dev
+
+### 6.31 OWNER RULING — scraped submission Properties are 100% canonical (Albert Hazan, 2026-10-26)
+
+Verbatim from Albert's chat (2026-10-26):
+
+> "properties scraped from the submissions sites are 100% canonical. that should also have been well-documented. If these are not in a place you can easily find them, then the place you looked should link to them."
+
+Also restated the same day: "it should be very very well-documented that Paramount=Viacom=Nickelodeon."
+
+**Effect.** Every Property scraped from a Licensor's submission system is a canonical `core.property` under that Licensor, by its exact submission name. It is created if missing and never renamed to a Creative spelling. ColdLion MG06 codes map many-to-one onto submission Properties. Unmatched codes stay unmapped and preserved. Paramount, Viacom and Nickelodeon are the one `VM` Licensor (2026-09-06). Business statement and source locations: [licensing-master-data.md](business-rules/licensing-master-data.md#scraped-submission-properties-are-canonical).
+
+Posted by Claude chat badbd459-aa8b-470f-8959-f31c4cf48e62 on edge-dev
