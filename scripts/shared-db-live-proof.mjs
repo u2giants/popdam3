@@ -35,6 +35,7 @@ const ASSERTIONS = {
   3457: "On production, public.search_dam_documents has the 8-arg signature with p_min_semantic_score real default null, the 7-arg signature is dropped, execute is granted to authenticated and service_role only, a semantic floor is applied only inside the semantic leg before blend, and null floor preserves prior blended-rank behaviour exactly.",
   4064: "production public.admin_config_apply_counters(text,jsonb,jsonb) exists, is executable by service_role and not by anon/authenticated, and atomically increments admin_config JSON counters",
   4037: "production app.handle_new_auth_user() inserts app.app_access(profile_id,'dam') for new users whose email ends in @popcre.com, keeping existing behaviour",
+  4692: "on the shared production project, with IMAGE_EMBED_ENABLED true, updating an asset's raster thumbnail enqueues exactly one index job; dam_image_embed_login can claim, complete (both 768-dim legs + stamp + watermark land atomically) and heartbeat; public.image_embed_status() reports the counts and workers_fresh; search_dam_image_similarity with an asset's own vectors returns that asset at ~100% and applies the floor; with the key absent the trigger enqueues nothing.",
   4190: "production cron.job 'refresh-style-guide-matviews' schedule is '7 * * * *' and 'refresh-style-guide-library-default-snapshot' schedule is '*/15 * * * *', both active, with succeeded runs after the change",
   4257: "Existing orders remain readable and editable; all writers reject reused production PO numbers and preserve permanent reservations; historical exceptions require sealed exact-order admissions.",
   4268: "Authenticated OrderList users see the correct New York SO received date for exactly linked lines; missing or conflicting dates remain blank; anon and oversized requests are rejected without raw ColdLion access.",
@@ -777,7 +778,108 @@ async function proveSoDates() {
   };
 }
 
-const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant, 4064: proveCounters, 4190: proveCadence, 4257: proveNoReuse, 4268: proveSoDates };
+
+// ── 4692: DAM image-embed worker on production (u2giants/popdam3#486) ───────
+// dam is not exposed to PostgREST, so these go through the Management API.
+// Trigger on/off is proven in one DO block that always ends in RAISE (rolled
+// back). The worker path is a real re-index of one already-embedded asset.
+const TRIGGER_SQL_4692 = `do $$ declare a uuid; n_on int; n_off int; begin
+  if not dam.image_embed_enabled() then raise exception 'POPDAM_LIVE_PROOF_4692_FAILED:IMAGE_EMBED_ENABLED is not true'; end if;
+  select v.asset_id into a from dam.dam_asset_image_vectors v join public.assets x on x.id = v.asset_id
+    where not x.is_deleted and x.thumbnail_url ~* '\\.(jpe?g|png|webp)$'
+      and not exists (select 1 from dam.image_embed_jobs j where j.asset_id = v.asset_id and j.status in ('pending','leased'))
+    order by v.computed_at desc limit 1;
+  update public.assets set thumbnail_url = thumbnail_url || '?live-proof=1' where id = a;
+  select count(*) into n_on from dam.image_embed_jobs where asset_id = a and kind = 'index' and status = 'pending';
+  delete from dam.image_embed_jobs where asset_id = a and status = 'pending';
+  delete from public.admin_config where key = 'IMAGE_EMBED_ENABLED';
+  update public.assets set thumbnail_url = thumbnail_url || '&live-proof=2' where id = a;
+  select count(*) into n_off from dam.image_embed_jobs where asset_id = a and status = 'pending';
+  raise exception 'POPDAM_LIVE_PROOF_4692:%', json_build_object('asset_id', a, 'enabled_jobs', n_on, 'key_absent_jobs', n_off);
+end $$`;
+const PICK_SQL_4692 = `select v.asset_id, v.computed_at from dam.dam_asset_image_vectors v join public.assets x on x.id = v.asset_id
+  where not x.is_deleted and x.thumbnail_url ~* '\\.(jpe?g|png|webp)$'
+    and not exists (select 1 from dam.image_embed_jobs j where j.asset_id = v.asset_id and j.status in ('pending','leased'))
+  order by v.computed_at desc limit 1`;
+const uuidLiteral = (id) => { if (!/^[0-9a-f-]{36}$/.test(String(id))) fail(`bad asset id ${id}`); return `'${id}'::uuid`; };
+const jobSql4692 = (id) => `select j.id, j.status, j.attempts, j.updated_at, v.computed_at, v.embedding_model,
+  vector_dims(v.vec_dino::extensions.vector) as dino_dims, vector_dims(v.vec_siglip::extensions.vector) as siglip_dims,
+  v.last_embedded_thumbnail_url = x.thumbnail_url as watermark_matches, public.image_embed_status() as status_rpc,
+  (select max(seen_at) from dam.image_embed_worker_heartbeat) as last_heartbeat
+  from dam.image_embed_jobs j join dam.dam_asset_image_vectors v on v.asset_id = j.asset_id join public.assets x on x.id = j.asset_id
+  where j.asset_id = ${uuidLiteral(id)} and j.kind = 'index' order by j.created_at desc limit 1`;
+const searchSql4692 = (id) => `select (select json_agg(r) from public.search_dam_image_similarity(v.vec_dino, v.vec_siglip, 0.5, 0.90, 50, 5, null) r) as top,
+  (select count(*) from public.search_dam_image_similarity(v.vec_dino, v.vec_siglip, 0.5, 0.90, 50, 50, null))::int as above_90,
+  (select min(r.combined_pct) from public.search_dam_image_similarity(v.vec_dino, v.vec_siglip, 0.5, 0.99, 50, 50, null) r) as min_at_99
+  from dam.dam_asset_image_vectors v where v.asset_id = ${uuidLiteral(id)}`;
+
+// Pure: the rollback block's marker.
+export function parseRollbackResult4692(status, json) {
+  const message = String(json?.message ?? "");
+  const failed = /POPDAM_LIVE_PROOF_4692_FAILED:([^\n]*)/.exec(message);
+  if (failed) fail(`4692 probe failed: ${failed[1]}`);
+  const match = /POPDAM_LIVE_PROOF_4692:(\{.*\})\s*(?:\n|$)/.exec(message);
+  if (status < 400 || !match) fail(`4692 probe did not end in its rollback marker (HTTP ${status})`);
+  try { return JSON.parse(match[1]); } catch { fail("4692 rollback marker is not JSON"); }
+}
+
+// Pure: worker completed the job with both legs, stamp, watermark, fresh heartbeat.
+export function evaluateWorker4692(row, enqueuedAt) {
+  if (!row || row.status !== "done") fail(`index job did not complete (status ${row?.status})`);
+  if (!(Date.parse(row.computed_at) >= Date.parse(enqueuedAt))) fail("vectors were not rewritten after the enqueue");
+  if (row.dino_dims !== 768 || row.siglip_dims !== 768) fail("a vector leg is not 768-dim");
+  if (!row.embedding_model) fail("model stamp missing");
+  if (row.watermark_matches !== true) fail("watermark does not match the thumbnail");
+  if (row.status_rpc?.workers_fresh !== true) fail("image_embed_status reports no fresh worker");
+  for (const k of ["done", "pending", "leased", "failed"]) if (!Number.isInteger(row.status_rpc?.[k])) fail(`image_embed_status lacks ${k}`);
+  return row;
+}
+
+// Pure: self match ~100% first, and the floor filters.
+export function evaluateSearch4692(r, assetId) {
+  const top = r?.top?.[0];
+  if (top?.asset_id !== assetId) fail("asset is not its own top match");
+  if (!(Number(top.combined_pct) >= 99.5)) fail(`self match is ${top.combined_pct}%`);
+  if (!(Number(r.min_at_99) >= 99)) fail("floor 0.99 returned a result below 99%");
+  if (!(r.top.every((m) => Number(m.combined_pct) >= 90))) fail("floor 0.90 returned a result below 90%");
+  return r;
+}
+
+async function proveImageEmbed() {
+  const started = Date.now();
+  const probe = await managementQuery(TRIGGER_SQL_4692);
+  const trig = parseRollbackResult4692(probe.status, probe.json);
+  if (trig.enabled_jobs !== 1) fail(`thumbnail update enqueued ${trig.enabled_jobs} jobs, expected 1`);
+  if (trig.key_absent_jobs !== 0) fail(`with the key absent the trigger enqueued ${trig.key_absent_jobs}`);
+  const pick = await managementQuery(PICK_SQL_4692);
+  const assetId = pick.json?.[0]?.asset_id;
+  if (pick.status >= 400 || !assetId) fail("no embedded raster asset to re-index");
+  const enqueuedAt = new Date().toISOString();
+  await call("/rest/v1/rpc/image_embed_enqueue_index", { method: "POST", body: { p_asset_id: assetId } });
+  let row;
+  for (let i = 0; i < 60; i += 1) {
+    const r = await managementQuery(jobSql4692(assetId));
+    if (r.status >= 400) fail(`4692 job read returned HTTP ${r.status}`);
+    row = r.json?.[0];
+    if (row?.status === "done" || row?.status === "failed") break;
+    await sleep(3000);
+  }
+  const worker = evaluateWorker4692(row, enqueuedAt);
+  const found = await managementQuery(searchSql4692(assetId));
+  if (found.status >= 400) fail(`4692 search returned HTTP ${found.status}`);
+  const search = evaluateSearch4692(found.json?.[0], assetId);
+  return {
+    call: "rolled-back trigger probe (key on/absent), image_embed_enqueue_index → GPU worker → search_dam_image_similarity (Management API + service role)",
+    elapsed_ms: Date.now() - started,
+    trigger: trig,
+    asset_id: assetId,
+    enqueued_at: enqueuedAt,
+    worker,
+    search: { top: search.top, above_90: search.above_90, min_at_99: search.min_at_99 },
+  };
+}
+
+const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant, 4064: proveCounters, 4190: proveCadence, 4257: proveNoReuse, 4268: proveSoDates, 4692: proveImageEmbed };
 
 async function main() {
   if (url !== EXPECTED_URL) fail("SUPABASE_URL is not the production project");
