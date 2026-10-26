@@ -111,6 +111,8 @@ Runtime configuration lives in the `admin_config` table (`key`, `value` jsonb co
 | `BULK_OPERATIONS` | State for all bulk jobs (see `docs/BULK_JOBS.md`) |
 | `SEARCH_MODE` | `keyword` (default) or `hybrid`; keep keyword until search security, coverage, quality, fallback, and rollback gates pass |
 | `SEARCH_AUTO_EMBED_ENABLED` | Boolean search-index freshness switch; absent/false is off, true permits one bounded worker batch per minute |
+| `POPSG_SEARCH_AUTO_EMBED_ENABLED` | Boolean PopSG search-embedding freshness switch (`sg-embed-search`); absent/false is off, true permits one bounded 25-document worker batch per minute once shared-db #4437 stage 1 is promoted |
+| `TEXT_EMBED_URL` / `TEXT_EMBED_KEY` | apps/text-embed (SigLIP2 text tower) endpoint and shared secret for `sg-embed-search`; the worker reads admin_config first and falls back to its Railway env (`TEXT_EMBED_URL`/`TEXT_EMBED_KEY`). The edge `dam-search-ai` function reads the same keys from Supabase function secrets |
 | `SCAN_REQUEST` | Pending scan trigger flags for agents |
 | `STYLE_GUIDE_CRAWL_REQUEST` | Pending PopSG crawl trigger |
 | `ERP_LAST_SYNC_DATE` | Watermark for incremental ERP sync |

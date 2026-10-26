@@ -8,6 +8,8 @@ The worker polls `admin_config.BULK_OPERATIONS` every **1 second** by default (`
 
 `embed-dam-search` is the search-index operation. The Railway worker is the only component allowed to claim documents; the edge function only embeds documents carrying the worker's live lease token, and database writes also require the matching content hash. The admin card exposes coverage, start/stop/resume, and terminal-error requeue. Automatic freshness is off unless `SEARCH_AUTO_EMBED_ENABLED` is exactly `true`, and is then bounded to one 25-document batch per minute.
 
+`sg-embed-search` is the PopSG search-index operation (shared-db #4437 stage 1, popdam3 #107). One batch claims up to `params.batch_size` (default 100, max 500) not-yet-embedded active documents through `claim_sg_search_embedding_documents`, embeds each document's `search_text` via the apps/text-embed SigLIP2 text tower (`admin_config.TEXT_EMBED_URL`/`TEXT_EMBED_KEY`, worker env fallback), and writes each vector back through `upsert_sg_search_embedding` under the claim's lease token and content hash; failures go through `mark_sg_search_embedding_error` with the migration's bounded transient backoff (5 attempts) or a permanent category. The operation loops batch-by-batch until a claim comes back empty, then reports coverage from `get_sg_search_embedding_status`. The stage-1 RPCs do not exist until shared-db migration `20261025180137` is promoted: until then every run fails immediately with a missing-RPC error naming that migration — never a fake success. Automatic freshness is off unless `POPSG_SEARCH_AUTO_EMBED_ENABLED` is exactly `true` (the SG-specific switch; DAM's `SEARCH_AUTO_EMBED_ENABLED` stays separate), then one 25-document batch per minute.
+
 **Authoritative code locations:**
 - Orchestrator: `apps/worker/src/operation-loop.ts` (Railway)
 - Operation definitions: `supabase/functions/_shared/operation-constants.ts`
@@ -35,6 +37,7 @@ The worker polls `admin_config.BULK_OPERATIONS` every **1 second** by default (`
 | `erp-enrichment` | erp | assets, style_groups (ERP codes) | manual |
 | `erp-classify` | erp | product_category_predictions | manual |
 | `rich-pdf-extract` | rich-pdf | dam.pdf_rich_extraction, style_groups.rich_metadata, assets.product_material/product_dimensions | manual (Settings → PDF Text → Rich PDF Extraction) |
+| `sg-embed-search` | search-index | style_guide_search_documents (embedding + embedding_* columns, via stage-1 RPCs) | manual / auto while `POPSG_SEARCH_AUTO_EMBED_ENABLED` = true |
 
 ---
 

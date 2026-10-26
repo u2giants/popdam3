@@ -14,6 +14,7 @@ import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { tick } from "./operation-loop.js";
 import { maybeEmbedPendingSearchDocuments } from "./handlers/embed-search.js";
+import { maybeEmbedPendingSgSearchDocuments } from "./handlers/embed-sg-search.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
 import { maybeWriteWorkerHeartbeat } from "./worker-heartbeat.js";
 
@@ -70,6 +71,7 @@ async function main() {
       await withDependencyTimeout("worker heartbeat", maybeWriteWorkerHeartbeat());
       await tick();
       await withDependencyTimeout("search embedding maintenance", maybeEmbedPendingSearchDocuments());
+      await withDependencyTimeout("popsg search embedding maintenance", maybeEmbedPendingSgSearchDocuments());
     } catch (e) {
       logger.error("worker: unhandled error in tick", {
         error: e instanceof Error ? e.message : String(e),
