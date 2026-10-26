@@ -80,6 +80,7 @@ export const OP_NAMES: Record<string, string> = {
   "rich-pdf-extract": "Rich PDF Extract",
   "tag-popsg-files": "Tag PopSG Files",
   "embed-dam-search": "Embed DAM Search",
+  "sg-embed-search": "Embed PopSG Search",
 };
 
 // Operations in DIFFERENT lanes can run simultaneously — UNLESS they appear
@@ -106,6 +107,7 @@ export const OP_LANES: Record<string, string> = {
   "rich-pdf-extract": "rich-pdf",
   "tag-popsg-files": "popsg-tags",
   "embed-dam-search": "search-index",
+  "sg-embed-search": "search-index",
 };
 
 export function getLane(opKey: string): string {
