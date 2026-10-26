@@ -5,6 +5,7 @@ import type { Asset } from "@/types/assets";
 import { getPathDisplayModes, getUserSyncRoot, setUserSyncRoot, type NasConfig } from "@/lib/path-utils";
 import { getOpenFolderUri, buildOpenFolderUri, getPreferredPathMode, setPreferredPathMode, type PathMode } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
+import { buildMockupUrl } from "@/lib/mockup-tool";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,7 @@ import {
   Settings2,
   ChevronRight,
   Download,
+  Box,
 } from "lucide-react";
 import { Constants } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
@@ -86,6 +88,14 @@ function formatSize(bytes: number | null): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Opens the Product Mockups tool (public/mockup/) with this asset's thumbnail
+// preloaded; buildMockupUrl routes the image through the /spaces/ nginx proxy.
+function openMockupTool(asset: Asset) {
+  if (!asset.thumbnail_url) return;
+  const win = window.open(buildMockupUrl(asset.thumbnail_url, asset.filename), "_blank", "noopener");
+  if (!win) toast.error("The mockup tool could not be opened — allow pop-ups for this site.");
 }
 
 function DlRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -529,6 +539,22 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
             {/* AI re-tag + checkout inline */}
             <div className="ml-auto flex items-center gap-1">
               <CheckoutBar assetId={asset.id} />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={() => openMockupTool(asset)}
+                    disabled={!asset.thumbnail_url}
+                  >
+                    <Box className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {!asset.thumbnail_url ? "No thumbnail — cannot mock up" : "Create product mockup"}
+                </TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
