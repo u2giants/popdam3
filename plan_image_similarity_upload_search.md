@@ -16,11 +16,11 @@
 | 0b. File PopDAM tracking issue | ✅ done 2026-10-23 | #486 |
 | 1. Spike: dims, VRAM, crop, speed | ✅ done 2026-10-26 — whole library dual-embedded on edge-dev GPU (~15–25 img/s); bytea proof deferred to Step 5 (no upload path exercised yet) | #486 comment 6408936634; tools on edge-dev `D:\ai\siglip2-embed\` |
 | 2. shared-db: tables, public wrappers, trigger | ✅ done 2026-10-26 — #4700 merged; migration `20261025163955` LIVE on production (preview rehearsal pass, then OWNER-OVERRIDE apply per owner ruling 2026-10-25); **139,403/139,458 assets carry both vectors (99.96%)**, 2 HNSW indexes, single stamp; 55 gaps = missing Spaces thumbnails; login credential in 1Password; stamp in admin_config; `IMAGE_EMBED_ENABLED` still false | #486 comment 6408936634; run 40264183001 |
-| 3. GPU poller (pooler TLS, LOGIN role, heartbeat) | ⬜ open | worker install doc |
-| 4. Incremental trigger + backfill enqueue-only | ⬜ open | — |
-| 5. Edge `image-similarity` + UI + status route | ⬜ open | `docs/verification/image-similarity-ui.md` |
-| 6. Tunable config (edge + poller + frontend) | ⬜ open | Settings screenshot pair |
-| 7. Live proof on production library | ⬜ open | `docs/verification/image-similarity-acceptance.md` |
+| 3. GPU poller (pooler TLS, LOGIN role, heartbeat) | ✅ done 2026-10-26 — `apps/image-embed-worker` (PR #503 `c0861eb2`); live on edge-dev schtask `PopDAM-ImageEmbedWorker`, heartbeat 30 s, 13/13 pytest + CUDA selftest; stamp copied from admin_config at install (login role cannot read admin_config; a login-readable stamp RPC would need a shared-db wrapper) | `apps/image-embed-worker/README.md`; #486 |
+| 4. Incremental trigger + backfill enqueue-only | 🟡 incremental ✅ done 2026-10-26 — `IMAGE_EMBED_ENABLED` on (10:53 AM EST); enqueue→vector 2.4 s, query self-match 100.0 % in 1.1 s. Backfill op **blocked**: service_role cannot enumerate stale assets (needs `public.image_embed_stale_assets` wrapper in shared-db) | `docs/verification/image-similarity-20261026/acceptance.md`; #486 |
+| 5. Edge `image-similarity` + UI + status route | ✅ done 2026-10-26 — PR #505 `068063bf`; deployed (rerun after an esm.sh flake); drop zone in LibraryTopBar + `ImageSimilarityResults`; UI proof: "4 matches at 90%+" live | `docs/verification/image-similarity-20261026/ui-verification.md` |
+| 6. Tunable config (edge + poller + frontend) | ✅ done 2026-10-26 — defaults modules (poller `config.py`, edge/frontend `_shared/image-similarity-config.ts` re-export); admin_config carries floor 0.90 / bands 0.98-0.94-0.90 / weight 0.60 / top_k 200; edge passes them into the RPC | `docs/verification/image-similarity-20261026/acceptance.md` |
+| 7. Live proof on production library | ✅ done 2026-10-26 — 40/40 uploads (20 real pairs × as-is + variant) through the live edge fn; bordered min 96.6 %, white-ground 28/28, all ≥ 90.2 %; cutoffs confirmed; live-proof box ticked on #486 | `docs/verification/image-similarity-20261026/acceptance.md` |
 
 **Fresh session starts at Step 0b/1.** Re-read STATUS first. Do not re-derive.
 
