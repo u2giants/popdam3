@@ -115,6 +115,20 @@ shows a warning. SO Date is live (October 14, 2026): shared-db version
 20261013211042 is in production and the column shows ColdLion SO received dates
 with the tooltip **Date ColdLion received the Sales Order.**
 
+**SKU Qty in Assortment** is a read-only, default-visible column next to
+Quantity. It means the number of pieces of this SKU in one assortment carton.
+The authenticated, bounded reader is in [shared-db PR #4857](https://github.com/popcre/shared-db/pull/4857),
+with migration [20261027155655](https://github.com/popcre/shared-db/blob/main/supabase/migrations/20261027155655_orderlist_assortment_quantities.sql).
+It prefers a matching order-time recipe; when that is unavailable, it can use
+an unambiguous current ColdLion recipe, shown with a **current recipe** label.
+Unavailable or conflicting sources stay blank. The column does not estimate
+from ordered totals or case packs, and it cannot be edited, filtered, sorted, or
+searched. Older saved custom views add it after Quantity while preserving any
+saved column order or visibility choice. A failed quantity lookup leaves rows
+and SO Dates visible and shows its own refresh warning. Release and direct live
+verification are tracked on [PopDAM #523](https://github.com/u2giants/popdam3/issues/523)
+and [canonical shared-db #4855](https://github.com/popcre/shared-db/issues/4855).
+
 **Default 12-month window (October 15, 2026):** `/orders` shows only orders whose window date is in the last 12 months (New York calendar). The window date is the SO Date, else Sent PO, else Start Ship, else Prod PO Date. Orders with no window date at all stay visible. **Show old** lifts the limit in the same table; **Hide old** restores it. The window is applied in the database view (`api.dam_order_list.order_window_date`, shared-db #4336 / claim #4337), so the row count follows it.
 
 Also live October 14, 2026: the 55 settled source corrections, future production

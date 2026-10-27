@@ -70,5 +70,7 @@ describe("OrderList row fetch covers void state", () => {
     const columns = ORDER_LIST_SELECT.split(",");
     expect(columns).toContain("order_voided_at");
     expect(columns).toContain("line_voided_at");
+    expect(columns).not.toContain("assortment_sku_quantity");
+    expect(columns).not.toContain("assortment_quantity_source");
   });
 });

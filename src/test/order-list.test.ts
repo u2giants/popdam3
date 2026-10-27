@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ORDER_LIST_COLUMNS,
   ORDER_LIST_SEARCH_COLUMNS,
+  ensureAssortmentQuantityInSavedColumnState,
   ensureSalesOrderDateInSavedColumnState,
   ORDER_LIST_DEFAULT_PAGE_SIZE,
   ORDER_LIST_PAGE_SIZE_OPTIONS,
@@ -299,6 +300,41 @@ describe("OrderList columns", () => {
         { column: "order_line_id", ascending: true },
       ]);
     expect(ORDER_LIST_SEARCH_COLUMNS).not.toContain("sales_order_date" as any);
+  });
+
+  it("shows a read-only virtual assortment quantity beside Quantity without query support", () => {
+    const quantityIndex = ORDER_LIST_COLUMNS.findIndex((column) => column.field === "quantity_ordered");
+    const assortmentQuantity = ORDER_LIST_COLUMNS[quantityIndex + 1];
+    expect(assortmentQuantity).toMatchObject({
+      field: "assortment_sku_quantity",
+      header: "SKU Qty in Assortment",
+      width: 190,
+      queryable: false,
+      virtual: true,
+    });
+    expect(assortmentQuantity.hide).toBeUndefined();
+    expect(isOrderListFieldSortable("assortment_sku_quantity")).toBe(false);
+    expect(buildOrderListFilters({ assortment_sku_quantity: { type: "equals", filter: 6 }, eta: { type: "equals", dateFrom: "2026-10-02" } }))
+      .toEqual([{ column: "eta", operator: "eq", value: "2026-10-02" }]);
+    expect(ORDER_LIST_SEARCH_COLUMNS).not.toContain("assortment_sku_quantity" as any);
+  });
+
+  it("adds the assortment quantity to old saved layouts without mutating or unhiding existing choices", () => {
+    const oldState = [
+      { colId: "sku", hide: true },
+      { colId: "quantity_ordered", width: 120 },
+      { colId: "case_pack", hide: true },
+    ];
+    const snapshot = structuredClone(oldState);
+    expect(ensureAssortmentQuantityInSavedColumnState(oldState)).toEqual([
+      { colId: "sku", hide: true },
+      { colId: "quantity_ordered", width: 120 },
+      { colId: "assortment_sku_quantity", hide: false },
+      { colId: "case_pack", hide: true },
+    ]);
+    expect(oldState).toEqual(snapshot);
+    const explicitlyHidden = [...oldState, { colId: "assortment_sku_quantity", hide: true, width: 190 }];
+    expect(ensureAssortmentQuantityInSavedColumnState(explicitlyHidden)).toEqual(explicitlyHidden);
   });
 
   it("inserts SO Date beside Prod PO Date in saved layouts that predate the column", () => {
