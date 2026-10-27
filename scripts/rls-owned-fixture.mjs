@@ -1,3 +1,4 @@
+import {successfulLibraryResponse} from './rls-library-live-proof.mjs';
 // Fixed #4427 fixture protocol. No arbitrary SQL, table, actor or callback input.
 import { createHash } from 'node:crypto';
 export const FIXTURE_ID = 'acfe841c-e9ab-4e37-a064-ad77fe83583b';
@@ -81,10 +82,7 @@ export function createFixtureProtocol({client,counts,manifest,credentials}) {
     check(Array.isArray(responseRows) && responseRows.length === 1 && Object.keys(responseRows[0] || {}).length === 1 && responseRows[0].id === m.id);
     check(nextStatus === null);
     expected = await safeRead(status);
-    const reloaded = page.waitForResponse(r => {
-      const u = new URL(r.url());
-      return u.origin === `https://${m.project}.supabase.co` && u.pathname === '/rest/v1/style_groups' && r.request().method() === 'GET' && r.status() === 200;
-    },{timeout:15000});
+    const reloaded = page.waitForResponse(successfulLibraryResponse,{timeout:15000});
     await page.reload({waitUntil:'domcontentloaded'});
     const browserRows = await (await reloaded).json();
     check(Array.isArray(browserRows) && browserRows.length <= 1000);

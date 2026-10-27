@@ -42,11 +42,17 @@ export function diagnosticRoute(raw) {
     if (u.pathname === '/auth/v1/token') return 'password-auth';
     if (u.pathname === '/auth/v1/logout') return 'logout';
     if (u.pathname === '/rest/v1/style_groups') return 'library';
-    if (u.pathname.startsWith('/rest/v1/rpc/')) return 'facets';
+    const rpc = /^\/rest\/v1\/rpc\/([^/]+)$/.exec(u.pathname);
+    if (rpc && FACETS.has(rpc[1])) return `facet-${rpc[1]}`;
     if (u.pathname === '/functions/v1/admin-api') return 'filter-options';
     return 'supabase-read';
   }
   return 'static-other';
+}
+export function successfulLibraryResponse(response) {
+  const u = new URL(response.url());
+  return u.origin === `https://${HOST}` && u.pathname === '/rest/v1/style_groups' &&
+    response.request().method() === 'GET' && [200,206].includes(response.status());
 }
 export function errorClass(error) {
   return ['Error','TypeError','ReferenceError','SyntaxError','RangeError','URIError','EvalError'].includes(error?.name) ? error.name : 'OtherError';
@@ -113,7 +119,7 @@ export async function run(env = process.env, fixture = null) {
       if (u.hostname !== HOST) return;
       if (u.pathname === '/auth/v1/token' && response.status() === 200) tokenIssued = true;
       if (u.pathname === '/auth/v1/logout' && response.status() >= 200 && response.status() < 300) report.logout = true;
-      if (response.request().method() === 'GET' && response.status() === 200 && u.pathname === '/rest/v1/style_groups') reads.add(response);
+      if (successfulLibraryResponse(response)) reads.add(response);
     });
     diagnostic.stage = 'login-page';
     await page.goto(`${ORIGIN}/login`, {waitUntil: 'domcontentloaded'});

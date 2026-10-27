@@ -83,3 +83,24 @@ test('fixed readonly entry cannot instantiate fixture or database client and bin
   for(const forbidden of ['createFixtureProtocol','protectedCounts','createClient','createRequire','rls-owned-fixture.mjs']) assert.equal(source.includes(forbidden),false);
   assert(source.indexOf('delete process.env.POPDAM_TEST_PASSWORD') < source.indexOf('await run(env, null)'));
 });
+
+test('actual shared library response predicate accepts only exact GET 200 or 206', async () => {
+  const {successfulLibraryResponse} = await import('./rls-library-live-proof.mjs');
+  const response = (status,method='GET',url=`https://${HOST}/rest/v1/style_groups?select=*&offset=0&limit=200`) => ({status:()=>status,url:()=>url,request:()=>({method:()=>method})});
+  assert.equal(successfulLibraryResponse(response(200)),true);
+  assert.equal(successfulLibraryResponse(response(206)),true);
+  for(const status of [201,202,204,205,207,301,302,304,400,401,403,404,429,500,503]) assert.equal(successfulLibraryResponse(response(status)),false);
+  for(const method of ['POST','PATCH','DELETE','HEAD']) assert.equal(successfulLibraryResponse(response(206,method)),false);
+  for(const url of [`https://other.supabase.co/rest/v1/style_groups`,`https://${HOST}/rest/v1/assets`,`https://${HOST}/rest/v1/style_groups/extra`,`http://${HOST}/rest/v1/style_groups`,`https://${HOST}:8443/rest/v1/style_groups`]) assert.equal(successfulLibraryResponse(response(206,'GET',url)),false);
+});
+test('facet diagnostics expose only four fixed admitted names and no private URL or query', async () => {
+  const {diagnosticRoute,incrementStatus} = await import('./rls-library-live-proof.mjs');
+  for(const name of ['get_filter_counts','get_path_facets','get_dam_material_facets','get_dam_customer_facets']) {
+    assert.equal(diagnosticRoute(`https://${HOST}/rest/v1/rpc/${name}?private=PRIVATE_CANARY`),`facet-${name}`);
+  }
+  const counts={};
+  incrementStatus(counts,`https://${HOST}/rest/v1/rpc/PRIVATE_CANARY?token=SECRET_CANARY`,500);
+  incrementStatus(counts,`https://${HOST}/rest/v1/rpc/get_filter_counts?token=SECRET_CANARY`,500);
+  assert.deepEqual(counts,{'supabase-read:500':1,'facet-get_filter_counts:500':1});
+  assert.equal(JSON.stringify(counts).includes('CANARY'),false);
+});
