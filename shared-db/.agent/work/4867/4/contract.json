@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "generation": 4,
+  "evidence_parent": {
+    "work_issue": 4867,
+    "generation": 3,
+    "contract_sha256": "2a0b9254a38b47d3dd7fd775e8ba5239c498e6911d574e0aa330684c6a61f73c"
+  },
+  "work_issue": 4867,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Bootstrap fixed verifier-owned admin RLS catalog contract plus inert synthetic-sidecar tests and detector baseline first; preserve failed4871 activation attempt. No active sidecar or registry entry until separately reviewed successor delivery from merged bootstrap main.",
+  "base_sha": "91d4ff65fb600e20aa62cfc00fa22a3c94bc4a11",
+  "dispatcher": "Codex parent chat 01a17a03-63b6-7081-ab54-29fa144bf678 on edge-dev3",
+  "worker": "Codex chat 01a17b07-70ee-7ac0-9858-228ecb038db2 on edge-dev3",
+  "branch": "codex/4427-catalog-recovery",
+  "worktree": "/tmp/shared-db-4427-catalog",
+  "allowed_paths": [
+    "scripts/production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20261021190604.json",
+    "scripts/test_rls_admin_catalog_recovery.py",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/rls-initplan/4427/catalog-recovery.md",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json"
+  ],
+  "file_writes": [
+    "scripts/production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20261021190604.json",
+    "scripts/test_rls_admin_catalog_recovery.py",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/rls-initplan/4427/catalog-recovery.md",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration edit/reapply/new version, no shared database writes or recovery dispatch",
+    "No generic relaxation of catalog verification or source baseline",
+    "No closure of4427 from catalog-only proof",
+    "No live sidecar/registry activation in bootstrap PR4871; no recovery dispatch"
+  ],
+  "required_checks": [
+    "python -m unittest discover -s scripts -p test_rls_admin_catalog_recovery.py",
+    "python -m unittest discover -s scripts -p test_production_catalog_verification.py",
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "Version20261021190604 is already installed; original run failed solely missing derived catalog targets"
+  ],
+  "stop_conditions": [
+    "Unaccounted policy/table/helper/ACL drift",
+    "Existing fixed catalog contract support cannot express scoped proof"
+  ]
+}

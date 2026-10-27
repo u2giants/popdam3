@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "work_issue": 4867,
+  "outcome": "ready-for-merge",
+  "pr": 4871,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4867/4",
+  "contract_sha256": "559af23b39ed62321fae44b2b164115638a7b37467841fc6f39c10f1d2269934",
+  "head_sha": "6ad9e429bba0019dca7f2290cccaf7681dd561a7",
+  "base_sha": "91d4ff65fb600e20aa62cfc00fa22a3c94bc4a11",
+  "files_changed": [
+    "docs/verification/rls-initplan/4427/catalog-recovery.md",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_rls_admin_catalog_recovery.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -m unittest discover -s scripts -p test_rls_admin_catalog_recovery.py",
+      "exit_code": 0,
+      "evidence": "Six focused bootstrap assertions passed"
+    },
+    {
+      "command": "python -m unittest discover -s scripts -p test_production_catalog_verification.py",
+      "exit_code": 0,
+      "evidence": "Passing local check; log SHA256 486c3e3a574fb37f1bf925b2ec7aa61a30239dfc071537752fee1a134ad3558b"
+    },
+    {
+      "command": "python -m unittest discover -s scripts -p test_production_catalog_recovery_evidence.py",
+      "exit_code": 0,
+      "evidence": "Passing local check; log SHA256 378835dfcd1a3745d724bbc79aa32b8ce02046db20c8d9d4d5c73615d1fe5954"
+    },
+    {
+      "command": "python -m unittest discover -s scripts -p test_check_production_verification_sidecars.py",
+      "exit_code": 0,
+      "evidence": "Passing local check; log SHA256 6508051d44078a986bbb87b1424ea7510c64abe4a4549be6c75a6e2edfd5fac9"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Passing local check; log SHA256 9e6b25acbd00554008f7baea697795aad6c388425f5980f41fe05ba1066da4a5"
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs",
+      "exit_code": 0,
+      "evidence": "Passing local check; log SHA256 c92031b3e655fead779cf74067a67b4fc026de6b44cffb6ed1ad951ea3bb00b8"
+    }
+  ],
+  "assumptions_resolved": [
+    "Trusted verifier definitions must bootstrap on main before new sidecar data can be activated",
+    "Bootstrap has no live sidecar or registry declaration; synthetic fixture exercises loader in isolation"
+  ],
+  "stop_conditions_hit": []
+}
