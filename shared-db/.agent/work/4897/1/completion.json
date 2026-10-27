@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 4897,
+  "outcome": "ready-for-merge",
+  "pr": 4896,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4897/1",
+  "contract_sha256": "a3369d4ac6711083aa240b8954dc8c2265437e9f05d9a13ed204a7988dbb7805",
+  "head_sha": "6405ec310e17dbfe6b9ce1d3e31e2681a815030b",
+  "base_sha": "1d0305f1a707401672efc4c99993d6493fbbcd88",
+  "files_changed": [
+    "tools/property-name-match.mjs",
+    "tools/property-name-match.test.mjs",
+    "tools/check-coldlion-property-scrape-names.mjs",
+    "tools/check-coldlion-property-scrape-names.test.mjs",
+    ".github/workflows/coldlion-property-scrape-name-check.yml"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"command": "node --test tools/property-name-match.test.mjs tools/check-coldlion-property-scrape-names.test.mjs", "exit_code": 0, "evidence": "# tests 10 # pass 10 # fail 0 "},
+    {"command": "git diff --check", "exit_code": 0, "evidence": "No whitespace errors"}
+  ],
+  "assumptions_resolved": [
+    "Local read-only run against production returned 706 active rows: 638 exact, 8 loose, 60 unmatched, 1 blank-name code; counts only"
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 4897,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Nightly read-only check of active ColdLion MG06 Property names against scraped licensor Submissions names using loose name matching; counts and codes only",
+  "base_sha": "1d0305f1a707401672efc4c99993d6493fbbcd88",
+  "dispatcher": "Claude Code session on edge-dev3 for owner Albert Hazan (chat 2026-10-27)",
+  "worker": "Claude Code session on edge-dev3",
+  "branch": "claude/coldlion-properties-sync-4f9e9b",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/coldlion-properties-sync-4f9e9b",
+  "allowed_paths": [
+    "tools/property-name-match.mjs",
+    "tools/property-name-match.test.mjs",
+    "tools/check-coldlion-property-scrape-names.mjs",
+    "tools/check-coldlion-property-scrape-names.test.mjs",
+    ".github/workflows/coldlion-property-scrape-name-check.yml"
+  ],
+  "file_writes": [
+    "tools/property-name-match.mjs",
+    "tools/property-name-match.test.mjs",
+    "tools/check-coldlion-property-scrape-names.mjs",
+    "tools/check-coldlion-property-scrape-names.test.mjs",
+    ".github/workflows/coldlion-property-scrape-name-check.yml"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database writes, migrations or schema changes",
+    "No Property names or licensed rows in the repository, logs, job summary, artifacts or review prompt"
+  ],
+  "required_checks": [
+    "node --test tools/property-name-match.test.mjs tools/check-coldlion-property-scrape-names.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The deployed inventory function keeps its property branch shape (with ... keyed ... filtered); the extractor fails closed otherwise",
+    "The PR itself performs no database access; the nightly workflow it adds performs one read-only SELECT against production"
+  ],
+  "stop_conditions": [
+    "Any needed change outside allowed paths",
+    "Any database write"
+  ]
+}
