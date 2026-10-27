@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "work_issue": 4892,
+  "outcome": "ready-for-merge",
+  "contract_ref": "refs/db-contracts/4892/1",
+  "contract_sha256": "a179dce7b039f43b798ff1001a2517696fea864ea0448efcc3335ea2961691c7",
+  "base_sha": "9c24d1ffe393db6c8e756b00ca1ef0c3432d9bb6",
+  "head_sha": "e66f762be5094d0a054bae07c7550fe3de7a3430",
+  "files_changed": [
+    ".github/workflows/generate-database-types.yml",
+    "docs/agents/generated-types-consumer-proof.md",
+    "scripts/db-flow/admission-outcome.test.mjs",
+    "scripts/generated-types-proof.mjs",
+    "scripts/generated-types-proof.test.mjs",
+    "scripts/lib/lanes/retirement.mjs",
+    "scripts/manage-migration-author-lanes.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/generated-types-proof.test.mjs scripts/db-flow/admission-outcome.test.mjs",
+      "exit_code": 0,
+      "evidence": "110 tests passed including native canonical-v1 and consumer-v2 artifact verification and adversarial source/consumer/target/schema/digest cases."
+    },
+    {
+      "command": "node --check scripts/manage-migration-author-lanes.mjs",
+      "exit_code": 0,
+      "evidence": "Syntax check passed."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    },
+    {
+      "command": "node --test scripts/check-workflow-yaml.test.mjs",
+      "exit_code": 0,
+      "evidence": "53 tests passed, including real workflow YAML parsing."
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "920 native manager tests passed."
+    },
+    {
+      "command": "node --test scripts/generated-types-proof.test.mjs scripts/db-flow/admission-outcome.test.mjs scripts/check-workflow-yaml.test.mjs scripts/manage-migration-author-lanes.test.mjs",
+      "exit_code": 0,
+      "evidence": "Rerun before PR4898 readiness update: all1083 tests passed; native source and proof adversaries remain covered."
+    }
+  ],
+  "assumptions_resolved": [
+    "Actual unchanged live issue4855 scope accepted and actual consumer default-branch head independently validated through read-only GitHub calls.",
+    "Generated-types proof remains separate from live application proof.",
+    "Draft PR4898 exists at the reviewed product source; this update changes only completion evidence, not implementation or published immutable prework."
+  ],
+  "stop_conditions_hit": [],
+  "pr": 4898,
+  "migration_versions": []
+}

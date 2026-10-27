@@ -38,7 +38,7 @@ import { PROJECT_REFS } from './db-flow/read-preview-ledger.mjs'; import { verdi
 import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, REVIEW_VERDICTS, assertFindingsRefForPr, findingsDigest, formatVerdictMessage, parseVerdictCommit, parseVerdictRef, validateVerdictArtifact, verdictRef } from './lib/review-verdict-artifact.mjs'
 import { changedPathsFromPullRequestFiles, classifyChangedPaths, classifyLightweightMergePullRequestFiles } from './lib/documents-only-change.mjs'
 import { HISTORICAL_RESTORATIONS, validateHistoricalRestorationFile } from './historical-migration-restorations.mjs'
-import { matchesGeneratedTypesWorkflowRun, selectGeneratedTypesArtifactEntries } from './generated-types-proof.mjs'
+import { resolveGeneratedTypesConsumerBinding, matchesGeneratedTypesWorkflowRun, selectGeneratedTypesArtifactEntries } from './generated-types-proof.mjs'
 import { AdmissionError, SERVICE_CLASSES, CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, STRUCTURAL_ROUTES, parseImpactBlock, evaluateAdmission, inspectPrStructuralChange, structuralWritesMatch, structuralWritesCovered } from './db-flow/admission.mjs'
 import { assertNamedHold, conflicts, describeLeaseHolder, formatHoldReason, HoldReasonError } from './lib/hold-reason.mjs'
 import { OUTCOME_STATES, OutcomeError, advanceOutcome, completeOutcome, verifyOutcomeAcceptance, outcomeEvent, outcomeHistory, repairOutcomeHistory } from './db-flow/outcome-lifecycle.mjs'
@@ -1216,20 +1216,29 @@ export const githubIo = {
     const proof=this.readArtifactJson(match[1],artifact.id,'db-live-proof.json')
     return matchesLiveProof(proof,evidence)
   },
-  verifyGeneratedTypes(evidence){
+  verifyGeneratedTypes(evidence,{readJson=ghJson,readEntries=(repository,id)=>readZipEntries(gh(['api',`repos/${repository}/actions/artifacts/${Number(id)}/zip`],{encoding:null,maxBuffer:20*1024*1024}))}={}){
     const match=/^https:\/\/github\.com\/([^/]+\/[^/]+)\/actions\/runs\/(\d+)$/.exec(String(evidence?.generated_types_evidence??''))
-    if(!match||match[1].toLowerCase()!==REPO.toLowerCase()||match[1].toLowerCase()!==String(evidence.application_repository).toLowerCase())return false
-    const run=ghJson(['api',`repos/${match[1]}/actions/runs/${match[2]}`])
+    if(!match||match[1].toLowerCase()!==REPO.toLowerCase())return false
+    const run=readJson(['api',`repos/${match[1]}/actions/runs/${match[2]}`])
     if(!matchesGeneratedTypesWorkflowRun(run,evidence))return false
-    const artifacts=ghJson(['api',`repos/${match[1]}/actions/runs/${match[2]}/artifacts`])?.artifacts
+    const artifacts=readJson(['api',`repos/${match[1]}/actions/runs/${match[2]}/artifacts`])?.artifacts
     const artifact=Array.isArray(artifacts)?artifacts.find((row)=>Number(row.id)===Number(evidence.generated_types_artifact_id)):null
+    let producerBinding
+    if(String(evidence.application_repository).toLowerCase()!==REPO.toLowerCase()){
+      try{
+        const issue=readJson(['api',`repos/${REPO}/issues/${Number(evidence.work_issue)}`])
+        const consumer=resolveGeneratedTypesConsumerBinding(issue,evidence.work_issue,evidence.application_commit_sha,readJson,{allowClosed:true})
+        if(consumer.application_repository!==evidence.application_repository)return false
+        producerBinding={producer_repository:REPO,producer_commit_sha:String(run.head_sha).toLowerCase(),application_default_branch:consumer.application_default_branch}
+      }catch{return false}
+    }
     const expectedName=`shared-db-generated-types-${evidence.work_issue}-${String(evidence.application_commit_sha).toLowerCase()}`
     if(!(artifact?.name===expectedName&&artifact.expired===false&&String(artifact.digest??'').toLowerCase()===String(evidence.generated_types_artifact_digest).toLowerCase()))return false
     let entries
-    try{entries=readZipEntries(gh(['api',`repos/${match[1]}/actions/artifacts/${Number(artifact.id)}/zip`],{encoding:null,maxBuffer:20*1024*1024}))}catch{return false}
+    try{entries=readEntries(match[1],artifact.id)}catch{return false}
     const selected=selectGeneratedTypesArtifactEntries(entries)
     if(!selected)return false
-    return matchesGeneratedTypesArtifact(selected.proof,selected.typescriptBytes,evidence)
+    return matchesGeneratedTypesArtifact(selected.proof,selected.typescriptBytes,evidence,producerBinding)
   },
   readArtifactJson(repository,id,expectedFile){
     const entries=readZipEntries(gh(['api',`repos/${repository}/actions/artifacts/${Number(id)}/zip`],{encoding:null,maxBuffer:20*1024*1024}))

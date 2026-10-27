@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url'
 export const PRODUCTION_PROJECT_REF = 'qsllyeztdwjgirsysgai'
 export const PRODUCTION_PROJECT_URL = `https://api.supabase.com/v1/projects/${PRODUCTION_PROJECT_REF}`
 export const GENERATED_TYPES_SCHEMAS = Object.freeze(['public', 'dflow', 'plm', 'core', 'app'])
+export const GENERATED_TYPES_PRODUCER = 'popcre/shared-db'
 export const GENERATED_TYPES_WORKFLOW_PATH = '.github/workflows/generate-database-types.yml'
 const SHA = /^[0-9a-f]{40}$/i
 
@@ -22,12 +23,12 @@ export function parsePositiveIssue(value) {
   return number
 }
 
-export function validateIssueScope(issue, expectedIssue) {
+export function validateIssueScope(issue, expectedIssue, { allowClosed = false } = {}) {
   const number = parsePositiveIssue(expectedIssue)
   if (!issue || typeof issue !== 'object' || Array.isArray(issue)) refuse('work issue response is unreadable')
   if (Number(issue.number) !== number) refuse(`GitHub returned issue #${issue.number}, expected #${number}`)
   if (issue.pull_request) refuse(`work issue #${number} is a pull request, not an issue`)
-  if (issue.state !== 'open') refuse(`work issue #${number} is not open`)
+  if (issue.state !== 'open' && !(allowClosed && issue.state === 'closed')) refuse(`work issue #${number} is not open`)
   if (typeof issue.body !== 'string') refuse(`work issue #${number} has no readable body`)
   const fences = [...issue.body.matchAll(/```db-work-scope\s*\r?\n([\s\S]*?)\r?\n```/g)]
   if (fences.length !== 1) refuse(`work issue #${number} must contain exactly one db-work-scope block`)
@@ -42,12 +43,13 @@ export function validateIssueScope(issue, expectedIssue) {
   for (const [key, value] of Object.entries({
     status: 'ready',
     work_type: 'structural',
-    application_return_to: 'popcre/shared-db',
     generated_types: 'required',
   })) {
     if (fields.get(key) !== value) refuse(`work issue #${number} scope must declare ${key}: ${value}`)
   }
-  return { work_issue: number }
+  const repository = fields.get('application_return_to')
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(repository ?? '')) refuse('application_return_to must name one GitHub owner/repository')
+  return { work_issue: number, application_repository: repository }
 }
 
 export function validateMainBinding({ issueNumber, applicationCommitSha, checkoutSha, currentMainSha, gitHubRef }) {
@@ -62,7 +64,33 @@ export function validateMainBinding({ issueNumber, applicationCommitSha, checkou
 }
 
 export function matchesGeneratedTypesWorkflowRun(run, evidence) {
-  return run?.conclusion === 'success' && run?.event === 'workflow_dispatch' && run?.path === GENERATED_TYPES_WORKFLOW_PATH && run?.head_branch === 'main' && String(run?.head_sha ?? '').toLowerCase() === String(evidence?.application_commit_sha ?? '').toLowerCase() && String(evidence?.application_repository ?? '').toLowerCase() === 'popcre/shared-db'
+  const canonical = String(evidence?.application_repository ?? '').toLowerCase() === GENERATED_TYPES_PRODUCER
+  return run?.conclusion === 'success' && run?.event === 'workflow_dispatch'
+    && run?.path === GENERATED_TYPES_WORKFLOW_PATH && run?.head_branch === 'main'
+    && SHA.test(String(run?.head_sha ?? ''))
+    && (canonical ? String(run.head_sha).toLowerCase() === String(evidence?.application_commit_sha ?? '').toLowerCase()
+      : SHA.test(String(evidence?.application_commit_sha ?? '')) && String(run?.repository?.full_name ?? '').toLowerCase() === GENERATED_TYPES_PRODUCER)
+}
+
+export function validateConsumerBinding({ applicationRepository, applicationCommitSha, repositoryMetadata, defaultBranchSha }) {
+  if (!SHA.test(String(applicationCommitSha ?? ''))) refuse('consumer application commit must be a full 40-character SHA')
+  if (typeof applicationRepository !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(applicationRepository)) refuse('consumer repository is malformed')
+  if (String(repositoryMetadata?.full_name ?? '').toLowerCase() !== applicationRepository.toLowerCase()) refuse('consumer repository does not match the issue application_return_to')
+  const branch = repositoryMetadata?.default_branch
+  if (typeof branch !== 'string' || !branch || branch.length > 255 || /[\x00-\x20\x7f]/.test(branch)) refuse('consumer default branch is unreadable')
+  if (!SHA.test(String(defaultBranchSha ?? '')) || defaultBranchSha.toLowerCase() !== applicationCommitSha.toLowerCase()) refuse('consumer application commit is not the current default-branch head')
+  return { application_repository: applicationRepository, application_commit_sha: applicationCommitSha.toLowerCase(), application_default_branch: branch }
+}
+
+export function resolveGeneratedTypesConsumerBinding(issue, issueNumber, applicationCommitSha, readJson = ghReadJson, { allowClosed = false } = {}) {
+  const scope = validateIssueScope(issue, issueNumber, { allowClosed })
+  if (!SHA.test(String(applicationCommitSha ?? ''))) refuse('consumer application commit must be a full 40-character SHA')
+  const repository = scope.application_repository
+  const metadata = readJson(['api', `repos/${repository}`])
+  // Validate repository identity and branch before constructing another API path.
+  validateConsumerBinding({ applicationRepository: repository, applicationCommitSha, repositoryMetadata: metadata, defaultBranchSha: applicationCommitSha })
+  const head = readJson(['api', `repos/${repository}/commits/${encodeURIComponent(metadata.default_branch)}`])
+  return validateConsumerBinding({ applicationRepository: repository, applicationCommitSha, repositoryMetadata: metadata, defaultBranchSha: head?.sha })
 }
 
 export function validateProjectMetadata({ requestUrl, metadata, productionRef = PRODUCTION_PROJECT_REF, previewRef }) {
@@ -107,16 +135,18 @@ export function selectGeneratedTypesArtifactEntries(entries) {
   } catch { return null }
 }
 
-export function buildGeneratedTypesProof({ issue, issueNumber, applicationCommitSha, checkoutSha, currentMainSha, gitHubRef, generatedTypesBytes, schemas, projectRequestUrl, projectMetadata, productionProjectRef = PRODUCTION_PROJECT_REF, previewProjectRef, generatedAt = new Date().toISOString() }) {
-  const { work_issue } = validateIssueScope(issue, issueNumber)
-  const commit = validateMainBinding({ issueNumber: work_issue, applicationCommitSha, checkoutSha, currentMainSha, gitHubRef })
+export function buildGeneratedTypesProof({ issue, issueNumber, applicationCommitSha, producerCommitSha, consumerRepositoryMetadata, consumerDefaultBranchSha, checkoutSha, currentMainSha, gitHubRef, generatedTypesBytes, schemas, projectRequestUrl, projectMetadata, productionProjectRef = PRODUCTION_PROJECT_REF, previewProjectRef, generatedAt = new Date().toISOString() }) {
+  const { work_issue, application_repository } = validateIssueScope(issue, issueNumber)
+  const canonical = application_repository.toLowerCase() === GENERATED_TYPES_PRODUCER
+  const commit = validateMainBinding({ issueNumber: work_issue, applicationCommitSha: canonical ? applicationCommitSha : producerCommitSha, checkoutSha, currentMainSha, gitHubRef })
+  const consumer = canonical ? null : validateConsumerBinding({ applicationRepository: application_repository, applicationCommitSha, repositoryMetadata: consumerRepositoryMetadata, defaultBranchSha: consumerDefaultBranchSha })
   const target = validateProjectMetadata({ requestUrl: projectRequestUrl, metadata: projectMetadata, productionRef: productionProjectRef, previewRef: previewProjectRef })
   const bytes = validateGeneratedTypesOutput(generatedTypesBytes, schemas)
   if (Number.isNaN(Date.parse(generatedAt)) || !/^\d{4}-\d\d-\d\dT.*Z$/.test(generatedAt)) refuse('generated_at must be a valid UTC timestamp')
   return {
-    schema_version: 1,
+    schema_version: canonical ? 1 : 2,
     work_issue,
-    application_commit_sha: commit,
+    ...(canonical ? { application_commit_sha: commit } : { producer_repository: GENERATED_TYPES_PRODUCER, producer_commit_sha: commit, ...consumer }),
     result: 'passed',
     generated_types_sha256: generatedTypesSha256(bytes),
     environment: 'production',
@@ -180,6 +210,16 @@ async function main(argv) {
     process.stdout.write(`Issue scope verified: #${issue.number}\n`)
     return
   }
+  if (command === 'validate-consumer') {
+    const number = argValue(args, '--issue'), issue = readIssue(number)
+    const scope = validateIssueScope(issue, number)
+    if (scope.application_repository.toLowerCase() === GENERATED_TYPES_PRODUCER && process.env.APPLICATION_COMMIT_SHA) refuse('canonical v1 proof does not accept a consumer commit override')
+    const sha = scope.application_repository.toLowerCase() === GENERATED_TYPES_PRODUCER ? process.env.GITHUB_SHA : process.env.APPLICATION_COMMIT_SHA
+    const binding = resolveGeneratedTypesConsumerBinding(issue, number, sha)
+    if (process.env.GITHUB_OUTPUT) writeFileSync(process.env.GITHUB_OUTPUT, `application_commit_sha=${binding.application_commit_sha}\n`, { flag: 'a' })
+    process.stdout.write('Issue-bound current consumer head verified\n')
+    return
+  }
   if (command === 'validate-main') {
     const sha = process.env.GITHUB_SHA ?? ''
     const checkoutSha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
@@ -204,13 +244,18 @@ async function main(argv) {
     const gitHubRef = process.env.GITHUB_REF ?? ''
     const currentMain = currentMainSha()
     const issue = readIssue(issueNumber)
+    const scope = validateIssueScope(issue, issueNumber)
+    const consumerSha = scope.application_repository.toLowerCase() === GENERATED_TYPES_PRODUCER ? sha : process.env.APPLICATION_COMMIT_SHA
+    const consumer = resolveGeneratedTypesConsumerBinding(issue, issueNumber, consumerSha)
     const targetMetadata = JSON.parse(readFileSync(argValue(args, '--project-metadata'), 'utf8'))
     const generatedTypesBytes = readFileSync(argValue(args, '--typescript'))
     const productionProjectRef = process.env.PRODUCTION_PROJECT_REF
     const schemas = process.env.SCHEMAS
     if (!productionProjectRef || !schemas) refuse('production project ref and fixed schema set must be configured')
     const proof = buildGeneratedTypesProof({
-      issue, issueNumber, applicationCommitSha: sha, checkoutSha, currentMainSha: currentMain, gitHubRef,
+      issue, issueNumber, applicationCommitSha: consumer.application_commit_sha, producerCommitSha: sha,
+      consumerRepositoryMetadata: { full_name: consumer.application_repository, default_branch: consumer.application_default_branch },
+      consumerDefaultBranchSha: consumer.application_commit_sha, checkoutSha, currentMainSha: currentMain, gitHubRef,
       generatedTypesBytes, schemas, projectRequestUrl: targetMetadata.source_project_url, productionProjectRef,
       projectMetadata: { id: targetMetadata.source_project_ref, name: targetMetadata.project_name, organization_id: targetMetadata.organization_id, region: targetMetadata.region, status: targetMetadata.status },
       previewProjectRef: process.env.PREVIEW_PROJECT_REF,
@@ -219,7 +264,7 @@ async function main(argv) {
     process.stdout.write(`Production generated-types proof prepared for issue #${proof.work_issue} at ${proof.application_commit_sha}\n`)
     return
   }
-  refuse('choose validate-issue, validate-main, validate-project, or write-proof')
+  refuse('choose validate-issue, validate-consumer, validate-main, validate-project, or write-proof')
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

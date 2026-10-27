@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { evaluateAdmission, parseImpactBlock, STRUCTURAL_CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, assertPrCarriesStructuralChange, inspectPrStructuralChange, structuralWritesMatch, inspectPrCuratedDataChange } from './admission.mjs'
 import { OutcomeError, advanceOutcome, completeOutcome, outcomeEvent, outcomeHistory, repairOutcomeHistory, trustedOutcomeComments, OUTCOME_STATES, parseOutcomeEvidence } from './outcome-lifecycle.mjs'
 import { coordinationEvent, formatEventComment, parseEventComment } from '../db-coordination-events.mjs'
-import { admitIssue, buildDynamicQueues, claimBody, derivePrOperationRoute, EXCLUSIVE_REFS, main as managerMain, matchesGeneratedTypesArtifact, matchesGeneratedTypesProof, matchesLiveProof, MUTEX_REF, parseQueueScope, resolveAdmittedIssueForPr } from '../manage-migration-author-lanes.mjs'
+import { githubIo, admitIssue, buildDynamicQueues, claimBody, derivePrOperationRoute, EXCLUSIVE_REFS, main as managerMain, matchesGeneratedTypesArtifact, matchesGeneratedTypesProof, matchesLiveProof, MUTEX_REF, parseQueueScope, resolveAdmittedIssueForPr } from '../manage-migration-author-lanes.mjs'
 import { generatedTypesSha256, PRODUCTION_PROJECT_REF, PRODUCTION_PROJECT_URL, GENERATED_TYPES_SCHEMAS } from '../generated-types-proof.mjs'
 import { findCompletionRecord } from '../lib/work-dependencies.mjs'
 
@@ -1355,4 +1355,48 @@ test('JSONB proof refuses opaque, forged, malformed, mixed and wrong default cas
  for(const decoy of [`${harmless} -- ${prefix} DEFAULT '{}'::jsonb;`,`${harmless} /* outer /* nested */ ${prefix} DEFAULT '{}'::jsonb; */`,`CREATE FUNCTION public.decoy() RETURNS void LANGUAGE plpgsql AS $$ BEGIN ${prefix} DEFAULT '{}'::jsonb; END; $$; ${harmless}`,`${harmless} DO $$ BEGIN ${prefix}; END; $$;`,`${harmless} SELECT '${prefix.replaceAll("'","''")} DEFAULT ''{{}}''::jsonb;';`])assert.equal(structuralWritesMatch(columnInspection(decoy),held),false)
  assert.throws(()=>columnInspection(prefix+" DEFAULT '{}::jsonb;"),/unterminated/)
  assert.throws(()=>columnInspection(prefix+" DEFAULT '{}'::jsonb; /* unterminated"),/unterminated/)
+})
+
+
+test('v2 generated-types verification re-derives canonical producer and exact issue-bound consumer before accepting the actual artifact bytes',()=>{
+ const producer='a'.repeat(40),app='b'.repeat(40),repository='u2giants/popdam3',typescript=Buffer.from('export type Database = {}\n'),digest=generatedTypesSha256(typescript)
+ const issue={number:4855,state:'open',body:'```db-work-scope\nstatus: ready\nwork_type: structural\napplication_return_to: u2giants/popdam3\ngenerated_types: required\n```'}
+ const evidence={work_issue:4855,application_repository:repository,application_commit_sha:app,generated_types_evidence:`https://github.com/${THIS_REPO}/actions/runs/98`,generated_types_artifact_id:122,generated_types_artifact_digest:`sha256:${'d'.repeat(64)}`,generated_types_output_digest:digest}
+ const run={conclusion:'success',event:'workflow_dispatch',path:'.github/workflows/generate-database-types.yml',head_branch:'main',head_sha:producer,repository:{full_name:THIS_REPO}}
+ const artifact={id:122,name:`shared-db-generated-types-4855-${app}`,expired:false,digest:evidence.generated_types_artifact_digest}
+ const proof={schema_version:2,work_issue:4855,producer_repository:THIS_REPO,producer_commit_sha:producer,application_repository:repository,application_commit_sha:app,application_default_branch:'main',result:'passed',generated_types_sha256:digest,environment:'production',source_project_ref:PRODUCTION_PROJECT_REF,source_project_url:PRODUCTION_PROJECT_URL,schemas:[...GENERATED_TYPES_SCHEMAS]}
+ function verify({changedRun={},changedArtifact={},changedProof={},changedIssue={},changedHead=app,changedMetadata={},changedBytes=typescript,changedEvidence={}}={}){
+  const io={readJson:args=>{
+   const path=args[1]
+   if(path===`repos/${THIS_REPO}/actions/runs/98`)return {...run,...changedRun}
+   if(path===`repos/${THIS_REPO}/actions/runs/98/artifacts`)return {artifacts:[{...artifact,...changedArtifact}]}
+   if(path===`repos/${THIS_REPO}/issues/4855`)return {...issue,...changedIssue}
+   if(path===`repos/${repository}`)return {full_name:repository,default_branch:'main',...changedMetadata}
+   if(path===`repos/${repository}/commits/main`)return {sha:changedHead}
+   throw new Error(`unexpected read ${path}`)
+  },readEntries:(repo,id)=>{assert.equal(repo,THIS_REPO);assert.equal(id,122);return new Map([['database.types.ts',changedBytes],['db-generated-types-proof.json',Buffer.from(JSON.stringify({...proof,...changedProof}))]])}}
+  return githubIo.verifyGeneratedTypes({...evidence,...changedEvidence},io)
+ }
+ assert.equal(verify(),true)
+ assert.equal(verify({changedIssue:{state:'closed'}}),true,'idempotent outcome verification may read a closed issue; production generator still requires open')
+ for(const change of [
+  {changedRun:{head_sha:'c'.repeat(40)}},{changedRun:{path:'.github/workflows/other.yml'}},{changedRun:{repository:{full_name:repository}}},{changedRun:{head_branch:'feature'}},{changedRun:{event:'push'}},
+  {changedArtifact:{expired:true}},{changedArtifact:{name:'database-types'}},{changedArtifact:{digest:`sha256:${'e'.repeat(64)}`}},
+  {changedHead:'c'.repeat(40)},{changedMetadata:{full_name:'attacker/popdam3'}},{changedIssue:{body:issue.body.replace(repository,'attacker/popdam3')}},
+  {changedProof:{producer_repository:repository}},{changedProof:{producer_commit_sha:app}},{changedProof:{application_repository:THIS_REPO}},{changedProof:{application_commit_sha:producer}},{changedProof:{application_default_branch:'develop'}},
+  {changedProof:{schema_version:1}},{changedProof:{environment:'preview'}},{changedProof:{source_project_ref:'x'.repeat(20)}},{changedProof:{source_project_url:'https://preview.invalid'}},{changedProof:{schemas:['public']}},{changedProof:{work_issue:4856}},
+  {changedBytes:Buffer.from('export type Database = { changed: true }')},{changedEvidence:{generated_types_evidence:`https://github.com/${repository}/actions/runs/98`}},
+ ])assert.equal(verify(change),false,JSON.stringify(change))
+ assert.equal(matchesLiveProof(proof,{...evidence,environment:'production',live_assertion:'column visible',verified_at:'2026-10-27T00:00:00Z'}),false,'types proof never substitutes for live application proof')
+})
+
+test('native generated-types verifier preserves canonical v1 production proof acceptance',()=>{
+ const sha='a'.repeat(40),bytes=Buffer.from('export type Database = {}\n'),digest=generatedTypesSha256(bytes)
+ const evidence={work_issue:2336,application_repository:THIS_REPO,application_commit_sha:sha,generated_types_evidence:`https://github.com/${THIS_REPO}/actions/runs/98`,generated_types_artifact_id:122,generated_types_artifact_digest:`sha256:${'d'.repeat(64)}`,generated_types_output_digest:digest}
+ const proof={schema_version:1,work_issue:2336,application_commit_sha:sha,result:'passed',generated_types_sha256:digest,environment:'production',source_project_ref:PRODUCTION_PROJECT_REF,source_project_url:PRODUCTION_PROJECT_URL,schemas:[...GENERATED_TYPES_SCHEMAS]}
+ assert.equal(githubIo.verifyGeneratedTypes(evidence,{readJson:args=>{
+  if(args[1]===`repos/${THIS_REPO}/actions/runs/98`)return {conclusion:'success',event:'workflow_dispatch',path:'.github/workflows/generate-database-types.yml',head_branch:'main',head_sha:sha}
+  if(args[1]===`repos/${THIS_REPO}/actions/runs/98/artifacts`)return {artifacts:[{id:122,name:`shared-db-generated-types-2336-${sha}`,expired:false,digest:evidence.generated_types_artifact_digest}]}
+  assert.fail('legacy canonical proof must not introduce a new consumer lookup')
+ },readEntries:()=>new Map([['database.types.ts',bytes],['db-generated-types-proof.json',Buffer.from(JSON.stringify(proof))]])}),true)
 })

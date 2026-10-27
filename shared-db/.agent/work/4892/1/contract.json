@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "work_issue": 4892,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Separate canonical generated-types producer identity from issue-bound consumer identity while preserving legacy proof, production target and live-application acceptance protections",
+  "base_sha": "9c24d1ffe393db6c8e756b00ca1ef0c3432d9bb6",
+  "dispatcher": "OrderList coordinator authorized by Albert direct chat",
+  "worker": "Codex generated-types consumer-proof subagent",
+  "branch": "codex/generated-types-consumer-proof",
+  "worktree": "/tmp/shared-db-generated-types-consumer",
+  "allowed_paths": [
+    "scripts/generated-types-proof.mjs",
+    "scripts/generated-types-proof.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/lib/lanes/retirement.mjs",
+    "scripts/db-flow/admission-outcome.test.mjs",
+    ".github/workflows/generate-database-types.yml",
+    "docs/agents/generated-types-consumer-proof.md",
+    ".agent/work/4892/1/contract.json",
+    ".agent/work/4892/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/generated-types-proof.mjs",
+    "scripts/generated-types-proof.test.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/lib/lanes/retirement.mjs",
+    "scripts/db-flow/admission-outcome.test.mjs",
+    ".github/workflows/generate-database-types.yml",
+    "docs/agents/generated-types-consumer-proof.md",
+    ".agent/work/4892/1/contract.json",
+    ".agent/work/4892/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database claims, migrations, writes, production dispatch or credential changes",
+    "No editing issue4855 application return destination or inventing replacement outcome",
+    "No modification of provenance-recovery agent files or guard weakening",
+    "No merge or deployment before parent verifies source"
+  ],
+  "required_checks": [
+    "node --test scripts/generated-types-proof.test.mjs scripts/db-flow/admission-outcome.test.mjs",
+    "node --check scripts/manage-migration-author-lanes.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Existing v1 proofs returning to popcre/shared-db remain valid",
+    "Consumer v2 proof names exact canonical producer and live issue-bound current default-branch consumer head"
+  ],
+  "stop_conditions": [
+    "Unowned source collision",
+    "Repair requires database structural or production changes",
+    "Design requires weakening separate live assertion verification"
+  ]
+}

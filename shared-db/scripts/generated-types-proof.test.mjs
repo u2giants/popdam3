@@ -11,6 +11,8 @@ import {
   PRODUCTION_PROJECT_REF,
   PRODUCTION_PROJECT_URL,
   selectGeneratedTypesArtifactEntries,
+  resolveGeneratedTypesConsumerBinding,
+  validateConsumerBinding,
   validateGeneratedTypesOutput,
   validateIssueScope,
   validateMainBinding,
@@ -27,14 +29,14 @@ const sha = 'a'.repeat(40)
 const ts = Buffer.from('export type Database = { public: { Tables: {} } }\n')
 const project = { id: PRODUCTION_PROJECT_REF, name: 'Shared POP Database', organization_id: 'org-id', region: 'us-east-1', status: 'ACTIVE_HEALTHY' }
 
-test('issue-bound scope accepts only open structural work returned to shared-db with required generated types', () => {
-  assert.deepEqual(validateIssueScope(issue(), 2336), { work_issue: 2336 })
+test('issue-bound scope accepts open structural work with a valid issue-owned consumer and required generated types', () => {
+  assert.deepEqual(validateIssueScope(issue(), 2336), { work_issue: 2336, application_repository: 'popcre/shared-db' })
   for (const [value, pattern] of [
     [issue({ pull_request: { url: 'https://api.github.com/repos/popcre/shared-db/pulls/2336' } }), /pull request/],
     [issue({ number: 2337 }), /expected #2336/],
     [issue({ state: 'closed' }), /not open/],
     [issue({ body: issue().body.replace('work_type: structural', 'work_type: repo-maintenance') }), /work_type: structural/],
-    [issue({ body: issue().body.replace('application_return_to: popcre\/shared-db', 'application_return_to: popcre\/other') }), /application_return_to/],
+    [issue({ body: issue().body.replace('application_return_to: popcre\/shared-db', 'application_return_to: https:\/\/github.com\/popcre\/other') }), /application_return_to/],
     [issue({ body: issue().body.replace('generated_types: required', 'generated_types: not-applicable') }), /generated_types: required/],
     [issue({ body: `${issue().body}\n\n\`\`\`db-work-scope\nstatus: ready\n\`\`\`` }), /exactly one/],
   ]) assert.throws(() => validateIssueScope(value, 2336), pattern)
@@ -156,14 +158,58 @@ test('workflow isolates the unchanged preview generator from the guarded product
   assert.match(production, /supabase gen types typescript --project-id "\$PRODUCTION_PROJECT_REF" --schema "\$SCHEMAS"/)
   assert.match(production, /\$RUNNER_TEMP\/database\.types\.ts/)
   assert.match(production, /\$RUNNER_TEMP\/db-generated-types-proof\.json/)
-  assert.match(production, /shared-db-generated-types-\$\{\{ inputs\.work_issue \}\}-\$\{\{ github\.sha \}\}/)
+  assert.match(production, /shared-db-generated-types-\$\{\{ inputs\.work_issue \}\}-\$\{\{ steps\.consumer\.outputs\.application_commit_sha \}\}/)
   assert.doesNotMatch(production, /SUPABASE_DB_PASSWORD|supabase link|supabase login|supabase db push|types\/database\.types\.ts|--token\s+"?\$SUPABASE_ACCESS_TOKEN/)
   assert.match(helper, /PRODUCTION_PROJECT_REF = 'qsllyeztdwjgirsysgai'/)
   assert.match(helper, /\['public', 'dflow', 'plm', 'core', 'app'\]/)
   assert.match(helper, /redirect:\s*'error'/)
   assert.match(helper, /AbortSignal\.timeout\(timeoutMs\)/)
-  assert.match(helper, /application_return_to: 'popcre\/shared-db'/)
+  assert.match(helper, /application_return_to must name one GitHub owner\/repository/)
+  assert.match(production, /APPLICATION_COMMIT_SHA: \$\{\{ inputs\.application_commit_sha \}\}/)
+  assert.match(production, /validate-consumer/)
+  assert.match(production, /secrets\.SYNC_TOKEN \|\| github\.token/)
   assert.match(helper, /generated_types: 'required'/)
   assert.match(helper, /refs\/heads\/main/)
   assert.match(helper, /export\\s\+type\\s\+Database/)
+})
+
+const consumerRepo='u2giants/popdam3', consumerSha='b'.repeat(40)
+const consumerIssue=()=>issue({body:issue().body.replace('application_return_to: popcre/shared-db',`application_return_to: ${consumerRepo}`)})
+const consumerInput=()=>({applicationRepository:consumerRepo,applicationCommitSha:consumerSha,repositoryMetadata:{full_name:consumerRepo,default_branch:'main'},defaultBranchSha:consumerSha})
+
+test('consumer binding refuses substituted repository, stale/nonfull commits and malformed default branch',()=>{
+  assert.equal(validateConsumerBinding(consumerInput()).application_commit_sha,consumerSha)
+  for(const changed of [
+    {repositoryMetadata:{full_name:'attacker/popdam3',default_branch:'main'}},
+    {repositoryMetadata:{full_name:consumerRepo,default_branch:''}},
+    {repositoryMetadata:{full_name:consumerRepo,default_branch:'main\nforged'}},
+    {applicationCommitSha:'b'.repeat(39)}, {applicationCommitSha:'g'.repeat(40)},
+    {defaultBranchSha:'c'.repeat(40)}, {defaultBranchSha:'b'.repeat(39)},
+    {applicationRepository:'https://github.com/'+consumerRepo},
+  ])assert.throws(()=>validateConsumerBinding({...consumerInput(),...changed}))
+})
+
+test('consumer lookup derives repository solely from the live issue and independently reads its actual default branch head',()=>{
+  const calls=[],read=args=>{calls.push(args[1]);return args[1]===`repos/${consumerRepo}`?{full_name:consumerRepo,default_branch:'develop'}:{sha:consumerSha}}
+  const result=resolveGeneratedTypesConsumerBinding(consumerIssue(),2336,consumerSha,read)
+  assert.equal(result.application_default_branch,'develop')
+  assert.deepEqual(calls,[`repos/${consumerRepo}`,`repos/${consumerRepo}/commits/develop`])
+  assert.throws(()=>resolveGeneratedTypesConsumerBinding(consumerIssue(),2336,'short',()=>assert.fail('must refuse before network')),/40-character/)
+  assert.throws(()=>resolveGeneratedTypesConsumerBinding(consumerIssue(),2336,consumerSha,args=>args[1]===`repos/${consumerRepo}`?{full_name:consumerRepo,default_branch:'main'}:{sha:'c'.repeat(40)}),/current default-branch/)
+})
+
+function consumerProofInput(){return {issue:consumerIssue(),issueNumber:2336,applicationCommitSha:consumerSha,producerCommitSha:sha,consumerRepositoryMetadata:consumerInput().repositoryMetadata,consumerDefaultBranchSha:consumerSha,checkoutSha:sha,currentMainSha:sha,gitHubRef:'refs/heads/main',generatedTypesBytes:ts,schemas:GENERATED_TYPES_SCHEMAS,projectRequestUrl:PRODUCTION_PROJECT_URL,projectMetadata:project,previewProjectRef:'p'.repeat(20)}}
+
+test('v2 proof separates exact canonical producer from issue-bound consumer, never downgrading target or schemas',()=>{
+ const proof=buildGeneratedTypesProof(consumerProofInput())
+ assert.equal(proof.schema_version,2);assert.equal(proof.producer_repository,'popcre/shared-db');assert.equal(proof.producer_commit_sha,sha)
+ assert.equal(proof.application_repository,consumerRepo);assert.equal(proof.application_commit_sha,consumerSha);assert.equal(proof.application_default_branch,'main')
+ for(const changed of [{producerCommitSha:consumerSha},{consumerDefaultBranchSha:sha},{consumerRepositoryMetadata:{full_name:'attacker/popdam3',default_branch:'main'}},{applicationCommitSha:'bad'},{schemas:['public']},{projectMetadata:{id:'x'.repeat(20)}},{currentMainSha:consumerSha}])assert.throws(()=>buildGeneratedTypesProof({...consumerProofInput(),...changed}))
+})
+
+test('noncanonical producer run must be the successful canonical workflow main run, independently bound by v2 artifact',()=>{
+ const run={conclusion:'success',event:'workflow_dispatch',path:GENERATED_TYPES_WORKFLOW_PATH,head_branch:'main',head_sha:sha,repository:{full_name:'popcre/shared-db'}}
+ const evidence={application_repository:consumerRepo,application_commit_sha:consumerSha}
+ assert.equal(matchesGeneratedTypesWorkflowRun(run,evidence),true)
+ for(const changed of [{repository:{full_name:consumerRepo}},{head_sha:'short'},{head_branch:'feature'},{path:'.github/workflows/deploy-supabase.yml'},{event:'push'},{conclusion:'failure'}])assert.equal(matchesGeneratedTypesWorkflowRun({...run,...changed},evidence),false)
 })
