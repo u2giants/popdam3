@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "owner": "Codex coordinator 01a17a03-63b6-7081-ab54-29fa144bf678",
+  "tooling_issue": 4874,
+  "acceptance_issue": 4427,
+  "action": "bounded-production-authenticated-read-only-qualification",
+  "project_ref": "qsllyeztdwjgirsysgai",
+  "pooler_host": "aws-1-us-east-1.pooler.supabase.com",
+  "pooler_port": 6543,
+  "migration_version": "20261021190604",
+  "dependencies": { "@supabase/supabase-js": "2.97.0", "pg": "8.23.1" },
+  "warmups": 1,
+  "samples": 10,
+  "workloads": [
+    { "table": "profiles", "limit": 200 },
+    { "table": "admin_config", "limit": 200 },
+    { "table": "assets", "limit": 1000 },
+    { "table": "style_groups", "limit": 1000 }
+  ],
+  "statement_timeout_ms": 15000,
+  "lock_timeout_ms": 3000,
+  "authorization": "Independent exact-source and exact-resource security/final approval plus native database gate; this contract is scope, not execution permission.",
+  "effects": "Ordinary existing-account password login/getUser/admin read and local signout; provider authentication/audit effects remain. Database transaction is READ ONLY; ROLLBACK and connection close on every opened transaction.",
+  "prohibitions": ["No SQL writes or EXPLAIN ANALYZE DML", "No account creation/elevation or fabricated JWT", "No migration apply, schema, ACL, policy or worker change", "No row contents, predicates, subjects, email or credentials in output"],
+  "output": "New private regular file opened O_EXCL, O_NOFOLLOW, mode0600; numeric allowlisted plan metadata only; stdout booleans/counts only.",
+  "retirement": "After4427 acceptance retain reusable guard module; retire or consolidate this issue-specific contract under the same issue without weakening guards."
+}

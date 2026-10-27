@@ -1,0 +1,53 @@
+{
+  "schema_version": 2,
+  "work_issue": 4874,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Deliver new bounded readqualification tooling with resource contract in existing scripts/proofs convention; generation1 implementation and failed configsurface CI preserved",
+  "base_sha": "91d4ff65fb600e20aa62cfc00fa22a3c94bc4a11",
+  "dispatcher": "Codex coordinator01a17a03-63b6-7081-ab54-29fa144bf678 onedge-dev3",
+  "worker": "codex subagent01a17b1a-25be-7631-af38-5174137b2af6",
+  "branch": "codex/4427-read-qualification",
+  "worktree": "/home/ahazan/repos/shared-db-4427-read-qualification",
+  "allowed_paths": [
+    "scripts/qualify-authenticated-rls-read.mjs",
+    "scripts/qualify-authenticated-rls-read.test.mjs",
+    "config/rls-4427-read-qualification.json",
+    "docs/verification/rls-initplan/4427/read-qualification-tooling.md",
+    "scripts/proofs/4874-read-resource.json"
+  ],
+  "file_writes": [
+    "scripts/qualify-authenticated-rls-read.mjs",
+    "scripts/qualify-authenticated-rls-read.test.mjs",
+    "config/rls-4427-read-qualification.json",
+    "docs/verification/rls-initplan/4427/read-qualification-tooling.md",
+    "scripts/proofs/4874-read-resource.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database or normal login execution by this tooling task",
+    "No structural claim/version/migration, account change, credential values or private evidence publication",
+    "No edits to existing gates or private stopped proposal; root retains landing and production decisions"
+  ],
+  "required_checks": [
+    "node --test scripts/qualify-authenticated-rls-read.test.mjs",
+    "node scripts/check-cancelled-work.mjs"
+  ],
+  "assumptions": [
+    "Business and live acceptance remain on4427",
+    "New source contains no licensed rows, private evidence, credentials or machine-local paths",
+    "Root authorized generation2 before moving newly authored resource contract; no protected producer gate edits"
+  ],
+  "stop_conditions": [
+    "Stop on required out-of-scope source change",
+    "Stop before any live execution",
+    "Stop if review/admission cannot bind exact source and action"
+  ],
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 4874,
+    "generation": 1,
+    "contract_sha256": "961dd5e79bd088fc9700e5ca62973eb9ee154e5646e038a52799df28dc0bedfc"
+  }
+}

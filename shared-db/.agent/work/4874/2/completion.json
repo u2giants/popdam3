@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "work_issue": 4874,
+  "outcome": "ready-for-merge",
+  "pr": 4875,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4874/2",
+  "contract_sha256": "f74ac52e61641859ebe32ce2112f0a3c7c1d6c78b90d47d2fcb76452dcf2650c",
+  "head_sha": "8be78caad6c364206391d43cd9a0a434130c4a8a",
+  "base_sha": "91d4ff65fb600e20aa62cfc00fa22a3c94bc4a11",
+  "files_changed": [
+    "docs/verification/rls-initplan/4427/read-qualification-tooling.md",
+    "scripts/proofs/4874-read-resource.json",
+    "scripts/qualify-authenticated-rls-read.mjs",
+    "scripts/qualify-authenticated-rls-read.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/qualify-authenticated-rls-read.test.mjs",
+      "exit_code": 0,
+      "evidence": "25 synthetic offline tests passed;0network/login/DBcalls"
+    },
+    {
+      "command": "node scripts/check-cancelled-work.mjs",
+      "exit_code": 0,
+      "evidence": "No cancelled instruction reintroduced;2rows checked"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors"
+    },
+    {
+      "command": "python -m unittest scripts.test_production_business_risk_gate.ProductionBusinessRiskGateTests.test_preview_producer_paths_cover_runtime_read_data_files",
+      "exit_code": 0,
+      "evidence": "PASS: existing previewproducercoverage maintained; manualresource lives underexistingproofcontracts convention"
+    }
+  ],
+  "assumptions_resolved": [
+    "Existing runtime credentials, private evidence and source proposals are not published",
+    "This work produces reviewed tooling only; root independently owns protected landing and exact-resource database execution",
+    "Canonical production target helper reused; no structural intake/version/migration or database/login operation",
+    "Generation1 failed configsurfaceCI is preserved in immutable reservation and branchhistory; generation2 publishedbefore movingnewmanualresource, no gate/workflow edits"
+  ],
+  "stop_conditions_hit": []
+}
