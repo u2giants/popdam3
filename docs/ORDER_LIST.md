@@ -61,6 +61,16 @@ both changes inserts nothing.
 
 ## ColdLion pack-variant reference
 
+**Case Pack meaning (corrected 2026-10-27, Albert relaying Yuchen):** "It
+Should show the total total pieces in the whole carton." For every component of
+an assortment, Case Pack is the whole physical carton's piece count (the parent
+ColdLion prepack quantity), the same value on every member; cartons are the
+parent line quantity divided by it, counted once per physical parent. The
+2026-10-26 "pieces of that design per carton" reading is superseded. Canonical
+rule and implementation: shared-db
+[#4858](https://github.com/popcre/shared-db/issues/4858) /
+[PR 4859](https://github.com/popcre/shared-db/pull/4859).
+
 Unfinished correction work and the superseded cancellation interpretation are
 recorded in the [current continuation handoff](https://github.com/popcre/shared-db/blob/codex/dim-code-business-meaning/HANDOFF.d/2026-10-27T1823Z-hetz-codex-coldlion-casepack-closeout.md).
 
