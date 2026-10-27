@@ -1,3 +1,14 @@
+# CANCELLED by owner ruling 2026-10-27 — kept as reference
+
+Albert's ruling (verbatim, from his chat): "if the keys were not published
+outside of this computer then no need to rotate, just redact them from where
+they appeared." The exposure was confined to the local session transcript on
+hetz; all occurrences were redacted in place the same day (verified zero
+remaining), and the ruling is recorded in `ai-devops docs/owner-rulings.md`
+(2026-10-27). Rotation will NOT be executed. The one surviving follow-up is
+the AI tester password repair, tracked on its own issue. Everything below is
+the unexecuted plan, retained for the next real rotation.
+
 # Rotation plan v7 — leaked Supabase sb_secret key + broken AI tester logins (qsllyeztdwjgirsysgai)
 
 ## Incident summary
