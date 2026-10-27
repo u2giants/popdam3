@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "work_issue": 4878,
+  "generation": 2,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Activate the merged fixed CURRENT VM submission-property catalog predicate for exact applied20261026150931; prepare bounded existing verification-only recovery, never apply",
+  "base_sha": "c1e2e4d314d9c6e7b2cdf55c3004ef33fcc2776f",
+  "dispatcher": "Codex parent01a17a03-63b6-7081-ab54-29fa144bf678 authorized current semantic postcondition boundary; no historical identity claim",
+  "worker": "Codex subagent01a17b07-1191-7fa2-ac52-734ad1b02932",
+  "branch": "codex/2599-catalog-activation-01a17b07",
+  "worktree": "/tmp/shared-db-2599-catalog-activation-01a17b07",
+  "allowed_paths": [
+    "scripts/production-verification-sidecars/20261026150931.json",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/test_vm_submission_catalog_recovery.py",
+    "docs/verification/paramount-vm-2599/catalog-recovery.md"
+  ],
+  "file_writes": [
+    "scripts/production-verification-sidecars/20261026150931.json",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/test_vm_submission_catalog_recovery.py",
+    "docs/verification/paramount-vm-2599/catalog-recovery.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No verifier/baseline/applied migration/toolkit/gate edits",
+    "No SQL replay, schema/business-row writes, claims, production query, workflow dispatch or merge by worker",
+    "No silent qualification weakening or invented historical UUID/status/no-deletion continuity",
+    "No licensed labels or raw private source rows in repository or review prompt"
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts.test_vm_submission_catalog_recovery scripts.test_production_catalog_verification scripts.test_production_catalog_recovery_evidence scripts.test_check_production_verification_sidecars",
+    "VM_SUBMISSION_CATALOG_DOCKER=1 python3 -m unittest scripts.test_vm_submission_catalog_recovery",
+    "node scripts/check-production-verification-sidecars.mjs",
+    "bash scripts/check-sql.sh",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Bootstrap4879 actually mergedc1e2e4d314d9c6e7b2cdf55c3004ef33fcc2776f; merge-groupDB40448384989SUCCESS",
+    "Root decisions6433407851/6433408136: original skip-existing and ON CONFLICT DO NOTHING mean raw metadata not guaranteed by historical apply; stronger CURRENT qualification fails closed",
+    "Earlier zero-ref comment is nonadjacent counts-only, not immutable adjacent preflight; no history claim",
+    "Global40TP/37VM cohort rejects later rows; any failure preserved and rationale re-reviewed",
+    "Originalrun40406045730 artifact12690738184 SHA256ae8eea3b3ada1a5bb1bdc6177c438c26038f3443481842922ce635a02d0b45bb applymainf07920dd65e76add7da74362f03b597a489da4a6 version20261026150931; bounded existing verification-only, no apply",
+    "Parent retains exact current-main resource approval adoption, guarded merge and recovery dispatch"
+  ],
+  "stop_conditions": [
+    "Any inability to prove exact current capture/ref/name/mapping predicate without invented data",
+    "Any needed change outside allowed paths",
+    "Any shared resource mutation or gate refusal"
+  ]
+}

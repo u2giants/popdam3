@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_issue": 4878,
+  "outcome": "ready-for-merge",
+  "pr": 4880,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4878/2",
+  "contract_sha256": "218ceca156997cb5bef6ebdb5ec7bc3576e1aecce281c0a86d32100eea74b1ed",
+  "head_sha": "2ab2cddffc3f86a02d19273b1bbaa40a50f95108",
+  "base_sha": "c1e2e4d314d9c6e7b2cdf55c3004ef33fcc2776f",
+  "files_changed": [
+    "scripts/production-verification-sidecars/20261026150931.json",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/test_vm_submission_catalog_recovery.py",
+    "docs/verification/paramount-vm-2599/catalog-recovery.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts.test_vm_submission_catalog_recovery scripts.test_production_catalog_verification scripts.test_production_catalog_recovery_evidence scripts.test_check_production_verification_sidecars",
+      "exit_code": 0,
+      "evidence": "295 tests pass, one opt-in Docker fixture skipped only in offline invocation; separate actual PG16 invocation passes"
+    },
+    {
+      "command": "VM_SUBMISSION_CATALOG_DOCKER=1 python3 -m unittest scripts.test_vm_submission_catalog_recovery",
+      "exit_code": 0,
+      "evidence": "6 tests pass; actual network-isolated PostgreSQL16 baseline and unrelated-licensor controls pass,34 adversarial mutations reject, rollback preserves77 refs; owned container stopped"
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs",
+      "exit_code": 0,
+      "evidence": "statusOK94 sidecars including exact20261026150931 activation; verifier and baseline unchanged"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static guards pass, no migration change"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors"
+    }
+  ],
+  "assumptions_resolved": [
+    "Actual bootstrap mergedc1e2e4d before prospectivegen2 publication",
+    "Originalskip-existing/conflict semantics disclosed; strong CURRENT qualification only, never historical all-new or UUID/status/no-deletion proof",
+    "Global40TP/37VM cohort failsclosed on later legitimate rows; no silent exceptions;34mutations preserved",
+    "Originalrun40406045730 artifact12690738184 digestae8eea3b3ada1a5bb1bdc6177c438c26038f3443481842922ce635a02d0b45bb applymainf07920dd65e76add7da74362f03b597a489da4a6 exactversion20261026150931; only existing verify-only recovery plan",
+    "Parent retains protected merge/exact currentmain resourceapproval/recoverydispatch; no production calls, writes, claims or merge byworker"
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261026150931",
+  "migration_sha256": "d5615451699a6cee5997e6e8be6e1280c58f4a02d37f368bcf302f20f964a187",
+  "checks": [
+    {
+      "id": "vm_submission_current",
+      "kind": "catalog_contract",
+      "contract": "vm_submission_properties_current_v1",
+      "expected_count": 1
+    }
+  ]
+}

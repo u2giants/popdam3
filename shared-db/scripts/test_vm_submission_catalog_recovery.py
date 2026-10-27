@@ -127,12 +127,45 @@ class VmSubmissionCatalogRecoveryTests(unittest.TestCase):
             with self.assertRaisesRegex(GuardError, 'migration hash mismatch'):
                 load_behavior_sidecars(root, {VERSION: changed}, [VERSION])
 
-    def test_bootstrap_is_not_active_and_does_not_rewrite_business_history(self):
-        self.assertFalse((ROOT / 'scripts/production-verification-sidecars' / (VERSION + '.json')).exists())
+    def test_activation_is_exact_hash_bound_and_does_not_rewrite_business_history(self):
+        sidecar = ROOT / 'scripts/production-verification-sidecars' / (VERSION + '.json')
+        value = json.loads(sidecar.read_text())
+        self.assertEqual(value, dict(schema_version=1, migration_version=VERSION,
+            migration_sha256=hashlib.sha256(MIGRATION.read_bytes()).hexdigest(),
+            checks=[dict(id='vm_submission_current', kind='catalog_contract', contract=NAME, expected_count=1)]))
+        checks = load_behavior_sidecars(ROOT, {VERSION: MIGRATION}, [VERSION])
+        self.assertEqual(len(checks), 1)
+        self.assertIn('case when (' + CONTRACT + ') then 1 else 0 end', build_behavior_sql(checks))
         registry = json.loads((ROOT / 'config/production-verification-sidecar-registry.json').read_text())
-        self.assertNotIn(VERSION, [r['version'] for r in registry['sidecars']])
+        self.assertEqual([r for r in registry['sidecars'] if r['version'] == VERSION],
+            [dict(version=VERSION, issue=4878)])
         self.assertNotIn('potential', CONTRACT)
         self.assertNotIn('updated_at', CONTRACT)
+
+    def test_activation_rejects_weakened_count_unknown_contract_and_registry_drift(self):
+        from check_production_verification_sidecars import check_registry
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.synthetic_sidecar(root)
+            path = root / 'scripts/production-verification-sidecars' / (VERSION + '.json')
+            original = json.loads(path.read_text())
+            for field, changed, error in [('expected_count', 0, 'expected_count must be 1'),
+                    ('contract', 'unknown_vm_contract', 'unsupported catalog contract')]:
+                value = json.loads(json.dumps(original))
+                value['checks'][0][field] = changed
+                path.write_text(json.dumps(value))
+                with self.assertRaisesRegex(GuardError, error):
+                    load_behavior_sidecars(root, {VERSION: MIGRATION}, [VERSION])
+            config = root / 'config/production-verification-sidecar-registry.json'
+            config.parent.mkdir()
+            config.write_text(json.dumps(dict(schema_version=1, sidecars=[])))
+            with self.assertRaisesRegex(GuardError, 'not declared'):
+                check_registry(root, [VERSION])
+            config.write_text(json.dumps(dict(schema_version=1,
+                sidecars=[dict(version=VERSION, issue=4878)])))
+            check_registry(root, [VERSION])
+            with self.assertRaisesRegex(GuardError, 'whose files do not exist'):
+                check_registry(root, [])
 
     @unittest.skipUnless(os.environ.get('VM_SUBMISSION_CATALOG_DOCKER') == '1',
         'set VM_SUBMISSION_CATALOG_DOCKER=1 for the isolated PostgreSQL mutation fixture')
