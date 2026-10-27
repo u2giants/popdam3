@@ -1,7 +1,8 @@
 -- Read-only expectation sample for #4858. Raw rows stay inside this query;
 -- only opaque IDs and numeric expectations are returned to the proof runner.
 with migration as (
-  select exists (select 1 from supabase_migrations.schema_migrations where version='20261027010036') applied
+  select pg_get_viewdef('api.dam_order_list'::regclass,true) ~ 'jsonb_build_array\(''coldlion'''
+     and pg_get_viewdef('dam.dam_order_tracking'::regclass,true) ~ 'min\([^)]*assortment_parent_cases\)' as applied
 ), order_lines as (
   select po.id order_id,po.production_order_number,pol.id order_line_id,pol.source_id,
          pol.sku,pol.quantity_ordered,pol.case_pack direct_case_pack,pol.order_type,
