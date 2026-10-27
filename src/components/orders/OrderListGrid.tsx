@@ -1,5 +1,5 @@
-import { forwardRef, useMemo } from "react";
-import type { CellValueChangedEvent, ColDef, IDatasource } from "ag-grid-community";
+import { forwardRef, useCallback, useMemo, useRef } from "react";
+import type { CellValueChangedEvent, ColDef, IDatasource, RowClassParams, RowStyle } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry, iconSetMaterial, themeQuartz } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import { AgGridReact, type CustomCellRendererProps } from "ag-grid-react";
@@ -22,6 +22,7 @@ import {
   orderListRowMatchesSearch,
   type OrderListColumn,
 } from "@/lib/order-list";
+import { buildOrderListPOBands } from "@/lib/order-list-po-groups";
 import type { OrderListRow } from "@/types/order-list";
 
 LicenseManager.setLicenseKey("");
@@ -36,7 +37,7 @@ const lightGridTheme = themeQuartz.withPart(iconSetMaterial).withParams({
   foregroundColor: "#0f172a",
   headerBackgroundColor: "#eef2f7",
   headerTextColor: "#334155",
-  oddRowBackgroundColor: "#fbfdff",
+  oddRowBackgroundColor: "#ffffff",
   rowHoverColor: "#eef6ff",
   spacing: 6,
   fontSize: 13,
@@ -52,7 +53,7 @@ const darkGridTheme = themeQuartz.withPart(iconSetMaterial).withParams({
   foregroundColor: "#e5e7eb",
   headerBackgroundColor: "#111827",
   headerTextColor: "#cbd5e1",
-  oddRowBackgroundColor: "#0f172a",
+  oddRowBackgroundColor: "#0b1220",
   rowHoverColor: "#172033",
   spacing: 6,
   fontSize: 13,
@@ -142,6 +143,7 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
   ref,
 ) {
   const { theme } = useAppearance();
+  const poBands = useRef<ReturnType<typeof buildOrderListPOBands>>(new Map());
 
   const columnDefs = useMemo<ColDef<OrderListRow>[]>(
     () => [
@@ -191,7 +193,7 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
                 : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
           cellClass:
             source === "input"
-              ? "bg-blue-50 dark:bg-blue-950/30"
+              ? "bg-blue-50/60 dark:bg-blue-950/30"
               : source === "helper"
                 ? "bg-slate-200/70 dark:bg-slate-700/45"
                 : "bg-slate-50/70 dark:bg-slate-800/35",
@@ -224,6 +226,23 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
     [onEditOrder, onRelink],
   );
 
+  const getRowStyle = useCallback((params: RowClassParams<OrderListRow>): RowStyle => {
+    const band = poBands.current.get(params.data?.order_line_id ?? "");
+    const groupStyle = {
+      backgroundColor: theme === "dark"
+        ? (band?.alternate ? "#263449" : "#0b1220")
+        : (band?.alternate ? "#dce5ef" : "#ffffff"),
+      borderTop: band?.start ? `2px solid ${theme === "dark" ? "#64748b" : "#94a3b8"}` : "2px solid transparent",
+    };
+    if (params.data?.order_line_id === highlightedRowId && orderListRowMatchesSearch(params.data, search)) {
+      // Find remains prominent within the PO band.
+      return { ...groupStyle, backgroundColor: "#fde68a", color: "#78350f", boxShadow: "inset 4px 0 #f59e0b" };
+    }
+    if (params.data?.order_voided_at) return { ...groupStyle, opacity: 0.55, textDecoration: "line-through" };
+    if (params.data && needsReview(params.data)) return { ...groupStyle, backgroundColor: "#fef3c7", color: "#713f12" };
+    return groupStyle;
+  }, [theme, highlightedRowId, search]);
+
   return (
     <AgGridReact<OrderListRow>
       ref={ref}
@@ -240,18 +259,23 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
       getRowId={(params) => params.data.order_line_id}
       // A voided order is still returned by the view, so it has to LOOK voided --
       // otherwise a cancelled order reads as a live one.
-      getRowStyle={(params) => {
-        const border = orderListSourceBorder(params.data);
-        if (params.data?.order_line_id === highlightedRowId && orderListRowMatchesSearch(params.data, search)) {
-          // Keep the source outline alongside the highlight's left bar.
-          return { backgroundColor: "#fde68a", color: "#78350f", boxShadow: [border?.boxShadow, "inset 4px 0 #f59e0b"].filter(Boolean).join(", ") };
-        }
-        if (params.data?.order_voided_at) return { ...border, opacity: 0.55, textDecoration: "line-through" };
-        if (params.data && needsReview(params.data)) return { ...border, backgroundColor: "#fef3c7", color: "#713f12" };
-        return border;
-      }}
+      getRowStyle={getRowStyle}
       onCellValueChanged={onCellEdited}
-      onModelUpdated={(event) => onDisplayedRowsChanged?.(event.api.getDisplayedRowCount())}
+      onModelUpdated={(event) => {
+        const rows: Array<{ rowIndex: number; data: OrderListRow }> = [];
+        event.api.forEachNode((node) => {
+          if (node.data && node.rowIndex != null) rows.push({ rowIndex: node.rowIndex, data: node.data });
+        });
+        const next = buildOrderListPOBands(rows);
+        const changed = next.size !== poBands.current.size || [...next].some(([id, band]) => {
+          const previous = poBands.current.get(id);
+          return previous?.alternate !== band.alternate || previous?.start !== band.start;
+        });
+        poBands.current = next;
+        // Refresh row styles without recreating cells or interrupting editing.
+        if (changed) event.api.setGridOption("getRowStyle", (params) => getRowStyle(params));
+        onDisplayedRowsChanged?.(event.api.getDisplayedRowCount());
+      }}
       suppressDragLeaveHidesColumns
       maintainColumnOrder
       cellSelection={CELL_SELECTION}
@@ -265,12 +289,5 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
     />
   );
 });
-
-/** Thin outline showing where a row was imported from: orange = Google Sheets, purple = ColdLion. */
-export function orderListSourceBorder(row: OrderListRow | undefined) {
-  if (row?.coldlion_source_id) return { boxShadow: "inset 0 0 0 1px #9333ea" };
-  if (row?.google_source_id) return { boxShadow: "inset 0 0 0 1px #f97316" };
-  return undefined;
-}
 
 export default OrderListGrid;
