@@ -118,6 +118,30 @@ export function buildWriteSql({ runId, write = false, limit = null, order = null
   // writer fix can correct its existing lines in place (every UPDATE stays
   // IS DISTINCT FROM guarded; the state transitions stay pending-only).
   const scopeStates = order !== null ? "('pending', 'created')" : "('pending')";
+  // A created order also re-enters scope, explicitly or not, whenever its
+  // latest staged components are not all carried by an identity-matching
+  // ref — a component ColdLion added after creation (SO 7128092, 2026-10-26)
+  // is minted on the next hourly run instead of waiting for a manual --order.
+  const incompleteCreated = `
+    or (n.state = 'created' and exists (
+      select 1
+      from (select l.id, l.sales_order_line_no, l.master_item_no,
+                   rank() over (partition by l.sales_order_line_no
+                                order by r.started_at desc nulls last, l.last_seen_run desc) as run_rank
+            from coldlion.intake_order_line l
+            left join coldlion.sync_run r on r.id = l.last_seen_run
+            where l.sales_order_no = n.sales_order_no
+              and l.division_code is distinct from 'EP001') lv
+      join coldlion.intake_order_component c on c.line_id = lv.id
+      where lv.run_rank = 1
+        and not exists (
+          select 1 from plm.production_order_line_source_ref r
+          where r.source_system = 'coldlion'
+            and r.source_id like 'coldlion:so:' || n.sales_order_no::text || ':line:'
+                                 || lv.sales_order_line_no::text || ':component:%'
+            and r.metadata ->> 'master_item_no' = lv.master_item_no
+            and r.metadata ->> 'sub_item_no' is not distinct from nullif(c.sub_item_no, '')
+            and r.metadata ->> 'sub_label_code' is not distinct from nullif(c.sub_label_code, ''))))`;
   const scopeLimit = limit !== null ? `\n  limit ${sqlNumber(limit)}` : "";
   return `begin;
 
@@ -137,9 +161,9 @@ values
 on conflict (id) do nothing;
 
 with scope as (
-  select n.sales_order_no, n.warehouse_code
+  select n.sales_order_no, n.warehouse_code, n.state
   from coldlion.intake_new_order n
-  where n.state in ${scopeStates}
+  where (n.state in ${scopeStates}${incompleteCreated})
     -- The table check refuses sales_order_no = 0 outright; this predicate is
     -- defence in depth so a relaxed future constraint can never mint
     -- COLDLION-SO-0, whose header ref would collapse every zero-SO row onto
@@ -207,18 +231,89 @@ winning_components as (
            c.sub_item_no asc nulls last, c.sub_label_code asc nulls last,
            c.last_seen_run desc, wl.line_source_hash, c.component_source_hash
 ),
-ordinalled as (
-  -- The component ordinal for source_id determinism, numbered across the
-  -- whole line NUMBER (all sibling rows), sorted by (master_item_no,
-  -- sub_item_no NULLS LAST, sub_label_code NULLS LAST) — stable across runs,
-  -- one slot per item so prepack siblings never collide on one source_id. A
-  -- single-item line keeps ordinal 1 exactly as before.
-  select wc.*,
-         row_number() over (partition by wc.sales_order_no, wc.sales_order_line_no
-                            order by wc.master_item_no,
-                                     wc.sub_item_no asc nulls last,
-                                     wc.sub_label_code asc nulls last) as component_ordinal
+existing_component_refs as (
+  -- Component identity is (master_item_no, sub_item_no, sub_label_code),
+  -- recorded on the coldlion line ref's own metadata — never a position.
+  -- The ordinal in a ref's source_id is an opaque, permanent handle: it was
+  -- once row_number() over the sorted component set, and renumbering when the
+  -- set changed (2026-10-26, SO 7128092) pointed refs at the wrong SKU and
+  -- silently dropped a component. A ref keeps its handle for life; only a
+  -- component with no ref yet gets a fresh one (max existing + 1).
+  select r.production_order_line_id, r.source_id,
+         split_part(r.source_id, ':', 3)::bigint as sales_order_no,
+         split_part(r.source_id, ':', 5)::integer as sales_order_line_no,
+         split_part(r.source_id, ':', 7)::integer as component_ordinal,
+         nullif(r.metadata ->> 'master_item_no', '') is not null as has_identity,
+         r.metadata ->> 'master_item_no' as master_item_no,
+         nullif(r.metadata ->> 'sub_item_no', '') as sub_item_no,
+         nullif(r.metadata ->> 'sub_label_code', '') as sub_label_code,
+         pl.sku as line_sku
+  from plm.production_order_line_source_ref r
+  join plm.production_order_line pl on pl.id = r.production_order_line_id
+  where r.source_system = 'coldlion'
+    and r.source_id ~ '^coldlion:so:[0-9]+:line:[0-9]+:component:[0-9]+$'
+    and split_part(r.source_id, ':', 3)::bigint in (select sales_order_no from scope)
+),
+matched_components as (
+  select wc.*, er.component_ordinal as existing_ordinal, er.line_sku as existing_sku
   from winning_components wc
+  left join existing_component_refs er
+    on er.has_identity
+   and er.sales_order_no = wc.sales_order_no
+   and er.sales_order_line_no = wc.sales_order_line_no
+   and er.master_item_no = wc.master_item_no
+   and er.sub_item_no is not distinct from nullif(wc.sub_item_no, '')
+   and er.sub_label_code is not distinct from nullif(wc.sub_label_code, '')
+),
+ordinalled as (
+  select mc.line_id, mc.sales_order_no, mc.sales_order_line_no, mc.master_item_no,
+         mc.sub_item_no, mc.sub_label_code, mc.order_qty, mc.component_source_hash,
+         mc.existing_sku,
+         coalesce(mc.existing_ordinal,
+                  coalesce((select max(er.component_ordinal) from existing_component_refs er
+                             where er.sales_order_no = mc.sales_order_no
+                               and er.sales_order_line_no = mc.sales_order_line_no), 0)
+                  + row_number() over (partition by mc.sales_order_no, mc.sales_order_line_no,
+                                                    mc.existing_ordinal is null
+                                       order by mc.master_item_no,
+                                                mc.sub_item_no asc nulls last,
+                                                mc.sub_label_code asc nulls last)) as component_ordinal
+  from matched_components mc
+),
+identity_problems as (
+  -- Fail loud, never skip (§11): a ref with no recorded identity, two refs
+  -- naming one component, a component matched to more than one ref, or a
+  -- matched ref whose line now carries a different SKU all quarantine the
+  -- whole order with the evidence, and the order writes nothing.
+  select er.sales_order_no, 'ref-without-identity' as problem, er.source_id as detail
+  from existing_component_refs er where not er.has_identity
+  union all
+  select er.sales_order_no, 'duplicate-identity-ref', string_agg(er.source_id, ' ' order by er.source_id)
+  from existing_component_refs er where er.has_identity
+  group by er.sales_order_no, er.sales_order_line_no, er.master_item_no, er.sub_item_no, er.sub_label_code
+  having count(*) > 1
+  union all
+  select o.sales_order_no, 'sku-mismatch',
+         'coldlion:so:' || o.sales_order_no::text || ':line:' || o.sales_order_line_no::text
+           || ':component:' || o.component_ordinal::text || ' line=' || o.existing_sku
+           || ' staged=' || coalesce(nullif(btrim(o.sub_item_no), ''), o.master_item_no)
+  from ordinalled o
+  where o.existing_sku is not null
+    and o.existing_sku is distinct from coalesce(nullif(btrim(o.sub_item_no), ''), o.master_item_no)
+),
+identity_conflict as (
+  insert into coldlion.intake_quarantine (reason, sales_order_no, detail, first_seen_run)
+  select 'component-identity-conflict', ip.sales_order_no,
+         jsonb_build_object('problems', jsonb_agg(jsonb_build_object('problem', ip.problem, 'detail', ip.detail)
+                                                  order by ip.problem, ip.detail)),
+         ${sqlUuid(runId)}
+  from identity_problems ip
+  where not exists (
+    select 1 from coldlion.intake_quarantine q
+    where q.reason = 'component-identity-conflict'
+      and q.sales_order_no = ip.sales_order_no)
+  group by ip.sales_order_no
+  returning sales_order_no
 ),
 case_pack as (
   -- Case Pack default ← coldlion.item_detail.carton_qty (§9 C2 step 2). The
@@ -369,6 +464,7 @@ claimable as (
   from resolution r
   where r.quarantine_reason is null
     and r.sales_order_no not in (select sales_order_no from claim_failure)
+    and r.sales_order_no not in (select sales_order_no from identity_problems)
 ),
 new_headers as (
   -- Idempotency miss → CREATE the placeholder header COLDLION-SO-<so> with
@@ -489,8 +585,12 @@ line_refs as (
   insert into plm.production_order_line_source_ref
     (production_order_line_id, source_system, source_id, is_primary, metadata)
   select li.id, 'coldlion', li.source_id, true,
-         jsonb_build_object('origin', 'coldlion_intake')
+         jsonb_build_object('origin', 'coldlion_intake',
+                            'master_item_no', cl.master_item_no,
+                            'sub_item_no', nullif(cl.sub_item_no, ''),
+                            'sub_label_code', nullif(cl.sub_label_code, ''))
   from line_inserts li
+  join canonical_lines cl on cl.line_source_id = li.source_id
   on conflict (source_system, source_id) do nothing
   returning production_order_line_id
 ),
@@ -641,6 +741,10 @@ quarantined as (
         and sales_order_no not in (select sales_order_no from claim_failure)
      union all
      select sales_order_no, 'claim-failure' from claim_failure
+     union all
+     select distinct sales_order_no, 'component-identity-conflict' from identity_problems
+      where sales_order_no not in (select sales_order_no from claim_failure)
+        and sales_order_no not in (select sales_order_no from resolution where quarantine_reason is not null)
    ) r
    where r.sales_order_no = n.sales_order_no
      and n.state = 'pending'
@@ -658,6 +762,7 @@ run_counts as (
          rows_unchanged = 0,
          notes = 'step=canonical-write created=' || (select count(*) from created)
               || ' quarantined=' || (select count(*) from quarantined)
+              || ' identityConflicts=' || (select count(*) from identity_conflict)
               || ' headers+' || (select count(*) from new_headers)
               || '~' || (select count(*) from header_updates)
               || ' lines+' || (select count(*) from line_inserts)
@@ -675,7 +780,7 @@ select
   -- Visible, never silent (§11): scoped pending orders that neither created
   -- nor quarantined — resolved but lineless, or skipped by a re-pend edge —
   -- stay pending and are counted here so the run summary says so.
-  (select count(*) from scope)
+  (select count(*) from scope where state = 'pending')
   - (select count(*) from created)
   - (select count(*) from quarantined) as orders_left_pending;
 -- This separate statement sees all preceding CTE writes. Failure here rolls
@@ -787,6 +892,74 @@ end;
 $link_intake$;
 ${write ? "commit;" : "rollback;"}
 `;
+}
+
+/**
+ * The recurring component-identity guard (2026-10-27, SO 7128092). Read-only.
+ * For every created order it compares the latest staged observation — the
+ * writer's own two-tier winner selection — with the coldlion component refs:
+ * each staged component must have exactly one ref carrying its identity, and
+ * that ref's line must carry the staged SKU, wherever a claim has moved it.
+ * One summary row: missing | duplicate | sku_mismatch | without_identity |
+ * expected | identity_quarantined | a sample of offenders. Anything non-zero fails the intake run loudly.
+ */
+export function buildIdentityGuardSql() {
+  return `with lv as (
+  select l.id, l.sales_order_no, l.sales_order_line_no, l.master_item_no,
+         rank() over (partition by l.sales_order_no, l.sales_order_line_no
+                      order by r.started_at desc nulls last, l.last_seen_run desc) as run_rank
+  from coldlion.intake_order_line l
+  join coldlion.intake_new_order n on n.sales_order_no = l.sales_order_no and n.state = 'created'
+  left join coldlion.sync_run r on r.id = l.last_seen_run
+  where l.division_code is distinct from 'EP001'
+),
+staged as (
+  select distinct lv.sales_order_no, lv.sales_order_line_no, lv.master_item_no,
+         nullif(c.sub_item_no, '') as sub_item_no, nullif(c.sub_label_code, '') as sub_label_code,
+         coalesce(nullif(btrim(c.sub_item_no), ''), lv.master_item_no) as sku
+  from lv join coldlion.intake_order_component c on c.line_id = lv.id
+  where lv.run_rank = 1
+),
+refs as (
+  select split_part(r.source_id, ':', 3)::bigint as sales_order_no,
+         split_part(r.source_id, ':', 5)::integer as sales_order_line_no,
+         nullif(r.metadata ->> 'master_item_no', '') is not null as has_identity,
+         r.metadata ->> 'master_item_no' as master_item_no,
+         nullif(r.metadata ->> 'sub_item_no', '') as sub_item_no,
+         nullif(r.metadata ->> 'sub_label_code', '') as sub_label_code,
+         r.source_id, pl.sku
+  from plm.production_order_line_source_ref r
+  join plm.production_order_line pl on pl.id = r.production_order_line_id
+  where r.source_system = 'coldlion'
+    and r.source_id ~ '^coldlion:so:[0-9]+:line:[0-9]+:component:[0-9]+$'
+    and split_part(r.source_id, ':', 3)::bigint in
+        (select sales_order_no from coldlion.intake_new_order where state = 'created')
+),
+checked as (
+  select s.*, count(f.source_id) as refs,
+         count(*) filter (where f.sku is distinct from s.sku and f.source_id is not null) as wrong_sku,
+         min(f.source_id) as source_id
+  from staged s
+  left join refs f
+    on f.has_identity and f.sales_order_no = s.sales_order_no
+   and f.sales_order_line_no = s.sales_order_line_no and f.master_item_no = s.master_item_no
+   and f.sub_item_no is not distinct from s.sub_item_no
+   and f.sub_label_code is not distinct from s.sub_label_code
+  group by s.sales_order_no, s.sales_order_line_no, s.master_item_no, s.sub_item_no, s.sub_label_code, s.sku
+)
+select (select count(*) from checked where refs = 0) as missing,
+       (select count(*) from checked where refs > 1) as duplicate,
+       (select count(*) from checked where wrong_sku > 0) as sku_mismatch,
+       (select count(*) from refs where not has_identity) as without_identity,
+       (select count(*) from checked) as expected,
+       (select count(*) from coldlion.intake_new_order n
+         where n.state = 'quarantined'
+           and n.claim_evidence ->> 'quarantine_reason' = 'component-identity-conflict') as identity_quarantined,
+       coalesce((select string_agg(x, ' ') from (
+          select sales_order_no || '/' || sales_order_line_no || '/' || sku || ':'
+                 || case when refs = 0 then 'missing' when refs > 1 then 'duplicate' else 'sku' end as x
+          from checked where refs <> 1 or wrong_sku > 0
+          order by sales_order_no, sales_order_line_no, sku limit 20) t), '') as sample;`;
 }
 
 /**

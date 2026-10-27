@@ -127,12 +127,21 @@ test("prepack siblings under one line number each keep their own slot, never col
   assert.match(secondTier, /from line_version_winners w/);
   assert.doesNotMatch(secondTier, /distinct on/);
   const ordinalled = cteBlock(sql, "ordinalled");
-  assert.match(ordinalled, /partition by wc\.sales_order_no, wc\.sales_order_line_no/);
+  assert.match(ordinalled, /partition by mc\.sales_order_no, mc\.sales_order_line_no,/);
 });
 
-test("deterministic ordinal: row_number over (sub_item_no NULLS LAST, sub_label_code NULLS LAST), 1-based, in the source_id", () => {
-  const ordinalled = sql.slice(sql.indexOf("ordinalled as ("), sql.indexOf("case_pack as ("));
-  assert.match(ordinalled, /row_number\(\) over \(partition by wc\.sales_order_no, wc\.sales_order_line_no\s*order by wc\.master_item_no,\s*wc\.sub_item_no asc nulls last,\s*wc\.sub_label_code asc nulls last\) as component_ordinal/);
+test("stable component handle: an existing ref keeps its ordinal by identity; only a new component gets max+1 (2026-10-26 SO 7128092)", () => {
+  const ordinalled = sql.slice(sql.indexOf("ordinalled as ("), sql.indexOf("identity_problems as ("));
+  assert.match(ordinalled, /coalesce\(mc\.existing_ordinal,/);
+  assert.match(ordinalled, /select max\(er\.component_ordinal\) from existing_component_refs er/);
+  const matched = cteBlock(sql, "matched_components");
+  assert.match(matched, /er\.master_item_no = wc\.master_item_no/);
+  assert.match(matched, /er\.sub_item_no is not distinct from nullif\(wc\.sub_item_no, ''\)/);
+  assert.match(matched, /er\.sub_label_code is not distinct from nullif\(wc\.sub_label_code, ''\)/);
+  // Identity rides the minted ref, and conflicts quarantine the order.
+  assert.match(cteBlock(sql, "line_refs"), /'master_item_no', cl\.master_item_no/);
+  assert.match(cteBlock(sql, "identity_conflict"), /'component-identity-conflict'/);
+  assert.match(cteBlock(sql, "claimable"), /not in \(select sales_order_no from identity_problems\)/);
   // The ordinal rides the deterministic line source ref verbatim.
   assert.match(sql, /'coldlion:so:' \|\| wl\.sales_order_no::text \|\| ':line:'\s*\|\| wl\.sales_order_line_no::text \|\| ':component:'\s*\|\| o\.component_ordinal::text as line_source_id/);
   // One canonical line per winning component — the join is ordinalled, never
@@ -202,9 +211,9 @@ test("version fan-out resolves by winner selection, never quarantines, and the r
   // The bounded enablement vocabulary (plan B0): --limit bounds the pending
   // orders this run may claim, deterministically by ascending sales order.
   const scope = sql.slice(sql.indexOf("scope as ("), sql.indexOf("winning_lines as ("));
-  assert.match(scope, /where n\.state in \('pending'\)/);
+  assert.match(scope, /where \(n\.state in \('pending'\)\s*or \(n\.state = 'created' and exists/);
   // An explicit --order may re-process a created order (in-place correction).
-  assert.match(singleSql, /where n\.state in \('pending', 'created'\)/);
+  assert.match(singleSql, /where \(n\.state in \('pending', 'created'\)/);
   assert.match(limitedSql, /order by n\.sales_order_no\s*\n\s*limit 5/);
   assert.doesNotMatch(sql, /\n\s*limit 5/);
   // --order targets exactly one sales order (the preview-gate shape).

@@ -31,6 +31,7 @@ import { isClientSpawnFault, isClientUriFault, proveTarget, queryRows, runSql } 
 import {
   buildWriteFailureSql,
   buildWriteSql,
+  buildIdentityGuardSql,
   buildWriterObjectAssertionSql,
   parseWriteSummary,
 } from "./lib/order-intake-write.mjs";
@@ -118,6 +119,38 @@ async function main() {
       (options.order !== null ? ` (order ${options.order})` : "") +
       (options.limit !== null ? ` (limit ${options.limit})` : ""),
   );
+
+  // The recurring component-identity guard (SO 7128092, 2026-10-26): every
+  // run re-proves that each staged component of every created order has
+  // exactly one coldlion line ref, carrying its identity and its SKU. A
+  // violation fails the run loudly instead of drifting silently.
+  let guard;
+  try {
+    [guard] = queryRows(buildIdentityGuardSql(), {});
+  } catch (error) {
+    if (options.write && !isClientSpawnFault(error) && !isClientUriFault(error)) {
+      runSql(buildWriteFailureSql({ runId, error, startedAt }), {});
+    }
+    throw error;
+  }
+  const [missing, duplicate, skuMismatch, withoutIdentity, expected, identityQuarantined, sample = ""] = guard ?? [];
+  console.log(
+    `component identity guard: expected=${expected} missing=${missing} duplicate=${duplicate} ` +
+      `skuMismatch=${skuMismatch} withoutIdentity=${withoutIdentity} identityQuarantined=${identityQuarantined}`,
+  );
+  // Orders parked as component-identity-conflict stay visible and alert every
+  // run, but do not fail it: they are already quarantined (written nowhere),
+  // and failing would keep the whole intake red until a human clears them.
+  if (identityQuarantined !== undefined && identityQuarantined !== "0" && options.write) {
+    runSql(`select pg_notify('coldlion_sync_alert', 'ColdLion intake: ${Number(identityQuarantined)} order(s) quarantined as component-identity-conflict');`, {});
+  }
+  if (guard === undefined || [missing, duplicate, skuMismatch, withoutIdentity].some((v) => v !== "0")) {
+    const error = new Error(`component identity guard failed: ${sample || "no summary row"}`);
+    // Durable like every other failure: the run's sync_run row gains the
+    // failure note and the coldlion_sync_alert fires.
+    if (options.write) runSql(buildWriteFailureSql({ runId, error, startedAt }), {});
+    throw error;
+  }
 }
 
 // Direct-run guard: main() runs only when this file is the node entry point,

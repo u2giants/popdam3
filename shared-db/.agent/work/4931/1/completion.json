@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "work_issue": 4931,
+  "outcome": "ready-for-merge",
+  "pr": 4934,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4931/1",
+  "contract_sha256": "62356c0177305f8ac3e1a1bf2f1d4fd83525aa490ace6a6904e00b90808b6803",
+  "head_sha": "313a584f3470390b6cc64c8d41db30c48c0adec7",
+  "base_sha": "48c798a854e250af849e8ae90402639b3f3398de",
+  "files_changed": [
+    ".github/workflows/coldlion-order-intake.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "tools/coldlion-landing/apply-repairs.mjs",
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-landing/order-intake-write.mjs",
+    "tools/coldlion-landing/repairs/20261027-component-identity.sql",
+    "tools/coldlion-order-intake-claim.test.mjs",
+    "tools/coldlion-order-intake-identity-pg.test.mjs",
+    "tools/coldlion-order-intake-repairs.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test tools/coldlion-order-intake-*.test.mjs",
+      "exit_code": 0,
+      "evidence": "# tests 94 # pass 86 # fail 0 "
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors"
+    }
+  ],
+  "assumptions_resolved": [
+    "PostgreSQL 17 behavioural suite (CI tools-offline-tests step) 7/7 locally on the main-merged writer: incident replay, quarantines, guard, hourly mint, committed repair end to end",
+    "Production read-only measurement before merge: 98 duplicate placeholder lines in the exact shape the repair expects; 103 missing components; 55 orders"
+  ],
+  "stop_conditions_hit": []
+}

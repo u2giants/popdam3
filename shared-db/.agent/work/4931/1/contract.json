@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "work_issue": 4931,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Key ColdLion component lines on component identity instead of a positional ordinal, quarantine identity conflicts loudly, guard every intake run, and ship the one-time repair of the 55 affected sales orders (SO 7128092 / customer PO 62004433 incident)",
+  "base_sha": "eb291c1271c7b8bee6097f464c351500b4642e9b",
+  "dispatcher": "Claude Code session on hetz for owner Albert Hazan (chat 2026-10-27: \"yes, fix it. but also figure out why it happened and how to make sure it never happens again\")",
+  "worker": "Claude Code session on hetz",
+  "branch": "fix/coldlion-component-identity-4931",
+  "worktree": "/worksp/shared-db/.claude/worktrees/xenodochial-feynman-c20cdf",
+  "allowed_paths": [
+    ".github/workflows/coldlion-order-intake.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "tools/coldlion-landing/apply-repairs.mjs",
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-landing/order-intake-write.mjs",
+    "tools/coldlion-landing/repairs/20261027-component-identity.sql",
+    "tools/coldlion-order-intake-claim.test.mjs",
+    "tools/coldlion-order-intake-identity-pg.test.mjs",
+    "tools/coldlion-order-intake-repairs.test.mjs",
+    "tools/coldlion-order-intake-workflow.test.mjs"
+  ],
+  "file_writes": [
+    ".github/workflows/coldlion-order-intake.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "tools/coldlion-landing/apply-repairs.mjs",
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-landing/order-intake-write.mjs",
+    "tools/coldlion-landing/repairs/20261027-component-identity.sql",
+    "tools/coldlion-order-intake-claim.test.mjs",
+    "tools/coldlion-order-intake-identity-pg.test.mjs",
+    "tools/coldlion-order-intake-repairs.test.mjs",
+    "tools/coldlion-order-intake-workflow.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migrations or schema changes",
+    "No database write from this pull request or this session; production rows change only through the merged intake workflow's repair and writer steps"
+  ],
+  "required_checks": [
+    "node --test tools/coldlion-order-intake-*.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Disclosure: the implementation was drafted and reviewed on PR 4932 before this contract was published; this generation is published before the implementation commit on this branch and declares exactly that already-reviewed scope",
+    "After merge, the hourly ColdLion intake workflow applies tools/coldlion-landing/repairs/20261027-component-identity.sql once (preimage stored on its own coldlion.sync_run row) and the writer mints missing components",
+    "The one-time 7128092 merge onto D3691 follows the owner's chat instruction for customer PO 62004433 only; a general prod_reference_no claim is an open owner question on #4931"
+  ],
+  "stop_conditions": [
+    "Any needed change outside allowed paths",
+    "Any schema change"
+  ]
+}
