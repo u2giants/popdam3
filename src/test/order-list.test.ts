@@ -292,7 +292,10 @@ describe("OrderList columns", () => {
     expect(isOrderListFieldSortable("unknown_backend_alias")).toBe(false);
     expect(buildOrderListSort([{ colId: "unknown_backend_alias", sort: "desc" }]))
       .toEqual([
-        { column: "start_ship_date", ascending: false },
+        { column: "sales_order_received_date", ascending: false },
+        { column: "production_order_number", ascending: true },
+        { column: "assortment_id", ascending: true },
+        { column: "sku", ascending: true },
         { column: "order_line_id", ascending: true },
       ]);
     expect(ORDER_LIST_SEARCH_COLUMNS).not.toContain("sales_order_date" as any);
@@ -432,7 +435,10 @@ describe("OrderList database query building", () => {
       { column: "order_line_id", ascending: true },
     ]);
     expect(buildOrderListSort([])).toEqual([
-      { column: "start_ship_date", ascending: false },
+      { column: "sales_order_received_date", ascending: false },
+        { column: "production_order_number", ascending: true },
+        { column: "assortment_id", ascending: true },
+        { column: "sku", ascending: true },
       { column: "order_line_id", ascending: true },
     ]);
   });
