@@ -267,3 +267,37 @@ credential, and the offline tests running before any write.
 No real ColdLion values appear in this directory. The fixtures are synthetic and
 the loaders print counts, scopes and window dates only — this repository is
 public.
+
+
+## OrderList intake Master Data links
+
+The canonical writer resolves the staged company/division against the landed
+`coldlion.division` identity before saving `source_style_type`. Classification
+follows the [settled division rule](../../docs/business-rules/merchandise-and-product-taxonomy.md#what-each-division-produces).
+An absent/unrecognized source division description, or a conflicting existing
+classification, fails and rolls back the intake transaction. Division codes
+are never substituted for a missing source lookup.
+
+New nonblank-SKU lines start `unmatched`, rather than inheriting the historical
+`not_applicable` default. After the line writes, only this intake's exact line
+IDs reach the service-only `link_dam_order_lines_scoped` helper in batches of
+at most 500. The helper must already be deployed before this writer is released;
+the writer checks availability at startup. Exact SKU plus explicit catalog,
+one distinct item and consistent current workflow are required. Manual choices,
+explicit `not_applicable` records and valid existing links remain unchanged. A
+changed nonblank source SKU invalidates the old `matched` automatic link unless
+the new SKU still uniquely identifies that same item. Without an eligible new
+match the line remains honestly `unmatched`. An unchanged
+SKU replaces a stale automatic item only with a proved unique exact catalog
+candidate. Both paths append the prior item/status/SKU and current source proof
+to `coldlion_intake_link_refreshes`; prevalidated replacements must reach that
+exact item or the entire intake rolls back. Source identity, header ownership,
+SKU and classification are revalidated under row locks before linking. Reimports
+merge source metadata so saved link receipts/manual evidence survive. A helper
+failure rolls back headers, lines, classification, source references and intake
+state together, including in rollback-only rehearsal.
+
+The opt-in real PostgreSQL writer regression runs with
+`COLDLION_INTAKE_TEST_PG_CONTAINER=orderlist4886pg node --test tools/coldlion-order-intake-*.test.mjs`.
+It refuses any container other than that disposable fixture, requires no network
+or published ports, and uses generated synthetic records only.

@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "work_issue": 4893,
+  "generation": 3,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Prevent missing division-derived classification/new links and refresh only proven stale matched automatic links inside the exact source-owned intake transaction; preserve manual/valid links and fail atomically on replacement drift",
+  "base_sha": "38a37cdbfb07115120815aa080e378d0f412a679",
+  "dispatcher": "Parent explicitly authorized bounded code-only stale automatic link refresh; helper remains unchanged",
+  "worker": "codex",
+  "branch": "codex/orderlist-division-caller-draft",
+  "worktree": "/tmp/orderlist-division-caller-draft",
+  "allowed_paths": [
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-order-intake-claim.test.mjs",
+    "tools/coldlion-landing/README.md"
+  ],
+  "file_writes": [
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-order-intake-claim.test.mjs",
+    "tools/coldlion-landing/README.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migrations or structural changes",
+    "No caller merge or runtime execution before PR4888 helper is production-live",
+    "No broad relink or replay of completed repairs",
+    "Parent owns merge and production decisions"
+  ],
+  "required_checks": [
+    "node --test tools/coldlion-order-intake-*.test.mjs",
+    "isolated PostgreSQL actual writer/helper integration: stale automatic refresh, protected preservation, candidate drift/failure rollback, second-run identity"
+  ],
+  "assumptions": [
+    "Helper20261027132801 verified production-live; source-owned matched status is automatic, manual/not_applicable protected",
+    "Runtime dependencies only, not DB object claims: public.style_tracker_rows; plm.style_tracker_item_bridge; dam.orderlist_product_facts(uuid,text); existing plm production_order/line and source refs; coldlion authoritative division and intake tables. Runtime writes remain existing intake-owned rows only.",
+    "Changed nonblank source SKU invalidates only old matched automatic links; no eligible new candidate remains honestly unmatched. Unchanged SKU refresh requires one exact catalog candidate with consistent facts and exact post-helper replacement assertion."
+  ],
+  "stop_conditions": [
+    "No schema/helper changes",
+    "Unknown division or explicit classification mismatch rolls back",
+    "Candidate replacement must be exact unique current Master Data item or existing link remains unchanged",
+    "Post-helper exact replacement failure rolls back complete transaction"
+  ],
+  "evidence_parent": {
+    "work_issue": 4893,
+    "generation": 2,
+    "contract_sha256": "b207dff2c0b72100e6f54d8ca7dfee528d9c7969f8349dbbfd391aed08d7d5e2"
+  }
+}

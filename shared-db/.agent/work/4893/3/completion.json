@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "work_issue": 4893,
+  "outcome": "ready-for-merge",
+  "pr": 4894,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4893/3",
+  "contract_sha256": "e66f78366a2f18b0ab1f0f947f4f309e505eb680ef0b5b4c5b52c834e94802f0",
+  "head_sha": "cde31c9026b182ae61ae06ebcbc426d54b4a7c82",
+  "base_sha": "eb291c1271c7b8bee6097f464c351500b4642e9b",
+  "files_changed": [
+    "tools/coldlion-landing/README.md",
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-order-intake-claim.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test tools/coldlion-order-intake-*.test.mjs",
+      "exit_code": 0,
+      "evidence": "Re-run at cde31c90 (base eb291c12) by successor session 354aeb4a-e1ef-45fe-8f2e-b6a723be2706 after the documented refresh merged current main into the unchanged approved implementation; COLDLION_INTAKE_TEST_PG_CONTAINER=orderlist4886pg, network-none isolated PostgreSQL17, synthetic fixtures only. 90 passed, 0 failed, 0 skipped. Output SHA256 472ff89ee9ab0a32a3e6800710416e226e03c131b31f44e4e7bedea399cbcfa2"
+    },
+    {
+      "command": "actual PostgreSQL buildWriterObjectAssertionSql preflight",
+      "exit_code": 0,
+      "evidence": "No missing tables,columns,routines,indexes,constraints or triggers."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Clean at cde31c90"
+    },
+    {
+      "command": "isolated PostgreSQL actual writer/helper integration: stale automatic refresh, protected preservation, candidate drift/failure rollback, second-run identity",
+      "exit_code": 0,
+      "evidence": "Re-run at cde31c90 (base eb291c12) by successor session 354aeb4a-e1ef-45fe-8f2e-b6a723be2706 after the documented refresh merged current main into the unchanged approved implementation; COLDLION_INTAKE_TEST_PG_CONTAINER=orderlist4886pg, network-none isolated PostgreSQL17, synthetic fixtures only. 90 passed, 0 failed, 0 skipped. Output SHA256 472ff89ee9ab0a32a3e6800710416e226e03c131b31f44e4e7bedea399cbcfa2"
+    }
+  ],
+  "assumptions_resolved": [
+    "Helper4888 production verified live by migration ledger, exact routine signature, service-only EXECUTE.",
+    "Current upstream eb291c1271c7b8bee6097f464c351500b4642e9b merged normally by refresh-code-pr-branch; no caller-owned path changed upstream.",
+    "Gen2 published before source edits, runtime dependencies declared under native maintenance contract interpretation."
+  ],
+  "stop_conditions_hit": [],
+  "notes": [
+    "Application526 stays open for live ordinary-run and signed-in acceptance; existing classification/link repair is separate exact input decision. Parent retains merge/production/data correction decisions. No production application-data writes.",
+    "Superseded generation1 pair retained in immutable contract ref, prior commits and protected private copy; removed from final tree to satisfy native exactly-one evidence pair rule. Original prelaunch allocator refused without drawing/spending capacity."
+  ]
+}

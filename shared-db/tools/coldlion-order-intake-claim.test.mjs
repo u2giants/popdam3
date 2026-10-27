@@ -9,6 +9,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -534,4 +535,177 @@ test("the run refuses an invalid run id and the SQL never widens its own scope",
   // The state vocabulary the Phase A table allows, verbatim.
   assert.match(sql, /set state = 'created', state_changed_at = now\(\)/);
   assert.match(sql, /set state = 'quarantined', state_changed_at = now\(\)/);
+});
+
+
+test("division classification comes from the landed source identity and is persisted before scoped linking", () => {
+  const canonical = cteBlock(sql, "canonical_lines");
+  assert.match(canonical, /left join coldlion\.division d\s+on d\.company_code = wl\.company_code and d\.division_code = wl\.division_code/);
+  assert.match(canonical, /case d\.division_desc/);
+  assert.doesNotMatch(canonical, /when '(?:CW001|SP001|EH001)'/);
+  const inserts = cteBlock(sql, "line_inserts");
+  assert.match(inserts, /source_style_type,\s+master_data_match_status/);
+  assert.match(inserts, /then 'unmatched' else 'not_applicable' end/);
+  assert.match(cteBlock(sql, "line_updates"), /source_style_type = coalesce\(pl\.source_style_type, cl\.source_style_type\)/);
+  assert.ok(WRITE_REQUIRED_CONSTRAINTS.some(c => c.table === "division" && c.definition === "PRIMARY KEY (company_code, division_code)"));
+});
+
+test("ordinary reimport preserves source and manual-link metadata and passes only exact scoped line IDs", () => {
+  const updates = cteBlock(sql, "line_updates");
+  assert.equal((updates.match(/coalesce\(pl\.metadata, '\{\}'::jsonb\) \|\| jsonb_build_object/g) || []).length, 2);
+  const scope = cteBlock(sql, "link_scope");
+  assert.match(scope, /select li\.id, li\.source_style_type, li\.sku, null, null, null/);
+  assert.match(scope, /ref\.source_system = 'coldlion' and ref\.source_id = cl\.line_source_id/);
+  assert.match(scope, /pl\.production_order_id = cl\.production_order_id/);
+  assert.doesNotMatch(sql, /relink_dam_order_lines_bulk/);
+});
+
+test("unknown or conflicting divisions fail before commit, and all helper batches share the writer transaction", () => {
+  const afterWrites = sql.slice(sql.indexOf("do $link_intake$"));
+  assert.match(afterWrites, /s\.expected_type is null/);
+  assert.match(afterWrites, /l\.source_style_type is distinct from s\.expected_type/);
+  assert.match(afterWrites, /raise exception 'ColdLion intake division classification unknown or conflicts/);
+  assert.match(afterWrites, /row_number\(\) over \(order by line_id\) - 1\) \/ 500/);
+  assert.match(afterWrites, /receipt := public\.link_dam_order_lines_scoped\(batch\)/);
+  assert.ok(afterWrites.indexOf("link_dam_order_lines_scoped(batch)") < afterWrites.indexOf("commit;"));
+  assert.ok(drySql.indexOf("link_dam_order_lines_scoped(batch)") < drySql.indexOf("rollback;"));
+  assert.match(buildWriterObjectAssertionSql(), /to_regprocedure\('public\.link_dam_order_lines_scoped\(uuid\[\]\)'\) is null/);
+});
+
+// Opt-in real SQL regression. The named disposable container has no network or
+// published ports, and receives only generated synthetic fixtures; no credentials.
+test("isolated PostgreSQL writer refreshes stale automatic links atomically", {
+  skip: !process.env.COLDLION_INTAKE_TEST_PG_CONTAINER,
+}, async (t) => {
+  const container = process.env.COLDLION_INTAKE_TEST_PG_CONTAINER;
+  assert.equal(container, "orderlist4886pg");
+  const inspected = spawnSync("docker", ["inspect", container], { encoding: "utf8" });
+  assert.equal(inspected.status, 0);
+  const isolated = JSON.parse(inspected.stdout)[0];
+  assert.equal(isolated.HostConfig.NetworkMode, "none");
+  assert.deepEqual(isolated.HostConfig.PortBindings, {});
+  const run = (text, success = true) => {
+    const result = spawnSync("docker", ["exec", "-i", container, "psql", "-X", "-qAt", "-U", "postgres", "-v", "ON_ERROR_STOP=1"], { input: text, encoding: "utf8" });
+    if (success) assert.equal(result.status, 0, result.stderr);
+    return result;
+  };
+  const q = (text) => run(text).stdout.trim();
+  const lit = (value) => "'" + String(value).replaceAll("'", "''") + "'";
+  const tag = randomUUID().slice(0, 8);
+  const ids = Object.fromEntries(["run", "company", "oldItem", "newItem", "oldRow", "newRow"].map((key) => [key, randomUUID()]));
+  const oldSku = `INTAKE-${tag}-OLD`, newSku = `INTAKE-${tag}-NEW`;
+  const customer = `TEST-${tag}`, division = `LIC-${tag}`, route = `RT-${tag}`;
+  q(`begin;
+insert into coldlion.sync_run(id,endpoint,status,requested_by,started_at,finished_at) values('${ids.run}','/orderHistory','succeeded','synthetic-integration',now(),now());
+insert into coldlion.division(company_code,division_code,division_desc,run_id,fetched_at,source_hash,first_seen_at,last_seen_at) values('POP','${division}','POP Creations (Licensed Products)','${ids.run}',now(),repeat('a',64),now(),now());
+insert into core.customer(id,name) values('${ids.company}','Synthetic intake ${tag}');
+insert into core.company_source_ref(company_id,source_system,source_table,source_id) values('${ids.company}','coldlion','customers','${customer}');
+insert into plm.erp_customer(customer_code,name,active,customer_id) values('${customer}','Synthetic intake ${tag}',true,'${ids.company}');
+insert into coldlion.routing_code_map(code,description,order_type,is_poe_ddp_family,ship_to) values('${route}','Synthetic route','FOB',false,'NJ');
+insert into plm.item(id,item_number,name,source_system,source_id) values('${ids.oldItem}','${oldSku}','Synthetic old','integration_test','${tag}-old'),('${ids.newItem}','${newSku}','Synthetic new','integration_test','${tag}-new');
+insert into public.style_tracker_rows(id,source_workbook_id,source_sheet,source_row_number,tracker_type,sku,row_data) values('${ids.oldRow}','integration-${tag}','License.Style',1,'licensed','${oldSku}','{"test_report":false,"professional_photos":false}'),('${ids.newRow}','integration-${tag}','License.Style',2,'licensed','${newSku}','{"test_report":true,"professional_photos":true}');
+insert into plm.style_tracker_item_bridge(style_tracker_row_id,source_workbook_id,source_sheet,tracker_type,plm_item_id) values('${ids.oldRow}','integration-${tag}','License.Style','licensed','${ids.oldItem}'),('${ids.newRow}','integration-${tag}','License.Style','licensed','${ids.newItem}');
+commit;`);
+  const helper = q("select pg_get_functiondef('public.link_dam_order_lines_scoped(uuid[])'::regprocedure)");
+  let sequence = 0;
+  const write = (order, success = true) => run(buildWriteSql({ runId: randomUUID(), write: true, order }), success);
+  const fixture = () => {
+    const order = 800000000000 + Number.parseInt(tag, 16) * 100 + ++sequence;
+    const staged = randomUUID();
+    q(`insert into coldlion.intake_new_order(sales_order_no,warehouse_code,first_seen_run,last_seen_run) values(${order},'${route}','${ids.run}','${ids.run}');
+insert into coldlion.intake_order_line(id,sales_order_no,sales_order_line_no,master_item_no,company_code,division_code,customer_code,line_qty,warehouse_code,line_source_hash,first_seen_run,last_seen_run,fetched_at) values('${staged}',${order},1,'${oldSku}','POP','${division}','${customer}',12,'${route}',repeat('b',64),'${ids.run}','${ids.run}',now());
+insert into coldlion.intake_order_component(line_id,order_qty,component_source_hash,first_seen_run,last_seen_run,fetched_at) values('${staged}',12,repeat('c',64),'${ids.run}','${ids.run}',now());`);
+    write(order);
+    const source = `coldlion:so:${order}:line:1:component:1`;
+    const where = `source_id=${lit(source)}`;
+    assert.equal(q(`select item_id from plm.production_order_line where ${where}`), ids.oldItem);
+    return { order, staged, where };
+  };
+  const snapshot = (f) => q(`select jsonb_build_object('header',(select to_jsonb(p) from plm.production_order p where p.source_id='coldlion:so-header:${f.order}'),'line',(select to_jsonb(l) from plm.production_order_line l where ${f.where}),'intake',(select to_jsonb(n) from coldlion.intake_new_order n where sales_order_no=${f.order}),'header_ref',(select to_jsonb(r) from plm.production_order_source_ref r where r.source_id='coldlion:so-header:${f.order}'),'line_ref',(select to_jsonb(r) from plm.production_order_line_source_ref r where r.source_id='coldlion:so:${f.order}:line:1:component:1'))`);
+  const changeSku = (f, sku = newSku) => q(`update coldlion.intake_order_line set master_item_no=${lit(sku)} where id='${f.staged}'`);
+  const state = (f) => JSON.parse(q(`select jsonb_build_object('item',item_id,'status',master_data_match_status,'metadata',metadata) from plm.production_order_line where ${f.where}`));
+  await t.test("changed SKU refreshes exact new item and preserves append-only provenance; repeat is byte-identical", () => {
+    const f = fixture(); changeSku(f); write(f.order);
+    const after = state(f); assert.equal(after.item, ids.newItem); assert.equal(after.status, "matched");
+    assert.equal(after.metadata.coldlion_intake_link_refreshes[0].prior_item_id, ids.oldItem);
+    assert.equal(after.metadata.coldlion_intake_link_refreshes[0].prior_sku, oldSku);
+    assert.equal(after.metadata.coldlion_intake_link_refreshes[0].prior_source_proof.master_item_no, oldSku);
+    const firstReceipt = after.metadata.coldlion_intake_link_refreshes[0];
+    changeSku(f, oldSku); write(f.order);
+    const twice = state(f).metadata.coldlion_intake_link_refreshes;
+    assert.equal(twice.length, 2); assert.deepEqual(twice[0], firstReceipt);
+    const before = snapshot(f); write(f.order); assert.equal(snapshot(f), before);
+  });
+  await t.test("unchanged SKU wrong automatic item refreshes only to proved exact candidate", () => {
+    const f = fixture(); q(`update plm.production_order_line set item_id='${ids.newItem}',metadata=metadata||'{"keep_me":"unchanged"}' where ${f.where}`);
+    write(f.order); const after = state(f); assert.equal(after.item, ids.oldItem); assert.equal(after.metadata.keep_me, "unchanged");
+    assert.equal(after.metadata.coldlion_intake_link_refreshes[0].reason, "stale_automatic_item");
+  });
+  await t.test("valid automatic, manual and not-applicable links remain byte-identical", () => {
+    for (const status of ["matched", "manual", "not_applicable"]) {
+      const f = fixture(); q(`update plm.production_order_line set master_data_match_status='${status}',metadata=metadata||'{"manual_evidence":"retain"}' where ${f.where}`);
+      const before = snapshot(f); write(f.order); assert.equal(snapshot(f), before);
+      if (status !== "matched") { changeSku(f); write(f.order); assert.equal(state(f).item, ids.oldItem); assert.equal(state(f).status, status); }
+    }
+  });
+  await t.test("new SKU alias to same unique item preserves link receipts even with conflicting workflow", () => {
+    const f = fixture(), row = randomUUID(), alias = `ALIAS-${tag}`;
+    q(`insert into public.style_tracker_rows(id,source_workbook_id,source_sheet,source_row_number,tracker_type,sku,row_data) values('${row}','integration-${tag}','License.Style',999,'licensed','${alias}','{"test_report":true,"professional_photos":true}'); insert into plm.style_tracker_item_bridge(style_tracker_row_id,source_workbook_id,source_sheet,tracker_type,plm_item_id) values('${row}','integration-${tag}','License.Style','licensed','${ids.oldItem}');`);
+    const before = state(f); changeSku(f, alias); write(f.order);
+    const after = state(f); assert.equal(after.item, before.item); assert.equal(after.status, before.status);
+    assert.equal(after.metadata.last_relinked_at, before.metadata.last_relinked_at);
+    assert.equal(after.metadata.coldlion_intake_link_refreshes, undefined);
+    q(`delete from plm.style_tracker_item_bridge where style_tracker_row_id='${row}';delete from public.style_tracker_rows where id='${row}';`);
+  });
+  await t.test("post-CTE moved/rekeyed/source-SKU drift aborts and rolls back the exact cohort", () => {
+    const destination = fixture();
+    const destinationId = q(`select production_order_id from plm.production_order_line where ${destination.where}`);
+    const destinationBefore = snapshot(destination);
+    for (const drift of ["source_system='other-source'", "source_id=source_id||':moved'", "sku='CONCURRENT-SKU'", `production_order_id='${destinationId}'`]) {
+      const f = fixture(); changeSku(f); const before = snapshot(f);
+      const injected = buildWriteSql({runId: randomUUID(),write: true,order:f.order}).replace('do $link_intake$',`update plm.production_order_line set ${drift} where ${f.where};\ndo $link_intake$`);
+      const result = run(injected, false); assert.notEqual(result.status,0);
+      assert.match(result.stderr,/source authority changed under lock/);
+      assert.equal(snapshot(f),before);
+      assert.equal(snapshot(destination),destinationBefore);
+    }
+  });
+  await t.test("changed SKU with no match clears obsolete automatic facts honestly", () => {
+    const f = fixture(); changeSku(f, `ABSENT-${tag}`); write(f.order); assert.equal(state(f).item, null); assert.equal(state(f).status, "unmatched");
+    const before = snapshot(f); write(f.order); assert.equal(snapshot(f), before);
+  });
+  await t.test("ambiguous and conflicting new SKUs clear old auto links; unchanged SKUs preserve existing links", () => {
+    for (const variant of ["ambiguous", "conflicting", "absent"]) {
+      const row = randomUUID(), other = randomUUID(), sku = `EX-${variant}-${tag}`;
+      if (variant !== "absent") q(`insert into public.style_tracker_rows(id,source_workbook_id,source_sheet,source_row_number,tracker_type,sku,row_data) values('${row}','integration-${tag}','License.Style',${10 + sequence},'licensed','${sku}','{"test_report":false,"professional_photos":false}'); insert into plm.style_tracker_item_bridge(style_tracker_row_id,source_workbook_id,source_sheet,tracker_type,plm_item_id) values('${row}','integration-${tag}','License.Style','licensed','${ids.newItem}');`);
+      if (variant === "ambiguous") q(`insert into public.style_tracker_rows(id,source_workbook_id,source_sheet,source_row_number,tracker_type,sku,row_data) values('${other}','integration-${tag}','License.Style',${100 + sequence},'licensed','${sku}','{"test_report":false,"professional_photos":false}'); insert into plm.style_tracker_item_bridge(style_tracker_row_id,source_workbook_id,source_sheet,tracker_type,plm_item_id) values('${other}','integration-${tag}','License.Style','licensed','${ids.oldItem}');`);
+      // newItem already has true/true facts, so the additional false/false row
+      // is a real current-workflow conflict for the single candidate.
+      const f = fixture(); changeSku(f, sku); write(f.order);
+      assert.equal(state(f).item, null); assert.equal(state(f).status, "unmatched");
+      q(`update plm.production_order_line set item_id='${ids.oldItem}',master_data_match_status='matched' where ${f.where}`);
+      const before = snapshot(f); write(f.order); assert.equal(snapshot(f), before);
+      if (variant !== "absent") q(`delete from plm.style_tracker_item_bridge where style_tracker_row_id in ('${row}','${other}');delete from public.style_tracker_rows where id in ('${row}','${other}');`);
+    }
+  });
+  await t.test("post-clear helper failure and candidate drift roll back source fields, old link, history and receipts", () => {
+    for (const fault of ["failure", "drift"]) {
+      const f = fixture(); changeSku(f); const before = snapshot(f);
+      try {
+        const cleared = "if exists(select 1 from plm.production_order_line where id=any(p_line_ids) and (item_id is not null or master_data_match_status<>'unmatched')) then raise exception 'verified subset was not cleared'; end if; ";
+        if (fault === "failure") {
+          q(`create or replace function public.link_dam_order_lines_scoped(p_line_ids uuid[]) returns jsonb language plpgsql as $$begin ${cleared} raise exception 'synthetic post-clear failure'; end$$`);
+        } else {
+          // Change the actual bridge candidate after caller prevalidation and
+          // before the real helper's own candidate/facts read. The injected
+          // bridge change must itself roll back with the complete intake.
+          assert.match(helper, /\nbegin\n/);
+          q(helper.replace(/\nbegin\n/, `\nbegin\n ${cleared} update plm.style_tracker_item_bridge set plm_item_id='${ids.oldItem}' where style_tracker_row_id='${ids.newRow}';\n`));
+        }
+        const result = write(f.order, false); assert.notEqual(result.status, 0); assert.match(result.stderr, fault === "failure" ? /synthetic post-clear failure/ : /verified link replacement changed or failed/);
+        assert.equal(snapshot(f), before);
+        assert.equal(q(`select plm_item_id from plm.style_tracker_item_bridge where style_tracker_row_id='${ids.newRow}'`), ids.newItem);
+      } finally { q(helper); }
+    }
+  });
 });
