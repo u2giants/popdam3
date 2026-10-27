@@ -3377,8 +3377,20 @@ export type Database = {
       }
       style_guide_search_documents: {
         Row: {
+          content_sha256: string | null
           directory_path: string
           document_updated_at: string
+          embedding: string | null
+          embedding_attempts: number
+          embedding_error: string | null
+          embedding_error_category: string | null
+          embedding_lease_expires_at: string | null
+          embedding_lease_owner: string | null
+          embedding_lease_token: string | null
+          embedding_max_attempts: number
+          embedding_model: string | null
+          embedding_next_retry_at: string | null
+          embedding_updated_at: string | null
           file_extension: string | null
           filename: string
           is_active: boolean
@@ -3399,8 +3411,20 @@ export type Database = {
           thumbnail_url: string | null
         }
         Insert: {
+          content_sha256?: string | null
           directory_path: string
           document_updated_at?: string
+          embedding?: string | null
+          embedding_attempts?: number
+          embedding_error?: string | null
+          embedding_error_category?: string | null
+          embedding_lease_expires_at?: string | null
+          embedding_lease_owner?: string | null
+          embedding_lease_token?: string | null
+          embedding_max_attempts?: number
+          embedding_model?: string | null
+          embedding_next_retry_at?: string | null
+          embedding_updated_at?: string | null
           file_extension?: string | null
           filename: string
           is_active?: boolean
@@ -3421,8 +3445,20 @@ export type Database = {
           thumbnail_url?: string | null
         }
         Update: {
+          content_sha256?: string | null
           directory_path?: string
           document_updated_at?: string
+          embedding?: string | null
+          embedding_attempts?: number
+          embedding_error?: string | null
+          embedding_error_category?: string | null
+          embedding_lease_expires_at?: string | null
+          embedding_lease_owner?: string | null
+          embedding_lease_token?: string | null
+          embedding_max_attempts?: number
+          embedding_model?: string | null
+          embedding_next_retry_at?: string | null
+          embedding_updated_at?: string | null
           file_extension?: string | null
           filename?: string
           is_active?: boolean
@@ -4250,6 +4286,22 @@ export type Database = {
           style_guide_file_id: string
         }[]
       }
+      claim_sg_search_embedding_documents: {
+        Args: {
+          p_lease_seconds?: number
+          p_limit?: number
+          p_worker_id?: string
+        }
+        Returns: {
+          attempt: number
+          content_sha256: string
+          lease_expires_at: string
+          lease_token: string
+          search_text: string
+          style_guide_file_id: string
+          thumbnail_url: string
+        }[]
+      }
       claim_style_guide_pdf_text: {
         Args: {
           p_batch_size?: number
@@ -4544,6 +4596,14 @@ export type Database = {
           material: string
         }[]
       }
+      get_dam_order_assortment_quantities: {
+        Args: { p_line_ids: string[] }
+        Returns: {
+          assortment_sku_quantity: number
+          order_line_id: string
+          quantity_source: string
+        }[]
+      }
       get_dam_order_sales_order_dates: {
         Args: { p_line_ids: string[] }
         Returns: {
@@ -4625,6 +4685,7 @@ export type Database = {
       get_sg_nas_password: { Args: never; Returns: string }
       get_sg_preview_stats: { Args: never; Returns: Json }
       get_sg_render_queue_stats: { Args: never; Returns: Json }
+      get_sg_search_embedding_status: { Args: never; Returns: Json }
       get_style_guide_deterministic_tag_batch: {
         Args: { p_after_id?: string; p_limit?: number; p_rebuild?: boolean }
         Returns: {
@@ -4694,6 +4755,10 @@ export type Database = {
         Args: { p_item_id: string; p_line_id: string; p_match_status?: string }
         Returns: string
       }
+      link_dam_order_lines_scoped: {
+        Args: { p_line_ids: string[] }
+        Returns: Json
+      }
       list_licensor_aliases: {
         Args: never
         Returns: {
@@ -4719,6 +4784,16 @@ export type Database = {
           p_entity_id: string
           p_error: string
           p_lease_token: string
+        }
+        Returns: boolean
+      }
+      mark_sg_search_embedding_error: {
+        Args: {
+          p_category?: string
+          p_content_sha256: string
+          p_error: string
+          p_lease_token: string
+          p_style_guide_file_id: string
         }
         Returns: boolean
       }
@@ -5041,6 +5116,10 @@ export type Database = {
         Args: { p_document_type?: string; p_entity_ids?: string[] }
         Returns: number
       }
+      reset_sg_search_embedding_errors: {
+        Args: { p_style_guide_file_ids?: string[] }
+        Returns: number
+      }
       reset_stale_jobs: {
         Args: { p_timeout_minutes?: number }
         Returns: number
@@ -5341,6 +5420,16 @@ export type Database = {
           p_style_group_id: string
         }
         Returns: undefined
+      }
+      upsert_sg_search_embedding: {
+        Args: {
+          p_content_sha256: string
+          p_embedding: string
+          p_embedding_model?: string
+          p_lease_token: string
+          p_style_guide_file_id: string
+        }
+        Returns: boolean
       }
       upsert_style_tracker_value_resolution: {
         Args: {
