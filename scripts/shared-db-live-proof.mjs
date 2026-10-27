@@ -40,6 +40,7 @@ const ASSERTIONS = {
   4257: "Existing orders remain readable and editable; all writers reject reused production PO numbers and preserve permanent reservations; historical exceptions require sealed exact-order admissions.",
   4268: "Authenticated OrderList users see the correct New York SO received date for exactly linked lines; missing or conflicting dates remain blank; anon and oversized requests are rejected without raw ColdLion access.",
   4858: "Signed-in OrderList returns per-design case packs and tracking counts each physical assortment carton once",
+  4855: "Authenticated bounded reader returns exact recipe quantities and NULL for unavailable or conflicting sources, and rejects anonymous or oversized requests.",
   2934: "From the application's production service-role connection, read-only: public.deactivate_stale_sg_files no longer exists, and the application's stale-file deactivation path (public.preview_stale_sg_files guard ahead of public.reconcile_stale_sg_files_batch) is still exposed and its read-only guard call succeeds.",
 };
 
@@ -877,6 +878,76 @@ async function proveCasePacks4858() {
 }
 
 
+// Pure: match bounded reader rows to independent source-derived expectations.
+export function evaluateAssortmentQuantities4855(sample, returned) {
+  if (!Array.isArray(sample) || !Array.isArray(returned)) fail("4855 source sample or reader result is not an array");
+  const ids = new Set(); let positive = 0; let nulls = 0;
+  for (const row of sample) {
+    if (!row?.order_line_id || ids.has(row.order_line_id)) fail("4855 source sample has a missing or duplicate line ID");
+    ids.add(row.order_line_id);
+    if (row.quantity_source !== null && !["order_recipe", "current_recipe"].includes(row.quantity_source)) fail("4855 source sample has an unexpected source label");
+    if (row.assortment_sku_quantity === null) nulls += 1;
+    else if (!(Number(row.assortment_sku_quantity) > 0) || !row.quantity_source) fail("4855 expectation is not a positive source-backed quantity");
+    else positive += 1;
+  }
+  if (!positive || !sample.some((r) => r.quantity_source === "order_recipe") || !sample.some((r) => r.quantity_source === "current_recipe") || !nulls)
+    throw new NotYetApplied("production lacks order_recipe, current_recipe and unavailable/conflicting sample lines");
+  if (returned.length !== sample.length) fail("4855 reader returned a different number of lines");
+  const byId = new Map();
+  for (const row of returned) {
+    if (!row?.order_line_id || byId.has(row.order_line_id) ||
+        !Object.hasOwn(row, "assortment_sku_quantity") || !Object.hasOwn(row, "quantity_source") ||
+        Object.keys(row).some((key) => !["order_line_id", "assortment_sku_quantity", "quantity_source"].includes(key)))
+      fail("4855 reader returned a malformed, unexpected or duplicate row");
+    byId.set(row.order_line_id, row);
+  }
+  for (const want of sample) {
+    const got = byId.get(want.order_line_id);
+    if (!got) fail("4855 reader omitted a requested line");
+    const quantity = got.assortment_sku_quantity ?? null;
+    if ((want.assortment_sku_quantity === null) !== (quantity === null) ||
+        (quantity !== null && Number(quantity) !== Number(want.assortment_sku_quantity)) ||
+        (got.quantity_source ?? null) !== (want.quantity_source ?? null)) fail("4855 reader returned an incorrect quantity, source or NULL decision");
+  }
+  return { lines_checked: sample.length, order_recipe: sample.filter((r) => r.quantity_source === "order_recipe").length,
+    current_recipe: sample.filter((r) => r.quantity_source === "current_recipe").length, unavailable_or_conflicting: nulls };
+}
+
+async function proveAssortmentQuantities4855() {
+  const email = process.env.POPDAM_VIEWER_TEST_USER || "", password = process.env.POPDAM_VIEWER_TEST_PASSWORD || "";
+  if (!email || !password) fail("POPDAM_VIEWER_TEST_USER / POPDAM_VIEWER_TEST_PASSWORD are empty");
+  const anonKey = await publishableKey();
+  const sampled = await managementQuery(await proofSql("shared-db-live-proof-4855.sql"));
+  if (sampled.status >= 400) fail(`4855 source query returned HTTP ${sampled.status}`);
+  const sourceProof = sampled.json?.[0]?.proof;
+  if (sourceProof?.reader_exists !== true) throw new NotYetApplied("public.get_dam_order_assortment_quantities is not installed");
+  const sample = sourceProof.sample;
+  const signIn = await userPost("/auth/v1/token?grant_type=password", { email, password }, { apikey: anonKey });
+  if (signIn.status !== 200 || !signIn.json?.access_token) fail(`viewer sign-in returned HTTP ${signIn.status}`);
+  const user = { apikey: anonKey, bearer: signIn.json.access_token }, fn = "/rest/v1/rpc/get_dam_order_assortment_quantities";
+  const ids = sample.map((r) => r.order_line_id), started = Date.now();
+  const read = await userPost(fn, { p_line_ids: ids }, user);
+  if (read.status !== 200) fail(`authenticated reader returned HTTP ${read.status} (${read.json?.code})`);
+  const counts = evaluateAssortmentQuantities4855(sample, read.json);
+  const anon = await userPost(fn, { p_line_ids: ids.slice(0, 1) }, { apikey: anonKey });
+  const oversized = await userPost(fn, { p_line_ids: Array.from({ length: 1501 }, () => randomUUID()) }, user);
+  const nullId = await userPost(fn, { p_line_ids: [ids[0], null] }, user);
+  const rawAccess = [];
+  for (const table of ["intake_order_component", "prepack_detail"]) {
+    const raw = await fetch(`${url}/rest/v1/${table}?select=*&limit=1`, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${user.bearer}`, Accept: "application/json", "Accept-Profile": "coldlion" },
+    });
+    const rawJson = await raw.json().catch(() => null);
+    if (raw.ok || rawJson?.code !== "42501") fail(`authenticated user could access raw ColdLion ${table} or denial was not 42501`);
+    rawAccess.push({ guard: `authenticated_raw_coldlion_${table}`, http: raw.status, code: rawJson?.code ?? null });
+  }
+  return { call: "authenticated bounded assortment quantity RPC plus anonymous, oversized, NULL-ID and raw-source denial calls",
+    elapsed_ms: Date.now() - started, ...counts, refusals: [evaluateRefusal("anon_call", anon.status, anon.json, "42501"),
+      evaluateRefusal("oversized_1501_ids", oversized.status, oversized.json, "22023"),
+      evaluateRefusal("null_line_id", nullId.status, nullId.json, "22023"),
+      ...rawAccess] };
+}
+
 // ── 4692: DAM image-embed worker on production (u2giants/popdam3#486) ───────
 // dam is not exposed to PostgREST, so these go through the Management API.
 // Trigger on/off is proven in one DO block that always ends in RAISE (rolled
@@ -977,7 +1048,7 @@ async function proveImageEmbed() {
   };
 }
 
-const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant, 4064: proveCounters, 4190: proveCadence, 4257: proveNoReuse, 4268: proveSoDates, 4692: proveImageEmbed, 4858: proveCasePacks4858 };
+const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant, 4064: proveCounters, 4190: proveCadence, 4257: proveNoReuse, 4268: proveSoDates, 4692: proveImageEmbed, 4858: proveCasePacks4858, 4855: proveAssortmentQuantities4855 };
 
 async function main() {
   if (url !== EXPECTED_URL) fail("SUPABASE_URL is not the production project");

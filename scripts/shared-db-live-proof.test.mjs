@@ -32,6 +32,40 @@ test("4858 rejects wrong packs, missing or duplicate rows, wrong totals and abse
   assert.throws(() => evaluateCasePacks4858(expected, expected.map((r) => ({ order_id: r.order_id, order_line_id: r.order_line_id, case_pack: r.case_pack, cases_reported: r.cases_reported, assortment_parent_key: r.group_key })), [{ order_id: "o", total_cases: 2, unknown_case_groups: 1 }]), ProofFailure);
 });
 
+import { evaluateAssortmentQuantities4855 } from "./shared-db-live-proof.mjs";
+
+test("4855 accepts exact source quantities and explicit NULLs", () => {
+  const sample = [
+    { order_line_id: "o", assortment_sku_quantity: 6, quantity_source: "order_recipe" },
+    { order_line_id: "c", assortment_sku_quantity: 2, quantity_source: "current_recipe" },
+    { order_line_id: "u", assortment_sku_quantity: null, quantity_source: null },
+  ];
+  assert.deepEqual(evaluateAssortmentQuantities4855(sample, [sample[2], sample[1], sample[0]]),
+    { lines_checked: 3, order_recipe: 1, current_recipe: 1, unavailable_or_conflicting: 1 });
+});
+
+test("4855 rejects duplicates, missing and unexpected rows, quantity or provenance drift", () => {
+  const sample = [
+    { order_line_id: "o", assortment_sku_quantity: 6, quantity_source: "order_recipe" },
+    { order_line_id: "c", assortment_sku_quantity: 2, quantity_source: "current_recipe" },
+    { order_line_id: "u", assortment_sku_quantity: null, quantity_source: null },
+  ];
+  assert.throws(() => evaluateAssortmentQuantities4855(sample, [sample[0], sample[0], sample[2]]), ProofFailure);
+  assert.throws(() => evaluateAssortmentQuantities4855(sample, [sample[0], sample[1]]), ProofFailure);
+  assert.throws(() => evaluateAssortmentQuantities4855(sample, [...sample, { order_line_id: "x" }]), ProofFailure);
+  assert.throws(() => evaluateAssortmentQuantities4855(sample, [sample[0], { ...sample[1], assortment_sku_quantity: 3 }, sample[2]]), ProofFailure);
+  assert.throws(() => evaluateAssortmentQuantities4855(sample, [sample[0], { ...sample[1], quantity_source: "order_recipe" }, sample[2]]), ProofFailure);
+  assert.throws(() => evaluateAssortmentQuantities4855(sample, [sample[0], sample[1], { ...sample[2], assortment_sku_quantity: 0 }]), ProofFailure);
+});
+
+test("4855 reports not yet applied without all three real source categories", () => {
+  const sample = [
+    { order_line_id: "o", assortment_sku_quantity: 6, quantity_source: "order_recipe" },
+    { order_line_id: "c", assortment_sku_quantity: 2, quantity_source: "current_recipe" },
+  ];
+  assert.throws(() => evaluateAssortmentQuantities4855(sample, sample), NotYetApplied);
+});
+
 test("2802 accepts true, false and null exactly as stored", () => {
   assert.equal(evaluateLikenessRead2802([{ id: "a", has_talent_likeness: null }], null), 1);
   assert.equal(evaluateLikenessRead2802([{ id: "b", has_talent_likeness: false }], false), 1);
