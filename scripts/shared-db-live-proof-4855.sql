@@ -1,13 +1,13 @@
--- Read-only independent source expectations for #4855. No source rows leave SQL.
+-- Read-only independent source expectations for #4855. Raw rows remain private; only aggregates enter the durable proof.
 with fn as (
   select p.oid is not null as reader_exists
   from (select to_regprocedure('public.get_dam_order_assortment_quantities(uuid[])') oid) p
 ), lines as (
   select l.id order_line_id,l.assortment_id,l.sku,l.metadata->>'component_source_hash' component_hash,
          s.source_id coldlion_source_id,
-         case when s.source_id ~ '^coldlion:so:[1-9][0-9]{0,17}:line:[1-9][0-9]{0,8}:component:[1-9][0-9]{0,9}$'
+         case when s.source_id ~ '^coldlion:so:[1-9][0-9]{0,17}:line:[0-9]{1,9}:component:[1-9][0-9]{0,9}$'
            then split_part(s.source_id,':',3)::bigint end so_no,
-         case when s.source_id ~ '^coldlion:so:[1-9][0-9]{0,17}:line:[1-9][0-9]{0,8}:component:[1-9][0-9]{0,9}$'
+         case when s.source_id ~ '^coldlion:so:[1-9][0-9]{0,17}:line:[0-9]{1,9}:component:[1-9][0-9]{0,9}$'
            then split_part(s.source_id,':',5)::integer end so_line
   from plm.production_order_line l
   left join plm.production_order_line_source_ref s on s.production_order_line_id=l.id

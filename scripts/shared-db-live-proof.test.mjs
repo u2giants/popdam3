@@ -32,7 +32,7 @@ test("4858 rejects wrong packs, missing or duplicate rows, wrong totals and abse
   assert.throws(() => evaluateCasePacks4858(expected, expected.map((r) => ({ order_id: r.order_id, order_line_id: r.order_line_id, case_pack: r.case_pack, cases_reported: r.cases_reported, assortment_parent_key: r.group_key })), [{ order_id: "o", total_cases: 2, unknown_case_groups: 1 }]), ProofFailure);
 });
 
-import { evaluateAssortmentQuantities4855 } from "./shared-db-live-proof.mjs";
+import { evaluateAssortmentQuantities4855, evaluateRawDenial4855 } from "./shared-db-live-proof.mjs";
 
 test("4855 accepts exact source quantities and explicit NULLs", () => {
   const sample = [
@@ -56,6 +56,33 @@ test("4855 rejects duplicates, missing and unexpected rows, quantity or provenan
   assert.throws(() => evaluateAssortmentQuantities4855(sample, [sample[0], { ...sample[1], assortment_sku_quantity: 3 }, sample[2]]), ProofFailure);
   assert.throws(() => evaluateAssortmentQuantities4855(sample, [sample[0], { ...sample[1], quantity_source: "order_recipe" }, sample[2]]), ProofFailure);
   assert.throws(() => evaluateAssortmentQuantities4855(sample, [sample[0], sample[1], { ...sample[2], assortment_sku_quantity: 0 }]), ProofFailure);
+});
+
+test("4855 rejects coercible, non-finite, non-positive and malformed source pairs", () => {
+  const sample = [
+    { order_line_id: "o", assortment_sku_quantity: 6, quantity_source: "order_recipe" },
+    { order_line_id: "c", assortment_sku_quantity: 2, quantity_source: "current_recipe" },
+    { order_line_id: "u", assortment_sku_quantity: null, quantity_source: null },
+  ];
+  for (const invalid of ["6", true, NaN, Infinity, -Infinity, 0]) {
+    assert.throws(() => evaluateAssortmentQuantities4855(sample.map((r, i) => i === 0 ? { ...r, assortment_sku_quantity: invalid } : r), sample), ProofFailure);
+    assert.throws(() => evaluateAssortmentQuantities4855(sample, sample.map((r, i) => i === 0 ? { ...r, assortment_sku_quantity: invalid } : r)), ProofFailure);
+  }
+  assert.throws(() => evaluateAssortmentQuantities4855(sample.map((r, i) => i === 0 ? { ...r, order_line_id: 1 } : r), sample), ProofFailure);
+  assert.throws(() => evaluateAssortmentQuantities4855(sample, sample.map((r, i) => i === 0 ? { ...r, order_line_id: 1 } : r)), ProofFailure);
+  assert.throws(() => evaluateAssortmentQuantities4855(sample.map((r, i) => i === 0 ? { ...r, assortment_sku_quantity: null } : r), sample), ProofFailure);
+  assert.throws(() => evaluateAssortmentQuantities4855(sample.map((r, i) => i === 2 ? { ...r, quantity_source: "current_recipe" } : r), sample), ProofFailure);
+  assert.throws(() => evaluateAssortmentQuantities4855(sample.map((r, i) => i === 0 ? { ...r, quantity_source: null } : r), sample), ProofFailure);
+  assert.throws(() => evaluateAssortmentQuantities4855(sample, sample.map((r, i) => i === 0 ? { ...r, quantity_source: null } : r)), ProofFailure);
+  assert.throws(() => evaluateAssortmentQuantities4855(sample, sample.map((r, i) => i === 2 ? { ...r, quantity_source: "order_recipe" } : r)), ProofFailure);
+});
+
+test("4855 accepts only recognized private-schema or permission denials", () => {
+  assert.deepEqual(evaluateRawDenial4855(406, { code: "PGRST106" }), { http: 406, code: "PGRST106" });
+  assert.deepEqual(evaluateRawDenial4855(403, { code: "42501" }), { http: 403, code: "42501" });
+  for (const denial of [[500, { code: "XX000" }], [404, { code: "PGRST205" }], [406, { code: "PGRST202" }], [200, { code: "42501" }], [403, { code: "other" }]]) {
+    assert.throws(() => evaluateRawDenial4855(...denial), ProofFailure);
+  }
 });
 
 test("4855 reports not yet applied without all three real source categories", () => {

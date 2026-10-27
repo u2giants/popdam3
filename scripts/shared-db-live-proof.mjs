@@ -878,27 +878,45 @@ async function proveCasePacks4858() {
 }
 
 
+function validate4855Rows(rows, label) {
+  if (!Array.isArray(rows)) fail(`4855 ${label} is not an array`);
+  const ids = new Set(); let positive = 0; let nulls = 0;
+  for (const row of rows) {
+    if (typeof row?.order_line_id !== "string" || !row.order_line_id || ids.has(row.order_line_id)) fail(`4855 ${label} has a missing, non-string or duplicate line ID`);
+    ids.add(row.order_line_id);
+    if (row.quantity_source !== null && !["order_recipe", "current_recipe"].includes(row.quantity_source)) fail(`4855 ${label} has an unexpected source label`);
+    if (row.assortment_sku_quantity === null) {
+      if (row.quantity_source !== null) fail(`4855 ${label} pairs NULL quantity with a non-NULL source`);
+      nulls += 1;
+    } else {
+      if (typeof row.assortment_sku_quantity !== "number" || !Number.isFinite(row.assortment_sku_quantity) || row.assortment_sku_quantity <= 0 ||
+          !["order_recipe", "current_recipe"].includes(row.quantity_source)) fail(`4855 ${label} quantity/source pair is invalid`);
+      positive += 1;
+    }
+  }
+  return { ids, positive, nulls };
+}
+
+function validate4855Sample(sample) {
+  const counts = validate4855Rows(sample, "source sample");
+  if (sample.length === 0 || sample.length > 1500) fail("4855 source sample has an invalid line count");
+  if (!counts.positive || !sample.some((r) => r.quantity_source === "order_recipe") || !sample.some((r) => r.quantity_source === "current_recipe") || !counts.nulls)
+    throw new NotYetApplied("production lacks order_recipe, current_recipe and unavailable/conflicting sample lines");
+  return counts;
+}
+
 // Pure: match bounded reader rows to independent source-derived expectations.
 export function evaluateAssortmentQuantities4855(sample, returned) {
-  if (!Array.isArray(sample) || !Array.isArray(returned)) fail("4855 source sample or reader result is not an array");
-  const ids = new Set(); let positive = 0; let nulls = 0;
-  for (const row of sample) {
-    if (!row?.order_line_id || ids.has(row.order_line_id)) fail("4855 source sample has a missing or duplicate line ID");
-    ids.add(row.order_line_id);
-    if (row.quantity_source !== null && !["order_recipe", "current_recipe"].includes(row.quantity_source)) fail("4855 source sample has an unexpected source label");
-    if (row.assortment_sku_quantity === null) nulls += 1;
-    else if (!(Number(row.assortment_sku_quantity) > 0) || !row.quantity_source) fail("4855 expectation is not a positive source-backed quantity");
-    else positive += 1;
-  }
+  const returnedCounts = validate4855Rows(returned, "reader result");
+  const { positive, nulls } = validate4855Sample(sample);
   if (!positive || !sample.some((r) => r.quantity_source === "order_recipe") || !sample.some((r) => r.quantity_source === "current_recipe") || !nulls)
     throw new NotYetApplied("production lacks order_recipe, current_recipe and unavailable/conflicting sample lines");
   if (returned.length !== sample.length) fail("4855 reader returned a different number of lines");
   const byId = new Map();
   for (const row of returned) {
-    if (!row?.order_line_id || byId.has(row.order_line_id) ||
-        !Object.hasOwn(row, "assortment_sku_quantity") || !Object.hasOwn(row, "quantity_source") ||
+    if (!Object.hasOwn(row, "assortment_sku_quantity") || !Object.hasOwn(row, "quantity_source") ||
         Object.keys(row).some((key) => !["order_line_id", "assortment_sku_quantity", "quantity_source"].includes(key)))
-      fail("4855 reader returned a malformed, unexpected or duplicate row");
+      fail("4855 reader returned a malformed or unexpected row");
     byId.set(row.order_line_id, row);
   }
   for (const want of sample) {
@@ -906,11 +924,18 @@ export function evaluateAssortmentQuantities4855(sample, returned) {
     if (!got) fail("4855 reader omitted a requested line");
     const quantity = got.assortment_sku_quantity ?? null;
     if ((want.assortment_sku_quantity === null) !== (quantity === null) ||
-        (quantity !== null && Number(quantity) !== Number(want.assortment_sku_quantity)) ||
+        (quantity !== null && quantity !== want.assortment_sku_quantity) ||
         (got.quantity_source ?? null) !== (want.quantity_source ?? null)) fail("4855 reader returned an incorrect quantity, source or NULL decision");
   }
+  if (returnedCounts.ids.size !== sample.length) fail("4855 reader returned duplicate or unexpected line IDs");
   return { lines_checked: sample.length, order_recipe: sample.filter((r) => r.quantity_source === "order_recipe").length,
     current_recipe: sample.filter((r) => r.quantity_source === "current_recipe").length, unavailable_or_conflicting: nulls };
+}
+
+export function evaluateRawDenial4855(status, body) {
+  const code = body?.code;
+  if ((status === 406 && code === "PGRST106") || ((status === 401 || status === 403) && code === "42501")) return { http: status, code };
+  fail(`4855 raw ColdLion access was not denied by a recognized schema or permission guard (HTTP ${status}, ${code ?? "no code"})`);
 }
 
 async function proveAssortmentQuantities4855() {
@@ -922,6 +947,7 @@ async function proveAssortmentQuantities4855() {
   const sourceProof = sampled.json?.[0]?.proof;
   if (sourceProof?.reader_exists !== true) throw new NotYetApplied("public.get_dam_order_assortment_quantities is not installed");
   const sample = sourceProof.sample;
+  validate4855Sample(sample);
   const signIn = await userPost("/auth/v1/token?grant_type=password", { email, password }, { apikey: anonKey });
   if (signIn.status !== 200 || !signIn.json?.access_token) fail(`viewer sign-in returned HTTP ${signIn.status}`);
   const user = { apikey: anonKey, bearer: signIn.json.access_token }, fn = "/rest/v1/rpc/get_dam_order_assortment_quantities";
@@ -938,8 +964,7 @@ async function proveAssortmentQuantities4855() {
       headers: { apikey: anonKey, Authorization: `Bearer ${user.bearer}`, Accept: "application/json", "Accept-Profile": "coldlion" },
     });
     const rawJson = await raw.json().catch(() => null);
-    if (raw.ok || rawJson?.code !== "42501") fail(`authenticated user could access raw ColdLion ${table} or denial was not 42501`);
-    rawAccess.push({ guard: `authenticated_raw_coldlion_${table}`, http: raw.status, code: rawJson?.code ?? null });
+    rawAccess.push({ guard: `authenticated_raw_coldlion_${table}`, ...evaluateRawDenial4855(raw.status, rawJson) });
   }
   return { call: "authenticated bounded assortment quantity RPC plus anonymous, oversized, NULL-ID and raw-source denial calls",
     elapsed_ms: Date.now() - started, ...counts, refusals: [evaluateRefusal("anon_call", anon.status, anon.json, "42501"),
