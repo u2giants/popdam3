@@ -29,6 +29,8 @@ test("parseResult accepts CLI array and envelope forms", () => {
   assert.deepEqual(parseResult('[{"result":{"a":1}}]'), { a: 1 });
   assert.deepEqual(parseResult('{"rows":[{"result":"{\\"a\\":2}"}]}'), { a: 2 });
   assert.throws(() => parseResult("[]"), /no result row/);
+  // The deployed function definition is plain text, not JSON (first live run, 2026-10-27).
+  assert.equal(parseResult('[{"result":"CREATE OR REPLACE FUNCTION x"}]', { raw: true }), "CREATE OR REPLACE FUNCTION x");
 });
 
 test("summarize counts and reports codes, never names", () => {

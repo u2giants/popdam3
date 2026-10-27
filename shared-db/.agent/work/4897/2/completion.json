@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "work_issue": 4897,
+  "outcome": "ready-for-merge",
+  "pr": 4899,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4897/2",
+  "contract_sha256": "7dc562d48d6e908723bf50b405f467e28ab441feee5a6b6bf2cb5e739eb1a9c7",
+  "head_sha": "7f5eff98e194fa4ecad30da3ad6a25f12d746637",
+  "base_sha": "2d232ef3a4ee240e52e71fe6bac9e0e8baf4b44b",
+  "files_changed": ["tools/check-coldlion-property-scrape-names.mjs", "tools/check-coldlion-property-scrape-names.test.mjs"],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"command": "node --test tools/property-name-match.test.mjs tools/check-coldlion-property-scrape-names.test.mjs", "exit_code": 0, "evidence": "# tests 10 # pass 10 # fail 0 "},
+    {"command": "git diff --check", "exit_code": 0, "evidence": "No whitespace errors"}
+  ],
+  "assumptions_resolved": ["First live run 40522076767 failed parsing the definition text as JSON; fixed and covered by a test"],
+  "stop_conditions_hit": []
+}

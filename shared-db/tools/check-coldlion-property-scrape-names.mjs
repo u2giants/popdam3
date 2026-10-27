@@ -53,12 +53,13 @@ export function buildSql(definitionText) {
 ) as result;`;
 }
 
-export function parseResult(stdout) {
+export function parseResult(stdout, { raw = false } = {}) {
   const rows = JSON.parse(stdout);
   const flat = Array.isArray(rows) ? rows : rows.rows ?? [];
   const hit = flat.find((r) => r && r.result !== undefined);
   if (!hit) throw new Error("no result row in query output");
-  return typeof hit.result === "string" ? JSON.parse(hit.result) : hit.result;
+  if (raw || typeof hit.result !== "string") return hit.result;
+  return JSON.parse(hit.result);
 }
 
 export function summarize({ scraped, coldlion }) {
@@ -93,7 +94,7 @@ function markdown(s) {
 async function main(argv) {
   const linked = argv.includes("--linked");
   const i = argv.indexOf("--summary");
-  const definition = parseResult(runSql(DEFINITION_SQL, { linked }));
+  const definition = parseResult(runSql(DEFINITION_SQL, { linked }), { raw: true });
   if (typeof definition !== "string" || !definition.includes("db_data_admin_scraped_source_inventory")) {
     throw new Error("could not read the deployed inventory definition");
   }
