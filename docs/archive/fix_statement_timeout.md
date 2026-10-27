@@ -13,7 +13,7 @@ Owners:
 - PopDAM Railway worker and admin UI: `/worksp/popdam`
 - Cross-application adoption: dflow PLM, PM/PIM, and CRM application owners
 
-Related plan: [`fix_SEARCH_PIPELINE_PLAN.md`](fix_SEARCH_PIPELINE_PLAN.md). That
+Related plan: `fix_SEARCH_PIPELINE_PLAN.md` (retired). That
 document addresses the quality and completeness of DAM search. This plan is
 narrower: it removes the proven AI-tagging database timeout, makes bulk jobs
 resumable and observable, and defines the reusable database-access conventions

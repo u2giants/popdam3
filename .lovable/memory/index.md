@@ -15,10 +15,10 @@ Updated: now
 - **Sister app PopSG**: Separate Supabase + separate Lovable project + shared bridge agent. See `mem://architecture/popsg-sister-app`.
 
 ## Memories
-- [Agents Architecture](mem://features/architecture-agents) — Bridge/Windows agents, heartbeats, hot-reload config, fallback chains
-- [Asset Processing](mem://features/asset-processing) — Timestamp preservation, path rules, PDF extraction, TIFF hygiene, thumbnails
-- [Style Groups & SKUs](mem://features/style-groups) — SKU parsing, mega-group prevention (>50 limit), filtering, search
-- [AI & ERP](mem://features/ai-and-erp) — Gemini tagging, ERP enrichment, MG01 legacy cutoff rules, audit logging
-- [External Supabase & Auth](mem://architecture/supabase-and-auth) — External project routing, Google OAuth, monolith edge functions, schema truth
-- [Railway Worker](mem://architecture/background-worker) — Async delegation, persistent bulk operations, API throttling, DB RPCs
-- [PopSG Sister App](mem://architecture/popsg-sister-app) — Separate Supabase (eeueczxhezfhyrhdmidg), light theme, shared bridge agent, depth-2 folder grouping
+- **Agents Architecture** (`mem://features/architecture-agents`) — Bridge/Windows agents, heartbeats, hot-reload config, fallback chains
+- **Asset Processing** (`mem://features/asset-processing`) — Timestamp preservation, path rules, PDF extraction, TIFF hygiene, thumbnails
+- **Style Groups & SKUs** (`mem://features/style-groups`) — SKU parsing, mega-group prevention (>50 limit), filtering, search
+- **AI & ERP** (`mem://features/ai-and-erp`) — Gemini tagging, ERP enrichment, MG01 legacy cutoff rules, audit logging
+- **External Supabase & Auth** (`mem://architecture/supabase-and-auth`) — External project routing, Google OAuth, monolith edge functions, schema truth
+- **Railway Worker** (`mem://architecture/background-worker`) — Async delegation, persistent bulk operations, API throttling, DB RPCs
+- **PopSG Sister App** (`mem://architecture/popsg-sister-app`) — Separate Supabase (eeueczxhezfhyrhdmidg), light theme, shared bridge agent, depth-2 folder grouping
