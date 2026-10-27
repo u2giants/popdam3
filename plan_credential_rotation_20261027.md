@@ -1,4 +1,4 @@
-# Rotation plan v4 — leaked Supabase sb_secret key + broken AI tester logins (qsllyeztdwjgirsysgai)
+# Rotation plan v5 — leaked Supabase sb_secret key + broken AI tester logins (qsllyeztdwjgirsysgai)
 
 ## Incident summary
 
@@ -42,7 +42,8 @@ below are probe-verified on production, not assumed.
 ## Exposure record (what the transcript actually contains)
 
 The ZCode transcript of this session printed, in full, exactly one secret
-value: `sb_secret_OAyZV…` (the `SUPABASE_SECRET_KEY` field), during a
+value: the `SUPABASE_SECRET_KEY` (sb_secret class; no fragment of it is quoted
+anywhere in this plan or repository), during a
 mistaken un-redacted `op item get … --fields SUPABASE_SECRET_KEY --reveal`
 output at ~11:57 AM EDT. Every other credential in this plan moved only
 through shell environment variables and pipes into HTTP requests and was
@@ -57,10 +58,15 @@ Names only (values are write-only via the API): `SUPABASE_URL`,
 `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_PUBLISHABLE_KEYS`,
 `SUPABASE_SECRET_KEYS`, `SUPABASE_DB_URL`, `SUPABASE_JWKS`,
 `BULK_OPERATION_ALERT_SECRET`, `BREVO_API_KEY`, `META_API_KEY`,
-`TEXT_EMBED_URL`, `TEXT_EMBED_KEY`. The Management API secrets endpoint used
-in Stage A step 4 is an upsert of the named secret only; it never deletes or
-replaces unmentioned secrets (deletion is a separate DELETE endpoint), so
-`BREVO_API_KEY` (invite email) and every other secret above is untouched.
+`TEXT_EMBED_URL`, `TEXT_EMBED_KEY`. The secrets-update call in Stage A is executed
+under a proven-at-execution contract: first read the Management API
+specification for the exact endpoint and verb; if the operation is an upsert
+of named secrets only, send the single changed pair; if any doubt remains
+that it could replace the set, send the complete current secret list (values
+re-read via GET where readable, plus the one changed value) and after the
+write re-list secret names and assert `BREVO_API_KEY`, `TEXT_EMBED_KEY` and
+`META_API_KEY` are still present. Deletion of secrets is a separate endpoint
+and is never called.
 
 ## Blast radius of the edge-secret update
 
@@ -127,10 +133,18 @@ is what makes this stage safe.
 5. Update the edge function secret `SUPABASE_SERVICE_ROLE_KEY` to the new key
    (`PUT /v1/projects/qsllyeztdwjgirsysgai/secrets`). This is the proven
    consumer of the leaked value.
-6. Verify with probes: new key passes the admin-api auth gate (`Unknown action`
-   reply); the leaked key now FAILS that gate (401/403) — its edge-function
-   invocation power (admin-api, agent-api, helper-api, exports, dam-search-ai)
-   is closed while PostgREST/auth validity is intentionally kept.
+6. Verify with probes against every service-role-gated edge function that
+   accepts this key class — `admin-api`, `agent-api`, `helper-api`,
+   `verify-app-access`, `dam-search-ai`: the NEW key authenticates (an
+   app-level error reply, never 401/403) and the leaked key is refused
+   (401/403). The export functions are excluded from the legacy-verified
+   path by design (`export-sql-dump`, `export-table`,
+   `export-thumbnail-manifest` accept only the exact-match key), which this
+   probe matrix exercises through the exact-match arm. The worker's
+   `reprocess-metadata` operation enters through the same `admin-api` gate
+   and code path as the admin-api probe, so its behavior follows that probe
+   result; it is additionally confirmed by the operator on the next natural
+   use rather than by triggering a bulk job for testing.
 7. Update the 1P item notes with the rotation record and open item.
 
 Stage A risk: only the on-demand admin `reprocess-metadata` operation can
@@ -139,7 +153,7 @@ holds the leaked value. No scheduled job, no data path, no frontend, and no
 worker database operation is affected, because nothing is revoked and the
 worker's required DB credential is untouched.
 
-### Stage B — revoke (blocked on Railway confirmation, tracked as its own item)
+### Stage B — revoke (blocked on Railway confirmation, tracked as issue #551)
 
 The leaked key stays PostgREST/auth-valid until Railway's env is confirmed,
 because if Railway's required `SUPABASE_SERVICE_ROLE_KEY` were the leaked
@@ -155,12 +169,14 @@ needs Railway browser SSO) or Railway's env values are otherwise confirmed:
   rejection at PostgREST/auth, done.
 - If Railway's DB key is the leaked sb_secret: update Railway env to the new
   sb_secret, restart the worker, verify operations, then revoke the leaked
-  key and verify.
+  key and verify. Stage B closes only on POSITIVE evidence: new-key
+  admin-api probe passes, one real worker operation observed healthy
+  (`WORKER_HEARTBEAT` admin_config row advances), and the leaked key is
+  rejected by PostgREST and auth admin.
 
 Residual risk during the Stage B window: the leaked key retains
 service-role PostgREST and auth-admin power. Exposure was one transcript on
-Albert's own infrastructure; the window is tracked on the rotation issue
-with this plan attached.
+Albert's own infrastructure; the window is tracked on issue #551 with this plan attached.
 
 ## Rollback
 
@@ -175,4 +191,4 @@ is revoked, so a failed consumer is recovered by re-running the stage.
 - Refreshing the stored legacy `SUPABASE_SERVICE_ROLE_KEY` JWT value (alive
   for PostgREST/edge; only the auth admin API rejects it).
 - Rotating `EXTERNAL_SUPABASE_SERVICE_ROLE_KEY` (GitHub, legacy JWT class) or
-  the dead Railway API tokens (tracked with Stage B).
+  the dead Railway API tokens (tracked with Stage B on issue #551).

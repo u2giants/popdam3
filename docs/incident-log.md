@@ -2,6 +2,14 @@
 
 Moved verbatim from `AGENTS.md` on 2026-09-18 to keep the router under its size cap. Add new entries here, then add a one-line title to the index in `AGENTS.md` → Critical incidents.
 
+## Open 2026-10-27: one production Supabase sb_secret key printed into an AI transcript
+
+What happened: during the Master Data first-paint session (PR #541 live proof), the full value of the new-format Supabase API secret (`SUPABASE_SECRET_KEY`, sb_secret class) was printed into the ZCode chat transcript while inspecting the 1Password item "Supabase Runtime Keys - shared POP database (production)". Per standing rules the key is treated as compromised.
+
+Impact: the key is the deployed edge-function gate key (proven by probe) and a possible Railway worker env value. Probe-verified facts, the two-stage rotation plan, and the blocking Railway-access gap are recorded in `plan_credential_rotation_20261027.md` (issue #551). Stage A (replace the edge secret with a fresh sb_secret, no revocation, worker DB path untouched) awaits AI-reviewer APPROVE; Stage B (revoke) is blocked until Railway env values can be confirmed or updated — both stored Railway API tokens are rejected.
+
+Also discovered in the same session: all three AI tester account passwords are stale (`invalid_credentials`); resets are bundled into Stage A.
+
 ## Resolved 2026-07-01: Microsoft login returned "500: Database error granting user" on first attempt
 
 What happened: Users signing into `dam.designflow.app` with Microsoft/Azure hit `500: Database error granting user` on the first OAuth callback. Retrying often worked, which made it look like a transient OAuth issue.
