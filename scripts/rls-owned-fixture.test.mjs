@@ -99,3 +99,15 @@ test('worker prune does not become our successful DELETE permission proof',async
   const f=fixtureMock();await f.protocol.prepare();await f.protocol.exercise(f.page);f.prune();await assert.rejects(f.protocol.cleanup());
   assert.equal(f.deleted,0);assert.equal(f.protocol.summary().passed,false);assert.equal(f.protocol.summary().pending_fixture,true);
 });
+
+test('new group2 identity refuses spent fixture ID and pins prospective manifest before execution', async()=>{
+  const {readFileSync}=await import('node:fs');
+  const m=manifest();m.id='acfe841c-e9ab-4e37-a064-ad77fe83583b';m.sku=`AI-QA-4427-${m.id}`;m.folder_path=`__AI_QA_4427__/${m.id}`;
+  assert.throws(()=>validateManifest(m));
+  const source=readFileSync(new URL('./run-rls-owned-group2.mjs',import.meta.url),'utf8');
+  assert(source.includes('/tmp/4427-prospective-group2-01a17b07.json'));
+  assert(source.includes('/tmp/popdam-4427-owned-group2-private-01a17a03/fixture-proof.json'));
+  assert(source.includes("m.deployed_sha !== 'eb405c02479f1d76b319f2f2e89150493bcade45'"));
+  assert(source.includes("m.owner_session !== '01a17a03-63b6-7081-ab54-29fa144bf678'"));
+  assert(source.indexOf('digest(bytes) !== MANIFEST_SHA256')<source.indexOf('createFixtureProtocol({'));
+});

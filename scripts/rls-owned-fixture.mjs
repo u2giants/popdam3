@@ -1,8 +1,8 @@
 import {successfulLibraryResponse} from './rls-library-live-proof.mjs';
 // Fixed #4427 fixture protocol. No arbitrary SQL, table, actor or callback input.
 import { createHash } from 'node:crypto';
-export const FIXTURE_ID = 'acfe841c-e9ab-4e37-a064-ad77fe83583b';
-export const MANIFEST_SHA256 = 'de98b15b35c04e03802edc562045731b322177a798742250440edd0b26a76bce';
+export const FIXTURE_ID = 'e542ea4e-9bf2-4bc0-8b7c-c6e2b1441792';
+export const MANIFEST_SHA256 = '3bf2ce1d87afbdd0313210a7ee9c0c345e0f4d70518c2789c6f98873decd4b03';
 export const FIXED_COUNTS = `SELECT
  (SELECT count(*)::int FROM public.style_groups WHERE id=$1::uuid OR sku=$2 OR folder_path=$3) AS groups,
  (SELECT count(*)::int FROM public.dam_search_documents WHERE (document_type='style_group' AND entity_id=$1::uuid) OR style_group_id=$1::uuid) AS documents,
