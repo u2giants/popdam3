@@ -81,7 +81,7 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 | Work on the desktop Helper / checkout-checkin / Seafile / SeaDrive | `AGENTS.md`, `docs/POPDAM_HELPER.md`, `docs/SEAFILE_INTEGRATION.md` | PopSG / ERP docs |
 | Work on image similarity (upload-to-find, embeddings, GPU poller) | `AGENTS.md`, `plan_image_similarity_upload_search.md` (STATUS first), `apps/image-embed-worker/README.md` | PopSG search docs (image search is PopDAM-only by plan) |
 | Work on PopSG (style-guide mode) | `AGENTS.md`, `docs/POPSG.md` | PopDAM-only ERP/style-group docs |
-| Work on the item-page product mockup tool | `AGENTS.md`, `docs/MOCKUP_TOOL.md` | pop-mock repo internals (edit there, vendor here) |
+| Work on the item-page product mockup tool | `AGENTS.md`, `docs/MOCKUP_TOOL.md`; auto-matching work → `plan_mockup_auto_match.md` (read its STATUS table first) | pop-mock repo internals (edit there, vendor here) |
 | Work on auth / SSO / login | `AGENTS.md`, `docs/AUTHENTICATION.md` | unrelated docs |
 | Touch MCP servers / `.mcp.json` / MCP tokens / 1Password secrets | `AGENTS.md`, `docs/MCP_SERVERS.md`; VPS proxy ops → `deploy/vps/` | unrelated app docs |
 | Investigate bugs / incidents | `AGENTS.md` → Incidents + Intentional Quirks, `docs/KNOWN_QUIRKS.md`, `HANDOFF.md` if present | unrelated folder docs |
