@@ -51,6 +51,7 @@ export class NotYetApplied extends Error {}
 export function evaluateCasePacks4858(expected, orderRows, trackingRows) {
   if (!Array.isArray(expected) || !expected.length) throw new NotYetApplied("no consistent source-only ColdLion order is available");
   if (!Array.isArray(orderRows) || !Array.isArray(trackingRows)) fail("viewer reads did not return row arrays");
+  if (new Set(expected.map((row) => row.order_line_id)).size !== expected.length) fail("source expectations contain duplicate lines");
   const byLine = new Map();
   for (const row of orderRows) {
     if (byLine.has(row.order_line_id)) fail("OrderList returned a duplicate line");
@@ -62,23 +63,40 @@ export function evaluateCasePacks4858(expected, orderRows, trackingRows) {
     byOrder.set(row.order_id, row);
   }
   const grouped = new Map();
+  const actualGroupBySource = new Map();
+  const sourceGroupByActual = new Map();
   for (const line of expected) {
     const row = byLine.get(line.order_line_id);
     if (!row) fail("OrderList omitted an expected design");
     if (Number(row.case_pack) !== Number(line.case_pack)) fail("OrderList returned an incorrect per-design case pack");
     if (Number(row.cases_reported) !== Number(line.cases_reported)) fail("OrderList returned incorrect per-design cases");
-    if (line.group_key && (!row.assortment_parent_key || row.assortment_parent_key !== line.group_key)) fail("assortment group key is missing or inconsistent");
+    if (line.group_key) {
+      const actual = row.assortment_parent_key;
+      if (!actual) fail("assortment group key is missing");
+      const sourceKey = `${line.order_id}:${line.group_key}`;
+      const priorActual = actualGroupBySource.get(sourceKey);
+      const priorSource = sourceGroupByActual.get(`${line.order_id}:${actual}`);
+      if ((priorActual && priorActual !== actual) || (priorSource && priorSource !== sourceKey)) fail("assortment group keys are inconsistent");
+      actualGroupBySource.set(sourceKey, actual);
+      sourceGroupByActual.set(`${line.order_id}:${actual}`, sourceKey);
+    } else if (row.assortment_parent_key) {
+      fail("direct line unexpectedly shares an assortment group key");
+    }
     const key = line.order_id;
-    if (!grouped.has(key)) grouped.set(key, { total: 0, cartons: new Set() });
+    if (!grouped.has(key)) grouped.set(key, { cartons: new Map(), declaredTotal: Number(line.order_cases) });
     const g = grouped.get(key);
+    if (g.declaredTotal !== Number(line.order_cases)) fail("source expectations disagree on the order total");
     const carton = line.group_key || line.order_line_id;
-    if (!g.cartons.has(carton)) { g.total += Number(line.order_cases); g.cartons.add(carton); }
+    if (g.cartons.has(carton) && g.cartons.get(carton) !== Number(line.cases_reported)) fail("source assortment group has conflicting carton counts");
+    g.cartons.set(carton, Number(line.cases_reported));
   }
   if (byLine.size !== expected.length) fail("OrderList returned unexpected lines");
   for (const [orderId, want] of grouped) {
     const got = byOrder.get(orderId);
     if (!got) fail("tracking omitted an expected order");
-    if (Number(got.total_cases) !== want.total) fail("tracking total_cases did not count each carton once");
+    const expectedTotal = [...want.cartons.values()].reduce((sum, n) => sum + n, 0);
+    if (expectedTotal !== want.declaredTotal) fail("source-derived order total is inconsistent with its physical groups");
+    if (Number(got.total_cases) !== expectedTotal) fail("tracking total_cases did not count each carton once");
     if (Number(got.unknown_case_groups) !== 0) fail("tracking has unknown case groups");
   }
   if (byOrder.size !== grouped.size) fail("tracking returned unexpected orders");
@@ -833,9 +851,14 @@ async function proveCasePacks4858() {
   if (signIn.status !== 200 || !signIn.json?.access_token) fail(`viewer sign-in returned HTTP ${signIn.status}`);
   const user = { apikey: anonKey, bearer: signIn.json.access_token };
   const ids = [...new Set(expected.map((r) => r.order_id))];
-  const filter = encodeURIComponent(`in.(${ids.join(",")})`);
   const start = Date.now();
-  const listResponse = await fetch(`${url}/rest/v1/dam_order_list?select=order_id,order_line_id,case_pack,cases_reported,assortment_parent_key&order_id=${filter}`, {
+  const listUrl = new URL("/rest/v1/dam_order_list", url);
+  listUrl.searchParams.set("select", "order_id,order_line_id,case_pack,cases_reported,assortment_parent_key");
+  listUrl.searchParams.set("order_id", `in.(${ids.join(",")})`);
+  listUrl.searchParams.set("order_voided_at", "is.null");
+  listUrl.searchParams.set("line_voided_at", "is.null");
+  listUrl.searchParams.set("or", "(order_type.is.null,order_type.not.ilike.*sample*)");
+  const listResponse = await fetch(listUrl, {
     headers: { apikey: anonKey, Authorization: `Bearer ${user.bearer}`, Accept: "application/json" },
   });
   const listRows = await listResponse.json().catch(() => null);

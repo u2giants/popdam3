@@ -3,15 +3,17 @@ import test from "node:test";
 import { evaluateColumn2911, evaluateDrop2934, evaluateLikenessRead2802, NotYetApplied, ProofFailure } from "./shared-db-live-proof.mjs";
 import { evaluateCasePacks4858 } from "./shared-db-live-proof.mjs";
 
-test("4858 accepts unequal design packs with one carton counted once", () => {
+test("4858 counts two physical assortments once each plus a direct line", () => {
   const expected = [
-    { order_id: "o", order_line_id: "a", case_pack: 6, cases_reported: 2, group_key: "carton", order_cases: 2 },
-    { order_id: "o", order_line_id: "b", case_pack: 12, cases_reported: 2, group_key: "carton", order_cases: 2 },
-    { order_id: "o", order_line_id: "c", case_pack: 4, cases_reported: 3, group_key: null, order_cases: 3 },
+    { order_id: "o", order_line_id: "a", case_pack: 6, cases_reported: 2, group_key: "carton-1", order_cases: 9 },
+    { order_id: "o", order_line_id: "b", case_pack: 12, cases_reported: 2, group_key: "carton-1", order_cases: 9 },
+    { order_id: "o", order_line_id: "c", case_pack: 4, cases_reported: 3, group_key: "carton-2", order_cases: 9 },
+    { order_id: "o", order_line_id: "d", case_pack: 8, cases_reported: 3, group_key: "carton-2", order_cases: 9 },
+    { order_id: "o", order_line_id: "e", case_pack: 5, cases_reported: 4, group_key: null, order_cases: 9 },
   ];
   const rows = expected.map(({ order_id, order_line_id, case_pack, cases_reported, group_key }) => ({ order_id, order_line_id, case_pack, cases_reported, assortment_parent_key: group_key }));
-  assert.deepEqual(evaluateCasePacks4858(expected, rows, [{ order_id: "o", total_cases: 5, unknown_case_groups: 0 }]),
-    { orders_checked: 1, designs_checked: 3, assortment_designs: 2 });
+  assert.deepEqual(evaluateCasePacks4858(expected, rows, [{ order_id: "o", total_cases: 9, unknown_case_groups: 0 }]),
+    { orders_checked: 1, designs_checked: 5, assortment_designs: 4 });
 });
 
 test("4858 rejects wrong packs, missing or duplicate rows, wrong totals and absent group keys", () => {
@@ -26,6 +28,8 @@ test("4858 rejects wrong packs, missing or duplicate rows, wrong totals and abse
   assert.throws(() => evaluateCasePacks4858(expected, [...rows, rows[0]], tracking), ProofFailure);
   assert.throws(() => evaluateCasePacks4858(expected, rows, [{ ...tracking[0], total_cases: 4 }]), ProofFailure);
   assert.throws(() => evaluateCasePacks4858(expected, [{ ...rows[0], assortment_parent_key: null }, rows[1]], tracking), ProofFailure);
+  assert.throws(() => evaluateCasePacks4858(expected, [rows[0], { ...rows[1], cases_reported: 3 }], tracking), ProofFailure);
+  assert.throws(() => evaluateCasePacks4858(expected, expected.map((r) => ({ order_id: r.order_id, order_line_id: r.order_line_id, case_pack: r.case_pack, cases_reported: r.cases_reported, assortment_parent_key: r.group_key })), [{ order_id: "o", total_cases: 2, unknown_case_groups: 1 }]), ProofFailure);
 });
 
 test("2802 accepts true, false and null exactly as stored", () => {
