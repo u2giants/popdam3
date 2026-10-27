@@ -1,0 +1,320 @@
+{
+  "buildStamp": "eb405c0",
+  "firstPaintMs": 7210,
+  "completeMs": 29226,
+  "finalStatus": "12,875 rows loaded",
+  "requests": [
+    {
+      "ts": 1793117084182,
+      "target": "rows",
+      "range": null,
+      "rel": 656
+    },
+    {
+      "ts": 1793117084182,
+      "target": "rows",
+      "range": null,
+      "rel": 656
+    },
+    {
+      "ts": 1793117084183,
+      "target": "rows",
+      "range": null,
+      "rel": 657
+    },
+    {
+      "ts": 1793117084183,
+      "target": "rows",
+      "range": null,
+      "rel": 657
+    },
+    {
+      "ts": 1793117086963,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 3437
+    },
+    {
+      "ts": 1793117086968,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 3442
+    },
+    {
+      "ts": 1793117087130,
+      "target": "rows",
+      "range": null,
+      "rel": 3604
+    },
+    {
+      "ts": 1793117087130,
+      "target": "rows",
+      "range": null,
+      "rel": 3604
+    },
+    {
+      "ts": 1793117090239,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 6713
+    },
+    {
+      "ts": 1793117090573,
+      "target": "rows",
+      "range": null,
+      "rel": 7047
+    },
+    {
+      "ts": 1793117090586,
+      "target": "rows",
+      "range": null,
+      "rel": 7060
+    },
+    {
+      "ts": 1793117095699,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 12173
+    },
+    {
+      "ts": 1793117095802,
+      "target": "rows",
+      "range": null,
+      "rel": 12276
+    },
+    {
+      "ts": 1793117095802,
+      "target": "rows",
+      "range": null,
+      "rel": 12276
+    },
+    {
+      "ts": 1793117097386,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 13860
+    },
+    {
+      "ts": 1793117097445,
+      "target": "rows",
+      "range": null,
+      "rel": 13919
+    },
+    {
+      "ts": 1793117097445,
+      "target": "rows",
+      "range": null,
+      "rel": 13919
+    },
+    {
+      "ts": 1793117098505,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 14979
+    },
+    {
+      "ts": 1793117098581,
+      "target": "rows",
+      "range": null,
+      "rel": 15055
+    },
+    {
+      "ts": 1793117098581,
+      "target": "rows",
+      "range": null,
+      "rel": 15055
+    },
+    {
+      "ts": 1793117099487,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 15961
+    },
+    {
+      "ts": 1793117099860,
+      "target": "rows",
+      "range": null,
+      "rel": 16334
+    },
+    {
+      "ts": 1793117099862,
+      "target": "rows",
+      "range": null,
+      "rel": 16336
+    },
+    {
+      "ts": 1793117102151,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 18625
+    },
+    {
+      "ts": 1793117102320,
+      "target": "rows",
+      "range": null,
+      "rel": 18794
+    },
+    {
+      "ts": 1793117102320,
+      "target": "rows",
+      "range": null,
+      "rel": 18794
+    },
+    {
+      "ts": 1793117104143,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 20617
+    },
+    {
+      "ts": 1793117104215,
+      "target": "rows",
+      "range": null,
+      "rel": 20689
+    },
+    {
+      "ts": 1793117104217,
+      "target": "rows",
+      "range": null,
+      "rel": 20691
+    },
+    {
+      "ts": 1793117105613,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 22087
+    },
+    {
+      "ts": 1793117105773,
+      "target": "rows",
+      "range": null,
+      "rel": 22247
+    },
+    {
+      "ts": 1793117105774,
+      "target": "rows",
+      "range": null,
+      "rel": 22248
+    },
+    {
+      "ts": 1793117107105,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 23579
+    },
+    {
+      "ts": 1793117107536,
+      "target": "rows",
+      "range": null,
+      "rel": 24010
+    },
+    {
+      "ts": 1793117107539,
+      "target": "rows",
+      "range": null,
+      "rel": 24013
+    },
+    {
+      "ts": 1793117108748,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 25222
+    },
+    {
+      "ts": 1793117108882,
+      "target": "rows",
+      "range": null,
+      "rel": 25356
+    },
+    {
+      "ts": 1793117108883,
+      "target": "rows",
+      "range": null,
+      "rel": 25357
+    },
+    {
+      "ts": 1793117110108,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 26582
+    },
+    {
+      "ts": 1793117110200,
+      "target": "rows",
+      "range": null,
+      "rel": 26674
+    },
+    {
+      "ts": 1793117110200,
+      "target": "rows",
+      "range": null,
+      "rel": 26674
+    },
+    {
+      "ts": 1793117111284,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 27758
+    },
+    {
+      "ts": 1793117111373,
+      "target": "rows",
+      "range": null,
+      "rel": 27847
+    },
+    {
+      "ts": 1793117111373,
+      "target": "rows",
+      "range": null,
+      "rel": 27847
+    },
+    {
+      "ts": 1793117112305,
+      "target": "status-rpc",
+      "range": null,
+      "rel": 28779
+    }
+  ],
+  "timeline": [
+    {
+      "ts": 1793117084064,
+      "status": "Loading Master Data…",
+      "rowCount": 0,
+      "rel": 538
+    },
+    {
+      "ts": 1793117090561,
+      "status": "1,500 of 12,875 rows loaded — loading the rest. Find and filters cover loaded rows.",
+      "rowCount": 30,
+      "rel": 7035
+    },
+    {
+      "ts": 1793117090736,
+      "event": "screenshot-first-paint",
+      "rel": 7210
+    },
+    {
+      "ts": 1793117099799,
+      "status": "5,500 of 12,875 rows loaded — loading the rest. Find and filters cover loaded rows.",
+      "rowCount": 30,
+      "rel": 16273
+    },
+    {
+      "ts": 1793117107412,
+      "status": "9,500 of 12,875 rows loaded — loading the rest. Find and filters cover loaded rows.",
+      "rowCount": 30,
+      "rel": 23886
+    },
+    {
+      "ts": 1793117112613,
+      "status": "12,875 rows loaded",
+      "rowCount": 30,
+      "rel": 29087
+    },
+    {
+      "ts": 1793117112752,
+      "event": "screenshot-complete",
+      "rel": 29226
+    }
+  ]
+}
