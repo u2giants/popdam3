@@ -79,7 +79,7 @@ test('fixed readonly entry cannot instantiate fixture or database client and bin
   const source = readFileSync(new URL('./run-rls-read-diagnostic.mjs',import.meta.url),'utf8');
   assert(source.includes('await run(env, null)'));
   assert(source.includes('requireReadonlyDiagnosticEnvironment(process.env)'));
-  assert(source.includes("DEPLOYED_FRONTEND_SHA:'a273bff8b14395d13191186a6cb83c98b7829dc1'"));
+  assert(source.includes("DEPLOYED_FRONTEND_SHA:'eb405c02479f1d76b319f2f2e89150493bcade45'"));
   for(const forbidden of ['createFixtureProtocol','protectedCounts','createClient','createRequire','rls-owned-fixture.mjs']) assert.equal(source.includes(forbidden),false);
   assert(source.indexOf('delete process.env.POPDAM_TEST_PASSWORD') < source.indexOf('await run(env, null)'));
 });

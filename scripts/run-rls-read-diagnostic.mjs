@@ -6,7 +6,7 @@ try {
   const env = {
     POPDAM_ACCEPTANCE_BASE_URL:'https://dam.designflow.app',
     SUPABASE_PROJECT_ID:'qsllyeztdwjgirsysgai',
-    DEPLOYED_FRONTEND_SHA:'a273bff8b14395d13191186a6cb83c98b7829dc1',
+    DEPLOYED_FRONTEND_SHA:'eb405c02479f1d76b319f2f2e89150493bcade45',
     POPDAM_PLAYWRIGHT_PACKAGE:BROWSER_PACKAGE,
     POPDAM_PROOF_FILE:'/tmp/popdam-4427-read-diagnostic-private-01a17a03/proof.json',
     POPDAM_TEST_USER:process.env.POPDAM_TEST_USER,
