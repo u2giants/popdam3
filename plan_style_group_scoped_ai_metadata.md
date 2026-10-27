@@ -1,7 +1,7 @@
 # Style-Group-Scoped AI Metadata Implementation Plan
 
 Implementation tracker: [GitHub issue #96](https://github.com/u2giants/popdam3/issues/96)
-Registered handoff: [`HANDOFF.d/2026-08-24T1402Z-hetz-codex-scoped-ai-metadata-plan.md`](HANDOFF.d/2026-08-24T1402Z-hetz-codex-scoped-ai-metadata-plan.md)
+Registered handoff: `HANDOFF.d/2026-08-24T1402Z-hetz-codex-scoped-ai-metadata-plan.md` (retired)
 
 ## STATUS — read this first
 
