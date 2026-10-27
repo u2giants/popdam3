@@ -5902,7 +5902,7 @@ or zero-traffic connection proof stopped the error.
   Combined proof: 109 suites / 741 tests. All four PRs are green, open, and now
   request review from Uma's GitHub user `devopswithkube`.
 - Production reused its known images in zero-traffic candidates, proved Cloud
-  SQL `10.75.208.4:5432`, SSL off, private VPC, and numeric DB secret version
+  SQL `<redacted>:5432`, SSL off, private VPC, and numeric DB secret version
   `1`, then moved 100% traffic to `core-00010-bof`, `item-00010-ben`,
   `tracking-00010-riv`, and `sync-00007-suh`. `https://designflow.app` returned
   HTTP 200.

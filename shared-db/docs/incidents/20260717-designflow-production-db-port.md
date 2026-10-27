@@ -121,7 +121,7 @@ AI must not merge DesignFlow application PRs.
 Production was not migrated to the pooler. The exact images already serving
 production were redeployed as zero-traffic candidate revisions with the
 complete unsuffixed five-tuple pinned to numeric version `1`. Each candidate
-proved Cloud SQL private IP `10.75.208.4`, port `5432`, SSL off, and application
+proved Cloud SQL private IP (redacted from the public repo), port `5432`, SSL off, and application
 readiness before traffic moved:
 
 | Service | Current verified revision | Traffic |

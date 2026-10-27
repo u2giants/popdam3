@@ -429,7 +429,7 @@ test("a URI-validation refusal is a CLIENT fault routed away from the durable-fa
 test("parsePgUri rejects what it cannot safely represent", () => {
   const reject = (uri, note) =>
     assert.throws(() => parsePgUri(uri), { constructor: Error }, note);
-  reject("postgresql://u:p@h/db?hostaddr=10.0.0.9", "hostaddr bypasses host validation");
+  reject("postgresql://u:p@h/db?hostaddr=198.51.100.9", "hostaddr bypasses host validation");
   reject("postgresql://u:p@h/db?keepalives=1", "keepalives has no env var: refusing, not dropping");
   reject("postgresql://u:p@h/db?tcp_user_timeout=9", "tcp_user_timeout has no env var");
   reject("postgresql://u:p@h/db?sslsni=1", "sslsni has no env var");

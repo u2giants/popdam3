@@ -1449,7 +1449,7 @@ class FakeConnection:
         user="postgres",
         port=5432,
         dbname="postgres",
-        fingerprint=("postgres", "10.0.0.1", "2026-08-12 00:00:00+00"),
+        fingerprint=("postgres", "192.0.2.1", "2026-08-12 00:00:00+00"),
         lock_available=True,
         existing_source_refs=0,
     ):
@@ -1541,7 +1541,7 @@ class ServerIdentityTests(unittest.TestCase):
     def test_fingerprint_change_mid_run_aborts(self):
         connection = FakeConnection()
         identity = importer.read_server_identity(connection)
-        connection.fingerprint = ("postgres", "10.0.0.9", "2026-08-12 09:00:00+00")
+        connection.fingerprint = ("postgres", "192.0.2.9", "2026-08-12 09:00:00+00")
         with self.assertRaises(importer.ImporterError) as caught:
             importer.assert_server_identity_unchanged(connection, identity)
         self.assertIn("TARGET DRIFT DETECTED MID-RUN", str(caught.exception))

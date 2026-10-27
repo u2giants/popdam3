@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "work_issue": 4929,
+  "contract_ref": "refs/db-contracts/4929/2",
+  "contract_sha256": "67fb8a5f48f0ee5a1e52c8499d758e70975cc1c59e3245f3d46e9bd88e408c7a",
+  "base_sha": "44893599a665bb6a2671e016606581cd42dbcd60",
+  "head_sha": "ed7c3b4e3a4f8b88de51422e42bf11280c655c6f",
+  "files_changed": [
+    "docs/archive/HANDOFF-legacy-through-2026-07-31.md",
+    "docs/incidents/20260717-designflow-production-db-port.md",
+    "scripts/capture-repository-transfer-baseline.test.mjs",
+    "scripts/lib/lanes/assignment-hostile-matrix.test.mjs",
+    "scripts/lib/release-hold-evidence.test.mjs",
+    "scripts/tests/test_import_order_list.py",
+    "tools/coldlion-sync-common-runsql.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/capture-repository-transfer-baseline.test.mjs scripts/lib/lanes/assignment-hostile-matrix.test.mjs scripts/lib/release-hold-evidence.test.mjs tools/coldlion-sync-common-runsql.test.mjs",
+      "exit_code": 0,
+      "evidence": "62 tests pass, 0 fail (19+9+8+26). Sentinel values byte-identical: 'ghp_'+'secretsentinel'+'0'.repeat(21) === original 39-char token."
+    },
+    {
+      "command": "python3 -m pytest scripts/tests/test_import_order_list.py -q",
+      "exit_code": 0,
+      "evidence": "157 passed, 15 subtests passed, 2026-10-27."
+    },
+    {
+      "command": "scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed; 0 new migrations."
+    }
+  ],
+  "assumptions_resolved": [
+    "deepseek exact-head diff-review APPROVE on this head (run 20261027T184549-2153978-11906) with tests evidence",
+    "deepseek exact-head final-check APPROVE for ship (run 20261027T185517-2312878-24729)",
+    "ai-task-gates ship release recorded the APPROVE at ed7c3b4e3",
+    "Contract published after implementation with provenance stated in goal (no pre-work claim fabricated)"
+  ],
+  "stop_conditions_hit": [],
+  "outcome": "ready-for-merge",
+  "pr": 4919,
+  "migration_versions": []
+}
