@@ -6,6 +6,7 @@ import type { Asset } from "@/types/assets";
 import { getPathDisplayModes, getUserSyncRoot, type NasConfig } from "@/lib/path-utils";
 import { getOpenFolderUri, buildOpenFolderUri, getPreferredPathMode } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
+import { buildMockupUrl } from "@/lib/mockup-tool";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 import { useEffectiveAssetTags } from "@/hooks/useEffectiveAssetTags";
 import { ScopedTagSections, type ScopedTagAction } from "@/components/library/ScopedTagSections";
-import { X, Copy, Check, Star, Loader2, ChevronLeft, ChevronRight, Sparkles, Clock, HardDrive, Tag, FileText, FolderOpen, Download, ClipboardList, Share2, Layers } from "lucide-react";
+import { X, Copy, Check, Star, Loader2, ChevronLeft, ChevronRight, Sparkles, Clock, HardDrive, Tag, FileText, FolderOpen, Download, ClipboardList, Share2, Layers, Box } from "lucide-react";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import CheckoutBar from "@/components/library/CheckoutBar";
 import { cn } from "@/lib/utils";
@@ -434,6 +435,22 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                 </span>
               )}
             </div>
+
+            {/* Product mockup — top-right, beside Close; uses the thumbnail currently in the hero */}
+            {displayThumbnail && (
+              <button
+                className="absolute top-2 right-11 h-7 w-7 rounded-full bg-black/45 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white hover:bg-black/65 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const win = window.open(buildMockupUrl(displayThumbnail, currentThumbAsset?.filename ?? group.sku), "_blank", "noopener");
+                  if (!win) toast.error("The mockup tool could not be opened — allow pop-ups for this site.");
+                }}
+                aria-label="Create product mockup"
+                title="Create product mockup"
+              >
+                <Box className="h-3.5 w-3.5" />
+              </button>
+            )}
 
             {/* Close button — top-right */}
             <button
