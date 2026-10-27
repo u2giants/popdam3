@@ -9,6 +9,7 @@ import { OrderActionsCell } from "@/components/orders/OrderActionsCell";
 import { useAppearance } from "@/hooks/useAppearance";
 import {
   ORDER_LIST_COLUMNS,
+  ORDER_LIST_DEFAULT_SORT,
   ORDER_LIST_FETCH_BATCH_SIZE,
   ORDER_LIST_DEFAULT_PAGE_SIZE,
   ORDER_LIST_PAGE_SIZE_OPTIONS,
@@ -171,7 +172,11 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
           width: column.width,
           hide: column.hide,
           pinned: column.pinned,
-          sort: column.field === "start_ship_date" ? "desc" : undefined,
+          sort: ORDER_LIST_DEFAULT_SORT.find((entry) => entry.colId === column.field)?.sort,
+          sortIndex: (() => {
+            const index = ORDER_LIST_DEFAULT_SORT.findIndex((entry) => entry.colId === column.field);
+            return index < 0 ? undefined : index;
+          })(),
           sortable: isOrderListFieldSortable(column.field),
           resizable: true,
           filter: column.queryable === false ? false : filterFor(column),

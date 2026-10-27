@@ -122,8 +122,9 @@ PO non-reuse enforcement (20261013201822), and Yuchen's 20 special-assortment
 pairs shown once under D3682–D3689. Proof is on
 https://github.com/u2giants/popdam3/issues/277.
 
-The default view is sorted by newest **Prod PO Date** first and shows 1,500 rows
-per page. **Sent PO** remains a separate field. Users can change the sort or page
+The default view is sorted by newest **SO Date** first, then Import PO #,
+Assortment ID and Style # ascending, keeping assortment/prepack components together
+within each PO. Missing dates sort last. It shows 1,500 rows per page. **Sent PO** remains a separate field. Users can change the sort or page
 size, and saved views can restore their own sort.
 
 The grid virtualizes cells, so the browser does not create DOM text for every

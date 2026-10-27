@@ -140,6 +140,13 @@ export function buildOrderListSearchClause(search: string): string | null {
 
 export type OrderListSort = { column: string; ascending: boolean };
 
+export const ORDER_LIST_DEFAULT_SORT = [
+  { colId: "sales_order_date", sort: "desc" },
+  { colId: "production_order_number", sort: "asc" },
+  { colId: "assortment_id", sort: "asc" },
+  { colId: "sku", sort: "asc" },
+] as const;
+
 /** AG Grid sort model -> ordering, always ending on a stable tiebreaker. */
 export function buildOrderListSort(sortModel: Array<{ colId: string; sort: string }> | null | undefined): OrderListSort[] {
   const sorts: OrderListSort[] = [];
@@ -149,7 +156,11 @@ export function buildOrderListSort(sortModel: Array<{ colId: string; sort: strin
     if (!column) continue;
     sorts.push({ column, ascending: entry.sort === "asc" });
   }
-  if (sorts.length === 0) sorts.push({ column: "start_ship_date", ascending: false });
+  if (sorts.length === 0) {
+    for (const entry of ORDER_LIST_DEFAULT_SORT) {
+      sorts.push({ column: orderListSortColumn(entry.colId)!, ascending: entry.sort === "asc" });
+    }
+  }
   sorts.push({ column: "order_line_id", ascending: true });
   return sorts;
 }
