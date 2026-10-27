@@ -127,3 +127,33 @@ a linter, record the command here and in `AGENTS.md` documentation map.
 
 Put session scratch under your session temp or `.ai/` (gitignored). Durable
 knowledge goes in `AGENTS.md`, `docs/`, or the issue — not in root draft files.
+
+## DesignFlow consumer environment tests
+
+These rules concern the four DesignFlow database services, not a new npm runtime
+in shared-db. Run commands in the owning application's isolated worktree and
+follow that app's development guide. The verified rollout and remaining source
+PRs are recorded in [the release guide](designflow-db-release.md#dependency-locks-and-environment-safe-tests).
+
+- Business-behavior tests must work in develop and production. Assert the intended
+  table identity or an environment-appropriate qualified name; retain transaction,
+  audit and parameter assertions.
+- Schema-mapping contract tests must keep independently expected schema values for
+  each supported environment. Do not replace those with table-only assertions or
+  compare a resolver to itself. Explicitly set and restore relevant environment
+  variables so ambient production settings cannot change the test's intended case.
+- Use the committed lock and verified package-manager version. Install all test
+  dependencies before applying production environment variables; never resolve
+  fresh packages, delete the lock, skip an environment or weaken a failing test
+  just to release. Deliberate upgrades change the manifest and lock together.
+- Before promotion, run the complete mocked suite under both settings below. The
+  automatic PR/sandbox matrix does the same; no production credentials or database
+  writes are needed. Existing production readiness checks remain mandatory.
+
+```bash
+NODE_ENV=develop SCHEMA= npm test -- --runInBand
+NODE_ENV=production SCHEMA=dflow_prod npm test -- --runInBand
+```
+
+Do not invoke these app commands in the shared-db repository. Its own Node and
+SQL tool tests remain those documented above.
