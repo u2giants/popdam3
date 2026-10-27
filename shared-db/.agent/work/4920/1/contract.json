@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "generation": 1,
+  "evidence_parent": null,
+  "work_issue": 4920,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Add api.crm_email_routing_stage_counts() and api.crm_email_routing_stage_page(text,int,int) under claim #4921 migration 20261027182138 so the popcrm-web Email Routing page counts and lists every message by stage instead of the newest 1,000.",
+  "base_sha": "46b7b525d90b9569c6b57fd88601eee0ec7159fe",
+  "dispatcher": "Claude chat 220e132e-0fc1-4d85-9663-a4a03846019a on hetz (claim #4921 owner)",
+  "worker": "Same session.",
+  "branch": "claude/crm-email-routing-stage-rpcs",
+  "worktree": "/worksp/shared-db-wt-crm-routing-stages",
+  "allowed_paths": [
+    "supabase/migrations/20261027182138_crm_email_routing_stage_rpcs.sql",
+    "supabase/tests/crm_email_routing_stage_rpcs_contracts.sql",
+    ".agent/work/4920/1/contract.json",
+    ".agent/work/4920/1/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261027182138_crm_email_routing_stage_rpcs.sql",
+    "supabase/tests/crm_email_routing_stage_rpcs_contracts.sql",
+    ".agent/work/4920/1/contract.json",
+    ".agent/work/4920/1/completion.json"
+  ],
+  "db_reads": [
+    "table crm.email_message",
+    "table crm.department",
+    "table crm.opportunity",
+    "table core.customer"
+  ],
+  "db_writes": [
+    "function api.crm_email_routing_stage_counts",
+    "function api.crm_email_routing_stage_page"
+  ],
+  "prohibited_actions": [
+    "No change to existing functions, views, tables, policies or grants; additive only.",
+    "No production or preview apply by hand; promotion follows the automatic workflow."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "ephemeral-database contract tests pass on the PR head in CI"
+  ],
+  "assumptions": [
+    "crm.email_message holds 22,682 rows (read-only production count 2026-10-27); a single security-definer aggregate over it fits the PostgREST statement cap."
+  ],
+  "stop_conditions": [
+    "Stop if claim #4921 cannot be renewed or reports a collision.",
+    "Stop if the ephemeral contract tests fail."
+  ]
+}
