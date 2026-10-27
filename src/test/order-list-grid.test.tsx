@@ -151,3 +151,21 @@ describe("OrderList grid column visibility", () => {
     expect(ref.current!.api.getColumn("line_number")?.isVisible()).toBe(true);
   });
 });
+
+
+describe("OrderList PO bands in dark appearance", () => {
+  it("uses dark cell and header colors with the application's saved theme", async () => {
+    localStorage.setItem("pd-theme", "dark");
+    try {
+      const { container } = renderGrid([row({})]);
+      await screen.findByText("Current description", {}, { timeout: 10_000 });
+      const header = container.querySelector('.ag-header-cell[col-id="sku"]');
+      const cell = container.querySelector('.ag-center-cols-container .ag-cell[col-id="sku"]');
+      expect(header?.classList.contains("bg-blue-900/70")).toBe(true);
+      expect(cell?.classList.contains("bg-blue-950/30")).toBe(true);
+      expect(cell?.classList.contains("bg-blue-50/60")).toBe(false);
+    } finally {
+      localStorage.removeItem("pd-theme");
+    }
+  });
+});
