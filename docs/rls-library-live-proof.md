@@ -52,6 +52,16 @@ unexpected ports, URL credentials and other API paths refuse; only a bounded
 sanitized hostname list and count are retained. Authorization headers are never
 read or extracted. Genuine normal form login, authenticated app landing, and
 nonempty rendered/reloaded library together provide this scoped session proof.
+Normal library capabilities also require the exact Google font stylesheet
+GET `https://fonts.googleapis.com/css2` and font GETs under
+`https://fonts.gstatic.com/s/`, declared in `src/index.css:1`; other paths and
+methods remain blocked. The default filter sidebar automatically POSTs
+`{"action":"get-filter-options"}` to the fixed Supabase `admin-api` edge
+handler. Only that exact one-key body/path is permitted. Its owning handler
+`_shared/admin-handlers/agent-handlers.ts` reads/counts existing licensors,
+properties and assets; it performs no writes. Its service-client reads are
+ordinary UI dependencies, not evidence of the #4427 authenticated RLS behavior.
+Other edge actions/payloads and library search are not part of this journey.
 
 Cleanup clicks the normal user-menu Sign out control and checks its successful
 endpoint response and return to the login page, then closes context/browser.

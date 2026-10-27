@@ -7,8 +7,11 @@ export const ORIGIN = 'https://dam.designflow.app';
 export const HOST = 'qsllyeztdwjgirsysgai.supabase.co';
 const GET_ORIGINS = new Set([ORIGIN, `https://${HOST}`, 'https://popdam.nyc3.digitaloceanspaces.com']);
 const FACETS = new Set(['get_filter_counts', 'get_path_facets', 'get_dam_material_facets', 'get_dam_customer_facets']);
-export function permittedRequest({ url, method }) {
+export function permittedRequest({ url, method, body }) {
   const u = new URL(url), verb = method.toUpperCase();
+  // The app's exact src/index.css font import; no Google auth or arbitrary API.
+  if (u.origin === 'https://fonts.googleapis.com') return verb === 'GET' && u.pathname === '/css2' && !u.username && !u.password;
+  if (u.origin === 'https://fonts.gstatic.com') return verb === 'GET' && u.pathname.startsWith('/s/') && !u.username && !u.password;
   if (u.protocol !== 'https:' || u.username || u.password || !GET_ORIGINS.has(u.origin)) return false;
   if (['GET', 'HEAD', 'OPTIONS'].includes(verb)) {
     if (u.origin === ORIGIN) return !u.pathname.startsWith('/auth/');
@@ -18,6 +21,11 @@ export function permittedRequest({ url, method }) {
   if (u.hostname !== HOST) return false;
   if (verb === 'POST' && u.pathname === '/auth/v1/token') return u.search === '?grant_type=password';
   if (verb === 'POST' && u.pathname === '/auth/v1/logout') return u.search === '' || u.search === '?scope=global';
+  // Existing default library filter lookup is a read-only edge handler. Never
+  // allow another admin action, extra body field or a selected-licensor variant.
+  if (verb === 'POST' && u.pathname === '/functions/v1/admin-api' && u.search === '') {
+    return Boolean(body && typeof body === 'object' && !Array.isArray(body) && Object.keys(body).length === 1 && body.action === 'get-filter-options');
+  }
   const rpc = /^\/rest\/v1\/rpc\/([^/]+)$/.exec(u.pathname);
   return Boolean(verb === 'POST' && rpc && FACETS.has(rpc[1]));
 }
@@ -47,7 +55,11 @@ export async function run(env = process.env) {
     context = await browser.newContext({viewport: {width: 1600, height: 1000}, serviceWorkers: 'block'});
     await context.route('**/*', async route => {
       const request = route.request(), url = new URL(request.url());
-      let allowed = permittedRequest({url: request.url(), method: request.method()});
+      let body;
+      if (url.hostname === HOST && url.pathname === '/functions/v1/admin-api' && request.method() === 'POST') {
+        try { body = request.postDataJSON(); } catch { /* malformed is refused */ }
+      }
+      let allowed = permittedRequest({url: request.url(), method: request.method(), body});
       if (url.hostname === HOST && request.method() === 'POST' && url.pathname === '/auth/v1/token') allowed &&= ++tokenCalls === 1;
       if (url.hostname === HOST && request.method() === 'POST' && url.pathname === '/auth/v1/logout') allowed &&= ++logoutCalls === 1;
       if (!allowed) {

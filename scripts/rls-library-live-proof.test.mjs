@@ -35,3 +35,21 @@ test('wrong target or identity refuses before runtime or credentials are used', 
   await assert.rejects(run({POPDAM_ACCEPTANCE_BASE_URL:'https://other.example'}), /target/);
   await assert.rejects(run({POPDAM_ACCEPTANCE_BASE_URL:'https://dam.designflow.app', SUPABASE_PROJECT_ID:HOST.split('.')[0],POPDAM_TEST_USER:'other@example.test'}), /identity/);
 });
+test('only app-declared Google font GET paths are allowed', () => {
+  assert.equal(request('/css2?family=Inter&display=swap','GET','fonts.googleapis.com'), true);
+  assert.equal(request('/s/inter/synthetic.woff2','GET','fonts.gstatic.com'), true);
+  for (const verb of ['POST','PATCH','DELETE','HEAD']) {
+    assert.equal(request('/css2?family=Inter',verb,'fonts.googleapis.com'), false);
+    assert.equal(request('/s/inter/font.woff2',verb,'fonts.gstatic.com'), false);
+  }
+  assert.equal(request('/other','GET','fonts.googleapis.com'), false);
+  assert.equal(request('/other/font.woff2','GET','fonts.gstatic.com'), false);
+});
+test('default filter lookup permits exactly its read-only action, never admin writes', () => {
+  const url = `https://${HOST}/functions/v1/admin-api`;
+  assert.equal(permittedRequest({url,method:'POST',body:{action:'get-filter-options'}}), true);
+  for (const body of [undefined,{},[],{action:'set-config'},{action:'get-filter-options',value:'extra'},{action:'get-filter-options',licensor_id:'synthetic'}]) {
+    assert.equal(permittedRequest({url,method:'POST',body}), false);
+  }
+  assert.equal(permittedRequest({url:url+'?action=get-filter-options',method:'POST',body:{action:'get-filter-options'}}), false);
+});
