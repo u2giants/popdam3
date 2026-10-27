@@ -28,6 +28,7 @@ When the user says **"wrap up"**, that means: update the relevant Markdown docs 
 | Cloud worker (AI tagging, ERP, rebuild) | `apps/worker/` | Railway (Node.js) |
 | Bridge agent (NAS scanner + thumbnailer) | `apps/bridge-agent/` | Synology Docker |
 | Windows render agent (no Illustrator) | `apps/windows-agent/` | Windows PC/VM (manual install) |
+| Image-embed GPU poller (image similarity) | `apps/image-embed-worker/` | Windows GPU PC `edge-dev` (Task Scheduler, manual install) |
 | Desktop helper (checkout/checkin) | `apps/popdam-helper/` | Electron, Mac + Windows |
 
 ---
@@ -78,6 +79,7 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 | Work on OrderList / `/orders` / production orders from the legacy OrderList sheet | `AGENTS.md`, `docs/ORDER_LIST.md`; shared backend contract lives in `shared-db/plan_popdam_order_list.md` | Master Data docs unless the task touches the style tracker |
 | Work on Master Data / style tracker / Google Sheet replica | `AGENTS.md`, `docs/MASTER_DATA.md`; shared backend changes also need `shared-db/docs/app-migration-notes/master-data-style-tracker-20260624.md` | PopSG/ERP docs unless the task touches them |
 | Work on the desktop Helper / checkout-checkin / Seafile / SeaDrive | `AGENTS.md`, `docs/POPDAM_HELPER.md`, `docs/SEAFILE_INTEGRATION.md` | PopSG / ERP docs |
+| Work on image similarity (upload-to-find, embeddings, GPU poller) | `AGENTS.md`, `plan_image_similarity_upload_search.md` (STATUS first), `apps/image-embed-worker/README.md` | PopSG search docs (image search is PopDAM-only by plan) |
 | Work on PopSG (style-guide mode) | `AGENTS.md`, `docs/POPSG.md` | PopDAM-only ERP/style-group docs |
 | Work on the item-page product mockup tool | `AGENTS.md`, `docs/MOCKUP_TOOL.md` | pop-mock repo internals (edit there, vendor here) |
 | Work on auth / SSO / login | `AGENTS.md`, `docs/AUTHENTICATION.md` | unrelated docs |
@@ -159,6 +161,7 @@ popdam3/
 │   │   └── src/handlers/       ← Per-operation batch handlers
 │   ├── bridge-agent/           ← Synology NAS agent (Docker, TypeScript)
 │   ├── windows-agent/          ← Windows render agent: Inkscape/ImageMagick/Ghostscript/Poppler/Indra OCR (TypeScript)
+│   ├── image-embed-worker/     ← GPU embed poller for image similarity (Python; DINOv3+SigLIP2; runs on edge-dev)
 │   └── popdam-helper/          ← Electron desktop app
 ├── packages/path-filters/      ← Shared path filter logic (Node.js workspace pkg)
 ├── packages/agent-common/      ← Source shared by bridge + windows agents (synced into apps/*/src/common at build; edit here)
@@ -271,6 +274,7 @@ Files outside project-owned areas that were intentionally modified:
 | Railway worker | Persistent batch processor for AI tagging, ERP, style groups, SeaDrive mirror | Railway | Railway service for `apps/worker/` (verified project/service/environment identifiers: `docs/INFRASTRUCTURE.md` → Railway Worker) | `apps/worker/Dockerfile`; Railway rebuilds on every push to `main` |
 | `popdam-bridge` | Synology NAS scanner, thumbnailer, upload/check-in verifier | Synology Container Manager / docker compose | Host `edgesynology1` (edgesynology2 copy retired 2026-09-23, #141); compose reference `deploy/synology/docker-compose.yml` | `ghcr.io/u2giants/popdam-bridge:stable` from `.github/workflows/publish-bridge-agent.yml` |
 | Windows render agent | Windows render (Inkscape, ImageMagick, Ghostscript, Poppler, Indra OCR — no Illustrator) and PDF text backfill agent | Manual Windows VM install | Release channel `windows-agent-latest` | `apps/windows-agent/`, packaged by `.github/workflows/publish-windows-agent.yml` |
+| Image-embed GPU poller | Embeds thumbnails for image similarity (DINOv3+SigLIP2 dual vectors; claim/heartbeat/complete queue loop; never embeds — poller only) | Windows Task Scheduler task `PopDAM-ImageEmbedWorker` on `edge-dev` (RTX 3060 Ti; manual install per `apps/image-embed-worker/README.md`) | none (runs from repo source, `requirements.txt` pinned) | `apps/image-embed-worker/`; DB login `dam_image_embed_login` |
 | POP DAM Helper | Designer desktop checkout/check-in helper | End-user desktop install | Release channel `popdam-helper-latest` | `apps/popdam-helper/`, packaged by `.github/workflows/publish-popdam-helper.yml` |
 | Supabase edge functions | Admin, agent, helper, auth, export, sync APIs | Supabase | Project `qsllyeztdwjgirsysgai` | `supabase/functions/**`, deployed by `.github/workflows/deploy-supabase.yml` |
 | PostgreSQL | PopDAM/PopSG database, auth metadata, pg_cron jobs | Supabase | Project `qsllyeztdwjgirsysgai` | Canonical `u2giants/shared-db/supabase/migrations/**`, applied through shared-db preview-first workflow |
@@ -407,6 +411,8 @@ Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read
 | `WINDOWS_AGENT_NAS_HOST` / `WINDOWS_AGENT_NAS_SHARE` / `WINDOWS_AGENT_NAS_USER` / `WINDOWS_REPAIR_CODE` | Windows render agent NAS mapping and repair flow | `admin_config`, Windows agent local config | No | Optional, Windows-agent only. As of 2026-10-15 cutover, `WINDOWS_AGENT_NAS_USER` = `popdam-render`; plaintext `WINDOWS_AGENT_NAS_PASS` is deleted — passwords come from Vault RPCs `get/set_render_z_nas_password` and `get/set_sg_nas_password` (service_role-only). |
 | `HELPER_*` keys (`HELPER_DAM_URL`, `HELPER_SEAFILE_LIBRARIES`, etc.) | Helper checkout/check-in provider config | `admin_config`, returned by `helper-api /config` | No | Yes for Helper installs |
 | `COLDLION_API_KEY` / `COLDLION_*` | ColdLion / ERP integration credentials and endpoint config | Supabase Vault and `admin_config` | No | Only for the prepack landing loader script. PopDAM app code never calls the ColdLion API — it reads the shared-db mirror (`coldlion.merch_group_detail`, `plm.item`); see `docs/ADMIN_OPERATIONS.md` → ColdLion Integration |
+| `DAM_IMAGE_EMBED_DB_PASSWORD` | Image-embed GPU poller DB login `dam_image_embed_login.qsllyeztdwjgirsysgai` (tenant suffix mandatory; pooler TLS 5432) | 1Password vault `vibe_coding`, item "dam_image_embed_login DB password (PopDAM image-embed worker, qsllyeztdwjgirsysgai)" — protected file on the poller host, never in repo | No (poller host only) | Yes — poller cannot run without it |
+| `IMAGE_EMBED_ENABLED` / `IMAGE_SIM_*` | Image-similarity switches and tunables: enable flags, floor/bands (0.98/0.94/0.90), DINO weight (0.60), top_k, embedding-model stamp(s) | `admin_config` (managed in Settings; full contract in `plan_image_similarity_upload_search.md`) | No | Yes — production values set 2026-10-26 |
 
 Do not put secret values, PATs, passwords, private keys, or service-role keys in documentation. The frontend's hardcoded Supabase anon key is publishable client config; the service-role key is never bundled.
 
@@ -427,6 +433,7 @@ Full runbooks: [docs/deployment.md](docs/deployment.md), [docs/POPDAM_HELPER.md]
 | Railway worker | every push to main auto-deploys | No manual step. |
 | Bridge agent | publish-bridge-agent.yml → :stable | Bump pps/bridge-agent/package.json version in the same commit (without a bump the NAS sees no update). The NAS applies it only on request: admin_config `AGENT_UPDATE_REQUEST` `{action:"apply"}` (the in-app Update button); `force_apply_update` metadata is Windows-only. |
 | Windows render agent | publish-windows-agent.yml → GitHub Release | Inkscape/ImageMagick/Ghostscript/Poppler/Indra OCR — no Illustrator. |
+| Image-embed GPU poller | manual install on `edge-dev` per `apps/image-embed-worker/README.md` (Task Scheduler `PopDAM-ImageEmbedWorker`) | No GHCR/Railway path — runs from repo source. Vector/schema changes go through canonical shared-db only. |
 | POP DAM Helper | publish-popdam-helper.yml → GitHub Release | Installers stay **unsigned forever** (owner decision). Never cache the electron-builder NSIS toolchain. Helper OAuth/SeaDrive rules: docs/POPDAM_HELPER.md + docs/KNOWN_QUIRKS.md. |
 
 Stale-site check: if the live header shows an old commit, inspect the latest Publish Frontend Image run and Coolify deploy logs. Rollback via an older Coolify deployment (:<sha> tags).
