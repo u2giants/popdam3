@@ -9,6 +9,7 @@ type Recorded = { kind: "rows" | "count"; select: string; head: boolean };
 const recorded: Recorded[] = [];
 const rpcCalls: Array<{ name: string; args: any }> = [];
 const orCalls: string[] = [];
+let lastRows: any[] = [];
 
 let rowBehaviour: () => Promise<{ data: any[]; error: unknown }> = async () => ({
   data: [{ order_line_id: "line-1" }],
@@ -36,7 +37,15 @@ function builder(kind: "rows" | "count", head: boolean) {
       return chain;
     },
     order: () => chain,
-    range: async () => rowBehaviour(),
+    range: async () => {
+      const result = await rowBehaviour();
+      lastRows = result.data ?? [];
+      return result;
+    },
+    in: async (_column: string, ids: string[]) => ({
+      data: lastRows.filter((row) => ids.includes(row.order_line_id)),
+      error: null,
+    }),
     then: (resolve: any, reject: any) => countBehaviour().then(resolve, reject),
   };
   return chain;
@@ -83,7 +92,8 @@ describe("OrderList block loading", () => {
 
     expect(block.rows).toHaveLength(1);
     expect(block.totalRowCount).toBeNull();
-    expect(recorded.map((r) => r.kind)).toEqual(["rows"]);
+    expect(recorded.map((r) => r.kind)).toEqual(["rows", "rows"]);
+    expect(recorded[0].select).toBe("order_line_id");
     expect(recorded.find((r) => r.kind === "rows")?.head).toBe(false);
     expect(block.rows[0].sales_order_date).toBeNull();
     expect(rpcCalls).toEqual([{
@@ -122,7 +132,7 @@ describe("OrderList block loading", () => {
     expect(block.rows).toEqual([{ order_line_id: "line-1", sales_order_date: null, assortment_sku_quantity: null, assortment_quantity_source: null }]);
     expect([block.salesOrderDatesError, block.assortmentQuantitiesError].filter(Boolean)).toContain("SO Date could not be loaded. Refresh OrderList to try again.");
 
-    const rowSelect = recorded.find((r) => r.kind === "rows")?.select ?? "";
+    const rowSelect = recorded.filter((r) => r.kind === "rows").at(-1)?.select ?? "";
     expect(rowSelect).not.toContain("sales_order_date");
     expect(rowSelect).toContain("order_date");
 
