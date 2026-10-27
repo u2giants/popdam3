@@ -9,6 +9,15 @@ retire it when #4427's durable repeatable acceptance supersedes it.
 This source is preparation, not production proof or permission to execute.
 Before execution, obtain exact source/action/resource approval and the native
 production/UI gates. Bind the actual deployed frontend SHA independently.
+The coordinator's public unauthenticated `/login` and JavaScript-build capture
+identified `a273bff8b14395d13191186a6cb83c98b7829dc1`, entry
+`/assets/index-CO-xW9cW.js`, SHA256
+`2bdf4452e1e4cc8c8e69462dc230160eaf4d98ef5ab8dd340af652bde21647a7`.
+`vite.config.ts` embeds APP_COMMIT/APP_DATE (or Git fallback) and AppHeader
+renders those constants; this is not a claim that current main is deployed.
+Root must re-prove the public asset/hash and unique short-header-to-full-commit
+mapping immediately before execution; a changed asset or build requires fresh
+binding. The candidate checks that already-proven commit's header after login.
 Use the existing dedicated `ai-admin@designflow.app` password identity only.
 Supply username/password through protected 1Password secret-reference environment
 injection; never arguments, model context, logs, screenshots or files. Bind the
@@ -36,6 +45,13 @@ ONE normal UI logout, and the four existing read-only library facet RPCs.
 Other business REST/RPC mutations, signup/recovery/refresh, third-party POSTs,
 and Microsoft/Authentik navigation are blocked. Any denied request prevents a
 passing receipt. There are no writes to assets, roles, workflows or settings.
+GET/HEAD/OPTIONS are limited to the exact DAM origin (excluding auth callbacks),
+the fixed Supabase public REST/storage and user endpoint, and the documented
+`popdam.nyc3.digitaloceanspaces.com/thumbnails/` origin/path. Unknown hosts,
+unexpected ports, URL credentials and other API paths refuse; only a bounded
+sanitized hostname list and count are retained. Authorization headers are never
+read or extracted. Genuine normal form login, authenticated app landing, and
+nonempty rendered/reloaded library together provide this scoped session proof.
 
 Cleanup clicks the normal user-menu Sign out control and checks its successful
 endpoint response and return to the login page, then closes context/browser.

@@ -23,6 +23,13 @@ test('OAuth navigation and insecure targets are refused', () => {
   for (const host of ['login.microsoftonline.com','login.live.com','auth.designflow.app']) assert.equal(request('/', 'GET', host), false);
   assert.equal(permittedRequest({url:`http://${HOST}/rest/v1/assets`,method:'GET'}), false);
   assert.equal(request('/rest/v1/style_groups','GET'), true);
+  assert.equal(request('/collect','GET','unexpected.example'), false);
+  assert.equal(request('/auth/callback','GET','dam.designflow.app'), false);
+  assert.equal(request('/functions/v1/arbitrary','GET'), false);
+  assert.equal(request('/thumbnails/synthetic.jpg','GET','popdam.nyc3.digitaloceanspaces.com'), true);
+  assert.equal(request('/private/synthetic.jpg','GET','popdam.nyc3.digitaloceanspaces.com'), false);
+  assert.equal(permittedRequest({url:'https://dam.designflow.app:8443/library',method:'GET'}), false);
+  assert.equal(permittedRequest({url:'https://user:secret@dam.designflow.app/library',method:'GET'}), false);
 });
 test('wrong target or identity refuses before runtime or credentials are used', async () => {
   await assert.rejects(run({POPDAM_ACCEPTANCE_BASE_URL:'https://other.example'}), /target/);

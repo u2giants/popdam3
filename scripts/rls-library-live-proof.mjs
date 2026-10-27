@@ -5,14 +5,15 @@ import { fileURLToPath } from 'node:url';
 
 export const ORIGIN = 'https://dam.designflow.app';
 export const HOST = 'qsllyeztdwjgirsysgai.supabase.co';
+const GET_ORIGINS = new Set([ORIGIN, `https://${HOST}`, 'https://popdam.nyc3.digitaloceanspaces.com']);
 const FACETS = new Set(['get_filter_counts', 'get_path_facets', 'get_dam_material_facets', 'get_dam_customer_facets']);
 export function permittedRequest({ url, method }) {
   const u = new URL(url), verb = method.toUpperCase();
-  if (u.protocol !== 'https:') return false;
-  if (['login.microsoftonline.com', 'login.live.com', 'auth.designflow.app'].includes(u.hostname)) return false;
+  if (u.protocol !== 'https:' || u.username || u.password || !GET_ORIGINS.has(u.origin)) return false;
   if (['GET', 'HEAD', 'OPTIONS'].includes(verb)) {
-    if (u.pathname.startsWith('/auth/') && u.hostname === HOST) return u.pathname === '/auth/v1/user';
-    return true;
+    if (u.origin === ORIGIN) return !u.pathname.startsWith('/auth/');
+    if (u.hostname === HOST) return u.pathname === '/auth/v1/user' || u.pathname.startsWith('/rest/v1/') || u.pathname.startsWith('/storage/v1/object/public/');
+    return u.pathname.startsWith('/thumbnails/');
   }
   if (u.hostname !== HOST) return false;
   if (verb === 'POST' && u.pathname === '/auth/v1/token') return u.search === '?grant_type=password';
@@ -32,7 +33,7 @@ export async function run(env = process.env) {
   const { chromium } = require(env.POPDAM_PLAYWRIGHT_PACKAGE);
   const report = { schema_version: 1, issue: 4427, passed: false, target: ORIGIN, project: HOST.split('.')[0],
     deployed_frontend_sha: env.DEPLOYED_FRONTEND_SHA, password_login: false, library_read: false,
-    library_reloaded: false, library_rendered: false, logout: false, context_closed: false, browser_closed: false, blocked_requests: 0 };
+    library_reloaded: false, library_rendered: false, logout: false, context_closed: false, browser_closed: false, blocked_requests: 0, blocked_hostnames: [] };
   let browser, context, page, output;
   const reads = new Set();
   let tokenCalls = 0, logoutCalls = 0, tokenIssued = false;
@@ -49,7 +50,11 @@ export async function run(env = process.env) {
       let allowed = permittedRequest({url: request.url(), method: request.method()});
       if (url.hostname === HOST && request.method() === 'POST' && url.pathname === '/auth/v1/token') allowed &&= ++tokenCalls === 1;
       if (url.hostname === HOST && request.method() === 'POST' && url.pathname === '/auth/v1/logout') allowed &&= ++logoutCalls === 1;
-      if (!allowed) { report.blocked_requests++; return route.abort('blockedbyclient'); }
+      if (!allowed) {
+        report.blocked_requests++;
+        if (/^[a-z0-9.-]{1,253}$/.test(url.hostname) && !report.blocked_hostnames.includes(url.hostname) && report.blocked_hostnames.length < 10) report.blocked_hostnames.push(url.hostname);
+        return route.abort('blockedbyclient');
+      }
       return route.continue();
     });
     page = await context.newPage();
@@ -77,7 +82,6 @@ export async function run(env = process.env) {
     });
     report.library_read = reads.size > 0;
     const response = [...reads].at(-1);
-    if (!response.request().headers().authorization?.startsWith('Bearer ')) throw new Error('authenticated read');
     const rows = await response.json();
     if (!Array.isArray(rows) || rows.length < 1 || rows.length > 1000 || typeof rows[0].sku !== 'string' || !rows[0].sku) throw new Error('bounded nonempty library');
     await page.getByText(rows[0].sku, {exact: true}).first().waitFor({state: 'visible', timeout: 15000});
