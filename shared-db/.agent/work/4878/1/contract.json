@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "work_issue": 4878,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Bootstrap one inert fixed current-state VM submission-property contract and synthetic mutation qualification for applied4810 catalog failure; no active sidecar",
+  "base_sha": "22c371e4b602f613abf481493beca7947c97c288",
+  "dispatcher": "Codex parent01a17a03-63b6-7081-ab54-29fa144bf678 authorized current semantic postcondition boundary; no historical identity claim",
+  "worker": "Codex subagent01a17b07-1191-7fa2-ac52-734ad1b02932",
+  "branch": "codex/2599-catalog-bootstrap-01a17b07",
+  "worktree": "/tmp/shared-db-2599-catalog-bootstrap-01a17b07",
+  "allowed_paths": [
+    "scripts/production_catalog_verification.py",
+    "scripts/test_vm_submission_catalog_recovery.py",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "docs/verification/paramount-vm-2599/catalog-recovery.md"
+  ],
+  "file_writes": [
+    "scripts/production_catalog_verification.py",
+    "scripts/test_vm_submission_catalog_recovery.py",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "docs/verification/paramount-vm-2599/catalog-recovery.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No applied migration edits, SQL replay, schema/business-row writes, claims, production query or workflow dispatch",
+    "No active sidecar or registry declaration in bootstrap",
+    "No reviewer/toolkit/gate changes",
+    "No licensed labels or private source rows in repository/provider prompt",
+    "No claim of historical UUID/status/no-deletion continuity"
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts.test_vm_submission_catalog_recovery scripts.test_production_catalog_verification scripts.test_production_catalog_recovery_evidence scripts.test_check_production_verification_sidecars",
+    "VM_SUBMISSION_CATALOG_DOCKER=1 python3 -m unittest scripts.test_vm_submission_catalog_recovery",
+    "node scripts/check-production-verification-sidecars.mjs",
+    "bash scripts/check-sql.sh",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Original migration20261026150931 has SHA256d5615451699a6cee5997e6e8be6e1280c58f4a02d37f368bcf302f20f964a187 and original apply artifact proves exact ledger addition",
+    "Pinned sorted source-key manifest and per-label SHA256 bind all40 original labels including8 absent from code-map list",
+    "Existing provenance trigger derives source_licensor_id from canonical property licensor; test dependency explicitly",
+    "Bootstrap and activation are two ordinary protected deliveries; parent retains merge/dispatch/resource decisions"
+  ],
+  "stop_conditions": [
+    "Any inability to prove exact current capture/ref/name/mapping predicate without invented data",
+    "Any needed change outside allowed paths",
+    "Any shared resource mutation or gate refusal"
+  ]
+}

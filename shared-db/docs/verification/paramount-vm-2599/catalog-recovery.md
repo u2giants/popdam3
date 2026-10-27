@@ -1,0 +1,32 @@
+# Applied VM submission-property verification recovery
+
+Technical maintenance issue #4878 owns this catalog-only recovery; original business issue #2599 remains separate. PR #4810 merged migration `20261026150931`, then production [run40406045730](https://github.com/popcre/shared-db/actions/runs/40406045730) applied it and failed only `Post-apply catalog verification`. The source is a data-only DO block whose effects the existing catalog lexer could not infer. The failed result remains failed; do not replay or edit the migration.
+
+Original immutable apply artifact `12690738184` has digest `sha256:ae8eea3b3ada1a5bb1bdc6177c438c26038f3443481842922ce635a02d0b45bb`. Its remote ledger columns prove exactly `20261026150931` was added and no version removed. Canonical migration SHA256 is `d5615451699a6cee5997e6e8be6e1280c58f4a02d37f368bcf302f20f964a187`, identical to the apply content manifest. All bounded apply, after-ledger, saved-evidence and ownership-aware release steps succeeded. An earlier proposal to check only two aggregate counts was rejected before implementation: count40/count37 alone cannot detect swapped or changed bindings.
+
+## Two protected deliveries
+
+This bootstrap registers one inert fixed verifier-owned `vm_submission_properties_current_v1` predicate and tests. It adds NO active version sidecar or registry entry. Only after its actual protected merge may a separate reviewed delivery add the exact migration-hash-bound sidecar and existing registry declaration. Trusted-main admission must recognize the predicate before any activation is proposed. No new executor or reviewer/gate/toolkit change is introduced.
+
+The fixed query returns one boolean, without exporting labels or raw source data. It checks the production capture UUID/key, complete status, expected/observed40-row manifest, no errors, and every source-local key as SHA256 of its exact UTF-8 label. Its sorted40-key manifest is pinned to the original migration. This binds all40 labels, including the eight keys absent from the37-pair static code map, without inventing values.
+
+For all40 capture keys it requires one correctly typed TrackerPlus source reference to a distinct VM canonical Property, exact canonical/source name, verified confidence, correct source licensor, capture/authorising-issue/identity metadata, no extra/missing key, and no duplicate VM name ignoring case. For all37 original code/key pairs it verifies the exact typed mapping identity, same target entity as that key's TrackerPlus reference, workbook/key/issue provenance and no extra/missing VM mapping. Nullable predicates are explicitly tested with `IS TRUE` so SQL aggregate NULL-skipping cannot admit broken provenance. `source_licensor_id` is justified by `20260911152203`: `core.guard_taxonomy_source_ref_identity()` derives it from the target Property's `licensor_id` when the original insert omits it.
+
+This is CURRENT semantic state proof. Original randomly generated canonical UUID continuity, prior statuses, original rename counts, and no deletion/replacement of unrelated historical rows cannot be reconstructed from the examined artifacts and are NOT claimed. Consistent wholesale recreation of canonical rows with new UUIDs is outside this proof boundary; historical continuity would require an authentic historical entity-ID snapshot. The original capture labels and mappings stay in their approved source/database boundaries.
+
+## Verification-only recovery after activation
+
+The parent coordinator may later use the EXISTING Production Catalog Verification Recovery workflow, mode `legacy-catalog-failure`, after independently approved protected delivery of both phases. Re-prove current main and original artifact facts immediately before any actual dispatch. Exact immutable inputs are:
+
+- `apply_main_sha=f07920dd65e76add7da74362f03b597a489da4a6`
+- `ordered_allowlist=20261026150931`
+- `apply_run_id=40406045730`
+- `apply_artifact_digest=sha256:ae8eea3b3ada1a5bb1bdc6177c438c26038f3443481842922ce635a02d0b45bb`
+
+`main_sha` must be the then-current protected main containing both deliveries. Production target is the existing fixed `qsllyeztdwjgirsysgai`. The workflow independently verifies current main, original apply jobs/artifact/SQL bytes, exact before/after ledger transition, current production ledger and enforcing named predicate. It does not reapply SQL. Source publication is not recovery acceptance; #4878 stays open until the authentic verification-only receipt is checked. Root owns merge, resource approval and dispatch. No live query, workflow dispatch or database write occurred while authoring this bootstrap.
+
+## Synthetic qualification
+
+The focused suite checks all immutable source pins,37 source mapping pairs, the existing provenance-trigger dependency, temporary typed sidecar acceptance and changed-source hash rejection without activating a real sidecar. `VM_SUBMISSION_CATALOG_DOCKER=1 python3 -m unittest scripts.test_vm_submission_catalog_recovery` additionally runs the SAME predicate on an owned network-isolated PostgreSQL16 fixture containing40 synthetic labels/37 mappings. It preserves the32-mapped/eight-unlisted key shape. Independent row-preserving mutations must fail for swapped targets, replaced identities, NULL/incorrect names/confidence/licensors/raw provenance, source-label/key changes, duplicate casefold names, incomplete capture, wrong workbook and extra/missing mappings. Baseline and unrelated-licensor positive controls must pass; all mutations roll back and the owned container is stopped. Licensed labels and live source rows never enter the test.
+
+The existing offline Python-test glob includes this suite; its PostgreSQL fixture is explicit opt-in like the existing Tracking catalog fixture. Local Docker qualification is required evidence for delivery, not a claim that offline CI ran a database. The full existing catalog/recovery/sidecar suites and SQL/static guards remain required. The detector baseline changes only its actual source digest, preserving historical inventory and enforced versions.

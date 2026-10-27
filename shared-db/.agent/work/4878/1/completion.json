@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "work_issue": 4878,
+  "outcome": "ready-for-merge",
+  "pr": 4879,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4878/1",
+  "contract_sha256": "78b07d980d46090cf8e206c21b8d53bdd8bbcdaf9624651bd816c35a073e115f",
+  "head_sha": "3373fab2162e10dd63dd08a17633585aed3b8207",
+  "base_sha": "22c371e4b602f613abf481493beca7947c97c288",
+  "files_changed": [
+    "docs/verification/paramount-vm-2599/catalog-recovery.md",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_vm_submission_catalog_recovery.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts.test_vm_submission_catalog_recovery scripts.test_production_catalog_verification scripts.test_production_catalog_recovery_evidence scripts.test_check_production_verification_sidecars",
+      "exit_code": 0,
+      "evidence": "294 tests passed; one opt-in Docker test skipped in offline suite"
+    },
+    {
+      "command": "VM_SUBMISSION_CATALOG_DOCKER=1 python3 -m unittest scripts.test_vm_submission_catalog_recovery",
+      "exit_code": 0,
+      "evidence": "5 tests passed; actual network-isolated PostgreSQL16 fixture passes full synthetic baseline, rejects34 adversarial mutations and preserves unrelated-licensor positive control; container stopped"
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs",
+      "exit_code": 0,
+      "evidence": "statusOK,92 existing sidecars; detector baseline source digest updated only; no new activation"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static guards pass, no migration change"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors"
+    }
+  ],
+  "assumptions_resolved": [
+    "Crypto manifest and per-label SHA bind40 source identities including8 keys absent from37 immutable mappings; no licensed labels exported",
+    "Source licensor provenance is derived by original20260911152203 guard; current wrong licensor explicitly rejected",
+    "Current semantic binding proof only; no historical UUID/status/no-deletion continuity claimed",
+    "No active sidecar/registry declaration, no live database query, claim, write or workflow dispatch; parent owns separate activation and recovery decisions"
+  ],
+  "stop_conditions_hit": []
+}

@@ -5620,6 +5620,133 @@ select coalesce((
 ),false) as passed
 """
 
+
+# Issue #4878: current semantic postconditions of the applied #2599 curated load.
+# All labels stay inside the database. Its immutable key-manifest and each
+# exact-label SHA256 bind the eight source keys not enumerated in the code map.
+# source_licensor_id is derived by core.guard_taxonomy_source_ref_identity()
+# (20260911152203), not invented by this recovery. No generated UUID/status or
+# unrelated-row historical continuity is claimed. This definition is inert until
+# a separately reviewed, migration-hash-bound sidecar activates it.
+CATALOG_CONTRACTS["vm_submission_properties_current_v1"] = """(
+WITH expected AS (
+  SELECT '5f951f5e-aaee-4add-bb51-fea888951405'::uuid AS vm,
+    '36fb2b6d-a728-4bf4-bb4c-d04b03125a2b'::uuid AS capture_id,
+    'paramount-trackerplus-2026-10-25-4bb087a7bb2514a0'::text AS capture_key,
+    '263eccc71645bf9c63e658d8521cba1706f965dd256f47360b6cb63db1c97b6b'::text AS manifest,
+    '32917567f1f57c78346922361faf0792e4a1fc3142c1bb82747141f4278ee724'::text AS workbook
+), reviewed_map(code, source_key) AS (VALUES
+    ('90','d77c37fd1c1d426a1dc3b24ec73faba375bebb856e911963ca46e665b140b4d6'),
+    ('AM1','efe401285997afdcc59ae945b1581da3ba72299448eeeb293bc327975aa64c8a'),
+    ('AM2','75f1ce3fc920d016c2b6f35187096ff1adbc1a6f9020a30d65a62016e99137e4'),
+    ('AT','bd03eb784c85de3be8d7179166656d6ef01452f3965852af2cd457ba6a1aae24'),
+    ('BB','4f7cecae689ed321865bcbca217cb1d3671628780bd17b9499760230341e5e46'),
+    ('BH','bd94353f3769002c7f71d65736160fc363de6d86b4660849d2035b3ed38270a3'),
+    ('CU','fde22786c4e5e5358901028b53133622758a06f22e1e0354631dfc42440815be'),
+    ('DN','b0e25444e346e2a0d69c32cf74bd9745f8848fc29164a87bf7dda03fb58b7147'),
+    ('EN','b0e25444e346e2a0d69c32cf74bd9745f8848fc29164a87bf7dda03fb58b7147'),
+    ('EP','2ba82e8fe6da526d195cf411c3c1d1f6ab03feb293b312571e6b4b4113f892bb'),
+    ('FB','db96ab45578f557826803ab1958f66208a514cd85f0cae30e68f966a3ca9f2ef'),
+    ('FE','6ae08a70bc7eacef76689c0732d631a9bbca37a690640f674b8d99ec51ec94af'),
+    ('FG','f7d2485466399e902ddadecc23fb123fc3850bb635d58f6efd4ba068dd41bc02'),
+    ('GE','53a9e30a298862ec5ca6203d0bb00a9eb1941de66049798ec2fd3736cf2b629c'),
+    ('GE1','7eb07dab6bae24395858f445f9d02ce0d789167f9e57cc3e57dac3dbdd22d873'),
+    ('GH','5810d66ac44b8f2380962269fdc1829466753186aa086fec7482e012396babb9'),
+    ('GRE','d9607a5345f7bc7e70b94aa837ef7a0966bec2a57d2f92ef41e2d3478bac87f3'),
+    ('HDS','0ac2efd260724f5aac4bf0bd3a78564d721191478a20145bddcc451db97c367f'),
+    ('MA','b0e25444e346e2a0d69c32cf74bd9745f8848fc29164a87bf7dda03fb58b7147'),
+    ('MG1','c668c436a414113ffbb2df349ce0f27a21bb931ad83fd8c4a3e251b49f9850f4'),
+    ('MG2','f984a50a4a0993225fcc59512d8ff9a179fb4ea2b416c2b256e2492559921e84'),
+    ('MGM','b16f62f4728e0ef7aecc6db4686bac8e1e7c815d8610703ef5216d4182309694'),
+    ('NT','b0e25444e346e2a0d69c32cf74bd9745f8848fc29164a87bf7dda03fb58b7147'),
+    ('RA','b0e25444e346e2a0d69c32cf74bd9745f8848fc29164a87bf7dda03fb58b7147'),
+    ('SB','bb6d2425b630031d0904b2a9b76e344aa1f101c0b7d6c1085f92818deabe5eb2'),
+    ('SCM','0072bff034316806df9812e10594ffdf4b632c963af3f42357fdbb9801aebc45'),
+    ('SM1','0072bff034316806df9812e10594ffdf4b632c963af3f42357fdbb9801aebc45'),
+    ('SM6','1abf201aa851cb819c3a5965f721229f91d7473c39fc561b975ca6c7905eec75'),
+    ('SM7','88f663890fa7325dfd47ca40385b209d44082ef2feb414c96f312161e8a2a577'),
+    ('TNT','e78009d31a69904d8b34dffffe303a1f61a86d365f27440354e57b8121fbeb32'),
+    ('TU','5dbe1eb9778bad2f0c9bb0632e07292287d9e4d0e51047f0fb961154f5070900'),
+    ('TZ1','78bfa4a8d018abaffa4846ad5c3077e877d56172a26d730299c8b4d035833f73'),
+    ('TZ2','b7a9af80772100eb17c0f3017675d3459d3a4d0ac43d56720f46b9e969e997ea'),
+    ('TZ3','c0b5473ac392ea78d127e834bc378e574cf43db535b86cd0720639850752b180'),
+    ('WND','90b05904cfb9749a36d25ac6393b3774957a52e97c593453e269424ebfd2684d'),
+    ('YS','314a356c641835f1c9a19554d3c0b6178dd026c853d7881283b76bacdd33fa4c'),
+    ('ZM','5744915091dbd41a9ea5f61b01dc5d8a1d775c0a44c79d13d3145b571447dd5a')
+), capture AS (
+  SELECT c.* FROM plm.pmt_trackerplus_submission_capture c, expected e
+  WHERE c.capture_key=e.capture_key
+), source AS (
+  SELECT s.* FROM plm.pmt_trackerplus_submission_property s, expected e
+  WHERE s.capture_id=e.capture_id
+), refs AS (
+  SELECT r.* FROM core.taxonomy_source_ref r
+  WHERE r.source_system='paramount_trackerplus'
+    AND r.source_table='plm.pmt_trackerplus_submission_property'
+), mappings AS (
+  SELECT r.* FROM core.taxonomy_source_ref r
+  WHERE r.source_system='licensing_mg06_submission_mapping'
+    AND r.source_table='mg06-to-submissions-mapping-20261015'
+    AND r.source_id LIKE 'VM/%'
+), capture_proof AS (
+  SELECT count(*)=1 AND bool_and((c.id=e.capture_id AND c.status='complete'
+    AND c.expected_property_count=40 AND c.observed_property_count=40
+    AND c.expected_property_manifest_sha256=e.manifest
+    AND c.observed_property_manifest_sha256=e.manifest
+    AND c.load_completed_at IS NOT NULL AND c.errors='[]'::jsonb) IS TRUE) AS passed
+  FROM capture c CROSS JOIN expected e
+), source_proof AS (
+  SELECT count(*)=40 AND count(DISTINCT s.property_local_key)=40
+    AND count(DISTINCT s.ordinal)=40
+    AND bool_and((s.identity_method='exact-label-sha256' AND s.ordinal>=0
+      AND btrim(s.exact_label)<>''
+      AND s.property_local_key=encode(sha256(convert_to(s.exact_label,'UTF8')),'hex')) IS TRUE)
+    AND encode(sha256(convert_to(string_agg(s.property_local_key,E'\n'
+      ORDER BY s.property_local_key),'UTF8')),'hex')=(SELECT manifest FROM expected) AS passed
+  FROM source s
+), refs_proof AS (
+  SELECT count(*)=40 AND count(DISTINCT s.property_local_key)=40
+    AND count(DISTINCT r.entity_id)=40
+    AND bool_and((r.entity_schema='core' AND r.entity_table='property'
+      AND r.source_licensor_id=e.vm AND p.licensor_id=e.vm
+      AND r.confidence='verified' AND r.source_code IS NULL
+      AND convert_to(r.source_name,'UTF8')=convert_to(s.exact_label,'UTF8')
+      AND convert_to(p.name,'UTF8')=convert_to(s.exact_label,'UTF8')
+      AND r.raw @> jsonb_build_object('authorising_issue',2599,
+        'capture_id',e.capture_id,'identity_method','exact_label_sha256')) IS TRUE) AS passed
+  FROM source s JOIN refs r ON r.source_id=s.property_local_key
+    JOIN core.property p ON p.id=r.entity_id CROSS JOIN expected e
+), mappings_proof AS (
+  SELECT count(*)=37 AND count(DISTINCT m.code)=37
+    AND bool_and((r.entity_schema='core' AND r.entity_table='property'
+      AND r.source_licensor_id=e.vm AND r.entity_id=t.entity_id
+      AND r.confidence='verified' AND r.source_name IS NULL
+      AND r.source_code=m.code
+      AND r.raw @> jsonb_build_object('authorising_issue',2599,'related_issue',2541,
+        'workbook_sha256',e.workbook,'property_local_key',m.source_key)) IS TRUE) AS passed
+  FROM reviewed_map m JOIN mappings r ON r.source_id='VM/'||m.code
+    JOIN refs t ON t.source_id=m.source_key CROSS JOIN expected e
+)
+SELECT coalesce(
+  (SELECT passed FROM capture_proof) AND (SELECT passed FROM source_proof)
+  AND (SELECT passed FROM refs_proof) AND (SELECT passed FROM mappings_proof)
+  AND (SELECT count(*)=40 FROM refs) AND (SELECT count(*)=37 FROM mappings)
+  AND (SELECT count(*)=37 AND count(DISTINCT code)=37 FROM reviewed_map)
+  AND NOT EXISTS (SELECT 1 FROM reviewed_map m
+    WHERE NOT EXISTS (SELECT 1 FROM source s WHERE s.property_local_key=m.source_key))
+  AND NOT EXISTS (SELECT 1 FROM refs r
+    WHERE NOT EXISTS (SELECT 1 FROM source s WHERE s.property_local_key=r.source_id))
+  AND NOT EXISTS (SELECT 1 FROM mappings r
+    WHERE NOT EXISTS (SELECT 1 FROM reviewed_map m WHERE r.source_id='VM/'||m.code))
+  AND NOT EXISTS (SELECT 1 FROM source s CROSS JOIN expected e
+    WHERE (SELECT count(*) FROM core.property p
+      WHERE p.licensor_id=e.vm AND lower(p.name)=lower(s.exact_label))<>1)
+  AND (SELECT count(*)=1 FROM core.licensor l CROSS JOIN expected e
+    WHERE l.id=e.vm AND l.code='VM' AND l.name='VIACOM MULTI')
+  AND EXISTS (SELECT 1 FROM supabase_migrations.schema_migrations
+    WHERE version='20261026150931'),false)
+)"""
+
 if __name__ == "__main__":
     raise SystemExit(main())
 
