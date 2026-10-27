@@ -1,0 +1,96 @@
+{
+  "schema_version": 2,
+  "generation": 24,
+  "evidence_parent": {
+    "work_issue": 4437,
+    "generation": 23,
+    "contract_sha256": "81b8c63fbccfc71c2f198ca71b53e2d7e40c7d6eca1c7d6063f4c34b4b3edfc4"
+  },
+  "work_issue": 4437,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "PopSG semantic search stage 2 plus the 2026-10-27 coverage-meter incident fix, at the lane-re-reserved version 20261027150858, with current main merged into the branch and the evidence pair re-anchored to the refreshed merge base (#2845). Stage 2: thread p_query_embedding extensions.vector(768) default null and p_min_semantic_score real default null into search_style_guide_library_v2, drop the 15-argument overload, re-issue grants, pin statement_timeout=30s; three-arm disjoint union, authorization and every filter before ranking, HNSW semantic_candidates (limit 2000, ef_search 100, operator(extensions.<=>)), blended rank +coalesce(semantic,0)*0.35, floor on semantic candidates only. Successor repairs: unparseable 17-arg signature strings, stale 15-arg md5 pin, detector baseline re-record. Incident fix (production 57014 from 09:19Z): get_sg_search_embedding_status rewritten as split scalar counts, index-only on the document side over seven new indexes, bucket semantics byte-identical and pinned by foundation contract 13; claim_sg_search_embedding_documents keeps its reviewed body byte-for-byte (md5 1c6af615af8ecc225cbc57638bd4fd9c) and gains the ordered partial-index path. The stopped backfill (embedded=72,496 / pending=146,384 / errored=0) is re-dispatched fresh after promotion. Second lane re-reservation to 20261027183509 after main advanced to 20261027155655; the pair follows the refresh shape (implementation head without evidence files, merge base 46b7b525d).",
+  "base_sha": "46b7b525d90b9569c6b57fd88601eee0ec7159fe",
+  "dispatcher": "claim-first (claim #4820, owner zcode-chat-unknown@hetz)",
+  "worker": "ZCode chat unknown on hetz",
+  "branch": "zcode/popsg-4437-semantic-stage2",
+  "worktree": "/worksp/shared-db/.claude/worktrees/popsg-4437-stage2",
+  "allowed_paths": [
+    ".agent/work/4437/24/completion.json",
+    ".agent/work/4437/24/contract.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261027183509.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "supabase/migrations/20261027183509_popsg_semantic_search_stage2.sql",
+    "supabase/tests/popsg_parse_search_query_once_contracts.sql",
+    "supabase/tests/popsg_search_style_guide_library_v2_contracts.sql",
+    "supabase/tests/popsg_semantic_search_foundation_contracts.sql"
+  ],
+  "file_writes": [
+    ".agent/work/4437/24/completion.json",
+    ".agent/work/4437/24/contract.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261027183509.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "supabase/migrations/20261027183509_popsg_semantic_search_stage2.sql",
+    "supabase/tests/popsg_parse_search_query_once_contracts.sql",
+    "supabase/tests/popsg_search_style_guide_library_v2_contracts.sql",
+    "supabase/tests/popsg_semantic_search_foundation_contracts.sql"
+  ],
+  "db_reads": [
+    "table public.style_guide_search_documents",
+    "table public.style_guide_files",
+    "table public.style_guide_render_queue",
+    "materialized view public.style_guide_library_default_summary",
+    "materialized view public.style_guide_library_default_guides",
+    "function public.has_app_access"
+  ],
+  "db_writes": [
+    "function public.search_style_guide_library_v2",
+    "function public.get_sg_search_embedding_status",
+    "table public.style_guide_search_documents",
+    "index public.idx_sg_search_documents_meter_embedded",
+    "index public.idx_sg_search_documents_meter_pending",
+    "index public.idx_sg_search_documents_meter_unidentified",
+    "index public.idx_sg_search_documents_meter_errored",
+    "index public.idx_sg_search_documents_meter_exhausted",
+    "index public.idx_sg_search_documents_meter_lease",
+    "index public.idx_sg_search_documents_meter_updated_at"
+  ],
+  "prohibited_actions": [
+    "Do not add a second migration version to this pull request; the lane admits exactly one version per pull request.",
+    "Do not modify any applied migration; 20261027061216 is permanently reserved and never reused.",
+    "Do not change claim_sg_search_embedding_documents semantics; its reviewed body must stay byte-identical.",
+    "Do not change any meter bucket's predicate; the split-count rewrite must return byte-identical results to the reviewed aggregate, including left-join orphan behavior.",
+    "Do not apply authorization, facet, date or tag filters after ranking, counting or paging.",
+    "Do not change totals, facets, sorting, tie-breaks or pagination shape between keyword and semantic modes.",
+    "Do not apply the semantic floor to keyword hits; it excludes semantic candidates only.",
+    "Never edit an applied migration; a fix is a new migration.",
+    "Do not bypass, weaken or retry around the exact-head review, the guarded merge, the preview rehearsal or the production promotion gates.",
+    "Do not rebase; merge main instead."
+  ],
+  "required_checks": [
+    "database-contract-tests popsg_search_style_guide_library_v2_contracts.sql popsg_parse_search_query_once_contracts.sql",
+    "database-contract-tests popsg_semantic_search_foundation_contracts.sql"
+  ],
+  "assumptions": [
+    "SigLIP2/768 is the one embedding mechanism for DAM and PopSG (#4664); no second embedding model is introduced here.",
+    "p_query_embedding null must reproduce the exact reviewed keyword behavior.",
+    "PostgREST cannot disambiguate overloads that differ only in optional parameters, so the 15-argument overload is dropped in the same migration that installs the 17-argument signature.",
+    "The ANN leg mirrors the reviewed DAM implementation (20261025163006).",
+    "The meter timeout mechanism is the full-heap seq scan of vector(768) payloads; index-only counts over partial indexes never touch those pages.",
+    "Non-concurrent CREATE INDEX inside the migration transaction is acceptable because the embedding backfill is stopped and readers are not blocked.",
+    "pg_get_function_identity_arguments never renders typmod; identity pins place the closing parenthesis after the final real argument."
+  ],
+  "stop_conditions": [
+    "Stop if keyword parity or the empty-snapshot fast path changes in any observable way.",
+    "Stop if any meter bucket disagrees with the reviewed aggregate on any fixture.",
+    "Stop if a governed review returns a substantive REJECT; fix every finding on a new head and re-review.",
+    "Stop if any gate refuses; never work around it.",
+    "Stop if main advances past the re-reserved version again; supersede through the lane tool and re-verify."
+  ]
+}

@@ -1,15 +1,15 @@
 begin;
 -- Read-only post-apply search contract. Performance proof remains on #4210.
-select exists (select 1 from pg_proc where oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)')
-  and md5(prosrc) = '4cdde9e8fed849a203374f7e93139afd' and proowner = 'postgres'::regrole and prosecdef and provolatile = 's'
+select exists (select 1 from pg_proc where oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)')
+  and md5(prosrc) = '1dfc9194a2288feb3a0feace89487f78' and proowner = 'postgres'::regrole and prosecdef and provolatile = 's'
   and prorettype = 'jsonb'::regtype
   and (select coalesce(array_agg(setting order by setting), '{}') from unnest(coalesce(proconfig, '{}'::text[])) setting) = array['search_path=pg_catalog, auth','statement_timeout=30s','work_mem=64MB'])
   and to_regtype('public.app_name') is not null
   and exists (select 1 from pg_proc a where a.oid = to_regprocedure('auth.uid()') and a.provolatile in ('s','i'))
   and exists (select 1 from pg_proc a where a.oid = to_regprocedure('auth.role()') and a.provolatile in ('s','i'))
   and exists (select 1 from pg_proc a where a.oid = to_regprocedure('public.has_app_access(uuid,public.app_name)') and a.provolatile in ('s','i'))
-  and has_function_privilege('authenticated','public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)','execute')
-  and not has_function_privilege('anon','public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)','execute')
+  and has_function_privilege('authenticated','public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)','execute')
+  and not has_function_privilege('anon','public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)','execute')
   and to_regprocedure('public.has_app_access(uuid,public.app_name)') is not null
   and not exists (select 1 from (values
     ('public.style_guide_search_documents','r'),
@@ -56,16 +56,16 @@ select exists (select 1 from pg_proc where oid = to_regprocedure('public.search_
 do $contract$
 declare b text; passed boolean;
 begin
- select exists (select 1 from pg_proc where oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)')
-  and md5(prosrc) = '4cdde9e8fed849a203374f7e93139afd' and proowner = 'postgres'::regrole and prosecdef and provolatile = 's'
+ select exists (select 1 from pg_proc where oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)')
+  and md5(prosrc) = '1dfc9194a2288feb3a0feace89487f78' and proowner = 'postgres'::regrole and prosecdef and provolatile = 's'
   and prorettype = 'jsonb'::regtype
   and (select coalesce(array_agg(setting order by setting), '{}') from unnest(coalesce(proconfig, '{}'::text[])) setting) = array['search_path=pg_catalog, auth','statement_timeout=30s','work_mem=64MB'])
   and to_regtype('public.app_name') is not null
   and exists (select 1 from pg_proc a where a.oid = to_regprocedure('auth.uid()') and a.provolatile in ('s','i'))
   and exists (select 1 from pg_proc a where a.oid = to_regprocedure('auth.role()') and a.provolatile in ('s','i'))
   and exists (select 1 from pg_proc a where a.oid = to_regprocedure('public.has_app_access(uuid,public.app_name)') and a.provolatile in ('s','i'))
-  and has_function_privilege('authenticated','public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)','execute')
-  and not has_function_privilege('anon','public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)','execute')
+  and has_function_privilege('authenticated','public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)','execute')
+  and not has_function_privilege('anon','public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)','execute')
   and to_regprocedure('public.has_app_access(uuid,public.app_name)') is not null
   and not exists (select 1 from (values
     ('public.style_guide_search_documents','r'),
@@ -109,7 +109,7 @@ begin
       and not a.attisdropped))
  into passed;
  if passed is distinct from true then raise exception 'Search identity, settings or grants changed'; end if;
- select prosrc into b from pg_proc where oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)');
+ select prosrc into b from pg_proc where oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)');
  if position('execute $guides_query$' in b)=0
    or position('$guides_query$ into v_result using v_mode, p_query, p_licensors' in b)=0
    or position('page_children as materialized' in b)=0

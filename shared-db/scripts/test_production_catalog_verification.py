@@ -63,7 +63,7 @@ class ThroughputSequenceContractTests(unittest.TestCase):
 
     def test_popsg_statement_timeout_contract_pins_exact_body_and_sorted_settings(self):
         sql = CATALOG_CONTRACTS["popsg_search_v2_statement_timeout_v1"]
-        self.assertIn("md5(p.prosrc)='4cdde9e8fed849a203374f7e93139afd'", sql)
+        self.assertIn("md5(p.prosrc)='1dfc9194a2288feb3a0feace89487f78'", sql)
         self.assertIn("array_agg(s order by s)", sql)
         self.assertIn("array['search_path=pg_catalog, auth','statement_timeout=30s','work_mem=64MB']::text[]", sql)
         self.assertIn("not has_function_privilege('anon',p.oid,'EXECUTE')", sql)
@@ -1760,7 +1760,7 @@ class BehavioralSidecarTests(unittest.TestCase):
         temp, root, migration = self.fixture(change)
         with temp:
             sql = build_behavior_sql(self.load(root, migration))
-        forward = Path(__file__).resolve().parents[1] / "supabase/migrations/20260908214749_popsg_search_v2_bounded_paging.sql"
+        forward = Path(__file__).resolve().parents[1] / "supabase/migrations/20261027183509_popsg_semantic_search_stage2.sql"
         import hashlib
         expected = hashlib.md5(forward.read_text().split("$function$")[1].encode()).hexdigest()
         self.assertIn(expected, sql)
@@ -1774,7 +1774,7 @@ class BehavioralSidecarTests(unittest.TestCase):
         temp, root, migration = self.fixture(change)
         with temp:
             sql = build_behavior_sql(self.load(root, migration))
-        forward = Path(__file__).resolve().parents[1] / "supabase/migrations/20260911213429_popsg_search_v2_production_performance.sql"
+        forward = Path(__file__).resolve().parents[1] / "supabase/migrations/20261027183509_popsg_semantic_search_stage2.sql"
         import hashlib
         body = forward.read_bytes().replace(b"\r\n", b"\n").decode().split("$function$")
         self.assertEqual(len(body), 3, "forward migration must define exactly one $function$ body")
@@ -1790,7 +1790,7 @@ class BehavioralSidecarTests(unittest.TestCase):
         temp, root, migration = self.fixture(change)
         with temp:
             sql = build_behavior_sql(self.load(root, migration))
-        forward = Path(__file__).resolve().parents[1] / "supabase/migrations/20260915111626_popsg_search_v2_default_timeout.sql"
+        forward = Path(__file__).resolve().parents[1] / "supabase/migrations/20261027183509_popsg_semantic_search_stage2.sql"
         import hashlib
         body = forward.read_bytes().replace(b"\r\n", b"\n").decode().split("$function$")
         self.assertEqual(len(body), 3, "forward migration must define exactly one $function$ body")

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261027183509",
+  "migration_sha256": "80293d2371e6c21b1085a4072dc8eff884602e8f2788b3ce643c8d9c56e9f59f",
+  "checks": [
+    {
+      "id": "popsg_search_v2_semantic_17arg",
+      "kind": "catalog_contract",
+      "contract": "popsg_search_v2_statement_timeout_v1",
+      "expected_count": 1
+    }
+  ],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 457,
+      "line_end": 457,
+      "disposition": "checks",
+      "check_ids": [
+        "popsg_search_v2_semantic_17arg"
+      ],
+      "reason": "The dynamic guides-body execution is the same reviewed 17-argument search body verified end-to-end by the cited verifier-owned catalog contract (exact body md5, proconfig shape, privilege posture, and 15-arg overload absence), and exercised behaviorally by supabase/tests/popsg_search_style_guide_library_v2_contracts.sql in CI."
+    }
+  ]
+}

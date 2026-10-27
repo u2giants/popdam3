@@ -565,4 +565,67 @@ begin
 end
 $contracts$;
 
+-- Contract 13 (2026-10-27 production incident, folded into stage 2): the
+-- coverage meter is the reviewed index-driven body (md5 below) and the seven
+-- meter indexes exist with exact predicates, so no meter bucket ever reads
+-- the embedding column's heap pages. Semantics pinned explicitly:
+--   * pending_documents counts only claimable work: active, identified,
+--     embedding null, attempts < max, error category not 'permanent', AND a
+--     live file row whose thumbnail_url is not null;
+--   * waiting_for_thumbnail_documents is the complement over the same base
+--     set: a document whose file row is MISSING or has thumbnail_url null
+--     counts here (identical to the original LEFT JOIN semantics);
+--   * exhausted_documents requires embedding null AND (attempts >= max OR
+--     category = 'permanent') -- a document with retries left but a recorded
+--     non-permanent error stays pending, never exhausted;
+--   * oldest_pending_updated_at ignores the attempt/error filters (it is the
+--     oldest identified unembedded document with a live thumbnail).
+-- claim_sg_search_embedding_documents keeps its reviewed body byte-for-byte
+-- (md5 pinned below); idx_sg_search_documents_meter_pending gives it the
+-- document_updated_at-ordered partial path.
+do $contracts$
+begin
+  if not exists (
+    select 1 from pg_proc p
+     where p.oid = to_regprocedure('public.get_sg_search_embedding_status()')
+       and md5(p.prosrc) = '0366a4d0bddee2c5a8b8f2d4ba73c69a'
+       and p.prosecdef and p.provolatile = 's'
+       and (select coalesce(array_agg(s.setting order by s.setting), '{}'::text[])
+              from unnest(coalesce(p.proconfig, '{}'::text[])) s(setting))
+           = array['search_path=public']
+  ) then
+    raise exception 'contract 13: coverage meter is not the reviewed index-driven body';
+  end if;
+  if not exists (
+    select 1 from pg_proc p
+     where p.oid = to_regprocedure('public.claim_sg_search_embedding_documents(integer,text,integer)')
+       and md5(p.prosrc) = '1c6af615af8ecc225cbc57638bd4fd9c'
+  ) then
+    raise exception 'contract 13: claim body changed; the incident fix must not alter claim semantics';
+  end if;
+  if exists (select 1 from (values
+      ('idx_sg_search_documents_meter_embedded',
+       'CREATE INDEX idx_sg_search_documents_meter_embedded ON public.style_guide_search_documents USING btree (style_guide_file_id) WHERE (embedding IS NOT NULL)'),
+      ('idx_sg_search_documents_meter_pending',
+       $def$CREATE INDEX idx_sg_search_documents_meter_pending ON public.style_guide_search_documents USING btree (document_updated_at, style_guide_file_id) WHERE (is_active AND (content_sha256 IS NOT NULL) AND (embedding IS NULL) AND (embedding_attempts < embedding_max_attempts) AND (embedding_error_category IS DISTINCT FROM 'permanent'::text))$def$),
+      ('idx_sg_search_documents_meter_unidentified',
+       'CREATE INDEX idx_sg_search_documents_meter_unidentified ON public.style_guide_search_documents USING btree (style_guide_file_id) WHERE (content_sha256 IS NULL)'),
+      ('idx_sg_search_documents_meter_errored',
+       'CREATE INDEX idx_sg_search_documents_meter_errored ON public.style_guide_search_documents USING btree (style_guide_file_id) WHERE (embedding_error IS NOT NULL)'),
+      ('idx_sg_search_documents_meter_exhausted',
+       $def$CREATE INDEX idx_sg_search_documents_meter_exhausted ON public.style_guide_search_documents USING btree (style_guide_file_id) WHERE ((embedding IS NULL) AND ((embedding_attempts >= embedding_max_attempts) OR (embedding_error_category = 'permanent'::text)))$def$),
+      ('idx_sg_search_documents_meter_lease',
+       'CREATE INDEX idx_sg_search_documents_meter_lease ON public.style_guide_search_documents USING btree (embedding_lease_expires_at)'),
+      ('idx_sg_search_documents_meter_updated_at',
+       'CREATE INDEX idx_sg_search_documents_meter_updated_at ON public.style_guide_search_documents USING btree (document_updated_at)')
+    ) wanted(name, def) where (select pg_get_indexdef(c.oid)
+                                  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                                 where c.relname = wanted.name and n.nspname = 'public'
+                                   and c.relkind = 'i') is distinct from wanted.def)
+  then
+    raise exception 'contract 13: a meter index is missing or its predicate changed';
+  end if;
+end
+$contracts$;
+
 rollback;

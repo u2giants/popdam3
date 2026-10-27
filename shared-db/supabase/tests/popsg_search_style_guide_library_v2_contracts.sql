@@ -18,13 +18,19 @@ do $contracts$
 declare
   v_result jsonb;
 begin
-  if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)') is null then
+  if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)') is null then
     raise exception 'contract 1: v2 search RPC is missing';
   end if;
-  if has_function_privilege('anon', 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)', 'execute') then
+  if md5((select p.prosrc from pg_proc p where p.oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)'))) <> '1dfc9194a2288feb3a0feace89487f78' then
+    raise exception 'contract 1: v2 search body is not the reviewed semantic stage-2 body';
+  end if;
+  if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)') is not null then
+    raise exception 'contract 1: the 15-argument overload must be dropped';
+  end if;
+  if has_function_privilege('anon', 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)', 'execute') then
     raise exception 'contract 1: anon can execute v2 search';
   end if;
-  if not has_function_privilege('authenticated', 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)', 'execute') then
+  if not has_function_privilege('authenticated', 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)', 'execute') then
     raise exception 'contract 1: authenticated lost execute on v2 search';
   end if;
 
@@ -250,10 +256,68 @@ begin
     raise exception 'contract 10: default files total is not exact';
   end if;
   if not exists (select 1 from pg_proc p
-                  where p.oid = 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)'::regprocedure
+                  where p.oid = 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)'::regprocedure
                     and (select array_agg(setting order by setting) from unnest(p.proconfig) setting)
                         = array['search_path=pg_catalog, auth', 'statement_timeout=30s', 'work_mem=64MB']::text[]) then
     raise exception 'contract 10: function settings changed beyond search_path, statement_timeout and work_mem';
+  end if;
+
+  -- Contract 11 (#4437 stage 2): a null query embedding reproduces the exact
+  -- keyword contract (semantic_candidates is empty, blended rank degenerates).
+  if (public.search_style_guide_library_v2('files', 'uniquechildtoken', p_limit => 200)
+        ->>'total')::integer
+     is distinct from (public.search_style_guide_library_v2('files', 'uniquechildtoken',
+        p_query_embedding => null, p_min_semantic_score => null, p_limit => 200)
+        ->>'total')::integer then
+    raise exception 'contract 11: explicit null semantic parameters changed the keyword result';
+  end if;
+
+  -- Contract 12 (#4437 stage 2): a query embedding surfaces semantic-only
+  -- documents that no keyword matches, with the blended rank shape
+  -- (keyword + coalesce(semantic,0)*0.35), and the floor excludes only
+  -- semantic candidates (keyword hits below the floor survive).
+  -- File 13 becomes SEMANTIC-ONLY: its keyword vector no longer matches the
+  -- query, its stored embedding is near-orthogonal to the query embedding
+  -- (cosine similarity well below 1), so an unreachable floor (clamped to 1.0
+  -- in the body) excludes it from the semantic arm while keyword hits survive.
+  update public.style_guide_search_documents
+     set embedding = (select ('[' || string_agg(case when g = 1 then '1' else '0' end, ',') || ']')::extensions.vector
+                        from generate_series(1, 768) g),
+         embedding_model = 'google/siglip2-base-patch16-naflex',
+         search_vector = to_tsvector('simple', 'zzzsemanticonlytoken')
+   where style_guide_file_id = '25060000-0000-4000-8000-000000000013';
+  v_result := public.search_style_guide_library_v2(
+    p_result_mode => 'files', p_query => 'uniquechildtoken',
+    p_query_embedding => (select ('[' || string_agg('0.001', ',') || ']')::extensions.vector
+                            from generate_series(1, 768)),
+    p_limit => 200
+  );
+  if not exists (select 1 from jsonb_array_elements(v_result->'results') item
+                  where item->>'filename' = 'alpha.jpg') then
+    raise exception 'contract 12: a semantic-only document was not surfaced by the query embedding';
+  end if;
+  -- File 11 (alpha.pdf) is a pure keyword hit with no stored embedding;
+  -- enabling semantic search must not lose it.
+  if not exists (select 1 from jsonb_array_elements(v_result->'results') item
+                  where item->>'style_guide_file_id' = '25060000-0000-4000-8000-000000000011') then
+    raise exception 'contract 12: a keyword hit was lost when semantic search was enabled';
+  end if;
+  -- Floor 1.0 is unreachable for cosine similarity: semantic candidates drop,
+  -- keyword hits survive.
+  v_result := public.search_style_guide_library_v2(
+    p_result_mode => 'files', p_query => 'uniquechildtoken',
+    p_query_embedding => (select ('[' || string_agg('0.001', ',') || ']')::extensions.vector
+                            from generate_series(1, 768)),
+    p_min_semantic_score => 1.0,
+    p_limit => 200
+  );
+  if exists (select 1 from jsonb_array_elements(v_result->'results') item
+              where item->>'filename' = 'alpha.jpg') then
+    raise exception 'contract 12: an unreachable semantic floor did not exclude the semantic-only document';
+  end if;
+  if not exists (select 1 from jsonb_array_elements(v_result->'results') item
+                  where item->>'style_guide_file_id' = '25060000-0000-4000-8000-000000000011') then
+    raise exception 'contract 12: the semantic floor wrongly removed a keyword hit';
   end if;
 
   execute 'set local role authenticated';

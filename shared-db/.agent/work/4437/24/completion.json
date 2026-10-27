@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "work_issue": 4437,
+  "outcome": "ready-for-merge",
+  "pr": 4908,
+  "migration_versions": [
+    "20261027183509"
+  ],
+  "contract_ref": "refs/db-contracts/4437/24",
+  "contract_sha256": "4ac7308d537d6710e4b3e0f5918ae686bf954afe4b90cb026a7cfe680167583e",
+  "head_sha": "c37b7ec4ae5d38c2befd53766196fe7ddeb85a5b",
+  "base_sha": "46b7b525d90b9569c6b57fd88601eee0ec7159fe",
+  "files_changed": [
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261027183509.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "supabase/migrations/20261027183509_popsg_semantic_search_stage2.sql",
+    "supabase/tests/popsg_parse_search_query_once_contracts.sql",
+    "supabase/tests/popsg_search_style_guide_library_v2_contracts.sql",
+    "supabase/tests/popsg_semantic_search_foundation_contracts.sql"
+  ],
+  "db_reads": [
+    "table public.style_guide_search_documents",
+    "table public.style_guide_files",
+    "table public.style_guide_render_queue",
+    "materialized view public.style_guide_library_default_summary",
+    "materialized view public.style_guide_library_default_guides",
+    "function public.has_app_access"
+  ],
+  "db_writes": [
+    "function public.search_style_guide_library_v2",
+    "function public.get_sg_search_embedding_status",
+    "table public.style_guide_search_documents",
+    "index public.idx_sg_search_documents_meter_embedded",
+    "index public.idx_sg_search_documents_meter_pending",
+    "index public.idx_sg_search_documents_meter_unidentified",
+    "index public.idx_sg_search_documents_meter_errored",
+    "index public.idx_sg_search_documents_meter_exhausted",
+    "index public.idx_sg_search_documents_meter_lease",
+    "index public.idx_sg_search_documents_meter_updated_at"
+  ],
+  "checks": [
+    {
+      "command": "database-contract-tests popsg_search_style_guide_library_v2_contracts.sql popsg_parse_search_query_once_contracts.sql",
+      "exit_code": 0,
+      "evidence": "Green in this PR's CI lineage (run 40502391466 at code head 0849b0652 and the same suites at later heads); the search-function half of the re-reserved file is byte-identical to what CI exercised. The full suite re-runs at the final head in this PR's CI."
+    },
+    {
+      "command": "database-contract-tests popsg_semantic_search_foundation_contracts.sql",
+      "exit_code": 0,
+      "evidence": "Foundation contracts 1-13 passed locally against a throwaway pgvector/pg17 container (contract 13 pins meter md5 0366a4d0bddee2c5a8b8f2d4ba73c69a, claim md5 1c6af615af8ecc225cbc57638bd4fd9c, all seven meter index predicates); CI re-runs them at the final head."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "Status OK, 95 sidecars, at the re-reserved version 20261027150858 after merging current main into the branch."
+    },
+    {
+      "command": "python3 -m unittest scripts/test_production_catalog_verification.py scripts/test_check_production_verification_sidecars.py",
+      "exit_code": 0,
+      "evidence": "278 tests OK locally after the merge of main."
+    },
+    {
+      "command": "local pgvector/pg17 equivalence proof: old meter vs new meter on a six-row fixture",
+      "exit_code": 0,
+      "evidence": "Identical jsonb for all ten buckets between the reviewed aggregate and the new split-count meter, including orphan/no-thumbnail left-join behavior and oldest/newest timestamps; the migration's baseline guard (cf3e8ebccc8074463a1d4f88cf241e86, read live from production) and verify guard (0366a4d0bddee2c5a8b8f2d4ba73c69a) both fired as designed against wrong bodies."
+    }
+  ],
+  "assumptions_resolved": [
+    "Production evidence at diagnosis (read-only admin-api): style_guide_search_documents 234,396 rows, 72,496 embedded, heap 460 MB, total 1175 MB; style_guide_files 303,335 with thumbnail / 35,657 without; the meter's single aggregate read the embedding column of every row each call (pg_stat_activity showed DataFileRead IO waits, no lock pileup), and the claim CTE misplanned to a seq-scan + sort once (09:19Z).",
+    "Main advanced repeatedly during review; the lane's claim-version supersession (durable evidence 32396685580342cd328ab67755e4f5ba578f5ae2, tool-created rename commit 7f94422df) re-reserved 20261027061216 as 20261027150858 with SQL bytes otherwise unchanged (a hand rename attempt was reverted because the supersession must be lane-driven); current main is then merged into the branch (02d9a84f, no conflicts) so the PR diff and the pull-request API recover from HTTP 422 (diff too heavy) and the branch is fresh against main.",
+    "The durable APPROVE at superseded head 74e685db (muse, seq 7282, artifact 38f17b0764e08d7261a9a817f57a712cd170d8aa, production-risk-assessment/v2 for the old allowlist) does not carry to the renamed/merged head; a fresh review is drawn at the final head with the allowlist 20261027150858.",
+    "Claim #4820 covers all objects across both stages plus the seven meter indexes at the re-reserved version; issue #4437 db-work-scope writes equals the PR's parsed objects exactly; the table moved from reads to writes (a write implies exclusive access).",
+    "Reviewer machinery history on this PR: 7271 (deepseek) stopped pre-launch and honestly released; 7272/7280 (stepfun) provider silent-start twice, replaced each time with immutable evidence; 7274 (muse) completed with APPROVE but the runner refused recording (operator omitted --replacement-sequence; pool re-runs refused by design; silence reclaim 2h-gated), released honestly as review_target_superseded when the head moved for the incident fix; 7282 (muse) recorded the durable APPROVE that the version re-reservation then superseded.",
+    "The production business-risk gate derives all three classes (expected_downtime, material_access_change, permanent_data_rewrite_or_loss) for this migration (verified locally with the classifier), and the fresh governed review at the final head carries the pre-merge production-risk fold for exactly that class set and the allowlist 20261027150858.",
+    "After merging current main (02d9a84f), the PR merge base moved to 24f879e9; generation 21 re-anchors the pair to that merge base per the #2845 rule, and the pair sits at the branch tail above the generation-20 retire commit dd40edde2.",
+    "Second re-reservation 20261027150858 \u2192 20261027183509 (supersession 19672fa097e935f82b0028ffb40f215deedd161e) after main advanced to migration 20261027155655; implementation head c37b7ec4a merges current main 46b7b525d and carries no evidence files (refresh shape), so the pair's diff against its base is exactly the nine changed files."
+  ],
+  "stop_conditions_hit": []
+}
