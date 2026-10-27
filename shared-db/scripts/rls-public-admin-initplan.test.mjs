@@ -87,8 +87,34 @@ test('retained historical runtime evidence matches its archived SQL and complete
   }
 })
 
-test('current batched runtime evidence binds the complete current source and plan matrix', () => {
-  const base = new URL('../docs/verification/rls-initplan/4427/batched-20261025/', import.meta.url)
+// 2026-10-26: the batched binding is parameterized over every retained batch.
+// batched-20261025 ran the source now archived at batched-20261025/source-runtime-test.sql
+// (its live file changed with PR #4863's malformed-subject two-legal-outcomes compare);
+// batched-20261026 binds the live source from the green run of that exact change.
+const resolveRuntimeSourceHead = (evidence, summary, correction, hashes) => {
+  if (!correction) {
+    assert.match(evidence.tested_head, /^[a-f0-9]{40}$/)
+    return evidence.tested_head
+  }
+  assert.equal(correction.schema_version, 1)
+  assert.equal(correction.original_tested_head, evidence.tested_head)
+  assert.equal(summary.tested_head, evidence.tested_head)
+  assert.match(correction.corrected_tested_head, /^[a-f0-9]{40}$/)
+  assert.equal(correction.retained_compressed_sha256, hashes.compressed)
+  assert.equal(correction.retained_uncompressed_sha256, hashes.uncompressed)
+  assert.equal(correction.run.id, evidence.ci_run_id)
+  assert.equal(correction.run.head_sha, correction.corrected_tested_head)
+  assert.equal(correction.run.conclusion, 'success')
+  assert.equal(correction.artifact.id, evidence.provenance.artifact_id)
+  assert.equal(correction.artifact.digest, evidence.provenance.artifact_digest)
+  assert.equal(correction.artifact.workflow_run.id, correction.run.id)
+  assert.equal(correction.artifact.workflow_run.head_sha, correction.run.head_sha)
+  assert.deepEqual(correction.source_sha256, evidence.source_sha256)
+  return correction.corrected_tested_head
+}
+
+const verifyBatchedRuntimeEvidence = ({ dir, ciRunId, testedHead, artifactId, artifactDigest, rawLogSha256, runAttempt, testPath, corrected = false }) => {
+  const base = new URL('../docs/verification/rls-initplan/4427/' + dir + '/', import.meta.url)
   const summary = JSON.parse(readFileSync(new URL('source-runtime-summary.json', base)))
   const packed = readFileSync(new URL('source-runtime-evidence.json.gz', base))
   const raw = gunzipSync(packed)
@@ -100,21 +126,29 @@ test('current batched runtime evidence binds the complete current source and pla
     'supabase/migrations/20261021190604_public_admin_rls_initplans.sql',
     'supabase/tests/rls_public_admin_initplan_contracts.sql',
   ]
-  assert.equal(evidence.ci_run_id, 40231840088)
-  assert.equal(evidence.tested_head, 'feca7cdb0f1fcb0dc4601a2383a9adcfd1508a12')
+  assert.equal(evidence.ci_run_id, ciRunId)
+  const correction = corrected ? JSON.parse(readFileSync(new URL('source-head-correction.json', base))) : null
+  const sourceHead = resolveRuntimeSourceHead(evidence, summary, correction, {
+    compressed: hash(packed), uncompressed: hash(raw),
+  })
+  assert.equal(sourceHead, testedHead)
+  if (correction) assert.equal(correction.run.run_attempt, runAttempt)
   assert.equal(summary.ci_run_id, evidence.ci_run_id)
   assert.equal(summary.tested_head, evidence.tested_head)
   assert.deepEqual(Object.keys(evidence.source_sha256).sort(), sourceFiles)
   assert.deepEqual(evidence.source_sha256, summary.source_sha256)
   for (const file of sourceFiles) {
-    assert.equal(hash(readFileSync(new URL('../' + file, import.meta.url))), evidence.source_sha256[file], file)
+    const onDisk = file === 'supabase/tests/rls_public_admin_initplan_contracts.sql' && testPath
+      ? 'docs/verification/rls-initplan/4427/' + dir + '/source-runtime-test.sql'
+      : file
+    assert.equal(hash(readFileSync(new URL('../' + onDisk, import.meta.url))), evidence.source_sha256[file], file)
   }
   assert.equal(evidence.production_proof, false)
   assert.equal(summary.production_proof, false)
   assert.deepEqual(summary.provenance, evidence.provenance)
-  assert.equal(evidence.provenance.raw_log_sha256, '5479ff706e85ce50a9c2883828916c0316d4a2b49d40adb2612d3fde7e740d13')
-  assert.equal(evidence.provenance.artifact_id, 12613812802)
-  assert.equal(evidence.provenance.artifact_digest, 'sha256:304c204ffe6205c714c9ba85b8485aa75c6885ac8e54ecaffda0a648cdfaf035')
+  assert.equal(evidence.provenance.raw_log_sha256, rawLogSha256)
+  assert.equal(evidence.provenance.artifact_id, artifactId)
+  assert.equal(evidence.provenance.artifact_digest, artifactDigest)
 
   assert.equal(evidence.access.length, 2124)
   const outcomes = new Map(evidence.access.map(row => [row.phase + ':' + row.context + ':' + row.probe, row.result]))
@@ -172,6 +206,33 @@ test('current batched runtime evidence binds the complete current source and pla
   assert.equal(candidateStats.every(([, stats]) => stats.loops_above_1 === 0 && stats.loops_equal_1 === stats.initplans), true)
   assert.equal(Object.entries(initplanStats).filter(([name]) => name.startsWith('original '))
     .every(([, stats]) => stats.initplans === 0), true)
+}
+
+test('retained batched 20261025 runtime evidence binds its archived source and complete plan matrix', () => {
+  verifyBatchedRuntimeEvidence({
+    dir: 'batched-20261025',
+    ciRunId: 40231840088,
+    testedHead: 'feca7cdb0f1fcb0dc4601a2383a9adcfd1508a12',
+    artifactId: 12613812802,
+    artifactDigest: 'sha256:304c204ffe6205c714c9ba85b8485aa75c6885ac8e54ecaffda0a648cdfaf035',
+    rawLogSha256: '5479ff706e85ce50a9c2883828916c0316d4a2b49d40adb2612d3fde7e740d13',
+    runAttempt: 1,
+    testPath: 'archived',
+  })
+})
+
+test('current batched 20261026 runtime evidence binds the complete current source and plan matrix', () => {
+  verifyBatchedRuntimeEvidence({
+    dir: 'batched-20261026',
+    ciRunId: 40430518093,
+    testedHead: '96e0e2c6eef870bdd264933785b4975883706466',
+    corrected: true,
+    artifactId: 12701977834,
+    artifactDigest: 'sha256:85753968d8d79ea0e11c88fc6559ddedb4f348590f6f2211730f44a38feafa4a',
+    rawLogSha256: '3be1539ab04fa246a622c36a778ea3402c98c276fb6da40d4a23490420aa2db3',
+    runAttempt: 2,
+    testPath: null,
+  })
 })
 
 test('automatic live probe binds the complete installed catalog without authorizing closure', () => {
@@ -209,4 +270,29 @@ test('required offline CI executes the admin qualification suite on engineering 
   assert.match(step, /^        if: steps\.route\.outputs\.pure_prose != 'true'$/m)
   assert.match(step, /set -euo pipefail\n          node --test scripts\/rls-public-admin-initplan\.test\.mjs\n/)
   assert.doesNotMatch(step, /continue-on-error|\|\| true/)
+})
+
+
+test('runtime source identity rejects malformed SHAs and unrelated correction metadata', () => {
+  const base = new URL('../docs/verification/rls-initplan/4427/batched-20261026/', import.meta.url)
+  const packed = readFileSync(new URL('source-runtime-evidence.json.gz', base))
+  const raw = gunzipSync(packed)
+  const evidence = JSON.parse(raw)
+  const summary = JSON.parse(readFileSync(new URL('source-runtime-summary.json', base)))
+  const correction = JSON.parse(readFileSync(new URL('source-head-correction.json', base)))
+  const hashes = { compressed: createHash('sha256').update(packed).digest('hex'), uncompressed: createHash('sha256').update(raw).digest('hex') }
+  assert.throws(() => resolveRuntimeSourceHead(evidence, summary, null, hashes))
+  for (const mutate of [
+    c => { c.corrected_tested_head = evidence.tested_head },
+    c => { c.run.head_sha = '0'.repeat(40) },
+    c => { c.artifact.workflow_run.id += 1 },
+    c => { c.artifact.workflow_run.head_sha = '0'.repeat(40) },
+    c => { c.artifact.digest = 'sha256:' + '0'.repeat(64) },
+    c => { c.retained_uncompressed_sha256 = '0'.repeat(64) },
+    c => { c.source_sha256 = {} },
+  ]) {
+    const invalid = structuredClone(correction)
+    mutate(invalid)
+    assert.throws(() => resolveRuntimeSourceHead(evidence, summary, invalid, hashes))
+  }
 })

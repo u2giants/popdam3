@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "ci_run_id": 40430518093,
+  "tested_head": "96e0e2c6eef870bdd933785b4975883706466",
+  "source_sha256": {
+    "supabase/migrations/20261021190604_public_admin_rls_initplans.sql": "436f304ae74922d3543f7da2f9b1127abf5e4050ab267314636bb5bdd9220300",
+    "supabase/tests/rls_public_admin_initplan_contracts.sql": "166a1d7cae922b27c229c31162b612ccb1957a27440806681a15677151354667"
+  },
+  "compressed_sha256": "ed7b7f0b808e4a75c48e7148273c606364ad4b0154d267bee2e9ce531c827a21",
+  "uncompressed_sha256": "a99124247a7058d2058aff61cc7b43c7409a6feb247284b389321da7fcff3d19",
+  "initplan_execution_counts": {
+    "candidate admin_config DELETE": {
+      "samples": 33,
+      "initplans": 66,
+      "loops_equal_1": 66,
+      "loops_above_1": 0
+    },
+    "original admin_config DELETE": {
+      "samples": 33,
+      "initplans": 0,
+      "loops_equal_1": 0,
+      "loops_above_1": 0
+    },
+    "candidate admin_config INSERT": {
+      "samples": 33,
+      "initplans": 66,
+      "loops_equal_1": 66,
+      "loops_above_1": 0
+    },
+    "original admin_config INSERT": {
+      "samples": 33,
+      "initplans": 0,
+      "loops_equal_1": 0,
+      "loops_above_1": 0
+    },
+    "candidate admin_config UPDATE": {
+      "samples": 33,
+      "initplans": 132,
+      "loops_equal_1": 132,
+      "loops_above_1": 0
+    },
+    "original admin_config UPDATE": {
+      "samples": 33,
+      "initplans": 0,
+      "loops_equal_1": 0,
+      "loops_above_1": 0
+    }
+  },
+  "provenance": {
+    "artifact_id": 12701977834,
+    "artifact_digest": "sha256:85753968d8d79ea0e11c88fc6559ddedb4f348590f6f2211730f44a38feafa4a",
+    "raw_log_sha256": "3be1539ab04fa246a622c36a778ea3402c98c276fb6da40d4a23490420aa2db3",
+    "workflow": ".github/workflows/database-contract-tests.yml",
+    "event": "pull_request",
+    "run_attempt": 2
+  },
+  "access_outcomes": 2124,
+  "performance_samples": 198,
+  "production_proof": false
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reason": "Retained evidence omitted 264 from tested_head during transcription. Original evidence bytes remain unchanged. GitHub run and artifact metadata independently identify the full source commit.",
+  "retained_compressed_sha256": "ed7b7f0b808e4a75c48e7148273c606364ad4b0154d267bee2e9ce531c827a21",
+  "retained_uncompressed_sha256": "a99124247a7058d2058aff61cc7b43c7409a6feb247284b389321da7fcff3d19",
+  "original_tested_head": "96e0e2c6eef870bdd933785b4975883706466",
+  "corrected_tested_head": "96e0e2c6eef870bdd264933785b4975883706466",
+  "run": {
+    "id": 40430518093,
+    "run_attempt": 2,
+    "head_sha": "96e0e2c6eef870bdd264933785b4975883706466",
+    "conclusion": "success"
+  },
+  "artifact": {
+    "id": 12701977834,
+    "digest": "sha256:85753968d8d79ea0e11c88fc6559ddedb4f348590f6f2211730f44a38feafa4a",
+    "workflow_run": {
+      "id": 40430518093,
+      "head_sha": "96e0e2c6eef870bdd264933785b4975883706466",
+      "repository_id": 1275568548
+    }
+  },
+  "source_sha256": {
+    "supabase/migrations/20261021190604_public_admin_rls_initplans.sql": "436f304ae74922d3543f7da2f9b1127abf5e4050ab267314636bb5bdd9220300",
+    "supabase/tests/rls_public_admin_initplan_contracts.sql": "166a1d7cae922b27c229c31162b612ccb1957a27440806681a15677151354667"
+  }
+}

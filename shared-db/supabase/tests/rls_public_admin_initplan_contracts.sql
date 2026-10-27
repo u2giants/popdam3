@@ -550,10 +550,30 @@ begin
  end loop;
  -- Compare exact results and exact SQLSTATE, including malformed subject behavior.
  if (select count(*) from rls4427_results)<>12*((select count(*) from rls4427_cases)+2) then raise exception '4427 probe coverage incomplete'; end if;
+ -- EXCEPTION, proven 2026-10-26 (PR #4819 merge groups; pure-main diagnostic runs
+ -- 40424613625 and 40425757150): permissive policies are OR-combined and PostgreSQL
+ -- does not specify OR-term evaluation order. admin_config's SELECT union pairs
+ -- "Authenticated read non-secret admin_config" (key regex, no auth.uid()) with
+ -- "Admin read all admin_config" (has_role(auth.uid(),...)). Under a malformed
+ -- subject the same policy set legally either returns the public row (regex arm
+ -- decided first) or fails casting the subject (22P02, admin arm first); which
+ -- one happens tracks plan shape, not policy semantics, and flipped between the
+ -- before/after phases on some runners while byte-identical trees passed on
+ -- others. Strict before/after equality over-promises on that one cell, so it is
+ -- compared against its two legal outcomes instead. Every other cell stays
+ -- strictly equal, and this cell still refuses anything outside the two outcomes.
  if exists(select 1 from (select context,probe,result from rls4427_results where phase='original') b
  full join (select context,probe,result from rls4427_results where phase='candidate') a
- using(context,probe) where b.result is distinct from a.result) then
+ using(context,probe) where b.result is distinct from a.result
+  and not (coalesce(b.context,a.context)='malformed_subject'
+   and coalesce(b.probe,a.probe)='config_public_union_read')) then
   raise exception '4427 before/after result or SQLSTATE differs';
+ end if;
+ if exists(select 1 from rls4427_results
+  where context='malformed_subject' and probe='config_public_union_read'
+  and result is distinct from jsonb_build_object('sqlstate','00000','result',jsonb_build_object('count',1))
+  and result->>'sqlstate' is distinct from '22P02') then
+  raise exception '4427 malformed-subject public-config read outside its two legal outcomes';
  end if;
 -- STRICT positive control: every operational admin DML must affect1 row.
 -- plm legacy identity has onlySELECT policy and is intentionally negative DML.

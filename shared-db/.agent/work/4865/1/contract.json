@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 4865,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Import preserved existing4863/c9434f833 RLS harness and additive provenance correction into correctly routed maintenance delivery",
+  "base_sha": "b0b12669199da42c476a231fbd9cdb72e4d8d702",
+  "dispatcher": "Codex parent session 01a17a03-63b6-7081-ab54-29fa144bf678",
+  "worker": "codex subagent 01a17b07-1191-7fa2-ac52-734ad1b02932",
+  "branch": "codex/4865-rls-contract-provenance",
+  "worktree": "/tmp/shared-db-4865",
+  "allowed_paths": [
+    "supabase/tests/rls_public_admin_initplan_contracts.sql",
+    "scripts/rls-public-admin-initplan.test.mjs",
+    "docs/verification/rls-initplan/4427/**"
+  ],
+  "file_writes": [
+    "supabase/tests/rls_public_admin_initplan_contracts.sql",
+    "scripts/rls-public-admin-initplan.test.mjs",
+    "docs/verification/rls-initplan/4427/**"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No shared preview or production mutation",
+    "No migrations, policy capability changes, gate bypass, assertion weakening, or quarantine",
+    "No merge or foreign claim changes"
+  ],
+  "required_checks": [
+    "node --test scripts/rls-public-admin-initplan.test.mjs",
+    "bash scripts/check-sql.sh",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Source already exists before this successor contract: PR4863 at8acd3e4e; provenance correction c9434f833 prepared under4427 generation22. This contract precedes import, not original creation.",
+    "No database objects, structural claim or migration version are consumed"
+  ],
+  "stop_conditions": [
+    "Actual schema/security decision needed",
+    "Cannot preserve exact assertion coverage"
+  ],
+  "generation": 1
+}

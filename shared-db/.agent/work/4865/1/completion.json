@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "work_issue": 4865,
+  "outcome": "ready-for-merge",
+  "pr": 4866,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4865/1",
+  "contract_sha256": "3121af9695641c0db8bce3a6ba9e1b2686d08aad611fb954d2f8671cd4194af6",
+  "head_sha": "bbc4b02d8b9fe550cf131c45a49ba127e33d62fb",
+  "base_sha": "b0b12669199da42c476a231fbd9cdb72e4d8d702",
+  "files_changed": [
+    "docs/verification/rls-initplan/4427/batched-20261025/source-runtime-test.sql",
+    "docs/verification/rls-initplan/4427/batched-20261026/source-head-correction.json",
+    "docs/verification/rls-initplan/4427/batched-20261026/source-runtime-evidence.json.gz",
+    "docs/verification/rls-initplan/4427/batched-20261026/source-runtime-summary.json",
+    "docs/verification/rls-initplan/4427/batched-20261026/verification.md",
+    "scripts/rls-public-admin-initplan.test.mjs",
+    "supabase/tests/rls_public_admin_initplan_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/rls-public-admin-initplan.test.mjs",
+      "exit_code": 0,
+      "evidence": "9 passed,0 failed; includes negative full-SHA and wrong-run/artifact tests"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards pass; no new migrations; no shared database mutation"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors in implementation against upstream base"
+    }
+  ],
+  "assumptions_resolved": [
+    "Imported original4863 source and c9434f833 correction under pre-import contract; original artifacts unchanged",
+    "GitHub run40430518093 attempt2 and artifact12701977834 both independently report corrected full40char source SHA; actual git source file hashes match retained evidence",
+    "No structural claim or database mutation; maintenance issue4865 owns publication only.4427 live acceptance unchanged."
+  ],
+  "stop_conditions_hit": []
+}
