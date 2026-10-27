@@ -59,6 +59,18 @@ Google line with a blank quantity whose PO + style already exists in ColdLion
 duplicates on PO 62011483 were deleted (backup kept privately). A dry run after
 both changes inserts nothing.
 
+## ColdLion pack-variant reference
+
+Unfinished correction work and the superseded cancellation interpretation are
+recorded in the [current continuation handoff](https://github.com/popcre/shared-db/blob/codex/dim-code-business-meaning/HANDOFF.d/2026-10-27T1823Z-hetz-codex-coldlion-casepack-closeout.md).
+
+Business meaning and the EDI multiplier caution are maintained in the canonical
+[ERP source-meaning topic: Dim Codes, pack variants, and possible EDI multipliers](https://github.com/popcre/shared-db/blob/main/docs/business-rules/erp-orders-and-source-meaning.md#dim-codes-pack-variants-and-possible-edi-multipliers).
+For implementation, the current item-detail landing projection omits Dim Code,
+while production details retain it. The live API can be newer than the saved
+landing snapshot. Reconciliation and live proof remain on PopDAM #527 and
+shared-db #4858; do not close them based on documentation alone.
+
 ## Database contract
 
 All objects are owned by canonical `popcre/shared-db`. Nothing here may be changed from
