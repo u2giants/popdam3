@@ -32,6 +32,7 @@ import { handlePopSGFileTags, processPendingPopSGTags } from "./handlers/popsg-t
 import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleEmbedSgSearch } from "./handlers/embed-sg-search.js";
+import { handleImageEmbedBackfill } from "./handlers/image-embed-backfill.js";
 import { handleReprocessMetadata } from "./handlers/metadata-reprocess.js";
 import { isDeepStrictEqual } from "node:util";
 import { withDependencyTimeout } from "./bounded-dependency.js";
@@ -442,6 +443,7 @@ const OP_LANES: Record<string, string> = {
   "tag-popsg-files": "popsg-tags",
   "rich-pdf-extract": "rich-pdf",
   "embed-dam-search": "search-index",
+  "rebuild-image-vectors": "embed",
 };
 
 // Cross-lane conflicts — operations in DIFFERENT lanes that still cannot run simultaneously.
@@ -452,7 +454,7 @@ const OP_LANES: Record<string, string> = {
 //   src/components/settings/diagnostics/types.ts       (UI pre-flight check)
 const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
   "ai-tag-untagged":      ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-all":           ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
+  "ai-tag-all":           ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata", "rebuild-image-vectors"],
   "ai-tag-groups":        ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
   "ai-tag-parallel":        ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
   "ai-tag-group-profiles": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "refresh-group-metadata"],
@@ -464,6 +466,7 @@ const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
   "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "erp-enrichment", "ai-tag-group-profiles"],
   "backfill-sku-names":   ["erp-enrichment"],
   "erp-enrichment":       ["reprocess-metadata", "backfill-sku-names"],
+  "rebuild-image-vectors": ["ai-tag-all"],
 };
 
 export function runningTagConflict(opKey: string, running: Iterable<string>): boolean {
@@ -684,6 +687,19 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         pending_documents: (batch.pending_documents as number) ?? (prev.pending_documents as number) ?? 0,
         exhausted_documents: (batch.exhausted_documents as number) ?? (prev.exhausted_documents as number) ?? 0,
       };
+    case "rebuild-image-vectors": {
+      const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples as unknown[] : [];
+      const batchFail = Array.isArray(batch.failure_samples) ? batch.failure_samples as unknown[] : [];
+      return {
+        stale_found: ((prev.stale_found as number) || 0) + ((batch.stale_found as number) || 0),
+        enqueued: ((prev.enqueued as number) || 0) + ((batch.enqueued as number) || 0),
+        failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
+        failure_samples: [...prevFail, ...batchFail].slice(-100),
+        // Last-write-wins snapshot from the handler's final (exhausted) batch.
+        image_embed_status: (batch.image_embed_status as Record<string, unknown>)
+          ?? (prev.image_embed_status as Record<string, unknown>),
+      };
+    }
     default:
       return { ...prev, ...batch };
   }
@@ -908,6 +924,8 @@ export async function dispatch(opKey: string, opState: OpState): Promise<BatchRe
       return handleEmbedSearch(opState);
     case "sg-embed-search":
       return handleEmbedSgSearch(opState);
+    case "rebuild-image-vectors":
+      return handleImageEmbedBackfill(opState);
     case "reprocess-metadata":
       return handleReprocessMetadata(opState);
     default:

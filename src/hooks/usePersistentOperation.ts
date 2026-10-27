@@ -62,6 +62,8 @@ export function isResumableOperationCursor(operationKey: string, cursor: unknown
   }
   // Fill-missing-licensing reprocessing keysets by assets.id; resume keeps its params.
   if (operationKey === "reprocess-metadata" && typeof cursor === "string") return UUID_CURSOR_RE.test(cursor);
+  // Image-embed backfill keysets its stale-asset enumeration by assets.id.
+  if (operationKey === "rebuild-image-vectors" && typeof cursor === "string") return UUID_CURSOR_RE.test(cursor);
   if (operationKey === "tag-popsg-files") {
     return typeof cursor === "string"
       && (UUID_CURSOR_RE.test(cursor) || POPSG_CONSENSUS_CURSOR_RE.test(cursor));
