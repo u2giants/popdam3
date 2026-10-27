@@ -18,6 +18,9 @@ export function compareInventory(expected,actual) {
   requireOK(JSON.stringify(Object.keys(expected).sort())===JSON.stringify(Object.keys(actual).sort()));
   for(const [name,hash]of Object.entries(expected)) requireOK(/^[a-f0-9]{64}$/.test(hash)&&actual[name]===hash);
 }
+export function requirePackageIdentity(name,metadata) {
+  requireOK(['playwright','playwright-core'].includes(name)&&metadata.name===name&&metadata.version==='1.56.1');
+}
 function inventory(root) {
   const result={};
   const visit=dir=>{
@@ -39,7 +42,7 @@ export function validateBrowserCustody(env=process.env) {
   requireOK(Object.keys(m.packages).sort().join(',')==='playwright,playwright-core');
   for(const name of ['playwright','playwright-core']) {
     const root=path.join(m.runtime_root,name);
-    requireOK(m.packages[name].version==='1.56.1'&&JSON.parse(fs.readFileSync(path.join(root,'package.json'))).version==='1.56.1');
+    requireOK(m.packages[name].version==='1.56.1');requirePackageIdentity(name,JSON.parse(fs.readFileSync(path.join(root,'package.json'))));
     compareInventory(m.packages[name].files,inventory(root));
   }
   for(const file of [CHROME,'/opt/google/chrome','/opt/google','/opt']) {safeMetadata(fs.lstatSync(file),{rootOwned:true});requireOK(fs.realpathSync(file)===file);}

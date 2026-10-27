@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import { mkdir, open, lstat, realpath } from 'node:fs/promises';
 import { isAbsolute, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,9 +41,6 @@ export async function run(env = process.env, fixture = null) {
   if (!/^[a-f0-9]{40}$/.test(env.DEPLOYED_FRONTEND_SHA || '')) throw new Error('build binding');
   if (!isAbsolute(env.POPDAM_PLAYWRIGHT_PACKAGE || '') || !isAbsolute(env.POPDAM_PROOF_FILE || '')) throw new Error('private paths');
   browserEnvironment(env);
-  const require = createRequire(import.meta.url);
-  const runtime = require(resolve(env.POPDAM_PLAYWRIGHT_PACKAGE, 'package.json'));
-  if (runtime.name !== 'playwright' || runtime.version !== '1.56.1') throw new Error('app runtime pin');
   const report = { schema_version: 1, issue: 4427, passed: false, target: ORIGIN, project: HOST.split('.')[0],
     deployed_frontend_sha: env.DEPLOYED_FRONTEND_SHA, password_login: false, library_read: false,
     library_reloaded: false, library_rendered: false, logout: false, context_closed: false, browser_closed: false, blocked_requests: 0, blocked_hostnames: [] };

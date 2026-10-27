@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {BROWSER_PACKAGE,rejectBrowserOverrides,safeMetadata,compareInventory,fixedBrowserEnvironment} from './rls-browser-custody.mjs';
+import {BROWSER_PACKAGE,rejectBrowserOverrides,safeMetadata,compareInventory,fixedBrowserEnvironment,requirePackageIdentity} from './rls-browser-custody.mjs';
 import {requireSmokeEnvironment} from './rls-browser-smoke.mjs';
 import {browserEnvironment,run} from './rls-library-live-proof.mjs';
 const hash='a'.repeat(64);
@@ -11,6 +11,10 @@ test('package inventory rejects changed, missing, extra and malformed bytes',()=
   compareInventory({'package.json':hash},{'package.json':hash});
   for(const actual of [{},{'package.json':'b'.repeat(64)},{'package.json':hash,extra:hash}]) assert.throws(()=>compareInventory({'package.json':hash},actual));
   assert.throws(()=>compareInventory({'package.json':'wrong'},{'package.json':'wrong'}));
+});
+test('app package identity refuses another name or version rather than upgrading',()=>{
+  requirePackageIdentity('playwright',{name:'playwright',version:'1.56.1'});
+  for(const metadata of [{name:'playwright',version:'1.62.1'},{name:'other',version:'1.56.1'}])assert.throws(()=>requirePackageIdentity('playwright',metadata));
 });
 test('custody rejects foreign-owned/writable/symlink metadata and non-root Chrome',()=>{
   const metadata=(overrides={})=>({uid:process.getuid(),mode:0o100644,isFile:()=>true,isDirectory:()=>false,isSymbolicLink:()=>false,...overrides});
